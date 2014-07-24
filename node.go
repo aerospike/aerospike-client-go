@@ -21,8 +21,8 @@ import (
 	"sync"
 	"time"
 
-	. "github.com/citrusleaf/go-client/logger"
-	. "github.com/citrusleaf/go-client/types/atomic"
+	. "github.com/citrusleaf/aerospike-client-go/logger"
+	. "github.com/citrusleaf/aerospike-client-go/types/atomic"
 )
 
 const (

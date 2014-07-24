@@ -28,8 +28,8 @@ import (
 	"sync"
 	"time"
 
-	. "github.com/citrusleaf/go-client"
-	. "github.com/citrusleaf/go-client/logger"
+	. "github.com/citrusleaf/aerospike-client-go"
+	. "github.com/citrusleaf/aerospike-client-go/logger"
 )
 
 type TStats struct {

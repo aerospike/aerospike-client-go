@@ -19,10 +19,10 @@ import (
 	"strconv"
 	"strings"
 
-	// . "github.com/citrusleaf/go-client/logger"
+	// . "github.com/citrusleaf/aerospike-client-go/logger"
 
-	. "github.com/citrusleaf/go-client/types"
-	Buffer "github.com/citrusleaf/go-client/utils/buffer"
+	. "github.com/citrusleaf/aerospike-client-go/types"
+	Buffer "github.com/citrusleaf/aerospike-client-go/utils/buffer"
 )
 
 type ReadCommand struct {
@@ -69,7 +69,7 @@ func (this *ReadCommand) parseResult(ifc Command, conn *Connection) error {
 	headerLength := int(this.dataBuffer[8])
 	resultCode := ResultCode(this.dataBuffer[13] & 0xFF)
 	generation := int(Buffer.BytesToInt32(this.dataBuffer, 14))
-	expiration := int(Buffer.BytesToInt32(this.dataBuffer, 18))
+	expiration := TTL(int(Buffer.BytesToInt32(this.dataBuffer, 18)))
 	fieldCount := int(Buffer.BytesToInt16(this.dataBuffer, 26)) // almost certainly 0
 	opCount := int(Buffer.BytesToInt16(this.dataBuffer, 28))
 	receiveSize := int(Buffer.MsgLenFromBytes(this.dataBuffer[2:]) - int64(headerLength))

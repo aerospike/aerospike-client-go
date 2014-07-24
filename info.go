@@ -19,8 +19,8 @@ import (
 	"encoding/binary"
 	"strings"
 
-	. "github.com/citrusleaf/go-client/logger"
-	. "github.com/citrusleaf/go-client/types"
+	. "github.com/citrusleaf/aerospike-client-go/logger"
+	. "github.com/citrusleaf/aerospike-client-go/types"
 )
 
 const (

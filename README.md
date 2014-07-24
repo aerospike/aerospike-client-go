@@ -1,4 +1,4 @@
-# Aerospike Go Client [![Build Status](https://magnum.travis-ci.com/citrusleaf/go-client.svg?token=1yyz7BA7ChsFkpHDyZwW&branch=master)](https://magnum.travis-ci.com/citrusleaf/go-client)
+# Aerospike Go Client [![Build Status](https://magnum.travis-ci.com/citrusleaf/aerospike-client-go.svg?token=1yyz7BA7ChsFkpHDyZwW&branch=master)](https://magnum.travis-ci.com/citrusleaf/aerospike-client-go)
 
 An Aerospike library for Go.
 
@@ -9,6 +9,7 @@ This library is compatible with Go 1.2+ and supports the following operating sys
 - [Installation](#Installation)
 - [Tests](#Tests)
 - [Examples](#Examples)
+  - [Tools](#Tools)
 - [Benchmarks](#Benchmarks)
 - [API Documentaion](#API-Documentation)
 
@@ -23,7 +24,7 @@ package main
 import (
   "fmt"
 
-  . "github.com/citrusleaf/go-client"
+  . "github.com/citrusleaf/aerospike-client-go"
 )
 
 func panicOnError(err error) {
@@ -91,8 +92,8 @@ Supported operating systems:
 ## Installation:
 
 1. Install Go 1.2+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH)
-2. Get the client in your ```GOPATH``` : ```go get github.com/citrusleaf/go-client```
-  * To update the client library: ```go get -u github.com/citrusleaf/go-client```
+2. Get the client in your ```GOPATH``` : ```go get github.com/citrusleaf/aerospike-client-go```
+  * To update the client library: ```go get -u github.com/citrusleaf/aerospike-client-go```
 
 ### Some Hints:
 
@@ -119,6 +120,12 @@ To run all the test cases with race detection:
 
 A variety of example applications are provided in the [`examples`](examples) directory.
 See the [`examples/README.md`](examples/README.md) for details.
+
+<a name="Tools"></a>
+### Tools
+
+A variety of clones of original tools are provided in the [`tools`](tools) directory.
+They show how to use more advanced features of the library to reimplement the same functionality in a more concise way.
 
 <a name="Benchmarks"></a>
 ## Benchmarks

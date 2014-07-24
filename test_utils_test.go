@@ -20,7 +20,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	// . "github.com/citrusleaf/go-client/logger"
+	// . "github.com/citrusleaf/aerospike-client-go/logger"
 )
 
 // generates a random string of specified length

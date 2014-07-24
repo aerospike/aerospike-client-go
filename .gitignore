@@ -1,0 +1,5 @@
+*.prof
+*.test
+*.coverprofile*
+tools/benchmark/benchmark
+tools/asinfo/asinfo

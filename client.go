@@ -18,7 +18,7 @@ import (
 	"errors"
 	"fmt"
 
-	// . "github.com/citrusleaf/go-client/logger"
+	// . "github.com/citrusleaf/aerospike-client-go/logger"
 )
 
 type Client struct {

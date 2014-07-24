@@ -15,7 +15,7 @@
 package aerospike
 
 import (
-	Buffer "github.com/citrusleaf/go-client/utils/buffer"
+	Buffer "github.com/citrusleaf/aerospike-client-go/utils/buffer"
 )
 
 type SingleCommand struct {

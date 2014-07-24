@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	// . "github.com/citrusleaf/go-client/logger"
+	// . "github.com/citrusleaf/aerospike-client-go/logger"
 )
 
 type MessageType uint8

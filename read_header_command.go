@@ -15,8 +15,8 @@
 package aerospike
 
 import (
-	. "github.com/citrusleaf/go-client/types"
-	Buffer "github.com/citrusleaf/go-client/utils/buffer"
+	. "github.com/citrusleaf/aerospike-client-go/types"
+	Buffer "github.com/citrusleaf/aerospike-client-go/utils/buffer"
 )
 
 type ReadHeaderCommand struct {
@@ -57,7 +57,7 @@ func (this *ReadHeaderCommand) parseResult(ifc Command, conn *Connection) error 
 
 	if resultCode == 0 {
 		generation := int(Buffer.BytesToInt32(this.dataBuffer, 14))
-		expiration := int(Buffer.BytesToInt32(this.dataBuffer, 18))
+		expiration := TTL(int(Buffer.BytesToInt32(this.dataBuffer, 18)))
 		this.record = NewRecord(nil, nil, generation, expiration)
 	} else {
 		if ResultCode(resultCode) == KEY_NOT_FOUND_ERROR {

@@ -17,10 +17,10 @@ package aerospike
 import (
 	"time"
 
-	. "github.com/citrusleaf/go-client/logger"
+	. "github.com/citrusleaf/aerospike-client-go/logger"
 
-	. "github.com/citrusleaf/go-client/types"
-	Buffer "github.com/citrusleaf/go-client/utils/buffer"
+	. "github.com/citrusleaf/aerospike-client-go/types"
+	Buffer "github.com/citrusleaf/aerospike-client-go/utils/buffer"
 )
 
 const (
@@ -659,7 +659,6 @@ func (this *BaseCommand) execute(ifc Command) error {
 			time.Sleep(policy.SleepBetweenRetries)
 		}
 
-		// try {
 		node, err := ifc.getNode(ifc)
 		if err != nil {
 			// Node is currently inactive.  Retry.
@@ -677,7 +676,6 @@ func (this *BaseCommand) execute(ifc Command) error {
 			continue
 		}
 
-		// try {
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
 		if err != nil {

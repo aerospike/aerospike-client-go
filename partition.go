@@ -17,7 +17,7 @@ package aerospike
 import (
 	"fmt"
 
-	Buffer "github.com/citrusleaf/go-client/utils/buffer"
+	Buffer "github.com/citrusleaf/aerospike-client-go/utils/buffer"
 )
 
 type Partition struct {

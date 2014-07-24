@@ -18,7 +18,7 @@ import (
 	"log"
 	"time"
 
-	. "github.com/citrusleaf/go-client"
+	. "github.com/citrusleaf/aerospike-client-go"
 )
 
 func main() {

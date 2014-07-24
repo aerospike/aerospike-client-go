@@ -17,7 +17,7 @@ package main
 import (
 	"fmt"
 
-	. "github.com/citrusleaf/go-client"
+	. "github.com/citrusleaf/aerospike-client-go"
 )
 
 type Person struct {

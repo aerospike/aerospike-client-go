@@ -19,9 +19,9 @@ import (
 	"math"
 	"reflect"
 
-	// . "github.com/citrusleaf/go-client/logger"
-	ParticleType "github.com/citrusleaf/go-client/types/particle_type"
-	Buffer "github.com/citrusleaf/go-client/utils/buffer"
+	// . "github.com/citrusleaf/aerospike-client-go/logger"
+	ParticleType "github.com/citrusleaf/aerospike-client-go/types/particle_type"
+	Buffer "github.com/citrusleaf/aerospike-client-go/utils/buffer"
 )
 
 type Packer struct {

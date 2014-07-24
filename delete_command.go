@@ -15,7 +15,7 @@
 package aerospike
 
 import (
-	. "github.com/citrusleaf/go-client/types"
+	. "github.com/citrusleaf/aerospike-client-go/types"
 )
 
 // guarantee DeleteCommand implements Command interface

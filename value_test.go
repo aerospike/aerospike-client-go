@@ -22,9 +22,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	. "github.com/citrusleaf/go-client"
-	ParticleType "github.com/citrusleaf/go-client/types/particle_type"
-	. "github.com/citrusleaf/go-client/utils/buffer"
+	. "github.com/citrusleaf/aerospike-client-go"
+	ParticleType "github.com/citrusleaf/aerospike-client-go/types/particle_type"
+	. "github.com/citrusleaf/aerospike-client-go/utils/buffer"
 )
 
 type testBLOB struct {

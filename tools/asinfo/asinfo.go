@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	apik "github.com/citrusleaf/go-client"
+	apik "github.com/citrusleaf/aerospike-client-go"
 )
 
 var host = flag.String("h", "127.0.0.1", "host (default 127.0.0.1)")

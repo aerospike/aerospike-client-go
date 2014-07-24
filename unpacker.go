@@ -15,10 +15,13 @@
 package aerospike
 
 import (
-	// . "github.com/citrusleaf/go-client/logger"
-	. "github.com/citrusleaf/go-client/types"
-	ParticleType "github.com/citrusleaf/go-client/types/particle_type"
-	Buffer "github.com/citrusleaf/go-client/utils/buffer"
+	"errors"
+	"fmt"
+
+	// . "github.com/citrusleaf/aerospike-client-go/logger"
+	. "github.com/citrusleaf/aerospike-client-go/types"
+	ParticleType "github.com/citrusleaf/aerospike-client-go/types/particle_type"
+	Buffer "github.com/citrusleaf/aerospike-client-go/utils/buffer"
 )
 
 type Unpacker struct {
@@ -40,7 +43,6 @@ func (this *Unpacker) UnpackList() ([]interface{}, error) {
 		return nil, nil
 	}
 
-	// try {
 	theType := this.buffer[this.offset] & 0xff
 	this.offset++
 	var count int
@@ -60,10 +62,6 @@ func (this *Unpacker) UnpackList() ([]interface{}, error) {
 	// Logger.Error("count %d, type: %x, %s", count, theType&0xf0, Buffer.BytesToHexString(this.buffer))
 
 	return this.unpackList(count)
-	// }
-	// catch (Exception e) {
-	//     throw new AerospikeException.Serialize(e);
-	// }
 }
 
 func (this *Unpacker) unpackList(count int) ([]interface{}, error) {
@@ -86,7 +84,6 @@ func (this *Unpacker) UnpackMap() (map[interface{}]interface{}, error) {
 		return nil, nil
 	}
 
-	// try {
 	theType := this.buffer[this.offset] & 0xff
 	this.offset++
 	var count int
@@ -103,10 +100,6 @@ func (this *Unpacker) UnpackMap() (map[interface{}]interface{}, error) {
 		return make(map[interface{}]interface{}), nil
 	}
 	return this.unpackMap(count)
-	// }
-	// catch (Exception e) {
-	//     throw new AerospikeException.Serialize(e);
-	// }
 }
 
 func (this *Unpacker) unpackMap(count int) (map[interface{}]interface{}, error) {
@@ -273,7 +266,7 @@ func (this *Unpacker) unpackObject() (interface{}, error) {
 			return int(theType - 0xe0 - 32), nil
 		}
 		// TODO: add the error or panic
-		//throw new IOException("Unknown this.unpack theType: " + theType);
+		panic(errors.New(fmt.Sprintf("Unknown this.unpack theType: %x", theType)))
 	}
 
 	return nil, SerializationErr()

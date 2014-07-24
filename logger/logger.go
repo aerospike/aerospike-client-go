@@ -16,21 +16,23 @@ package logger
 
 import (
 	"log"
-	"log/syslog"
 	"os"
 )
 
+type LogPriority int
+
 const (
-	DEBUG = syslog.LOG_DEBUG
-	INFO  = syslog.LOG_INFO
-	WARN  = syslog.LOG_WARNING
-	ERR   = syslog.LOG_ERR
+	DEBUG LogPriority = iota - 1
+	INFO
+	WARNING
+	ERR
+	OFF LogPriority = 999
 )
 
 type logger struct {
 	*log.Logger
 
-	level syslog.Priority
+	level LogPriority
 }
 
 var Logger = newLogger()
@@ -38,7 +40,7 @@ var Logger = newLogger()
 func newLogger() *logger {
 	return &logger{
 		Logger: log.New(os.Stdout, "", log.LstdFlags),
-		level:  syslog.LOG_ERR,
+		level:  OFF,
 	}
 }
 
@@ -48,30 +50,30 @@ func (this *logger) SetLogger(l *log.Logger) {
 }
 
 // Sets logging level. Default is ERR
-func (this *logger) SetLevel(level syslog.Priority) {
+func (this *logger) SetLevel(level LogPriority) {
 	this.level = level
 }
 
 func (this *logger) Debug(format string, v ...interface{}) {
-	if this.level >= syslog.LOG_DEBUG {
+	if this.level <= DEBUG {
 		this.Logger.Printf(format, v...)
 	}
 }
 
 func (this *logger) Info(format string, v ...interface{}) {
-	if this.level >= syslog.LOG_INFO {
+	if this.level <= INFO {
 		this.Logger.Printf(format, v...)
 	}
 }
 
 func (this *logger) Warn(format string, v ...interface{}) {
-	if this.level >= syslog.LOG_WARNING {
+	if this.level <= WARNING {
 		this.Logger.Printf(format, v...)
 	}
 }
 
 func (this *logger) Error(format string, v ...interface{}) {
-	if this.level >= syslog.LOG_ERR {
+	if this.level <= ERR {
 		this.Logger.Printf(format, v...)
 	}
 }

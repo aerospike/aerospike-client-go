@@ -28,19 +28,16 @@ type WritePolicy struct {
 
 	// Expected generation. Generation is the number of times a record has been modified
 	// (including creation) on the server. If a write operation is creating a record,
-	// the expected generation would be <code>0</code>.
+	// the expected generation would be 0
 	Generation int
 
 	// Record expiration. Also known as ttl (time to live).
 	// Seconds record will live before being removed by the server.
-	// <p>
 	// Expiration values:
-	// <ul>
-	// <li>-1: Never expire for Aerospike 2 server versions >= 2.7.2 and Aerospike 3 server
-	// versions >= 3.1.4.  Do not use -1 for older servers.</li>
-	// <li>0: Default to namespace configuration variable "default-ttl" on the server.</li>
-	// <li>> 0: Actual expiration in seconds.<br></li>
-	// </ul>
+	// -1: Never expire for Aerospike 2 server versions >= 2.7.2 and Aerospike 3 server
+	// versions >= 3.1.4.  Do not use -1 for older servers.
+	// 0: Default to namespace configuration variable "default-ttl" on the server.
+	// > 0: Actual expiration in seconds.
 	Expiration int
 }
 
