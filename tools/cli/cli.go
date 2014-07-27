@@ -22,8 +22,8 @@ import (
 	// "time"
 	"runtime"
 
-	. "github.com/citrusleaf/aerospike-client-go"
-	. "github.com/citrusleaf/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go"
+	. "github.com/aerospike/aerospike-client-go/logger"
 )
 
 // flag information

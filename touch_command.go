@@ -15,7 +15,7 @@
 package aerospike
 
 import (
-	. "github.com/citrusleaf/aerospike-client-go/types"
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 // guarantee TouchCommand implements Command interface

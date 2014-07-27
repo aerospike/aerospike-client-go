@@ -18,7 +18,7 @@ import (
 	"net"
 	"time"
 
-	. "github.com/citrusleaf/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/logger"
 )
 
 // Connection represents a connection with a timeout

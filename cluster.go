@@ -21,10 +21,10 @@ import (
 	"sync"
 	"time"
 
-	. "github.com/citrusleaf/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/logger"
 
-	. "github.com/citrusleaf/aerospike-client-go/types"
-	. "github.com/citrusleaf/aerospike-client-go/types/atomic"
+	. "github.com/aerospike/aerospike-client-go/types"
+	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
 type tendCommand int

@@ -15,7 +15,7 @@
 The aerospike package can be imported into your project via:
 
 ```go
-  import as "github.com/citrusleaf/aerospike-client-go"
+  import as "github.com/aerospike/aerospike-client-go"
 ```
 
 <a name="structs"></a>

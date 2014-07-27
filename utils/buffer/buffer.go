@@ -21,7 +21,7 @@ import (
 	"math"
 	"unsafe"
 
-	// . "github.com/citrusleaf/aerospike-client-go/logger"
+	// . "github.com/aerospike/aerospike-client-go/logger"
 )
 
 var sizeOfInt = unsafe.Sizeof(int(0))

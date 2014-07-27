@@ -22,10 +22,10 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	// . "github.com/citrusleaf/aerospike-client-go/logger"
-	// . "github.com/citrusleaf/aerospike-client-go/types"
-	// ParticleType "github.com/citrusleaf/aerospike-client-go/types/particle_type"
-	// . "github.com/citrusleaf/aerospike-client-go/utils/buffer"
+	// . "github.com/aerospike/aerospike-client-go/logger"
+	// . "github.com/aerospike/aerospike-client-go/types"
+	// ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
+	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 func testPackingFor(v interface{}) interface{} {

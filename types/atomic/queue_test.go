@@ -15,7 +15,7 @@
 package atomic_test
 
 import (
-	. "github.com/citrusleaf/aerospike-client-go/types/atomic"
+	. "github.com/aerospike/aerospike-client-go/types/atomic"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

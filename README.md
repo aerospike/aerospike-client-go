@@ -24,7 +24,7 @@ package main
 import (
   "fmt"
 
-  . "github.com/citrusleaf/aerospike-client-go"
+  . "github.com/aerospike/aerospike-client-go"
 )
 
 func panicOnError(err error) {
@@ -92,8 +92,8 @@ Supported operating systems:
 ## Installation:
 
 1. Install Go 1.2+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH)
-2. Get the client in your ```GOPATH``` : ```go get github.com/citrusleaf/aerospike-client-go```
-  * To update the client library: ```go get -u github.com/citrusleaf/aerospike-client-go```
+2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go```
+  * To update the client library: ```go get -u github.com/aerospike/aerospike-client-go```
 
 ### Some Hints:
 

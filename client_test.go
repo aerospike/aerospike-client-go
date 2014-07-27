@@ -20,10 +20,10 @@ import (
 	"math/rand"
 	"time"
 
-	. "github.com/citrusleaf/aerospike-client-go"
-	. "github.com/citrusleaf/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go"
+	. "github.com/aerospike/aerospike-client-go/logger"
 
-	. "github.com/citrusleaf/aerospike-client-go/utils/buffer"
+	. "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

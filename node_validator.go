@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"time"
 
-	. "github.com/citrusleaf/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/logger"
 )
 
 // Validates a Database server node

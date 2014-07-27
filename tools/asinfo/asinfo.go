@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	apik "github.com/citrusleaf/aerospike-client-go"
+	aerospike "github.com/aerospike/aerospike-client-go"
 )
 
 var host = flag.String("h", "127.0.0.1", "host (default 127.0.0.1)")
@@ -34,10 +34,10 @@ func main() {
 	log.SetFlags(0)
 
 	// connect to the host
-	if conn, err := apik.NewConnection(fmt.Sprintf("%s:%d", *host, *port), 10*time.Second); err != nil {
+	if conn, err := aerospike.NewConnection(fmt.Sprintf("%s:%d", *host, *port), 10*time.Second); err != nil {
 		log.Fatalln(err.Error())
 	} else {
-		if infoMap, err := apik.RequestInfo(conn, strings.Trim(*value, " ")); err != nil {
+		if infoMap, err := aerospike.RequestInfo(conn, strings.Trim(*value, " ")); err != nil {
 			log.Fatalln(err.Error())
 		} else {
 			cnt := 1

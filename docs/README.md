@@ -8,7 +8,7 @@ This package describes the Aerospike Go Client API in detail.
 The aerospike Go client package is the main entry point to the client API.
 
 ```go
-    import as "github.com/citrusleaf/aerospike-client-go"
+    import as "github.com/aerospike/aerospike-client-go"
 ```
 
 Before connecting to a cluster, you must import the package.

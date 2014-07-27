@@ -15,7 +15,7 @@
 package aerospike_test
 
 import (
-	. "github.com/citrusleaf/aerospike-client-go"
+	. "github.com/aerospike/aerospike-client-go"
 
 	"testing"
 )

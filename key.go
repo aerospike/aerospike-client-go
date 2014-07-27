@@ -18,9 +18,9 @@ import (
 	"bytes"
 	"code.google.com/p/go.crypto/ripemd160"
 
-	// . "github.com/citrusleaf/aerospike-client-go/logger"
-	. "github.com/citrusleaf/aerospike-client-go/types"
-	ParticleType "github.com/citrusleaf/aerospike-client-go/types/particle_type"
+	// . "github.com/aerospike/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/types"
+	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 )
 
 // Unique record identifier. Records can be identified using a specified namespace,
