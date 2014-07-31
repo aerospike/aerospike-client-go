@@ -60,7 +60,15 @@ func (this *Connection) Read(buf []byte, length int) (int, error) {
 	if this.timeout > 0 {
 		this.conn.SetReadDeadline(time.Now().Add(this.timeout))
 	}
+
+	// read all required bytes
 	r, err := this.conn.Read(buf[:length])
+	for r < length {
+		r, err = this.conn.Read(buf[r:length])
+		if err != nil {
+			break
+		}
+	}
 	return r, err
 }
 

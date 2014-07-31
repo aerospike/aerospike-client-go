@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"math"
-	// "reflect"
-	// "unsafe"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -35,12 +33,6 @@ func testPackingFor(v interface{}) interface{} {
 	err := value.Pack(packer)
 	Expect(err).ToNot(HaveOccurred())
 
-	// Logger.Error("")
-	// Logger.Error("#################################################")
-	// Logger.Error("value representation for %#v (%#v)", v, value)
-	// Logger.Error(BytesToHexString(packer.buffer.Bytes()))
-	// Logger.Error("#################################################")
-
 	unpacker := NewUnpacker(packer.buffer.Bytes(), 0, len(packer.buffer.Bytes()))
 	unpackedValue, err := unpacker.unpackObject()
 
@@ -51,10 +43,9 @@ var _ = Describe("Packing Test", func() {
 
 	Context("Simple Value Types", func() {
 
-		// It("should pack and unpack nil values", func() {
-		//   var v *int
-		//   Expect(testPackingFor(v)).To(BeNil())
-		// })
+		It("should pack and unpack nil values", func() {
+			Expect(testPackingFor(nil)).To(BeNil())
+		})
 
 		It("should pack and unpack int8 values", func() {
 			v := int8(math.MaxInt8)

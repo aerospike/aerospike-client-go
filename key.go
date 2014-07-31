@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"bytes"
+	"fmt"
+
 	"code.google.com/p/go.crypto/ripemd160"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
@@ -63,7 +65,14 @@ func (this *Key) Digest() []byte {
 }
 
 func (this *Key) Equals(other *Key) bool {
-	return (*this.namespace == *other.namespace) && bytes.Equal(this.digest, other.digest)
+	return (*this.namespace == *other.namespace) &&
+		(*this.setName == *other.setName) &&
+		bytes.Equal(this.digest, other.digest)
+}
+
+// Return string representation of key.
+func (this *Key) String() string {
+	return fmt.Sprintf("%s %s %v", *this.namespace, *this.setName, this.userKey)
 }
 
 // Initialize key from namespace, optional set name and user key.

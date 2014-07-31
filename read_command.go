@@ -97,7 +97,7 @@ func (this *ReadCommand) parseResult(ifc Command, conn *Connection) error {
 
 	if opCount == 0 {
 		// data Bin was not returned.
-		this.record = NewRecord(nil, nil, generation, expiration)
+		this.record = NewRecord(this.key, nil, nil, generation, expiration)
 		return nil
 	}
 	var err error
@@ -204,7 +204,7 @@ func (this *ReadCommand) parseRecord(
 		duplicates = duplicates[:lastElem]
 	}
 
-	return NewRecord(bins, duplicates, generation, expiration), nil
+	return NewRecord(this.key, bins, duplicates, generation, expiration), nil
 }
 
 func (this *ReadCommand) GetRecord() *Record {

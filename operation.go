@@ -41,41 +41,41 @@ type Operation struct {
 }
 
 // Create read bin database operation.
-func NewGetOpByBinName(binName string) *Operation {
-	return &Operation{OpType: READ, BinName: &binName}
+func NewGetOpForBin(binName string) *Operation {
+	return &Operation{OpType: READ, BinName: &binName, BinValue: NewNullValue()}
 }
 
 // Create read all record bins database operation.
 func NewGetOp() *Operation {
-	return &Operation{OpType: READ}
+	return &Operation{OpType: READ, BinValue: NewNullValue()}
 }
 
 // Create read record header database operation.
 func NewGetHeaderOp() *Operation {
-	return &Operation{OpType: READ_HEADER}
+	return &Operation{OpType: READ_HEADER, BinValue: NewNullValue()}
 }
 
 // Create set database operation.
-func NewPutOp(bin Bin) *Operation {
-	return &Operation{OpType: WRITE, BinValue: bin.Value}
+func NewPutOp(bin *Bin) *Operation {
+	return &Operation{OpType: WRITE, BinName: &bin.Name, BinValue: bin.Value}
 }
 
 // Create string append database operation.
-func NewAppendOp(bin Bin) *Operation {
-	return &Operation{OpType: APPEND, BinValue: bin.Value}
+func NewAppendOp(bin *Bin) *Operation {
+	return &Operation{OpType: APPEND, BinName: &bin.Name, BinValue: bin.Value}
 }
 
 // Create string prepend database operation.
-func NewPrependOp(bin Bin) *Operation {
-	return &Operation{OpType: PREPEND, BinValue: bin.Value}
+func NewPrependOp(bin *Bin) *Operation {
+	return &Operation{OpType: PREPEND, BinName: &bin.Name, BinValue: bin.Value}
 }
 
 // Create integer add database operation.
-func NewAddOp(bin Bin) *Operation {
-	return &Operation{OpType: ADD, BinValue: bin.Value}
+func NewAddOp(bin *Bin) *Operation {
+	return &Operation{OpType: ADD, BinName: &bin.Name, BinValue: bin.Value}
 }
 
 // Create touch database operation.
 func NewTouchOp() *Operation {
-	return &Operation{OpType: TOUCH}
+	return &Operation{OpType: TOUCH, BinValue: NewNullValue()}
 }

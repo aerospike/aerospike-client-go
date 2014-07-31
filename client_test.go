@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strings"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
@@ -31,12 +32,12 @@ import (
 
 func init() {
 	fmt.Println("Testing")
-	rand.Seed(time.Now().UnixNano())
 	Logger.SetLevel(ERR)
 }
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Aerospike", func() {
+	rand.Seed(time.Now().UnixNano())
 
 	Describe("Data operations on native types", func() {
 		// connection data
@@ -521,6 +522,101 @@ var _ = Describe("Aerospike", func() {
 
 		}) // Exists context
 
+		Context("Batch Exists operations", func() {
+			bin := NewBin("Aerospike", rand.Intn(math.MaxInt16))
+			const keyCount = 2048
+
+			BeforeEach(func() {
+			})
+
+			It("must return the result with same ordering", func() {
+				var exists []bool
+				type existance struct {
+					key         *Key
+					shouldExist bool // set randomly and checked against later
+				}
+				exList := []existance{}
+				keys := []*Key{}
+
+				for i := 0; i < keyCount; i++ {
+					key, err := NewKey(ns, set, randString(50))
+					Expect(err).ToNot(HaveOccurred())
+					e := existance{key: key, shouldExist: rand.Intn(100) > 50}
+					exList = append(exList, e)
+					keys = append(keys, key)
+
+					// if key shouldExist == true, put it in the DB
+					if e.shouldExist {
+						err = client.PutBins(wpolicy, key, bin)
+						Expect(err).ToNot(HaveOccurred())
+
+						// make sure they exists in the DB
+						exists, err := client.Exists(rpolicy, key)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(exists).To(Equal(true))
+					}
+				}
+
+				exists, err = client.BatchExists(rpolicy, keys)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(exists)).To(Equal(len(keys)))
+				for idx, keyExists := range exists {
+					Expect(keyExists).To(Equal(exList[idx].shouldExist))
+				}
+			})
+
+		}) // Batch Exists context
+
+		Context("Batch Get operations", func() {
+			bin := NewBin("Aerospike", rand.Int())
+			const keyCount = 2048
+
+			BeforeEach(func() {
+			})
+
+			It("must return the records with same ordering as keys", func() {
+				var records []*Record
+				type existance struct {
+					key         *Key
+					shouldExist bool // set randomly and checked against later
+				}
+
+				exList := []existance{}
+				keys := []*Key{}
+
+				for i := 0; i < keyCount; i++ {
+					key, err := NewKey(ns, set, randString(50))
+					Expect(err).ToNot(HaveOccurred())
+					e := existance{key: key, shouldExist: rand.Intn(100) > 50}
+					exList = append(exList, e)
+					keys = append(keys, key)
+
+					// if key shouldExist == true, put it in the DB
+					if e.shouldExist {
+						err = client.PutBins(wpolicy, key, bin)
+						Expect(err).ToNot(HaveOccurred())
+
+						// make sure they exists in the DB
+						exists, err := client.Exists(rpolicy, key)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(exists).To(Equal(true))
+					}
+				}
+
+				records, err = client.BatchGet(rpolicy, keys)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(records)).To(Equal(len(keys)))
+				for idx, rec := range records {
+					if exList[idx].shouldExist {
+						Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+					} else {
+						Expect(rec).To(BeNil())
+					}
+				}
+			})
+
+		}) // Batch Get context
+
 		Context("GetHeader operations", func() {
 			bin := NewBin("Aerospike", rand.Intn(math.MaxInt16))
 
@@ -544,6 +640,179 @@ var _ = Describe("Aerospike", func() {
 			})
 
 		}) // GetHeader context
+
+		Context("Batch Get Header operations", func() {
+			bin := NewBin("Aerospike", rand.Int())
+			const keyCount = 2048
+
+			BeforeEach(func() {
+			})
+
+			It("must return the records with same ordering as keys", func() {
+				var records []*Record
+				type existance struct {
+					key         *Key
+					shouldExist bool // set randomly and checked against later
+				}
+
+				exList := []existance{}
+				keys := []*Key{}
+
+				for i := 0; i < keyCount; i++ {
+					key, err := NewKey(ns, set, randString(50))
+					Expect(err).ToNot(HaveOccurred())
+					e := existance{key: key, shouldExist: rand.Intn(100) > 50}
+					exList = append(exList, e)
+					keys = append(keys, key)
+
+					// if key shouldExist == true, put it in the DB
+					if e.shouldExist {
+						err = client.PutBins(wpolicy, key, bin)
+						Expect(err).ToNot(HaveOccurred())
+
+						// update generation
+						err = client.Touch(wpolicy, key)
+						Expect(err).ToNot(HaveOccurred())
+
+						// make sure they exists in the DB
+						exists, err := client.Exists(rpolicy, key)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(exists).To(Equal(true))
+					}
+				}
+
+				records, err = client.BatchGetHeader(rpolicy, keys)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(records)).To(Equal(len(keys)))
+				for idx, rec := range records {
+					if exList[idx].shouldExist {
+						Expect(rec.Bins[bin.Name]).To(BeNil())
+						Expect(rec.Generation).To(Equal(2))
+					} else {
+						Expect(rec).To(BeNil())
+					}
+				}
+			})
+
+		}) // Batch Get Header context
+
+		Context("Operate operations", func() {
+			bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
+			bin2 := NewBin("Aerospike2", randString(100))
+
+			BeforeEach(func() {
+				// err = client.PutBins(wpolicy, key, bin)
+				// Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("must apply all operations, and result should match expectation", func() {
+				key, err := NewKey(ns, set, randString(50))
+				Expect(err).ToNot(HaveOccurred())
+
+				ops1 := []*Operation{
+					NewGetOp(),
+					NewPutOp(bin1),
+					NewPutOp(bin2),
+				}
+
+				rec, err = client.Operate(nil, key, ops1...)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject().(int)))
+				Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject().(string)))
+				Expect(rec.Generation).To(Equal(1))
+
+				ops2 := []*Operation{
+					NewGetOp(),
+					NewAddOp(bin1),    // double the value of the bin
+					NewAppendOp(bin2), // with itself
+				}
+
+				rec, err = client.Operate(nil, key, ops2...)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject().(int) * 2))
+				Expect(rec.Bins[bin2.Name]).To(Equal(strings.Repeat(bin2.Value.GetObject().(string), 2)))
+				Expect(rec.Generation).To(Equal(2))
+
+				ops3 := []*Operation{
+					NewGetOp(),
+					NewAddOp(bin1),
+					NewPrependOp(bin2),
+					NewTouchOp(),
+				}
+
+				rec, err = client.Operate(nil, key, ops3...)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject().(int) * 3))
+				Expect(rec.Bins[bin2.Name]).To(Equal(strings.Repeat(bin2.Value.GetObject().(string), 3)))
+				Expect(rec.Generation).To(Equal(3))
+
+				ops4 := []*Operation{
+					NewTouchOp(),
+				}
+
+				rec, err = client.Operate(nil, key, ops4...)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rec.Bins[bin1.Name]).To(BeNil())
+				Expect(rec.Bins[bin2.Name]).To(BeNil())
+				Expect(rec.Generation).To(Equal(4))
+			})
+
+		}) // GetHeader context
+
+		Context("Scan operations", func() {
+			var scanSet string
+			const keyCount = 10000
+			bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
+			bin2 := NewBin("Aerospike2", randString(100))
+			keys := make(map[string]struct{})
+
+			BeforeEach(func() {
+				scanSet = randString(50)
+				for i := 0; i < keyCount; i++ {
+					key, err := NewKey(ns, scanSet, randString(50))
+					Expect(err).ToNot(HaveOccurred())
+
+					keys[string(key.Digest())] = struct{}{}
+					err = client.PutBins(wpolicy, key, bin1, bin2)
+					Expect(err).ToNot(HaveOccurred())
+				}
+			})
+
+			It("must Scan and get all records back for a specified node", func() {
+				results, err := client.ScanNode(nil, client.GetNodes()[0], ns, scanSet)
+				Expect(err).ToNot(HaveOccurred())
+
+				for fullRec := range results {
+					_, exists := keys[string(fullRec.Key.Digest())]
+					Expect(exists).To(Equal(true))
+					Expect(fullRec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(fullRec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+					delete(keys, string(fullRec.Key.Digest()))
+				}
+
+				Expect(len(keys)).To(Equal(0))
+			})
+
+			It("must Scan and get all records back from all nodes", func() {
+				results, err := client.ScanAll(nil, ns, scanSet)
+				Expect(err).ToNot(HaveOccurred())
+
+				for fullRec := range results {
+					_, exists := keys[string(fullRec.Key.Digest())]
+					Expect(exists).To(Equal(true))
+					Expect(fullRec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(fullRec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+					delete(keys, string(fullRec.Key.Digest()))
+				}
+
+				Expect(len(keys)).To(Equal(0))
+			})
+
+		}) // Scan command context
 
 	})
 })

@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"errors"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -68,9 +69,11 @@ const (
 // Command intrerface describes all commands available
 type Command interface {
 	getPolicy(ifc Command) Policy
+
 	writeBuffer(ifc Command) error
 	getNode(ifc Command) (*Node, error)
 	parseResult(ifc Command, conn *Connection) error
+	parseRecordResults(ifc Command, receiveSize int) (bool, error)
 
 	execute(ifc Command) error
 	// Executes the command
@@ -256,69 +259,73 @@ func (this *BaseCommand) SetOperate(policy *WritePolicy, key *Key, operations []
 // 	this.end()
 // }
 
-// func (this *BaseCommand) SetBatchExists(batchNamespace BatchNamespace) {
-// 	// Estimate buffer size
-// 	this.begin()
-// 	keys := batchNamespace.keys
-// 	byteSize := keys.size() * SyncDIGEST_SIZE
+func (this *BaseCommand) SetBatchExists(batchNamespace *batchNamespace) error {
+	// Estimate buffer size
+	this.begin()
+	keys := batchNamespace.keys
+	byteSize := len(keys) * int(DIGEST_SIZE)
 
-// 	this.dataOffset += len(batchNamespace.namespace) +
-// 		FIELD_HEADER_SIZE + byteSize + int(FIELD_HEADER_SIZE)
+	this.dataOffset += len(*batchNamespace.namespace) +
+		int(FIELD_HEADER_SIZE) + byteSize + int(FIELD_HEADER_SIZE)
 
-// 	this.sizeBuffer()
+	this.sizeBuffer()
 
-// 	this.writeHeaderWithPolicy(INFO1_READ|INFO1_NOBINDATA, 0, 2, 0)
-// 	this.writeField(batchNamespace.namespace, NAMESPACE)
-// 	this.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
+	this.writeHeader(INFO1_READ|INFO1_NOBINDATA, 0, 2, 0)
+	this.WriteFieldString(*batchNamespace.namespace, NAMESPACE)
+	this.WriteFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
 
-// 	for _, key := range keys {
-// 		digest := key.Digest()
-// 		System.arraycopy(digest, 0, this.dataBuffer, this.dataOffset, len(digest))
-// 		this.dataOffset += len(digest)
-// 	}
-// 	this.end()
-// }
+	for _, key := range keys {
+		digest := key.Digest()
+		copy(this.dataBuffer[this.dataOffset:], digest)
+		this.dataOffset += len(digest)
+	}
+	this.end()
 
-// func (this *BaseCommand) SetBatchGet(batchNamespace BatchNamespace, binNames StringSet, readAttr int) {
-// 	// Estimate buffer size
-// 	this.begin()
-// 	keys := batchNamespace.keys
-// 	byteSize := keys.size() * SyncDIGEST_SIZE
+	return nil
+}
 
-// 	this.dataOffset += len(batchNamespace.namespace) +
-// 		FIELD_HEADER_SIZE + byteSize + int(FIELD_HEADER_SIZE)
+func (this *BaseCommand) SetBatchGet(batchNamespace *batchNamespace, binNames map[string]struct{}, readAttr int) error {
+	// Estimate buffer size
+	this.begin()
+	keys := batchNamespace.keys
+	byteSize := len(keys) * int(DIGEST_SIZE)
 
-// 	if binNames != nil {
-// 		for _, binName := range binNames {
-// 			this.estimateOperationSize(binName)
-// 		}
-// 	}
+	this.dataOffset += len(*batchNamespace.namespace) +
+		int(FIELD_HEADER_SIZE) + byteSize + int(FIELD_HEADER_SIZE)
 
-// 	this.sizeBuffer()
+	if binNames != nil {
+		for binName, _ := range binNames {
+			this.estimateOperationSizeForBinName(binName)
+		}
+	}
 
-// 	operationCount := 0
-// 	if binNames != nil {
-// 		operationCount = binNames.size()
-// 	}
-// 	this.writeHeaderWithPolicy(readAttr, 0, 2, operationCount)
-// 	this.writeField(batchNamespace.namespace, NAMESPACE)
-// 	this.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
+	this.sizeBuffer()
 
-// 	for _, key := range keys {
-// 		digest := key.Digest()
-// 		System.arraycopy(digest, 0, this.dataBuffer, this.dataOffset, len(digest))
-// 		this.dataOffset += len(digest)
-// 	}
+	operationCount := 0
+	if binNames != nil {
+		operationCount = len(binNames)
+	}
+	this.writeHeader(readAttr, 0, 2, operationCount)
+	this.WriteFieldString(*batchNamespace.namespace, NAMESPACE)
+	this.WriteFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
 
-// 	if binNames != nil {
-// 		for _, binName := range binNames {
-// 			this.writeOperation(binName, READ)
-// 		}
-// 	}
-// 	this.end()
-// }
+	for _, key := range keys {
+		digest := key.Digest()
+		copy(this.dataBuffer[this.dataOffset:], digest)
+		this.dataOffset += len(digest)
+	}
 
-func (this *BaseCommand) SetScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string) {
+	if binNames != nil {
+		for binName, _ := range binNames {
+			this.writeOperationForBinName(binName, READ)
+		}
+	}
+	this.end()
+
+	return nil
+}
+
+func (this *BaseCommand) SetScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string) error {
 	this.begin()
 	fieldCount := 0
 
@@ -349,10 +356,8 @@ func (this *BaseCommand) SetScan(policy *ScanPolicy, namespace *string, setName 
 		readAttr |= INFO1_NOBINDATA
 	}
 
-	var operationCount int
-	if binNames == nil {
-		operationCount = 0
-	} else {
+	operationCount := 0
+	if binNames != nil {
 		operationCount = len(binNames)
 	}
 	this.writeHeader(readAttr, 0, fieldCount, operationCount)
@@ -372,9 +377,10 @@ func (this *BaseCommand) SetScan(policy *ScanPolicy, namespace *string, setName 
 	if policy.FailOnClusterChange {
 		priority |= 0x08
 	}
-	this.dataOffset++
 	this.dataBuffer[this.dataOffset] = priority
+	this.dataOffset++
 	this.dataBuffer[this.dataOffset] = byte(policy.ScanPercent)
+	this.dataOffset++
 
 	if binNames != nil {
 		for _, binName := range binNames {
@@ -382,6 +388,8 @@ func (this *BaseCommand) SetScan(policy *ScanPolicy, namespace *string, setName 
 		}
 	}
 	this.end()
+
+	return nil
 }
 
 func (this *BaseCommand) estimateKeySize(key *Key) int {
@@ -418,8 +426,15 @@ func (this *BaseCommand) estimateOperationSizeForBin(bin *Bin) error {
 }
 
 func (this *BaseCommand) estimateOperationSizeForOperation(operation *Operation) error {
-	this.dataOffset += len(*operation.BinName) + int(OPERATION_HEADER_SIZE)
-	this.dataOffset += operation.BinValue.EstimateSize()
+	binLen := 0
+	if operation.BinName != nil {
+		binLen = len(*operation.BinName)
+	}
+	this.dataOffset += binLen + int(OPERATION_HEADER_SIZE)
+
+	if operation.BinValue != nil {
+		this.dataOffset += operation.BinValue.EstimateSize()
+	}
 	return nil
 }
 
@@ -524,7 +539,10 @@ func (this *BaseCommand) writeKey(key *Key) {
 
 func (this *BaseCommand) writeOperationForBin(bin *Bin, operation OperationType) error {
 	nameLength := copy(this.dataBuffer[(this.dataOffset+int(OPERATION_HEADER_SIZE)):], []byte(bin.Name))
-	valueLength, _ := bin.Value.Write(this.dataBuffer, this.dataOffset+int(OPERATION_HEADER_SIZE)+nameLength)
+	valueLength, err := bin.Value.Write(this.dataBuffer, this.dataOffset+int(OPERATION_HEADER_SIZE)+nameLength)
+	if err != nil {
+		return err
+	}
 
 	Buffer.Int32ToBytes(int32(nameLength+valueLength+4), this.dataBuffer, this.dataOffset)
 	this.dataOffset += 4
@@ -542,8 +560,15 @@ func (this *BaseCommand) writeOperationForBin(bin *Bin, operation OperationType)
 }
 
 func (this *BaseCommand) writeOperationForOperation(operation *Operation) error {
-	nameLength := copy(this.dataBuffer[(this.dataOffset+int(OPERATION_HEADER_SIZE)):], []byte(*operation.BinName))
-	valueLength, _ := operation.BinValue.Write(this.dataBuffer, this.dataOffset+int(OPERATION_HEADER_SIZE)+nameLength)
+	nameLength := 0
+	if operation.BinName != nil {
+		nameLength = copy(this.dataBuffer[(this.dataOffset+int(OPERATION_HEADER_SIZE)):], []byte(*operation.BinName))
+	}
+
+	valueLength, err := operation.BinValue.Write(this.dataBuffer, this.dataOffset+int(OPERATION_HEADER_SIZE)+nameLength)
+	if err != nil {
+		return err
+	}
 
 	Buffer.Int32ToBytes(int32(nameLength+valueLength+4), this.dataBuffer, this.dataOffset)
 	this.dataOffset += 4
@@ -645,7 +670,7 @@ func (this *BaseCommand) execute(ifc Command) error {
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
-		if iterations++; iterations > policy.MaxRetries {
+		if iterations++; iterations > policy.MaxRetries+1 {
 			break
 		}
 
@@ -720,7 +745,10 @@ func (this *BaseCommand) execute(ifc Command) error {
 		// Command has completed successfully.  Exit method.
 		return nil
 	}
-
 	// execution timeout
 	return TimeoutErr()
+}
+
+func (this *BaseCommand) parseRecordResults(ifc Command, receiveSize int) (bool, error) {
+	panic(errors.New("Abstract method. Should not end up here"))
 }

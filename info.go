@@ -99,7 +99,6 @@ func (this *Info) sendCommand(conn *Connection) error {
 	// Logger.Debug("Header Response: %v %v %v %v", t.Type, t.Version, t.Length(), t.DataLen)
 	this.msg.Resize(this.msg.Length())
 	_, err := conn.Read(this.msg.Data, len(this.msg.Data))
-	Logger.Debug("Data Len: %v", this.msg.Length())
 	return err
 }
 

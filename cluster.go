@@ -545,7 +545,7 @@ func (this *Cluster) GetRandomNode() (*Node, error) {
 		node := nodeArray[index]
 
 		if node.IsActive() {
-			Logger.Debug("Node `%s` is active. index=%d", node, index)
+			// Logger.Debug("Node `%s` is active. index=%d", node, index)
 			return node, nil
 		}
 	}

@@ -20,6 +20,8 @@ import (
 
 // Container object for records.  Records are equivalent to rows.
 type Record struct {
+	// Record's Key. Might be empty in many circumstances
+	Key *Key
 
 	// Map of requested name/value bins.
 	Bins BinMap
@@ -37,8 +39,9 @@ type Record struct {
 	Expiration int
 }
 
-func NewRecord(bins BinMap, duplicates []BinMap, generation int, expiration int) *Record {
+func NewRecord(key *Key, bins BinMap, duplicates []BinMap, generation int, expiration int) *Record {
 	r := &Record{
+		Key:        key,
 		Bins:       bins,
 		Duplicates: duplicates,
 		Generation: generation,
@@ -55,5 +58,5 @@ func NewRecord(bins BinMap, duplicates []BinMap, generation int, expiration int)
 
 // Return string representation of record.
 func (this *Record) String() string {
-	return fmt.Sprintf("%v", this.Bins)
+	return fmt.Sprintf("%v %v", *this.Key, this.Bins)
 }

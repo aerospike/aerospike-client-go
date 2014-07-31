@@ -17,8 +17,10 @@ package aerospike
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 type Client struct {
@@ -207,13 +209,29 @@ func (this *Client) Exists(policy *BasePolicy, key *Key) (bool, error) {
 	return command.Exists(), err
 }
 
-// TODO: INCLUDE this function in the above
+//  Check if multiple record keys exist in one batch call.
+//  The returned array bool is in positional order with the original key array order.
+//  The policy can be used to specify timeouts.
+func (this *Client) BatchExists(policy *BasePolicy, keys []*Key) ([]bool, error) {
+	if policy == nil {
+		policy = NewPolicy()
+	}
 
-// //  Check if multiple record keys exist in one batch call.
-// //  The returned array bool is in positional order with the original key array order.
-// //  The policy can be used to specify timeouts.
-// func (this *Client) Exists2(policy *BasePolicy, keys []Key) ([]bool, error) {
-// }
+	// same array can be used without sychronization;
+	// when a key exists, the corresponding index will be marked true
+	// TODO: Investigate CPU cache invalidation semantics
+	existsArray := make([]bool, len(keys))
+
+	keyMap := NewBatchItemList(keys)
+
+	if err := this.batchExecute(keys, func(node *Node, bns *batchNamespace) Command {
+		return NewBatchCommandExists(node, bns, policy, keyMap, existsArray)
+	}); err != nil {
+		return nil, err
+	}
+
+	return existsArray, nil
+}
 
 //-------------------------------------------------------
 // Read Record Operations
@@ -245,64 +263,164 @@ func (this *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
 	return command.GetRecord(), nil
 }
 
-// //-------------------------------------------------------
-// // Batch Read Operations
-// //-------------------------------------------------------
+//-------------------------------------------------------
+// Batch Read Operations
+//-------------------------------------------------------
 
-// //  Read multiple records for specified keys in one batch call.
-// //  The returned records are in positional order with the original key array order.
-// //  If a key is not found, the positional record will be null.
-// //  The policy can be used to specify timeouts.
-// func (this *Client) Get(policy Policy, keys []Key) ([]Record, error) {
-// }
+//  Read multiple record headers and bins for specified keys in one batch call.
+//  The returned records are in positional order with the original key array order.
+//  If a key is not found, the positional record will be null.
+//  The policy can be used to specify timeouts.
+func (this *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string) ([]*Record, error) {
+	if policy == nil {
+		policy = NewPolicy()
+	}
 
-// //  Read multiple record headers and bins for specified keys in one batch call.
-// //  The returned records are in positional order with the original key array order.
-// //  If a key is not found, the positional record will be null.
-// //  The policy can be used to specify timeouts.
-// func (this *Client) Get(policy Policy, keys []Key, binNames ...string) []Record {
-// }
+	// same array can be used without sychronization;
+	// when a key exists, the corresponding index will be set to record
+	// TODO: Investigate CPU cache invalidation semantics
+	records := make([]*Record, len(keys))
 
-// //  Read multiple record header data for specified keys in one batch call.
-// //  The returned records are in positional order with the original key array order.
-// //  If a key is not found, the positional record will be null.
-// //  The policy can be used to specify timeouts.
-// func (this *Client) GetHeader(policy Policy, keys []Key) ([]Record, error) {
-// }
+	keyMap := NewBatchItemList(keys)
+	binSet := map[string]struct{}{}
+	for idx := range binNames {
+		binSet[binNames[idx]] = struct{}{}
+	}
 
-// //-------------------------------------------------------
-// // Generic Database Operations
-// //-------------------------------------------------------
+	err := this.batchExecute(keys, func(node *Node, bns *batchNamespace) Command {
+		return NewBatchCommandGet(node, bns, policy, keyMap, binSet, records, INFO1_READ)
+	})
+	if err != nil {
+		return nil, err
+	}
 
-// //  Perform multiple read/write operations on a single key in one batch call.
-// //  An example would be to add an integer value to an existing record and then
-// //  read the result, all in one database call.
-// //  <p>
-// //  Write operations are always performed first, regardless of operation order
-// //  relative to read operations.
-// func (this *Client) Operate(policy WritePolicy, key Key, operations ...Operation) (Record, error) {
-// }
+	return records, nil
+}
 
-// //-------------------------------------------------------
-// // Scan Operations
-// //-------------------------------------------------------
+//  Read multiple record header data for specified keys in one batch call.
+//  The returned records are in positional order with the original key array order.
+//  If a key is not found, the positional record will be null.
+//  The policy can be used to specify timeouts.
+func (this *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, error) {
+	if policy == nil {
+		policy = NewPolicy()
+	}
 
-// //  Read all records in specified namespace and set.  If the policy's
-// //  <code>concurrent*Nodes</code> is specified, each server node will be read in
-// //  parallel.  Otherwise, server nodes are read in series.
-// //  <p>
-// //  This call will block until the scan is complete - callbacks are made
-// //  within the scope of this call.
-// func (this *Client) ScanAll(policy ScanPolicy, namespace string, setName string, callback ScanCallback, binNames ...string) {
-// }
+	// same array can be used without sychronization;
+	// when a key exists, the corresponding index will be set to record
+	// TODO: Investigate CPU cache invalidation semantics
+	records := make([]*Record, len(keys))
 
-// //  Read all records in specified namespace and set for one node only.
-// //  The node is specified by name.
-// //  <p>
-// //  This call will block until the scan is complete - callbacks are made
-// //  within the scope of this call.
-// func (this *Client) ScanNode(policy ScanPolicy, nodeName string, namespace string, setName string, callback ScanCallback, binNames ...string) {
-// }
+	keyMap := NewBatchItemList(keys)
+	err := this.batchExecute(keys, func(node *Node, bns *batchNamespace) Command {
+		return NewBatchCommandGet(node, bns, policy, keyMap, nil, records, INFO1_READ|INFO1_NOBINDATA)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+//-------------------------------------------------------
+// Generic Database Operations
+//-------------------------------------------------------
+
+//  Perform multiple read/write operations on a single key in one batch call.
+//  An example would be to add an integer value to an existing record and then
+//  read the result, all in one database call.
+//
+//  Write operations are always performed first, regardless of operation order
+//  relative to read operations.
+func (this *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operation) (*Record, error) {
+	command := NewOperateCommand(this.cluster, policy, key, operations)
+	if err := command.Execute(); err != nil {
+		return nil, err
+	}
+	return command.GetRecord(), nil
+}
+
+//-------------------------------------------------------
+// Scan Operations
+//-------------------------------------------------------
+
+//  Read all records in specified namespace and set.  If the policy's
+//  <code>concurrent*Nodes</code> is specified, each server node will be read in
+//  parallel.  Otherwise, server nodes are read in series.
+//
+//  This call will block until the scan is complete - callbacks are made
+//  within the scope of this call.
+func (this *Client) ScanAll(policy *ScanPolicy, namespace string, setName string, binNames ...string) (chan *Record, error) {
+	if policy == nil {
+		policy = NewScanPolicy()
+	}
+
+	// Retry policy must be one-shot for scans.
+	policy.MaxRetries = 0
+
+	nodes := this.cluster.GetNodes()
+	if len(nodes) == 0 {
+		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
+	}
+
+	// results channel must be async for performance
+	var resChan chan *Record
+
+	// the whole call should be wrapped in a goroutine
+	if policy.ConcurrentNodes {
+		// results channel must be async for performance
+		recChans := []chan *Record{}
+		for _, node := range nodes {
+			if recChan, err := this.ScanNode(policy, node, namespace, setName, binNames...); err != nil {
+				return nil, err
+			} else {
+				recChans = append(recChans, recChan)
+			}
+			resChan = this.mergeResultChannels(recChans...)
+		}
+	} else {
+		resChan = make(chan *Record, 1024)
+		go func() {
+			for _, node := range nodes {
+				if tempChan, err := this.ScanNode(policy, node, namespace, setName, binNames...); err != nil {
+					return
+				} else {
+					for rec := range tempChan {
+						resChan <- rec
+					}
+				}
+			}
+		}()
+	}
+
+	return resChan, nil
+}
+
+//  Read all records in specified namespace and set for one node only.
+//  The node is specified by name.
+//
+//  This call will block until the scan is complete - callbacks are made
+//  within the scope of this call.
+func (this *Client) ScanNode(policy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (chan *Record, error) {
+	// results channel must be async for performance
+	recChan := make(chan *Record, 1024)
+
+	go this.scanNode(policy, node, namespace, setName, recChan, binNames...)
+
+	return recChan, nil
+}
+
+func (this *Client) scanNode(policy *ScanPolicy, node *Node, namespace string, setName string, recChan chan *Record, binNames ...string) error {
+	if policy == nil {
+		policy = NewScanPolicy()
+	}
+
+	// Retry policy must be one-shot for scans.
+	policy.MaxRetries = 0
+
+	command := NewScanCommand(node, policy, namespace, setName, binNames, recChan)
+	return command.Execute()
+}
 
 // //  Read all records in specified namespace and set for one node only.
 // //  <p>
@@ -452,3 +570,59 @@ func (this *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
 
 // func (this *Client) sendInfoCommand(policy Policy, command string) (string, error) {
 // }
+
+//-------------------------------------------------------
+// Utility Functions
+//-------------------------------------------------------
+// batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
+// and waits for their return
+func (this *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batchNamespace) Command) error {
+
+	batchNodes, err := NewBatchNodeList(this.cluster, keys)
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+
+	// Use a goroutine per namespace per node
+	for _, batchNode := range batchNodes {
+		for _, batchNamespace := range batchNode.BatchNamespaces {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				command := cmdGen(batchNode.Node, batchNamespace)
+				command.Execute()
+			}()
+		}
+	}
+
+	wg.Wait()
+	return nil
+}
+
+func (this *Client) mergeResultChannels(cs ...chan *Record) chan *Record {
+	var wg sync.WaitGroup
+	out := make(chan *Record, 1024)
+
+	// Start an output goroutine for each input channel in cs.  output
+	// copies values from c to out until c is closed, then calls wg.Done.
+	output := func(c chan *Record) {
+		for n := range c {
+			out <- n
+		}
+		wg.Done()
+	}
+	wg.Add(len(cs))
+	for _, c := range cs {
+		go output(c)
+	}
+
+	// Start a goroutine to close out once all the output goroutines are
+	// done.  This must start after the wg.Add call.
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
+}

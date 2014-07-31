@@ -128,6 +128,10 @@ func NewValue(v interface{}) Value {
 
 type NullValue struct{}
 
+func NewNullValue() *NullValue {
+	return &NullValue{}
+}
+
 func (this *NullValue) EstimateSize() int {
 	return 0
 }

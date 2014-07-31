@@ -58,7 +58,7 @@ func (this *ReadHeaderCommand) parseResult(ifc Command, conn *Connection) error 
 	if resultCode == 0 {
 		generation := int(Buffer.BytesToInt32(this.dataBuffer, 14))
 		expiration := TTL(int(Buffer.BytesToInt32(this.dataBuffer, 18)))
-		this.record = NewRecord(nil, nil, generation, expiration)
+		this.record = NewRecord(this.key, nil, nil, generation, expiration)
 	} else {
 		if ResultCode(resultCode) == KEY_NOT_FOUND_ERROR {
 			this.record = nil

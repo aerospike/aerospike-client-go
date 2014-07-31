@@ -34,4 +34,4 @@ script:
   - go build examples/simple.go
   - go build examples/blob.go
   - go build examples/info.go
-  - ginkgo -cover -r -race -keepGoing -succinct
+  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites

@@ -26,7 +26,7 @@ type ScanPolicy struct {
 	// If there are 16 nodes in the cluster and maxConcurrentNodes is 8, then scan requests
 	// will be made to 8 nodes in parallel.  When a scan completes, a new scan request will
 	// be issued until all 16 nodes have been scanned.
-	// <p>
+	//
 	// This field is only relevant when concurrentNodes is true.
 	// Default (0) is to issue requests to all server nodes in parallel.
 	MaxConcurrentNodes int
@@ -39,4 +39,15 @@ type ScanPolicy struct {
 
 	// Terminate scan if cluster in fluctuating state.
 	FailOnClusterChange bool
+}
+
+func NewScanPolicy() *ScanPolicy {
+	return &ScanPolicy{
+		BasePolicy:          *NewPolicy(),
+		ScanPercent:         100,
+		ConcurrentNodes:     true,
+		MaxConcurrentNodes:  0,
+		IncludeBinData:      true,
+		FailOnClusterChange: true,
+	}
 }
