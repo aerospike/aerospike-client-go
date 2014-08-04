@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"errors"
+	// "fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -72,25 +73,31 @@ func NewNode(cluster *Cluster, nv *NodeValidator) *Node {
 }
 
 // Request current status from server node, and update node with the result
-func (this *Node) Refresh(friends []*Host) error {
+func (this *Node) Refresh() ([]*Host, error) {
+	var friends []*Host
+
 	conn, err := this.GetConnection(1 * time.Second)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if infoMap, err := RequestInfo(conn, "node", "partition-generation", "services"); err != nil {
 		conn.Close()
 		this.DecreaseHealth()
-		return err
+		return nil, err
 	} else {
 		this.verifyNodeName(infoMap)
 		this.RestoreHealth()
 		this.responded.Set(true)
-		this.addFriends(infoMap, friends)
+
+		if friends, err = this.addFriends(infoMap); err != nil {
+			return nil, err
+		}
+
 		this.updatePartitions(conn, infoMap)
 		this.PutConnection(conn)
 	}
-	return nil
+	return friends, nil
 }
 
 func (this *Node) verifyNodeName(infoMap map[string]string) error {
@@ -113,11 +120,12 @@ func (this *Node) getUseNewInfo() bool {
 	return this.useNewInfo.Get()
 }
 
-func (this *Node) addFriends(infoMap map[string]string, friends []*Host) error {
+func (this *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
 	friendString, exists := infoMap["services"]
+	var friends []*Host
 
 	if !exists || len(friendString) == 0 {
-		return nil
+		return friends, nil
 	}
 
 	friendNames := strings.Split(friendString, ";")
@@ -133,13 +141,16 @@ func (this *Node) addFriends(infoMap map[string]string, friends []*Host) error {
 			node.referenceCount.IncrementAndGet()
 		} else {
 			if !this.findAlias(friends, alias) {
-				// TODO: wrong abstraction; should return friend list to caller
+				if friends == nil {
+					friends = make([]*Host, 0, 16)
+				}
+
 				friends = append(friends, alias)
 			}
 		}
 	}
 
-	return nil
+	return friends, nil
 }
 
 func (this *Node) findAlias(friends []*Host, alias *Host) bool {
@@ -245,21 +256,18 @@ func (this *Node) AddAlias(aliasToAdd *Host) {
 	// Aliases are only referenced in the cluster tend thread,
 	// so synchronization is not necessary.
 	aliases := this.GetAliases()
-	count := len(aliases) + 1
-	tmpAliases := make([]*Host, count)
-
-	for idx, host := range aliases {
-		tmpAliases[idx] = host
+	if aliases == nil {
+		aliases = []*Host{}
 	}
-	tmpAliases[count] = aliasToAdd
 
-	this.setAliases(tmpAliases)
+	aliases = append(aliases, aliasToAdd)
+	this.setAliases(aliases)
 }
 
 // Marks node as inactice and closes all cached connections
 func (this *Node) Close() {
 	this.active.Set(false)
-	go this.closeConnections()
+	this.closeConnections()
 }
 
 // Implements stringer interface

@@ -15,9 +15,12 @@
 package aerospike
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -376,11 +379,12 @@ func (this *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 			} else {
 				recChans = append(recChans, recChan)
 			}
-			resChan = this.mergeResultChannels(recChans...)
 		}
+		resChan = this.mergeResultChannels(recChans...)
 	} else {
 		resChan = make(chan *Record, 1024)
 		go func() {
+			defer close(resChan)
 			for _, node := range nodes {
 				if tempChan, err := this.ScanNode(policy, node, namespace, setName, binNames...); err != nil {
 					return
@@ -421,13 +425,6 @@ func (this *Client) scanNode(policy *ScanPolicy, node *Node, namespace string, s
 	command := NewScanCommand(node, policy, namespace, setName, binNames, recChan)
 	return command.Execute()
 }
-
-// //  Read all records in specified namespace and set for one node only.
-// //  <p>
-// //  This call will block until the scan is complete - callbacks are made
-// //  within the scope of this call.
-// func (this *Client) ScanNode(policy ScanPolicy, node Node, namespace string, setName string, callback ScanCallback, binNames ...string) {
-// }
 
 // //-------------------------------------------------------------------
 // // Large collection functions (Supported by Aerospike 3 servers only)
@@ -535,41 +532,140 @@ func (this *Client) scanNode(policy *ScanPolicy, node *Node, namespace string, s
 // ) (ResultSet, error) {
 // }
 
-// //  Create secondary index.
-// //  This asynchronous server call will return before command is complete.
-// //  The user can optionally wait for command completion by using the returned
-// //  IndexTask instance.
-// //  <p>
-// //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) CreateIndex(
-// 	policy Policy,
-// 	namespace string,
-// 	setName string,
-// 	indexName string,
-// 	binName string,
-// 	indexType IndexType,
-// ) (IndexTask, error) {
+//  Create secondary index.
+//  This asynchronous server call will return before command is complete.
+//  The user can optionally wait for command completion by using the returned
+//  IndexTask instance.
+//  <p>
+//  This method is only supported by Aerospike 3 servers.
+func (this *Client) CreateIndex(
+	policy *WritePolicy,
+	namespace string,
+	setName string,
+	indexName string,
+	binName string,
+	indexType IndexType,
+) (*IndexTask, error) {
+	var strCmd bytes.Buffer
+	strCmd.WriteString("sindex-create:ns=")
+	strCmd.WriteString(namespace)
 
-// }
+	if len(setName) > 0 {
+		strCmd.WriteString(";set=")
+		strCmd.WriteString(setName)
+	}
 
-// //  Delete secondary index.
-// //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) DropIndex(
-// 	policy Policy,
-// 	namespace string,
-// 	setName string,
-// 	indexName string,
-// ) error {
-// }
+	strCmd.WriteString(";indexname=")
+	strCmd.WriteString(indexName)
+	strCmd.WriteString(";numbins=1")
+	strCmd.WriteString(";indexdata=")
+	strCmd.WriteString(binName)
+	strCmd.WriteString(",")
+	strCmd.WriteString(string(indexType))
+	strCmd.WriteString(";priority=normal")
 
-// //-------------------------------------------------------
-// // Internal Methods
-// //-------------------------------------------------------
+	// Send index command to one node. That node will distribute the command to other nodes.
+	responseMap, err := this.sendInfoCommand(policy, strCmd.String())
+	if err != nil {
+		return nil, err
+	}
+
+	response := ""
+	for _, v := range responseMap {
+		response = v
+	}
+
+	if strings.ToUpper(response) == "OK" {
+		// Return task that could optionally be polled for completion.
+		return NewIndexTask(this.cluster, namespace, indexName), nil
+	}
+
+	if strings.HasPrefix(response, "FAIL:200") {
+		// Index has already been created.  Do not need to poll for completion.
+		return nil, NewAerospikeError(INDEX_FOUND)
+	}
+
+	return nil, errors.New("Create index failed: " + response)
+}
+
+//  Delete secondary index.
+//  This method is only supported by Aerospike 3 servers.
+func (this *Client) DropIndex(
+	policy *WritePolicy,
+	namespace string,
+	setName string,
+	indexName string,
+) error {
+	var strCmd bytes.Buffer
+	strCmd.WriteString("sindex-delete:ns=")
+	strCmd.WriteString(namespace)
+
+	if len(setName) > 0 {
+		strCmd.WriteString(";set=")
+		strCmd.WriteString(setName)
+	}
+	strCmd.WriteString(";indexname=")
+	strCmd.WriteString(indexName)
+
+	// Send index command to one node. That node will distribute the command to other nodes.
+	responseMap, err := this.sendInfoCommand(policy, strCmd.String())
+	if err != nil {
+		return err
+	}
+
+	response := ""
+	for _, v := range responseMap {
+		response = v
+	}
+
+	if strings.ToUpper(response) == "OK" {
+		return nil
+	}
+
+	if strings.HasPrefix(response, "FAIL:201") {
+		// Index did not previously exist. Return without error.
+		return nil
+	}
+
+	return errors.New("Drop index failed: " + response)
+}
+
+//-------------------------------------------------------
+// Internal Methods
+//-------------------------------------------------------
 // func (this *Client) binNamesToHashSet(binNames []string) BinMap {
 // }
 
-// func (this *Client) sendInfoCommand(policy Policy, command string) (string, error) {
-// }
+func (this *Client) sendInfoCommand(policy *WritePolicy, command string) (map[string]string, error) {
+	node, err := this.cluster.GetRandomNode()
+	if err != nil {
+		return nil, err
+	}
+
+	timeout := time.Duration(0)
+	if policy != nil {
+		timeout = policy.Timeout
+	}
+
+	conn, err := node.GetConnection(timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := NewInfo(conn, command)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	node.PutConnection(conn)
+
+	results, err := info.parseMultiResponse()
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
 
 //-------------------------------------------------------
 // Utility Functions

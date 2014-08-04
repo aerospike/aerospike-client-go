@@ -32,7 +32,7 @@ import (
 
 func init() {
 	fmt.Println("Testing")
-	Logger.SetLevel(ERR)
+	Logger.SetLevel(DEBUG)
 }
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
@@ -768,9 +768,22 @@ var _ = Describe("Aerospike", func() {
 			const keyCount = 10000
 			bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 			bin2 := NewBin("Aerospike2", randString(100))
-			keys := make(map[string]struct{})
+			var keys map[string]struct{}
+
+			// read all records from the channel and make sure all of them are returned
+			var checkResults = func(results chan *Record) {
+				for fullRec := range results {
+					_, exists := keys[string(fullRec.Key.Digest())]
+					Expect(exists).To(Equal(true))
+					Expect(fullRec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(fullRec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+					delete(keys, string(fullRec.Key.Digest()))
+				}
+
+			}
 
 			BeforeEach(func() {
+				keys = make(map[string]struct{})
 				scanSet = randString(50)
 				for i := 0; i < keyCount; i++ {
 					key, err := NewKey(ns, scanSet, randString(50))
@@ -783,31 +796,20 @@ var _ = Describe("Aerospike", func() {
 			})
 
 			It("must Scan and get all records back for a specified node", func() {
-				results, err := client.ScanNode(nil, client.GetNodes()[0], ns, scanSet)
-				Expect(err).ToNot(HaveOccurred())
-
-				for fullRec := range results {
-					_, exists := keys[string(fullRec.Key.Digest())]
-					Expect(exists).To(Equal(true))
-					Expect(fullRec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
-					Expect(fullRec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
-					delete(keys, string(fullRec.Key.Digest()))
+				for _, node := range client.GetNodes() {
+					results, err := client.ScanNode(nil, node, ns, scanSet)
+					Expect(err).ToNot(HaveOccurred())
+					checkResults(results)
 				}
 
 				Expect(len(keys)).To(Equal(0))
 			})
 
-			It("must Scan and get all records back from all nodes", func() {
+			It("must Scan and get all records back from all nodes concurrently", func() {
 				results, err := client.ScanAll(nil, ns, scanSet)
 				Expect(err).ToNot(HaveOccurred())
 
-				for fullRec := range results {
-					_, exists := keys[string(fullRec.Key.Digest())]
-					Expect(exists).To(Equal(true))
-					Expect(fullRec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
-					Expect(fullRec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
-					delete(keys, string(fullRec.Key.Digest()))
-				}
+				checkResults(results)
 
 				Expect(len(keys)).To(Equal(0))
 			})

@@ -32,15 +32,20 @@ type Info struct {
 	msg *Message
 }
 
-// Get many info values by name from the specified database server node,
-// using host name and port.
-func RequestInfoForHostName(hostname string, port int, names ...string) map[string]string {
-	return nil
-}
-
 // Get info values by name from the specified database server node.
-func RequestInfoForNode(node Node, name ...string) (string, error) {
-	return "", nil
+func RequestInfoForNode(node *Node, name ...string) (map[string]string, error) {
+	conn, err := node.GetConnection(_DEFAULT_TIMEOUT)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := RequestInfo(conn, name...)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	node.PutConnection(conn)
+	return response, nil
 }
 
 // Send multiple commands to server and store results.
@@ -66,17 +71,6 @@ func RequestInfo(conn *Connection, names ...string) (map[string]string, error) {
 	} else {
 		return info.parseMultiResponse()
 	}
-}
-
-// Parse response in name/value pair format:
-// <command>\t<name1>=<value1>;<name2>=<value2>;...
-func (this *Info) parseNameValues() map[string]string {
-	return nil
-}
-
-// Return single value from response buffer.
-func (this *Info) GetValue() string {
-	return ""
 }
 
 // Issue request and set results buffer. This method is used internally.
@@ -133,15 +127,15 @@ func (this *Info) parseMultiResponse() (map[string]string, error) {
 			if offset > begin {
 				value := this.msg.Data[begin:offset]
 				responses[string(name)] = string(value)
-				// } else {
-				// 	responses[string(name)] = nil
+			} else {
+				responses[string(name)] = ""
 			}
 			offset++
 			begin = offset
 		} else if b == '\n' {
 			if offset > begin {
-				// name := this.msg.Data[begin : offset-begin]
-				// responses[string(name)] = nil
+				name := this.msg.Data[begin:offset]
+				responses[string(name)] = ""
 			}
 			offset++
 			begin = offset
@@ -151,9 +145,8 @@ func (this *Info) parseMultiResponse() (map[string]string, error) {
 	}
 
 	if offset > begin {
-		// name := this.msg.Data[begin : offset-begin]
-		// responses[string(name)] = nil
+		name := this.msg.Data[begin:offset]
+		responses[string(name)] = ""
 	}
-	Logger.Debug("%v", responses)
 	return responses, nil
 }

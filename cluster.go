@@ -163,6 +163,9 @@ func (this *Cluster) tend() error {
 	if len(nodes) == 0 {
 		Logger.Info("No connections available; seeding...")
 		this.seedNodes()
+
+		// refresh nodes list after seeding
+		nodes = this.GetNodes()
 	}
 
 	// Clear node reference counts.
@@ -177,10 +180,13 @@ func (this *Cluster) tend() error {
 
 	for _, node := range nodes {
 		if node.IsActive() {
-			if err := node.Refresh(friendList); err == nil {
-				refreshCount++
-			} else {
+			if friends, err := node.Refresh(); err != nil {
 				Logger.Warn("Node `%s` refresh failed: %s", node, err)
+			} else {
+				refreshCount++
+				if friends != nil {
+					friendList = append(friendList, friends...)
+				}
 			}
 		}
 	}
@@ -197,7 +203,6 @@ func (this *Cluster) tend() error {
 	}
 
 	Logger.Info("Tend finished. Live node count: %d", len(this.GetNodes()))
-
 	return nil
 }
 
@@ -321,13 +326,22 @@ func (this *Cluster) removeAlias(alias *Host) error {
 }
 
 func (this *Cluster) findNodesToAdd(hosts []*Host) []*Node {
-	list := make([]*Node, len(hosts))
+	list := make([]*Node, 0, len(hosts))
 
 	for _, host := range hosts {
 		if nv, err := NewNodeValidator(host, this.connectionTimeout); err != nil {
 			Logger.Warn("Add node %s failed: %s", err.Error())
 		} else {
 			node := this.findNodeByName(nv.name)
+			// make sure node is not already in the list to add
+			if node == nil {
+				for _, n := range list {
+					if n.GetName() == nv.name {
+						node = n
+						break
+					}
+				}
+			}
 
 			if node != nil {
 				// Duplicate node name found.  This usually occurs when the server
