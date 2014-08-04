@@ -814,6 +814,18 @@ var _ = Describe("Aerospike", func() {
 				Expect(len(keys)).To(Equal(0))
 			})
 
+			It("must Scan and get all records back from all nodes sequnetially", func() {
+				scanPolicy := NewScanPolicy()
+				scanPolicy.ConcurrentNodes = false
+
+				results, err := client.ScanAll(scanPolicy, ns, scanSet)
+				Expect(err).ToNot(HaveOccurred())
+
+				checkResults(results)
+
+				Expect(len(keys)).To(Equal(0))
+			})
+
 		}) // Scan command context
 
 	})
