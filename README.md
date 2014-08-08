@@ -1,4 +1,4 @@
-# Aerospike Go Client [![Build Status](https://magnum.travis-ci.com/citrusleaf/aerospike-client-go.svg?token=1yyz7BA7ChsFkpHDyZwW&branch=master)](https://magnum.travis-ci.com/citrusleaf/aerospike-client-go)
+# Aerospike Go Client [![Build Status](https://travis-ci.org/aerospike/aerospike-client-go.svg?branch=master)](https://travis-ci.org/aerospike/aerospike-client-go)
 
 An Aerospike library for Go.
 
@@ -146,3 +146,4 @@ The Aerospike Go Client is made availabled under the terms of the Apache License
 
 Individual files may be made available under their own specific license,
 all compatible with Apache License, Version 2. Please see individual files for details.
+
