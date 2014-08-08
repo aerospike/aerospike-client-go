@@ -84,9 +84,15 @@ func (this *BaseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 	var namespace, setName *string
 
 	for i := 0; i < fieldCount; i++ {
-		this.readBytes(4)
+		if err := this.readBytes(4); err != nil {
+			return nil, err
+		}
+
 		fieldlen := int(Buffer.BytesToInt32(this.dataBuffer, 0))
-		this.readBytes(fieldlen)
+		if err := this.readBytes(fieldlen); err != nil {
+			return nil, err
+		}
+
 		fieldtype := FieldType(this.dataBuffer[0])
 		size := fieldlen - 1
 

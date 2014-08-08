@@ -35,7 +35,7 @@ type ClientPolicy struct {
 func NewClientPolicy() *ClientPolicy {
 	return &ClientPolicy{
 		Timeout:             1 * time.Second,
-		ConnectionQueueSize: 64,
+		ConnectionQueueSize: 4096,
 		FailIfNotConnected:  true,
 	}
 }

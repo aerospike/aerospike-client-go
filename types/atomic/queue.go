@@ -39,7 +39,7 @@ func (this *AtomicQueue) Offer(item interface{}) bool {
 	return false
 }
 
-// Pop removes and returns a node from the queue in first to last order.
+// Poll removes and returns a node from the queue in first to last order.
 func (this *AtomicQueue) Poll() interface{} {
 	// non-blocking read pattern
 	select {

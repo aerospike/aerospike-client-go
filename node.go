@@ -184,8 +184,7 @@ func (this *Node) updatePartitions(conn *Connection, infoMap map[string]string) 
 // a new connection will be created
 func (this *Node) GetConnection(timeout time.Duration) (*Connection, error) {
 	var conn *Connection
-	t := this.connections.Poll()
-	for ; t != nil; t = this.connections.Poll() {
+	for t := this.connections.Poll(); t != nil; t = this.connections.Poll() {
 		conn = t.(*Connection)
 		if conn.IsConnected() {
 			conn.SetTimeout(timeout)
@@ -200,7 +199,7 @@ func (this *Node) GetConnection(timeout time.Duration) (*Connection, error) {
 // closed and discarded
 func (this *Node) PutConnection(conn *Connection) {
 	if !this.active.Get() || !this.connections.Offer(conn) {
-		go conn.Close()
+		conn.Close()
 	}
 }
 

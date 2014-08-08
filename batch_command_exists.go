@@ -66,7 +66,10 @@ func (this *BatchCommandExists) parseRecordResults(ifc Command, receiveSize int)
 			return false, QueryTerminatedErr()
 		}
 
-		this.readBytes(int(MSG_REMAINING_HEADER_SIZE))
+		if err := this.readBytes(int(MSG_REMAINING_HEADER_SIZE)); err != nil {
+			return false, err
+		}
+
 		resultCode := ResultCode(this.dataBuffer[5] & 0xFF)
 
 		// The only valid server return codes are "ok" and "not found".

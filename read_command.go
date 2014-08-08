@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	// . "github.com/aerospike/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/logger"
 
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -61,25 +61,34 @@ func (this *ReadCommand) writeBuffer(ifc Command) error {
 func (this *ReadCommand) parseResult(ifc Command, conn *Connection) error {
 	// Read header.
 	// Logger.Debug("ReadCommand Parse Result: trying to read %d bytes from the connection...", int(MSG_TOTAL_HEADER_SIZE))
-	conn.Read(this.dataBuffer, int(MSG_TOTAL_HEADER_SIZE))
+	_, err := conn.Read(this.dataBuffer, int(MSG_TOTAL_HEADER_SIZE))
+	if err != nil {
+		Logger.Warn("parse result error: " + err.Error())
+		return err
+	}
 
 	// A number of these are commented out because we just don't care enough to read
 	// that section of the header. If we do care, uncomment and check!
-	// var sz int64 = Buffer.BytesToInt64(this.dataBuffer, 0)
+	sz := Buffer.BytesToInt64(this.dataBuffer, 0)
 	headerLength := int(this.dataBuffer[8])
 	resultCode := ResultCode(this.dataBuffer[13] & 0xFF)
 	generation := int(Buffer.BytesToInt32(this.dataBuffer, 14))
 	expiration := TTL(int(Buffer.BytesToInt32(this.dataBuffer, 18)))
 	fieldCount := int(Buffer.BytesToInt16(this.dataBuffer, 26)) // almost certainly 0
 	opCount := int(Buffer.BytesToInt16(this.dataBuffer, 28))
-	receiveSize := int(Buffer.MsgLenFromBytes(this.dataBuffer[2:]) - int64(headerLength))
+	receiveSize := int((sz & 0xFFFFFFFFFFFF) - int64(headerLength))
 
 	// Logger.Debug("ReadCommand Parse Result: resultCode: %d, headerLength: %d, generation: %d, expiration: %d, fieldCount: %d, opCount: %d, receiveSize: %d", resultCode, headerLength, generation, expiration, fieldCount, opCount, receiveSize)
 
 	// Read remaining message bytes.
 	if receiveSize > 0 {
 		this.sizeBufferSz(receiveSize)
-		conn.Read(this.dataBuffer, receiveSize)
+		_, err = conn.Read(this.dataBuffer, receiveSize)
+		if err != nil {
+			Logger.Warn("parse result error: " + err.Error())
+			return err
+		}
+
 	}
 
 	if resultCode != 0 {
@@ -100,7 +109,7 @@ func (this *ReadCommand) parseResult(ifc Command, conn *Connection) error {
 		this.record = NewRecord(this.key, nil, nil, generation, expiration)
 		return nil
 	}
-	var err error
+
 	this.record, err = this.parseRecord(opCount, fieldCount, generation, expiration)
 	return err
 }

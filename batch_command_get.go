@@ -67,7 +67,9 @@ func (this *BatchCommandGet) parseRecordResults(ifc Command, receiveSize int) (b
 	this.dataOffset = 0
 
 	for this.dataOffset < receiveSize {
-		this.readBytes(int(MSG_REMAINING_HEADER_SIZE))
+		if err := this.readBytes(int(MSG_REMAINING_HEADER_SIZE)); err != nil {
+			return false, err
+		}
 		resultCode := ResultCode(this.dataBuffer[5] & 0xFF)
 
 		// The only valid server return codes are "ok" and "not found".
@@ -125,17 +127,23 @@ func (this *BatchCommandGet) parseRecord(key *Key, opCount int, generation int, 
 			return nil, QueryTerminatedErr()
 		}
 
-		this.readBytes(8)
+		if err := this.readBytes(8); err != nil {
+			return nil, err
+		}
 		opSize := int(Buffer.BytesToInt32(this.dataBuffer, 0))
 		particleType := int(this.dataBuffer[5])
 		version := int(this.dataBuffer[6])
 		nameSize := int(this.dataBuffer[7])
 
-		this.readBytes(nameSize)
+		if err := this.readBytes(nameSize); err != nil {
+			return nil, err
+		}
 		name := string(this.dataBuffer[:nameSize])
 
 		particleBytesSize := int(opSize - (4 + nameSize))
-		this.readBytes(particleBytesSize)
+		if err := this.readBytes(particleBytesSize); err != nil {
+			return nil, err
+		}
 		value, err := BytesToParticle(particleType, this.dataBuffer, 0, particleBytesSize)
 		if err != nil {
 			return nil, err

@@ -15,15 +15,20 @@
 package atomic_test
 
 import (
+	"runtime"
+
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-type testStruct struct{}
+type testStruct struct{ i int }
 
 var _ = Describe("Atomic Queue", func() {
+	// atomic tests require actual parallelism
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	var qcap int
 	var q *AtomicQueue
 	var elem interface{}
@@ -45,4 +50,23 @@ var _ = Describe("Atomic Queue", func() {
 		}
 		Expect(elem).To(BeNil())
 	})
+
+	It("must Offer() more elements than queue's capacity, and Poll() as many as capacity", func() {
+		// test for many iterations
+		for j := 0; j < 10; j++ {
+			for i := 0; i < 2*qcap; i++ {
+				q.Offer(&testStruct{i})
+			}
+
+			for i := 0; i < 2*qcap; i++ {
+				obj := q.Poll()
+				if i < qcap {
+					Expect(obj.(*testStruct).i).To(Equal(i))
+				} else {
+					Expect(obj).To(BeNil())
+				}
+			}
+		}
+	})
+
 })

@@ -15,7 +15,7 @@
 package aerospike_test
 
 import (
-	"fmt"
+	// "fmt"
 	"math"
 	"math/rand"
 	"strings"
@@ -31,8 +31,7 @@ import (
 )
 
 func init() {
-	fmt.Println("Testing")
-	Logger.SetLevel(DEBUG)
+	Logger.SetLevel(OFF)
 }
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
@@ -41,7 +40,6 @@ var _ = Describe("Aerospike", func() {
 
 	Describe("Data operations on native types", func() {
 		// connection data
-		var client *Client
 		var err error
 		var ns = "test"
 		var set = randString(50)
@@ -50,9 +48,11 @@ var _ = Describe("Aerospike", func() {
 		var rpolicy = NewPolicy()
 		var rec *Record
 
+		// use the same client for all
+		client, err := NewClient("127.0.0.1", 3000)
+		Expect(err).ToNot(HaveOccurred())
+
 		BeforeEach(func() {
-			client, err = NewClient("127.0.0.1", 3000)
-			Expect(err).ToNot(HaveOccurred())
 			key, err = NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -643,7 +643,7 @@ var _ = Describe("Aerospike", func() {
 
 		Context("Batch Get Header operations", func() {
 			bin := NewBin("Aerospike", rand.Int())
-			const keyCount = 2048
+			const keyCount = 1024
 
 			BeforeEach(func() {
 			})

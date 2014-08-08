@@ -66,7 +66,9 @@ func (this *ScanCommand) parseRecordResults(ifc Command, receiveSize int) (bool,
 	this.dataOffset = 0
 
 	for this.dataOffset < receiveSize {
-		this.readBytes(int(MSG_REMAINING_HEADER_SIZE))
+		if err := this.readBytes(int(MSG_REMAINING_HEADER_SIZE)); err != nil {
+			return false, err
+		}
 		resultCode := ResultCode(this.dataBuffer[5] & 0xFF)
 
 		if resultCode != 0 {
@@ -97,16 +99,24 @@ func (this *ScanCommand) parseRecordResults(ifc Command, receiveSize int) (bool,
 		var bins BinMap
 
 		for i := 0; i < opCount; i++ {
-			this.readBytes(8)
+			if err := this.readBytes(8); err != nil {
+				return false, err
+			}
+
 			opSize := int(Buffer.BytesToInt32(this.dataBuffer, 0))
 			particleType := int(this.dataBuffer[5])
 			nameSize := int(this.dataBuffer[7])
 
-			this.readBytes(nameSize)
+			if err := this.readBytes(nameSize); err != nil {
+				return false, err
+			}
 			name := string(this.dataBuffer[:nameSize])
 
 			particleBytesSize := int(opSize - (4 + nameSize))
-			this.readBytes(particleBytesSize)
+			if err := this.readBytes(particleBytesSize); err != nil {
+				return false, err
+			}
+
 			value, err := BytesToParticle(particleType, this.dataBuffer, 0, particleBytesSize)
 			if err != nil {
 				return false, err

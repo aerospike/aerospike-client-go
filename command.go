@@ -244,20 +244,26 @@ func (this *BaseCommand) SetOperate(policy *WritePolicy, key *Key, operations []
 	return nil
 }
 
-// func (this *BaseCommand) SetUdf(key *Key, packageName string, functionName string, args []*Value) error {
-// 	this.begin()
-// 	fieldCount := this.estimateKeySize(key)
-// 	argBytes := Packer.pack(args)
-// 	fieldCount += estimateUdfSize(packageName, functionName, argBytes)
+func (this *BaseCommand) SetUdf(key *Key, packageName string, functionName string, args []Value) error {
+	this.begin()
+	fieldCount := this.estimateKeySize(key)
+	argBytes, err := PackValueArray(args)
+	if err != nil {
+		return err
+	}
 
-// 	this.sizeBuffer()
-// 	this.writeHeaderWithPolicy(0, INFO2_WRITE, fieldCount, 0)
-// 	this.writeKey(key)
-// 	this.writeField(packageName, UDF_PACKAGE_NAME)
-// 	this.writeField(functionName, UDF_FUNCTION)
-// 	this.writeField(argBytes, UDF_ARGLIST)
-// 	this.end()
-// }
+	fieldCount += this.estimateUdfSize(packageName, functionName, argBytes)
+
+	this.sizeBuffer()
+	this.writeHeader(0, INFO2_WRITE, fieldCount, 0)
+	this.writeKey(key)
+	this.WriteFieldString(packageName, UDF_PACKAGE_NAME)
+	this.WriteFieldString(functionName, UDF_FUNCTION)
+	this.WriteFieldBytes(argBytes, UDF_ARGLIST)
+	this.end()
+
+	return nil
+}
 
 func (this *BaseCommand) SetBatchExists(batchNamespace *batchNamespace) error {
 	// Estimate buffer size

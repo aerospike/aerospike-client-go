@@ -18,12 +18,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/utils"
 )
 
 type Client struct {
@@ -426,15 +428,16 @@ func (this *Client) scanNode(policy *ScanPolicy, node *Node, namespace string, s
 	return command.Execute()
 }
 
-// //-------------------------------------------------------------------
-// // Large collection functions (Supported by Aerospike 3 servers only)
-// //-------------------------------------------------------------------
+//-------------------------------------------------------------------
+// Large collection functions (Supported by Aerospike 3 servers only)
+//-------------------------------------------------------------------
 
-// //  Initialize large list operator.  This operator can be used to create and manage a list
-// //  within a single bin.
-// //  <p>
-// //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) GetLargeList(policy Policy, key Key, binName string, userModule string) LargeList {
+//  Initialize large list operator.  This operator can be used to create and manage a list
+//  within a single bin.
+//
+//  This method is only supported by Aerospike 3 servers.
+// func (this *Client) GetLargeList(policy *WritePolicy, key *Key, binName string, userModule string) *LargeList {
+// 	return NewLargeList(this, policy, key, binName, userModule)
 // }
 
 // //  Initialize large map operator.  This operator can be used to create and manage a map
@@ -458,28 +461,119 @@ func (this *Client) scanNode(policy *ScanPolicy, node *Node, namespace string, s
 // func (this *Client) GetLargeStack(policy Policy, key Key, binName string, userModule string) LargeStack {
 // }
 
-// //---------------------------------------------------------------
-// // User defined functions (Supported by Aerospike 3 servers only)
-// //---------------------------------------------------------------
+//---------------------------------------------------------------
+// User defined functions (Supported by Aerospike 3 servers only)
+//---------------------------------------------------------------
 
-// //  Register package containing user defined functions with server.
-// //  This asynchronous server call will return before command is complete.
-// //  The user can optionally wait for command completion by using the returned
-// //  RegisterTask instance.
-// //  <p>
-// //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) Register(policy Policy, clientPath string, serverPath string, language Language) RegisterTask {
-// }
+//  Register package containing user defined functions with server.
+//  This asynchronous server call will return before command is complete.
+//  The user can optionally wait for command completion by using the returned
+//  RegisterTask instance.
+//
+//  This method is only supported by Aerospike 3 servers.
+func (this *Client) Register(policy *WritePolicy, clientPath string, serverPath string, language Language) (*RegisterTask, error) {
+	content, err := utils.ReadFileEncodeBase64(clientPath)
+	if err != nil {
+		return nil, err
+	}
 
-// //  Execute user defined function on server and return results.
-// //  The function operates on a single record.
-// //  The package name is used to locate the udf file location:
-// //  <p>
-// //  udf file = <server udf dir>/<package name>.lua
-// //  <p>
-// //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) Execute(policy Policy, key Key, packageName string, functionName string, args ...Value) Object {
-// }
+	var strCmd bytes.Buffer
+	strCmd.WriteString("udf-put:filename=")
+	strCmd.WriteString(serverPath)
+	strCmd.WriteString(";content=")
+	strCmd.WriteString(content)
+	strCmd.WriteString(";content-len=")
+	strCmd.WriteString(strconv.Itoa(len(content)))
+	strCmd.WriteString(";udf-type=")
+	strCmd.WriteString(string(language))
+	strCmd.WriteString(";")
+
+	// Send UDF to one node. That node will distribute the UDF to other nodes.
+	node, err := this.cluster.GetRandomNode()
+	if err != nil {
+		return nil, err
+	}
+
+	timeout := time.Duration(0)
+	if policy == nil {
+		timeout = policy.Timeout
+	}
+	conn, err := node.GetConnection(timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	//
+	responseMap, err := RequestInfo(conn, strCmd.String())
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	var response string
+	for _, v := range responseMap {
+		response = v
+	}
+
+	res := make(map[string]string)
+	vals := strings.Split(response, ";")
+	for _, pair := range vals {
+		t := strings.SplitN(pair, "=", 2)
+		res[t[0]] = t[1]
+	}
+
+	if _, exists := res["error"]; exists {
+		return nil, NewAerospikeError(COMMAND_REJECTED, "Registration failed: %s\nFile: %s\nLine: %s\nMessage: %s",
+			res["error"], res["file"], res["line"], res["message"])
+	}
+
+	node.PutConnection(conn)
+	return NewRegisterTask(this.cluster, serverPath), nil
+}
+
+//  Execute user defined function on server and return results.
+//  The function operates on a single record.
+//  The package name is used to locate the udf file location:
+//
+//  udf file = <server udf dir>/<package name>.lua
+//
+//  This method is only supported by Aerospike 3 servers.
+func (this *Client) Execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (interface{}, error) {
+	if policy == nil {
+		policy = NewWritePolicy(0, 0)
+	}
+	command := NewExecuteCommand(this.cluster, policy, key, packageName, functionName, args)
+	command.Execute()
+
+	record := command.GetRecord()
+	// fmt.Printf("%v\n", record)
+
+	if record == nil || len(record.Bins) == 0 {
+		return nil, nil
+	}
+
+	resultMap := record.Bins
+
+	// User defined functions don't have to return a value.
+	if exists, obj := mapContainsKeyPartial(resultMap, "SUCCESS"); exists {
+		return obj, nil
+	}
+
+	if _, obj := mapContainsKeyPartial(resultMap, "FAILURE"); obj != nil {
+		return nil, errors.New(fmt.Sprintf("%v", obj))
+	}
+
+	return nil, errors.New("Invalid UDF return value")
+}
+
+func mapContainsKeyPartial(theMap map[string]interface{}, key string) (bool, interface{}) {
+	for k, v := range theMap {
+		if strings.Index(k, key) >= 0 {
+			return true, v
+		}
+	}
+	return false, nil
+}
 
 // //----------------------------------------------------------
 // // Query/Execute UDF (Supported by Aerospike 3 servers only)
