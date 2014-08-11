@@ -9,5 +9,5 @@ import (
 
 func TestAerospike(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Aerospike Suite")
+	RunSpecs(t, "Aerospike Client Library Suite")
 }

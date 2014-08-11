@@ -436,30 +436,33 @@ func (this *Client) scanNode(policy *ScanPolicy, node *Node, namespace string, s
 //  within a single bin.
 //
 //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) GetLargeList(policy *WritePolicy, key *Key, binName string, userModule string) *LargeList {
-// 	return NewLargeList(this, policy, key, binName, userModule)
-// }
+func (this *Client) GetLargeList(policy *WritePolicy, key *Key, binName string, userModule string) *LargeList {
+	return NewLargeList(this, policy, key, binName, userModule)
+}
 
-// //  Initialize large map operator.  This operator can be used to create and manage a map
-// //  within a single bin.
-// //  <p>
-// //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) GetLargeMap(policy Policy, key Key, binName string, userModule string) LargeMap {
-// }
+//  Initialize large map operator.  This operator can be used to create and manage a map
+//  within a single bin.
+//
+//  This method is only supported by Aerospike 3 servers.
+func (this *Client) GetLargeMap(policy *WritePolicy, key *Key, binName string, userModule string) *LargeMap {
+	return NewLargeMap(this, policy, key, binName, userModule)
+}
 
-// //  Initialize large set operator.  This operator can be used to create and manage a set
-// //  within a single bin.
-// //  <p>
-// //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) GetLargeSet(policy Policy, key Key, binName string, userModule string) LargeSet {
-// }
+//  Initialize large set operator.  This operator can be used to create and manage a set
+//  within a single bin.
+//
+//  This method is only supported by Aerospike 3 servers.
+func (this *Client) GetLargeSet(policy *WritePolicy, key *Key, binName string, userModule string) *LargeSet {
+	return NewLargeSet(this, policy, key, binName, userModule)
+}
 
-// //  Initialize large stack operator.  This operator can be used to create and manage a stack
-// //  within a single bin.
-// //  <p>
-// //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) GetLargeStack(policy Policy, key Key, binName string, userModule string) LargeStack {
-// }
+//  Initialize large stack operator.  This operator can be used to create and manage a stack
+//  within a single bin.
+//
+//  This method is only supported by Aerospike 3 servers.
+func (this *Client) GetLargeStack(policy *WritePolicy, key *Key, binName string, userModule string) *LargeStack {
+	return NewLargeStack(this, policy, key, binName, userModule)
+}
 
 //---------------------------------------------------------------
 // User defined functions (Supported by Aerospike 3 servers only)
@@ -603,7 +606,7 @@ func mapContainsKeyPartial(theMap map[string]interface{}, key string) (bool, int
 // //  record iterator.
 // //  <p>
 // //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) Query(policy QueryPolicy, statement Statement) (RecordSet, error) {
+// func (this *Client) Query(policy *QueryPolicy, statement *Statement) (RecordSet, error) {
 // }
 
 // //  Execute query, apply statement's aggregation function, and return result iterator. The query
