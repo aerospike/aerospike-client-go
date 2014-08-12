@@ -21,6 +21,8 @@ import (
 	. "github.com/aerospike/aerospike-client-go/logger"
 )
 
+var zeroTime = time.Unix(0, 0)
+
 // Connection represents a connection with a timeout
 type Connection struct {
 	// timeout
@@ -51,7 +53,10 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 func (this *Connection) Write(buf []byte) (int, error) {
 	if this.timeout > 0 {
 		this.conn.SetWriteDeadline(time.Now().Add(this.timeout))
+	} else {
+		this.conn.SetWriteDeadline(zeroTime)
 	}
+
 	return this.conn.Write(buf)
 }
 
@@ -59,9 +64,27 @@ func (this *Connection) Write(buf []byte) (int, error) {
 func (this *Connection) Read(buf []byte, length int) (int, error) {
 	if this.timeout > 0 {
 		this.conn.SetReadDeadline(time.Now().Add(this.timeout))
+	} else {
+		this.conn.SetReadDeadline(zeroTime)
 	}
-	r, err := this.conn.Read(buf[:length])
-	return r, err
+
+	// read all required bytes
+	total, err := this.conn.Read(buf[:length])
+	if err != nil {
+		return total, err
+	}
+
+	// if all bytes are not read, retry until successful
+	// Don't worry about the loop; we've already set the deadline
+	for total < length {
+		r, err := this.conn.Read(buf[total:length])
+		if err != nil {
+			break
+		}
+
+		total += r
+	}
+	return total, err
 }
 
 // Returns true if the connection is not closed
@@ -84,3 +107,4 @@ func (this *Connection) Close() {
 		this.conn = nil
 	}
 }
+
