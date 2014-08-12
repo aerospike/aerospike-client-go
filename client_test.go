@@ -828,5 +828,49 @@ var _ = Describe("Aerospike", func() {
 
 		}) // Scan command context
 
+		Context("Query operations", func() {
+			var querySet string
+			const keyCount = 10000
+			bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
+			bin2 := NewBin("Aerospike2", randString(100))
+			var keys map[string]struct{}
+
+			// read all records from the channel and make sure all of them are returned
+			var checkResults = func(results chan *Record) {
+				for fullRec := range results {
+					_, exists := keys[string(fullRec.Key.Digest())]
+					Expect(exists).To(Equal(true))
+					Expect(fullRec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(fullRec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+					delete(keys, string(fullRec.Key.Digest()))
+				}
+
+			}
+
+			BeforeEach(func() {
+				keys = make(map[string]struct{})
+				querySet = randString(50)
+				for i := 0; i < keyCount; i++ {
+					key, err := NewKey(ns, querySet, randString(50))
+					Expect(err).ToNot(HaveOccurred())
+
+					keys[string(key.Digest())] = struct{}{}
+					err = client.PutBins(wpolicy, key, bin1, bin2)
+					Expect(err).ToNot(HaveOccurred())
+				}
+			})
+
+			It("must Query a range and get all records back", func() {
+				stm := NewStatement(ns, querySet)
+				results, err := client.Query(nil, stm)
+				Expect(err).ToNot(HaveOccurred())
+
+				checkResults(results.Records)
+
+				Expect(len(keys)).To(Equal(0))
+			})
+
+		}) // query context
+
 	})
 })

@@ -31,3 +31,11 @@ type QueryPolicy struct {
 	// If the queue is full, the producer threads will block until records are consumed.
 	RecordQueueSize int //= 5000
 }
+
+func NewQueryPolicy() *QueryPolicy {
+	return &QueryPolicy{
+		BasePolicy:         *NewPolicy(),
+		MaxConcurrentNodes: 0,
+		RecordQueueSize:    5000,
+	}
+}

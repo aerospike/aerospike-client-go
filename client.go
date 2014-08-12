@@ -16,8 +16,11 @@ package aerospike
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,7 +28,7 @@ import (
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
-	"github.com/aerospike/aerospike-client-go/utils"
+	// "github.com/aerospike/aerospike-client-go/utils"
 )
 
 type Client struct {
@@ -474,11 +477,23 @@ func (this *Client) GetLargeStack(policy *WritePolicy, key *Key, binName string,
 //  RegisterTask instance.
 //
 //  This method is only supported by Aerospike 3 servers.
-func (this *Client) Register(policy *WritePolicy, clientPath string, serverPath string, language Language) (*RegisterTask, error) {
-	content, err := utils.ReadFileEncodeBase64(clientPath)
+func (this *Client) RegisterUDFFromFile(policy *WritePolicy, clientPath string, serverPath string, language Language) (*RegisterTask, error) {
+	udfBody, err := ioutil.ReadFile(clientPath)
 	if err != nil {
 		return nil, err
 	}
+
+	return this.RegisterUDF(policy, udfBody, serverPath, language)
+}
+
+//  Register package containing user defined functions with server.
+//  This asynchronous server call will return before command is complete.
+//  The user can optionally wait for command completion by using the returned
+//  RegisterTask instance.
+//
+//  This method is only supported by Aerospike 3 servers.
+func (this *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath string, language Language) (*RegisterTask, error) {
+	content := base64.StdEncoding.EncodeToString(udfBody)
 
 	var strCmd bytes.Buffer
 	strCmd.WriteString("udf-put:filename=")
@@ -498,7 +513,7 @@ func (this *Client) Register(policy *WritePolicy, clientPath string, serverPath 
 	}
 
 	timeout := time.Duration(0)
-	if policy == nil {
+	if policy != nil {
 		timeout = policy.Timeout
 	}
 	conn, err := node.GetConnection(timeout)
@@ -515,19 +530,25 @@ func (this *Client) Register(policy *WritePolicy, clientPath string, serverPath 
 
 	var response string
 	for _, v := range responseMap {
-		response = v
+		if strings.Trim(v, " ") != "" {
+			response = v
+		}
 	}
 
 	res := make(map[string]string)
 	vals := strings.Split(response, ";")
 	for _, pair := range vals {
 		t := strings.SplitN(pair, "=", 2)
-		res[t[0]] = t[1]
+		if len(t) == 2 {
+			res[t[0]] = t[1]
+		} else if len(t) == 1 {
+			res[t[0]] = ""
+		}
 	}
 
 	if _, exists := res["error"]; exists {
-		return nil, NewAerospikeError(COMMAND_REJECTED, "Registration failed: %s\nFile: %s\nLine: %s\nMessage: %s",
-			res["error"], res["file"], res["line"], res["message"])
+		return nil, NewAerospikeError(COMMAND_REJECTED, fmt.Sprintf("Registration failed: %s\nFile: %s\nLine: %s\nMessage: %s",
+			res["error"], res["file"], res["line"], res["message"]))
 	}
 
 	node.PutConnection(conn)
@@ -549,7 +570,6 @@ func (this *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 	command.Execute()
 
 	record := command.GetRecord()
-	// fmt.Printf("%v\n", record)
 
 	if record == nil || len(record.Bins) == 0 {
 		return nil, nil
@@ -578,36 +598,98 @@ func mapContainsKeyPartial(theMap map[string]interface{}, key string) (bool, int
 	return false, nil
 }
 
-// //----------------------------------------------------------
-// // Query/Execute UDF (Supported by Aerospike 3 servers only)
-// //----------------------------------------------------------
+//----------------------------------------------------------
+// Query/Execute UDF (Supported by Aerospike 3 servers only)
+//----------------------------------------------------------
 
-// //  Apply user defined function on records that match the statement filter.
-// //  Records are not returned to the client.
-// //  This asynchronous server call will return before command is complete.
-// //  The user can optionally wait for command completion by using the returned
-// //  ExecuteTask instance.
-// //  <p>
-// //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) Execute2(policy Policy,
-// 	statement Statement,
-// 	packageName string,
-// 	functionName string,
-// 	functionArgs ...Value,
-// ) (ExecuteTask, error) {
-// }
+//  Apply user defined function on records that match the statement filter.
+//  Records are not returned to the client.
+//  This asynchronous server call will return before command is complete.
+//  The user can optionally wait for command completion by using the returned
+//  ExecuteTask instance.
+//
+//  This method is only supported by Aerospike 3 servers.
+func (this *Client) ExecuteUDF(policy *QueryPolicy,
+	statement *Statement,
+	packageName string,
+	functionName string,
+	functionArgs ...Value,
+) (*ExecuteTask, error) {
+	if policy == nil {
+		policy = NewQueryPolicy()
+	}
 
-// //--------------------------------------------------------
-// // Query functions (Supported by Aerospike 3 servers only)
-// //--------------------------------------------------------
+	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
-// //  Execute query and return record iterator.  The query executor puts records on a queue in
-// //  separate threads.  The calling thread concurrently pops records off the queue through the
-// //  record iterator.
-// //  <p>
-// //  This method is only supported by Aerospike 3 servers.
-// func (this *Client) Query(policy *QueryPolicy, statement *Statement) (RecordSet, error) {
-// }
+	if statement.taskId == 0 {
+		statement.taskId = int(rand.Int31())
+	}
+
+	nodes := this.cluster.GetNodes()
+	if len(nodes) == 0 {
+		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteUDF failed because cluster is empty.")
+	}
+
+	for i := 0; i < len(nodes); i++ {
+		command := NewServerCommand(nodes[i], policy, statement)
+		go command.Execute()
+	}
+
+	return NewExecuteTask(this.cluster, statement), nil
+}
+
+//--------------------------------------------------------
+// Query functions (Supported by Aerospike 3 servers only)
+//--------------------------------------------------------
+
+//  Execute query and return record iterator.  The query executor puts records on a queue in
+//  separate threads.  The calling thread concurrently pops records off the queue through the
+//  record iterator.
+//  <p>
+//  This method is only supported by Aerospike 3 servers.
+func (this *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset, error) {
+	if policy == nil {
+		policy = NewQueryPolicy()
+	}
+
+	// Retry policy must be one-shot for scans.
+	policy.MaxRetries = 0
+
+	nodes := this.cluster.GetNodes()
+	if len(nodes) == 0 {
+		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+	}
+
+	// results channel must be async for performance
+	recSet := NewRecordset()
+
+	// results channel must be async for performance
+	recChans := []chan *Record{}
+	for _, node := range nodes {
+		recChan := make(chan *Record, 1024)
+
+		go this.queryNode(policy, node, statement, recChan)
+
+		recChans = append(recChans, recChan)
+	}
+
+	recSet.Records = this.mergeResultChannels(recChans...)
+	recSet.chans = recChans
+
+	return recSet, nil
+}
+
+func (this *Client) queryNode(policy *QueryPolicy, node *Node, statement *Statement, recChan chan *Record) error {
+	if policy == nil {
+		policy = NewQueryPolicy()
+	}
+
+	// Retry policy must be one-shot for scans.
+	policy.MaxRetries = 0
+
+	command := NewQueryRecordCommand(node, policy, statement, recChan)
+	return command.Execute()
+}
 
 // //  Execute query, apply statement's aggregation function, and return result iterator. The query
 // //  executor puts results on a queue in separate threads.  The calling thread concurrently pops

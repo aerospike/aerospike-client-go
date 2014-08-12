@@ -62,3 +62,7 @@ func (this *RegisterTask) IsDone() (bool, error) {
 	}
 	return done, nil
 }
+
+func (this *RegisterTask) OnComplete() chan error {
+	return this.onComplete(this)
+}

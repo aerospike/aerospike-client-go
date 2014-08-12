@@ -12,13 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package aerospike
 
-// User defined function languages.
-type Language string
+type Recordset struct {
+	Records chan *Record
 
-const (
+	active bool
+	chans  []chan *Record
+}
 
-	// Lua embedded programming language.
-	LUA Language = "LUA"
-)
+func NewRecordset() *Recordset {
+	return &Recordset{
+		Records: make(chan *Record, 1024),
+		active:  true,
+	}
+}
+
+func (this *Recordset) IsActive() bool {
+	return this.active == true
+}
+
+func (this *Recordset) Close() {
+	this.active = false
+	for _, ch := range this.chans {
+		// send signal to close
+		ch <- nil
+	}
+}
