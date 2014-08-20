@@ -18,42 +18,30 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-/**
- * Query filter definition.
- */
+// Query filter definition.
 type Filter struct {
 	name  string
 	begin Value
 	end   Value
 }
 
-/**
- * Create long equality filter for query.
- *
- * @param name      bin name
- * @param value     filter value
- * @return        filter instance
- */
-func NewEqualFilter(name string, value interface{}) *Filter {
+// Create long equality filter for query.
+func NewEqualFilter(binName string, value interface{}) *Filter {
 	val := NewValue(value)
-	return NewFilter(name, val, val)
+	return newFilter(binName, val, val)
 }
 
-/**
- * Create range filter for query.
- * Range arguments must be longs or integers which can be cast to longs.
- * String ranges are not supported.
- *
- * @param name      bin name
- * @param begin     filter begin value
- * @param end     filter end value
- * @return        filter instance
- */
-func NewRangeFilter(name string, begin int64, end int64) *Filter {
-	return NewFilter(name, NewValue(begin), NewValue(end))
+// Create range filter for query.
+// Range arguments must be longs or integers which can be cast to longs.
+// String ranges are not supported.
+func NewRangeFilter(binName string, begin int64, end int64) *Filter {
+	return newFilter(binName, NewValue(begin), NewValue(end))
 }
 
-func NewFilter(name string, begin Value, end Value) *Filter {
+// Create a filter for query.
+// Range arguments must be longs or integers which can be cast to longs.
+// String ranges are not supported.
+func newFilter(name string, begin Value, end Value) *Filter {
 	return &Filter{
 		name:  name,
 		begin: begin,
@@ -61,25 +49,25 @@ func NewFilter(name string, begin Value, end Value) *Filter {
 	}
 }
 
-func (this *Filter) estimateSize() (int, error) {
+func (fltr *Filter) estimateSize() (int, error) {
 	// bin name size(1) + particle type size(1) + begin particle size(4) + end particle size(4) = 10
-	return len(this.name) + this.begin.EstimateSize() + this.end.EstimateSize() + 10, nil
+	return len(fltr.name) + fltr.begin.estimateSize() + fltr.end.estimateSize() + 10, nil
 }
 
-func (this *Filter) write(buf []byte, offset int) (int, error) {
+func (fltr *Filter) write(buf []byte, offset int) (int, error) {
 	var err error
 
 	// Write name.
-	len := copy(buf[offset+1:], []byte(this.name))
+	len := copy(buf[offset+1:], []byte(fltr.name))
 	buf[offset] = byte(len)
 	offset += len + 1
 
 	// Write particle type.
-	buf[offset] = byte(this.begin.GetType())
+	buf[offset] = byte(fltr.begin.GetType())
 	offset++
 
 	// Write filter begin.
-	len, err = this.begin.Write(buf, offset+4)
+	len, err = fltr.begin.write(buf, offset+4)
 	if err != nil {
 		return -1, err
 	}
@@ -87,7 +75,7 @@ func (this *Filter) write(buf []byte, offset int) (int, error) {
 	offset += len + 4
 
 	// Write filter end.
-	len, err = this.end.Write(buf, offset+4)
+	len, err = fltr.end.write(buf, offset+4)
 	if err != nil {
 		return -1, err
 	}

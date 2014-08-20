@@ -18,22 +18,23 @@ import (
 	"bytes"
 	"encoding/binary"
 	"strings"
+	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 const (
-	_DEFAULT_TIMEOUT = 2000
+	_DEFAULT_TIMEOUT = 2 * time.Second
 )
 
 // Access server's info monitoring protocol.
-type Info struct {
+type info struct {
 	msg *Message
 }
 
 // Get info values by name from the specified database server node.
-func RequestInfoForNode(node *Node, name ...string) (map[string]string, error) {
+func RequestNodeInfo(node *Node, name ...string) (map[string]string, error) {
 	conn, err := node.GetConnection(_DEFAULT_TIMEOUT)
 	if err != nil {
 		return nil, err
@@ -49,12 +50,12 @@ func RequestInfoForNode(node *Node, name ...string) (map[string]string, error) {
 }
 
 // Send multiple commands to server and store results.
-func NewInfo(conn *Connection, commands ...string) (*Info, error) {
+func newInfo(conn *Connection, commands ...string) (*info, error) {
 	commandStr := strings.Trim(strings.Join(commands, "\n"), " ")
-	if commandStr != "" {
+	if strings.Trim(commandStr, " ") != "" {
 		commandStr += "\n"
 	}
-	newInfo := &Info{
+	newInfo := &info{
 		msg: NewMessage(MSG_INFO, []byte(commandStr)),
 	}
 
@@ -66,7 +67,7 @@ func NewInfo(conn *Connection, commands ...string) (*Info, error) {
 
 // Get info values by name from the specified connection
 func RequestInfo(conn *Connection, names ...string) (map[string]string, error) {
-	if info, err := NewInfo(conn, names...); err != nil {
+	if info, err := newInfo(conn, names...); err != nil {
 		return nil, err
 	} else {
 		return info.parseMultiResponse()
@@ -75,57 +76,59 @@ func RequestInfo(conn *Connection, names ...string) (map[string]string, error) {
 
 // Issue request and set results buffer. This method is used internally.
 // The static request methods should be used instead.
-func (this *Info) sendCommand(conn *Connection) error {
+func (nfo *info) sendCommand(conn *Connection) error {
 	// Write.
-	if _, err := conn.Write(this.msg.Serialize()); err != nil {
+	if _, err := conn.Write(nfo.msg.Serialize()); err != nil {
 		Logger.Debug("Failed to send command.")
 		return err
 	}
 
 	// Read - reuse input buffer.
 	header := bytes.NewBuffer(make([]byte, MSG_HEADER_SIZE))
-	conn.Read(header.Bytes(), MSG_HEADER_SIZE)
-	if err := binary.Read(header, binary.BigEndian, &this.msg.MessageHeader); err != nil {
+	if _, err := conn.Read(header.Bytes(), MSG_HEADER_SIZE); err != nil {
+		return err
+	}
+	if err := binary.Read(header, binary.BigEndian, &nfo.msg.MessageHeader); err != nil {
 		Logger.Debug("Failed to read command response.")
 		return err
 	}
 
 	// Logger.Debug("Header Response: %v %v %v %v", t.Type, t.Version, t.Length(), t.DataLen)
-	this.msg.Resize(this.msg.Length())
-	_, err := conn.Read(this.msg.Data, len(this.msg.Data))
+	nfo.msg.Resize(nfo.msg.Length())
+	_, err := conn.Read(nfo.msg.Data, len(nfo.msg.Data))
 	return err
 }
 
-func (this *Info) parseSingleResponse(name string) (string, error) {
+func (nfo *info) parseSingleResponse(name string) (string, error) {
 	return "-", nil
 }
 
-func (this *Info) parseMultiResponse() (map[string]string, error) {
+func (nfo *info) parseMultiResponse() (map[string]string, error) {
 	responses := make(map[string]string)
 	offset := int64(0)
 	begin := int64(0)
 
-	dataLen := int64(len(this.msg.Data))
+	dataLen := int64(len(nfo.msg.Data))
 
 	// Create reusable StringBuilder for performance.
 	for offset < dataLen {
-		b := this.msg.Data[offset]
+		b := nfo.msg.Data[offset]
 
 		if b == '\t' {
-			name := this.msg.Data[begin:offset]
+			name := nfo.msg.Data[begin:offset]
 			offset++
 			begin = offset
 
 			// Parse field value.
 			for offset < dataLen {
-				if this.msg.Data[offset] == '\n' {
+				if nfo.msg.Data[offset] == '\n' {
 					break
 				}
 				offset++
 			}
 
 			if offset > begin {
-				value := this.msg.Data[begin:offset]
+				value := nfo.msg.Data[begin:offset]
 				responses[string(name)] = string(value)
 			} else {
 				responses[string(name)] = ""
@@ -134,7 +137,7 @@ func (this *Info) parseMultiResponse() (map[string]string, error) {
 			begin = offset
 		} else if b == '\n' {
 			if offset > begin {
-				name := this.msg.Data[begin:offset]
+				name := nfo.msg.Data[begin:offset]
 				responses[string(name)] = ""
 			}
 			offset++
@@ -145,7 +148,7 @@ func (this *Info) parseMultiResponse() (map[string]string, error) {
 	}
 
 	if offset > begin {
-		name := this.msg.Data[begin:offset]
+		name := nfo.msg.Data[begin:offset]
 		responses[string(name)] = ""
 	}
 	return responses, nil

@@ -36,8 +36,8 @@ type MessageHeader struct {
 	DataLen [6]byte
 }
 
-func (this *MessageHeader) Length() int64 {
-	return msgLenFromBytes(this.DataLen)
+func (msg *MessageHeader) Length() int64 {
+	return msgLenFromBytes(msg.DataLen)
 }
 
 type Message struct {
@@ -57,23 +57,23 @@ func NewMessage(mtype MessageType, data []byte) *Message {
 	}
 }
 
-func (this *Message) Resize(newSize int64) error {
-	l := int64(len(this.Data))
+func (msg *Message) Resize(newSize int64) error {
+	l := int64(len(msg.Data))
 	if l == newSize {
 		return nil
 	} else if l > newSize {
-		this.Data = append([]byte(nil), this.Data[:newSize]...)
+		msg.Data = append([]byte(nil), msg.Data[:newSize]...)
 	} else {
-		this.Data = make([]byte, newSize)
+		msg.Data = make([]byte, newSize)
 	}
 	return nil
 }
 
-func (this *Message) Serialize() []byte {
-	this.DataLen = msgLenToBytes(int64(len(this.Data)))
+func (msg *Message) Serialize() []byte {
+	msg.DataLen = msgLenToBytes(int64(len(msg.Data)))
 	buf := bytes.NewBuffer([]byte{})
-	binary.Write(buf, binary.BigEndian, this.MessageHeader)
-	binary.Write(buf, binary.BigEndian, this.Data[:])
+	binary.Write(buf, binary.BigEndian, msg.MessageHeader)
+	binary.Write(buf, binary.BigEndian, msg.Data[:])
 
 	return buf.Bytes()
 }

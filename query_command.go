@@ -15,194 +15,202 @@
 package aerospike
 
 import (
+	"strings"
+
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-type QueryCommand struct {
-	BaseMultiCommand
+type queryCommand struct {
+	baseMultiCommand
 
 	policy    *QueryPolicy
 	statement *Statement
 
 	// RecordSet recordSet;
-	Records chan *Record
+	// Records chan *Record
+	// Errors  chan error
 }
 
-func NewQueryCommand(node *Node, policy *QueryPolicy, statement *Statement, recChan chan *Record) *QueryCommand {
+func newQueryCommand(node *Node, policy *QueryPolicy, statement *Statement, recChan chan *Record, errChan chan error) *queryCommand {
 	// make recChan in case it is nil
 	if recChan == nil {
 		recChan = make(chan *Record, 1024)
 	}
 
-	return &QueryCommand{
-		BaseMultiCommand: *NewMultiCommand(node),
+	// make errChan in case it is nil
+	if errChan == nil {
+		errChan = make(chan error, 1024)
+	}
+
+	return &queryCommand{
+		baseMultiCommand: *newMultiCommand(node, recChan, errChan),
 		policy:           policy,
 		statement:        statement,
-		Records:          recChan,
 	}
 }
 
-func (this *QueryCommand) getPolicy(ifc Command) Policy {
-	return this.policy
+func (cmd *queryCommand) getPolicy(ifc command) Policy {
+	return cmd.policy
 }
 
-func (this *QueryCommand) writeBuffer(ifc Command) error {
-	var err error
+func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 	var functionArgBuffer []byte
 
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
 
-	this.begin()
+	cmd.begin()
 
-	if this.statement.namespace != "" {
-		this.dataOffset += len(this.statement.namespace) + int(FIELD_HEADER_SIZE)
+	if strings.Trim(cmd.statement.Namespace, " ") != "" {
+		cmd.dataOffset += len(cmd.statement.Namespace) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	if this.statement.indexName != "" {
-		this.dataOffset += len(this.statement.indexName) + int(FIELD_HEADER_SIZE)
+	if strings.Trim(cmd.statement.IndexName, " ") != "" {
+		cmd.dataOffset += len(cmd.statement.IndexName) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	if this.statement.setName != "" {
-		this.dataOffset += len(this.statement.setName) + int(FIELD_HEADER_SIZE)
+	if strings.Trim(cmd.statement.SetName, " ") != "" {
+		cmd.dataOffset += len(cmd.statement.SetName) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	if this.statement.filters != nil {
-		this.dataOffset += int(FIELD_HEADER_SIZE)
+	if len(cmd.statement.Filters) > 0 {
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
 		filterSize++ // num filters
 
-		for _, filter := range this.statement.filters {
+		for _, filter := range cmd.statement.Filters {
 			sz, err := filter.estimateSize()
 			if err != nil {
 				return err
 			}
 			filterSize += sz
 		}
-		this.dataOffset += filterSize
+		cmd.dataOffset += filterSize
 		fieldCount++
 	} else {
 		// Calling query with no filters is more efficiently handled by a primary index scan.
 		// Estimate scan options size.
-		this.dataOffset += 2 + int(FIELD_HEADER_SIZE)
+		cmd.dataOffset += (2 + int(_FIELD_HEADER_SIZE))
 		fieldCount++
 	}
 
-	if this.statement.binNames != nil {
-		this.dataOffset += int(FIELD_HEADER_SIZE)
+	if len(cmd.statement.BinNames) > 0 {
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
 		binNameSize++ // num bin names
 
-		for _, binName := range this.statement.binNames {
+		for _, binName := range cmd.statement.BinNames {
 			binNameSize += len(binName) + 1
 		}
-		this.dataOffset += binNameSize
+		cmd.dataOffset += binNameSize
 		fieldCount++
 	}
 
-	if this.statement.taskId > 0 {
-		this.dataOffset += 8 + int(FIELD_HEADER_SIZE)
+	if cmd.statement.TaskId > 0 {
+		cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	if this.statement.functionName != "" {
-		this.dataOffset += int(FIELD_HEADER_SIZE) + 1 // udf type
-		this.dataOffset += len(this.statement.packageName) + int(FIELD_HEADER_SIZE)
-		this.dataOffset += len(this.statement.functionName) + int(FIELD_HEADER_SIZE)
+	if strings.Trim(cmd.statement.functionName, " ") != "" {
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1 // udf type
+		cmd.dataOffset += len(cmd.statement.packageName) + int(_FIELD_HEADER_SIZE)
+		cmd.dataOffset += len(cmd.statement.functionName) + int(_FIELD_HEADER_SIZE)
 
-		if len(this.statement.functionArgs) > 0 {
-			functionArgBuffer, err = PackValueArray(this.statement.functionArgs)
+		if len(cmd.statement.functionArgs) > 0 {
+			functionArgBuffer, err = packValueArray(cmd.statement.functionArgs)
 			if err != nil {
 				return err
 			}
 		} else {
 			functionArgBuffer = []byte{}
 		}
-		this.dataOffset += int(FIELD_HEADER_SIZE) + len(functionArgBuffer)
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE) + len(functionArgBuffer)
 		fieldCount += 4
 	}
-
-	this.sizeBuffer()
-
-	readAttr := INFO1_READ
-	this.writeHeader(readAttr, 0, fieldCount, 0)
-
-	if this.statement.namespace != "" {
-		this.WriteFieldString(this.statement.namespace, NAMESPACE)
+	if err := cmd.sizeBuffer(); err != nil {
+		return nil
 	}
 
-	if this.statement.indexName != "" {
-		this.WriteFieldString(this.statement.indexName, INDEX_NAME)
+	readAttr := _INFO1_READ
+	cmd.writeHeader(readAttr, 0, fieldCount, 0)
+
+	if strings.Trim(cmd.statement.Namespace, " ") != "" {
+		cmd.writeFieldString(cmd.statement.Namespace, NAMESPACE)
 	}
 
-	if this.statement.setName != "" {
-		this.WriteFieldString(this.statement.setName, TABLE)
+	if strings.Trim(cmd.statement.IndexName, " ") != "" {
+		cmd.writeFieldString(cmd.statement.IndexName, INDEX_NAME)
 	}
 
-	if this.statement.filters != nil {
-		this.WriteFieldHeader(filterSize, INDEX_RANGE)
-		this.dataBuffer[this.dataOffset] = byte(len(this.statement.filters))
-		this.dataOffset++
+	if strings.Trim(cmd.statement.SetName, " ") != "" {
+		cmd.writeFieldString(cmd.statement.SetName, TABLE)
+	}
 
-		for _, filter := range this.statement.filters {
-			this.dataOffset, err = filter.write(this.dataBuffer, this.dataOffset)
+	if len(cmd.statement.Filters) > 0 {
+		cmd.writeFieldHeader(filterSize, INDEX_RANGE)
+		cmd.dataBuffer[cmd.dataOffset] = byte(len(cmd.statement.Filters))
+		cmd.dataOffset++
+
+		for _, filter := range cmd.statement.Filters {
+			cmd.dataOffset, err = filter.write(cmd.dataBuffer, cmd.dataOffset)
 			if err != nil {
 				return err
 			}
 		}
 	} else {
 		// Calling query with no filters is more efficiently handled by a primary index scan.
-		this.WriteFieldHeader(2, SCAN_OPTIONS)
-		priority := byte(this.policy.Priority)
+		cmd.writeFieldHeader(2, SCAN_OPTIONS)
+		priority := byte(cmd.policy.Priority)
 		priority <<= 4
-		this.dataBuffer[this.dataOffset] = priority
-		this.dataOffset++
-		this.dataBuffer[this.dataOffset] = byte(100)
-		this.dataOffset++
+		cmd.dataBuffer[cmd.dataOffset] = priority
+		cmd.dataOffset++
+		cmd.dataBuffer[cmd.dataOffset] = byte(100)
+		cmd.dataOffset++
 	}
 
-	if this.statement.binNames != nil {
-		this.WriteFieldHeader(binNameSize, QUERY_BINLIST)
-		this.dataBuffer[this.dataOffset] = byte(len(this.statement.binNames))
-		this.dataOffset++
+	if len(cmd.statement.BinNames) > 0 {
+		cmd.writeFieldHeader(binNameSize, QUERY_BINLIST)
+		cmd.dataBuffer[cmd.dataOffset] = byte(len(cmd.statement.BinNames))
+		cmd.dataOffset++
 
-		for _, binName := range this.statement.binNames {
-			len := copy(this.dataBuffer[this.dataOffset+1:], []byte(binName))
-			this.dataBuffer[this.dataOffset] = byte(len)
-			this.dataOffset += len + 1
+		for _, binName := range cmd.statement.BinNames {
+			len := copy(cmd.dataBuffer[cmd.dataOffset+1:], []byte(binName))
+			cmd.dataBuffer[cmd.dataOffset] = byte(len)
+			cmd.dataOffset += len + 1
 		}
 	}
 
-	if this.statement.taskId > 0 {
-		this.WriteFieldHeader(8, TRAN_ID)
-		Buffer.Int64ToBytes(int64(this.statement.taskId), this.dataBuffer, this.dataOffset)
-		this.dataOffset += 8
+	if cmd.statement.TaskId > 0 {
+		cmd.writeFieldHeader(8, TRAN_ID)
+		Buffer.Int64ToBytes(int64(cmd.statement.TaskId), cmd.dataBuffer, cmd.dataOffset)
+		cmd.dataOffset += 8
 	}
 
-	if this.statement.functionName != "" {
-		this.WriteFieldHeader(1, UDF_OP)
-		if this.statement.returnData {
-			this.dataBuffer[this.dataOffset] = byte(1)
-			this.dataOffset++
+	if strings.Trim(cmd.statement.functionName, " ") != "" {
+		cmd.writeFieldHeader(1, UDF_OP)
+		if cmd.statement.returnData {
+			cmd.dataBuffer[cmd.dataOffset] = byte(1)
+			cmd.dataOffset++
 		} else {
-			this.dataBuffer[this.dataOffset] = byte(2)
-			this.dataOffset++
+			cmd.dataBuffer[cmd.dataOffset] = byte(2)
+			cmd.dataOffset++
 		}
 
-		this.WriteFieldString(this.statement.packageName, UDF_PACKAGE_NAME)
-		this.WriteFieldString(this.statement.functionName, UDF_FUNCTION)
-		this.WriteFieldBytes(functionArgBuffer, UDF_ARGLIST)
+		cmd.writeFieldString(cmd.statement.packageName, UDF_PACKAGE_NAME)
+		cmd.writeFieldString(cmd.statement.functionName, UDF_FUNCTION)
+		cmd.writeFieldBytes(functionArgBuffer, UDF_ARGLIST)
 	}
-	this.end()
+	cmd.end()
 
 	return nil
 }
 
-func (this *QueryCommand) parseResult(ifc Command, conn *Connection) error {
+func (cmd *queryCommand) parseResult(ifc command, conn *Connection) error {
 	// close the channel
-	defer close(this.Records)
+	defer close(cmd.Records)
+	defer close(cmd.Errors)
 
-	return this.BaseMultiCommand.parseResult(ifc, conn)
+	return cmd.baseMultiCommand.parseResult(ifc, conn)
 }

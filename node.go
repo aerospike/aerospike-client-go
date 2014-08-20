@@ -47,11 +47,11 @@ type Node struct {
 	responded           *AtomicBool
 	useNewInfo          *AtomicBool
 	active              *AtomicBool
-	mutex               *sync.RWMutex
+	mutex               sync.RWMutex
 }
 
 // Initialize server node with connection parameters.
-func NewNode(cluster *Cluster, nv *NodeValidator) *Node {
+func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	return &Node{
 		cluster:    cluster,
 		name:       nv.name,
@@ -68,59 +68,58 @@ func NewNode(cluster *Cluster, nv *NodeValidator) *Node {
 		referenceCount:      NewAtomicInt(0),
 		responded:           NewAtomicBool(false),
 		active:              NewAtomicBool(true),
-		mutex:               new(sync.RWMutex),
 	}
 }
 
 // Request current status from server node, and update node with the result
-func (this *Node) Refresh() ([]*Host, error) {
+func (nd *Node) Refresh() ([]*Host, error) {
 	var friends []*Host
 
-	conn, err := this.GetConnection(1 * time.Second)
+	conn, err := nd.GetConnection(1 * time.Second)
 	if err != nil {
 		return nil, err
 	}
 
 	if infoMap, err := RequestInfo(conn, "node", "partition-generation", "services"); err != nil {
 		conn.Close()
-		this.DecreaseHealth()
+		nd.DecreaseHealth()
 		return nil, err
 	} else {
-		this.verifyNodeName(infoMap)
-		this.RestoreHealth()
-		this.responded.Set(true)
+		nd.verifyNodeName(infoMap)
+		nd.RestoreHealth()
+		nd.responded.Set(true)
 
-		if friends, err = this.addFriends(infoMap); err != nil {
+		if friends, err = nd.addFriends(infoMap); err != nil {
 			return nil, err
 		}
 
-		this.updatePartitions(conn, infoMap)
-		this.PutConnection(conn)
+		nd.updatePartitions(conn, infoMap)
+		nd.PutConnection(conn)
 	}
 	return friends, nil
 }
 
-func (this *Node) verifyNodeName(infoMap map[string]string) error {
+func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 	infoName, exists := infoMap["node"]
 
 	if !exists || len(infoName) == 0 {
-		this.DecreaseHealth()
+		nd.DecreaseHealth()
 		return errors.New("Node name is empty")
 	}
 
-	if !(this.name == infoName) {
+	if !(nd.name == infoName) {
 		// Set node to inactive immediately.
-		this.active.Set(false)
-		return errors.New("Node name has changed. Old=" + this.name + " New=" + infoName)
+		nd.active.Set(false)
+		return errors.New("Node name has changed. Old=" + nd.name + " New=" + infoName)
 	}
 	return nil
 }
 
-func (this *Node) getUseNewInfo() bool {
-	return this.useNewInfo.Get()
+func (nd *Node) getUseNewInfo() bool {
+	return nd.useNewInfo.Get()
 }
 
-func (this *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
+func (nd *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
 	friendString, exists := infoMap["services"]
 	var friends []*Host
 
@@ -135,12 +134,12 @@ func (this *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
 		host := friendInfo[0]
 		port, _ := strconv.Atoi(friendInfo[1])
 		alias := NewHost(host, port)
-		node := this.cluster.findAlias(alias)
+		node := nd.cluster.findAlias(alias)
 
 		if node != nil {
 			node.referenceCount.IncrementAndGet()
 		} else {
-			if !this.findAlias(friends, alias) {
+			if !nd.findAlias(friends, alias) {
 				if friends == nil {
 					friends = make([]*Host, 0, 16)
 				}
@@ -153,7 +152,7 @@ func (this *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
 	return friends, nil
 }
 
-func (this *Node) findAlias(friends []*Host, alias *Host) bool {
+func (nd *Node) findAlias(friends []*Host, alias *Host) bool {
 	for _, host := range friends {
 		if *host == *alias {
 			return true
@@ -162,7 +161,7 @@ func (this *Node) findAlias(friends []*Host, alias *Host) bool {
 	return false
 }
 
-func (this *Node) updatePartitions(conn *Connection, infoMap map[string]string) error {
+func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) error {
 	genString, exists := infoMap["partition-generation"]
 
 	if !exists || len(genString) == 0 {
@@ -171,10 +170,10 @@ func (this *Node) updatePartitions(conn *Connection, infoMap map[string]string) 
 
 	generation, _ := strconv.Atoi(genString)
 
-	if this.partitionGeneration.Get() != generation {
-		Logger.Info("Node %s partition generation %d changed", this.GetName(), generation)
-		this.cluster.updatePartitions(conn, this)
-		this.partitionGeneration.Set(generation)
+	if nd.partitionGeneration.Get() != generation {
+		Logger.Info("Node %s partition generation %d changed", nd.GetName(), generation)
+		nd.cluster.updatePartitions(conn, nd)
+		nd.partitionGeneration.Set(generation)
 	}
 
 	return nil
@@ -182,9 +181,9 @@ func (this *Node) updatePartitions(conn *Connection, infoMap map[string]string) 
 
 // Get a connection to the node. If no cached connection is not available,
 // a new connection will be created
-func (this *Node) GetConnection(timeout time.Duration) (*Connection, error) {
+func (nd *Node) GetConnection(timeout time.Duration) (*Connection, error) {
 	var conn *Connection
-	for t := this.connections.Poll(); t != nil; t = this.connections.Poll() {
+	for t := nd.connections.Poll(); t != nil; t = nd.connections.Poll() {
 		conn = t.(*Connection)
 		if conn.IsConnected() {
 			conn.SetTimeout(timeout)
@@ -192,94 +191,94 @@ func (this *Node) GetConnection(timeout time.Duration) (*Connection, error) {
 		}
 		conn.Close()
 	}
-	return NewConnection(this.address, timeout)
+	return NewConnection(nd.address, timeout)
 }
 
 // Put back a connection to the cache. If cache is full, the connection will be
 // closed and discarded
-func (this *Node) PutConnection(conn *Connection) {
-	if !this.active.Get() || !this.connections.Offer(conn) {
+func (nd *Node) PutConnection(conn *Connection) {
+	if !nd.active.Get() || !nd.connections.Offer(conn) {
 		conn.Close()
 	}
 }
 
 // Mark the node as healthy
-func (this *Node) RestoreHealth() {
+func (nd *Node) RestoreHealth() {
 	// There can be cases where health is full, but active is false.
 	// Once a node has been marked inactive, it stays inactive.
-	this.health.Set(_FULL_HEALTH)
+	nd.health.Set(_FULL_HEALTH)
 }
 
 // Decrease node Health as a result of bad connection or communication
-func (this *Node) DecreaseHealth() {
-	this.health.DecrementAndGet()
+func (nd *Node) DecreaseHealth() {
+	nd.health.DecrementAndGet()
 }
 
 // Check if the node is unhealthy
-func (this *Node) IsUnhealthy() bool {
-	return this.health.Get() <= 0
+func (nd *Node) IsUnhealthy() bool {
+	return nd.health.Get() <= 0
 }
 
 // Retrieves host for the node
-func (this *Node) GetHost() *Host {
-	return this.host
+func (nd *Node) GetHost() *Host {
+	return nd.host
 }
 
 // Checks if the node is active
-func (this *Node) IsActive() bool {
-	return this.active.Get()
+func (nd *Node) IsActive() bool {
+	return nd.active.Get()
 }
 
 // Returns node name
-func (this *Node) GetName() string {
-	return this.name
+func (nd *Node) GetName() string {
+	return nd.name
 }
 
 // Returns node aliases
-func (this *Node) GetAliases() []*Host {
-	this.mutex.RLock()
-	defer this.mutex.RUnlock()
-	aliases := this.aliases
+func (nd *Node) GetAliases() []*Host {
+	nd.mutex.RLock()
+	defer nd.mutex.RUnlock()
+	aliases := nd.aliases
 	return aliases
 }
 
 // Sets node aliases
-func (this *Node) setAliases(aliases []*Host) {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	this.aliases = aliases
+func (nd *Node) setAliases(aliases []*Host) {
+	nd.mutex.Lock()
+	defer nd.mutex.Unlock()
+	nd.aliases = aliases
 }
 
 // Adds an alias for the node
-func (this *Node) AddAlias(aliasToAdd *Host) {
-	// Aliases are only referenced in the cluster tend thread,
+func (nd *Node) AddAlias(aliasToAdd *Host) {
+	// Aliases are only referenced in the cluster tend goroutine,
 	// so synchronization is not necessary.
-	aliases := this.GetAliases()
+	aliases := nd.GetAliases()
 	if aliases == nil {
 		aliases = []*Host{}
 	}
 
 	aliases = append(aliases, aliasToAdd)
-	this.setAliases(aliases)
+	nd.setAliases(aliases)
 }
 
 // Marks node as inactice and closes all cached connections
-func (this *Node) Close() {
-	this.active.Set(false)
-	this.closeConnections()
+func (nd *Node) Close() {
+	nd.active.Set(false)
+	nd.closeConnections()
 }
 
 // Implements stringer interface
-func (this *Node) String() string {
-	return this.name + " " + this.host.String()
+func (nd *Node) String() string {
+	return nd.name + " " + nd.host.String()
 }
 
-func (this *Node) closeConnections() {
-	for conn := this.connections.Poll(); conn != nil; {
+func (nd *Node) closeConnections() {
+	for conn := nd.connections.Poll(); conn != nil; conn = nd.connections.Poll() {
 		conn.(*Connection).Close()
 	}
 }
 
-func (this *Node) Equals(other *Node) bool {
-	return this.name == other.name
+func (nd *Node) Equals(other *Node) bool {
+	return nd.name == other.name
 }

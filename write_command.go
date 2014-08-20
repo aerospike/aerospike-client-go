@@ -18,25 +18,25 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
-// guarantee WriteCommand implements Command interface
-var _ Command = &WriteCommand{}
+// guarantee writeCommand implements command interface
+var _ command = &writeCommand{}
 
-type WriteCommand struct {
-	SingleCommand
+type writeCommand struct {
+	singleCommand
 
 	policy    *WritePolicy
 	bins      []*Bin
 	operation OperationType
 }
 
-func NewWriteCommand(cluster *Cluster,
+func newWriteCommand(cluster *Cluster,
 	policy *WritePolicy,
 	key *Key,
 	bins []*Bin,
-	operation OperationType) *WriteCommand {
+	operation OperationType) *writeCommand {
 
-	newWriteCmd := &WriteCommand{
-		SingleCommand: *NewSingleCommand(cluster, key),
+	newWriteCmd := &writeCommand{
+		singleCommand: *newSingleCommand(cluster, key),
 		bins:          bins,
 		operation:     operation,
 	}
@@ -50,27 +50,29 @@ func NewWriteCommand(cluster *Cluster,
 	return newWriteCmd
 }
 
-func (this *WriteCommand) getPolicy(ifc Command) Policy {
-	return this.policy
+func (cmd *writeCommand) getPolicy(ifc command) Policy {
+	return cmd.policy
 }
 
-func (this *WriteCommand) writeBuffer(ifc Command) error {
-	return this.SetWrite(this.policy, this.operation, this.key, this.bins)
+func (cmd *writeCommand) writeBuffer(ifc command) error {
+	return cmd.setWrite(cmd.policy, cmd.operation, cmd.key, cmd.bins)
 }
 
-func (this *WriteCommand) parseResult(ifc Command, conn *Connection) error {
+func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
-	conn.Read(this.dataBuffer, int(MSG_TOTAL_HEADER_SIZE))
+	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
+		return err
+	}
 
-	resultCode := this.dataBuffer[13] & 0xFF
+	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	if resultCode != 0 {
 		return NewAerospikeError(ResultCode(resultCode))
 	}
-	this.emptySocket(conn)
+	cmd.emptySocket(conn)
 	return nil
 }
 
-func (this *WriteCommand) Execute() error {
-	return this.execute(this)
+func (cmd *writeCommand) Execute() error {
+	return cmd.execute(cmd)
 }

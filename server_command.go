@@ -22,27 +22,27 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-type ServerCommand struct {
-	QueryCommand
+type serverCommand struct {
+	queryCommand
 }
 
-func NewServerCommand(node *Node, policy *QueryPolicy, statement *Statement) *ServerCommand {
-	return &ServerCommand{
-		QueryCommand: *NewQueryCommand(node, policy, statement, nil),
+func newServerCommand(node *Node, policy *QueryPolicy, statement *Statement) *serverCommand {
+	return &serverCommand{
+		queryCommand: *newQueryCommand(node, policy, statement, nil, nil),
 	}
 }
 
-func (this *ServerCommand) parseRecordResults(ifc Command, receiveSize int) (bool, error) {
+func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
 	// Server commands (Query/Execute UDF) should only send back a return code.
 	// Keep parsing logic to empty socket buffer just in case server does
 	// send records back.
-	this.dataOffset = 0
+	cmd.dataOffset = 0
 
-	for this.dataOffset < receiveSize {
-		if err := this.readBytes(int(MSG_REMAINING_HEADER_SIZE)); err != nil {
+	for cmd.dataOffset < receiveSize {
+		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
 			return false, err
 		}
-		resultCode := ResultCode(this.dataBuffer[5] & 0xFF)
+		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		if resultCode != 0 {
 			if resultCode == KEY_NOT_FOUND_ERROR {
@@ -51,44 +51,44 @@ func (this *ServerCommand) parseRecordResults(ifc Command, receiveSize int) (boo
 			NewAerospikeError(resultCode)
 		}
 
-		info3 := int(this.dataBuffer[3])
+		info3 := int(cmd.dataBuffer[3])
 
-		// If this is the end marker of the response, do not proceed further
-		if (info3 & INFO3_LAST) == INFO3_LAST {
+		// If cmd is the end marker of the response, do not proceed further
+		if (info3 & _INFO3_LAST) == _INFO3_LAST {
 			return false, nil
 		}
 
-		fieldCount := int(Buffer.BytesToInt16(this.dataBuffer, 18))
-		opCount := int(Buffer.BytesToInt16(this.dataBuffer, 20))
+		fieldCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 18))
+		opCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 20))
 
-		if _, err := this.parseKey(fieldCount); err != nil {
+		if _, err := cmd.parseKey(fieldCount); err != nil {
 			return false, err
 		}
 
 		for i := 0; i < opCount; i++ {
-			if err := this.readBytes(8); err != nil {
+			if err := cmd.readBytes(8); err != nil {
 				return false, err
 			}
-			opSize := int(Buffer.BytesToInt32(this.dataBuffer, 0))
-			nameSize := int(this.dataBuffer[7])
+			opSize := int(Buffer.BytesToInt32(cmd.dataBuffer, 0))
+			nameSize := int(cmd.dataBuffer[7])
 
-			if err := this.readBytes(nameSize); err != nil {
+			if err := cmd.readBytes(nameSize); err != nil {
 				return false, err
 			}
 
 			particleBytesSize := int((opSize - (4 + nameSize)))
-			if err := this.readBytes(particleBytesSize); err != nil {
+			if err := cmd.readBytes(particleBytesSize); err != nil {
 				return false, err
 			}
 		}
 
-		if !this.valid {
-			return false, QueryTerminatedErr()
+		if !cmd.IsValid() {
+			return false, NewAerospikeError(QUERY_TERMINATED)
 		}
 	}
 	return true, nil
 }
 
-func (this *ServerCommand) Execute() error {
-	return this.execute(this)
+func (cmd *serverCommand) Execute() error {
+	return cmd.execute(cmd)
 }

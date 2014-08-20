@@ -32,42 +32,42 @@ func NewAtomicBool(value bool) *AtomicBool {
 }
 
 // Atomically retrieves the boolean value.
-func (this *AtomicBool) Get() bool {
-	this.mutex.RLock()
-	defer this.mutex.RUnlock()
-	return this.val
+func (ab *AtomicBool) Get() bool {
+	ab.mutex.RLock()
+	defer ab.mutex.RUnlock()
+	return ab.val
 }
 
 // Atomically sets the boolean value.
-func (this *AtomicBool) Set(newVal bool) {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	this.val = newVal
+func (ab *AtomicBool) Set(newVal bool) {
+	ab.mutex.Lock()
+	defer ab.mutex.Unlock()
+	ab.val = newVal
 }
 
 // Atomically retrieves the current boolean value first, and then toggles it.
-func (this *AtomicBool) GetAndToggle() bool {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	val := this.val
-	this.val = !this.val
+func (ab *AtomicBool) GetAndToggle() bool {
+	ab.mutex.Lock()
+	defer ab.mutex.Unlock()
+	val := ab.val
+	ab.val = !ab.val
 	return val
 }
 
 // Atomically toggles the boolean value first, and then retrieves it.
-func (this *AtomicBool) ToggleAndGet() bool {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	this.val = !this.val
-	return this.val
+func (ab *AtomicBool) ToggleAndGet() bool {
+	ab.mutex.Lock()
+	defer ab.mutex.Unlock()
+	ab.val = !ab.val
+	return ab.val
 }
 
 // Atomically sets the boolean value to updated value, if the current value is as expected.
-func (this *AtomicBool) CompareAndSet(expect bool, update bool) bool {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	if this.val == expect {
-		this.val = update
+func (ab *AtomicBool) CompareAndSet(expect bool, update bool) bool {
+	ab.mutex.Lock()
+	defer ab.mutex.Unlock()
+	if ab.val == expect {
+		ab.val = update
 		return true
 	} else {
 		return false

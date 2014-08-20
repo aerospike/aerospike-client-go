@@ -18,19 +18,19 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
-// guarantee ExistsCommand implements Command interface
-var _ Command = &ExistsCommand{}
+// guarantee existsCommand implements command interface
+var _ command = &existsCommand{}
 
-type ExistsCommand struct {
-	SingleCommand
+type existsCommand struct {
+	singleCommand
 
 	policy Policy
 	exists bool
 }
 
-func NewExistsCommand(cluster *Cluster, policy Policy, key *Key) *ExistsCommand {
-	newExistsCmd := &ExistsCommand{
-		SingleCommand: *NewSingleCommand(cluster, key),
+func newExistsCommand(cluster *Cluster, policy Policy, key *Key) *existsCommand {
+	newExistsCmd := &existsCommand{
+		singleCommand: *newSingleCommand(cluster, key),
 	}
 
 	if policy == nil {
@@ -42,33 +42,34 @@ func NewExistsCommand(cluster *Cluster, policy Policy, key *Key) *ExistsCommand 
 	return newExistsCmd
 }
 
-func (this *ExistsCommand) getPolicy(ifc Command) Policy {
-	return this.policy.GetBasePolicy()
+func (cmd *existsCommand) getPolicy(ifc command) Policy {
+	return cmd.policy.GetBasePolicy()
 }
 
-func (this *ExistsCommand) writeBuffer(ifc Command) error {
-	this.SetExists(this.key)
-	return nil
+func (cmd *existsCommand) writeBuffer(ifc command) error {
+	return cmd.setExists(cmd.key)
 }
 
-func (this *ExistsCommand) parseResult(ifc Command, conn *Connection) error {
+func (cmd *existsCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
-	conn.Read(this.dataBuffer, int(MSG_TOTAL_HEADER_SIZE))
+	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
+		return err
+	}
 
-	resultCode := this.dataBuffer[13] & 0xFF
+	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	if resultCode != 0 && ResultCode(resultCode) != KEY_NOT_FOUND_ERROR {
 		NewAerospikeError(ResultCode(resultCode))
 	}
-	this.exists = resultCode == 0
-	this.emptySocket(conn)
+	cmd.exists = resultCode == 0
+	cmd.emptySocket(conn)
 	return nil
 }
 
-func (this *ExistsCommand) Exists() bool {
-	return this.exists
+func (cmd *existsCommand) Exists() bool {
+	return cmd.exists
 }
 
-func (this *ExistsCommand) Execute() error {
-	return this.execute(this)
+func (cmd *existsCommand) Execute() error {
+	return cmd.execute(cmd)
 }

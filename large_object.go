@@ -59,14 +59,14 @@ func newLargeObject(client *Client, policy *WritePolicy, key *Key, binName strin
 }
 
 // Delete bin containing the object.
-func (this *baseLargeObject) destroy(ifc LargeObject) error {
-	_, err := this.client.Execute(this.policy, this.key, ifc.packageName(), "destroy", this.binName)
+func (lo *baseLargeObject) destroy(ifc LargeObject) error {
+	_, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "destroy", lo.binName)
 	return err
 }
 
 // Return size of object.
-func (this *baseLargeObject) size(ifc LargeObject) (int, error) {
-	ret, err := this.client.Execute(this.policy, this.key, ifc.packageName(), "size", this.binName)
+func (lo *baseLargeObject) size(ifc LargeObject) (int, error) {
+	ret, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "size", lo.binName)
 	if err != nil {
 		return -1, err
 	}
@@ -74,22 +74,22 @@ func (this *baseLargeObject) size(ifc LargeObject) (int, error) {
 }
 
 // Return map of object configuration parameters.
-func (this *baseLargeObject) getConfig(ifc LargeObject) (map[interface{}]interface{}, error) {
-	ret, err := this.client.Execute(this.policy, this.key, ifc.packageName(), "get_config", this.binName)
+func (lo *baseLargeObject) getConfig(ifc LargeObject) (map[interface{}]interface{}, error) {
+	ret, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "get_config", lo.binName)
 	return ret.(map[interface{}]interface{}), err
 }
 
 // Set maximum number of entries in the object.
 //
 // capacity      max entries in set
-func (this *baseLargeObject) setCapacity(ifc LargeObject, capacity int) error {
-	_, err := this.client.Execute(this.policy, this.key, ifc.packageName(), "set_capacity", this.binName, NewIntegerValue(capacity))
+func (lo *baseLargeObject) setCapacity(ifc LargeObject, capacity int) error {
+	_, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "set_capacity", lo.binName, NewIntegerValue(capacity))
 	return err
 }
 
 // Return maximum number of entries in the object.
-func (this *baseLargeObject) getCapacity(ifc LargeObject) (int, error) {
-	ret, err := this.client.Execute(this.policy, this.key, ifc.packageName(), "get_capacity", this.binName)
+func (lo *baseLargeObject) getCapacity(ifc LargeObject) (int, error) {
+	ret, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "get_capacity", lo.binName)
 	if err != nil {
 		return -1, err
 	}
@@ -97,8 +97,8 @@ func (this *baseLargeObject) getCapacity(ifc LargeObject) (int, error) {
 }
 
 // Return list of all objects on the stack.
-func (this *baseLargeObject) scan(ifc LargeObject) ([]interface{}, error) {
-	ret, err := this.client.Execute(this.policy, this.key, ifc.packageName(), "scan", this.binName)
+func (lo *baseLargeObject) scan(ifc LargeObject) ([]interface{}, error) {
+	ret, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "scan", lo.binName)
 	if err != nil {
 		return nil, err
 	}

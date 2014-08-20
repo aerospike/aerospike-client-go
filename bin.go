@@ -44,6 +44,6 @@ func mapToBins(bins BinMap) []*Bin {
 }
 
 // Implements Stringer interface. string representation of bin.
-func (this *Bin) String() string {
-	return this.Name + ":" + this.Value.String()
+func (bn *Bin) String() string {
+	return bn.Name + ":" + bn.Value.String()
 }

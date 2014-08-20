@@ -18,18 +18,18 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
-// guarantee TouchCommand implements Command interface
-var _ Command = &TouchCommand{}
+// guarantee touchCommand implements command interface
+var _ command = &touchCommand{}
 
-type TouchCommand struct {
-	SingleCommand
+type touchCommand struct {
+	singleCommand
 
 	policy *WritePolicy
 }
 
-func NewTouchCommand(cluster *Cluster, policy *WritePolicy, key *Key) *TouchCommand {
-	newTouchCmd := &TouchCommand{
-		SingleCommand: *NewSingleCommand(cluster, key),
+func newTouchCommand(cluster *Cluster, policy *WritePolicy, key *Key) *touchCommand {
+	newTouchCmd := &touchCommand{
+		singleCommand: *newSingleCommand(cluster, key),
 	}
 
 	if policy == nil {
@@ -41,28 +41,29 @@ func NewTouchCommand(cluster *Cluster, policy *WritePolicy, key *Key) *TouchComm
 	return newTouchCmd
 }
 
-func (this *TouchCommand) getPolicy(ifc Command) Policy {
-	return this.policy
+func (cmd *touchCommand) getPolicy(ifc command) Policy {
+	return cmd.policy
 }
 
-func (this *TouchCommand) writeBuffer(ifc Command) error {
-	this.SetTouch(this.policy, this.key)
-	return nil
+func (cmd *touchCommand) writeBuffer(ifc command) error {
+	return cmd.setTouch(cmd.policy, cmd.key)
 }
 
-func (this *TouchCommand) parseResult(ifc Command, conn *Connection) error {
+func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
-	conn.Read(this.dataBuffer, int(MSG_TOTAL_HEADER_SIZE))
+	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
+		return err
+	}
 
-	resultCode := this.dataBuffer[13] & 0xFF
+	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	if resultCode != 0 {
 		return NewAerospikeError(ResultCode(resultCode))
 	}
-	this.emptySocket(conn)
+	cmd.emptySocket(conn)
 	return nil
 }
 
-func (this *TouchCommand) Execute() error {
-	return this.execute(this)
+func (cmd *touchCommand) Execute() error {
+	return cmd.execute(cmd)
 }

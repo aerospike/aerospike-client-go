@@ -20,28 +20,28 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-type BatchCommandGet struct {
-	BaseMultiCommand
+type batchCommandGet struct {
+	baseMultiCommand
 
 	batchNamespace *batchNamespace
 	policy         Policy
-	keyMap         map[string]*BatchItem
+	keyMap         map[string]*batchItem
 	binNames       map[string]struct{}
 	records        []*Record
 	readAttr       int
 }
 
-func NewBatchCommandGet(
+func newBatchCommandGet(
 	node *Node,
 	batchNamespace *batchNamespace,
 	policy Policy,
-	keyMap map[string]*BatchItem,
+	keyMap map[string]*batchItem,
 	binNames map[string]struct{},
 	records []*Record,
 	readAttr int,
-) *BatchCommandGet {
-	return &BatchCommandGet{
-		BaseMultiCommand: *NewMultiCommand(node),
+) *batchCommandGet {
+	return &batchCommandGet{
+		baseMultiCommand: *newMultiCommand(node, nil, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
 		keyMap:           keyMap,
@@ -50,27 +50,25 @@ func NewBatchCommandGet(
 	}
 }
 
-func (this *BatchCommandGet) getPolicy(ifc Command) Policy {
-	return this.policy
+func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
+	return cmd.policy
 }
 
-func (this *BatchCommandGet) writeBuffer(ifc Command) error {
-	return this.SetBatchGet(this.batchNamespace, this.binNames, this.readAttr)
+func (cmd *batchCommandGet) writeBuffer(ifc command) error {
+	return cmd.setBatchGet(cmd.batchNamespace, cmd.binNames, cmd.readAttr)
 }
 
-/**
- * Parse all results in the batch.  Add records to shared list.
- * If the record was not found, the bins will be nil.
- */
-func (this *BatchCommandGet) parseRecordResults(ifc Command, receiveSize int) (bool, error) {
+// Parse all results in the batch.  Add records to shared list.
+// If the record was not found, the bins will be nil.
+func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bool, error) {
 	//Parse each message response and add it to the result array
-	this.dataOffset = 0
+	cmd.dataOffset = 0
 
-	for this.dataOffset < receiveSize {
-		if err := this.readBytes(int(MSG_REMAINING_HEADER_SIZE)); err != nil {
+	for cmd.dataOffset < receiveSize {
+		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
 			return false, err
 		}
-		resultCode := ResultCode(this.dataBuffer[5] & 0xFF)
+		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		// The only valid server return codes are "ok" and "not found".
 		// If other return codes are received, then abort the batch.
@@ -78,32 +76,32 @@ func (this *BatchCommandGet) parseRecordResults(ifc Command, receiveSize int) (b
 			return false, NewAerospikeError(resultCode)
 		}
 
-		info3 := int(this.dataBuffer[3])
+		info3 := int(cmd.dataBuffer[3])
 
-		// If this is the end marker of the response, do not proceed further
-		if (info3 & INFO3_LAST) == INFO3_LAST {
+		// If cmd is the end marker of the response, do not proceed further
+		if (info3 & _INFO3_LAST) == _INFO3_LAST {
 			return false, nil
 		}
 
-		generation := int(Buffer.BytesToInt32(this.dataBuffer, 6))
-		expiration := int(Buffer.BytesToInt32(this.dataBuffer, 10))
-		fieldCount := int(Buffer.BytesToInt16(this.dataBuffer, 18))
-		opCount := int(Buffer.BytesToInt16(this.dataBuffer, 20))
-		key, err := this.parseKey(fieldCount)
+		generation := int(Buffer.BytesToInt32(cmd.dataBuffer, 6))
+		expiration := int(Buffer.BytesToInt32(cmd.dataBuffer, 10))
+		fieldCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 18))
+		opCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 20))
+		key, err := cmd.parseKey(fieldCount)
 		if err != nil {
 			return false, err
 		}
-		item := this.keyMap[string(key.Digest())]
+		item := cmd.keyMap[string(key.digest)]
 
 		if item != nil {
 			if resultCode == 0 {
 				index := item.GetIndex()
-				if this.records[index], err = this.parseRecord(key, opCount, generation, expiration); err != nil {
+				if cmd.records[index], err = cmd.parseRecord(key, opCount, generation, expiration); err != nil {
 					return false, err
 				}
 			}
 		} else {
-			Logger.Debug("Unexpected batch key returned: " + string(*key.namespace) + "," + Buffer.BytesToHexString(key.digest))
+			Logger.Debug("Unexpected batch key returned: " + string(key.namespace) + "," + Buffer.BytesToHexString(key.digest))
 		}
 	}
 	return true, nil
@@ -114,37 +112,35 @@ func contains(a map[string]struct{}, elem string) bool {
 	return exists
 }
 
-/**
- * Parses the given byte buffer and populate the result object.
- * Returns the number of bytes that were parsed from the given buffer.
- */
-func (this *BatchCommandGet) parseRecord(key *Key, opCount int, generation int, expiration int) (*Record, error) {
+// Parses the given byte buffer and populate the result object.
+// Returns the number of bytes that were parsed from the given buffer.
+func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation int, expiration int) (*Record, error) {
 	var bins map[string]interface{}
 	var duplicates []BinMap
 
 	for i := 0; i < opCount; i++ {
-		if !this.IsValid() {
-			return nil, QueryTerminatedErr()
+		if !cmd.IsValid() {
+			return nil, NewAerospikeError(QUERY_TERMINATED)
 		}
 
-		if err := this.readBytes(8); err != nil {
+		if err := cmd.readBytes(8); err != nil {
 			return nil, err
 		}
-		opSize := int(Buffer.BytesToInt32(this.dataBuffer, 0))
-		particleType := int(this.dataBuffer[5])
-		version := int(this.dataBuffer[6])
-		nameSize := int(this.dataBuffer[7])
+		opSize := int(Buffer.BytesToInt32(cmd.dataBuffer, 0))
+		particleType := int(cmd.dataBuffer[5])
+		version := int(cmd.dataBuffer[6])
+		nameSize := int(cmd.dataBuffer[7])
 
-		if err := this.readBytes(nameSize); err != nil {
+		if err := cmd.readBytes(nameSize); err != nil {
 			return nil, err
 		}
-		name := string(this.dataBuffer[:nameSize])
+		name := string(cmd.dataBuffer[:nameSize])
 
 		particleBytesSize := int(opSize - (4 + nameSize))
-		if err := this.readBytes(particleBytesSize); err != nil {
+		if err := cmd.readBytes(particleBytesSize); err != nil {
 			return nil, err
 		}
-		value, err := BytesToParticle(particleType, this.dataBuffer, 0, particleBytesSize)
+		value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
 		if err != nil {
 			return nil, err
 		}
@@ -152,7 +148,7 @@ func (this *BatchCommandGet) parseRecord(key *Key, opCount int, generation int, 
 		// Currently, the batch command returns all the bins even if a subset of
 		// the bins are requested. We have to filter it on the client side.
 		// TODO: Filter batch bins on server!
-		if this.binNames == nil || contains(this.binNames, name) {
+		if cmd.binNames == nil || contains(cmd.binNames, name) {
 			var vmap map[string]interface{}
 
 			if version > 0 || duplicates != nil {
@@ -195,9 +191,9 @@ func (this *BatchCommandGet) parseRecord(key *Key, opCount int, generation int, 
 		}
 	}
 
-	return NewRecord(key, bins, duplicates[:idx], generation, expiration), nil
+	return newRecord(cmd.node, key, bins, duplicates[:idx], generation, expiration), nil
 }
 
-func (this *BatchCommandGet) Execute() error {
-	return this.execute(this)
+func (cmd *batchCommandGet) Execute() error {
+	return cmd.execute(cmd)
 }

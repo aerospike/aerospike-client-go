@@ -20,11 +20,9 @@ import (
 	"sync"
 )
 
-type AtomicArrayItem interface{}
-
 // AtomicArray implement a fixed width array with atomic semantics
 type AtomicArray struct {
-	items  []AtomicArrayItem
+	items  []interface{}
 	length int
 	mutex  sync.RWMutex
 }
@@ -33,38 +31,38 @@ type AtomicArray struct {
 func NewAtomicArray(length int) *AtomicArray {
 	return &AtomicArray{
 		length: length,
-		items:  make([]AtomicArrayItem, length),
+		items:  make([]interface{}, length),
 	}
 }
 
 // Atomically Get an element from the Array.
 // If idx is out of range, it will return nil
-func (this *AtomicArray) Get(idx int) AtomicArrayItem {
+func (aa *AtomicArray) Get(idx int) interface{} {
 	// do not lock if not needed
-	if idx < 0 || idx >= this.length {
+	if idx < 0 || idx >= aa.length {
 		return nil
 	}
 
-	this.mutex.RLock()
-	defer this.mutex.RUnlock()
-	return this.items[idx]
+	aa.mutex.RLock()
+	defer aa.mutex.RUnlock()
+	return aa.items[idx]
 }
 
 // Atomically Set an element in the Array.
 // If idx is out of range, it will return an error
-func (this *AtomicArray) Set(idx int, node AtomicArrayItem) error {
+func (aa *AtomicArray) Set(idx int, node interface{}) error {
 	// do not lock if not needed
-	if idx < 0 || idx >= this.length {
-		return errors.New(fmt.Sprintf("index %d is larger than array size (%d)", idx, this.length))
+	if idx < 0 || idx >= aa.length {
+		return errors.New(fmt.Sprintf("index %d is larger than array size (%d)", idx, aa.length))
 	}
 
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	this.items[idx] = node
+	aa.mutex.Lock()
+	defer aa.mutex.Unlock()
+	aa.items[idx] = node
 	return nil
 }
 
 // Get array size.
-func (this *AtomicArray) Length() int {
-	return this.length
+func (aa *AtomicArray) Length() int {
+	return aa.length
 }

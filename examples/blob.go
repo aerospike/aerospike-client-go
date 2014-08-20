@@ -15,7 +15,7 @@
 package main
 
 import (
-	"fmt"
+	// "fmt"
 
 	. "github.com/aerospike/aerospike-client-go"
 )
@@ -65,11 +65,9 @@ func main() {
 
 	// decode first object
 	result.DecodeBlob(rec.Bins["bin1"].([]byte))
-	fmt.Printf("%v\n", result)
 
 	// decode second object
 	result.DecodeBlob(rec.Bins["bin2"].([]byte))
-	fmt.Printf("%v\n", result)
 }
 
 func panicOnError(err error) {

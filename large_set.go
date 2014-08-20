@@ -33,19 +33,19 @@ func NewLargeSet(client *Client, policy *WritePolicy, key *Key, binName string, 
 	}
 }
 
-func (this *LargeSet) packageName() string {
+func (ls *LargeSet) packageName() string {
 	return "lset"
 }
 
 // Add values to the set.  If the set does not exist, create it using specified userModule configuration.
 //
 // values      values to add
-func (this *LargeSet) Add(values ...Value) error {
+func (ls *LargeSet) Add(values ...interface{}) error {
 	var err error
 	if len(values) == 1 {
-		_, err = this.client.Execute(this.policy, this.key, this.packageName(), "add", this.binName, values[0], this.userModule)
+		_, err = ls.client.Execute(ls.policy, ls.key, ls.packageName(), "add", ls.binName, NewValue(values[0]), ls.userModule)
 	} else {
-		_, err = this.client.Execute(this.policy, this.key, this.packageName(), "add_all", this.binName, NewValueArray(values), this.userModule)
+		_, err = ls.client.Execute(ls.policy, ls.key, ls.packageName(), "add_all", ls.binName, ToValueArray(values), ls.userModule)
 	}
 
 	return err
@@ -54,8 +54,8 @@ func (this *LargeSet) Add(values ...Value) error {
 // Delete value from set.
 //
 // value       value to delete
-func (this *LargeSet) Remove(value Value) error {
-	_, err := this.client.Execute(this.policy, this.key, this.packageName(), "remove", this.binName, value)
+func (ls *LargeSet) Remove(value interface{}) error {
+	_, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "remove", ls.binName, NewValue(value))
 	return err
 }
 
@@ -63,16 +63,16 @@ func (this *LargeSet) Remove(value Value) error {
 //
 // value       value to select
 // returns          found value
-func (this *LargeSet) Get(value Value) (interface{}, error) {
-	return this.client.Execute(this.policy, this.key, this.packageName(), "get", this.binName, value)
+func (ls *LargeSet) Get(value interface{}) (interface{}, error) {
+	return ls.client.Execute(ls.policy, ls.key, ls.packageName(), "get", ls.binName, NewValue(value))
 }
 
 // Check existence of value in the set.
 //
 // value       value to check
 // returns          true if found, otherwise false
-func (this *LargeSet) Exists(value Value) (bool, error) {
-	ret, err := this.client.Execute(this.policy, this.key, this.packageName(), "exists", this.binName, value)
+func (ls *LargeSet) Exists(value interface{}) (bool, error) {
+	ret, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "exists", ls.binName, NewValue(value))
 	if err != nil {
 		return false, err
 	}
@@ -81,8 +81,8 @@ func (this *LargeSet) Exists(value Value) (bool, error) {
 
 // Return all objects in the list.
 
-func (this *LargeSet) Scan() ([]interface{}, error) {
-	return this.scan(this)
+func (ls *LargeSet) Scan() ([]interface{}, error) {
+	return ls.scan(ls)
 }
 
 // Select values from set and apply specified Lua filter.
@@ -90,8 +90,8 @@ func (this *LargeSet) Scan() ([]interface{}, error) {
 // filterName    Lua function name which applies filter to returned list
 // filterArgs    arguments to Lua function name
 // returns          list of entries selected
-func (this *LargeSet) Filter(filterName string, filterArgs ...Value) ([]interface{}, error) {
-	ret, err := this.client.Execute(this.policy, this.key, this.packageName(), "filter", this.binName, this.userModule, NewStringValue(filterName), NewValueArray(filterArgs))
+func (ls *LargeSet) Filter(filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	ret, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "filter", ls.binName, ls.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}
@@ -99,28 +99,28 @@ func (this *LargeSet) Filter(filterName string, filterArgs ...Value) ([]interfac
 }
 
 // Delete bin containing the list.
-func (this *LargeSet) Destroy() error {
-	return this.destroy(this)
+func (ls *LargeSet) Destroy() error {
+	return ls.destroy(ls)
 }
 
 // Return size of list.
-func (this *LargeSet) Size() (int, error) {
-	return this.size(this)
+func (ls *LargeSet) Size() (int, error) {
+	return ls.size(ls)
 }
 
 // Return map of list configuration parameters.
-func (this *LargeSet) GetConfig() (map[interface{}]interface{}, error) {
-	return this.getConfig(this)
+func (ls *LargeSet) GetConfig() (map[interface{}]interface{}, error) {
+	return ls.getConfig(ls)
 }
 
 // Set maximum number of entries in the list.
 //
 // capacity      max entries in list
-func (this *LargeSet) SetCapacity(capacity int) error {
-	return this.setCapacity(this, capacity)
+func (ls *LargeSet) SetCapacity(capacity int) error {
+	return ls.setCapacity(ls, capacity)
 }
 
 // Return maximum number of entries in the list.
-func (this *LargeSet) GetCapacity() (int, error) {
-	return this.getCapacity(this)
+func (ls *LargeSet) GetCapacity() (int, error) {
+	return ls.getCapacity(ls)
 }

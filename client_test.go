@@ -15,28 +15,33 @@
 package aerospike_test
 
 import (
-	// "fmt"
 	"math"
 	"math/rand"
 	"strings"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
-	. "github.com/aerospike/aerospike-client-go/logger"
-
 	. "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-func init() {
-	Logger.SetLevel(OFF)
-}
-
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Aerospike", func() {
 	rand.Seed(time.Now().UnixNano())
+
+	Describe("Client Management", func() {
+		It("must open and close the client without a problem", func() {
+			// use the same client for all
+			client, err := NewClient("127.0.0.1", 3000)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(client.IsConnected()).To(BeTrue())
+
+			client.Close()
+			Expect(client.IsConnected()).To(BeFalse())
+		})
+	})
 
 	Describe("Data operations on native types", func() {
 		// connection data
@@ -48,8 +53,14 @@ var _ = Describe("Aerospike", func() {
 		var rpolicy = NewPolicy()
 		var rec *Record
 
+		// update policy timeouts
+		wpolicy.Timeout = 0
+		rpolicy.Timeout = 0
+		c := NewClientPolicy()
+		c.Timeout = time.Duration(0)
+
 		// use the same client for all
-		client, err := NewClient("127.0.0.1", 3000)
+		client, err := NewClientWithPolicy(c, "127.0.0.1", 3000)
 		Expect(err).ToNot(HaveOccurred())
 
 		BeforeEach(func() {
@@ -58,8 +69,8 @@ var _ = Describe("Aerospike", func() {
 		})
 
 		Context("Put operations", func() {
-			// TODO: Resolve this
-			// It("must save a key without bins?!", func() {
+			// TODO: Resolve this - this should work like touch command
+			// It("must save a key without bins", func() {
 			// 	// bin := NewBin("dbname", "Aerospike")
 			// 	err = client.PutBins(wpolicy, key)
 			// 	Expect(err).ToNot(HaveOccurred())
@@ -108,6 +119,31 @@ var _ = Describe("Aerospike", func() {
 					bin2nil := NewBin("Aerospike2", nil)
 					bin3nil := NewBin("Aerospike3", nil)
 					err = client.PutBins(wpolicy, key, bin2nil, bin3nil)
+					Expect(err).ToNot(HaveOccurred())
+
+					rec, err = client.Get(rpolicy, key)
+					Expect(err).ToNot(HaveOccurred())
+
+					// Key should not exist
+					_, exists := rec.Bins[bin2.Name]
+					Expect(exists).To(Equal(false))
+					_, exists = rec.Bins[bin3.Name]
+					Expect(exists).To(Equal(false))
+				})
+
+				It("must save a key with MULTIPLE bins using a BinMap", func() {
+					bin1 := NewBin("Aerospike1", "nil")
+					bin2 := NewBin("Aerospike2", "value")
+					bin3 := NewBin("Aerospike3", "value")
+					err = client.Put(wpolicy, key, BinMap{bin1.Name: bin1.Value, bin2.Name: bin2.Value, bin3.Name: bin3.Value})
+					Expect(err).ToNot(HaveOccurred())
+
+					rec, err = client.Get(rpolicy, key)
+					Expect(err).ToNot(HaveOccurred())
+
+					bin2nil := NewBin("Aerospike2", nil)
+					bin3nil := NewBin("Aerospike3", nil)
+					err = client.Put(wpolicy, key, BinMap{bin2nil.Name: bin2nil.Value, bin3nil.Name: bin3nil.Value})
 					Expect(err).ToNot(HaveOccurred())
 
 					rec, err = client.Get(rpolicy, key)
@@ -388,6 +424,16 @@ var _ = Describe("Aerospike", func() {
 				Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject().(string) + appbin.Value.GetObject().(string)))
 			})
 
+			It("must append to a SINGLE bin using a BinMap", func() {
+				appbin := NewBin(bin.Name, randString(rand.Intn(100)))
+				err = client.Append(wpolicy, key, BinMap{bin.Name: appbin.Value})
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err = client.Get(rpolicy, key)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject().(string) + appbin.Value.GetObject().(string)))
+			})
+
 		}) // append context
 
 		Context("Prepend operations", func() {
@@ -408,6 +454,16 @@ var _ = Describe("Aerospike", func() {
 				Expect(rec.Bins[bin.Name]).To(Equal(appbin.Value.GetObject().(string) + bin.Value.GetObject().(string)))
 			})
 
+			It("must Prepend to a SINGLE bin using a BinMap", func() {
+				appbin := NewBin(bin.Name, randString(rand.Intn(100)))
+				err = client.Prepend(wpolicy, key, BinMap{bin.Name: appbin.Value})
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err = client.Get(rpolicy, key)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rec.Bins[bin.Name]).To(Equal(appbin.Value.GetObject().(string) + bin.Value.GetObject().(string)))
+			})
+
 		}) // prepend context
 
 		Context("Add operations", func() {
@@ -421,6 +477,16 @@ var _ = Describe("Aerospike", func() {
 			It("must Add to a SINGLE bin", func() {
 				addBin := NewBin(bin.Name, rand.Intn(math.MaxInt16))
 				err = client.AddBins(wpolicy, key, addBin)
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err = client.Get(rpolicy, key)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rec.Bins[bin.Name]).To(Equal(addBin.Value.GetObject().(int) + bin.Value.GetObject().(int)))
+			})
+
+			It("must Add to a SINGLE bin using a BinMap", func() {
+				addBin := NewBin(bin.Name, rand.Intn(math.MaxInt16))
+				err = client.Add(wpolicy, key, BinMap{addBin.Name: addBin.Value})
 				Expect(err).ToNot(HaveOccurred())
 
 				rec, err = client.Get(rpolicy, key)
@@ -613,6 +679,17 @@ var _ = Describe("Aerospike", func() {
 						Expect(rec).To(BeNil())
 					}
 				}
+
+				records, err = client.BatchGet(rpolicy, keys, bin.Name)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(records)).To(Equal(len(keys)))
+				for idx, rec := range records {
+					if exList[idx].shouldExist {
+						Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+					} else {
+						Expect(rec).To(BeNil())
+					}
+				}
 			})
 
 		}) // Batch Get context
@@ -710,9 +787,9 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				ops1 := []*Operation{
-					NewGetOp(),
-					NewPutOp(bin1),
-					NewPutOp(bin2),
+					GetOp(),
+					PutOp(bin1),
+					PutOp(bin2),
 				}
 
 				rec, err = client.Operate(nil, key, ops1...)
@@ -723,9 +800,9 @@ var _ = Describe("Aerospike", func() {
 				Expect(rec.Generation).To(Equal(1))
 
 				ops2 := []*Operation{
-					NewGetOp(),
-					NewAddOp(bin1),    // double the value of the bin
-					NewAppendOp(bin2), // with itself
+					GetOp(),
+					AddOp(bin1),    // double the value of the bin
+					AppendOp(bin2), // with itself
 				}
 
 				rec, err = client.Operate(nil, key, ops2...)
@@ -736,10 +813,10 @@ var _ = Describe("Aerospike", func() {
 				Expect(rec.Generation).To(Equal(2))
 
 				ops3 := []*Operation{
-					NewGetOp(),
-					NewAddOp(bin1),
-					NewPrependOp(bin2),
-					NewTouchOp(),
+					GetOp(),
+					AddOp(bin1),
+					PrependOp(bin2),
+					TouchOp(),
 				}
 
 				rec, err = client.Operate(nil, key, ops3...)
@@ -750,127 +827,17 @@ var _ = Describe("Aerospike", func() {
 				Expect(rec.Generation).To(Equal(3))
 
 				ops4 := []*Operation{
-					NewTouchOp(),
+					TouchOp(),
+					GetHeaderOp(),
 				}
 
 				rec, err = client.Operate(nil, key, ops4...)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(rec.Bins[bin1.Name]).To(BeNil())
-				Expect(rec.Bins[bin2.Name]).To(BeNil())
 				Expect(rec.Generation).To(Equal(4))
 			})
 
 		}) // GetHeader context
-
-		Context("Scan operations", func() {
-			var scanSet string
-			const keyCount = 10000
-			bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
-			bin2 := NewBin("Aerospike2", randString(100))
-			var keys map[string]struct{}
-
-			// read all records from the channel and make sure all of them are returned
-			var checkResults = func(results chan *Record) {
-				for fullRec := range results {
-					_, exists := keys[string(fullRec.Key.Digest())]
-					Expect(exists).To(Equal(true))
-					Expect(fullRec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
-					Expect(fullRec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
-					delete(keys, string(fullRec.Key.Digest()))
-				}
-
-			}
-
-			BeforeEach(func() {
-				keys = make(map[string]struct{})
-				scanSet = randString(50)
-				for i := 0; i < keyCount; i++ {
-					key, err := NewKey(ns, scanSet, randString(50))
-					Expect(err).ToNot(HaveOccurred())
-
-					keys[string(key.Digest())] = struct{}{}
-					err = client.PutBins(wpolicy, key, bin1, bin2)
-					Expect(err).ToNot(HaveOccurred())
-				}
-			})
-
-			It("must Scan and get all records back for a specified node", func() {
-				for _, node := range client.GetNodes() {
-					results, err := client.ScanNode(nil, node, ns, scanSet)
-					Expect(err).ToNot(HaveOccurred())
-					checkResults(results)
-				}
-
-				Expect(len(keys)).To(Equal(0))
-			})
-
-			It("must Scan and get all records back from all nodes concurrently", func() {
-				results, err := client.ScanAll(nil, ns, scanSet)
-				Expect(err).ToNot(HaveOccurred())
-
-				checkResults(results)
-
-				Expect(len(keys)).To(Equal(0))
-			})
-
-			It("must Scan and get all records back from all nodes sequnetially", func() {
-				scanPolicy := NewScanPolicy()
-				scanPolicy.ConcurrentNodes = false
-
-				results, err := client.ScanAll(scanPolicy, ns, scanSet)
-				Expect(err).ToNot(HaveOccurred())
-
-				checkResults(results)
-
-				Expect(len(keys)).To(Equal(0))
-			})
-
-		}) // Scan command context
-
-		Context("Query operations", func() {
-			var querySet string
-			const keyCount = 10000
-			bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
-			bin2 := NewBin("Aerospike2", randString(100))
-			var keys map[string]struct{}
-
-			// read all records from the channel and make sure all of them are returned
-			var checkResults = func(results chan *Record) {
-				for fullRec := range results {
-					_, exists := keys[string(fullRec.Key.Digest())]
-					Expect(exists).To(Equal(true))
-					Expect(fullRec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
-					Expect(fullRec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
-					delete(keys, string(fullRec.Key.Digest()))
-				}
-
-			}
-
-			BeforeEach(func() {
-				keys = make(map[string]struct{})
-				querySet = randString(50)
-				for i := 0; i < keyCount; i++ {
-					key, err := NewKey(ns, querySet, randString(50))
-					Expect(err).ToNot(HaveOccurred())
-
-					keys[string(key.Digest())] = struct{}{}
-					err = client.PutBins(wpolicy, key, bin1, bin2)
-					Expect(err).ToNot(HaveOccurred())
-				}
-			})
-
-			It("must Query a range and get all records back", func() {
-				stm := NewStatement(ns, querySet)
-				results, err := client.Query(nil, stm)
-				Expect(err).ToNot(HaveOccurred())
-
-				checkResults(results.Records)
-
-				Expect(len(keys)).To(Equal(0))
-			})
-
-		}) // query context
 
 	})
 })

@@ -18,19 +18,19 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
-// guarantee DeleteCommand implements Command interface
-var _ Command = &DeleteCommand{}
+// guarantee deleteCommand implements command interface
+var _ command = &deleteCommand{}
 
-type DeleteCommand struct {
-	SingleCommand
+type deleteCommand struct {
+	singleCommand
 
 	policy  *WritePolicy
 	existed bool
 }
 
-func NewDeleteCommand(cluster *Cluster, policy *WritePolicy, key *Key) *DeleteCommand {
-	newDeleteCmd := &DeleteCommand{
-		SingleCommand: *NewSingleCommand(cluster, key),
+func newDeleteCommand(cluster *Cluster, policy *WritePolicy, key *Key) *deleteCommand {
+	newDeleteCmd := &deleteCommand{
+		singleCommand: *newSingleCommand(cluster, key),
 	}
 
 	if policy == nil {
@@ -42,33 +42,34 @@ func NewDeleteCommand(cluster *Cluster, policy *WritePolicy, key *Key) *DeleteCo
 	return newDeleteCmd
 }
 
-func (this *DeleteCommand) getPolicy(ifc Command) Policy {
-	return this.policy
+func (cmd *deleteCommand) getPolicy(ifc command) Policy {
+	return cmd.policy
 }
 
-func (this *DeleteCommand) writeBuffer(ifc Command) error {
-	this.SetDelete(this.policy, this.key)
-	return nil
+func (cmd *deleteCommand) writeBuffer(ifc command) error {
+	return cmd.setDelete(cmd.policy, cmd.key)
 }
 
-func (this *DeleteCommand) parseResult(ifc Command, conn *Connection) error {
+func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
-	conn.Read(this.dataBuffer, int(MSG_TOTAL_HEADER_SIZE))
+	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
+		return err
+	}
 
-	resultCode := this.dataBuffer[13] & 0xFF
+	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	if resultCode != 0 && ResultCode(resultCode) != KEY_NOT_FOUND_ERROR {
 		NewAerospikeError(ResultCode(resultCode))
 	}
-	this.existed = resultCode == 0
-	this.emptySocket(conn)
+	cmd.existed = resultCode == 0
+	cmd.emptySocket(conn)
 	return nil
 }
 
-func (this *DeleteCommand) Existed() bool {
-	return this.existed
+func (cmd *deleteCommand) Existed() bool {
+	return cmd.existed
 }
 
-func (this *DeleteCommand) Execute() error {
-	return this.execute(this)
+func (cmd *deleteCommand) Execute() error {
+	return cmd.execute(cmd)
 }

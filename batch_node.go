@@ -18,24 +18,24 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
-type BatchNode struct {
+type batchNode struct {
 	Node            *Node
 	BatchNamespaces []*batchNamespace
 	KeyCapacity     int
 }
 
-func NewBatchNodeList(cluster *Cluster, keys []*Key) ([]*BatchNode, error) {
+func newBatchNodeList(cluster *Cluster, keys []*Key) ([]*batchNode, error) {
 	nodes := cluster.GetNodes()
 
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Command failed because cluster is empty.")
+		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
 	}
 
 	nodeCount := len(nodes)
 	keysPerNode := len(keys)/nodeCount + 10
 
 	// Split keys by server node.
-	batchNodes := make([]*BatchNode, 0, nodeCount+1)
+	batchNodes := make([]*batchNode, 0, nodeCount+1)
 
 	for _, key := range keys {
 		partition := NewPartitionByKey(key)
@@ -45,7 +45,7 @@ func NewBatchNodeList(cluster *Cluster, keys []*Key) ([]*BatchNode, error) {
 		batchNode := findBatchNode(batchNodes, node)
 
 		if batchNode == nil {
-			batchNodes = append(batchNodes, NewBatchNode(node, keysPerNode, key))
+			batchNodes = append(batchNodes, newBatchNode(node, keysPerNode, key))
 		} else {
 			batchNode.AddKey(key)
 		}
@@ -53,26 +53,26 @@ func NewBatchNodeList(cluster *Cluster, keys []*Key) ([]*BatchNode, error) {
 	return batchNodes, nil
 }
 
-func NewBatchNode(node *Node, keyCapacity int, key *Key) *BatchNode {
-	return &BatchNode{
+func newBatchNode(node *Node, keyCapacity int, key *Key) *batchNode {
+	return &batchNode{
 		Node:            node,
 		KeyCapacity:     keyCapacity,
-		BatchNamespaces: []*batchNamespace{NewBatchNamespace(key.Namespace(), keyCapacity, key)},
+		BatchNamespaces: []*batchNamespace{newBatchNamespace(&key.namespace, keyCapacity, key)},
 	}
 }
 
-func (this *BatchNode) AddKey(key *Key) {
-	batchNamespace := this.findNamespace(key.Namespace())
+func (bn *batchNode) AddKey(key *Key) {
+	batchNamespace := bn.findNamespace(&key.namespace)
 
 	if batchNamespace == nil {
-		this.BatchNamespaces = append(this.BatchNamespaces, NewBatchNamespace(key.Namespace(), this.KeyCapacity, key))
+		bn.BatchNamespaces = append(bn.BatchNamespaces, newBatchNamespace(&key.namespace, bn.KeyCapacity, key))
 	} else {
 		batchNamespace.keys = append(batchNamespace.keys, key)
 	}
 }
 
-func (this *BatchNode) findNamespace(ns *string) *batchNamespace {
-	for _, batchNamespace := range this.BatchNamespaces {
+func (bn *batchNode) findNamespace(ns *string) *batchNamespace {
+	for _, batchNamespace := range bn.BatchNamespaces {
 		// Note: use both pointer equality and equals.
 		if batchNamespace.namespace == ns || *batchNamespace.namespace == *ns {
 			return batchNamespace
@@ -81,7 +81,7 @@ func (this *BatchNode) findNamespace(ns *string) *batchNamespace {
 	return nil
 }
 
-func findBatchNode(nodes []*BatchNode, node *Node) *BatchNode {
+func findBatchNode(nodes []*batchNode, node *Node) *batchNode {
 	for _, batchNode := range nodes {
 		// Note: using pointer equality for performance.
 		if batchNode.Node == node {
@@ -96,7 +96,7 @@ type batchNamespace struct {
 	keys      []*Key
 }
 
-func NewBatchNamespace(namespace *string, capacity int, key *Key) *batchNamespace {
+func newBatchNamespace(namespace *string, capacity int, key *Key) *batchNamespace {
 	return &batchNamespace{
 		namespace: namespace,
 		keys:      []*Key{key},

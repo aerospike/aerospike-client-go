@@ -30,14 +30,14 @@ import (
 // Polymorphic value classes used to efficiently serialize objects into the wire protocol.
 type Value interface {
 
-	// Calculate number of this.bytes necessary to serialize the value in the wire protocol.
-	EstimateSize() int
+	// Calculate number of vl.bytes necessary to serialize the value in the wire protocol.
+	estimateSize() int
 
 	// Serialize the value in the wire protocol.
-	Write(buffer []byte, offset int) (int, error)
+	write(buffer []byte, offset int) (int, error)
 
 	// Serialize the value using MessagePack.
-	Pack(packer *Packer) error
+	pack(packer *packer) error
 
 	// Get wire protocol value type.
 	GetType() int
@@ -50,6 +50,9 @@ type Value interface {
 
 	// Return value as an Object.
 	// GetLuaValue() LuaValue
+
+	// Returns Bytes
+	getBytes() []byte
 }
 
 type AerospikeBlob interface {
@@ -93,6 +96,8 @@ func NewValue(v interface{}) Value {
 		}
 	case int64:
 		return NewLongValue(int64(v.(int64)))
+	case Value:
+		return v.(Value)
 	case AerospikeBlob:
 		return NewBlobValue(v.(AerospikeBlob))
 	}
@@ -120,8 +125,7 @@ func NewValue(v interface{}) Value {
 	}
 
 	// panic for anything that is not supported.
-	panic(TypeNotSupportedErr())
-
+	panic(NewAerospikeError(TYPE_NOT_SUPPORTED, "Value type '"+reflect.TypeOf(v).Name()+"' not supported"))
 }
 
 // Empty value.
@@ -132,32 +136,36 @@ func NewNullValue() *NullValue {
 	return &NullValue{}
 }
 
-func (this *NullValue) EstimateSize() int {
+func (vl *NullValue) estimateSize() int {
 	return 0
 }
 
-func (this *NullValue) Write(buffer []byte, offset int) (int, error) {
+func (vl *NullValue) write(buffer []byte, offset int) (int, error) {
 	return 0, nil
 }
 
-func (this *NullValue) Pack(packer *Packer) error {
+func (vl *NullValue) pack(packer *packer) error {
 	packer.PackNil()
 	return nil
 }
 
-func (this *NullValue) GetType() int {
+func (vl *NullValue) GetType() int {
 	return ParticleType.NULL
 }
 
-func (this *NullValue) GetObject() interface{} {
+func (vl *NullValue) GetObject() interface{} {
 	return nil
 }
 
-// func (this *NullValue) GetLuaValue() LuaValue {
+// func (vl *NullValue) GetLuaValue() LuaValue {
 // 	return LuaNil.NIL
 // }
 
-func (this *NullValue) String() string {
+func (vl *NullValue) getBytes() []byte {
+	return nil
+}
+
+func (vl *NullValue) String() string {
 	return ""
 }
 
@@ -183,34 +191,38 @@ func NewBlobValue(object AerospikeBlob) *BytesValue {
 	return NewBytesValue(buf)
 }
 
-func (this *BytesValue) EstimateSize() int {
-	return len(this.bytes)
+func (vl *BytesValue) estimateSize() int {
+	return len(vl.bytes)
 }
 
-func (this *BytesValue) Write(buffer []byte, offset int) (int, error) {
-	len := copy(buffer[offset:], this.bytes)
+func (vl *BytesValue) write(buffer []byte, offset int) (int, error) {
+	len := copy(buffer[offset:], vl.bytes)
 	return len, nil
 }
 
-func (this *BytesValue) Pack(packer *Packer) error {
-	packer.PackBytes(this.bytes)
+func (vl *BytesValue) pack(packer *packer) error {
+	packer.PackBytes(vl.bytes)
 	return nil
 }
 
-func (this *BytesValue) GetType() int {
+func (vl *BytesValue) GetType() int {
 	return ParticleType.BLOB
 }
 
-func (this *BytesValue) GetObject() interface{} {
-	return this.bytes
+func (vl *BytesValue) GetObject() interface{} {
+	return vl.bytes
 }
 
-// func (this *BytesValue) GetLuaValue() LuaValue {
-// 	return LuaString.valueOf(this.bytes)
+// func (vl *BytesValue) GetLuaValue() LuaValue {
+// 	return LuaString.valueOf(vl.bytes)
 // }
 
-func (this *BytesValue) String() string {
-	return Buffer.BytesToHexString(this.bytes)
+func (vl *BytesValue) getBytes() []byte {
+	return vl.bytes
+}
+
+func (vl *BytesValue) String() string {
+	return Buffer.BytesToHexString(vl.bytes)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -224,33 +236,37 @@ func NewStringValue(value string) *StringValue {
 	return &StringValue{value: value}
 }
 
-func (this *StringValue) EstimateSize() int {
-	return len(this.value)
+func (vl *StringValue) estimateSize() int {
+	return len(vl.value)
 }
 
-func (this *StringValue) Write(buffer []byte, offset int) (int, error) {
-	return copy(buffer[offset:], []byte(this.value)), nil
+func (vl *StringValue) write(buffer []byte, offset int) (int, error) {
+	return copy(buffer[offset:], []byte(vl.value)), nil
 }
 
-func (this *StringValue) Pack(packer *Packer) error {
-	packer.PackString(this.value)
+func (vl *StringValue) pack(packer *packer) error {
+	packer.PackString(vl.value)
 	return nil
 }
 
-func (this *StringValue) GetType() int {
+func (vl *StringValue) GetType() int {
 	return ParticleType.STRING
 }
 
-func (this *StringValue) GetObject() interface{} {
-	return this.value
+func (vl *StringValue) GetObject() interface{} {
+	return vl.value
 }
 
-// func (this *StringValue) GetLuaValue() LuaValue {
-// 	return LuaString.valueOf(this.value)
+// func (vl *StringValue) GetLuaValue() LuaValue {
+// 	return LuaString.valueOf(vl.value)
 // }
 
-func (this *StringValue) String() string {
-	return this.value
+func (vl *StringValue) getBytes() []byte {
+	return []byte(vl.value)
+}
+
+func (vl *StringValue) String() string {
+	return vl.value
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -264,38 +280,42 @@ func NewIntegerValue(value int) *IntegerValue {
 	return &IntegerValue{value: value}
 }
 
-func (this *IntegerValue) EstimateSize() int {
-	return int(sizeOfInt)
+func (vl *IntegerValue) estimateSize() int {
+	return 8
 }
 
-func (this *IntegerValue) Write(buffer []byte, offset int) (int, error) {
+func (vl *IntegerValue) write(buffer []byte, offset int) (int, error) {
+	Buffer.Int64ToBytes(int64(vl.value), buffer, offset)
+	return 8, nil
+}
+
+func (vl *IntegerValue) pack(packer *packer) error {
 	if sizeOfInt == sizeOfInt32 {
-		Buffer.Int32ToBytes(int32(this.value), buffer, offset)
+		packer.PackAInt(vl.value)
 	} else {
-		Buffer.Int64ToBytes(int64(this.value), buffer, offset)
+		packer.PackALong(int64(vl.value))
 	}
-	return int(sizeOfInt), nil
-}
-
-func (this *IntegerValue) Pack(packer *Packer) error {
-	packer.PackAInt(this.value)
 	return nil
 }
 
-func (this *IntegerValue) GetType() int {
+func (vl *IntegerValue) GetType() int {
 	return ParticleType.INTEGER
 }
 
-func (this *IntegerValue) GetObject() interface{} {
-	return int(this.value)
+func (vl *IntegerValue) GetObject() interface{} {
+	return int(vl.value)
 }
 
-// func (this *IntegerValue) GetLuaValue() LuaValue {
-// 	return LuaInteger.valueOf(this.value)
+// func (vl *IntegerValue) GetLuaValue() LuaValue {
+// 	return LuaInteger.valueOf(vl.value)
 // }
 
-func (this *IntegerValue) String() string {
-	return strconv.Itoa(int(this.value))
+func (vl *IntegerValue) getBytes() []byte {
+	return Buffer.Int64ToBytes(int64(vl.value), nil, 0)
+}
+
+func (vl *IntegerValue) String() string {
+	return strconv.Itoa(int(vl.value))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -309,34 +329,38 @@ func NewLongValue(value int64) *LongValue {
 	return &LongValue{value: value}
 }
 
-func (this *LongValue) EstimateSize() int {
+func (vl *LongValue) estimateSize() int {
 	return 8
 }
 
-func (this *LongValue) Write(buffer []byte, offset int) (int, error) {
-	Buffer.Int64ToBytes(this.value, buffer, offset)
+func (vl *LongValue) write(buffer []byte, offset int) (int, error) {
+	Buffer.Int64ToBytes(vl.value, buffer, offset)
 	return 8, nil
 }
 
-func (this *LongValue) Pack(packer *Packer) error {
-	packer.PackALong(this.value)
+func (vl *LongValue) pack(packer *packer) error {
+	packer.PackALong(vl.value)
 	return nil
 }
 
-func (this *LongValue) GetType() int {
+func (vl *LongValue) GetType() int {
 	return ParticleType.INTEGER
 }
 
-func (this *LongValue) GetObject() interface{} {
-	return this.value
+func (vl *LongValue) GetObject() interface{} {
+	return vl.value
 }
 
-// func (this *LongValue) GetLuaValue() LuaValue {
-// 	return LuaInteger.valueOf(this.value)
+// func (vl *LongValue) GetLuaValue() LuaValue {
+// 	return LuaInteger.valueOf(vl.value)
 // }
 
-func (this *LongValue) String() string {
-	return strconv.Itoa(int(this.value))
+func (vl *LongValue) getBytes() []byte {
+	return Buffer.Int64ToBytes(int64(vl.value), nil, 0)
+}
+
+func (vl *LongValue) String() string {
+	return strconv.Itoa(int(vl.value))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -348,41 +372,56 @@ type ValueArray struct {
 	bytes []byte
 }
 
+func ToValueArray(array []interface{}) *ValueArray {
+	res := make([]Value, 0, len(array))
+	for i := range array {
+		res = append(res, NewValue(array[i]))
+	}
+	return NewValueArray(res)
+}
+
 func NewValueArray(array []Value) *ValueArray {
-	return &ValueArray{
+	res := &ValueArray{
 		array: array,
 	}
+
+	res.bytes, _ = packValueArray(array)
+
+	return res
 }
 
-func (this *ValueArray) EstimateSize() int {
-	this.bytes, _ = PackValueArray(this.array)
-	return len(this.bytes)
+func (vl *ValueArray) estimateSize() int {
+	return len(vl.bytes)
 }
 
-func (this *ValueArray) Write(buffer []byte, offset int) (int, error) {
-	copy(buffer[offset:], this.bytes)
-	return len(this.bytes), nil
+func (vl *ValueArray) write(buffer []byte, offset int) (int, error) {
+	res := copy(buffer[offset:], vl.bytes)
+	return res, nil
 }
 
-func (this *ValueArray) Pack(packer *Packer) error {
-	packer.PackValueArray(this.array)
+func (vl *ValueArray) pack(packer *packer) error {
+	packer.packValueArray(vl.array)
 	return nil
 }
 
-func (this *ValueArray) GetType() int {
+func (vl *ValueArray) GetType() int {
 	return ParticleType.LIST
 }
 
-func (this *ValueArray) GetObject() interface{} {
-	return this.array
+func (vl *ValueArray) GetObject() interface{} {
+	return vl.array
 }
 
-// func (this *ValueArray) GetLuaValue() LuaValue {
+// func (vl *ValueArray) GetLuaValue() LuaValue {
 // 	return nil
 // }
 
-func (this *ValueArray) String() string {
-	return "" //return Arrays.toString(this.array)
+func (vl *ValueArray) getBytes() []byte {
+	return vl.bytes
+}
+
+func (vl *ValueArray) String() string {
+	return fmt.Sprintf("%v", vl.array)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -395,40 +434,48 @@ type ListValue struct {
 }
 
 func NewListValue(list []interface{}) *ListValue {
-	return &ListValue{
+	res := &ListValue{
 		list: list,
 	}
+
+	res.bytes, _ = packAnyArray(list)
+
+	return res
 }
 
-func (this *ListValue) EstimateSize() int {
+func (vl *ListValue) estimateSize() int {
 	// var err error
-	this.bytes, _ = PackAnyArray(this.list)
-	return len(this.bytes)
+	vl.bytes, _ = packAnyArray(vl.list)
+	return len(vl.bytes)
 }
 
-func (this *ListValue) Write(buffer []byte, offset int) (int, error) {
-	l := copy(buffer[offset:], this.bytes)
+func (vl *ListValue) write(buffer []byte, offset int) (int, error) {
+	l := copy(buffer[offset:], vl.bytes)
 	return l, nil
 }
 
-func (this *ListValue) Pack(packer *Packer) error {
-	return packer.PackList(this.list)
+func (vl *ListValue) pack(packer *packer) error {
+	return packer.PackList(vl.list)
 }
 
-func (this *ListValue) GetType() int {
+func (vl *ListValue) GetType() int {
 	return ParticleType.LIST
 }
 
-func (this *ListValue) GetObject() interface{} {
-	return this.list
+func (vl *ListValue) GetObject() interface{} {
+	return vl.list
 }
 
-// func (this *ListValue) GetLuaValue() LuaValue {
+// func (vl *ListValue) GetLuaValue() LuaValue {
 // 	return nil
 // }
 
-func (this *ListValue) String() string {
-	return fmt.Sprintf("%v", this.list)
+func (vl *ListValue) getBytes() []byte {
+	return vl.bytes
+}
+
+func (vl *ListValue) String() string {
+	return fmt.Sprintf("%v", vl.list)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -441,43 +488,50 @@ type MapValue struct {
 }
 
 func NewMapValue(vmap map[interface{}]interface{}) *MapValue {
-	return &MapValue{
+	res := &MapValue{
 		vmap: vmap,
 	}
+
+	res.bytes, _ = packAnyMap(vmap)
+
+	return res
 }
 
-func (this *MapValue) EstimateSize() int {
-	this.bytes, _ = PackAnyMap(this.vmap)
-	return len(this.bytes)
+func (vl *MapValue) estimateSize() int {
+	return len(vl.bytes)
 }
 
-func (this *MapValue) Write(buffer []byte, offset int) (int, error) {
-	return copy(buffer[offset:], this.bytes), nil
+func (vl *MapValue) write(buffer []byte, offset int) (int, error) {
+	return copy(buffer[offset:], vl.bytes), nil
 }
 
-func (this *MapValue) Pack(packer *Packer) error {
-	return packer.PackMap(this.vmap)
+func (vl *MapValue) pack(packer *packer) error {
+	return packer.PackMap(vl.vmap)
 }
 
-func (this *MapValue) GetType() int {
+func (vl *MapValue) GetType() int {
 	return ParticleType.MAP
 }
 
-func (this *MapValue) GetObject() interface{} {
-	return this.vmap
+func (vl *MapValue) GetObject() interface{} {
+	return vl.vmap
 }
 
-// func (this *MapValue) GetLuaValue() LuaValue {
+// func (vl *MapValue) GetLuaValue() LuaValue {
 // 	return nil
 // }
 
-func (this *MapValue) String() string {
-	return fmt.Sprintf("%v", this.vmap)
+func (vl *MapValue) getBytes() []byte {
+	return vl.bytes
+}
+
+func (vl *MapValue) String() string {
+	return fmt.Sprintf("%v", vl.vmap)
 }
 
 //////////////////////////////////////////////////////////////////////////////
 
-func BytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}, error) {
+func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}, error) {
 
 	switch ptype {
 	case ParticleType.STRING:
@@ -492,10 +546,10 @@ func BytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 		return newObj, nil
 
 	case ParticleType.LIST:
-		return NewUnpacker(buf, offset, length).UnpackList()
+		return newUnpacker(buf, offset, length).UnpackList()
 
 	case ParticleType.MAP:
-		return NewUnpacker(buf, offset, length).UnpackMap()
+		return newUnpacker(buf, offset, length).UnpackMap()
 
 	}
 	return nil, nil

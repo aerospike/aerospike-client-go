@@ -19,10 +19,11 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"regexp"
 	"runtime"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,11 +31,14 @@ import (
 
 	. "github.com/aerospike/aerospike-client-go"
 	. "github.com/aerospike/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 type TStats struct {
-	Exit         bool
-	W, R, WE, RE int
+	Exit     bool
+	W, R     int // write and read counts
+	WE, RE   int // write and read errors
+	WTO, RTO int // write and read timeouts
 }
 
 var countReportChan = make(chan *TStats, 100) // async chan
@@ -51,13 +55,12 @@ var workloadDef = flag.String("w", "I:100", "Desired workload.\n\tI:60\t: Linear
 var throughput = flag.Int("g", 0, "Throttle transactions per second to a maximum value.\n\tIf tps is zero, do not throttle throughput.\n\tUsed in read/write mode only.")
 var timeout = flag.Int("T", 0, "Read/Write timeout in milliseconds.")
 var maxRetries = flag.Int("maxRetries", 2, "Maximum number of retries before aborting the current transaction.")
+var connQueueSize = flag.Int("queueSize", 4096, "Maximum number of connections to pool.")
 
 var randBinData = flag.Bool("R", false, "Use dynamically generated random bin values instead of default static fixed bin values.")
 var debugMode = flag.Bool("d", false, "Run benchmarks in debug mode.")
+var profileMode = flag.Bool("profile", false, "Run benchmarks with profiler active on port 6060.")
 var showUsage = flag.Bool("u", false, "Show usage information.")
-
-// profiling
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
 // parsed data
 var binDataType string
@@ -73,19 +76,19 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	readFlags()
 
-	// start cpu profiler if a filename is provided
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
+	// launch profiler if in profile mode
+	if *profileMode {
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
 	}
 
 	printBenchmarkParams()
 
-	client, err := NewClient(*host, *port)
+	clientPolicy := NewClientPolicy()
+	// cache lots  connections
+	clientPolicy.ConnectionQueueSize = *connQueueSize
+	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -101,7 +104,7 @@ func main() {
 	wg.Wait()
 
 	// send term to reporter, and wait for it to terminate
-	countReportChan <- &TStats{true, 0, 0, 0, 0}
+	countReportChan <- &TStats{true, 0, 0, 0, 0, 0, 0}
 	time.Sleep(10 * time.Millisecond)
 	<-countReportChan
 }
@@ -200,6 +203,8 @@ func readFlags() {
 func getBin(rnd *rand.Rand) *Bin {
 	var bin *Bin
 	switch binDataType {
+	case "B":
+		bin = &Bin{Name: "information", Value: NewBytesValue([]byte(randString(binDataSize, rnd)))}
 	case "S":
 		bin = &Bin{Name: "information", Value: NewStringValue(randString(binDataSize, rnd))}
 	default:
@@ -224,6 +229,14 @@ func randString(size int, rnd *rand.Rand) string {
 	return string(buf)
 }
 
+func incOnError(op, timeout *int, err error) {
+	if _, ok := err.(ErrTimeout); ok {
+		*timeout++
+	} else {
+		*op++
+	}
+}
+
 func runBench(client *Client, ident int, times int) {
 	defer wg.Done()
 
@@ -237,14 +250,14 @@ func runBench(client *Client, ident int, times int) {
 
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	// defaultBin := NewBin(randString(10, rnd), rnd.Int63())
-	defaultBin := NewBin(randString(1, rnd), rnd.Int63())
+	defaultBin := getBin(rnd)
 
 	t := time.Now()
 	var WCount, RCount int
 	var writeErr, readErr int
+	var writeTOErr, readTOErr int
+	bin := defaultBin
 	for i := 1; workloadType == "RU" || i <= times; i++ {
-		bin := defaultBin
 		// if randomBin data has been requested
 		if *randBinData {
 			bin = getBin(rnd)
@@ -254,23 +267,23 @@ func runBench(client *Client, ident int, times int) {
 		if workloadType == "I" || rnd.Intn(100) >= workloadPercent {
 			WCount++
 			if err = client.PutBins(writepolicy, key, bin); err != nil {
-				writeErr++
+				incOnError(&writeErr, &writeTOErr, err)
 			}
 		} else {
 			RCount++
-			if r, err = client.Get(readpolicy, key, defaultBin.Name); err != nil {
-				readErr++
+			if r, err = client.Get(readpolicy, key, bin.Name); err != nil {
+				incOnError(&readErr, &readTOErr, err)
 			}
 		}
 
 		if time.Now().Sub(t) > (100 * time.Millisecond) {
-			countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr}
+			countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr}
 			WCount, RCount = 0, 0
 			writeErr, readErr = 0, 0
 			t = time.Now()
 		}
 	}
-	countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr}
+	countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr}
 }
 
 // calculates transactions per second
@@ -280,9 +293,33 @@ func calcTPS(count int, duration time.Duration) int {
 
 // listens to transaction report channel, and print them out on intervals
 func reporter() {
-	var totalWCount, totalRCount, totalWErrCount, totalRErrCount int
-	var totalCount, totalErrCount int
+	var totalWCount, totalRCount int
+	var totalWErrCount, totalRErrCount int
+	var totalWTOCount, totalRTOCount int
+	var totalCount, totalTOCount, totalErrCount int
 	lastReportTime := time.Now()
+
+	var memStats = new(runtime.MemStats)
+	var lastTotalAllocs, lastPauseNs uint64
+
+	memProfileStr := func() string {
+		var res string
+		if *debugMode {
+			// GC stats
+			runtime.ReadMemStats(memStats)
+			allocMem := (memStats.TotalAlloc - lastTotalAllocs) / (1024)
+			pauseNs := (memStats.PauseTotalNs - lastPauseNs) / 1e6
+			res = fmt.Sprintf(" (malloc (KiB): %d, GC pause(ms): %d)",
+				allocMem,
+				pauseNs,
+			)
+			// GC
+			lastPauseNs = memStats.PauseTotalNs
+			lastTotalAllocs = memStats.TotalAlloc
+		}
+
+		return res
+	}
 
 Loop:
 	for {
@@ -290,24 +327,36 @@ Loop:
 		case stats := <-countReportChan:
 			totalWCount += stats.W
 			totalRCount += stats.R
+
 			totalWErrCount += stats.WE
 			totalRErrCount += stats.RE
+
+			totalWTOCount += stats.WTO
+			totalRTOCount += stats.RTO
+
 			totalCount += (stats.W + stats.R)
 			totalErrCount += (stats.WE + stats.RE)
+			totalTOCount += (stats.WTO + stats.RTO)
 
 			if stats.Exit || time.Now().Sub(lastReportTime) >= time.Second {
 				if workloadType == "I" {
-					log.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d)", calcTPS(totalWCount+totalRCount, time.Now().Sub(lastReportTime)), 0, totalErrCount, totalCount)
+					log.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d)%s",
+						calcTPS(totalWCount+totalRCount, time.Now().Sub(lastReportTime)), totalTOCount, totalErrCount, totalCount,
+						memProfileStr(),
+					)
 				} else {
 					log.Printf(
-						"write(tps=%d timeouts=%d errors=%d) read(tps=%d timeouts=%d errors=%d) total(tps=%d timeouts=%d errors=%d, count=%d)",
-						calcTPS(totalWCount, time.Now().Sub(lastReportTime)), 0, totalWErrCount,
-						calcTPS(totalRCount, time.Now().Sub(lastReportTime)), 0, totalRErrCount,
-						calcTPS(totalWCount+totalRCount, time.Now().Sub(lastReportTime)), 0, totalErrCount, totalCount,
+						"write(tps=%d timeouts=%d errors=%d) read(tps=%d timeouts=%d errors=%d) total(tps=%d timeouts=%d errors=%d, count=%d)%s",
+						calcTPS(totalWCount, time.Now().Sub(lastReportTime)), totalWTOCount, totalWErrCount,
+						calcTPS(totalRCount, time.Now().Sub(lastReportTime)), totalRTOCount, totalRErrCount,
+						calcTPS(totalWCount+totalRCount, time.Now().Sub(lastReportTime)), totalTOCount, totalErrCount, totalCount,
+						memProfileStr(),
 					)
 				}
+
 				totalWCount, totalRCount = 0, 0
 				totalWErrCount, totalRErrCount = 0, 0
+				totalWTOCount, totalRTOCount = 0, 0
 				lastReportTime = time.Now()
 
 				if stats.Exit {
@@ -316,5 +365,5 @@ Loop:
 			}
 		}
 	}
-	countReportChan <- &TStats{false, 0, 0, 0, 0}
+	countReportChan <- &TStats{false, 0, 0, 0, 0, 0, 0}
 }

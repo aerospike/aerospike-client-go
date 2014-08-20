@@ -18,14 +18,14 @@ import (
 	"time"
 )
 
-// Container object for client policy Command.
+// Container object for client policy command.
 type ClientPolicy struct {
 	// Initial host connection timeout in milliseconds.  The timeout when opening a connection
 	// to the server host for the first time.
-	Timeout time.Duration //= 1000 milliseconds
+	Timeout time.Duration //= 1 second
 
 	// Size of the Connection Queue cache.
-	ConnectionQueueSize int //= 64
+	ConnectionQueueSize int //= 256
 
 	// Throw exception if host connection fails during addHost().
 	FailIfNotConnected bool //= true
@@ -35,7 +35,16 @@ type ClientPolicy struct {
 func NewClientPolicy() *ClientPolicy {
 	return &ClientPolicy{
 		Timeout:             1 * time.Second,
-		ConnectionQueueSize: 4096,
+		ConnectionQueueSize: 256,
 		FailIfNotConnected:  true,
 	}
+}
+
+func (p *ClientPolicy) timeout() time.Duration {
+	res := 365 * 24 * time.Hour // a year
+	if p != nil && p.Timeout > 0 {
+		res = p.Timeout
+	}
+
+	return res
 }

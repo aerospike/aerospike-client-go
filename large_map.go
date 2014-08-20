@@ -32,7 +32,7 @@ func NewLargeMap(client *Client, policy *WritePolicy, key *Key, binName string, 
 	}
 }
 
-func (this *LargeMap) packageName() string {
+func (lm *LargeMap) packageName() string {
 	return "lmap"
 }
 
@@ -40,16 +40,16 @@ func (this *LargeMap) packageName() string {
 //
 // name        entry key
 // value       entry value
-func (this *LargeMap) Put(name Value, value Value) error {
-	_, err := this.client.Execute(this.policy, this.key, this.packageName(), "put", this.binName, name, value, this.userModule)
+func (lm *LargeMap) Put(name Value, value interface{}) error {
+	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "put", lm.binName, name, NewValue(value), lm.userModule)
 	return err
 }
 
 // Add map values to map.  If the map does not exist, create it using specified userModule configuration.
 //
 // map       map values to push
-func (this *LargeMap) PutMap(theMap map[interface{}]interface{}) error {
-	_, err := this.client.Execute(this.policy, this.key, this.packageName(), "put_all", this.binName, NewMapValue(theMap), this.userModule)
+func (lm *LargeMap) PutMap(theMap map[interface{}]interface{}) error {
+	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "put_all", lm.binName, NewMapValue(theMap), lm.userModule)
 	return err
 }
 
@@ -57,14 +57,14 @@ func (this *LargeMap) PutMap(theMap map[interface{}]interface{}) error {
 //
 // name        key.
 // return          map of items selected
-func (this *LargeMap) Get(name Value) (map[interface{}]interface{}, error) {
-	res, err := this.client.Execute(this.policy, this.key, this.packageName(), "get", this.binName, name)
+func (lm *LargeMap) Get(name interface{}) (map[interface{}]interface{}, error) {
+	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "get", lm.binName, NewValue(name))
 	return res.(map[interface{}]interface{}), err
 }
 
 // Return all objects in the list.
-func (this *LargeMap) Scan() (map[interface{}]interface{}, error) {
-	ret, err := this.client.Execute(this.policy, this.key, this.packageName(), "scan", this.binName)
+func (lm *LargeMap) Scan() (map[interface{}]interface{}, error) {
+	ret, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "scan", lm.binName)
 	if err != nil {
 		return nil, err
 	}
@@ -76,35 +76,35 @@ func (this *LargeMap) Scan() (map[interface{}]interface{}, error) {
 // filterName    Lua function name which applies filter to returned list
 // filterArgs    arguments to Lua function name
 // return          list of items selected
-func (this *LargeMap) Filter(filterName string, filterArgs ...Value) (map[interface{}]interface{}, error) {
-	res, err := this.client.Execute(this.policy, this.key, this.packageName(), "filter", this.binName, this.userModule, NewStringValue(filterName), NewValue(filterArgs))
+func (lm *LargeMap) Filter(filterName string, filterArgs ...interface{}) (map[interface{}]interface{}, error) {
+	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "filter", lm.binName, lm.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	return res.(map[interface{}]interface{}), err
 
 }
 
 // Delete bin containing the list.
-func (this *LargeMap) Destroy() error {
-	return this.destroy(this)
+func (lm *LargeMap) Destroy() error {
+	return lm.destroy(lm)
 }
 
 // Return size of list.
-func (this *LargeMap) Size() (int, error) {
-	return this.size(this)
+func (lm *LargeMap) Size() (int, error) {
+	return lm.size(lm)
 }
 
 // Return map of list configuration parameters.
-func (this *LargeMap) GetConfig() (map[interface{}]interface{}, error) {
-	return this.getConfig(this)
+func (lm *LargeMap) GetConfig() (map[interface{}]interface{}, error) {
+	return lm.getConfig(lm)
 }
 
 // Set maximum number of entries in the list.
 //
 // capacity      max entries in list
-func (this *LargeMap) SetCapacity(capacity int) error {
-	return this.setCapacity(this, capacity)
+func (lm *LargeMap) SetCapacity(capacity int) error {
+	return lm.setCapacity(lm, capacity)
 }
 
 // Return maximum number of entries in the list.
-func (this *LargeMap) GetCapacity() (int, error) {
-	return this.getCapacity(this)
+func (lm *LargeMap) GetCapacity() (int, error) {
+	return lm.getCapacity(lm)
 }

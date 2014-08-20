@@ -32,19 +32,19 @@ func NewLargeStack(client *Client, policy *WritePolicy, key *Key, binName string
 	}
 }
 
-func (this *LargeStack) packageName() string {
+func (lstk *LargeStack) packageName() string {
 	return "lstack"
 }
 
 // Push values onto stack.  If the stack does not exist, create it using specified userModule configuration.
 //
 // values      values to push
-func (this *LargeStack) Push(values ...Value) error {
+func (lstk *LargeStack) Push(values ...interface{}) error {
 	var err error
 	if len(values) == 1 {
-		this.client.Execute(this.policy, this.key, this.packageName(), "push", this.binName, values[0], this.userModule)
+		lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "push", lstk.binName, NewValue(values[0]), lstk.userModule)
 	} else {
-		this.client.Execute(this.policy, this.key, this.packageName(), "push_all", this.binName, NewValueArray(values), this.userModule)
+		lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "push_all", lstk.binName, ToValueArray(values), lstk.userModule)
 	}
 	return err
 }
@@ -54,8 +54,8 @@ func (this *LargeStack) Push(values ...Value) error {
 // peekCount     number of items to select.
 // returns          list of items selected
 
-func (this *LargeStack) Peek(peekCount int) ([]interface{}, error) {
-	ret, err := this.client.Execute(this.policy, this.key, this.packageName(), "peek", this.binName, NewIntegerValue(peekCount))
+func (lstk *LargeStack) Peek(peekCount int) ([]interface{}, error) {
+	ret, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "peek", lstk.binName, NewIntegerValue(peekCount))
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +66,8 @@ func (this *LargeStack) Peek(peekCount int) ([]interface{}, error) {
 //
 // peekCount     number of items to select.
 // returns          list of items selected
-func (this *LargeStack) Pop(count int) ([]interface{}, error) {
-	ret, err := this.client.Execute(this.policy, this.key, this.packageName(), "pop", this.binName, NewIntegerValue(count))
+func (lstk *LargeStack) Pop(count int) ([]interface{}, error) {
+	ret, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "pop", lstk.binName, NewIntegerValue(count))
 	if err != nil {
 		return nil, err
 	}
@@ -76,8 +76,8 @@ func (this *LargeStack) Pop(count int) ([]interface{}, error) {
 
 // Return all objects in the list.
 
-func (this *LargeStack) Scan() ([]interface{}, error) {
-	return this.scan(this)
+func (lstk *LargeStack) Scan() ([]interface{}, error) {
+	return lstk.scan(lstk)
 }
 
 // Select items from top of stack.
@@ -86,8 +86,8 @@ func (this *LargeStack) Scan() ([]interface{}, error) {
 // filterName    Lua function name which applies filter to returned list
 // filterArgs    arguments to Lua function name
 // returns          list of items selected
-func (this *LargeStack) Filter(peekCount int, filterName string, filterArgs ...Value) ([]interface{}, error) {
-	ret, err := this.client.Execute(this.policy, this.key, this.packageName(), "filter", this.binName, NewIntegerValue(peekCount), this.userModule, NewStringValue(filterName), NewValueArray(filterArgs))
+func (lstk *LargeStack) Filter(peekCount int, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	ret, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "filter", lstk.binName, NewIntegerValue(peekCount), lstk.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}
@@ -95,28 +95,28 @@ func (this *LargeStack) Filter(peekCount int, filterName string, filterArgs ...V
 }
 
 // Delete bin containing the list.
-func (this *LargeStack) Destroy() error {
-	return this.destroy(this)
+func (lstk *LargeStack) Destroy() error {
+	return lstk.destroy(lstk)
 }
 
 // Return size of list.
-func (this *LargeStack) Size() (int, error) {
-	return this.size(this)
+func (lstk *LargeStack) Size() (int, error) {
+	return lstk.size(lstk)
 }
 
 // Return map of list configuration parameters.
-func (this *LargeStack) GetConfig() (map[interface{}]interface{}, error) {
-	return this.getConfig(this)
+func (lstk *LargeStack) GetConfig() (map[interface{}]interface{}, error) {
+	return lstk.getConfig(lstk)
 }
 
 // Set maximum number of entries in the list.
 //
 // capacity      max entries in list
-func (this *LargeStack) SetCapacity(capacity int) error {
-	return this.setCapacity(this, capacity)
+func (lstk *LargeStack) SetCapacity(capacity int) error {
+	return lstk.setCapacity(lstk, capacity)
 }
 
 // Return maximum number of entries in the list.
-func (this *LargeStack) GetCapacity() (int, error) {
-	return this.getCapacity(this)
+func (lstk *LargeStack) GetCapacity() (int, error) {
+	return lstk.getCapacity(lstk)
 }

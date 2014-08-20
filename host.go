@@ -15,7 +15,7 @@
 package aerospike
 
 import (
-	"fmt"
+	"strconv"
 )
 
 // Host name/port of database server.
@@ -26,14 +26,16 @@ type Host struct {
 
 	// Port of database server.
 	Port int
+
+	addPort string
 }
 
 // Initialize host.
 func NewHost(name string, port int) *Host {
-	return &Host{Name: name, Port: port}
+	return &Host{Name: name, Port: port, addPort: name + ":" + strconv.Itoa(port)}
 }
 
 // Implements stringer interface
 func (h *Host) String() string {
-	return fmt.Sprintf("%s:%d", h.Name, h.Port)
+	return h.addPort
 }

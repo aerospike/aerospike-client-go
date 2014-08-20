@@ -14,4 +14,28 @@
 
 package aerospike
 
-const replicasName = "replicas-master"
+import (
+	. "github.com/aerospike/aerospike-client-go/types"
+)
+
+type NodeError struct {
+	error
+
+	node *Node
+}
+
+func newNodeError(node *Node, err error) *NodeError {
+	return &NodeError{
+		error: err,
+		node:  node,
+	}
+}
+
+func newAerospikeNodeError(node *Node, code ResultCode, messages ...string) *NodeError {
+	return &NodeError{
+		error: NewAerospikeError(code, messages...),
+		node:  node,
+	}
+}
+
+func (ne *NodeError) Node() *Node { return ne.node }

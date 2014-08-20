@@ -24,7 +24,7 @@ import (
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
-	. "github.com/aerospike/aerospike-client-go/logger"
+	// . "github.com/aerospike/aerospike-client-go/logger"
 
 	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
 
@@ -36,7 +36,6 @@ func init() {
 	// load test require actual parallelism
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	Logger.SetLevel(OFF)
 	rand.Seed(time.Now().UnixNano())
 }
 

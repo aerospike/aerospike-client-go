@@ -19,6 +19,7 @@ import (
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 var zeroTime = time.Unix(0, 0)
@@ -32,17 +33,31 @@ type Connection struct {
 	conn net.Conn
 }
 
+func errToTimeoutErr(err error) error {
+	if err, ok := err.(net.Error); ok && err.Timeout() {
+		return NewAerospikeError(TIMEOUT, err.Error())
+	} else {
+		return err
+	}
+}
+
 // NewConnection creates a connection on the network and returns the pointer
 // A minimum timeout of 2 seconds will always be applied.
 // If the connection is not established in the specified timeout,
 // an error will be returned
 func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 	newConn := &Connection{}
+
+	// connection timeout should be finite
+	if timeout <= 0 {
+		timeout = 2 * time.Second
+	}
+
 	newConn.SetTimeout(timeout)
 
 	if conn, err := net.DialTimeout("tcp", address, newConn.timeout); err != nil {
-		Logger.Error("Connection to address `%s` failed to establish: %s", address, err.Error())
-		return nil, err
+		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
+		return nil, errToTimeoutErr(err)
 	} else {
 		newConn.conn = conn
 		return newConn, nil
@@ -50,60 +65,68 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 }
 
 // Writes the slice to the connection buffer.
-func (this *Connection) Write(buf []byte) (int, error) {
-	if this.timeout > 0 {
-		this.conn.SetWriteDeadline(time.Now().Add(this.timeout))
-	} else {
-		this.conn.SetWriteDeadline(zeroTime)
+func (ctn *Connection) Write(buf []byte) (total int, err error) {
+	// make sure all bytes are written
+	// Don't worry about the loop, timeout has been set elsewhere
+	length := len(buf)
+	var r int
+	for total < length {
+		if r, err = ctn.conn.Write(buf[total:]); err != nil {
+			break
+		}
+		total += r
 	}
 
-	return this.conn.Write(buf)
+	if err == nil {
+		return total, nil
+	} else {
+		return total, errToTimeoutErr(err)
+	}
 }
 
 // Reads from connection buffer to the slice
-func (this *Connection) Read(buf []byte, length int) (int, error) {
-	if this.timeout > 0 {
-		this.conn.SetReadDeadline(time.Now().Add(this.timeout))
-	} else {
-		this.conn.SetReadDeadline(zeroTime)
-	}
-
-	// read all required bytes
-	total, err := this.conn.Read(buf[:length])
-	if err != nil {
-		return total, err
-	}
-
+func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 	// if all bytes are not read, retry until successful
-	// Don't worry about the loop; we've already set the deadline
+	// Don't worry about the loop; we've already set the timeout elsewhere
+	var r int
 	for total < length {
-		r, err := this.conn.Read(buf[total:length])
-		if err != nil {
+		if r, err = ctn.conn.Read(buf[total:length]); err != nil {
 			break
 		}
-
 		total += r
 	}
-	return total, err
+
+	if err == nil {
+		return total, nil
+	} else {
+		return total, errToTimeoutErr(err)
+	}
 }
 
 // Returns true if the connection is not closed
-func (this *Connection) IsConnected() bool {
-	return this.conn != nil
+func (ctn *Connection) IsConnected() bool {
+	return ctn.conn != nil
 }
 
 // sets connection timeout
-func (this *Connection) SetTimeout(timeout time.Duration) {
-	if timeout <= 0 {
-		timeout = 2 * time.Second
+func (ctn *Connection) SetTimeout(timeout time.Duration) {
+	ctn.timeout = timeout
+
+	// important: remove deadline when not needed; connections are pooled
+	if ctn.conn != nil {
+		var deadline time.Time
+		if timeout > 0 {
+			deadline = time.Now().Add(timeout)
+		}
+		ctn.conn.SetDeadline(deadline)
 	}
-	this.timeout = timeout
+
 }
 
 // Closes the connection
-func (this *Connection) Close() {
-	if this.conn != nil {
-		this.conn.Close()
-		this.conn = nil
+func (ctn *Connection) Close() {
+	if ctn.conn != nil {
+		ctn.conn.Close()
+		ctn.conn = nil
 	}
 }

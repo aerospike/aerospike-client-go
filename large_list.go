@@ -33,19 +33,19 @@ func NewLargeList(client *Client, policy *WritePolicy, key *Key, binName string,
 	}
 }
 
-func (this *LargeList) packageName() string {
+func (ll *LargeList) packageName() string {
 	return "llist"
 }
 
 // Add values to the list.  If the list does not exist, create it using specified userModule configuration.
 //
 // values      values to add
-func (this *LargeList) Add(values ...Value) error {
+func (ll *LargeList) Add(values ...interface{}) error {
 	var err error
 	if len(values) == 1 {
-		_, err = this.client.Execute(this.policy, this.key, this.packageName(), "add", this.binName, values[0], this.userModule)
+		_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName(), "add", ll.binName, NewValue(values[0]), ll.userModule)
 	} else {
-		_, err = this.client.Execute(this.policy, this.key, this.packageName(), "add_all", this.binName, NewValueArray(values), this.userModule)
+		_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName(), "add_all", ll.binName, ToValueArray(values), ll.userModule)
 	}
 	return err
 }
@@ -53,8 +53,8 @@ func (this *LargeList) Add(values ...Value) error {
 // Delete value from list.
 //
 // value       value to delete
-func (this *LargeList) Remove(value Value) error {
-	_, err := this.client.Execute(this.policy, this.key, this.packageName(), "remove", this.binName, value)
+func (ll *LargeList) Remove(value interface{}) error {
+	_, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "remove", ll.binName, NewValue(value))
 	return err
 }
 
@@ -62,8 +62,8 @@ func (this *LargeList) Remove(value Value) error {
 //
 // value       value to select
 // returns          list of entries selected
-func (this *LargeList) Find(value Value) ([]interface{}, error) {
-	res, err := this.client.Execute(this.policy, this.key, this.packageName(), "find", this.binName, value)
+func (ll *LargeList) Find(value interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "find", ll.binName, NewValue(value))
 	if err != nil {
 		return nil, err
 	}
@@ -76,8 +76,8 @@ func (this *LargeList) Find(value Value) ([]interface{}, error) {
 // filterName    Lua function name which applies filter to returned list
 // filterArgs    arguments to Lua function name
 // returns          list of entries selected
-func (this *LargeList) FindThenFilter(value Value, filterName string, filterArgs ...Value) ([]interface{}, error) {
-	res, err := this.client.Execute(this.policy, this.key, this.packageName(), "find_then_filter", this.binName, value, this.userModule, NewValue(filterName), NewValue(filterArgs))
+func (ll *LargeList) FindThenFilter(value interface{}, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "find_then_filter", ll.binName, NewValue(value), ll.userModule, NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}
@@ -85,8 +85,8 @@ func (this *LargeList) FindThenFilter(value Value, filterName string, filterArgs
 }
 
 // Return all objects in the list.
-func (this *LargeList) Scan() ([]interface{}, error) {
-	return this.scan(this)
+func (ll *LargeList) Scan() ([]interface{}, error) {
+	return ll.scan(ll)
 }
 
 // Select values from list and apply specified Lua filter.
@@ -94,8 +94,8 @@ func (this *LargeList) Scan() ([]interface{}, error) {
 // filterName    Lua function name which applies filter to returned list
 // filterArgs    arguments to Lua function name
 // returns          list of entries selected
-func (this *LargeList) Filter(filterName string, filterArgs ...Value) ([]interface{}, error) {
-	res, err := this.client.Execute(this.policy, this.key, this.packageName(), "filter", this.binName, this.userModule, NewValue(filterName), NewValue(filterArgs))
+func (ll *LargeList) Filter(filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "filter", ll.binName, ll.userModule, NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}
@@ -103,28 +103,28 @@ func (this *LargeList) Filter(filterName string, filterArgs ...Value) ([]interfa
 }
 
 // Delete bin containing the list.
-func (this *LargeList) Destroy() error {
-	return this.destroy(this)
+func (ll *LargeList) Destroy() error {
+	return ll.destroy(ll)
 }
 
 // Return size of list.
-func (this *LargeList) Size() (int, error) {
-	return this.size(this)
+func (ll *LargeList) Size() (int, error) {
+	return ll.size(ll)
 }
 
 // Return map of list configuration parameters.
-func (this *LargeList) GetConfig() (map[interface{}]interface{}, error) {
-	return this.getConfig(this)
+func (ll *LargeList) GetConfig() (map[interface{}]interface{}, error) {
+	return ll.getConfig(ll)
 }
 
 // Set maximum number of entries in the list.
 //
 // capacity      max entries in list
-func (this *LargeList) SetCapacity(capacity int) error {
-	return this.setCapacity(this, capacity)
+func (ll *LargeList) SetCapacity(capacity int) error {
+	return ll.setCapacity(ll, capacity)
 }
 
 // Return maximum number of entries in the list.
-func (this *LargeList) GetCapacity() (int, error) {
-	return this.getCapacity(this)
+func (ll *LargeList) GetCapacity() (int, error) {
+	return ll.getCapacity(ll)
 }

@@ -3,3 +3,4 @@
 *.coverprofile*
 tools/benchmark/benchmark
 tools/asinfo/asinfo
+tmp/

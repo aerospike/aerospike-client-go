@@ -15,26 +15,21 @@
 package aerospike_test
 
 import (
-	"fmt"
+	// "fmt"
 	"math"
 	"math/rand"
 	// "strings"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
-	. "github.com/aerospike/aerospike-client-go/logger"
-	. "github.com/aerospike/aerospike-client-go/types"
+	// . "github.com/aerospike/aerospike-client-go/logger"
+	// . "github.com/aerospike/aerospike-client-go/types"
 
 	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
-
-func init() {
-	fmt.Println("Testing")
-	Logger.SetLevel(ERR)
-}
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Index operations test", func() {
@@ -71,22 +66,23 @@ var _ = Describe("Index operations test", func() {
 		Context("Create non-existing index", func() {
 
 			It("must create an Index", func() {
-				idxTask, err := client.CreateIndex(wpolicy, ns, set, "Idx"+bin1.Name, bin1.Name, STRING)
+				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, STRING)
 				Expect(err).ToNot(HaveOccurred())
+				defer client.DropIndex(wpolicy, ns, set, set+bin1.Name)
 
 				// wait until index is created
 				<-idxTask.OnComplete()
 
 				// no duplicate index is allowed
-				_, err = client.CreateIndex(wpolicy, ns, set, "Idx"+bin1.Name, bin1.Name, STRING)
+				_, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, STRING)
 				Expect(err).To(HaveOccurred())
 			})
 
 			It("must drop an Index", func() {
-				err := client.DropIndex(wpolicy, ns, set, "Idx"+bin1.Name)
+				err := client.DropIndex(wpolicy, ns, set, set+bin1.Name)
 				Expect(err).ToNot(HaveOccurred())
 
-				err = client.DropIndex(wpolicy, ns, set, "Idx"+bin1.Name)
+				err = client.DropIndex(wpolicy, ns, set, set+bin1.Name)
 				Expect(err).ToNot(HaveOccurred())
 			})
 

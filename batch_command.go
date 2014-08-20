@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"sync"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -26,45 +27,48 @@ const (
 	_MAX_BUFFER_SIZE = 1024 * 1024 * 10 // 10 MB
 )
 
-type MultiCommand interface {
-	// parseRecordResults(ifc MultiCommand, receiveSize int) (bool, error)
+type multiCommand interface {
 	Stop()
 	IsValid() bool
 }
 
-type BaseMultiCommand struct {
-	BaseCommand
+type baseMultiCommand struct {
+	baseCommand
 
-	bis   *Connection
-	node  *Node
+	Records chan *Record
+	Errors  chan error
+
+	conn  *Connection
 	valid bool //= true
+	mutex sync.RWMutex
 }
 
-func NewMultiCommand(node *Node) *BaseMultiCommand {
-	return &BaseMultiCommand{
-		node:  node,
-		valid: true,
+func newMultiCommand(node *Node, recChan chan *Record, errChan chan error) *baseMultiCommand {
+	return &baseMultiCommand{
+		baseCommand: baseCommand{node: node},
+		Records:     recChan,
+		Errors:      errChan,
+		valid:       true,
 	}
 }
 
-func (this *BaseMultiCommand) getNode(ifc Command) (*Node, error) {
-	return this.node, nil
+func (cmd *baseMultiCommand) getNode(ifc command) (*Node, error) {
+	return cmd.node, nil
 }
 
-func (this *BaseMultiCommand) parseResult(ifc Command, conn *Connection) error {
+func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 	// Read socket into receive buffer one record at a time.  Do not read entire receive size
-	// because the thread local receive buffer would be too big.  Also, scan callbacks can nest
-	// further database commands which contend with the receive buffer.
-	this.bis = conn
+	// because the receive buffer would be too big.
+	cmd.conn = conn
 	status := true
 
 	for status {
 		// Read header.
-		if err := this.readBytes(8); err != nil {
+		if err := cmd.readBytes(8); err != nil {
 			return err
 		}
 
-		size := Buffer.BytesToInt64(this.dataBuffer, 0)
+		size := Buffer.BytesToInt64(cmd.dataBuffer, 0)
 		receiveSize := int(size & 0xFFFFFFFFFFFF)
 
 		if receiveSize > 0 {
@@ -79,59 +83,63 @@ func (this *BaseMultiCommand) parseResult(ifc Command, conn *Connection) error {
 	return nil
 }
 
-func (this *BaseMultiCommand) parseKey(fieldCount int) (*Key, error) {
+func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 	var digest []byte
-	var namespace, setName *string
+	var namespace, setName string
 
 	for i := 0; i < fieldCount; i++ {
-		if err := this.readBytes(4); err != nil {
+		if err := cmd.readBytes(4); err != nil {
 			return nil, err
 		}
 
-		fieldlen := int(Buffer.BytesToInt32(this.dataBuffer, 0))
-		if err := this.readBytes(fieldlen); err != nil {
+		fieldlen := int(Buffer.BytesToInt32(cmd.dataBuffer, 0))
+		if err := cmd.readBytes(fieldlen); err != nil {
 			return nil, err
 		}
 
-		fieldtype := FieldType(this.dataBuffer[0])
+		fieldtype := FieldType(cmd.dataBuffer[0])
 		size := fieldlen - 1
 
 		if fieldtype == DIGEST_RIPE {
-			digest = make([]byte, size)
-			copy(digest, this.dataBuffer[1:size+1])
+			digest = make([]byte, size, size)
+			copy(digest, cmd.dataBuffer[1:size+1])
 		} else if fieldtype == NAMESPACE {
-			r := string(this.dataBuffer[1 : size+1])
-			namespace = &r
+			namespace = string(cmd.dataBuffer[1 : size+1])
 		} else if fieldtype == TABLE {
-			r := string(this.dataBuffer[1 : size+1])
-			setName = &r
+			setName = string(cmd.dataBuffer[1 : size+1])
 		}
 	}
 	return &Key{namespace: namespace, setName: setName, digest: digest}, nil
 }
 
-func (this *BaseMultiCommand) readBytes(length int) error {
-	if length > len(this.dataBuffer) {
+func (cmd *baseMultiCommand) readBytes(length int) error {
+	if length > len(cmd.dataBuffer) {
 		// Corrupted data streams can result in a huge length.
 		// Do a sanity check here.
 		if length > _MAX_BUFFER_SIZE {
 			return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
 		}
-		this.dataBuffer = make([]byte, length)
+		cmd.dataBuffer = make([]byte, length)
 	}
 
-	if _, err := this.bis.Read(this.dataBuffer, length); err != nil {
+	if _, err := cmd.conn.Read(cmd.dataBuffer, length); err != nil {
 		return err
 	}
 
-	this.dataOffset += length
+	cmd.dataOffset += length
 	return nil
 }
 
-func (this *BaseMultiCommand) Stop() {
-	this.valid = false
+func (cmd *baseMultiCommand) Stop() {
+	cmd.mutex.Lock()
+	defer cmd.mutex.Unlock()
+
+	cmd.valid = false
 }
 
-func (this *BaseMultiCommand) IsValid() bool {
-	return this.valid
+func (cmd *baseMultiCommand) IsValid() bool {
+	cmd.mutex.RLock()
+	defer cmd.mutex.RUnlock()
+
+	return cmd.valid
 }

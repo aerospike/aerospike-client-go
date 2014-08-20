@@ -19,16 +19,16 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-type ReadHeaderCommand struct {
-	SingleCommand
+type readHeaderCommand struct {
+	singleCommand
 
 	policy Policy
 	record *Record
 }
 
-func NewReadHeaderCommand(cluster *Cluster, policy Policy, key *Key) *ReadHeaderCommand {
-	newReadHeaderCmd := &ReadHeaderCommand{
-		SingleCommand: *NewSingleCommand(cluster, key),
+func newReadHeaderCommand(cluster *Cluster, policy Policy, key *Key) *readHeaderCommand {
+	newReadHeaderCmd := &readHeaderCommand{
+		singleCommand: *newSingleCommand(cluster, key),
 	}
 
 	if policy != nil {
@@ -40,40 +40,41 @@ func NewReadHeaderCommand(cluster *Cluster, policy Policy, key *Key) *ReadHeader
 	return newReadHeaderCmd
 }
 
-func (this *ReadHeaderCommand) getPolicy(ifc Command) Policy {
-	return this.policy
+func (cmd *readHeaderCommand) getPolicy(ifc command) Policy {
+	return cmd.policy
 }
 
-func (this *ReadHeaderCommand) writeBuffer(ifc Command) error {
-	this.SetReadHeader(this.key)
-	return nil
+func (cmd *readHeaderCommand) writeBuffer(ifc command) error {
+	return cmd.setReadHeader(cmd.key)
 }
 
-func (this *ReadHeaderCommand) parseResult(ifc Command, conn *Connection) error {
+func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
-	conn.Read(this.dataBuffer, int(MSG_TOTAL_HEADER_SIZE))
+	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
+		return err
+	}
 
-	resultCode := this.dataBuffer[13] & 0xFF
+	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	if resultCode == 0 {
-		generation := int(Buffer.BytesToInt32(this.dataBuffer, 14))
-		expiration := TTL(int(Buffer.BytesToInt32(this.dataBuffer, 18)))
-		this.record = NewRecord(this.key, nil, nil, generation, expiration)
+		generation := int(Buffer.BytesToInt32(cmd.dataBuffer, 14))
+		expiration := TTL(int(Buffer.BytesToInt32(cmd.dataBuffer, 18)))
+		cmd.record = newRecord(cmd.node, cmd.key, nil, nil, generation, expiration)
 	} else {
 		if ResultCode(resultCode) == KEY_NOT_FOUND_ERROR {
-			this.record = nil
+			cmd.record = nil
 		} else {
 			return NewAerospikeError(ResultCode(resultCode))
 		}
 	}
-	this.emptySocket(conn)
+	cmd.emptySocket(conn)
 	return nil
 }
 
-func (this *ReadHeaderCommand) GetRecord() *Record {
-	return this.record
+func (cmd *readHeaderCommand) GetRecord() *Record {
+	return cmd.record
 }
 
-func (this *ReadHeaderCommand) Execute() error {
-	return this.execute(this)
+func (cmd *readHeaderCommand) Execute() error {
+	return cmd.execute(cmd)
 }

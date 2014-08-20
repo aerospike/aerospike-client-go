@@ -14,30 +14,141 @@
 
 package aerospike
 
+import (
+	"errors"
+	"strconv"
+	"strings"
+
+	. "github.com/aerospike/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/types/atomic"
+)
+
 // Parse node partitions using old protocol. This is more code than a String.split() implementation,
 // but it's faster because there are much fewer interim strings.
-
-type PartitionTokenizerOld struct {
-	replicasName string //= "replicas-write";
-
-	sb     string
+type partitionTokenizerOld struct {
 	buffer []byte
 	length int
 	offset int
 }
 
-func NewPartitionTokenizerOld(conn *Connection) (*PartitionTokenizerOld, error) {
+func newPartitionTokenizerOld(conn *Connection) (*partitionTokenizerOld, error) {
+	pt := &partitionTokenizerOld{}
+
+	// Use low-level info methods and parse byte array directly for maximum performance.
+	// Send format:    replicas-master\n
+	// Receive format: replicas-master\t<ns1>:<base 64 encoded bitmap>;<ns2>:<base 64 encoded bitmap>... \n
+	infoMap, err := RequestInfo(conn, replicasName)
+	if err != nil {
+		return nil, err
+	}
+
+	info := infoMap[replicasName]
+	pt.length = len(info)
+	if pt.length == 0 {
+		return nil, errors.New(replicasName + " is empty")
+	}
+
+	pt.buffer = []byte(info)
+
+	return pt, nil
+}
+
+func (pt *partitionTokenizerOld) UpdatePartition(nmap map[string]*atomicNodeArray, node *Node) (map[string]*atomicNodeArray, error) {
+	var amap map[string]*atomicNodeArray
+	copied := false
+
+	for partition, err := pt.getNext(); ; partition, err = pt.getNext() {
+		if partition == nil {
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+		nodeArray, exists := nmap[partition.Namespace]
+
+		if exists {
+			if !copied {
+				// Make shallow copy of map.
+				amap = make(map[string]*atomicNodeArray, len(nmap))
+				for k, v := range nmap {
+					amap[k] = v
+				}
+				copied = true
+			}
+
+			nodeArray := &atomicNodeArray{*NewAtomicArray(_PARTITIONS)}
+			amap[partition.Namespace] = nodeArray
+		}
+		Logger.Debug(partition.String() + "," + node.name)
+		nodeArray.Set(partition.PartitionId, node)
+	}
+
+	if copied {
+		return amap, nil
+	} else {
+		return nil, nil
+	}
+}
+
+func (pt *partitionTokenizerOld) getNext() (*Partition, error) {
+	begin := pt.offset
+
+	for pt.offset < pt.length {
+		if pt.buffer[pt.offset] == ':' {
+			// Parse namespace.
+			namespace := strings.Trim(string(pt.buffer[begin:pt.offset]), " ")
+
+			if len(namespace) <= 0 || len(namespace) >= 32 {
+				response := pt.getTruncatedResponse()
+				return nil, errors.New("Invalid partition namespace " +
+					namespace + ". Response=" + response)
+			}
+
+			pt.offset++
+			begin = pt.offset
+
+			// Parse partition id.
+			for pt.offset < pt.length {
+				b := pt.buffer[pt.offset]
+
+				if b == ';' || b == '\n' {
+					break
+				}
+				pt.offset++
+			}
+
+			if pt.offset == begin {
+				response := pt.getTruncatedResponse()
+				return nil, errors.New("Empty partition id for namespace " +
+					namespace + ". Response=" + response)
+			}
+
+			partitionId, err := strconv.Atoi(string(pt.buffer[begin:pt.offset]))
+			if err != nil {
+				return nil, err
+			}
+
+			if partitionId < 0 || partitionId >= _PARTITIONS {
+				response := pt.getTruncatedResponse()
+				partitionString := string(pt.buffer[begin:pt.offset])
+				return nil, errors.New("Invalid partition id " + partitionString +
+					" for namespace " + namespace + ". Response=" + response)
+			}
+
+			pt.offset++
+			begin = pt.offset
+
+			return NewPartition(namespace, partitionId), nil
+		}
+		pt.offset++
+	}
 	return nil, nil
 }
 
-func (this *PartitionTokenizerOld) UpdatePartition(hmap map[string]atomicNodeArray, node *Node) map[string]atomicNodeArray {
-	return nil
-}
-
-func (this *PartitionTokenizerOld) getNext() (*Partition, error) {
-	return nil, nil
-}
-
-func (this *PartitionTokenizerOld) getTruncatedResponse() string {
-	return ""
+func (pt *partitionTokenizerOld) getTruncatedResponse() string {
+	max := pt.length
+	if pt.length > 200 {
+		pt.length = max
+	}
+	return string(pt.buffer[:max])
 }

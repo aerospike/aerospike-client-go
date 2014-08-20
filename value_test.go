@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package aerospike_test
+package aerospike
 
 import (
 	"math"
@@ -22,7 +22,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	. "github.com/aerospike/aerospike-client-go"
+	// . "github.com/aerospike/aerospike-client-go"
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	. "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -38,7 +38,7 @@ func (this *testBLOB) EncodeBlob() ([]byte, error) {
 func isValidIntegerValue(i int, v Value) bool {
 	Expect(reflect.TypeOf(v)).To(Equal(reflect.TypeOf(NewIntegerValue(0))))
 	Expect(v.GetObject()).To(Equal(i))
-	Expect(v.EstimateSize()).To(Equal(int(unsafe.Sizeof(int(0)))))
+	Expect(v.estimateSize()).To(Equal(int(unsafe.Sizeof(int(0)))))
 	Expect(v.GetType()).To(Equal(ParticleType.INTEGER))
 
 	return true
@@ -47,7 +47,7 @@ func isValidIntegerValue(i int, v Value) bool {
 func isValidLongValue(i int64, v Value) bool {
 	Expect(reflect.TypeOf(v)).To(Equal(reflect.TypeOf(NewLongValue(0))))
 	Expect(v.GetObject().(int64)).To(Equal(i))
-	Expect(v.EstimateSize()).To(Equal(int(unsafe.Sizeof(int64(0)))))
+	Expect(v.estimateSize()).To(Equal(int(unsafe.Sizeof(int64(0)))))
 	Expect(v.GetType()).To(Equal(ParticleType.INTEGER))
 
 	return true
@@ -60,7 +60,7 @@ var _ = Describe("Value Test", func() {
 			v := NewValue(nil)
 
 			Expect(v.GetObject()).To(BeNil())
-			Expect(v.EstimateSize()).To(Equal(0))
+			Expect(v.estimateSize()).To(Equal(0))
 			Expect(v.GetType()).To(Equal(ParticleType.NULL))
 		})
 	})
@@ -71,7 +71,7 @@ var _ = Describe("Value Test", func() {
 			v := NewValue(str)
 
 			Expect(v.GetObject()).To(Equal(str))
-			Expect(v.EstimateSize()).To(Equal(len(str)))
+			Expect(v.estimateSize()).To(Equal(len(str)))
 			Expect(v.GetType()).To(Equal(ParticleType.STRING))
 		})
 
@@ -80,7 +80,7 @@ var _ = Describe("Value Test", func() {
 			v := NewValue(str)
 
 			Expect(v.GetObject()).To(Equal(str))
-			Expect(v.EstimateSize()).To(Equal(len(str)))
+			Expect(v.estimateSize()).To(Equal(len(str)))
 			Expect(v.GetType()).To(Equal(ParticleType.STRING))
 		})
 	})

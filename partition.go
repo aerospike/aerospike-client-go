@@ -27,11 +27,11 @@ type Partition struct {
 
 func NewPartitionByKey(key *Key) *Partition {
 	return &Partition{
-		Namespace: *key.Namespace(),
+		Namespace: key.namespace,
 
 		// CAN'T USE MOD directly - mod will give negative numbers.
 		// First AND makes positive and negative correctly, then mod.
-		PartitionId: (Buffer.BytesToIntIntel(key.Digest(), 0) & 0xFFFF) % _PARTITIONS,
+		PartitionId: (Buffer.BytesToIntIntel(key.digest, 0) & 0xFFFF) % _PARTITIONS,
 	}
 }
 
@@ -42,10 +42,10 @@ func NewPartition(namespace string, partitionId int) *Partition {
 	}
 }
 
-func (this *Partition) String() string {
-	return fmt.Sprintf("%s:%d", this.Namespace, this.PartitionId)
+func (ptn *Partition) String() string {
+	return fmt.Sprintf("%s:%d", ptn.Namespace, ptn.PartitionId)
 }
 
-func (this *Partition) Equals(other *Partition) bool {
-	return this.PartitionId == other.PartitionId && this.Namespace == other.Namespace
+func (ptn *Partition) Equals(other *Partition) bool {
+	return ptn.PartitionId == other.PartitionId && ptn.Namespace == other.Namespace
 }

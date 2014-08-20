@@ -14,34 +14,34 @@
 
 package aerospike
 
-type ExecuteCommand struct {
-	ReadCommand
+type executeCommand struct {
+	readCommand
 
 	packageName  string
 	functionName string
 	args         []Value
 }
 
-func NewExecuteCommand(
+func newExecuteCommand(
 	cluster *Cluster,
 	policy *WritePolicy,
 	key *Key,
 	packageName string,
 	functionName string,
 	args []Value,
-) *ExecuteCommand {
-	return &ExecuteCommand{
-		ReadCommand:  *NewReadCommand(cluster, policy, key, nil),
+) *executeCommand {
+	return &executeCommand{
+		readCommand:  *newReadCommand(cluster, policy, key, nil),
 		packageName:  packageName,
 		functionName: functionName,
 		args:         args,
 	}
 }
 
-func (this *ExecuteCommand) writeBuffer(ifc Command) error {
-	return this.SetUdf(this.key, this.packageName, this.functionName, this.args)
+func (cmd *executeCommand) writeBuffer(ifc command) error {
+	return cmd.setUdf(cmd.key, cmd.packageName, cmd.functionName, cmd.args)
 }
 
-func (this *ExecuteCommand) Execute() error {
-	return this.execute(this)
+func (cmd *executeCommand) Execute() error {
+	return cmd.execute(cmd)
 }

@@ -18,18 +18,14 @@ import (
 	"strings"
 )
 
-/**
- * Task used to poll for UDF registration completion.
- */
+// Task used to poll for UDF registration completion.
 type RegisterTask struct {
 	BaseTask
 
 	packageName string
 }
 
-/**
- * Initialize task with fields needed to query server nodes.
- */
+// Initialize task with fields needed to query server nodes.
 func NewRegisterTask(cluster *Cluster, packageName string) *RegisterTask {
 	return &RegisterTask{
 		BaseTask:    *NewTask(cluster, false),
@@ -37,32 +33,31 @@ func NewRegisterTask(cluster *Cluster, packageName string) *RegisterTask {
 	}
 }
 
-/**
- * Query all nodes for task completion status.
- */
-func (this *RegisterTask) IsDone() (bool, error) {
+// Query all nodes for task completion status.
+func (tskr *RegisterTask) IsDone() (bool, error) {
 	command := "udf-list"
-	nodes := this.cluster.GetNodes()
+	nodes := tskr.cluster.GetNodes()
 	done := false
 
 	for _, node := range nodes {
-		responseMap, err := RequestInfoForNode(node, command)
+		responseMap, err := RequestNodeInfo(node, command)
 		if err != nil {
-			return true, err
+			return false, err
 		}
 
-		response := responseMap["statistics"]
-		find := "filename=" + this.packageName
-		index := strings.Index(response, find)
+		for _, response := range responseMap {
+			find := "filename=" + tskr.packageName
+			index := strings.Index(response, find)
 
-		if index < 0 {
-			return false, nil
+			if index < 0 {
+				return false, nil
+			}
+			done = true
 		}
-		done = true
 	}
 	return done, nil
 }
 
-func (this *RegisterTask) OnComplete() chan error {
-	return this.onComplete(this)
+func (tskr *RegisterTask) OnComplete() chan error {
+	return tskr.onComplete(tskr)
 }

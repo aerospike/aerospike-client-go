@@ -53,7 +53,7 @@ type Cluster struct {
 	nodes []*Node
 
 	// Hints for best node for a partition
-	partitionWriteMap map[string]atomicNodeArray
+	partitionWriteMap map[string]*atomicNodeArray
 
 	// Random node index.
 	nodeIndex *AtomicInt
@@ -64,7 +64,7 @@ type Cluster struct {
 	// Initial connection timeout.
 	connectionTimeout time.Duration
 
-	mutex       *sync.RWMutex
+	mutex       sync.RWMutex
 	tendChannel chan tendCommand
 	closed      AtomicBool
 }
@@ -72,18 +72,17 @@ type Cluster struct {
 func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	newCluster := &Cluster{
 		seeds:               hosts,
-		connectionQueueSize: policy.ConnectionQueueSize, // Add one connection for tend thread.
-		connectionTimeout:   policy.Timeout,
+		connectionQueueSize: policy.ConnectionQueueSize,
+		connectionTimeout:   policy.timeout(),
 		aliases:             make(map[*Host]*Node),
 		nodes:               []*Node{},
-		partitionWriteMap:   make(map[string]atomicNodeArray),
+		partitionWriteMap:   make(map[string]*atomicNodeArray),
 		nodeIndex:           NewAtomicInt(0),
-		mutex:               new(sync.RWMutex),
 		tendChannel:         make(chan tendCommand),
 	}
 
 	// try to seed connections for first use
-	newCluster.tend()
+	newCluster.waitTillStabilized()
 
 	// apply policy rules
 	if policy.FailIfNotConnected && !newCluster.IsConnected() {
@@ -99,73 +98,60 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 // Maintains the cluster on intervals.
 // All clean up code for cluster is here as well.
-func (this *Cluster) clusterBoss() {
+func (clstr *Cluster) clusterBoss() {
 
 Loop:
 	for {
 		select {
-		case cmd := <-this.tendChannel:
+		case cmd := <-clstr.tendChannel:
 			switch cmd {
 			case _TEND_CMD_CLOSE:
 				break Loop
 			}
 		case <-time.After(tendInterval):
-			this.tend()
+			clstr.tend()
 		}
 	}
 
 	// cleanup code goes here
-	this.closed.Set(true)
+	clstr.closed.Set(true)
 
-	// close the nodes asynchronously
-	go func() {
-		nodeArray := this.GetNodes()
-		for _, node := range nodeArray {
-			node.Close()
-		}
-	}()
+	// close the nodes
+	nodeArray := clstr.GetNodes()
+	for _, node := range nodeArray {
+		node.Close()
+	}
 
-	this.tendChannel <- _TEND_MSG_CLOSED
+	clstr.tendChannel <- _TEND_MSG_CLOSED
 }
 
 // Adds new hosts to the cluster
 // They will be added to the cluster on next tend
-func (this *Cluster) AddSeeds(hosts []*Host) {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	this.seeds = append(this.seeds, hosts...)
+func (clstr *Cluster) AddSeeds(hosts []*Host) {
+	clstr.mutex.Lock()
+	defer clstr.mutex.Unlock()
+	clstr.seeds = append(clstr.seeds, hosts...)
 }
 
-func (this *Cluster) getSeeds() []*Host {
-	this.mutex.RLock()
-	defer this.mutex.RUnlock()
-	seeds := this.seeds
+func (clstr *Cluster) getSeeds() []*Host {
+	clstr.mutex.RLock()
+	defer clstr.mutex.RUnlock()
+	seeds := clstr.seeds
 	return seeds
 }
 
-// TODO: name doesn't imply return type
-func (this *Cluster) findSeed(search *Host) bool {
-	tmpSeeds := this.getSeeds()
-	for _, seed := range tmpSeeds {
-		if *seed == *search {
-			return true
-		}
-	}
-	return false
-}
-
 // Updates cluster state
-func (this *Cluster) tend() error {
-	nodes := this.GetNodes()
+func (clstr *Cluster) tend() error {
+	nodes := clstr.GetNodes()
 
-	// All node additions/deletions are performed in tend thread.
+	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
 	if len(nodes) == 0 {
 		Logger.Info("No connections available; seeding...")
-		this.seedNodes()
+		clstr.seedNodes()
 
 		// refresh nodes list after seeding
-		nodes = this.GetNodes()
+		nodes = clstr.GetNodes()
 	}
 
 	// Clear node reference counts.
@@ -193,67 +179,117 @@ func (this *Cluster) tend() error {
 
 	// Handle nodes changes determined from refreshes.
 	// Remove nodes in a batch.
-	if removeList := this.findNodesToRemove(refreshCount); len(removeList) > 0 {
-		this.removeNodes(removeList)
+	if removeList := clstr.findNodesToRemove(refreshCount); len(removeList) > 0 {
+		clstr.removeNodes(removeList)
 	}
 
 	// Add nodes in a batch.
-	if addList := this.findNodesToAdd(friendList); len(addList) > 0 {
-		this.addNodes(addList)
+	if addList := clstr.findNodesToAdd(friendList); len(addList) > 0 {
+		clstr.addNodes(addList)
 	}
 
-	Logger.Info("Tend finished. Live node count: %d", len(this.GetNodes()))
+	Logger.Info("Tend finished. Live node count: %d", len(clstr.GetNodes()))
 	return nil
 }
 
-func (this *Cluster) findAlias(alias *Host) *Node {
-	this.mutex.RLock()
-	defer this.mutex.RUnlock()
-	return this.aliases[alias]
+// Tend the cluster until it has stabilized and return control.
+// This helps avoid initial database request timeout issues when
+// a large number of threads are initiated at client startup.
+//
+// If the cluster has not stabilized by the timeout, return
+// control as well.  Do not return an error since future
+// database requests may still succeed.
+func (clstr *Cluster) waitTillStabilized() {
+	count := -1
+
+	doneCh := make(chan bool)
+
+	// will run until the cluster is stablized
+	go func() {
+		for {
+			clstr.tend()
+
+			// Check to see if cluster has changed since the last Tend().
+			// If not, assume cluster has stabilized and return.
+			if count == len(clstr.GetNodes()) {
+				break
+			}
+
+			time.Sleep(time.Millisecond)
+
+			count = len(clstr.GetNodes())
+		}
+		doneCh <- true
+	}()
+
+	// returns either on timeout or on cluster stablization
+	timeout := time.After(clstr.connectionTimeout)
+	select {
+	case <-timeout:
+		return
+	case <-doneCh:
+		return
+	}
 }
 
-func (this *Cluster) setPartitions(partMap map[string]atomicNodeArray) {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	this.partitionWriteMap = partMap
+func (clstr *Cluster) findAlias(alias *Host) *Node {
+	clstr.mutex.RLock()
+	defer clstr.mutex.RUnlock()
+	return clstr.aliases[alias]
 }
 
-func (this *Cluster) getPartitions() map[string]atomicNodeArray {
-	this.mutex.RLock()
-	defer this.mutex.RUnlock()
-	partMap := this.partitionWriteMap
+func (clstr *Cluster) setPartitions(partMap map[string]*atomicNodeArray) {
+	clstr.mutex.Lock()
+	defer clstr.mutex.Unlock()
+	clstr.partitionWriteMap = partMap
+}
+
+func (clstr *Cluster) getPartitions() map[string]*atomicNodeArray {
+	clstr.mutex.RLock()
+	defer clstr.mutex.RUnlock()
+	partMap := clstr.partitionWriteMap
 	return partMap
 }
 
-func (this *Cluster) updatePartitions(conn *Connection, node *Node) error {
+func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) error {
 	// TODO: Cluster should not care about version of tokenizer
-	// decouple this interface
-	var nmap map[string]atomicNodeArray
+	// decouple clstr interface
+	var nmap map[string]*atomicNodeArray
 	if node.getUseNewInfo() {
-		if tokens, err := NewPartitionTokenizerNew(conn); err != nil {
+		Logger.Info("Updating partitions using new protocol...")
+		if tokens, err := newPartitionTokenizerNew(conn); err != nil {
 			return err
 		} else {
-			nmap = tokens.UpdatePartition(this.getPartitions(), node)
+			nmap, err = tokens.UpdatePartition(clstr.getPartitions(), node)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
-		if tokens, err := NewPartitionTokenizerOld(conn); err != nil {
+		Logger.Info("Updating partitions using old protocol...")
+		if tokens, err := newPartitionTokenizerOld(conn); err != nil {
 			return err
 		} else {
-			nmap = tokens.UpdatePartition(this.getPartitions(), node)
+			nmap, err = tokens.UpdatePartition(clstr.getPartitions(), node)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
 	// update partition write map
 	if nmap != nil {
-		this.setPartitions(nmap)
+		clstr.setPartitions(nmap)
 	}
+
+	Logger.Info("Partitions updated...")
 	return nil
 }
 
 // Adds seeds to the cluster
-func (this *Cluster) seedNodes() {
+func (clstr *Cluster) seedNodes() {
 	// Must copy array reference for copy on write semantics to work.
-	seedArray := this.getSeeds()
+	seedArray := clstr.getSeeds()
 
 	Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
@@ -261,40 +297,40 @@ func (this *Cluster) seedNodes() {
 	list := []*Node{}
 
 	for _, seed := range seedArray {
-		seedNodeValidator, err := NewNodeValidator(seed, this.connectionTimeout)
+		seedNodeValidator, err := newNodeValidator(seed, clstr.connectionTimeout)
 		if err != nil {
 			Logger.Info("Seed %s failed: %s", seed.String(), err.Error())
 		}
 
-		var nv *NodeValidator
+		var nv *nodeValidator
 		// Seed host may have multiple aliases in the case of round-robin dns configurations.
 		for _, alias := range seedNodeValidator.aliases {
 
 			if *alias == *seed {
 				nv = seedNodeValidator
 			} else {
-				nv, err = NewNodeValidator(alias, this.connectionTimeout)
+				nv, err = newNodeValidator(alias, clstr.connectionTimeout)
 				if err != nil {
 					Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
 				}
 			}
 
-			if !this.FindNodeName(list, nv.name) {
-				node := this.createNode(nv)
-				this.addAliases(node)
+			if !clstr.FindNodeName(list, nv.name) {
+				node := clstr.createNode(nv)
+				clstr.addAliases(node)
 				list = append(list, node)
 			}
 		}
 	}
 
 	if len(list) > 0 {
-		this.addNodesCopy(list)
+		clstr.addNodesCopy(list)
 	}
 }
 
 // FIXIT: This function is not well desined while it is expoted.
 // Finds a node by name in a list of nodes
-func (this *Cluster) FindNodeName(list []*Node, name string) bool {
+func (clstr *Cluster) FindNodeName(list []*Node, name string) bool {
 	for _, node := range list {
 		if node.GetName() == name {
 			return true
@@ -303,36 +339,36 @@ func (this *Cluster) FindNodeName(list []*Node, name string) bool {
 	return false
 }
 
-func (this *Cluster) addAlias(host *Host, node *Node) error {
+func (clstr *Cluster) addAlias(host *Host, node *Node) error {
 	if host == nil || node == nil {
 		return errors.New("To add an alias, both host and node must be non-nil")
 	} else {
-		this.mutex.Lock()
-		defer this.mutex.Unlock()
-		this.aliases[host] = node
+		clstr.mutex.Lock()
+		defer clstr.mutex.Unlock()
+		clstr.aliases[host] = node
 		return nil
 	}
 }
 
-func (this *Cluster) removeAlias(alias *Host) error {
+func (clstr *Cluster) removeAlias(alias *Host) error {
 	if alias == nil {
 		return errors.New("alias pointer cannot be nil")
 	} else {
-		this.mutex.Lock()
-		defer this.mutex.Unlock()
-		delete(this.aliases, alias)
+		clstr.mutex.Lock()
+		defer clstr.mutex.Unlock()
+		delete(clstr.aliases, alias)
 		return nil
 	}
 }
 
-func (this *Cluster) findNodesToAdd(hosts []*Host) []*Node {
+func (clstr *Cluster) findNodesToAdd(hosts []*Host) []*Node {
 	list := make([]*Node, 0, len(hosts))
 
 	for _, host := range hosts {
-		if nv, err := NewNodeValidator(host, this.connectionTimeout); err != nil {
+		if nv, err := newNodeValidator(host, clstr.connectionTimeout); err != nil {
 			Logger.Warn("Add node %s failed: %s", err.Error())
 		} else {
-			node := this.findNodeByName(nv.name)
+			node := clstr.findNodeByName(nv.name)
 			// make sure node is not already in the list to add
 			if node == nil {
 				for _, n := range list {
@@ -348,25 +384,24 @@ func (this *Cluster) findNodesToAdd(hosts []*Host) []*Node {
 				// services list contains both internal and external IP addresses
 				// for the same node.  Add new host to list of alias filters
 				// and do not add new node.
-				// TODO: Sync?
 				node.referenceCount.IncrementAndGet()
 				node.AddAlias(host)
-				this.addAlias(host, node)
+				clstr.addAlias(host, node)
 				continue
 			}
-			node = this.createNode(nv)
+			node = clstr.createNode(nv)
 			list = append(list, node)
 		}
 	}
 	return list
 }
 
-func (this *Cluster) createNode(nv *NodeValidator) *Node {
-	return NewNode(this, nv)
+func (clstr *Cluster) createNode(nv *nodeValidator) *Node {
+	return newNode(clstr, nv)
 }
 
-func (this *Cluster) findNodesToRemove(refreshCount int) []*Node {
-	nodes := this.GetNodes()
+func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
+	nodes := clstr.GetNodes()
 
 	removeList := []*Node{}
 
@@ -400,7 +435,7 @@ func (this *Cluster) findNodesToRemove(refreshCount int) []*Node {
 				// Check if node responded to info request.
 				if node.responded.Get() {
 					// Node is alive, but not referenced by other nodes.  Check if mapped.
-					if !this.findNodeInPartitionMap(node) {
+					if !clstr.findNodeInPartitionMap(node) {
 						// Node doesn't have any partitions mapped to it.
 						// There is not point in keeping it in the cluster.
 						removeList = append(removeList, node)
@@ -416,8 +451,8 @@ func (this *Cluster) findNodesToRemove(refreshCount int) []*Node {
 	return removeList
 }
 
-func (this *Cluster) findNodeInPartitionMap(filter *Node) bool {
-	partitions := this.getPartitions()
+func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
+	partitions := clstr.getPartitions()
 
 	for _, nodeArray := range partitions {
 		max := nodeArray.Length()
@@ -433,32 +468,29 @@ func (this *Cluster) findNodeInPartitionMap(filter *Node) bool {
 	return false
 }
 
-func (this *Cluster) addNodes(nodesToAdd []*Node) {
+func (clstr *Cluster) addNodes(nodesToAdd []*Node) {
 	// Add all nodes at once to avoid copying entire array multiple times.
 	for _, node := range nodesToAdd {
-		this.addAliases(node)
+		clstr.addAliases(node)
 	}
-	this.addNodesCopy(nodesToAdd)
+	clstr.addNodesCopy(nodesToAdd)
 }
 
-func (this *Cluster) addAliases(node *Node) {
+func (clstr *Cluster) addAliases(node *Node) {
 	// Add node's aliases to global alias set.
-	// Aliases are only used in tend thread, so synchronization is not necessary.
+	// Aliases are only used in tend goroutine, so synchronization is not necessary.
 	for _, alias := range node.GetAliases() {
-		this.aliases[alias] = node
+		clstr.aliases[alias] = node
 	}
 }
 
-func (this *Cluster) addNodesCopy(nodesToAdd []*Node) {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	this.nodes = append(this.nodes, nodesToAdd...)
+func (clstr *Cluster) addNodesCopy(nodesToAdd []*Node) {
+	clstr.mutex.Lock()
+	defer clstr.mutex.Unlock()
+	clstr.nodes = append(clstr.nodes, nodesToAdd...)
 }
 
-func (this *Cluster) removeNodes(nodesToRemove []*Node) {
-	// TODO: Why not? This at least counts as a mem leak;
-	//    especially if too many nodes are queried, or equality is not correct
-	//    and duplicate nodes are added
+func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
 	// There is no need to delete nodes from partitionWriteMap because the nodes
 	// have already been set to inactive. Further connection requests will result
 	// in an exception and a different node will be tried.
@@ -466,61 +498,58 @@ func (this *Cluster) removeNodes(nodesToRemove []*Node) {
 	// Cleanup node resources.
 	for _, node := range nodesToRemove {
 		// Remove node's aliases from cluster alias set.
-		// Aliases are only used in tend thread, so synchronization is not necessary.
+		// Aliases are only used in tend goroutine, so synchronization is not necessary.
 		for _, alias := range node.GetAliases() {
 			Logger.Debug("Removing alias ", alias)
-			this.removeAlias(alias)
+			clstr.removeAlias(alias)
 		}
 		go node.Close()
 	}
 
 	// Remove all nodes at once to avoid copying entire array multiple times.
-	this.removeNodesCopy(nodesToRemove)
+	clstr.removeNodesCopy(nodesToRemove)
 }
 
-func (this *Cluster) setNodes(nodes []*Node) {
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
+func (clstr *Cluster) setNodes(nodes []*Node) {
+	clstr.mutex.Lock()
+	defer clstr.mutex.Unlock()
 	// Replace nodes with copy.
-	this.nodes = nodes
+	clstr.nodes = nodes
 }
 
-func (this *Cluster) removeNodesCopy(nodesToRemove []*Node) {
+func (clstr *Cluster) removeNodesCopy(nodesToRemove []*Node) {
 	// Create temporary nodes array.
 	// Since nodes are only marked for deletion using node references in the nodes array,
-	// and the tend thread is the only thread modifying nodes, we are guaranteed that nodes
+	// and the tend goroutine is the only goroutine modifying nodes, we are guaranteed that nodes
 	// in nodesToRemove exist.  Therefore, we know the final array size.
-	// TODO: no check on final size; no guarantees it will be > 0 ?
-	nodes := this.GetNodes()
+	nodes := clstr.GetNodes()
 	nodeArray := make([]*Node, len(nodes)-len(nodesToRemove))
 	count := 0
 
 	// Add nodes that are not in remove list.
 	for _, node := range nodes {
-		if this.findNode(node, nodesToRemove) {
+		if clstr.nodeExists(node, nodesToRemove) {
 			Logger.Info("Removed node `%s`", node)
 		} else {
-			count++
 			nodeArray[count] = node
+			count++
 		}
 	}
 
-	// TODO: mismatch probably due to lack of synchronization; this should never happen
-	// // Do sanity check to make sure assumptions are correct.
-	// if count < len(nodeArray) {
-	// 	Logger.Warn(fmt.Sprintf("Node remove mismatch. Expected %s, Received %s", len(nodeArray), count))
+	// Do sanity check to make sure assumptions are correct.
+	if count < len(nodeArray) {
+		Logger.Warn(fmt.Sprintf("Node remove mismatch. Expected %s, Received %s", len(nodeArray), count))
 
-	// 	// Resize array.
-	// 	nodeArray2 := make([]*Node, count)
-	// 	copy(nodeArray2, nodeArray)
-	// 	nodeArray = nodeArray2
-	// }
+		// Resize array.
+		nodeArray2 := make([]*Node, count)
+		copy(nodeArray2, nodeArray)
+		nodeArray = nodeArray2
+	}
 
-	this.setNodes(nodeArray)
+	clstr.setNodes(nodeArray)
 }
 
-// TODO: name doesn't imply returned value
-func (this *Cluster) findNode(search *Node, nodeList []*Node) bool {
+func (clstr *Cluster) nodeExists(search *Node, nodeList []*Node) bool {
 	for _, node := range nodeList {
 		if node.Equals(search) {
 			return true
@@ -529,33 +558,33 @@ func (this *Cluster) findNode(search *Node, nodeList []*Node) bool {
 	return false
 }
 
-func (this *Cluster) IsConnected() bool {
+func (clstr *Cluster) IsConnected() bool {
 	// Must copy array reference for copy on write semantics to work.
-	nodeArray := this.GetNodes()
-	return (len(nodeArray) > 0) && !this.closed.Get()
+	nodeArray := clstr.GetNodes()
+	return (len(nodeArray) > 0) && !clstr.closed.Get()
 }
 
-func (this *Cluster) GetNode(partition *Partition) (*Node, error) {
+func (clstr *Cluster) GetNode(partition *Partition) (*Node, error) {
 	// Must copy hashmap reference for copy on write semantics to work.
-	nmap := this.getPartitions()
+	nmap := clstr.getPartitions()
 	if nodeArray, exists := nmap[partition.Namespace]; exists {
-		node := nodeArray.Get(partition.PartitionId).(*Node)
+		node := nodeArray.Get(partition.PartitionId)
 
-		if node != nil && node.IsActive() {
-			return node, nil
+		if node != nil && node.(*Node).IsActive() {
+			return node.(*Node), nil
 		}
 	}
-	return this.GetRandomNode()
+	return clstr.GetRandomNode()
 }
 
 // Returns a random node on the cluster
-func (this *Cluster) GetRandomNode() (*Node, error) {
+func (clstr *Cluster) GetRandomNode() (*Node, error) {
 	// Must copy array reference for copy on write semantics to work.
-	nodeArray := this.GetNodes()
-
-	for i := 0; i < len(nodeArray); i++ {
-		// Must handle concurrency with other non-tending threads, so nodeIndex is consistent.
-		index := int(math.Abs(float64(this.nodeIndex.GetAndIncrement() % len(nodeArray))))
+	nodeArray := clstr.GetNodes()
+	length := len(nodeArray)
+	for i := 0; i < length; i++ {
+		// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
+		index := int(math.Abs(float64(clstr.nodeIndex.GetAndIncrement() % len(nodeArray))))
 		node := nodeArray[index]
 
 		if node.IsActive() {
@@ -563,21 +592,21 @@ func (this *Cluster) GetRandomNode() (*Node, error) {
 			return node, nil
 		}
 	}
-	return nil, InvalidNodeErr()
+	return nil, NewAerospikeError(INVALID_NODE_ERROR)
 }
 
 // Returns a list of all nodes in the cluster
-func (this *Cluster) GetNodes() []*Node {
-	this.mutex.RLock()
-	defer this.mutex.RUnlock()
+func (clstr *Cluster) GetNodes() []*Node {
+	clstr.mutex.RLock()
+	defer clstr.mutex.RUnlock()
 	// Must copy array reference for copy on write semantics to work.
-	nodeArray := this.nodes
+	nodeArray := clstr.nodes
 	return nodeArray
 }
 
 // Find a node by name and returns an error if not found
-func (this *Cluster) GetNodeByName(nodeName string) (*Node, error) {
-	node := this.findNodeByName(nodeName)
+func (clstr *Cluster) GetNodeByName(nodeName string) (*Node, error) {
+	node := clstr.findNodeByName(nodeName)
 
 	if node == nil {
 		return nil, errors.New("Invalid node")
@@ -585,9 +614,9 @@ func (this *Cluster) GetNodeByName(nodeName string) (*Node, error) {
 	return node, nil
 }
 
-func (this *Cluster) findNodeByName(nodeName string) *Node {
+func (clstr *Cluster) findNodeByName(nodeName string) *Node {
 	// Must copy array reference for copy on write semantics to work.
-	nodeArray := this.GetNodes()
+	nodeArray := clstr.GetNodes()
 
 	for _, node := range nodeArray {
 		if node.GetName() == nodeName {
@@ -598,12 +627,12 @@ func (this *Cluster) findNodeByName(nodeName string) *Node {
 }
 
 // Closes all cached connections to the cluster nodes and stops the tend goroutine
-func (this *Cluster) Close() {
-	if !this.closed.Get() {
+func (clstr *Cluster) Close() {
+	if !clstr.closed.Get() {
 		// send close signal to maintenance channel
-		this.tendChannel <- _TEND_CMD_CLOSE
+		clstr.tendChannel <- _TEND_CMD_CLOSE
 
 		// wait until tendChannel returns
-		<-this.tendChannel
+		<-clstr.tendChannel
 	}
 }

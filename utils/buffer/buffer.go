@@ -69,17 +69,6 @@ func BytesToNumber(buf []byte, offset, length int) interface{} {
 	return int64(val)
 }
 
-// Converts a slice of bytes of length 6 into an integer64
-// it will panic if slice is shorter than 6 bytes
-func MsgLenFromBytes(buf []byte) int64 {
-	if len(buf) < 6 {
-		panic("exactly 6 bytes needed")
-	}
-	nbytes := append([]byte{0, 0}, buf[:6]...)
-	DataLen := binary.BigEndian.Uint64(nbytes)
-	return int64(DataLen)
-}
-
 func BytesToIntIntel(buf []byte, offset int) int {
 	return int(((buf[offset+3] & 0xFF) << 24) |
 		((buf[offset+2] & 0xFF) << 16) |

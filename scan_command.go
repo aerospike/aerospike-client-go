@@ -20,78 +20,89 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-type ScanCommand struct {
-	BaseMultiCommand
+type scanCommand struct {
+	baseMultiCommand
 
 	policy    *ScanPolicy
 	namespace string
 	setName   string
-	Records   chan *Record
-	binNames  []string
+	// Records   chan *Record
+	// Errors    chan error
+	binNames []string
 }
 
-func NewScanCommand(
+func newScanCommand(
 	node *Node,
 	policy *ScanPolicy,
 	namespace string,
 	setName string,
 	binNames []string,
 	recChan chan *Record,
-) *ScanCommand {
+	errChan chan error,
+) *scanCommand {
+
 	// make recChan in case it is nil
 	if recChan == nil {
 		recChan = make(chan *Record, 1024)
 	}
 
-	return &ScanCommand{
-		BaseMultiCommand: *NewMultiCommand(node),
+	// make errChan in case it is nil
+	if errChan == nil {
+		errChan = make(chan error, 1024)
+	}
+
+	return &scanCommand{
+		baseMultiCommand: *newMultiCommand(node, recChan, errChan),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,
-		Records:          recChan,
 		binNames:         binNames,
 	}
 }
 
-func (this *ScanCommand) getPolicy(ifc Command) Policy {
-	return this.policy
+func (cmd *scanCommand) getPolicy(ifc command) Policy {
+	return cmd.policy
 }
 
-func (this *ScanCommand) writeBuffer(ifc Command) error {
-	return this.SetScan(this.policy, &this.namespace, &this.setName, this.binNames)
+func (cmd *scanCommand) writeBuffer(ifc command) error {
+	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames)
 }
 
-func (this *ScanCommand) parseRecordResults(ifc Command, receiveSize int) (bool, error) {
+func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
 	// Read/parse remaining message bytes one record at a time.
-	this.dataOffset = 0
+	cmd.dataOffset = 0
 
-	for this.dataOffset < receiveSize {
-		if err := this.readBytes(int(MSG_REMAINING_HEADER_SIZE)); err != nil {
+	for cmd.dataOffset < receiveSize {
+		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
+			cmd.Errors <- newNodeError(cmd.node, err)
 			return false, err
 		}
-		resultCode := ResultCode(this.dataBuffer[5] & 0xFF)
+		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		if resultCode != 0 {
 			if resultCode == KEY_NOT_FOUND_ERROR {
 				return false, nil
 			}
-			return false, NewAerospikeError(resultCode)
+			err := NewAerospikeError(resultCode)
+			cmd.Errors <- newNodeError(cmd.node, err)
+			return false, err
 		}
 
-		info3 := int(this.dataBuffer[3])
+		info3 := int(cmd.dataBuffer[3])
 
-		// If this is the end marker of the response, do not proceed further
-		if (info3 & INFO3_LAST) == INFO3_LAST {
+		// If cmd is the end marker of the response, do not proceed further
+		if (info3 & _INFO3_LAST) == _INFO3_LAST {
 			return false, nil
 		}
 
-		generation := int(Buffer.BytesToInt32(this.dataBuffer, 6))
-		expiration := int(Buffer.BytesToInt32(this.dataBuffer, 10))
-		fieldCount := int(Buffer.BytesToInt16(this.dataBuffer, 18))
-		opCount := int(Buffer.BytesToInt16(this.dataBuffer, 20))
+		generation := int(Buffer.BytesToInt32(cmd.dataBuffer, 6))
+		expiration := int(Buffer.BytesToInt32(cmd.dataBuffer, 10))
+		fieldCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 18))
+		opCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 20))
 
-		key, err := this.parseKey(fieldCount)
+		key, err := cmd.parseKey(fieldCount)
 		if err != nil {
+			cmd.Errors <- newNodeError(cmd.node, err)
 			return false, err
 		}
 
@@ -99,26 +110,30 @@ func (this *ScanCommand) parseRecordResults(ifc Command, receiveSize int) (bool,
 		var bins BinMap
 
 		for i := 0; i < opCount; i++ {
-			if err := this.readBytes(8); err != nil {
+			if err := cmd.readBytes(8); err != nil {
+				cmd.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
 
-			opSize := int(Buffer.BytesToInt32(this.dataBuffer, 0))
-			particleType := int(this.dataBuffer[5])
-			nameSize := int(this.dataBuffer[7])
+			opSize := int(Buffer.BytesToInt32(cmd.dataBuffer, 0))
+			particleType := int(cmd.dataBuffer[5])
+			nameSize := int(cmd.dataBuffer[7])
 
-			if err := this.readBytes(nameSize); err != nil {
+			if err := cmd.readBytes(nameSize); err != nil {
+				cmd.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
-			name := string(this.dataBuffer[:nameSize])
+			name := string(cmd.dataBuffer[:nameSize])
 
 			particleBytesSize := int(opSize - (4 + nameSize))
-			if err := this.readBytes(particleBytesSize); err != nil {
+			if err := cmd.readBytes(particleBytesSize); err != nil {
+				cmd.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
 
-			value, err := BytesToParticle(particleType, this.dataBuffer, 0, particleBytesSize)
+			value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
 			if err != nil {
+				cmd.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
 
@@ -128,24 +143,25 @@ func (this *ScanCommand) parseRecordResults(ifc Command, receiveSize int) (bool,
 			bins[name] = value
 		}
 
-		if !this.IsValid() {
-			return false, ScanTerminatedErr()
+		if !cmd.IsValid() {
+			return false, NewAerospikeError(SCAN_TERMINATED)
 		}
 
 		// send back the result on the async channel
-		this.Records <- NewRecord(key, bins, nil, generation, expiration)
+		cmd.Records <- newRecord(cmd.node, key, bins, nil, generation, expiration)
 	}
 
 	return true, nil
 }
 
-func (this *ScanCommand) parseResult(ifc Command, conn *Connection) error {
+func (cmd *scanCommand) parseResult(ifc command, conn *Connection) error {
 	// close the channel
-	defer close(this.Records)
+	defer close(cmd.Records)
+	defer close(cmd.Errors)
 
-	return this.BaseMultiCommand.parseResult(ifc, conn)
+	return cmd.baseMultiCommand.parseResult(ifc, conn)
 }
 
-func (this *ScanCommand) Execute() error {
-	return this.execute(this)
+func (cmd *scanCommand) Execute() error {
+	return cmd.execute(cmd)
 }

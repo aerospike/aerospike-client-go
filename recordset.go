@@ -14,28 +14,72 @@
 
 package aerospike
 
+import (
+	"sync"
+)
+
 type Recordset struct {
 	Records chan *Record
+	Errors  chan error
 
-	active bool
-	chans  []chan *Record
+	active   bool
+	chans    []chan *Record
+	errs     []chan error
+	commands []multiCommand
+
+	mutex sync.RWMutex
 }
 
-func NewRecordset() *Recordset {
+func NewRecordset(size int) *Recordset {
 	return &Recordset{
-		Records: make(chan *Record, 1024),
-		active:  true,
+		Records:  make(chan *Record, size),
+		Errors:   make(chan error, size),
+		active:   true,
+		commands: []multiCommand{},
 	}
 }
 
-func (this *Recordset) IsActive() bool {
-	return this.active == true
+func (rcs *Recordset) IsActive() bool {
+	rcs.mutex.RLock()
+	defer rcs.mutex.RUnlock()
+
+	return rcs.active == true
 }
 
-func (this *Recordset) Close() {
-	this.active = false
-	for _, ch := range this.chans {
+// Close all commands
+func (rcs *Recordset) Close() {
+	rcs.mutex.Lock()
+	rcs.active = false
+	rcs.mutex.Unlock()
+
+	for i := range rcs.commands {
 		// send signal to close
-		ch <- nil
+		rcs.commands[i].Stop()
+	}
+}
+
+// drains a records channel into the results chan
+func (rcs *Recordset) drainRecords(recChan chan *Record) {
+	// drain the results chan
+	for {
+		rec, ok := <-recChan
+		// if channel is closed, or is empty, exit the loop
+		if !ok || rec == nil {
+			break
+		}
+		rcs.Records <- rec
+	}
+}
+
+// drains a channel into the errors chan
+func (rcs *Recordset) drainErrors(errChan chan error) {
+	// drain the results chan
+	for {
+		err, ok := <-errChan
+		// if channel is closed, or is empty, exit the loop
+		if !ok || err == nil {
+			break
+		}
+		rcs.Errors <- err
 	}
 }

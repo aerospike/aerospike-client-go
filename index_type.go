@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package aerospike
 
-// User defined function languages.
-type Language string
+// Type of secondary index.
+type IndexType string
 
 const (
+	// Number index.
+	NUMERIC IndexType = "NUMERIC"
 
-	// Lua embedded programming language.
-	LUA Language = "LUA"
+	// String index.
+	STRING IndexType = "STRING"
 )

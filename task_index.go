@@ -39,40 +39,41 @@ func NewIndexTask(cluster *Cluster, namespace string, indexName string) *IndexTa
 }
 
 // Query all nodes for task completion status.
-func (this *IndexTask) IsDone() (bool, error) {
-	command := "sindex/" + this.namespace + "/" + this.indexName
-	nodes := this.cluster.GetNodes()
+func (tski *IndexTask) IsDone() (bool, error) {
+	command := "sindex/" + tski.namespace + "/" + tski.indexName
+	nodes := tski.cluster.GetNodes()
 	complete := false
 
 	r := regexp.MustCompile(`\.*load_pct=(\d+)\.*`)
 
 	for _, node := range nodes {
-		responseMap, err := RequestInfoForNode(node, command)
+		responseMap, err := RequestNodeInfo(node, command)
 		if err != nil {
-			return true, err
+			return false, err
 		}
 
-		response := responseMap["statistics"]
-		find := "load_pct="
-		index := strings.Index(response, find)
+		for _, response := range responseMap {
+			find := "load_pct="
+			index := strings.Index(response, find)
 
-		if index < 0 {
+			if index < 0 {
+				complete = true
+				continue
+			}
+
+			matchRes := r.FindStringSubmatch(response)
+			// we know it exists and is a valid number
+			pct, _ := strconv.Atoi(matchRes[1])
+
+			if pct >= 0 && pct < 100 {
+				return false, nil
+			}
 			complete = true
-			continue
 		}
-
-		matchRes := r.FindStringSubmatch(response)
-		// we know it exists and is a valid number
-		pct, _ := strconv.Atoi(matchRes[1])
-
-		if pct >= 0 && pct < 100 {
-			return false, nil
-		}
-		complete = true
 	}
 	return complete, nil
 }
 
-func (this *IndexTask) OnComplete() chan error {
-	return this.onComplete(this)
+func (tski *IndexTask) OnComplete() chan error {
+	return tski.onComplete(tski)
 }

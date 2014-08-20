@@ -14,28 +14,28 @@
 
 package aerospike
 
-type OperateCommand struct {
-	ReadCommand
+type operateCommand struct {
+	readCommand
 
 	policy     *WritePolicy
 	operations []*Operation
 }
 
-func NewOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) *OperateCommand {
+func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) *operateCommand {
 	if policy == nil {
 		policy = NewWritePolicy(0, 0)
 	}
-	return &OperateCommand{
-		ReadCommand: *NewReadCommand(cluster, policy, key, nil),
+	return &operateCommand{
+		readCommand: *newReadCommand(cluster, policy, key, nil),
 		policy:      policy,
 		operations:  operations,
 	}
 }
 
-func (this *OperateCommand) writeBuffer(ifc Command) error {
-	return this.SetOperate(this.policy, this.key, this.operations)
+func (cmd *operateCommand) writeBuffer(ifc command) error {
+	return cmd.setOperate(cmd.policy, cmd.key, cmd.operations)
 }
 
-func (this *OperateCommand) Execute() error {
-	return this.execute(this)
+func (cmd *operateCommand) Execute() error {
+	return cmd.execute(cmd)
 }

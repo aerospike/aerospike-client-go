@@ -14,21 +14,21 @@
 
 package aerospike
 
-type BatchItem struct {
+type batchItem struct {
 	index      int
 	duplicates []int
 }
 
-func NewBatchItemList(keys []*Key) map[string]*BatchItem {
+func newBatchItemList(keys []*Key) map[string]*batchItem {
 
-	keyMap := make(map[string]*BatchItem, len(keys))
+	keyMap := make(map[string]*batchItem, len(keys))
 
 	for i, key := range keys {
-		item := keyMap[string(key.Digest())]
+		item := keyMap[string(key.digest)]
 
 		if item == nil {
-			item = NewBatchItem(i)
-			keyMap[string(key.Digest())] = item
+			item = newBatchItem(i)
+			keyMap[string(key.digest)] = item
 		} else {
 			item.AddDuplicate(i)
 		}
@@ -36,27 +36,27 @@ func NewBatchItemList(keys []*Key) map[string]*BatchItem {
 	return keyMap
 }
 
-func NewBatchItem(idx int) *BatchItem {
-	return &BatchItem{
+func newBatchItem(idx int) *batchItem {
+	return &batchItem{
 		index: idx,
 	}
 }
 
-func (this *BatchItem) AddDuplicate(idx int) {
-	if this.duplicates == nil {
-		this.duplicates = []int{}
-		this.duplicates = append(this.duplicates, this.index)
-		this.index = 0
+func (bi *batchItem) AddDuplicate(idx int) {
+	if bi.duplicates == nil {
+		bi.duplicates = []int{}
+		bi.duplicates = append(bi.duplicates, bi.index)
+		bi.index = 0
 	}
-	this.duplicates = append(this.duplicates, this.index)
+	bi.duplicates = append(bi.duplicates, bi.index)
 }
 
-func (this *BatchItem) GetIndex() int {
-	if this.duplicates == nil {
-		return this.index
+func (bi *batchItem) GetIndex() int {
+	if bi.duplicates == nil {
+		return bi.index
 	} else {
-		r := this.duplicates[this.index]
-		this.index++
+		r := bi.duplicates[bi.index]
+		bi.index++
 		return r
 	}
 }

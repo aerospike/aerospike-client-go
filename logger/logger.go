@@ -17,6 +17,7 @@ package logger
 import (
 	"log"
 	"os"
+	"sync"
 )
 
 type LogPriority int
@@ -33,6 +34,7 @@ type logger struct {
 	*log.Logger
 
 	level LogPriority
+	mutex sync.RWMutex
 }
 
 var Logger = newLogger()
@@ -45,35 +47,41 @@ func newLogger() *logger {
 }
 
 // Specify the *log.Logger object where log messages should be sent to.
-func (this *logger) SetLogger(l *log.Logger) {
-	this.Logger = l
+func (lgr *logger) SetLogger(l *log.Logger) {
+	lgr.mutex.Lock()
+	defer lgr.mutex.Unlock()
+
+	lgr.Logger = l
 }
 
 // Sets logging level. Default is ERR
-func (this *logger) SetLevel(level LogPriority) {
-	this.level = level
+func (lgr *logger) SetLevel(level LogPriority) {
+	lgr.mutex.Lock()
+	defer lgr.mutex.Unlock()
+
+	lgr.level = level
 }
 
-func (this *logger) Debug(format string, v ...interface{}) {
-	if this.level <= DEBUG {
-		this.Logger.Printf(format, v...)
+func (lgr *logger) Debug(format string, v ...interface{}) {
+	if lgr.level <= DEBUG {
+		lgr.Logger.Printf(format, v...)
 	}
 }
 
-func (this *logger) Info(format string, v ...interface{}) {
-	if this.level <= INFO {
-		this.Logger.Printf(format, v...)
+func (lgr *logger) Info(format string, v ...interface{}) {
+	if lgr.level <= INFO {
+		lgr.Logger.Printf(format, v...)
 	}
 }
 
-func (this *logger) Warn(format string, v ...interface{}) {
-	if this.level <= WARNING {
-		this.Logger.Printf(format, v...)
+func (lgr *logger) Warn(format string, v ...interface{}) {
+	if lgr.level <= WARNING {
+		lgr.Logger.Printf(format, v...)
 	}
 }
 
-func (this *logger) Error(format string, v ...interface{}) {
-	if this.level <= ERR {
-		this.Logger.Printf(format, v...)
+func (lgr *logger) Error(format string, v ...interface{}) {
+	if lgr.level <= ERR {
+		lgr.Logger.Printf(format, v...)
 	}
 }

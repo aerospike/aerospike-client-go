@@ -29,10 +29,10 @@ func NewAtomicQueue(size int) *AtomicQueue {
 }
 
 // Push adds an item to the queue in specified timeout
-func (this *AtomicQueue) Offer(item interface{}) bool {
+func (aq *AtomicQueue) Offer(item interface{}) bool {
 	// non-blocking send pattern
 	select {
-	case this.items <- item:
+	case aq.items <- item:
 		return true
 	default:
 	}
@@ -40,10 +40,10 @@ func (this *AtomicQueue) Offer(item interface{}) bool {
 }
 
 // Poll removes and returns a node from the queue in first to last order.
-func (this *AtomicQueue) Poll() interface{} {
+func (aq *AtomicQueue) Poll() interface{} {
 	// non-blocking read pattern
 	select {
-	case item := <-this.items:
+	case item := <-aq.items:
 		return item
 	default:
 	}

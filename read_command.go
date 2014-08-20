@@ -25,17 +25,17 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-type ReadCommand struct {
-	SingleCommand
+type readCommand struct {
+	singleCommand
 
 	policy   Policy
 	binNames []string
 	record   *Record
 }
 
-func NewReadCommand(cluster *Cluster, policy Policy, key *Key, binNames []string) *ReadCommand {
-	newReadCmd := &ReadCommand{
-		SingleCommand: *NewSingleCommand(cluster, key),
+func newReadCommand(cluster *Cluster, policy Policy, key *Key, binNames []string) *readCommand {
+	newReadCmd := &readCommand{
+		singleCommand: *newSingleCommand(cluster, key),
 		binNames:      binNames,
 	}
 
@@ -48,20 +48,18 @@ func NewReadCommand(cluster *Cluster, policy Policy, key *Key, binNames []string
 	return newReadCmd
 }
 
-func (this *ReadCommand) getPolicy(ifc Command) Policy {
-	return this.policy
+func (cmd *readCommand) getPolicy(ifc command) Policy {
+	return cmd.policy
 }
 
-func (this *ReadCommand) writeBuffer(ifc Command) error {
-	this.SetRead(this.key, this.binNames)
-	// TODO: investigate why return an error without justification
-	return nil
+func (cmd *readCommand) writeBuffer(ifc command) error {
+	return cmd.setRead(cmd.key, cmd.binNames)
 }
 
-func (this *ReadCommand) parseResult(ifc Command, conn *Connection) error {
+func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
-	// Logger.Debug("ReadCommand Parse Result: trying to read %d bytes from the connection...", int(MSG_TOTAL_HEADER_SIZE))
-	_, err := conn.Read(this.dataBuffer, int(MSG_TOTAL_HEADER_SIZE))
+	// Logger.Debug("readCommand Parse Result: trying to read %d bytes from the connection...", int(_MSG_TOTAL_HEADER_SIZE))
+	_, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE))
 	if err != nil {
 		Logger.Warn("parse result error: " + err.Error())
 		return err
@@ -69,21 +67,23 @@ func (this *ReadCommand) parseResult(ifc Command, conn *Connection) error {
 
 	// A number of these are commented out because we just don't care enough to read
 	// that section of the header. If we do care, uncomment and check!
-	sz := Buffer.BytesToInt64(this.dataBuffer, 0)
-	headerLength := int(this.dataBuffer[8])
-	resultCode := ResultCode(this.dataBuffer[13] & 0xFF)
-	generation := int(Buffer.BytesToInt32(this.dataBuffer, 14))
-	expiration := TTL(int(Buffer.BytesToInt32(this.dataBuffer, 18)))
-	fieldCount := int(Buffer.BytesToInt16(this.dataBuffer, 26)) // almost certainly 0
-	opCount := int(Buffer.BytesToInt16(this.dataBuffer, 28))
+	sz := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+	headerLength := int(cmd.dataBuffer[8])
+	resultCode := ResultCode(cmd.dataBuffer[13] & 0xFF)
+	generation := int(Buffer.BytesToInt32(cmd.dataBuffer, 14))
+	expiration := TTL(int(Buffer.BytesToInt32(cmd.dataBuffer, 18)))
+	fieldCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 26)) // almost certainly 0
+	opCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 28))
 	receiveSize := int((sz & 0xFFFFFFFFFFFF) - int64(headerLength))
 
-	// Logger.Debug("ReadCommand Parse Result: resultCode: %d, headerLength: %d, generation: %d, expiration: %d, fieldCount: %d, opCount: %d, receiveSize: %d", resultCode, headerLength, generation, expiration, fieldCount, opCount, receiveSize)
+	// Logger.Debug("readCommand Parse Result: resultCode: %d, headerLength: %d, generation: %d, expiration: %d, fieldCount: %d, opCount: %d, receiveSize: %d", resultCode, headerLength, generation, expiration, fieldCount, opCount, receiveSize)
 
 	// Read remaining message bytes.
 	if receiveSize > 0 {
-		this.sizeBufferSz(receiveSize)
-		_, err = conn.Read(this.dataBuffer, receiveSize)
+		if err = cmd.sizeBufferSz(receiveSize); err != nil {
+			return err
+		}
+		_, err = conn.Read(cmd.dataBuffer, receiveSize)
 		if err != nil {
 			Logger.Warn("parse result error: " + err.Error())
 			return err
@@ -97,20 +97,20 @@ func (this *ReadCommand) parseResult(ifc Command, conn *Connection) error {
 		}
 
 		if resultCode == UDF_BAD_RESPONSE {
-			this.record, _ = this.parseRecord(opCount, fieldCount, generation, expiration)
-			this.handleUdfError(resultCode)
+			cmd.record, _ = cmd.parseRecord(opCount, fieldCount, generation, expiration)
+			cmd.handleUdfError(resultCode)
 		}
-		// return new AerospikeException(resultCode);
+
 		return NewAerospikeError(resultCode)
 	}
 
 	if opCount == 0 {
 		// data Bin was not returned.
-		this.record = NewRecord(this.key, nil, nil, generation, expiration)
+		cmd.record = newRecord(cmd.node, cmd.key, nil, nil, generation, expiration)
 		return nil
 	}
 
-	this.record, err = this.parseRecord(opCount, fieldCount, generation, expiration)
+	cmd.record, err = cmd.parseRecord(opCount, fieldCount, generation, expiration)
 	return err
 }
 
@@ -126,16 +126,16 @@ func parseFailure(ret string) string {
 	}
 }
 
-func (this *ReadCommand) handleUdfError(resultCode ResultCode) error {
-	if ret, exists := this.record.Bins["FAILURE"].(string); exists {
+func (cmd *readCommand) handleUdfError(resultCode ResultCode) error {
+	if ret, exists := cmd.record.Bins["FAILURE"].(string); exists {
 		message := parseFailure(ret)
 		return NewAerospikeError(resultCode, message)
 	} else {
-		return NewAerospikeError(resultCode, "")
+		return NewAerospikeError(resultCode)
 	}
 }
 
-func (this *ReadCommand) parseRecord(
+func (cmd *readCommand) parseRecord(
 	opCount int,
 	fieldCount int,
 	generation int,
@@ -147,27 +147,27 @@ func (this *ReadCommand) parseRecord(
 
 	// There can be fields in the response (setname etc).
 	// But for now, ignore them. Expose them to the API if needed in the future.
-	// Logger.Debug("field count: %d, databuffer: %v\n %s", fieldCount, this.dataBuffer, this.dataBuffer)
+	// Logger.Debug("field count: %d, databuffer: %v\n %s", fieldCount, cmd.dataBuffer, cmd.dataBuffer)
 	if fieldCount != 0 {
 		// Just skip over all the fields
 		for i := 0; i < fieldCount; i++ {
 			// Logger.Debug("%d", receiveOffset)
-			fieldSize := int(Buffer.BytesToInt32(this.dataBuffer, receiveOffset))
+			fieldSize := int(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset))
 			receiveOffset += (4 + fieldSize)
 		}
 	}
 
 	for i := 0; i < opCount; i++ {
-		opSize := int(Buffer.BytesToInt32(this.dataBuffer, receiveOffset))
-		particleType := int(this.dataBuffer[receiveOffset+5])
-		version := int(this.dataBuffer[receiveOffset+6])
-		nameSize := int(this.dataBuffer[receiveOffset+7])
-		// name := Buffer.utf8ToString(this.dataBuffer, receiveOffset+8, nameSize);
-		name := string(this.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
+		opSize := int(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset))
+		particleType := int(cmd.dataBuffer[receiveOffset+5])
+		version := int(cmd.dataBuffer[receiveOffset+6])
+		nameSize := int(cmd.dataBuffer[receiveOffset+7])
+		// name := Buffer.utf8ToString(cmd.dataBuffer, receiveOffset+8, nameSize);
+		name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
 		receiveOffset += 4 + 4 + nameSize
 
 		particleBytesSize := int(opSize - (4 + nameSize))
-		value, _ := BytesToParticle(particleType, this.dataBuffer, receiveOffset, particleBytesSize)
+		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
 		receiveOffset += particleBytesSize
 
 		var vmap BinMap
@@ -213,13 +213,13 @@ func (this *ReadCommand) parseRecord(
 		duplicates = duplicates[:lastElem]
 	}
 
-	return NewRecord(this.key, bins, duplicates, generation, expiration), nil
+	return newRecord(cmd.node, cmd.key, bins, duplicates, generation, expiration), nil
 }
 
-func (this *ReadCommand) GetRecord() *Record {
-	return this.record
+func (cmd *readCommand) GetRecord() *Record {
+	return cmd.record
 }
 
-func (this *ReadCommand) Execute() error {
-	return this.execute(this)
+func (cmd *readCommand) Execute() error {
+	return cmd.execute(cmd)
 }

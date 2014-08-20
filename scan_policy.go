@@ -39,6 +39,12 @@ type ScanPolicy struct {
 
 	// Terminate scan if cluster in fluctuating state.
 	FailOnClusterChange bool
+
+	// Number of records to place in queue before blocking.
+	// Records received from multiple server nodes will be placed in a queue.
+	// A separate goroutine consumes these records in parallel.
+	// If the queue is full, the producer goroutines will block until records are consumed.
+	RecordQueueSize int //= 5000
 }
 
 func NewScanPolicy() *ScanPolicy {
@@ -49,5 +55,6 @@ func NewScanPolicy() *ScanPolicy {
 		MaxConcurrentNodes:  0,
 		IncludeBinData:      true,
 		FailOnClusterChange: true,
+		RecordQueueSize:     5000,
 	}
 }

@@ -18,37 +18,41 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-type SingleCommand struct {
-	BaseCommand
+type singleCommand struct {
+	baseCommand
 
 	cluster   *Cluster
 	key       *Key
 	partition *Partition
 }
 
-func NewSingleCommand(cluster *Cluster, key *Key) *SingleCommand {
-	return &SingleCommand{
+func newSingleCommand(cluster *Cluster, key *Key) *singleCommand {
+	return &singleCommand{
 		cluster:   cluster,
 		key:       key,
 		partition: NewPartitionByKey(key),
 	}
 }
 
-func (this *SingleCommand) getNode(ifc Command) (*Node, error) {
-	return this.cluster.GetNode(this.partition)
+func (cmd *singleCommand) getNode(ifc command) (*Node, error) {
+	return cmd.cluster.GetNode(cmd.partition)
 }
 
-func (this *SingleCommand) emptySocket(conn *Connection) error {
+func (cmd *singleCommand) emptySocket(conn *Connection) error {
 	// There should not be any more bytes.
 	// Empty the socket to be safe.
-	sz := Buffer.BytesToInt64(this.dataBuffer, 0)
-	headerLength := this.dataBuffer[8]
+	sz := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+	headerLength := cmd.dataBuffer[8]
 	receiveSize := int(sz&0xFFFFFFFFFFFF) - int(headerLength)
 
 	// Read remaining message bytes.
 	if receiveSize > 0 {
-		this.sizeBufferSz(receiveSize)
-		conn.Read(this.dataBuffer, receiveSize)
+		if err := cmd.sizeBufferSz(receiveSize); err != nil {
+			return err
+		}
+		if _, err := conn.Read(cmd.dataBuffer, receiveSize); err != nil {
+			return err
+		}
 	}
 	return nil
 }

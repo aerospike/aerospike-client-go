@@ -17,13 +17,12 @@ package aerospike
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
-/**
- * Task used to poll for long running server execute job completion.
- */
+// Task used to poll for long running server execute job completion.
 type ExecuteTask struct {
 	BaseTask
 
@@ -31,39 +30,39 @@ type ExecuteTask struct {
 	scan   bool
 }
 
-/**
- * Initialize task with fields needed to query server nodes.
- */
+// Initialize task with fields needed to query server nodes.
 func NewExecuteTask(cluster *Cluster, statement *Statement) *ExecuteTask {
 	return &ExecuteTask{
 		BaseTask: *NewTask(cluster, false),
-		taskId:   statement.GetTaskId(),
+		taskId:   statement.TaskId,
 		scan:     statement.IsScan(),
 	}
 }
 
-/**
- * Query all nodes for task completion status.
- */
-func (this *ExecuteTask) IsDone() (bool, error) {
+// Query all nodes for task completion status.
+func (etsk *ExecuteTask) IsDone() (bool, error) {
 	var command string
-	if this.scan {
+	if etsk.scan {
 		command = "scan-list"
 	} else {
 		command = "query-list"
 	}
 
-	nodes := this.cluster.GetNodes()
+	nodes := etsk.cluster.GetNodes()
 	done := false
 
 	for _, node := range nodes {
-		responseMap, err := RequestInfoForNode(node, command)
+		conn, err := node.GetConnection(time.Duration(0))
+		if err != nil {
+			return false, err
+		}
+		responseMap, err := RequestInfo(conn, command)
 		if err != nil {
 			return false, err
 		}
 
 		response := responseMap[command]
-		find := "job_id=" + strconv.Itoa(this.taskId) + ":"
+		find := "job_id=" + strconv.Itoa(etsk.taskId) + ":"
 		index := strings.Index(response, find)
 
 		if index < 0 {
@@ -72,19 +71,21 @@ func (this *ExecuteTask) IsDone() (bool, error) {
 		}
 
 		begin := index + len(find)
+		response = response[begin:]
 		find = "job_status="
-		index = strings.Index(response[begin:], find)
+		index = strings.Index(response, find)
 
 		if index < 0 {
 			continue
 		}
 
 		begin = index + len(find)
-		end := strings.Index(response[begin:], ":")
-		status := response[begin:end]
+		response = response[begin:]
+		end := strings.Index(response, ":")
+		status := response[:end]
 
 		if status == "ABORTED" {
-			return false, QueryTerminatedErr()
+			return false, NewAerospikeError(QUERY_TERMINATED)
 		} else if status == "IN PROGRESS" {
 			return false, nil
 		} else if status == "DONE" {
@@ -95,6 +96,6 @@ func (this *ExecuteTask) IsDone() (bool, error) {
 	return done, nil
 }
 
-func (this *ExecuteTask) OnComplete() chan error {
-	return this.onComplete(this)
+func (etsk *ExecuteTask) OnComplete() chan error {
+	return etsk.onComplete(etsk)
 }

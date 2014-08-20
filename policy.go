@@ -47,7 +47,7 @@ type BasePolicy struct {
 
 	// Duration to sleep between retries if a transaction fails and the
 	// timeout was not exceeded.  Enter zero to skip sleep.
-	SleepBetweenRetries time.Duration //= 500;
+	SleepBetweenRetries time.Duration //= 500ms;
 }
 
 func NewPolicy() *BasePolicy {
@@ -61,4 +61,13 @@ func NewPolicy() *BasePolicy {
 
 var _ Policy = &BasePolicy{}
 
-func (this *BasePolicy) GetBasePolicy() *BasePolicy { return this }
+func (p *BasePolicy) GetBasePolicy() *BasePolicy { return p }
+
+func (p *BasePolicy) timeout() time.Duration {
+	res := 365 * 24 * time.Hour // a year
+	if p != nil && p.Timeout > 0 {
+		res = p.Timeout
+	}
+
+	return res
+}

@@ -19,6 +19,8 @@ package types
 type ResultCode int
 
 const (
+	// Asynchronous max concurrent database commands have been exceeded and therefore rejected.
+	TYPE_NOT_SUPPORTED ResultCode = -7
 
 	// Asynchronous max concurrent database commands have been exceeded and therefore rejected.
 	COMMAND_REJECTED ResultCode = -6
@@ -164,8 +166,11 @@ func KeepConnection(resultCode int) bool {
 // Return result code as a string.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
+	case TYPE_NOT_SUPPORTED:
+		return "Type cannot be converted to Value Type."
+
 	case COMMAND_REJECTED:
-		return "Command rejected"
+		return "command rejected"
 
 	case QUERY_TERMINATED:
 		return "Query terminated"

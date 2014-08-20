@@ -17,10 +17,9 @@ package aerospike
 import (
 	"bytes"
 	"fmt"
+	"hash"
 
-	"code.google.com/p/go.crypto/ripemd160"
-
-	// . "github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/pkg/ripemd160"
 	. "github.com/aerospike/aerospike-client-go/types"
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 )
@@ -31,10 +30,10 @@ import (
 // on the server.
 type Key struct {
 	// namespace. Equivalent to database name.
-	namespace *string
+	namespace string
 
 	// Optional set name. Equivalent to database table.
-	setName *string
+	setName string
 
 	// Unique server hash value generated from set name and user key.
 	digest []byte
@@ -46,48 +45,42 @@ type Key struct {
 }
 
 // returns Namespace
-func (this *Key) Namespace() *string {
-	namespace := *this.namespace
-	return &namespace
+func (ky *Key) Namespace() string {
+	return ky.namespace
 }
 
 // Returns Set name
-func (this *Key) SetName() *string {
-	setName := *this.setName
-	return &setName
+func (ky *Key) SetName() string {
+	return ky.setName
 }
 
 // Returns current key digest
-func (this *Key) Digest() []byte {
-	digest := make([]byte, len(this.digest))
-	copy(digest, this.digest)
-	return digest
+func (ky *Key) Digest() []byte {
+	return ky.digest
 }
 
-func (this *Key) Equals(other *Key) bool {
-	return (*this.namespace == *other.namespace) &&
-		(*this.setName == *other.setName) &&
-		bytes.Equal(this.digest, other.digest)
+func (ky *Key) Equals(other *Key) bool {
+	return (ky.namespace == other.namespace) &&
+		(ky.setName == other.setName) &&
+		bytes.Equal(ky.digest, other.digest)
 }
 
 // Return string representation of key.
-func (this *Key) String() string {
-	return fmt.Sprintf("%s %s %v", *this.namespace, *this.setName, this.userKey)
+func (ky *Key) String() string {
+	return fmt.Sprintf("%s %s %v", ky.namespace, ky.setName, ky.userKey)
 }
 
 // Initialize key from namespace, optional set name and user key.
 // The set name and user defined key are converted to a digest before sending to the server.
 // The server handles record identifiers by digest only.
-func NewKey(namespace string, setName string, key interface{}) (*Key, error) {
-	newKey := &Key{
-		namespace: &namespace,
-		setName:   &setName,
+func NewKey(namespace string, setName string, key interface{}) (newKey *Key, err error) {
+	newKey = &Key{
+		namespace: namespace,
+		setName:   setName,
 		userKey:   key,
-		digest:    make([]byte, 20),
 	}
 
-	var err error
-	newKey.digest, err = ComputeDigest(*newKey.setName, NewValue(key))
+	newKey.digest, err = computeDigest(&newKey.setName, NewValue(key))
 
 	return newKey, err
 }
@@ -95,28 +88,38 @@ func NewKey(namespace string, setName string, key interface{}) (*Key, error) {
 // Initialize key from namespace, digest and optional set name.
 func NewKeyByDigest(namespace string, setName string, digest [20]byte) *Key {
 	return &Key{
-		namespace: &namespace,
-		setName:   &setName,
+		namespace: namespace,
+		setName:   setName,
 		digest:    digest[:],
 	}
 }
 
 // Generate unique server hash value from set name, key type and user defined key.
 // The hash function is RIPEMD-160 (a 160 bit hash).
-func ComputeDigest(setName string, key Value) ([]byte, error) {
+func computeDigest(setName *string, key Value) ([]byte, error) {
 	keyType := key.GetType()
 
 	if keyType == ParticleType.NULL {
 		return nil, NewAerospikeError(PARAMETER_ERROR, "Invalid key: nil")
 	}
-	// TODO: This method must be optimized
-	buffer := make([]byte, len(setName)+key.EstimateSize()+1)
-	copy(buffer[0:], []byte(setName))
-	buffer[len(setName)] = byte(keyType)
-	key.Write(buffer, len(setName)+1)
 
-	hash := ripemd160.New()
-	hash.Write(buffer)
+	// retrieve hash from hash pool
+	h := hashPool.Get().(hash.Hash)
+	h.Reset()
+	defer hashPool.Put(h)
+	h.Write([]byte(*setName))
+	h.Write([]byte{byte(keyType)})
+	h.Write(key.getBytes())
 
-	return hash.Sum(nil), nil
+	return h.Sum(nil), nil
+}
+
+// hash pool
+var hashPool *Pool
+
+func init() {
+	hashPool = NewPool(1024)
+	hashPool.New = func() interface{} {
+		return ripemd160.New()
+	}
 }

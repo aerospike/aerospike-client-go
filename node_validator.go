@@ -25,7 +25,7 @@ import (
 )
 
 // Validates a Database server node
-type NodeValidator struct {
+type nodeValidator struct {
 	name       string
 	aliases    []*Host
 	address    string
@@ -33,8 +33,8 @@ type NodeValidator struct {
 }
 
 // Generates a node validator
-func NewNodeValidator(host *Host, timeout time.Duration) (*NodeValidator, error) {
-	newNodeValidator := &NodeValidator{
+func newNodeValidator(host *Host, timeout time.Duration) (*nodeValidator, error) {
+	newNodeValidator := &nodeValidator{
 		useNewInfo: true,
 	}
 	newNodeValidator.setAliases(host)
@@ -43,7 +43,7 @@ func NewNodeValidator(host *Host, timeout time.Duration) (*NodeValidator, error)
 	return newNodeValidator, nil
 }
 
-func (this *NodeValidator) setAliases(host *Host) error {
+func (ndv *nodeValidator) setAliases(host *Host) error {
 	if addresses, err := net.LookupHost(host.Name); err != nil {
 		return err
 	} else {
@@ -51,14 +51,14 @@ func (this *NodeValidator) setAliases(host *Host) error {
 		for idx, addr := range addresses {
 			aliases[idx] = NewHost(addr, host.Port)
 		}
-		this.aliases = aliases
+		ndv.aliases = aliases
 		Logger.Debug("Node Validator has %d nodes.", len(aliases))
 		return nil
 	}
 }
 
-func (this *NodeValidator) setAddress(timeout time.Duration) error {
-	for _, alias := range this.aliases {
+func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
+	for _, alias := range ndv.aliases {
 		address := net.JoinHostPort(alias.Name, strconv.Itoa(alias.Port))
 		if conn, err := NewConnection(address, timeout); err != nil {
 			return err
@@ -69,8 +69,8 @@ func (this *NodeValidator) setAddress(timeout time.Duration) error {
 				return err
 			} else {
 				if nodeName, exists := infoMap["node"]; exists {
-					this.name = nodeName
-					this.address = address
+					ndv.name = nodeName
+					ndv.address = address
 
 					// Check new info protocol support for >= 2.6.6 build
 					if buildVersion, exists := infoMap["build"]; exists {
@@ -78,7 +78,7 @@ func (this *NodeValidator) setAddress(timeout time.Duration) error {
 							Logger.Error(err.Error())
 							return err
 						} else {
-							this.useNewInfo = v1 > 2 || (v1 == 2 && (v2 > 6 || (v2 == 6 && v3 >= 6)))
+							ndv.useNewInfo = v1 > 2 || (v1 == 2 && (v2 > 6 || (v2 == 6 && v3 >= 6)))
 						}
 					}
 				}
@@ -89,8 +89,9 @@ func (this *NodeValidator) setAddress(timeout time.Duration) error {
 }
 
 // parses a version string
+var r = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+).*`)
+
 func parseVersionString(version string) (int, int, int, error) {
-	r := regexp.MustCompile(`(\d+)\.(\d+)\.(\d+).*`)
 	vNumber := r.FindStringSubmatch(version)
 	if len(vNumber) < 4 {
 		return -1, -1, -1, errors.New("Invalid build version string in Info: " + version)

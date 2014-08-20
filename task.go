@@ -41,35 +41,35 @@ func NewTask(cluster *Cluster, done bool) *BaseTask {
 }
 
 // Wait for asynchronous task to complete using default sleep interval.
-func (this *BaseTask) onComplete(ifc Task) chan error {
+func (btsk *BaseTask) onComplete(ifc Task) chan error {
 	// create the channel if it doesn't exist yet
-	if this.onCompleteChan == nil {
-		this.onCompleteChan = make(chan error)
+	if btsk.onCompleteChan == nil {
+		btsk.onCompleteChan = make(chan error)
 	} else {
 		// channel and goroutine already exists; just return the channel
-		return this.onCompleteChan
+		return btsk.onCompleteChan
 	}
 
 	// goroutine will loop every <interval> until IsDone() returns true or error
 	const interval = 100 * time.Millisecond
 	go func() {
 		// always close the channel on return
-		defer close(this.onCompleteChan)
+		defer close(btsk.onCompleteChan)
 
 		for {
 			select {
 			case <-time.After(interval):
 				done, err := ifc.IsDone()
 				if err != nil {
-					this.onCompleteChan <- err
+					btsk.onCompleteChan <- err
 					return
 				} else if done {
-					this.onCompleteChan <- nil
+					btsk.onCompleteChan <- nil
 					return
 				}
 			} // select
 		} // for
 	}()
 
-	return this.onCompleteChan
+	return btsk.onCompleteChan
 }

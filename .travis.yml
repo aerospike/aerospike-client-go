@@ -9,9 +9,8 @@ install:
   - export PATH=$PATH:$HOME/gopath/bin
   - go get github.com/onsi/ginkgo/ginkgo
   - go get github.com/onsi/gomega
-  - go get code.google.com/p/go.crypto/ripemd160
   - go get code.google.com/p/go.tools/cmd/cover
-  - wget -O aerospike-server.tgz http://aerospike.com/download/server/3.3.5/artifact/tgz
+  - wget -O aerospike-server.tgz http://aerospike.com/download/server/3.3.12/artifact/tgz
   - tar xvzf aerospike-server.tgz
   - cp -f .travis/aerospike.conf ./aerospike-server/share/etc
   - cd aerospike-server
@@ -25,7 +24,9 @@ install:
   - cd instance2
   - sudo ./bin/aerospike start
   - cd ../..
-  - sleep 3
+  - pwd
+  - mv $HOME/gopath/src/github.com/citrusleaf $HOME/gopath/src/github.com/aerospike
+  - sleep 5
 
 script:
   - go build tools/benchmark/benchmark.go
@@ -34,4 +35,4 @@ script:
   - go build examples/simple.go
   - go build examples/blob.go
   - go build examples/info.go
-  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
+  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites -focus "Data operations on native types"

@@ -23,6 +23,14 @@ import (
 	// . "github.com/aerospike/aerospike-client-go/logger"
 )
 
+type testBLOB struct {
+	name string
+}
+
+func (this *testBLOB) EncodeBlob() ([]byte, error) {
+	return append([]byte(this.name)), nil
+}
+
 // generates a random string of specified length
 func randString(size int) string {
 	const random_alpha_num = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

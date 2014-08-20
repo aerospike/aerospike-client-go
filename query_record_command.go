@@ -20,46 +20,51 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-type QueryRecordCommand struct {
-	QueryCommand
+type queryRecordCommand struct {
+	queryCommand
 }
 
-func NewQueryRecordCommand(node *Node, policy *QueryPolicy, statement *Statement, recChan chan *Record) *QueryRecordCommand {
-	return &QueryRecordCommand{
-		QueryCommand: *NewQueryCommand(node, policy, statement, recChan),
+func newQueryRecordCommand(node *Node, policy *QueryPolicy, statement *Statement, recChan chan *Record, errChan chan error) *queryRecordCommand {
+	return &queryRecordCommand{
+		queryCommand: *newQueryCommand(node, policy, statement, recChan, errChan),
 	}
 }
 
-func (this *QueryRecordCommand) parseRecordResults(ifc Command, receiveSize int) (bool, error) {
+func (cmd *queryRecordCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
 	// Read/parse remaining message bytes one record at a time.
-	this.dataOffset = 0
+	cmd.dataOffset = 0
 
-	for this.dataOffset < receiveSize {
-		this.readBytes(int(MSG_REMAINING_HEADER_SIZE))
-		resultCode := ResultCode(this.dataBuffer[5] & 0xFF)
+	for cmd.dataOffset < receiveSize {
+		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
+			cmd.Errors <- newNodeError(cmd.node, err)
+			return false, err
+		}
+		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		if resultCode != 0 {
 			if resultCode == KEY_NOT_FOUND_ERROR {
 				return false, nil
 			}
-
-			return false, NewAerospikeError(resultCode)
+			err := NewAerospikeError(resultCode)
+			cmd.Errors <- newNodeError(cmd.node, err)
+			return false, err
 		}
 
-		info3 := int(this.dataBuffer[3])
+		info3 := int(cmd.dataBuffer[3])
 
-		// If this is the end marker of the response, do not proceed further
-		if (info3 & INFO3_LAST) == INFO3_LAST {
+		// If cmd is the end marker of the response, do not proceed further
+		if (info3 & _INFO3_LAST) == _INFO3_LAST {
 			return false, nil
 		}
 
-		generation := int(Buffer.BytesToInt32(this.dataBuffer, 6))
-		expiration := int(Buffer.BytesToInt32(this.dataBuffer, 10))
-		fieldCount := int(Buffer.BytesToInt16(this.dataBuffer, 18))
-		opCount := int(Buffer.BytesToInt16(this.dataBuffer, 20))
+		generation := int(Buffer.BytesToInt32(cmd.dataBuffer, 6))
+		expiration := int(Buffer.BytesToInt32(cmd.dataBuffer, 10))
+		fieldCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 18))
+		opCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 20))
 
-		key, err := this.parseKey(fieldCount)
+		key, err := cmd.parseKey(fieldCount)
 		if err != nil {
+			cmd.Errors <- newNodeError(cmd.node, err)
 			return false, err
 		}
 
@@ -67,46 +72,50 @@ func (this *QueryRecordCommand) parseRecordResults(ifc Command, receiveSize int)
 		var bins BinMap
 
 		for i := 0; i < opCount; i++ {
-			if err := this.readBytes(8); err != nil {
+			if err := cmd.readBytes(8); err != nil {
+				cmd.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
 
-			opSize := int(Buffer.BytesToInt32(this.dataBuffer, 0))
-			particleType := int(this.dataBuffer[5])
-			nameSize := int(this.dataBuffer[7])
+			opSize := int(Buffer.BytesToInt32(cmd.dataBuffer, 0))
+			particleType := int(cmd.dataBuffer[5])
+			nameSize := int(cmd.dataBuffer[7])
 
-			if err := this.readBytes(nameSize); err != nil {
+			if err := cmd.readBytes(nameSize); err != nil {
+				cmd.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
-			name := string(this.dataBuffer[:nameSize])
+			name := string(cmd.dataBuffer[:nameSize])
 
 			particleBytesSize := int((opSize - (4 + nameSize)))
-			if this.readBytes(particleBytesSize); err != nil {
+			if err = cmd.readBytes(particleBytesSize); err != nil {
+				cmd.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
-			value, err := BytesToParticle(particleType, this.dataBuffer, 0, particleBytesSize)
+			value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
 			if err != nil {
+				cmd.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
 
 			if bins == nil {
-				bins = BinMap{}
+				bins = make(BinMap, opCount)
 			}
 			bins[name] = value
 		}
 
-		record := NewRecord(key, bins, nil, generation, expiration)
+		record := newRecord(cmd.node, key, bins, nil, generation, expiration)
 
-		if !this.valid {
-			return false, QueryTerminatedErr()
+		if !cmd.IsValid() {
+			return false, NewAerospikeError(QUERY_TERMINATED)
 		}
 
-		this.Records <- record
+		cmd.Records <- record
 	}
 
 	return true, nil
 }
 
-func (this *QueryRecordCommand) Execute() error {
-	return this.execute(this)
+func (cmd *queryRecordCommand) Execute() error {
+	return cmd.execute(cmd)
 }

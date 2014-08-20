@@ -1,4 +1,4 @@
-# Aerospike Go Client [![Build Status](https://travis-ci.org/aerospike/aerospike-client-go.svg?branch=master)](https://travis-ci.org/aerospike/aerospike-client-go)
+# Aerospike Go Client (BETA)
 
 An Aerospike library for Go.
 
@@ -78,6 +78,8 @@ Details about the API are available in the [`docs`](docs) directory.
 
 To install the latest stable version of Go, visit
 [http://golang.org/dl/](http://golang.org/dl/)
+
+[Mercurial SCM](http://mercurial.selenic.com/) To fetch a dependent library using ```go get```.
 
 Aerospike Go client implements the wire protocol, and does not depend on the C client.
 It is goroutine friendly, and works asynchronously.

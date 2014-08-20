@@ -27,13 +27,13 @@ import (
 )
 
 func testPackingFor(v interface{}) interface{} {
-	packer := NewPacker()
+	packer := newPacker()
 	value := NewValue(v)
 
-	err := value.Pack(packer)
+	err := value.pack(packer)
 	Expect(err).ToNot(HaveOccurred())
 
-	unpacker := NewUnpacker(packer.buffer.Bytes(), 0, len(packer.buffer.Bytes()))
+	unpacker := newUnpacker(packer.buffer.Bytes(), 0, len(packer.buffer.Bytes()))
 	unpackedValue, err := unpacker.unpackObject()
 
 	return unpackedValue
