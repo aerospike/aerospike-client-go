@@ -54,15 +54,19 @@ func (ky *Key) SetName() string {
 	return ky.setName
 }
 
+// Returns key's value
+func (ky *Key) Value() Value {
+	return NewValue(ky.userKey)
+}
+
 // Returns current key digest
 func (ky *Key) Digest() []byte {
 	return ky.digest
 }
 
+// Uses key digests to compare key equality.
 func (ky *Key) Equals(other *Key) bool {
-	return (ky.namespace == other.namespace) &&
-		(ky.setName == other.setName) &&
-		bytes.Equal(ky.digest, other.digest)
+	return bytes.Equal(ky.digest, other.digest)
 }
 
 // Return string representation of key.

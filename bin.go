@@ -35,7 +35,7 @@ func NewBin(name string, value interface{}) *Bin {
 	}
 }
 
-func mapToBins(bins BinMap) []*Bin {
+func binMapToBins(bins BinMap) []*Bin {
 	binList := make([]*Bin, 0, len(bins))
 	for k, v := range bins {
 		binList = append(binList, NewBin(k, v))

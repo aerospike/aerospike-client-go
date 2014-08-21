@@ -22,10 +22,10 @@ type LargeStack struct {
 // Initialize large stack operator.
 //
 // client        client
-// policy        generic configuration parameters, pass in null for defaults
+// policy        generic configuration parameters, pass in nil for defaults
 // key         unique record identifier
 // binName       bin name
-// userModule      Lua function name that initializes list configuration parameters, pass null for default set
+// userModule      Lua function name that initializes list configuration parameters, pass nil for default set
 func NewLargeStack(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeStack {
 	return &LargeStack{
 		baseLargeObject: *newLargeObject(client, policy, key, binName, userModule),

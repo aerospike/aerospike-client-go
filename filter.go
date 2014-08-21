@@ -25,7 +25,7 @@ type Filter struct {
 	end   Value
 }
 
-// Create long equality filter for query.
+// Create equality filter for query.
 func NewEqualFilter(binName string, value interface{}) *Filter {
 	val := NewValue(value)
 	return newFilter(binName, val, val)

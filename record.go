@@ -32,7 +32,7 @@ type Record struct {
 	// List of all duplicate records (if any) for a given key.  Duplicates are only created when
 	// the server configuration option "allow-versions" is true (default is false) and client
 	// RecordExistsAction.DUPLICATE policy flag is set and there is a generation error.
-	// Almost always null.
+	// Almost always nil.
 	Duplicates []BinMap
 
 	// Record modification count.

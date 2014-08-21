@@ -25,9 +25,7 @@ import (
 	"strings"
 	"sync"
 
-	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
-	// "github.com/aerospike/aerospike-client-go/utils"
 )
 
 type Client struct {
@@ -99,9 +97,12 @@ func (clnt *Client) GetNodeNames() []string {
 //  The policy specifies the transaction timeout, record expiration and how the transaction is
 //  handled when the record already exists.
 func (clnt *Client) Put(policy *WritePolicy, key *Key, bins BinMap) error {
-	return clnt.PutBins(policy, key, mapToBins(bins)...)
+	return clnt.PutBins(policy, key, binMapToBins(bins)...)
 }
 
+//  Write record bin(s).
+//  The policy specifies the transaction timeout, record expiration and how the transaction is
+//  handled when the record already exists.
 func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	if policy == nil {
 		policy = NewWritePolicy(0, 0)
@@ -119,7 +120,7 @@ func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 //  handled when the record already exists.
 //  This call only works for string values.
 func (clnt *Client) Append(policy *WritePolicy, key *Key, bins BinMap) error {
-	return clnt.AppendBins(policy, key, mapToBins(bins)...)
+	return clnt.AppendBins(policy, key, binMapToBins(bins)...)
 }
 
 func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
@@ -135,7 +136,7 @@ func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) erro
 //  handled when the record already exists.
 //  This call works only for string values.
 func (clnt *Client) Prepend(policy *WritePolicy, key *Key, bins BinMap) error {
-	return clnt.PrependBins(policy, key, mapToBins(bins)...)
+	return clnt.PrependBins(policy, key, binMapToBins(bins)...)
 }
 
 func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
@@ -155,7 +156,7 @@ func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) err
 //  handled when the record already exists.
 //  This call only works for integer values.
 func (clnt *Client) Add(policy *WritePolicy, key *Key, bins BinMap) error {
-	return clnt.AddBins(policy, key, mapToBins(bins)...)
+	return clnt.AddBins(policy, key, binMapToBins(bins)...)
 }
 
 func (clnt *Client) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
@@ -269,7 +270,7 @@ func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
 
 //  Read multiple record headers and bins for specified keys in one batch call.
 //  The returned records are in positional order with the original key array order.
-//  If a key is not found, the positional record will be null.
+//  If a key is not found, the positional record will be nil.
 //  The policy can be used to specify timeouts.
 func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string) ([]*Record, error) {
 	if policy == nil {
@@ -298,7 +299,7 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 
 //  Read multiple record header data for specified keys in one batch call.
 //  The returned records are in positional order with the original key array order.
-//  If a key is not found, the positional record will be null.
+//  If a key is not found, the positional record will be nil.
 //  The policy can be used to specify timeouts.
 func (clnt *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, error) {
 	if policy == nil {

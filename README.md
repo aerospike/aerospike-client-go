@@ -1,4 +1,4 @@
-# Aerospike Go Client (BETA)
+# Aerospike Go Client (BETA1)
 
 An Aerospike library for Go.
 
@@ -7,11 +7,12 @@ This library is compatible with Go 1.2+ and supports the following operating sys
 - [Usage](#Usage)
 - [Prerequisites](#Prerequisites)
 - [Installation](#Installation)
+- [Tweaking Performance](#Performance)
+- [Benchmarks](#Benchmarks)
+- [API Documentaion](#API-Documentation)
 - [Tests](#Tests)
 - [Examples](#Examples)
   - [Tools](#Tools)
-- [Benchmarks](#Benchmarks)
-- [API Documentaion](#API-Documentation)
 
 
 ## Usage:
@@ -79,7 +80,6 @@ Details about the API are available in the [`docs`](docs) directory.
 To install the latest stable version of Go, visit
 [http://golang.org/dl/](http://golang.org/dl/)
 
-[Mercurial SCM](http://mercurial.selenic.com/) To fetch a dependent library using ```go get```.
 
 Aerospike Go client implements the wire protocol, and does not depend on the C client.
 It is goroutine friendly, and works asynchronously.
@@ -93,7 +93,7 @@ Supported operating systems:
 <a name="Installation"></a>
 ## Installation:
 
-1. Install Go 1.2+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH)
+1. Install Go 1.2+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
 2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go```
   * To update the client library: ```go get -u github.com/aerospike/aerospike-client-go```
 
@@ -102,6 +102,13 @@ Supported operating systems:
  * To run a go program directly: ```go run <filename.go>```
  * to build:  ```go build -o <output> <filename.go>```
   * example: ```go build -o benchmark tools/benchmark/benchmark.go```
+
+<a name="Performance"></a>
+## Performance Tweaking
+
+We are bending all efforts to improve the client's performance. In out reference benchmarks, Go client performs almost as good as the C client.
+
+To read about performance variables, please refer to [`docs/performance.md`](docs/performance.md)
 
 <a name="Tests"></a>
 ## Tests
@@ -138,13 +145,11 @@ See the [`tools/benchmark/README.md`](tools/benchmark/README.md) for details.
 <a name="API-Documentation"></a>
 ## API Documentation
 
-API documentation is available using godocs.
-
-A preformatted version is provided in the [`docs`](docs/README.md) directory.
+API documentation is available in the [`docs`](docs/README.md) directory.
 
 ## License
 
-The Aerospike Go Client is made availabled under the terms of the Apache License, Version 2, as stated in the file `LICENSE`.
+The Aerospike Go Client is made available under the terms of the Apache License, Version 2, as stated in the file `LICENSE`.
 
 Individual files may be made available under their own specific license,
 all compatible with Apache License, Version 2. Please see individual files for details.
