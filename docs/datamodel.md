@@ -49,7 +49,7 @@ Simple example of a Read, Change, Update operation:
   client, err := NewClient("127.0.0.1", 3000)
   panicOnError(err)
 
-  key, err := NewKey("test", "demo, "key") // key can be of any supported type
+  key, err := NewKey("test", "demo", "key") // key can be of any supported type
   panicOnError(err)
 
   // define some bins
