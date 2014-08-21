@@ -26,20 +26,10 @@ type AerospikeError struct {
 	resultCode ResultCode
 }
 
-func (ase *AerospikeError) ResultCode() ResultCode {
+// ResultCode returns the ResultCode from AerospikeError object
+func (ase AerospikeError) ResultCode() ResultCode {
 	return ase.resultCode
 }
-
-// Error Types
-type ErrInvalidNode struct{ AerospikeError }
-type ErrTimeout struct{ AerospikeError }
-type ErrSerialization struct{ AerospikeError }
-type ErrParse struct{ AerospikeError }
-type ErrConnection struct{ AerospikeError }
-type ErrQueryTerminated struct{ AerospikeError }
-type ErrScanTerminated struct{ AerospikeError }
-type ErrCommandRejected struct{ AerospikeError }
-type ErrTypeNotSupported struct{ AerospikeError }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Generator for Aerospike errors.
@@ -54,25 +44,25 @@ func NewAerospikeError(code ResultCode, messages ...string) (err error) {
 
 	switch ResultCode(code) {
 	case TYPE_NOT_SUPPORTED:
-		err = ErrTypeNotSupported{AerospikeError{error: errMsg, resultCode: code}}
+		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case COMMAND_REJECTED:
-		err = ErrCommandRejected{AerospikeError{error: errMsg, resultCode: code}}
+		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case QUERY_TERMINATED:
-		err = ErrQueryTerminated{AerospikeError{error: errMsg, resultCode: code}}
+		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case SCAN_TERMINATED:
-		err = ErrScanTerminated{AerospikeError{error: errMsg, resultCode: code}}
+		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case INVALID_NODE_ERROR:
-		err = ErrInvalidNode{AerospikeError{error: errMsg, resultCode: code}}
+		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case PARSE_ERROR:
-		err = ErrParse{AerospikeError{error: errMsg, resultCode: code}}
+		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case SERIALIZE_ERROR:
-		err = ErrSerialization{AerospikeError{error: errMsg, resultCode: code}}
+		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case OK:
 		err = AerospikeError{error: errMsg, resultCode: code}
@@ -102,13 +92,13 @@ func NewAerospikeError(code ResultCode, messages ...string) (err error) {
 		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case TIMEOUT:
-		err = ErrTimeout{AerospikeError{error: errMsg, resultCode: code}}
+		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case NO_XDS:
 		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case SERVER_NOT_AVAILABLE:
-		err = ErrConnection{AerospikeError{error: errMsg, resultCode: code}}
+		err = AerospikeError{error: errMsg, resultCode: code}
 
 	case BIN_TYPE_ERROR:
 		err = AerospikeError{error: errMsg, resultCode: code}
