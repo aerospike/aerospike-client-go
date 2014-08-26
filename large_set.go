@@ -91,11 +91,20 @@ func (ls *LargeSet) Scan() ([]interface{}, error) {
 // filterArgs    arguments to Lua function name
 // returns          list of entries selected
 func (ls *LargeSet) Filter(filterName string, filterArgs ...interface{}) ([]interface{}, error) {
-	ret, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "filter", ls.binName, ls.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
+	res, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "filter", ls.binName, ls.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}
-	return ret.([]interface{}), err
+
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.([]interface{}), err
+	}
 }
 
 // Delete bin containing the list.

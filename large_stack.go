@@ -53,13 +53,17 @@ func (lstk *LargeStack) Push(values ...interface{}) error {
 //
 // peekCount     number of items to select.
 // returns          list of items selected
-
 func (lstk *LargeStack) Peek(peekCount int) ([]interface{}, error) {
-	ret, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "peek", lstk.binName, NewIntegerValue(peekCount))
+	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "peek", lstk.binName, NewIntegerValue(peekCount))
 	if err != nil {
 		return nil, err
 	}
-	return ret.([]interface{}), nil
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.([]interface{}), nil
+	}
 }
 
 // Select items from top of stack.
@@ -67,11 +71,16 @@ func (lstk *LargeStack) Peek(peekCount int) ([]interface{}, error) {
 // peekCount     number of items to select.
 // returns          list of items selected
 func (lstk *LargeStack) Pop(count int) ([]interface{}, error) {
-	ret, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "pop", lstk.binName, NewIntegerValue(count))
+	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "pop", lstk.binName, NewIntegerValue(count))
 	if err != nil {
 		return nil, err
 	}
-	return ret.([]interface{}), nil
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.([]interface{}), nil
+	}
 }
 
 // Return all objects in the list.
@@ -87,11 +96,16 @@ func (lstk *LargeStack) Scan() ([]interface{}, error) {
 // filterArgs    arguments to Lua function name
 // returns          list of items selected
 func (lstk *LargeStack) Filter(peekCount int, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
-	ret, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "filter", lstk.binName, NewIntegerValue(peekCount), lstk.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
+	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "filter", lstk.binName, NewIntegerValue(peekCount), lstk.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}
-	return ret.([]interface{}), nil
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.([]interface{}), nil
+	}
 }
 
 // Delete bin containing the list.

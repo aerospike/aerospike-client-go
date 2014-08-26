@@ -127,8 +127,8 @@ func parseFailure(ret string) string {
 }
 
 func (cmd *readCommand) handleUdfError(resultCode ResultCode) error {
-	if ret, exists := cmd.record.Bins["FAILURE"].(string); exists {
-		message := parseFailure(ret)
+	if ret, exists := cmd.record.Bins["FAILURE"]; exists {
+		message := parseFailure(ret.(string))
 		return NewAerospikeError(resultCode, message)
 	} else {
 		return NewAerospikeError(resultCode)

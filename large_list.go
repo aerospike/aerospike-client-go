@@ -67,7 +67,12 @@ func (ll *LargeList) Find(value interface{}) ([]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	return res.([]interface{}), err
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.([]interface{}), err
+	}
 }
 
 // Select values from list and apply specified Lua filter.
@@ -81,7 +86,12 @@ func (ll *LargeList) FindThenFilter(value interface{}, filterName string, filter
 	if err != nil {
 		return nil, err
 	}
-	return res.([]interface{}), err
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.([]interface{}), err
+	}
 }
 
 // Return all objects in the list.
@@ -99,7 +109,12 @@ func (ll *LargeList) Filter(filterName string, filterArgs ...interface{}) ([]int
 	if err != nil {
 		return nil, err
 	}
-	return res.([]interface{}), err
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.([]interface{}), err
+	}
 }
 
 // Delete bin containing the list.

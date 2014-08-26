@@ -75,8 +75,16 @@ func (lo *baseLargeObject) size(ifc LargeObject) (int, error) {
 
 // Return map of object configuration parameters.
 func (lo *baseLargeObject) getConfig(ifc LargeObject) (map[interface{}]interface{}, error) {
-	ret, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "get_config", lo.binName)
-	return ret.(map[interface{}]interface{}), err
+	res, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "get_config", lo.binName)
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.(map[interface{}]interface{}), err
+	}
 }
 
 // Set maximum number of entries in the object.

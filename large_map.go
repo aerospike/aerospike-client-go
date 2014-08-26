@@ -59,16 +59,30 @@ func (lm *LargeMap) PutMap(theMap map[interface{}]interface{}) error {
 // return          map of items selected
 func (lm *LargeMap) Get(name interface{}) (map[interface{}]interface{}, error) {
 	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "get", lm.binName, NewValue(name))
-	return res.(map[interface{}]interface{}), err
+
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.(map[interface{}]interface{}), err
+	}
 }
 
 // Return all objects in the list.
 func (lm *LargeMap) Scan() (map[interface{}]interface{}, error) {
-	ret, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "scan", lm.binName)
+	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "scan", lm.binName)
 	if err != nil {
 		return nil, err
 	}
-	return ret.(map[interface{}]interface{}), nil
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.(map[interface{}]interface{}), err
+	}
 }
 
 // Select items from map.
@@ -78,7 +92,15 @@ func (lm *LargeMap) Scan() (map[interface{}]interface{}, error) {
 // return          list of items selected
 func (lm *LargeMap) Filter(filterName string, filterArgs ...interface{}) (map[interface{}]interface{}, error) {
 	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "filter", lm.binName, lm.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
-	return res.(map[interface{}]interface{}), err
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return nil, nil
+	} else {
+		return res.(map[interface{}]interface{}), err
+	}
 
 }
 
