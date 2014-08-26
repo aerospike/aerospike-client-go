@@ -230,7 +230,7 @@ func randString(size int, rnd *rand.Rand) string {
 }
 
 func incOnError(op, timeout *int, err error) {
-	if _, ok := err.(ErrTimeout); ok {
+	if _, ok := err.(AerospikeError); ok {
 		*timeout++
 	} else {
 		*op++
