@@ -280,6 +280,7 @@ func runBench(client *Client, ident int, times int) {
 			countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr}
 			WCount, RCount = 0, 0
 			writeErr, readErr = 0, 0
+			writeTOErr, readTOErr = 0, 0
 			t = time.Now()
 		}
 	}
@@ -356,7 +357,7 @@ Loop:
 
 				totalWCount, totalRCount = 0, 0
 				totalWErrCount, totalRErrCount = 0, 0
-				totalWTOCount, totalRTOCount = 0, 0
+				totalTOCount, totalWTOCount, totalRTOCount = 0, 0, 0
 				lastReportTime = time.Now()
 
 				if stats.Exit {
