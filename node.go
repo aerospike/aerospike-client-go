@@ -181,8 +181,7 @@ func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) er
 
 // Get a connection to the node. If no cached connection is not available,
 // a new connection will be created
-func (nd *Node) GetConnection(timeout time.Duration) (*Connection, error) {
-	var conn *Connection
+func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err error) {
 	for t := nd.connections.Poll(); t != nil; t = nd.connections.Poll() {
 		conn = t.(*Connection)
 		if conn.IsConnected() {
@@ -191,7 +190,12 @@ func (nd *Node) GetConnection(timeout time.Duration) (*Connection, error) {
 		}
 		conn.Close()
 	}
-	return NewConnection(nd.address, timeout)
+
+	if conn, err = NewConnection(nd.address, nd.cluster.connectionTimeout); err != nil {
+		return nil, err
+	}
+	conn.SetTimeout(timeout)
+	return conn, nil
 }
 
 // Put back a connection to the cache. If cache is full, the connection will be

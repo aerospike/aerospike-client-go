@@ -22,8 +22,6 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
-var zeroTime = time.Unix(0, 0)
-
 // Connection represents a connection with a timeout
 type Connection struct {
 	// timeout
@@ -53,13 +51,14 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 		timeout = 2 * time.Second
 	}
 
-	newConn.SetTimeout(timeout)
-
 	if conn, err := net.DialTimeout("tcp", address, newConn.timeout); err != nil {
 		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
 		return nil, errToTimeoutErr(err)
 	} else {
 		newConn.conn = conn
+
+		// set timeout at the last possible moment
+		newConn.SetTimeout(timeout)
 		return newConn, nil
 	}
 }
