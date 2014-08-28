@@ -538,7 +538,7 @@ func (clstr *Cluster) removeNodesCopy(nodesToRemove []*Node) {
 
 	// Do sanity check to make sure assumptions are correct.
 	if count < len(nodeArray) {
-		Logger.Warn(fmt.Sprintf("Node remove mismatch. Expected %s, Received %s", len(nodeArray), count))
+		Logger.Warn(fmt.Sprintf("Node remove mismatch. Expected %d, Received %d", len(nodeArray), count))
 
 		// Resize array.
 		nodeArray2 := make([]*Node, count)

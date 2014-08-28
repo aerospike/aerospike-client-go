@@ -17,7 +17,6 @@ package aerospike
 import (
 	"strconv"
 	"strings"
-	"time"
 
 	. "github.com/aerospike/aerospike-client-go/types"
 )
@@ -52,7 +51,7 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 	done := false
 
 	for _, node := range nodes {
-		conn, err := node.GetConnection(time.Duration(0))
+		conn, err := node.GetConnection(0)
 		if err != nil {
 			return false, err
 		}
@@ -60,6 +59,8 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 		if err != nil {
 			return false, err
 		}
+
+		node.PutConnection(conn)
 
 		response := responseMap[command]
 		find := "job_id=" + strconv.Itoa(etsk.taskId) + ":"

@@ -876,13 +876,13 @@ func (clnt *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batch
 	for _, batchNode := range batchNodes {
 		// copy to avoid race condition
 		bn := *batchNode
-		for _, batchNamespace := range bn.BatchNamespaces {
+		for _, bns := range bn.BatchNamespaces {
 			wg.Add(1)
-			go func() {
+			go func(bns *batchNamespace) {
 				defer wg.Done()
-				command := cmdGen(bn.Node, batchNamespace)
+				command := cmdGen(bn.Node, bns)
 				command.Execute()
-			}()
+			}(bns)
 		}
 	}
 

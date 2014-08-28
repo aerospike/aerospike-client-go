@@ -117,7 +117,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 func parseFailure(ret string) string {
 	if list := strings.Split(ret, ":"); len(list) >= 3 {
 		if code, err := strconv.Atoi(strings.Trim(list[2], " ")); err != nil {
-			return fmt.Sprintf("%s", code)
+			return fmt.Sprintf("%d", code)
 		} else {
 			return fmt.Sprintf("%s:%s %s", list[0], list[1], list[3])
 		}

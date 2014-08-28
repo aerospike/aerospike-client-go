@@ -15,8 +15,8 @@
 package aerospike
 
 import (
-	"errors"
-	"fmt"
+	// "errors"
+	// "fmt"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -259,7 +259,7 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 		if theType >= 0xe0 {
 			return int(theType - 0xe0 - 32), nil
 		}
-		panic(errors.New(fmt.Sprintf("Unknown upckr.unpack theType: %x", theType)))
+		// panic(errors.New(fmt.Sprintf("Unknown upckr.unpack theType: %x", theType)))
 	}
 
 	return nil, NewAerospikeError(SERIALIZE_ERROR)

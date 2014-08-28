@@ -60,11 +60,11 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
 	for _, alias := range ndv.aliases {
 		address := net.JoinHostPort(alias.Name, strconv.Itoa(alias.Port))
-		if conn, err := NewConnection(address, timeout); err != nil {
+		if conn, err := NewConnection(address, time.Second); err != nil {
 			return err
 		} else {
 			defer conn.Close()
-
+			conn.SetTimeout(timeout)
 			if infoMap, err := RequestInfo(conn, "node", "build"); err != nil {
 				return err
 			} else {
@@ -102,7 +102,7 @@ func parseVersionString(version string) (int, int, int, error) {
 		if err1 == nil && err2 == nil && err3 == nil {
 			return v1, v2, v3, nil
 		} else {
-			Logger.Error("Invalid build version string in Info: %s", version)
+			Logger.Error("Invalid build version string in Info: " + version)
 			return -1, -1, -1, errors.New("Invalid build version string in Info: " + version)
 		}
 	}

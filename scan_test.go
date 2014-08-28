@@ -70,6 +70,7 @@ var _ = Describe("Scan operations", func() {
 				}
 
 			case err := <-recordset.Errors:
+				// Expect(error) returns humongous error message
 				panic(err)
 			}
 		}

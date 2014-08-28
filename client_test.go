@@ -53,14 +53,8 @@ var _ = Describe("Aerospike", func() {
 		var rpolicy = NewPolicy()
 		var rec *Record
 
-		// update policy timeouts
-		wpolicy.Timeout = 0
-		rpolicy.Timeout = 0
-		c := NewClientPolicy()
-		c.Timeout = time.Duration(0)
-
 		// use the same client for all
-		client, err := NewClientWithPolicy(c, "127.0.0.1", 3000)
+		client, err := NewClient("127.0.0.1", 3000)
 		Expect(err).ToNot(HaveOccurred())
 
 		BeforeEach(func() {
