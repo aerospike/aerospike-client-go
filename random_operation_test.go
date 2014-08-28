@@ -58,8 +58,8 @@ var _ = Describe("Aerospike", func() {
 					for wr := 0; wr < iters; wr++ {
 						i++
 
-						// create
-						err = client.PutBins(wpolicy, key, NewBin("Aerospike1", 0), NewBin("Aerospike2", "a"))
+						//reset
+						err = client.PutBins(wpolicy, key, bin1, bin2)
 						Expect(err).ToNot(HaveOccurred())
 
 						// update
@@ -93,7 +93,6 @@ var _ = Describe("Aerospike", func() {
 				i := 0
 				for i < 10000 {
 					iters := rand.Intn(1000) + 1
-					keys := make([]*Key, 0, iters)
 					for wr := 0; wr < iters; wr++ {
 						i++
 
@@ -110,8 +109,7 @@ var _ = Describe("Aerospike", func() {
 					timeout := time.After(time.Second * 3)
 
 					// Gather errors
-					for i := 0; i < len(keys); i++ {
-
+					for i := 0; i < iters; i++ {
 						select {
 						case err := <-errChan:
 							Expect(err).ToNot(HaveOccurred())
@@ -119,9 +117,9 @@ var _ = Describe("Aerospike", func() {
 						case <-timeout:
 							Expect(timeout).To(BeNil())
 						}
+					} // for i < iters
 
-					}
-				}
+				} // for i < 10000
 			})
 
 		}) // context parallel put/get/delete operations
