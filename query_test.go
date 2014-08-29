@@ -34,12 +34,13 @@ var _ = Describe("Query operations", func() {
 	var ns = "test"
 	var set = randString(50)
 	var wpolicy = NewWritePolicy(0, 0)
+	wpolicy.SendKey = true
 
 	const keyCount = 100
 	bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("Aerospike2", randString(100))
 	bin3 := NewBin("Aerospike3", rand.Intn(math.MaxInt16))
-	var keys map[string]struct{}
+	var keys map[string]*Key
 
 	// use the same client for all
 	client, err := NewClient("127.0.0.1", 3000)
@@ -55,9 +56,10 @@ var _ = Describe("Query operations", func() {
 				if !chanOpen {
 					break L
 				}
-				_, exists := keys[string(rec.Key.Digest())]
+				key, exists := keys[string(rec.Key.Digest())]
 
 				Expect(exists).To(Equal(true))
+				Expect(key.Value().GetObject()).To(Equal(rec.Key.Value().GetObject()))
 				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
 				Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
 
@@ -73,16 +75,18 @@ var _ = Describe("Query operations", func() {
 				panic(err)
 			}
 		}
+
+		Expect(counter).To(BeNumerically(">", 0))
 	}
 
 	BeforeEach(func() {
-		keys = make(map[string]struct{})
+		keys = make(map[string]*Key)
 		set = randString(50)
 		for i := 0; i < keyCount; i++ {
 			key, err := NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 
-			keys[string(key.Digest())] = struct{}{}
+			keys[string(key.Digest())] = key
 			bin3 = NewBin("Aerospike3", rand.Intn(math.MaxInt16))
 			err = client.PutBins(wpolicy, key, bin1, bin2, bin3)
 			Expect(err).ToNot(HaveOccurred())

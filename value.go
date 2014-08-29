@@ -554,3 +554,22 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 	}
 	return nil, nil
 }
+
+func bytesToKeyValue(pType int, buf []byte, offset int, len int) (Value, error) {
+
+	switch pType {
+	case ParticleType.STRING:
+		return NewStringValue(string(buf[offset : offset+len])), nil
+
+	case ParticleType.INTEGER:
+		return NewLongValue(Buffer.VarBytesToInt64(buf, offset, len)), nil
+
+	case ParticleType.BLOB:
+		bytes := make([]byte, len, len)
+		copy(bytes, buf[offset:offset+len])
+		return NewBytesValue(bytes), nil
+
+	default:
+		return nil, nil
+	}
+}

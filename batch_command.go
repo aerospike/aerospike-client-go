@@ -86,30 +86,38 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 	var digest []byte
 	var namespace, setName string
+	var userKey Value
+	var err error
 
 	for i := 0; i < fieldCount; i++ {
-		if err := cmd.readBytes(4); err != nil {
+		if err = cmd.readBytes(4); err != nil {
 			return nil, err
 		}
 
 		fieldlen := int(Buffer.BytesToInt32(cmd.dataBuffer, 0))
-		if err := cmd.readBytes(fieldlen); err != nil {
+		if err = cmd.readBytes(fieldlen); err != nil {
 			return nil, err
 		}
 
 		fieldtype := FieldType(cmd.dataBuffer[0])
 		size := fieldlen - 1
 
-		if fieldtype == DIGEST_RIPE {
+		switch fieldtype {
+		case DIGEST_RIPE:
 			digest = make([]byte, size, size)
 			copy(digest, cmd.dataBuffer[1:size+1])
-		} else if fieldtype == NAMESPACE {
+		case NAMESPACE:
 			namespace = string(cmd.dataBuffer[1 : size+1])
-		} else if fieldtype == TABLE {
+		case TABLE:
 			setName = string(cmd.dataBuffer[1 : size+1])
+		case KEY:
+			if userKey, err = bytesToKeyValue(int(cmd.dataBuffer[1]), cmd.dataBuffer, 2, size-1); err != nil {
+				return nil, err
+			}
 		}
 	}
-	return &Key{namespace: namespace, setName: setName, digest: digest}, nil
+
+	return &Key{namespace: namespace, setName: setName, digest: digest, userKey: userKey}, nil
 }
 
 func (cmd *baseMultiCommand) readBytes(length int) error {
@@ -122,7 +130,8 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 		cmd.dataBuffer = make([]byte, length)
 	}
 
-	if _, err := cmd.conn.Read(cmd.dataBuffer, length); err != nil {
+	_, err := cmd.conn.Read(cmd.dataBuffer, length)
+	if err != nil {
 		return err
 	}
 

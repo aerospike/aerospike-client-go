@@ -86,6 +86,15 @@ func BytesToInt64(buf []byte, offset int) int64 {
 	return r
 }
 
+func VarBytesToInt64(buf []byte, offset int, len int) int64 {
+	val := int64(0)
+	for i := 0; i < len; i++ {
+		val <<= 8
+		val |= int64(buf[offset+i] & 0xFF)
+	}
+	return val
+}
+
 // Converts an int64 into slice of Bytes.
 func Int64ToBytes(num int64, buffer []byte, offset int) []byte {
 	if buffer != nil {

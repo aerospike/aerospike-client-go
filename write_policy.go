@@ -39,6 +39,10 @@ type WritePolicy struct {
 	// 0: Default to namespace configuration variable "default-ttl" on the server.
 	// > 0: Actual expiration in seconds.
 	Expiration int
+
+	// Send user defined key in addition to hash digest on a record put.
+	// The default is to not send the user defined key.
+	SendKey bool
 }
 
 func NewWritePolicy(generation, expiration int) *WritePolicy {
@@ -48,5 +52,6 @@ func NewWritePolicy(generation, expiration int) *WritePolicy {
 		GenerationPolicy:   NONE,
 		Generation:         generation,
 		Expiration:         expiration,
+		SendKey:            false,
 	}
 }

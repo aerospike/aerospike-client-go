@@ -22,6 +22,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/pkg/ripemd160"
 	. "github.com/aerospike/aerospike-client-go/types"
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
+	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 // Unique record identifier. Records can be identified using a specified namespace,
@@ -39,9 +40,13 @@ type Key struct {
 	digest []byte
 
 	// Original user key. This key is immediately converted to a hash digest.
-	// This key is not used or returned by the server.  If the user key needs
-	// to persist on the server, the key should be explicitly stored in a bin.
-	userKey interface{}
+	// This key is not used or returned by the server by default. If the user key needs
+	// to persist on the server, use one of the following methods:
+	//
+	// Set "WritePolicy.sendKey" to true. In this case, the key will be sent to the server for storage on writes
+	// and retrieved on multi-record scans and queries.
+	// Explicitly store and retrieve the key in a bin.
+	userKey Value
 }
 
 // returns Namespace
@@ -56,7 +61,7 @@ func (ky *Key) SetName() string {
 
 // Returns key's value
 func (ky *Key) Value() Value {
-	return NewValue(ky.userKey)
+	return ky.userKey
 }
 
 // Returns current key digest
@@ -71,7 +76,7 @@ func (ky *Key) Equals(other *Key) bool {
 
 // Return string representation of key.
 func (ky *Key) String() string {
-	return fmt.Sprintf("%s %s %v", ky.namespace, ky.setName, ky.userKey)
+	return fmt.Sprintf("%s:%s:%s:%v", ky.namespace, ky.setName, ky.userKey.String(), Buffer.BytesToHexString(ky.digest))
 }
 
 // Initialize key from namespace, optional set name and user key.
@@ -81,21 +86,12 @@ func NewKey(namespace string, setName string, key interface{}) (newKey *Key, err
 	newKey = &Key{
 		namespace: namespace,
 		setName:   setName,
-		userKey:   key,
+		userKey:   NewValue(key),
 	}
 
 	newKey.digest, err = computeDigest(&newKey.setName, NewValue(key))
 
 	return newKey, err
-}
-
-// Initialize key from namespace, digest and optional set name.
-func NewKeyByDigest(namespace string, setName string, digest [20]byte) *Key {
-	return &Key{
-		namespace: namespace,
-		setName:   setName,
-		digest:    digest[:],
-	}
 }
 
 // Generate unique server hash value from set name, key type and user defined key.

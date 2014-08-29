@@ -95,6 +95,12 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
 
+	if policy.SendKey {
+		// key size + key type (1 byte) + field header size
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
+		fieldCount++
+	}
+
 	for _, bin := range bins {
 		cmd.estimateOperationSizeForBin(bin)
 	}
@@ -103,6 +109,10 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, len(bins))
 	cmd.writeKey(key)
+
+	if policy.SendKey {
+		cmd.writeFieldValue(key.userKey, KEY)
+	}
 
 	for _, bin := range bins {
 		cmd.writeOperationForBin(bin, operation)
@@ -649,6 +659,16 @@ func (cmd *baseCommand) writeOperationForOperationType(operation OperationType) 
 	cmd.dataOffset++
 	cmd.dataBuffer[cmd.dataOffset] = (0)
 	cmd.dataOffset++
+}
+
+func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) {
+	offset := cmd.dataOffset + int(_FIELD_HEADER_SIZE)
+	cmd.dataBuffer[offset] = byte(value.GetType())
+	offset++
+	len, _ := value.write(cmd.dataBuffer, offset)
+	len++
+	cmd.writeFieldHeader(len, ftype)
+	cmd.dataOffset += len
 }
 
 func (cmd *baseCommand) writeFieldString(str string, ftype FieldType) {

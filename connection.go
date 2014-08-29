@@ -51,7 +51,7 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 		timeout = 2 * time.Second
 	}
 
-	if conn, err := net.DialTimeout("tcp", address, newConn.timeout); err != nil {
+	if conn, err := net.DialTimeout("tcp", address, timeout); err != nil {
 		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
 		return nil, errToTimeoutErr(err)
 	} else {
@@ -95,10 +95,12 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 		total += r
 	}
 
-	if err == nil {
+	if err == nil && total == length {
 		return total, nil
-	} else {
+	} else if err != nil {
 		return total, errToTimeoutErr(err)
+	} else {
+		return total, NewAerospikeError(SERVER_ERROR)
 	}
 }
 

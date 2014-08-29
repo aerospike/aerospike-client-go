@@ -344,7 +344,7 @@ func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operat
 //-------------------------------------------------------
 
 //  Read all records in specified namespace and set.  If the policy's
-//  <code>concurrent*Nodes</code> is specified, each server node will be read in
+//  concurrentNodes is specified, each server node will be read in
 //  parallel.  Otherwise, server nodes are read in series.
 //
 //  This call will block until the scan is complete - callbacks are made
