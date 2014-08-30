@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"flag"
 	"math"
 	"math/rand"
 	"strings"
@@ -30,11 +31,12 @@ import (
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Aerospike", func() {
 	rand.Seed(time.Now().UnixNano())
+	flag.Parse()
 
 	Describe("Client Management", func() {
 		It("must open and close the client without a problem", func() {
 			// use the same client for all
-			client, err := NewClient("127.0.0.1", 3000)
+			client, err := NewClient(*host, *port)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(client.IsConnected()).To(BeTrue())
 
@@ -54,7 +56,7 @@ var _ = Describe("Aerospike", func() {
 		var rec *Record
 
 		// use the same client for all
-		client, err := NewClient("127.0.0.1", 3000)
+		client, err := NewClient(*host, *port)
 		Expect(err).ToNot(HaveOccurred())
 
 		BeforeEach(func() {

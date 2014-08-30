@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"flag"
 	"math"
 	"math/rand"
 	"time"
@@ -28,6 +29,7 @@ import (
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Scan operations", func() {
 	rand.Seed(time.Now().UnixNano())
+	flag.Parse()
 
 	// connection data
 	var err error
@@ -42,7 +44,7 @@ var _ = Describe("Scan operations", func() {
 	var keys map[string]*Key
 
 	// use the same client for all
-	client, err := NewClient("127.0.0.1", 3000)
+	client, err := NewClient(*host, *port)
 	Expect(err).ToNot(HaveOccurred())
 
 	// read all records from the channel and make sure all of them are returned

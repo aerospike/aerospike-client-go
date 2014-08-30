@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"flag"
 	"math"
 	"math/rand"
 	"time"
@@ -41,6 +42,7 @@ end`
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("UDF/Query tests", func() {
 	rand.Seed(time.Now().UnixNano())
+	flag.Parse()
 
 	// connection data
 	var client *Client
@@ -54,7 +56,7 @@ var _ = Describe("UDF/Query tests", func() {
 	bin1 := NewBin("bin1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("bin2", 1)
 
-	client, err = NewClient("127.0.0.1", 3000)
+	client, err = NewClient(*host, *port)
 	Expect(err).ToNot(HaveOccurred())
 
 	It("must Register a UDF", func() {

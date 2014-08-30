@@ -15,10 +15,9 @@
 package aerospike_test
 
 import (
-	// "fmt"
+	"flag"
 	"math"
 	"math/rand"
-	// "strings"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
@@ -34,6 +33,7 @@ import (
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Index operations test", func() {
 	rand.Seed(time.Now().UnixNano())
+	flag.Parse()
 
 	Describe("Index creation", func() {
 		// connection data
@@ -49,7 +49,7 @@ var _ = Describe("Index operations test", func() {
 		bin2 := NewBin("Aerospike2", randString(100))
 
 		BeforeEach(func() {
-			client, err = NewClient("127.0.0.1", 3000)
+			client, err = NewClient(*host, *port)
 			Expect(err).ToNot(HaveOccurred())
 			key, err = NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())

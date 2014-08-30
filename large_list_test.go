@@ -15,6 +15,7 @@
 package aerospike_test
 
 // import (
+//  "flag"
 // 	"math/rand"
 // 	"time"
 
@@ -25,7 +26,7 @@ package aerospike_test
 // )
 
 // var _ = Describe("LargeList Test", func() {
-// 	rand.Seed(time.Now().UnixNano())
+// 	rand.Seed(time.Now().UnixNano()); flag.Parse()
 // 	// connection data
 // 	var client *Client
 // 	var err error
@@ -35,7 +36,7 @@ package aerospike_test
 // 	var wpolicy = NewWritePolicy(0, 0)
 
 // 	BeforeEach(func() {
-// 		client, err = NewClient("127.0.0.1", 3000)
+// 		client, err = NewClient(*host, *port)
 // 		Expect(err).ToNot(HaveOccurred())
 // 		key, err = NewKey(ns, set, randString(50))
 // 		Expect(err).ToNot(HaveOccurred())
