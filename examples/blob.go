@@ -25,13 +25,13 @@ type Person struct {
 }
 
 // Define The AerospikeBlob interface
-func (this Person) EncodeBlob() ([]byte, error) {
-	return append([]byte(this.name)), nil
+func (p Person) EncodeBlob() ([]byte, error) {
+	return append([]byte(p.name)), nil
 }
 
 // Decoder is optional, and should be used manually
-func (this *Person) DecodeBlob(buf []byte) error {
-	this.name = string(buf)
+func (p *Person) DecodeBlob(buf []byte) error {
+	p.name = string(buf)
 	return nil
 }
 

@@ -14,121 +14,122 @@
 
 package aerospike_test
 
-// import (
-//  "flag"
-// 	"math/rand"
-// 	"time"
+import (
+	"flag"
+	"math/rand"
+	"time"
 
-// 	. "github.com/onsi/ginkgo"
-// 	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
-// 	. "github.com/aerospike/aerospike-client-go"
-// )
+	. "github.com/aerospike/aerospike-client-go"
+)
 
-// var _ = Describe("LargeStack Test", func() {
-// 	rand.Seed(time.Now().UnixNano()); flag.Parse()
-// 	// connection data
-// 	var client *Client
-// 	var err error
-// 	var ns = "test"
-// 	var set = randString(50)
-// 	var key *Key
-// 	var wpolicy = NewWritePolicy(0, 0)
+var _ = Describe("LargeStack Test", func() {
+	rand.Seed(time.Now().UnixNano())
+	flag.Parse()
+	// connection data
+	var client *Client
+	var err error
+	var ns = "test"
+	var set = randString(50)
+	var key *Key
+	var wpolicy = NewWritePolicy(0, 0)
 
-// 	BeforeEach(func() {
-// 		client, err = NewClient(*host, *port)
-// 		Expect(err).ToNot(HaveOccurred())
-// 		key, err = NewKey(ns, set, randString(50))
-// 		Expect(err).ToNot(HaveOccurred())
-// 	})
+	BeforeEach(func() {
+		client, err = NewClient(*host, *port)
+		Expect(err).ToNot(HaveOccurred())
+		key, err = NewKey(ns, set, randString(50))
+		Expect(err).ToNot(HaveOccurred())
+	})
 
-// 	It("should create a valid LargeStack; Support Add(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
-// 		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
-// 		_, err := lstack.Size()
-// 		Expect(err).To(HaveOccurred()) // bin not exists
+	It("should create a valid LargeStack; Support Add(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
+		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
+		_, err := lstack.Size()
+		Expect(err).To(HaveOccurred()) // bin not exists
 
-// 		for i := 1; i <= 100; i++ {
-// 			err = lstack.Push(NewValue(i))
-// 			Expect(err).ToNot(HaveOccurred())
+		for i := 1; i <= 100; i++ {
+			err = lstack.Push(NewValue(i))
+			Expect(err).ToNot(HaveOccurred())
 
-// 			// confirm that the LSTACK size has been increased to the expected size
-// 			sz, err := lstack.Size()
-// 			Expect(err).ToNot(HaveOccurred())
-// 			Expect(sz).To(Equal(i))
-// 		}
+			// confirm that the LSTACK size has been increased to the expected size
+			sz, err := lstack.Size()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(sz).To(Equal(i))
+		}
 
-// 		sz, err := lstack.GetCapacity()
-// 		Expect(err).ToNot(HaveOccurred())
+		sz, err := lstack.GetCapacity()
+		Expect(err).ToNot(HaveOccurred())
 
-// 		cap, err := lstack.GetCapacity()
-// 		Expect(err).ToNot(HaveOccurred())
+		cap, err := lstack.GetCapacity()
+		Expect(err).ToNot(HaveOccurred())
 
-// 		// default capacity is 100
-// 		Expect(cap).To(Equal(sz))
+		// default capacity is 100
+		Expect(cap).To(Equal(sz))
 
-// 		// Scan() the stack
-// 		scanResult, err := lstack.Scan()
-// 		scanExpectation := []interface{}{}
-// 		for i := 100; i > 0; i-- {
-// 			scanExpectation = append(scanExpectation, interface{}(i))
-// 		}
-// 		Expect(err).ToNot(HaveOccurred())
-// 		Expect(len(scanResult)).To(Equal(100))
-// 		Expect(scanResult).To(Equal(scanExpectation))
+		// Scan() the stack
+		scanResult, err := lstack.Scan()
+		scanExpectation := []interface{}{}
+		for i := 100; i > 0; i-- {
+			scanExpectation = append(scanExpectation, interface{}(i))
+		}
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(scanResult)).To(Equal(100))
+		Expect(scanResult).To(Equal(scanExpectation))
 
-// 		for i := 100; i > 0; i-- {
-// 			// peek the value
-// 			v, err := lstack.Peek(1)
-// 			Expect(err).ToNot(HaveOccurred())
-// 			Expect(v).To(Equal([]interface{}{i}))
+		// for i := 100; i > 0; i-- {
+		// 	// peek the value
+		// 	v, err := lstack.Peek(1)
+		// 	Expect(err).ToNot(HaveOccurred())
+		// 	Expect(v).To(Equal([]interface{}{i}))
 
-// 			// pop the value
-// 			// TODO: Wrong results
-// 			v, err = lstack.Pop(1)
-// 			Expect(err).ToNot(HaveOccurred())
-// 			Expect(v).To(Equal([]interface{}{i}))
-// 		}
+		// 	// pop the value
+		// 	// TODO: Wrong results
+		// 	// v, err = lstack.Pop(1)
+		// 	// Expect(err).ToNot(HaveOccurred())
+		// 	// Expect(v).To(Equal([]interface{}{i}))
+		// }
 
-// 	})
+	})
 
-// 	It("should correctly GetConfig()", func() {
-// 		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
-// 		err = lstack.Push(NewValue(0))
-// 		Expect(err).ToNot(HaveOccurred())
+	It("should correctly GetConfig()", func() {
+		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
+		err = lstack.Push(NewValue(0))
+		Expect(err).ToNot(HaveOccurred())
 
-// 		config, err := lstack.GetConfig()
-// 		Expect(err).ToNot(HaveOccurred())
-// 		Expect(config["SUMMARY"]).To(Equal("LSTACK Summary"))
-// 	})
+		config, err := lstack.GetConfig()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(config["SUMMARY"]).To(Equal("LSTACK Summary"))
+	})
 
-// 	It("should correctly Get/SetCapacity()", func() {
-// 		const cap = 100000
+	// It("should correctly Get/SetCapacity()", func() {
+	// 	const cap = 100000
 
-// 		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
-// 		err = lstack.Push(NewValue(0))
-// 		Expect(err).ToNot(HaveOccurred())
+	// 	lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
+	// 	err = lstack.Push(NewValue(0))
+	// 	Expect(err).ToNot(HaveOccurred())
 
-// 		err = lstack.SetCapacity(cap)
-// 		Expect(err).ToNot(HaveOccurred())
+	// 	err = lstack.SetCapacity(cap)
+	// 	Expect(err).ToNot(HaveOccurred())
 
-// 		tcap, err := lstack.GetCapacity()
-// 		Expect(err).ToNot(HaveOccurred())
+	// 	tcap, err := lstack.GetCapacity()
+	// 	Expect(err).ToNot(HaveOccurred())
 
-// 		Expect(tcap).To(Equal(cap))
+	// 	Expect(tcap).To(Equal(cap))
 
-// 		for i := 1; i < cap; i++ {
-// 			err = lstack.Push(NewValue(i))
-// 			Expect(err).ToNot(HaveOccurred())
+	// 	for i := 1; i < cap; i++ {
+	// 		err = lstack.Push(NewValue(i))
+	// 		Expect(err).ToNot(HaveOccurred())
 
-// 			sz, err := lstack.Size()
-// 			Expect(err).ToNot(HaveOccurred())
-// 			Expect(sz).To(Equal(i + 1))
-// 		}
+	// 		sz, err := lstack.Size()
+	// 		Expect(err).ToNot(HaveOccurred())
+	// 		Expect(sz).To(Equal(i + 1))
+	// 	}
 
-// 		sz, err := lstack.GetCapacity()
-// 		Expect(err).ToNot(HaveOccurred())
+	// 	sz, err := lstack.GetCapacity()
+	// 	Expect(err).ToNot(HaveOccurred())
 
-// 		Expect(sz).To(Equal(cap))
-// 	})
+	// 	Expect(sz).To(Equal(cap))
+	// })
 
-// }) // describe
+}) // describe

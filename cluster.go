@@ -86,7 +86,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 	// apply policy rules
 	if policy.FailIfNotConnected && !newCluster.IsConnected() {
-		return nil, errors.New(fmt.Sprintf("Failed to connect to host(s): %v", hosts))
+		return nil, fmt.Errorf("Failed to connect to host(s): %v", hosts)
 	}
 
 	// start up cluster maintenance go routine
@@ -109,7 +109,9 @@ Loop:
 				break Loop
 			}
 		case <-time.After(tendInterval):
-			clstr.tend()
+			if err := clstr.tend(); err != nil {
+				Logger.Warn(err.Error())
+			}
 		}
 	}
 
@@ -207,7 +209,9 @@ func (clstr *Cluster) waitTillStabilized() {
 	// will run until the cluster is stablized
 	go func() {
 		for {
-			clstr.tend()
+			if err := clstr.tend(); err != nil {
+				Logger.Warn(err.Error())
+			}
 
 			// Check to see if cluster has changed since the last Tend().
 			// If not, assume cluster has stabilized and return.
@@ -257,23 +261,23 @@ func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) error {
 	var nmap map[string]*atomicNodeArray
 	if node.getUseNewInfo() {
 		Logger.Info("Updating partitions using new protocol...")
-		if tokens, err := newPartitionTokenizerNew(conn); err != nil {
+		tokens, err := newPartitionTokenizerNew(conn)
+		if err != nil {
 			return err
-		} else {
-			nmap, err = tokens.UpdatePartition(clstr.getPartitions(), node)
-			if err != nil {
-				return err
-			}
+		}
+		nmap, err = tokens.UpdatePartition(clstr.getPartitions(), node)
+		if err != nil {
+			return err
 		}
 	} else {
 		Logger.Info("Updating partitions using old protocol...")
-		if tokens, err := newPartitionTokenizerOld(conn); err != nil {
+		tokens, err := newPartitionTokenizerOld(conn)
+		if err != nil {
 			return err
-		} else {
-			nmap, err = tokens.UpdatePartition(clstr.getPartitions(), node)
-			if err != nil {
-				return err
-			}
+		}
+		nmap, err = tokens.UpdatePartition(clstr.getPartitions(), node)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -299,7 +303,8 @@ func (clstr *Cluster) seedNodes() {
 	for _, seed := range seedArray {
 		seedNodeValidator, err := newNodeValidator(seed, clstr.connectionTimeout)
 		if err != nil {
-			Logger.Info("Seed %s failed: %s", seed.String(), err.Error())
+			Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
+			continue
 		}
 
 		var nv *nodeValidator
@@ -312,6 +317,7 @@ func (clstr *Cluster) seedNodes() {
 				nv, err = newNodeValidator(alias, clstr.connectionTimeout)
 				if err != nil {
 					Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
+					continue
 				}
 			}
 
@@ -339,25 +345,19 @@ func (clstr *Cluster) FindNodeName(list []*Node, name string) bool {
 	return false
 }
 
-func (clstr *Cluster) addAlias(host *Host, node *Node) error {
-	if host == nil || node == nil {
-		return errors.New("To add an alias, both host and node must be non-nil")
-	} else {
+func (clstr *Cluster) addAlias(host *Host, node *Node) {
+	if host != nil && node != nil {
 		clstr.mutex.Lock()
 		defer clstr.mutex.Unlock()
 		clstr.aliases[host] = node
-		return nil
 	}
 }
 
-func (clstr *Cluster) removeAlias(alias *Host) error {
-	if alias == nil {
-		return errors.New("alias pointer cannot be nil")
-	} else {
+func (clstr *Cluster) removeAlias(alias *Host) {
+	if alias != nil {
 		clstr.mutex.Lock()
 		defer clstr.mutex.Unlock()
 		delete(clstr.aliases, alias)
-		return nil
 	}
 }
 
@@ -634,5 +634,64 @@ func (clstr *Cluster) Close() {
 
 		// wait until tendChannel returns
 		<-clstr.tendChannel
+	}
+}
+
+// MigrationInProgress determines if any node in the cluster
+// is participating in a data migration
+func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err error) {
+	if timeout > _DEFAULT_TIMEOUT {
+		timeout = _DEFAULT_TIMEOUT
+	}
+
+	done := make(chan bool)
+
+	go func() {
+		// this function is guaranteed to return after _DEFAULT_TIMEOUT
+		nodes := clstr.GetNodes()
+		for _, node := range nodes {
+			if node.IsActive() {
+				if res, err = node.MigrationInProgress(); res || err != nil {
+					done <- true
+					return
+				}
+			}
+		}
+
+		res, err = false, nil
+		done <- false
+	}()
+
+	dealine := time.After(timeout)
+	for {
+		select {
+		case <-dealine:
+			return false, NewAerospikeError(TIMEOUT)
+		case <-done:
+			return res, err
+		}
+	}
+}
+
+func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err error) {
+	done := make(chan error)
+
+	go func() {
+		// this function is guaranteed to return after timeout
+		// no go routines will be leaked
+		for {
+			if res, err := clstr.MigrationInProgress(timeout); err != nil || !res {
+				done <- err
+				return
+			}
+		}
+	}()
+
+	dealine := time.After(timeout)
+	select {
+	case <-dealine:
+		return NewAerospikeError(TIMEOUT)
+	case err = <-done:
+		return err
 	}
 }

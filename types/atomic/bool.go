@@ -69,7 +69,6 @@ func (ab *AtomicBool) CompareAndSet(expect bool, update bool) bool {
 	if ab.val == expect {
 		ab.val = update
 		return true
-	} else {
-		return false
 	}
+	return false
 }

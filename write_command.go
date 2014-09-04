@@ -69,7 +69,9 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {
 	if resultCode != 0 {
 		return NewAerospikeError(ResultCode(resultCode))
 	}
-	cmd.emptySocket(conn)
+	if err := cmd.emptySocket(conn); err != nil {
+		return err
+	}
 	return nil
 }
 

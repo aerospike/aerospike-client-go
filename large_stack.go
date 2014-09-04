@@ -42,9 +42,9 @@ func (lstk *LargeStack) packageName() string {
 func (lstk *LargeStack) Push(values ...interface{}) error {
 	var err error
 	if len(values) == 1 {
-		lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "push", lstk.binName, NewValue(values[0]), lstk.userModule)
+		_, err = lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "push", lstk.binName, NewValue(values[0]), lstk.userModule)
 	} else {
-		lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "push_all", lstk.binName, ToValueArray(values), lstk.userModule)
+		_, err = lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "push_all", lstk.binName, ToValueArray(values), lstk.userModule)
 	}
 	return err
 }
@@ -61,9 +61,8 @@ func (lstk *LargeStack) Peek(peekCount int) ([]interface{}, error) {
 
 	if res == nil {
 		return nil, nil
-	} else {
-		return res.([]interface{}), nil
 	}
+	return res.([]interface{}), nil
 }
 
 // Select items from top of stack.
@@ -78,13 +77,11 @@ func (lstk *LargeStack) Pop(count int) ([]interface{}, error) {
 
 	if res == nil {
 		return nil, nil
-	} else {
-		return res.([]interface{}), nil
 	}
+	return res.([]interface{}), nil
 }
 
 // Return all objects in the list.
-
 func (lstk *LargeStack) Scan() ([]interface{}, error) {
 	return lstk.scan(lstk)
 }
@@ -103,9 +100,8 @@ func (lstk *LargeStack) Filter(peekCount int, filterName string, filterArgs ...i
 
 	if res == nil {
 		return nil, nil
-	} else {
-		return res.([]interface{}), nil
 	}
+	return res.([]interface{}), nil
 }
 
 // Delete bin containing the list.

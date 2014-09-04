@@ -102,9 +102,8 @@ func (ls *LargeSet) Filter(filterName string, filterArgs ...interface{}) ([]inte
 
 	if res == nil {
 		return nil, nil
-	} else {
-		return res.([]interface{}), err
 	}
+	return res.([]interface{}), err
 }
 
 // Delete bin containing the list.

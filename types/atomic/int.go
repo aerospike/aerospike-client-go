@@ -47,9 +47,8 @@ func (ai *AtomicInt) CompareAndSet(expect int, update int) bool {
 	if ai.val == expect {
 		ai.val = update
 		return true
-	} else {
-		return false
 	}
+	return false
 }
 
 // Atomically decrements current value by one and returns the result

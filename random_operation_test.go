@@ -85,6 +85,7 @@ var _ = Describe("Aerospike", func() {
 				errChan := make(chan error, 100)
 
 				func_delete := func(keys ...*Key) {
+					defer GinkgoRecover()
 					for _, key := range keys {
 						existed, err := client.Delete(wpolicy, key)
 						Expect(existed).To(BeTrue())

@@ -37,51 +37,62 @@ func newNodeValidator(host *Host, timeout time.Duration) (*nodeValidator, error)
 	newNodeValidator := &nodeValidator{
 		useNewInfo: true,
 	}
-	newNodeValidator.setAliases(host)
-	newNodeValidator.setAddress(timeout)
+
+	if err := newNodeValidator.setAliases(host); err != nil {
+		return nil, err
+	}
+
+	if err := newNodeValidator.setAddress(timeout); err != nil {
+		return nil, err
+	}
 
 	return newNodeValidator, nil
 }
 
 func (ndv *nodeValidator) setAliases(host *Host) error {
-	if addresses, err := net.LookupHost(host.Name); err != nil {
+	addresses, err := net.LookupHost(host.Name)
+	if err != nil {
 		return err
-	} else {
-		aliases := make([]*Host, len(addresses))
-		for idx, addr := range addresses {
-			aliases[idx] = NewHost(addr, host.Port)
-		}
-		ndv.aliases = aliases
-		Logger.Debug("Node Validator has %d nodes.", len(aliases))
-		return nil
 	}
+	aliases := make([]*Host, len(addresses))
+	for idx, addr := range addresses {
+		aliases[idx] = NewHost(addr, host.Port)
+	}
+	ndv.aliases = aliases
+	Logger.Debug("Node Validator has %d nodes.", len(aliases))
+	return nil
 }
 
 func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
 	for _, alias := range ndv.aliases {
 		address := net.JoinHostPort(alias.Name, strconv.Itoa(alias.Port))
-		if conn, err := NewConnection(address, time.Second); err != nil {
+		conn, err := NewConnection(address, time.Second)
+		if err != nil {
 			return err
-		} else {
-			defer conn.Close()
-			conn.SetTimeout(timeout)
-			if infoMap, err := RequestInfo(conn, "node", "build"); err != nil {
-				return err
-			} else {
-				if nodeName, exists := infoMap["node"]; exists {
-					ndv.name = nodeName
-					ndv.address = address
+		}
 
-					// Check new info protocol support for >= 2.6.6 build
-					if buildVersion, exists := infoMap["build"]; exists {
-						if v1, v2, v3, err := parseVersionString(buildVersion); err != nil {
-							Logger.Error(err.Error())
-							return err
-						} else {
-							ndv.useNewInfo = v1 > 2 || (v1 == 2 && (v2 > 6 || (v2 == 6 && v3 >= 6)))
-						}
-					}
+		defer conn.Close()
+
+		if err := conn.SetTimeout(timeout); err != nil {
+			return err
+		}
+
+		infoMap, err := RequestInfo(conn, "node", "build")
+		if err != nil {
+			return err
+		}
+		if nodeName, exists := infoMap["node"]; exists {
+			ndv.name = nodeName
+			ndv.address = address
+
+			// Check new info protocol support for >= 2.6.6 build
+			if buildVersion, exists := infoMap["build"]; exists {
+				v1, v2, v3, err := parseVersionString(buildVersion)
+				if err != nil {
+					Logger.Error(err.Error())
+					return err
 				}
+				ndv.useNewInfo = v1 > 2 || (v1 == 2 && (v2 > 6 || (v2 == 6 && v3 >= 6)))
 			}
 		}
 	}
@@ -95,15 +106,13 @@ func parseVersionString(version string) (int, int, int, error) {
 	vNumber := r.FindStringSubmatch(version)
 	if len(vNumber) < 4 {
 		return -1, -1, -1, errors.New("Invalid build version string in Info: " + version)
-	} else {
-		v1, err1 := strconv.Atoi(vNumber[1])
-		v2, err2 := strconv.Atoi(vNumber[2])
-		v3, err3 := strconv.Atoi(vNumber[3])
-		if err1 == nil && err2 == nil && err3 == nil {
-			return v1, v2, v3, nil
-		} else {
-			Logger.Error("Invalid build version string in Info: " + version)
-			return -1, -1, -1, errors.New("Invalid build version string in Info: " + version)
-		}
 	}
+	v1, err1 := strconv.Atoi(vNumber[1])
+	v2, err2 := strconv.Atoi(vNumber[2])
+	v3, err3 := strconv.Atoi(vNumber[3])
+	if err1 == nil && err2 == nil && err3 == nil {
+		return v1, v2, v3, nil
+	}
+	Logger.Error("Invalid build version string in Info: " + version)
+	return -1, -1, -1, errors.New("Invalid build version string in Info: " + version)
 }

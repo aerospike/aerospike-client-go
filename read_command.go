@@ -15,10 +15,6 @@
 package aerospike
 
 import (
-	"fmt"
-	"strconv"
-	"strings"
-
 	. "github.com/aerospike/aerospike-client-go/logger"
 
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -98,7 +94,9 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 
 		if resultCode == UDF_BAD_RESPONSE {
 			cmd.record, _ = cmd.parseRecord(opCount, fieldCount, generation, expiration)
-			cmd.handleUdfError(resultCode)
+			err := cmd.handleUdfError(resultCode)
+			Logger.Warn("UDF execution error: " + err.Error())
+			return err
 		}
 
 		return NewAerospikeError(resultCode)
@@ -111,28 +109,18 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	}
 
 	cmd.record, err = cmd.parseRecord(opCount, fieldCount, generation, expiration)
-	return err
-}
-
-func parseFailure(ret string) string {
-	if list := strings.Split(ret, ":"); len(list) >= 3 {
-		if code, err := strconv.Atoi(strings.Trim(list[2], " ")); err != nil {
-			return fmt.Sprintf("%d", code)
-		} else {
-			return fmt.Sprintf("%s:%s %s", list[0], list[1], list[3])
-		}
-	} else {
-		return ret
+	if err != nil {
+		return err
 	}
+
+	return nil
 }
 
 func (cmd *readCommand) handleUdfError(resultCode ResultCode) error {
 	if ret, exists := cmd.record.Bins["FAILURE"]; exists {
-		message := parseFailure(ret.(string))
-		return NewAerospikeError(resultCode, message)
-	} else {
-		return NewAerospikeError(resultCode)
+		return NewAerospikeError(resultCode, ret.(string))
 	}
+	return NewAerospikeError(resultCode)
 }
 
 func (cmd *readCommand) parseRecord(
@@ -147,7 +135,7 @@ func (cmd *readCommand) parseRecord(
 
 	// There can be fields in the response (setname etc).
 	// But for now, ignore them. Expose them to the API if needed in the future.
-	// Logger.Debug("field count: %d, databuffer: %v\n %s", fieldCount, cmd.dataBuffer, cmd.dataBuffer)
+	// Logger.Debug("field count: %d, databuffer: %v", fieldCount, cmd.dataBuffer)
 	if fieldCount != 0 {
 		// Just skip over all the fields
 		for i := 0; i < fieldCount; i++ {

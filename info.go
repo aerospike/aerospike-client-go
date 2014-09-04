@@ -49,6 +49,31 @@ func RequestNodeInfo(node *Node, name ...string) (map[string]string, error) {
 	return response, nil
 }
 
+// RequestNodeStats returns statistics for the specified node as a map
+func RequestNodeStats(node *Node) (map[string]string, error) {
+	infoMap, err := RequestNodeInfo(node, "statistics")
+	if err != nil {
+		return nil, err
+	}
+
+	res := map[string]string{}
+
+	v, exists := infoMap["statistics"]
+	if !exists {
+		return res, nil
+	}
+
+	values := strings.Split(v, ";")
+	for i := range values {
+		kv := strings.Split(values[i], "=")
+		if len(kv) > 1 {
+			res[kv[0]] = kv[1]
+		}
+	}
+
+	return res, nil
+}
+
 // Send multiple commands to server and store results.
 func newInfo(conn *Connection, commands ...string) (*info, error) {
 	commandStr := strings.Trim(strings.Join(commands, "\n"), " ")
@@ -67,11 +92,11 @@ func newInfo(conn *Connection, commands ...string) (*info, error) {
 
 // Get info values by name from the specified connection
 func RequestInfo(conn *Connection, names ...string) (map[string]string, error) {
-	if info, err := newInfo(conn, names...); err != nil {
+	info, err := newInfo(conn, names...)
+	if err != nil {
 		return nil, err
-	} else {
-		return info.parseMultiResponse()
 	}
+	return info.parseMultiResponse()
 }
 
 // Issue request and set results buffer. This method is used internally.

@@ -28,9 +28,9 @@ var sizeOfInt = unsafe.Sizeof(int(0))
 var sizeOfInt32 = unsafe.Sizeof(int32(0))
 var sizeOfInt64 = unsafe.Sizeof(int64(0))
 
-var uint64sz int = int(unsafe.Sizeof(uint64(0)))
-var uint32sz int = int(unsafe.Sizeof(uint32(0)))
-var uint16sz int = int(unsafe.Sizeof(uint16(0)))
+var uint64sz = int(unsafe.Sizeof(uint64(0)))
+var uint32sz = int(unsafe.Sizeof(uint32(0)))
+var uint16sz = int(unsafe.Sizeof(uint16(0)))
 
 var Arch64Bits = (sizeOfInt == sizeOfInt64)
 var Arch32Bits = (sizeOfInt == sizeOfInt32)
@@ -100,11 +100,10 @@ func Int64ToBytes(num int64, buffer []byte, offset int) []byte {
 	if buffer != nil {
 		binary.BigEndian.PutUint64(buffer[offset:], uint64(num))
 		return nil
-	} else {
-		b := make([]byte, uint64sz)
-		binary.BigEndian.PutUint64(b, uint64(num))
-		return b
 	}
+	b := make([]byte, uint64sz)
+	binary.BigEndian.PutUint64(b, uint64(num))
+	return b
 }
 
 // Covertes a slice into int32; only maximum of 4 bytes will be used
@@ -117,11 +116,10 @@ func Int32ToBytes(num int32, buffer []byte, offset int) []byte {
 	if buffer != nil {
 		binary.BigEndian.PutUint32(buffer[offset:], uint32(num))
 		return nil
-	} else {
-		b := make([]byte, uint32sz)
-		binary.BigEndian.PutUint32(b, uint32(num))
-		return b
 	}
+	b := make([]byte, uint32sz)
+	binary.BigEndian.PutUint32(b, uint32(num))
+	return b
 }
 
 // Converts
@@ -134,11 +132,10 @@ func Int16ToBytes(num int16, buffer []byte, offset int) []byte {
 	if buffer != nil {
 		binary.BigEndian.PutUint16(buffer[offset:], uint16(num))
 		return nil
-	} else {
-		b := make([]byte, uint16sz)
-		binary.BigEndian.PutUint16(b, uint16(num))
-		return b
 	}
+	b := make([]byte, uint16sz)
+	binary.BigEndian.PutUint16(b, uint16(num))
+	return b
 }
 
 func GetUnsigned(b byte) int {

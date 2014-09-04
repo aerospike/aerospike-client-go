@@ -57,16 +57,11 @@ func NewMessage(mtype MessageType, data []byte) *Message {
 	}
 }
 
-func (msg *Message) Resize(newSize int64) error {
-	l := int64(len(msg.Data))
-	if l == newSize {
-		return nil
-	} else if l > newSize {
-		msg.Data = append([]byte(nil), msg.Data[:newSize]...)
-	} else {
-		msg.Data = make([]byte, newSize)
+func (msg *Message) Resize(newSize int64) {
+	if int64(len(msg.Data)) == newSize {
+		return
 	}
-	return nil
+	msg.Data = make([]byte, newSize)
 }
 
 func (msg *Message) Serialize() []byte {

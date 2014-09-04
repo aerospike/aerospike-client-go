@@ -17,13 +17,13 @@ package aerospike
 import (
 	"errors"
 
-	// "fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/types"
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
@@ -81,22 +81,27 @@ func (nd *Node) Refresh() ([]*Host, error) {
 		return nil, err
 	}
 
-	if infoMap, err := RequestInfo(conn, "node", "partition-generation", "services"); err != nil {
+	infoMap, err := RequestInfo(conn, "node", "partition-generation", "services")
+	if err != nil {
 		conn.Close()
 		nd.DecreaseHealth()
 		return nil, err
-	} else {
-		nd.verifyNodeName(infoMap)
-		nd.RestoreHealth()
-		nd.responded.Set(true)
-
-		if friends, err = nd.addFriends(infoMap); err != nil {
-			return nil, err
-		}
-
-		nd.updatePartitions(conn, infoMap)
-		nd.PutConnection(conn)
 	}
+
+	if err := nd.verifyNodeName(infoMap); err != nil {
+		return nil, err
+	}
+	nd.RestoreHealth()
+	nd.responded.Set(true)
+
+	if friends, err = nd.addFriends(infoMap); err != nil {
+		return nil, err
+	}
+
+	if err := nd.updatePartitions(conn, infoMap); err != nil {
+		return nil, err
+	}
+	nd.PutConnection(conn)
 	return friends, nil
 }
 
@@ -173,7 +178,9 @@ func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) er
 
 	if nd.partitionGeneration.Get() != generation {
 		Logger.Info("Node %s partition generation %d changed", nd.GetName(), generation)
-		nd.cluster.updatePartitions(conn, nd)
+		if err := nd.cluster.updatePartitions(conn, nd); err != nil {
+			return err
+		}
 		nd.partitionGeneration.Set(generation)
 	}
 
@@ -186,8 +193,9 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 	for t := nd.connections.Poll(); t != nil; t = nd.connections.Poll() {
 		conn = t.(*Connection)
 		if conn.IsConnected() {
-			conn.SetTimeout(timeout)
-			return conn, nil
+			if err := conn.SetTimeout(timeout); err == nil {
+				return conn, nil
+			}
 		}
 		conn.Close()
 	}
@@ -195,7 +203,9 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 	if conn, err = NewConnection(nd.address, nd.cluster.connectionTimeout); err != nil {
 		return nil, err
 	}
-	conn.SetTimeout(timeout)
+	if conn.SetTimeout(timeout) != nil {
+		return nil, err
+	}
 	return conn, nil
 }
 
@@ -286,4 +296,43 @@ func (nd *Node) closeConnections() {
 
 func (nd *Node) Equals(other *Node) bool {
 	return nd.name == other.name
+}
+
+// MigrationInProgress determines if the node is participating in a data migration
+func (nd *Node) MigrationInProgress() (bool, error) {
+	values, err := RequestNodeStats(nd)
+	if err != nil {
+		return false, err
+	}
+
+	// if the migration_progress_send exists and is not `0`, then migration is in progress
+	if migration, exists := values["migrate_progress_send"]; exists && migration != "0" {
+		return true, nil
+	}
+
+	// migration not in progress
+	return false, nil
+}
+
+func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) (err error) {
+	done := make(chan error)
+
+	go func() {
+		// this function is guaranteed to return after timeout
+		// no go routines will be leaked
+		for {
+			if res, err := nd.MigrationInProgress(); err != nil || !res {
+				done <- err
+				return
+			}
+		}
+	}()
+
+	dealine := time.After(timeout)
+	select {
+	case <-dealine:
+		return NewAerospikeError(TIMEOUT)
+	case err = <-done:
+		return err
+	}
 }

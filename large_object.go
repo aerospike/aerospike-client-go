@@ -82,9 +82,8 @@ func (lo *baseLargeObject) getConfig(ifc LargeObject) (map[interface{}]interface
 
 	if res == nil {
 		return nil, nil
-	} else {
-		return res.(map[interface{}]interface{}), err
 	}
+	return res.(map[interface{}]interface{}), err
 }
 
 // Set maximum number of entries in the object.

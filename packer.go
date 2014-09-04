@@ -164,10 +164,9 @@ func (pckr *packer) PackObject(obj interface{}) error {
 		if Buffer.Arch32Bits {
 			pckr.PackAInt(obj.(int))
 			return nil
-		} else {
-			pckr.PackALong(int64(obj.(int)))
-			return nil
 		}
+		pckr.PackALong(int64(obj.(int)))
+		return nil
 	case uint:
 		if Buffer.Arch32Bits {
 			pckr.PackAInt(int(obj.(uint)))

@@ -55,7 +55,7 @@ var _ = Describe("Scan operations", func() {
 		for {
 			select {
 			case rec, chanOpen := <-recordset.Records:
-				if !chanOpen {
+				if rec == nil && !chanOpen {
 					break L
 				}
 				key, exists := keys[string(rec.Key.Digest())]

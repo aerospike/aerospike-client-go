@@ -15,10 +15,6 @@
 package aerospike
 
 import (
-	// "errors"
-	// "fmt"
-
-	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -66,11 +62,11 @@ func (upckr *unpacker) unpackList(count int) ([]interface{}, error) {
 	out := make([]interface{}, 0, count)
 
 	for i := 0; i < count; i++ {
-		if obj, err := upckr.unpackObject(); err != nil {
+		obj, err := upckr.unpackObject()
+		if err != nil {
 			return nil, err
-		} else {
-			out = append(out, obj)
 		}
+		out = append(out, obj)
 	}
 	return out, nil
 }
@@ -179,9 +175,8 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 
 		if Buffer.Arch64Bits {
 			return int(val), nil
-		} else {
-			return int64(val), nil
 		}
+		return int64(val), nil
 
 	// TODO: Fix upckr
 	case 0xcf:
@@ -259,7 +254,7 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 		if theType >= 0xe0 {
 			return int(theType - 0xe0 - 32), nil
 		}
-		// panic(errors.New(fmt.Sprintf("Unknown upckr.unpack theType: %x", theType)))
+		// panic(fmt.Errorf("Unknown upckr.unpack theType: %x", theType))
 	}
 
 	return nil, NewAerospikeError(SERIALIZE_ERROR)

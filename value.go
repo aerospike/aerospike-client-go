@@ -400,8 +400,7 @@ func (vl *ValueArray) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl *ValueArray) pack(packer *packer) error {
-	packer.packValueArray(vl.array)
-	return nil
+	return packer.packValueArray(vl.array)
 }
 
 func (vl *ValueArray) GetType() int {

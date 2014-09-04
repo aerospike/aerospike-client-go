@@ -34,9 +34,8 @@ type Connection struct {
 func errToTimeoutErr(err error) error {
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		return NewAerospikeError(TIMEOUT, err.Error())
-	} else {
-		return err
 	}
+	return err
 }
 
 // NewConnection creates a connection on the network and returns the pointer
@@ -51,16 +50,18 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 		timeout = 2 * time.Second
 	}
 
-	if conn, err := net.DialTimeout("tcp", address, timeout); err != nil {
+	conn, err := net.DialTimeout("tcp", address, timeout)
+	if err != nil {
 		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
 		return nil, errToTimeoutErr(err)
-	} else {
-		newConn.conn = conn
-
-		// set timeout at the last possible moment
-		newConn.SetTimeout(timeout)
-		return newConn, nil
 	}
+	newConn.conn = conn
+
+	// set timeout at the last possible moment
+	if err := newConn.SetTimeout(timeout); err != nil {
+		return nil, err
+	}
+	return newConn, nil
 }
 
 // Writes the slice to the connection buffer.
@@ -78,9 +79,8 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 
 	if err == nil {
 		return total, nil
-	} else {
-		return total, errToTimeoutErr(err)
 	}
+	return total, errToTimeoutErr(err)
 }
 
 // Reads from connection buffer to the slice
@@ -110,7 +110,7 @@ func (ctn *Connection) IsConnected() bool {
 }
 
 // sets connection timeout
-func (ctn *Connection) SetTimeout(timeout time.Duration) {
+func (ctn *Connection) SetTimeout(timeout time.Duration) error {
 	ctn.timeout = timeout
 
 	// important: remove deadline when not needed; connections are pooled
@@ -119,15 +119,20 @@ func (ctn *Connection) SetTimeout(timeout time.Duration) {
 		if timeout > 0 {
 			deadline = time.Now().Add(timeout)
 		}
-		ctn.conn.SetDeadline(deadline)
+		if err := ctn.conn.SetDeadline(deadline); err != nil {
+			return err
+		}
 	}
 
+	return nil
 }
 
 // Closes the connection
 func (ctn *Connection) Close() {
-	if ctn.conn != nil {
-		ctn.conn.Close()
+	if ctn != nil && ctn.conn != nil {
+		if err := ctn.conn.Close(); err != nil {
+			Logger.Warn(err.Error())
+		}
 		ctn.conn = nil
 	}
 }

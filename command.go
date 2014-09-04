@@ -72,6 +72,9 @@ const (
 type command interface {
 	getPolicy(ifc command) Policy
 
+	setConnection(conn *Connection)
+	getConnection() *Connection
+
 	writeBuffer(ifc command) error
 	getNode(ifc command) (*Node, error)
 	parseResult(ifc command, conn *Connection) error
@@ -85,6 +88,7 @@ type command interface {
 // Holds data buffer for the command
 type baseCommand struct {
 	node *Node
+	conn *Connection
 
 	dataBuffer []byte
 	dataOffset int
@@ -96,8 +100,8 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 	fieldCount := cmd.estimateKeySize(key)
 
 	if policy.SendKey {
-		// key size + key type (1 byte) + field header size
-		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
+		// field header size + key size
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
@@ -115,7 +119,9 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 	}
 
 	for _, bin := range bins {
-		cmd.writeOperationForBin(bin, operation)
+		if err := cmd.writeOperationForBin(bin, operation); err != nil {
+			return err
+		}
 	}
 	cmd.end()
 
@@ -274,11 +280,15 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	cmd.writeKey(key)
 
 	for _, operation := range operations {
-		cmd.writeOperationForOperation(operation)
+		if err := cmd.writeOperationForOperation(operation); err != nil {
+			return err
+		}
 	}
 
 	if readHeader {
-		cmd.writeOperationForBin(nil, READ)
+		if err := cmd.writeOperationForBin(nil, READ); err != nil {
+			return err
+		}
 	}
 	cmd.end()
 
@@ -343,7 +353,7 @@ func (cmd *baseCommand) setBatchGet(batchNamespace *batchNamespace, binNames map
 		int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
 
 	if binNames != nil {
-		for binName, _ := range binNames {
+		for binName := range binNames {
 			cmd.estimateOperationSizeForBinName(binName)
 		}
 	}
@@ -366,7 +376,7 @@ func (cmd *baseCommand) setBatchGet(batchNamespace *batchNamespace, binNames map
 	}
 
 	if binNames != nil {
-		for binName, _ := range binNames {
+		for binName := range binNames {
 			cmd.writeOperationForBinName(binName, READ)
 		}
 	}
@@ -469,14 +479,12 @@ func (cmd *baseCommand) estimateUdfSize(packageName string, functionName string,
 	return 3
 }
 
-func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) error {
-
+func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) {
 	cmd.dataOffset += len(bin.Name) + int(_OPERATION_HEADER_SIZE)
 	cmd.dataOffset += bin.Value.estimateSize()
-	return nil
 }
 
-func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) error {
+func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) {
 	binLen := 0
 	if operation.BinName != nil {
 		binLen = len(*operation.BinName)
@@ -486,7 +494,6 @@ func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) 
 	if operation.BinValue != nil {
 		cmd.dataOffset += operation.BinValue.estimateSize()
 	}
-	return nil
 }
 
 func (cmd *baseCommand) estimateOperationSizeForBinName(binName string) {
@@ -719,7 +726,7 @@ func (cmd *baseCommand) sizeBufferSz(size int) error {
 }
 
 func (cmd *baseCommand) end() {
-	var size int64 = int64(cmd.dataOffset-8) | (_CL_MSG_VERSION << 56) | (_AS_MSG_TYPE << 48)
+	var size = int64(cmd.dataOffset-8) | (_CL_MSG_VERSION << 56) | (_AS_MSG_TYPE << 48)
 	Buffer.Int64ToBytes(size, cmd.dataBuffer, 0)
 }
 
@@ -770,7 +777,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		// set command node, so when you return a record it has the node
 		cmd.node = node
 
-		conn, err := node.GetConnection(policy.timeout())
+		cmd.conn, err = node.GetConnection(policy.timeout())
 		if err != nil {
 			// Socket connection error has occurred. Decrease health and retry.
 			node.DecreaseHealth()
@@ -788,7 +795,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if err != nil {
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			conn.Close()
+			cmd.conn.Close()
 			return err
 		}
 
@@ -796,11 +803,11 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		Buffer.Int32ToBytes(int32(policy.Timeout/time.Millisecond), cmd.dataBuffer, 22)
 
 		// Send command.
-		_, err = conn.Write(cmd.dataBuffer[:cmd.dataOffset])
+		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 		if err != nil {
 			// IO errors are considered temporary anomalies. Retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			conn.Close()
+			cmd.conn.Close()
 
 			Logger.Warn("Node " + node.String() + ": " + err.Error())
 			// IO error means connection to server node is unhealthy.
@@ -810,13 +817,13 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		}
 
 		// Parse results.
-		err = ifc.parseResult(ifc, conn)
+		err = ifc.parseResult(ifc, cmd.conn)
 		if err != nil {
 			// close the connection
 			// cancelling/closing the batch/multi commands will return an error, which will
 			// close the connection to throw away its data and signal the server about the
 			// situation. We will not put back the connection in the buffer.
-			conn.Close()
+			cmd.conn.Close()
 			return err
 		}
 
@@ -824,7 +831,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		node.RestoreHealth()
 
 		// Put connection back in pool.
-		node.PutConnection(conn)
+		node.PutConnection(cmd.conn)
 
 		// command has completed successfully.  Exit method.
 		return nil
@@ -837,4 +844,12 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
 	panic(errors.New("Abstract method. Should not end up here"))
+}
+
+func (cmd *baseCommand) setConnection(conn *Connection) {
+	cmd.conn = conn
+}
+
+func (cmd *baseCommand) getConnection() *Connection {
+	return cmd.conn
 }

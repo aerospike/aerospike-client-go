@@ -118,11 +118,9 @@ func (pt *partitionTokenizerNew) UpdatePartition(nmap map[string]*atomicNodeArra
 				if (restoreBuffer[i>>3] & (0x80 >> uint((i & 7)))) != 0 {
 					// Logger.Info("Map: `" + namespace + "`," + strconv.Itoa(i) + "," + node.String())
 
-					// Use lazy set because there is only one producer thread. In addition,
-					// there is a one second delay due to the cluster tend polling interval.
-					// An extra millisecond for a node change will not make a difference and
-					// overall performance is improved.
-					nodeArray.Set(i, node)
+					if err := nodeArray.Set(i, node); err != nil {
+						return nil, err
+					}
 				}
 			}
 			pt.offset++
@@ -134,9 +132,8 @@ func (pt *partitionTokenizerNew) UpdatePartition(nmap map[string]*atomicNodeArra
 
 	if copied {
 		return amap, nil
-	} else {
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (pt *partitionTokenizerNew) getTruncatedResponse() string {

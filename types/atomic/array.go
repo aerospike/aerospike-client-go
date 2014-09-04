@@ -15,7 +15,6 @@
 package atomic
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 )
@@ -53,7 +52,7 @@ func (aa *AtomicArray) Get(idx int) interface{} {
 func (aa *AtomicArray) Set(idx int, node interface{}) error {
 	// do not lock if not needed
 	if idx < 0 || idx >= aa.length {
-		return errors.New(fmt.Sprintf("index %d is larger than array size (%d)", idx, aa.length))
+		return fmt.Errorf("index %d is larger than array size (%d)", idx, aa.length)
 	}
 
 	aa.mutex.Lock()

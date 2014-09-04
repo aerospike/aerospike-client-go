@@ -38,7 +38,6 @@ type baseMultiCommand struct {
 	Records chan *Record
 	Errors  chan error
 
-	conn  *Connection
 	valid bool //= true
 	mutex sync.RWMutex
 }
@@ -59,7 +58,6 @@ func (cmd *baseMultiCommand) getNode(ifc command) (*Node, error) {
 func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 	// Read socket into receive buffer one record at a time.  Do not read entire receive size
 	// because the receive buffer would be too big.
-	cmd.conn = conn
 	status := true
 
 	for status {

@@ -107,6 +107,7 @@ func computeDigest(setName *string, key Value) ([]byte, error) {
 	h := hashPool.Get().(hash.Hash)
 	h.Reset()
 	defer hashPool.Put(h)
+	// write will not fail; no error checking necessary
 	h.Write([]byte(*setName))
 	h.Write([]byte{byte(keyType)})
 	h.Write(key.getBytes())

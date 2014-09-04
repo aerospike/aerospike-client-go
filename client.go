@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	. "github.com/aerospike/aerospike-client-go/types"
 )
@@ -52,11 +53,12 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 		policy = NewClientPolicy()
 	}
 
-	if cluster, err := NewCluster(policy, hosts); err != nil {
-		return nil, errors.New(fmt.Sprintf("Failed to connect to host(s): %v", hosts))
-	} else {
-		return &Client{cluster: cluster}, nil
+	cluster, err := NewCluster(policy, hosts)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to connect to host(s): %v", hosts)
 	}
+	return &Client{cluster: cluster}, nil
+
 }
 
 //-------------------------------------------------------
@@ -277,6 +279,11 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 		policy = NewPolicy()
 	}
 
+	// wait until all migrations are finished
+	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+		return nil, err
+	}
+
 	// same array can be used without sychronization;
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
@@ -304,6 +311,11 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 func (clnt *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, error) {
 	if policy == nil {
 		policy = NewPolicy()
+	}
+
+	// wait until all migrations are finished
+	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+		return nil, err
 	}
 
 	// same array can be used without sychronization;
@@ -362,6 +374,11 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
+	// wait until all migrations are finished
+	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+		return nil, err
+	}
+
 	// result recordset
 	res := NewRecordset(policy.RecordQueueSize)
 
@@ -372,13 +389,13 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 		errChans := []chan error{}
 		recCmds := []multiCommand{}
 		for _, node := range nodes {
-			if res, err := clnt.ScanNode(policy, node, namespace, setName, binNames...); err != nil {
+			res, err := clnt.ScanNode(policy, node, namespace, setName, binNames...)
+			if err != nil {
 				return nil, err
-			} else {
-				recChans = append(recChans, res.Records)
-				errChans = append(errChans, res.Errors)
-				recCmds = append(recCmds, res.commands...)
 			}
+			recChans = append(recChans, res.Records)
+			errChans = append(errChans, res.Errors)
+			recCmds = append(recCmds, res.commands...)
 		}
 
 		res.chans = recChans
@@ -435,6 +452,11 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 func (clnt *Client) ScanNode(policy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	if policy == nil {
 		policy = NewScanPolicy()
+	}
+
+	// wait until migrations on node are finished
+	if err := node.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+		return nil, err
 	}
 
 	// results channel must be async for performance
@@ -517,15 +539,17 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	content := base64.StdEncoding.EncodeToString(udfBody)
 
 	var strCmd bytes.Buffer
-	strCmd.WriteString("udf-put:filename=")
-	strCmd.WriteString(serverPath)
-	strCmd.WriteString(";content=")
-	strCmd.WriteString(content)
-	strCmd.WriteString(";content-len=")
-	strCmd.WriteString(strconv.Itoa(len(content)))
-	strCmd.WriteString(";udf-type=")
-	strCmd.WriteString(string(language))
-	strCmd.WriteString(";")
+	// errors are to remove errcheck warnings
+	// they will always be nil as stated in golang docs
+	_, err := strCmd.WriteString("udf-put:filename=")
+	_, err = strCmd.WriteString(serverPath)
+	_, err = strCmd.WriteString(";content=")
+	_, err = strCmd.WriteString(content)
+	_, err = strCmd.WriteString(";content-len=")
+	_, err = strCmd.WriteString(strconv.Itoa(len(content)))
+	_, err = strCmd.WriteString(";udf-type=")
+	_, err = strCmd.WriteString(string(language))
+	_, err = strCmd.WriteString(";")
 
 	// Send UDF to one node. That node will distribute the UDF to other nodes.
 	node, err := clnt.cluster.GetRandomNode()
@@ -571,6 +595,114 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	return NewRegisterTask(clnt.cluster, serverPath), nil
 }
 
+//  RemoveUDF removes a package containing user defined functions in the server.
+//  This asynchronous server call will return before command is complete.
+//  The user can optionally wait for command completion by using the returned
+//  RemoveTask instance.
+//
+//  This method is only supported by Aerospike 3 servers.
+func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask, error) {
+	var strCmd bytes.Buffer
+	// errors are to remove errcheck warnings
+	// they will always be nil as stated in golang docs
+	_, err := strCmd.WriteString("udf-remove:filename=")
+	_, err = strCmd.WriteString(udfName)
+	_, err = strCmd.WriteString(";")
+
+	// Send command to one node. That node will distribute it to other nodes.
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := node.GetConnection(clnt.cluster.connectionTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	responseMap, err := RequestInfo(conn, strCmd.String())
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	var response string
+	for _, v := range responseMap {
+		if strings.Trim(v, " ") != "" {
+			response = v
+		}
+	}
+
+	if response == "ok" {
+		return NewRemoveTask(clnt.cluster, udfName), nil
+	} else {
+		return nil, NewAerospikeError(SERVER_ERROR, response)
+	}
+}
+
+//  ListUDF lists all packages containing user defined functions in the server.
+//  This method is only supported by Aerospike 3 servers.
+func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
+	var strCmd bytes.Buffer
+	// errors are to remove errcheck warnings
+	// they will always be nil as stated in golang docs
+	_, err := strCmd.WriteString("udf-list")
+
+	// Send command to one node. That node will distribute it to other nodes.
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := node.GetConnection(clnt.cluster.connectionTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	responseMap, err := RequestInfo(conn, strCmd.String())
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	var response string
+	for _, v := range responseMap {
+		if strings.Trim(v, " ") != "" {
+			response = v
+		}
+	}
+
+	vals := strings.Split(response, ";")
+	res := make([]*UDF, 0, len(vals))
+
+	for _, udfInfo := range vals {
+		if strings.Trim(udfInfo, " ") == "" {
+			continue
+		}
+		udfParts := strings.Split(udfInfo, ",")
+
+		udf := &UDF{}
+		for _, values := range udfParts {
+			valueParts := strings.Split(values, "=")
+			if len(valueParts) == 2 {
+				switch valueParts[0] {
+				case "filename":
+					udf.Filename = valueParts[1]
+				case "hash":
+					udf.Hash = valueParts[1]
+				case "type":
+					udf.Language = Language(valueParts[1])
+				}
+			}
+		}
+		res = append(res, udf)
+	}
+
+	node.PutConnection(conn)
+
+	return res, nil
+}
+
 //  Execute user defined function on server and return results.
 //  The function operates on a single record.
 //  The package name is used to locate the udf file location:
@@ -583,7 +715,9 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 		policy = NewWritePolicy(0, 0)
 	}
 	command := newExecuteCommand(clnt.cluster, policy, key, packageName, functionName, args)
-	command.Execute()
+	if err := command.Execute(); err != nil {
+		return nil, err
+	}
 
 	record := command.GetRecord()
 
@@ -599,7 +733,7 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 	}
 
 	if _, obj := mapContainsKeyPartial(resultMap, "FAILURE"); obj != nil {
-		return nil, errors.New(fmt.Sprintf("%v", obj))
+		return nil, fmt.Errorf("%v", obj)
 	}
 
 	return nil, errors.New("Invalid UDF return value")
@@ -635,26 +769,31 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 		policy = NewQueryPolicy()
 	}
 
-	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
-
-	if statement.TaskId == 0 {
-		statement.TaskId = int(rand.Int31())
-	}
-
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteUDF failed because cluster is empty.")
 	}
 
+	// wait until all migrations are finished
+	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+		return nil, err
+	}
+
+	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
+
+	if statement.TaskId == 0 {
+		statement.TaskId = int(rnd.Int31())
+	}
+
+	errs := []error{}
 	for i := range nodes {
 		command := newServerCommand(nodes[i], policy, statement)
-		err := command.Execute()
-		if err != nil {
-			panic(err)
+		if err := command.Execute(); err != nil {
+			errs = append(errs, err)
 		}
 	}
 
-	return NewExecuteTask(clnt.cluster, statement), nil
+	return NewExecuteTask(clnt.cluster, statement), mergeErrors(errs)
 }
 
 //--------------------------------------------------------
@@ -677,6 +816,11 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+	}
+
+	// wait until all migrations are finished
+	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+		return nil, err
 	}
 
 	// results channel must be async for performance
@@ -743,22 +887,22 @@ func (clnt *Client) CreateIndex(
 	indexType IndexType,
 ) (*IndexTask, error) {
 	var strCmd bytes.Buffer
-	strCmd.WriteString("sindex-create:ns=")
-	strCmd.WriteString(namespace)
+	_, err := strCmd.WriteString("sindex-create:ns=")
+	_, err = strCmd.WriteString(namespace)
 
 	if len(setName) > 0 {
-		strCmd.WriteString(";set=")
-		strCmd.WriteString(setName)
+		_, err = strCmd.WriteString(";set=")
+		_, err = strCmd.WriteString(setName)
 	}
 
-	strCmd.WriteString(";indexname=")
-	strCmd.WriteString(indexName)
-	strCmd.WriteString(";numbins=1")
-	strCmd.WriteString(";indexdata=")
-	strCmd.WriteString(binName)
-	strCmd.WriteString(",")
-	strCmd.WriteString(string(indexType))
-	strCmd.WriteString(";priority=normal")
+	_, err = strCmd.WriteString(";indexname=")
+	_, err = strCmd.WriteString(indexName)
+	_, err = strCmd.WriteString(";numbins=1")
+	_, err = strCmd.WriteString(";indexdata=")
+	_, err = strCmd.WriteString(binName)
+	_, err = strCmd.WriteString(",")
+	_, err = strCmd.WriteString(string(indexType))
+	_, err = strCmd.WriteString(";priority=normal")
 
 	// Send index command to one node. That node will distribute the command to other nodes.
 	responseMap, err := clnt.sendInfoCommand(policy, strCmd.String())
@@ -793,15 +937,15 @@ func (clnt *Client) DropIndex(
 	indexName string,
 ) error {
 	var strCmd bytes.Buffer
-	strCmd.WriteString("sindex-delete:ns=")
-	strCmd.WriteString(namespace)
+	_, err := strCmd.WriteString("sindex-delete:ns=")
+	_, err = strCmd.WriteString(namespace)
 
 	if len(setName) > 0 {
-		strCmd.WriteString(";set=")
-		strCmd.WriteString(setName)
+		_, err = strCmd.WriteString(";set=")
+		_, err = strCmd.WriteString(setName)
 	}
-	strCmd.WriteString(";indexname=")
-	strCmd.WriteString(indexName)
+	_, err = strCmd.WriteString(";indexname=")
+	_, err = strCmd.WriteString(indexName)
 
 	// Send index command to one node. That node will distribute the command to other nodes.
 	responseMap, err := clnt.sendInfoCommand(policy, strCmd.String())
@@ -861,6 +1005,19 @@ func (clnt *Client) sendInfoCommand(policy *WritePolicy, command string) (map[st
 //-------------------------------------------------------
 // Utility Functions
 //-------------------------------------------------------
+
+// mergeErrors merges several errors into one
+func mergeErrors(errs []error) error {
+	if errs == nil || len(errs) == 0 {
+		return nil
+	}
+	var msg bytes.Buffer
+	for _, err := range errs {
+		msg.WriteString(err.Error() + "\n")
+	}
+	return errors.New(msg.String())
+}
+
 // batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
 // and waits for their return
 func (clnt *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batchNamespace) command) error {
@@ -873,6 +1030,7 @@ func (clnt *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batch
 	var wg sync.WaitGroup
 
 	// Use a goroutine per namespace per node
+	errs := []error{}
 	for _, batchNode := range batchNodes {
 		// copy to avoid race condition
 		bn := *batchNode
@@ -881,13 +1039,15 @@ func (clnt *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batch
 			go func(bns *batchNamespace) {
 				defer wg.Done()
 				command := cmdGen(bn.Node, bns)
-				command.Execute()
+				if err := command.Execute(); err != nil {
+					errs = append(errs, err)
+				}
 			}(bns)
 		}
 	}
 
 	wg.Wait()
-	return nil
+	return mergeErrors(errs)
 }
 
 func (clnt *Client) mergeResultChannels(size int, channels []chan *Record, errors []chan error) (chan *Record, chan error) {
@@ -930,4 +1090,12 @@ func (clnt *Client) mergeResultChannels(size int, channels []chan *Record, error
 		close(outErr)
 	}()
 	return out, outErr
+}
+
+// internal random number generator instance
+var rnd *rand.Rand
+
+func init() {
+	// seed the random number generator
+	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 }

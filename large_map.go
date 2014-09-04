@@ -66,9 +66,8 @@ func (lm *LargeMap) Get(name interface{}) (map[interface{}]interface{}, error) {
 
 	if res == nil {
 		return nil, nil
-	} else {
-		return res.(map[interface{}]interface{}), err
 	}
+	return res.(map[interface{}]interface{}), err
 }
 
 // Return all objects in the list.
@@ -80,9 +79,8 @@ func (lm *LargeMap) Scan() (map[interface{}]interface{}, error) {
 
 	if res == nil {
 		return nil, nil
-	} else {
-		return res.(map[interface{}]interface{}), err
 	}
+	return res.(map[interface{}]interface{}), err
 }
 
 // Select items from map.
@@ -98,10 +96,8 @@ func (lm *LargeMap) Filter(filterName string, filterArgs ...interface{}) (map[in
 
 	if res == nil {
 		return nil, nil
-	} else {
-		return res.(map[interface{}]interface{}), err
 	}
-
+	return res.(map[interface{}]interface{}), err
 }
 
 // Delete bin containing the list.
