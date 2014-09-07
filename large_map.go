@@ -40,8 +40,8 @@ func (lm *LargeMap) packageName() string {
 //
 // name        entry key
 // value       entry value
-func (lm *LargeMap) Put(name Value, value interface{}) error {
-	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "put", lm.binName, name, NewValue(value), lm.userModule)
+func (lm *LargeMap) Put(name interface{}, value interface{}) error {
+	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "put", lm.binName, NewValue(name), NewValue(value), lm.userModule)
 	return err
 }
 
