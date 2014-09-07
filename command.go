@@ -733,10 +733,10 @@ func (cmd *baseCommand) end() {
 ////////////////////////////////////
 
 // a custom buffer pool with fine grained control over its contents
-// maxSize: 128
-// initial bufferSize: 512 bytes
+// maxSize: 128KiB
+// initial bufferSize: 16 KiB
 // maximum buffer size to keep in the pool: 128K
-var bufPool = NewBufferPool(512, 512, 128*1024)
+var bufPool = NewBufferPool(512, 16*1024, 128*1024)
 
 // SetBufferPool can be used to customize the command Buffer Pool parameters to calibrate
 // the pool for different workloads
