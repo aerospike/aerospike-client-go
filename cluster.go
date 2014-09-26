@@ -418,7 +418,6 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 			if node.IsUnhealthy() {
 				removeList = append(removeList, node)
 			}
-			break
 
 		case 2:
 			// Two node clusters require at least one successful refresh before removing.
@@ -426,7 +425,6 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 				// Node is not referenced nor did it respond.
 				removeList = append(removeList, node)
 			}
-			break
 
 		default:
 			// Multi-node clusters require two successful node refreshes before removing.
@@ -445,7 +443,6 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 					removeList = append(removeList, node)
 				}
 			}
-			break
 		}
 	}
 	return removeList

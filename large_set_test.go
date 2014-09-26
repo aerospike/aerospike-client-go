@@ -44,52 +44,45 @@ var _ = Describe("LargeSet Test", func() {
 	})
 
 	It("should create a valid LargeSet; Support Add(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
+		const elems = 100
+
 		lset := client.GetLargeSet(wpolicy, key, randString(10), "")
 		_, err := lset.Size()
 		Expect(err).To(HaveOccurred()) // bin not exists
 
-		for i := 1; i <= 10; i++ {
+		for i := 1; i <= elems; i++ {
 			err = lset.Add(NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
 
 			// confirm that the LSET size has been increased to the expected size
-			// sz, err := lset.Size()
-			// Expect(err).ToNot(HaveOccurred())
-			// Expect(sz).To(Equal(i))
+			sz, err := lset.Size()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(sz).To(Equal(i))
 		}
 
-		// sz, err := lset.GetCapacity()
-		// Expect(err).ToNot(HaveOccurred())
+		// Scan() the set
+		scanResult, err := lset.Scan()
+		for i := 1; i <= elems; i++ {
+			Expect(scanResult).To(ContainElement(i))
+		}
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(scanResult)).To(Equal(elems))
 
-		// cap, err := lset.GetCapacity()
-		// Expect(err).ToNot(HaveOccurred())
+		for i := 1; i <= elems; i++ {
+			// confirm that the value already exists in the LSET
+			exists, err := lset.Exists(NewValue(i))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exists).To(BeTrue())
 
-		// // default capacity is 100
-		// Expect(cap).To(Equal(sz))
+			// remove the value
+			err = lset.Remove(NewValue(i))
+			Expect(err).ToNot(HaveOccurred())
 
-		// // Scan() the set
-		// scanResult, err := lset.Scan()
-		// for i := 1; i <= 100; i++ {
-		// 	Expect(scanResult).To(ContainElement(i))
-		// }
-		// Expect(err).ToNot(HaveOccurred())
-		// Expect(len(scanResult)).To(Equal(100))
-
-		// for i := 1; i <= 100; i++ {
-		// 	// confirm that the value already exists in the LSET
-		// 	exists, err := lset.Exists(NewValue(i))
-		// 	Expect(err).ToNot(HaveOccurred())
-		// 	Expect(exists).To(BeTrue())
-
-		// 	// remove the value
-		// 	err = lset.Remove(NewValue(i))
-		// 	Expect(err).ToNot(HaveOccurred())
-
-		// 	// make sure the value has been removed
-		// 	exists, err = lset.Exists(NewValue(i))
-		// 	Expect(err).ToNot(HaveOccurred())
-		// 	Expect(exists).To(BeFalse())
-		// }
+			// make sure the value has been removed
+			exists, err = lset.Exists(NewValue(i))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exists).To(BeFalse())
+		}
 
 	})
 
@@ -103,34 +96,34 @@ var _ = Describe("LargeSet Test", func() {
 		Expect(config["SUMMARY"]).To(Equal("LSET Summary"))
 	})
 
-	// It("should correctly Get/SetCapacity()", func() {
-	// 	const cap = 100000
+	It("should correctly Get/SetCapacity()", func() {
+		const cap = 99
 
-	// 	lset := client.GetLargeSet(wpolicy, key, randString(10), "")
-	// 	err = lset.Add(NewValue(0))
-	// 	Expect(err).ToNot(HaveOccurred())
+		lset := client.GetLargeSet(wpolicy, key, randString(10), "")
+		err = lset.Add(NewValue(0))
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	err = lset.SetCapacity(cap)
-	// 	Expect(err).ToNot(HaveOccurred())
+		err = lset.SetCapacity(cap)
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	tcap, err := lset.GetCapacity()
-	// 	Expect(err).ToNot(HaveOccurred())
+		tcap, err := lset.GetCapacity()
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	Expect(tcap).To(Equal(cap))
+		Expect(tcap).To(Equal(cap))
 
-	// 	for i := 1; i < cap; i++ {
-	// 		err = lset.Add(NewValue(i))
-	// 		Expect(err).ToNot(HaveOccurred())
+		for i := 1; i < cap; i++ {
+			err = lset.Add(NewValue(i))
+			Expect(err).ToNot(HaveOccurred())
 
-	// 		sz, err := lset.Size()
-	// 		Expect(err).ToNot(HaveOccurred())
-	// 		Expect(sz).To(Equal(i + 1))
-	// 	}
+			sz, err := lset.Size()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(sz).To(Equal(i + 1))
+		}
 
-	// 	sz, err := lset.GetCapacity()
-	// 	Expect(err).ToNot(HaveOccurred())
+		sz, err := lset.GetCapacity()
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	Expect(sz).To(Equal(cap))
-	// })
+		Expect(sz).To(Equal(cap))
+	})
 
 }) // describe

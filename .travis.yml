@@ -11,7 +11,7 @@ install:
   - go get github.com/onsi/ginkgo/ginkgo
   - go get github.com/onsi/gomega
   - go get code.google.com/p/go.tools/cmd/cover
-  - wget -O aerospike-server.tgz http://aerospike.com/download/server/3.3.12/artifact/tgz
+  - wget -O aerospike-server.tgz http://aerospike.com/download/server/latest/artifact/tgz
   - tar xvzf aerospike-server.tgz
   - cp -f .travis/aerospike.conf ./aerospike-server/share/etc
   - cd aerospike-server

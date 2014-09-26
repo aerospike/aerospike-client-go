@@ -103,8 +103,55 @@ const (
 	// Key type mismatch.
 	KEY_MISMATCH ResultCode = 19
 
+	// Invalid namespace.
+	INVALID_NAMESPACE ResultCode = 20
+
+	// Bin name length greater than 14 characters.
+	BIN_NAME_TOO_LONG ResultCode = 21
+
+	// There are no more records left for query.
+	QUERY_END ResultCode = 50
+
+	SECURITY_NOT_SUPPORTED        ResultCode = 51
+	SECURITY_NOT_ENABLED          ResultCode = 52
+	SECURITY_SCHEME_NOT_SUPPORTED ResultCode = 53
+
+	// Administration command is invalid.
+	INVALID_COMMAND ResultCode = 54
+
+	// Administration field is invalid.
+	INVALID_FIELD ResultCode = 55
+
+	ILLEGAL_STATE ResultCode = 56
+
+	// User name is invalid.
+	INVALID_USER ResultCode = 60
+
+	// User was previously created.
+	USER_ALREADY_EXISTS ResultCode = 61
+
+	// Password is invalid.
+	INVALID_PASSWORD ResultCode = 62
+
+	// Security credential is invalid.
+	INVALID_CREDENTIAL ResultCode = 63
+
+	// Role name is invalid.
+	INVALID_ROLE ResultCode = 70
+
+	INVALID_PRIVILEGE ResultCode = 71
+
+	// User must be authentication before performing database operations.
+	NOT_AUTHENTICATED ResultCode = 80
+
+	// User does not posses the required role to perform the database operation.
+	ROLE_VIOLATION ResultCode = 81
+
 	// A user defined function returned an error code.
 	UDF_BAD_RESPONSE ResultCode = 100
+
+	// The requested item in a large collection was not found.
+	LARGE_ITEM_NOT_FOUND ResultCode = 125
 
 	// Secondary index already exists.
 	INDEX_FOUND ResultCode = 200
@@ -247,8 +294,62 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case KEY_MISMATCH:
 		return "Key mismatch"
 
+	case INVALID_NAMESPACE:
+		return "Namespace not found"
+
+	case BIN_NAME_TOO_LONG:
+		return "Bin name length greater than 14 characters"
+
+	case QUERY_END:
+		return "Query end"
+
+	case SECURITY_NOT_SUPPORTED:
+		return "Security not supported"
+
+	case SECURITY_NOT_ENABLED:
+		return "Security not enabled"
+
+	case SECURITY_SCHEME_NOT_SUPPORTED:
+		return "Security scheme not supported"
+
+	case INVALID_COMMAND:
+		return "Invalid command"
+
+	case INVALID_FIELD:
+		return "Invalid field"
+
+	case ILLEGAL_STATE:
+		return "Illegal state"
+
+	case INVALID_USER:
+		return "Invalid user"
+
+	case USER_ALREADY_EXISTS:
+		return "User already exists"
+
+	case INVALID_PASSWORD:
+		return "Invalid password"
+
+	case INVALID_CREDENTIAL:
+		return "Invalid credential"
+
+	case INVALID_ROLE:
+		return "Invalid role"
+
+	case INVALID_PRIVILEGE:
+		return "Invalid privilege"
+
+	case NOT_AUTHENTICATED:
+		return "Not authenticated"
+
+	case ROLE_VIOLATION:
+		return "Role violation"
+
 	case UDF_BAD_RESPONSE:
 		return "UDF returned error"
+
+	case LARGE_ITEM_NOT_FOUND:
+		return "Large collection item not found"
 
 	case INDEX_FOUND:
 		return "Index already exists"
@@ -284,6 +385,6 @@ func ResultCodeToString(resultCode ResultCode) string {
 		return "Query error"
 
 	default:
-		return ""
+		return "Error message not available yet - please file an issue on github."
 	}
 }

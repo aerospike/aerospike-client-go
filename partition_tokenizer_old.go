@@ -66,7 +66,7 @@ func (pt *partitionTokenizerOld) UpdatePartition(nmap map[string]*atomicNodeArra
 		}
 		nodeArray, exists := nmap[partition.Namespace]
 
-		if exists {
+		if !exists {
 			if !copied {
 				// Make shallow copy of map.
 				amap = make(map[string]*atomicNodeArray, len(nmap))

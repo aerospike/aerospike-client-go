@@ -105,34 +105,34 @@ var _ = Describe("LargeList Test", func() {
 		Expect(config["SUMMARY"]).To(Equal("LList Summary"))
 	})
 
-	// It("should correctly Get/SetCapacity()", func() {
-	// 	const cap = 100000
+	It("should correctly Get/SetCapacity()", func() {
+		const cap = 99
 
-	// 	llist := client.GetLargeList(wpolicy, key, randString(10), "")
-	// 	err = llist.Add(NewValue(0))
-	// 	Expect(err).ToNot(HaveOccurred())
+		llist := client.GetLargeList(wpolicy, key, randString(10), "")
+		err = llist.Add(NewValue(0))
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	err = llist.SetCapacity(cap)
-	// 	Expect(err).ToNot(HaveOccurred())
+		err = llist.SetCapacity(cap)
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	tcap, err := llist.GetCapacity()
-	// 	Expect(err).ToNot(HaveOccurred())
+		tcap, err := llist.GetCapacity()
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	Expect(tcap).To(Equal(cap))
+		Expect(tcap).To(Equal(cap))
 
-	// 	for i := 1; i < cap; i++ {
-	// 		err = llist.Add(NewValue(i))
-	// 		Expect(err).ToNot(HaveOccurred())
+		for i := 1; i < cap; i++ {
+			err = llist.Add(NewValue(i))
+			Expect(err).ToNot(HaveOccurred())
 
-	// 		sz, err := llist.Size()
-	// 		Expect(err).ToNot(HaveOccurred())
-	// 		Expect(sz).To(Equal(i + 1))
-	// 	}
+			sz, err := llist.Size()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(sz).To(Equal(i + 1))
+		}
 
-	// 	sz, err := llist.GetCapacity()
-	// 	Expect(err).ToNot(HaveOccurred())
+		sz, err := llist.GetCapacity()
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	Expect(sz).To(Equal(cap))
-	// })
+		Expect(sz).To(Equal(cap))
+	})
 
 }) // describe

@@ -251,7 +251,6 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 			if operation.BinName == nil {
 				readAttr |= _INFO1_GET_ALL
 			}
-			break
 
 		case READ_HEADER:
 			// The server does not currently return record header data with _INFO1_NOBINDATA attribute set.
@@ -260,11 +259,9 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 			// readAttr |= _INFO1_READ | _INFO1_NOBINDATA
 			readAttr |= _INFO1_READ
 			readHeader = true
-			break
 
 		default:
 			writeAttr = _INFO2_WRITE
-			break
 		}
 		cmd.estimateOperationSizeForOperation(operation)
 	}

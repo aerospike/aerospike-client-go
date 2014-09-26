@@ -48,7 +48,7 @@ func (bi *batchItem) AddDuplicate(idx int) {
 		bi.duplicates = append(bi.duplicates, bi.index)
 		bi.index = 0
 	}
-	bi.duplicates = append(bi.duplicates, bi.index)
+	bi.duplicates = append(bi.duplicates, idx)
 }
 
 func (bi *batchItem) GetIndex() int {

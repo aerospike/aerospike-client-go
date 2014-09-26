@@ -95,23 +95,6 @@ var _ = Describe("LargeMap Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(scanResult)).To(Equal(100))
 		Expect(scanResult).To(Equal(scanExpectation))
-
-		// for i := 1; i <= 100; i++ {
-		// 	// confirm that the value already exists in the LMAP
-		// 	findResult, err := lmap.Get(NewValue(i * 100))
-		// 	Expect(err).ToNot(HaveOccurred())
-		// 	Expect(findResult).To(Equal([]interface{}{i}))
-
-		// 	// remove the value
-		// 	err = lmap.Remove(NewValue(i))
-		// 	Expect(err).ToNot(HaveOccurred())
-
-		// 	// make sure the value has been removed
-		// 	findResult, err = lmap.Find(NewValue(i))
-		// 	Expect(err).To(HaveOccurred())
-		// 	Expect(err.Error()).To(ContainSubstring("LDT-Item Not Found"))
-		// }
-
 	})
 
 	It("should correctly GetConfig()", func() {
@@ -124,34 +107,34 @@ var _ = Describe("LargeMap Test", func() {
 		Expect(config["SUMMARY"]).To(Equal("LMAP Summary"))
 	})
 
-	// It("should correctly Get/SetCapacity()", func() {
-	// 	const cap = 100000
+	It("should correctly Get/SetCapacity()", func() {
+		const cap = 99
 
-	// 	lmap := client.GetLargeMap(wpolicy, key, randString(10), "")
-	// 	err = lmap.Put(NewValue(0), NewValue(0))
-	// 	Expect(err).ToNot(HaveOccurred())
+		lmap := client.GetLargeMap(wpolicy, key, randString(10), "")
+		err = lmap.Put(NewValue(0), NewValue(0))
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	err = lmap.SetCapacity(cap)
-	// 	Expect(err).ToNot(HaveOccurred())
+		err = lmap.SetCapacity(cap)
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	tcap, err := lmap.GetCapacity()
-	// 	Expect(err).ToNot(HaveOccurred())
+		tcap, err := lmap.GetCapacity()
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	Expect(tcap).To(Equal(cap))
+		Expect(tcap).To(Equal(cap))
 
-	// 	for i := 1; i < cap; i++ {
-	// 		err = lmap.Put(NewValue(i*100), NewValue(i))
-	// 		Expect(err).ToNot(HaveOccurred())
+		for i := 1; i < cap; i++ {
+			err = lmap.Put(NewValue(i*100), NewValue(i))
+			Expect(err).ToNot(HaveOccurred())
 
-	// 		sz, err := lmap.Size()
-	// 		Expect(err).ToNot(HaveOccurred())
-	// 		Expect(sz).To(Equal(i + 1))
-	// 	}
+			sz, err := lmap.Size()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(sz).To(Equal(i + 1))
+		}
 
-	// 	sz, err := lmap.GetCapacity()
-	// 	Expect(err).ToNot(HaveOccurred())
+		sz, err := lmap.GetCapacity()
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	Expect(sz).To(Equal(cap))
-	// })
+		Expect(sz).To(Equal(cap))
+	})
 
 }) // describe

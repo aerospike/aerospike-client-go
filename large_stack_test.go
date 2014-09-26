@@ -102,34 +102,34 @@ var _ = Describe("LargeStack Test", func() {
 		Expect(config["SUMMARY"]).To(Equal("LSTACK Summary"))
 	})
 
-	// It("should correctly Get/SetCapacity()", func() {
-	// 	const cap = 100000
+	It("should correctly Get/SetCapacity()", func() {
+		const cap = 99
 
-	// 	lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
-	// 	err = lstack.Push(NewValue(0))
-	// 	Expect(err).ToNot(HaveOccurred())
+		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
+		err = lstack.Push(NewValue(0))
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	err = lstack.SetCapacity(cap)
-	// 	Expect(err).ToNot(HaveOccurred())
+		err = lstack.SetCapacity(cap)
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	tcap, err := lstack.GetCapacity()
-	// 	Expect(err).ToNot(HaveOccurred())
+		tcap, err := lstack.GetCapacity()
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	Expect(tcap).To(Equal(cap))
+		Expect(tcap).To(Equal(cap))
 
-	// 	for i := 1; i < cap; i++ {
-	// 		err = lstack.Push(NewValue(i))
-	// 		Expect(err).ToNot(HaveOccurred())
+		for i := 1; i < cap; i++ {
+			err = lstack.Push(NewValue(i))
+			Expect(err).ToNot(HaveOccurred())
 
-	// 		sz, err := lstack.Size()
-	// 		Expect(err).ToNot(HaveOccurred())
-	// 		Expect(sz).To(Equal(i + 1))
-	// 	}
+			sz, err := lstack.Size()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(sz).To(Equal(i + 1))
+		}
 
-	// 	sz, err := lstack.GetCapacity()
-	// 	Expect(err).ToNot(HaveOccurred())
+		sz, err := lstack.GetCapacity()
+		Expect(err).ToNot(HaveOccurred())
 
-	// 	Expect(sz).To(Equal(cap))
-	// })
+		Expect(sz).To(Equal(cap))
+	})
 
 }) // describe
