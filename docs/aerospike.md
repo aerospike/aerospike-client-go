@@ -55,7 +55,7 @@ For details, see [Logger Object](log.md)
 
 <a name="client"></a>
 
-### client(host string, port int): *Client
+### NewClient(host string, port int): *Client
 
 Creates a new [client](client.md) with the provided configuration.
 
@@ -96,7 +96,7 @@ Returns a new key.
 Example:
 
 ```go
-  key := as.Key("test", "demo", 123)
+  key := as.NewKey("test", "demo", 123)
 ```
 
 For details, see [Key Object](datamodel.md#key).
