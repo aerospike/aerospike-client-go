@@ -55,13 +55,13 @@ For details, see [Logger Object](log.md)
 
 <a name="client"></a>
 
-### NewClient(host string, port int): *Client
+### NewClient(host string, port int): (*Client, error)
 
 Creates a new [client](client.md) with the provided configuration.
 
 Parameters:
 
-- `name` – Host name or IP to connect to.
+- `hostname` – Host name or IP to connect to.
 - `port` – Host port.
 
 Returns a new client object.
@@ -81,14 +81,14 @@ key
 -->
 <a name="key"></a>
 
-### NewKey(ns, set string, key interface{}): *
+### NewKey(ns, set string, key interface{}): (*Key, error)
 
 Creates a new [key object](datamodel.md#key) with the provided arguments.
 
 Parameters:
 
-- `ns` – The namespace for the key.
-- `set` – The set for the key.
+- `namespace` – The namespace for the key.
+- `setName` – The set for the key.
 - `key` – The value for the key.
 
 Returns a new key.
@@ -96,7 +96,7 @@ Returns a new key.
 Example:
 
 ```go
-  key := as.NewKey("test", "demo", 123)
+  key, err := as.NewKey("test", "demo", 123)
 ```
 
 For details, see [Key Object](datamodel.md#key).
