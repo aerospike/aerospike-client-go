@@ -1031,18 +1031,18 @@ func (clnt *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batch
 
 	// Use a goroutine per namespace per node
 	errs := []error{}
+	wg.Add(len(batchNodes))
 	for _, batchNode := range batchNodes {
 		// copy to avoid race condition
 		bn := *batchNode
 		for _, bns := range bn.BatchNamespaces {
-			wg.Add(1)
-			go func(bns *batchNamespace) {
+			go func(bn *Node, bns *batchNamespace) {
 				defer wg.Done()
-				command := cmdGen(bn.Node, bns)
+				command := cmdGen(bn, bns)
 				if err := command.Execute(); err != nil {
 					errs = append(errs, err)
 				}
-			}(bns)
+			}(bn.Node, bns)
 		}
 	}
 

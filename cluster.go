@@ -47,7 +47,7 @@ type Cluster struct {
 	seeds []*Host
 
 	// All aliases for all nodes in cluster.
-	aliases map[*Host]*Node
+	aliases map[Host]*Node
 
 	// Active nodes in cluster.
 	nodes []*Node
@@ -74,7 +74,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		seeds:               hosts,
 		connectionQueueSize: policy.ConnectionQueueSize,
 		connectionTimeout:   policy.timeout(),
-		aliases:             make(map[*Host]*Node),
+		aliases:             make(map[Host]*Node),
 		nodes:               []*Node{},
 		partitionWriteMap:   make(map[string]*atomicNodeArray),
 		nodeIndex:           NewAtomicInt(0),
@@ -156,17 +156,15 @@ func (clstr *Cluster) tend() error {
 		nodes = clstr.GetNodes()
 	}
 
-	// Clear node reference counts.
-	for _, node := range nodes {
-		node.referenceCount.Set(0)
-		node.responded.Set(false)
-	}
-
 	// Refresh all known nodes.
 	friendList := []*Host{}
 	refreshCount := 0
 
+	// Clear node reference counts.
 	for _, node := range nodes {
+		node.referenceCount = 0
+		node.responded = false
+
 		if node.IsActive() {
 			if friends, err := node.Refresh(); err != nil {
 				Logger.Warn("Node `%s` refresh failed: %s", node, err)
@@ -179,15 +177,16 @@ func (clstr *Cluster) tend() error {
 		}
 	}
 
+	// Add nodes in a batch.
+	if addList := clstr.findNodesToAdd(friendList); len(addList) > 0 {
+		clstr.addNodes(addList)
+	}
+
+	// IMPORTANT: Remove must come after add to remove aliases
 	// Handle nodes changes determined from refreshes.
 	// Remove nodes in a batch.
 	if removeList := clstr.findNodesToRemove(refreshCount); len(removeList) > 0 {
 		clstr.removeNodes(removeList)
-	}
-
-	// Add nodes in a batch.
-	if addList := clstr.findNodesToAdd(friendList); len(addList) > 0 {
-		clstr.addNodes(addList)
 	}
 
 	Logger.Info("Tend finished. Live node count: %d", len(clstr.GetNodes()))
@@ -239,7 +238,7 @@ func (clstr *Cluster) waitTillStabilized() {
 func (clstr *Cluster) findAlias(alias *Host) *Node {
 	clstr.mutex.RLock()
 	defer clstr.mutex.RUnlock()
-	return clstr.aliases[alias]
+	return clstr.aliases[*alias]
 }
 
 func (clstr *Cluster) setPartitions(partMap map[string]*atomicNodeArray) {
@@ -259,7 +258,7 @@ func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) error {
 	// TODO: Cluster should not care about version of tokenizer
 	// decouple clstr interface
 	var nmap map[string]*atomicNodeArray
-	if node.getUseNewInfo() {
+	if node.useNewInfo {
 		Logger.Info("Updating partitions using new protocol...")
 		tokens, err := newPartitionTokenizerNew(conn)
 		if err != nil {
@@ -349,7 +348,7 @@ func (clstr *Cluster) addAlias(host *Host, node *Node) {
 	if host != nil && node != nil {
 		clstr.mutex.Lock()
 		defer clstr.mutex.Unlock()
-		clstr.aliases[host] = node
+		clstr.aliases[*host] = node
 	}
 }
 
@@ -357,7 +356,7 @@ func (clstr *Cluster) removeAlias(alias *Host) {
 	if alias != nil {
 		clstr.mutex.Lock()
 		defer clstr.mutex.Unlock()
-		delete(clstr.aliases, alias)
+		delete(clstr.aliases, *alias)
 	}
 }
 
@@ -384,7 +383,7 @@ func (clstr *Cluster) findNodesToAdd(hosts []*Host) []*Node {
 				// services list contains both internal and external IP addresses
 				// for the same node.  Add new host to list of alias filters
 				// and do not add new node.
-				node.referenceCount.IncrementAndGet()
+				node.referenceCount++
 				node.AddAlias(host)
 				clstr.addAlias(host, node)
 				continue
@@ -421,17 +420,17 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 
 		case 2:
 			// Two node clusters require at least one successful refresh before removing.
-			if refreshCount == 1 && node.referenceCount.Get() == 0 && !node.responded.Get() {
+			if refreshCount == 1 && node.referenceCount == 0 && !node.responded {
 				// Node is not referenced nor did it respond.
 				removeList = append(removeList, node)
 			}
 
 		default:
 			// Multi-node clusters require two successful node refreshes before removing.
-			if refreshCount >= 2 && node.referenceCount.Get() == 0 {
+			if refreshCount >= 2 && node.referenceCount == 0 {
 				// Node is not referenced by other nodes.
 				// Check if node responded to info request.
-				if node.responded.Get() {
+				if node.responded {
 					// Node is alive, but not referenced by other nodes.  Check if mapped.
 					if !clstr.findNodeInPartitionMap(node) {
 						// Node doesn't have any partitions mapped to it.
@@ -477,7 +476,7 @@ func (clstr *Cluster) addAliases(node *Node) {
 	// Add node's aliases to global alias set.
 	// Aliases are only used in tend goroutine, so synchronization is not necessary.
 	for _, alias := range node.GetAliases() {
-		clstr.aliases[alias] = node
+		clstr.aliases[*alias] = node
 	}
 }
 

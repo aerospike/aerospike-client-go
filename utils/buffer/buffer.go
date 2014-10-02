@@ -69,11 +69,14 @@ func BytesToNumber(buf []byte, offset, length int) interface{} {
 	return int64(val)
 }
 
-func BytesToIntIntel(buf []byte, offset int) int {
-	return int(((buf[offset+3] & 0xFF) << 24) |
-		((buf[offset+2] & 0xFF) << 16) |
-		((buf[offset+1] & 0xFF) << 8) |
-		(buf[offset] & 0xFF))
+// Covertes a slice into int64; only maximum of 8 bytes will be used
+func LittleBytesToInt32(buf []byte, offset int) int32 {
+	l := len(buf[offset:])
+	if l > uint32sz {
+		l = uint32sz
+	}
+	r := int32(binary.LittleEndian.Uint32(buf[offset : offset+l]))
+	return r
 }
 
 // Covertes a slice into int64; only maximum of 8 bytes will be used

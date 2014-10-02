@@ -31,7 +31,7 @@ func NewPartitionByKey(key *Key) *Partition {
 
 		// CAN'T USE MOD directly - mod will give negative numbers.
 		// First AND makes positive and negative correctly, then mod.
-		PartitionId: (Buffer.BytesToIntIntel(key.digest, 0) & 0xFFFF) % _PARTITIONS,
+		PartitionId: int(Buffer.LittleBytesToInt32(key.digest, 0)&0xFFFF) % _PARTITIONS,
 	}
 }
 

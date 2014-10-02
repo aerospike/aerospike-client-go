@@ -331,9 +331,8 @@ func (cmd *baseCommand) setBatchExists(batchNamespace *batchNamespace) error {
 	cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
 
 	for _, key := range keys {
-		digest := key.digest
-		copy(cmd.dataBuffer[cmd.dataOffset:], digest)
-		cmd.dataOffset += len(digest)
+		copy(cmd.dataBuffer[cmd.dataOffset:], key.digest)
+		cmd.dataOffset += len(key.digest)
 	}
 	cmd.end()
 
@@ -367,9 +366,8 @@ func (cmd *baseCommand) setBatchGet(batchNamespace *batchNamespace, binNames map
 	cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
 
 	for _, key := range keys {
-		digest := key.digest
-		copy(cmd.dataBuffer[cmd.dataOffset:], digest)
-		cmd.dataOffset += len(digest)
+		copy(cmd.dataBuffer[cmd.dataOffset:], key.digest)
+		cmd.dataOffset += len(key.digest)
 	}
 
 	if binNames != nil {

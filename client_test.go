@@ -593,22 +593,15 @@ var _ = Describe("Aerospike", func() {
 
 			It("must return the result with same ordering", func() {
 				var exists []bool
-				type existance struct {
-					key         *Key
-					shouldExist bool // set randomly and checked against later
-				}
-				exList := []existance{}
 				keys := []*Key{}
 
 				for i := 0; i < keyCount; i++ {
 					key, err := NewKey(ns, set, randString(50))
 					Expect(err).ToNot(HaveOccurred())
-					e := existance{key: key, shouldExist: rand.Intn(100) > 50}
-					exList = append(exList, e)
 					keys = append(keys, key)
 
 					// if key shouldExist == true, put it in the DB
-					if e.shouldExist {
+					if i%2 == 0 {
 						err = client.PutBins(wpolicy, key, bin)
 						Expect(err).ToNot(HaveOccurred())
 
@@ -623,7 +616,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(len(exists)).To(Equal(len(keys)))
 				for idx, keyExists := range exists {
-					Expect(keyExists).To(Equal(exList[idx].shouldExist))
+					Expect(keyExists).To(Equal(idx%2 == 0))
 				}
 			})
 

@@ -43,10 +43,10 @@ type Node struct {
 	connections *AtomicQueue //ArrayBlockingQueue<*Connection>
 	health      *AtomicInt   //AtomicInteger
 
-	partitionGeneration *AtomicInt
-	referenceCount      *AtomicInt
-	responded           *AtomicBool
-	useNewInfo          *AtomicBool
+	partitionGeneration int
+	referenceCount      int
+	responded           bool
+	useNewInfo          bool
 	active              *AtomicBool
 	mutex               sync.RWMutex
 }
@@ -58,16 +58,16 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		name:       nv.name,
 		aliases:    nv.aliases,
 		address:    nv.address,
-		useNewInfo: NewAtomicBool(nv.useNewInfo),
+		useNewInfo: nv.useNewInfo,
 
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).
 		host:                nv.aliases[0],
 		connections:         NewAtomicQueue(cluster.connectionQueueSize),
 		health:              NewAtomicInt(_FULL_HEALTH),
-		partitionGeneration: NewAtomicInt(-1),
-		referenceCount:      NewAtomicInt(0),
-		responded:           NewAtomicBool(false),
+		partitionGeneration: -1,
+		referenceCount:      0,
+		responded:           false,
 		active:              NewAtomicBool(true),
 	}
 }
@@ -92,7 +92,7 @@ func (nd *Node) Refresh() ([]*Host, error) {
 		return nil, err
 	}
 	nd.RestoreHealth()
-	nd.responded.Set(true)
+	nd.responded = true
 
 	if friends, err = nd.addFriends(infoMap); err != nil {
 		return nil, err
@@ -121,10 +121,6 @@ func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 	return nil
 }
 
-func (nd *Node) getUseNewInfo() bool {
-	return nd.useNewInfo.Get()
-}
-
 func (nd *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
 	friendString, exists := infoMap["services"]
 	var friends []*Host
@@ -143,7 +139,7 @@ func (nd *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
 		node := nd.cluster.findAlias(alias)
 
 		if node != nil {
-			node.referenceCount.IncrementAndGet()
+			node.referenceCount++
 		} else {
 			if !nd.findAlias(friends, alias) {
 				if friends == nil {
@@ -176,12 +172,12 @@ func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) er
 
 	generation, _ := strconv.Atoi(genString)
 
-	if nd.partitionGeneration.Get() != generation {
+	if nd.partitionGeneration != generation {
 		Logger.Info("Node %s partition generation %d changed", nd.GetName(), generation)
 		if err := nd.cluster.updatePartitions(conn, nd); err != nil {
 			return err
 		}
-		nd.partitionGeneration.Set(generation)
+		nd.partitionGeneration = generation
 	}
 
 	return nil

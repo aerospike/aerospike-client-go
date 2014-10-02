@@ -50,6 +50,19 @@ func (ll *LargeList) Add(values ...interface{}) error {
 	return err
 }
 
+// Update/Add each value in values list depending if key exists or not.
+// If value is a map, the key is identified by "key" entry.  Otherwise, the value is the key.
+// If large list does not exist, create it using specified userModule configuration.
+func (ll *LargeList) Update(values ...interface{}) error {
+	var err error
+	if len(values) == 1 {
+		_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName(), "update", ll.binName, NewValue(values[0]), ll.userModule)
+	} else {
+		_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName(), "update_all", ll.binName, ToValueArray(values), ll.userModule)
+	}
+	return err
+}
+
 // Delete value from list.
 //
 // value       value to delete

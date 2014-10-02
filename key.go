@@ -76,7 +76,10 @@ func (ky *Key) Equals(other *Key) bool {
 
 // Return string representation of key.
 func (ky *Key) String() string {
-	return fmt.Sprintf("%s:%s:%s:%v", ky.namespace, ky.setName, ky.userKey.String(), Buffer.BytesToHexString(ky.digest))
+	if ky.userKey != nil {
+		return fmt.Sprintf("%s:%s:%s:%v", ky.namespace, ky.setName, ky.userKey.String(), Buffer.BytesToHexString(ky.digest))
+	}
+	return fmt.Sprintf("%s:%s::%v", ky.namespace, ky.setName, Buffer.BytesToHexString(ky.digest))
 }
 
 // Initialize key from namespace, optional set name and user key.
