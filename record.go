@@ -18,7 +18,7 @@ import (
 	"fmt"
 )
 
-// Container object for records.  Records are equivalent to rows.
+// Record is a container object for records.  Records are equivalent to rows.
 type Record struct {
 	// Record's Key. Might be empty, or only consist of digest only.
 	Key *Key
@@ -42,6 +42,7 @@ type Record struct {
 	Expiration int
 }
 
+// newRecord creates a new record with the given parameter, and ensures Bins is not nil afterwards. 
 func newRecord(node *Node, key *Key, bins BinMap, duplicates []BinMap, generation int, expiration int) *Record {
 	r := &Record{
 		Node:       node,
@@ -60,7 +61,93 @@ func newRecord(node *Node, key *Key, bins BinMap, duplicates []BinMap, generatio
 	return r
 }
 
-// Return string representation of record.
+// String returns the string representation of record.
 func (rc *Record) String() string {
 	return fmt.Sprintf("%v %v", *rc.Key, rc.Bins)
+}
+
+// GetString returns the string-value for the given binName
+func (rc *Record) GetString(binName string) (string, error) {
+	if bin, ok := rc.Bins[binName]; ok {
+		if bin_str, ok := bin.(string); ok {
+			return bin_str, nil
+		} else {
+			return "", fmt.Errorf("Bin %s did not contain a string value", binName)
+		}
+	} else {
+		return "", fmt.Errorf("No bin found with name %s", binName)
+	}
+}
+
+// GetStringArray returns the []string-value for the given binName. Any non-string values in the array are ignored. 
+func (rc *Record) GetStringArray(binName string) ([]string, error) {
+	if bin, ok := rc.Bins[binName]; ok {
+		if bin_arr, ok := bin.([]interface{}); ok {
+			list := []string{}
+			for _, val_interface := range bin_arr {
+				if bin_str, ok := val_interface.(string); ok {
+					list = append(list, bin_str)
+				}
+			}
+			return list, nil
+		} else {
+			return []string{}, fmt.Errorf("Bin %s did not contain an array", binName)
+		}
+	} else {
+		return []string{}, fmt.Errorf("No bin found with name %s", binName)
+	}
+}
+
+// GetInt returns the string-value for the given binName
+func (rc *Record) GetInt(binName string) (int, error) {
+	if bin, ok := rc.Bins[binName]; ok {
+		if bin_int, ok := bin.(int); ok {
+			return bin_int, nil
+		} else {
+			return 0, fmt.Errorf("Bin %s did not contain an integer value", binName)
+		}
+	} else {
+		return 0, fmt.Errorf("No bin found with name %s", binName)
+	}
+}
+
+// GetIntArray returns the []int-value for the given binName. Any non-int values in the array are ignored. 
+func (rc *Record) GetIntArray(binName string) ([]int, error) {
+	if bin, ok := rc.Bins[binName]; ok {
+		if bin_arr, ok := bin.([]interface{}); ok {
+			list := []int{}
+			for _, val_interface := range bin_arr {
+				if bin_int, ok := val_interface.(int); ok {
+					list = append(list, bin_int)
+				}
+			}
+			return list, nil
+		} else {
+			return []int{}, fmt.Errorf("Bin %s did not contain an array", binName)
+		}
+	} else {
+		return []int{}, fmt.Errorf("No bin found with name %s", binName)
+	}
+}
+
+// GetInterface returns the interface{}-value for the given binName. Much like calling Bins directly
+func (rc *Record) GetInterface(binName string) (interface{}, error) {
+	if bin, ok := rc.Bins[binName]; ok {
+		return bin, nil
+	} else {
+		return "", fmt.Errorf("No bin found with name %s", binName)
+	}
+}
+
+// GetInterfaceArray returns the []interface{}-value for the given binName.  
+func (rc *Record) GetInterfaceArray(binName string) ([]interface{}, error) {
+	if bin, ok := rc.Bins[binName]; ok {
+		if bin_arr, ok := bin.([]interface{}); ok {
+			return bin_arr, nil
+		} else {
+			return []interface{}{}, fmt.Errorf("Bin %s did not contain an array", binName)
+		}
+	} else {
+		return []interface{}{}, fmt.Errorf("No bin found with name %s", binName)
+	}
 }
