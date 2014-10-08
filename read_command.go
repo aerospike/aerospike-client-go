@@ -88,10 +88,6 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	}
 
 	if resultCode != 0 {
-		if resultCode == KEY_NOT_FOUND_ERROR {
-			return nil
-		}
-
 		if resultCode == UDF_BAD_RESPONSE {
 			cmd.record, _ = cmd.parseRecord(opCount, fieldCount, generation, expiration)
 			err := cmd.handleUdfError(resultCode)
