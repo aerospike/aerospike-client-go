@@ -16,20 +16,11 @@ package aerospike
 
 // Container object for optional parameters used in scan operations.
 type ScanPolicy struct {
-	BasePolicy
+	MultiPolicy
 
 	// Percent of data to scan.  Valid integer range is 1 to 100.
 	// Default is 100.
 	ScanPercent int //= 100;
-
-	// Maximum number of concurrent requests to server nodes at any poin int time.
-	// If there are 16 nodes in the cluster and maxConcurrentNodes is 8, then scan requests
-	// will be made to 8 nodes in parallel.  When a scan completes, a new scan request will
-	// be issued until all 16 nodes have been scanned.
-	//
-	// This field is only relevant when concurrentNodes is true.
-	// Default (0) is to issue requests to all server nodes in parallel.
-	MaxConcurrentNodes int
 
 	// Issue scan requests in parallel or serially.
 	ConcurrentNodes bool //= true;
@@ -39,22 +30,14 @@ type ScanPolicy struct {
 
 	// Terminate scan if cluster in fluctuating state.
 	FailOnClusterChange bool
-
-	// Number of records to place in queue before blocking.
-	// Records received from multiple server nodes will be placed in a queue.
-	// A separate goroutine consumes these records in parallel.
-	// If the queue is full, the producer goroutines will block until records are consumed.
-	RecordQueueSize int //= 5000
 }
 
 func NewScanPolicy() *ScanPolicy {
 	return &ScanPolicy{
-		BasePolicy:          *NewPolicy(),
+		MultiPolicy:         *NewMultiPolicy(),
 		ScanPercent:         100,
 		ConcurrentNodes:     true,
-		MaxConcurrentNodes:  0,
 		IncludeBinData:      true,
 		FailOnClusterChange: true,
-		RecordQueueSize:     5000,
 	}
 }

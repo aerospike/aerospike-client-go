@@ -15,11 +15,11 @@
 package aerospike
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/types"
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
@@ -45,7 +45,7 @@ func newPartitionTokenizerOld(conn *Connection) (*partitionTokenizerOld, error) 
 	info := infoMap[replicasName]
 	pt.length = len(info)
 	if pt.length == 0 {
-		return nil, errors.New(replicasName + " is empty")
+		return nil, NewAerospikeError(PARSE_ERROR, replicasName+" is empty")
 	}
 
 	pt.buffer = []byte(info)
@@ -101,8 +101,8 @@ func (pt *partitionTokenizerOld) getNext() (*Partition, error) {
 
 			if len(namespace) <= 0 || len(namespace) >= 32 {
 				response := pt.getTruncatedResponse()
-				return nil, errors.New("Invalid partition namespace " +
-					namespace + ". Response=" + response)
+				return nil, NewAerospikeError(PARSE_ERROR, "Invalid partition namespace "+
+					namespace+". Response="+response)
 			}
 
 			pt.offset++
@@ -120,8 +120,8 @@ func (pt *partitionTokenizerOld) getNext() (*Partition, error) {
 
 			if pt.offset == begin {
 				response := pt.getTruncatedResponse()
-				return nil, errors.New("Empty partition id for namespace " +
-					namespace + ". Response=" + response)
+				return nil, NewAerospikeError(PARSE_ERROR, "Empty partition id for namespace "+
+					namespace+". Response="+response)
 			}
 
 			partitionId, err := strconv.Atoi(string(pt.buffer[begin:pt.offset]))
@@ -132,8 +132,8 @@ func (pt *partitionTokenizerOld) getNext() (*Partition, error) {
 			if partitionId < 0 || partitionId >= _PARTITIONS {
 				response := pt.getTruncatedResponse()
 				partitionString := string(pt.buffer[begin:pt.offset])
-				return nil, errors.New("Invalid partition id " + partitionString +
-					" for namespace " + namespace + ". Response=" + response)
+				return nil, NewAerospikeError(PARSE_ERROR, "Invalid partition id "+partitionString+
+					" for namespace "+namespace+". Response="+response)
 			}
 
 			pt.offset++

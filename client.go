@@ -279,11 +279,6 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 		policy = NewPolicy()
 	}
 
-	// wait until all migrations are finished
-	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
-		return nil, err
-	}
-
 	// same array can be used without sychronization;
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
@@ -311,11 +306,6 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 func (clnt *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, error) {
 	if policy == nil {
 		policy = NewPolicy()
-	}
-
-	// wait until all migrations are finished
-	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
-		return nil, err
 	}
 
 	// same array can be used without sychronization;
@@ -374,9 +364,11 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
-	// wait until all migrations are finished
-	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
-		return nil, err
+	if policy.WaitUntilMigrationsAreOver {
+		// wait until all migrations are finished
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+			return nil, err
+		}
 	}
 
 	// result recordset
@@ -454,9 +446,11 @@ func (clnt *Client) ScanNode(policy *ScanPolicy, node *Node, namespace string, s
 		policy = NewScanPolicy()
 	}
 
-	// wait until migrations on node are finished
-	if err := node.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
-		return nil, err
+	if policy.WaitUntilMigrationsAreOver {
+		// wait until migrations on node are finished
+		if err := node.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+			return nil, err
+		}
 	}
 
 	// results channel must be async for performance
@@ -736,7 +730,7 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 		return nil, fmt.Errorf("%v", obj)
 	}
 
-	return nil, errors.New("Invalid UDF return value")
+	return nil, NewAerospikeError(UDF_BAD_RESPONSE, "Invalid UDF return value")
 }
 
 func mapContainsKeyPartial(theMap map[string]interface{}, key string) (bool, interface{}) {
@@ -818,9 +812,11 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
 	}
 
-	// wait until all migrations are finished
-	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
-		return nil, err
+	if policy.WaitUntilMigrationsAreOver {
+		// wait until all migrations are finished
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+			return nil, err
+		}
 	}
 
 	// results channel must be async for performance
@@ -925,7 +921,7 @@ func (clnt *Client) CreateIndex(
 		return nil, NewAerospikeError(INDEX_FOUND)
 	}
 
-	return nil, errors.New("Create index failed: " + response)
+	return nil, NewAerospikeError(INDEX_GENERIC, "Create index failed: "+response)
 }
 
 //  Delete secondary index.
@@ -967,7 +963,7 @@ func (clnt *Client) DropIndex(
 		}
 	}
 
-	return errors.New("Drop index failed: " + response)
+	return NewAerospikeError(INDEX_GENERIC, "Drop index failed: "+response)
 }
 
 //-------------------------------------------------------

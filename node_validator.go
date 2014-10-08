@@ -15,13 +15,13 @@
 package aerospike
 
 import (
-	"errors"
 	"net"
 	"regexp"
 	"strconv"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 // Validates a Database server node
@@ -105,7 +105,7 @@ var r = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+).*`)
 func parseVersionString(version string) (int, int, int, error) {
 	vNumber := r.FindStringSubmatch(version)
 	if len(vNumber) < 4 {
-		return -1, -1, -1, errors.New("Invalid build version string in Info: " + version)
+		return -1, -1, -1, NewAerospikeError(PARSE_ERROR, "Invalid build version string in Info: "+version)
 	}
 	v1, err1 := strconv.Atoi(vNumber[1])
 	v2, err2 := strconv.Atoi(vNumber[2])
@@ -114,5 +114,5 @@ func parseVersionString(version string) (int, int, int, error) {
 		return v1, v2, v3, nil
 	}
 	Logger.Error("Invalid build version string in Info: " + version)
-	return -1, -1, -1, errors.New("Invalid build version string in Info: " + version)
+	return -1, -1, -1, NewAerospikeError(PARSE_ERROR, "Invalid build version string in Info: "+version)
 }

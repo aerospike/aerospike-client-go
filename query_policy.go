@@ -16,26 +16,11 @@ package aerospike
 
 // Container object for policy attributes used in query operations.
 type QueryPolicy struct {
-	BasePolicy
-
-	// Maximum number of concurrent requests to server nodes at any poin int time.
-	// If there are 16 nodes in the cluster and maxConcurrentNodes is 8, then queries
-	// will be made to 8 nodes in parallel.  When a query completes, a new query will
-	// be issued until all 16 nodes have been queried.
-	// Default (0) is to issue requests to all server nodes in parallel.
-	MaxConcurrentNodes int
-
-	// Number of records to place in queue before blocking.
-	// Records received from multiple server nodes will be placed in a queue.
-	// A separate goroutine consumes these records in parallel.
-	// If the queue is full, the producer goroutines will block until records are consumed.
-	RecordQueueSize int //= 5000
+	MultiPolicy
 }
 
 func NewQueryPolicy() *QueryPolicy {
 	return &QueryPolicy{
-		BasePolicy:         *NewPolicy(),
-		MaxConcurrentNodes: 0,
-		RecordQueueSize:    5000,
+		MultiPolicy: *NewMultiPolicy(),
 	}
 }

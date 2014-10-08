@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -605,7 +604,7 @@ func (clstr *Cluster) GetNodeByName(nodeName string) (*Node, error) {
 	node := clstr.findNodeByName(nodeName)
 
 	if node == nil {
-		return nil, errors.New("Invalid node")
+		return nil, NewAerospikeError(INVALID_NODE_ERROR)
 	}
 	return node, nil
 }

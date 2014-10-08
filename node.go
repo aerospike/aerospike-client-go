@@ -15,8 +15,6 @@
 package aerospike
 
 import (
-	"errors"
-
 	"strconv"
 	"strings"
 	"sync"
@@ -110,13 +108,13 @@ func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 
 	if !exists || len(infoName) == 0 {
 		nd.DecreaseHealth()
-		return errors.New("Node name is empty")
+		return NewAerospikeError(INVALID_NODE_ERROR, "Node name is empty")
 	}
 
 	if !(nd.name == infoName) {
 		// Set node to inactive immediately.
 		nd.active.Set(false)
-		return errors.New("Node name has changed. Old=" + nd.name + " New=" + infoName)
+		return NewAerospikeError(INVALID_NODE_ERROR, "Node name has changed. Old="+nd.name+" New="+infoName)
 	}
 	return nil
 }
@@ -167,7 +165,7 @@ func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) er
 	genString, exists := infoMap["partition-generation"]
 
 	if !exists || len(genString) == 0 {
-		return errors.New("partition-generation is empty")
+		return NewAerospikeError(PARSE_ERROR, "partition-generation is empty")
 	}
 
 	generation, _ := strconv.Atoi(genString)
