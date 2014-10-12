@@ -137,7 +137,7 @@ remove()
 -->
 <a name="delete"></a>
 
-### Delete(policy *WritePolicy, key *Key) (existed bool, err error)
+### Delete(policy *WritePolicy, key *Key) (bool, error)
 
 Removes a record with the specified key from the database cluster.
 
