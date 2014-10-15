@@ -1,5 +1,10 @@
 # Change history
 
+## Oct 15 2014 (Beta 2)
+
+  * **Hot fix**:
+    * Fixed pack/unpack for uint64
+
 ## Aug 20 2014 (Beta 1)
 
   Major changes and improvements.
