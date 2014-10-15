@@ -60,8 +60,7 @@ var _ = Describe("UDF/Query tests", func() {
 	bin1 := NewBin("bin1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("bin2", 1)
 
-	client, err = NewClient(*host, *port)
-	Expect(err).ToNot(HaveOccurred())
+	client, _ = NewClient(*host, *port)
 
 	It("must Register a UDF", func() {
 		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udf1.lua", LUA)

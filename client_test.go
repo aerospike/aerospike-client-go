@@ -56,8 +56,8 @@ var _ = Describe("Aerospike", func() {
 		var rec *Record
 
 		// use the same client for all
-		client, err := NewClient(*host, *port)
-		Expect(err).ToNot(HaveOccurred())
+		println(*host, *port)
+		client, err := NewClient("127.0.0.1", 3000)
 
 		BeforeEach(func() {
 			key, err = NewKey(ns, set, randString(50))

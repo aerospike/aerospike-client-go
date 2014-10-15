@@ -882,6 +882,10 @@ func (clnt *Client) CreateIndex(
 	binName string,
 	indexType IndexType,
 ) (*IndexTask, error) {
+	if policy == nil {
+		policy = NewWritePolicy(0, 0)
+	}
+
 	var strCmd bytes.Buffer
 	_, err := strCmd.WriteString("sindex-create:ns=")
 	_, err = strCmd.WriteString(namespace)
@@ -932,6 +936,9 @@ func (clnt *Client) DropIndex(
 	setName string,
 	indexName string,
 ) error {
+	if policy == nil {
+		policy = NewWritePolicy(0, 0)
+	}
 	var strCmd bytes.Buffer
 	_, err := strCmd.WriteString("sindex-delete:ns=")
 	_, err = strCmd.WriteString(namespace)

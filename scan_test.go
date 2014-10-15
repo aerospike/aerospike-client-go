@@ -32,7 +32,6 @@ var _ = Describe("Scan operations", func() {
 	flag.Parse()
 
 	// connection data
-	var err error
 	var ns = "test"
 	var set = randString(50)
 	var wpolicy = NewWritePolicy(0, 0)
@@ -44,8 +43,7 @@ var _ = Describe("Scan operations", func() {
 	var keys map[string]*Key
 
 	// use the same client for all
-	client, err := NewClient(*host, *port)
-	Expect(err).ToNot(HaveOccurred())
+	client, _ := NewClient(*host, *port)
 
 	// read all records from the channel and make sure all of them are returned
 	// if cancelCnt is set, it will cancel the scan after specified record count

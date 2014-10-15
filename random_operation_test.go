@@ -42,8 +42,7 @@ var _ = Describe("Aerospike", func() {
 		var rec *Record
 
 		// use the same client for all
-		client, err := NewClient(*host, *port)
-		Expect(err).ToNot(HaveOccurred())
+		client, _ := NewClient(*host, *port)
 
 		Context("Put/Get operations", func() {
 

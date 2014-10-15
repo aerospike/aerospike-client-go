@@ -23,24 +23,23 @@ install:
   - sudo ./bin/aerospike start
   - cd ../..
   - pwd
-  - sleep 5
+  - sleep 30
   # dump keep server log for debugging
   - sudo tail -n 1000 aerospike-server/instance1/var/log/aerospike.log
 
 script:
-  - go build tools/benchmark/benchmark.go
-  - go build tools/asinfo/asinfo.go
-  - go build tools/cli/cli.go
-  - go build examples/simple.go
-  - go build examples/blob.go
-  - go build examples/info.go
+  # build all tools
+  - find tools -name "*.go" -type f -exec go -- build {} ';'
+  # build all examples
+  - find examples -type f -exec go -- build {} ';'
+  # run tests in single instance mode
   - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
-  # test in multiple instance mode
+  # run tests in multiple instance mode
   - cd aerospike-server/instance1
   - sudo ./bin/aerospike restart
   - cd ../instance2
   - sudo ./bin/aerospike start
   - cd ../..
   # make sure the instances are up and clean
-  - sleep 15
+  - sleep 30
   - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
