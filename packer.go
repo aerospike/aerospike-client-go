@@ -16,10 +16,10 @@ package aerospike
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"reflect"
 
-	// . "github.com/aerospike/aerospike-client-go/logger"
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -171,9 +171,13 @@ func (pckr *packer) PackObject(obj interface{}) error {
 		if Buffer.Arch32Bits {
 			pckr.PackAInt(int(obj.(uint)))
 			return nil
-		} // uint64 not supported
+		}
+		pckr.PackAULong(obj.(uint64))
 	case int64:
 		pckr.PackALong(obj.(int64))
+		return nil
+	case uint64:
+		pckr.PackAULong(obj.(uint64))
 		return nil
 	case nil:
 		pckr.PackNil()
@@ -189,13 +193,16 @@ func (pckr *packer) PackObject(obj interface{}) error {
 		for i := 0; i < l; i++ {
 			arr[i] = s.Index(i).Interface()
 		}
-
 		return pckr.PackList(arr)
 	case reflect.Map:
 		return pckr.PackMap(obj.(map[interface{}]interface{}))
 	}
 
-	return nil
+	panic(fmt.Sprintf("Type `%v` not supported to pack.", reflect.TypeOf(obj)))
+}
+
+func (pckr *packer) PackAULong(val uint64) {
+	pckr.PackULong(val)
 }
 
 func (pckr *packer) PackALong(val int64) {
@@ -219,7 +226,7 @@ func (pckr *packer) PackALong(val int64) {
 			pckr.PackInt(0xce, int32(val))
 			return
 		}
-		pckr.PackLong(0xcf, val)
+		pckr.PackLong(0xd3, val)
 	} else {
 		if val >= -32 {
 			pckr.PackAByte(0xe0 | byte(val) + 32)
@@ -240,7 +247,7 @@ func (pckr *packer) PackALong(val int64) {
 			pckr.PackInt(0xd2, int32(val))
 			return
 		}
-		pckr.PackLong(0xd3, val)
+		pckr.PackLong(0xd3, int64(val))
 	}
 }
 
@@ -294,6 +301,11 @@ func (pckr *packer) PackByteArray(src []byte, srcOffset int, srcLength int) {
 func (pckr *packer) PackLong(valType int, val int64) {
 	pckr.buffer.WriteByte(byte(valType))
 	pckr.buffer.Write(Buffer.Int64ToBytes(val, nil, pckr.offset))
+}
+
+func (pckr *packer) PackULong(val uint64) {
+	pckr.buffer.WriteByte(byte(0xcf))
+	pckr.buffer.Write(Buffer.Int64ToBytes(int64(val), nil, pckr.offset))
 }
 
 func (pckr *packer) PackInt(valType int, val int32) {

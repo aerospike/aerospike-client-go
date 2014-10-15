@@ -178,11 +178,10 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 		}
 		return int64(val), nil
 
-	// TODO: Fix upckr
 	case 0xcf:
 		val := Buffer.BytesToInt64(upckr.buffer, upckr.offset)
 		upckr.offset += 8
-		return val, nil
+		return uint64(val), nil
 
 	case 0xd0:
 		r := int8(upckr.buffer[upckr.offset])
@@ -254,7 +253,6 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 		if theType >= 0xe0 {
 			return int(theType - 0xe0 - 32), nil
 		}
-		// panic(fmt.Errorf("Unknown upckr.unpack theType: %x", theType))
 	}
 
 	return nil, NewAerospikeError(SERIALIZE_ERROR)

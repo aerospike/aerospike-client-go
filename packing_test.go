@@ -28,9 +28,8 @@ import (
 
 func testPackingFor(v interface{}) interface{} {
 	packer := newPacker()
-	value := NewValue(v)
 
-	err := value.pack(packer)
+	err := packer.PackObject(v)
 	Expect(err).ToNot(HaveOccurred())
 
 	unpacker := newUnpacker(packer.buffer.Bytes(), 0, len(packer.buffer.Bytes()))
@@ -91,6 +90,11 @@ var _ = Describe("Packing Test", func() {
 			Expect(testPackingFor(v)).To(Equal(v))
 
 			v = int64(math.MinInt64)
+			Expect(testPackingFor(v)).To(Equal(v))
+		})
+
+		It("should pack and unpack uint64 values", func() {
+			v := uint64(math.MaxUint64)
 			Expect(testPackingFor(v)).To(Equal(v))
 		})
 
@@ -188,11 +192,10 @@ var _ = Describe("Packing Test", func() {
 			Expect(testPackingFor(v)).To(Equal([]interface{}{}))
 		})
 
-		// TODO: Resolve later
-		// It("should pack and unpack an array of uint64", func() {
-		// 	v := []uint64{1, 2, 3}
-		// 	Expect(testPackingFor(v)).To(Equal([]interface{}{1, 2, 3}))
-		// })
+		It("should pack and unpack an array of uint64", func() {
+			v := []uint64{1, 2, 3}
+			Expect(testPackingFor(v)).To(Equal([]interface{}{uint64(1), uint64(2), uint64(3)}))
+		})
 
 		It("should pack and unpack empty array of string", func() {
 			v := []string{}
