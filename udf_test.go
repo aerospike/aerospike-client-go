@@ -164,14 +164,7 @@ var _ = Describe("UDF/Query tests", func() {
 
 		It("must run a DeleteUDF on a range of records", func() {
 			idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, NUMERIC)
-			if err == nil {
-				// wait until index is created
-				for err := range idxTask.OnComplete() {
-					if err != nil {
-						panic(err)
-					}
-				}
-			}
+			Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 
 			regTask, err := client.RegisterUDF(wpolicy, []byte(udfDelete), "udfDelete.lua", LUA)
 			Expect(err).ToNot(HaveOccurred())
@@ -187,14 +180,14 @@ var _ = Describe("UDF/Query tests", func() {
 			// wait until UDF is run on all records
 			Expect(<-exTask.OnComplete()).ToNot(HaveOccurred())
 
-			// read all data and make sure it is consistent
-			recordset, err := client.ScanAll(nil, ns, set)
-			Expect(err).ToNot(HaveOccurred())
-
 			// a new record that is not in the range
 			key, err = NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 			err = client.PutBins(wpolicy, key, NewBin(bin1.Name, math.MaxInt16+1))
+			Expect(err).ToNot(HaveOccurred())
+
+			// read all data and make sure it is consistent
+			recordset, err := client.ScanAll(nil, ns, set)
 			Expect(err).ToNot(HaveOccurred())
 
 			i := 0
