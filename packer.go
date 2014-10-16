@@ -182,6 +182,15 @@ func (pckr *packer) PackObject(obj interface{}) error {
 	case nil:
 		pckr.PackNil()
 		return nil
+	case bool:
+		pckr.PackBool(obj.(bool))
+		return nil
+	case float32:
+		pckr.PackFloat32(obj.(float32))
+		return nil
+	case float64:
+		pckr.PackFloat64(obj.(float64))
+		return nil
 	}
 
 	// check for array and map
@@ -247,7 +256,7 @@ func (pckr *packer) PackALong(val int64) {
 			pckr.PackInt(0xd2, int32(val))
 			return
 		}
-		pckr.PackLong(0xd3, int64(val))
+		pckr.PackLong(0xd3, val)
 	}
 }
 
@@ -325,6 +334,24 @@ func (pckr *packer) PackByte(valType int, val byte) {
 
 func (pckr *packer) PackNil() {
 	pckr.buffer.WriteByte(0xc0)
+}
+
+func (pckr *packer) PackBool(val bool) {
+	if val {
+		pckr.buffer.WriteByte(0xc3)
+	} else {
+		pckr.buffer.WriteByte(0xc2)
+	}
+}
+
+func (pckr *packer) PackFloat32(val float32) {
+	pckr.buffer.WriteByte(0xca)
+	pckr.buffer.Write(Buffer.Float32ToBytes(val, nil, pckr.offset))
+}
+
+func (pckr *packer) PackFloat64(val float64) {
+	pckr.buffer.WriteByte(0xcb)
+	pckr.buffer.Write(Buffer.Float64ToBytes(val, nil, pckr.offset))
 }
 
 func (pckr *packer) PackAByte(val byte) {

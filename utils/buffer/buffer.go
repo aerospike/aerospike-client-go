@@ -32,6 +32,9 @@ var uint64sz = int(unsafe.Sizeof(uint64(0)))
 var uint32sz = int(unsafe.Sizeof(uint32(0)))
 var uint16sz = int(unsafe.Sizeof(uint16(0)))
 
+var float32sz = int(unsafe.Sizeof(float32(0)))
+var float64sz = int(unsafe.Sizeof(float64(0)))
+
 var Arch64Bits = (sizeOfInt == sizeOfInt64)
 var Arch32Bits = (sizeOfInt == sizeOfInt32)
 
@@ -139,6 +142,40 @@ func Int16ToBytes(num int16, buffer []byte, offset int) []byte {
 	b := make([]byte, uint16sz)
 	binary.BigEndian.PutUint16(b, uint16(num))
 	return b
+}
+
+func BytesToFloat32(buf []byte, offset int) float32 {
+	bits := binary.BigEndian.Uint32(buf[offset : offset+float32sz])
+	return math.Float32frombits(bits)
+}
+
+func Float32ToBytes(float float32, buffer []byte, offset int) []byte {
+	bits := math.Float32bits(float)
+	if buffer != nil {
+		binary.BigEndian.PutUint32(buffer, bits)
+		return nil
+	}
+
+	bytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(bytes, bits)
+	return bytes
+}
+
+func BytesToFloat64(buf []byte, offset int) float64 {
+	bits := binary.BigEndian.Uint64(buf[offset : offset+float64sz])
+	return math.Float64frombits(bits)
+}
+
+func Float64ToBytes(float float64, buffer []byte, offset int) []byte {
+	bits := math.Float64bits(float)
+	if buffer != nil {
+		binary.BigEndian.PutUint64(buffer, bits)
+		return nil
+	}
+
+	bytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(bytes, bits)
+	return bytes
 }
 
 func GetUnsigned(b byte) int {

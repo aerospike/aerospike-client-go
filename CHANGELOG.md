@@ -1,8 +1,19 @@
 # Change history
 
+## Oct 16 2014
+
+  * **Incompatible changes**:
+
+    * Expiration and Generation in WritePolicy are now int32 
+
+  * **New Features**:
+
+    * float32, float64 and bool are now supported in map and array types
+
 ## Oct 15 2014 (Beta 2)
 
   * **Hot fix**:
+
     * Fixed pack/unpack for uint64
 
 ## Aug 20 2014 (Beta 1)

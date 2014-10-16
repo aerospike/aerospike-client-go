@@ -19,11 +19,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	// . "github.com/aerospike/aerospike-client-go/logger"
-	// . "github.com/aerospike/aerospike-client-go/types"
-	// ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
-	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 func testPackingFor(v interface{}) interface{} {
@@ -103,15 +98,31 @@ var _ = Describe("Packing Test", func() {
 			Expect(testPackingFor(v)).To(Equal(v))
 		})
 
-		// It("should pack and unpack boolean: true values", func() {
-		// 	v := true
-		// 	Expect(testPackingFor(v)).To(Equal(v))
-		// })
+		It("should pack and unpack boolean: true values", func() {
+			v := true
+			Expect(testPackingFor(v)).To(Equal(v))
+		})
 
-		// It("should pack and unpack boolean: false values", func() {
-		// 	v := false
-		// 	Expect(testPackingFor(v)).To(Equal(v))
-		// })
+		It("should pack and unpack boolean: false values", func() {
+			v := false
+			Expect(testPackingFor(v)).To(Equal(v))
+		})
+
+		It("should pack and unpack float32 values", func() {
+			v := float32(math.MaxFloat32)
+			Expect(testPackingFor(v)).To(Equal(v))
+
+			v = float32(-math.MaxFloat32)
+			Expect(testPackingFor(v)).To(Equal(v))
+		})
+
+		It("should pack and unpack float64 values", func() {
+			v := float64(math.MaxFloat64)
+			Expect(testPackingFor(v)).To(Equal(v))
+
+			v = float64(-math.MaxFloat64)
+			Expect(testPackingFor(v)).To(Equal(v))
+		})
 	})
 
 	Context("Array Value Types", func() {
@@ -219,37 +230,55 @@ var _ = Describe("Packing Test", func() {
 
 		It("should pack and unpack a complex map", func() {
 			v := map[interface{}]interface{}{
-				"uint8":  uint8(math.MaxUint8),
-				"int8":   int8(math.MaxInt8),
-				"mint8":  int8(math.MinInt8),
-				"uint16": uint16(math.MaxUint16),
-				"int16":  int16(math.MaxInt16),
-				"mint16": int16(math.MinInt16),
-				"uint32": uint32(math.MaxUint32),
-				"int32":  int32(math.MaxInt32),
-				"mint32": int32(math.MinInt32),
-				"uint64": uint64(math.MaxUint64),
-				"int64":  int64(math.MaxInt64),
-				"mint64": int64(math.MinInt64),
-				"str":    "this is a string",
-				"nil":    nil,
+				"uint8":      uint8(math.MaxUint8),
+				"int8":       int8(math.MaxInt8),
+				"mint8":      int8(math.MinInt8),
+				"uint16":     uint16(math.MaxUint16),
+				"int16":      int16(math.MaxInt16),
+				"mint16":     int16(math.MinInt16),
+				"uint32":     uint32(math.MaxUint32),
+				"int32":      int32(math.MaxInt32),
+				"mint32":     int32(math.MinInt32),
+				"uint":       uint64(math.MaxUint64),
+				"int":        int64(math.MaxInt64),
+				"mint":       int64(math.MinInt64),
+				"uint64":     uint64(math.MaxUint64),
+				"int64":      int64(math.MaxInt64),
+				"mint64":     int64(math.MinInt64),
+				"maxFloat32": float32(math.MaxFloat32),
+				"minFloat32": float32(-math.MaxFloat32),
+				"maxFloat64": float64(math.MaxFloat64),
+				"minFloat64": float64(-math.MaxFloat64),
+				"str":        "this is a string",
+				"nil":        nil,
+				"true":       true,
+				"false":      false,
 			}
 
 			v_res := map[interface{}]interface{}{
-				"uint8":  int(math.MaxUint8),
-				"int8":   int(math.MaxInt8),
-				"mint8":  int(math.MinInt8),
-				"uint16": int(math.MaxUint16),
-				"int16":  int(math.MaxInt16),
-				"mint16": int(math.MinInt16),
-				"uint32": int(math.MaxUint32),
-				"int32":  int(math.MaxInt32),
-				"mint32": int(math.MinInt32),
-				"uint64": uint64(math.MaxUint64),
-				"int64":  int64(math.MaxInt64),
-				"mint64": int64(math.MinInt64),
-				"str":    "this is a string",
-				"nil":    nil,
+				"uint8":      int(math.MaxUint8),
+				"int8":       int(math.MaxInt8),
+				"mint8":      int(math.MinInt8),
+				"uint16":     int(math.MaxUint16),
+				"int16":      int(math.MaxInt16),
+				"mint16":     int(math.MinInt16),
+				"uint32":     int(math.MaxUint32),
+				"int32":      int(math.MaxInt32),
+				"mint32":     int(math.MinInt32),
+				"uint":       uint64(math.MaxUint64),
+				"int":        int64(math.MaxInt64),
+				"mint":       int64(math.MinInt64),
+				"uint64":     uint64(math.MaxUint64),
+				"int64":      int64(math.MaxInt64),
+				"mint64":     int64(math.MinInt64),
+				"maxFloat32": float32(math.MaxFloat32),
+				"minFloat32": float32(-math.MaxFloat32),
+				"maxFloat64": float64(math.MaxFloat64),
+				"minFloat64": float64(-math.MaxFloat64),
+				"str":        "this is a string",
+				"nil":        nil,
+				"true":       true,
+				"false":      false,
 			}
 
 			Expect(testPackingFor(v)).To(Equal(v_res))
