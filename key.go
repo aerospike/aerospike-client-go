@@ -25,7 +25,7 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-// Unique record identifier. Records can be identified using a specified namespace,
+// Key is the unique record identifier. Records can be identified using a specified namespace,
 // an optional set name, and a user defined key which must be unique within a set.
 // Records can also be identified by namespace/digest which is the combination used
 // on the server.
@@ -49,32 +49,32 @@ type Key struct {
 	userKey Value
 }
 
-// returns Namespace
+// Namespace returns key's namespace.
 func (ky *Key) Namespace() string {
 	return ky.namespace
 }
 
-// Returns Set name
+// SetName returns key's set name.
 func (ky *Key) SetName() string {
 	return ky.setName
 }
 
-// Returns key's value
+// Value returns key's value.
 func (ky *Key) Value() Value {
 	return ky.userKey
 }
 
-// Returns current key digest
+// Digest returns key digest.
 func (ky *Key) Digest() []byte {
 	return ky.digest
 }
 
-// Uses key digests to compare key equality.
+// Equals uses key digests to compare key equality.
 func (ky *Key) Equals(other *Key) bool {
 	return bytes.Equal(ky.digest, other.digest)
 }
 
-// Return string representation of key.
+// String implements Stringer interface and returns string representation of key.
 func (ky *Key) String() string {
 	if ky.userKey != nil {
 		return fmt.Sprintf("%s:%s:%s:%v", ky.namespace, ky.setName, ky.userKey.String(), Buffer.BytesToHexString(ky.digest))
@@ -82,7 +82,7 @@ func (ky *Key) String() string {
 	return fmt.Sprintf("%s:%s::%v", ky.namespace, ky.setName, Buffer.BytesToHexString(ky.digest))
 }
 
-// Initialize key from namespace, optional set name and user key.
+// NewKey initializes a key from namespace, optional set name and user key.
 // The set name and user defined key are converted to a digest before sending to the server.
 // The server handles record identifiers by digest only.
 func NewKey(namespace string, setName string, key interface{}) (newKey *Key, err error) {

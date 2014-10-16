@@ -33,7 +33,7 @@ type info struct {
 	msg *Message
 }
 
-// Get info values by name from the specified database server node.
+// RequestNodeInfo gets info values by name from the specified database server node.
 func RequestNodeInfo(node *Node, name ...string) (map[string]string, error) {
 	conn, err := node.GetConnection(_DEFAULT_TIMEOUT)
 	if err != nil {
@@ -90,7 +90,7 @@ func newInfo(conn *Connection, commands ...string) (*info, error) {
 	return newInfo, nil
 }
 
-// Get info values by name from the specified connection
+// RequestInfo gets info values by name from the specified connection.
 func RequestInfo(conn *Connection, names ...string) (map[string]string, error) {
 	info, err := newInfo(conn, names...)
 	if err != nil {

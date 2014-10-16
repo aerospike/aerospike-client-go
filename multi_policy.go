@@ -14,7 +14,8 @@
 
 package aerospike
 
-// Container object for policy attributes used in query and scan operations.
+// MultiPolicy contains parameters for policy attributes used in
+// query and scan operations.
 type MultiPolicy struct {
 	BasePolicy
 
@@ -35,6 +36,7 @@ type MultiPolicy struct {
 	WaitUntilMigrationsAreOver bool //=false
 }
 
+// NewMultiPolicy initializes a MultiPolicy instance with default values.
 func NewMultiPolicy() *MultiPolicy {
 	return &MultiPolicy{
 		BasePolicy:                 *NewPolicy(),

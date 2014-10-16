@@ -18,9 +18,12 @@ import (
 	"sync"
 )
 
+// Recordset encapsulates the result of Scan and Query commands.
 type Recordset struct {
+	// Records is a channel on which the resulting records will be sent back.
 	Records chan *Record
-	Errors  chan error
+	// Errors is a channel on which all errors will be sent back.
+	Errors chan error
 
 	active   bool
 	chans    []chan *Record
@@ -30,6 +33,7 @@ type Recordset struct {
 	mutex sync.RWMutex
 }
 
+// NewRecordset generates a new RecordSet instance.
 func NewRecordset(size int) *Recordset {
 	return &Recordset{
 		Records:  make(chan *Record, size),
@@ -39,6 +43,7 @@ func NewRecordset(size int) *Recordset {
 	}
 }
 
+// IsActive returns true if the operation hasn't been finished or cancelled.
 func (rcs *Recordset) IsActive() bool {
 	rcs.mutex.RLock()
 	defer rcs.mutex.RUnlock()
@@ -46,7 +51,7 @@ func (rcs *Recordset) IsActive() bool {
 	return rcs.active == true
 }
 
-// Close all commands
+// Close all streams to different nodes.
 func (rcs *Recordset) Close() {
 	rcs.mutex.Lock()
 	rcs.active = false

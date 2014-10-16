@@ -14,24 +14,26 @@
 
 package aerospike
 
-// Container object for optional parameters used in scan operations.
+// ScanPolicy encapsulates parameters used in scan operations.
 type ScanPolicy struct {
 	MultiPolicy
 
-	// Percent of data to scan.  Valid integer range is 1 to 100.
+	// ScanPercent determines percent of data to scan.
+	// Valid integer range is 1 to 100.
 	// Default is 100.
 	ScanPercent int //= 100;
 
-	// Issue scan requests in parallel or serially.
+	// ConcurrentNodes determines how to issue scan requests (in parallel or sequentially).
 	ConcurrentNodes bool //= true;
 
 	// Indicates if bin data is retrieved. If false, only record digests are retrieved.
 	IncludeBinData bool //= true;
 
-	// Terminate scan if cluster in fluctuating state.
+	// FailOnClusterChange determines scan termination if cluster is in fluctuating state.
 	FailOnClusterChange bool
 }
 
+// NewScanPolicy creates a new ScanPolicy instance with default values.
 func NewScanPolicy() *ScanPolicy {
 	return &ScanPolicy{
 		MultiPolicy:         *NewMultiPolicy(),

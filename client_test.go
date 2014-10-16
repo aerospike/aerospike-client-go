@@ -346,8 +346,8 @@ var _ = Describe("Aerospike", func() {
 								float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 								float32(math.MaxFloat32):  float32(math.MaxFloat32),
 								float64(math.MaxFloat64):  float64(math.MaxFloat64),
-								true:     true,
-								false:    false,
+								"true":   true,
+								"false":  false,
 								"string": map[interface{}]interface{}{nil: "string", "string": 19}, // map to complex array
 								nil:      []int{18, 41},                                            // array to complex map
 							},
@@ -385,8 +385,8 @@ var _ = Describe("Aerospike", func() {
 
 						bin2 := NewBin("Aerospike2", map[interface{}]interface{}{
 							15:                        nil,
-							true:                      true,
-							false:                     false,
+							"true":                    true,
+							"false":                   false,
 							int8(math.MaxInt8):        int8(math.MaxInt8),
 							int64(math.MinInt64):      int64(math.MinInt64),
 							int64(math.MaxInt64):      int64(math.MaxInt64),

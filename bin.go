@@ -14,10 +14,10 @@
 
 package aerospike
 
-// BinMap is used to define a map of bin names to values
+// BinMap is used to define a map of bin names to values.
 type BinMap map[string]interface{}
 
-// Column name/value pair.
+// Bin encapsulates a field name/value pair.
 type Bin struct {
 	// Bin name. Current limit is 14 characters.
 	Name string
@@ -26,7 +26,7 @@ type Bin struct {
 	Value Value
 }
 
-// Constructor, specifying bin name and string value.
+// NewBin generates a new Bin instance, specifying bin name and string value.
 // For servers configured as "single-bin", enter an empty name.
 func NewBin(name string, value interface{}) *Bin {
 	return &Bin{
@@ -43,7 +43,7 @@ func binMapToBins(bins BinMap) []*Bin {
 	return binList
 }
 
-// Implements Stringer interface. string representation of bin.
+// String implements Stringer interface.
 func (bn *Bin) String() string {
 	return bn.Name + ":" + bn.Value.String()
 }

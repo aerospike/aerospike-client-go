@@ -21,12 +21,12 @@ import (
 	// . "github.com/aerospike/aerospike-client-go/logger"
 )
 
-type MessageType uint8
+type messageType uint8
 
 const (
 	MSG_HEADER_SIZE = 8 //sizeof(MessageHeader)
 
-	MSG_INFO    MessageType = 1
+	MSG_INFO    messageType = 1
 	MSG_MESSAGE             = 3
 )
 
@@ -36,6 +36,7 @@ type MessageHeader struct {
 	DataLen [6]byte
 }
 
+// Length returns the length of the message
 func (msg *MessageHeader) Length() int64 {
 	return msgLenFromBytes(msg.DataLen)
 }
@@ -46,7 +47,8 @@ type Message struct {
 	Data []byte
 }
 
-func NewMessage(mtype MessageType, data []byte) *Message {
+// NewMessage generates a new Message instance.
+func NewMessage(mtype messageType, data []byte) *Message {
 	return &Message{
 		MessageHeader: MessageHeader{
 			Version: uint8(2),
@@ -57,6 +59,7 @@ func NewMessage(mtype MessageType, data []byte) *Message {
 	}
 }
 
+// Resize changes the internal buffer size for the message.
 func (msg *Message) Resize(newSize int64) {
 	if int64(len(msg.Data)) == newSize {
 		return
@@ -64,6 +67,7 @@ func (msg *Message) Resize(newSize int64) {
 	msg.Data = make([]byte, newSize)
 }
 
+// Serialize returns a byte slice containing the message.
 func (msg *Message) Serialize() []byte {
 	msg.DataLen = msgLenToBytes(int64(len(msg.Data)))
 	buf := bytes.NewBuffer([]byte{})

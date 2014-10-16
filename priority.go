@@ -19,15 +19,15 @@ type Priority int
 
 const (
 
-	// The server defines the priority.
+	// DEFAULT determines that the server defines the priority.
 	DEFAULT Priority = iota
 
-	// Run the database operation in a background thread.
+	// LOW determines that the server should run the operation in a background thread.
 	LOW
 
-	// Run the database operation at medium priority.
+	// MEDIUM determines that the server should run the operation at medium priority.
 	MEDIUM
 
-	// Run the database operation at the highest priority.
+	// HIGH determines that the server should run the operation at the highest priority.
 	HIGH
 )

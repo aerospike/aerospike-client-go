@@ -21,7 +21,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
-// Task used to poll for long running server execute job completion.
+// ExecuteTask is used to poll for long running server execute job completion.
 type ExecuteTask struct {
 	BaseTask
 
@@ -29,7 +29,7 @@ type ExecuteTask struct {
 	scan   bool
 }
 
-// Initialize task with fields needed to query server nodes.
+// NewExecuteTask initializes task with fields needed to query server nodes.
 func NewExecuteTask(cluster *Cluster, statement *Statement) *ExecuteTask {
 	return &ExecuteTask{
 		BaseTask: *NewTask(cluster, false),
@@ -38,7 +38,7 @@ func NewExecuteTask(cluster *Cluster, statement *Statement) *ExecuteTask {
 	}
 }
 
-// Query all nodes for task completion status.
+// IsDone queries all nodes for task completion status.
 func (etsk *ExecuteTask) IsDone() (bool, error) {
 	var command string
 	if etsk.scan {
@@ -97,6 +97,10 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 	return done, nil
 }
 
+// OnComplete returns a channel which will be closed when the task is
+// completed.
+// If an error is encountered while performing the task, an error
+// will be sent on the channel.
 func (etsk *ExecuteTask) OnComplete() chan error {
 	return etsk.onComplete(etsk)
 }

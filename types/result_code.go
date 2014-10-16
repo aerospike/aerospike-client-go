@@ -14,8 +14,8 @@
 
 package types
 
-// Database operation error codes.  The positive numbers align with the server
-// side file proto.h.
+// ResultCode signifies the database operation error codes.
+// The positive numbers align with the server side file proto.h.
 type ResultCode int
 
 const (

@@ -18,6 +18,9 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
+// BufferPool implements a specialized buffer pool.
+// Pool size will be limited, and each buffer size will be
+// constrained to the init and max buffer sizes.
 type BufferPool struct {
 	pool     *AtomicQueue
 	poolSize int
@@ -40,7 +43,7 @@ func NewBufferPool(poolSize, initBufferSize, maxBufferSize int) *BufferPool {
 	}
 }
 
-// Get return a buffer from the pool. If pool is empty, a new buffer of
+// Get returns a buffer from the pool. If pool is empty, a new buffer of
 // size initBufSize will be created and returned.
 func (bp *BufferPool) Get() []byte {
 	res := bp.pool.Poll()

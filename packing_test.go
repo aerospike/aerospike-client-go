@@ -255,7 +255,7 @@ var _ = Describe("Packing Test", func() {
 				"false":      false,
 			}
 
-			v_res := map[interface{}]interface{}{
+			vRes := map[interface{}]interface{}{
 				"uint8":      int(math.MaxUint8),
 				"int8":       int(math.MaxInt8),
 				"mint8":      int(math.MinInt8),
@@ -281,7 +281,7 @@ var _ = Describe("Packing Test", func() {
 				"false":      false,
 			}
 
-			Expect(testPackingFor(v)).To(Equal(v_res))
+			Expect(testPackingFor(v)).To(Equal(vRes))
 		})
 
 	})

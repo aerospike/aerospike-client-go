@@ -14,11 +14,12 @@
 
 package aerospike
 
-// Container object for policy attributes used in query operations.
+// QueryPolicy encapsulates parameters for policy attributes used in query operations.
 type QueryPolicy struct {
 	MultiPolicy
 }
 
+// NewQueryPolicy generates a new QueryPolicy instance with default values.
 func NewQueryPolicy() *QueryPolicy {
 	return &QueryPolicy{
 		MultiPolicy: *NewMultiPolicy(),

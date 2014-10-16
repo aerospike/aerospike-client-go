@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-// Container object for client policy command.
+// ClientPolicy encapsulates parameters for client policy command.
 type ClientPolicy struct {
 	// Initial host connection timeout in milliseconds.  The timeout when opening a connection
 	// to the server host for the first time.
@@ -31,7 +31,7 @@ type ClientPolicy struct {
 	FailIfNotConnected bool //= true
 }
 
-// Generates a new ClientPolicy with default values
+// NewClientPolicy generates a new ClientPolicy with default values.
 func NewClientPolicy() *ClientPolicy {
 	return &ClientPolicy{
 		Timeout:             1 * time.Second,

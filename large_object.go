@@ -14,18 +14,23 @@
 
 package aerospike
 
+// LargeObject interface defines methods to work with LDTs.
 type LargeObject interface {
 	packageName() string
 
+	// Destroy the bin containing LDT.
 	Destroy() error
+	// Size returns the size of the LDT.
 	Size() (int, error)
+	// GetConfig returns a map containing LDT config values.
 	GetConfig() (map[interface{}]interface{}, error)
+	// SetCapacity sets LDT's capacity.
 	SetCapacity(capacity int) error
+	// GetCapacity returns the capacity of the LDT.
 	GetCapacity() (int, error)
 }
 
 // Create and manage a large object within a single bin. A stack is last in/first out (LIFO).
-///
 type baseLargeObject struct {
 	client     *Client
 	policy     *WritePolicy

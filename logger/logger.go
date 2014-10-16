@@ -20,6 +20,7 @@ import (
 	"sync"
 )
 
+// LogPriority specifies the logging level for the client
 type LogPriority int
 
 const (
@@ -37,6 +38,7 @@ type logger struct {
 	mutex sync.RWMutex
 }
 
+// Logger is the default logger instance
 var Logger = newLogger()
 
 func newLogger() *logger {
@@ -46,7 +48,7 @@ func newLogger() *logger {
 	}
 }
 
-// Specify the *log.Logger object where log messages should be sent to.
+// SetLogger sets the *log.Logger object where log messages should be sent to.
 func (lgr *logger) SetLogger(l *log.Logger) {
 	lgr.mutex.Lock()
 	defer lgr.mutex.Unlock()
@@ -54,7 +56,7 @@ func (lgr *logger) SetLogger(l *log.Logger) {
 	lgr.Logger = l
 }
 
-// Sets logging level. Default is ERR
+// SetLevel sets logging level. Default is ERR.
 func (lgr *logger) SetLevel(level LogPriority) {
 	lgr.mutex.Lock()
 	defer lgr.mutex.Unlock()
@@ -62,24 +64,28 @@ func (lgr *logger) SetLevel(level LogPriority) {
 	lgr.level = level
 }
 
+// Debug logs a message if log level allows to do so.
 func (lgr *logger) Debug(format string, v ...interface{}) {
 	if lgr.level <= DEBUG {
 		lgr.Logger.Printf(format, v...)
 	}
 }
 
+// Info logs a message if log level allows to do so.
 func (lgr *logger) Info(format string, v ...interface{}) {
 	if lgr.level <= INFO {
 		lgr.Logger.Printf(format, v...)
 	}
 }
 
+// Warn logs a message if log level allows to do so.
 func (lgr *logger) Warn(format string, v ...interface{}) {
 	if lgr.level <= WARNING {
 		lgr.Logger.Printf(format, v...)
 	}
 }
 
+// Error logs a message if log level allows to do so.
 func (lgr *logger) Error(format string, v ...interface{}) {
 	if lgr.level <= ERR {
 		lgr.Logger.Printf(format, v...)

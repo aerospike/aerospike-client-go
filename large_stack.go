@@ -14,18 +14,13 @@
 
 package aerospike
 
-// Create and manage a stack within a single bin. A stack is last in/first out (LIFO).
+// LargeStack encapsulates a stack within a single bin.
+// A stack is last in/first out (LIFO) data structure.
 type LargeStack struct {
 	baseLargeObject
 }
 
-// Initialize large stack operator.
-//
-// client        client
-// policy        generic configuration parameters, pass in nil for defaults
-// key         unique record identifier
-// binName       bin name
-// userModule      Lua function name that initializes list configuration parameters, pass nil for default set
+// NewLargeStack initializes a large stack operator.
 func NewLargeStack(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeStack {
 	return &LargeStack{
 		baseLargeObject: *newLargeObject(client, policy, key, binName, userModule),
@@ -36,9 +31,8 @@ func (lstk *LargeStack) packageName() string {
 	return "lstack"
 }
 
-// Push values onto stack.  If the stack does not exist, create it using specified userModule configuration.
-//
-// values      values to push
+// Push pushes values onto stack.
+// If the stack does not exist, create it using specified userModule configuration.
 func (lstk *LargeStack) Push(values ...interface{}) error {
 	var err error
 	if len(values) == 1 {
@@ -49,10 +43,7 @@ func (lstk *LargeStack) Push(values ...interface{}) error {
 	return err
 }
 
-// Select items from top of stack.
-//
-// peekCount     number of items to select.
-// returns          list of items selected
+// Peek select items from top of stack, without removing them
 func (lstk *LargeStack) Peek(peekCount int) ([]interface{}, error) {
 	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "peek", lstk.binName, NewIntegerValue(peekCount))
 	if err != nil {
@@ -65,10 +56,7 @@ func (lstk *LargeStack) Peek(peekCount int) ([]interface{}, error) {
 	return res.([]interface{}), nil
 }
 
-// Select items from top of stack.
-//
-// peekCount     number of items to select.
-// returns          list of items selected
+// Pop selects items from top of stack and then removes them.
 func (lstk *LargeStack) Pop(count int) ([]interface{}, error) {
 	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "pop", lstk.binName, NewIntegerValue(count))
 	if err != nil {
@@ -81,17 +69,12 @@ func (lstk *LargeStack) Pop(count int) ([]interface{}, error) {
 	return res.([]interface{}), nil
 }
 
-// Return all objects in the list.
+// Scan returns all objects in the stack.
 func (lstk *LargeStack) Scan() ([]interface{}, error) {
 	return lstk.scan(lstk)
 }
 
-// Select items from top of stack.
-//
-// peekCount     number of items to select.
-// filterName    Lua function name which applies filter to returned list
-// filterArgs    arguments to Lua function name
-// returns          list of items selected
+// Filter selects items from top of stack.
 func (lstk *LargeStack) Filter(peekCount int, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
 	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "filter", lstk.binName, NewIntegerValue(peekCount), lstk.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
@@ -104,29 +87,27 @@ func (lstk *LargeStack) Filter(peekCount int, filterName string, filterArgs ...i
 	return res.([]interface{}), nil
 }
 
-// Delete bin containing the list.
+// Destroy deletes the bin containing the stack.
 func (lstk *LargeStack) Destroy() error {
 	return lstk.destroy(lstk)
 }
 
-// Return size of list.
+// Size returns size of the stack.
 func (lstk *LargeStack) Size() (int, error) {
 	return lstk.size(lstk)
 }
 
-// Return map of list configuration parameters.
+// GetConfig returns map of stack configuration parameters.
 func (lstk *LargeStack) GetConfig() (map[interface{}]interface{}, error) {
 	return lstk.getConfig(lstk)
 }
 
-// Set maximum number of entries in the list.
-//
-// capacity      max entries in list
+// SetCapacity sets maximum number of entries in the stack.
 func (lstk *LargeStack) SetCapacity(capacity int) error {
 	return lstk.setCapacity(lstk, capacity)
 }
 
-// Return maximum number of entries in the list.
+// GetCapacity returns maximum number of entries in the stack.
 func (lstk *LargeStack) GetCapacity() (int, error) {
 	return lstk.getCapacity(lstk)
 }

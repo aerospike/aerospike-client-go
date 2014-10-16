@@ -1,8 +1,11 @@
 package aerospike
 
-// UDFInfo carries information about UDFs on the server
+// UDF carries information about UDFs on the server
 type UDF struct {
+	// Filename of the UDF
 	Filename string
-	Hash     string
+	// Hash digest of the UDF
+	Hash string
+	// Language of UDF
 	Language Language
 }

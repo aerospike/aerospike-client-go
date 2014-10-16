@@ -14,19 +14,12 @@
 
 package aerospike
 
-// Create and manage a set within a single bin.
+// LargeSet encapsulates a set within a single bin.
 type LargeSet struct {
 	baseLargeObject
 }
 
-// Initialize large set operator.
-//
-// client        client
-// policy        generic configuration parameters, pass in nil for defaults
-// key         unique record identifier
-// binName       bin name
-// userModule      Lua function name that initializes list configuration parameters, pass nil for default set
-
+// NewLargeSet initializes a large set operator.
 func NewLargeSet(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeSet {
 	return &LargeSet{
 		baseLargeObject: *newLargeObject(client, policy, key, binName, userModule),
@@ -37,9 +30,8 @@ func (ls *LargeSet) packageName() string {
 	return "lset"
 }
 
-// Add values to the set.  If the set does not exist, create it using specified userModule configuration.
-//
-// values      values to add
+// Add adds values to the set.
+// If the set does not exist, create it using specified userModule configuration.
 func (ls *LargeSet) Add(values ...interface{}) error {
 	var err error
 	if len(values) == 1 {
@@ -51,26 +43,18 @@ func (ls *LargeSet) Add(values ...interface{}) error {
 	return err
 }
 
-// Delete value from set.
-//
-// value       value to delete
+// Remove delete value from set.
 func (ls *LargeSet) Remove(value interface{}) error {
 	_, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "remove", ls.binName, NewValue(value))
 	return err
 }
 
-// Select value from set.
-//
-// value       value to select
-// returns          found value
+// Get selects a value from set.
 func (ls *LargeSet) Get(value interface{}) (interface{}, error) {
 	return ls.client.Execute(ls.policy, ls.key, ls.packageName(), "get", ls.binName, NewValue(value))
 }
 
-// Check existence of value in the set.
-//
-// value       value to check
-// returns          true if found, otherwise false
+// Exists checks existence of value in the set.
 func (ls *LargeSet) Exists(value interface{}) (bool, error) {
 	ret, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "exists", ls.binName, NewValue(value))
 	if err != nil {
@@ -79,17 +63,12 @@ func (ls *LargeSet) Exists(value interface{}) (bool, error) {
 	return (ret == 1), nil
 }
 
-// Return all objects in the list.
-
+// Scan returns all objects in the set.
 func (ls *LargeSet) Scan() ([]interface{}, error) {
 	return ls.scan(ls)
 }
 
-// Select values from set and apply specified Lua filter.
-//
-// filterName    Lua function name which applies filter to returned list
-// filterArgs    arguments to Lua function name
-// returns          list of entries selected
+// Filter select values from set and applies specified Lua filter.
 func (ls *LargeSet) Filter(filterName string, filterArgs ...interface{}) ([]interface{}, error) {
 	res, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "filter", ls.binName, ls.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
@@ -106,29 +85,27 @@ func (ls *LargeSet) Filter(filterName string, filterArgs ...interface{}) ([]inte
 	return res.([]interface{}), err
 }
 
-// Delete bin containing the list.
+// Destroy deletes the bin containing the set.
 func (ls *LargeSet) Destroy() error {
 	return ls.destroy(ls)
 }
 
-// Return size of list.
+// Size returns size of the set.
 func (ls *LargeSet) Size() (int, error) {
 	return ls.size(ls)
 }
 
-// Return map of list configuration parameters.
+// GetConfig returns map of set configuration parameters.
 func (ls *LargeSet) GetConfig() (map[interface{}]interface{}, error) {
 	return ls.getConfig(ls)
 }
 
-// Set maximum number of entries in the list.
-//
-// capacity      max entries in list
+// SetCapacity sets maximum number of entries in the set.
 func (ls *LargeSet) SetCapacity(capacity int) error {
 	return ls.setCapacity(ls, capacity)
 }
 
-// Return maximum number of entries in the list.
+// GetCapacity returns maximum number of entries in the set.
 func (ls *LargeSet) GetCapacity() (int, error) {
 	return ls.getCapacity(ls)
 }

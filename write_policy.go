@@ -14,24 +14,25 @@
 
 package aerospike
 
-// Container object for policy attributes used in write operations.
+// WritePolicy encapsulates parameters for policy attributes used in write operations.
 // This object is passed into methods where database writes can occur.
 type WritePolicy struct {
 	BasePolicy
 
-	// Qualify how to handle writes where the record already exists.
+	// RecordExistsAction qualifies how to handle writes where the record already exists.
 	RecordExistsAction RecordExistsAction //= RecordExistsAction.UPDATE;
 
-	// Qualify how to handle record writes based on record generation. The default (NONE)
+	// GenerationPolicy qualifies how to handle record writes based on record generation. The default (NONE)
 	// indicates that the generation is not used to restrict writes.
 	GenerationPolicy GenerationPolicy //= GenerationPolicy.NONE;
 
-	// Expected generation. Generation is the number of times a record has been modified
-	// (including creation) on the server. If a write operation is creating a record,
-	// the expected generation would be 0
+	// Generation determines expected generation.
+	// Generation is the number of times a record has been
+	// modified (including creation) on the server.
+	// If a write operation is creating a record, the expected generation would be 0.
 	Generation int32
 
-	// Record expiration. Also known as ttl (time to live).
+	// Expiration determimes record expiration in seconds. Also known as TTL (Time-To-Live).
 	// Seconds record will live before being removed by the server.
 	// Expiration values:
 	// -1: Never expire for Aerospike 2 server versions >= 2.7.2 and Aerospike 3 server
@@ -45,6 +46,7 @@ type WritePolicy struct {
 	SendKey bool
 }
 
+// NewWritePolicy initializes a new WritePolicy instance with default parameters.
 func NewWritePolicy(generation, expiration int32) *WritePolicy {
 	return &WritePolicy{
 		BasePolicy:         *NewPolicy(),

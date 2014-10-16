@@ -26,7 +26,7 @@ type AtomicArray struct {
 	mutex  sync.RWMutex
 }
 
-// Generator for AtomicArray
+// NewAtomicArray generates a new AtomicArray instance.
 func NewAtomicArray(length int) *AtomicArray {
 	return &AtomicArray{
 		length: length,
@@ -34,7 +34,7 @@ func NewAtomicArray(length int) *AtomicArray {
 	}
 }
 
-// Atomically Get an element from the Array.
+// Get atomically retrieves an element from the Array.
 // If idx is out of range, it will return nil
 func (aa *AtomicArray) Get(idx int) interface{} {
 	// do not lock if not needed
@@ -47,7 +47,7 @@ func (aa *AtomicArray) Get(idx int) interface{} {
 	return aa.items[idx]
 }
 
-// Atomically Set an element in the Array.
+// Set atomically sets an element in the Array.
 // If idx is out of range, it will return an error
 func (aa *AtomicArray) Set(idx int, node interface{}) error {
 	// do not lock if not needed
@@ -61,7 +61,7 @@ func (aa *AtomicArray) Set(idx int, node interface{}) error {
 	return nil
 }
 
-// Get array size.
+// Length returns the array size.
 func (aa *AtomicArray) Length() int {
 	return aa.length
 }

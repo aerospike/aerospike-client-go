@@ -20,11 +20,14 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
+// Partition encapsulates partition information.
 type Partition struct {
 	Namespace   string
 	PartitionId int
 }
 
+// NewPartitionByKey initializes a partition and determines the Partition Id
+// from key digest automatically.
 func NewPartitionByKey(key *Key) *Partition {
 	return &Partition{
 		Namespace: key.namespace,
@@ -35,6 +38,7 @@ func NewPartitionByKey(key *Key) *Partition {
 	}
 }
 
+// NewPartition generates a partition instance.
 func NewPartition(namespace string, partitionId int) *Partition {
 	return &Partition{
 		Namespace:   namespace,
@@ -42,10 +46,12 @@ func NewPartition(namespace string, partitionId int) *Partition {
 	}
 }
 
+// String implements the Stringer interface.
 func (ptn *Partition) String() string {
 	return fmt.Sprintf("%s:%d", ptn.Namespace, ptn.PartitionId)
 }
 
+// Equals checks equality of two partitions.
 func (ptn *Partition) Equals(other *Partition) bool {
 	return ptn.PartitionId == other.PartitionId && ptn.Namespace == other.Namespace
 }

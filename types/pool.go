@@ -18,6 +18,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
+// Pool implements a general purpose fixed-size pool.
 type Pool struct {
 	pool     *AtomicQueue
 	poolSize int
@@ -44,7 +45,7 @@ func (bp *Pool) Get() interface{} {
 	return res
 }
 
-// Put will put the elem back in the pool
+// Put will add the elem back to the pool, unless the pool is full.
 func (bp *Pool) Put(elem interface{}) {
 	bp.pool.Offer(elem)
 }

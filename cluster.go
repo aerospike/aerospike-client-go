@@ -41,6 +41,8 @@ type atomicNodeArray struct {
 	AtomicArray
 }
 
+// Cluster encapsulates the aerospike cluster nodes and manages
+// them.
 type Cluster struct {
 	// Initial host nodes specified by user.
 	seeds []*Host
@@ -68,6 +70,7 @@ type Cluster struct {
 	closed      AtomicBool
 }
 
+// NewCluster generates a Cluster instance.
 func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	newCluster := &Cluster{
 		seeds:               hosts,
@@ -126,8 +129,8 @@ Loop:
 	clstr.tendChannel <- _TEND_MSG_CLOSED
 }
 
-// Adds new hosts to the cluster
-// They will be added to the cluster on next tend
+// AddSeeds adds new hosts to the cluster.
+// They will be added to the cluster on next tend call.
 func (clstr *Cluster) AddSeeds(hosts []*Host) {
 	clstr.mutex.Lock()
 	defer clstr.mutex.Unlock()
@@ -319,7 +322,7 @@ func (clstr *Cluster) seedNodes() {
 				}
 			}
 
-			if !clstr.FindNodeName(list, nv.name) {
+			if !clstr.findNodeName(list, nv.name) {
 				node := clstr.createNode(nv)
 				clstr.addAliases(node)
 				list = append(list, node)
@@ -332,9 +335,8 @@ func (clstr *Cluster) seedNodes() {
 	}
 }
 
-// FIXIT: This function is not well desined while it is expoted.
 // Finds a node by name in a list of nodes
-func (clstr *Cluster) FindNodeName(list []*Node, name string) bool {
+func (clstr *Cluster) findNodeName(list []*Node, name string) bool {
 	for _, node := range list {
 		if node.GetName() == name {
 			return true
@@ -553,12 +555,14 @@ func (clstr *Cluster) nodeExists(search *Node, nodeList []*Node) bool {
 	return false
 }
 
+// IsConnected returns true if cluster has nodes and is not already closed.
 func (clstr *Cluster) IsConnected() bool {
 	// Must copy array reference for copy on write semantics to work.
 	nodeArray := clstr.GetNodes()
 	return (len(nodeArray) > 0) && !clstr.closed.Get()
 }
 
+// GetNode returns a node for the provided partition.
 func (clstr *Cluster) GetNode(partition *Partition) (*Node, error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	nmap := clstr.getPartitions()
@@ -572,7 +576,7 @@ func (clstr *Cluster) GetNode(partition *Partition) (*Node, error) {
 	return clstr.GetRandomNode()
 }
 
-// Returns a random node on the cluster
+// GetRandomNode returns a random node on the cluster
 func (clstr *Cluster) GetRandomNode() (*Node, error) {
 	// Must copy array reference for copy on write semantics to work.
 	nodeArray := clstr.GetNodes()
@@ -590,7 +594,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 	return nil, NewAerospikeError(INVALID_NODE_ERROR)
 }
 
-// Returns a list of all nodes in the cluster
+// GetNodes returns a list of all nodes in the cluster
 func (clstr *Cluster) GetNodes() []*Node {
 	clstr.mutex.RLock()
 	defer clstr.mutex.RUnlock()
@@ -599,7 +603,8 @@ func (clstr *Cluster) GetNodes() []*Node {
 	return nodeArray
 }
 
-// Find a node by name and returns an error if not found
+// GetNodeByName finds a node by name and returns an
+// error if the node is not found.
 func (clstr *Cluster) GetNodeByName(nodeName string) (*Node, error) {
 	node := clstr.findNodeByName(nodeName)
 
@@ -621,7 +626,8 @@ func (clstr *Cluster) findNodeByName(nodeName string) *Node {
 	return nil
 }
 
-// Closes all cached connections to the cluster nodes and stops the tend goroutine
+// Close closes all cached connections to the cluster nodes
+// and stops the tend goroutine.
 func (clstr *Cluster) Close() {
 	if !clstr.closed.Get() {
 		// send close signal to maintenance channel
@@ -668,6 +674,8 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 	}
 }
 
+// WaitUntillMigrationIsFinished will block until all
+// migration operations in the cluster all finished.
 func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err error) {
 	done := make(chan error)
 

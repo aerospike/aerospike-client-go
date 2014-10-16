@@ -14,7 +14,7 @@
 
 package aerospike
 
-// Aerospike operation type
+// OperationType determines operation type
 type OperationType int
 
 var (
@@ -27,55 +27,56 @@ var (
 	TOUCH       OperationType = 11
 )
 
-// Database operation definition.  The class is used in client's operate() method.
+// Operation contasins operation definition.
+// This struct is used in client's operate() method.
 type Operation struct {
 
-	// Type of operation.
+	// OpType determines type of operation.
 	OpType OperationType
 
-	// Optional bin name used in operation.
+	// BinName (Optional) determines the name of bin used in operation.
 	BinName *string
 
-	// Optional bin value used in operation.
+	// BinValue (Optional) determines bin value used in operation.
 	BinValue Value
 }
 
-// Create read bin database operation.
+// GetOpForBin creates read bin database operation.
 func GetOpForBin(binName string) *Operation {
 	return &Operation{OpType: READ, BinName: &binName, BinValue: NewNullValue()}
 }
 
-// Create read all record bins database operation.
+// GetOp creates read all record bins database operation.
 func GetOp() *Operation {
 	return &Operation{OpType: READ, BinValue: NewNullValue()}
 }
 
-// Create read record header database operation.
+// GetHeaderOp creates read record header database operation.
 func GetHeaderOp() *Operation {
 	return &Operation{OpType: READ_HEADER, BinValue: NewNullValue()}
 }
 
-// Create set database operation.
+// PutOp creates set database operation.
 func PutOp(bin *Bin) *Operation {
 	return &Operation{OpType: WRITE, BinName: &bin.Name, BinValue: bin.Value}
 }
 
-// Create string append database operation.
+// AppendOp creates string append database operation.
 func AppendOp(bin *Bin) *Operation {
 	return &Operation{OpType: APPEND, BinName: &bin.Name, BinValue: bin.Value}
 }
 
-// Create string prepend database operation.
+// PrependOp creates string prepend database operation.
 func PrependOp(bin *Bin) *Operation {
 	return &Operation{OpType: PREPEND, BinName: &bin.Name, BinValue: bin.Value}
 }
 
-// Create integer add database operation.
+// AddOp creates integer add database operation.
 func AddOp(bin *Bin) *Operation {
 	return &Operation{OpType: ADD, BinName: &bin.Name, BinValue: bin.Value}
 }
 
-// Create touch database operation.
+// TouchOp creates touch database operation.
 func TouchOp() *Operation {
 	return &Operation{OpType: TOUCH, BinValue: NewNullValue()}
 }

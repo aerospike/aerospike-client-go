@@ -14,19 +14,12 @@
 
 package aerospike
 
-// Create and manage a list within a single bin.
-///
+// LargeList encapsulates a list within a single bin.
 type LargeList struct {
 	baseLargeObject
 }
 
-// Initialize large list operator.
-//
-// client        client
-// policy        generic configuration parameters, pass in nil for defaults
-// key         unique record identifier
-// binName       bin name
-// userModule      Lua function name that initializes list configuration parameters, pass nil for default list
+// NewLargeList initializes a large list operator.
 func NewLargeList(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeList {
 	return &LargeList{
 		baseLargeObject: *newLargeObject(client, policy, key, binName, userModule),
@@ -37,9 +30,8 @@ func (ll *LargeList) packageName() string {
 	return "llist"
 }
 
-// Add values to the list.  If the list does not exist, create it using specified userModule configuration.
-//
-// values      values to add
+// Add adds values to the list.
+// If the list does not exist, create it using specified userModule configuration.
 func (ll *LargeList) Add(values ...interface{}) error {
 	var err error
 	if len(values) == 1 {
@@ -50,9 +42,7 @@ func (ll *LargeList) Add(values ...interface{}) error {
 	return err
 }
 
-// Update/Add each value in values list depending if key exists or not.
-// If value is a map, the key is identified by "key" entry.  Otherwise, the value is the key.
-// If large list does not exist, create it using specified userModule configuration.
+// Update updates/adds each value in values list depending if key exists or not.
 func (ll *LargeList) Update(values ...interface{}) error {
 	var err error
 	if len(values) == 1 {
@@ -63,18 +53,13 @@ func (ll *LargeList) Update(values ...interface{}) error {
 	return err
 }
 
-// Delete value from list.
-//
-// value       value to delete
+// Remove deletes value from list.
 func (ll *LargeList) Remove(value interface{}) error {
 	_, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "remove", ll.binName, NewValue(value))
 	return err
 }
 
-// Select values from list.
-//
-// value       value to select
-// returns          list of entries selected
+// Find selects values from list.
 func (ll *LargeList) Find(value interface{}) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "find", ll.binName, NewValue(value))
 	if err != nil {
@@ -87,12 +72,7 @@ func (ll *LargeList) Find(value interface{}) ([]interface{}, error) {
 	return res.([]interface{}), err
 }
 
-// Select values from list and apply specified Lua filter.
-//
-// value       value to select
-// filterName    Lua function name which applies filter to returned list
-// filterArgs    arguments to Lua function name
-// returns          list of entries selected
+// FindThenFilter selects values from list and applies specified Lua filter.
 func (ll *LargeList) FindThenFilter(value interface{}, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "find_then_filter", ll.binName, NewValue(value), ll.userModule, NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
@@ -105,16 +85,12 @@ func (ll *LargeList) FindThenFilter(value interface{}, filterName string, filter
 	return res.([]interface{}), err
 }
 
-// Return all objects in the list.
+// Scan returns all objects in the list.
 func (ll *LargeList) Scan() ([]interface{}, error) {
 	return ll.scan(ll)
 }
 
-// Select values from list and apply specified Lua filter.
-//
-// filterName    Lua function name which applies filter to returned list
-// filterArgs    arguments to Lua function name
-// returns          list of entries selected
+// Filter selects values from list and apply specified Lua filter.
 func (ll *LargeList) Filter(filterName string, filterArgs ...interface{}) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "filter", ll.binName, ll.userModule, NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
@@ -127,29 +103,27 @@ func (ll *LargeList) Filter(filterName string, filterArgs ...interface{}) ([]int
 	return res.([]interface{}), err
 }
 
-// Delete bin containing the list.
+// Destroy deletes the bin containing the list.
 func (ll *LargeList) Destroy() error {
 	return ll.destroy(ll)
 }
 
-// Return size of list.
+// Size returns size of list.
 func (ll *LargeList) Size() (int, error) {
 	return ll.size(ll)
 }
 
-// Return map of list configuration parameters.
+// GetConfig returns map of list configuration parameters.
 func (ll *LargeList) GetConfig() (map[interface{}]interface{}, error) {
 	return ll.getConfig(ll)
 }
 
-// Set maximum number of entries in the list.
-//
-// capacity      max entries in list
+// SetCapacity sets maximum number of entries in the list.
 func (ll *LargeList) SetCapacity(capacity int) error {
 	return ll.setCapacity(ll, capacity)
 }
 
-// Return maximum number of entries in the list.
+// GetCapacity returns maximum number of entries in the list.
 func (ll *LargeList) GetCapacity() (int, error) {
 	return ll.getCapacity(ll)
 }

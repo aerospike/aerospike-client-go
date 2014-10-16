@@ -14,18 +14,12 @@
 
 package aerospike
 
-// Create and manage a map within a single bin.
+// LargeMap encapsulates a map within a single bin.
 type LargeMap struct {
 	baseLargeObject
 }
 
-// Initialize large map operator.
-//
-// client        client
-// policy        generic configuration parameters, pass in nil for defaults
-// key         unique record identifier
-// binName       bin name
-// userModule      Lua function name that initializes list configuration parameters, pass nil for default set
+// NewLargeMap initializes a large map operator.
 func NewLargeMap(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeMap {
 	return &LargeMap{
 		baseLargeObject: *newLargeObject(client, policy, key, binName, userModule),
@@ -36,27 +30,21 @@ func (lm *LargeMap) packageName() string {
 	return "lmap"
 }
 
-// Add entry to map.  If the map does not exist, create it using specified userModule configuration.
-//
-// name        entry key
-// value       entry value
+// Put adds an entry to the map.
+// If the map does not exist, create it using specified userModule configuration.
 func (lm *LargeMap) Put(name interface{}, value interface{}) error {
 	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "put", lm.binName, NewValue(name), NewValue(value), lm.userModule)
 	return err
 }
 
-// Add map values to map.  If the map does not exist, create it using specified userModule configuration.
-//
-// map       map values to push
+// PutMap adds map values to the map.
+// If the map does not exist, create it using specified userModule configuration.
 func (lm *LargeMap) PutMap(theMap map[interface{}]interface{}) error {
 	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "put_all", lm.binName, NewMapValue(theMap), lm.userModule)
 	return err
 }
 
-// Get value from map given name key.
-//
-// name        key.
-// return          map of items selected
+// Get returns  value from map corresponding with the provided key.
 func (lm *LargeMap) Get(name interface{}) (map[interface{}]interface{}, error) {
 	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "get", lm.binName, NewValue(name))
 
@@ -70,10 +58,7 @@ func (lm *LargeMap) Get(name interface{}) (map[interface{}]interface{}, error) {
 	return res.(map[interface{}]interface{}), err
 }
 
-// Remove value from map given name key.
-//
-// name        key.
-// return          map of items selected
+// Remove deletes a value from map given key.
 func (lm *LargeMap) Remove(name interface{}) (map[interface{}]interface{}, error) {
 	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "remove", lm.binName, NewValue(name))
 
@@ -87,7 +72,7 @@ func (lm *LargeMap) Remove(name interface{}) (map[interface{}]interface{}, error
 	return res.(map[interface{}]interface{}), err
 }
 
-// Return all objects in the list.
+// Scan returns all objects in the map.
 func (lm *LargeMap) Scan() (map[interface{}]interface{}, error) {
 	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "scan", lm.binName)
 	if err != nil {
@@ -100,11 +85,7 @@ func (lm *LargeMap) Scan() (map[interface{}]interface{}, error) {
 	return res.(map[interface{}]interface{}), err
 }
 
-// Select items from map.
-//
-// filterName    Lua function name which applies filter to returned list
-// filterArgs    arguments to Lua function name
-// return          list of items selected
+// Filter selects items from the map.
 func (lm *LargeMap) Filter(filterName string, filterArgs ...interface{}) (map[interface{}]interface{}, error) {
 	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "filter", lm.binName, lm.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
@@ -117,29 +98,27 @@ func (lm *LargeMap) Filter(filterName string, filterArgs ...interface{}) (map[in
 	return res.(map[interface{}]interface{}), err
 }
 
-// Delete bin containing the list.
+// Destroy deletes the bin containing the map.
 func (lm *LargeMap) Destroy() error {
 	return lm.destroy(lm)
 }
 
-// Return size of list.
+// Size returns size of the map.
 func (lm *LargeMap) Size() (int, error) {
 	return lm.size(lm)
 }
 
-// Return map of list configuration parameters.
+// GetConfig returns map of map configuration parameters.
 func (lm *LargeMap) GetConfig() (map[interface{}]interface{}, error) {
 	return lm.getConfig(lm)
 }
 
-// Set maximum number of entries in the list.
-//
-// capacity      max entries in list
+// SetCapacity sets maximum number of entries in the map.
 func (lm *LargeMap) SetCapacity(capacity int) error {
 	return lm.setCapacity(lm, capacity)
 }
 
-// Return maximum number of entries in the list.
+// GetCapacity returns maximum number of entries in the map.
 func (lm *LargeMap) GetCapacity() (int, error) {
 	return lm.getCapacity(lm)
 }

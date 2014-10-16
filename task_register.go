@@ -18,14 +18,14 @@ import (
 	"strings"
 )
 
-// Task used to poll for UDF registration completion.
+// RegisterTask is used to poll for UDF registration completion.
 type RegisterTask struct {
 	BaseTask
 
 	packageName string
 }
 
-// Initialize task with fields needed to query server nodes.
+// NewRegisterTask initializes a RegisterTask with fields needed to query server nodes.
 func NewRegisterTask(cluster *Cluster, packageName string) *RegisterTask {
 	return &RegisterTask{
 		BaseTask:    *NewTask(cluster, false),
@@ -33,7 +33,7 @@ func NewRegisterTask(cluster *Cluster, packageName string) *RegisterTask {
 	}
 }
 
-// Query all nodes for task completion status.
+// IsDone will query all nodes for task completion status.
 func (tskr *RegisterTask) IsDone() (bool, error) {
 	command := "udf-list"
 	nodes := tskr.cluster.GetNodes()
@@ -58,6 +58,8 @@ func (tskr *RegisterTask) IsDone() (bool, error) {
 	return done, nil
 }
 
+// OnComplete returns a channel that will be closed as soon as the task is finished.
+// If an error is encountered during operation, an error will be sent on the channel.
 func (tskr *RegisterTask) OnComplete() chan error {
 	return tskr.onComplete(tskr)
 }
