@@ -20,7 +20,7 @@ import (
 
 // Container object for records.  Records are equivalent to rows.
 type Record struct {
-	// Record's Key. Might be empty, or only consist of digest only.
+	// Record's Key. Might be empty, or may only consist of digest value.
 	Key *Key
 
 	// Node from which the Record is originating from.
@@ -38,7 +38,7 @@ type Record struct {
 	// Record modification count.
 	Generation int
 
-	// Date record will expire, in seconds from Jan 01 2010 00:00:00 GMT
+	// TTL (Time-To-Live). Number of seconds until record expires.
 	Expiration int
 }
 

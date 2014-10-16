@@ -29,7 +29,7 @@ type WritePolicy struct {
 	// Expected generation. Generation is the number of times a record has been modified
 	// (including creation) on the server. If a write operation is creating a record,
 	// the expected generation would be 0
-	Generation int
+	Generation int32
 
 	// Record expiration. Also known as ttl (time to live).
 	// Seconds record will live before being removed by the server.
@@ -38,14 +38,14 @@ type WritePolicy struct {
 	// versions >= 3.1.4.  Do not use -1 for older servers.
 	// 0: Default to namespace configuration variable "default-ttl" on the server.
 	// > 0: Actual expiration in seconds.
-	Expiration int
+	Expiration int32
 
 	// Send user defined key in addition to hash digest on a record put.
 	// The default is to not send the user defined key.
 	SendKey bool
 }
 
-func NewWritePolicy(generation, expiration int) *WritePolicy {
+func NewWritePolicy(generation, expiration int32) *WritePolicy {
 	return &WritePolicy{
 		BasePolicy:         *NewPolicy(),
 		RecordExistsAction: UPDATE,
