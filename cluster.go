@@ -421,7 +421,7 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 
 		case 2:
 			// Two node clusters require at least one successful refresh before removing.
-			if refreshCount == 1 && node.referenceCount == 0 && !node.responded {
+			if node.refreshCount > 0 && refreshCount == 1 && node.referenceCount == 0 && !node.responded {
 				// Node is not referenced nor did it respond.
 				removeList = append(removeList, node)
 			}

@@ -42,6 +42,7 @@ type Node struct {
 	health      *AtomicInt   //AtomicInteger
 
 	partitionGeneration int
+	refreshCount        int
 	referenceCount      int
 	responded           bool
 	useNewInfo          bool
@@ -73,6 +74,8 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 // Refresh requests current status from server node, and updates node with the result.
 func (nd *Node) Refresh() ([]*Host, error) {
 	var friends []*Host
+
+	nd.refreshCount++
 
 	conn, err := nd.GetConnection(1 * time.Second)
 	if err != nil {

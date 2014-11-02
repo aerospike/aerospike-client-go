@@ -93,6 +93,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	log.Println("Nodes Found:", client.GetNodeNames())
+
 	go reporter()
 	for i := 1; i < *concurrency; i++ {
 		wg.Add(1)
