@@ -1,10 +1,17 @@
 # Change history
 
-## Oct 16 2014
+## Nov 2 2014
+
+  Minor, but very impoortant fix.
+
+  * **Fixes**:
+
+    * Node selection in partition map was flawed on first refresh.
 
   * **Incompatible changes**:
 
-    * Expiration and Generation in WritePolicy are now int32 
+    * `Expiration` and `Generation` in `WritePolicy` are now `int32`
+    * `TaskId` in `Statement` is now always set in the client, and is `int64`
 
   * **New Features**:
 

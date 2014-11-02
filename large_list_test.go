@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	. "github.com/aerospike/aerospike-client-go"
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 var _ = Describe("LargeList Test", func() {
@@ -45,8 +46,9 @@ var _ = Describe("LargeList Test", func() {
 
 	It("should create a valid LargeList; Support Add(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
 		llist := client.GetLargeList(wpolicy, key, randString(10), "")
-		_, err := llist.Size()
-		Expect(err).To(HaveOccurred()) // bin not exists
+		res, err := llist.Size()
+		Expect(err).ToNot(HaveOccurred()) // bin not exists
+		Expect(res).To(Equal(0))
 
 		for i := 1; i <= 100; i++ {
 			err = llist.Add(NewValue(i))
@@ -90,7 +92,7 @@ var _ = Describe("LargeList Test", func() {
 			// make sure the value has been removed
 			findResult, err = llist.Find(NewValue(i))
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("LDT-Item Not Found"))
+			Expect(err.(AerospikeError).ResultCode()).To(Equal(LARGE_ITEM_NOT_FOUND))
 		}
 
 	})

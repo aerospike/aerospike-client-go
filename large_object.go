@@ -75,7 +75,11 @@ func (lo *baseLargeObject) size(ifc LargeObject) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	return ret.(int), nil
+
+	if ret != nil {
+		return ret.(int), nil
+	}
+	return 0, nil
 }
 
 // Return map of object configuration parameters.
