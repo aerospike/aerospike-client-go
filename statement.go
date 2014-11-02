@@ -41,7 +41,7 @@ type Statement struct {
 	functionArgs []Value
 
 	// TaskId determines query task id. (Optional)
-	TaskId int
+	TaskId int64
 
 	// determines if the query should return data
 	returnData bool

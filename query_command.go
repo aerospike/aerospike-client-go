@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"strings"
+	"time"
 
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -108,10 +109,12 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 		fieldCount++
 	}
 
-	if cmd.statement.TaskId > 0 {
-		cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
-		fieldCount++
+	if cmd.statement.TaskId == 0 {
+		cmd.statement.TaskId = time.Now().UnixNano()
 	}
+
+	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
+	fieldCount++
 
 	if strings.Trim(cmd.statement.functionName, " ") != "" {
 		cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1 // udf type
@@ -182,11 +185,9 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 		}
 	}
 
-	if cmd.statement.TaskId > 0 {
-		cmd.writeFieldHeader(8, TRAN_ID)
-		Buffer.Int64ToBytes(int64(cmd.statement.TaskId), cmd.dataBuffer, cmd.dataOffset)
-		cmd.dataOffset += 8
-	}
+	cmd.writeFieldHeader(8, TRAN_ID)
+	Buffer.Int64ToBytes(int64(cmd.statement.TaskId), cmd.dataBuffer, cmd.dataOffset)
+	cmd.dataOffset += 8
 
 	if strings.Trim(cmd.statement.functionName, " ") != "" {
 		cmd.writeFieldHeader(1, UDF_OP)

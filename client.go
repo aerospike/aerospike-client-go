@@ -823,6 +823,11 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 		policy = NewQueryPolicy()
 	}
 
+	// Always set a taskId
+	if statement.TaskId == 0 {
+		statement.TaskId = time.Now().UnixNano()
+	}
+
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteUDF failed because cluster is empty.")
@@ -834,10 +839,6 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	}
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
-
-	if statement.TaskId == 0 {
-		statement.TaskId = int(rnd.Int31())
-	}
 
 	errs := []error{}
 	for i := range nodes {
@@ -864,6 +865,11 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset, error) {
 	if policy == nil {
 		policy = NewQueryPolicy()
+	}
+
+	// Always set a taskId
+	if statement.TaskId == 0 {
+		statement.TaskId = time.Now().UnixNano()
 	}
 
 	// Retry policy must be one-shot for scans.

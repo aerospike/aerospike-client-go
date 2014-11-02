@@ -218,11 +218,11 @@ func getBin(rnd *rand.Rand) *Bin {
 
 var r *Record
 
+const random_alpha_num = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+const l = 62
+
 // generates a random strings of specified length
 func randString(size int, rnd *rand.Rand) string {
-	const random_alpha_num = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	const l = 62
-
 	buf := make([]byte, size)
 	for i := 0; i < size; i++ {
 		buf[i] = random_alpha_num[rnd.Intn(l)]

@@ -43,3 +43,4 @@ script:
   # make sure the instances are up and clean
   - sleep 30
   - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
+  - .travis/proxy_check.sh
