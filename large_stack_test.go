@@ -45,8 +45,9 @@ var _ = Describe("LargeStack Test", func() {
 
 	It("should create a valid LargeStack; Support Add(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
 		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
-		_, err := lstack.Size()
-		Expect(err).To(HaveOccurred()) // bin not exists
+		res, err := lstack.Size()
+		Expect(err).ToNot(HaveOccurred()) // bin not exists
+		Expect(res).To(Equal(0))
 
 		for i := 1; i <= 100; i++ {
 			err = lstack.Push(NewValue(i))

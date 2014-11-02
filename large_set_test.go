@@ -47,8 +47,9 @@ var _ = Describe("LargeSet Test", func() {
 		const elems = 100
 
 		lset := client.GetLargeSet(wpolicy, key, randString(10), "")
-		_, err := lset.Size()
-		Expect(err).To(HaveOccurred()) // bin not exists
+		res, err := lset.Size()
+		Expect(err).ToNot(HaveOccurred()) // bin not exists
+		Expect(res).To(Equal(0))
 
 		for i := 1; i <= elems; i++ {
 			err = lset.Add(NewValue(i))
