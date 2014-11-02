@@ -72,6 +72,8 @@ var workloadPercent int
 var wg sync.WaitGroup
 
 func main() {
+	log.SetOutput(os.Stdout)
+
 	// use all cpus in the system for concurrency
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	readFlags()

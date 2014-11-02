@@ -18,6 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ var sepLines = flag.Bool("l", false, "(print in seperate lines - default false)"
 
 func main() {
 	flag.Parse()
+	log.SetOutput(os.Stdout)
 	log.SetFlags(0)
 
 	// connect to the host
