@@ -35,10 +35,13 @@ import (
 )
 
 type TStats struct {
-	Exit     bool
-	W, R     int // write and read counts
-	WE, RE   int // write and read errors
-	WTO, RTO int // write and read timeouts
+	Exit               bool
+	W, R               int // write and read counts
+	WE, RE             int // write and read errors
+	WTO, RTO           int // write and read timeouts
+	W1, W5, WMin, WMax int64
+	R1, R5, RMin, RMax int64
+	WLat, RLat         int64
 }
 
 var countReportChan = make(chan *TStats, 100) // async chan
@@ -108,7 +111,7 @@ func main() {
 	wg.Wait()
 
 	// send term to reporter, and wait for it to terminate
-	countReportChan <- &TStats{true, 0, 0, 0, 0, 0, 0}
+	countReportChan <- &TStats{true, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	time.Sleep(10 * time.Millisecond)
 	<-countReportChan
 }
@@ -260,8 +263,17 @@ func runBench(client *Client, ident int, times int) {
 	var WCount, RCount int
 	var writeErr, readErr int
 	var writeTOErr, readTOErr int
+
+	var tm time.Time
+	var wLat, rLat int64
+	var wLatTotal, rLatTotal int64
+	var wMinLat, rMinLat int64
+	var wMaxLat, rMaxLat int64
+	var w1, w5, r1, r5 int64
+
 	bin := defaultBin
 	for i := 1; workloadType == "RU" || i <= times; i++ {
+		rLat, wLat = 0, 0
 		// if randomBin data has been requested
 		if *randBinData {
 			bin = getBin(rnd)
@@ -270,25 +282,59 @@ func runBench(client *Client, ident int, times int) {
 		key, _ := NewKey(*namespace, *set, ident*times+(i%times))
 		if workloadType == "I" || rnd.Intn(100) >= workloadPercent {
 			WCount++
+			tm = time.Now()
 			if err = client.PutBins(writepolicy, key, bin); err != nil {
 				incOnError(&writeErr, &writeTOErr, err)
 			}
+			wLat = int64(time.Now().Sub(tm) / time.Millisecond)
+			wLatTotal += wLat
+			if wLat <= 1 {
+				w1++
+			} else if wLat <= 5 {
+				w5++
+			}
+			if wLat < wMinLat {
+				wMinLat = wLat
+			}
+			if wLat > wMaxLat {
+				wMaxLat = wLat
+			}
 		} else {
 			RCount++
+			tm = time.Now()
 			if r, err = client.Get(readpolicy, key, bin.Name); err != nil {
 				incOnError(&readErr, &readTOErr, err)
+			}
+			rLat = int64(time.Now().Sub(tm) / time.Millisecond)
+			rLatTotal += rLat
+			if rLat <= 1 {
+				r1++
+			} else if rLat <= 5 {
+				r5++
+			}
+			if rLat < rMinLat {
+				rMinLat = rLat
+			}
+			if rLat > rMaxLat {
+				rMaxLat = rLat
 			}
 		}
 
 		if time.Now().Sub(t) > (100 * time.Millisecond) {
-			countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr}
+			countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr, w1, w5, wMinLat, wMaxLat, r1, r5, rMinLat, rMaxLat, wLatTotal, rLatTotal}
 			WCount, RCount = 0, 0
 			writeErr, readErr = 0, 0
 			writeTOErr, readTOErr = 0, 0
+
+			// reset stats
+			wLatTotal, rLatTotal = 0, 0
+			w1, w5, wMinLat, wMaxLat = 0, 0, 0, 0
+			r1, r5, rMinLat, rMaxLat = 0, 0, 0, 0
+
 			t = time.Now()
 		}
 	}
-	countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr}
+	countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr, w1, w5, wMinLat, wMaxLat, r1, r5, rMinLat, rMaxLat, wLatTotal, rLatTotal}
 }
 
 // calculates transactions per second
@@ -306,6 +352,12 @@ func reporter() {
 
 	var memStats = new(runtime.MemStats)
 	var lastTotalAllocs, lastPauseNs uint64
+
+	// var wLat, rLat int64
+	var wTotalLat, rTotalLat int64
+	var wMinLat, rMinLat int64
+	var wMaxLat, rMaxLat int64
+	var w1, w5, r1, r5 int64
 
 	memProfileStr := func() string {
 		var res string
@@ -343,21 +395,51 @@ Loop:
 			totalErrCount += (stats.WE + stats.RE)
 			totalTOCount += (stats.WTO + stats.RTO)
 
+			wTotalLat += stats.WLat
+			rTotalLat += stats.RLat
+
+			w1 += stats.W1
+			w5 += stats.W5
+			r1 += stats.R1
+			r5 += stats.R5
+
+			if stats.RMax > rMaxLat {
+				rMaxLat = stats.RMax
+			}
+			if stats.RMin < rMinLat {
+				rMinLat = stats.RMin
+			}
+			if stats.WMax > wMaxLat {
+				wMaxLat = stats.WMax
+			}
+			if stats.WMin < wMinLat {
+				wMinLat = stats.WMin
+			}
+
 			if stats.Exit || time.Now().Sub(lastReportTime) >= time.Second {
 				if workloadType == "I" {
-					log.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d)%s",
-						calcTPS(totalWCount+totalRCount, time.Now().Sub(lastReportTime)), totalTOCount, totalErrCount, totalCount,
+					tps := calcTPS(totalWCount+totalRCount, time.Now().Sub(lastReportTime))
+					log.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d, lat avg=%d min=%d max=%d <1ms=%3.1f%% <5ms=%3.1f%% )%s",
+						tps, totalTOCount, totalErrCount, totalCount, wTotalLat/int64(tps),
+						wMinLat, wMaxLat, float64(w1)/float64(tps)*100, float64(w5)/float64(tps)*100,
 						memProfileStr(),
 					)
 				} else {
+					wtps := calcTPS(totalWCount, time.Now().Sub(lastReportTime)) + 1
+					rtps := calcTPS(totalRCount, time.Now().Sub(lastReportTime)) + 1
 					log.Printf(
-						"write(tps=%d timeouts=%d errors=%d) read(tps=%d timeouts=%d errors=%d) total(tps=%d timeouts=%d errors=%d, count=%d)%s",
-						calcTPS(totalWCount, time.Now().Sub(lastReportTime)), totalWTOCount, totalWErrCount,
-						calcTPS(totalRCount, time.Now().Sub(lastReportTime)), totalRTOCount, totalRErrCount,
+						"write(tps=%d timeouts=%d errors=%d, lat avg=%d min=%d max=%d, <1ms=%3.1f%% <5ms=%3.1f%%) read(tps=%d timeouts=%d errors=%d, lat avg=%d min=%d max=%d <1ms=%3.1f%% <5ms=%3.1f%%) total(tps=%d timeouts=%d errors=%d, count=%d)%s",
+						wtps-1, totalWTOCount, totalWErrCount, wTotalLat/int64(wtps), wMinLat, wMaxLat, float64(w1)/float64(wtps)*100, float64(w5)/float64(wtps)*100,
+						rtps-1, totalRTOCount, totalRErrCount, rTotalLat/int64(rtps), rMinLat, rMaxLat, float64(r1)/float64(rtps)*100, float64(r5)/float64(rtps)*100,
 						calcTPS(totalWCount+totalRCount, time.Now().Sub(lastReportTime)), totalTOCount, totalErrCount, totalCount,
 						memProfileStr(),
 					)
 				}
+
+				// reset stats
+				wTotalLat, rTotalLat = 0, 0
+				w1, w5, wMinLat, wMaxLat = 0, 0, 0, 0
+				r1, r5, rMinLat, rMaxLat = 0, 0, 0, 0
 
 				totalWCount, totalRCount = 0, 0
 				totalWErrCount, totalRErrCount = 0, 0
@@ -370,5 +452,5 @@ Loop:
 			}
 		}
 	}
-	countReportChan <- &TStats{false, 0, 0, 0, 0, 0, 0}
+	countReportChan <- &TStats{}
 }
