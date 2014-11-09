@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
@@ -35,13 +36,14 @@ import (
 )
 
 type TStats struct {
-	Exit                       bool
-	W, R                       int // write and read counts
-	WE, RE                     int // write and read errors
-	WTO, RTO                   int // write and read timeouts
-	W1, W2, W4, W8, WMin, WMax int64
-	R1, R2, R4, R8, RMin, RMax int64
-	WLat, RLat                 int64
+	Exit       bool
+	W, R       int // write and read counts
+	WE, RE     int // write and read errors
+	WTO, RTO   int // write and read timeouts
+	WMin, WMax int64
+	RMin, RMax int64
+	WLat, RLat int64
+	Wn, Rn     []int64
 }
 
 var countReportChan = make(chan *TStats, 100) // async chan
@@ -55,6 +57,7 @@ var keyCount = flag.Int("k", 1000000, "Key/record count or key/record range.")
 var binDef = flag.String("o", "I", "Bin object specification.\n\tI\t: Read/write integer bin.\n\tB:200\t: Read/write byte array bin of length 200.\n\tS:50\t: Read/write string bin of length 50.")
 var concurrency = flag.Int("c", 32, "Number of goroutines to generate load.")
 var workloadDef = flag.String("w", "I:100", "Desired workload.\n\tI:60\t: Linear 'insert' workload initializing 60% of the keys.\n\tRU:80\t: Random read/update workload with 80% reads and 20% writes.")
+var latency = flag.String("l", "", "Latency report.\n\tbase, columns\t: Determines the base and number of columns for that base.")
 var throughput = flag.Int("g", 0, "Throttle transactions per second to a maximum value.\n\tIf tps is zero, do not throttle throughput.\n\tUsed in read/write mode only.")
 var timeout = flag.Int("T", 0, "Read/Write timeout in milliseconds.")
 var maxRetries = flag.Int("maxRetries", 2, "Maximum number of retries before aborting the current transaction.")
@@ -70,6 +73,7 @@ var binDataType string
 var binDataSize int
 var workloadType string
 var workloadPercent int
+var latBase, latCols int
 
 // group mutex to wait for all load generating go routines to finish
 var wg sync.WaitGroup
@@ -111,7 +115,7 @@ func main() {
 	wg.Wait()
 
 	// send term to reporter, and wait for it to terminate
-	countReportChan <- &TStats{true, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	countReportChan <- &TStats{Exit: true}
 	time.Sleep(10 * time.Millisecond)
 	<-countReportChan
 }
@@ -146,7 +150,7 @@ func printBenchmarkParams() {
 	log.Printf("timeout\t\t%v ms", *timeout)
 	log.Printf("max retries\t\t%d", *maxRetries)
 	log.Printf("debug:\t\t%v", *debugMode)
-	// log.Printf("latency:\t\t%v")     //        false
+	log.Printf("latency:\t\t%d:%d", latBase, latCols)
 }
 
 // parses an string of (key:value) type
@@ -166,6 +170,23 @@ func parseValuedParam(param string) (string, *int) {
 	return parStr, nil
 }
 
+func parseLatency(param string) (int, int) {
+	re := regexp.MustCompile(`(\d+)[:,](\d+)`)
+	values := re.FindStringSubmatch(param)
+
+	// see if the value is supplied
+	if len(values) > 2 && strings.Trim(values[1], " ") != "" && strings.Trim(values[2], " ") != "" {
+		if value1, err := strconv.Atoi(strings.Trim(values[1], " ")); err == nil {
+			if value2, err := strconv.Atoi(strings.Trim(values[2], " ")); err == nil {
+				return value1, value2
+			}
+		}
+	}
+
+	log.Fatal("Wrong latency values requested.")
+	return 0, 0
+}
+
 // reads input flags and interprets the complex ones
 func readFlags() {
 	flag.Parse()
@@ -177,6 +198,10 @@ func readFlags() {
 
 	if *debugMode {
 		Logger.SetLevel(INFO)
+	}
+
+	if *latency != "" {
+		latBase, latCols = parseLatency(*latency)
 	}
 
 	var binDataSz, workloadPct *int
@@ -269,7 +294,9 @@ func runBench(client *Client, ident int, times int) {
 	var wLatTotal, rLatTotal int64
 	var wMinLat, rMinLat int64
 	var wMaxLat, rMaxLat int64
-	var w1, w2, w4, w8, r1, r2, r4, r8 int64
+
+	wLatList := make([]int64, latCols+1)
+	rLatList := make([]int64, latCols+1)
 
 	bin := defaultBin
 	for i := 1; workloadType == "RU" || i <= times; i++ {
@@ -288,20 +315,16 @@ func runBench(client *Client, ident int, times int) {
 			}
 			wLat = int64(time.Now().Sub(tm) / time.Millisecond)
 			wLatTotal += wLat
+
+			// under 1 ms
 			if wLat <= 1 {
-				w1++
+				wLatList[0]++
 			}
 
-			if wLat <= 2 {
-				w2++
-			}
-
-			if wLat <= 4 {
-				w4++
-			}
-
-			if wLat <= 8 {
-				w8++
+			for i := latCols; i > 0; i-- {
+				if wLat > int64(latBase<<uint(i-1)) {
+					wLatList[i]++
+				}
 			}
 
 			if wLat < wMinLat {
@@ -319,18 +342,18 @@ func runBench(client *Client, ident int, times int) {
 			}
 			rLat = int64(time.Now().Sub(tm) / time.Millisecond)
 			rLatTotal += rLat
+			// under 1 ms
 			if rLat <= 1 {
-				r1++
+				rLatList[0]++
 			}
-			if rLat <= 2 {
-				r2++
+
+			// under 1 ms
+			for i := latCols; i > 0; i-- {
+				if rLat > int64(latBase<<uint(i-1)) {
+					rLatList[i]++
+				}
 			}
-			if rLat <= 4 {
-				r4++
-			}
-			if rLat <= 8 {
-				r8++
-			}
+
 			if rLat < rMinLat {
 				rMinLat = rLat
 			}
@@ -340,25 +363,42 @@ func runBench(client *Client, ident int, times int) {
 		}
 
 		if time.Now().Sub(t) > (100 * time.Millisecond) {
-			countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr, w1, w2, w4, w8, wMinLat, wMaxLat, r1, r2, r4, r8, rMinLat, rMaxLat, wLatTotal, rLatTotal}
+			countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr, wMinLat, wMaxLat, rMinLat, rMaxLat, wLatTotal, rLatTotal, wLatList, rLatList}
 			WCount, RCount = 0, 0
 			writeErr, readErr = 0, 0
 			writeTOErr, readTOErr = 0, 0
 
 			// reset stats
 			wLatTotal, rLatTotal = 0, 0
-			w1, w2, w4, w8, wMinLat, wMaxLat = 0, 0, 0, 0, 0, 0
-			r1, r2, r4, r8, rMinLat, rMaxLat = 0, 0, 0, 0, 0, 0
+			wMinLat, wMaxLat = 0, 0
+			rMinLat, rMaxLat = 0, 0
+
+			wLatList = make([]int64, latCols+1)
+			rLatList = make([]int64, latCols+1)
 
 			t = time.Now()
 		}
 	}
-	countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr, w1, w2, w4, w8, wMinLat, wMaxLat, r1, r2, r4, r8, rMinLat, rMaxLat, wLatTotal, rLatTotal}
+	countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr, wMinLat, wMaxLat, rMinLat, rMaxLat, wLatTotal, rLatTotal, wLatList, rLatList}
 }
 
 // calculates transactions per second
 func calcTPS(count int, duration time.Duration) int {
 	return int(float64(count) / (float64(duration) / float64(time.Second)))
+}
+
+func max(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b int64) int64 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // listens to transaction report channel, and print them out on intervals
@@ -376,7 +416,10 @@ func reporter() {
 	var wTotalLat, rTotalLat int64
 	var wMinLat, rMinLat int64
 	var wMaxLat, rMaxLat int64
-	var w1, w2, w4, w8, r1, r2, r4, r8 int64
+	wLatList := make([]int64, latCols+1)
+	rLatList := make([]int64, latCols+1)
+
+	var strBuff bytes.Buffer
 
 	memProfileStr := func() string {
 		var res string
@@ -417,14 +460,10 @@ Loop:
 			wTotalLat += stats.WLat
 			rTotalLat += stats.RLat
 
-			w1 += stats.W1
-			w2 += stats.W2
-			w4 += stats.W4
-			w8 += stats.W8
-			r1 += stats.R1
-			r2 += stats.R2
-			r4 += stats.R4
-			r8 += stats.R8
+			for i := 0; i <= latCols; i++ {
+				wLatList[i] += stats.Wn[i]
+				rLatList[i] += stats.Rn[i]
+			}
 
 			if stats.RMax > rMaxLat {
 				rMaxLat = stats.RMax
@@ -440,29 +479,54 @@ Loop:
 			}
 
 			if stats.Exit || time.Now().Sub(lastReportTime) >= time.Second {
+				wtps := calcTPS(totalWCount, time.Now().Sub(lastReportTime)) + 1
+				rtps := calcTPS(totalRCount, time.Now().Sub(lastReportTime)) + 1
 				if workloadType == "I" {
-					tps := calcTPS(totalWCount+totalRCount, time.Now().Sub(lastReportTime)) + 1
-					log.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d, lat avg=%d min=%d max=%d <1ms=%3.1f%% <2ms=%3.1f%% <4ms=%3.1f%% <8ms=%3.1f%% )%s",
-						tps-1, totalTOCount, totalErrCount, totalCount, wTotalLat/int64(tps),
-						wMinLat, wMaxLat, float64(w1)/float64(tps)*100, float64(w2)/float64(tps)*100, float64(w4)/float64(tps)*100, float64(w8)/float64(tps)*100,
+					log.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d)%s",
+						wtps, totalTOCount, totalErrCount, totalCount,
 						memProfileStr(),
 					)
 				} else {
-					wtps := calcTPS(totalWCount, time.Now().Sub(lastReportTime)) + 1
-					rtps := calcTPS(totalRCount, time.Now().Sub(lastReportTime)) + 1
 					log.Printf(
-						"write(tps=%d timeouts=%d errors=%d, lat avg=%d min=%d max=%d, <1ms=%3.1f%% <2ms=%3.1f%% <4ms=%3.1f%% <8ms=%3.1f%%) read(tps=%d timeouts=%d errors=%d, lat avg=%d min=%d max=%d <1ms=%3.1f%% <2ms=%3.1f%% <4ms=%3.1f%% <8ms=%3.1f%%) total(tps=%d timeouts=%d errors=%d, count=%d)%s",
-						wtps-1, totalWTOCount, totalWErrCount, wTotalLat/int64(wtps), wMinLat, wMaxLat, float64(w1)/float64(wtps)*100, float64(w2)/float64(wtps)*100, float64(w4)/float64(wtps)*100, float64(w8)/float64(wtps)*100,
-						rtps-1, totalRTOCount, totalRErrCount, rTotalLat/int64(rtps), rMinLat, rMaxLat, float64(r1)/float64(rtps)*100, float64(r2)/float64(rtps)*100, float64(r4)/float64(rtps)*100, float64(r8)/float64(rtps)*100,
-						calcTPS(totalWCount+totalRCount, time.Now().Sub(lastReportTime)), totalTOCount, totalErrCount, totalCount,
+						"write(tps=%d timeouts=%d errors=%d) read(tps=%d timeouts=%d errors=%d) total(tps=%d timeouts=%d errors=%d, count=%d)%s",
+						wtps, totalWCount, totalWErrCount,
+						rtps, totalRCount, totalRErrCount,
+						wtps+rtps, totalTOCount, totalErrCount, totalCount,
 						memProfileStr(),
 					)
 				}
 
+				if *latency != "" {
+					strBuff.WriteString("\t\tMin\tAvg\tMax\t|<=1 ms\t\t|>1")
+					for i := 1; i < latCols; i++ {
+						strBuff.WriteString(fmt.Sprintf("\t\t|>%d", latBase<<uint(i)))
+					}
+					log.Println(strBuff.String())
+					strBuff.Reset()
+
+					strBuff.WriteString(fmt.Sprintf("\tREAD\t%d\t%2.0f\t%d", rMinLat, float64(rTotalLat)/float64(rtps+1), rMaxLat))
+					for i := 0; i <= latCols; i++ {
+						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f", rLatList[i], float64(rLatList[i])/float64(rtps+1)*100))
+					}
+					log.Println(strBuff.String())
+					strBuff.Reset()
+
+					strBuff.WriteString(fmt.Sprintf("\tWRITE\t%d\t%2.0f\t%d", wMinLat, float64(wTotalLat)/float64(wtps+1), wMaxLat))
+					for i := 0; i <= latCols; i++ {
+						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f", wLatList[i], float64(wLatList[i])/float64(wtps+1)*100))
+					}
+					log.Println(strBuff.String())
+					strBuff.Reset()
+				}
+
 				// reset stats
 				wTotalLat, rTotalLat = 0, 0
-				w1, w2, w4, w8, wMinLat, wMaxLat = 0, 0, 0, 0, 0, 0
-				r1, r2, r4, r8, rMinLat, rMaxLat = 0, 0, 0, 0, 0, 0
+				wMinLat, wMaxLat = 0, 0
+				rMinLat, rMaxLat = 0, 0
+				for i := 0; i <= latCols; i++ {
+					wLatList[i] = 0
+					rLatList[i] = 0
+				}
 
 				totalWCount, totalRCount = 0, 0
 				totalWErrCount, totalRErrCount = 0, 0
