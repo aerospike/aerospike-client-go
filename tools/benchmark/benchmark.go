@@ -57,7 +57,7 @@ var keyCount = flag.Int("k", 1000000, "Key/record count or key/record range.")
 var binDef = flag.String("o", "I", "Bin object specification.\n\tI\t: Read/write integer bin.\n\tB:200\t: Read/write byte array bin of length 200.\n\tS:50\t: Read/write string bin of length 50.")
 var concurrency = flag.Int("c", 32, "Number of goroutines to generate load.")
 var workloadDef = flag.String("w", "I:100", "Desired workload.\n\tI:60\t: Linear 'insert' workload initializing 60% of the keys.\n\tRU:80\t: Random read/update workload with 80% reads and 20% writes.")
-var latency = flag.String("l", "", "Latency report.\n\tbase, columns\t: Determines the base and number of columns for that base.")
+var latency = flag.String("L", "", "Latency <columns>,<shift>.\n\tShow transaction latency percentages using elapsed time ranges.\n\t<columns> Number of elapsed time ranges.\n\t<shift>   Power of 2 multiple between each range starting at column 3.")
 var throughput = flag.Int("g", 0, "Throttle transactions per second to a maximum value.\n\tIf tps is zero, do not throttle throughput.\n\tUsed in read/write mode only.")
 var timeout = flag.Int("T", 0, "Read/Write timeout in milliseconds.")
 var maxRetries = flag.Int("maxRetries", 2, "Maximum number of retries before aborting the current transaction.")
@@ -201,7 +201,7 @@ func readFlags() {
 	}
 
 	if *latency != "" {
-		latBase, latCols = parseLatency(*latency)
+		latCols, latBase = parseLatency(*latency)
 	}
 
 	var binDataSz, workloadPct *int
@@ -479,8 +479,8 @@ Loop:
 			}
 
 			if stats.Exit || time.Now().Sub(lastReportTime) >= time.Second {
-				wtps := calcTPS(totalWCount, time.Now().Sub(lastReportTime)) + 1
-				rtps := calcTPS(totalRCount, time.Now().Sub(lastReportTime)) + 1
+				wtps := calcTPS(totalWCount, time.Now().Sub(lastReportTime))
+				rtps := calcTPS(totalRCount, time.Now().Sub(lastReportTime))
 				if workloadType == "I" {
 					log.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d)%s",
 						wtps, totalTOCount, totalErrCount, totalCount,
