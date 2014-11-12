@@ -321,7 +321,7 @@ func runBench(client *Client, ident int, times int) {
 				wLatList[0]++
 			}
 
-			for i := 1; i < latCols; i++ {
+			for i := 1; i <= latCols; i++ {
 				if wLat > int64(latBase<<uint(i-1)) {
 					wLatList[i]++
 				}
@@ -348,7 +348,7 @@ func runBench(client *Client, ident int, times int) {
 			}
 
 			// under 1 ms
-			for i := 1; i < latCols; i++ {
+			for i := 1; i <= latCols; i++ {
 				if rLat > int64(latBase<<uint(i-1)) {
 					rLatList[i]++
 				}
