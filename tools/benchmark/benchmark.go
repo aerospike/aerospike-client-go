@@ -317,11 +317,11 @@ func runBench(client *Client, ident int, times int) {
 			wLatTotal += wLat
 
 			// under 1 ms
-			if wLat <= 1 {
+			if wLat <= int64(latBase) {
 				wLatList[0]++
 			}
 
-			for i := latCols; i > 0; i-- {
+			for i := 1; i < latCols; i++ {
 				if wLat > int64(latBase<<uint(i-1)) {
 					wLatList[i]++
 				}
@@ -343,17 +343,16 @@ func runBench(client *Client, ident int, times int) {
 			rLat = int64(time.Now().Sub(tm) / time.Millisecond)
 			rLatTotal += rLat
 			// under 1 ms
-			if rLat <= 1 {
+			if rLat <= int64(latBase) {
 				rLatList[0]++
 			}
 
 			// under 1 ms
-			for i := latCols; i > 0; i-- {
+			for i := 1; i < latCols; i++ {
 				if rLat > int64(latBase<<uint(i-1)) {
 					rLatList[i]++
 				}
 			}
-
 			if rLat < rMinLat {
 				rMinLat = rLat
 			}
@@ -479,41 +478,39 @@ Loop:
 			}
 
 			if stats.Exit || time.Now().Sub(lastReportTime) >= time.Second {
-				wtps := calcTPS(totalWCount, time.Now().Sub(lastReportTime))
-				rtps := calcTPS(totalRCount, time.Now().Sub(lastReportTime))
 				if workloadType == "I" {
 					log.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d)%s",
-						wtps, totalTOCount, totalErrCount, totalCount,
+						totalWCount, totalTOCount, totalErrCount, totalCount,
 						memProfileStr(),
 					)
 				} else {
 					log.Printf(
 						"write(tps=%d timeouts=%d errors=%d) read(tps=%d timeouts=%d errors=%d) total(tps=%d timeouts=%d errors=%d, count=%d)%s",
-						wtps, totalWCount, totalWErrCount,
-						rtps, totalRCount, totalRErrCount,
-						wtps+rtps, totalTOCount, totalErrCount, totalCount,
+						totalWCount, totalWTOCount, totalWErrCount,
+						totalRCount, totalRTOCount, totalRErrCount,
+						totalWCount+totalRCount, totalTOCount, totalErrCount, totalCount,
 						memProfileStr(),
 					)
 				}
 
 				if *latency != "" {
-					strBuff.WriteString("\t\tMin\tAvg\tMax\t|<=1 ms\t\t|>1")
-					for i := 1; i < latCols; i++ {
-						strBuff.WriteString(fmt.Sprintf("\t\t|>%d", latBase<<uint(i)))
+					strBuff.WriteString(fmt.Sprintf("\t\tMin\tAvg\tMax\t|<=%4dms\t", latBase))
+					for i := 0; i < latCols; i++ {
+						strBuff.WriteString(fmt.Sprintf("|>%4d\t\t", latBase<<uint(i)))
 					}
 					log.Println(strBuff.String())
 					strBuff.Reset()
 
-					strBuff.WriteString(fmt.Sprintf("\tREAD\t%d\t%2.0f\t%d", rMinLat, float64(rTotalLat)/float64(rtps+1), rMaxLat))
+					strBuff.WriteString(fmt.Sprintf("\tREAD\t%d\t%2.0f\t%d", rMinLat, float64(rTotalLat)/float64(totalRCount+1), rMaxLat))
 					for i := 0; i <= latCols; i++ {
-						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f", rLatList[i], float64(rLatList[i])/float64(rtps+1)*100))
+						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f", rLatList[i], float64(rLatList[i])/float64(totalRCount+1)*100))
 					}
 					log.Println(strBuff.String())
 					strBuff.Reset()
 
-					strBuff.WriteString(fmt.Sprintf("\tWRITE\t%d\t%2.0f\t%d", wMinLat, float64(wTotalLat)/float64(wtps+1), wMaxLat))
+					strBuff.WriteString(fmt.Sprintf("\tWRITE\t%d\t%2.0f\t%d", wMinLat, float64(wTotalLat)/float64(totalWCount+1), wMaxLat))
 					for i := 0; i <= latCols; i++ {
-						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f", wLatList[i], float64(wLatList[i])/float64(wtps+1)*100))
+						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f", wLatList[i], float64(wLatList[i])/float64(totalWCount+1)*100))
 					}
 					log.Println(strBuff.String())
 					strBuff.Reset()
