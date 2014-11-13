@@ -19,7 +19,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -88,7 +87,7 @@ func main() {
 	// launch profiler if in profile mode
 	if *profileMode {
 		go func() {
-			log.Println(http.ListenAndServe("localhost:6060", nil))
+			log.Println(http.ListenAndServe(":6060", nil))
 		}()
 	}
 
@@ -232,15 +231,15 @@ func readFlags() {
 }
 
 // new random bin generator based on benchmark specs
-func getBin(rnd *rand.Rand) *Bin {
+func getBin() *Bin {
 	var bin *Bin
 	switch binDataType {
 	case "B":
-		bin = &Bin{Name: "information", Value: NewBytesValue([]byte(randString(binDataSize, rnd)))}
+		bin = &Bin{Name: "information", Value: NewBytesValue(randBytes(binDataSize))}
 	case "S":
-		bin = &Bin{Name: "information", Value: NewStringValue(randString(binDataSize, rnd))}
+		bin = &Bin{Name: "information", Value: NewStringValue(string(randBytes(binDataSize)))}
 	default:
-		bin = &Bin{Name: "information", Value: NewLongValue(rnd.Int63())}
+		bin = &Bin{Name: "information", Value: NewLongValue(int64(xorshift128plus()))}
 	}
 
 	return bin
@@ -252,13 +251,14 @@ const random_alpha_num = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01
 const l = 62
 
 // generates a random strings of specified length
-func randString(size int, rnd *rand.Rand) string {
-	buf := make([]byte, size)
-	for i := 0; i < size; i++ {
-		buf[i] = random_alpha_num[rnd.Intn(l)]
+func randBytes(size int) []byte {
+	buf := make([]byte, 0, size)
+	s := []byte(strconv.Itoa(int(xorshift128plus())))
+	for i := 0; i < len(buf); i++ {
+		buf = append(buf, s...)
 	}
 
-	return string(buf)
+	return buf[:size]
 }
 
 func incOnError(op, timeout *int, err error) {
@@ -280,9 +280,7 @@ func runBench(client *Client, ident int, times int) {
 
 	readpolicy := writepolicy.GetBasePolicy()
 
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	defaultBin := getBin(rnd)
+	defaultBin := getBin()
 
 	t := time.Now()
 	var WCount, RCount int
@@ -301,14 +299,13 @@ func runBench(client *Client, ident int, times int) {
 	bin := defaultBin
 	for i := 1; workloadType == "RU" || i <= times; i++ {
 		rLat, wLat = 0, 0
-		// if randomBin data has been requested
-		if *randBinData {
-			bin = getBin(rnd)
-		}
-
 		key, _ := NewKey(*namespace, *set, ident*times+(i%times))
-		if workloadType == "I" || rnd.Intn(100) >= workloadPercent {
+		if workloadType == "I" || int(xorshift128plus()%100) >= workloadPercent {
 			WCount++
+			// if randomBin data has been requested
+			if *randBinData {
+				bin = getBin()
+			}
 			tm = time.Now()
 			if err = client.PutBins(writepolicy, key, bin); err != nil {
 				incOnError(&writeErr, &writeTOErr, err)
@@ -460,8 +457,12 @@ Loop:
 			rTotalLat += stats.RLat
 
 			for i := 0; i <= latCols; i++ {
-				wLatList[i] += stats.Wn[i]
-				rLatList[i] += stats.Rn[i]
+				if stats.Wn != nil {
+					wLatList[i] += stats.Wn[i]
+				}
+				if stats.Rn != nil {
+					rLatList[i] += stats.Rn[i]
+				}
 			}
 
 			if stats.RMax > rMaxLat {
@@ -494,23 +495,23 @@ Loop:
 				}
 
 				if *latency != "" {
-					strBuff.WriteString(fmt.Sprintf("\t\tMin\tAvg\tMax\t|<=%4dms\t", latBase))
+					strBuff.WriteString(fmt.Sprintf("\t\tMin(ms)\tAvg(ms)\tMax(ms)\t|<=%4d ms\t", latBase))
 					for i := 0; i < latCols; i++ {
-						strBuff.WriteString(fmt.Sprintf("|>%4d\t\t", latBase<<uint(i)))
+						strBuff.WriteString(fmt.Sprintf("|>%4d ms\t", latBase<<uint(i)))
 					}
 					log.Println(strBuff.String())
 					strBuff.Reset()
 
-					strBuff.WriteString(fmt.Sprintf("\tREAD\t%d\t%2.0f\t%d", rMinLat, float64(rTotalLat)/float64(totalRCount+1), rMaxLat))
+					strBuff.WriteString(fmt.Sprintf("\tREAD\t%d\t%3.3f\t%d", rMinLat, float64(rTotalLat)/float64(totalRCount+1), rMaxLat))
 					for i := 0; i <= latCols; i++ {
-						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f", rLatList[i], float64(rLatList[i])/float64(totalRCount+1)*100))
+						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f%%", rLatList[i], float64(rLatList[i])/float64(totalRCount+1)*100))
 					}
 					log.Println(strBuff.String())
 					strBuff.Reset()
 
-					strBuff.WriteString(fmt.Sprintf("\tWRITE\t%d\t%2.0f\t%d", wMinLat, float64(wTotalLat)/float64(totalWCount+1), wMaxLat))
+					strBuff.WriteString(fmt.Sprintf("\tWRITE\t%d\t%3.3f\t%d", wMinLat, float64(wTotalLat)/float64(totalWCount+1), wMaxLat))
 					for i := 0; i <= latCols; i++ {
-						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f", wLatList[i], float64(wLatList[i])/float64(totalWCount+1)*100))
+						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f%%", wLatList[i], float64(wLatList[i])/float64(totalWCount+1)*100))
 					}
 					log.Println(strBuff.String())
 					strBuff.Reset()
@@ -537,4 +538,16 @@ Loop:
 		}
 	}
 	countReportChan <- &TStats{}
+}
+
+// The state must be seeded so that it is not everywhere zero.
+var s [2]uint64 = [2]uint64{uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano())}
+
+func xorshift128plus() uint64 {
+	s1 := s[0]
+	s0 := s[1]
+	s[0] = s0
+	s1 ^= s1 << 23
+	s[1] = (s1 ^ s0 ^ (s1 >> 17) ^ (s0 >> 26))
+	return s[1] + s0
 }
