@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
@@ -57,7 +58,7 @@ var binDef = flag.String("o", "I", "Bin object specification.\n\tI\t: Read/write
 var concurrency = flag.Int("c", 32, "Number of goroutines to generate load.")
 var workloadDef = flag.String("w", "I:100", "Desired workload.\n\tI:60\t: Linear 'insert' workload initializing 60% of the keys.\n\tRU:80\t: Random read/update workload with 80% reads and 20% writes.")
 var latency = flag.String("L", "", "Latency <columns>,<shift>.\n\tShow transaction latency percentages using elapsed time ranges.\n\t<columns> Number of elapsed time ranges.\n\t<shift>   Power of 2 multiple between each range starting at column 3.")
-var throughput = flag.Int("g", 0, "Throttle transactions per second to a maximum value.\n\tIf tps is zero, do not throttle throughput.\n\tUsed in read/write mode only.")
+var throughput = flag.Int64("g", 0, "Throttle transactions per second to a maximum value.\n\tIf tps is zero, do not throttle throughput.")
 var timeout = flag.Int("T", 0, "Read/Write timeout in milliseconds.")
 var maxRetries = flag.Int("maxRetries", 2, "Maximum number of retries before aborting the current transaction.")
 var connQueueSize = flag.Int("queueSize", 4096, "Maximum number of connections to pool.")
@@ -76,6 +77,10 @@ var latBase, latCols int
 
 // group mutex to wait for all load generating go routines to finish
 var wg sync.WaitGroup
+
+// throughput counter
+var currThroughput int64
+var lastReport int64
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -104,11 +109,10 @@ func main() {
 	log.Println("Nodes Found:", client.GetNodeNames())
 
 	go reporter()
+	wg.Add(*concurrency + 1)
 	for i := 1; i < *concurrency; i++ {
-		wg.Add(1)
 		go runBench(client, i-1, *keyCount / *concurrency)
 	}
-	wg.Add(1)
 	go runBench(client, *concurrency-1, *keyCount / *concurrency + *keyCount%*concurrency)
 
 	wg.Wait()
@@ -273,6 +277,7 @@ func runBench(client *Client, ident int, times int) {
 	defer wg.Done()
 
 	var err error
+	var forceReport bool = false
 
 	writepolicy := NewWritePolicy(0, 0)
 	writepolicy.Timeout = time.Duration(*timeout) * time.Millisecond
@@ -339,17 +344,19 @@ func runBench(client *Client, ident int, times int) {
 			}
 			rLat = int64(time.Now().Sub(tm) / time.Millisecond)
 			rLatTotal += rLat
+
 			// under 1 ms
 			if rLat <= int64(latBase) {
 				rLatList[0]++
 			}
 
 			// under 1 ms
-			for i := 1; i <= latCols; i++ {
+			for i := 0; i <= latCols; i++ {
 				if rLat > int64(latBase<<uint(i-1)) {
 					rLatList[i]++
 				}
 			}
+
 			if rLat < rMinLat {
 				rMinLat = rLat
 			}
@@ -358,7 +365,16 @@ func runBench(client *Client, ident int, times int) {
 			}
 		}
 
-		if time.Now().Sub(t) > (100 * time.Millisecond) {
+		// if throughput is set, check for threshold. All goroutines add a record on first iteration,
+		// so take that into account as well
+		if *throughput > 0 {
+			forceReport = atomic.LoadInt64(&currThroughput) >= (*throughput - int64(*concurrency))
+			if !forceReport {
+				atomic.AddInt64(&currThroughput, 1)
+			}
+		}
+
+		if forceReport || (time.Now().Sub(t) > (100 * time.Millisecond)) {
 			countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr, wMinLat, wMaxLat, rMinLat, rMaxLat, wLatTotal, rLatTotal, wLatList, rLatList}
 			WCount, RCount = 0, 0
 			writeErr, readErr = 0, 0
@@ -373,6 +389,12 @@ func runBench(client *Client, ident int, times int) {
 			rLatList = make([]int64, latCols+1)
 
 			t = time.Now()
+		}
+
+		if forceReport {
+			forceReport = false
+			// sleep till next report
+			time.Sleep(time.Second - time.Duration(time.Now().UnixNano()-atomic.LoadInt64(&lastReport)))
 		}
 	}
 	countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr, wMinLat, wMaxLat, rMinLat, rMaxLat, wLatTotal, rLatTotal, wLatList, rLatList}
@@ -479,6 +501,10 @@ Loop:
 			}
 
 			if stats.Exit || time.Now().Sub(lastReportTime) >= time.Second {
+				// reset throuput
+				atomic.StoreInt64(&currThroughput, 0)
+				atomic.StoreInt64(&lastReport, time.Now().UnixNano())
+
 				if workloadType == "I" {
 					log.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d)%s",
 						totalWCount, totalTOCount, totalErrCount, totalCount,
