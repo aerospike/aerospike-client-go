@@ -45,11 +45,6 @@ func errToTimeoutErr(err error) error {
 func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 	newConn := &Connection{}
 
-	// connection timeout should be finite
-	if timeout <= 0 {
-		timeout = 2 * time.Second
-	}
-
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
 		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
@@ -111,16 +106,19 @@ func (ctn *Connection) IsConnected() bool {
 
 // SetTimeout sets connection timeout for both read and write operations.
 func (ctn *Connection) SetTimeout(timeout time.Duration) error {
-	ctn.timeout = timeout
+	// Set timeout ONLY if there is or has been a timeout
+	if timeout > 0 || ctn.timeout != 0 {
+		ctn.timeout = timeout
 
-	// important: remove deadline when not needed; connections are pooled
-	if ctn.conn != nil {
-		var deadline time.Time
-		if timeout > 0 {
-			deadline = time.Now().Add(timeout)
-		}
-		if err := ctn.conn.SetDeadline(deadline); err != nil {
-			return err
+		// important: remove deadline when not needed; connections are pooled
+		if ctn.conn != nil {
+			var deadline time.Time
+			if timeout > 0 {
+				deadline = time.Now().Add(timeout)
+			}
+			if err := ctn.conn.SetDeadline(deadline); err != nil {
+				return err
+			}
 		}
 	}
 

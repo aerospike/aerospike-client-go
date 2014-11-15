@@ -66,7 +66,7 @@ var _ Policy = &BasePolicy{}
 func (p *BasePolicy) GetBasePolicy() *BasePolicy { return p }
 
 func (p *BasePolicy) timeout() time.Duration {
-	res := 365 * 24 * time.Hour // a year
+	res := time.Duration(0)
 	if p != nil && p.Timeout > 0 {
 		res = p.Timeout
 	}

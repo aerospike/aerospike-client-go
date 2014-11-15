@@ -745,6 +745,10 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 	// set timeout outside the loop
 	limit := time.Now().Add(policy.timeout())
+	// if no limit set, set it to 2 seconds
+	if policy.timeout() == 0 {
+		limit = time.Now().Add(2 * time.Second)
+	}
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {

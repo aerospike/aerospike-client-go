@@ -16,6 +16,7 @@ package aerospike_test
 
 import (
 	"flag"
+	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -25,6 +26,21 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
+
+const udfFilter = `
+local function map_profile(record)
+ -- Add name and age to returned map.
+ -- Could add other record bins here as well.
+ -- return map {name=record["name"], age=32}
+ return map {bin4=record.Aerospike4, bin5=record["Aerospike5"]}
+end
+
+function filter_by_name(stream,name)
+ local function filter_name(record)
+   return (record.Aerospike5 == -1) and (record.Aerospike4 == 'constValue')
+ end
+ return stream : filter(filter_name) : map(map_profile)
+end`
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Query operations", func() {
@@ -41,6 +57,8 @@ var _ = Describe("Query operations", func() {
 	bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("Aerospike2", randString(100))
 	bin3 := NewBin("Aerospike3", rand.Intn(math.MaxInt16))
+	bin4 := NewBin("Aerospike4", "constValue")
+	bin5 := NewBin("Aerospike5", -1)
 	var keys map[string]*Key
 
 	// use the same client for all
@@ -88,7 +106,7 @@ var _ = Describe("Query operations", func() {
 
 			keys[string(key.Digest())] = key
 			bin3 = NewBin("Aerospike3", rand.Intn(math.MaxInt16))
-			err = client.PutBins(wpolicy, key, bin1, bin2, bin3)
+			err = client.PutBins(wpolicy, key, bin1, bin2, bin3, bin4, bin5)
 			Expect(err).ToNot(HaveOccurred())
 		}
 
@@ -150,6 +168,33 @@ var _ = Describe("Query operations", func() {
 		Expect(cnt).To(BeNumerically(">", 0))
 	})
 
+	It("must Query a specific range by applying a udf filter and get only relevant records back", func() {
+		regTask, err := client.RegisterUDF(nil, []byte(udfFilter), "udfFilter.lua", LUA)
+		Expect(err).ToNot(HaveOccurred())
+
+		// wait until UDF is created
+		err = <-regTask.OnComplete()
+		Expect(err).ToNot(HaveOccurred())
+
+		stm := NewStatement(ns, set)
+		stm.Addfilter(NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
+		stm.SetAggregateFunction("udfFilter", "filter_by_name", []Value{NewValue("Aeropsike")}, true)
+
+		recordset, err := client.Query(nil, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		cnt := 0
+		for rec := range recordset.Records {
+			fmt.Println(rec.Bins)
+			results := rec.Bins["SUCCESS"].(map[interface{}]interface{})
+			Expect(results["bin4"]).To(Equal("constValue"))
+			// Expect(results["bin5"]).To(Equal(-1))
+			cnt++
+		}
+
+		Expect(cnt).To(BeNumerically(">", 0))
+	})
+
 	It("must Query specific equality filters and get only relevant records back", func() {
 		// save a record with requested value
 		key, err := NewKey(ns, set, randString(50))
@@ -187,3 +232,36 @@ var _ = Describe("Query operations", func() {
 	})
 
 })
+
+// const udfFilter = `
+// 	local function map_record(record)
+// 	 -- Add name and age to returned map.
+// 	 -- Could add other record bins here as well.
+// 	 return map {bin4=record.bin1, bin5=record["bin2"]}
+// 	end
+
+// 	function filter_by_name(stream,name)
+// 	 local function filter_name(record)
+// 	   return (record.bin1 == -1) and (record.bin2 == name)
+// 	 end
+// 	 return stream : filter(filter_name) : map(map_record)
+// 	end
+// `
+
+// regTask, err := client.RegisterUDF(nil, []byte(udfFilter), "udfFilter.lua", LUA)
+// panicOnErr(err)
+
+// // wait until UDF is created
+// err = <-regTask.OnComplete()
+// panicOnErr(err)
+
+// stm := NewStatement(ns, set)
+// stm.Addfilter(NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
+// stm.SetAggregateFunction("udfFilter", "filter_by_name", []Value{NewValue("Aeropsike")}, true)
+
+// recordset, err := client.Query(nil, stm)
+// panicOnErr(err)
+
+// for rec := range recordset.Records {
+// 	fmt.Println(rec)
+// }

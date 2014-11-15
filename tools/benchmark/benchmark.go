@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"log"
@@ -243,7 +244,7 @@ func getBin() *Bin {
 	case "S":
 		bin = &Bin{Name: "information", Value: NewStringValue(string(randBytes(binDataSize)))}
 	default:
-		bin = &Bin{Name: "information", Value: NewLongValue(int64(xorshift128plus()))}
+		bin = &Bin{Name: "information", Value: NewLongValue(xr.Int64())}
 	}
 
 	return bin
@@ -254,15 +255,12 @@ var r *Record
 const random_alpha_num = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 const l = 62
 
-// generates a random strings of specified length
+var xr = NewXorRand()
+
 func randBytes(size int) []byte {
 	buf := make([]byte, 0, size)
-	s := []byte(strconv.Itoa(int(xorshift128plus())))
-	for i := 0; i < len(buf); i++ {
-		buf = append(buf, s...)
-	}
-
-	return buf[:size]
+	xr.Read(buf)
+	return buf
 }
 
 func incOnError(op, timeout *int, err error) {
@@ -305,7 +303,7 @@ func runBench(client *Client, ident int, times int) {
 	for i := 1; workloadType == "RU" || i <= times; i++ {
 		rLat, wLat = 0, 0
 		key, _ := NewKey(*namespace, *set, ident*times+(i%times))
-		if workloadType == "I" || int(xorshift128plus()%100) >= workloadPercent {
+		if workloadType == "I" || int(xr.Uint64()%100) >= workloadPercent {
 			WCount++
 			// if randomBin data has been requested
 			if *randBinData {
@@ -566,14 +564,31 @@ Loop:
 	countReportChan <- &TStats{}
 }
 
-// The state must be seeded so that it is not everywhere zero.
-var s [2]uint64 = [2]uint64{uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano())}
+type XorRand struct {
+	src [2]uint64
+}
 
-func xorshift128plus() uint64 {
-	s1 := s[0]
-	s0 := s[1]
-	s[0] = s0
+func NewXorRand() *XorRand {
+	return &XorRand{[2]uint64{uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano())}}
+}
+
+func (r *XorRand) Int64() int64 {
+	return int64(r.Uint64())
+}
+
+func (r *XorRand) Uint64() uint64 {
+	s1 := r.src[0]
+	s0 := r.src[1]
+	r.src[0] = s0
 	s1 ^= s1 << 23
-	s[1] = (s1 ^ s0 ^ (s1 >> 17) ^ (s0 >> 26))
-	return s[1] + s0
+	r.src[1] = (s1 ^ s0 ^ (s1 >> 17) ^ (s0 >> 26))
+	return r.src[1] + s0
+}
+
+func (r *XorRand) Read(p []byte) (n int, err error) {
+	l := len(p) / 8
+	for i := 0; i < l; i += 8 {
+		binary.PutUvarint(p[i:], r.Uint64())
+	}
+	return len(p), nil
 }
