@@ -787,7 +787,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 		// Draw a buffer from buffer pool, and make sure it will be put back
 		cmd.dataBuffer = bufPool.Get()
-		defer bufPool.Put(cmd.dataBuffer)
+		// defer bufPool.Put(cmd.dataBuffer)
 
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
@@ -831,6 +831,9 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 		// Put connection back in pool.
 		node.PutConnection(cmd.conn)
+
+		// put back buffer to the pool
+		bufPool.Put(cmd.dataBuffer)
 
 		// command has completed successfully.  Exit method.
 		return nil

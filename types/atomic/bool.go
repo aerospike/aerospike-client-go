@@ -34,41 +34,44 @@ func NewAtomicBool(value bool) *AtomicBool {
 // Get atomically retrieves the boolean value.
 func (ab *AtomicBool) Get() bool {
 	ab.mutex.RLock()
-	defer ab.mutex.RUnlock()
-	return ab.val
+	res := ab.val
+	ab.mutex.RUnlock()
+	return res
 }
 
 // Set atomically sets the boolean value.
 func (ab *AtomicBool) Set(newVal bool) {
 	ab.mutex.Lock()
-	defer ab.mutex.Unlock()
 	ab.val = newVal
+	ab.mutex.Unlock()
 }
 
 // GetAndToggle atomically retrieves the current boolean value first, and then toggles it.
 func (ab *AtomicBool) GetAndToggle() bool {
 	ab.mutex.Lock()
-	defer ab.mutex.Unlock()
 	val := ab.val
 	ab.val = !ab.val
+	ab.mutex.Unlock()
 	return val
 }
 
 // ToggleAndGet atomically toggles the boolean value first, and then retrieves it.
 func (ab *AtomicBool) ToggleAndGet() bool {
 	ab.mutex.Lock()
-	defer ab.mutex.Unlock()
 	ab.val = !ab.val
-	return ab.val
+	val := ab.val
+	ab.mutex.Unlock()
+	return val
 }
 
 // CompareAndSet atomically sets the boolean value to updated value, if the current value is as expected.
 func (ab *AtomicBool) CompareAndSet(expect bool, update bool) bool {
+	res := false
 	ab.mutex.Lock()
-	defer ab.mutex.Unlock()
 	if ab.val == expect {
 		ab.val = update
-		return true
+		res = true
 	}
-	return false
+	ab.mutex.Unlock()
+	return res
 }

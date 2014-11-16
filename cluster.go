@@ -133,14 +133,14 @@ Loop:
 // They will be added to the cluster on next tend call.
 func (clstr *Cluster) AddSeeds(hosts []*Host) {
 	clstr.mutex.Lock()
-	defer clstr.mutex.Unlock()
 	clstr.seeds = append(clstr.seeds, hosts...)
+	clstr.mutex.Unlock()
 }
 
 func (clstr *Cluster) getSeeds() []*Host {
 	clstr.mutex.RLock()
-	defer clstr.mutex.RUnlock()
 	seeds := clstr.seeds
+	clstr.mutex.RUnlock()
 	return seeds
 }
 
@@ -239,20 +239,21 @@ func (clstr *Cluster) waitTillStabilized() {
 
 func (clstr *Cluster) findAlias(alias *Host) *Node {
 	clstr.mutex.RLock()
-	defer clstr.mutex.RUnlock()
-	return clstr.aliases[*alias]
+	nd := clstr.aliases[*alias]
+	clstr.mutex.RUnlock()
+	return nd
 }
 
 func (clstr *Cluster) setPartitions(partMap map[string]*atomicNodeArray) {
 	clstr.mutex.Lock()
-	defer clstr.mutex.Unlock()
 	clstr.partitionWriteMap = partMap
+	clstr.mutex.Unlock()
 }
 
 func (clstr *Cluster) getPartitions() map[string]*atomicNodeArray {
 	clstr.mutex.RLock()
-	defer clstr.mutex.RUnlock()
 	partMap := clstr.partitionWriteMap
+	clstr.mutex.RUnlock()
 	return partMap
 }
 
@@ -348,16 +349,16 @@ func (clstr *Cluster) findNodeName(list []*Node, name string) bool {
 func (clstr *Cluster) addAlias(host *Host, node *Node) {
 	if host != nil && node != nil {
 		clstr.mutex.Lock()
-		defer clstr.mutex.Unlock()
 		clstr.aliases[*host] = node
+		clstr.mutex.Unlock()
 	}
 }
 
 func (clstr *Cluster) removeAlias(alias *Host) {
 	if alias != nil {
 		clstr.mutex.Lock()
-		defer clstr.mutex.Unlock()
 		delete(clstr.aliases, *alias)
+		clstr.mutex.Unlock()
 	}
 }
 
@@ -483,8 +484,8 @@ func (clstr *Cluster) addAliases(node *Node) {
 
 func (clstr *Cluster) addNodesCopy(nodesToAdd []*Node) {
 	clstr.mutex.Lock()
-	defer clstr.mutex.Unlock()
 	clstr.nodes = append(clstr.nodes, nodesToAdd...)
+	clstr.mutex.Unlock()
 }
 
 func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
@@ -509,9 +510,9 @@ func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
 
 func (clstr *Cluster) setNodes(nodes []*Node) {
 	clstr.mutex.Lock()
-	defer clstr.mutex.Unlock()
 	// Replace nodes with copy.
 	clstr.nodes = nodes
+	clstr.mutex.Unlock()
 }
 
 func (clstr *Cluster) removeNodesCopy(nodesToRemove []*Node) {
@@ -583,7 +584,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 	length := len(nodeArray)
 	for i := 0; i < length; i++ {
 		// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
-		index := int(math.Abs(float64(clstr.nodeIndex.GetAndIncrement() % len(nodeArray))))
+		index := int(math.Abs(float64(clstr.nodeIndex.GetAndIncrement() % length)))
 		node := nodeArray[index]
 
 		if node.IsActive() {
@@ -597,9 +598,9 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 // GetNodes returns a list of all nodes in the cluster
 func (clstr *Cluster) GetNodes() []*Node {
 	clstr.mutex.RLock()
-	defer clstr.mutex.RUnlock()
 	// Must copy array reference for copy on write semantics to work.
 	nodeArray := clstr.nodes
+	clstr.mutex.RUnlock()
 	return nodeArray
 }
 
@@ -641,7 +642,7 @@ func (clstr *Cluster) Close() {
 // MigrationInProgress determines if any node in the cluster
 // is participating in a data migration
 func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err error) {
-	if timeout > _DEFAULT_TIMEOUT {
+	if timeout <= 0 {
 		timeout = _DEFAULT_TIMEOUT
 	}
 
@@ -677,6 +678,9 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 // WaitUntillMigrationIsFinished will block until all
 // migration operations in the cluster all finished.
 func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err error) {
+	if timeout <= 0 {
+		timeout = _DEFAULT_TIMEOUT
+	}
 	done := make(chan error)
 
 	go func() {

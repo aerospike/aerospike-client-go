@@ -34,85 +34,90 @@ func NewAtomicInt(value int) *AtomicInt {
 // AddAndGet atomically adds the given value to the current value.
 func (ai *AtomicInt) AddAndGet(delta int) int {
 	ai.mutex.Lock()
-	defer ai.mutex.Unlock()
 	ai.val += delta
-	return ai.val
+	res := ai.val
+	ai.mutex.Unlock()
+	return res
 }
 
 // CompareAndSet atomically sets the value to the given updated value if the current value == expected value.
 // Returns true if the expectation was met
 func (ai *AtomicInt) CompareAndSet(expect int, update int) bool {
+	res := false
 	ai.mutex.Lock()
-	defer ai.mutex.Unlock()
 	if ai.val == expect {
 		ai.val = update
-		return true
+		res = true
 	}
-	return false
+	ai.mutex.Unlock()
+	return res
 }
 
 // DecrementAndGet atomically decrements current value by one and returns the result.
 func (ai *AtomicInt) DecrementAndGet() int {
 	ai.mutex.Lock()
-	defer ai.mutex.Unlock()
 	ai.val--
-	return ai.val
+	res := ai.val
+	ai.mutex.Unlock()
+	return res
 }
 
 // Get atomically retrieves the current value.
 func (ai *AtomicInt) Get() int {
 	ai.mutex.RLock()
-	defer ai.mutex.RUnlock()
-	return ai.val
+	res := ai.val
+	ai.mutex.RUnlock()
+	return res
 }
 
 // GetAndAdd atomically adds the given delta to the current value and returns the result.
 func (ai *AtomicInt) GetAndAdd(delta int) int {
 	ai.mutex.Lock()
-	defer ai.mutex.Unlock()
 	old := ai.val
 	ai.val += delta
+	ai.mutex.Unlock()
 	return old
 }
 
 // GetAndDecrement atomically decrements the current value by one and returns the result.
 func (ai *AtomicInt) GetAndDecrement() int {
 	ai.mutex.Lock()
-	defer ai.mutex.Unlock()
 	old := ai.val
 	ai.val--
+	ai.mutex.Unlock()
 	return old
 }
 
 // GetAndIncrement atomically increments current value by one and returns the result.
 func (ai *AtomicInt) GetAndIncrement() int {
 	ai.mutex.Lock()
-	defer ai.mutex.Unlock()
 	old := ai.val
 	ai.val++
+	ai.mutex.Unlock()
 	return old
 }
 
 // GetAndSet atomically sets current value to the given value and returns the old value.
 func (ai *AtomicInt) GetAndSet(newValue int) int {
 	ai.mutex.Lock()
-	defer ai.mutex.Unlock()
 	old := ai.val
 	ai.val = newValue
+	ai.mutex.Unlock()
 	return old
 }
 
 // IncrementAndGet atomically increments current value by one and returns the result.
 func (ai *AtomicInt) IncrementAndGet() int {
 	ai.mutex.Lock()
-	defer ai.mutex.Unlock()
 	ai.val++
-	return ai.val
+	res := ai.val
+	ai.mutex.Unlock()
+	return res
 }
 
 // Set atomically sets current value to the given value.
 func (ai *AtomicInt) Set(newValue int) {
 	ai.mutex.Lock()
-	defer ai.mutex.Unlock()
 	ai.val = newValue
+	ai.mutex.Unlock()
 }

@@ -43,8 +43,9 @@ func (aa *AtomicArray) Get(idx int) interface{} {
 	}
 
 	aa.mutex.RLock()
-	defer aa.mutex.RUnlock()
-	return aa.items[idx]
+	res := aa.items[idx]
+	aa.mutex.RUnlock()
+	return res
 }
 
 // Set atomically sets an element in the Array.
@@ -56,8 +57,8 @@ func (aa *AtomicArray) Set(idx int, node interface{}) error {
 	}
 
 	aa.mutex.Lock()
-	defer aa.mutex.Unlock()
 	aa.items[idx] = node
+	aa.mutex.Unlock()
 	return nil
 }
 

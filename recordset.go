@@ -46,9 +46,10 @@ func NewRecordset(size int) *Recordset {
 // IsActive returns true if the operation hasn't been finished or cancelled.
 func (rcs *Recordset) IsActive() bool {
 	rcs.mutex.RLock()
-	defer rcs.mutex.RUnlock()
+	active := rcs.active
+	rcs.mutex.RUnlock()
 
-	return rcs.active == true
+	return active
 }
 
 // Close all streams to different nodes.

@@ -139,14 +139,14 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 
 func (cmd *baseMultiCommand) Stop() {
 	cmd.mutex.Lock()
-	defer cmd.mutex.Unlock()
-
 	cmd.valid = false
+	cmd.mutex.Unlock()
 }
 
 func (cmd *baseMultiCommand) IsValid() bool {
 	cmd.mutex.RLock()
-	defer cmd.mutex.RUnlock()
+	res := cmd.valid
+	cmd.mutex.RUnlock()
 
-	return cmd.valid
+	return res
 }

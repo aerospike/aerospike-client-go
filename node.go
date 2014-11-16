@@ -250,16 +250,17 @@ func (nd *Node) GetName() string {
 // GetAliases returnss node aliases.
 func (nd *Node) GetAliases() []*Host {
 	nd.mutex.RLock()
-	defer nd.mutex.RUnlock()
 	aliases := nd.aliases
+	nd.mutex.RUnlock()
+
 	return aliases
 }
 
 // Sets node aliases
 func (nd *Node) setAliases(aliases []*Host) {
 	nd.mutex.Lock()
-	defer nd.mutex.Unlock()
 	nd.aliases = aliases
+	nd.mutex.Unlock()
 }
 
 // AddAlias adds an alias for the node
