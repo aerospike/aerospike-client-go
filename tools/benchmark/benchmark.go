@@ -110,7 +110,7 @@ func main() {
 	log.Println("Nodes Found:", client.GetNodeNames())
 
 	go reporter()
-	wg.Add(*concurrency + 1)
+	wg.Add(*concurrency)
 	for i := 1; i < *concurrency; i++ {
 		go runBench(client, i-1, *keyCount / *concurrency)
 	}
