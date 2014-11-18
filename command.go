@@ -105,8 +105,8 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 		fieldCount++
 	}
 
-	for _, bin := range bins {
-		cmd.estimateOperationSizeForBin(bin)
+	for i := range bins {
+		cmd.estimateOperationSizeForBin(bins[i])
 	}
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
@@ -118,8 +118,8 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 		cmd.writeFieldValue(key.userKey, KEY)
 	}
 
-	for _, bin := range bins {
-		if err := cmd.writeOperationForBin(bin, operation); err != nil {
+	for i := range bins {
+		if err := cmd.writeOperationForBin(bins[i], operation); err != nil {
 			return err
 		}
 	}
@@ -192,8 +192,8 @@ func (cmd *baseCommand) setRead(key *Key, binNames []string) (err error) {
 		cmd.begin()
 		fieldCount := cmd.estimateKeySize(key)
 
-		for _, binName := range binNames {
-			cmd.estimateOperationSizeForBinName(binName)
+		for i := range binNames {
+			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 		if err = cmd.sizeBuffer(); err != nil {
 			return nil
@@ -201,8 +201,8 @@ func (cmd *baseCommand) setRead(key *Key, binNames []string) (err error) {
 		cmd.writeHeader(_INFO1_READ, 0, fieldCount, len(binNames))
 		cmd.writeKey(key)
 
-		for _, binName := range binNames {
-			cmd.writeOperationForBinName(binName, READ)
+		for i := range binNames {
+			cmd.writeOperationForBinName(binNames[i], READ)
 		}
 		cmd.end()
 	} else {
@@ -242,13 +242,13 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	writeAttr := 0
 	readHeader := false
 
-	for _, operation := range operations {
-		switch operation.OpType {
+	for i := range operations {
+		switch operations[i].OpType {
 		case READ:
 			readAttr |= _INFO1_READ
 
 			// Read all bins if no bin is specified.
-			if operation.BinName == nil {
+			if operations[i].BinName == nil {
 				readAttr |= _INFO1_GET_ALL
 			}
 
@@ -263,7 +263,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		default:
 			writeAttr = _INFO2_WRITE
 		}
-		cmd.estimateOperationSizeForOperation(operation)
+		cmd.estimateOperationSizeForOperation(operations[i])
 	}
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
@@ -276,8 +276,8 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	}
 	cmd.writeKey(key)
 
-	for _, operation := range operations {
-		if err := cmd.writeOperationForOperation(operation); err != nil {
+	for i := range operations {
+		if err := cmd.writeOperationForOperation(operations[i]); err != nil {
 			return err
 		}
 	}
@@ -399,8 +399,8 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	fieldCount++
 
 	if binNames != nil {
-		for _, binName := range binNames {
-			cmd.estimateOperationSizeForBinName(binName)
+		for i := range binNames {
+			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 	}
 	if err := cmd.sizeBuffer(); err != nil {
@@ -439,8 +439,8 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.dataOffset++
 
 	if binNames != nil {
-		for _, binName := range binNames {
-			cmd.writeOperationForBinName(binName, READ)
+		for i := range binNames {
+			cmd.writeOperationForBinName(binNames[i], READ)
 		}
 	}
 	cmd.end()
@@ -451,17 +451,18 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 func (cmd *baseCommand) estimateKeySize(key *Key) int {
 	fieldCount := 0
 
-	if strings.Trim(key.namespace, " ") != "" {
+	// if strings.Trim(key.namespace, " ") != "" {
+	if key.namespace != "" {
 		cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	if strings.Trim(key.setName, " ") != "" {
+	if key.setName != "" {
 		cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	cmd.dataOffset += len(key.digest) + int(_FIELD_HEADER_SIZE)
+	cmd.dataOffset += int(_DIGEST_SIZE + _FIELD_HEADER_SIZE)
 	fieldCount++
 
 	return fieldCount
@@ -589,7 +590,7 @@ func (cmd *baseCommand) writeKey(key *Key) {
 }
 
 func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) error {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], []byte(bin.Name))
+	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], bin.Name)
 	valueLength, err := bin.Value.write(cmd.dataBuffer, cmd.dataOffset+int(_OPERATION_HEADER_SIZE)+nameLength)
 	if err != nil {
 		return err
@@ -613,7 +614,7 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 	nameLength := 0
 	if operation.BinName != nil {
-		nameLength = copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], []byte(*operation.BinName))
+		nameLength = copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], *operation.BinName)
 	}
 
 	valueLength, err := operation.BinValue.write(cmd.dataBuffer, cmd.dataOffset+int(_OPERATION_HEADER_SIZE)+nameLength)
@@ -636,7 +637,7 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 }
 
 func (cmd *baseCommand) writeOperationForBinName(name string, operation OperationType) {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], []byte(name))
+	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], name)
 	Buffer.Int32ToBytes(int32(nameLength+4), cmd.dataBuffer, cmd.dataOffset)
 	cmd.dataOffset += 4
 	cmd.dataBuffer[cmd.dataOffset] = (byte(operation))
@@ -674,7 +675,7 @@ func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) {
 }
 
 func (cmd *baseCommand) writeFieldString(str string, ftype FieldType) {
-	len := copy(cmd.dataBuffer[(cmd.dataOffset+int(_FIELD_HEADER_SIZE)):], []byte(str))
+	len := copy(cmd.dataBuffer[(cmd.dataOffset+int(_FIELD_HEADER_SIZE)):], str)
 	cmd.writeFieldHeader(len, ftype)
 	cmd.dataOffset += len
 }
