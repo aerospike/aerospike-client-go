@@ -258,7 +258,7 @@ const l = 62
 var xr = NewXorRand()
 
 func randBytes(size int) []byte {
-	buf := make([]byte, 0, size)
+	buf := make([]byte, size, size)
 	xr.Read(buf)
 	return buf
 }
@@ -327,13 +327,8 @@ func runBench(client *Client, ident int, times int) {
 				}
 			}
 
-			if wLat < wMinLat {
-				wMinLat = wLat
-			}
-
-			if wLat > wMaxLat {
-				wMaxLat = wLat
-			}
+			wMinLat = min(wLat, wMinLat)
+			wMaxLat = max(wLat, wMaxLat)
 		} else {
 			RCount++
 			tm = time.Now()
@@ -348,19 +343,14 @@ func runBench(client *Client, ident int, times int) {
 				rLatList[0]++
 			}
 
-			// under 1 ms
-			for i := 0; i <= latCols; i++ {
+			for i := 1; i <= latCols; i++ {
 				if rLat > int64(latBase<<uint(i-1)) {
 					rLatList[i]++
 				}
 			}
 
-			if rLat < rMinLat {
-				rMinLat = rLat
-			}
-			if rLat > rMaxLat {
-				rMaxLat = rLat
-			}
+			rMinLat = min(rLat, rMinLat)
+			rMaxLat = max(rLat, rMaxLat)
 		}
 
 		// if throughput is set, check for threshold. All goroutines add a record on first iteration,
@@ -383,8 +373,10 @@ func runBench(client *Client, ident int, times int) {
 			wMinLat, wMaxLat = 0, 0
 			rMinLat, rMaxLat = 0, 0
 
-			wLatList = make([]int64, latCols+1)
-			rLatList = make([]int64, latCols+1)
+			for i := 0; i <= latCols; i++ {
+				wLatList[i] = 0
+				rLatList[i] = 0
+			}
 
 			t = time.Now()
 		}
