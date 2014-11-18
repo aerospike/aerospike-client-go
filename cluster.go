@@ -37,10 +37,6 @@ const (
 	tendInterval = 1 * time.Second
 )
 
-type atomicNodeArray struct {
-	AtomicArray
-}
-
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
 type Cluster struct {
@@ -54,7 +50,7 @@ type Cluster struct {
 	nodes []*Node
 
 	// Hints for best node for a partition
-	partitionWriteMap map[string]*atomicNodeArray
+	partitionWriteMap map[string][]*Node
 
 	// Random node index.
 	nodeIndex *AtomicInt
@@ -78,7 +74,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		connectionTimeout:   policy.timeout(),
 		aliases:             make(map[Host]*Node),
 		nodes:               []*Node{},
-		partitionWriteMap:   make(map[string]*atomicNodeArray),
+		partitionWriteMap:   make(map[string][]*Node),
 		nodeIndex:           NewAtomicInt(0),
 		tendChannel:         make(chan tendCommand),
 	}
@@ -244,23 +240,23 @@ func (clstr *Cluster) findAlias(alias *Host) *Node {
 	return nd
 }
 
-func (clstr *Cluster) setPartitions(partMap map[string]*atomicNodeArray) {
+func (clstr *Cluster) setPartitions(partMap map[string][]*Node) {
 	clstr.mutex.Lock()
 	clstr.partitionWriteMap = partMap
 	clstr.mutex.Unlock()
 }
 
-func (clstr *Cluster) getPartitions() map[string]*atomicNodeArray {
+func (clstr *Cluster) getPartitions() map[string][]*Node {
 	clstr.mutex.RLock()
-	partMap := clstr.partitionWriteMap
+	res := clstr.partitionWriteMap
 	clstr.mutex.RUnlock()
-	return partMap
+	return res
 }
 
 func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) error {
 	// TODO: Cluster should not care about version of tokenizer
 	// decouple clstr interface
-	var nmap map[string]*atomicNodeArray
+	var nmap map[string][]*Node
 	if node.useNewInfo {
 		Logger.Info("Updating partitions using new protocol...")
 		tokens, err := newPartitionTokenizerNew(conn)
@@ -452,11 +448,11 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
 	partitions := clstr.getPartitions()
 
-	for _, nodeArray := range partitions {
-		max := nodeArray.Length()
+	for j := range partitions {
+		max := len(partitions[j])
 
 		for i := 0; i < max; i++ {
-			node := nodeArray.Get(i)
+			node := partitions[j][i]
 			// Use reference equality for performance.
 			if node == filter {
 				return true
@@ -568,10 +564,10 @@ func (clstr *Cluster) GetNode(partition *Partition) (*Node, error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	nmap := clstr.getPartitions()
 	if nodeArray, exists := nmap[partition.Namespace]; exists {
-		node := nodeArray.Get(partition.PartitionId)
+		node := nodeArray[partition.PartitionId]
 
-		if node != nil && node.(*Node).IsActive() {
-			return node.(*Node), nil
+		if node != nil && node.IsActive() {
+			return node, nil
 		}
 	}
 	return clstr.GetRandomNode()
