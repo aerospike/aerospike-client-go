@@ -14,19 +14,21 @@
 
 package types
 
-import (
-	. "github.com/aerospike/aerospike-client-go/types/atomic"
-)
+import "sync"
 
 // BufferPool implements a specialized buffer pool.
 // Pool size will be limited, and each buffer size will be
 // constrained to the init and max buffer sizes.
 type BufferPool struct {
-	pool     *AtomicQueue
+	pool     [][]byte
 	poolSize int
+
+	pos int64
 
 	maxBufSize  int
 	initBufSize int
+
+	mutex sync.Mutex
 }
 
 // NewBufferPool creates a new buffer pool.
@@ -36,7 +38,8 @@ type BufferPool struct {
 // set a deterministic maximum-size for the pool which will not be exceeded.
 func NewBufferPool(poolSize, initBufferSize, maxBufferSize int) *BufferPool {
 	return &BufferPool{
-		pool:        NewAtomicQueue(poolSize),
+		pool:        make([][]byte, poolSize),
+		pos:         -1,
 		poolSize:    poolSize,
 		maxBufSize:  maxBufferSize,
 		initBufSize: initBufferSize,
@@ -45,19 +48,28 @@ func NewBufferPool(poolSize, initBufferSize, maxBufferSize int) *BufferPool {
 
 // Get returns a buffer from the pool. If pool is empty, a new buffer of
 // size initBufSize will be created and returned.
-func (bp *BufferPool) Get() []byte {
-	res := bp.pool.Poll()
-	if res == nil {
-		return make([]byte, bp.initBufSize, bp.initBufSize)
+func (bp *BufferPool) Get() (res []byte) {
+	bp.mutex.Lock()
+	if bp.pos >= 0 {
+		res = bp.pool[bp.pos]
+		bp.pos--
+	} else {
+		res = make([]byte, bp.initBufSize, bp.initBufSize)
 	}
 
-	return res.([]byte)
+	bp.mutex.Unlock()
+	return res
 }
 
 // Put will put the buffer back in the pool, unless cap(buf) is bigger than
 // initBufSize, in which case it will be thrown away
 func (bp *BufferPool) Put(buf []byte) {
-	if cap(buf) <= bp.maxBufSize {
-		bp.pool.Offer(buf)
+	if len(buf) <= bp.maxBufSize {
+		bp.mutex.Lock()
+		if bp.pos < int64(bp.poolSize-1) {
+			bp.pos++
+			bp.pool[bp.pos] = buf
+		}
+		bp.mutex.Unlock()
 	}
 }
