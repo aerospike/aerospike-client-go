@@ -254,7 +254,7 @@ func (vl *StringValue) estimateSize() int {
 }
 
 func (vl *StringValue) write(buffer []byte, offset int) (int, error) {
-	return copy(buffer[offset:], []byte(vl.value)), nil
+	return copy(buffer[offset:], vl.value), nil
 }
 
 func (vl *StringValue) pack(packer *packer) error {
@@ -571,11 +571,11 @@ func (vl *MapValue) String() string {
 func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}, error) {
 
 	switch ptype {
-	case ParticleType.STRING:
-		return string(buf[offset : offset+length]), nil
-
 	case ParticleType.INTEGER:
 		return Buffer.BytesToNumber(buf, offset, length), nil
+
+	case ParticleType.STRING:
+		return string(buf[offset : offset+length]), nil
 
 	case ParticleType.BLOB:
 		newObj := make([]byte, length)
