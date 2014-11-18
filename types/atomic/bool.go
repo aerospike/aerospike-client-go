@@ -14,64 +14,37 @@
 
 package atomic
 
-import (
-	"sync"
-)
+import "sync/atomic"
 
 // AtomicBool implements a synchronized boolean value
 type AtomicBool struct {
-	val   bool
-	mutex sync.RWMutex
+	val int32
 }
 
 // NewAtomicBool generates a new AtomicBoolean instance.
 func NewAtomicBool(value bool) *AtomicBool {
+	var i int32 = 0
+	if value {
+		i = 1
+	}
 	return &AtomicBool{
-		val: value,
+		val: i,
 	}
 }
 
 // Get atomically retrieves the boolean value.
 func (ab *AtomicBool) Get() bool {
-	ab.mutex.RLock()
-	res := ab.val
-	ab.mutex.RUnlock()
-	return res
+	if atomic.LoadInt32(&(ab.val)) != 0 {
+		return true
+	}
+	return false
 }
 
 // Set atomically sets the boolean value.
 func (ab *AtomicBool) Set(newVal bool) {
-	ab.mutex.Lock()
-	ab.val = newVal
-	ab.mutex.Unlock()
-}
-
-// GetAndToggle atomically retrieves the current boolean value first, and then toggles it.
-func (ab *AtomicBool) GetAndToggle() bool {
-	ab.mutex.Lock()
-	val := ab.val
-	ab.val = !ab.val
-	ab.mutex.Unlock()
-	return val
-}
-
-// ToggleAndGet atomically toggles the boolean value first, and then retrieves it.
-func (ab *AtomicBool) ToggleAndGet() bool {
-	ab.mutex.Lock()
-	ab.val = !ab.val
-	val := ab.val
-	ab.mutex.Unlock()
-	return val
-}
-
-// CompareAndSet atomically sets the boolean value to updated value, if the current value is as expected.
-func (ab *AtomicBool) CompareAndSet(expect bool, update bool) bool {
-	res := false
-	ab.mutex.Lock()
-	if ab.val == expect {
-		ab.val = update
-		res = true
+	var i int32 = 0
+	if newVal {
+		i = 1
 	}
-	ab.mutex.Unlock()
-	return res
+	atomic.StoreInt32(&(ab.val), int32(i))
 }
