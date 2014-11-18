@@ -373,10 +373,8 @@ func runBench(client *Client, ident int, times int) {
 			wMinLat, wMaxLat = 0, 0
 			rMinLat, rMaxLat = 0, 0
 
-			for i := 0; i <= latCols; i++ {
-				wLatList[i] = 0
-				rLatList[i] = 0
-			}
+			wLatList = make([]int64, latCols+1)
+			rLatList = make([]int64, latCols+1)
 
 			t = time.Now()
 		}
