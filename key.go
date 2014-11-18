@@ -127,7 +127,7 @@ func computeDigest(setName *string, key Value) ([]byte, error) {
 var hashPool *Pool
 
 func init() {
-	hashPool = NewPool(4096)
+	hashPool = NewPool(512)
 	hashPool.New = func() interface{} {
 		return ripemd160.New()
 	}

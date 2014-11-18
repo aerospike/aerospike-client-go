@@ -65,8 +65,8 @@ func newPacker() *packer {
 
 func (pckr *packer) packValueArray(values []Value) error {
 	pckr.PackArrayBegin(len(values))
-	for _, value := range values {
-		if err := value.pack(pckr); err != nil {
+	for i := range values {
+		if err := values[i].pack(pckr); err != nil {
 			return err
 		}
 	}
@@ -75,8 +75,8 @@ func (pckr *packer) packValueArray(values []Value) error {
 
 func (pckr *packer) PackList(list []interface{}) error {
 	pckr.PackArrayBegin(len(list))
-	for _, obj := range list {
-		if err := pckr.PackObject(obj); err != nil {
+	for i := range list {
+		if err := pckr.PackObject(list[i]); err != nil {
 			return err
 		}
 	}

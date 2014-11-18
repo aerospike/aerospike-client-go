@@ -150,7 +150,6 @@ func (cmd *readCommand) parseRecord(
 		particleType := int(cmd.dataBuffer[receiveOffset+5])
 		version := int(cmd.dataBuffer[receiveOffset+6])
 		nameSize := int(cmd.dataBuffer[receiveOffset+7])
-		// name := Buffer.utf8ToString(cmd.dataBuffer, receiveOffset+8, nameSize);
 		name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
 		receiveOffset += 4 + 4 + nameSize
 
@@ -162,7 +161,7 @@ func (cmd *readCommand) parseRecord(
 
 		if version > 0 || duplicates != nil {
 			if duplicates == nil {
-				duplicates = make([]BinMap, 4)
+				duplicates = make([]BinMap, opCount)
 				duplicates = append(duplicates, bins)
 				bins = nil
 
@@ -177,12 +176,12 @@ func (cmd *readCommand) parseRecord(
 
 			vmap = duplicates[version]
 			if vmap == nil {
-				vmap = make(BinMap)
+				vmap = make(BinMap, opCount)
 				duplicates[version] = vmap
 			}
 		} else {
 			if bins == nil {
-				bins = make(BinMap)
+				bins = make(BinMap, opCount)
 			}
 			vmap = bins
 		}
@@ -192,9 +191,9 @@ func (cmd *readCommand) parseRecord(
 	// Remove nil duplicates just in case there were holes in the version number space.
 	if duplicates != nil {
 		lastElem := 0
-		for _, d := range duplicates {
-			if d != nil {
-				duplicates[lastElem] = d
+		for i := range duplicates {
+			if duplicates[i] != nil {
+				duplicates[lastElem] = duplicates[i]
 				lastElem++
 			}
 		}
