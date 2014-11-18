@@ -16,7 +16,6 @@ package aerospike_test
 
 import (
 	"flag"
-	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -185,7 +184,6 @@ var _ = Describe("Query operations", func() {
 
 		cnt := 0
 		for rec := range recordset.Records {
-			fmt.Println(rec.Bins)
 			results := rec.Bins["SUCCESS"].(map[interface{}]interface{})
 			Expect(results["bin4"]).To(Equal("constValue"))
 			// Expect(results["bin5"]).To(Equal(-1))
@@ -232,36 +230,3 @@ var _ = Describe("Query operations", func() {
 	})
 
 })
-
-// const udfFilter = `
-// 	local function map_record(record)
-// 	 -- Add name and age to returned map.
-// 	 -- Could add other record bins here as well.
-// 	 return map {bin4=record.bin1, bin5=record["bin2"]}
-// 	end
-
-// 	function filter_by_name(stream,name)
-// 	 local function filter_name(record)
-// 	   return (record.bin1 == -1) and (record.bin2 == name)
-// 	 end
-// 	 return stream : filter(filter_name) : map(map_record)
-// 	end
-// `
-
-// regTask, err := client.RegisterUDF(nil, []byte(udfFilter), "udfFilter.lua", LUA)
-// panicOnErr(err)
-
-// // wait until UDF is created
-// err = <-regTask.OnComplete()
-// panicOnErr(err)
-
-// stm := NewStatement(ns, set)
-// stm.Addfilter(NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
-// stm.SetAggregateFunction("udfFilter", "filter_by_name", []Value{NewValue("Aeropsike")}, true)
-
-// recordset, err := client.Query(nil, stm)
-// panicOnErr(err)
-
-// for rec := range recordset.Records {
-// 	fmt.Println(rec)
-// }
