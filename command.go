@@ -146,12 +146,20 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
 func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
+	if policy.SendKey {
+		// field header size + key size
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
 	cmd.estimateOperationSize()
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 1)
 	cmd.writeKey(key)
+	if policy.SendKey {
+		cmd.writeFieldValue(key.userKey, KEY)
+	}
 	cmd.writeOperationForOperationType(TOUCH)
 	cmd.end()
 	return nil
@@ -265,6 +273,13 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		}
 		cmd.estimateOperationSizeForOperation(operation)
 	}
+
+	if policy.SendKey && writeAttr != 0 {
+		// field header size + key size
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
@@ -275,6 +290,10 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		cmd.writeHeader(readAttr, writeAttr, fieldCount, len(operations))
 	}
 	cmd.writeKey(key)
+
+	if policy.SendKey && writeAttr != 0 {
+		cmd.writeFieldValue(key.userKey, KEY)
+	}
 
 	for _, operation := range operations {
 		if err := cmd.writeOperationForOperation(operation); err != nil {
