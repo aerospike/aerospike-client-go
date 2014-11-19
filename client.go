@@ -203,9 +203,10 @@ func (clnt *Client) Delete(policy *WritePolicy, key *Key) (bool, error) {
 // Touch Operations
 //-------------------------------------------------------
 
-// Touch creates a record if it does not already exist.
+// Touch updates a record's metadata.
 // If the record exists, the record's TTL will be reset to the
 // policy's expiration.
+// If the record doesn't exist, it will return an error.
 func (clnt *Client) Touch(policy *WritePolicy, key *Key) error {
 	if policy == nil {
 		policy = NewWritePolicy(0, 0)
