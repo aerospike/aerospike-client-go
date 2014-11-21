@@ -33,6 +33,15 @@ import (
 // All database operations are available against this object.
 type Client struct {
 	cluster *Cluster
+
+	// DefaultPolicy is used for all read commands without a specific policy.
+	DefaultPolicy *BasePolicy
+	// DefaultWritePolicy is used for all write commands without a specific policy.
+	DefaultWritePolicy *WritePolicy
+	// DefaultScanPolicy is used for all quey commands without a specific policy.
+	DefaultScanPolicy *ScanPolicy
+	// DefaultQueryPolicy is used for all scan commands without a specific policy.
+	DefaultQueryPolicy *QueryPolicy
 }
 
 //-------------------------------------------------------
@@ -62,7 +71,13 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	if err != nil {
 		return nil, fmt.Errorf("Failed to connect to host(s): %v", hosts)
 	}
-	return &Client{cluster: cluster}, nil
+	return &Client{
+		cluster:            cluster,
+		DefaultPolicy:      NewPolicy(),
+		DefaultWritePolicy: NewWritePolicy(0, 0),
+		DefaultScanPolicy:  NewScanPolicy(),
+		DefaultQueryPolicy: NewQueryPolicy(),
+	}, nil
 
 }
 
@@ -115,7 +130,11 @@ func (clnt *Client) Put(policy *WritePolicy, key *Key, bins BinMap) error {
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	command := newWriteCommand(clnt.cluster, policy, key, bins, WRITE)
 	return command.Execute()
@@ -137,7 +156,11 @@ func (clnt *Client) Append(policy *WritePolicy, key *Key, bins BinMap) error {
 // AppendBins works the same as Append, but avoids BinMap allocation and iteration.
 func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	command := newWriteCommand(clnt.cluster, policy, key, bins, APPEND)
 	return command.Execute()
@@ -155,7 +178,11 @@ func (clnt *Client) Prepend(policy *WritePolicy, key *Key, bins BinMap) error {
 // PrependBins works the same as Prepend, but avoids BinMap allocation and iteration.
 func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	command := newWriteCommand(clnt.cluster, policy, key, bins, PREPEND)
 	return command.Execute()
@@ -177,7 +204,11 @@ func (clnt *Client) Add(policy *WritePolicy, key *Key, bins BinMap) error {
 // AddBins works the same as Add, but avoids BinMap allocation and iteration.
 func (clnt *Client) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	command := newWriteCommand(clnt.cluster, policy, key, bins, ADD)
 	return command.Execute()
@@ -192,7 +223,11 @@ func (clnt *Client) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) Delete(policy *WritePolicy, key *Key) (bool, error) {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	command := newDeleteCommand(clnt.cluster, policy, key)
 	err := command.Execute()
@@ -208,7 +243,11 @@ func (clnt *Client) Delete(policy *WritePolicy, key *Key) (bool, error) {
 // policy's expiration.
 func (clnt *Client) Touch(policy *WritePolicy, key *Key) error {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	command := newTouchCommand(clnt.cluster, policy, key)
 	return command.Execute()
@@ -223,7 +262,11 @@ func (clnt *Client) Touch(policy *WritePolicy, key *Key) error {
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) Exists(policy *BasePolicy, key *Key) (bool, error) {
 	if policy == nil {
-		policy = NewPolicy()
+		if clnt.DefaultPolicy != nil {
+			policy = clnt.DefaultPolicy
+		} else {
+			policy = NewPolicy()
+		}
 	}
 	command := newExistsCommand(clnt.cluster, policy, key)
 	err := command.Execute()
@@ -236,7 +279,11 @@ func (clnt *Client) Exists(policy *BasePolicy, key *Key) (bool, error) {
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) BatchExists(policy *BasePolicy, keys []*Key) ([]bool, error) {
 	if policy == nil {
-		policy = NewPolicy()
+		if clnt.DefaultPolicy != nil {
+			policy = clnt.DefaultPolicy
+		} else {
+			policy = NewPolicy()
+		}
 	}
 
 	// same array can be used without sychronization;
@@ -263,7 +310,11 @@ func (clnt *Client) BatchExists(policy *BasePolicy, keys []*Key) ([]bool, error)
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) Get(policy *BasePolicy, key *Key, binNames ...string) (*Record, error) {
 	if policy == nil {
-		policy = NewPolicy()
+		if clnt.DefaultPolicy != nil {
+			policy = clnt.DefaultPolicy
+		} else {
+			policy = NewPolicy()
+		}
 	}
 	command := newReadCommand(clnt.cluster, policy, key, binNames)
 	if err := command.Execute(); err != nil {
@@ -278,7 +329,11 @@ func (clnt *Client) Get(policy *BasePolicy, key *Key, binNames ...string) (*Reco
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
 	if policy == nil {
-		policy = NewPolicy()
+		if clnt.DefaultPolicy != nil {
+			policy = clnt.DefaultPolicy
+		} else {
+			policy = NewPolicy()
+		}
 	}
 	command := newReadHeaderCommand(clnt.cluster, policy, key)
 	if err := command.Execute(); err != nil {
@@ -298,7 +353,11 @@ func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string) ([]*Record, error) {
 	if policy == nil {
-		policy = NewPolicy()
+		if clnt.DefaultPolicy != nil {
+			policy = clnt.DefaultPolicy
+		} else {
+			policy = NewPolicy()
+		}
 	}
 
 	// same array can be used without sychronization;
@@ -328,7 +387,11 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, error) {
 	if policy == nil {
-		policy = NewPolicy()
+		if clnt.DefaultPolicy != nil {
+			policy = clnt.DefaultPolicy
+		} else {
+			policy = NewPolicy()
+		}
 	}
 
 	// same array can be used without sychronization;
@@ -359,7 +422,11 @@ func (clnt *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, 
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operation) (*Record, error) {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	command := newOperateCommand(clnt.cluster, policy, key, operations)
 	if err := command.Execute(); err != nil {
@@ -378,7 +445,11 @@ func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operat
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	if policy == nil {
-		policy = NewScanPolicy()
+		if clnt.DefaultScanPolicy != nil {
+			policy = clnt.DefaultScanPolicy
+		} else {
+			policy = NewScanPolicy()
+		}
 	}
 
 	// Retry policy must be one-shot for scans.
@@ -441,10 +512,10 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 
 							// this break will move on to the next node
 							break L
-						case rec, ok := <-recSet.Records:
-							if ok {
+						case rec, open := <-recSet.Records:
+							if open && rec != nil {
 								res.Records <- rec
-							} else {
+							} else if !open {
 								// channel has been closed
 								res.drainErrors(recSet.Errors)
 
@@ -465,7 +536,11 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) ScanNode(policy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	if policy == nil {
-		policy = NewScanPolicy()
+		if clnt.DefaultScanPolicy != nil {
+			policy = clnt.DefaultScanPolicy
+		} else {
+			policy = NewScanPolicy()
+		}
 	}
 
 	if policy.WaitUntilMigrationsAreOver {
@@ -502,7 +577,11 @@ func (clnt *Client) ScanNode(policy *ScanPolicy, node *Node, namespace string, s
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) GetLargeList(policy *WritePolicy, key *Key, binName string, userModule string) *LargeList {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	return NewLargeList(clnt, policy, key, binName, userModule)
 }
@@ -515,7 +594,11 @@ func (clnt *Client) GetLargeList(policy *WritePolicy, key *Key, binName string, 
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) GetLargeMap(policy *WritePolicy, key *Key, binName string, userModule string) *LargeMap {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	return NewLargeMap(clnt, policy, key, binName, userModule)
 }
@@ -528,7 +611,11 @@ func (clnt *Client) GetLargeMap(policy *WritePolicy, key *Key, binName string, u
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) GetLargeSet(policy *WritePolicy, key *Key, binName string, userModule string) *LargeSet {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	return NewLargeSet(clnt, policy, key, binName, userModule)
 }
@@ -541,7 +628,11 @@ func (clnt *Client) GetLargeSet(policy *WritePolicy, key *Key, binName string, u
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) GetLargeStack(policy *WritePolicy, key *Key, binName string, userModule string) *LargeStack {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	return NewLargeStack(clnt, policy, key, binName, userModule)
 }
@@ -560,7 +651,11 @@ func (clnt *Client) GetLargeStack(policy *WritePolicy, key *Key, binName string,
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) RegisterUDFFromFile(policy *WritePolicy, clientPath string, serverPath string, language Language) (*RegisterTask, error) {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	udfBody, err := ioutil.ReadFile(clientPath)
 	if err != nil {
@@ -579,7 +674,11 @@ func (clnt *Client) RegisterUDFFromFile(policy *WritePolicy, clientPath string, 
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath string, language Language) (*RegisterTask, error) {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	content := base64.StdEncoding.EncodeToString(udfBody)
 
@@ -649,7 +748,11 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask, error) {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	var strCmd bytes.Buffer
 	// errors are to remove errcheck warnings
@@ -693,7 +796,11 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 	if policy == nil {
-		policy = NewPolicy()
+		if clnt.DefaultPolicy != nil {
+			policy = clnt.DefaultPolicy
+		} else {
+			policy = NewPolicy()
+		}
 	}
 	var strCmd bytes.Buffer
 	// errors are to remove errcheck warnings
@@ -765,7 +872,11 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (interface{}, error) {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	command := newExecuteCommand(clnt.cluster, policy, key, packageName, functionName, args)
 	if err := command.Execute(); err != nil {
@@ -820,7 +931,11 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	functionArgs ...Value,
 ) (*ExecuteTask, error) {
 	if policy == nil {
-		policy = NewQueryPolicy()
+		if clnt.DefaultQueryPolicy != nil {
+			policy = clnt.DefaultQueryPolicy
+		} else {
+			policy = NewQueryPolicy()
+		}
 	}
 
 	// Always set a taskId
@@ -864,7 +979,11 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 // If the policy is nil, a default policy will be generated.
 func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset, error) {
 	if policy == nil {
-		policy = NewQueryPolicy()
+		if clnt.DefaultQueryPolicy != nil {
+			policy = clnt.DefaultQueryPolicy
+		} else {
+			policy = NewQueryPolicy()
+		}
 	}
 
 	// Always set a taskId
@@ -951,7 +1070,11 @@ func (clnt *Client) CreateIndex(
 	indexType IndexType,
 ) (*IndexTask, error) {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 
 	var strCmd bytes.Buffer
@@ -1006,7 +1129,11 @@ func (clnt *Client) DropIndex(
 	indexName string,
 ) error {
 	if policy == nil {
-		policy = NewWritePolicy(0, 0)
+		if clnt.DefaultWritePolicy != nil {
+			policy = clnt.DefaultWritePolicy
+		} else {
+			policy = NewWritePolicy(0, 0)
+		}
 	}
 	var strCmd bytes.Buffer
 	_, err := strCmd.WriteString("sindex-delete:ns=")
@@ -1136,6 +1263,9 @@ func (clnt *Client) mergeResultChannels(size int, channels []chan *Record, error
 
 	outputErrors := func(c chan error) {
 		for n := range c {
+			if n == nil {
+				panic("NIL ERROR 569027603")
+			}
 			outErr <- n
 		}
 		wg.Done()

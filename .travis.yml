@@ -5,6 +5,11 @@ go:
   - 1.3
   - tip
 
+matrix:
+  allow_failures:
+    - gvm: tip
+  fast_finish: true
+
 install:
   - mv $HOME/gopath/src/github.com/citrusleaf $HOME/gopath/src/github.com/aerospike
   - export PATH=$PATH:$HOME/gopath/bin
@@ -30,8 +35,9 @@ install:
 script:
   # build all tools
   - find tools -name "*.go" -type f -exec go -- build {} ';'
-  # build all examples
-  - find examples -type f -exec go -- build {} ';'
+  # build all examples - only include files with *.go pattern in 
+  # the examples, and not its sub-directories
+  - find examples -name "*.go" -d 1 -type f -exec go -- build {} ';'
   # run tests in single instance mode
   - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
   # run tests in multiple instance mode

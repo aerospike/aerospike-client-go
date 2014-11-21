@@ -15,7 +15,8 @@
 package aerospike
 
 import (
-	"sync"
+	. "github.com/aerospike/aerospike-client-go/types"
+	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
 // Recordset encapsulates the result of Scan and Query commands.
@@ -25,12 +26,10 @@ type Recordset struct {
 	// Errors is a channel on which all errors will be sent back.
 	Errors chan error
 
-	active   bool
+	active   *AtomicBool
 	chans    []chan *Record
 	errs     []chan error
 	commands []multiCommand
-
-	mutex sync.RWMutex
 }
 
 // NewRecordset generates a new RecordSet instance.
@@ -38,25 +37,19 @@ func NewRecordset(size int) *Recordset {
 	return &Recordset{
 		Records:  make(chan *Record, size),
 		Errors:   make(chan error, size),
-		active:   true,
+		active:   NewAtomicBool(true),
 		commands: []multiCommand{},
 	}
 }
 
 // IsActive returns true if the operation hasn't been finished or cancelled.
 func (rcs *Recordset) IsActive() bool {
-	rcs.mutex.RLock()
-	active := rcs.active
-	rcs.mutex.RUnlock()
-
-	return active
+	return rcs.active.Get()
 }
 
 // Close all streams to different nodes.
 func (rcs *Recordset) Close() {
-	rcs.mutex.Lock()
-	rcs.active = false
-	rcs.mutex.Unlock()
+	rcs.active.Set(false)
 
 	for i := range rcs.commands {
 		// send signal to close
@@ -67,12 +60,7 @@ func (rcs *Recordset) Close() {
 // drains a records channel into the results chan
 func (rcs *Recordset) drainRecords(recChan chan *Record) {
 	// drain the results chan
-	for {
-		rec, ok := <-recChan
-		// if channel is closed, or is empty, exit the loop
-		if !ok || rec == nil {
-			break
-		}
+	for rec := range recChan {
 		rcs.Records <- rec
 	}
 }
@@ -80,12 +68,27 @@ func (rcs *Recordset) drainRecords(recChan chan *Record) {
 // drains a channel into the errors chan
 func (rcs *Recordset) drainErrors(errChan chan error) {
 	// drain the results chan
-	for {
-		err, ok := <-errChan
+	for err := range errChan {
 		// if channel is closed, or is empty, exit the loop
-		if !ok || err == nil {
-			break
-		}
 		rcs.Errors <- err
+	}
+}
+
+// NextRecord returns next record from Records channel.
+// If there was an error in Errors channel, that error will be retured without a record.
+// If there are no more records, ErrEndOfRecordset will be returned.
+func (rcs *Recordset) NextRecord() (*Record, error) {
+	for {
+		select {
+		case rec, isOpen := <-rcs.Records:
+			if !isOpen && rec == nil {
+				return nil, ErrEndOfRecordset
+			}
+			return rec, nil
+		case err := <-rcs.Errors:
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 }

@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"time"
+
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -146,8 +148,18 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 			return false, NewAerospikeError(SCAN_TERMINATED)
 		}
 
-		// send back the result on the async channel
-		cmd.Records <- newRecord(cmd.node, key, bins, nil, generation, expiration)
+	L:
+		for {
+			select {
+			// send back the result on the async channel
+			case cmd.Records <- newRecord(cmd.node, key, bins, nil, generation, expiration):
+				break L
+			case <-time.After(time.Millisecond):
+				if !cmd.IsValid() {
+					return false, NewAerospikeError(SCAN_TERMINATED)
+				}
+			}
+		}
 	}
 
 	return true, nil

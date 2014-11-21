@@ -16,7 +16,6 @@ package aerospike_test
 
 import (
 	"flag"
-	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -98,7 +97,7 @@ var _ = Describe("Query operations", func() {
 	}
 
 	BeforeEach(func() {
-		keys = make(map[string]*Key)
+		keys = make(map[string]*Key, keyCount)
 		set = randString(50)
 		for i := 0; i < keyCount; i++ {
 			key, err := NewKey(ns, set, randString(50))
@@ -185,7 +184,6 @@ var _ = Describe("Query operations", func() {
 
 		cnt := 0
 		for rec := range recordset.Records {
-			fmt.Println(rec.Bins)
 			results := rec.Bins["SUCCESS"].(map[interface{}]interface{})
 			Expect(results["bin4"]).To(Equal("constValue"))
 			// Expect(results["bin5"]).To(Equal(-1))

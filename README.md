@@ -1,4 +1,4 @@
-# Aerospike Go Client (BETA1)
+# Aerospike Go Client
 
 An Aerospike library for Go.
 
