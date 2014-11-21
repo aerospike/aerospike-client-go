@@ -97,7 +97,7 @@ var _ = Describe("Query operations", func() {
 	}
 
 	BeforeEach(func() {
-		keys = make(map[string]*Key)
+		keys = make(map[string]*Key, keyCount)
 		set = randString(50)
 		for i := 0; i < keyCount; i++ {
 			key, err := NewKey(ns, set, randString(50))

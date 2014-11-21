@@ -19,6 +19,9 @@ package types
 type ResultCode int
 
 const (
+	// End of Recordset in Query or Scan.
+	END_OF_RECORDSET ResultCode = -8
+
 	// Asynchronous max concurrent database commands have been exceeded and therefore rejected.
 	TYPE_NOT_SUPPORTED ResultCode = -7
 
@@ -213,6 +216,9 @@ func KeepConnection(resultCode int) bool {
 // Return result code as a string.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
+	case END_OF_RECORDSET:
+		return "End of recordset."
+
 	case TYPE_NOT_SUPPORTED:
 		return "Type cannot be converted to Value Type."
 

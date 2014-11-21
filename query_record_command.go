@@ -17,6 +17,8 @@ package aerospike
 import (
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
+	"time"
+
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -105,13 +107,25 @@ func (cmd *queryRecordCommand) parseRecordResults(ifc command, receiveSize int) 
 			bins[name] = value
 		}
 
-		record := newRecord(cmd.node, key, bins, nil, generation, expiration)
-
 		if !cmd.IsValid() {
 			return false, NewAerospikeError(QUERY_TERMINATED)
 		}
 
-		cmd.Records <- record
+		// If the channel is full and it blocks, we don't want this command to
+		// block forever, or panic in case the channel is closed in the meantime.
+	L:
+		for {
+			select {
+			// send back the result on the async channel
+			case cmd.Records <- newRecord(cmd.node, key, bins, nil, generation, expiration):
+				break L
+			case <-time.After(time.Millisecond):
+				if !cmd.IsValid() {
+					return false, NewAerospikeError(SCAN_TERMINATED)
+				}
+			}
+		}
+
 	}
 
 	return true, nil

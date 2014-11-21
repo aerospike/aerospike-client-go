@@ -1,5 +1,33 @@
 # Change history
 
+## Nov 20 2014
+
+  Major Performance Enhancements. Minor new features and fixes.
+
+  * **Fixes**:
+
+    * Fixed issue when WritePolicy.SendKey = true was not respected in Touch() and Operate()
+
+  * **New Features**
+
+    * Added Default Policies for Client object.
+      Instead of creating a new policy when the passed policy is nil, default policies will be used.
+
+    * Added Recordset.NextRecord() method. It is now easier to iterate over queries and scan results.
+      ```go
+      L:
+        for {
+          if rec, err := recordset.NextRecord(); err != nil {
+            // deal with the error
+            // if it is ErrEndOfRecordset, 
+          } else {
+            // process the record
+          }
+        }
+      ```
+
+
+
 ## Nov 2 2014
 
   Minor, but very impoortant fix.

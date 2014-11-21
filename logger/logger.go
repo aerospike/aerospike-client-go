@@ -64,6 +64,20 @@ func (lgr *logger) SetLevel(level LogPriority) {
 	lgr.level = level
 }
 
+// Error logs a message if log level allows to do so.
+func (lgr *logger) LogAtLevel(level LogPriority, format string, v ...interface{}) {
+	switch level {
+	case DEBUG:
+		lgr.Debug(format, v)
+	case INFO:
+		lgr.Info(format, v)
+	case WARNING:
+		lgr.Warn(format, v)
+	case ERR:
+		lgr.Error(format, v)
+	}
+}
+
 // Debug logs a message if log level allows to do so.
 func (lgr *logger) Debug(format string, v ...interface{}) {
 	if lgr.level <= DEBUG {
