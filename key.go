@@ -115,17 +115,19 @@ func computeDigest(setName *string, key Value) ([]byte, error) {
 	h.Write([]byte{byte(keyType)})
 	h.Write(key.getBytes())
 
+	res := h.Sum(nil)
+
 	// put hash object back to the pool
 	hashPool.Put(h)
 
-	return h.Sum(nil), nil
+	return res, nil
 }
 
 // hash pool
 var hashPool *Pool
 
 func init() {
-	hashPool = NewPool(1024)
+	hashPool = NewPool(4096)
 	hashPool.New = func() interface{} {
 		return ripemd160.New()
 	}
