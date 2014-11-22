@@ -92,15 +92,15 @@ func NewKey(namespace string, setName string, key interface{}) (newKey *Key, err
 		userKey:   NewValue(key),
 	}
 
-	newKey.digest, err = computeDigest(&newKey.setName, NewValue(key))
+	newKey.digest, err = computeDigest(newKey)
 
 	return newKey, err
 }
 
 // Generate unique server hash value from set name, key type and user defined key.
 // The hash function is RIPEMD-160 (a 160 bit hash).
-func computeDigest(setName *string, key Value) ([]byte, error) {
-	keyType := key.GetType()
+func computeDigest(key *Key) ([]byte, error) {
+	keyType := key.userKey.GetType()
 
 	if keyType == ParticleType.NULL {
 		return nil, NewAerospikeError(PARAMETER_ERROR, "Invalid key: nil")
@@ -110,25 +110,34 @@ func computeDigest(setName *string, key Value) ([]byte, error) {
 	h := hashPool.Get().(hash.Hash)
 	h.Reset()
 
-	// write will not fail; no error checking necessary
-	h.Write([]byte(*setName))
-	h.Write([]byte{byte(keyType)})
-	h.Write(key.getBytes())
+	buf := keyBufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	buf.WriteString(key.setName)
+	buf.WriteByte(byte(keyType))
+	buf.ReadFrom(key.userKey.reader())
 
+	h.Write(buf.Bytes())
 	res := h.Sum(nil)
 
 	// put hash object back to the pool
 	hashPool.Put(h)
+	keyBufPool.Put(buf)
 
 	return res, nil
 }
 
 // hash pool
 var hashPool *Pool
+var keyBufPool *Pool
 
 func init() {
-	hashPool = NewPool(4096)
+	hashPool = NewPool(512)
 	hashPool.New = func() interface{} {
 		return ripemd160.New()
+	}
+
+	keyBufPool = NewPool(512)
+	keyBufPool.New = func() interface{} {
+		return new(bytes.Buffer)
 	}
 }
