@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"math"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -95,6 +96,11 @@ var _ = Describe("Packing Test", func() {
 
 		It("should pack and unpack string values", func() {
 			v := "string123456789\n"
+			Expect(testPackingFor(v)).To(Equal(v))
+		})
+
+		It("should pack and unpack string values of size 32911 for sign bit check", func() {
+			v := strings.Repeat("s", 32911)
 			Expect(testPackingFor(v)).To(Equal(v))
 		})
 
@@ -215,8 +221,8 @@ var _ = Describe("Packing Test", func() {
 		})
 
 		It("should pack and unpack an array of string", func() {
-			v := []string{"this", "is", "an", "array", "of", "strings"}
-			Expect(testPackingFor(v)).To(Equal([]interface{}{"this", "is", "an", "array", "of", "strings"}))
+			v := []string{"this", "is", "an", "array", "of", "strings", strings.Repeat("s", 32911)}
+			Expect(testPackingFor(v)).To(Equal([]interface{}{"this", "is", "an", "array", "of", "strings", strings.Repeat("s", 32911)}))
 		})
 
 	})
@@ -250,6 +256,7 @@ var _ = Describe("Packing Test", func() {
 				"maxFloat64": float64(math.MaxFloat64),
 				"minFloat64": float64(-math.MaxFloat64),
 				"str":        "this is a string",
+				"strbitsign": strings.Repeat("s", 32911),
 				"nil":        nil,
 				"true":       true,
 				"false":      false,
@@ -276,6 +283,7 @@ var _ = Describe("Packing Test", func() {
 				"maxFloat64": float64(math.MaxFloat64),
 				"minFloat64": float64(-math.MaxFloat64),
 				"str":        "this is a string",
+				"strbitsign": strings.Repeat("s", 32911),
 				"nil":        nil,
 				"true":       true,
 				"false":      false,

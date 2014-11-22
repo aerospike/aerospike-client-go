@@ -64,19 +64,6 @@ var _ = Describe("Aerospike", func() {
 		})
 
 		Context("Put operations", func() {
-			// TODO: Resolve this - this should work like touch command
-			// It("must save a key without bins", func() {
-			// 	// bin := NewBin("dbname", "Aerospike")
-			// 	err = client.PutBins(wpolicy, key)
-			// 	Expect(err).ToNot(HaveOccurred())
-
-			// 	var exists bool
-			// 	exists, err := client.Exists(rpolicy, key)
-			// 	rec, _ := client.Get(rpolicy, key)
-			// 	fmt.Printf("%#v: %#v", key, rec)
-			// 	Expect(err).ToNot(HaveOccurred())
-			// 	Expect(exists).To(Equal(true))
-			// })
 
 			Context("Bins with `nil` values should be deleted", func() {
 				It("must save a key with SINGLE bin", func() {
@@ -397,6 +384,7 @@ var _ = Describe("Aerospike", func() {
 							float64(math.MaxFloat64):  float64(math.MaxFloat64),
 							"string":                  map[interface{}]interface{}{nil: "string", "string": 19}, // map to complex array
 							nil:                       []int{18, 41},                                            // array to complex map
+							"longString":              strings.Repeat("s", 32911),                               // bit-sign test
 						})
 
 						err = client.PutBins(wpolicy, key, bin1, bin2)
