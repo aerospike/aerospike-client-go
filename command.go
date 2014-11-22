@@ -632,7 +632,7 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 	nameLength := 0
 	if operation.BinName != nil {
-		nameLength = copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], []byte(*operation.BinName))
+		nameLength = copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], *operation.BinName)
 	}
 
 	valueLength, err := operation.BinValue.write(cmd.dataBuffer, cmd.dataOffset+int(_OPERATION_HEADER_SIZE)+nameLength)
@@ -655,7 +655,7 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 }
 
 func (cmd *baseCommand) writeOperationForBinName(name string, operation OperationType) {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], []byte(name))
+	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], name)
 	Buffer.Int32ToBytes(int32(nameLength+4), cmd.dataBuffer, cmd.dataOffset)
 	cmd.dataOffset += 4
 	cmd.dataBuffer[cmd.dataOffset] = (byte(operation))
@@ -693,7 +693,7 @@ func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) {
 }
 
 func (cmd *baseCommand) writeFieldString(str string, ftype FieldType) {
-	len := copy(cmd.dataBuffer[(cmd.dataOffset+int(_FIELD_HEADER_SIZE)):], []byte(str))
+	len := copy(cmd.dataBuffer[(cmd.dataOffset+int(_FIELD_HEADER_SIZE)):], str)
 	cmd.writeFieldHeader(len, ftype)
 	cmd.dataOffset += len
 }

@@ -46,10 +46,10 @@ func (upckr *unpacker) UnpackList() ([]interface{}, error) {
 	if (theType & 0xf0) == 0x90 {
 		count = int(theType & 0x0f)
 	} else if theType == 0xdc {
-		count = int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		count = int(uint16(Buffer.BytesToInt16(upckr.buffer, upckr.offset)))
 		upckr.offset += 2
 	} else if theType == 0xdd {
-		count = int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		count = int(uint32(Buffer.BytesToInt32(upckr.buffer, upckr.offset)))
 		upckr.offset += 4
 	} else {
 		return nil, nil
@@ -83,10 +83,10 @@ func (upckr *unpacker) UnpackMap() (map[interface{}]interface{}, error) {
 	if (theType & 0xf0) == 0x80 {
 		count = int(theType & 0x0f)
 	} else if theType == 0xde {
-		count = int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		count = int(uint16(Buffer.BytesToInt16(upckr.buffer, upckr.offset)))
 		upckr.offset += 2
 	} else if theType == 0xdf {
-		count = int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		count = int(uint32(Buffer.BytesToInt32(upckr.buffer, upckr.offset)))
 		upckr.offset += 4
 	} else {
 		return make(map[interface{}]interface{}), nil
@@ -201,32 +201,32 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 		return int64(val), nil
 
 	case 0xda:
-		count := int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		count := int(uint16(Buffer.BytesToInt16(upckr.buffer, upckr.offset)))
 		upckr.offset += 2
 		return upckr.unpackBlob(count)
 
 	case 0xdb:
-		count := int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		count := int(uint32(Buffer.BytesToInt32(upckr.buffer, upckr.offset)))
 		upckr.offset += 4
 		return upckr.unpackBlob(count)
 
 	case 0xdc:
-		count := int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		count := int(uint16(Buffer.BytesToInt16(upckr.buffer, upckr.offset)))
 		upckr.offset += 2
 		return upckr.unpackList(count)
 
 	case 0xdd:
-		count := int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		count := int(uint32(Buffer.BytesToInt32(upckr.buffer, upckr.offset)))
 		upckr.offset += 4
 		return upckr.unpackList(count)
 
 	case 0xde:
-		count := int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		count := int(uint16(Buffer.BytesToInt16(upckr.buffer, upckr.offset)))
 		upckr.offset += 2
 		return upckr.unpackMap(count)
 
 	case 0xdf:
-		count := int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		count := int(uint32(Buffer.BytesToInt32(upckr.buffer, upckr.offset)))
 		upckr.offset += 4
 		return upckr.unpackMap(count)
 
