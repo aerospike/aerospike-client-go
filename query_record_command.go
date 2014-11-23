@@ -24,12 +24,12 @@ import (
 )
 
 type queryRecordCommand struct {
-	queryCommand
+	*queryCommand
 }
 
 func newQueryRecordCommand(node *Node, policy *QueryPolicy, statement *Statement, recChan chan *Record, errChan chan error) *queryRecordCommand {
 	return &queryRecordCommand{
-		queryCommand: *newQueryCommand(node, policy, statement, recChan, errChan),
+		queryCommand: newQueryCommand(node, policy, statement, recChan, errChan),
 	}
 }
 

@@ -22,7 +22,7 @@ import (
 )
 
 type readCommand struct {
-	singleCommand
+	*singleCommand
 
 	policy   Policy
 	binNames []string
@@ -31,7 +31,7 @@ type readCommand struct {
 
 func newReadCommand(cluster *Cluster, policy Policy, key *Key, binNames []string) *readCommand {
 	newReadCmd := &readCommand{
-		singleCommand: *newSingleCommand(cluster, key),
+		singleCommand: newSingleCommand(cluster, key),
 		binNames:      binNames,
 	}
 

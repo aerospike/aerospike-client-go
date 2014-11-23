@@ -23,7 +23,7 @@ import (
 
 // ExecuteTask is used to poll for long running server execute job completion.
 type ExecuteTask struct {
-	BaseTask
+	*BaseTask
 
 	taskId int64
 	scan   bool
@@ -32,7 +32,7 @@ type ExecuteTask struct {
 // NewExecuteTask initializes task with fields needed to query server nodes.
 func NewExecuteTask(cluster *Cluster, statement *Statement) *ExecuteTask {
 	return &ExecuteTask{
-		BaseTask: *NewTask(cluster, false),
+		BaseTask: NewTask(cluster, false),
 		taskId:   statement.TaskId,
 		scan:     statement.IsScan(),
 	}

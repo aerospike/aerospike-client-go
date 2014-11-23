@@ -16,13 +16,13 @@ package aerospike
 
 // LargeSet encapsulates a set within a single bin.
 type LargeSet struct {
-	baseLargeObject
+	*baseLargeObject
 }
 
 // NewLargeSet initializes a large set operator.
 func NewLargeSet(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeSet {
 	return &LargeSet{
-		baseLargeObject: *newLargeObject(client, policy, key, binName, userModule),
+		baseLargeObject: newLargeObject(client, policy, key, binName, userModule),
 	}
 }
 

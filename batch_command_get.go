@@ -21,7 +21,7 @@ import (
 )
 
 type batchCommandGet struct {
-	baseMultiCommand
+	*baseMultiCommand
 
 	batchNamespace *batchNamespace
 	policy         Policy
@@ -41,7 +41,7 @@ func newBatchCommandGet(
 	readAttr int,
 ) *batchCommandGet {
 	return &batchCommandGet{
-		baseMultiCommand: *newMultiCommand(node, nil, nil),
+		baseMultiCommand: newMultiCommand(node, nil, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
 		keyMap:           keyMap,

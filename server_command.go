@@ -23,12 +23,12 @@ import (
 )
 
 type serverCommand struct {
-	queryCommand
+	*queryCommand
 }
 
 func newServerCommand(node *Node, policy *QueryPolicy, statement *Statement) *serverCommand {
 	return &serverCommand{
-		queryCommand: *newQueryCommand(node, policy, statement, nil, nil),
+		queryCommand: newQueryCommand(node, policy, statement, nil, nil),
 	}
 }
 

@@ -22,7 +22,7 @@ import (
 var _ command = &deleteCommand{}
 
 type deleteCommand struct {
-	singleCommand
+	*singleCommand
 
 	policy  *WritePolicy
 	existed bool
@@ -30,7 +30,7 @@ type deleteCommand struct {
 
 func newDeleteCommand(cluster *Cluster, policy *WritePolicy, key *Key) *deleteCommand {
 	newDeleteCmd := &deleteCommand{
-		singleCommand: *newSingleCommand(cluster, key),
+		singleCommand: newSingleCommand(cluster, key),
 	}
 
 	if policy == nil {

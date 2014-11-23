@@ -17,13 +17,13 @@ package aerospike
 // LargeStack encapsulates a stack within a single bin.
 // A stack is last in/first out (LIFO) data structure.
 type LargeStack struct {
-	baseLargeObject
+	*baseLargeObject
 }
 
 // NewLargeStack initializes a large stack operator.
 func NewLargeStack(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeStack {
 	return &LargeStack{
-		baseLargeObject: *newLargeObject(client, policy, key, binName, userModule),
+		baseLargeObject: newLargeObject(client, policy, key, binName, userModule),
 	}
 }
 

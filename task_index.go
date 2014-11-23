@@ -22,7 +22,7 @@ import (
 
 // IndexTask is used to poll for long running create index completion.
 type IndexTask struct {
-	BaseTask
+	*BaseTask
 
 	namespace string
 	indexName string
@@ -31,7 +31,7 @@ type IndexTask struct {
 // NewIndexTask initializes a task with fields needed to query server nodes.
 func NewIndexTask(cluster *Cluster, namespace string, indexName string) *IndexTask {
 	return &IndexTask{
-		BaseTask:  *NewTask(cluster, false),
+		BaseTask:  NewTask(cluster, false),
 		namespace: namespace,
 		indexName: indexName,
 	}

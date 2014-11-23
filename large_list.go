@@ -16,13 +16,13 @@ package aerospike
 
 // LargeList encapsulates a list within a single bin.
 type LargeList struct {
-	baseLargeObject
+	*baseLargeObject
 }
 
 // NewLargeList initializes a large list operator.
 func NewLargeList(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeList {
 	return &LargeList{
-		baseLargeObject: *newLargeObject(client, policy, key, binName, userModule),
+		baseLargeObject: newLargeObject(client, policy, key, binName, userModule),
 	}
 }
 
