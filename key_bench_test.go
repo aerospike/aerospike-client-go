@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/aerospike/aerospike-client-go/pkg/ripemd160"
+	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 
 	// . "github.com/aerospike/aerospike-client-go"
 )
@@ -30,19 +31,19 @@ var key *Key
 
 var res []byte
 
-func Benchmark_Hash(b *testing.B) {
+func Benchmark_K_Hash(b *testing.B) {
+	hash := ripemd160.New()
 	for i := 0; i < b.N; i++ {
-		hash := ripemd160.New()
 		hash.Reset()
 		hash.Write(buffer)
 		res = hash.Sum(nil)
 	}
 }
 
-func Benchmark_Key(b *testing.B) {
+func Benchmark_K_Key(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		key, _ = NewKey(str, str, str)
-		res = key.Digest()
+		// res = key.Digest()
 	}
 }
 
@@ -53,9 +54,48 @@ func Benchmark_Key(b *testing.B) {
 // 	}
 // }
 
-func Benchmark_ComputeDigest_Orig(b *testing.B) {
+// func Benchmark_K_ComputeDigest_Orig(b *testing.B) {
+// 	for i := 0; i < b.N; i++ {
+// 		res, _ = computeDigest(str, strVal)
+// 	}
+// }
+
+// func Benchmark_K_ComputeDigest_Verify(b *testing.B) {
+// 	var res1, res2 []byte
+// 	var key *Key
+// 	for i := 0; i < b.N; i++ {
+// 		key, _ = NewKey(str, str, i)
+// 		res1, _ = computeDigest(key)
+// 		res2, _ = computeDigestNew(key)
+
+// 		if !bytes.Equal(res1, res2) {
+// 			panic("Oh oh!")
+// 		}
+
+// 		key, _ = NewKey(str, str, fmt.Sprintf("%s%d", str, i))
+// 		res1, _ = computeDigest(key)
+// 		res2, _ = computeDigestNew(key)
+
+// 		if !bytes.Equal(res1, res2) {
+// 			panic(fmt.Sprintf("Oh oh!\n%v\n%v", res1, res2))
+// 		}
+// 	}
+// }
+
+func Benchmark_K_ComputeDigest_Raw(b *testing.B) {
+	h := ripemd160.New()
+	setName := []byte(str)
+	keyType := []byte{byte(ParticleType.STRING)}
+	keyVal := []byte(str)
 	for i := 0; i < b.N; i++ {
-		res, _ = computeDigest(&str, strVal)
+		h.Reset()
+
+		// write will not fail; no error checking necessary
+		h.Write(setName)
+		h.Write(keyType)
+		h.Write(keyVal)
+
+		res = h.Sum(nil)
 	}
 }
 

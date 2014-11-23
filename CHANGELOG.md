@@ -1,6 +1,6 @@
 # Change history
 
-## Nov 20 2014
+## Nov 24 2014
 
   Major Performance Enhancements. Minor new features and fixes.
 
@@ -27,6 +27,14 @@
       ```
 
 
+## Nov 22 2014
+
+  Hotfix in unpacker. Update strongly recommended for everyone using Complex objects, LDTs and UDFs.
+
+  * **Fixes**:
+
+    * When Blob, ByteArray or String size has a bit sign set, unpacker reads it wrong.
+        Note: This bug only affects unpacking of these objects. Packing was unaffected, and data in the database is valid.
 
 ## Nov 2 2014
 

@@ -1263,9 +1263,6 @@ func (clnt *Client) mergeResultChannels(size int, channels []chan *Record, error
 
 	outputErrors := func(c chan error) {
 		for n := range c {
-			if n == nil {
-				panic("NIL ERROR 569027603")
-			}
 			outErr <- n
 		}
 		wg.Done()

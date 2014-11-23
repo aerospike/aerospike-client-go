@@ -15,10 +15,13 @@
 package aerospike
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"reflect"
 	"strconv"
+	"strings"
 	"unsafe"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
@@ -51,8 +54,7 @@ type Value interface {
 	// Return value as an Object.
 	// GetLuaValue() LuaValue
 
-	// Returns Bytes
-	getBytes() []byte
+	reader() io.Reader
 }
 
 // AerospikeBlob defines an interface to automatically
@@ -167,7 +169,7 @@ func (vl *NullValue) GetObject() interface{} {
 // 	return LuaNil.NIL
 // }
 
-func (vl *NullValue) getBytes() []byte {
+func (vl *NullValue) reader() io.Reader {
 	return nil
 }
 
@@ -228,8 +230,8 @@ func (vl *BytesValue) GetObject() interface{} {
 // 	return LuaString.valueOf(vl.bytes)
 // }
 
-func (vl *BytesValue) getBytes() []byte {
-	return vl.bytes
+func (vl *BytesValue) reader() io.Reader {
+	return bytes.NewReader(vl.bytes)
 }
 
 // String implements Stringer interface.
@@ -276,8 +278,8 @@ func (vl *StringValue) GetObject() interface{} {
 // 	return LuaString.valueOf(vl.value)
 // }
 
-func (vl *StringValue) getBytes() []byte {
-	return []byte(vl.value)
+func (vl *StringValue) reader() io.Reader {
+	return strings.NewReader(vl.value)
 }
 
 // String implements Stringer interface.
@@ -329,8 +331,8 @@ func (vl *IntegerValue) GetObject() interface{} {
 // 	return LuaInteger.valueOf(vl.value)
 // }
 
-func (vl *IntegerValue) getBytes() []byte {
-	return Buffer.Int64ToBytes(int64(vl.value), nil, 0)
+func (vl *IntegerValue) reader() io.Reader {
+	return bytes.NewReader(Buffer.Int64ToBytes(int64(vl.value), nil, 0))
 }
 
 // String implements Stringer interface.
@@ -378,8 +380,8 @@ func (vl *LongValue) GetObject() interface{} {
 // 	return LuaInteger.valueOf(vl.value)
 // }
 
-func (vl *LongValue) getBytes() []byte {
-	return Buffer.Int64ToBytes(int64(vl.value), nil, 0)
+func (vl *LongValue) reader() io.Reader {
+	return bytes.NewReader(Buffer.Int64ToBytes(int64(vl.value), nil, 0))
 }
 
 // String implements Stringer interface.
@@ -444,8 +446,8 @@ func (vl *ValueArray) GetObject() interface{} {
 // 	return nil
 // }
 
-func (vl *ValueArray) getBytes() []byte {
-	return vl.bytes
+func (vl *ValueArray) reader() io.Reader {
+	return bytes.NewReader(vl.bytes)
 }
 
 // String implements Stringer interface.
@@ -502,8 +504,8 @@ func (vl *ListValue) GetObject() interface{} {
 // 	return nil
 // }
 
-func (vl *ListValue) getBytes() []byte {
-	return vl.bytes
+func (vl *ListValue) reader() io.Reader {
+	return bytes.NewReader(vl.bytes)
 }
 
 // String implements Stringer interface.
@@ -557,8 +559,8 @@ func (vl *MapValue) GetObject() interface{} {
 // 	return nil
 // }
 
-func (vl *MapValue) getBytes() []byte {
-	return vl.bytes
+func (vl *MapValue) reader() io.Reader {
+	return bytes.NewReader(vl.bytes)
 }
 
 // String implements Stringer interface.

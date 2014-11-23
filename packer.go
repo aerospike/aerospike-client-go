@@ -300,7 +300,7 @@ func (pckr *packer) PackString(val string) {
 	size := len(val) + 1
 	pckr.PackByteArrayBegin(size)
 	pckr.buffer.WriteByte(byte(ParticleType.STRING))
-	pckr.buffer.Write([]byte(val))
+	pckr.buffer.WriteString(val)
 }
 
 func (pckr *packer) PackByteArray(src []byte, srcOffset int, srcLength int) {
