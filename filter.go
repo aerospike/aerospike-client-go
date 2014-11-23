@@ -58,7 +58,7 @@ func (fltr *Filter) write(buf []byte, offset int) (int, error) {
 	var err error
 
 	// Write name.
-	len := copy(buf[offset+1:], []byte(fltr.name))
+	len := copy(buf[offset+1:], fltr.name)
 	buf[offset] = byte(len)
 	offset += len + 1
 

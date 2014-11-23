@@ -179,7 +179,7 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 		cmd.dataOffset++
 
 		for _, binName := range cmd.statement.BinNames {
-			len := copy(cmd.dataBuffer[cmd.dataOffset+1:], []byte(binName))
+			len := copy(cmd.dataBuffer[cmd.dataOffset+1:], binName)
 			cmd.dataBuffer[cmd.dataOffset] = byte(len)
 			cmd.dataOffset += len + 1
 		}

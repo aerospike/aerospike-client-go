@@ -45,7 +45,7 @@ func BytesToHexString(buf []byte) string {
 	for i := range buf {
 		hex := fmt.Sprintf("%02x ", buf[i])
 		idx := i * 3
-		copy(hlist[idx:], []byte(hex))
+		copy(hlist[idx:], hex)
 	}
 	return string(hlist)
 }

@@ -256,7 +256,7 @@ func (vl *StringValue) estimateSize() int {
 }
 
 func (vl *StringValue) write(buffer []byte, offset int) (int, error) {
-	return copy(buffer[offset:], []byte(vl.value)), nil
+	return copy(buffer[offset:], vl.value), nil
 }
 
 func (vl *StringValue) pack(packer *packer) error {
