@@ -32,7 +32,7 @@ type multiCommand interface {
 }
 
 type baseMultiCommand struct {
-	baseCommand
+	*baseCommand
 
 	Records chan *Record
 	Errors  chan error
@@ -42,7 +42,7 @@ type baseMultiCommand struct {
 
 func newMultiCommand(node *Node, recChan chan *Record, errChan chan error) *baseMultiCommand {
 	return &baseMultiCommand{
-		baseCommand: baseCommand{node: node},
+		baseCommand: &baseCommand{node: node},
 		Records:     recChan,
 		Errors:      errChan,
 		valid:       NewAtomicBool(true),

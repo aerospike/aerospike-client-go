@@ -21,7 +21,7 @@ import (
 )
 
 type batchCommandExists struct {
-	baseMultiCommand
+	*baseMultiCommand
 
 	batchNamespace *batchNamespace
 	policy         *BasePolicy
@@ -37,7 +37,7 @@ func newBatchCommandExists(
 	existsArray []bool,
 ) *batchCommandExists {
 	return &batchCommandExists{
-		baseMultiCommand: *newMultiCommand(node, nil, nil),
+		baseMultiCommand: newMultiCommand(node, nil, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
 		keyMap:           keyMap,

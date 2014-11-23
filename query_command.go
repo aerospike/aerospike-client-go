@@ -22,7 +22,7 @@ import (
 )
 
 type queryCommand struct {
-	baseMultiCommand
+	*baseMultiCommand
 
 	policy    *QueryPolicy
 	statement *Statement
@@ -44,7 +44,7 @@ func newQueryCommand(node *Node, policy *QueryPolicy, statement *Statement, recC
 	}
 
 	return &queryCommand{
-		baseMultiCommand: *newMultiCommand(node, recChan, errChan),
+		baseMultiCommand: newMultiCommand(node, recChan, errChan),
 		policy:           policy,
 		statement:        statement,
 	}

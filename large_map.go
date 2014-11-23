@@ -16,13 +16,13 @@ package aerospike
 
 // LargeMap encapsulates a map within a single bin.
 type LargeMap struct {
-	baseLargeObject
+	*baseLargeObject
 }
 
 // NewLargeMap initializes a large map operator.
 func NewLargeMap(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeMap {
 	return &LargeMap{
-		baseLargeObject: *newLargeObject(client, policy, key, binName, userModule),
+		baseLargeObject: newLargeObject(client, policy, key, binName, userModule),
 	}
 }
 

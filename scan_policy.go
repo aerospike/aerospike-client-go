@@ -16,7 +16,7 @@ package aerospike
 
 // ScanPolicy encapsulates parameters used in scan operations.
 type ScanPolicy struct {
-	MultiPolicy
+	*MultiPolicy
 
 	// ScanPercent determines percent of data to scan.
 	// Valid integer range is 1 to 100.
@@ -36,7 +36,7 @@ type ScanPolicy struct {
 // NewScanPolicy creates a new ScanPolicy instance with default values.
 func NewScanPolicy() *ScanPolicy {
 	return &ScanPolicy{
-		MultiPolicy:         *NewMultiPolicy(),
+		MultiPolicy:         NewMultiPolicy(),
 		ScanPercent:         100,
 		ConcurrentNodes:     true,
 		IncludeBinData:      true,

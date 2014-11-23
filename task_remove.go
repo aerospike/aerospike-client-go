@@ -20,7 +20,7 @@ import (
 
 // RemoveTask is used to poll for UDF registration completion.
 type RemoveTask struct {
-	BaseTask
+	*BaseTask
 
 	packageName string
 }
@@ -28,7 +28,7 @@ type RemoveTask struct {
 // NewRemoveTask initializes a RemoveTask with fields needed to query server nodes.
 func NewRemoveTask(cluster *Cluster, packageName string) *RemoveTask {
 	return &RemoveTask{
-		BaseTask:    *NewTask(cluster, false),
+		BaseTask:    NewTask(cluster, false),
 		packageName: packageName,
 	}
 }

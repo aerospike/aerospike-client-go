@@ -22,7 +22,7 @@ import (
 )
 
 type scanCommand struct {
-	baseMultiCommand
+	*baseMultiCommand
 
 	policy    *ScanPolicy
 	namespace string
@@ -53,7 +53,7 @@ func newScanCommand(
 	}
 
 	return &scanCommand{
-		baseMultiCommand: *newMultiCommand(node, recChan, errChan),
+		baseMultiCommand: newMultiCommand(node, recChan, errChan),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,
