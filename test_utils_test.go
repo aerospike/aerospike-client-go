@@ -15,7 +15,6 @@
 package aerospike_test
 
 import (
-	"encoding/binary"
 	"math/rand"
 	"reflect"
 
@@ -34,13 +33,13 @@ func (tb *testBLOB) EncodeBlob() ([]byte, error) {
 
 // generates a random string of specified length
 func randString(size int) string {
-	p := make([]byte, size, size)
-	l := len(p) / 8
-	for i := 0; i < l; i += 8 {
-		binary.PutUvarint(p[i:], uint64(rand.Int63()))
+	const random_alpha_num = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	const l = 62
+	buf := make([]byte, size)
+	for i := 0; i < size; i++ {
+		buf[i] = random_alpha_num[rand.Intn(l)]
 	}
-
-	return string(p)
+	return string(buf)
 }
 
 func normalizeValue(v interface{}) interface{} {
