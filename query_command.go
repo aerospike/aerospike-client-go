@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	"strings"
 	"time"
 
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -63,17 +62,17 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 
 	cmd.begin()
 
-	if strings.Trim(cmd.statement.Namespace, " ") != "" {
+	if cmd.statement.Namespace != "" {
 		cmd.dataOffset += len(cmd.statement.Namespace) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	if strings.Trim(cmd.statement.IndexName, " ") != "" {
+	if cmd.statement.IndexName != "" {
 		cmd.dataOffset += len(cmd.statement.IndexName) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	if strings.Trim(cmd.statement.SetName, " ") != "" {
+	if cmd.statement.SetName != "" {
 		cmd.dataOffset += len(cmd.statement.SetName) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
@@ -116,7 +115,7 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
 
-	if strings.Trim(cmd.statement.functionName, " ") != "" {
+	if cmd.statement.functionName != "" {
 		cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1 // udf type
 		cmd.dataOffset += len(cmd.statement.packageName) + int(_FIELD_HEADER_SIZE)
 		cmd.dataOffset += len(cmd.statement.functionName) + int(_FIELD_HEADER_SIZE)
@@ -139,15 +138,15 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 	readAttr := _INFO1_READ
 	cmd.writeHeader(readAttr, 0, fieldCount, 0)
 
-	if strings.Trim(cmd.statement.Namespace, " ") != "" {
+	if cmd.statement.Namespace != "" {
 		cmd.writeFieldString(cmd.statement.Namespace, NAMESPACE)
 	}
 
-	if strings.Trim(cmd.statement.IndexName, " ") != "" {
+	if cmd.statement.IndexName != "" {
 		cmd.writeFieldString(cmd.statement.IndexName, INDEX_NAME)
 	}
 
-	if strings.Trim(cmd.statement.SetName, " ") != "" {
+	if cmd.statement.SetName != "" {
 		cmd.writeFieldString(cmd.statement.SetName, TABLE)
 	}
 
@@ -189,7 +188,7 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 	Buffer.Int64ToBytes(int64(cmd.statement.TaskId), cmd.dataBuffer, cmd.dataOffset)
 	cmd.dataOffset += 8
 
-	if strings.Trim(cmd.statement.functionName, " ") != "" {
+	if cmd.statement.functionName != "" {
 		cmd.writeFieldHeader(1, UDF_OP)
 		if cmd.statement.returnData {
 			cmd.dataBuffer[cmd.dataOffset] = byte(1)
