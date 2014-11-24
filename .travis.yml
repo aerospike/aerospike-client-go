@@ -5,6 +5,11 @@ go:
   - 1.3
   - tip
 
+matrix:
+  allow_failures:
+    - gvm: tip
+  fast_finish: true
+
 install:
   - mv $HOME/gopath/src/github.com/citrusleaf $HOME/gopath/src/github.com/aerospike
   - export PATH=$PATH:$HOME/gopath/bin
