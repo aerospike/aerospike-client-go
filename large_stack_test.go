@@ -43,7 +43,7 @@ var _ = Describe("LargeStack Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("should create a valid LargeStack; Support Add(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
+	It("should create a valid LargeStack; Support Push(), Peek(), Pop(), Size(), Scan(), Destroy() and GetCapacity()", func() {
 		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
 		res, err := lstack.Size()
 		Expect(err).ToNot(HaveOccurred()) // bin not exists
@@ -91,6 +91,13 @@ var _ = Describe("LargeStack Test", func() {
 		// 	// Expect(v).To(Equal([]interface{}{i}))
 		// }
 
+		// Destroy
+		err = lstack.Destroy()
+		Expect(err).ToNot(HaveOccurred())
+
+		scanResult, err = lstack.Scan()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(scanResult)).To(Equal(0))
 	})
 
 	It("should correctly GetConfig()", func() {
