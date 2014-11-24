@@ -43,7 +43,7 @@ var _ = Describe("LargeMap Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("should create a valid LargeMap; Support PutMap() and Size()", func() {
+	It("should create a valid LargeMap; Support PutMap() and Size(), Destroy()", func() {
 		lmap := client.GetLargeMap(wpolicy, key, randString(10), "")
 		res, err := lmap.Size()
 		Expect(err).ToNot(HaveOccurred()) // bin not exists
@@ -61,9 +61,16 @@ var _ = Describe("LargeMap Test", func() {
 		sz, err := lmap.Size()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sz).To(Equal(100))
+
+		err = lmap.Destroy()
+		Expect(err).ToNot(HaveOccurred())
+
+		resMap, err := lmap.Scan()
+		Expect(len(resMap)).To(Equal(0))
+		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("should create a valid LargeMap; Support Put(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
+	It("should create a valid LargeMap; Support Put(), Get(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
 		lmap := client.GetLargeMap(wpolicy, key, randString(10), "")
 		res, err := lmap.Size()
 		Expect(err).ToNot(HaveOccurred()) // bin not exists
@@ -72,6 +79,16 @@ var _ = Describe("LargeMap Test", func() {
 		for i := 1; i <= 100; i++ {
 			err = lmap.Put(NewValue(i*100), NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
+
+			// check if it can be retrieved
+			elem, err := lmap.Get(i * 100)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(elem).To(Equal(map[interface{}]interface{}{i * 100: i}))
+
+			// check for a non-existing element
+			elem, err = lmap.Get(i * 70000)
+			Expect(err).To(HaveOccurred())
+			Expect(elem).To(BeNil())
 
 			// confirm that the LMAP size has been increased to the expected size
 			sz, err := lmap.Size()
@@ -96,6 +113,16 @@ var _ = Describe("LargeMap Test", func() {
 		}
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(scanResult)).To(Equal(100))
+		Expect(scanResult).To(Equal(scanExpectation))
+
+		// remove all keys
+		for i := 1; i <= 100; i++ {
+			err = lmap.Remove(i * 100)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		scanExpectation = make(map[interface{}]interface{})
+		scanResult, err = lmap.Scan()
 		Expect(scanResult).To(Equal(scanExpectation))
 	})
 

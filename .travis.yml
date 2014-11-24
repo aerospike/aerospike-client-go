@@ -7,15 +7,15 @@ go:
 
 matrix:
   allow_failures:
-    - gvm: tip
-  fast_finish: true
+    - go: tip
 
 install:
   - mv $HOME/gopath/src/github.com/citrusleaf $HOME/gopath/src/github.com/aerospike
   - export PATH=$PATH:$HOME/gopath/bin
   - go get github.com/onsi/ginkgo/ginkgo
   - go get github.com/onsi/gomega
-  - go get code.google.com/p/go.tools/cmd/cover
+  #  We like to run the tests with coverage.
+  - if [[ "${TRAVIS_GO_VERSION}" = "tip" ]]; then go get -u golang.org/x/tools/cmd/cover; else go get -u code.google.com/p/go.tools/cmd/cover; fi
   - wget -O aerospike-server.tgz http://aerospike.com/download/server/latest/artifact/tgz
   - tar xvzf aerospike-server.tgz
   - cp -f .travis/aerospike.conf ./aerospike-server/share/etc

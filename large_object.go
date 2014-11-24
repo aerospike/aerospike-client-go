@@ -30,7 +30,7 @@ type LargeObject interface {
 	GetCapacity() (int, error)
 }
 
-// Create and manage a large object within a single bin. A stack is last in/first out (LIFO).
+// Create and manage a large object within a single bin. A large object is last in/first out (LIFO).
 type baseLargeObject struct {
 	client     *Client
 	policy     *WritePolicy
@@ -39,13 +39,13 @@ type baseLargeObject struct {
 	userModule Value
 }
 
-// Initialize large stack operator.
+// Initialize large large object operator.
 //
 // client        client
 // policy        generic configuration parameters, pass in nil for defaults
 // key         unique record identifier
 // binName       bin name
-// userModule      Lua function name that initializes list configuration parameters, pass nil for default set
+// userModule      Lua function name that initializes list configuration parameters, pass nil for default large object
 func newLargeObject(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *baseLargeObject {
 	r := &baseLargeObject{
 		client:  client,
@@ -97,7 +97,7 @@ func (lo *baseLargeObject) getConfig(ifc LargeObject) (map[interface{}]interface
 
 // Set maximum number of entries in the object.
 //
-// capacity      max entries in set
+// capacity      max entries in large object
 func (lo *baseLargeObject) setCapacity(ifc LargeObject, capacity int) error {
 	_, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "set_capacity", lo.binName, NewIntegerValue(capacity))
 	return err
@@ -112,11 +112,15 @@ func (lo *baseLargeObject) getCapacity(ifc LargeObject) (int, error) {
 	return ret.(int), nil
 }
 
-// Return list of all objects on the stack.
+// Return list of all objects on the large object.
 func (lo *baseLargeObject) scan(ifc LargeObject) ([]interface{}, error) {
 	ret, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "scan", lo.binName)
 	if err != nil {
 		return nil, err
+	}
+
+	if ret == nil {
+		return []interface{}{}, nil
 	}
 	return ret.([]interface{}), nil
 }
