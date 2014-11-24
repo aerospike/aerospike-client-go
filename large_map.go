@@ -58,18 +58,10 @@ func (lm *LargeMap) Get(name interface{}) (map[interface{}]interface{}, error) {
 	return res.(map[interface{}]interface{}), err
 }
 
-// Remove deletes a value from map given key.
-func (lm *LargeMap) Remove(name interface{}) (map[interface{}]interface{}, error) {
-	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "remove", lm.binName, NewValue(name))
-
-	if err != nil {
-		return nil, err
-	}
-
-	if res == nil {
-		return nil, nil
-	}
-	return res.(map[interface{}]interface{}), err
+// Remove deletes a value from map given a key.
+func (lm *LargeMap) Remove(name interface{}) error {
+	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "remove", lm.binName, NewValue(name))
+	return err
 }
 
 // Scan returns all objects in the map.
