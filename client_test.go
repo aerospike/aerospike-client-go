@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"bytes"
 	"flag"
 	"math"
 	"math/rand"
@@ -547,12 +548,24 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 				generation := rec.Generation
 
+				wpolicy := NewWritePolicy(0, 0)
+				wpolicy.SendKey = true
 				err = client.Touch(wpolicy, key)
 				Expect(err).ToNot(HaveOccurred())
 
 				rec, err = client.Get(rpolicy, key)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(rec.Generation).To(Equal(generation + 1))
+
+				recordset, err := client.ScanAll(nil, key.Namespace(), key.SetName())
+				Expect(err).ToNot(HaveOccurred())
+
+				// make sure the
+				for r := range recordset.Records {
+					if bytes.Equal(key.Digest(), r.Key.Digest()) {
+						Expect(r.Key.Value()).To(Equal(key.Value()))
+					}
+				}
 			})
 
 		}) // Touch context
@@ -770,6 +783,74 @@ var _ = Describe("Aerospike", func() {
 			BeforeEach(func() {
 				// err = client.PutBins(wpolicy, key, bin)
 				// Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("must send key on Put operations", func() {
+				key, err := NewKey(ns, set, randString(50))
+				Expect(err).ToNot(HaveOccurred())
+
+				ops1 := []*Operation{
+					GetOp(),
+					PutOp(bin1),
+					PutOp(bin2),
+				}
+
+				wpolicy := NewWritePolicy(0, 0)
+				wpolicy.SendKey = true
+				rec, err = client.Operate(wpolicy, key, ops1...)
+				Expect(err).ToNot(HaveOccurred())
+
+				recordset, err := client.ScanAll(nil, key.Namespace(), key.SetName())
+				Expect(err).ToNot(HaveOccurred())
+
+				// make sure the
+				for r := range recordset.Records {
+					if bytes.Equal(key.Digest(), r.Key.Digest()) {
+						Expect(r.Key.Value()).To(Equal(key.Value()))
+					}
+				}
+			})
+
+			It("must send key on Touch operations", func() {
+				key, err := NewKey(ns, set, randString(50))
+				Expect(err).ToNot(HaveOccurred())
+
+				ops1 := []*Operation{
+					GetOp(),
+					PutOp(bin2),
+				}
+
+				wpolicy := NewWritePolicy(0, 0)
+				wpolicy.SendKey = false
+				rec, err = client.Operate(wpolicy, key, ops1...)
+				Expect(err).ToNot(HaveOccurred())
+
+				recordset, err := client.ScanAll(nil, key.Namespace(), key.SetName())
+				Expect(err).ToNot(HaveOccurred())
+
+				// make sure the key is not saved
+				for r := range recordset.Records {
+					if bytes.Equal(key.Digest(), r.Key.Digest()) {
+						Expect(r.Key.Value()).To(BeNil())
+					}
+				}
+
+				ops2 := []*Operation{
+					TouchOp(),
+				}
+				wpolicy.SendKey = true
+				rec, err = client.Operate(wpolicy, key, ops2...)
+				Expect(err).ToNot(HaveOccurred())
+
+				recordset, err = client.ScanAll(nil, key.Namespace(), key.SetName())
+				Expect(err).ToNot(HaveOccurred())
+
+				// make sure the
+				for r := range recordset.Records {
+					if bytes.Equal(key.Digest(), r.Key.Digest()) {
+						Expect(r.Key.Value()).To(Equal(key.Value()))
+					}
+				}
 			})
 
 			It("must apply all operations, and result should match expectation", func() {
