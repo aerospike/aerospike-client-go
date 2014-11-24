@@ -453,9 +453,6 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 		}
 	}
 
-	// Retry policy must be one-shot for scans.
-	policy.MaxRetries = 0
-
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
@@ -557,7 +554,6 @@ func (clnt *Client) ScanNode(policy *ScanPolicy, node *Node, namespace string, s
 	// Retry policy must be one-shot for scans.
 	// copy on write for policy
 	newPolicy := *policy
-	newPolicy.MaxRetries = 0
 
 	command := newScanCommand(node, &newPolicy, namespace, setName, binNames, res.Records, res.Errors)
 	res.commands = append(res.commands, command)
@@ -991,9 +987,6 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 	if statement.TaskId == 0 {
 		statement.TaskId = time.Now().UnixNano()
 	}
-
-	// Retry policy must be one-shot for scans.
-	policy.MaxRetries = 0
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
