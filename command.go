@@ -17,7 +17,6 @@ package aerospike
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -451,7 +450,6 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 func (cmd *baseCommand) estimateKeySize(key *Key) int {
 	fieldCount := 0
 
-	// if strings.Trim(key.namespace, " ") != "" {
 	if key.namespace != "" {
 		cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
@@ -578,11 +576,11 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 
 func (cmd *baseCommand) writeKey(key *Key) {
 	// Write key into buffer.
-	if strings.Trim(key.namespace, " ") != "" {
+	if key.namespace != "" {
 		cmd.writeFieldString(key.namespace, NAMESPACE)
 	}
 
-	if strings.Trim(key.setName, " ") != "" {
+	if key.setName != "" {
 		cmd.writeFieldString(key.setName, TABLE)
 	}
 
