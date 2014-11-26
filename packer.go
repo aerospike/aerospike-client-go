@@ -57,7 +57,8 @@ func packAnyMap(val map[interface{}]interface{}) ([]byte, error) {
 
 func newPacker() *packer {
 	p := &packer{
-		buffer: bytes.NewBuffer(nil),
+		// buffer: bytes.NewBuffer(nil),
+		buffer: bytes.NewBuffer(make([]byte, 0, 16*1024)),
 	}
 
 	return p
@@ -75,8 +76,8 @@ func (pckr *packer) packValueArray(values []Value) error {
 
 func (pckr *packer) PackList(list []interface{}) error {
 	pckr.PackArrayBegin(len(list))
-	for _, obj := range list {
-		if err := pckr.PackObject(obj); err != nil {
+	for i := range list {
+		if err := pckr.PackObject(list[i]); err != nil {
 			return err
 		}
 	}
