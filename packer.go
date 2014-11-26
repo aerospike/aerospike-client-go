@@ -57,7 +57,8 @@ func packAnyMap(val map[interface{}]interface{}) ([]byte, error) {
 
 func newPacker() *packer {
 	p := &packer{
-		buffer: bytes.NewBuffer(nil),
+		// buffer: bytes.NewBuffer(nil),
+		buffer: bytes.NewBuffer(make([]byte, 0, 16*1024)),
 	}
 
 	return p

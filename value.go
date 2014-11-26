@@ -72,40 +72,43 @@ var sizeOfInt32 = unsafe.Sizeof(int32(0))
 // NewValue generates a new Value object based on the type.
 // If the type is not supported, NewValue will panic.
 func NewValue(v interface{}) Value {
-	switch v.(type) {
+	switch val := v.(type) {
 	case nil:
 		return &NullValue{}
 	case int:
-		return NewIntegerValue(int(v.(int)))
+		return NewIntegerValue(int(val))
 	case string:
-		return NewStringValue(v.(string))
+		return NewStringValue(val)
 	case []Value:
-		return NewValueArray(v.([]Value))
+		return NewValueArray(val)
 	case []byte:
-		return NewBytesValue(v.([]byte))
+		return NewBytesValue(val)
 	case int8:
-		return NewIntegerValue(int(v.(int8)))
+		return NewIntegerValue(int(val))
 	case int16:
-		return NewIntegerValue(int(v.(int16)))
+		return NewIntegerValue(int(val))
 	case int32:
-		return NewIntegerValue(int(v.(int32)))
+		return NewIntegerValue(int(val))
 	case uint8: // byte supported here
-		return NewIntegerValue(int(v.(uint8)))
+		return NewIntegerValue(int(val))
 	case uint16:
-		return NewIntegerValue(int(v.(uint16)))
+		return NewIntegerValue(int(val))
 	case uint32:
-		return NewLongValue(int64(v.(uint32)))
+		return NewLongValue(int64(val))
 	case uint:
-		t := v.(uint)
-		if !Buffer.Arch64Bits || (t <= math.MaxInt64) {
-			return NewLongValue(int64(t))
+		if !Buffer.Arch64Bits || (val <= math.MaxInt64) {
+			return NewLongValue(int64(val))
 		}
 	case int64:
-		return NewLongValue(int64(v.(int64)))
+		return NewLongValue(int64(val))
+	case []interface{}:
+		return NewListValue(val)
+	case map[interface{}]interface{}:
+		return NewMapValue(val)
 	case Value:
-		return v.(Value)
+		return val
 	case AerospikeBlob:
-		return NewBlobValue(v.(AerospikeBlob))
+		return NewBlobValue(val)
 	}
 
 	// check for array and map
@@ -476,8 +479,6 @@ func NewListValue(list []interface{}) *ListValue {
 }
 
 func (vl *ListValue) estimateSize() int {
-	// var err error
-	vl.bytes, _ = packAnyArray(vl.list)
 	return len(vl.bytes)
 }
 
@@ -487,7 +488,9 @@ func (vl *ListValue) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl *ListValue) pack(packer *packer) error {
-	return packer.PackList(vl.list)
+	// return packer.PackList(vl.list)
+	_, err := packer.buffer.Write(vl.bytes)
+	return err
 }
 
 // GetType returns wire protocol value type.
@@ -542,7 +545,9 @@ func (vl *MapValue) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl *MapValue) pack(packer *packer) error {
-	return packer.PackMap(vl.vmap)
+	// return packer.PackMap(vl.vmap)
+	_, err := packer.buffer.Write(vl.bytes)
+	return err
 }
 
 // GetType returns wire protocol value type.

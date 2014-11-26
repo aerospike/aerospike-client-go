@@ -37,7 +37,7 @@ script:
   - find tools -name "*.go" -type f -exec go -- build {} ';'
   # build all examples - only include files with *.go pattern in 
   # the examples, and not its sub-directories
-  - find examples -name "*.go" -depth 1 -type f -exec go -- build {} ';'
+  - find examples -name "*.go" -type f -exec go -- build {} ';'
   # run tests in single instance mode
   - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
   # run tests in multiple instance mode
