@@ -136,23 +136,6 @@ var _ = Describe("Key Test", func() {
 
 		})
 
-		It("for Maps", func() {
-
-			key, _ := NewKey("namespace", "set", map[interface{}]interface{}{})
-			Expect(hex.EncodeToString(key.Digest())).To(Equal("c668932934a6eb2d30af3f22509df1c4a244616d"))
-
-			// The following two cases should be in exact order
-			key, _ = NewKey("namespace", "set", map[int]int{1: 1, 2: 2, 3: 3})
-			Expect(hex.EncodeToString(key.Digest())).To(Equal("71fcc4231c8fda2d0ab263e19e14bc737621ada3"))
-
-			keyInterfaceMapOfTheSameValues, _ := NewKey("namespace", "set", map[interface{}]interface{}{1: 1, 2: 2, 3: 3})
-			Expect(hex.EncodeToString(keyInterfaceMapOfTheSameValues.Digest())).To(Equal(hex.EncodeToString(key.Digest())))
-
-			key, _ = NewKey("namespace", "set", map[interface{}]interface{}{1: "str", "str": []byte{1, 17}, 0: "str"})
-			Expect(hex.EncodeToString(key.Digest())).To(Equal("392c85809a17c3af55bce85c0b179d3a79d28686"))
-
-		})
-
 	})
 
 })
