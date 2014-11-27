@@ -106,6 +106,10 @@ func computeDigest(key *Key) ([]byte, error) {
 		return nil, NewAerospikeError(PARAMETER_ERROR, "Invalid key: nil")
 	}
 
+	if keyType == ParticleType.MAP {
+		return nil, NewAerospikeError(PARAMETER_ERROR, "Invalid key: Maps are not allowed. Iterartion on maps is random, and thus the digest is unstable.")
+	}
+
 	// retrieve hash from hash pool
 	h := hashPool.Get().(hash.Hash)
 	h.Reset()
