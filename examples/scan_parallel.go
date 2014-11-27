@@ -22,7 +22,6 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 	shared "github.com/aerospike/aerospike-client-go/examples/shared"
-	ast "github.com/aerospike/aerospike-client-go/types"
 )
 
 func main() {
@@ -37,18 +36,24 @@ func runExample(client *as.Client) {
 	begin := time.Now()
 	policy := as.NewScanPolicy()
 	recordset, err := client.ScanAll(policy, *shared.Namespace, *shared.Set)
+	shared.PanicOnError(err)
 
-	for _, err := recordset.NextRecord(); err == nil; _, err = recordset.NextRecord() {
-		recordCount++
+L:
+	for {
+		select {
+		case rec := <-recordset.Records:
+			if rec == nil {
+				break L
+			}
+			recordCount++
 
-		if (recordCount % 10000) == 0 {
-			log.Println("Records ", recordCount)
+			if (recordCount % 10000) == 0 {
+				log.Println("Records ", recordCount)
+			}
+		case err := <-recordset.Errors:
+			// if there was an error, stop
+			shared.PanicOnError(err)
 		}
-	}
-
-	// if there was an error, stop
-	if err != ast.ErrEndOfRecordset {
-		shared.PanicOnError(err)
 	}
 
 	end := time.Now()

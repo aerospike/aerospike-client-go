@@ -52,8 +52,8 @@ var _ = Describe("Scan operations", func() {
 	L:
 		for {
 			select {
-			case rec, chanOpen := <-recordset.Records:
-				if rec == nil && !chanOpen {
+			case rec := <-recordset.Records:
+				if rec == nil {
 					break L
 				}
 				key, exists := keys[string(rec.Key.Digest())]
@@ -101,30 +101,6 @@ var _ = Describe("Scan operations", func() {
 			checkResults(recordset, 0)
 		}
 
-		Expect(len(keys)).To(Equal(0))
-	})
-
-	It("must Scan and get all records back from all nodes concurrently using NextRecord", func() {
-		recordset, err := client.ScanAll(nil, ns, set)
-		Expect(err).ToNot(HaveOccurred())
-
-		counter := 0
-
-		for rec, err := recordset.NextRecord(); err == nil; rec, err = recordset.NextRecord() {
-			Expect(rec).NotTo(BeNil())
-			key, exists := keys[string(rec.Key.Digest())]
-
-			Expect(exists).To(Equal(true))
-			Expect(key.Value().GetObject()).To(Equal(rec.Key.Value().GetObject()))
-			Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
-			Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
-
-			delete(keys, string(rec.Key.Digest()))
-
-			counter++
-		}
-
-		Expect(counter).To(Equal(keyCount))
 		Expect(len(keys)).To(Equal(0))
 	})
 

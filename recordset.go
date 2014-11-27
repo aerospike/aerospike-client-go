@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	. "github.com/aerospike/aerospike-client-go/types"
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
@@ -71,24 +70,5 @@ func (rcs *Recordset) drainErrors(errChan chan error) {
 	for err := range errChan {
 		// if channel is closed, or is empty, exit the loop
 		rcs.Errors <- err
-	}
-}
-
-// NextRecord returns next record from Records channel.
-// If there was an error in Errors channel, that error will be retured without a record.
-// If there are no more records, ErrEndOfRecordset will be returned.
-func (rcs *Recordset) NextRecord() (*Record, error) {
-	for {
-		select {
-		case rec, isOpen := <-rcs.Records:
-			if !isOpen && rec == nil {
-				return nil, ErrEndOfRecordset
-			}
-			return rec, nil
-		case err := <-rcs.Errors:
-			if err != nil {
-				return nil, err
-			}
-		}
 	}
 }

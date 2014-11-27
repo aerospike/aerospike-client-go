@@ -23,7 +23,6 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 	shared "github.com/aerospike/aerospike-client-go/examples/shared"
-	ast "github.com/aerospike/aerospike-client-go/types"
 )
 
 func main() {
@@ -54,21 +53,28 @@ func runExample(client *as.Client) {
 	for _, node := range nodeList {
 		log.Println("Scan node ", node.GetName())
 		recordset, err := client.ScanNode(policy, node, *shared.Namespace, *shared.Set)
+		shared.PanicOnError(err)
 
-		for rec, err := recordset.NextRecord(); err == nil; rec, err = recordset.NextRecord() {
-			metrics, exists := setMap[rec.Key.SetName()]
+	L:
+		for {
+			select {
+			case rec := <-recordset.Records:
+				if rec == nil {
+					break L
+				}
+				metrics, exists := setMap[rec.Key.SetName()]
 
-			if !exists {
-				metrics = Metrics{}
+				if !exists {
+					metrics = Metrics{}
+				}
+				metrics.count++
+				metrics.total++
+				setMap[rec.Key.SetName()] = metrics
+
+			case err := <-recordset.Errors:
+				// if there was an error, stop
+				shared.PanicOnError(err)
 			}
-			metrics.count++
-			metrics.total++
-			setMap[rec.Key.SetName()] = metrics
-		}
-
-		// if there was an error, stop
-		if err != ast.ErrEndOfRecordset {
-			shared.PanicOnError(err)
 		}
 
 		for k, v := range setMap {

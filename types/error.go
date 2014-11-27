@@ -45,6 +45,3 @@ func NewAerospikeError(code ResultCode, messages ...string) error {
 	err := errors.New(strings.Join(messages, " "))
 	return AerospikeError{error: err, resultCode: code}
 }
-
-// predefined errors
-var ErrEndOfRecordset = NewAerospikeError(END_OF_RECORDSET)
