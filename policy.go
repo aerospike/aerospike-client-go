@@ -64,12 +64,3 @@ var _ Policy = &BasePolicy{}
 
 // GetBasePolicy returns embedded BasePolicy in all types that embed this struct.
 func (p *BasePolicy) GetBasePolicy() *BasePolicy { return p }
-
-func (p *BasePolicy) timeout() time.Duration {
-	res := time.Duration(0)
-	if p != nil && p.Timeout > 0 {
-		res = p.Timeout
-	}
-
-	return res
-}

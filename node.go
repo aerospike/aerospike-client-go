@@ -316,6 +316,9 @@ func (nd *Node) MigrationInProgress() (bool, error) {
 
 // WaitUntillMigrationIsFinished will block until migration operations are finished.
 func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) (err error) {
+	if timeout <= 0 {
+		timeout = _NO_TIMEOUT
+	}
 	done := make(chan error)
 
 	go func() {

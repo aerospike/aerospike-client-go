@@ -71,7 +71,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	newCluster := &Cluster{
 		seeds:               hosts,
 		connectionQueueSize: policy.ConnectionQueueSize,
-		connectionTimeout:   policy.timeout(),
+		connectionTimeout:   policy.Timeout,
 		aliases:             make(map[Host]*Node),
 		nodes:               []*Node{},
 		partitionWriteMap:   make(map[string][]*Node),
@@ -675,7 +675,7 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 // migration operations in the cluster all finished.
 func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err error) {
 	if timeout <= 0 {
-		timeout = _DEFAULT_TIMEOUT
+		timeout = _NO_TIMEOUT
 	}
 	done := make(chan error)
 

@@ -460,7 +460,7 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
 			return nil, err
 		}
 	}
@@ -543,7 +543,7 @@ func (clnt *Client) ScanNode(policy *ScanPolicy, node *Node, namespace string, s
 
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until migrations on node are finished
-		if err := node.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+		if err := node.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
 			return nil, err
 		}
 	}
@@ -946,7 +946,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	}
 
 	// wait until all migrations are finished
-	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
 		return nil, err
 	}
 
@@ -995,7 +995,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.timeout()); err != nil {
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
 			return nil, err
 		}
 	}
@@ -1173,7 +1173,7 @@ func (clnt *Client) sendInfoCommand(policy *WritePolicy, command string) (map[st
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.timeout())
+	conn, err := node.GetConnection(policy.Timeout)
 	if err != nil {
 		return nil, err
 	}

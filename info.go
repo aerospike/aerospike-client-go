@@ -26,6 +26,7 @@ import (
 
 const (
 	_DEFAULT_TIMEOUT = 2 * time.Second
+	_NO_TIMEOUT      = 365 * 24 * time.Hour
 )
 
 // Access server's info monitoring protocol.

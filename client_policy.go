@@ -39,12 +39,3 @@ func NewClientPolicy() *ClientPolicy {
 		FailIfNotConnected:  true,
 	}
 }
-
-func (p *ClientPolicy) timeout() time.Duration {
-	res := 365 * 24 * time.Hour // a year
-	if p != nil && p.Timeout > 0 {
-		res = p.Timeout
-	}
-
-	return res
-}

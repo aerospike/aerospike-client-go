@@ -762,11 +762,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 	iterations := 0
 
 	// set timeout outside the loop
-	limit := time.Now().Add(policy.timeout())
-	// if no limit set, set it to 2 seconds
-	if policy.timeout() == 0 {
-		limit = time.Now().Add(2 * time.Second)
-	}
+	limit := time.Now().Add(policy.Timeout)
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
@@ -781,7 +777,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		}
 
 		// check for command timeout
-		if time.Now().After(limit) {
+		if policy.Timeout > 0 && time.Now().After(limit) {
 			break
 		}
 
@@ -794,7 +790,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		// set command node, so when you return a record it has the node
 		cmd.node = node
 
-		cmd.conn, err = node.GetConnection(policy.timeout())
+		cmd.conn, err = node.GetConnection(policy.Timeout)
 		if err != nil {
 			// Socket connection error has occurred. Decrease health and retry.
 			node.DecreaseHealth()
