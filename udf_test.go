@@ -18,6 +18,7 @@ import (
 	"flag"
 	"math"
 	"math/rand"
+	"strings"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
@@ -41,6 +42,13 @@ end`
 
 const udfDelete = `function deleteRecord(rec)
    aerospike:remove(rec)                   -- Delete main record, Populate the return status
+end`
+
+const udfEcho = `function echo(rec, param)
+   local ret = map()
+   ret['val'] = param
+   ret['str_val'] = tostring(param)
+   return ret 		-- return the same value to make sure serializations are working well
 end`
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
@@ -103,11 +111,8 @@ var _ = Describe("UDF/Query tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until UDF is created
-		for {
-			if err := <-regTask.OnComplete(); err == nil {
-				break
-			}
-		}
+		err = <-regTask.OnComplete()
+		Expect(err).ToNot(HaveOccurred())
 
 		delTask, err := client.RemoveUDF(wpolicy, "udfToBeDropped.lua")
 		Expect(err).ToNot(HaveOccurred())
@@ -193,11 +198,174 @@ var _ = Describe("UDF/Query tests", func() {
 			i := 0
 			for fullRec := range recordset.Records {
 				i++
-				// only one recortd should be returned
+				// only one record should be returned
 				Expect(fullRec.Bins[bin1.Name]).To(Equal(math.MaxInt16 + 1))
 			}
 			Expect(i).To(Equal(1))
 		})
+
+	}) // context
+
+	Context("must serialize parameters and return values sensibly", func() {
+
+		regTask, _ := client.RegisterUDF(wpolicy, []byte(udfEcho), "udfEcho.lua", LUA)
+		// wait until UDF is created
+		<-regTask.OnComplete()
+		// a new record that is not in the range
+		key, err = NewKey(ns, set, randString(50))
+
+		testMatrix := map[interface{}]interface{}{
+			math.MinInt64: math.MinInt64,
+			// math.MaxInt64:  int64(math.MaxInt64), // TODO: Wrong serialization on server - sign-bit is wrong
+			math.MinInt32:  math.MinInt32, // TODO: Wrong serialization type on server
+			math.MaxUint32: math.MaxUint32,
+			math.MinInt16:  math.MinInt16,
+			math.MaxInt16:  math.MaxInt16,
+			math.MaxUint16: math.MaxUint16,
+			math.MinInt8:   math.MinInt8,
+			math.MaxInt8:   math.MaxInt8,
+			math.MaxUint8:  math.MaxUint8,
+			-1:             -1,
+			0:              0,
+			"":             "",
+			strings.Repeat("s", 1):      strings.Repeat("s", 1),
+			strings.Repeat("s", 10):     strings.Repeat("s", 10),
+			strings.Repeat("s", 100):    strings.Repeat("s", 100),
+			strings.Repeat("s", 1000):   strings.Repeat("s", 1000),
+			strings.Repeat("s", 10000):  strings.Repeat("s", 10000),
+			strings.Repeat("s", 33781):  strings.Repeat("s", 33781),
+			strings.Repeat("s", 100000): strings.Repeat("s", 100000),
+			"Hello, 世界":                 "Hello, 世界",
+		}
+
+		It("must serialize nil values to echo function and get the same value back", func() {
+
+			res, err := client.Execute(nil, key, "udfEcho", "echo", NewValue(nil))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(res.(map[interface{}]interface{})["val"]).To(BeNil())
+
+		}) // it
+
+		It("must serialize values to echo function and get the same value back", func() {
+
+			for k, v := range testMatrix {
+				res, err := client.Execute(nil, key, "udfEcho", "echo", NewValue(k))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(res.(map[interface{}]interface{})["val"]).To(Equal(v))
+			}
+
+		}) // it
+
+		It("must serialize list values to echo function and get the same value back", func() {
+
+			v := []interface{}{
+				nil,
+				math.MinInt64,
+				math.MinInt32,
+				math.MinInt16,
+				math.MinInt8,
+				-1,
+				0,
+				1,
+				math.MaxInt8,
+				math.MaxUint8,
+				math.MaxInt16,
+				math.MaxUint16,
+				math.MaxInt32,
+				math.MaxUint32,
+				math.MaxInt64,
+				// uint64(math.MaxUint64),// TODO: Wrong serialization on server side
+				"",
+				"Hello, 世界",
+			}
+
+			vExpected := []interface{}{
+				nil,
+				int(math.MinInt64),
+				int(math.MinInt32),
+				int(math.MinInt16),
+				int(math.MinInt8),
+				int(-1),
+				int(0),
+				int(1),
+				int(math.MaxInt8),
+				int(math.MaxUint8),
+				int(math.MaxInt16),
+				int(math.MaxUint16),
+				int(math.MaxInt32),
+				int(math.MaxUint32),
+				uint64(math.MaxInt64), // TODO: Wrong serialization on server
+				// uint64(math.MaxUint64), // TODO: Wrong serialization on server side
+				"",
+				"Hello, 世界",
+			}
+
+			res, err := client.Execute(nil, key, "udfEcho", "echo", NewValue(v))
+
+			// for i := range v {
+			// 	fmt.Printf("%v => %T\n", res.(map[interface{}]interface{})["val"].([]interface{})[i], res.(map[interface{}]interface{})["val"].([]interface{})[i])
+			// 	fmt.Printf("%v => %T\n", vExpected[i], vExpected[i])
+			// }
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(res.(map[interface{}]interface{})["val"]).To(Equal(vExpected))
+
+		}) // it
+
+		It("must serialize map values to echo function and get the same value back", func() {
+
+			v := map[interface{}]interface{}{
+				nil:            nil,
+				math.MinInt64:  math.MinInt64,
+				math.MinInt32:  math.MinInt32,
+				math.MinInt16:  math.MinInt16,
+				math.MinInt8:   math.MinInt8,
+				-1:             -1,
+				0:              0,
+				1:              1,
+				math.MaxInt8:   math.MaxInt8,
+				math.MaxUint8:  math.MaxUint8,
+				math.MaxInt16:  math.MaxInt16,
+				math.MaxUint16: math.MaxUint16,
+				math.MaxInt32:  math.MaxInt32,
+				math.MaxUint32: math.MaxUint32,
+				math.MaxInt64:  math.MaxInt64,
+				"":             "",
+				"Hello, 世界":    "Hello, 世界",
+			}
+
+			vExpected := map[interface{}]interface{}{
+				nil:                   nil,
+				math.MinInt64:         math.MinInt64,
+				math.MinInt32:         math.MinInt32,
+				math.MinInt16:         math.MinInt16,
+				math.MinInt8:          math.MinInt8,
+				-1:                    -1,
+				0:                     0,
+				1:                     1,
+				math.MaxInt8:          math.MaxInt8,
+				math.MaxUint8:         math.MaxUint8,
+				math.MaxInt16:         math.MaxInt16,
+				math.MaxUint16:        math.MaxUint16,
+				math.MaxInt32:         math.MaxInt32,
+				math.MaxUint32:        math.MaxUint32,
+				uint64(math.MaxInt64): uint64(math.MaxInt64),
+				"":          "",
+				"Hello, 世界": "Hello, 世界",
+			}
+
+			res, err := client.Execute(nil, key, "udfEcho", "echo", NewValue(v))
+			Expect(err).ToNot(HaveOccurred())
+
+			resMap := res.(map[interface{}]interface{})["val"].(map[interface{}]interface{})
+			// for k := range resMap {
+			// 	fmt.Printf("%v : %v => %T: %T\n", k, k, resMap[k], resMap[k])
+			// 	fmt.Printf("%v => %T\n", vExpected[k], vExpected[k])
+			// }
+
+			Expect(resMap).To(Equal(vExpected))
+
+		}) // it
 
 	}) // context
 

@@ -198,6 +198,9 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 	case 0xd3:
 		val := Buffer.BytesToInt64(upckr.buffer, upckr.offset)
 		upckr.offset += 8
+		if Buffer.Arch64Bits {
+			return int(val), nil
+		}
 		return int64(val), nil
 
 	case 0xda:
@@ -248,7 +251,7 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 		}
 
 		if theType >= 0xe0 {
-			return int(theType - 0xe0 - 32), nil
+			return int(int(theType) - 0xe0 - 32), nil
 		}
 	}
 

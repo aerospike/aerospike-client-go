@@ -72,7 +72,7 @@ func BytesToNumber(buf []byte, offset, length int) interface{} {
 	return int64(val)
 }
 
-// Covertes a slice into int64; only maximum of 8 bytes will be used
+// Covertes a slice into int32; only maximum of 4 bytes will be used
 func LittleBytesToInt32(buf []byte, offset int) int32 {
 	l := len(buf[offset:])
 	if l > uint32sz {
@@ -152,7 +152,7 @@ func BytesToFloat32(buf []byte, offset int) float32 {
 func Float32ToBytes(float float32, buffer []byte, offset int) []byte {
 	bits := math.Float32bits(float)
 	if buffer != nil {
-		binary.BigEndian.PutUint32(buffer, bits)
+		binary.BigEndian.PutUint32(buffer[offset:], bits)
 		return nil
 	}
 
@@ -169,7 +169,7 @@ func BytesToFloat64(buf []byte, offset int) float64 {
 func Float64ToBytes(float float64, buffer []byte, offset int) []byte {
 	bits := math.Float64bits(float)
 	if buffer != nil {
-		binary.BigEndian.PutUint64(buffer, bits)
+		binary.BigEndian.PutUint64(buffer[offset:], bits)
 		return nil
 	}
 

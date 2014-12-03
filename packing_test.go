@@ -30,6 +30,7 @@ func testPackingFor(v interface{}) interface{} {
 
 	unpacker := newUnpacker(packer.buffer.Bytes(), 0, len(packer.buffer.Bytes()))
 	unpackedValue, err := unpacker.unpackObject()
+	Expect(err).ToNot(HaveOccurred())
 
 	return unpackedValue
 }
@@ -40,6 +41,14 @@ var _ = Describe("Packing Test", func() {
 
 		It("should pack and unpack nil values", func() {
 			Expect(testPackingFor(nil)).To(BeNil())
+		})
+
+		It("should pack and unpack -32 < int8 < 32 values", func() {
+			v := int8(31)
+			Expect(testPackingFor(v)).To(Equal(int(v)))
+
+			v = int8(-32)
+			Expect(testPackingFor(v)).To(Equal(int(v)))
 		})
 
 		It("should pack and unpack int8 values", func() {
@@ -83,10 +92,10 @@ var _ = Describe("Packing Test", func() {
 
 		It("should pack and unpack int64 values", func() {
 			v := int64(math.MaxInt64)
-			Expect(testPackingFor(v)).To(Equal(v))
+			Expect(testPackingFor(v)).To(Equal(int(v)))
 
 			v = int64(math.MinInt64)
-			Expect(testPackingFor(v)).To(Equal(v))
+			Expect(testPackingFor(v)).To(Equal(int(v)))
 		})
 
 		It("should pack and unpack uint64 values", func() {
@@ -273,11 +282,11 @@ var _ = Describe("Packing Test", func() {
 				"int32":      int(math.MaxInt32),
 				"mint32":     int(math.MinInt32),
 				"uint":       uint64(math.MaxUint64),
-				"int":        int64(math.MaxInt64),
-				"mint":       int64(math.MinInt64),
+				"int":        int(math.MaxInt64),
+				"mint":       int(math.MinInt64),
 				"uint64":     uint64(math.MaxUint64),
-				"int64":      int64(math.MaxInt64),
-				"mint64":     int64(math.MinInt64),
+				"int64":      int(math.MaxInt64),
+				"mint64":     int(math.MinInt64),
 				"maxFloat32": float32(math.MaxFloat32),
 				"minFloat32": float32(-math.MaxFloat32),
 				"maxFloat64": float64(math.MaxFloat64),
