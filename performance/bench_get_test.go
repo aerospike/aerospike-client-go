@@ -45,9 +45,19 @@ func doGet(set string, b *testing.B) {
 	}
 }
 
-func Benchmark_Get___________Int(b *testing.B) {
+func Benchmark_Get_________Int64(b *testing.B) {
 	set := "get_bench_integer"
 	bins := []*Bin{NewBin("b", rand.Int63())}
+	makeDataForGetBench(set, bins)
+	b.N = 1000
+	runtime.GC()
+	b.ResetTimer()
+	doGet(set, b)
+}
+
+func Benchmark_Get_________Int32(b *testing.B) {
+	set := "get_bench_integer"
+	bins := []*Bin{NewBin("b", rand.Int31())}
 	makeDataForGetBench(set, bins)
 	b.N = 1000
 	runtime.GC()
@@ -94,6 +104,7 @@ func Benchmark_Get_String___1000(b *testing.B) {
 	makeDataForGetBench(set, bins)
 	doGet(set, b)
 }
+
 func Benchmark_Get_String__10000(b *testing.B) {
 	set := "get_bench_str_10000"
 	bins := []*Bin{NewBin("b", strings.Repeat("s", 10000))}
@@ -103,13 +114,36 @@ func Benchmark_Get_String__10000(b *testing.B) {
 	makeDataForGetBench(set, bins)
 	doGet(set, b)
 }
+
 func Benchmark_Get_String_100000(b *testing.B) {
 	go func() {
 		log.Println(http.ListenAndServe(":6060", nil))
 	}()
 	set := "get_bench_str_10000"
 	bins := []*Bin{NewBin("b", strings.Repeat("s", 10000))}
-	b.N = 100000
+	b.N = 1000
+	runtime.GC()
+	b.ResetTimer()
+	makeDataForGetBench(set, bins)
+	doGet(set, b)
+}
+
+func Benchmark_Get_Complex_Array(b *testing.B) {
+	set := "get_bench_str_10000"
+	// bins := []*Bin{NewBin("b", []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
+	bins := []*Bin{NewBin("b", []interface{}{rand.Int63()})}
+	b.N = 1000
+	runtime.GC()
+	b.ResetTimer()
+	makeDataForGetBench(set, bins)
+	doGet(set, b)
+}
+
+func Benchmark_Get_Complex_Map(b *testing.B) {
+	set := "get_bench_str_10000"
+	// bins := []*Bin{NewBin("b", []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
+	bins := []*Bin{NewBin("b", map[interface{}]interface{}{rand.Int63(): rand.Int63()})}
+	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForGetBench(set, bins)
