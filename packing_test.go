@@ -292,5 +292,108 @@ var _ = Describe("Packing Test", func() {
 			Expect(testPackingFor(v)).To(Equal(vRes))
 		})
 
+		It("should pack and unpack map with varying key types", func() {
+			// Test Values
+			vUint8 := map[uint8]interface{}{
+				uint8(math.MaxUint8): "v",
+			}
+
+			vInt8 := map[int8]interface{}{
+				int8(math.MaxInt8): "v",
+			}
+
+			vUint16 := map[uint16]interface{}{
+				uint16(math.MaxUint16): "v",
+			}
+
+			vInt16 := map[int16]interface{}{
+				int16(math.MaxInt16): "v",
+			}
+
+			vUint32 := map[uint32]interface{}{
+				uint32(math.MaxUint32): "v",
+			}
+
+			vInt32 := map[int32]interface{}{
+				int32(math.MaxInt32): "v",
+			}
+
+			vUint64 := map[uint64]interface{}{
+				uint64(math.MaxUint64): "v",
+			}
+
+			vInt64 := map[int64]interface{}{
+				int64(math.MaxInt64): "v",
+			}
+
+			vFloat32 := map[float32]interface{}{
+				float32(math.MaxFloat32): "v",
+			}
+
+			vFloat64 := map[float64]interface{}{
+				float64(math.MaxFloat64): "v",
+			}
+
+			vStr := map[string]interface{}{
+				"string key": "v",
+			}
+
+			// Expected Values
+			retUint8 := map[interface{}]interface{}{
+				int(math.MaxUint8): "v",
+			}
+
+			retInt8 := map[interface{}]interface{}{
+				int(math.MaxInt8): "v",
+			}
+
+			retUint16 := map[interface{}]interface{}{
+				int(math.MaxUint16): "v",
+			}
+
+			retInt16 := map[interface{}]interface{}{
+				int(math.MaxInt16): "v",
+			}
+
+			retUint32 := map[interface{}]interface{}{
+				int(math.MaxUint32): "v",
+			}
+
+			retInt32 := map[interface{}]interface{}{
+				int(math.MaxInt32): "v",
+			}
+
+			retUint64 := map[interface{}]interface{}{
+				uint64(math.MaxUint64): "v",
+			}
+
+			retInt64 := map[interface{}]interface{}{
+				int64(math.MaxInt64): "v",
+			}
+
+			retFloat32 := map[interface{}]interface{}{
+				float32(math.MaxFloat32): "v",
+			}
+
+			retFloat64 := map[interface{}]interface{}{
+				float64(math.MaxFloat64): "v",
+			}
+
+			retStr := map[interface{}]interface{}{
+				"string key": "v",
+			}
+
+			Expect(testPackingFor(vUint8)).To(Equal(retUint8))
+			Expect(testPackingFor(vInt8)).To(Equal(retInt8))
+			Expect(testPackingFor(vUint16)).To(Equal(retUint16))
+			Expect(testPackingFor(vInt16)).To(Equal(retInt16))
+			Expect(testPackingFor(vUint32)).To(Equal(retUint32))
+			Expect(testPackingFor(vInt32)).To(Equal(retInt32))
+			Expect(testPackingFor(vUint64)).To(Equal(retUint64))
+			Expect(testPackingFor(vInt64)).To(Equal(retInt64))
+			Expect(testPackingFor(vFloat32)).To(Equal(retFloat32))
+			Expect(testPackingFor(vFloat64)).To(Equal(retFloat64))
+			Expect(testPackingFor(vStr)).To(Equal(retStr))
+		})
 	})
 })
