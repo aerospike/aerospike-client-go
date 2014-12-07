@@ -204,7 +204,13 @@ func (pckr *packer) PackObject(obj interface{}) error {
 		}
 		return pckr.PackList(arr)
 	case reflect.Map:
-		return pckr.PackMap(obj.(map[interface{}]interface{}))
+		s := reflect.ValueOf(obj)
+		l := s.Len()
+		amap := make(map[interface{}]interface{}, l)
+		for _, i := range s.MapKeys() {
+			amap[i.Interface()] = s.MapIndex(i).Interface()
+		}
+		return pckr.PackMap(amap)
 	}
 
 	panic(fmt.Sprintf("Type `%v` not supported to pack.", reflect.TypeOf(obj)))
