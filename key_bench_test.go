@@ -16,16 +16,12 @@ package aerospike
 
 import (
 	"math/rand"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/aerospike/aerospike-client-go/pkg/ripemd160"
 )
-
-// var str = strings.Repeat("abcd", 128)
-// var strVal = NewValue(str)
-// var buffer = []byte(str)
-// var key *Key
 
 var res []byte
 
@@ -38,32 +34,32 @@ func doTheHash(buf []byte, b *testing.B) {
 	}
 }
 
-func Benchmark_K_Hash_1(b *testing.B) {
+func Benchmark_K_Hash_S_______1(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 1))
 	doTheHash(buffer, b)
 }
 
-func Benchmark_K_Hash_10(b *testing.B) {
+func Benchmark_K_Hash_S______10(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 10))
 	doTheHash(buffer, b)
 }
 
-func Benchmark_K_Hash_100(b *testing.B) {
+func Benchmark_K_Hash_S_____100(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 100))
 	doTheHash(buffer, b)
 }
 
-func Benchmark_K_Hash_1000(b *testing.B) {
+func Benchmark_K_Hash_S____1000(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 1000))
 	doTheHash(buffer, b)
 }
 
-func Benchmark_K_Hash_10_000(b *testing.B) {
+func Benchmark_K_Hash_S__10_000(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 10000))
 	doTheHash(buffer, b)
 }
 
-func Benchmark_K_Hash_100_000(b *testing.B) {
+func Benchmark_K_Hash_S_100_000(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 100000))
 	doTheHash(buffer, b)
 }
@@ -75,27 +71,27 @@ func makeKeys(val interface{}, b *testing.B) {
 	}
 }
 
-func Benchmark_NewKey_String_1(b *testing.B) {
+func Benchmark_NewKey_String______1(b *testing.B) {
 	buffer := strings.Repeat("s", 1)
 	makeKeys(buffer, b)
 }
 
-func Benchmark_NewKey_String_10(b *testing.B) {
+func Benchmark_NewKey_String_____10(b *testing.B) {
 	buffer := strings.Repeat("s", 10)
 	makeKeys(buffer, b)
 }
 
-func Benchmark_NewKey_String_100(b *testing.B) {
+func Benchmark_NewKey_String____100(b *testing.B) {
 	buffer := strings.Repeat("s", 100)
 	makeKeys(buffer, b)
 }
 
-func Benchmark_NewKey_String_1000(b *testing.B) {
+func Benchmark_NewKey_String___1000(b *testing.B) {
 	buffer := strings.Repeat("s", 1000)
 	makeKeys(buffer, b)
 }
 
-func Benchmark_NewKey_String_10000(b *testing.B) {
+func Benchmark_NewKey_String__10000(b *testing.B) {
 	buffer := strings.Repeat("s", 10000)
 	makeKeys(buffer, b)
 }
@@ -104,27 +100,27 @@ func Benchmark_NewKey_String_100000(b *testing.B) {
 	buffer := strings.Repeat("s", 100000)
 	makeKeys(buffer, b)
 }
-func Benchmark_NewKey_Byte_1(b *testing.B) {
+func Benchmark_NewKey_Byte______1(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 1))
 	makeKeys(buffer, b)
 }
 
-func Benchmark_NewKey_Byte_10(b *testing.B) {
+func Benchmark_NewKey_Byte_____10(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 10))
 	makeKeys(buffer, b)
 }
 
-func Benchmark_NewKey_Byte_100(b *testing.B) {
+func Benchmark_NewKey_Byte____100(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 100))
 	makeKeys(buffer, b)
 }
 
-func Benchmark_NewKey_Byte_1000(b *testing.B) {
+func Benchmark_NewKey_Byte___1000(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 1000))
 	makeKeys(buffer, b)
 }
 
-func Benchmark_NewKey_Byte_10000(b *testing.B) {
+func Benchmark_NewKey_Byte__10000(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 10000))
 	makeKeys(buffer, b)
 }
@@ -134,7 +130,7 @@ func Benchmark_NewKey_Byte_100000(b *testing.B) {
 	makeKeys(buffer, b)
 }
 
-func Benchmark_NewKey_Int(b *testing.B) {
+func Benchmark_NewKey_________Int(b *testing.B) {
 	makeKeys(rand.Int63(), b)
 }
 
@@ -186,6 +182,37 @@ func Benchmark_NewKey_Map_With_Reflect(b *testing.B) {
 		7: rand.Int63(),
 	}
 	makeKeys(theMap, b)
+}
+
+var _k, _v interface{}
+
+func Benchmark_Map_Native_Iterate(b *testing.B) {
+	theMap := map[interface{}]interface{}{
+		1: strings.Repeat("s", 1),
+		7: rand.Int63(),
+	}
+
+	for i := 0; i < b.N; i++ {
+		for k, v := range theMap {
+			_k, _v = k, v
+		}
+	}
+}
+
+func Benchmark_Map_Reflect_Iterate(b *testing.B) {
+	theMap := map[interface{}]interface{}{
+		1: strings.Repeat("s", 1),
+		7: rand.Int63(),
+	}
+
+	var interfaceMap interface{} = theMap
+
+	for i := 0; i < b.N; i++ {
+		s := reflect.ValueOf(interfaceMap)
+		for _, k := range s.MapKeys() {
+			_k, _v = k.Interface(), s.MapIndex(k).Interface()
+		}
+	}
 }
 
 // func Benchmark_Key_New(b *testing.B) {
