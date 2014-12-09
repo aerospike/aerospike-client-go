@@ -10,7 +10,7 @@ matrix:
     - go: tip
 
 install:
-  - mv $HOME/gopath/src/github.com/citrusleaf $HOME/gopath/src/github.com/aerospike
+  - find $HOME/gopath/src/github.com -maxdepth 1 -name 'citrusleaf' -type f -print0 | xargs -0r mv -t $HOME/gopath/src/github.com/aerospike
   - export PATH=$PATH:$HOME/gopath/bin
   - go get github.com/onsi/ginkgo/ginkgo
   - go get github.com/onsi/gomega
@@ -28,14 +28,14 @@ install:
   - sudo ./bin/aerospike start
   - cd ../..
   - pwd
-  - sleep 30
-  # dump keep server log for debugging
+  - sleep 5
+  # dump and keep server log for debugging
   - sudo tail -n 1000 aerospike-server/instance1/var/log/aerospike.log
 
 script:
   # build all tools
   - find tools -name "*.go" -type f -exec go -- build {} ';'
-  # build all examples - only include files with *.go pattern in 
+  # build all examples - only include files with *.go pattern in
   # the examples, and not its sub-directories
   - find examples -name "*.go" -type f -exec go -- build {} ';'
   # run tests in single instance mode
@@ -47,6 +47,6 @@ script:
   - sudo ./bin/aerospike start
   - cd ../..
   # make sure the instances are up and clean
-  - sleep 30
+  - sleep 5
   - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
   - .travis/proxy_check.sh
