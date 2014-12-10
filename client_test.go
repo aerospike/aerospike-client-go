@@ -564,6 +564,7 @@ var _ = Describe("Aerospike", func() {
 				for r := range recordset.Records {
 					if bytes.Equal(key.Digest(), r.Key.Digest()) {
 						Expect(r.Key.Value()).To(Equal(key.Value()))
+						Expect(r.Bins).To(Equal(rec.Bins))
 					}
 				}
 			})
@@ -807,6 +808,7 @@ var _ = Describe("Aerospike", func() {
 				for r := range recordset.Records {
 					if bytes.Equal(key.Digest(), r.Key.Digest()) {
 						Expect(r.Key.Value()).To(Equal(key.Value()))
+						Expect(r.Bins).To(Equal(rec.Bins))
 					}
 				}
 			})
@@ -836,6 +838,7 @@ var _ = Describe("Aerospike", func() {
 				}
 
 				ops2 := []*Operation{
+					GetOp(),
 					TouchOp(),
 				}
 				wpolicy.SendKey = true
@@ -849,6 +852,7 @@ var _ = Describe("Aerospike", func() {
 				for r := range recordset.Records {
 					if bytes.Equal(key.Digest(), r.Key.Digest()) {
 						Expect(r.Key.Value()).To(Equal(key.Value()))
+						Expect(r.Bins).To(Equal(rec.Bins))
 					}
 				}
 			})
