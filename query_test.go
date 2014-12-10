@@ -111,14 +111,10 @@ var _ = Describe("Query operations", func() {
 
 		// queries only work on indices
 		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin3.Name, bin3.Name, NUMERIC)
-		if err == nil {
-			// wait until index is created
-			for err := range idxTask.OnComplete() {
-				if err != nil {
-					panic(err)
-				}
-			}
-		}
+		Expect(err).ToNot(HaveOccurred())
+
+		// wait until index is created
+		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 	})
 
 	It("must Query a range and get all records back", func() {
