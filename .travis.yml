@@ -28,7 +28,7 @@ install:
   - sudo ./bin/aerospike start
   - cd ../..
   - pwd
-  - sleep 30
+  - sleep 5
   # dump keep server log for debugging
   - sudo tail -n 1000 aerospike-server/instance1/var/log/aerospike.log
 
@@ -39,7 +39,7 @@ script:
   # the examples, and not its sub-directories
   - find examples -name "*.go" -type f -exec go -- build {} ';'
   # run tests in single instance mode
-  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
+  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites -skip Large
   # run tests in multiple instance mode
   - cd aerospike-server/instance1
   - sudo ./bin/aerospike restart
@@ -47,6 +47,6 @@ script:
   - sudo ./bin/aerospike start
   - cd ../..
   # make sure the instances are up and clean
-  - sleep 30
-  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
+  - sleep 5
+  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites -skip Large
   - .travis/proxy_check.sh
