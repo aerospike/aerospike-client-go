@@ -57,7 +57,7 @@ func packAnyMap(val map[interface{}]interface{}) ([]byte, error) {
 
 func newPacker() *packer {
 	p := &packer{
-		buffer: bytes.NewBuffer(make([]byte, 0, 64)),
+		buffer: bytes.NewBuffer(make([]byte, 0, 256)),
 	}
 
 	return p
@@ -133,63 +133,63 @@ func (pckr *packer) PackByteArrayBegin(length int) {
 }
 
 func (pckr *packer) PackObject(obj interface{}) error {
-	switch obj.(type) {
+	switch v := obj.(type) {
 	case Value:
-		return obj.(Value).pack(pckr)
+		return v.pack(pckr)
 	case string:
-		pckr.PackString(obj.(string))
+		pckr.PackString(v)
 		return nil
 	case []byte:
 		pckr.PackBytes(obj.([]byte))
 		return nil
 	case int8:
-		pckr.PackAInt(int(obj.(int8)))
+		pckr.PackAInt(int(v))
 		return nil
 	case uint8:
-		pckr.PackAInt(int(obj.(uint8)))
+		pckr.PackAInt(int(v))
 		return nil
 	case int16:
-		pckr.PackAInt(int(obj.(int16)))
+		pckr.PackAInt(int(v))
 		return nil
 	case uint16:
-		pckr.PackAInt(int(obj.(uint16)))
+		pckr.PackAInt(int(v))
 		return nil
 	case int32:
-		pckr.PackAInt(int(obj.(int32)))
+		pckr.PackAInt(int(v))
 		return nil
 	case uint32:
-		pckr.PackAInt(int(obj.(uint32)))
+		pckr.PackAInt(int(v))
 		return nil
 	case int:
 		if Buffer.Arch32Bits {
-			pckr.PackAInt(obj.(int))
+			pckr.PackAInt(v)
 			return nil
 		}
-		pckr.PackALong(int64(obj.(int)))
+		pckr.PackALong(int64(v))
 		return nil
 	case uint:
 		if Buffer.Arch32Bits {
-			pckr.PackAInt(int(obj.(uint)))
+			pckr.PackAInt(int(v))
 			return nil
 		}
-		pckr.PackAULong(obj.(uint64))
+		pckr.PackAULong(uint64(v))
 	case int64:
-		pckr.PackALong(obj.(int64))
+		pckr.PackALong(v)
 		return nil
 	case uint64:
-		pckr.PackAULong(obj.(uint64))
+		pckr.PackAULong(v)
 		return nil
 	case nil:
 		pckr.PackNil()
 		return nil
 	case bool:
-		pckr.PackBool(obj.(bool))
+		pckr.PackBool(v)
 		return nil
 	case float32:
-		pckr.PackFloat32(obj.(float32))
+		pckr.PackFloat32(v)
 		return nil
 	case float64:
-		pckr.PackFloat64(obj.(float64))
+		pckr.PackFloat64(v)
 		return nil
 	case []interface{}:
 		return pckr.PackList(obj.([]interface{}))

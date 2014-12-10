@@ -10,7 +10,7 @@ matrix:
     - go: tip
 
 install:
-  - mv $HOME/gopath/src/github.com/citrusleaf $HOME/gopath/src/github.com/aerospike
+  - if [ -d "$HOME/gopath/src/github.com/citrusleaf" ]; then mv $HOME/gopath/src/github.com/citrusleaf $HOME/gopath/src/github.com/aerospike; fi
   - export PATH=$PATH:$HOME/gopath/bin
   - go get github.com/onsi/ginkgo/ginkgo
   - go get github.com/onsi/gomega
@@ -29,13 +29,13 @@ install:
   - cd ../..
   - pwd
   - sleep 5
-  # dump keep server log for debugging
+  # dump and keep server log for debugging
   - sudo tail -n 1000 aerospike-server/instance1/var/log/aerospike.log
 
 script:
   # build all tools
   - find tools -name "*.go" -type f -exec go -- build {} ';'
-  # build all examples - only include files with *.go pattern in 
+  # build all examples - only include files with *.go pattern in
   # the examples, and not its sub-directories
   - find examples -name "*.go" -type f -exec go -- build {} ';'
   # run tests in single instance mode
