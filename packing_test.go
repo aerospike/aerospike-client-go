@@ -377,7 +377,7 @@ var _ = Describe("Packing Test", func() {
 			}
 
 			retInt64 := map[interface{}]interface{}{
-				int64(math.MaxInt64): "v",
+				int(math.MaxInt64): "v",
 			}
 
 			retFloat32 := map[interface{}]interface{}{
