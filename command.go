@@ -100,7 +100,7 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 
 	if policy.SendKey {
 		// field header size + key size
-		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE)
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
 		fieldCount++
 	}
 
@@ -108,7 +108,7 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 		cmd.estimateOperationSizeForBin(bins[i])
 	}
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, len(bins))
 	cmd.writeKey(key)
@@ -147,7 +147,7 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 	fieldCount := cmd.estimateKeySize(key)
 	if policy.SendKey {
 		// field header size + key size
-		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE)
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
 		fieldCount++
 	}
 	cmd.estimateOperationSize()
@@ -275,7 +275,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 
 	if policy.SendKey && writeAttr != 0 {
 		// field header size + key size
-		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE)
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
 		fieldCount++
 	}
 
