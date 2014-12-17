@@ -94,7 +94,7 @@ type baseCommand struct {
 }
 
 // Writes the command for write operations
-func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, key *Key, bins []*Bin) error {
+func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, key *Key, bins []*Bin) (err error) {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
 
@@ -107,8 +107,8 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 	for i := range bins {
 		cmd.estimateOperationSizeForBin(bins[i])
 	}
-	if err := cmd.sizeBuffer(); err != nil {
-		return err
+	if err = cmd.sizeBuffer(); err != nil {
+		return
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, len(bins))
 	cmd.writeKey(key)
@@ -117,8 +117,8 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 		cmd.writeFieldValue(key.userKey, KEY)
 	}
 
-	for i := range bins {
-		if err := cmd.writeOperationForBin(bins[i], operation); err != nil {
+	for _, bin := range bins {
+		if err = cmd.writeOperationForBin(bin, operation); err != nil {
 			return err
 		}
 	}
@@ -128,11 +128,11 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 }
 
 // Writes the command for delete operations
-func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
+func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) (err error) {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
-	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+	if err = cmd.sizeBuffer(); err != nil {
+		return
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE|_INFO2_DELETE, fieldCount, 0)
 	cmd.writeKey(key)
@@ -142,7 +142,7 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
 }
 
 // Writes the command for touch operations
-func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
+func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) (err error) {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
 	if policy.SendKey {
@@ -151,8 +151,8 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 		fieldCount++
 	}
 	cmd.estimateOperationSize()
-	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+	if err = cmd.sizeBuffer(); err != nil {
+		return
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 1)
 	cmd.writeKey(key)
@@ -166,11 +166,11 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 }
 
 // Writes the command for exist operations
-func (cmd *baseCommand) setExists(key *Key) error {
+func (cmd *baseCommand) setExists(key *Key) (err error) {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
-	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+	if err = cmd.sizeBuffer(); err != nil {
+		return
 	}
 	cmd.writeHeader(_INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
 	cmd.writeKey(key)
@@ -180,11 +180,11 @@ func (cmd *baseCommand) setExists(key *Key) error {
 }
 
 // Writes the command for get operations (all bins)
-func (cmd *baseCommand) setReadForKeyOnly(key *Key) error {
+func (cmd *baseCommand) setReadForKeyOnly(key *Key) (err error) {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
-	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+	if err = cmd.sizeBuffer(); err != nil {
+		return
 	}
 	cmd.writeHeader(_INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
 	cmd.writeKey(key)
@@ -203,7 +203,7 @@ func (cmd *baseCommand) setRead(key *Key, binNames []string) (err error) {
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 		if err = cmd.sizeBuffer(); err != nil {
-			return nil
+			return
 		}
 		cmd.writeHeader(_INFO1_READ, 0, fieldCount, len(binNames))
 		cmd.writeKey(key)
@@ -242,7 +242,7 @@ func (cmd *baseCommand) setReadHeader(key *Key) error {
 }
 
 // Implements different command operations
-func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) error {
+func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) (err error) {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
 	readAttr := 0
@@ -279,8 +279,8 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		fieldCount++
 	}
 
-	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+	if err = cmd.sizeBuffer(); err != nil {
+		return
 	}
 
 	if writeAttr != 0 {
@@ -310,7 +310,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	return nil
 }
 
-func (cmd *baseCommand) setUdf(key *Key, packageName string, functionName string, args []Value) error {
+func (cmd *baseCommand) setUdf(key *Key, packageName string, functionName string, args []Value) (err error) {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
 	argBytes, err := packValueArray(args)
@@ -319,8 +319,8 @@ func (cmd *baseCommand) setUdf(key *Key, packageName string, functionName string
 	}
 
 	fieldCount += cmd.estimateUdfSize(packageName, functionName, argBytes)
-	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+	if err = cmd.sizeBuffer(); err != nil {
+		return
 	}
 	cmd.writeHeader(0, _INFO2_WRITE, fieldCount, 0)
 	cmd.writeKey(key)
@@ -332,7 +332,7 @@ func (cmd *baseCommand) setUdf(key *Key, packageName string, functionName string
 	return nil
 }
 
-func (cmd *baseCommand) setBatchExists(batchNamespace *batchNamespace) error {
+func (cmd *baseCommand) setBatchExists(batchNamespace *batchNamespace) (err error) {
 	// Estimate buffer size
 	cmd.begin()
 	keys := batchNamespace.keys
@@ -340,8 +340,8 @@ func (cmd *baseCommand) setBatchExists(batchNamespace *batchNamespace) error {
 
 	cmd.dataOffset += len(*batchNamespace.namespace) +
 		int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
-	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+	if err = cmd.sizeBuffer(); err != nil {
+		return
 	}
 
 	cmd.writeHeader(_INFO1_READ|_INFO1_NOBINDATA, 0, 2, 0)
@@ -357,7 +357,7 @@ func (cmd *baseCommand) setBatchExists(batchNamespace *batchNamespace) error {
 	return nil
 }
 
-func (cmd *baseCommand) setBatchGet(batchNamespace *batchNamespace, binNames map[string]struct{}, readAttr int) error {
+func (cmd *baseCommand) setBatchGet(batchNamespace *batchNamespace, binNames map[string]struct{}, readAttr int) (err error) {
 	// Estimate buffer size
 	cmd.begin()
 	keys := batchNamespace.keys
@@ -371,8 +371,8 @@ func (cmd *baseCommand) setBatchGet(batchNamespace *batchNamespace, binNames map
 			cmd.estimateOperationSizeForBinName(binName)
 		}
 	}
-	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+	if err = cmd.sizeBuffer(); err != nil {
+		return
 	}
 
 	operationCount := 0
@@ -398,7 +398,7 @@ func (cmd *baseCommand) setBatchGet(batchNamespace *batchNamespace, binNames map
 	return nil
 }
 
-func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string) error {
+func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string) (err error) {
 	cmd.begin()
 	fieldCount := 0
 
@@ -421,8 +421,8 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 	}
-	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+	if err = cmd.sizeBuffer(); err != nil {
+		return
 	}
 	readAttr := _INFO1_READ
 
