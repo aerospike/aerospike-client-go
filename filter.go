@@ -18,21 +18,21 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-// Query filter definition.
+// Filter specifies a query filter definition.
 type Filter struct {
 	name  string
 	begin Value
 	end   Value
 }
 
-// Create equality filter for query.
+// NewEqualFilter creates a new equality filter instance for query.
 func NewEqualFilter(binName string, value interface{}) *Filter {
 	val := NewValue(value)
 	return newFilter(binName, val, val)
 }
 
-// Create range filter for query.
-// Range arguments must be longs or integers which can be cast to longs.
+// NewRangeFilter creates a range filter for query.
+// Range arguments must be int64 values.
 // String ranges are not supported.
 func NewRangeFilter(binName string, begin int64, end int64) *Filter {
 	return newFilter(binName, NewValue(begin), NewValue(end))
@@ -58,7 +58,7 @@ func (fltr *Filter) write(buf []byte, offset int) (int, error) {
 	var err error
 
 	// Write name.
-	len := copy(buf[offset+1:], []byte(fltr.name))
+	len := copy(buf[offset+1:], fltr.name)
 	buf[offset] = byte(len)
 	offset += len + 1
 

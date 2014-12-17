@@ -30,7 +30,7 @@ type Host struct {
 	addPort string
 }
 
-// Initialize host.
+// NewHost initializes new host instance.
 func NewHost(name string, port int) *Host {
 	return &Host{Name: name, Port: port, addPort: name + ":" + strconv.Itoa(port)}
 }

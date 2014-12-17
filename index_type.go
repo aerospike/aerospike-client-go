@@ -14,13 +14,13 @@
 
 package aerospike
 
-// Type of secondary index.
+// IndexType the type of the secondary index.
 type IndexType string
 
 const (
-	// Number index.
+	// NUMERIC specifies an index on numeric values.
 	NUMERIC IndexType = "NUMERIC"
 
-	// String index.
+	// STRING specifies an index on string values.
 	STRING IndexType = "STRING"
 )

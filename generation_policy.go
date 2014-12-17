@@ -14,21 +14,21 @@
 
 package aerospike
 
-// How to handle record writes based on record generation.
+// GenerationPolicy determines how to handle record writes based on record generation.
 type GenerationPolicy int
 
 const (
-	// Do not use record generation to restrict writes.
+	// NONE means: Do not use record generation to restrict writes.
 	NONE GenerationPolicy = iota
 
-	// Update/delete record if expected generation is equal to server generation. Otherwise, fail.
+	// EXPECT_GEN_EQUAL means: Update/Delete record if expected generation is equal to server generation. Otherwise, fail.
 	EXPECT_GEN_EQUAL
 
-	// Update/delete record if expected generation greater than the server generation. Otherwise, fail.
+	// EXPECT_GEN_GT means: Update/Delete record if expected generation greater than the server generation. Otherwise, fail.
 	// This is useful for restore after backup.
 	EXPECT_GEN_GT
 
-	// Create duplicate record if expected generation is not equal to server generation.
+	// DUPLICATE means: Create duplicate record if expected generation is not equal to server generation.
 	// Duplicates are only created when the server configuration option "allow-versions"
 	// is true (default is false).
 	DUPLICATE

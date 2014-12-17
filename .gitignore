@@ -4,3 +4,5 @@
 tools/benchmark/benchmark
 tools/asinfo/asinfo
 tmp/
+.DS_Store
+

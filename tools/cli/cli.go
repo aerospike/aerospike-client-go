@@ -46,6 +46,7 @@ func quitOnError(err error) {
 }
 
 func main() {
+	log.SetOutput(os.Stdout)
 	// use all cpus in the system for concurrency
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	// remove timestamp from log messages

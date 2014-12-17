@@ -46,10 +46,10 @@ func (upckr *unpacker) UnpackList() ([]interface{}, error) {
 	if (theType & 0xf0) == 0x90 {
 		count = int(theType & 0x0f)
 	} else if theType == 0xdc {
-		count = int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		count = int(uint16(Buffer.BytesToInt16(upckr.buffer, upckr.offset)))
 		upckr.offset += 2
 	} else if theType == 0xdd {
-		count = int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		count = int(uint32(Buffer.BytesToInt32(upckr.buffer, upckr.offset)))
 		upckr.offset += 4
 	} else {
 		return nil, nil
@@ -83,10 +83,10 @@ func (upckr *unpacker) UnpackMap() (map[interface{}]interface{}, error) {
 	if (theType & 0xf0) == 0x80 {
 		count = int(theType & 0x0f)
 	} else if theType == 0xde {
-		count = int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		count = int(uint16(Buffer.BytesToInt16(upckr.buffer, upckr.offset)))
 		upckr.offset += 2
 	} else if theType == 0xdf {
-		count = int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		count = int(uint32(Buffer.BytesToInt32(upckr.buffer, upckr.offset)))
 		upckr.offset += 4
 	} else {
 		return make(map[interface{}]interface{}), nil
@@ -145,18 +145,15 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 	case 0xc2:
 		return false, nil
 
-		// TODO: Float support for Value?
-	// case 0xca: {
-	//   val = Float.intBitsToFloat(Buffer.bytesToInt(upckr.buffer, upckr.offset));
-	//   upckr.offset += 4;
-	//   return upckr.GetDouble(val);
-	// }
+	case 0xca:
+		val := Buffer.BytesToFloat32(upckr.buffer, upckr.offset)
+		upckr.offset += 4
+		return val, nil
 
-	// case 0xcb: {
-	//   double val = Double.longBitsToDouble(Buffer.bytesToLong(upckr.buffer, upckr.offset));
-	//   upckr.offset += 8;
-	//   return upckr.GetDouble(val);
-	// }
+	case 0xcb:
+		val := Buffer.BytesToFloat64(upckr.buffer, upckr.offset)
+		upckr.offset += 8
+		return val, nil
 
 	case 0xcc:
 		r := upckr.buffer[upckr.offset] & 0xff
@@ -178,11 +175,10 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 		}
 		return int64(val), nil
 
-	// TODO: Fix upckr
 	case 0xcf:
 		val := Buffer.BytesToInt64(upckr.buffer, upckr.offset)
 		upckr.offset += 8
-		return val, nil
+		return uint64(val), nil
 
 	case 0xd0:
 		r := int8(upckr.buffer[upckr.offset])
@@ -202,35 +198,38 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 	case 0xd3:
 		val := Buffer.BytesToInt64(upckr.buffer, upckr.offset)
 		upckr.offset += 8
+		if Buffer.Arch64Bits {
+			return int(val), nil
+		}
 		return int64(val), nil
 
 	case 0xda:
-		count := int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		count := int(uint16(Buffer.BytesToInt16(upckr.buffer, upckr.offset)))
 		upckr.offset += 2
 		return upckr.unpackBlob(count)
 
 	case 0xdb:
-		count := int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		count := int(uint32(Buffer.BytesToInt32(upckr.buffer, upckr.offset)))
 		upckr.offset += 4
 		return upckr.unpackBlob(count)
 
 	case 0xdc:
-		count := int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		count := int(uint16(Buffer.BytesToInt16(upckr.buffer, upckr.offset)))
 		upckr.offset += 2
 		return upckr.unpackList(count)
 
 	case 0xdd:
-		count := int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		count := int(uint32(Buffer.BytesToInt32(upckr.buffer, upckr.offset)))
 		upckr.offset += 4
 		return upckr.unpackList(count)
 
 	case 0xde:
-		count := int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		count := int(uint16(Buffer.BytesToInt16(upckr.buffer, upckr.offset)))
 		upckr.offset += 2
 		return upckr.unpackMap(count)
 
 	case 0xdf:
-		count := int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		count := int(uint32(Buffer.BytesToInt32(upckr.buffer, upckr.offset)))
 		upckr.offset += 4
 		return upckr.unpackMap(count)
 
@@ -252,9 +251,8 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 		}
 
 		if theType >= 0xe0 {
-			return int(theType - 0xe0 - 32), nil
+			return int(int(theType) - 0xe0 - 32), nil
 		}
-		// panic(fmt.Errorf("Unknown upckr.unpack theType: %x", theType))
 	}
 
 	return nil, NewAerospikeError(SERIALIZE_ERROR)

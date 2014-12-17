@@ -14,31 +14,32 @@
 
 package aerospike
 
-// How to handle writes when the record already exists.
+// RecordExistsAction determines how to handle writes when
+// the record already exists.
 type RecordExistsAction int
 
 const (
 
-	// Create or update record.
+	// UPDATE means: Create or update record.
 	// Merge write command bins with existing bins.
 	UPDATE RecordExistsAction = iota
 
-	// Update record only. Fail if record does not exist.
+	// UPDATE_ONLY means: Update record only. Fail if record does not exist.
 	// Merge write command bins with existing bins.
 	UPDATE_ONLY
 
-	// Create or replace record.
+	// REPLACE means: Create or replace record.
 	// Delete existing bins not referenced by write command bins.
 	// Supported by Aerospike 2 server versions >= 2.7.5 and
 	// Aerospike 3 server versions >= 3.1.6.
 	REPLACE
 
-	// Replace record only. Fail if record does not exist.
+	// REPLACE_ONLY means: Replace record only. Fail if record does not exist.
 	// Delete existing bins not referenced by write command bins.
 	// Supported by Aerospike 2 server versions >= 2.7.5 and
 	// Aerospike 3 server versions >= 3.1.6.
 	REPLACE_ONLY
 
-	// Create only.  Fail if record exists.
+	// CREATE_ONLY means: Create only. Fail if record exists.
 	CREATE_ONLY
 )

@@ -21,7 +21,7 @@ import (
 )
 
 type batchCommandGet struct {
-	baseMultiCommand
+	*baseMultiCommand
 
 	batchNamespace *batchNamespace
 	policy         Policy
@@ -41,7 +41,7 @@ func newBatchCommandGet(
 	readAttr int,
 ) *batchCommandGet {
 	return &batchCommandGet{
-		baseMultiCommand: *newMultiCommand(node, nil, nil),
+		baseMultiCommand: newMultiCommand(node, nil, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
 		keyMap:           keyMap,
@@ -83,10 +83,10 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 			return false, nil
 		}
 
-		generation := int(Buffer.BytesToInt32(cmd.dataBuffer, 6))
-		expiration := int(Buffer.BytesToInt32(cmd.dataBuffer, 10))
-		fieldCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 18))
-		opCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 20))
+		generation := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 6)))
+		expiration := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 10)))
+		fieldCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 18)))
+		opCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 20)))
 		key, err := cmd.parseKey(fieldCount)
 		if err != nil {
 			return false, err
@@ -126,7 +126,7 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation int, e
 		if err := cmd.readBytes(8); err != nil {
 			return nil, err
 		}
-		opSize := int(Buffer.BytesToInt32(cmd.dataBuffer, 0))
+		opSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 0)))
 		particleType := int(cmd.dataBuffer[5])
 		version := int(cmd.dataBuffer[6])
 		nameSize := int(cmd.dataBuffer[7])

@@ -14,21 +14,23 @@
 
 package atomic
 
-// AtomicQueue is a blocking FIFO queue
+// AtomicQueue is a blocking FIFO queue.
 // If the queue is empty, nil is returned.
 // if the queue is full, offer will return false
 type AtomicQueue struct {
 	items chan interface{}
 }
 
-// NewQueue creates a new queue with initial size
+// NewQueue creates a new queue with initial size.
 func NewAtomicQueue(size int) *AtomicQueue {
 	return &AtomicQueue{
 		items: make(chan interface{}, size),
 	}
 }
 
-// Push adds an item to the queue in specified timeout
+// Offer adds an item to the queue unless the queue is full.
+// In case the queue is full, the item will not be added to the queue
+// and false will be returned
 func (aq *AtomicQueue) Offer(item interface{}) bool {
 	// non-blocking send pattern
 	select {
@@ -39,7 +41,8 @@ func (aq *AtomicQueue) Offer(item interface{}) bool {
 	return false
 }
 
-// Poll removes and returns a node from the queue in first to last order.
+// Poll removes and returns an item from the queue.
+// If the queue is empty, nil will be returned.
 func (aq *AtomicQueue) Poll() interface{} {
 	// non-blocking read pattern
 	select {

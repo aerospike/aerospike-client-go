@@ -23,12 +23,12 @@ import (
 )
 
 type serverCommand struct {
-	queryCommand
+	*queryCommand
 }
 
 func newServerCommand(node *Node, policy *QueryPolicy, statement *Statement) *serverCommand {
 	return &serverCommand{
-		queryCommand: *newQueryCommand(node, policy, statement, nil, nil),
+		queryCommand: newQueryCommand(node, policy, statement, nil, nil),
 	}
 }
 
@@ -58,8 +58,8 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 			return false, nil
 		}
 
-		fieldCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 18))
-		opCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 20))
+		fieldCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 18)))
+		opCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 20)))
 
 		if _, err := cmd.parseKey(fieldCount); err != nil {
 			return false, err
@@ -69,7 +69,7 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 			if err := cmd.readBytes(8); err != nil {
 				return false, err
 			}
-			opSize := int(Buffer.BytesToInt32(cmd.dataBuffer, 0))
+			opSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 0)))
 			nameSize := int(cmd.dataBuffer[7])
 
 			if err := cmd.readBytes(nameSize); err != nil {

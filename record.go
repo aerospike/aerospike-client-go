@@ -18,27 +18,31 @@ import (
 	"fmt"
 )
 
-// Container object for records.  Records are equivalent to rows.
+// Record is the container struct for database records.
+// Records are equivalent to rows.
 type Record struct {
-	// Record's Key. Might be empty, or only consist of digest only.
+	// Key is the record's key.
+	// Might be empty, or may only consist of digest value.
 	Key *Key
 
 	// Node from which the Record is originating from.
 	Node *Node
 
-	// Map of requested name/value bins.
+	// Bins is the map of requested name/value bins.
 	Bins BinMap
 
-	// List of all duplicate records (if any) for a given key.  Duplicates are only created when
-	// the server configuration option "allow-versions" is true (default is false) and client
+	// Duplicates is the list of all duplicate records (if any) for a given key.
+	// Duplicates are only created when the server configuration option
+	// "allow-versions" is true (default is false) and client
 	// RecordExistsAction.DUPLICATE policy flag is set and there is a generation error.
-	// Almost always nil.
+	// It is almost always nil.
 	Duplicates []BinMap
 
-	// Record modification count.
+	// Generation shows record modification count.
 	Generation int
 
-	// Date record will expire, in seconds from Jan 01 2010 00:00:00 GMT
+	// Expiration is TTL (Time-To-Live).
+	// Number of seconds until record expires.
 	Expiration int
 }
 
@@ -60,7 +64,8 @@ func newRecord(node *Node, key *Key, bins BinMap, duplicates []BinMap, generatio
 	return r
 }
 
-// Return string representation of record.
+// String implements the Stringer interface.
+// Returns string representation of record.
 func (rc *Record) String() string {
 	return fmt.Sprintf("%v %v", *rc.Key, rc.Bins)
 }

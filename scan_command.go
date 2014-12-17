@@ -15,13 +15,14 @@
 package aerospike
 
 import (
-	// . "github.com/aerospike/aerospike-client-go/logger"
+	"time"
+
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 type scanCommand struct {
-	baseMultiCommand
+	*baseMultiCommand
 
 	policy    *ScanPolicy
 	namespace string
@@ -52,7 +53,7 @@ func newScanCommand(
 	}
 
 	return &scanCommand{
-		baseMultiCommand: *newMultiCommand(node, recChan, errChan),
+		baseMultiCommand: newMultiCommand(node, recChan, errChan),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,
@@ -95,10 +96,10 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 			return false, nil
 		}
 
-		generation := int(Buffer.BytesToInt32(cmd.dataBuffer, 6))
-		expiration := int(Buffer.BytesToInt32(cmd.dataBuffer, 10))
-		fieldCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 18))
-		opCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 20))
+		generation := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 6)))
+		expiration := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 10)))
+		fieldCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 18)))
+		opCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 20)))
 
 		key, err := cmd.parseKey(fieldCount)
 		if err != nil {
@@ -115,7 +116,7 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 				return false, err
 			}
 
-			opSize := int(Buffer.BytesToInt32(cmd.dataBuffer, 0))
+			opSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 0)))
 			particleType := int(cmd.dataBuffer[5])
 			nameSize := int(cmd.dataBuffer[7])
 
@@ -147,8 +148,18 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 			return false, NewAerospikeError(SCAN_TERMINATED)
 		}
 
-		// send back the result on the async channel
-		cmd.Records <- newRecord(cmd.node, key, bins, nil, generation, expiration)
+	L:
+		for {
+			select {
+			// send back the result on the async channel
+			case cmd.Records <- newRecord(cmd.node, key, bins, nil, generation, expiration):
+				break L
+			case <-time.After(time.Millisecond):
+				if !cmd.IsValid() {
+					return false, NewAerospikeError(SCAN_TERMINATED)
+				}
+			}
+		}
 	}
 
 	return true, nil

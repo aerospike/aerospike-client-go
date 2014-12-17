@@ -22,7 +22,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
-// Connection represents a connection with a timeout
+// Connection represents a connection with a timeout.
 type Connection struct {
 	// timeout
 	timeout time.Duration
@@ -45,11 +45,6 @@ func errToTimeoutErr(err error) error {
 func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 	newConn := &Connection{}
 
-	// connection timeout should be finite
-	if timeout <= 0 {
-		timeout = 2 * time.Second
-	}
-
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
 		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
@@ -64,7 +59,7 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 	return newConn, nil
 }
 
-// Writes the slice to the connection buffer.
+// Write writes the slice to the connection buffer.
 func (ctn *Connection) Write(buf []byte) (total int, err error) {
 	// make sure all bytes are written
 	// Don't worry about the loop, timeout has been set elsewhere
@@ -83,7 +78,7 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 	return total, errToTimeoutErr(err)
 }
 
-// Reads from connection buffer to the slice
+// Read reads from connection buffer to the provided slice.
 func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 	// if all bytes are not read, retry until successful
 	// Don't worry about the loop; we've already set the timeout elsewhere
@@ -104,30 +99,33 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 	}
 }
 
-// Returns true if the connection is not closed
+// IsConnected returns true if the connection is not closed yet.
 func (ctn *Connection) IsConnected() bool {
 	return ctn.conn != nil
 }
 
-// sets connection timeout
+// SetTimeout sets connection timeout for both read and write operations.
 func (ctn *Connection) SetTimeout(timeout time.Duration) error {
-	ctn.timeout = timeout
+	// Set timeout ONLY if there is or has been a timeout
+	if timeout > 0 || ctn.timeout != 0 {
+		ctn.timeout = timeout
 
-	// important: remove deadline when not needed; connections are pooled
-	if ctn.conn != nil {
-		var deadline time.Time
-		if timeout > 0 {
-			deadline = time.Now().Add(timeout)
-		}
-		if err := ctn.conn.SetDeadline(deadline); err != nil {
-			return err
+		// important: remove deadline when not needed; connections are pooled
+		if ctn.conn != nil {
+			var deadline time.Time
+			if timeout > 0 {
+				deadline = time.Now().Add(timeout)
+			}
+			if err := ctn.conn.SetDeadline(deadline); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-// Closes the connection
+// Close closes the connection
 func (ctn *Connection) Close() {
 	if ctn != nil && ctn.conn != nil {
 		if err := ctn.conn.Close(); err != nil {

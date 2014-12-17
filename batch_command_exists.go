@@ -21,7 +21,7 @@ import (
 )
 
 type batchCommandExists struct {
-	baseMultiCommand
+	*baseMultiCommand
 
 	batchNamespace *batchNamespace
 	policy         *BasePolicy
@@ -37,7 +37,7 @@ func newBatchCommandExists(
 	existsArray []bool,
 ) *batchCommandExists {
 	return &batchCommandExists{
-		baseMultiCommand: *newMultiCommand(node, nil, nil),
+		baseMultiCommand: newMultiCommand(node, nil, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
 		keyMap:           keyMap,
@@ -83,8 +83,8 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			return false, nil
 		}
 
-		fieldCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 18))
-		opCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 20))
+		fieldCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 18)))
+		opCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 20)))
 
 		if opCount > 0 {
 			return false, NewAerospikeError(PARSE_ERROR, "Received bins that were not requested!")
