@@ -22,7 +22,7 @@ import (
 )
 
 type readCommand struct {
-	singleCommand
+	*singleCommand
 
 	policy   Policy
 	binNames []string
@@ -31,7 +31,7 @@ type readCommand struct {
 
 func newReadCommand(cluster *Cluster, policy Policy, key *Key, binNames []string) *readCommand {
 	newReadCmd := &readCommand{
-		singleCommand: *newSingleCommand(cluster, key),
+		singleCommand: newSingleCommand(cluster, key),
 		binNames:      binNames,
 	}
 
@@ -66,10 +66,10 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	sz := Buffer.BytesToInt64(cmd.dataBuffer, 0)
 	headerLength := int(cmd.dataBuffer[8])
 	resultCode := ResultCode(cmd.dataBuffer[13] & 0xFF)
-	generation := int(Buffer.BytesToInt32(cmd.dataBuffer, 14))
-	expiration := TTL(int(Buffer.BytesToInt32(cmd.dataBuffer, 18)))
-	fieldCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 26)) // almost certainly 0
-	opCount := int(Buffer.BytesToInt16(cmd.dataBuffer, 28))
+	generation := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 14)))
+	expiration := TTL(int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 18))))
+	fieldCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 26))) // almost certainly 0
+	opCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 28)))
 	receiveSize := int((sz & 0xFFFFFFFFFFFF) - int64(headerLength))
 
 	// Logger.Debug("readCommand Parse Result: resultCode: %d, headerLength: %d, generation: %d, expiration: %d, fieldCount: %d, opCount: %d, receiveSize: %d", resultCode, headerLength, generation, expiration, fieldCount, opCount, receiveSize)
@@ -136,17 +136,16 @@ func (cmd *readCommand) parseRecord(
 		// Just skip over all the fields
 		for i := 0; i < fieldCount; i++ {
 			// Logger.Debug("%d", receiveOffset)
-			fieldSize := int(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset))
+			fieldSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset)))
 			receiveOffset += (4 + fieldSize)
 		}
 	}
 
 	for i := 0; i < opCount; i++ {
-		opSize := int(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset))
+		opSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset)))
 		particleType := int(cmd.dataBuffer[receiveOffset+5])
 		version := int(cmd.dataBuffer[receiveOffset+6])
 		nameSize := int(cmd.dataBuffer[receiveOffset+7])
-		// name := Buffer.utf8ToString(cmd.dataBuffer, receiveOffset+8, nameSize);
 		name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
 		receiveOffset += 4 + 4 + nameSize
 
@@ -158,7 +157,7 @@ func (cmd *readCommand) parseRecord(
 
 		if version > 0 || duplicates != nil {
 			if duplicates == nil {
-				duplicates = make([]BinMap, 4)
+				duplicates = make([]BinMap, opCount)
 				duplicates = append(duplicates, bins)
 				bins = nil
 
@@ -173,12 +172,12 @@ func (cmd *readCommand) parseRecord(
 
 			vmap = duplicates[version]
 			if vmap == nil {
-				vmap = make(BinMap)
+				vmap = make(BinMap, opCount)
 				duplicates[version] = vmap
 			}
 		} else {
 			if bins == nil {
-				bins = make(BinMap)
+				bins = make(BinMap, opCount)
 			}
 			vmap = bins
 		}
@@ -188,9 +187,9 @@ func (cmd *readCommand) parseRecord(
 	// Remove nil duplicates just in case there were holes in the version number space.
 	if duplicates != nil {
 		lastElem := 0
-		for _, d := range duplicates {
-			if d != nil {
-				duplicates[lastElem] = d
+		for i := range duplicates {
+			if duplicates[i] != nil {
+				duplicates[lastElem] = duplicates[i]
 				lastElem++
 			}
 		}

@@ -14,11 +14,11 @@
 
 package aerospike
 
-// User defined function languages.
+// Language specifies User defined function languages.
 type Language string
 
 const (
 
-	// Lua embedded programming language.
+	// LUA embedded programming language.
 	LUA Language = "LUA"
 )

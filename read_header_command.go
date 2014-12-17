@@ -20,7 +20,7 @@ import (
 )
 
 type readHeaderCommand struct {
-	singleCommand
+	*singleCommand
 
 	policy Policy
 	record *Record
@@ -28,7 +28,7 @@ type readHeaderCommand struct {
 
 func newReadHeaderCommand(cluster *Cluster, policy Policy, key *Key) *readHeaderCommand {
 	newReadHeaderCmd := &readHeaderCommand{
-		singleCommand: *newSingleCommand(cluster, key),
+		singleCommand: newSingleCommand(cluster, key),
 	}
 
 	if policy != nil {
@@ -57,8 +57,8 @@ func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {
 	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	if resultCode == 0 {
-		generation := int(Buffer.BytesToInt32(cmd.dataBuffer, 14))
-		expiration := TTL(int(Buffer.BytesToInt32(cmd.dataBuffer, 18)))
+		generation := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 14)))
+		expiration := TTL(int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 18))))
 		cmd.record = newRecord(cmd.node, cmd.key, nil, nil, generation, expiration)
 	} else {
 		if ResultCode(resultCode) == KEY_NOT_FOUND_ERROR {

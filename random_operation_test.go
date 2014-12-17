@@ -26,6 +26,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const RANDOM_OPS_RUNS = 1000
+
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Aerospike", func() {
 	rand.Seed(time.Now().UnixNano())
@@ -42,8 +44,7 @@ var _ = Describe("Aerospike", func() {
 		var rec *Record
 
 		// use the same client for all
-		client, err := NewClient(*host, *port)
-		Expect(err).ToNot(HaveOccurred())
+		client, _ := NewClient(*host, *port)
 
 		Context("Put/Get operations", func() {
 
@@ -55,7 +56,7 @@ var _ = Describe("Aerospike", func() {
 				bin2 := NewBin("Aerospike2", "a") // to avoid deletion of key
 
 				i := 0
-				for i < 10000 {
+				for i < RANDOM_OPS_RUNS {
 					iters := rand.Intn(10) + 1
 					for wr := 0; wr < iters; wr++ {
 						i++
@@ -94,7 +95,7 @@ var _ = Describe("Aerospike", func() {
 				}
 
 				i := 0
-				for i < 10000 {
+				for i < RANDOM_OPS_RUNS {
 					iters := rand.Intn(1000) + 1
 					for wr := 0; wr < iters; wr++ {
 						i++

@@ -42,6 +42,7 @@ type Node struct {
 	health      *AtomicInt   //AtomicInteger
 
 	partitionGeneration int
+	refreshCount        int
 	referenceCount      int
 	responded           bool
 	useNewInfo          bool
@@ -49,7 +50,7 @@ type Node struct {
 	mutex               sync.RWMutex
 }
 
-// Initialize server node with connection parameters.
+// NewNode initializes a server node with connection parameters.
 func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	return &Node{
 		cluster:    cluster,
@@ -70,9 +71,11 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	}
 }
 
-// Request current status from server node, and update node with the result
+// Refresh requests current status from server node, and updates node with the result.
 func (nd *Node) Refresh() ([]*Host, error) {
 	var friends []*Host
+
+	nd.refreshCount++
 
 	conn, err := nd.GetConnection(1 * time.Second)
 	if err != nil {
@@ -181,8 +184,8 @@ func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) er
 	return nil
 }
 
-// Get a connection to the node. If no cached connection is not available,
-// a new connection will be created
+// GetConnection gets a connection to the node.
+// If no pooled connection is available, a new connection will be created.
 func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err error) {
 	for t := nd.connections.Poll(); t != nil; t = nd.connections.Poll() {
 		conn = t.(*Connection)
@@ -203,62 +206,64 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 	return conn, nil
 }
 
-// Put back a connection to the cache. If cache is full, the connection will be
-// closed and discarded
+// PutConnection puts back a connection to the pool.
+// If connection pool is full, the connection will be
+// closed and discarded.
 func (nd *Node) PutConnection(conn *Connection) {
 	if !nd.active.Get() || !nd.connections.Offer(conn) {
 		conn.Close()
 	}
 }
 
-// Mark the node as healthy
+// RestoreHealth marks the node as healthy.
 func (nd *Node) RestoreHealth() {
 	// There can be cases where health is full, but active is false.
 	// Once a node has been marked inactive, it stays inactive.
 	nd.health.Set(_FULL_HEALTH)
 }
 
-// Decrease node Health as a result of bad connection or communication
+// DecreaseHealth decreases node Health as a result of bad connection or communication.
 func (nd *Node) DecreaseHealth() {
 	nd.health.DecrementAndGet()
 }
 
-// Check if the node is unhealthy
+// IsUnhealthy checks if the node is unhealthy.
 func (nd *Node) IsUnhealthy() bool {
 	return nd.health.Get() <= 0
 }
 
-// Retrieves host for the node
+// GetHost retrieves host for the node.
 func (nd *Node) GetHost() *Host {
 	return nd.host
 }
 
-// Checks if the node is active
+// IsActive Checks if the node is active.
 func (nd *Node) IsActive() bool {
 	return nd.active.Get()
 }
 
-// Returns node name
+// GetName returns node name.
 func (nd *Node) GetName() string {
 	return nd.name
 }
 
-// Returns node aliases
+// GetAliases returnss node aliases.
 func (nd *Node) GetAliases() []*Host {
 	nd.mutex.RLock()
-	defer nd.mutex.RUnlock()
 	aliases := nd.aliases
+	nd.mutex.RUnlock()
+
 	return aliases
 }
 
 // Sets node aliases
 func (nd *Node) setAliases(aliases []*Host) {
 	nd.mutex.Lock()
-	defer nd.mutex.Unlock()
 	nd.aliases = aliases
+	nd.mutex.Unlock()
 }
 
-// Adds an alias for the node
+// AddAlias adds an alias for the node
 func (nd *Node) AddAlias(aliasToAdd *Host) {
 	// Aliases are only referenced in the cluster tend goroutine,
 	// so synchronization is not necessary.
@@ -271,13 +276,13 @@ func (nd *Node) AddAlias(aliasToAdd *Host) {
 	nd.setAliases(aliases)
 }
 
-// Marks node as inactice and closes all cached connections
+// Close marks node as inactice and closes all of its pooled connections.
 func (nd *Node) Close() {
 	nd.active.Set(false)
 	nd.closeConnections()
 }
 
-// Implements stringer interface
+// String implements stringer interface
 func (nd *Node) String() string {
 	return nd.name + " " + nd.host.String()
 }
@@ -288,6 +293,7 @@ func (nd *Node) closeConnections() {
 	}
 }
 
+// Equals compares equality of two nodes based on their names.
 func (nd *Node) Equals(other *Node) bool {
 	return nd.name == other.name
 }
@@ -308,7 +314,11 @@ func (nd *Node) MigrationInProgress() (bool, error) {
 	return false, nil
 }
 
+// WaitUntillMigrationIsFinished will block until migration operations are finished.
 func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) (err error) {
+	if timeout <= 0 {
+		timeout = _NO_TIMEOUT
+	}
 	done := make(chan error)
 
 	go func() {

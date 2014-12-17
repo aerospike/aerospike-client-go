@@ -20,25 +20,24 @@ import (
 	"strings"
 )
 
-// Task used to poll for long running create index completion.
+// IndexTask is used to poll for long running create index completion.
 type IndexTask struct {
-	BaseTask
+	*BaseTask
 
 	namespace string
 	indexName string
 }
 
-// Initialize task with fields needed to query server nodes.
-
+// NewIndexTask initializes a task with fields needed to query server nodes.
 func NewIndexTask(cluster *Cluster, namespace string, indexName string) *IndexTask {
 	return &IndexTask{
-		BaseTask:  *NewTask(cluster, false),
+		BaseTask:  NewTask(cluster, false),
 		namespace: namespace,
 		indexName: indexName,
 	}
 }
 
-// Query all nodes for task completion status.
+// IsDone queries all nodes for task completion status.
 func (tski *IndexTask) IsDone() (bool, error) {
 	command := "sindex/" + tski.namespace + "/" + tski.indexName
 	nodes := tski.cluster.GetNodes()
@@ -74,6 +73,8 @@ func (tski *IndexTask) IsDone() (bool, error) {
 	return complete, nil
 }
 
+// OnComplete returns a channel that will be closed as soon as the task is finished.
+// If an error is encountered during operation, an error will be sent on the channel.
 func (tski *IndexTask) OnComplete() chan error {
 	return tski.onComplete(tski)
 }

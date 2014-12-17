@@ -18,6 +18,7 @@ import (
 	"time"
 )
 
+// Task interface defines methods for asynchronous tasks.
 type Task interface {
 	IsDone() (bool, error)
 
@@ -25,14 +26,14 @@ type Task interface {
 	OnComplete() chan error
 }
 
-// Task used to poll for server task completion.
+// BaseTask is used to poll for server task completion.
 type BaseTask struct {
 	cluster        *Cluster
 	done           bool
 	onCompleteChan chan error
 }
 
-// Initialize task with fields needed to query server nodes.
+// NewTask initializes task with fields needed to query server nodes.
 func NewTask(cluster *Cluster, done bool) *BaseTask {
 	return &BaseTask{
 		cluster: cluster,

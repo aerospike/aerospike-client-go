@@ -26,13 +26,27 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const udfFilter = `
+local function map_profile(record)
+ -- Add name and age to returned map.
+ -- Could add other record bins here as well.
+ -- return map {name=record["name"], age=32}
+ return map {bin4=record.Aerospike4, bin5=record["Aerospike5"]}
+end
+
+function filter_by_name(stream,name)
+ local function filter_name(record)
+   return (record.Aerospike5 == -1) and (record.Aerospike4 == 'constValue')
+ end
+ return stream : filter(filter_name) : map(map_profile)
+end`
+
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Query operations", func() {
 	rand.Seed(time.Now().UnixNano())
 	flag.Parse()
 
 	// connection data
-	var err error
 	var ns = "test"
 	var set = randString(50)
 	var wpolicy = NewWritePolicy(0, 0)
@@ -42,11 +56,12 @@ var _ = Describe("Query operations", func() {
 	bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("Aerospike2", randString(100))
 	bin3 := NewBin("Aerospike3", rand.Intn(math.MaxInt16))
+	bin4 := NewBin("Aerospike4", "constValue")
+	bin5 := NewBin("Aerospike5", -1)
 	var keys map[string]*Key
 
 	// use the same client for all
-	client, err := NewClient(*host, *port)
-	Expect(err).ToNot(HaveOccurred())
+	client, _ := NewClient(*host, *port)
 
 	// read all records from the channel and make sure all of them are returned
 	var checkResults = func(recordset *Recordset, cancelCnt int) {
@@ -82,7 +97,7 @@ var _ = Describe("Query operations", func() {
 	}
 
 	BeforeEach(func() {
-		keys = make(map[string]*Key)
+		keys = make(map[string]*Key, keyCount)
 		set = randString(50)
 		for i := 0; i < keyCount; i++ {
 			key, err := NewKey(ns, set, randString(50))
@@ -90,20 +105,16 @@ var _ = Describe("Query operations", func() {
 
 			keys[string(key.Digest())] = key
 			bin3 = NewBin("Aerospike3", rand.Intn(math.MaxInt16))
-			err = client.PutBins(wpolicy, key, bin1, bin2, bin3)
+			err = client.PutBins(wpolicy, key, bin1, bin2, bin3, bin4, bin5)
 			Expect(err).ToNot(HaveOccurred())
 		}
 
 		// queries only work on indices
 		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin3.Name, bin3.Name, NUMERIC)
-		if err == nil {
-			// wait until index is created
-			for err := range idxTask.OnComplete() {
-				if err != nil {
-					panic(err)
-				}
-			}
-		}
+		Expect(err).ToNot(HaveOccurred())
+
+		// wait until index is created
+		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 	})
 
 	It("must Query a range and get all records back", func() {
@@ -147,6 +158,32 @@ var _ = Describe("Query operations", func() {
 			case err := <-recordset.Errors:
 				panic(err)
 			}
+		}
+
+		Expect(cnt).To(BeNumerically(">", 0))
+	})
+
+	It("must Query a specific range by applying a udf filter and get only relevant records back", func() {
+		regTask, err := client.RegisterUDF(nil, []byte(udfFilter), "udfFilter.lua", LUA)
+		Expect(err).ToNot(HaveOccurred())
+
+		// wait until UDF is created
+		err = <-regTask.OnComplete()
+		Expect(err).ToNot(HaveOccurred())
+
+		stm := NewStatement(ns, set)
+		stm.Addfilter(NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
+		stm.SetAggregateFunction("udfFilter", "filter_by_name", []Value{NewValue("Aeropsike")}, true)
+
+		recordset, err := client.Query(nil, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		cnt := 0
+		for rec := range recordset.Records {
+			results := rec.Bins["SUCCESS"].(map[interface{}]interface{})
+			Expect(results["bin4"]).To(Equal("constValue"))
+			// Expect(results["bin5"]).To(Equal(-1))
+			cnt++
 		}
 
 		Expect(cnt).To(BeNumerically(">", 0))

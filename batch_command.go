@@ -16,10 +16,9 @@ package aerospike
 
 import (
 	"fmt"
-	"sync"
 
-	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
+	. "github.com/aerospike/aerospike-client-go/types/atomic"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -33,21 +32,20 @@ type multiCommand interface {
 }
 
 type baseMultiCommand struct {
-	baseCommand
+	*baseCommand
 
 	Records chan *Record
 	Errors  chan error
 
-	valid bool //= true
-	mutex sync.RWMutex
+	valid *AtomicBool
 }
 
 func newMultiCommand(node *Node, recChan chan *Record, errChan chan error) *baseMultiCommand {
 	return &baseMultiCommand{
-		baseCommand: baseCommand{node: node},
+		baseCommand: &baseCommand{node: node},
 		Records:     recChan,
 		Errors:      errChan,
-		valid:       true,
+		valid:       NewAtomicBool(true),
 	}
 }
 
@@ -92,7 +90,7 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 			return nil, err
 		}
 
-		fieldlen := int(Buffer.BytesToInt32(cmd.dataBuffer, 0))
+		fieldlen := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 0)))
 		if err = cmd.readBytes(fieldlen); err != nil {
 			return nil, err
 		}
@@ -138,15 +136,9 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 }
 
 func (cmd *baseMultiCommand) Stop() {
-	cmd.mutex.Lock()
-	defer cmd.mutex.Unlock()
-
-	cmd.valid = false
+	cmd.valid.Set(false)
 }
 
 func (cmd *baseMultiCommand) IsValid() bool {
-	cmd.mutex.RLock()
-	defer cmd.mutex.RUnlock()
-
-	return cmd.valid
+	return cmd.valid.Get()
 }

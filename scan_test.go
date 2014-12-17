@@ -32,20 +32,18 @@ var _ = Describe("Scan operations", func() {
 	flag.Parse()
 
 	// connection data
-	var err error
 	var ns = "test"
 	var set = randString(50)
 	var wpolicy = NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
 
-	const keyCount = 10000
+	const keyCount = 100
 	bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("Aerospike2", randString(100))
 	var keys map[string]*Key
 
 	// use the same client for all
-	client, err := NewClient(*host, *port)
-	Expect(err).ToNot(HaveOccurred())
+	client, _ := NewClient(*host, *port)
 
 	// read all records from the channel and make sure all of them are returned
 	// if cancelCnt is set, it will cancel the scan after specified record count
@@ -54,8 +52,8 @@ var _ = Describe("Scan operations", func() {
 	L:
 		for {
 			select {
-			case rec, chanOpen := <-recordset.Records:
-				if rec == nil && !chanOpen {
+			case rec := <-recordset.Records:
+				if rec == nil {
 					break L
 				}
 				key, exists := keys[string(rec.Key.Digest())]
@@ -83,7 +81,7 @@ var _ = Describe("Scan operations", func() {
 	}
 
 	BeforeEach(func() {
-		keys = make(map[string]*Key)
+		keys = make(map[string]*Key, keyCount)
 		set = randString(50)
 		for i := 0; i < keyCount; i++ {
 			key, err := NewKey(ns, set, randString(50))

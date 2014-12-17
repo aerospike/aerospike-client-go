@@ -35,12 +35,10 @@ func (tb *testBLOB) EncodeBlob() ([]byte, error) {
 func randString(size int) string {
 	const random_alpha_num = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	const l = 62
-
 	buf := make([]byte, size)
 	for i := 0; i < size; i++ {
 		buf[i] = random_alpha_num[rand.Intn(l)]
 	}
-
 	return string(buf)
 }
 

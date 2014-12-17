@@ -17,7 +17,6 @@ package aerospike
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -101,12 +100,12 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 
 	if policy.SendKey {
 		// field header size + key size
-		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE)
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
 		fieldCount++
 	}
 
-	for _, bin := range bins {
-		cmd.estimateOperationSizeForBin(bin)
+	for i := range bins {
+		cmd.estimateOperationSizeForBin(bins[i])
 	}
 	if err = cmd.sizeBuffer(); err != nil {
 		return
@@ -146,12 +145,20 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) (err error) {
 func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) (err error) {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
+	if policy.SendKey {
+		// field header size + key size
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
+		fieldCount++
+	}
 	cmd.estimateOperationSize()
 	if err = cmd.sizeBuffer(); err != nil {
 		return
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 1)
 	cmd.writeKey(key)
+	if policy.SendKey {
+		cmd.writeFieldValue(key.userKey, KEY)
+	}
 	cmd.writeOperationForOperationType(TOUCH)
 	cmd.end()
 	return nil
@@ -192,8 +199,8 @@ func (cmd *baseCommand) setRead(key *Key, binNames []string) (err error) {
 		cmd.begin()
 		fieldCount := cmd.estimateKeySize(key)
 
-		for _, binName := range binNames {
-			cmd.estimateOperationSizeForBinName(binName)
+		for i := range binNames {
+			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 		if err = cmd.sizeBuffer(); err != nil {
 			return
@@ -201,8 +208,8 @@ func (cmd *baseCommand) setRead(key *Key, binNames []string) (err error) {
 		cmd.writeHeader(_INFO1_READ, 0, fieldCount, len(binNames))
 		cmd.writeKey(key)
 
-		for _, binName := range binNames {
-			cmd.writeOperationForBinName(binName, READ)
+		for i := range binNames {
+			cmd.writeOperationForBinName(binNames[i], READ)
 		}
 		cmd.end()
 	} else {
@@ -242,13 +249,13 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	writeAttr := 0
 	readHeader := false
 
-	for _, operation := range operations {
-		switch operation.OpType {
+	for i := range operations {
+		switch operations[i].OpType {
 		case READ:
 			readAttr |= _INFO1_READ
 
 			// Read all bins if no bin is specified.
-			if operation.BinName == nil {
+			if operations[i].BinName == nil {
 				readAttr |= _INFO1_GET_ALL
 			}
 
@@ -263,8 +270,15 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		default:
 			writeAttr = _INFO2_WRITE
 		}
-		cmd.estimateOperationSizeForOperation(operation)
+		cmd.estimateOperationSizeForOperation(operations[i])
 	}
+
+	if policy.SendKey && writeAttr != 0 {
+		// field header size + key size
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
+		fieldCount++
+	}
+
 	if err = cmd.sizeBuffer(); err != nil {
 		return
 	}
@@ -275,6 +289,10 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		cmd.writeHeader(readAttr, writeAttr, fieldCount, len(operations))
 	}
 	cmd.writeKey(key)
+
+	if policy.SendKey && writeAttr != 0 {
+		cmd.writeFieldValue(key.userKey, KEY)
+	}
 
 	for _, operation := range operations {
 		if err := cmd.writeOperationForOperation(operation); err != nil {
@@ -399,8 +417,8 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	fieldCount++
 
 	if binNames != nil {
-		for _, binName := range binNames {
-			cmd.estimateOperationSizeForBinName(binName)
+		for i := range binNames {
+			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 	}
 	if err = cmd.sizeBuffer(); err != nil {
@@ -439,8 +457,8 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.dataOffset++
 
 	if binNames != nil {
-		for _, binName := range binNames {
-			cmd.writeOperationForBinName(binName, READ)
+		for i := range binNames {
+			cmd.writeOperationForBinName(binNames[i], READ)
 		}
 	}
 	cmd.end()
@@ -451,17 +469,17 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 func (cmd *baseCommand) estimateKeySize(key *Key) int {
 	fieldCount := 0
 
-	if strings.Trim(key.namespace, " ") != "" {
+	if key.namespace != "" {
 		cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	if strings.Trim(key.setName, " ") != "" {
+	if key.setName != "" {
 		cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	cmd.dataOffset += len(key.digest) + int(_FIELD_HEADER_SIZE)
+	cmd.dataOffset += int(_DIGEST_SIZE + _FIELD_HEADER_SIZE)
 	fieldCount++
 
 	return fieldCount
@@ -517,7 +535,7 @@ func (cmd *baseCommand) writeHeader(readAttr int, writeAttr int, fieldCount int,
 // Header write for write operations.
 func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int, writeAttr int, fieldCount int, operationCount int) {
 	// Set flags.
-	generation := 0
+	generation := int32(0)
 	infoAttr := 0
 
 	switch policy.RecordExistsAction {
@@ -561,8 +579,8 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 	cmd.dataBuffer[11] = byte(infoAttr)
 	cmd.dataBuffer[12] = 0 // unused
 	cmd.dataBuffer[13] = 0 // clear the result code
-	Buffer.Int32ToBytes(int32(generation), cmd.dataBuffer, 14)
-	Buffer.Int32ToBytes(int32(policy.Expiration), cmd.dataBuffer, 18)
+	Buffer.Int32ToBytes(generation, cmd.dataBuffer, 14)
+	Buffer.Int32ToBytes(policy.Expiration, cmd.dataBuffer, 18)
 
 	// Initialize timeout. It will be written later.
 	cmd.dataBuffer[22] = 0
@@ -577,11 +595,11 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 
 func (cmd *baseCommand) writeKey(key *Key) {
 	// Write key into buffer.
-	if strings.Trim(key.namespace, " ") != "" {
+	if key.namespace != "" {
 		cmd.writeFieldString(key.namespace, NAMESPACE)
 	}
 
-	if strings.Trim(key.setName, " ") != "" {
+	if key.setName != "" {
 		cmd.writeFieldString(key.setName, TABLE)
 	}
 
@@ -589,7 +607,7 @@ func (cmd *baseCommand) writeKey(key *Key) {
 }
 
 func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) error {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], []byte(bin.Name))
+	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], bin.Name)
 	valueLength, err := bin.Value.write(cmd.dataBuffer, cmd.dataOffset+int(_OPERATION_HEADER_SIZE)+nameLength)
 	if err != nil {
 		return err
@@ -613,7 +631,7 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 	nameLength := 0
 	if operation.BinName != nil {
-		nameLength = copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], []byte(*operation.BinName))
+		nameLength = copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], *operation.BinName)
 	}
 
 	valueLength, err := operation.BinValue.write(cmd.dataBuffer, cmd.dataOffset+int(_OPERATION_HEADER_SIZE)+nameLength)
@@ -636,7 +654,7 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 }
 
 func (cmd *baseCommand) writeOperationForBinName(name string, operation OperationType) {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], []byte(name))
+	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], name)
 	Buffer.Int32ToBytes(int32(nameLength+4), cmd.dataBuffer, cmd.dataOffset)
 	cmd.dataOffset += 4
 	cmd.dataBuffer[cmd.dataOffset] = (byte(operation))
@@ -674,7 +692,7 @@ func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) {
 }
 
 func (cmd *baseCommand) writeFieldString(str string, ftype FieldType) {
-	len := copy(cmd.dataBuffer[(cmd.dataOffset+int(_FIELD_HEADER_SIZE)):], []byte(str))
+	len := copy(cmd.dataBuffer[(cmd.dataOffset+int(_FIELD_HEADER_SIZE)):], str)
 	cmd.writeFieldHeader(len, ftype)
 	cmd.dataOffset += len
 }
@@ -733,7 +751,7 @@ func (cmd *baseCommand) end() {
 // maximum buffer size to keep in the pool: 128K
 var bufPool = NewBufferPool(512, 16*1024, 128*1024)
 
-// SetBufferPool can be used to customize the command Buffer Pool parameters to calibrate
+// SetCommandBufferPool can be used to customize the command Buffer Pool parameters to calibrate
 // the pool for different workloads
 func SetCommandBufferPool(poolSize, initBufSize, maxBufferSize int) {
 	bufPool = NewBufferPool(poolSize, initBufSize, maxBufferSize)
@@ -744,7 +762,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 	iterations := 0
 
 	// set timeout outside the loop
-	limit := time.Now().Add(policy.timeout())
+	limit := time.Now().Add(policy.Timeout)
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
@@ -759,7 +777,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		}
 
 		// check for command timeout
-		if time.Now().After(limit) {
+		if policy.Timeout > 0 && time.Now().After(limit) {
 			break
 		}
 
@@ -772,7 +790,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		// set command node, so when you return a record it has the node
 		cmd.node = node
 
-		cmd.conn, err = node.GetConnection(policy.timeout())
+		cmd.conn, err = node.GetConnection(policy.Timeout)
 		if err != nil {
 			// Socket connection error has occurred. Decrease health and retry.
 			node.DecreaseHealth()
@@ -783,7 +801,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 		// Draw a buffer from buffer pool, and make sure it will be put back
 		cmd.dataBuffer = bufPool.Get()
-		defer bufPool.Put(cmd.dataBuffer)
+		// defer bufPool.Put(cmd.dataBuffer)
 
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
@@ -827,6 +845,9 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 		// Put connection back in pool.
 		node.PutConnection(cmd.conn)
+
+		// put back buffer to the pool
+		bufPool.Put(cmd.dataBuffer)
 
 		// command has completed successfully.  Exit method.
 		return nil

@@ -21,9 +21,13 @@ const (
 	NAMESPACE FieldType = 0
 	TABLE     FieldType = 1
 	KEY       FieldType = 2
+
 	//BIN FieldType = 3;
+
 	DIGEST_RIPE FieldType = 4
+
 	//GU_TID FieldType = 5;
+
 	DIGEST_RIPE_ARRAY FieldType = 6
 	TRAN_ID           FieldType = 7 // user supplied transaction id, which is simply passed back
 	SCAN_OPTIONS      FieldType = 8

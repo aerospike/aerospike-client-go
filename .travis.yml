@@ -5,12 +5,17 @@ go:
   - 1.3
   - tip
 
+matrix:
+  allow_failures:
+    - go: tip
+
 install:
-  - mv $HOME/gopath/src/github.com/citrusleaf $HOME/gopath/src/github.com/aerospike
+  - if [ -d "$HOME/gopath/src/github.com/citrusleaf" ]; then mv $HOME/gopath/src/github.com/citrusleaf $HOME/gopath/src/github.com/aerospike; fi
   - export PATH=$PATH:$HOME/gopath/bin
   - go get github.com/onsi/ginkgo/ginkgo
   - go get github.com/onsi/gomega
-  - go get code.google.com/p/go.tools/cmd/cover
+  #  We like to run the tests with coverage.
+  - if [[ "${TRAVIS_GO_VERSION}" = "tip" ]]; then go get -u golang.org/x/tools/cmd/cover; else go get -u code.google.com/p/go.tools/cmd/cover; fi
   - wget -O aerospike-server.tgz http://aerospike.com/download/server/latest/artifact/tgz
   - tar xvzf aerospike-server.tgz
   - cp -f .travis/aerospike.conf ./aerospike-server/share/etc
@@ -24,23 +29,24 @@ install:
   - cd ../..
   - pwd
   - sleep 5
-  # dump keep server log for debugging
+  # dump and keep server log for debugging
   - sudo tail -n 1000 aerospike-server/instance1/var/log/aerospike.log
 
 script:
-  - go build tools/benchmark/benchmark.go
-  - go build tools/asinfo/asinfo.go
-  - go build tools/cli/cli.go
-  - go build examples/simple.go
-  - go build examples/blob.go
-  - go build examples/info.go
-  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
-  # test in multiple instance mode
+  # build all tools
+  - find tools -name "*.go" -type f -exec go -- build {} ';'
+  # build all examples - only include files with *.go pattern in
+  # the examples, and not its sub-directories
+  - find examples -name "*.go" -type f -exec go -- build {} ';'
+  # run tests in single instance mode
+  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites -skip Large
+  # run tests in multiple instance mode
   - cd aerospike-server/instance1
   - sudo ./bin/aerospike restart
   - cd ../instance2
   - sudo ./bin/aerospike start
   - cd ../..
   # make sure the instances are up and clean
-  - sleep 15
-  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
+  - sleep 5
+  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites -skip Large
+  - .travis/proxy_check.sh

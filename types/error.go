@@ -19,22 +19,24 @@ import (
 	"strings"
 )
 
-// Aerospike error implements error interface for aerospike specific errors
+// AerospikeError implements error interface for aerospike specific errors.
+// All errors returning from the library are of this type.
+// Errors resulting from Go's stdlib are not translated to this type, unless
+// they are a net.Timeout error.
 type AerospikeError struct {
 	error
 
 	resultCode ResultCode
 }
 
-// ResultCode returns the ResultCode from AerospikeError object
+// ResultCode returns the ResultCode from AerospikeError object.
 func (ase AerospikeError) ResultCode() ResultCode {
 	return ase.resultCode
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Generator for Aerospike errors.
+// New AerospikeError generates a new AerospikeError instance.
 // If no message is provided, the result code will be translated into the default
-// error message
+// error message automatically.
 func NewAerospikeError(code ResultCode, messages ...string) error {
 	if len(messages) == 0 {
 		messages = []string{ResultCodeToString(code)}

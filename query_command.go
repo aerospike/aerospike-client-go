@@ -15,13 +15,13 @@
 package aerospike
 
 import (
-	"strings"
+	"time"
 
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 type queryCommand struct {
-	baseMultiCommand
+	*baseMultiCommand
 
 	policy    *QueryPolicy
 	statement *Statement
@@ -43,7 +43,7 @@ func newQueryCommand(node *Node, policy *QueryPolicy, statement *Statement, recC
 	}
 
 	return &queryCommand{
-		baseMultiCommand: *newMultiCommand(node, recChan, errChan),
+		baseMultiCommand: newMultiCommand(node, recChan, errChan),
 		policy:           policy,
 		statement:        statement,
 	}
@@ -62,17 +62,17 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 
 	cmd.begin()
 
-	if strings.Trim(cmd.statement.Namespace, " ") != "" {
+	if cmd.statement.Namespace != "" {
 		cmd.dataOffset += len(cmd.statement.Namespace) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	if strings.Trim(cmd.statement.IndexName, " ") != "" {
+	if cmd.statement.IndexName != "" {
 		cmd.dataOffset += len(cmd.statement.IndexName) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	if strings.Trim(cmd.statement.SetName, " ") != "" {
+	if cmd.statement.SetName != "" {
 		cmd.dataOffset += len(cmd.statement.SetName) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
@@ -108,12 +108,14 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 		fieldCount++
 	}
 
-	if cmd.statement.TaskId > 0 {
-		cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
-		fieldCount++
+	if cmd.statement.TaskId == 0 {
+		cmd.statement.TaskId = time.Now().UnixNano()
 	}
 
-	if strings.Trim(cmd.statement.functionName, " ") != "" {
+	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
+	fieldCount++
+
+	if cmd.statement.functionName != "" {
 		cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1 // udf type
 		cmd.dataOffset += len(cmd.statement.packageName) + int(_FIELD_HEADER_SIZE)
 		cmd.dataOffset += len(cmd.statement.functionName) + int(_FIELD_HEADER_SIZE)
@@ -136,15 +138,15 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 	readAttr := _INFO1_READ
 	cmd.writeHeader(readAttr, 0, fieldCount, 0)
 
-	if strings.Trim(cmd.statement.Namespace, " ") != "" {
+	if cmd.statement.Namespace != "" {
 		cmd.writeFieldString(cmd.statement.Namespace, NAMESPACE)
 	}
 
-	if strings.Trim(cmd.statement.IndexName, " ") != "" {
+	if cmd.statement.IndexName != "" {
 		cmd.writeFieldString(cmd.statement.IndexName, INDEX_NAME)
 	}
 
-	if strings.Trim(cmd.statement.SetName, " ") != "" {
+	if cmd.statement.SetName != "" {
 		cmd.writeFieldString(cmd.statement.SetName, TABLE)
 	}
 
@@ -176,19 +178,17 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 		cmd.dataOffset++
 
 		for _, binName := range cmd.statement.BinNames {
-			len := copy(cmd.dataBuffer[cmd.dataOffset+1:], []byte(binName))
+			len := copy(cmd.dataBuffer[cmd.dataOffset+1:], binName)
 			cmd.dataBuffer[cmd.dataOffset] = byte(len)
 			cmd.dataOffset += len + 1
 		}
 	}
 
-	if cmd.statement.TaskId > 0 {
-		cmd.writeFieldHeader(8, TRAN_ID)
-		Buffer.Int64ToBytes(int64(cmd.statement.TaskId), cmd.dataBuffer, cmd.dataOffset)
-		cmd.dataOffset += 8
-	}
+	cmd.writeFieldHeader(8, TRAN_ID)
+	Buffer.Int64ToBytes(int64(cmd.statement.TaskId), cmd.dataBuffer, cmd.dataOffset)
+	cmd.dataOffset += 8
 
-	if strings.Trim(cmd.statement.functionName, " ") != "" {
+	if cmd.statement.functionName != "" {
 		cmd.writeFieldHeader(1, UDF_OP)
 		if cmd.statement.returnData {
 			cmd.dataBuffer[cmd.dataOffset] = byte(1)

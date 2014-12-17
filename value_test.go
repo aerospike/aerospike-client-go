@@ -31,8 +31,8 @@ type testBLOB struct {
 	name string
 }
 
-func (this *testBLOB) EncodeBlob() ([]byte, error) {
-	return append([]byte(this.name)), nil
+func (b *testBLOB) EncodeBlob() ([]byte, error) {
+	return append([]byte(b.name)), nil
 }
 
 func isValidIntegerValue(i int, v Value) bool {

@@ -24,8 +24,8 @@ type Policy interface {
 	GetBasePolicy() *BasePolicy
 }
 
-// Container object for transaction policy attributes used in all database
-// operation calls.
+// BasePolicy excapsulates parameters for transaction policy attributes
+// used in all database operation calls.
 type BasePolicy struct {
 	Policy
 
@@ -33,23 +33,24 @@ type BasePolicy struct {
 	// Currently, only used for scans.
 	Priority Priority //= Priority.DEFAULT;
 
-	// Transaction timeout.
+	// Timeout specifies transaction timeout.
 	// This timeout is used to set the socket timeout and is also sent to the
 	// server along with the transaction in the wire protocol.
 	// Default to no timeout (0).
 	Timeout time.Duration
 
-	// Maximum number of retries before aborting the current transaction.
+	// MaxRetries determines maximum number of retries before aborting the current transaction.
 	// A retry is attempted when there is a network error other than timeout.
 	// If maxRetries is exceeded, the abort will occur even if the timeout
 	// has not yet been exceeded.
 	MaxRetries int //= 2;
 
-	// Duration to sleep between retries if a transaction fails and the
+	// SleepBetweenReplies determines duration to sleep between retries if a transaction fails and the
 	// timeout was not exceeded.  Enter zero to skip sleep.
 	SleepBetweenRetries time.Duration //= 500ms;
 }
 
+// NewPolicy generates a new BasePolicy instance with default values.
 func NewPolicy() *BasePolicy {
 	return &BasePolicy{
 		Priority:            DEFAULT,
@@ -61,13 +62,5 @@ func NewPolicy() *BasePolicy {
 
 var _ Policy = &BasePolicy{}
 
+// GetBasePolicy returns embedded BasePolicy in all types that embed this struct.
 func (p *BasePolicy) GetBasePolicy() *BasePolicy { return p }
-
-func (p *BasePolicy) timeout() time.Duration {
-	res := 365 * 24 * time.Hour // a year
-	if p != nil && p.Timeout > 0 {
-		res = p.Timeout
-	}
-
-	return res
-}

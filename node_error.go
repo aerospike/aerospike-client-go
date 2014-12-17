@@ -18,6 +18,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
+// NodeError is a type to encapsulate the node that the error occured in.
 type NodeError struct {
 	error
 
@@ -38,4 +39,5 @@ func newAerospikeNodeError(node *Node, code ResultCode, messages ...string) *Nod
 	}
 }
 
+// Node returns the node where the error occured.
 func (ne *NodeError) Node() *Node { return ne.node }

@@ -18,22 +18,22 @@ import (
 	"strings"
 )
 
-// Task used to poll for UDF registration completion.
+// RemoveTask is used to poll for UDF registration completion.
 type RemoveTask struct {
-	BaseTask
+	*BaseTask
 
 	packageName string
 }
 
-// Initialize task with fields needed to query server nodes.
+// NewRemoveTask initializes a RemoveTask with fields needed to query server nodes.
 func NewRemoveTask(cluster *Cluster, packageName string) *RemoveTask {
 	return &RemoveTask{
-		BaseTask:    *NewTask(cluster, false),
+		BaseTask:    NewTask(cluster, false),
 		packageName: packageName,
 	}
 }
 
-// Query all nodes for task completion status.
+// IsDone will query all nodes for task completion status.
 func (tskr *RemoveTask) IsDone() (bool, error) {
 	command := "udf-list"
 	nodes := tskr.cluster.GetNodes()
@@ -58,6 +58,8 @@ func (tskr *RemoveTask) IsDone() (bool, error) {
 	return done, nil
 }
 
+// OnComplete returns a channel that will be closed as soon as the task is finished.
+// If an error is encountered during operation, an error will be sent on the channel.
 func (tskr *RemoveTask) OnComplete() chan error {
 	return tskr.onComplete(tskr)
 }

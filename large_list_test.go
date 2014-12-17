@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	. "github.com/aerospike/aerospike-client-go"
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 var _ = Describe("LargeList Test", func() {
@@ -43,10 +44,11 @@ var _ = Describe("LargeList Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("should create a valid LargeList; Support Add(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
+	It("should create a valid LargeList; Support Add(), Remove(), Find(), Size(), Scan(), Destroy() and GetCapacity()", func() {
 		llist := client.GetLargeList(wpolicy, key, randString(10), "")
-		_, err := llist.Size()
-		Expect(err).To(HaveOccurred()) // bin not exists
+		res, err := llist.Size()
+		Expect(err).ToNot(HaveOccurred()) // bin not exists
+		Expect(res).To(Equal(0))
 
 		for i := 1; i <= 100; i++ {
 			err = llist.Add(NewValue(i))
@@ -83,6 +85,11 @@ var _ = Describe("LargeList Test", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(findResult).To(Equal([]interface{}{i}))
 
+			// check for a non-existing element
+			findResult, err = llist.Find(i * 70000)
+			Expect(err).To(HaveOccurred())
+			Expect(findResult).To(BeNil())
+
 			// remove the value
 			err = llist.Remove(NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
@@ -90,9 +97,15 @@ var _ = Describe("LargeList Test", func() {
 			// make sure the value has been removed
 			findResult, err = llist.Find(NewValue(i))
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("LDT-Item Not Found"))
+			Expect(err.(AerospikeError).ResultCode()).To(Equal(LARGE_ITEM_NOT_FOUND))
 		}
 
+		err = llist.Destroy()
+		Expect(err).ToNot(HaveOccurred())
+
+		scanResult, err = llist.Scan()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(scanResult)).To(Equal(0))
 	})
 
 	It("should correctly GetConfig()", func() {
