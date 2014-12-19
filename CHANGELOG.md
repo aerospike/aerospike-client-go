@@ -1,5 +1,11 @@
 # Change history
 
+## Dec 19 2014
+
+  * **Fixes**
+
+    * `Record.Expiration` wasn't converted to TTL values on `Client.BatchGet`, `Client.Scan` and `Client.Query`.
+
 ## Dec 10 2014
 
   * **Fixes**:
