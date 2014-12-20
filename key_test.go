@@ -136,6 +136,17 @@ var _ = Describe("Key Test", func() {
 
 		})
 
+		It("for custom digest", func() {
+			key, _ := NewKey("namespace", "set", []interface{}{})
+			Expect(hex.EncodeToString(key.Digest())).To(Equal("2af0111192df4ca297232d1641ff52c2ce51ce2d"))
+			err := key.SetDigest([]byte("01234567890123456789"))
+			Expect(err, nil)
+			Expect(key.Digest()).To(Equal([]byte("01234567890123456789")))
+
+			key, _ = NewKeyWithDigest("namespace", "set", []interface{}{}, []byte("01234567890123456789"))
+			Expect(key.Digest()).To(Equal([]byte("01234567890123456789")))
+		})
+
 	})
 
 })
