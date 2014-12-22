@@ -88,7 +88,7 @@ var _ = Describe("LargeMap Test", func() {
 			// check if it exists
 			exists, err := lmap.Exists(i * 100)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(exists).To(Equal(true))
+			Expect(exists).To(BeTrue())
 
 			// check for a non-existing element
 			elem, err = lmap.Get(i * 70000)

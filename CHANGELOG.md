@@ -1,5 +1,21 @@
 # Change history
 
+## Dec 22 2014
+
+  * **New Features**
+
+    * Added `ConsistencyLevel` to `BasePolicy`.
+
+    * Added `CommitLevel` to `WritePolicy`.
+
+    * Added `LargeList.Range` and `LargeList.RangeThenFilter` methods.
+
+    * Added `LargeMap.Exists` method.
+
+  * **Improvements**
+
+    * We use a pooled XORShift RNG to produce random numbers in the client. It is FAST.
+
 ## Dec 19 2014
 
   * **Fixes**
