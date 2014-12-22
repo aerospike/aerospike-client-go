@@ -26,6 +26,11 @@ type WritePolicy struct {
 	// indicates that the generation is not used to restrict writes.
 	GenerationPolicy GenerationPolicy //= GenerationPolicy.NONE;
 
+	// Desired consistency guarantee when committing a transaction on the server. The default
+	// (COMMIT_ALL) indicates that the server should wait for master and all replica commits to
+	// be successful before returning success to the client.
+	CommitLevel CommitLevel //= COMMIT_ALL
+
 	// Generation determines expected generation.
 	// Generation is the number of times a record has been
 	// modified (including creation) on the server.
@@ -52,6 +57,7 @@ func NewWritePolicy(generation, expiration int32) *WritePolicy {
 		BasePolicy:         *NewPolicy(),
 		RecordExistsAction: UPDATE,
 		GenerationPolicy:   NONE,
+		CommitLevel:        COMMIT_ALL,
 		Generation:         generation,
 		Expiration:         expiration,
 		SendKey:            false,

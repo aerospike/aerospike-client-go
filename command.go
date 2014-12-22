@@ -53,6 +53,8 @@ const (
 
 	// This is the last of a multi-part message.
 	_INFO3_LAST int = (1 << 0)
+	// Commit to master only before declaring success.
+	_INFO3_COMMIT_MASTER int = (1 << 1)
 	// Update only. Merge bins.
 	_INFO3_UPDATE_ONLY int = (1 << 3)
 
@@ -578,6 +580,14 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 		generation = policy.Generation
 		writeAttr |= _INFO2_GENERATION_DUP
 		break
+	}
+
+	if policy.CommitLevel == COMMIT_MASTER {
+		infoAttr |= _INFO3_COMMIT_MASTER
+	}
+
+	if policy.consistencyLevel == CONSISTENCY_ALL {
+		readAttr |= Command.INFO1_CONSISTENCY_ALL
 	}
 
 	// Write all header data except total size which must be written last.
