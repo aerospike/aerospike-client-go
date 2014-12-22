@@ -81,7 +81,7 @@ var _ = Describe("LargeList Test", func() {
 
 		// check for range
 		rangeResult, err := llist.Range(0, 100)
-		Expect(err).To(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(len(rangeResult)).To(Equal(100))
 
 		for i := 1; i <= 100; i++ {
