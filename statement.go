@@ -14,6 +14,10 @@
 
 package aerospike
 
+import (
+	xornd "github.com/aerospike/aerospike-client-go/types/rand"
+)
+
 // Statement encapsulates query statement parameters.
 type Statement struct {
 	// Namespace determines query Namespace
@@ -54,6 +58,7 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 		SetName:    set,
 		BinNames:   binNames,
 		returnData: true,
+		TaskId:     xornd.Int64(),
 	}
 }
 
@@ -77,4 +82,11 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 // IsScan determines is the Statement is a full namespace/set scan or a selective Query.
 func (stmt *Statement) IsScan() bool {
 	return stmt.Filters == nil
+}
+
+// Always set the taskId client-side to a non-zero random value
+func (stmt *Statement) setTaskId() {
+	for stmt.TaskId == 0 {
+		stmt.TaskId = xornd.Int64()
+	}
 }

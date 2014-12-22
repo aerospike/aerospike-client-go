@@ -586,8 +586,8 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 		infoAttr |= _INFO3_COMMIT_MASTER
 	}
 
-	if policy.consistencyLevel == CONSISTENCY_ALL {
-		readAttr |= Command.INFO1_CONSISTENCY_ALL
+	if policy.ConsistencyLevel == CONSISTENCY_ALL {
+		readAttr |= _INFO1_CONSISTENCY_ALL
 	}
 
 	// Write all header data except total size which must be written last.

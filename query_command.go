@@ -14,11 +14,7 @@
 
 package aerospike
 
-import (
-	"time"
-
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
-)
+import Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 type queryCommand struct {
 	*baseMultiCommand
@@ -104,9 +100,8 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 		fieldCount++
 	}
 
-	if cmd.statement.TaskId == 0 {
-		cmd.statement.TaskId = time.Now().UnixNano()
-	}
+	// make sure taskId is a non-zero random 64bit number
+	cmd.statement.setTaskId()
 
 	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 	fieldCount++

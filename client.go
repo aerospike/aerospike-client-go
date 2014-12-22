@@ -20,11 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	. "github.com/aerospike/aerospike-client-go/types"
 )
@@ -935,11 +933,6 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 		}
 	}
 
-	// Always set a taskId
-	if statement.TaskId == 0 {
-		statement.TaskId = time.Now().UnixNano()
-	}
-
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteUDF failed because cluster is empty.")
@@ -981,11 +974,6 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		} else {
 			policy = NewQueryPolicy()
 		}
-	}
-
-	// Always set a taskId
-	if statement.TaskId == 0 {
-		statement.TaskId = time.Now().UnixNano()
 	}
 
 	nodes := clnt.cluster.GetNodes()
@@ -1281,12 +1269,4 @@ func (clnt *Client) mergeResultChannels(size int, channels []chan *Record, error
 		close(outErr)
 	}()
 	return out, outErr
-}
-
-// internal random number generator instance
-var rnd *rand.Rand
-
-func init() {
-	// seed the random number generator
-	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 }
