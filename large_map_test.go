@@ -70,7 +70,7 @@ var _ = Describe("LargeMap Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("should create a valid LargeMap; Support Put(), Get(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
+	It("should create a valid LargeMap; Support Put(), Exists(), Get(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
 		lmap := client.GetLargeMap(wpolicy, key, randString(10), "")
 		res, err := lmap.Size()
 		Expect(err).ToNot(HaveOccurred()) // bin not exists
@@ -84,6 +84,11 @@ var _ = Describe("LargeMap Test", func() {
 			elem, err := lmap.Get(i * 100)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(elem).To(Equal(map[interface{}]interface{}{i * 100: i}))
+
+			// check if it exists
+			exists, err := lmap.Exists(i * 100)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exists).To(Equal(true))
 
 			// check for a non-existing element
 			elem, err = lmap.Get(i * 70000)

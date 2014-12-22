@@ -44,6 +44,20 @@ func (lm *LargeMap) PutMap(theMap map[interface{}]interface{}) error {
 	return err
 }
 
+// Check existence of key in the map.
+func (lm *LargeMap) Exists(keyValue interface{}) (bool, error) {
+	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "exists", lm.binName, NewValue(keyValue))
+
+	if err != nil {
+		return false, err
+	}
+
+	if res == nil {
+		return false, nil
+	}
+	return (res.(int) != 0), err
+}
+
 // Get returns  value from map corresponding with the provided key.
 func (lm *LargeMap) Get(name interface{}) (map[interface{}]interface{}, error) {
 	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "get", lm.binName, NewValue(name))
