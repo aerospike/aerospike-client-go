@@ -25,10 +25,6 @@ type queryCommand struct {
 
 	policy    *QueryPolicy
 	statement *Statement
-
-	// RecordSet recordSet;
-	// Records chan *Record
-	// Errors  chan error
 }
 
 func newQueryCommand(node *Node, policy *QueryPolicy, statement *Statement, recChan chan *Record, errChan chan error) *queryCommand {
@@ -136,7 +132,7 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 	}
 
 	readAttr := _INFO1_READ
-	cmd.writeHeader(readAttr, 0, fieldCount, 0)
+	cmd.writeHeader(cmd.policy.GetBasePolicy(), readAttr, 0, fieldCount, 0)
 
 	if cmd.statement.Namespace != "" {
 		cmd.writeFieldString(cmd.statement.Namespace, NAMESPACE)

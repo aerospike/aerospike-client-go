@@ -45,7 +45,7 @@ func (cmd *readHeaderCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *readHeaderCommand) writeBuffer(ifc command) error {
-	return cmd.setReadHeader(cmd.key)
+	return cmd.setReadHeader(cmd.policy.GetBasePolicy(), cmd.key)
 }
 
 func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {

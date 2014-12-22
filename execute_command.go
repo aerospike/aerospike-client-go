@@ -39,7 +39,7 @@ func newExecuteCommand(
 }
 
 func (cmd *executeCommand) writeBuffer(ifc command) error {
-	return cmd.setUdf(cmd.key, cmd.packageName, cmd.functionName, cmd.args)
+	return cmd.setUdf(cmd.policy, cmd.key, cmd.packageName, cmd.functionName, cmd.args)
 }
 
 func (cmd *executeCommand) Execute() error {

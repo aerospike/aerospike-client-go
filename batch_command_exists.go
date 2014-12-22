@@ -50,7 +50,7 @@ func (cmd *batchCommandExists) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandExists) writeBuffer(ifc command) error {
-	return cmd.setBatchExists(cmd.batchNamespace)
+	return cmd.setBatchExists(cmd.policy, cmd.batchNamespace)
 }
 
 // Parse all results in the batch.  Add records to shared list.

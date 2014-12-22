@@ -35,6 +35,9 @@ const (
 	// Do not read the bins
 	_INFO1_NOBINDATA int = (1 << 5)
 
+	// Involve all replicas in read operation.
+	_INFO1_CONSISTENCY_ALL = (1 << 6)
+
 	// Create or update record
 	_INFO2_WRITE int = (1 << 0)
 	// Fling a record into the belly of Moloch.
@@ -166,13 +169,13 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 }
 
 // Writes the command for exist operations
-func (cmd *baseCommand) setExists(key *Key) error {
+func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) error {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
-	cmd.writeHeader(_INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
+	cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
 	cmd.writeKey(key)
 	cmd.end()
 	return nil
@@ -180,13 +183,13 @@ func (cmd *baseCommand) setExists(key *Key) error {
 }
 
 // Writes the command for get operations (all bins)
-func (cmd *baseCommand) setReadForKeyOnly(key *Key) error {
+func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) error {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
-	cmd.writeHeader(_INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
+	cmd.writeHeader(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
 	cmd.writeKey(key)
 	cmd.end()
 	return nil
@@ -194,7 +197,7 @@ func (cmd *baseCommand) setReadForKeyOnly(key *Key) error {
 }
 
 // Writes the command for get operations (specified bins)
-func (cmd *baseCommand) setRead(key *Key, binNames []string) (err error) {
+func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string) (err error) {
 	if binNames != nil && len(binNames) > 0 {
 		cmd.begin()
 		fieldCount := cmd.estimateKeySize(key)
@@ -205,7 +208,7 @@ func (cmd *baseCommand) setRead(key *Key, binNames []string) (err error) {
 		if err = cmd.sizeBuffer(); err != nil {
 			return nil
 		}
-		cmd.writeHeader(_INFO1_READ, 0, fieldCount, len(binNames))
+		cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ, 0, fieldCount, len(binNames))
 		cmd.writeKey(key)
 
 		for i := range binNames {
@@ -213,14 +216,14 @@ func (cmd *baseCommand) setRead(key *Key, binNames []string) (err error) {
 		}
 		cmd.end()
 	} else {
-		err = cmd.setReadForKeyOnly(key)
+		err = cmd.setReadForKeyOnly(policy, key)
 	}
 
 	return err
 }
 
 // Writes the command for getting metadata operations
-func (cmd *baseCommand) setReadHeader(key *Key) error {
+func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
 	cmd.estimateOperationSizeForBinName("")
@@ -232,7 +235,7 @@ func (cmd *baseCommand) setReadHeader(key *Key) error {
 	// The workaround is to request a non-existent bin.
 	// TODO: Fix this on server.
 	//command.setRead(_INFO1_READ | _INFO1_NOBINDATA);
-	cmd.writeHeader(_INFO1_READ, 0, fieldCount, 1)
+	cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ, 0, fieldCount, 1)
 
 	cmd.writeKey(key)
 	cmd.writeOperationForBinName("", READ)
@@ -286,7 +289,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	if writeAttr != 0 {
 		cmd.writeHeaderWithPolicy(policy, readAttr, writeAttr, fieldCount, len(operations))
 	} else {
-		cmd.writeHeader(readAttr, writeAttr, fieldCount, len(operations))
+		cmd.writeHeader(policy.GetBasePolicy(), readAttr, writeAttr, fieldCount, len(operations))
 	}
 	cmd.writeKey(key)
 
@@ -310,7 +313,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	return nil
 }
 
-func (cmd *baseCommand) setUdf(key *Key, packageName string, functionName string, args []Value) error {
+func (cmd *baseCommand) setUdf(policy Policy, key *Key, packageName string, functionName string, args []Value) error {
 	cmd.begin()
 	fieldCount := cmd.estimateKeySize(key)
 	argBytes, err := packValueArray(args)
@@ -322,7 +325,7 @@ func (cmd *baseCommand) setUdf(key *Key, packageName string, functionName string
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
-	cmd.writeHeader(0, _INFO2_WRITE, fieldCount, 0)
+	cmd.writeHeader(policy.GetBasePolicy(), 0, _INFO2_WRITE, fieldCount, 0)
 	cmd.writeKey(key)
 	cmd.writeFieldString(packageName, UDF_PACKAGE_NAME)
 	cmd.writeFieldString(functionName, UDF_FUNCTION)
@@ -332,7 +335,7 @@ func (cmd *baseCommand) setUdf(key *Key, packageName string, functionName string
 	return nil
 }
 
-func (cmd *baseCommand) setBatchExists(batchNamespace *batchNamespace) error {
+func (cmd *baseCommand) setBatchExists(policy *BasePolicy, batchNamespace *batchNamespace) error {
 	// Estimate buffer size
 	cmd.begin()
 	keys := batchNamespace.keys
@@ -344,7 +347,7 @@ func (cmd *baseCommand) setBatchExists(batchNamespace *batchNamespace) error {
 		return nil
 	}
 
-	cmd.writeHeader(_INFO1_READ|_INFO1_NOBINDATA, 0, 2, 0)
+	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, 2, 0)
 	cmd.writeFieldString(*batchNamespace.namespace, NAMESPACE)
 	cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
 
@@ -357,7 +360,7 @@ func (cmd *baseCommand) setBatchExists(batchNamespace *batchNamespace) error {
 	return nil
 }
 
-func (cmd *baseCommand) setBatchGet(batchNamespace *batchNamespace, binNames map[string]struct{}, readAttr int) error {
+func (cmd *baseCommand) setBatchGet(policy Policy, batchNamespace *batchNamespace, binNames map[string]struct{}, readAttr int) error {
 	// Estimate buffer size
 	cmd.begin()
 	keys := batchNamespace.keys
@@ -379,7 +382,7 @@ func (cmd *baseCommand) setBatchGet(batchNamespace *batchNamespace, binNames map
 	if binNames != nil {
 		operationCount = len(binNames)
 	}
-	cmd.writeHeader(readAttr, 0, 2, operationCount)
+	cmd.writeHeader(policy.GetBasePolicy(), readAttr, 0, 2, operationCount)
 	cmd.writeFieldString(*batchNamespace.namespace, NAMESPACE)
 	cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
 
@@ -434,7 +437,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	if binNames != nil {
 		operationCount = len(binNames)
 	}
-	cmd.writeHeader(readAttr, 0, fieldCount, operationCount)
+	cmd.writeHeader(policy.GetBasePolicy(), readAttr, 0, fieldCount, operationCount)
 
 	if namespace != nil {
 		cmd.writeFieldString(*namespace, NAMESPACE)
@@ -518,7 +521,12 @@ func (cmd *baseCommand) estimateOperationSize() {
 }
 
 // Generic header write.
-func (cmd *baseCommand) writeHeader(readAttr int, writeAttr int, fieldCount int, operationCount int) {
+func (cmd *baseCommand) writeHeader(policy *BasePolicy, readAttr int, writeAttr int, fieldCount int, operationCount int) {
+
+	if policy.ConsistencyLevel == CONSISTENCY_ALL {
+		readAttr |= _INFO1_CONSISTENCY_ALL
+	}
+
 	// Write all header data except total size which must be written last.
 	cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
 	cmd.dataBuffer[9] = byte(readAttr)

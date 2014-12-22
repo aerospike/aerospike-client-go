@@ -33,6 +33,11 @@ type BasePolicy struct {
 	// Currently, only used for scans.
 	Priority Priority //= Priority.DEFAULT;
 
+	// How replicas should be consulted in a read operation to provide the desired
+	// consistency guarantee. Default to allowing one replica to be used in the
+	// read operation.
+	ConsistencyLevel ConsistencyLevel //= CONSISTENCY_ONE
+
 	// Timeout specifies transaction timeout.
 	// This timeout is used to set the socket timeout and is also sent to the
 	// server along with the transaction in the wire protocol.
@@ -54,6 +59,7 @@ type BasePolicy struct {
 func NewPolicy() *BasePolicy {
 	return &BasePolicy{
 		Priority:            DEFAULT,
+		ConsistencyLevel:    CONSISTENCY_ONE,
 		Timeout:             0 * time.Millisecond,
 		MaxRetries:          2,
 		SleepBetweenRetries: 500 * time.Millisecond,

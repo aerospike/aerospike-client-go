@@ -30,18 +30,11 @@ type readCommand struct {
 }
 
 func newReadCommand(cluster *Cluster, policy Policy, key *Key, binNames []string) *readCommand {
-	newReadCmd := &readCommand{
+	return &readCommand{
 		singleCommand: newSingleCommand(cluster, key),
 		binNames:      binNames,
+		policy:        policy,
 	}
-
-	if policy != nil {
-		newReadCmd.policy = policy
-	} else {
-		newReadCmd.policy = NewPolicy()
-	}
-
-	return newReadCmd
 }
 
 func (cmd *readCommand) getPolicy(ifc command) Policy {
@@ -49,7 +42,7 @@ func (cmd *readCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *readCommand) writeBuffer(ifc command) error {
-	return cmd.setRead(cmd.key, cmd.binNames)
+	return cmd.setRead(cmd.policy.GetBasePolicy(), cmd.key, cmd.binNames)
 }
 
 func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {

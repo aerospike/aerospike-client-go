@@ -55,7 +55,7 @@ func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) error {
-	return cmd.setBatchGet(cmd.batchNamespace, cmd.binNames, cmd.readAttr)
+	return cmd.setBatchGet(cmd.policy, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
 }
 
 // Parse all results in the batch.  Add records to shared list.

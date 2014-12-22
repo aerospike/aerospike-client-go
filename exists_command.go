@@ -24,22 +24,15 @@ var _ command = &existsCommand{}
 type existsCommand struct {
 	*singleCommand
 
-	policy Policy
+	policy *BasePolicy
 	exists bool
 }
 
-func newExistsCommand(cluster *Cluster, policy Policy, key *Key) *existsCommand {
-	newExistsCmd := &existsCommand{
+func newExistsCommand(cluster *Cluster, policy *BasePolicy, key *Key) *existsCommand {
+	return &existsCommand{
 		singleCommand: newSingleCommand(cluster, key),
+		policy:        policy,
 	}
-
-	if policy == nil {
-		newExistsCmd.policy = NewWritePolicy(0, 0)
-	} else {
-		newExistsCmd.policy = policy
-	}
-
-	return newExistsCmd
 }
 
 func (cmd *existsCommand) getPolicy(ifc command) Policy {
@@ -47,7 +40,7 @@ func (cmd *existsCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *existsCommand) writeBuffer(ifc command) error {
-	return cmd.setExists(cmd.key)
+	return cmd.setExists(cmd.policy.GetBasePolicy(), cmd.key)
 }
 
 func (cmd *existsCommand) parseResult(ifc command, conn *Connection) error {
