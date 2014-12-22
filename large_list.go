@@ -85,6 +85,32 @@ func (ll *LargeList) FindThenFilter(value interface{}, filterName string, filter
 	return res.([]interface{}), err
 }
 
+// Select a range of values from the large list.
+func (ll *LargeList) Range(minValue, maxValue interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "range", ll.binName, NewValue(minValue), NewValue(maxValue))
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return nil, nil
+	}
+	return res.([]interface{}), err
+}
+
+// Select a range of values from the large list.
+func (ll *LargeList) RangeThenFilter(minValue, maxValue interface{}, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "range", ll.binName, NewValue(minValue), NewValue(maxValue), ll.userModule, NewValue(filterName), ToValueArray(filterArgs))
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return nil, nil
+	}
+	return res.([]interface{}), err
+}
+
 // Scan returns all objects in the list.
 func (ll *LargeList) Scan() ([]interface{}, error) {
 	return ll.scan(ll)
