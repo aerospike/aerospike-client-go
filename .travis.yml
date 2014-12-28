@@ -40,7 +40,7 @@ script:
   # the examples, and not its sub-directories
   - find examples -name "*.go" -type f -exec go -- build {} ';'
   # run tests in single instance mode
-  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites -skip Large
+  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
   # run tests in multiple instance mode
   - cd aerospike-server/instance1
   - sudo ./bin/aerospike restart
@@ -49,5 +49,5 @@ script:
   - cd ../..
   # make sure the instances are up and clean
   - sleep 5
-  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites -skip Large
+  - ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
   - .travis/proxy_check.sh
