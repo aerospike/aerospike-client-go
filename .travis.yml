@@ -16,7 +16,8 @@ install:
   - go get github.com/onsi/ginkgo/ginkgo
   - go get github.com/onsi/gomega
   #  We like to run the tests with coverage.
-  - if [[ "${TRAVIS_GO_VERSION}" = "tip" ]]; then go get -u golang.org/x/tools/cmd/cover; else go get -u code.google.com/p/go.tools/cmd/cover; fi
+  # - if [[ "${TRAVIS_GO_VERSION}" = "tip" ]]; then go get -u golang.org/x/tools/cmd/cover; else go get -u code.google.com/p/go.tools/cmd/cover; fi
+  - if ! go get code.google.com/p/go.tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
   - wget -O aerospike-server.tgz http://aerospike.com/download/server/latest/artifact/tgz
   - tar xvzf aerospike-server.tgz
   - cp -f .travis/aerospike.conf ./aerospike-server/share/etc
