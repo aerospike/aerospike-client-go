@@ -1,5 +1,12 @@
 # Change history
 
+## Dec 29 2014
+
+  * **New Features**
+
+    * Added `NewKeyWithDigest()` method. You can now create keys with custom digests, or only using digests without
+      knowing the original value. (Useful when you are getting back results with Query and Scan)
+
 ## Dec 22 2014
 
   * **New Features**
