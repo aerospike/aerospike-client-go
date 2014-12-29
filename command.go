@@ -101,13 +101,7 @@ type baseCommand struct {
 // Writes the command for write operations
 func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, key *Key, bins []*Bin) error {
 	cmd.begin()
-	fieldCount := cmd.estimateKeySize(key)
-
-	if policy.SendKey {
-		// field header size + key size
-		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
-		fieldCount++
-	}
+	fieldCount := cmd.estimateKeySize(key, policy.SendKey)
 
 	for i := range bins {
 		cmd.estimateOperationSizeForBin(bins[i])
@@ -116,11 +110,7 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 		return err
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, len(bins))
-	cmd.writeKey(key)
-
-	if policy.SendKey {
-		cmd.writeFieldValue(key.userKey, KEY)
-	}
+	cmd.writeKey(key, policy.SendKey)
 
 	for i := range bins {
 		if err := cmd.writeOperationForBin(bins[i], operation); err != nil {
@@ -135,12 +125,12 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 // Writes the command for delete operations
 func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
 	cmd.begin()
-	fieldCount := cmd.estimateKeySize(key)
+	fieldCount := cmd.estimateKeySize(key, false)
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE|_INFO2_DELETE, fieldCount, 0)
-	cmd.writeKey(key)
+	cmd.writeKey(key, false)
 	cmd.end()
 	return nil
 
@@ -149,21 +139,14 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
 // Writes the command for touch operations
 func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 	cmd.begin()
-	fieldCount := cmd.estimateKeySize(key)
-	if policy.SendKey {
-		// field header size + key size
-		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
-		fieldCount++
-	}
+	fieldCount := cmd.estimateKeySize(key, policy.SendKey)
+
 	cmd.estimateOperationSize()
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 1)
-	cmd.writeKey(key)
-	if policy.SendKey {
-		cmd.writeFieldValue(key.userKey, KEY)
-	}
+	cmd.writeKey(key, policy.SendKey)
 	cmd.writeOperationForOperationType(TOUCH)
 	cmd.end()
 	return nil
@@ -173,12 +156,12 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 // Writes the command for exist operations
 func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) error {
 	cmd.begin()
-	fieldCount := cmd.estimateKeySize(key)
+	fieldCount := cmd.estimateKeySize(key, false)
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
 	cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
-	cmd.writeKey(key)
+	cmd.writeKey(key, false)
 	cmd.end()
 	return nil
 
@@ -187,12 +170,12 @@ func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) error {
 // Writes the command for get operations (all bins)
 func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) error {
 	cmd.begin()
-	fieldCount := cmd.estimateKeySize(key)
+	fieldCount := cmd.estimateKeySize(key, false)
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
-	cmd.writeKey(key)
+	cmd.writeKey(key, false)
 	cmd.end()
 	return nil
 
@@ -202,7 +185,7 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) error {
 func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string) (err error) {
 	if binNames != nil && len(binNames) > 0 {
 		cmd.begin()
-		fieldCount := cmd.estimateKeySize(key)
+		fieldCount := cmd.estimateKeySize(key, false)
 
 		for i := range binNames {
 			cmd.estimateOperationSizeForBinName(binNames[i])
@@ -211,7 +194,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 			return nil
 		}
 		cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ, 0, fieldCount, len(binNames))
-		cmd.writeKey(key)
+		cmd.writeKey(key, false)
 
 		for i := range binNames {
 			cmd.writeOperationForBinName(binNames[i], READ)
@@ -227,7 +210,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 // Writes the command for getting metadata operations
 func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 	cmd.begin()
-	fieldCount := cmd.estimateKeySize(key)
+	fieldCount := cmd.estimateKeySize(key, false)
 	cmd.estimateOperationSizeForBinName("")
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
@@ -239,7 +222,7 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 	//command.setRead(_INFO1_READ | _INFO1_NOBINDATA);
 	cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ, 0, fieldCount, 1)
 
-	cmd.writeKey(key)
+	cmd.writeKey(key, false)
 	cmd.writeOperationForBinName("", READ)
 	cmd.end()
 	return nil
@@ -249,7 +232,7 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 // Implements different command operations
 func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) error {
 	cmd.begin()
-	fieldCount := cmd.estimateKeySize(key)
+	fieldCount := 0
 	readAttr := 0
 	writeAttr := 0
 	readHeader := false
@@ -278,11 +261,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		cmd.estimateOperationSizeForOperation(operations[i])
 	}
 
-	if policy.SendKey && writeAttr != 0 {
-		// field header size + key size
-		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
-		fieldCount++
-	}
+	fieldCount = cmd.estimateKeySize(key, policy.SendKey && writeAttr != 0)
 
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
@@ -293,11 +272,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	} else {
 		cmd.writeHeader(policy.GetBasePolicy(), readAttr, writeAttr, fieldCount, len(operations))
 	}
-	cmd.writeKey(key)
-
-	if policy.SendKey && writeAttr != 0 {
-		cmd.writeFieldValue(key.userKey, KEY)
-	}
+	cmd.writeKey(key, policy.SendKey && writeAttr != 0)
 
 	for _, operation := range operations {
 		if err := cmd.writeOperationForOperation(operation); err != nil {
@@ -317,7 +292,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 
 func (cmd *baseCommand) setUdf(policy Policy, key *Key, packageName string, functionName string, args []Value) error {
 	cmd.begin()
-	fieldCount := cmd.estimateKeySize(key)
+	fieldCount := cmd.estimateKeySize(key, false)
 	argBytes, err := packValueArray(args)
 	if err != nil {
 		return err
@@ -328,7 +303,7 @@ func (cmd *baseCommand) setUdf(policy Policy, key *Key, packageName string, func
 		return nil
 	}
 	cmd.writeHeader(policy.GetBasePolicy(), 0, _INFO2_WRITE, fieldCount, 0)
-	cmd.writeKey(key)
+	cmd.writeKey(key, false)
 	cmd.writeFieldString(packageName, UDF_PACKAGE_NAME)
 	cmd.writeFieldString(functionName, UDF_FUNCTION)
 	cmd.writeFieldBytes(argBytes, UDF_ARGLIST)
@@ -471,7 +446,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
-func (cmd *baseCommand) estimateKeySize(key *Key) int {
+func (cmd *baseCommand) estimateKeySize(key *Key, sendKey bool) int {
 	fieldCount := 0
 
 	if key.namespace != "" {
@@ -486,6 +461,12 @@ func (cmd *baseCommand) estimateKeySize(key *Key) int {
 
 	cmd.dataOffset += int(_DIGEST_SIZE + _FIELD_HEADER_SIZE)
 	fieldCount++
+
+	if sendKey {
+		// field header size + key size
+		cmd.dataOffset += key.userKey.estimateSize() + int(_FIELD_HEADER_SIZE) + 1
+		fieldCount++
+	}
 
 	return fieldCount
 }
@@ -611,7 +592,7 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
 }
 
-func (cmd *baseCommand) writeKey(key *Key) {
+func (cmd *baseCommand) writeKey(key *Key, sendKey bool) {
 	// Write key into buffer.
 	if key.namespace != "" {
 		cmd.writeFieldString(key.namespace, NAMESPACE)
@@ -622,6 +603,10 @@ func (cmd *baseCommand) writeKey(key *Key) {
 	}
 
 	cmd.writeFieldBytes(key.digest[:], DIGEST_RIPE)
+
+	if sendKey {
+		cmd.writeFieldValue(key.userKey, KEY)
+	}
 }
 
 func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) error {
