@@ -55,11 +55,13 @@ var _ = Describe("Aerospike", func() {
 		var wpolicy = NewWritePolicy(0, 0)
 		var rpolicy = NewPolicy()
 		var rec *Record
-
-		// use the same client for all
-		client, err := NewClient("127.0.0.1", 3000)
+		var client *Client
 
 		BeforeEach(func() {
+			// use the same client for all
+			client, err = NewClient(*host, *port)
+			Expect(err).ToNot(HaveOccurred())
+
 			key, err = NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 		})
