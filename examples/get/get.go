@@ -17,9 +17,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	. "github.com/aerospike/aerospike-client-go"
 	"os"
 	"strconv"
+
+	. "github.com/aerospike/aerospike-client-go"
 )
 
 var (
@@ -29,7 +30,6 @@ var (
 	set       string = "demo"
 )
 
-// fuck yeah
 func main() {
 
 	var err error

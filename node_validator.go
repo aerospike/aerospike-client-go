@@ -30,12 +30,14 @@ type nodeValidator struct {
 	aliases    []*Host
 	address    string
 	useNewInfo bool //= true
+	cluster    *Cluster
 }
 
 // Generates a node validator
-func newNodeValidator(host *Host, timeout time.Duration) (*nodeValidator, error) {
+func newNodeValidator(cluster *Cluster, host *Host, timeout time.Duration) (*nodeValidator, error) {
 	newNodeValidator := &nodeValidator{
 		useNewInfo: true,
+		cluster:    cluster,
 	}
 
 	if err := newNodeValidator.setAliases(host); err != nil {
@@ -72,6 +74,16 @@ func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
 		}
 
 		defer conn.Close()
+
+		// need to authenticate
+		if ndv.cluster.user != "" {
+			command := newAdminCommand()
+			if err := command.authenticate(conn, ndv.cluster.user, ndv.cluster.password); err != nil {
+				// Socket not authenticated. Do not put back into pool.
+				conn.Close()
+				return err
+			}
+		}
 
 		if err := conn.SetTimeout(timeout); err != nil {
 			return err

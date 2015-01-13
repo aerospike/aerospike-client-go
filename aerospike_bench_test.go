@@ -40,7 +40,7 @@ func benchPut(times int, client *Client, key *Key, bins []*Bin, wp *WritePolicy)
 }
 
 func Benchmark_Get(b *testing.B) {
-	client, err := NewClient("localhost", 3000)
+	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		b.Fail()
 	}

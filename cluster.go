@@ -64,6 +64,12 @@ type Cluster struct {
 	mutex       sync.RWMutex
 	tendChannel chan tendCommand
 	closed      AtomicBool
+
+	// User name in UTF-8 encoded bytes.
+	user string
+
+	// Password in hashed format in bytes.
+	password []byte
 }
 
 // NewCluster generates a Cluster instance.
@@ -77,6 +83,15 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		partitionWriteMap:   make(map[string][]*Node),
 		nodeIndex:           NewAtomicInt(0),
 		tendChannel:         make(chan tendCommand),
+	}
+
+	// setup auth info for cluster
+	var err error
+	if policy.RequiresAuthentication() {
+		newCluster.user = policy.User
+		if newCluster.password, err = hashPassword(policy.Password); err != nil {
+			return nil, err
+		}
 	}
 
 	// try to seed connections for first use
@@ -299,7 +314,7 @@ func (clstr *Cluster) seedNodes() {
 	list := []*Node{}
 
 	for _, seed := range seedArray {
-		seedNodeValidator, err := newNodeValidator(seed, clstr.connectionTimeout)
+		seedNodeValidator, err := newNodeValidator(clstr, seed, clstr.connectionTimeout)
 		if err != nil {
 			Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
 			continue
@@ -312,7 +327,7 @@ func (clstr *Cluster) seedNodes() {
 			if *alias == *seed {
 				nv = seedNodeValidator
 			} else {
-				nv, err = newNodeValidator(alias, clstr.connectionTimeout)
+				nv, err = newNodeValidator(clstr, alias, clstr.connectionTimeout)
 				if err != nil {
 					Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
 					continue
@@ -362,7 +377,7 @@ func (clstr *Cluster) findNodesToAdd(hosts []*Host) []*Node {
 	list := make([]*Node, 0, len(hosts))
 
 	for _, host := range hosts {
-		if nv, err := newNodeValidator(host, clstr.connectionTimeout); err != nil {
+		if nv, err := newNodeValidator(clstr, host, clstr.connectionTimeout); err != nil {
 			Logger.Warn("Add node %s failed: %s", err.Error())
 		} else {
 			node := clstr.findNodeByName(nv.name)
@@ -696,5 +711,12 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err 
 		return NewAerospikeError(TIMEOUT)
 	case err = <-done:
 		return err
+	}
+}
+
+func (clstr *Cluster) changePassword(user string, password []byte) {
+	// change password ONLY if the user is the same
+	if clstr.user == user {
+		clstr.password = password
 	}
 }

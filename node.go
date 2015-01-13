@@ -200,6 +200,18 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 	if conn, err = NewConnection(nd.address, nd.cluster.connectionTimeout); err != nil {
 		return nil, err
 	}
+
+	// need to authenticate
+	if nd.cluster.user != "" {
+		command := newAdminCommand()
+		if err := command.authenticate(conn, nd.cluster.user, nd.cluster.password); err != nil {
+			// Socket not authenticated. Do not put back into pool.
+			conn.Close()
+
+			return nil, err
+		}
+	}
+
 	if conn.SetTimeout(timeout) != nil {
 		return nil, err
 	}

@@ -27,7 +27,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go"
 )
 
-var benchGetClient, _ = NewClient("127.0.0.1", 3000)
+var benchGetClient, _ = NewClientWithPolicy(clientPolicy, *host, *port)
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())

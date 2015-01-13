@@ -15,7 +15,6 @@
 package aerospike_test
 
 import (
-	"flag"
 	"math/rand"
 	"strings"
 	"time"
@@ -30,8 +29,7 @@ const RANDOM_OPS_RUNS = 1000
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Aerospike", func() {
-	rand.Seed(time.Now().UnixNano())
-	flag.Parse()
+	initTestVars()
 
 	Describe("Random Data Operations", func() {
 		// connection data
@@ -44,7 +42,7 @@ var _ = Describe("Aerospike", func() {
 		var rec *Record
 
 		// use the same client for all
-		client, _ := NewClient(*host, *port)
+		client, _ := NewClientWithPolicy(clientPolicy, *host, *port)
 
 		Context("Put/Get operations", func() {
 

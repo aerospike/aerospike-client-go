@@ -15,7 +15,7 @@
 package aerospike_test
 
 import (
-	"flag"
+
 	// "fmt"
 	"sync"
 	// "math"
@@ -37,8 +37,7 @@ func init() {
 	// load test require actual parallelism
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	rand.Seed(time.Now().UnixNano())
-	flag.Parse()
+	initTestVars()
 }
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
@@ -56,7 +55,7 @@ var _ = Describe("Aerospike load tests", func() {
 		bname2 := randString(14)
 
 		BeforeEach(func() {
-			client, err = NewClient(*host, *port)
+			client, err = NewClientWithPolicy(clientPolicy, *host, *port)
 			Expect(err).ToNot(HaveOccurred())
 		})
 

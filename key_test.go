@@ -16,11 +16,8 @@ package aerospike_test
 
 import (
 	"encoding/hex"
-	"flag"
 	"math"
-	"math/rand"
 	"strings"
-	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
 
@@ -30,8 +27,7 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Key Test", func() {
-	rand.Seed(time.Now().UnixNano())
-	flag.Parse()
+	initTestVars()
 
 	Context("Digests should be the same", func() {
 

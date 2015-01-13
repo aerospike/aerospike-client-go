@@ -15,10 +15,6 @@
 package aerospike_test
 
 import (
-	"flag"
-	"math/rand"
-	"time"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -27,8 +23,8 @@ import (
 )
 
 var _ = Describe("LargeList Test", func() {
-	rand.Seed(time.Now().UnixNano())
-	flag.Parse()
+	initTestVars()
+
 	// connection data
 	var client *Client
 	var err error
@@ -38,7 +34,7 @@ var _ = Describe("LargeList Test", func() {
 	var wpolicy = NewWritePolicy(0, 0)
 
 	BeforeEach(func() {
-		client, err = NewClient(*host, *port)
+		client, err = NewClientWithPolicy(clientPolicy, *host, *port)
 		Expect(err).ToNot(HaveOccurred())
 		key, err = NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())

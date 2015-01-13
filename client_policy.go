@@ -20,6 +20,13 @@ import (
 
 // ClientPolicy encapsulates parameters for client policy command.
 type ClientPolicy struct {
+	// User authentication to cluster. Leave empty for clusters running without restricted access.
+	User string
+
+	// Password authentication to cluster. The password will be stored by the client and sent to server
+	// in hashed format. Leave empty for clusters running without restricted access.
+	Password string
+
 	// Initial host connection timeout in milliseconds.  The timeout when opening a connection
 	// to the server host for the first time.
 	Timeout time.Duration //= 1 second
@@ -38,4 +45,9 @@ func NewClientPolicy() *ClientPolicy {
 		ConnectionQueueSize: 256,
 		FailIfNotConnected:  true,
 	}
+}
+
+// RequiresAuthentication returns true if a USer or Password is set for ClientPolicy.
+func (cp *ClientPolicy) RequiresAuthentication() bool {
+	return (cp.User != "") || (cp.Password != "")
 }

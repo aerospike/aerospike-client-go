@@ -15,10 +15,8 @@
 package aerospike_test
 
 import (
-	"flag"
 	"math"
 	"math/rand"
-	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
 
@@ -28,8 +26,7 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("Scan operations", func() {
-	rand.Seed(time.Now().UnixNano())
-	flag.Parse()
+	initTestVars()
 
 	// connection data
 	var ns = "test"
@@ -43,7 +40,7 @@ var _ = Describe("Scan operations", func() {
 	var keys map[string]*Key
 
 	// use the same client for all
-	client, _ := NewClient(*host, *port)
+	client, _ := NewClientWithPolicy(clientPolicy, *host, *port)
 
 	// read all records from the channel and make sure all of them are returned
 	// if cancelCnt is set, it will cancel the scan after specified record count

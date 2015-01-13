@@ -40,6 +40,8 @@ type Client struct {
 	DefaultScanPolicy *ScanPolicy
 	// DefaultQueryPolicy is used for all scan commands without a specific policy.
 	DefaultQueryPolicy *QueryPolicy
+	// DefaultAdminPolicy is used for all security commands without a specific policy.
+	DefaultAdminPolicy *AdminPolicy
 }
 
 //-------------------------------------------------------
@@ -75,6 +77,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 		DefaultWritePolicy: NewWritePolicy(0, 0),
 		DefaultScanPolicy:  NewScanPolicy(),
 		DefaultQueryPolicy: NewQueryPolicy(),
+		DefaultAdminPolicy: NewAdminPolicy(),
 	}, nil
 
 }
@@ -1149,6 +1152,141 @@ func (clnt *Client) DropIndex(
 	}
 
 	return NewAerospikeError(INDEX_GENERIC, "Drop index failed: "+response)
+}
+
+//-------------------------------------------------------
+// User administration
+//-------------------------------------------------------
+
+// Create user with password and roles. Clear-text password will be hashed using bcrypt
+// before sending to server.
+func (clnt *Client) CreateUser(policy *AdminPolicy, user string, password string, roles []string) error {
+	if policy == nil {
+		if clnt.DefaultAdminPolicy != nil {
+			policy = clnt.DefaultAdminPolicy
+		} else {
+			policy = NewAdminPolicy()
+		}
+	}
+	hash, err := hashPassword(password)
+	if err != nil {
+		return err
+	}
+	command := newAdminCommand()
+	return command.createUser(clnt.cluster, policy, user, hash, roles)
+}
+
+// Remove user from cluster.
+func (clnt *Client) DropUser(policy *AdminPolicy, user string) error {
+	if policy == nil {
+		if clnt.DefaultAdminPolicy != nil {
+			policy = clnt.DefaultAdminPolicy
+		} else {
+			policy = NewAdminPolicy()
+		}
+	}
+	command := newAdminCommand()
+	return command.dropUser(clnt.cluster, policy, user)
+}
+
+// Change user's password. Clear-text password will be hashed using bcrypt before sending to server.
+func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password string) error {
+	if policy == nil {
+		if clnt.DefaultAdminPolicy != nil {
+			policy = clnt.DefaultAdminPolicy
+		} else {
+			policy = NewAdminPolicy()
+		}
+	}
+	if clnt.cluster.user == "" {
+		return NewAerospikeError(INVALID_USER)
+	}
+
+	hash, err := hashPassword(password)
+	if err != nil {
+		return err
+	}
+	command := newAdminCommand()
+
+	if user == clnt.cluster.user {
+		// Change own password.
+		if err := command.changePassword(clnt.cluster, policy, user, hash); err != nil {
+			return err
+		}
+	} else {
+		// Change other user's password by user admin.
+		if err := command.setPassword(clnt.cluster, policy, user, hash); err != nil {
+			return err
+		}
+	}
+	clnt.cluster.changePassword(user, hash)
+
+	return nil
+}
+
+// Add roles to user's list of roles.
+func (clnt *Client) GrantRoles(policy *AdminPolicy, user string, roles []string) error {
+	if policy == nil {
+		if clnt.DefaultAdminPolicy != nil {
+			policy = clnt.DefaultAdminPolicy
+		} else {
+			policy = NewAdminPolicy()
+		}
+	}
+	command := newAdminCommand()
+	return command.grantRoles(clnt.cluster, policy, user, roles)
+}
+
+// Remove roles from user's list of roles.
+func (clnt *Client) RevokeRoles(policy *AdminPolicy, user string, roles []string) error {
+	if policy == nil {
+		if clnt.DefaultAdminPolicy != nil {
+			policy = clnt.DefaultAdminPolicy
+		} else {
+			policy = NewAdminPolicy()
+		}
+	}
+	command := newAdminCommand()
+	return command.revokeRoles(clnt.cluster, policy, user, roles)
+}
+
+// Replace user's list of roles.
+func (clnt *Client) ReplaceRoles(policy *AdminPolicy, user string, roles []string) error {
+	if policy == nil {
+		if clnt.DefaultAdminPolicy != nil {
+			policy = clnt.DefaultAdminPolicy
+		} else {
+			policy = NewAdminPolicy()
+		}
+	}
+	command := newAdminCommand()
+	return command.replaceRoles(clnt.cluster, policy, user, roles)
+}
+
+// Retrieve roles for a given user.
+func (clnt *Client) QueryUser(policy *AdminPolicy, user string) (*UserRoles, error) {
+	if policy == nil {
+		if clnt.DefaultAdminPolicy != nil {
+			policy = clnt.DefaultAdminPolicy
+		} else {
+			policy = NewAdminPolicy()
+		}
+	}
+	command := newAdminCommand()
+	return command.queryUser(clnt.cluster, policy, user)
+}
+
+// Retrieve all users and their roles.
+func (clnt *Client) QueryUsers(policy *AdminPolicy) ([]*UserRoles, error) {
+	if policy == nil {
+		if clnt.DefaultAdminPolicy != nil {
+			policy = clnt.DefaultAdminPolicy
+		} else {
+			policy = NewAdminPolicy()
+		}
+	}
+	command := newAdminCommand()
+	return command.queryUsers(clnt.cluster, policy)
 }
 
 //-------------------------------------------------------

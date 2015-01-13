@@ -15,11 +15,9 @@
 package aerospike_test
 
 import (
-	"flag"
 	"math"
 	"math/rand"
 	"strings"
-	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
 
@@ -53,8 +51,7 @@ end`
 
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("UDF/Query tests", func() {
-	rand.Seed(time.Now().UnixNano())
-	flag.Parse()
+	initTestVars()
 
 	// connection data
 	var client *Client
@@ -68,7 +65,10 @@ var _ = Describe("UDF/Query tests", func() {
 	bin1 := NewBin("bin1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("bin2", 1)
 
-	client, _ = NewClient(*host, *port)
+	client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+	if err != nil {
+		panic(err)
+	}
 
 	It("must Register a UDF", func() {
 		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udf1.lua", LUA)
@@ -208,7 +208,10 @@ var _ = Describe("UDF/Query tests", func() {
 
 	Context("must serialize parameters and return values sensibly", func() {
 
-		regTask, _ := client.RegisterUDF(wpolicy, []byte(udfEcho), "udfEcho.lua", LUA)
+		regTask, err := client.RegisterUDF(wpolicy, []byte(udfEcho), "udfEcho.lua", LUA)
+		if err != nil {
+			panic(err)
+		}
 		// wait until UDF is created
 		<-regTask.OnComplete()
 		// a new record that is not in the range
