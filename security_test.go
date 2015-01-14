@@ -30,7 +30,7 @@ var _ = Describe("Security tests", func() {
 	initTestVars()
 
 	// test is not supported because there has been no auth data provided
-	if !clientPolicy.RequiresAuthentication() {
+	if clientPolicy.RequiresAuthentication() {
 
 		// connection data
 		var client *Client
