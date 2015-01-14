@@ -6,9 +6,18 @@
 
     * Added Security Features: Please consult [Security Docs](https://www.aerospike.com/docs/guide/security.html) on Aerospike website.
       
+      * `ClientPolicy.User`, `ClientPolicy.Password`
       * `Client.CreateUser()`, `Client.DropUser()`, `Client.ChangePassword()`
       * `Client.GrantRoles()`, `Client.RevokeRoles()`, `Client.ReplaceRoles()`
       * `Client.QueryUser()`, `Client.QueryUsers`
+
+    * Added `Client.QueryNode()`
+
+    * Added `ClientPolicy.TendInterval`
+
+  * **Improvements**
+
+    * Cleaned up Scan/Query/Recordset concurrent code
 
   * **Fixes**
 
