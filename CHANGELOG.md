@@ -1,6 +1,20 @@
 # Change history
 
-## Dec 29 2014
+## Jan 14 2015 : v1.3.0
+
+  * **New Features**
+
+    * Added Security Features: Please consult [Security Docs](https://www.aerospike.com/docs/guide/security.html) on Aerospike website.
+      
+      * `Client.CreateUser()`, `Client.DropUser()`, `Client.ChangePassword()`
+      * `Client.GrantRoles()`, `Client.RevokeRoles()`, `Client.ReplaceRoles()`
+      * `Client.QueryUser()`, `Client.QueryUsers`
+
+  * **Fixes**
+
+      * Fixed a bug in `tools/cli/cli.go`.
+
+## Dec 29 2014: v1.2.0
 
   * **New Features**
 
