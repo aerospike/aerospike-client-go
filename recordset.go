@@ -14,7 +14,11 @@
 
 package aerospike
 
-import . "github.com/aerospike/aerospike-client-go/types/atomic"
+import (
+	"sync"
+
+	. "github.com/aerospike/aerospike-client-go/types/atomic"
+)
 
 // Recordset encapsulates the result of Scan and Query commands.
 type Recordset struct {
@@ -23,7 +27,8 @@ type Recordset struct {
 	// Errors is a channel on which all errors will be sent back.
 	Errors chan error
 
-	goroutines *AtomicInt
+	wgGoroutines sync.WaitGroup
+	goroutines   *AtomicInt
 
 	active    *AtomicBool
 	cancelled chan struct{}
@@ -31,13 +36,16 @@ type Recordset struct {
 
 // NewRecordset generates a new RecordSet instance.
 func newRecordset(recSize, goroutines int) *Recordset {
-	return &Recordset{
+	rs := &Recordset{
 		Records:    make(chan *Record, recSize),
 		Errors:     make(chan error, goroutines),
-		goroutines: NewAtomicInt(goroutines),
 		active:     NewAtomicBool(true),
+		goroutines: NewAtomicInt(goroutines),
 		cancelled:  make(chan struct{}),
 	}
+	rs.wgGoroutines.Add(goroutines)
+
+	return rs
 }
 
 // IsActive returns true if the operation hasn't been finished or cancelled.
@@ -48,11 +56,12 @@ func (rcs *Recordset) IsActive() bool {
 // Close all streams to different nodes.
 func (rcs *Recordset) Close() {
 	// do it only once
-	if rcs.active.Get() {
-		rcs.active.Set(false)
-
+	if rcs.active.CompareAndToggle(true) {
 		// this will broadcast to all commands listening to the channel
 		close(rcs.cancelled)
+
+		// wait till all goroutines are done
+		rcs.wgGoroutines.Wait()
 
 		close(rcs.Records)
 		close(rcs.Errors)
@@ -60,8 +69,9 @@ func (rcs *Recordset) Close() {
 }
 
 func (rcs *Recordset) signalEnd() {
-	cnt := rcs.goroutines.DecrementAndGet()
+	rcs.wgGoroutines.Done()
 
+	cnt := rcs.goroutines.DecrementAndGet()
 	if cnt == 0 {
 		rcs.Close()
 	}

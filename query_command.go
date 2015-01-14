@@ -189,13 +189,5 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 }
 
 func (cmd *queryCommand) parseResult(ifc command, conn *Connection) error {
-	defer func() {
-		if r := recover(); r != nil {
-			if r != "send on closed channel" {
-				panic(r)
-			}
-		}
-	}()
-
 	return cmd.baseMultiCommand.parseResult(ifc, conn)
 }

@@ -93,6 +93,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	}
 
 	// start up cluster maintenance go routine
+	newCluster.wgTend.Add(1)
 	go newCluster.clusterBoss(policy)
 
 	Logger.Debug("New cluster initialized and ready to be used...")
@@ -102,7 +103,8 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 // Maintains the cluster on intervals.
 // All clean up code for cluster is here as well.
 func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
-	clstr.wgTend.Add(1)
+	defer clstr.wgTend.Done()
+
 	tendInterval := policy.TendInterval
 	if tendInterval <= 10*time.Millisecond {
 		tendInterval = 10 * time.Millisecond
@@ -129,8 +131,6 @@ Loop:
 	for _, node := range nodeArray {
 		node.Close()
 	}
-
-	clstr.wgTend.Done()
 }
 
 // AddSeeds adds new hosts to the cluster.

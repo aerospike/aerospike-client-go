@@ -520,6 +520,7 @@ func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordse
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until migrations on node are finished
 		if err := node.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+			recordset.signalEnd()
 			return err
 		}
 	}
@@ -932,10 +933,10 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 // Query functions (Supported by Aerospike 3 servers only)
 //--------------------------------------------------------
 
-// Query executes a query and returns a recordset.
-// The query executor puts records on a channel from separate goroutines.
-// The caller can concurrently pops records off the channel through the
-// record channel.
+// Query executes a query and returns a Recordset.
+// The query executor puts records on the channel from separate goroutines.
+// The caller can concurrently pop records off the channel through the
+// Recordset.Records channel.
 //
 // This method is only supported by Aerospike 3 servers.
 // If the policy is nil, a default policy will be generated.
@@ -970,6 +971,39 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
 		go command.Execute()
 	}
+
+	return recSet, nil
+}
+
+// QueryNode executes a query on a specific node and returns a recordset.
+// The caller can concurrently pop records off the channel through the
+// record channel.
+//
+// This method is only supported by Aerospike 3 servers.
+// If the policy is nil, a default policy will be generated.
+func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, error) {
+	if policy == nil {
+		if clnt.DefaultQueryPolicy != nil {
+			policy = clnt.DefaultQueryPolicy
+		} else {
+			policy = NewQueryPolicy()
+		}
+	}
+
+	if policy.WaitUntilMigrationsAreOver {
+		// wait until all migrations are finished
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+			return nil, err
+		}
+	}
+
+	// results channel must be async for performance
+	recSet := newRecordset(policy.RecordQueueSize, 1)
+
+	// copy policies to avoid race conditions
+	newPolicy := *policy
+	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
+	go command.Execute()
 
 	return recSet, nil
 }

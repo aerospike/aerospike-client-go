@@ -37,7 +37,8 @@ type ClientPolicy struct {
 	// Throw exception if host connection fails during addHost().
 	FailIfNotConnected bool //= true
 
-	// TendInterval determines interval for checking for cluster state changes
+	// TendInterval determines interval for checking for cluster state changes.
+	// Minimum possible interval is 10 Miliseconds.
 	TendInterval time.Duration //= 1 second
 }
 

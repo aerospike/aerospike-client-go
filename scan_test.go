@@ -40,7 +40,10 @@ var _ = Describe("Scan operations", func() {
 	var keys map[string]*Key
 
 	// use the same client for all
-	client, _ := NewClientWithPolicy(clientPolicy, *host, *port)
+	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
+	if err != nil {
+		panic(err)
+	}
 
 	// read all records from the channel and make sure all of them are returned
 	// if cancelCnt is set, it will cancel the scan after specified record count

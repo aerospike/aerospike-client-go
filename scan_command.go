@@ -148,14 +148,6 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 }
 
 func (cmd *scanCommand) parseResult(ifc command, conn *Connection) error {
-	defer func() {
-		if r := recover(); r != nil {
-			if r != "send on closed channel" {
-				panic(r)
-			}
-		}
-	}()
-
 	return cmd.baseMultiCommand.parseResult(ifc, conn)
 }
 

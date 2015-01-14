@@ -42,7 +42,10 @@ var _ = Describe("Aerospike", func() {
 		var rec *Record
 
 		// use the same client for all
-		client, _ := NewClientWithPolicy(clientPolicy, *host, *port)
+		client, err := NewClientWithPolicy(clientPolicy, *host, *port)
+		if err != nil {
+			panic(err)
+		}
 
 		Context("Put/Get operations", func() {
 
