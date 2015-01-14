@@ -15,11 +15,13 @@
 package aerospike_test
 
 import (
+	"flag"
 	"log"
 	"math/rand"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"net/http"
 	_ "net/http/pprof"
@@ -27,10 +29,29 @@ import (
 	. "github.com/aerospike/aerospike-client-go"
 )
 
-var benchGetClient, _ = NewClientWithPolicy(clientPolicy, *host, *port)
+var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
+var port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
+var user = flag.String("U", "", "Username.")
+var password = flag.String("P", "", "Password.")
+var clientPolicy *ClientPolicy
+
+var benchGetClient *Client
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
+	rand.Seed(time.Now().UnixNano())
+	flag.Parse()
+
+	clientPolicy = NewClientPolicy()
+	if *user != "" {
+		clientPolicy.User = *user
+		clientPolicy.Password = *password
+	}
+
+	var err error
+	if benchGetClient, err = NewClientWithPolicy(clientPolicy, *host, *port); err != nil {
+		panic(err)
+	}
 }
 
 func makeDataForGetBench(set string, bins []*Bin) {
