@@ -48,3 +48,12 @@ func (ab *AtomicBool) Set(newVal bool) {
 	}
 	atomic.StoreInt32(&(ab.val), int32(i))
 }
+
+// CompareAndSet atomically sets the boolean value if the current value is equal to updated value.
+func (ab *AtomicBool) CompareAndToggle(expect bool) bool {
+	updated := 1
+	if expect {
+		updated = 0
+	}
+	return atomic.CompareAndSwapInt32(&ab.val, int32(1-updated), int32(updated))
+}
