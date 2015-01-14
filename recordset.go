@@ -14,9 +14,7 @@
 
 package aerospike
 
-import (
-	. "github.com/aerospike/aerospike-client-go/types/atomic"
-)
+import . "github.com/aerospike/aerospike-client-go/types/atomic"
 
 // Recordset encapsulates the result of Scan and Query commands.
 type Recordset struct {
@@ -25,19 +23,20 @@ type Recordset struct {
 	// Errors is a channel on which all errors will be sent back.
 	Errors chan error
 
-	active   *AtomicBool
-	chans    []chan *Record
-	errs     []chan error
-	commands []multiCommand
+	goroutines *AtomicInt
+
+	active    *AtomicBool
+	cancelled chan struct{}
 }
 
 // NewRecordset generates a new RecordSet instance.
-func NewRecordset(size int) *Recordset {
+func newRecordset(recSize, goroutines int) *Recordset {
 	return &Recordset{
-		Records:  make(chan *Record, size),
-		Errors:   make(chan error, size),
-		active:   NewAtomicBool(true),
-		commands: []multiCommand{},
+		Records:    make(chan *Record, recSize),
+		Errors:     make(chan error, goroutines),
+		goroutines: NewAtomicInt(goroutines),
+		active:     NewAtomicBool(true),
+		cancelled:  make(chan struct{}),
 	}
 }
 
@@ -48,27 +47,22 @@ func (rcs *Recordset) IsActive() bool {
 
 // Close all streams to different nodes.
 func (rcs *Recordset) Close() {
-	rcs.active.Set(false)
+	// do it only once
+	if rcs.active.Get() {
+		rcs.active.Set(false)
 
-	for i := range rcs.commands {
-		// send signal to close
-		rcs.commands[i].Stop()
+		// this will broadcast to all commands listening to the channel
+		close(rcs.cancelled)
+
+		close(rcs.Records)
+		close(rcs.Errors)
 	}
 }
 
-// drains a records channel into the results chan
-func (rcs *Recordset) drainRecords(recChan chan *Record) {
-	// drain the results chan
-	for rec := range recChan {
-		rcs.Records <- rec
-	}
-}
+func (rcs *Recordset) signalEnd() {
+	cnt := rcs.goroutines.DecrementAndGet()
 
-// drains a channel into the errors chan
-func (rcs *Recordset) drainErrors(errChan chan error) {
-	// drain the results chan
-	for err := range errChan {
-		// if channel is closed, or is empty, exit the loop
-		rcs.Errors <- err
+	if cnt == 0 {
+		rcs.Close()
 	}
 }

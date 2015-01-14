@@ -34,17 +34,15 @@ type multiCommand interface {
 type baseMultiCommand struct {
 	*baseCommand
 
-	Records chan *Record
-	Errors  chan error
+	recordset *Recordset
 
 	valid *AtomicBool
 }
 
-func newMultiCommand(node *Node, recChan chan *Record, errChan chan error) *baseMultiCommand {
+func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	return &baseMultiCommand{
 		baseCommand: &baseCommand{node: node},
-		Records:     recChan,
-		Errors:      errChan,
+		recordset:   recordset,
 		valid:       NewAtomicBool(true),
 	}
 }
@@ -133,10 +131,6 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 
 	cmd.dataOffset += length
 	return nil
-}
-
-func (cmd *baseMultiCommand) Stop() {
-	cmd.valid.Set(false)
 }
 
 func (cmd *baseMultiCommand) IsValid() bool {

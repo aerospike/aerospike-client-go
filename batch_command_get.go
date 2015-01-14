@@ -41,7 +41,7 @@ func newBatchCommandGet(
 	readAttr int,
 ) *batchCommandGet {
 	return &batchCommandGet{
-		baseMultiCommand: newMultiCommand(node, nil, nil),
+		baseMultiCommand: newMultiCommand(node, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
 		keyMap:           keyMap,
