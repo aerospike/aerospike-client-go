@@ -36,14 +36,18 @@ type ClientPolicy struct {
 
 	// Throw exception if host connection fails during addHost().
 	FailIfNotConnected bool //= true
+
+	// TendInterval determines interval for checking for cluster state changes
+	TendInterval time.Duration //= 1 second
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.
 func NewClientPolicy() *ClientPolicy {
 	return &ClientPolicy{
-		Timeout:             1 * time.Second,
+		Timeout:             time.Second,
 		ConnectionQueueSize: 256,
 		FailIfNotConnected:  true,
+		TendInterval:        time.Second,
 	}
 }
 

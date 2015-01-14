@@ -26,17 +26,6 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
-type tendCommand int
-
-const (
-	_TEND_CMD_CLOSE tendCommand = iota
-	_TEND_MSG_CLOSED
-)
-
-const (
-	tendInterval = 1 * time.Second
-)
-
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
 type Cluster struct {
@@ -62,7 +51,8 @@ type Cluster struct {
 	connectionTimeout time.Duration
 
 	mutex       sync.RWMutex
-	tendChannel chan tendCommand
+	wgTend      sync.WaitGroup
+	tendChannel chan struct{}
 	closed      AtomicBool
 
 	// User name in UTF-8 encoded bytes.
@@ -82,7 +72,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		nodes:               []*Node{},
 		partitionWriteMap:   make(map[string][]*Node),
 		nodeIndex:           NewAtomicInt(0),
-		tendChannel:         make(chan tendCommand),
+		tendChannel:         make(chan struct{}),
 	}
 
 	// setup auth info for cluster
@@ -103,7 +93,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	}
 
 	// start up cluster maintenance go routine
-	go newCluster.clusterBoss()
+	go newCluster.clusterBoss(policy)
 
 	Logger.Debug("New cluster initialized and ready to be used...")
 	return newCluster, nil
@@ -111,16 +101,19 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 // Maintains the cluster on intervals.
 // All clean up code for cluster is here as well.
-func (clstr *Cluster) clusterBoss() {
+func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
+	clstr.wgTend.Add(1)
+	tendInterval := policy.TendInterval
+	if tendInterval <= 10*time.Millisecond {
+		tendInterval = 10 * time.Millisecond
+	}
 
 Loop:
 	for {
 		select {
-		case cmd := <-clstr.tendChannel:
-			switch cmd {
-			case _TEND_CMD_CLOSE:
-				break Loop
-			}
+		case <-clstr.tendChannel:
+			// tend channel closed
+			break Loop
 		case <-time.After(tendInterval):
 			if err := clstr.tend(); err != nil {
 				Logger.Warn(err.Error())
@@ -137,7 +130,7 @@ Loop:
 		node.Close()
 	}
 
-	clstr.tendChannel <- _TEND_MSG_CLOSED
+	clstr.wgTend.Done()
 }
 
 // AddSeeds adds new hosts to the cluster.
@@ -643,10 +636,10 @@ func (clstr *Cluster) findNodeByName(nodeName string) *Node {
 func (clstr *Cluster) Close() {
 	if !clstr.closed.Get() {
 		// send close signal to maintenance channel
-		clstr.tendChannel <- _TEND_CMD_CLOSE
+		close(clstr.tendChannel)
 
-		// wait until tendChannel returns
-		<-clstr.tendChannel
+		// wait until tend is over
+		clstr.wgTend.Wait()
 	}
 }
 
