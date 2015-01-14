@@ -23,19 +23,9 @@ type queryCommand struct {
 	statement *Statement
 }
 
-func newQueryCommand(node *Node, policy *QueryPolicy, statement *Statement, recChan chan *Record, errChan chan error) *queryCommand {
-	// make recChan in case it is nil
-	if recChan == nil {
-		recChan = make(chan *Record, 1024)
-	}
-
-	// make errChan in case it is nil
-	if errChan == nil {
-		errChan = make(chan error, 1024)
-	}
-
+func newQueryCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryCommand {
 	return &queryCommand{
-		baseMultiCommand: newMultiCommand(node, recChan, errChan),
+		baseMultiCommand: newMultiCommand(node, recordset),
 		policy:           policy,
 		statement:        statement,
 	}
@@ -199,9 +189,13 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 }
 
 func (cmd *queryCommand) parseResult(ifc command, conn *Connection) error {
-	// close the channel
-	defer close(cmd.Records)
-	defer close(cmd.Errors)
+	defer func() {
+		if r := recover(); r != nil {
+			if r != "send on closed channel" {
+				panic(r)
+			}
+		}
+	}()
 
 	return cmd.baseMultiCommand.parseResult(ifc, conn)
 }

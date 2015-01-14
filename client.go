@@ -467,62 +467,28 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 	}
 
 	// result recordset
-	res := NewRecordset(policy.RecordQueueSize)
+	res := newRecordset(policy.RecordQueueSize, len(nodes))
 
 	// the whole call should be wrapped in a goroutine
 	if policy.ConcurrentNodes {
-		// results channel must be async for performance
-		recChans := []chan *Record{}
-		errChans := []chan error{}
-		recCmds := []multiCommand{}
 		for _, node := range nodes {
-			res, err := clnt.ScanNode(policy, node, namespace, setName, binNames...)
-			if err != nil {
-				return nil, err
-			}
-			recChans = append(recChans, res.Records)
-			errChans = append(errChans, res.Errors)
-			recCmds = append(recCmds, res.commands...)
-		}
-
-		res.chans = recChans
-		res.errs = errChans
-		res.commands = recCmds
-		res.Records, res.Errors = clnt.mergeResultChannels(policy.RecordQueueSize, recChans, errChans)
-	} else {
-		// drain nodes one by one
-		go func() {
-			defer close(res.Records)
-			defer close(res.Errors)
-
-			for _, node := range nodes {
-				if recSet, err := clnt.ScanNode(policy, node, namespace, setName, binNames...); err != nil {
-					res.Errors <- err
-					continue
-				} else {
-					// Here be concurrent dragons
-					// Don't wait for err channels to close; only record chans
-				L:
-					for {
-						select {
-						case err := <-recSet.Errors:
-							res.drainRecords(recSet.Records)
-							res.Errors <- err
-
-							// this break will move on to the next node
-							break L
-						case rec, open := <-recSet.Records:
-							if open && rec != nil {
-								res.Records <- rec
-							} else if !open {
-								// channel has been closed
-								res.drainErrors(recSet.Errors)
-
-								// this break will move on to the next node
-								break L
-							}
-						}
+			go func() {
+				if err := clnt.scanNode(policy, node, res, namespace, setName, binNames...); err != nil {
+					if _, ok := <-res.Errors; ok {
+						res.Errors <- err
 					}
+				}
+			}()
+		}
+	} else {
+		// scan nodes one by one
+		go func() {
+			for _, node := range nodes {
+				if err := clnt.scanNode(policy, node, res, namespace, setName, binNames...); err != nil {
+					if _, ok := <-res.Errors; ok {
+						res.Errors <- err
+					}
+					continue
 				}
 			}
 		}()
@@ -542,25 +508,28 @@ func (clnt *Client) ScanNode(policy *ScanPolicy, node *Node, namespace string, s
 		}
 	}
 
+	// results channel must be async for performance
+	res := newRecordset(policy.RecordQueueSize, 1)
+
+	return res, clnt.scanNode(policy, node, res, namespace, setName, binNames...)
+}
+
+// ScanNode reads all records in specified namespace and set for one node only.
+// If the policy is nil, a default policy will be generated.
+func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, binNames ...string) error {
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until migrations on node are finished
 		if err := node.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
-			return nil, err
+			return err
 		}
 	}
-
-	// results channel must be async for performance
-	res := NewRecordset(policy.RecordQueueSize)
 
 	// Retry policy must be one-shot for scans.
 	// copy on write for policy
 	newPolicy := *policy
 
-	command := newScanCommand(node, &newPolicy, namespace, setName, binNames, res.Records, res.Errors)
-	res.commands = append(res.commands, command)
-	go command.Execute()
-
-	return res, nil
+	command := newScanCommand(node, &newPolicy, namespace, setName, binNames, recordset)
+	return command.Execute()
 }
 
 //-------------------------------------------------------------------
@@ -992,30 +961,15 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 	}
 
 	// results channel must be async for performance
-	recSet := NewRecordset(policy.RecordQueueSize)
+	recSet := newRecordset(policy.RecordQueueSize, len(nodes))
 
 	// results channel must be async for performance
-	recChans := []chan *Record{}
-	errChans := []chan error{}
-	recCmds := []multiCommand{}
 	for _, node := range nodes {
-		recChan := make(chan *Record, policy.RecordQueueSize)
-		errChan := make(chan error, policy.RecordQueueSize)
-
 		// copy policies to avoid race conditions
 		newPolicy := *policy
-		command := newQueryRecordCommand(node, &newPolicy, statement, recChan, errChan)
-		recCmds = append(recCmds, command)
+		command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
 		go command.Execute()
-
-		recChans = append(recChans, recChan)
-		errChans = append(errChans, errChan)
 	}
-
-	recSet.commands = recCmds
-	recSet.chans = recChans
-	recSet.errs = errChans
-	recSet.Records, recSet.Errors = clnt.mergeResultChannels(policy.RecordQueueSize, recChans, errChans)
 
 	return recSet, nil
 }
@@ -1365,46 +1319,4 @@ func (clnt *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batch
 
 	wg.Wait()
 	return mergeErrors(errs)
-}
-
-func (clnt *Client) mergeResultChannels(size int, channels []chan *Record, errors []chan error) (chan *Record, chan error) {
-	var wg sync.WaitGroup
-	out := make(chan *Record, size)
-	outErr := make(chan error, size)
-
-	// Start an output goroutine for each input channel in channels.  output
-	// copies values from c to out until c is closed, then calls wg.Done.
-	outputRecs := func(c chan *Record) {
-		for n := range c {
-			out <- n
-		}
-		wg.Done()
-	}
-
-	outputErrors := func(c chan error) {
-		for n := range c {
-			outErr <- n
-		}
-		wg.Done()
-	}
-
-	// wait for both record and channels to close
-	// otherwise we may leak goroutines and we won't know
-	wg.Add(len(channels) + len(errors))
-	for _, c := range channels {
-		go outputRecs(c)
-	}
-
-	for _, c := range errors {
-		go outputErrors(c)
-	}
-
-	// Start a goroutine to close out once all the output goroutines are
-	// done.  This must start after the wg.Add call.
-	go func() {
-		wg.Wait()
-		close(out)
-		close(outErr)
-	}()
-	return out, outErr
 }

@@ -15,8 +15,6 @@
 package aerospike
 
 import (
-	"time"
-
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -27,9 +25,7 @@ type scanCommand struct {
 	policy    *ScanPolicy
 	namespace string
 	setName   string
-	// Records   chan *Record
-	// Errors    chan error
-	binNames []string
+	binNames  []string
 }
 
 func newScanCommand(
@@ -38,22 +34,10 @@ func newScanCommand(
 	namespace string,
 	setName string,
 	binNames []string,
-	recChan chan *Record,
-	errChan chan error,
+	recordset *Recordset,
 ) *scanCommand {
-
-	// make recChan in case it is nil
-	if recChan == nil {
-		recChan = make(chan *Record, 1024)
-	}
-
-	// make errChan in case it is nil
-	if errChan == nil {
-		errChan = make(chan error, 1024)
-	}
-
 	return &scanCommand{
-		baseMultiCommand: newMultiCommand(node, recChan, errChan),
+		baseMultiCommand: newMultiCommand(node, recordset),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,
@@ -75,7 +59,7 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
-			cmd.Errors <- newNodeError(cmd.node, err)
+			cmd.recordset.Errors <- newNodeError(cmd.node, err)
 			return false, err
 		}
 		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
@@ -85,7 +69,7 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 				return false, nil
 			}
 			err := NewAerospikeError(resultCode)
-			cmd.Errors <- newNodeError(cmd.node, err)
+			cmd.recordset.Errors <- newNodeError(cmd.node, err)
 			return false, err
 		}
 
@@ -103,7 +87,7 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 
 		key, err := cmd.parseKey(fieldCount)
 		if err != nil {
-			cmd.Errors <- newNodeError(cmd.node, err)
+			cmd.recordset.Errors <- newNodeError(cmd.node, err)
 			return false, err
 		}
 
@@ -112,7 +96,7 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 
 		for i := 0; i < opCount; i++ {
 			if err := cmd.readBytes(8); err != nil {
-				cmd.Errors <- newNodeError(cmd.node, err)
+				cmd.recordset.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
 
@@ -121,20 +105,20 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 			nameSize := int(cmd.dataBuffer[7])
 
 			if err := cmd.readBytes(nameSize); err != nil {
-				cmd.Errors <- newNodeError(cmd.node, err)
+				cmd.recordset.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
 			name := string(cmd.dataBuffer[:nameSize])
 
 			particleBytesSize := int(opSize - (4 + nameSize))
 			if err := cmd.readBytes(particleBytesSize); err != nil {
-				cmd.Errors <- newNodeError(cmd.node, err)
+				cmd.recordset.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
 
 			value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
 			if err != nil {
-				cmd.Errors <- newNodeError(cmd.node, err)
+				cmd.recordset.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
 
@@ -152,12 +136,10 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 		for {
 			select {
 			// send back the result on the async channel
-			case cmd.Records <- newRecord(cmd.node, key, bins, nil, generation, expiration):
+			case cmd.recordset.Records <- newRecord(cmd.node, key, bins, nil, generation, expiration):
 				break L
-			case <-time.After(time.Millisecond):
-				if !cmd.IsValid() {
-					return false, NewAerospikeError(SCAN_TERMINATED)
-				}
+			case <-cmd.recordset.cancelled:
+				return false, NewAerospikeError(SCAN_TERMINATED)
 			}
 		}
 	}
@@ -166,13 +148,18 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 }
 
 func (cmd *scanCommand) parseResult(ifc command, conn *Connection) error {
-	// close the channel
-	defer close(cmd.Records)
-	defer close(cmd.Errors)
+	defer func() {
+		if r := recover(); r != nil {
+			if r != "send on closed channel" {
+				panic(r)
+			}
+		}
+	}()
 
 	return cmd.baseMultiCommand.parseResult(ifc, conn)
 }
 
 func (cmd *scanCommand) Execute() error {
+	defer cmd.recordset.signalEnd()
 	return cmd.execute(cmd)
 }
