@@ -244,7 +244,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 			readAttr |= _INFO1_READ
 
 			// Read all bins if no bin is specified.
-			if operations[i].BinName == nil {
+			if operations[i].BinName == "" {
 				readAttr |= _INFO1_GET_ALL
 			}
 			readBin = true
@@ -264,7 +264,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	}
 
 	if readHeader && !readBin {
-		readAttr |= Command.INFO1_NOBINDATA
+		readAttr |= _INFO1_NOBINDATA
 	}
 
 	if writeAttr != 0 {
@@ -484,10 +484,7 @@ func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) {
 }
 
 func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) {
-	binLen := 0
-	if operation.BinName != nil {
-		binLen = len(*operation.BinName)
-	}
+	binLen := len(operation.BinName)
 	cmd.dataOffset += binLen + int(_OPERATION_HEADER_SIZE)
 
 	if operation.BinValue != nil {
@@ -632,10 +629,7 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 }
 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
-	nameLength := 0
-	if operation.BinName != nil {
-		nameLength = copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], *operation.BinName)
-	}
+	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.BinName)
 
 	valueLength, err := operation.BinValue.write(cmd.dataBuffer, cmd.dataOffset+int(_OPERATION_HEADER_SIZE)+nameLength)
 	if err != nil {

@@ -473,7 +473,8 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
 			go func() {
-				if err := clnt.scanNode(policy, node, res, namespace, setName, binNames...); err != nil {
+				newPolicy := *policy
+				if err := clnt.scanNode(&newPolicy, node, res, namespace, setName, binNames...); err != nil {
 					if _, ok := <-res.Errors; ok {
 						res.Errors <- err
 					}
@@ -484,7 +485,8 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				if err := clnt.scanNode(policy, node, res, namespace, setName, binNames...); err != nil {
+				newPolicy := *policy
+				if err := clnt.scanNode(&newPolicy, node, res, namespace, setName, binNames...); err != nil {
 					if _, ok := <-res.Errors; ok {
 						res.Errors <- err
 					}
@@ -511,7 +513,8 @@ func (clnt *Client) ScanNode(policy *ScanPolicy, node *Node, namespace string, s
 	// results channel must be async for performance
 	res := newRecordset(policy.RecordQueueSize, 1)
 
-	return res, clnt.scanNode(policy, node, res, namespace, setName, binNames...)
+	newPolicy := *policy
+	return res, clnt.scanNode(&newPolicy, node, res, namespace, setName, binNames...)
 }
 
 // ScanNode reads all records in specified namespace and set for one node only.
@@ -525,11 +528,7 @@ func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordse
 		}
 	}
 
-	// Retry policy must be one-shot for scans.
-	// copy on write for policy
-	newPolicy := *policy
-
-	command := newScanCommand(node, &newPolicy, namespace, setName, binNames, recordset)
+	command := newScanCommand(node, policy, namespace, setName, binNames, recordset)
 	return command.Execute()
 }
 

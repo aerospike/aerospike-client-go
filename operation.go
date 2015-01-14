@@ -15,7 +15,7 @@
 package aerospike
 
 // OperationType determines operation type
-type OperationType int
+type OperationType byte
 
 var (
 	READ        OperationType = 1
@@ -35,7 +35,7 @@ type Operation struct {
 	OpType OperationType
 
 	// BinName (Optional) determines the name of bin used in operation.
-	BinName *string
+	BinName string
 
 	// BinValue (Optional) determines bin value used in operation.
 	BinValue Value
@@ -43,7 +43,7 @@ type Operation struct {
 
 // GetOpForBin creates read bin database operation.
 func GetOpForBin(binName string) *Operation {
-	return &Operation{OpType: READ, BinName: &binName, BinValue: NewNullValue()}
+	return &Operation{OpType: READ, BinName: binName, BinValue: NewNullValue()}
 }
 
 // GetOp creates read all record bins database operation.
@@ -58,22 +58,22 @@ func GetHeaderOp() *Operation {
 
 // PutOp creates set database operation.
 func PutOp(bin *Bin) *Operation {
-	return &Operation{OpType: WRITE, BinName: &bin.Name, BinValue: bin.Value}
+	return &Operation{OpType: WRITE, BinName: bin.Name, BinValue: bin.Value}
 }
 
 // AppendOp creates string append database operation.
 func AppendOp(bin *Bin) *Operation {
-	return &Operation{OpType: APPEND, BinName: &bin.Name, BinValue: bin.Value}
+	return &Operation{OpType: APPEND, BinName: bin.Name, BinValue: bin.Value}
 }
 
 // PrependOp creates string prepend database operation.
 func PrependOp(bin *Bin) *Operation {
-	return &Operation{OpType: PREPEND, BinName: &bin.Name, BinValue: bin.Value}
+	return &Operation{OpType: PREPEND, BinName: bin.Name, BinValue: bin.Value}
 }
 
 // AddOp creates integer add database operation.
 func AddOp(bin *Bin) *Operation {
-	return &Operation{OpType: ADD, BinName: &bin.Name, BinValue: bin.Value}
+	return &Operation{OpType: ADD, BinName: bin.Name, BinValue: bin.Value}
 }
 
 // TouchOp creates touch database operation.
