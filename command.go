@@ -216,11 +216,7 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 		return nil
 	}
 
-	// The server does not currently return record header data with _INFO1_NOBINDATA attribute set.
-	// The workaround is to request a non-existent bin.
-	// TODO: Fix this on server.
-	//command.setRead(_INFO1_READ | _INFO1_NOBINDATA);
-	cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ, 0, fieldCount, 1)
+	cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 1)
 
 	cmd.writeKey(key, false)
 	cmd.writeOperationForBinName("", READ)
@@ -241,16 +237,18 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	for i := range operations {
 		switch operations[i].OpType {
 		case READ:
-			readAttr |= _INFO1_READ
+			if !operations[i].headerOnly {
+				readAttr |= _INFO1_READ
 
-			// Read all bins if no bin is specified.
-			if operations[i].BinName == "" {
-				readAttr |= _INFO1_GET_ALL
+				// Read all bins if no bin is specified.
+				if operations[i].BinName == "" {
+					readAttr |= _INFO1_GET_ALL
+				}
+				readBin = true
+			} else {
+				readAttr |= _INFO1_READ
+				readHeader = true
 			}
-			readBin = true
-		case READ_HEADER:
-			readAttr |= _INFO1_READ
-			readHeader = true
 		default:
 			writeAttr = _INFO2_WRITE
 		}
@@ -280,11 +278,6 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		}
 	}
 
-	if readHeader {
-		if err := cmd.writeOperationForBin(nil, READ); err != nil {
-			return err
-		}
-	}
 	cmd.end()
 
 	return nil

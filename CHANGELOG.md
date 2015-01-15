@@ -23,6 +23,8 @@
 
       * Fixed a bug in `tools/cli/cli.go`.
 
+      * Fixed a bug when GetHeaderOp would always translate into GetOp()
+
 ## Dec 29 2014: v1.2.0
 
   * **New Features**

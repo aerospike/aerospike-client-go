@@ -920,7 +920,7 @@ var _ = Describe("Aerospike", func() {
 				rec, err = client.Operate(nil, key, ops5...)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(rec.Generation).To(Equal(5))
+				Expect(rec.Generation).To(Equal(4))
 				Expect(len(rec.Bins)).To(Equal(2))
 			})
 

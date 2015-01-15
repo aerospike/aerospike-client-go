@@ -445,14 +445,8 @@ func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operat
 // If the policy's concurrentNodes is specified, each server node will be read in
 // parallel. Otherwise, server nodes are read sequentially.
 // If the policy is nil, a default policy will be generated.
-func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string, binNames ...string) (*Recordset, error) {
-	if policy == nil {
-		if clnt.DefaultScanPolicy != nil {
-			policy = clnt.DefaultScanPolicy
-		} else {
-			policy = NewScanPolicy()
-		}
-	}
+func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName string, binNames ...string) (*Recordset, error) {
+	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
@@ -472,21 +466,19 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 	// the whole call should be wrapped in a goroutine
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
-			go func() {
-				newPolicy := *policy
-				if err := clnt.scanNode(&newPolicy, node, res, namespace, setName, binNames...); err != nil {
+			go func(node *Node) {
+				if err := clnt.scanNode(&policy, node, res, namespace, setName, binNames...); err != nil {
 					if _, ok := <-res.Errors; ok {
 						res.Errors <- err
 					}
 				}
-			}()
+			}(node)
 		}
 	} else {
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				newPolicy := *policy
-				if err := clnt.scanNode(&newPolicy, node, res, namespace, setName, binNames...); err != nil {
+				if err := clnt.scanNode(&policy, node, res, namespace, setName, binNames...); err != nil {
 					if _, ok := <-res.Errors; ok {
 						res.Errors <- err
 					}
@@ -501,20 +493,13 @@ func (clnt *Client) ScanAll(policy *ScanPolicy, namespace string, setName string
 
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, a default policy will be generated.
-func (clnt *Client) ScanNode(policy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, error) {
-	if policy == nil {
-		if clnt.DefaultScanPolicy != nil {
-			policy = clnt.DefaultScanPolicy
-		} else {
-			policy = NewScanPolicy()
-		}
-	}
+func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, error) {
+	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	// results channel must be async for performance
 	res := newRecordset(policy.RecordQueueSize, 1)
 
-	newPolicy := *policy
-	return res, clnt.scanNode(&newPolicy, node, res, namespace, setName, binNames...)
+	return res, clnt.scanNode(&policy, node, res, namespace, setName, binNames...)
 }
 
 // ScanNode reads all records in specified namespace and set for one node only.
@@ -1352,4 +1337,15 @@ func (clnt *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batch
 
 	wg.Wait()
 	return mergeErrors(errs)
+}
+
+func (clnt *Client) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
+	if policy == nil {
+		if clnt.DefaultScanPolicy != nil {
+			return clnt.DefaultScanPolicy
+		} else {
+			return NewScanPolicy()
+		}
+	}
+	return policy
 }

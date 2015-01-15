@@ -17,14 +17,14 @@ package aerospike
 // OperationType determines operation type
 type OperationType byte
 
-var (
-	READ        OperationType = 1
-	READ_HEADER OperationType = 1
-	WRITE       OperationType = 2
-	ADD         OperationType = 5
-	APPEND      OperationType = 9
-	PREPEND     OperationType = 10
-	TOUCH       OperationType = 11
+const (
+	READ OperationType = 1
+	// READ_HEADER OperationType = 1
+	WRITE   OperationType = 2
+	ADD     OperationType = 5
+	APPEND  OperationType = 9
+	PREPEND OperationType = 10
+	TOUCH   OperationType = 11
 )
 
 // Operation contasins operation definition.
@@ -39,6 +39,9 @@ type Operation struct {
 
 	// BinValue (Optional) determines bin value used in operation.
 	BinValue Value
+
+	// will be true ONLY for GetHeader() operation
+	headerOnly bool
 }
 
 // GetOpForBin creates read bin database operation.
@@ -53,7 +56,7 @@ func GetOp() *Operation {
 
 // GetHeaderOp creates read record header database operation.
 func GetHeaderOp() *Operation {
-	return &Operation{OpType: READ_HEADER, BinValue: NewNullValue()}
+	return &Operation{OpType: READ, headerOnly: true, BinValue: NewNullValue()}
 }
 
 // PutOp creates set database operation.
