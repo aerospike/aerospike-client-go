@@ -31,13 +31,6 @@ type Record struct {
 	// Bins is the map of requested name/value bins.
 	Bins BinMap
 
-	// Duplicates is the list of all duplicate records (if any) for a given key.
-	// Duplicates are only created when the server configuration option
-	// "allow-versions" is true (default is false) and client
-	// RecordExistsAction.DUPLICATE policy flag is set and there is a generation error.
-	// It is almost always nil.
-	Duplicates []BinMap
-
 	// Generation shows record modification count.
 	Generation int
 
@@ -46,12 +39,11 @@ type Record struct {
 	Expiration int
 }
 
-func newRecord(node *Node, key *Key, bins BinMap, duplicates []BinMap, generation int, expiration int) *Record {
+func newRecord(node *Node, key *Key, bins BinMap, generation int, expiration int) *Record {
 	r := &Record{
 		Node:       node,
 		Key:        key,
 		Bins:       bins,
-		Duplicates: duplicates,
 		Generation: generation,
 		Expiration: expiration,
 	}

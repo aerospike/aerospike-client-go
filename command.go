@@ -521,36 +521,24 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 
 	switch policy.RecordExistsAction {
 	case UPDATE:
-		break
 	case UPDATE_ONLY:
 		infoAttr |= _INFO3_UPDATE_ONLY
-		break
 	case REPLACE:
 		infoAttr |= _INFO3_CREATE_OR_REPLACE
-		break
 	case REPLACE_ONLY:
 		infoAttr |= _INFO3_REPLACE_ONLY
-		break
 	case CREATE_ONLY:
 		writeAttr |= _INFO2_CREATE_ONLY
-		break
 	}
 
 	switch policy.GenerationPolicy {
 	case NONE:
-		break
 	case EXPECT_GEN_EQUAL:
 		generation = policy.Generation
 		writeAttr |= _INFO2_GENERATION
-		break
 	case EXPECT_GEN_GT:
 		generation = policy.Generation
 		writeAttr |= _INFO2_GENERATION_GT
-		break
-	case DUPLICATE:
-		generation = policy.Generation
-		writeAttr |= _INFO2_GENERATION_DUP
-		break
 	}
 
 	if policy.CommitLevel == COMMIT_MASTER {

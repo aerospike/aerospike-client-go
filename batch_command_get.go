@@ -116,7 +116,6 @@ func contains(a map[string]struct{}, elem string) bool {
 // Returns the number of bytes that were parsed from the given buffer.
 func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation int, expiration int) (*Record, error) {
 	var bins map[string]interface{}
-	var duplicates []BinMap
 
 	for i := 0; i < opCount; i++ {
 		if !cmd.IsValid() {
@@ -128,7 +127,6 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation int, e
 		}
 		opSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 0)))
 		particleType := int(cmd.dataBuffer[5])
-		version := int(cmd.dataBuffer[6])
 		nameSize := int(cmd.dataBuffer[7])
 
 		if err := cmd.readBytes(nameSize); err != nil {
@@ -149,49 +147,14 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation int, e
 		// the bins are requested. We have to filter it on the client side.
 		// TODO: Filter batch bins on server!
 		if cmd.binNames == nil || contains(cmd.binNames, name) {
-			var vmap map[string]interface{}
-
-			if version > 0 || duplicates != nil {
-				if duplicates == nil {
-					duplicates = []BinMap{}
-					duplicates = append(duplicates, bins)
-					bins = nil
-
-					for j := 0; j < version; j++ {
-						duplicates = append(duplicates, nil)
-					}
-				} else {
-					for j := len(duplicates); j < version+1; j++ {
-						duplicates = append(duplicates, nil)
-					}
-				}
-
-				vmap = duplicates[version]
-				if vmap == nil {
-					vmap = map[string]interface{}{}
-					duplicates[version] = vmap
-				}
-			} else {
-				if bins == nil {
-					bins = map[string]interface{}{}
-				}
-				vmap = bins
+			if bins == nil {
+				bins = map[string]interface{}{}
 			}
-			vmap[name] = value
+			bins[name] = value
 		}
 	}
 
-	// Remove nil duplicates just in case there were holes in the version number space.
-	// TODO: this seems to be a bad idea; O(n) algorithm after another O(n) algorithm
-	idx := 0
-	for i := range duplicates {
-		if duplicates[i] != nil {
-			duplicates[idx] = duplicates[i]
-			idx++
-		}
-	}
-
-	return newRecord(cmd.node, key, bins, duplicates[:idx], generation, expiration), nil
+	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
 func (cmd *batchCommandGet) Execute() error {

@@ -2,6 +2,10 @@
 
 ## Jan 14 2015 : v1.3.0
 
+  * **Breaking Changes**
+
+    * Removed `Record.Duplicates` and `GenerationPolicy/DUPLICATE`
+
   * **New Features**
 
     * Added Security Features: Please consult [Security Docs](https://www.aerospike.com/docs/guide/security.html) on Aerospike website.
@@ -23,7 +27,7 @@
 
       * Fixed a bug in `tools/cli/cli.go`.
 
-      * Fixed a bug when GetHeaderOp would always translate into GetOp()
+      * Fixed a bug when `GetHeaderOp()` would always translate into `GetOp()`
 
 ## Dec 29 2014: v1.2.0
 

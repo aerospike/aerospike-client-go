@@ -27,9 +27,4 @@ const (
 	// EXPECT_GEN_GT means: Update/Delete record if expected generation greater than the server generation. Otherwise, fail.
 	// This is useful for restore after backup.
 	EXPECT_GEN_GT
-
-	// DUPLICATE means: Create duplicate record if expected generation is not equal to server generation.
-	// Duplicates are only created when the server configuration option "allow-versions"
-	// is true (default is false).
-	DUPLICATE
 )

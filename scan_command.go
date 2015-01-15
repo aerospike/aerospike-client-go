@@ -136,7 +136,7 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 		for {
 			select {
 			// send back the result on the async channel
-			case cmd.recordset.Records <- newRecord(cmd.node, key, bins, nil, generation, expiration):
+			case cmd.recordset.Records <- newRecord(cmd.node, key, bins, generation, expiration):
 				break L
 			case <-cmd.recordset.cancelled:
 				return false, NewAerospikeError(SCAN_TERMINATED)

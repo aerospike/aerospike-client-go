@@ -97,7 +97,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 
 	if opCount == 0 {
 		// data Bin was not returned.
-		cmd.record = newRecord(cmd.node, cmd.key, nil, nil, generation, expiration)
+		cmd.record = newRecord(cmd.node, cmd.key, nil, generation, expiration)
 		return nil
 	}
 
@@ -123,13 +123,12 @@ func (cmd *readCommand) parseRecord(
 	expiration int,
 ) (*Record, error) {
 	var bins BinMap
-	var duplicates []BinMap
 	receiveOffset := 0
 
 	// There can be fields in the response (setname etc).
 	// But for now, ignore them. Expose them to the API if needed in the future.
 	// Logger.Debug("field count: %d, databuffer: %v", fieldCount, cmd.dataBuffer)
-	if fieldCount != 0 {
+	if fieldCount > 0 {
 		// Just skip over all the fields
 		for i := 0; i < fieldCount; i++ {
 			// Logger.Debug("%d", receiveOffset)
@@ -141,7 +140,6 @@ func (cmd *readCommand) parseRecord(
 	for i := 0; i < opCount; i++ {
 		opSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset)))
 		particleType := int(cmd.dataBuffer[receiveOffset+5])
-		version := int(cmd.dataBuffer[receiveOffset+6])
 		nameSize := int(cmd.dataBuffer[receiveOffset+7])
 		name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
 		receiveOffset += 4 + 4 + nameSize
@@ -150,50 +148,13 @@ func (cmd *readCommand) parseRecord(
 		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
 		receiveOffset += particleBytesSize
 
-		var vmap BinMap
-
-		if version > 0 || duplicates != nil {
-			if duplicates == nil {
-				duplicates = make([]BinMap, opCount)
-				duplicates = append(duplicates, bins)
-				bins = nil
-
-				for j := 0; j < version; j++ {
-					duplicates = append(duplicates, nil)
-				}
-			} else {
-				for j := len(duplicates); j < version+1; j++ {
-					duplicates = append(duplicates, nil)
-				}
-			}
-
-			vmap = duplicates[version]
-			if vmap == nil {
-				vmap = make(BinMap, opCount)
-				duplicates[version] = vmap
-			}
-		} else {
-			if bins == nil {
-				bins = make(BinMap, opCount)
-			}
-			vmap = bins
+		if bins == nil {
+			bins = make(BinMap, opCount)
 		}
-		vmap[name] = value
+		bins[name] = value
 	}
 
-	// Remove nil duplicates just in case there were holes in the version number space.
-	if duplicates != nil {
-		lastElem := 0
-		for i := range duplicates {
-			if duplicates[i] != nil {
-				duplicates[lastElem] = duplicates[i]
-				lastElem++
-			}
-		}
-		duplicates = duplicates[:lastElem]
-	}
-
-	return newRecord(cmd.node, cmd.key, bins, duplicates, generation, expiration), nil
+	return newRecord(cmd.node, cmd.key, bins, generation, expiration), nil
 }
 
 func (cmd *readCommand) GetRecord() *Record {
