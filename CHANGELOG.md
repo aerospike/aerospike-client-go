@@ -1,6 +1,6 @@
 # Change history
 
-## Jan 14 2015 : v1.3.0
+## Jan 20 2015 : v1.3.0
 
   * **Breaking Changes**
 
