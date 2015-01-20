@@ -87,9 +87,10 @@ var _ = Describe("LargeMap Test", func() {
 			Expect(exists).To(BeTrue())
 
 			// check for a non-existing element
+			// This test only passes in Aerospike 3.4.1 and above
 			elem, err = lmap.Get(i * 70000)
-			Expect(err).To(HaveOccurred())
-			Expect(elem).To(BeNil())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(elem).To(Equal(map[interface{}]interface{}{}))
 
 			// confirm that the LMAP size has been increased to the expected size
 			sz, err := lmap.Size()
