@@ -19,24 +19,34 @@ import (
 	// "errors"
 	"fmt"
 	"math"
-	"unsafe"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
 )
 
-var sizeOfInt = unsafe.Sizeof(int(0))
-var sizeOfInt32 = unsafe.Sizeof(int32(0))
-var sizeOfInt64 = unsafe.Sizeof(int64(0))
+var sizeOfInt uintptr
+var sizeOfInt32 = uintptr(4)
+var sizeOfInt64 = uintptr(8)
 
-var uint64sz = int(unsafe.Sizeof(uint64(0)))
-var uint32sz = int(unsafe.Sizeof(uint32(0)))
-var uint16sz = int(unsafe.Sizeof(uint16(0)))
+var uint64sz = int(8)
+var uint32sz = int(4)
+var uint16sz = int(2)
 
-var float32sz = int(unsafe.Sizeof(float32(0)))
-var float64sz = int(unsafe.Sizeof(float64(0)))
+var float32sz = int(4)
+var float64sz = int(8)
 
 var Arch64Bits = (sizeOfInt == sizeOfInt64)
 var Arch32Bits = (sizeOfInt == sizeOfInt32)
+
+func init() {
+	var j, i int = ^0
+
+	for i != 0 {
+		j++
+		i >>= 1
+	}
+
+	sizeOfInt = uintptr(j)
+}
 
 // Coverts a byte slice into a hex string
 func BytesToHexString(buf []byte) string {
