@@ -38,14 +38,11 @@ var Arch64Bits = (sizeOfInt == sizeOfInt64)
 var Arch32Bits = (sizeOfInt == sizeOfInt32)
 
 func init() {
-	var j, i int = 0, ^0
-
-	for i != 0 {
-		j++
-		i >>= 1
+	if int(^0) == 0xffffffff {
+		sizeOfInt = 4
+	} else {
+		sizeOfInt = 8
 	}
-
-	sizeOfInt = uintptr(j)
 }
 
 // Coverts a byte slice into a hex string

@@ -70,14 +70,11 @@ var sizeOfInt32 = uintptr(4)
 var sizeOfInt64 = uintptr(8)
 
 func init() {
-	var j, i int = 0, ^0
-
-	for i != 0 {
-		j++
-		i >>= 1
+	if int(^0) == 0xffffffff {
+		sizeOfInt = 4
+	} else {
+		sizeOfInt = 8
 	}
-
-	sizeOfInt = uintptr(j)
 }
 
 // NewValue generates a new Value object based on the type.
