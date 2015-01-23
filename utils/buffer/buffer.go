@@ -38,7 +38,7 @@ var Arch64Bits = (sizeOfInt == sizeOfInt64)
 var Arch32Bits = (sizeOfInt == sizeOfInt32)
 
 func init() {
-	var j, i int = ^0
+	var j, i int = 0, ^0
 
 	for i != 0 {
 		j++
