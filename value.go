@@ -22,7 +22,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -66,8 +65,20 @@ type AerospikeBlob interface {
 	EncodeBlob() ([]byte, error)
 }
 
-var sizeOfInt = unsafe.Sizeof(int(0))
-var sizeOfInt32 = unsafe.Sizeof(int32(0))
+var sizeOfInt uintptr
+var sizeOfInt32 = uintptr(4)
+var sizeOfInt64 = uintptr(8)
+
+func init() {
+	var j, i int = 0, ^0
+
+	for i != 0 {
+		j++
+		i >>= 1
+	}
+
+	sizeOfInt = uintptr(j)
+}
 
 // NewValue generates a new Value object based on the type.
 // If the type is not supported, NewValue will panic.

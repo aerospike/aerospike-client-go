@@ -17,7 +17,6 @@ package aerospike
 import (
 	"math"
 	"reflect"
-	"unsafe"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -38,7 +37,7 @@ func (b *testBLOB) EncodeBlob() ([]byte, error) {
 func isValidIntegerValue(i int, v Value) bool {
 	Expect(reflect.TypeOf(v)).To(Equal(reflect.TypeOf(NewIntegerValue(0))))
 	Expect(v.GetObject()).To(Equal(i))
-	Expect(v.estimateSize()).To(Equal(int(unsafe.Sizeof(int(0)))))
+	Expect(v.estimateSize()).To(Equal(int(sizeOfInt)))
 	Expect(v.GetType()).To(Equal(ParticleType.INTEGER))
 
 	return true
@@ -47,7 +46,7 @@ func isValidIntegerValue(i int, v Value) bool {
 func isValidLongValue(i int64, v Value) bool {
 	Expect(reflect.TypeOf(v)).To(Equal(reflect.TypeOf(NewLongValue(0))))
 	Expect(v.GetObject().(int64)).To(Equal(i))
-	Expect(v.estimateSize()).To(Equal(int(unsafe.Sizeof(int64(0)))))
+	Expect(v.estimateSize()).To(Equal(int(sizeOfInt64)))
 	Expect(v.GetType()).To(Equal(ParticleType.INTEGER))
 
 	return true
