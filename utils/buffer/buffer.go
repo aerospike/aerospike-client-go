@@ -34,8 +34,8 @@ var uint16sz = int(2)
 var float32sz = int(4)
 var float64sz = int(8)
 
-var Arch64Bits = (sizeOfInt == sizeOfInt64)
-var Arch32Bits = (sizeOfInt == sizeOfInt32)
+var Arch64Bits bool
+var Arch32Bits bool
 
 func init() {
 	if int(^0) == 0xffffffff {
@@ -43,6 +43,8 @@ func init() {
 	} else {
 		sizeOfInt = 8
 	}
+	Arch64Bits = (sizeOfInt == sizeOfInt64)
+	Arch32Bits = (sizeOfInt == sizeOfInt32)
 }
 
 // Coverts a byte slice into a hex string
