@@ -14,6 +14,10 @@
 
 package aerospike
 
+import (
+	. "github.com/aerospike/aerospike-client-go/types"
+)
+
 // BinMap is used to define a map of bin names to values.
 type BinMap map[string]interface{}
 
@@ -35,15 +39,36 @@ func NewBin(name string, value interface{}) *Bin {
 	}
 }
 
-func binMapToBins(bins BinMap) []*Bin {
-	binList := make([]*Bin, 0, len(bins))
-	for k, v := range bins {
-		binList = append(binList, NewBin(k, v))
-	}
-	return binList
-}
-
 // String implements Stringer interface.
 func (bn *Bin) String() string {
 	return bn.Name + ":" + bn.Value.String()
+}
+
+func binMapToBins(bins []*Bin, binMap BinMap) []*Bin {
+	i := 0
+	for k, v := range binMap {
+		bins[i].Name = k
+		bins[i].Value = NewValue(v)
+		i++
+	}
+
+	return bins
+}
+
+// pool Bins so that we won't have to allocate them everytime
+var binPool = NewPool(512)
+
+func init() {
+	binPool.New = func(params ...interface{}) interface{} {
+		size := params[0].(int)
+		bins := make([]*Bin, size, size)
+		for i := range bins {
+			bins[i] = &Bin{}
+		}
+		return bins
+	}
+
+	binPool.IsUsable = func(obj interface{}, params ...interface{}) bool {
+		return len(obj.([]*Bin)) >= params[0].(int)
+	}
 }

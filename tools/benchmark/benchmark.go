@@ -65,6 +65,7 @@ var maxRetries = flag.Int("maxRetries", 2, "Maximum number of retries before abo
 var connQueueSize = flag.Int("queueSize", 4096, "Maximum number of connections to pool.")
 
 var randBinData = flag.Bool("R", false, "Use dynamically generated random bin values instead of default static fixed bin values.")
+var useMarshalling = flag.Bool("M", false, "Use marshaling a struct instead of simple key/value operations")
 var debugMode = flag.Bool("d", false, "Run benchmarks in debug mode.")
 var profileMode = flag.Bool("profile", false, "Run benchmarks with profiler active on port 6060.")
 var showUsage = flag.Bool("u", false, "Show usage information.")
@@ -82,6 +83,13 @@ var wg sync.WaitGroup
 // throughput counter
 var currThroughput int64
 var lastReport int64
+
+// Underscores are there so that the field name is the same as key/value mode
+type dataStruct struct {
+	Int________ int64
+	String_____ string
+	Bytes______ []byte
+}
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -236,18 +244,68 @@ func readFlags() {
 }
 
 // new random bin generator based on benchmark specs
+func getRandValue() Value {
+	switch binDataType {
+	case "B":
+		return NewBytesValue(randBytes(binDataSize))
+	case "S":
+		return NewStringValue(string(randBytes(binDataSize)))
+	default:
+		return NewLongValue(xr.Int64())
+	}
+}
+
+// new random bin generator based on benchmark specs
 func getBin() *Bin {
 	var bin *Bin
 	switch binDataType {
 	case "B":
-		bin = &Bin{Name: "information", Value: NewBytesValue(randBytes(binDataSize))}
+		bin = &Bin{Name: "Bytes______", Value: getRandValue()}
 	case "S":
-		bin = &Bin{Name: "information", Value: NewStringValue(string(randBytes(binDataSize)))}
+		bin = &Bin{Name: "String_____", Value: getRandValue()}
 	default:
-		bin = &Bin{Name: "information", Value: NewLongValue(xr.Int64())}
+		bin = &Bin{Name: "Int________", Value: getRandValue()}
 	}
 
 	return bin
+}
+
+func setBin(bin *Bin) {
+	switch binDataType {
+	case "B":
+		bin.Value = getRandValue()
+	case "S":
+		bin.Value = getRandValue()
+	default:
+		bin.Value = getRandValue()
+	}
+}
+
+// new random bin generator based on benchmark specs
+func getDataStruct() *dataStruct {
+	var ds *dataStruct
+	switch binDataType {
+	case "B":
+		ds = &dataStruct{Bytes______: randBytes(binDataSize)}
+	case "S":
+		ds = &dataStruct{String_____: string(randBytes(binDataSize))}
+	default:
+		ds = &dataStruct{Int________: xr.Int64()}
+	}
+
+	return ds
+}
+
+// new random bin generator based on benchmark specs
+func setDataStruct(ds *dataStruct) {
+	switch binDataType {
+	case "B":
+		ds.Bytes______ = randBytes(binDataSize)
+	case "S":
+		ds.String_____ = string(randBytes(binDataSize))
+	default:
+		ds.Int________ = xr.Int64()
+	}
 }
 
 var r *Record
@@ -284,6 +342,7 @@ func runBench(client *Client, ident int, times int) {
 	readpolicy := writepolicy.GetBasePolicy()
 
 	defaultBin := getBin()
+	defaultObj := getDataStruct()
 
 	t := time.Now()
 	var WCount, RCount int
@@ -300,18 +359,30 @@ func runBench(client *Client, ident int, times int) {
 	rLatList := make([]int64, latCols+1)
 
 	bin := defaultBin
+	obj := defaultObj
 	for i := 1; workloadType == "RU" || i <= times; i++ {
 		rLat, wLat = 0, 0
 		key, _ := NewKey(*namespace, *set, ident*times+(i%times))
 		if workloadType == "I" || int(xr.Uint64()%100) >= workloadPercent {
 			WCount++
-			// if randomBin data has been requested
-			if *randBinData {
-				bin = getBin()
-			}
-			tm = time.Now()
-			if err = client.PutBins(writepolicy, key, bin); err != nil {
-				incOnError(&writeErr, &writeTOErr, err)
+			if !*useMarshalling {
+				// if randomBin data has been requested
+				if *randBinData {
+					setBin(bin)
+				}
+				tm = time.Now()
+				if err = client.PutBins(writepolicy, key, bin); err != nil {
+					incOnError(&writeErr, &writeTOErr, err)
+				}
+			} else {
+				// if randomBin data has been requested
+				if *randBinData {
+					setDataStruct(obj)
+				}
+				tm = time.Now()
+				if err = client.PutObject(writepolicy, key, obj); err != nil {
+					incOnError(&writeErr, &writeTOErr, err)
+				}
 			}
 			wLat = int64(time.Now().Sub(tm) / time.Millisecond)
 			wLatTotal += wLat
@@ -332,8 +403,14 @@ func runBench(client *Client, ident int, times int) {
 		} else {
 			RCount++
 			tm = time.Now()
-			if r, err = client.Get(readpolicy, key, bin.Name); err != nil {
-				incOnError(&readErr, &readTOErr, err)
+			if !*useMarshalling {
+				if r, err = client.Get(readpolicy, key, bin.Name); err != nil {
+					incOnError(&readErr, &readTOErr, err)
+				}
+			} else {
+				if err = client.GetObject(readpolicy, key, obj); err != nil {
+					incOnError(&readErr, &readTOErr, err)
+				}
 			}
 			rLat = int64(time.Now().Sub(tm) / time.Millisecond)
 			rLatTotal += rLat

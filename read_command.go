@@ -15,6 +15,11 @@
 package aerospike
 
 import (
+	"math"
+	"reflect"
+	"strings"
+	"time"
+
 	. "github.com/aerospike/aerospike-client-go/logger"
 
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -27,6 +32,11 @@ type readCommand struct {
 	policy   Policy
 	binNames []string
 	record   *Record
+
+	// pointer to the object that's going to be unmarshalled
+	object interface{}
+	// mapping of aliases for the object fields
+	objectMappings map[string]map[string]string
 }
 
 func newReadCommand(cluster *Cluster, policy Policy, key *Key, binNames []string) *readCommand {
@@ -47,7 +57,6 @@ func (cmd *readCommand) writeBuffer(ifc command) error {
 
 func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
-	// Logger.Debug("readCommand Parse Result: trying to read %d bytes from the connection...", int(_MSG_TOTAL_HEADER_SIZE))
 	_, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE))
 	if err != nil {
 		Logger.Warn("parse result error: " + err.Error())
@@ -64,8 +73,6 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	fieldCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 26))) // almost certainly 0
 	opCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 28)))
 	receiveSize := int((sz & 0xFFFFFFFFFFFF) - int64(headerLength))
-
-	// Logger.Debug("readCommand Parse Result: resultCode: %d, headerLength: %d, generation: %d, expiration: %d, fieldCount: %d, opCount: %d, receiveSize: %d", resultCode, headerLength, generation, expiration, fieldCount, opCount, receiveSize)
 
 	// Read remaining message bytes.
 	if receiveSize > 0 {
@@ -95,15 +102,19 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 		return NewAerospikeError(resultCode)
 	}
 
-	if opCount == 0 {
-		// data Bin was not returned.
-		cmd.record = newRecord(cmd.node, cmd.key, nil, generation, expiration)
-		return nil
-	}
+	if cmd.object == nil {
+		if opCount == 0 {
+			// data Bin was not returned.
+			cmd.record = newRecord(cmd.node, cmd.key, nil, generation, expiration)
+			return nil
+		}
 
-	cmd.record, err = cmd.parseRecord(opCount, fieldCount, generation, expiration)
-	if err != nil {
-		return err
+		cmd.record, err = cmd.parseRecord(opCount, fieldCount, generation, expiration)
+		if err != nil {
+			return err
+		}
+	} else {
+		cmd.parseObject(opCount, fieldCount, generation, expiration)
 	}
 
 	return nil
@@ -157,10 +168,310 @@ func (cmd *readCommand) parseRecord(
 	return newRecord(cmd.node, cmd.key, bins, generation, expiration), nil
 }
 
+func (cmd *readCommand) parseObject(
+	opCount int,
+	fieldCount int,
+	generation int,
+	expiration int,
+) error {
+	receiveOffset := 0
+
+	// There can be fields in the response (setname etc).
+	// But for now, ignore them. Expose them to the API if needed in the future.
+	// Logger.Debug("field count: %d, databuffer: %v", fieldCount, cmd.dataBuffer)
+	if fieldCount > 0 {
+		// Just skip over all the fields
+		for i := 0; i < fieldCount; i++ {
+			// Logger.Debug("%d", receiveOffset)
+			fieldSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset)))
+			receiveOffset += (4 + fieldSize)
+		}
+	}
+
+	var rv reflect.Value
+	if opCount > 0 {
+		rv = reflect.ValueOf(cmd.object).Elem()
+
+		// map tags
+		cacheObjectTags(rv)
+
+		cmd.objectMappings = objectMappings.objectMappings //getMapping(rv.Type().Name())
+	}
+
+	for i := 0; i < opCount; i++ {
+		opSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset)))
+		particleType := int(cmd.dataBuffer[receiveOffset+5])
+		nameSize := int(cmd.dataBuffer[receiveOffset+7])
+		name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
+		receiveOffset += 4 + 4 + nameSize
+
+		particleBytesSize := int(opSize - (4 + nameSize))
+		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
+		// if _, err := cmd.setObjectField(cmd.object, name, value); err != nil {
+		if _, err := cmd.setObjectField(rv, name, value); err != nil {
+			return err
+		}
+
+		receiveOffset += particleBytesSize
+	}
+
+	return nil
+}
+
 func (cmd *readCommand) GetRecord() *Record {
 	return cmd.record
 }
 
 func (cmd *readCommand) Execute() error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *readCommand) setObjectField(obj reflect.Value, fieldName string, value interface{}) (interface{}, error) {
+	// TODO: This part has potential to be improved
+	// try to find the field by name
+
+	// find the name based on tag mapping
+	iobj := reflect.Indirect(obj)
+	if name, exists := cmd.objectMappings[iobj.Type().Name()][fieldName]; exists {
+		fieldName = name
+	}
+	f := iobj.FieldByName(fieldName)
+
+	if f.CanSet() {
+		switch f.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			f.SetInt(int64(value.(int)))
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			if v, ok := value.(int); ok {
+				f.SetUint(uint64(v))
+			} else {
+				f.SetUint(value.(uint64))
+			}
+		case reflect.Float64, reflect.Float32:
+			f.SetFloat(float64(math.Float64frombits(uint64(value.(int)))))
+		case reflect.String:
+			rv := reflect.ValueOf(value.(string))
+			if rv.Type() != f.Type() {
+				rv = rv.Convert(f.Type())
+			}
+			f.Set(rv)
+		case reflect.Bool:
+			f.SetBool(value.(int) == 1)
+		case reflect.Interface:
+			f.Set(reflect.ValueOf(value))
+		case reflect.Ptr:
+			switch f.Type().Elem().Kind() {
+			case reflect.Int:
+				tempV := int(value.(int))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Uint:
+				tempV := uint(value.(int))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.String:
+				tempV := string(value.(string))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Int8:
+				tempV := int8(value.(int))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Uint8:
+				tempV := uint8(value.(int))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Int16:
+				tempV := int16(value.(int))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Uint16:
+				tempV := uint16(value.(int))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Int32:
+				tempV := int32(value.(int))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Uint32:
+				tempV := uint32(value.(int))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Int64:
+				tempV := int64(value.(int))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Uint64:
+				tempV := uint64(value.(int))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Float64:
+				tempV := math.Float64frombits(uint64(value.(int)))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Bool:
+				tempV := bool(value.(int) == 1)
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Float32:
+				tempV := float32(math.Float64frombits(uint64(value.(int))))
+				rv := reflect.ValueOf(&tempV)
+				if rv.Type() != f.Type() {
+					rv = rv.Convert(f.Type())
+				}
+				f.Set(rv)
+			case reflect.Interface:
+				f.Set(reflect.ValueOf(&value))
+			case reflect.Struct:
+				// support time.Time
+				if f.Type().Elem().PkgPath() == "time" && f.Type().Elem().Name() == "Time" {
+					tm := time.Unix(0, int64(value.(int)))
+					f.Set(reflect.ValueOf(&tm))
+					break
+				} else {
+					valMap := value.(map[interface{}]interface{})
+					// iteraste over struct fields and recursively fill them up
+					if valMap != nil {
+						newObjPtr := f
+						if f.IsNil() {
+							newObjPtr = reflect.New(f.Type().Elem())
+						}
+						theStruct := newObjPtr.Elem().Type()
+						numFields := newObjPtr.Elem().NumField()
+						for i := 0; i < numFields; i++ {
+							// skip unexported fields
+							if theStruct.Field(i).PkgPath != "" {
+								continue
+							}
+
+							alias := theStruct.Field(i).Name
+							tag := strings.Trim(theStruct.Field(i).Tag.Get(aerospikeTag), " ")
+							if tag != "" {
+								alias = tag
+							}
+
+							if valMap[alias] != nil {
+								cmd.setObjectField(newObjPtr, alias, valMap[alias])
+							}
+						}
+
+						// set the field
+						f.Set(newObjPtr)
+					}
+				}
+			}
+		case reflect.Slice, reflect.Array:
+			// BLOBs come back as []byte
+			vlen := 0
+			if theArray, ok := value.([]interface{}); ok {
+				vlen = len(theArray)
+			} else if theArray, ok := value.([]byte); ok {
+				vlen = len(theArray)
+			}
+			// theArray := value.([]interface{})
+			if f.Kind() == reflect.Slice {
+				if f.IsNil() {
+					newArray := reflect.MakeSlice(reflect.SliceOf(f.Type().Elem()), vlen, vlen)
+					reflect.Copy(newArray, reflect.ValueOf(value))
+				}
+				f.Set(reflect.ValueOf(value))
+			} else {
+				reflect.Copy(f, reflect.ValueOf(value))
+			}
+		case reflect.Map:
+			theMap := value.(map[interface{}]interface{})
+			if theMap != nil {
+				newMap := reflect.MakeMap(f.Type())
+				var newKey, newVal reflect.Value
+				for key, elem := range theMap {
+					if key != nil {
+						newKey = reflect.ValueOf(key)
+					} else {
+						newKey = reflect.Zero(f.Type().Key())
+					}
+
+					if elem != nil {
+						newVal = reflect.ValueOf(elem)
+					} else {
+						newVal = reflect.Zero(f.Type().Elem())
+					}
+
+					newMap.SetMapIndex(newKey, newVal)
+				}
+			}
+
+			f.Set(reflect.ValueOf(theMap))
+		case reflect.Struct:
+			// support time.Time
+			if f.Type().PkgPath() == "time" && f.Type().Name() == "Time" {
+				f.Set(reflect.ValueOf(time.Unix(0, int64(value.(int)))))
+				break
+			}
+
+			valMap := value.(map[interface{}]interface{})
+			// iteraste over struct fields and recursively fill them up
+			typeOfT := f.Type()
+			numFields := f.NumField()
+			for i := 0; i < numFields; i++ {
+				// skip unexported fields
+				if typeOfT.Field(i).PkgPath != "" {
+					continue
+				}
+
+				alias := typeOfT.Field(i).Name
+				tag := strings.Trim(typeOfT.Field(i).Tag.Get(aerospikeTag), " ")
+				if tag != "" {
+					alias = tag
+				}
+
+				if valMap[alias] != nil {
+					cmd.setObjectField(f, alias, valMap[alias])
+				}
+			}
+
+			// set the field
+			f.Set(f)
+		}
+	}
+
+	return nil, nil
 }

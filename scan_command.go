@@ -128,19 +128,13 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 			bins[name] = value
 		}
 
-		if !cmd.IsValid() {
+		// If the channel is full and it blocks, we don't want this command to
+		// block forever, or panic in case the channel is closed in the meantime.
+		select {
+		// send back the result on the async channel
+		case cmd.recordset.Records <- newRecord(cmd.node, key, bins, generation, expiration):
+		case <-cmd.recordset.cancelled:
 			return false, NewAerospikeError(SCAN_TERMINATED)
-		}
-
-	L:
-		for {
-			select {
-			// send back the result on the async channel
-			case cmd.recordset.Records <- newRecord(cmd.node, key, bins, generation, expiration):
-				break L
-			case <-cmd.recordset.cancelled:
-				return false, NewAerospikeError(SCAN_TERMINATED)
-			}
 		}
 	}
 

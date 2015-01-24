@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"time"
 
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -179,6 +180,9 @@ func (pckr *packer) PackObject(obj interface{}) error {
 	case uint64:
 		pckr.PackAULong(v)
 		return nil
+	case time.Time:
+		pckr.PackALong(v.UnixNano())
+		return nil
 	case nil:
 		pckr.PackNil()
 		return nil
@@ -198,23 +202,32 @@ func (pckr *packer) PackObject(obj interface{}) error {
 	}
 
 	// check for array and map
+	rv := reflect.ValueOf(obj)
 	switch reflect.TypeOf(obj).Kind() {
 	case reflect.Array, reflect.Slice:
-		s := reflect.ValueOf(obj)
-		l := s.Len()
+		l := rv.Len()
 		arr := make([]interface{}, l)
 		for i := 0; i < l; i++ {
-			arr[i] = s.Index(i).Interface()
+			arr[i] = rv.Index(i).Interface()
 		}
 		return pckr.PackList(arr)
 	case reflect.Map:
-		s := reflect.ValueOf(obj)
-		l := s.Len()
+		l := rv.Len()
 		amap := make(map[interface{}]interface{}, l)
-		for _, i := range s.MapKeys() {
-			amap[i.Interface()] = s.MapIndex(i).Interface()
+		for _, i := range rv.MapKeys() {
+			amap[i.Interface()] = rv.MapIndex(i).Interface()
 		}
 		return pckr.PackMap(amap)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return pckr.PackObject(rv.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return pckr.PackObject(rv.Uint())
+	case reflect.Bool:
+		return pckr.PackObject(rv.Bool())
+	case reflect.String:
+		return pckr.PackObject(rv.String())
+	case reflect.Float32, reflect.Float64:
+		return pckr.PackObject(rv.Float())
 	}
 
 	panic(fmt.Sprintf("Type `%v` not supported to pack.", reflect.TypeOf(obj)))

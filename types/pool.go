@@ -23,7 +23,8 @@ type Pool struct {
 	pool     *AtomicQueue
 	poolSize int
 
-	New func() interface{}
+	New      func(params ...interface{}) interface{}
+	IsUsable func(obj interface{}, params ...interface{}) bool
 }
 
 // NewPool creates a new fixed size pool.
@@ -36,10 +37,10 @@ func NewPool(poolSize int) *Pool {
 
 // Get returns an element from the pool. If pool is empty, and a New function is defined,
 // the result of the New function will be returned
-func (bp *Pool) Get() interface{} {
+func (bp *Pool) Get(params ...interface{}) interface{} {
 	res := bp.pool.Poll()
-	if res == nil && bp.New != nil {
-		res = bp.New()
+	if (res == nil || (bp.IsUsable != nil && !bp.IsUsable(res, params...))) && bp.New != nil {
+		res = bp.New(params...)
 	}
 
 	return res

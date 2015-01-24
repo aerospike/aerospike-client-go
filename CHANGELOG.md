@@ -1,5 +1,48 @@
 # Change history
 
+## Feb 13 2015 : v1.4.0
+
+  This is a major release, and makes using the client much easier to develop web applications.
+
+  * **New Features**
+
+    * Added Marshalling Support.
+    * Added `Recordset.Results()`. Consumers of a recordset do not have to implement a select anymore. Instead of:
+    ```go
+    recordset, err := client.ScanAll(...)
+    L:
+    for {
+      select {
+      case r := <-recordset.Record:
+        if r == nil {
+          break L
+        }
+        // process record here
+      case e := <-recordset.Errors:
+        // handle error here
+      }
+    }
+    ```
+
+    one should only range on `recordset.Results()`:
+
+    ```go
+    recordset, err := client.ScanAll(...)
+    for res := range recordset.Results() {
+      if res.Err != nil {
+        // handle error here
+      } else {
+        // process record here
+        fmt.Println(res.Record.Bins)
+      }
+    }
+    ```
+    Use of the old pattern is discouraged and deprecated, and direct access to recordset.Records and recordset.Errors will be removed in a future release.
+      
+  * **Improvements**
+
+    * Custom Types are now allowed as bin values.
+
 ## Jan 14 2015 : v1.3.0
 
   * **Breaking Changes**

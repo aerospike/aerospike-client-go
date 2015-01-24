@@ -31,12 +31,7 @@ type deleteCommand struct {
 func newDeleteCommand(cluster *Cluster, policy *WritePolicy, key *Key) *deleteCommand {
 	newDeleteCmd := &deleteCommand{
 		singleCommand: newSingleCommand(cluster, key),
-	}
-
-	if policy == nil {
-		newDeleteCmd.policy = NewWritePolicy(0, 0)
-	} else {
-		newDeleteCmd.policy = policy
+		policy:        policy,
 	}
 
 	return newDeleteCmd

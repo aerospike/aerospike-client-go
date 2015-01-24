@@ -18,7 +18,7 @@ import (
 	"fmt"
 
 	. "github.com/aerospike/aerospike-client-go/types"
-	. "github.com/aerospike/aerospike-client-go/types/atomic"
+	// . "github.com/aerospike/aerospike-client-go/types/atomic"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -28,22 +28,18 @@ const (
 
 type multiCommand interface {
 	Stop()
-	IsValid() bool
 }
 
 type baseMultiCommand struct {
 	*baseCommand
 
 	recordset *Recordset
-
-	valid *AtomicBool
 }
 
 func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	return &baseMultiCommand{
 		baseCommand: &baseCommand{node: node},
 		recordset:   recordset,
-		valid:       NewAtomicBool(true),
 	}
 }
 
@@ -131,8 +127,4 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 
 	cmd.dataOffset += length
 	return nil
-}
-
-func (cmd *baseMultiCommand) IsValid() bool {
-	return cmd.valid.Get()
 }

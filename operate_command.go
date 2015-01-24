@@ -22,9 +22,6 @@ type operateCommand struct {
 }
 
 func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) *operateCommand {
-	if policy == nil {
-		policy = NewWritePolicy(0, 0)
-	}
 	return &operateCommand{
 		readCommand: newReadCommand(cluster, policy, key, nil),
 		policy:      policy,

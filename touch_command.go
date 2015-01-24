@@ -30,12 +30,7 @@ type touchCommand struct {
 func newTouchCommand(cluster *Cluster, policy *WritePolicy, key *Key) *touchCommand {
 	newTouchCmd := &touchCommand{
 		singleCommand: *newSingleCommand(cluster, key),
-	}
-
-	if policy == nil {
-		newTouchCmd.policy = NewWritePolicy(0, 0)
-	} else {
-		newTouchCmd.policy = policy
+		policy:        policy,
 	}
 
 	return newTouchCmd

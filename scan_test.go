@@ -34,7 +34,7 @@ var _ = Describe("Scan operations", func() {
 	var wpolicy = NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
 
-	const keyCount = 100
+	const keyCount = 10000
 	bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("Aerospike2", randString(100))
 	var keys map[string]*Key
@@ -93,7 +93,35 @@ var _ = Describe("Scan operations", func() {
 		}
 	})
 
+	It("must Scan and get all records back for a specified node using Results() channel", func() {
+		Expect(len(keys)).To(Equal(keyCount))
+
+		for _, node := range client.GetNodes() {
+			recordset, err := client.ScanNode(nil, node, ns, set)
+			Expect(err).ToNot(HaveOccurred())
+
+			counter := 0
+			for res := range recordset.Results() {
+				Expect(res.Err).NotTo(HaveOccurred())
+				key, exists := keys[string(res.Record.Key.Digest())]
+
+				Expect(exists).To(Equal(true))
+				Expect(key.Value().GetObject()).To(Equal(res.Record.Key.Value().GetObject()))
+				Expect(res.Record.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+				Expect(res.Record.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+
+				delete(keys, string(res.Record.Key.Digest()))
+
+				counter++
+			}
+		}
+
+		Expect(len(keys)).To(Equal(0))
+	})
+
 	It("must Scan and get all records back for a specified node", func() {
+		Expect(len(keys)).To(Equal(keyCount))
+
 		for _, node := range client.GetNodes() {
 			recordset, err := client.ScanNode(nil, node, ns, set)
 			Expect(err).ToNot(HaveOccurred())
@@ -105,6 +133,8 @@ var _ = Describe("Scan operations", func() {
 	})
 
 	It("must Scan and get all records back from all nodes concurrently", func() {
+		Expect(len(keys)).To(Equal(keyCount))
+
 		recordset, err := client.ScanAll(nil, ns, set)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -114,6 +144,8 @@ var _ = Describe("Scan operations", func() {
 	})
 
 	It("must Scan and get all records back from all nodes sequnetially", func() {
+		Expect(len(keys)).To(Equal(keyCount))
+
 		scanPolicy := NewScanPolicy()
 		scanPolicy.ConcurrentNodes = false
 
@@ -126,6 +158,8 @@ var _ = Describe("Scan operations", func() {
 	})
 
 	It("must Cancel Scan", func() {
+		Expect(len(keys)).To(Equal(keyCount))
+
 		recordset, err := client.ScanAll(nil, ns, set)
 		Expect(err).ToNot(HaveOccurred())
 

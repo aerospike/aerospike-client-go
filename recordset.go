@@ -20,11 +20,20 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
+type result struct {
+	Record *Record
+	Err    error
+}
+
 // Recordset encapsulates the result of Scan and Query commands.
 type Recordset struct {
 	// Records is a channel on which the resulting records will be sent back.
+	// NOTE: Do not use Records directly. Range on channel returned by Results() instead.
+	// Will be unexported in the future
 	Records chan *Record
 	// Errors is a channel on which all errors will be sent back.
+	// NOTE: Do not use Records directly. Range on channel returned by Results() instead.
+	// Will be unexported in the future
 	Errors chan error
 
 	wgGoroutines sync.WaitGroup
@@ -53,7 +62,50 @@ func (rcs *Recordset) IsActive() bool {
 	return rcs.active.Get()
 }
 
-// Close all streams to different nodes.
+// Results returns a new receive-only channel with the results of the Scan/Query
+// This is a more idiomatic approach to the iterator pattern in getting the
+// results back from the recordset, and doesn't require the user to write the
+// ugly select in their code.
+// Result embeds A Record and an error reference.
+//
+// Example:
+//
+// recordset, err := client.ScanAll(nil, namespace, set)
+// handleError(err)
+// for res := range recordset.Results() {
+//   if res.Err != nil {
+//     // handle error here
+//   } else {
+//     // process record here
+//     fmt.Println(res.Record.Bins)
+//   }
+// }
+func (rcs *Recordset) Results() <-chan *result {
+	res := make(chan *result, len(rcs.Records))
+
+	go func() {
+	L:
+		for {
+			select {
+			case r := <-rcs.Records:
+				if r != nil {
+					res <- &result{Record: r, Err: nil}
+				} else {
+					close(res)
+					break L
+				}
+			case e := <-rcs.Errors:
+				if e != nil {
+					res <- &result{Record: nil, Err: e}
+				}
+			}
+		}
+	}()
+
+	return (<-chan *result)(res)
+}
+
+// Close all streams from different nodes.
 func (rcs *Recordset) Close() {
 	// do it only once
 	if rcs.active.CompareAndToggle(true) {
@@ -70,9 +122,7 @@ func (rcs *Recordset) Close() {
 
 func (rcs *Recordset) signalEnd() {
 	rcs.wgGoroutines.Done()
-
-	cnt := rcs.goroutines.DecrementAndGet()
-	if cnt == 0 {
+	if rcs.goroutines.DecrementAndGet() == 0 {
 		rcs.Close()
 	}
 }

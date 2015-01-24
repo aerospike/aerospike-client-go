@@ -49,7 +49,7 @@ var _ = Describe("Query operations", func() {
 	var wpolicy = NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
 
-	const keyCount = 100
+	const keyCount = 10000
 	bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("Aerospike2", randString(100))
 	bin3 := NewBin("Aerospike3", rand.Intn(math.MaxInt16))

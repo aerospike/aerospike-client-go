@@ -60,10 +60,6 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 	cmd.dataOffset = 0
 
 	for cmd.dataOffset < receiveSize {
-		if !cmd.IsValid() {
-			return false, NewAerospikeError(QUERY_TERMINATED)
-		}
-
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
 			return false, err
 		}

@@ -137,7 +137,13 @@ const (
 	INVALID_PASSWORD ResultCode = 62
 
 	// Security credential is invalid.
-	INVALID_CREDENTIAL ResultCode = 63
+	EXPIRED_PASSWORD ResultCode = 63
+
+	// Forbidden password (e.g. recently used)
+	FORBIDDEN_PASSWORD ResultCode = 64
+
+	// Security credential is invalid.
+	INVALID_CREDENTIAL ResultCode = 65
 
 	// Role name is invalid.
 	INVALID_ROLE ResultCode = 70
@@ -335,6 +341,12 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case INVALID_PASSWORD:
 		return "Invalid password"
+
+	case EXPIRED_PASSWORD:
+		return "Expired password"
+
+	case FORBIDDEN_PASSWORD:
+		return "Forbidden password"
 
 	case INVALID_CREDENTIAL:
 		return "Invalid credential"
