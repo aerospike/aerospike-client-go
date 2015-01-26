@@ -1,5 +1,11 @@
 # Change history
 
+## Jan 26 2015 : v1.3.1
+
+  * **Improvements**
+
+    * Removed dependency on `unsafe` package.
+
 ## Jan 20 2015 : v1.3.0
 
   * **Breaking Changes**
