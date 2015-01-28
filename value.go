@@ -70,7 +70,7 @@ var sizeOfInt32 = uintptr(4)
 var sizeOfInt64 = uintptr(8)
 
 func init() {
-	if int(^0) == 0xffffffff {
+	if 0 == ^uint(0xffffffff) {
 		sizeOfInt = 4
 	} else {
 		sizeOfInt = 8
