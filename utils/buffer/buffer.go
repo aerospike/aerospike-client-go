@@ -38,7 +38,7 @@ var Arch64Bits bool
 var Arch32Bits bool
 
 func init() {
-	if int(^0) == 0xffffffff {
+	if 0 == ^uint(0xffffffff) {
 		sizeOfInt = 4
 	} else {
 		sizeOfInt = 8
