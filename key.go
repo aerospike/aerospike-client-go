@@ -160,12 +160,12 @@ var keyBufPool *Pool
 
 func init() {
 	hashPool = NewPool(512)
-	hashPool.New = func() interface{} {
+	hashPool.New = func(params ...interface{}) interface{} {
 		return ripemd160.New()
 	}
 
 	keyBufPool = NewPool(512)
-	keyBufPool.New = func() interface{} {
+	keyBufPool.New = func(params ...interface{}) interface{} {
 		return new(bytes.Buffer)
 	}
 }

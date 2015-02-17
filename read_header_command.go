@@ -29,12 +29,7 @@ type readHeaderCommand struct {
 func newReadHeaderCommand(cluster *Cluster, policy Policy, key *Key) *readHeaderCommand {
 	newReadHeaderCmd := &readHeaderCommand{
 		singleCommand: newSingleCommand(cluster, key),
-	}
-
-	if policy != nil {
-		newReadHeaderCmd.policy = policy
-	} else {
-		newReadHeaderCmd.policy = NewPolicy()
+		policy:        policy,
 	}
 
 	return newReadHeaderCmd

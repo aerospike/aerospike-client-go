@@ -132,6 +132,7 @@ var _ = Describe("UDF/Query tests", func() {
 	Context("must run the UDF on all records", func() {
 
 		BeforeEach(func() {
+			set = randString(50)
 			for i := 0; i < keyCount; i++ {
 				key, err = NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
@@ -149,13 +150,8 @@ var _ = Describe("UDF/Query tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// wait until UDF is run on all records
-				for {
-					if err := <-exTask.OnComplete(); err == nil {
-						break
-					} else {
-						panic(err)
-					}
-				}
+				err = <-exTask.OnComplete()
+				Expect(err).ToNot(HaveOccurred())
 
 				// read all data and make sure it is consistent
 				recordset, err := client.ScanAll(nil, ns, set)

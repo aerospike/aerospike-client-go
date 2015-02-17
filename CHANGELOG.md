@@ -1,5 +1,75 @@
 # Change history
 
+## Feb 17 2015 : v1.4.0
+
+  This is a major release, and makes using the client much easier to develop applications.
+
+  * **New Features**
+
+    * Added Marshalling Support for Put and Get operations. Refer to [Marshalling Test](client_object_test.go) to see how to take advantage.
+    Same functionality for other APIs will follow soon.
+    Example:
+    ```go
+    type SomeStruct struct {
+      A    int            `as:"a"`  // alias the field to myself
+      Self *SomeStruct    `as:"-"`  // will not persist the field
+    }
+
+    type OtherStruct struct {
+      i interface{}
+      OtherObject *OtherStruct
+    }
+
+    obj := &OtherStruct {
+      i: 15,
+      OtherObject: OtherStruct {A: 18},
+    }
+
+    key, _ := as.NewKey("ns", "set", value)
+    err := client.PutObject(nil, key, obj)
+    // handle error here
+
+    rObj := &OtherStruct{}
+    err = client.GetObject(nil, key, rObj)
+    ```
+
+    * Added `Recordset.Results()`. Consumers of a recordset do not have to implement a select anymore. Instead of:
+    ```go
+    recordset, err := client.ScanAll(...)
+    L:
+    for {
+      select {
+      case r := <-recordset.Record:
+        if r == nil {
+          break L
+        }
+        // process record here
+      case e := <-recordset.Errors:
+        // handle error here
+      }
+    }
+    ```
+
+    one should only range on `recordset.Results()`:
+
+    ```go
+    recordset, err := client.ScanAll(...)
+    for res := range recordset.Results() {
+      if res.Err != nil {
+        // handle error here
+      } else {
+        // process record here
+        fmt.Println(res.Record.Bins)
+      }
+    }
+    ```
+
+    Use of the old pattern is discouraged and deprecated, and direct access to recordset.Records and recordset.Errors will be removed in a future release.
+      
+  * **Improvements**
+
+    * Custom Types are now allowed as bin values.
+
 ## Jan 26 2015 : v1.3.1
 
   * **Improvements**

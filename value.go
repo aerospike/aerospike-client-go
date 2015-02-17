@@ -84,7 +84,9 @@ func NewValue(v interface{}) Value {
 	case nil:
 		return &NullValue{}
 	case int:
-		return NewIntegerValue(int(val))
+		return NewIntegerValue(val)
+	case int64:
+		return NewLongValue(val)
 	case string:
 		return NewStringValue(val)
 	case []Value:
@@ -102,13 +104,11 @@ func NewValue(v interface{}) Value {
 	case uint16:
 		return NewIntegerValue(int(val))
 	case uint32:
-		return NewLongValue(int64(val))
+		return NewIntegerValue(int(val))
 	case uint:
 		if !Buffer.Arch64Bits || (val <= math.MaxInt64) {
 			return NewLongValue(int64(val))
 		}
-	case int64:
-		return NewLongValue(int64(val))
 	case []interface{}:
 		return NewListValue(val)
 	case map[interface{}]interface{}:
@@ -120,25 +120,30 @@ func NewValue(v interface{}) Value {
 	}
 
 	// check for array and map
-	switch reflect.TypeOf(v).Kind() {
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
 	case reflect.Array, reflect.Slice:
-		s := reflect.ValueOf(v)
-		l := s.Len()
+		l := rv.Len()
 		arr := make([]interface{}, l)
 		for i := 0; i < l; i++ {
-			arr[i] = s.Index(i).Interface()
+			arr[i] = rv.Index(i).Interface()
 		}
 
 		return NewListValue(arr)
 	case reflect.Map:
-		s := reflect.ValueOf(v)
-		l := s.Len()
+		l := rv.Len()
 		amap := make(map[interface{}]interface{}, l)
-		for _, i := range s.MapKeys() {
-			amap[i.Interface()] = s.MapIndex(i).Interface()
+		for _, i := range rv.MapKeys() {
+			amap[i.Interface()] = rv.MapIndex(i).Interface()
 		}
 
 		return NewMapValue(amap)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return NewLongValue(reflect.ValueOf(v).Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		return NewLongValue(int64(reflect.ValueOf(v).Uint()))
+	case reflect.String:
+		return NewStringValue(rv.String())
 	}
 
 	// panic for anything that is not supported.

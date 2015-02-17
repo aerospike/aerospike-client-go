@@ -35,14 +35,9 @@ func newWriteCommand(cluster *Cluster,
 
 	newWriteCmd := &writeCommand{
 		singleCommand: *newSingleCommand(cluster, key),
+		policy:        policy,
 		bins:          bins,
 		operation:     operation,
-	}
-
-	if policy == nil {
-		newWriteCmd.policy = NewWritePolicy(0, 0)
-	} else {
-		newWriteCmd.policy = policy
 	}
 
 	return newWriteCmd

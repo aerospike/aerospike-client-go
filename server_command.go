@@ -81,10 +81,6 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 				return false, err
 			}
 		}
-
-		if !cmd.IsValid() {
-			return false, NewAerospikeError(QUERY_TERMINATED)
-		}
 	}
 	return true, nil
 }

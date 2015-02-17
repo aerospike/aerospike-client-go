@@ -118,10 +118,6 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation int, e
 	var bins map[string]interface{}
 
 	for i := 0; i < opCount; i++ {
-		if !cmd.IsValid() {
-			return nil, NewAerospikeError(QUERY_TERMINATED)
-		}
-
 		if err := cmd.readBytes(8); err != nil {
 			return nil, err
 		}
