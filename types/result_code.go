@@ -19,9 +19,6 @@ package types
 type ResultCode int
 
 const (
-	// End of Recordset in Query or Scan.
-	END_OF_RECORDSET ResultCode = -8
-
 	// Asynchronous max concurrent database commands have been exceeded and therefore rejected.
 	TYPE_NOT_SUPPORTED ResultCode = -7
 
@@ -112,6 +109,9 @@ const (
 	// Bin name length greater than 14 characters.
 	BIN_NAME_TOO_LONG ResultCode = 21
 
+	// Operation not allowed at this time.
+	FAIL_FORBIDDEN ResultCode = 22
+
 	// There are no more records left for query.
 	QUERY_END ResultCode = 50
 
@@ -148,7 +148,11 @@ const (
 	// Role name is invalid.
 	INVALID_ROLE ResultCode = 70
 
-	INVALID_PRIVILEGE ResultCode = 71
+	// Role already exists.
+	ROLE_ALREADY_EXISTS ResultCode = 71
+
+	// Privilege is invalid.
+	INVALID_PRIVILEGE ResultCode = 72
 
 	// User must be authentication before performing database operations.
 	NOT_AUTHENTICATED ResultCode = 80
@@ -222,9 +226,6 @@ func KeepConnection(resultCode int) bool {
 // Return result code as a string.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
-	case END_OF_RECORDSET:
-		return "End of recordset."
-
 	case TYPE_NOT_SUPPORTED:
 		return "Type cannot be converted to Value Type."
 
@@ -312,6 +313,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case BIN_NAME_TOO_LONG:
 		return "Bin name length greater than 14 characters"
 
+	case FAIL_FORBIDDEN:
+		return "Operation not allowed at this time"
+
 	case QUERY_END:
 		return "Query end"
 
@@ -353,6 +357,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case INVALID_ROLE:
 		return "Invalid role"
+
+	case ROLE_ALREADY_EXISTS:
+		return "Role already exists"
 
 	case INVALID_PRIVILEGE:
 		return "Invalid privilege"
