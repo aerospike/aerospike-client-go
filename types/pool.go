@@ -20,33 +20,53 @@ import (
 
 // Pool implements a general purpose fixed-size pool.
 type Pool struct {
-	pool     *AtomicQueue
-	poolSize int
+	pool *AtomicQueue
 
-	New      func(params ...interface{}) interface{}
+	// New will create a new object
+	New func(params ...interface{}) interface{}
+	// IsUsable checks if the object polled from the pool is still fresh and usable
 	IsUsable func(obj interface{}, params ...interface{}) bool
+	// CanReturn checkes if the object is eligible to go back to the pool
+	CanReturn func(obj interface{}) bool
+	// Finalize will be called when an object is not eligible to go back to the pool.
+	// Usable to close connections, file handles, ...
+	Finalize func(obj interface{})
 }
 
 // NewPool creates a new fixed size pool.
 func NewPool(poolSize int) *Pool {
 	return &Pool{
-		pool:     NewAtomicQueue(poolSize),
-		poolSize: poolSize,
+		pool: NewAtomicQueue(poolSize),
 	}
 }
 
-// Get returns an element from the pool. If pool is empty, and a New function is defined,
-// the result of the New function will be returned
+// Get returns an element from the pool.
+// If the pool is empty, or the returned element is not usable,
+// nil or the result of the New function will be returned
 func (bp *Pool) Get(params ...interface{}) interface{} {
 	res := bp.pool.Poll()
-	if (res == nil || (bp.IsUsable != nil && !bp.IsUsable(res, params...))) && bp.New != nil {
-		res = bp.New(params...)
+	if res == nil || (bp.IsUsable != nil && !bp.IsUsable(res, params...)) {
+		// not usable, so finalize
+		if res != nil && bp.Finalize != nil {
+			bp.Finalize(res)
+		}
+
+		if bp.New != nil {
+			res = bp.New(params...)
+		}
 	}
 
 	return res
 }
 
 // Put will add the elem back to the pool, unless the pool is full.
-func (bp *Pool) Put(elem interface{}) {
-	bp.pool.Offer(elem)
+func (bp *Pool) Put(obj interface{}) {
+	finalize := true
+	if bp.CanReturn == nil || bp.CanReturn(obj) {
+		finalize = !bp.pool.Offer(obj)
+	}
+
+	if finalize && bp.Finalize != nil {
+		bp.Finalize(obj)
+	}
 }
