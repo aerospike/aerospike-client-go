@@ -14,10 +14,7 @@
 
 package atomic
 
-import (
-	"math"
-	"sync"
-)
+import "sync"
 
 // AtomicQueue is a blocking FIFO queue.
 // If the queue is empty, nil is returned.
@@ -26,6 +23,7 @@ type AtomicQueue struct {
 	head, tail uint32
 	data       []interface{}
 	size       uint32
+	wrapped    bool
 	lock       sync.Mutex
 }
 
@@ -36,8 +34,9 @@ func NewAtomicQueue(size int) *AtomicQueue {
 	}
 
 	return &AtomicQueue{
-		data: make([]interface{}, uint32(size)),
-		size: uint32(size),
+		wrapped: false,
+		data:    make([]interface{}, uint32(size)),
+		size:    uint32(size),
 	}
 }
 
@@ -47,16 +46,18 @@ func NewAtomicQueue(size int) *AtomicQueue {
 func (q *AtomicQueue) Offer(obj interface{}) bool {
 	q.lock.Lock()
 
-	if (q.tail <= math.MaxInt32 && q.head <= math.MaxInt32 && q.head > q.tail+q.size) ||
-		(q.tail > math.MaxInt32 && q.head > math.MaxInt32 && q.head-q.tail >= q.size) ||
-		(q.tail > math.MaxInt32 && q.head <= math.MaxInt32 && q.tail >= q.head-q.size) {
-
+	// make sure queue is not full
+	if q.tail == q.head && q.wrapped {
 		q.lock.Unlock()
 		return false
 	}
 
-	q.head++
-	q.data[q.head%q.size] = obj
+	if q.head+1 == q.size {
+		q.wrapped = true
+	}
+
+	q.head = (q.head + 1) % q.size
+	q.data[q.head] = obj
 	q.lock.Unlock()
 	return true
 }
@@ -66,10 +67,13 @@ func (q *AtomicQueue) Offer(obj interface{}) bool {
 func (q *AtomicQueue) Poll() (res interface{}) {
 	q.lock.Lock()
 
-	// queue is empty
-	if q.tail != q.head {
-		q.tail++
-		res = q.data[q.tail%q.size]
+	// if queue is not empty
+	if q.wrapped || (q.tail != q.head) {
+		if q.tail+1 == q.size {
+			q.wrapped = false
+		}
+		q.tail = (q.tail + 1) % q.size
+		res = q.data[q.tail]
 	}
 
 	q.lock.Unlock()
