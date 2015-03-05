@@ -110,8 +110,8 @@ var _ = Describe("Aerospike", func() {
 			String  string
 			StringP *string
 
-			Interface   interface{}
-			InterfaceP  interface{}
+			Interface interface{}
+			// InterfaceP interface{}
 			InterfacePP *interface{}
 
 			Array [3]interface{}

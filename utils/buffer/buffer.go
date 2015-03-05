@@ -23,28 +23,31 @@ import (
 	// . "github.com/aerospike/aerospike-client-go/logger"
 )
 
-var sizeOfInt uintptr
-var sizeOfInt32 = uintptr(4)
-var sizeOfInt64 = uintptr(8)
+const (
+	SizeOfInt32 = uintptr(4)
+	SizeOfInt64 = uintptr(8)
 
-var uint64sz = int(8)
-var uint32sz = int(4)
-var uint16sz = int(2)
+	uint64sz = int(8)
+	uint32sz = int(4)
+	uint16sz = int(2)
 
-var float32sz = int(4)
-var float64sz = int(8)
+	float32sz = int(4)
+	float64sz = int(8)
+)
+
+var SizeOfInt uintptr
 
 var Arch64Bits bool
 var Arch32Bits bool
 
 func init() {
 	if 0 == ^uint(0xffffffff) {
-		sizeOfInt = 4
+		SizeOfInt = 4
 	} else {
-		sizeOfInt = 8
+		SizeOfInt = 8
 	}
-	Arch64Bits = (sizeOfInt == sizeOfInt64)
-	Arch32Bits = (sizeOfInt == sizeOfInt32)
+	Arch64Bits = (SizeOfInt == SizeOfInt64)
+	Arch32Bits = (SizeOfInt == SizeOfInt32)
 }
 
 // Coverts a byte slice into a hex string
@@ -74,7 +77,7 @@ func BytesToNumber(buf []byte, offset, length int) interface{} {
 		val = val | int64((buf[offset+i] & 0xFF))
 	}
 
-	if (sizeOfInt == sizeOfInt64) || (val <= math.MaxInt32 && val >= math.MinInt32) {
+	if (SizeOfInt == SizeOfInt64) || (val <= math.MaxInt32 && val >= math.MinInt32) {
 		return int(val)
 	}
 

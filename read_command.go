@@ -207,8 +207,7 @@ func (cmd *readCommand) parseObject(
 
 		particleBytesSize := int(opSize - (4 + nameSize))
 		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
-		// if _, err := cmd.setObjectField(cmd.object, name, value); err != nil {
-		if _, err := cmd.setObjectField(rv, name, value); err != nil {
+		if err := cmd.setObjectField(rv, name, value); err != nil {
 			return err
 		}
 
@@ -226,25 +225,31 @@ func (cmd *readCommand) Execute() error {
 	return cmd.execute(cmd)
 }
 
-func (cmd *readCommand) setObjectField(obj reflect.Value, fieldName string, value interface{}) (interface{}, error) {
-	// TODO: This part has potential to be improved
-	// try to find the field by name
-
+func (cmd *readCommand) setObjectField(obj reflect.Value, fieldName string, value interface{}) error {
 	// find the name based on tag mapping
 	iobj := reflect.Indirect(obj)
 	if name, exists := cmd.objectMappings[iobj.Type().Name()][fieldName]; exists {
 		fieldName = name
 	}
 	f := iobj.FieldByName(fieldName)
+	setValue(f, value)
 
+	return nil
+}
+
+func setValue(f reflect.Value, value interface{}) error {
+	// find the name based on tag mapping
 	if f.CanSet() {
 		switch f.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			f.SetInt(int64(value.(int)))
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			if v, ok := value.(int); ok {
+			switch v := value.(type) {
+			case uint8:
 				f.SetUint(uint64(v))
-			} else {
+			case int:
+				f.SetUint(uint64(v))
+			default:
 				f.SetUint(value.(uint64))
 			}
 		case reflect.Float64, reflect.Float32:
@@ -390,7 +395,7 @@ func (cmd *readCommand) setObjectField(obj reflect.Value, fieldName string, valu
 							}
 
 							if valMap[alias] != nil {
-								cmd.setObjectField(newObjPtr, alias, valMap[alias])
+								setValue(reflect.Indirect(newObjPtr).FieldByName(alias), valMap[alias])
 							}
 						}
 
@@ -398,24 +403,20 @@ func (cmd *readCommand) setObjectField(obj reflect.Value, fieldName string, valu
 						f.Set(newObjPtr)
 					}
 				}
-			}
+			} // witch ptr
 		case reflect.Slice, reflect.Array:
+			// log.Println("HERE!")
 			// BLOBs come back as []byte
-			vlen := 0
-			if theArray, ok := value.([]interface{}); ok {
-				vlen = len(theArray)
-			} else if theArray, ok := value.([]byte); ok {
-				vlen = len(theArray)
+			theArray := reflect.ValueOf(value)
+
+			if f.Kind() == reflect.Slice && f.IsNil() {
+				f.Set(reflect.MakeSlice(reflect.SliceOf(f.Type().Elem()), theArray.Len(), theArray.Len()))
 			}
-			// theArray := value.([]interface{})
-			if f.Kind() == reflect.Slice {
-				if f.IsNil() {
-					newArray := reflect.MakeSlice(reflect.SliceOf(f.Type().Elem()), vlen, vlen)
-					reflect.Copy(newArray, reflect.ValueOf(value))
-				}
-				f.Set(reflect.ValueOf(value))
-			} else {
-				reflect.Copy(f, reflect.ValueOf(value))
+
+			for i := 0; i < theArray.Len(); i++ {
+				// log.Println(f.Index(i).Interface(), theArray.Index(i).Interface())
+				setValue(f.Index(i), theArray.Index(i).Interface())
+				// f.Index(i).Set(theArray.Index(i))
 			}
 		case reflect.Map:
 			theMap := value.(map[interface{}]interface{})
@@ -464,7 +465,7 @@ func (cmd *readCommand) setObjectField(obj reflect.Value, fieldName string, valu
 				}
 
 				if valMap[alias] != nil {
-					cmd.setObjectField(f, alias, valMap[alias])
+					setValue(f.FieldByName(typeOfT.Field(i).Name), valMap[alias])
 				}
 			}
 
@@ -473,5 +474,5 @@ func (cmd *readCommand) setObjectField(obj reflect.Value, fieldName string, valu
 		}
 	}
 
-	return nil, nil
+	return nil
 }

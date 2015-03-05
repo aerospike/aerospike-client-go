@@ -65,18 +65,6 @@ type AerospikeBlob interface {
 	EncodeBlob() ([]byte, error)
 }
 
-var sizeOfInt uintptr
-var sizeOfInt32 = uintptr(4)
-var sizeOfInt64 = uintptr(8)
-
-func init() {
-	if 0 == ^uint(0xffffffff) {
-		sizeOfInt = 4
-	} else {
-		sizeOfInt = 8
-	}
-}
-
 // NewValue generates a new Value object based on the type.
 // If the type is not supported, NewValue will panic.
 func NewValue(v interface{}) Value {
@@ -325,7 +313,7 @@ func (vl *IntegerValue) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl *IntegerValue) pack(packer *packer) error {
-	if sizeOfInt == sizeOfInt32 {
+	if Buffer.SizeOfInt == Buffer.SizeOfInt32 {
 		packer.PackAInt(vl.value)
 	} else {
 		packer.PackALong(int64(vl.value))

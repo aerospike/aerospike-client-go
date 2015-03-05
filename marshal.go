@@ -52,7 +52,30 @@ func valueToInterface(f reflect.Value) interface{} {
 			return int64(1)
 		}
 		return int64(0)
-	case reflect.Map, reflect.Slice, reflect.Interface:
+	case reflect.Map:
+		if f.IsNil() {
+			return nil
+		}
+
+		newMap := make(map[interface{}]interface{}, f.Len())
+		for _, mk := range f.MapKeys() {
+			newMap[valueToInterface(mk)] = valueToInterface(f.MapIndex(mk))
+		}
+
+		return f.Interface()
+	case reflect.Slice, reflect.Array:
+		if f.Kind() == reflect.Slice && f.IsNil() {
+			return nil
+		}
+
+		// convert to primitives recursively
+		newSlice := make([]interface{}, f.Len(), f.Cap())
+		for i := 0; i < len(newSlice); i++ {
+			newSlice[i] = valueToInterface(f.Index(i))
+		}
+
+		return newSlice
+	case reflect.Interface:
 		if f.IsNil() {
 			return nil
 		}
