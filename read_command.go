@@ -88,7 +88,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	}
 
 	if resultCode != 0 {
-		if resultCode == KEY_NOT_FOUND_ERROR {
+		if resultCode == KEY_NOT_FOUND_ERROR && cmd.object == nil {
 			return nil
 		}
 
