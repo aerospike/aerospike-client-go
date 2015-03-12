@@ -52,16 +52,25 @@ func newNodeValidator(cluster *Cluster, host *Host, timeout time.Duration) (*nod
 }
 
 func (ndv *nodeValidator) setAliases(host *Host) error {
-	addresses, err := net.LookupHost(host.Name)
-	if err != nil {
-		return err
+	// IP addresses do not need a lookup
+	ip := net.ParseIP(host.Name)
+	if ip != nil {
+		aliases := make([]*Host, 1)
+		aliases[0] = NewHost(host.Name, host.Port)
+		ndv.aliases = aliases
+	} else {
+		addresses, err := net.LookupHost(host.Name)
+		if err != nil {
+			Logger.Error("HostLookup failed with error: ", err)
+			return err
+		}
+		aliases := make([]*Host, len(addresses))
+		for idx, addr := range addresses {
+			aliases[idx] = NewHost(addr, host.Port)
+		}
+		ndv.aliases = aliases
 	}
-	aliases := make([]*Host, len(addresses))
-	for idx, addr := range addresses {
-		aliases[idx] = NewHost(addr, host.Port)
-	}
-	ndv.aliases = aliases
-	Logger.Debug("Node Validator has %d nodes.", len(aliases))
+	Logger.Debug("Node Validator has %d nodes.", len(ndv.aliases))
 	return nil
 }
 
