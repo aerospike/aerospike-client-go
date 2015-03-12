@@ -403,9 +403,8 @@ func setValue(f reflect.Value, value interface{}) error {
 						f.Set(newObjPtr)
 					}
 				}
-			} // witch ptr
+			} // switch ptr
 		case reflect.Slice, reflect.Array:
-			// log.Println("HERE!")
 			// BLOBs come back as []byte
 			theArray := reflect.ValueOf(value)
 
@@ -414,9 +413,7 @@ func setValue(f reflect.Value, value interface{}) error {
 			}
 
 			for i := 0; i < theArray.Len(); i++ {
-				// log.Println(f.Index(i).Interface(), theArray.Index(i).Interface())
 				setValue(f.Index(i), theArray.Index(i).Interface())
-				// f.Index(i).Set(theArray.Index(i))
 			}
 		case reflect.Map:
 			theMap := value.(map[interface{}]interface{})

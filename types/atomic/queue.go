@@ -16,7 +16,7 @@ package atomic
 
 import "sync"
 
-// AtomicQueue is a blocking FIFO queue.
+// AtomicQueue is a non-blocking FIFO queue.
 // If the queue is empty, nil is returned.
 // if the queue is full, offer will return false
 type AtomicQueue struct {
@@ -24,7 +24,7 @@ type AtomicQueue struct {
 	data       []interface{}
 	size       uint32
 	wrapped    bool
-	lock       sync.Mutex
+	mutex      sync.Mutex
 }
 
 // NewQueue creates a new queue with initial size.
@@ -44,11 +44,11 @@ func NewAtomicQueue(size int) *AtomicQueue {
 // In case the queue is full, the item will not be added to the queue
 // and false will be returned
 func (q *AtomicQueue) Offer(obj interface{}) bool {
-	q.lock.Lock()
+	q.mutex.Lock()
 
 	// make sure queue is not full
 	if q.tail == q.head && q.wrapped {
-		q.lock.Unlock()
+		q.mutex.Unlock()
 		return false
 	}
 
@@ -58,14 +58,14 @@ func (q *AtomicQueue) Offer(obj interface{}) bool {
 
 	q.head = (q.head + 1) % q.size
 	q.data[q.head] = obj
-	q.lock.Unlock()
+	q.mutex.Unlock()
 	return true
 }
 
 // Poll removes and returns an item from the queue.
 // If the queue is empty, nil will be returned.
 func (q *AtomicQueue) Poll() (res interface{}) {
-	q.lock.Lock()
+	q.mutex.Lock()
 
 	// if queue is not empty
 	if q.wrapped || (q.tail != q.head) {
@@ -76,6 +76,6 @@ func (q *AtomicQueue) Poll() (res interface{}) {
 		res = q.data[q.tail]
 	}
 
-	q.lock.Unlock()
+	q.mutex.Unlock()
 	return res
 }
