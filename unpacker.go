@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"fmt"
+
 	. "github.com/aerospike/aerospike-client-go/types"
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -120,11 +122,13 @@ func (upckr *unpacker) unpackBlob(count int) (interface{}, error) {
 	switch theType {
 	case ParticleType.STRING:
 		val = string(upckr.buffer[upckr.offset : upckr.offset+count])
-		break
 
+	case ParticleType.BLOB:
+		b := make([]byte, count)
+		copy(b, upckr.buffer[upckr.offset:upckr.offset+count])
+		val = b
 	default:
-		val = upckr.buffer[upckr.offset : upckr.offset+count]
-		break
+		panic(NewAerospikeError(SERIALIZE_ERROR, fmt.Sprintf("Error while unpacking BLOB. Type-header with code `%d` not recognized.", theType)))
 	}
 	upckr.offset += count
 
