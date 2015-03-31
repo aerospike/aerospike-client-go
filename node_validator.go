@@ -61,6 +61,7 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 	} else {
 		addresses, err := net.LookupHost(host.Name)
 		if err != nil {
+			Logger.Error("HostLookup failed with error: ", err)
 			return err
 		}
 		aliases := make([]*Host, len(addresses))

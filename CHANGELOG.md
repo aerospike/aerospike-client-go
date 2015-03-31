@@ -1,5 +1,13 @@
 # Change history
 
+## March 12 2015 : v1.4.1
+
+  This is a minor release to help improve the compatibility of the client on Mac OS, and to make cross compilation easier.
+
+  * **Improvements**
+
+    * Node validator won't call net.HostLookup if an IP is passed as a seed to it.
+
 ## Feb 17 2015 : v1.4.0
 
   This is a major release, and makes using the client much easier to develop applications.
