@@ -99,6 +99,8 @@ Supported operating systems:
 2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go```
   * To update the client library: ```go get -u github.com/aerospike/aerospike-client-go```
 
+Using [gopkg.io](http://gopkg.io/) is also supported.
+
 ### Some Hints:
 
  * To run a go program directly: ```go run <filename.go>```

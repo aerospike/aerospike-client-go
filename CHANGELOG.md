@@ -1,5 +1,20 @@
 # Change history
 
+## March 31 2015 : v1.4.2
+  
+  Maintenance release.
+
+  * **Improvements**
+
+    * Replace channel-based queue system with a lock-based algorithm.
+    * Marshaller now supports arrays of arbitrary types.
+    * `Client.GetObject()` now returns an error when the object is not found.
+    * Partition calculation uses a trick that is twice as fast.
+
+  * **Improvements**
+
+    * Unpacking BLOBs resulted in returning references to pooled buffers. Now copies are returned.
+
 ## March 12 2015 : v1.4.1
 
   This is a minor release to help improve the compatibility of the client on Mac OS, and to make cross compilation easier.
