@@ -263,7 +263,9 @@ func setValue(f reflect.Value, value interface{}) error {
 		case reflect.Bool:
 			f.SetBool(value.(int) == 1)
 		case reflect.Interface:
-			f.Set(reflect.ValueOf(value))
+			if value != nil {
+				f.Set(reflect.ValueOf(value))
+			}
 		case reflect.Ptr:
 			switch f.Type().Elem().Kind() {
 			case reflect.Int:
@@ -435,9 +437,9 @@ func setValue(f reflect.Value, value interface{}) error {
 
 					newMap.SetMapIndex(newKey, newVal)
 				}
+				f.Set(newMap)
 			}
 
-			f.Set(reflect.ValueOf(theMap))
 		case reflect.Struct:
 			// support time.Time
 			if f.Type().PkgPath() == "time" && f.Type().Name() == "Time" {

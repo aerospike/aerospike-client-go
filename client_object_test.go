@@ -151,9 +151,15 @@ var _ = Describe("Aerospike", func() {
 			CustomString  SomeString
 			CustomStringP *SomeString
 
-			NestedObj       SomeStruct
-			NestedObjP      *testObject
-			EmptyNestedObjP *testObject
+			NestedObj     SomeStruct
+			NestedObjP    *testObject
+			EmpNestedObjP *testObject
+
+			// Important: Used in ODMs
+			NestedObjSlice []SomeStruct
+			EmpNstdObjSlic []SomeStruct
+			NstdObjPSlice  []*testObject
+			EmpNstdObjPSlc []*testObject
 
 			// std lib type
 			Tm  time.Time
@@ -280,6 +286,9 @@ var _ = Describe("Aerospike", func() {
 				NestedObj:  SomeStruct{A: 1, Self: &SomeStruct{A: 999}},
 				NestedObjP: &testObject{Int: 1, Intp: &ip, Tm: now},
 
+				NestedObjSlice: []SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 999}}, SomeStruct{A: 2, Self: &SomeStruct{A: 998}}},
+				NstdObjPSlice:  []*testObject{&testObject{Int: 1, Intp: &ip, Tm: now}, &testObject{Int: 2, Intp: &ip, Tm: now}},
+
 				Tm:  now,
 				TmP: &now,
 			}
@@ -326,6 +335,18 @@ var _ = Describe("Aerospike", func() {
 				Expect(resObj.PersistAsFld1).To(Equal(2))
 				Expect(resObj.IStruct.PersistNot).To(Equal(0))
 				Expect(resObj.IStruct.PersistAsInner1).To(Equal(11))
+
+				// get the bins and check for bin names
+				rec, err := client.Get(nil, key)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(len(rec.Bins)).To(Equal(2))
+				Expect(rec.Bins["DontPersist"]).To(BeNil())
+				Expect(rec.Bins["fld1"]).To(Equal(2))
+				innerStruct := rec.Bins["IStruct"].(map[interface{}]interface{})
+				Expect(len(innerStruct)).To(Equal(1))
+				Expect(innerStruct["PersistNot"]).To(BeNil())
+				Expect(innerStruct["inner1"]).To(Equal(11))
 
 			})
 
