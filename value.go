@@ -185,19 +185,17 @@ func (vl *NullValue) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 
 // BytesValue encapsulates an array of bytes.
-type BytesValue struct {
-	bytes []byte
-}
+type BytesValue []byte
 
 // NewBytesValue generates a ByteValue instance.
-func NewBytesValue(bytes []byte) *BytesValue {
-	return &BytesValue{bytes: bytes}
+func NewBytesValue(bytes []byte) BytesValue {
+	return BytesValue(bytes)
 }
 
 // NewBlobValue accepts an AerospikeBlob interface, and automatically
 // converts it to a BytesValue.
 // If Encode returns an err, it will panic.
-func NewBlobValue(object AerospikeBlob) *BytesValue {
+func NewBlobValue(object AerospikeBlob) BytesValue {
 	buf, err := object.EncodeBlob()
 	if err != nil {
 		panic(err)
@@ -206,191 +204,185 @@ func NewBlobValue(object AerospikeBlob) *BytesValue {
 	return NewBytesValue(buf)
 }
 
-func (vl *BytesValue) estimateSize() int {
-	return len(vl.bytes)
+func (vl BytesValue) estimateSize() int {
+	return len(vl)
 }
 
-func (vl *BytesValue) write(buffer []byte, offset int) (int, error) {
-	len := copy(buffer[offset:], vl.bytes)
+func (vl BytesValue) write(buffer []byte, offset int) (int, error) {
+	len := copy(buffer[offset:], vl)
 	return len, nil
 }
 
-func (vl *BytesValue) pack(packer *packer) error {
-	packer.PackBytes(vl.bytes)
+func (vl BytesValue) pack(packer *packer) error {
+	packer.PackBytes(vl)
 	return nil
 }
 
 // GetType returns wire protocol value type.
-func (vl *BytesValue) GetType() int {
+func (vl BytesValue) GetType() int {
 	return ParticleType.BLOB
 }
 
 // GetObject returns original value as an interface{}.
-func (vl *BytesValue) GetObject() interface{} {
-	return vl.bytes
+func (vl BytesValue) GetObject() interface{} {
+	return vl
 }
 
-// func (vl *BytesValue) GetLuaValue() LuaValue {
+// func (vl BytesValue) GetLuaValue() LuaValue {
 // 	return LuaString.valueOf(vl.bytes)
 // }
 
-func (vl *BytesValue) reader() io.Reader {
-	return bytes.NewReader(vl.bytes)
+func (vl BytesValue) reader() io.Reader {
+	return bytes.NewReader(vl)
 }
 
 // String implements Stringer interface.
-func (vl *BytesValue) String() string {
-	return Buffer.BytesToHexString(vl.bytes)
+func (vl BytesValue) String() string {
+	return Buffer.BytesToHexString(vl)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 // StringValue encapsulates a string value.
-type StringValue struct {
-	value string
-}
+type StringValue string
 
 // NewStringValue generates a StringValue instance.
-func NewStringValue(value string) *StringValue {
-	return &StringValue{value: value}
+func NewStringValue(value string) StringValue {
+	return StringValue(value)
 }
 
-func (vl *StringValue) estimateSize() int {
-	return len(vl.value)
+func (vl StringValue) estimateSize() int {
+	return len(vl)
 }
 
-func (vl *StringValue) write(buffer []byte, offset int) (int, error) {
-	return copy(buffer[offset:], vl.value), nil
+func (vl StringValue) write(buffer []byte, offset int) (int, error) {
+	return copy(buffer[offset:], vl), nil
 }
 
-func (vl *StringValue) pack(packer *packer) error {
-	packer.PackString(vl.value)
+func (vl StringValue) pack(packer *packer) error {
+	packer.PackString(string(vl))
 	return nil
 }
 
 // GetType returns wire protocol value type.
-func (vl *StringValue) GetType() int {
+func (vl StringValue) GetType() int {
 	return ParticleType.STRING
 }
 
 // GetObject returns original value as an interface{}.
-func (vl *StringValue) GetObject() interface{} {
-	return vl.value
+func (vl StringValue) GetObject() interface{} {
+	return vl
 }
 
-// func (vl *StringValue) GetLuaValue() LuaValue {
-// 	return LuaString.valueOf(vl.value)
+// func (vl StringValue) GetLuaValue() LuaValue {
+// 	return LuaString.valueOf(vl)
 // }
 
-func (vl *StringValue) reader() io.Reader {
-	return strings.NewReader(vl.value)
+func (vl StringValue) reader() io.Reader {
+	return strings.NewReader(string(vl))
 }
 
 // String implements Stringer interface.
-func (vl *StringValue) String() string {
-	return vl.value
+func (vl StringValue) String() string {
+	return string(vl)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 // IntegerValue encapsulates an integer value.
-type IntegerValue struct {
-	value int
-}
+type IntegerValue int
 
 // NewIntegerValue generates an IntegerValue instance.
-func NewIntegerValue(value int) *IntegerValue {
-	return &IntegerValue{value: value}
+func NewIntegerValue(value int) IntegerValue {
+	return IntegerValue(value)
 }
 
-func (vl *IntegerValue) estimateSize() int {
+func (vl IntegerValue) estimateSize() int {
 	return 8
 }
 
-func (vl *IntegerValue) write(buffer []byte, offset int) (int, error) {
-	Buffer.Int64ToBytes(int64(vl.value), buffer, offset)
+func (vl IntegerValue) write(buffer []byte, offset int) (int, error) {
+	Buffer.Int64ToBytes(int64(vl), buffer, offset)
 	return 8, nil
 }
 
-func (vl *IntegerValue) pack(packer *packer) error {
+func (vl IntegerValue) pack(packer *packer) error {
 	if Buffer.SizeOfInt == Buffer.SizeOfInt32 {
-		packer.PackAInt(vl.value)
+		packer.PackAInt(int(vl))
 	} else {
-		packer.PackALong(int64(vl.value))
+		packer.PackALong(int64(vl))
 	}
 	return nil
 }
 
 // GetType returns wire protocol value type.
-func (vl *IntegerValue) GetType() int {
+func (vl IntegerValue) GetType() int {
 	return ParticleType.INTEGER
 }
 
 // GetObject returns original value as an interface{}.
-func (vl *IntegerValue) GetObject() interface{} {
-	return int(vl.value)
+func (vl IntegerValue) GetObject() interface{} {
+	return int(vl)
 }
 
-// func (vl *IntegerValue) GetLuaValue() LuaValue {
-// 	return LuaInteger.valueOf(vl.value)
+// func (vl IntegerValue) GetLuaValue() LuaValue {
+// 	return LuaInteger.valueOf(vl)
 // }
 
-func (vl *IntegerValue) reader() io.Reader {
-	return bytes.NewReader(Buffer.Int64ToBytes(int64(vl.value), nil, 0))
+func (vl IntegerValue) reader() io.Reader {
+	return bytes.NewReader(Buffer.Int64ToBytes(int64(vl), nil, 0))
 }
 
 // String implements Stringer interface.
-func (vl *IntegerValue) String() string {
-	return strconv.Itoa(int(vl.value))
+func (vl IntegerValue) String() string {
+	return strconv.Itoa(int(vl))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 // LongValue encapsulates an int64 value.
-type LongValue struct {
-	value int64
-}
+type LongValue int64
 
 // NewLongValue generates a LongValue instance.
-func NewLongValue(value int64) *LongValue {
-	return &LongValue{value: value}
+func NewLongValue(value int64) LongValue {
+	return LongValue(value)
 }
 
-func (vl *LongValue) estimateSize() int {
+func (vl LongValue) estimateSize() int {
 	return 8
 }
 
-func (vl *LongValue) write(buffer []byte, offset int) (int, error) {
-	Buffer.Int64ToBytes(vl.value, buffer, offset)
+func (vl LongValue) write(buffer []byte, offset int) (int, error) {
+	Buffer.Int64ToBytes(int64(vl), buffer, offset)
 	return 8, nil
 }
 
-func (vl *LongValue) pack(packer *packer) error {
-	packer.PackALong(vl.value)
+func (vl LongValue) pack(packer *packer) error {
+	packer.PackALong(int64(vl))
 	return nil
 }
 
 // GetType returns wire protocol value type.
-func (vl *LongValue) GetType() int {
+func (vl LongValue) GetType() int {
 	return ParticleType.INTEGER
 }
 
 // GetObject returns original value as an interface{}.
-func (vl *LongValue) GetObject() interface{} {
-	return vl.value
+func (vl LongValue) GetObject() interface{} {
+	return vl
 }
 
-// func (vl *LongValue) GetLuaValue() LuaValue {
-// 	return LuaInteger.valueOf(vl.value)
+// func (vl LongValue) GetLuaValue() LuaValue {
+// 	return LuaInteger.valueOf(vl)
 // }
 
-func (vl *LongValue) reader() io.Reader {
-	return bytes.NewReader(Buffer.Int64ToBytes(int64(vl.value), nil, 0))
+func (vl LongValue) reader() io.Reader {
+	return bytes.NewReader(Buffer.Int64ToBytes(int64(vl), nil, 0))
 }
 
 // String implements Stringer interface.
-func (vl *LongValue) String() string {
-	return strconv.Itoa(int(vl.value))
+func (vl LongValue) String() string {
+	return strconv.Itoa(int(vl))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
