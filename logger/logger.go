@@ -31,8 +31,12 @@ const (
 	OFF LogPriority = 999
 )
 
+type genericLogger interface {
+	Printf(format string, v ...interface{})
+}
+
 type logger struct {
-	*log.Logger
+	Logger genericLogger
 
 	level LogPriority
 	mutex sync.RWMutex
@@ -49,7 +53,7 @@ func newLogger() *logger {
 }
 
 // SetLogger sets the *log.Logger object where log messages should be sent to.
-func (lgr *logger) SetLogger(l *log.Logger) {
+func (lgr *logger) SetLogger(l genericLogger) {
 	lgr.mutex.Lock()
 	defer lgr.mutex.Unlock()
 
