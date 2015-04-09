@@ -45,6 +45,7 @@ func newBatchCommandGet(
 		batchNamespace:   batchNamespace,
 		policy:           policy,
 		keyMap:           keyMap,
+		binNames:         binNames,
 		records:          records,
 		readAttr:         readAttr,
 	}
