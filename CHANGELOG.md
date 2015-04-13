@@ -1,5 +1,30 @@
 # Change history
 
+## April 13 2015 : v1.5.0
+
+  This release includes potential BREAKING CHANGES.
+
+  * **New Features**
+
+    * Introduces `ClientPolicy.LimitConnectionsToQueueSize`. If set to true, the client won't attemp to create new connections to the node if the total number of pooled connections to the node is equal or more than the pool size. The client will retry to poll a connection from the queue until a timeout occures. If no timeout is set, it will only retry for ten times.
+
+  * **Improvements**
+
+    * BREAKING CHANGE: |
+                        Uses type aliases instead of structs in several XXXValue methods. This removes a memory allocation per `Value` usage.
+                        Since every `Put` operation uses at list one value object, this has the potential to improve application performance.
+                        Since the signature of several `NewXXXValue` methods have changed, this might break some existing code if you have used the value objects directly.
+
+    * Improved `Logger` so that it will accept a generalized `Logger` interface. Any Logger with a `Printf(format string, values ...interface{})` method can be used. Examples include Logrus.
+
+    * Improved `Client.BatchGet()` performance.
+
+  * **Fixes**
+
+    * Bin names were ignored in BatchCommands.
+
+    * `BatchCommandGet.parseRecord()` returned wrong values when `BinNames` was empty but not nil.
+
 ## March 31 2015 : v1.4.2
   
   Maintenance release.
@@ -34,7 +59,7 @@
     Example:
     ```go
     type SomeStruct struct {
-      A    int            `as:"a"`  // alias the field to myself
+      A    int            `as:"a"`  // alias the field to a
       Self *SomeStruct    `as:"-"`  // will not persist the field
     }
 
