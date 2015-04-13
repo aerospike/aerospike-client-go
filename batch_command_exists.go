@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"bytes"
+
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -25,22 +27,23 @@ type batchCommandExists struct {
 
 	batchNamespace *batchNamespace
 	policy         *BasePolicy
-	keyMap         map[string]*batchItem
+	keys           []*Key
 	existsArray    []bool
+	index          int
 }
 
 func newBatchCommandExists(
 	node *Node,
 	batchNamespace *batchNamespace,
 	policy *BasePolicy,
-	keyMap map[string]*batchItem,
+	keys []*Key,
 	existsArray []bool,
 ) *batchCommandExists {
 	return &batchCommandExists{
 		baseMultiCommand: newMultiCommand(node, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
-		keyMap:           keyMap,
+		keys:             keys,
 		existsArray:      existsArray,
 	}
 }
@@ -50,7 +53,7 @@ func (cmd *batchCommandExists) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandExists) writeBuffer(ifc command) error {
-	return cmd.setBatchExists(cmd.policy, cmd.batchNamespace)
+	return cmd.setBatchExists(cmd.policy, cmd.keys, cmd.batchNamespace)
 }
 
 // Parse all results in the batch.  Add records to shared list.
@@ -91,14 +94,13 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			return false, err
 		}
 
-		item := cmd.keyMap[string(key.digest)]
+		offset := cmd.batchNamespace.offsets[cmd.index]
+		cmd.index++
 
-		if item != nil {
-			index := item.GetIndex()
-
+		if bytes.Equal(key.digest, cmd.keys[offset].digest) {
 			// only set the results to true; as a result, no synchronization is needed
 			if resultCode == 0 {
-				cmd.existsArray[index] = true
+				cmd.existsArray[offset] = true
 			}
 		} else {
 			Logger.Debug("Unexpected batch key returned: " + key.namespace + "," + Buffer.BytesToHexString(key.digest))

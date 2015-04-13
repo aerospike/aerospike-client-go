@@ -644,14 +644,16 @@ var _ = Describe("Aerospike", func() {
 			})
 
 			It("must return the records with same ordering as keys", func() {
+				binRedundant := NewBin("Redundant", "Redundant")
+
 				var records []*Record
 				type existance struct {
 					key         *Key
 					shouldExist bool // set randomly and checked against later
 				}
 
-				exList := []existance{}
-				keys := []*Key{}
+				exList := make([]existance, 0, keyCount)
+				keys := make([]*Key, 0, keyCount)
 
 				for i := 0; i < keyCount; i++ {
 					key, err := NewKey(ns, set, randString(50))
@@ -662,13 +664,19 @@ var _ = Describe("Aerospike", func() {
 
 					// if key shouldExist == true, put it in the DB
 					if e.shouldExist {
-						err = client.PutBins(wpolicy, key, bin)
+						err = client.PutBins(wpolicy, key, bin, binRedundant)
 						Expect(err).ToNot(HaveOccurred())
 
 						// make sure they exists in the DB
+						rec, err := client.Get(rpolicy, key)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+						Expect(rec.Bins[binRedundant.Name]).To(Equal(binRedundant.Value.GetObject()))
+					} else {
+						// make sure they exists in the DB
 						exists, err := client.Exists(rpolicy, key)
 						Expect(err).ToNot(HaveOccurred())
-						Expect(exists).To(Equal(true))
+						Expect(exists).To(Equal(false))
 					}
 				}
 
@@ -688,6 +696,8 @@ var _ = Describe("Aerospike", func() {
 				Expect(len(records)).To(Equal(len(keys)))
 				for idx, rec := range records {
 					if exList[idx].shouldExist {
+						// only bin1 has been requested
+						Expect(rec.Bins[binRedundant.Name]).To(BeNil())
 						Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
 					} else {
 						Expect(rec).To(BeNil())

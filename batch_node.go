@@ -37,7 +37,7 @@ func newBatchNodeList(cluster *Cluster, keys []*Key) ([]*batchNode, error) {
 	// Split keys by server node.
 	batchNodes := make([]*batchNode, 0, nodeCount+1)
 
-	for _, key := range keys {
+	for i, key := range keys {
 		partition := NewPartitionByKey(key)
 
 		// error not required
@@ -45,29 +45,29 @@ func newBatchNodeList(cluster *Cluster, keys []*Key) ([]*batchNode, error) {
 		batchNode := findBatchNode(batchNodes, node)
 
 		if batchNode == nil {
-			batchNodes = append(batchNodes, newBatchNode(node, keysPerNode, key))
+			batchNodes = append(batchNodes, newBatchNode(node, keysPerNode, key.Namespace(), i))
 		} else {
-			batchNode.AddKey(key)
+			batchNode.AddKey(key.Namespace(), i)
 		}
 	}
 	return batchNodes, nil
 }
 
-func newBatchNode(node *Node, keyCapacity int, key *Key) *batchNode {
+func newBatchNode(node *Node, keyCapacity int, namespace string, offset int) *batchNode {
 	return &batchNode{
 		Node:            node,
 		KeyCapacity:     keyCapacity,
-		BatchNamespaces: []*batchNamespace{newBatchNamespace(&key.namespace, keyCapacity, key)},
+		BatchNamespaces: []*batchNamespace{newBatchNamespace(&namespace, keyCapacity, offset)},
 	}
 }
 
-func (bn *batchNode) AddKey(key *Key) {
-	batchNamespace := bn.findNamespace(&key.namespace)
+func (bn *batchNode) AddKey(namespace string, offset int) {
+	batchNamespace := bn.findNamespace(&namespace)
 
 	if batchNamespace == nil {
-		bn.BatchNamespaces = append(bn.BatchNamespaces, newBatchNamespace(&key.namespace, bn.KeyCapacity, key))
+		bn.BatchNamespaces = append(bn.BatchNamespaces, newBatchNamespace(&namespace, bn.KeyCapacity, offset))
 	} else {
-		batchNamespace.keys = append(batchNamespace.keys, key)
+		batchNamespace.add(offset)
 	}
 }
 
@@ -82,23 +82,38 @@ func (bn *batchNode) findNamespace(ns *string) *batchNamespace {
 }
 
 func findBatchNode(nodes []*batchNode, node *Node) *batchNode {
-	for _, batchNode := range nodes {
+	for i := range nodes {
 		// Note: using pointer equality for performance.
-		if batchNode.Node == node {
-			return batchNode
+		if nodes[i].Node == node {
+			return nodes[i]
 		}
 	}
 	return nil
 }
 
 type batchNamespace struct {
-	namespace *string
-	keys      []*Key
+	namespace  *string
+	offsets    []int
+	offsetSize int
 }
 
-func newBatchNamespace(namespace *string, capacity int, key *Key) *batchNamespace {
-	return &batchNamespace{
-		namespace: namespace,
-		keys:      []*Key{key},
+func newBatchNamespace(namespace *string, capacity, offset int) *batchNamespace {
+	res := &batchNamespace{
+		namespace:  namespace,
+		offsets:    make([]int, capacity),
+		offsetSize: 1,
 	}
+	res.offsets[0] = offset
+
+	return res
+}
+
+func (bn *batchNamespace) add(offset int) {
+	if bn.offsetSize >= len(bn.offsets) {
+		cpy := make([]int, bn.offsetSize*2)
+		copy(cpy, bn.offsets)
+		bn.offsets = cpy
+	}
+	bn.offsets[bn.offsetSize] = offset
+	bn.offsetSize++
 }

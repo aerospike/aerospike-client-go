@@ -305,23 +305,26 @@ func (cmd *baseCommand) setUdf(policy Policy, key *Key, packageName string, func
 	return nil
 }
 
-func (cmd *baseCommand) setBatchExists(policy *BasePolicy, batchNamespace *batchNamespace) error {
+func (cmd *baseCommand) setBatchExists(policy *BasePolicy, keys []*Key, batch *batchNamespace) error {
 	// Estimate buffer size
 	cmd.begin()
-	keys := batchNamespace.keys
-	byteSize := len(keys) * int(_DIGEST_SIZE)
+	byteSize := batch.offsetSize * int(_DIGEST_SIZE)
 
-	cmd.dataOffset += len(*batchNamespace.namespace) +
+	cmd.dataOffset += len(*batch.namespace) +
 		int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
 
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, 2, 0)
-	cmd.writeFieldString(*batchNamespace.namespace, NAMESPACE)
+	cmd.writeFieldString(*batch.namespace, NAMESPACE)
 	cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
 
-	for _, key := range keys {
+	offsets := batch.offsets
+	max := batch.offsetSize
+
+	for i := 0; i < max; i++ {
+		key := keys[offsets[i]]
 		copy(cmd.dataBuffer[cmd.dataOffset:], key.digest)
 		cmd.dataOffset += len(key.digest)
 	}
@@ -330,41 +333,38 @@ func (cmd *baseCommand) setBatchExists(policy *BasePolicy, batchNamespace *batch
 	return nil
 }
 
-func (cmd *baseCommand) setBatchGet(policy Policy, batchNamespace *batchNamespace, binNames map[string]struct{}, readAttr int) error {
+func (cmd *baseCommand) setBatchGet(policy Policy, keys []*Key, batch *batchNamespace, binNames map[string]struct{}, readAttr int) error {
 	// Estimate buffer size
 	cmd.begin()
-	keys := batchNamespace.keys
-	byteSize := len(keys) * int(_DIGEST_SIZE)
+	byteSize := batch.offsetSize * int(_DIGEST_SIZE)
 
-	cmd.dataOffset += len(*batchNamespace.namespace) +
+	cmd.dataOffset += len(*batch.namespace) +
 		int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
 
-	if binNames != nil {
-		for binName := range binNames {
-			cmd.estimateOperationSizeForBinName(binName)
-		}
+	for binName := range binNames {
+		cmd.estimateOperationSizeForBinName(binName)
 	}
+
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
 
-	operationCount := 0
-	if binNames != nil {
-		operationCount = len(binNames)
-	}
+	operationCount := len(binNames)
 	cmd.writeHeader(policy.GetBasePolicy(), readAttr, 0, 2, operationCount)
-	cmd.writeFieldString(*batchNamespace.namespace, NAMESPACE)
+	cmd.writeFieldString(*batch.namespace, NAMESPACE)
 	cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
 
-	for _, key := range keys {
+	offsets := batch.offsets
+	max := batch.offsetSize
+
+	for i := 0; i < max; i++ {
+		key := keys[offsets[i]]
 		copy(cmd.dataBuffer[cmd.dataOffset:], key.digest)
 		cmd.dataOffset += len(key.digest)
 	}
 
-	if binNames != nil {
-		for binName := range binNames {
-			cmd.writeOperationForBinName(binName, READ)
-		}
+	for binName := range binNames {
+		cmd.writeOperationForBinName(binName, READ)
 	}
 	cmd.end()
 

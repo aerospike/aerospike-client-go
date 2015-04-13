@@ -274,10 +274,8 @@ func (clnt *Client) BatchExists(policy *BasePolicy, keys []*Key) ([]bool, error)
 	// when a key exists, the corresponding index will be marked true
 	existsArray := make([]bool, len(keys))
 
-	keyMap := newBatchItemList(keys)
-
 	if err := clnt.batchExecute(keys, func(node *Node, bns *batchNamespace) command {
-		return newBatchCommandExists(node, bns, policy, keyMap, existsArray)
+		return newBatchCommandExists(node, bns, policy, keys, existsArray)
 	}); err != nil {
 		return nil, err
 	}
@@ -347,14 +345,13 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	keyMap := newBatchItemList(keys)
 	binSet := map[string]struct{}{}
 	for idx := range binNames {
 		binSet[binNames[idx]] = struct{}{}
 	}
 
 	err := clnt.batchExecute(keys, func(node *Node, bns *batchNamespace) command {
-		return newBatchCommandGet(node, bns, policy, keyMap, binSet, records, _INFO1_READ)
+		return newBatchCommandGet(node, bns, policy, keys, binSet, records, _INFO1_READ)
 	})
 	if err != nil {
 		return nil, err
@@ -375,9 +372,8 @@ func (clnt *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, 
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	keyMap := newBatchItemList(keys)
 	err := clnt.batchExecute(keys, func(node *Node, bns *batchNamespace) command {
-		return newBatchCommandGet(node, bns, policy, keyMap, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
+		return newBatchCommandGet(node, bns, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
 	})
 	if err != nil {
 		return nil, err
@@ -587,7 +583,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(clnt.cluster.connectionTimeout)
+	conn, err := node.GetConnection(clnt.cluster.clientPolicy.Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -647,7 +643,7 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(clnt.cluster.connectionTimeout)
+	conn, err := node.GetConnection(clnt.cluster.clientPolicy.Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -688,7 +684,7 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(clnt.cluster.connectionTimeout)
+	conn, err := node.GetConnection(clnt.cluster.clientPolicy.Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -1151,6 +1147,8 @@ func (clnt *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batch
 
 	// Use a goroutine per namespace per node
 	errs := []error{}
+	errm := new(sync.Mutex)
+
 	wg.Add(len(batchNodes))
 	for _, batchNode := range batchNodes {
 		// copy to avoid race condition
@@ -1160,7 +1158,9 @@ func (clnt *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batch
 				defer wg.Done()
 				command := cmdGen(bn, bns)
 				if err := command.Execute(); err != nil {
+					errm.Lock()
 					errs = append(errs, err)
+					errm.Unlock()
 				}
 			}(bn.Node, bns)
 		}
@@ -1236,7 +1236,8 @@ func mergeErrors(errs []error) error {
 	}
 	var msg bytes.Buffer
 	for _, err := range errs {
-		msg.WriteString(err.Error() + "\n")
+		msg.WriteString(err.Error())
+		msg.WriteString("\n")
 	}
 	return errors.New(msg.String())
 }

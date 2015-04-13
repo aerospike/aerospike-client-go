@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"bytes"
+
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -25,17 +27,18 @@ type batchCommandGet struct {
 
 	batchNamespace *batchNamespace
 	policy         Policy
-	keyMap         map[string]*batchItem
+	keys           []*Key
 	binNames       map[string]struct{}
 	records        []*Record
 	readAttr       int
+	index          int
 }
 
 func newBatchCommandGet(
 	node *Node,
 	batchNamespace *batchNamespace,
 	policy Policy,
-	keyMap map[string]*batchItem,
+	keys []*Key,
 	binNames map[string]struct{},
 	records []*Record,
 	readAttr int,
@@ -44,7 +47,7 @@ func newBatchCommandGet(
 		baseMultiCommand: newMultiCommand(node, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
-		keyMap:           keyMap,
+		keys:             keys,
 		binNames:         binNames,
 		records:          records,
 		readAttr:         readAttr,
@@ -56,7 +59,7 @@ func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) error {
-	return cmd.setBatchGet(cmd.policy, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
+	return cmd.setBatchGet(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
 }
 
 // Parse all results in the batch.  Add records to shared list.
@@ -92,12 +95,13 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		if err != nil {
 			return false, err
 		}
-		item := cmd.keyMap[string(key.digest)]
 
-		if item != nil {
+		offset := cmd.batchNamespace.offsets[cmd.index] //cmd.keyMap[string(key.digest)]
+		cmd.index++
+
+		if bytes.Equal(key.digest, cmd.keys[offset].digest) {
 			if resultCode == 0 {
-				index := item.GetIndex()
-				if cmd.records[index], err = cmd.parseRecord(key, opCount, generation, expiration); err != nil {
+				if cmd.records[offset], err = cmd.parseRecord(key, opCount, generation, expiration); err != nil {
 					return false, err
 				}
 			}
@@ -143,7 +147,7 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation int, e
 		// Currently, the batch command returns all the bins even if a subset of
 		// the bins are requested. We have to filter it on the client side.
 		// TODO: Filter batch bins on server!
-		if cmd.binNames == nil || contains(cmd.binNames, name) {
+		if len(cmd.binNames) == 0 || contains(cmd.binNames, name) {
 			if bins == nil {
 				bins = map[string]interface{}{}
 			}
