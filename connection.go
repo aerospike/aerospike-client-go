@@ -134,3 +134,16 @@ func (ctn *Connection) Close() {
 		ctn.conn = nil
 	}
 }
+
+// Authenticate will send authentication information to the server.
+func (ctn *Connection) Authenticate(user string, password []byte) error {
+	// need to authenticate
+	if user != "" {
+		command := newAdminCommand()
+		if err := command.authenticate(ctn, user, password); err != nil {
+			// Socket not authenticated. Do not put back into pool.
+			return err
+		}
+	}
+	return nil
+}

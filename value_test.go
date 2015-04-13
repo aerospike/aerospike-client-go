@@ -91,7 +91,7 @@ var _ = Describe("Value Test", func() {
 
 			bval := NewValue(person)
 			Expect(bval.GetType()).To(Equal(ParticleType.BLOB))
-			Expect(bval).To(BeAssignableToTypeOf(&BytesValue{}))
+			Expect(bval).To(BeAssignableToTypeOf(BytesValue{}))
 			Expect(bval.GetObject()).To(Equal([]byte(person.name)))
 		})
 	})

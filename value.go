@@ -225,7 +225,7 @@ func (vl BytesValue) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (vl BytesValue) GetObject() interface{} {
-	return vl
+	return []byte(vl)
 }
 
 // func (vl BytesValue) GetLuaValue() LuaValue {
@@ -271,7 +271,7 @@ func (vl StringValue) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (vl StringValue) GetObject() interface{} {
-	return vl
+	return string(vl)
 }
 
 // func (vl StringValue) GetLuaValue() LuaValue {
@@ -369,7 +369,7 @@ func (vl LongValue) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (vl LongValue) GetObject() interface{} {
-	return vl
+	return int64(vl)
 }
 
 // func (vl LongValue) GetLuaValue() LuaValue {
