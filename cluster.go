@@ -44,11 +44,7 @@ type Cluster struct {
 	// Random node index.
 	nodeIndex *AtomicInt
 
-	// Size of node's connection pool.
-	connectionQueueSize int
-
-	// Initial connection timeout.
-	connectionTimeout time.Duration
+	clientPolicy ClientPolicy
 
 	mutex       sync.RWMutex
 	wgTend      sync.WaitGroup
@@ -65,14 +61,13 @@ type Cluster struct {
 // NewCluster generates a Cluster instance.
 func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	newCluster := &Cluster{
-		seeds:               hosts,
-		connectionQueueSize: policy.ConnectionQueueSize,
-		connectionTimeout:   policy.Timeout,
-		aliases:             make(map[Host]*Node),
-		nodes:               []*Node{},
-		partitionWriteMap:   make(map[string][]*Node),
-		nodeIndex:           NewAtomicInt(0),
-		tendChannel:         make(chan struct{}),
+		seeds:             hosts,
+		clientPolicy:      *policy,
+		aliases:           make(map[Host]*Node),
+		nodes:             []*Node{},
+		partitionWriteMap: make(map[string][]*Node),
+		nodeIndex:         NewAtomicInt(0),
+		tendChannel:       make(chan struct{}),
 	}
 
 	// setup auth info for cluster
@@ -232,7 +227,7 @@ func (clstr *Cluster) waitTillStabilized() {
 	}()
 
 	// returns either on timeout or on cluster stablization
-	timeout := time.After(clstr.connectionTimeout)
+	timeout := time.After(clstr.clientPolicy.Timeout)
 	select {
 	case <-timeout:
 		return
@@ -307,7 +302,7 @@ func (clstr *Cluster) seedNodes() {
 	list := []*Node{}
 
 	for _, seed := range seedArray {
-		seedNodeValidator, err := newNodeValidator(clstr, seed, clstr.connectionTimeout)
+		seedNodeValidator, err := newNodeValidator(clstr, seed, clstr.clientPolicy.Timeout)
 		if err != nil {
 			Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
 			continue
@@ -320,7 +315,7 @@ func (clstr *Cluster) seedNodes() {
 			if *alias == *seed {
 				nv = seedNodeValidator
 			} else {
-				nv, err = newNodeValidator(clstr, alias, clstr.connectionTimeout)
+				nv, err = newNodeValidator(clstr, alias, clstr.clientPolicy.Timeout)
 				if err != nil {
 					Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
 					continue
@@ -370,7 +365,7 @@ func (clstr *Cluster) findNodesToAdd(hosts []*Host) []*Node {
 	list := make([]*Node, 0, len(hosts))
 
 	for _, host := range hosts {
-		if nv, err := newNodeValidator(clstr, host, clstr.connectionTimeout); err != nil {
+		if nv, err := newNodeValidator(clstr, host, clstr.clientPolicy.Timeout); err != nil {
 			Logger.Warn("Add node %s failed: %s", err.Error())
 		} else {
 			node := clstr.findNodeByName(nv.name)

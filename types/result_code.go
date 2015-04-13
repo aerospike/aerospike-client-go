@@ -19,6 +19,9 @@ package types
 type ResultCode int
 
 const (
+	// There were no connections available to the node in the pool, and the pool was limited
+	NO_AVAILABLE_CONNECTIONS_TO_NODE ResultCode = -8
+
 	// Asynchronous max concurrent database commands have been exceeded and therefore rejected.
 	TYPE_NOT_SUPPORTED ResultCode = -7
 
@@ -226,6 +229,9 @@ func KeepConnection(resultCode int) bool {
 // Return result code as a string.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
+	case NO_AVAILABLE_CONNECTIONS_TO_NODE:
+		return "No available connections to the node. Connection Pool was empty, and limited to certain number of connections."
+
 	case TYPE_NOT_SUPPORTED:
 		return "Type cannot be converted to Value Type."
 

@@ -34,6 +34,10 @@ type ClientPolicy struct {
 	// Size of the Connection Queue cache.
 	ConnectionQueueSize int //= 256
 
+	// If set to true, will not create a new connection
+	// to the node if there are already `ConnectionQueueSize` active connections.
+	LimitConnectionsToQueueSize bool //= false
+
 	// Throw exception if host connection fails during addHost().
 	FailIfNotConnected bool //= true
 
@@ -45,10 +49,11 @@ type ClientPolicy struct {
 // NewClientPolicy generates a new ClientPolicy with default values.
 func NewClientPolicy() *ClientPolicy {
 	return &ClientPolicy{
-		Timeout:             time.Second,
-		ConnectionQueueSize: 256,
-		FailIfNotConnected:  true,
-		TendInterval:        time.Second,
+		Timeout:                     time.Second,
+		ConnectionQueueSize:         256,
+		FailIfNotConnected:          true,
+		TendInterval:                time.Second,
+		LimitConnectionsToQueueSize: false,
 	}
 }
 

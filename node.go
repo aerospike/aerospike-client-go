@@ -36,10 +36,11 @@ type Node struct {
 	name    string
 	host    *Host
 	aliases []*Host
-	address string // socket?
+	address string
 
-	connections *AtomicQueue //ArrayBlockingQueue<*Connection>
-	health      *AtomicInt   //AtomicInteger
+	connections     *AtomicQueue //ArrayBlockingQueue<*Connection>
+	connectionCount *AtomicInt
+	health          *AtomicInt //AtomicInteger
 
 	partitionGeneration int
 	refreshCount        int
@@ -62,7 +63,8 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).
 		host:                nv.aliases[0],
-		connections:         NewAtomicQueue(cluster.connectionQueueSize),
+		connections:         NewAtomicQueue(cluster.clientPolicy.ConnectionQueueSize),
+		connectionCount:     NewAtomicInt(0),
 		health:              NewAtomicInt(_FULL_HEALTH),
 		partitionGeneration: -1,
 		referenceCount:      0,
@@ -187,35 +189,54 @@ func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) er
 // GetConnection gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
 func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err error) {
-	for t := nd.connections.Poll(); t != nil; t = nd.connections.Poll() {
-		conn = t.(*Connection)
-		if conn.IsConnected() {
-			if err := conn.SetTimeout(timeout); err == nil {
-				return conn, nil
+	tBegin := time.Now()
+	pollTries := 0
+L:
+	for timeout == 0 || time.Now().Sub(tBegin) <= timeout {
+		if t := nd.connections.Poll(); t != nil {
+			conn = t.(*Connection)
+			if conn.IsConnected() {
+				if err := conn.SetTimeout(timeout); err == nil {
+					return conn, nil
+				}
 			}
+			conn.Close()
 		}
-		conn.Close()
-	}
 
-	if conn, err = NewConnection(nd.address, nd.cluster.connectionTimeout); err != nil {
-		return nil, err
-	}
+		// if connection count is limited and enough connections are already created, don't create a new one
+		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.Get() >= nd.cluster.clientPolicy.ConnectionQueueSize {
+			// will avoid an infinite loop
+			if timeout != 0 || pollTries < 10 {
+				// 10 reteies, each waits for 100us for a total of 1 milliseconds
+				time.Sleep(time.Microsecond * 100)
+				pollTries++
+				continue
+			}
+			break L
+		}
 
-	// need to authenticate
-	if nd.cluster.user != "" {
-		command := newAdminCommand()
-		if err := command.authenticate(conn, nd.cluster.user, nd.cluster.password); err != nil {
+		if conn, err = NewConnection(nd.address, nd.cluster.clientPolicy.Timeout); err != nil {
+			return nil, err
+		}
+
+		// need to authenticate
+		if conn.Authenticate(nd.cluster.user, nd.cluster.password); err != nil {
 			// Socket not authenticated. Do not put back into pool.
 			conn.Close()
 
 			return nil, err
 		}
-	}
 
-	if conn.SetTimeout(timeout) != nil {
-		return nil, err
+		if conn.SetTimeout(timeout) != nil {
+			// Socket not authenticated. Do not put back into pool.
+			conn.Close()
+			return nil, err
+		}
+
+		nd.connectionCount.IncrementAndGet()
+		return conn, nil
 	}
-	return conn, nil
+	return nil, NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE)
 }
 
 // PutConnection puts back a connection to the pool.
@@ -223,6 +244,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 // closed and discarded.
 func (nd *Node) PutConnection(conn *Connection) {
 	if !nd.active.Get() || !nd.connections.Offer(conn) {
+		nd.connectionCount.DecrementAndGet()
 		conn.Close()
 	}
 }
