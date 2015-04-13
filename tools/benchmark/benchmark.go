@@ -55,6 +55,9 @@ var namespace = flag.String("n", "test", "Aerospike namespace.")
 var set = flag.String("s", "testset", "Aerospike set name.")
 var keyCount = flag.Int("k", 1000000, "Key/record count or key/record range.")
 
+var user = flag.String("U", "", "User name.")
+var password = flag.String("P", "", "User password.")
+
 var binDef = flag.String("o", "I", "Bin object specification.\n\tI\t: Read/write integer bin.\n\tB:200\t: Read/write byte array bin of length 200.\n\tS:50\t: Read/write string bin of length 50.")
 var concurrency = flag.Int("c", 32, "Number of goroutines to generate load.")
 var workloadDef = flag.String("w", "I:100", "Desired workload.\n\tI:60\t: Linear 'insert' workload initializing 60% of the keys.\n\tRU:80\t: Random read/update workload with 80% reads and 20% writes.")
@@ -110,6 +113,9 @@ func main() {
 	clientPolicy := NewClientPolicy()
 	// cache lots  connections
 	clientPolicy.ConnectionQueueSize = *connQueueSize
+	clientPolicy.User = *user
+	clientPolicy.Password = *password
+	clientPolicy.Timeout = 10 * time.Second
 	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		log.Fatal(err)
