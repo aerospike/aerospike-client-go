@@ -99,7 +99,7 @@ func readFlags() {
 	}
 
 	*operand = strings.ToLower(*operand)
-	switch strings.ToLower(*operand) {
+	switch *operand {
 	case "get":
 		if *key == "" {
 			log.Fatalln("Key is required for get operation.")
@@ -113,7 +113,7 @@ func readFlags() {
 			log.Fatalln("Key is required for get operation.")
 		}
 	default:
-		log.Fatalf("operand %s not recognized. valid values: get, set, delete")
+		log.Fatalf("operand %s not recognized. valid values: get, set, delete.\n", *operand)
 	}
 
 }
