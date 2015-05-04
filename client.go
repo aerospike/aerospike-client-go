@@ -306,7 +306,10 @@ func (clnt *Client) Get(policy *BasePolicy, key *Key, binNames ...string) (*Reco
 func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) error {
 	policy = clnt.getUsablePolicy(policy)
 
-	binNames := objectMappings.getFields(reflect.ValueOf(obj).Type().Elem().Name())
+	rval := reflect.ValueOf(obj)
+	cacheObjectTags(rval)
+	binNames := objectMappings.getFields(rval)
+
 	command := newReadCommand(clnt.cluster, policy, key, binNames)
 	command.object = obj
 	if err := command.Execute(); err != nil {

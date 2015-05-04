@@ -120,18 +120,16 @@ func structToMap(s reflect.Value) map[string]interface{} {
 
 		binValue := valueToInterface(s.Field(i))
 
-		if binValue != nil {
-			if binMap == nil {
-				binMap = make(map[string]interface{}, numFields)
-			}
-
-			alias := fieldAlias(typeOfT.Field(i))
-			if alias == "" {
-				continue
-			}
-
-			binMap[alias] = binValue
+		if binMap == nil {
+			binMap = make(map[string]interface{}, numFields)
 		}
+
+		alias := fieldAlias(typeOfT.Field(i))
+		if alias == "" {
+			continue
+		}
+
+		binMap[alias] = binValue
 	}
 
 	return binMap
@@ -156,16 +154,14 @@ func marshal(v interface{}) []*Bin {
 
 		binValue := valueToInterface(s.Field(i))
 
-		if binValue != nil {
-			alias := fieldAlias(typeOfT.Field(i))
-			if alias == "" {
-				continue
-			}
-
-			bins[binCount].Name = alias
-			bins[binCount].Value = NewValue(binValue)
-			binCount++
+		alias := fieldAlias(typeOfT.Field(i))
+		if alias == "" {
+			continue
 		}
+
+		bins[binCount].Name = alias
+		bins[binCount].Value = NewValue(binValue)
+		binCount++
 	}
 
 	return bins[:binCount]
@@ -177,27 +173,32 @@ type SyncMap struct {
 	mutex          sync.RWMutex
 }
 
-func (sm *SyncMap) setMapping(objType string, mapping map[string]string, fields []string) {
+func (sm *SyncMap) setMapping(obj reflect.Value, mapping map[string]string, fields []string) {
+	objType := obj.Type().Name()
 	sm.mutex.Lock()
 	sm.objectMappings[objType] = mapping
+	sm.objectFields[objType] = fields
 	sm.mutex.Unlock()
 }
 
-func (sm *SyncMap) mappingExists(objType string) bool {
+func (sm *SyncMap) mappingExists(obj reflect.Value) bool {
+	objType := obj.Type().Name()
 	sm.mutex.RLock()
 	_, exists := sm.objectMappings[objType]
 	sm.mutex.RUnlock()
 	return exists
 }
 
-func (sm *SyncMap) getMapping(objType string) map[string]string {
+func (sm *SyncMap) getMapping(obj reflect.Value) map[string]string {
+	objType := obj.Type().Name()
 	sm.mutex.RLock()
 	mapping := sm.objectMappings[objType]
 	sm.mutex.RUnlock()
 	return mapping
 }
 
-func (sm *SyncMap) getFields(objType string) []string {
+func (sm *SyncMap) getFields(obj reflect.Value) []string {
+	objType := obj.Type().Name()
 	sm.mutex.RLock()
 	fields := sm.objectFields[objType]
 	sm.mutex.RUnlock()
@@ -207,10 +208,16 @@ func (sm *SyncMap) getFields(objType string) []string {
 var objectMappings = &SyncMap{objectMappings: map[string]map[string]string{}, objectFields: map[string][]string{}}
 
 func cacheObjectTags(obj reflect.Value) {
-	objType := obj.Type().Name()
 	// exit if already processed
-	if objectMappings.mappingExists(objType) {
+	if objectMappings.mappingExists(obj) {
 		return
+	}
+
+	for obj.Kind() == reflect.Ptr {
+		if obj.IsNil() {
+			return
+		}
+		obj = reflect.Indirect(obj)
 	}
 
 	mapping := map[string]string{}
@@ -236,5 +243,5 @@ func cacheObjectTags(obj reflect.Value) {
 		}
 	}
 
-	objectMappings.setMapping(objType, mapping, fields)
+	objectMappings.setMapping(obj, mapping, fields)
 }

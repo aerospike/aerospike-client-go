@@ -226,6 +226,10 @@ func (cmd *readCommand) Execute() error {
 }
 
 func (cmd *readCommand) setObjectField(obj reflect.Value, fieldName string, value interface{}) error {
+	if value == nil {
+		return nil
+	}
+
 	// find the name based on tag mapping
 	iobj := reflect.Indirect(obj)
 	if name, exists := cmd.objectMappings[iobj.Type().Name()][fieldName]; exists {
