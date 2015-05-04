@@ -366,7 +366,7 @@ func (clstr *Cluster) findNodesToAdd(hosts []*Host) []*Node {
 
 	for _, host := range hosts {
 		if nv, err := newNodeValidator(clstr, host, clstr.clientPolicy.Timeout); err != nil {
-			Logger.Warn("Add node %s failed: %s", err.Error())
+			Logger.Warn("Add node %s failed: %s", host.Name, err.Error())
 		} else {
 			node := clstr.findNodeByName(nv.name)
 			// make sure node is not already in the list to add
