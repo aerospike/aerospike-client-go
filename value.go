@@ -141,44 +141,46 @@ func NewValue(v interface{}) Value {
 // NullValue is an empty value.
 type NullValue struct{}
 
+var nullValue NullValue
+
 // NewNullValue generates a NullValue instance.
-func NewNullValue() *NullValue {
-	return &NullValue{}
+func NewNullValue() NullValue {
+	return nullValue
 }
 
-func (vl *NullValue) estimateSize() int {
+func (vl NullValue) estimateSize() int {
 	return 0
 }
 
-func (vl *NullValue) write(buffer []byte, offset int) (int, error) {
+func (vl NullValue) write(buffer []byte, offset int) (int, error) {
 	return 0, nil
 }
 
-func (vl *NullValue) pack(packer *packer) error {
+func (vl NullValue) pack(packer *packer) error {
 	packer.PackNil()
 	return nil
 }
 
 // GetType returns wire protocol value type.
-func (vl *NullValue) GetType() int {
+func (vl NullValue) GetType() int {
 	return ParticleType.NULL
 }
 
 // GetObject returns original value as an interface{}.
-func (vl *NullValue) GetObject() interface{} {
+func (vl NullValue) GetObject() interface{} {
 	return nil
 }
 
-// func (vl *NullValue) GetLuaValue() LuaValue {
+// func (vl NullValue) GetLuaValue() LuaValue {
 // 	return LuaNil.NIL
 // }
 
-func (vl *NullValue) reader() io.Reader {
+func (vl NullValue) reader() io.Reader {
 	return nil
 }
 
 // String implements Stringer interface.
-func (vl *NullValue) String() string {
+func (vl NullValue) String() string {
 	return ""
 }
 
