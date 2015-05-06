@@ -79,17 +79,6 @@ var _ = Describe("Security tests", func() {
 				Expect(admin.Roles).To(ConsistOf("user-admin", "read-write", "read"))
 			})
 
-			It("Must Replace Roles Perfectly", func() {
-				err := client.ReplaceRoles(nil, "test_user", []string{"user-admin", "read"})
-				Expect(err).ToNot(HaveOccurred())
-
-				admin, err := client.QueryUser(nil, "test_user")
-				Expect(err).ToNot(HaveOccurred())
-
-				Expect(admin.User).To(Equal("test_user"))
-				Expect(admin.Roles).To(ConsistOf("user-admin", "read"))
-			})
-
 		}) // describe roles
 
 		Describe("Users", func() {

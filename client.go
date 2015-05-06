@@ -1083,14 +1083,6 @@ func (clnt *Client) RevokeRoles(policy *AdminPolicy, user string, roles []string
 	return command.revokeRoles(clnt.cluster, policy, user, roles)
 }
 
-// Replace user's list of roles.
-func (clnt *Client) ReplaceRoles(policy *AdminPolicy, user string, roles []string) error {
-	policy = clnt.getUsableAdminPolicy(policy)
-
-	command := newAdminCommand()
-	return command.replaceRoles(clnt.cluster, policy, user, roles)
-}
-
 // Retrieve roles for a given user.
 func (clnt *Client) QueryUser(policy *AdminPolicy, user string) (*UserRoles, error) {
 	policy = clnt.getUsableAdminPolicy(policy)
