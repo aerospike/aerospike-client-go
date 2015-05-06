@@ -118,13 +118,3 @@ func (lm *LargeMap) Size() (int, error) {
 func (lm *LargeMap) GetConfig() (map[interface{}]interface{}, error) {
 	return lm.getConfig(lm)
 }
-
-// SetCapacity sets maximum number of entries in the map.
-func (lm *LargeMap) SetCapacity(capacity int) error {
-	return lm.setCapacity(lm, capacity)
-}
-
-// GetCapacity returns maximum number of entries in the map.
-func (lm *LargeMap) GetCapacity() (int, error) {
-	return lm.getCapacity(lm)
-}

@@ -143,13 +143,3 @@ func (ll *LargeList) Size() (int, error) {
 func (ll *LargeList) GetConfig() (map[interface{}]interface{}, error) {
 	return ll.getConfig(ll)
 }
-
-// SetCapacity sets maximum number of entries in the list.
-func (ll *LargeList) SetCapacity(capacity int) error {
-	return ll.setCapacity(ll, capacity)
-}
-
-// GetCapacity returns maximum number of entries in the list.
-func (ll *LargeList) GetCapacity() (int, error) {
-	return ll.getCapacity(ll)
-}

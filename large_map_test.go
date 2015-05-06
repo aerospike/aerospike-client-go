@@ -66,7 +66,7 @@ var _ = Describe("LargeMap Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("should create a valid LargeMap; Support Put(), Exists(), Get(), Remove(), Find(), Size(), Scan() and GetCapacity()", func() {
+	It("should create a valid LargeMap; Support Put(), Exists(), Get(), Remove(), Find(), Size(), Scan()", func() {
 		lmap := client.GetLargeMap(wpolicy, key, randString(10), "")
 		res, err := lmap.Size()
 		Expect(err).ToNot(HaveOccurred()) // bin not exists
@@ -98,15 +98,6 @@ var _ = Describe("LargeMap Test", func() {
 			Expect(sz).To(Equal(i))
 		}
 
-		sz, err := lmap.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		cap, err := lmap.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		// default capacity is 100
-		Expect(cap).To(Equal(sz))
-
 		// Scan() the map
 		scanResult, err := lmap.Scan()
 		scanExpectation := make(map[interface{}]interface{})
@@ -136,36 +127,6 @@ var _ = Describe("LargeMap Test", func() {
 		config, err := lmap.GetConfig()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(config["SUMMARY"]).To(Equal("LMAP Summary"))
-	})
-
-	It("should correctly Get/SetCapacity()", func() {
-		const cap = 99
-
-		lmap := client.GetLargeMap(wpolicy, key, randString(10), "")
-		err = lmap.Put(NewValue(0), NewValue(0))
-		Expect(err).ToNot(HaveOccurred())
-
-		err = lmap.SetCapacity(cap)
-		Expect(err).ToNot(HaveOccurred())
-
-		tcap, err := lmap.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(tcap).To(Equal(cap))
-
-		for i := 1; i < cap; i++ {
-			err = lmap.Put(NewValue(i*100), NewValue(i))
-			Expect(err).ToNot(HaveOccurred())
-
-			sz, err := lmap.Size()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(sz).To(Equal(i + 1))
-		}
-
-		sz, err := lmap.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(sz).To(Equal(cap))
 	})
 
 }) // describe

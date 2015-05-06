@@ -39,7 +39,7 @@ var _ = Describe("LargeStack Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("should create a valid LargeStack; Support Push(), Peek(), Pop(), Size(), Scan(), Destroy() and GetCapacity()", func() {
+	It("should create a valid LargeStack; Support Push(), Peek(), Pop(), Size(), Scan(), Destroy()", func() {
 		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
 		res, err := lstack.Size()
 		Expect(err).ToNot(HaveOccurred()) // bin not exists
@@ -54,15 +54,6 @@ var _ = Describe("LargeStack Test", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(sz).To(Equal(i))
 		}
-
-		sz, err := lstack.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		cap, err := lstack.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		// default capacity is 100
-		Expect(cap).To(Equal(sz))
 
 		// Scan() the stack
 		scanResult, err := lstack.Scan()
@@ -104,36 +95,6 @@ var _ = Describe("LargeStack Test", func() {
 		config, err := lstack.GetConfig()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(config["SUMMARY"]).To(Equal("LSTACK Summary"))
-	})
-
-	It("should correctly Get/SetCapacity()", func() {
-		const cap = 99
-
-		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
-		err = lstack.Push(NewValue(0))
-		Expect(err).ToNot(HaveOccurred())
-
-		err = lstack.SetCapacity(cap)
-		Expect(err).ToNot(HaveOccurred())
-
-		tcap, err := lstack.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(tcap).To(Equal(cap))
-
-		for i := 1; i < cap; i++ {
-			err = lstack.Push(NewValue(i))
-			Expect(err).ToNot(HaveOccurred())
-
-			sz, err := lstack.Size()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(sz).To(Equal(i + 1))
-		}
-
-		sz, err := lstack.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(sz).To(Equal(cap))
 	})
 
 }) // describe

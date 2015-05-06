@@ -99,13 +99,3 @@ func (ls *LargeSet) Size() (int, error) {
 func (ls *LargeSet) GetConfig() (map[interface{}]interface{}, error) {
 	return ls.getConfig(ls)
 }
-
-// SetCapacity sets maximum number of entries in the set.
-func (ls *LargeSet) SetCapacity(capacity int) error {
-	return ls.setCapacity(ls, capacity)
-}
-
-// GetCapacity returns maximum number of entries in the set.
-func (ls *LargeSet) GetCapacity() (int, error) {
-	return ls.getCapacity(ls)
-}

@@ -19,7 +19,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	. "github.com/aerospike/aerospike-client-go"
-	. "github.com/aerospike/aerospike-client-go/types"
+	// . "github.com/aerospike/aerospike-client-go/types"
 )
 
 var _ = Describe("LargeList Test", func() {
@@ -40,7 +40,7 @@ var _ = Describe("LargeList Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("should create a valid LargeList; Support Add(), Remove(), Find(), Size(), Scan(), Range(), Destroy() and GetCapacity()", func() {
+	It("should create a valid LargeList; Support Add(), Remove(), Find(), Size(), Scan(), Range(), Destroy()", func() {
 		llist := client.GetLargeList(wpolicy, key, randString(10), "")
 		res, err := llist.Size()
 		Expect(err).ToNot(HaveOccurred()) // bin not exists
@@ -55,15 +55,6 @@ var _ = Describe("LargeList Test", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(sz).To(Equal(i))
 		}
-
-		sz, err := llist.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		cap, err := llist.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		// default capacity is 100
-		Expect(cap).To(Equal(sz))
 
 		// Scan() the list
 		scanResult, err := llist.Scan()
@@ -97,8 +88,10 @@ var _ = Describe("LargeList Test", func() {
 
 			// make sure the value has been removed
 			findResult, err = llist.Find(NewValue(i))
-			Expect(err).To(HaveOccurred())
-			Expect(err.(AerospikeError).ResultCode()).To(Equal(LARGE_ITEM_NOT_FOUND))
+			Expect(len(findResult)).To(Equal(0))
+			// TODO: Revert in the future
+			// Expect(err).To(HaveOccurred())
+			// Expect(err.(AerospikeError).ResultCode()).To(Equal(LARGE_ITEM_NOT_FOUND))
 		}
 
 		err = llist.Destroy()
@@ -117,36 +110,6 @@ var _ = Describe("LargeList Test", func() {
 		config, err := llist.GetConfig()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(config["SUMMARY"]).To(Equal("LList Summary"))
-	})
-
-	It("should correctly Get/SetCapacity()", func() {
-		const cap = 99
-
-		llist := client.GetLargeList(wpolicy, key, randString(10), "")
-		err = llist.Add(NewValue(0))
-		Expect(err).ToNot(HaveOccurred())
-
-		err = llist.SetCapacity(cap)
-		Expect(err).ToNot(HaveOccurred())
-
-		tcap, err := llist.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(tcap).To(Equal(cap))
-
-		for i := 1; i < cap; i++ {
-			err = llist.Add(NewValue(i))
-			Expect(err).ToNot(HaveOccurred())
-
-			sz, err := llist.Size()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(sz).To(Equal(i + 1))
-		}
-
-		sz, err := llist.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(sz).To(Equal(cap))
 	})
 
 }) // describe

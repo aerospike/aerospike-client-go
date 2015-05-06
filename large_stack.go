@@ -101,13 +101,3 @@ func (lstk *LargeStack) Size() (int, error) {
 func (lstk *LargeStack) GetConfig() (map[interface{}]interface{}, error) {
 	return lstk.getConfig(lstk)
 }
-
-// SetCapacity sets maximum number of entries in the stack.
-func (lstk *LargeStack) SetCapacity(capacity int) error {
-	return lstk.setCapacity(lstk, capacity)
-}
-
-// GetCapacity returns maximum number of entries in the stack.
-func (lstk *LargeStack) GetCapacity() (int, error) {
-	return lstk.getCapacity(lstk)
-}

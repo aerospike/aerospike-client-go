@@ -39,7 +39,7 @@ var _ = Describe("LargeSet Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("should create a valid LargeSet; Support Add(), Get(), Remove(), Exists(), Size(), Scan(), Destroy() and GetCapacity()", func() {
+	It("should create a valid LargeSet; Support Add(), Get(), Remove(), Exists(), Size(), Scan(), Destroy()", func() {
 		const elems = 100
 
 		lset := client.GetLargeSet(wpolicy, key, randString(10), "")
@@ -107,36 +107,6 @@ var _ = Describe("LargeSet Test", func() {
 		config, err := lset.GetConfig()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(config["SUMMARY"]).To(Equal("LSET Summary"))
-	})
-
-	It("should correctly Get/SetCapacity()", func() {
-		const cap = 99
-
-		lset := client.GetLargeSet(wpolicy, key, randString(10), "")
-		err = lset.Add(NewValue(0))
-		Expect(err).ToNot(HaveOccurred())
-
-		err = lset.SetCapacity(cap)
-		Expect(err).ToNot(HaveOccurred())
-
-		tcap, err := lset.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(tcap).To(Equal(cap))
-
-		for i := 1; i < cap; i++ {
-			err = lset.Add(NewValue(i))
-			Expect(err).ToNot(HaveOccurred())
-
-			sz, err := lset.Size()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(sz).To(Equal(i + 1))
-		}
-
-		sz, err := lset.GetCapacity()
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(sz).To(Equal(cap))
 	})
 
 }) // describe

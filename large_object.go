@@ -24,10 +24,6 @@ type LargeObject interface {
 	Size() (int, error)
 	// GetConfig returns a map containing LDT config values.
 	GetConfig() (map[interface{}]interface{}, error)
-	// SetCapacity sets LDT's capacity.
-	SetCapacity(capacity int) error
-	// GetCapacity returns the capacity of the LDT.
-	GetCapacity() (int, error)
 }
 
 // Create and manage a large object within a single bin. A large object is last in/first out (LIFO).
@@ -93,23 +89,6 @@ func (lo *baseLargeObject) getConfig(ifc LargeObject) (map[interface{}]interface
 		return nil, nil
 	}
 	return res.(map[interface{}]interface{}), err
-}
-
-// Set maximum number of entries in the object.
-//
-// capacity      max entries in large object
-func (lo *baseLargeObject) setCapacity(ifc LargeObject, capacity int) error {
-	_, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "set_capacity", lo.binName, NewIntegerValue(capacity))
-	return err
-}
-
-// Return maximum number of entries in the object.
-func (lo *baseLargeObject) getCapacity(ifc LargeObject) (int, error) {
-	ret, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "get_capacity", lo.binName)
-	if err != nil {
-		return -1, err
-	}
-	return ret.(int), nil
 }
 
 // Return list of all objects on the large object.
