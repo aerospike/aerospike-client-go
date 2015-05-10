@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"fmt"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
@@ -94,6 +95,153 @@ var _ = Describe("Aerospike", func() {
 					Expect(time.Now().Sub(t)).To(BeNumerically("<", 2*time.Millisecond))
 				}
 
+			})
+
+		})
+
+		Context("When Idle Timeout Is Used", func() {
+
+			It("must reuse connections before they become idle", func() {
+				clientPolicy := NewClientPolicy()
+				clientPolicy.IdleTimeout = 1000 * time.Millisecond
+				clientPolicy.TendInterval = time.Hour
+
+				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+				Expect(err).ToNot(HaveOccurred())
+				defer client.Close()
+
+				node := client.GetNodes()[0]
+
+				// get a few connections at once
+				var conns []*Connection
+				for i := 0; i < 4; i++ {
+					By(fmt.Sprintf("Retrieving conns i=%d", i))
+					c, err := node.GetConnection(0)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(c).NotTo(BeNil())
+					Expect(c.IsConnected()).To(BeTrue())
+
+					conns = append(conns, c)
+				}
+
+				// return them to the pool
+				for _, c := range conns {
+					node.PutConnection(c)
+				}
+
+				start := time.Now()
+				estimatedDeadline := start.Add(clientPolicy.IdleTimeout)
+				deadlineThreshold := clientPolicy.IdleTimeout / 10
+
+				// make sure the same connections are all retrieved again
+				checkCount := 0
+				for estimatedDeadline.Sub(time.Now()) > deadlineThreshold {
+					checkCount++
+					By(fmt.Sprintf("Retrieving conns2 checkCount=%d", checkCount))
+					var conns2 []*Connection
+					for i := 0; i < len(conns); i++ {
+						c, err := node.GetConnection(0)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(c).NotTo(BeNil())
+						Expect(c.IsConnected()).To(BeTrue())
+						Expect(conns).To(ContainElement(c))
+						Expect(conns2).NotTo(ContainElement(c))
+
+						conns2 = append(conns2, c)
+					}
+
+					// just put them in the pool
+					for _, c := range conns2 {
+						node.PutConnection(c)
+					}
+
+					time.Sleep(time.Millisecond)
+				}
+
+				// we should be called lots of times
+				Expect(checkCount).To(BeNumerically(">", 500))
+
+				// sleep again until all connections are all idle
+				time.Sleep(clientPolicy.IdleTimeout)
+
+				// get connections again, making sure they are all new
+				var conns3 []*Connection
+				for i := 0; i < len(conns); i++ {
+					By(fmt.Sprintf("Retrieving conns3 i=%d", i))
+					c, err := node.GetConnection(0)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(c).NotTo(BeNil())
+					Expect(c.IsConnected()).To(BeTrue())
+
+					Expect(conns).NotTo(ContainElement(c))
+					Expect(conns3).NotTo(ContainElement(c))
+
+					conns3 = append(conns3, c)
+				}
+
+				// refresh and return them to the pool
+				for _, c := range conns {
+					Expect(c.IsConnected()).To(BeFalse())
+				}
+
+				// don't forget to close connections
+				for _, c := range conns3 {
+					c.Close()
+				}
+			})
+
+			It("must delay the connection from becoming idle if it is put back in the queue", func() {
+				clientPolicy := NewClientPolicy()
+				clientPolicy.IdleTimeout = 1000 * time.Millisecond
+				clientPolicy.TendInterval = time.Hour
+
+				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+				Expect(err).ToNot(HaveOccurred())
+				defer client.Close()
+
+				node := client.GetNodes()[0]
+
+				deadlineThreshold := clientPolicy.IdleTimeout / 10
+
+				By("Retrieving c")
+				c, err := node.GetConnection(0)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(c).NotTo(BeNil())
+				Expect(c.IsConnected()).To(BeTrue())
+				node.PutConnection(c)
+
+				// continuously refresh the connection just before it goes idle
+				var lastRefresh time.Time
+				for i := 0; i < 3; i++ {
+					time.Sleep(clientPolicy.IdleTimeout - deadlineThreshold)
+					By(fmt.Sprintf("Retrieving c2 i=%d", i))
+
+					c2, err := node.GetConnection(0)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(c2).NotTo(BeNil())
+					Expect(c2).To(Equal(c))
+					Expect(c2.IsConnected()).To(BeTrue())
+
+					lastRefresh = time.Now()
+					node.PutConnection(c2)
+				}
+
+				// wait about the required time to become idle
+				for time.Now().Sub(lastRefresh) <= clientPolicy.IdleTimeout {
+					By("Sleeping")
+					time.Sleep(1 * time.Millisecond)
+				}
+
+				// we should get a new connection
+				c3, err := node.GetConnection(0)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(c3).NotTo(BeNil())
+				defer c3.Close()
+				Expect(c3).ToNot(Equal(c))
+				Expect(c3.IsConnected()).To(BeTrue())
+
+				// the original connection should be closed
+				Expect(c.IsConnected()).To(BeFalse())
 			})
 
 		})

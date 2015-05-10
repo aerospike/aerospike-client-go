@@ -18,6 +18,8 @@ import (
 	"time"
 )
 
+const defaultIdleTimeout = 14 * time.Second
+
 // ClientPolicy encapsulates parameters for client policy command.
 type ClientPolicy struct {
 	// User authentication to cluster. Leave empty for clusters running without restricted access.
@@ -30,6 +32,11 @@ type ClientPolicy struct {
 	// Initial host connection timeout in milliseconds.  The timeout when opening a connection
 	// to the server host for the first time.
 	Timeout time.Duration //= 1 second
+
+	// Connection idle timeout. Every time a connection is used, its idle
+	// deadline will be extended by this duration. When this deadline is reached,
+	// the connection will be closed and discarded from the connection pool.
+	IdleTimeout time.Duration //= 14 seconds
 
 	// Size of the Connection Queue cache.
 	ConnectionQueueSize int //= 256
@@ -50,6 +57,7 @@ type ClientPolicy struct {
 func NewClientPolicy() *ClientPolicy {
 	return &ClientPolicy{
 		Timeout:                     time.Second,
+		IdleTimeout:                 defaultIdleTimeout,
 		ConnectionQueueSize:         256,
 		FailIfNotConnected:          true,
 		TendInterval:                time.Second,

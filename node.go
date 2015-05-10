@@ -104,6 +104,17 @@ func (nd *Node) Refresh() ([]*Host, error) {
 	if err := nd.updatePartitions(conn, infoMap); err != nil {
 		return nil, err
 	}
+
+	// Suppose there is a request peak, and we create lots of connections to
+	// handle those requests. We want to keep those connections around while the
+	// peak is taking place. When the peak is over, we hopefully will want to
+	// close and those connections, and remove pressure from our side (the
+	// client) and servers. Because the connection pool is a FIFO queue, if we
+	// refresh the connection here, we may end up preventing lots of unused
+	// connections from going idle, and therefore preventing them from being
+	// closed. We should keep the number of connections to servers as low as
+	// possible when there is no need for them. For that reason, we just put the
+	// connection back into the pool without refreshing it.
 	nd.PutConnection(conn)
 	return friends, nil
 }
@@ -195,7 +206,7 @@ L:
 	for timeout == 0 || time.Now().Sub(tBegin) <= timeout {
 		if t := nd.connections.Poll(); t != nil {
 			conn = t.(*Connection)
-			if conn.IsConnected() {
+			if conn.IsConnected() && !conn.isIdle() {
 				if err := conn.SetTimeout(timeout); err == nil {
 					return conn, nil
 				}
@@ -233,6 +244,9 @@ L:
 			return nil, err
 		}
 
+		conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
+		conn.refresh()
+
 		nd.connectionCount.IncrementAndGet()
 		return conn, nil
 	}
@@ -243,6 +257,7 @@ L:
 // If connection pool is full, the connection will be
 // closed and discarded.
 func (nd *Node) PutConnection(conn *Connection) {
+	conn.refresh()
 	if !nd.active.Get() || !nd.connections.Offer(conn) {
 		nd.connectionCount.DecrementAndGet()
 		conn.Close()
