@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"math"
+
 	xornd "github.com/aerospike/aerospike-client-go/types/rand"
 )
 
@@ -87,6 +89,6 @@ func (stmt *Statement) IsScan() bool {
 // Always set the taskId client-side to a non-zero random value
 func (stmt *Statement) setTaskId() {
 	for stmt.TaskId == 0 {
-		stmt.TaskId = xornd.Int64()
+		stmt.TaskId = int64(math.Abs(float64(xornd.Int64())))
 	}
 }

@@ -14,6 +14,8 @@
 
     * Fixed minor bugs regarding handling of nulls in structs for `GetObj()` and `PutObj()`.
 
+    * Fixed a bug regarding setting TaskIds on the client.
+
   * ** Other Changes **
 
     * Removed deprecated `ReplaceRoles()` method.
