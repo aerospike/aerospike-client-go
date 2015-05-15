@@ -220,14 +220,14 @@ L:
 		}
 
 		// need to authenticate
-		if conn.Authenticate(nd.cluster.user, nd.cluster.password); err != nil {
+		if err = conn.Authenticate(nd.cluster.user, nd.cluster.password); err != nil {
 			// Socket not authenticated. Do not put back into pool.
 			conn.Close()
 
 			return nil, err
 		}
 
-		if conn.SetTimeout(timeout) != nil {
+		if err = conn.SetTimeout(timeout); err != nil {
 			// Socket not authenticated. Do not put back into pool.
 			conn.Close()
 			return nil, err

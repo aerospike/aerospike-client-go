@@ -38,6 +38,28 @@ var _ = Describe("Aerospike", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		Context("When Authentication is Used", func() {
+			It("must return error if it fails to authenticate", func() {
+				clientPolicy := NewClientPolicy()
+				clientPolicy.User = "non_existent_user"
+				clientPolicy.Password = "non_existent_user"
+
+				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+				Expect(err).ToNot(HaveOccurred())
+				defer client.Close()
+
+				node := client.GetNodes()[0]
+
+				for i := 0; i < 20; i++ {
+					c, err := node.GetConnection(0)
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(MatchError("Authentication failed"))
+					Expect(c).To(BeNil())
+				}
+
+			})
+		})
+
 		Context("When No Connection Count Limit Is Set", func() {
 
 			It("must return a new connection on every poll", func() {
