@@ -64,5 +64,9 @@ func (aa *AtomicArray) Set(idx int, node interface{}) error {
 
 // Length returns the array size.
 func (aa *AtomicArray) Length() int {
-	return aa.length
+	aa.mutex.RLock()
+	res := aa.length
+	aa.mutex.RUnlock()
+
+	return res
 }

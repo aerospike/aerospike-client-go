@@ -139,13 +139,6 @@ func (acmd *AdminCommand) revokeRoles(cluster *Cluster, policy *AdminPolicy, use
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *AdminCommand) replaceRoles(cluster *Cluster, policy *AdminPolicy, user string, roles []string) error {
-	acmd.writeHeader(_REPLACE_ROLES, 2)
-	acmd.writeFieldStr(_USER, user)
-	acmd.writeRoles(roles)
-	return acmd.executeCommand(cluster, policy)
-}
-
 func (acmd *AdminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user string) (*UserRoles, error) {
 	// TODO: Remove the workaround in the future
 	time.Sleep(time.Millisecond * 10)

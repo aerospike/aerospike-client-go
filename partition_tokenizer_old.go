@@ -20,6 +20,7 @@ import (
 
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
+	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
 // Parse node partitions using old protocol. This is more code than a String.split() implementation,
@@ -52,8 +53,8 @@ func newPartitionTokenizerOld(conn *Connection) (*partitionTokenizerOld, error) 
 	return pt, nil
 }
 
-func (pt *partitionTokenizerOld) UpdatePartition(nmap map[string][]*Node, node *Node) (map[string][]*Node, error) {
-	var amap map[string][]*Node
+func (pt *partitionTokenizerOld) UpdatePartition(nmap map[string]*AtomicArray, node *Node) (map[string]*AtomicArray, error) {
+	var amap map[string]*AtomicArray
 	copied := false
 
 	for partition, err := pt.getNext(); ; partition, err = pt.getNext() {
@@ -68,18 +69,18 @@ func (pt *partitionTokenizerOld) UpdatePartition(nmap map[string][]*Node, node *
 		if !exists {
 			if !copied {
 				// Make shallow copy of map.
-				amap = make(map[string][]*Node, len(nmap))
+				amap = make(map[string]*AtomicArray, len(nmap))
 				for k, v := range nmap {
 					amap[k] = v
 				}
 				copied = true
 			}
 
-			nodeArray := make([]*Node, _PARTITIONS)
+			nodeArray := NewAtomicArray(_PARTITIONS)
 			amap[partition.Namespace] = nodeArray
 		}
 		Logger.Debug(partition.String() + "," + node.name)
-		nodeArray[partition.PartitionId] = node
+		nodeArray.Set(partition.PartitionId, node)
 	}
 
 	if copied {

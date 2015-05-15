@@ -2,7 +2,7 @@
 
 ## May 15 2015 : v1.5.1
 
-  Minor Improvements.
+  Major maintenance release.
 
   NOTICE: All LDTs on server other than LLIST have been deprecated, and will be removed in the future. As Such, all API regarding those features are considered deprecated and will be removed in tandem.
 
@@ -15,6 +15,8 @@
     * Removed workaround regarding filtering bin names on the client for `BatchGet`. Issue #60
 
   * **Fixes**
+
+    * Fixed a few race conditions.
 
     * Fixed #58 regarding race condition accessing `Cluster.password`.
 

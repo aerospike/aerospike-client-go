@@ -42,10 +42,10 @@ type Node struct {
 	connectionCount *AtomicInt
 	health          *AtomicInt //AtomicInteger
 
-	partitionGeneration int
-	refreshCount        int
-	referenceCount      int
-	responded           bool
+	partitionGeneration *AtomicInt
+	refreshCount        *AtomicInt
+	referenceCount      *AtomicInt
+	responded           *AtomicBool
 	useNewInfo          bool
 	active              *AtomicBool
 	mutex               sync.RWMutex
@@ -66,9 +66,10 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		connections:         NewAtomicQueue(cluster.clientPolicy.ConnectionQueueSize),
 		connectionCount:     NewAtomicInt(0),
 		health:              NewAtomicInt(_FULL_HEALTH),
-		partitionGeneration: -1,
-		referenceCount:      0,
-		responded:           false,
+		partitionGeneration: NewAtomicInt(-1),
+		referenceCount:      NewAtomicInt(0),
+		refreshCount:        NewAtomicInt(0),
+		responded:           NewAtomicBool(false),
 		active:              NewAtomicBool(true),
 	}
 }
@@ -77,7 +78,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 func (nd *Node) Refresh() ([]*Host, error) {
 	var friends []*Host
 
-	nd.refreshCount++
+	nd.refreshCount.IncrementAndGet()
 
 	conn, err := nd.GetConnection(1 * time.Second)
 	if err != nil {
@@ -95,7 +96,7 @@ func (nd *Node) Refresh() ([]*Host, error) {
 		return nil, err
 	}
 	nd.RestoreHealth()
-	nd.responded = true
+	nd.responded.Set(true)
 
 	if friends, err = nd.addFriends(infoMap); err != nil {
 		return nil, err
@@ -153,7 +154,7 @@ func (nd *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
 		node := nd.cluster.findAlias(alias)
 
 		if node != nil {
-			node.referenceCount++
+			node.referenceCount.IncrementAndGet()
 		} else {
 			if !nd.findAlias(friends, alias) {
 				if friends == nil {
@@ -186,12 +187,12 @@ func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) er
 
 	generation, _ := strconv.Atoi(genString)
 
-	if nd.partitionGeneration != generation {
+	if nd.partitionGeneration.Get() != generation {
 		Logger.Info("Node %s partition generation %d changed", nd.GetName(), generation)
 		if err := nd.cluster.updatePartitions(conn, nd); err != nil {
 			return err
 		}
-		nd.partitionGeneration = generation
+		nd.partitionGeneration.Set(generation)
 	}
 
 	return nil
@@ -226,10 +227,26 @@ L:
 			break L
 		}
 
-		cp := nd.cluster.ClientPolicy()
-		if conn, err = NewConnectionWithPolicy(nd.address, &cp); err != nil {
+		if conn, err = NewConnection(nd.address, nd.cluster.clientPolicy.Timeout); err != nil {
 			return nil, err
 		}
+
+		// need to authenticate
+		if conn.Authenticate(nd.cluster.user, nd.cluster.password); err != nil {
+			// Socket not authenticated. Do not put back into pool.
+			conn.Close()
+
+			return nil, err
+		}
+
+		if conn.SetTimeout(timeout) != nil {
+			// Socket not authenticated. Do not put back into pool.
+			conn.Close()
+			return nil, err
+		}
+
+		conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
+		conn.refresh()
 
 		nd.connectionCount.IncrementAndGet()
 		return conn, nil

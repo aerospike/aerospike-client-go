@@ -1,7 +1,5 @@
 language: go
 go:
-- 1.2
-- 1.3
 - 1.4
 - tip
 matrix:
@@ -32,14 +30,14 @@ install:
 script:
 - find tools -name "*.go" -type f -exec go -- build {} ';'
 - find examples -name "*.go" -type f -exec go -- build {} ';'
-- ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
+- ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites
 - cd aerospike-server/instance1
 - sudo ./bin/aerospike restart
 - cd ../instance2
 - sudo ./bin/aerospike start
 - cd ../..
 - sleep 5
-- ginkgo -cover -r -race -keepGoing -succinct -randomizeSuites
+- ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites
 - .travis/proxy_check.sh
 notifications:
   hipchat:

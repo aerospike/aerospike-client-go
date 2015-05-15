@@ -39,7 +39,7 @@ type Cluster struct {
 	nodes []*Node
 
 	// Hints for best node for a partition
-	partitionWriteMap map[string][]*Node
+	partitionWriteMap map[string]*AtomicArray
 
 	// Random node index.
 	nodeIndex *AtomicInt
@@ -65,7 +65,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		clientPolicy:      *policy,
 		aliases:           make(map[Host]*Node),
 		nodes:             []*Node{},
-		partitionWriteMap: make(map[string][]*Node),
+		partitionWriteMap: make(map[string]*AtomicArray),
 		nodeIndex:         NewAtomicInt(0),
 		tendChannel:       make(chan struct{}),
 	}
@@ -163,8 +163,8 @@ func (clstr *Cluster) tend() error {
 
 	// Clear node reference counts.
 	for _, node := range nodes {
-		node.referenceCount = 0
-		node.responded = false
+		node.referenceCount.Set(0)
+		node.responded.Set(false)
 
 		if node.IsActive() {
 			if friends, err := node.Refresh(); err != nil {
@@ -243,13 +243,13 @@ func (clstr *Cluster) findAlias(alias *Host) *Node {
 	return nd
 }
 
-func (clstr *Cluster) setPartitions(partMap map[string][]*Node) {
+func (clstr *Cluster) setPartitions(partMap map[string]*AtomicArray) {
 	clstr.mutex.Lock()
 	clstr.partitionWriteMap = partMap
 	clstr.mutex.Unlock()
 }
 
-func (clstr *Cluster) getPartitions() map[string][]*Node {
+func (clstr *Cluster) getPartitions() map[string]*AtomicArray {
 	clstr.mutex.RLock()
 	res := clstr.partitionWriteMap
 	clstr.mutex.RUnlock()
@@ -259,7 +259,7 @@ func (clstr *Cluster) getPartitions() map[string][]*Node {
 func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) error {
 	// TODO: Cluster should not care about version of tokenizer
 	// decouple clstr interface
-	var nmap map[string][]*Node
+	var nmap map[string]*AtomicArray
 	if node.useNewInfo {
 		Logger.Info("Updating partitions using new protocol...")
 		tokens, err := newPartitionTokenizerNew(conn)
@@ -384,7 +384,7 @@ func (clstr *Cluster) findNodesToAdd(hosts []*Host) []*Node {
 				// services list contains both internal and external IP addresses
 				// for the same node.  Add new host to list of alias filters
 				// and do not add new node.
-				node.referenceCount++
+				node.referenceCount.IncrementAndGet()
 				node.AddAlias(host)
 				clstr.addAlias(host, node)
 				continue
@@ -421,17 +421,17 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 
 		case 2:
 			// Two node clusters require at least one successful refresh before removing.
-			if node.refreshCount > 0 && refreshCount == 1 && node.referenceCount == 0 && !node.responded {
+			if node.refreshCount.Get() > 0 && refreshCount == 1 && node.referenceCount.Get() == 0 && !node.responded.Get() {
 				// Node is not referenced nor did it respond.
 				removeList = append(removeList, node)
 			}
 
 		default:
 			// Multi-node clusters require two successful node refreshes before removing.
-			if refreshCount >= 2 && node.referenceCount == 0 {
+			if refreshCount >= 2 && node.referenceCount.Get() == 0 {
 				// Node is not referenced by other nodes.
 				// Check if node responded to info request.
-				if node.responded {
+				if node.responded.Get() {
 					// Node is alive, but not referenced by other nodes.  Check if mapped.
 					if !clstr.findNodeInPartitionMap(node) {
 						// Node doesn't have any partitions mapped to it.
@@ -452,10 +452,10 @@ func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
 	partitions := clstr.getPartitions()
 
 	for j := range partitions {
-		max := len(partitions[j])
+		max := partitions[j].Length()
 
 		for i := 0; i < max; i++ {
-			node := partitions[j][i]
+			node := partitions[j].Get(i)
 			// Use reference equality for performance.
 			if node == filter {
 				return true
@@ -567,10 +567,10 @@ func (clstr *Cluster) GetNode(partition *Partition) (*Node, error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	nmap := clstr.getPartitions()
 	if nodeArray, exists := nmap[partition.Namespace]; exists {
-		node := nodeArray[partition.PartitionId]
+		nodeIfc := nodeArray.Get(partition.PartitionId)
 
-		if node != nil && node.IsActive() {
-			return node, nil
+		if nodeIfc != nil && nodeIfc.(*Node).IsActive() {
+			return nodeIfc.(*Node), nil
 		}
 	}
 	return clstr.GetRandomNode()

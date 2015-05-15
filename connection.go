@@ -63,31 +63,6 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 	return newConn, nil
 }
 
-// NewConnectionWithPolicy creates a connection on the network and returns the pointer
-// A minimum timeout of 2 seconds will always be applied.
-// If the connection is not established in the specified timeout,
-// an error will be returned.
-func NewConnectionWithPolicy(address string, policy *ClientPolicy) (*Connection, error) {
-	newConn, err := NewConnection(address, policy.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	password, err := hashPassword(policy.Password)
-	if err != nil {
-		return nil, err
-	}
-
-	if policy.User != "" {
-		newConn.Authenticate(policy.User, password)
-	}
-
-	newConn.setIdleTimeout(policy.IdleTimeout)
-	newConn.refresh()
-
-	return newConn, nil
-}
-
 // Write writes the slice to the connection buffer.
 func (ctn *Connection) Write(buf []byte) (total int, err error) {
 	// make sure all bytes are written

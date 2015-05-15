@@ -112,7 +112,7 @@ var _ = Describe("Aerospike", func() {
 					_, err := node.GetConnection(0)
 					Expect(err).To(HaveOccurred())
 					Expect(time.Now().Sub(t)).To(BeNumerically(">=", time.Millisecond))
-					Expect(time.Now().Sub(t)).To(BeNumerically("<", 2*time.Millisecond))
+					Expect(time.Now().Sub(t)).To(BeNumerically("<", 3*time.Millisecond))
 				}
 
 			})
