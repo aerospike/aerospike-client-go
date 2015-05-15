@@ -27,6 +27,10 @@ type Connection struct {
 	// timeout
 	timeout time.Duration
 
+	// duration after which connection is considered idle
+	idleTimeout  time.Duration
+	idleDeadline time.Time
+
 	// connection object
 	conn net.Conn
 }
@@ -146,4 +150,19 @@ func (ctn *Connection) Authenticate(user string, password []byte) error {
 		}
 	}
 	return nil
+}
+
+// setIdleTimeout sets the idle timeout for the connection.
+func (ctn *Connection) setIdleTimeout(timeout time.Duration) {
+	ctn.idleTimeout = timeout
+}
+
+// isIdle returns true if the connection has reached the idle deadline.
+func (ctn *Connection) isIdle() bool {
+	return !time.Now().Before(ctn.idleDeadline)
+}
+
+// refresh extends the idle deadline of the connection.
+func (ctn *Connection) refresh() {
+	ctn.idleDeadline = time.Now().Add(ctn.idleTimeout)
 }
