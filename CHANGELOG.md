@@ -1,5 +1,25 @@
 # Change history
 
+## May 15 2015 : v1.5.1
+
+  Maintenance release.
+
+  * **Improvements**
+
+    * Use type alias instead of struct for NullValue.
+
+    * Removed workaround regarding filtering bin names on the client for `BatchGet`.
+
+  * **Fixes**
+
+    * Fixed minor bugs regarding handling of nulls in structs for `GetObj()` and `PutObj()`.
+
+  * ** Other Changes **
+
+    * Removed deprecated `ReplaceRoles()` method.
+
+    * Removed deprecated `SetCapacity()` and `GetCapacity()` methods.
+
 ## April 13 2015 : v1.5.0
 
   This release includes potential BREAKING CHANGES.

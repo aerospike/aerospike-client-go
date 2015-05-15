@@ -112,15 +112,10 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 	return true, nil
 }
 
-func contains(a map[string]struct{}, elem string) bool {
-	_, exists := a[elem]
-	return exists
-}
-
 // Parses the given byte buffer and populate the result object.
 // Returns the number of bytes that were parsed from the given buffer.
 func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation int, expiration int) (*Record, error) {
-	var bins map[string]interface{}
+	bins := make(map[string]interface{}, opCount)
 
 	for i := 0; i < opCount; i++ {
 		if err := cmd.readBytes(8); err != nil {
@@ -144,15 +139,7 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation int, e
 			return nil, err
 		}
 
-		// Currently, the batch command returns all the bins even if a subset of
-		// the bins are requested. We have to filter it on the client side.
-		// TODO: Filter batch bins on server!
-		if len(cmd.binNames) == 0 || contains(cmd.binNames, name) {
-			if bins == nil {
-				bins = map[string]interface{}{}
-			}
-			bins[name] = value
-		}
+		bins[name] = value
 	}
 
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
