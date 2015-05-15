@@ -15,7 +15,6 @@
 package aerospike_test
 
 import (
-	"fmt"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
@@ -40,25 +39,20 @@ var _ = Describe("Aerospike", func() {
 		})
 
 		Context("When Authentication is Used", func() {
-			It("must return error if it fails to authenticate", func() {
-				clientPolicy := NewClientPolicy()
-				clientPolicy.User = "non_existent_user"
-				clientPolicy.Password = "non_existent_user"
 
-				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-				Expect(err).ToNot(HaveOccurred())
-				defer client.Close()
+			if *user != "" {
 
-				node := client.GetNodes()[0]
+				It("must return error if it fails to authenticate", func() {
+					clientPolicy := NewClientPolicy()
+					clientPolicy.User = "non_existent_user"
+					clientPolicy.Password = "non_existent_user"
 
-				for i := 0; i < 20; i++ {
-					c, err := node.GetConnection(0)
+					client, err = NewClientWithPolicy(clientPolicy, *host, *port)
 					Expect(err).To(HaveOccurred())
-					Expect(err).To(MatchError("Authentication failed"))
-					Expect(c).To(BeNil())
-				}
+				})
 
-			})
+			}
+
 		})
 
 		Context("When No Connection Count Limit Is Set", func() {
@@ -67,6 +61,8 @@ var _ = Describe("Aerospike", func() {
 				clientPolicy := NewClientPolicy()
 				clientPolicy.LimitConnectionsToQueueSize = false
 				clientPolicy.ConnectionQueueSize = 4
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
 
 				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
 				Expect(err).ToNot(HaveOccurred())
@@ -93,6 +89,8 @@ var _ = Describe("Aerospike", func() {
 				clientPolicy := NewClientPolicy()
 				clientPolicy.LimitConnectionsToQueueSize = true
 				clientPolicy.ConnectionQueueSize = 4
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
 
 				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
 				Expect(err).ToNot(HaveOccurred())
@@ -127,6 +125,8 @@ var _ = Describe("Aerospike", func() {
 				clientPolicy := NewClientPolicy()
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
 				clientPolicy.TendInterval = time.Hour
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
 
 				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
 				Expect(err).ToNot(HaveOccurred())
@@ -137,7 +137,7 @@ var _ = Describe("Aerospike", func() {
 				// get a few connections at once
 				var conns []*Connection
 				for i := 0; i < 4; i++ {
-					By(fmt.Sprintf("Retrieving conns i=%d", i))
+					// By(fmt.Sprintf("Retrieving conns i=%d", i))
 					c, err := node.GetConnection(0)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(c).NotTo(BeNil())
@@ -159,7 +159,7 @@ var _ = Describe("Aerospike", func() {
 				checkCount := 0
 				for estimatedDeadline.Sub(time.Now()) > deadlineThreshold {
 					checkCount++
-					By(fmt.Sprintf("Retrieving conns2 checkCount=%d", checkCount))
+					// By(fmt.Sprintf("Retrieving conns2 checkCount=%d", checkCount))
 					var conns2 []*Connection
 					for i := 0; i < len(conns); i++ {
 						c, err := node.GetConnection(0)
@@ -189,7 +189,7 @@ var _ = Describe("Aerospike", func() {
 				// get connections again, making sure they are all new
 				var conns3 []*Connection
 				for i := 0; i < len(conns); i++ {
-					By(fmt.Sprintf("Retrieving conns3 i=%d", i))
+					// By(fmt.Sprintf("Retrieving conns3 i=%d", i))
 					c, err := node.GetConnection(0)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(c).NotTo(BeNil())
@@ -216,6 +216,8 @@ var _ = Describe("Aerospike", func() {
 				clientPolicy := NewClientPolicy()
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
 				clientPolicy.TendInterval = time.Hour
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
 
 				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
 				Expect(err).ToNot(HaveOccurred())
@@ -225,7 +227,7 @@ var _ = Describe("Aerospike", func() {
 
 				deadlineThreshold := clientPolicy.IdleTimeout / 10
 
-				By("Retrieving c")
+				// By("Retrieving c")
 				c, err := node.GetConnection(0)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(c).NotTo(BeNil())
@@ -236,7 +238,7 @@ var _ = Describe("Aerospike", func() {
 				var lastRefresh time.Time
 				for i := 0; i < 3; i++ {
 					time.Sleep(clientPolicy.IdleTimeout - deadlineThreshold)
-					By(fmt.Sprintf("Retrieving c2 i=%d", i))
+					// By(fmt.Sprintf("Retrieving c2 i=%d", i))
 
 					c2, err := node.GetConnection(0)
 					Expect(err).NotTo(HaveOccurred())
@@ -250,7 +252,7 @@ var _ = Describe("Aerospike", func() {
 
 				// wait about the required time to become idle
 				for time.Now().Sub(lastRefresh) <= clientPolicy.IdleTimeout {
-					By("Sleeping")
+					// By("Sleeping")
 					time.Sleep(1 * time.Millisecond)
 				}
 
