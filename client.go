@@ -1062,7 +1062,8 @@ func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password st
 			return err
 		}
 	}
-	clnt.cluster.changePassword(user, hash)
+
+	clnt.cluster.changePassword(user, password, hash)
 
 	return nil
 }

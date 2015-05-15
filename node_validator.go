@@ -85,7 +85,7 @@ func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
 		defer conn.Close()
 
 		// need to authenticate
-		if err := conn.Authenticate(ndv.cluster.user, ndv.cluster.password); err != nil {
+		if err := conn.Authenticate(ndv.cluster.user, ndv.cluster.Password()); err != nil {
 			// Socket not authenticated. Do not put back into pool.
 			conn.Close()
 

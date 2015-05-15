@@ -120,7 +120,7 @@ func (acmd *AdminCommand) setPassword(cluster *Cluster, policy *AdminPolicy, use
 func (acmd *AdminCommand) changePassword(cluster *Cluster, policy *AdminPolicy, user string, password []byte) error {
 	acmd.writeHeader(_CHANGE_PASSWORD, 3)
 	acmd.writeFieldStr(_USER, user)
-	acmd.writeFieldBytes(_OLD_PASSWORD, cluster.password)
+	acmd.writeFieldBytes(_OLD_PASSWORD, cluster.Password())
 	acmd.writeFieldBytes(_PASSWORD, password)
 	return acmd.executeCommand(cluster, policy)
 }

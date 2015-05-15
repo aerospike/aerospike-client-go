@@ -2,15 +2,21 @@
 
 ## May 15 2015 : v1.5.1
 
-  Maintenance release.
+  Minor Improvements.
+
+  NOTICE: All LDTs on server other than LLIST have been deprecated, and will be removed in the future. As Such, all API regarding those features are considered deprecated and will be removed in the future.
 
   * **Improvements**
 
+    * Introduces `ClientPolicy.IdleTimeout` to close stale connections to the server. Thanks to Mário Freitas (@imkira). PR #57
+
     * Use type alias instead of struct for NullValue.
 
-    * Removed workaround regarding filtering bin names on the client for `BatchGet`.
+    * Removed workaround regarding filtering bin names on the client for `BatchGet`. Issue #60
 
   * **Fixes**
+
+    * Fixed #58 regarding race condition accessing `Cluster.password`.
 
     * Fixed minor bugs regarding handling of nulls in structs for `GetObj()` and `PutObj()`.
 
@@ -20,7 +26,7 @@
 
     * Removed deprecated `ReplaceRoles()` method.
 
-    * Removed deprecated `SetCapacity()` and `GetCapacity()` methods.
+    * Removed deprecated `SetCapacity()` and `GetCapacity()` methods for LDTs.
 
 ## April 13 2015 : v1.5.0
 

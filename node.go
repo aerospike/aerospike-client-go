@@ -226,26 +226,10 @@ L:
 			break L
 		}
 
-		if conn, err = NewConnection(nd.address, nd.cluster.clientPolicy.Timeout); err != nil {
+		cp := nd.cluster.ClientPolicy()
+		if conn, err = NewConnectionWithPolicy(nd.address, &cp); err != nil {
 			return nil, err
 		}
-
-		// need to authenticate
-		if err = conn.Authenticate(nd.cluster.user, nd.cluster.password); err != nil {
-			// Socket not authenticated. Do not put back into pool.
-			conn.Close()
-
-			return nil, err
-		}
-
-		if err = conn.SetTimeout(timeout); err != nil {
-			// Socket not authenticated. Do not put back into pool.
-			conn.Close()
-			return nil, err
-		}
-
-		conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
-		conn.refresh()
 
 		nd.connectionCount.IncrementAndGet()
 		return conn, nil

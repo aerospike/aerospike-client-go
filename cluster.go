@@ -702,9 +702,28 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err 
 	}
 }
 
-func (clstr *Cluster) changePassword(user string, password []byte) {
+func (clstr *Cluster) Password() (res []byte) {
+	clstr.mutex.RLock()
+	res = clstr.password
+	clstr.mutex.RUnlock()
+
+	return res
+}
+
+func (clstr *Cluster) changePassword(user string, password string, hash []byte) {
 	// change password ONLY if the user is the same
 	if clstr.user == user {
-		clstr.password = password
+		clstr.mutex.Lock()
+		clstr.clientPolicy.Password = password
+		clstr.password = hash
+		clstr.mutex.Unlock()
 	}
+}
+
+func (clstr *Cluster) ClientPolicy() (res ClientPolicy) {
+	clstr.mutex.RLock()
+	res = clstr.clientPolicy
+	clstr.mutex.RUnlock()
+
+	return res
 }
