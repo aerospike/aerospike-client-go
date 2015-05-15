@@ -12,6 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/////////////////////////////////////////////////////////////
+//
+// NOTICE:
+// 			THIS FEATURE HAS BEEN DEPRECATED ON SERVER.
+//			THE API WILL BE REMOVED FROM THE CLIENT IN THE FUTURE.
+//
+/////////////////////////////////////////////////////////////
+
 package aerospike
 
 // LargeStack encapsulates a stack within a single bin.

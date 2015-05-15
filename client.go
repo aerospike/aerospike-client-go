@@ -507,6 +507,7 @@ func (clnt *Client) GetLargeList(policy *WritePolicy, key *Key, binName string, 
 //
 // This method is only supported by Aerospike 3 servers.
 // If the policy is nil, the default relevant policy will be used.
+// NOTICE: DEPRECATED ON SERVER. Will be removed in future.
 func (clnt *Client) GetLargeMap(policy *WritePolicy, key *Key, binName string, userModule string) *LargeMap {
 	policy = clnt.getUsableWritePolicy(policy)
 	return NewLargeMap(clnt, policy, key, binName, userModule)
@@ -518,6 +519,7 @@ func (clnt *Client) GetLargeMap(policy *WritePolicy, key *Key, binName string, u
 //
 // This method is only supported by Aerospike 3 servers.
 // If the policy is nil, the default relevant policy will be used.
+// NOTICE: DEPRECATED ON SERVER. Will be removed in future.
 func (clnt *Client) GetLargeSet(policy *WritePolicy, key *Key, binName string, userModule string) *LargeSet {
 	policy = clnt.getUsableWritePolicy(policy)
 	return NewLargeSet(clnt, policy, key, binName, userModule)
@@ -529,6 +531,7 @@ func (clnt *Client) GetLargeSet(policy *WritePolicy, key *Key, binName string, u
 //
 // This method is only supported by Aerospike 3 servers.
 // If the policy is nil, the default relevant policy will be used.
+// NOTICE: DEPRECATED ON SERVER. Will be removed in future.
 func (clnt *Client) GetLargeStack(policy *WritePolicy, key *Key, binName string, userModule string) *LargeStack {
 	policy = clnt.getUsableWritePolicy(policy)
 	return NewLargeStack(clnt, policy, key, binName, userModule)
