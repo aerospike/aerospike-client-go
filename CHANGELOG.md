@@ -1,5 +1,13 @@
 # Change history
 
+## May 15 2015 : v1.5.2
+
+  Hotfix release.
+
+  * **Fixes**
+
+    * Fixed a branch regarding error handling during connection authentication.
+
 ## May 15 2015 : v1.5.1
 
   Major maintenance release.
