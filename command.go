@@ -786,7 +786,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if err != nil {
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.conn.Close()
+			node.InvalidateConnection(cmd.conn)
 			return err
 		}
 
@@ -798,7 +798,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if err != nil {
 			// IO errors are considered temporary anomalies. Retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.conn.Close()
+			node.InvalidateConnection(cmd.conn)
 
 			Logger.Warn("Node " + node.String() + ": " + err.Error())
 			// IO error means connection to server node is unhealthy.
@@ -814,7 +814,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			// cancelling/closing the batch/multi commands will return an error, which will
 			// close the connection to throw away its data and signal the server about the
 			// situation. We will not put back the connection in the buffer.
-			cmd.conn.Close()
+			node.InvalidateConnection(cmd.conn)
 			return err
 		}
 

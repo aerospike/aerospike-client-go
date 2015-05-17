@@ -596,9 +596,10 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 
 	responseMap, err := RequestInfo(conn, strCmd.String())
 	if err != nil {
-		conn.Close()
+		node.InvalidateConnection(conn)
 		return nil, err
 	}
+	node.PutConnection(conn)
 
 	var response string
 	for _, v := range responseMap {
@@ -622,8 +623,6 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 		return nil, NewAerospikeError(COMMAND_REJECTED, fmt.Sprintf("Registration failed: %s\nFile: %s\nLine: %s\nMessage: %s",
 			res["error"], res["file"], res["line"], res["message"]))
 	}
-
-	node.PutConnection(conn)
 	return NewRegisterTask(clnt.cluster, serverPath), nil
 }
 
@@ -656,9 +655,10 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 
 	responseMap, err := RequestInfo(conn, strCmd.String())
 	if err != nil {
-		conn.Close()
+		node.InvalidateConnection(conn)
 		return nil, err
 	}
+	node.PutConnection(conn)
 
 	var response string
 	for _, v := range responseMap {
@@ -697,9 +697,10 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 
 	responseMap, err := RequestInfo(conn, strCmd.String())
 	if err != nil {
-		conn.Close()
+		node.InvalidateConnection(conn)
 		return nil, err
 	}
+	node.PutConnection(conn)
 
 	var response string
 	for _, v := range responseMap {
@@ -733,8 +734,6 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 		}
 		res = append(res, udf)
 	}
-
-	node.PutConnection(conn)
 
 	return res, nil
 }
@@ -1120,7 +1119,7 @@ func (clnt *Client) sendInfoCommand(policy *WritePolicy, command string) (map[st
 
 	info, err := newInfo(conn, command)
 	if err != nil {
-		conn.Close()
+		node.InvalidateConnection(conn)
 		return nil, err
 	}
 	node.PutConnection(conn)

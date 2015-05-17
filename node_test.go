@@ -76,7 +76,7 @@ var _ = Describe("Aerospike", func() {
 					Expect(c).NotTo(BeNil())
 					Expect(c.IsConnected()).To(BeTrue())
 
-					c.Close()
+					node.InvalidateConnection(c)
 				}
 
 			})
@@ -104,7 +104,7 @@ var _ = Describe("Aerospike", func() {
 					Expect(c).NotTo(BeNil())
 					Expect(c.IsConnected()).To(BeTrue())
 
-					c.Close()
+					node.InvalidateConnection(c)
 				}
 
 				for i := 0; i < 4; i++ {
@@ -260,7 +260,7 @@ var _ = Describe("Aerospike", func() {
 				c3, err := node.GetConnection(0)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(c3).NotTo(BeNil())
-				defer c3.Close()
+				defer node.InvalidateConnection(c3)
 				Expect(c3).ToNot(Equal(c))
 				Expect(c3.IsConnected()).To(BeTrue())
 
