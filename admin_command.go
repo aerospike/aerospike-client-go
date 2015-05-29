@@ -244,12 +244,12 @@ func (acmd *AdminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 	}
 
 	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
-		conn.Close()
+		node.InvalidateConnection(conn)
 		return err
 	}
 
 	if _, err := conn.Read(acmd.dataBuffer, _HEADER_SIZE); err != nil {
-		conn.Close()
+		node.InvalidateConnection(conn)
 		return err
 	}
 
@@ -280,12 +280,13 @@ func (acmd *AdminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*U
 	}
 
 	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
-		conn.Close()
+		node.InvalidateConnection(conn)
 		return nil, err
 	}
 
 	status, list, err := acmd.readUserBlocks(conn)
 	if err != nil {
+		node.InvalidateConnection(conn)
 		return nil, err
 	}
 	node.PutConnection(conn)

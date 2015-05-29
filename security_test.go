@@ -121,7 +121,7 @@ var _ = Describe("Security tests", func() {
 					for i := 0; i < client_policy.ConnectionQueueSize; i++ {
 						conn, err := node.GetConnection(time.Second)
 						Expect(err).ToNot(HaveOccurred())
-						conn.Close()
+						node.InvalidateConnection(conn)
 					}
 				}
 

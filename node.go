@@ -87,22 +87,25 @@ func (nd *Node) Refresh() ([]*Host, error) {
 
 	infoMap, err := RequestInfo(conn, "node", "partition-generation", "services")
 	if err != nil {
-		conn.Close()
+		nd.InvalidateConnection(conn)
 		nd.DecreaseHealth()
 		return nil, err
 	}
 
 	if err := nd.verifyNodeName(infoMap); err != nil {
+		nd.PutConnection(conn)
 		return nil, err
 	}
 	nd.RestoreHealth()
 	nd.responded.Set(true)
 
 	if friends, err = nd.addFriends(infoMap); err != nil {
+		nd.PutConnection(conn)
 		return nil, err
 	}
 
 	if err := nd.updatePartitions(conn, infoMap); err != nil {
+		nd.InvalidateConnection(conn)
 		return nil, err
 	}
 
@@ -212,7 +215,7 @@ L:
 					return conn, nil
 				}
 			}
-			conn.Close()
+			nd.InvalidateConnection(conn)
 		}
 
 		// if connection count is limited and enough connections are already created, don't create a new one
@@ -260,9 +263,14 @@ L:
 func (nd *Node) PutConnection(conn *Connection) {
 	conn.refresh()
 	if !nd.active.Get() || !nd.connections.Offer(conn) {
-		nd.connectionCount.DecrementAndGet()
-		conn.Close()
+		nd.InvalidateConnection(conn)
 	}
+}
+
+// InvalidateConnection closes and discards a connection from the pool.
+func (nd *Node) InvalidateConnection(conn *Connection) {
+	nd.connectionCount.DecrementAndGet()
+	conn.Close()
 }
 
 // RestoreHealth marks the node as healthy.

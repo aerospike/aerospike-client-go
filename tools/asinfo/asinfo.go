@@ -52,8 +52,10 @@ func main() {
 			log.Fatalln(err.Error())
 		} else {
 			if infoMap, err := as.RequestInfo(conn, strings.Trim(*value, " ")); err != nil {
+				node.InvalidateConnection(conn)
 				log.Fatalln(err.Error())
 			} else {
+				node.PutConnection(conn)
 				cnt := 1
 				for k, v := range infoMap {
 					log.Printf("%d :  %s\n     %s\n\n", cnt, k, v)
