@@ -104,7 +104,9 @@ var _ = Describe("Aerospike", func() {
 					Expect(c).NotTo(BeNil())
 					Expect(c.IsConnected()).To(BeTrue())
 
-					node.InvalidateConnection(c)
+					// don't call invalidate here; we are testing node's connection queue behaviour
+					// if there are connections which are not invalidated
+					c.Close()
 				}
 
 				for i := 0; i < 4; i++ {
