@@ -124,7 +124,7 @@ var _ = Describe("Aerospike", func() {
 						}
 					} // for i < iters
 
-				} // for i < 10000
+				} // for i < iters
 			})
 
 		}) // context parallel put/get/delete operations

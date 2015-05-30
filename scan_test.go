@@ -34,7 +34,7 @@ var _ = Describe("Scan operations", func() {
 	var wpolicy = NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
 
-	const keyCount = 10000
+	const keyCount = 1000
 	bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("Aerospike2", randString(100))
 	var keys map[string]*Key

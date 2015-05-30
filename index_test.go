@@ -42,7 +42,7 @@ var _ = Describe("Index operations test", func() {
 		var key *Key
 		var wpolicy = NewWritePolicy(0, 0)
 
-		const keyCount = 10000
+		const keyCount = 1000
 		bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 		bin2 := NewBin("Aerospike2", randString(100))
 
