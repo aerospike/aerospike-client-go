@@ -439,6 +439,184 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
+func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, write bool) (err error) {
+	var functionArgBuffer []byte
+
+	fieldCount := 0
+	filterSize := 0
+	binNameSize := 0
+
+	cmd.begin()
+
+	if statement.Namespace != "" {
+		cmd.dataOffset += len(statement.Namespace) + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	if statement.IndexName != "" {
+		cmd.dataOffset += len(statement.IndexName) + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	if statement.SetName != "" {
+		cmd.dataOffset += len(statement.SetName) + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	// Allocate space for TaskId field.
+	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
+	fieldCount++
+
+	if len(statement.Filters) > 0 {
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
+		filterSize++ // num filters
+
+		for _, filter := range statement.Filters {
+			sz, err := filter.estimateSize()
+			if err != nil {
+				return err
+			}
+			filterSize += sz
+		}
+		cmd.dataOffset += filterSize
+		fieldCount++
+
+		// Query bin names are specified as a field (Scan bin names are specified later as operations)
+		if len(statement.BinNames) > 0 {
+			cmd.dataOffset += int(_FIELD_HEADER_SIZE)
+			binNameSize++ // num bin names
+
+			for _, binName := range statement.BinNames {
+				binNameSize += len(binName) + 1
+			}
+			cmd.dataOffset += binNameSize
+			fieldCount++
+		}
+	} else {
+		// Calling query with no filters is more efficiently handled by a primary index scan.
+		// Estimate scan options size.
+		cmd.dataOffset += (2 + int(_FIELD_HEADER_SIZE))
+		fieldCount++
+	}
+
+	if statement.functionName != "" {
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1 // udf type
+		cmd.dataOffset += len(statement.packageName) + int(_FIELD_HEADER_SIZE)
+		cmd.dataOffset += len(statement.functionName) + int(_FIELD_HEADER_SIZE)
+
+		if len(statement.functionArgs) > 0 {
+			functionArgBuffer, err = packValueArray(statement.functionArgs)
+			if err != nil {
+				return err
+			}
+		} else {
+			functionArgBuffer = []byte{}
+		}
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE) + len(functionArgBuffer)
+		fieldCount += 4
+	}
+
+	if len(statement.Filters) == 0 {
+		if len(statement.BinNames) > 0 {
+			for _, binName := range statement.BinNames {
+				cmd.estimateOperationSizeForBinName(binName)
+			}
+		}
+	}
+
+	if err := cmd.sizeBuffer(); err != nil {
+		return nil
+	}
+
+	operationCount := 0
+	if len(statement.Filters) == 0 && len(statement.BinNames) > 0 {
+		operationCount = len(statement.BinNames)
+	}
+
+	if write {
+		cmd.writeHeader(policy.BasePolicy, _INFO1_READ, _INFO2_WRITE, fieldCount, operationCount)
+	} else {
+		cmd.writeHeader(policy.BasePolicy, _INFO1_READ, 0, fieldCount, operationCount)
+	}
+
+	if statement.Namespace != "" {
+		cmd.writeFieldString(statement.Namespace, NAMESPACE)
+	}
+
+	if statement.IndexName != "" {
+		cmd.writeFieldString(statement.IndexName, INDEX_NAME)
+	}
+
+	if statement.SetName != "" {
+		cmd.writeFieldString(statement.SetName, TABLE)
+	}
+
+	cmd.writeFieldHeader(8, TRAN_ID)
+	Buffer.Int64ToBytes(int64(statement.TaskId), cmd.dataBuffer, cmd.dataOffset)
+	cmd.dataOffset += 8
+
+	if len(statement.Filters) > 0 {
+		cmd.writeFieldHeader(filterSize, INDEX_RANGE)
+		cmd.dataBuffer[cmd.dataOffset] = byte(len(statement.Filters))
+		cmd.dataOffset++
+
+		for _, filter := range statement.Filters {
+			cmd.dataOffset, err = filter.write(cmd.dataBuffer, cmd.dataOffset)
+			if err != nil {
+				return err
+			}
+		}
+
+		if len(statement.BinNames) > 0 {
+			cmd.writeFieldHeader(binNameSize, QUERY_BINLIST)
+			cmd.dataBuffer[cmd.dataOffset] = byte(len(statement.BinNames))
+			cmd.dataOffset++
+
+			for _, binName := range statement.BinNames {
+				len := copy(cmd.dataBuffer[cmd.dataOffset+1:], binName)
+				cmd.dataBuffer[cmd.dataOffset] = byte(len)
+				cmd.dataOffset += len + 1
+			}
+		}
+	} else {
+		// Calling query with no filters is more efficiently handled by a primary index scan.
+		cmd.writeFieldHeader(2, SCAN_OPTIONS)
+		priority := byte(policy.Priority)
+		priority <<= 4
+		cmd.dataBuffer[cmd.dataOffset] = priority
+		cmd.dataOffset++
+		cmd.dataBuffer[cmd.dataOffset] = byte(100)
+		cmd.dataOffset++
+	}
+
+	if statement.functionName != "" {
+		cmd.writeFieldHeader(1, UDF_OP)
+		if statement.returnData {
+			cmd.dataBuffer[cmd.dataOffset] = byte(1)
+		} else {
+			cmd.dataBuffer[cmd.dataOffset] = byte(2)
+		}
+		cmd.dataOffset++
+
+		cmd.writeFieldString(statement.packageName, UDF_PACKAGE_NAME)
+		cmd.writeFieldString(statement.functionName, UDF_FUNCTION)
+		cmd.writeFieldBytes(functionArgBuffer, UDF_ARGLIST)
+	}
+
+	// scan binNames come last
+	if len(statement.Filters) == 0 {
+		if len(statement.BinNames) > 0 {
+			for _, binName := range statement.BinNames {
+				cmd.writeOperationForBinName(binName, READ)
+			}
+		}
+	}
+
+	cmd.end()
+
+	return nil
+}
+
 func (cmd *baseCommand) estimateKeySize(key *Key, sendKey bool) int {
 	fieldCount := 0
 
