@@ -14,6 +14,8 @@
 
 package types
 
+import "fmt"
+
 // ResultCode signifies the database operation error codes.
 // The positive numbers align with the server side file proto.h.
 type ResultCode int
@@ -423,6 +425,6 @@ func ResultCodeToString(resultCode ResultCode) string {
 		return "Query error"
 
 	default:
-		return "Error message not available yet - please file an issue on github."
+		return fmt.Sprintf("Error code (%v) not available yet - please file an issue on github.", resultCode)
 	}
 }
