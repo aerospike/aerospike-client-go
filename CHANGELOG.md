@@ -1,12 +1,32 @@
 # Change history
 
+## May 30 2015 : v1.6.0
+
+  There's an important performance regression bug fix in this release. We recommend everyone to upgrade.
+
+  * **New Features**
+
+    * Added New LargeList API.
+
+      * NOTICE! BREAKING CHANGE: New LargeList API on the Go Client uses the New API defined on newer server versions. As Such, it has changed some signatures in LargeList.
+
+  * ** Fixes **
+
+    * Fixed an issue where connections where not put back to the pool on some non-critical errors.
+
+    * Fixed an issue where Object Unmarshaller wouldn't extend a slice.
+
+    * Decode RegisterUDF() error message from base64
+
+    * Fixed invalid connection handling on node connections (thanks to @rndive)
+
 ## May 15 2015 : v1.5.2
 
   Hotfix release.
 
   * **Fixes**
 
-    * Fixed a branch regarding error handling during connection authentication.
+    * Fixed a branch-merge mistake regarding error handling during connection authentication.
 
 ## May 15 2015 : v1.5.1
 
