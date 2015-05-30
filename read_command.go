@@ -414,8 +414,13 @@ func setValue(f reflect.Value, value interface{}) error {
 			// BLOBs come back as []byte
 			theArray := reflect.ValueOf(value)
 
-			if f.Kind() == reflect.Slice && f.IsNil() {
-				f.Set(reflect.MakeSlice(reflect.SliceOf(f.Type().Elem()), theArray.Len(), theArray.Len()))
+			if f.Kind() == reflect.Slice {
+				if f.IsNil() {
+					f.Set(reflect.MakeSlice(reflect.SliceOf(f.Type().Elem()), theArray.Len(), theArray.Len()))
+				} else if f.Len() < theArray.Len() {
+					count := theArray.Len() - f.Len()
+					f = reflect.AppendSlice(f, reflect.MakeSlice(reflect.SliceOf(f.Type().Elem()), count, count))
+				}
 			}
 
 			for i := 0; i < theArray.Len(); i++ {
