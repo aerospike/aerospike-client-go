@@ -22,12 +22,8 @@ type LargeSet struct {
 // NewLargeSet initializes a large set operator.
 func NewLargeSet(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeSet {
 	return &LargeSet{
-		baseLargeObject: newLargeObject(client, policy, key, binName, userModule),
+		baseLargeObject: newLargeObject(client, policy, key, binName, userModule, "lset"),
 	}
-}
-
-func (ls *LargeSet) packageName() string {
-	return "lset"
 }
 
 // Add adds values to the set.
@@ -35,9 +31,9 @@ func (ls *LargeSet) packageName() string {
 func (ls *LargeSet) Add(values ...interface{}) error {
 	var err error
 	if len(values) == 1 {
-		_, err = ls.client.Execute(ls.policy, ls.key, ls.packageName(), "add", ls.binName, NewValue(values[0]), ls.userModule)
+		_, err = ls.client.Execute(ls.policy, ls.key, ls.packageName, "add", ls.binName, NewValue(values[0]), ls.userModule)
 	} else {
-		_, err = ls.client.Execute(ls.policy, ls.key, ls.packageName(), "add_all", ls.binName, ToValueArray(values), ls.userModule)
+		_, err = ls.client.Execute(ls.policy, ls.key, ls.packageName, "add_all", ls.binName, ToValueArray(values), ls.userModule)
 	}
 
 	return err
@@ -45,18 +41,18 @@ func (ls *LargeSet) Add(values ...interface{}) error {
 
 // Remove delete value from set.
 func (ls *LargeSet) Remove(value interface{}) error {
-	_, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "remove", ls.binName, NewValue(value))
+	_, err := ls.client.Execute(ls.policy, ls.key, ls.packageName, "remove", ls.binName, NewValue(value))
 	return err
 }
 
 // Get selects a value from set.
 func (ls *LargeSet) Get(value interface{}) (interface{}, error) {
-	return ls.client.Execute(ls.policy, ls.key, ls.packageName(), "get", ls.binName, NewValue(value))
+	return ls.client.Execute(ls.policy, ls.key, ls.packageName, "get", ls.binName, NewValue(value))
 }
 
 // Exists checks existence of value in the set.
 func (ls *LargeSet) Exists(value interface{}) (bool, error) {
-	ret, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "exists", ls.binName, NewValue(value))
+	ret, err := ls.client.Execute(ls.policy, ls.key, ls.packageName, "exists", ls.binName, NewValue(value))
 	if err != nil {
 		return false, err
 	}
@@ -70,7 +66,7 @@ func (ls *LargeSet) Scan() ([]interface{}, error) {
 
 // Filter select values from set and applies specified Lua filter.
 func (ls *LargeSet) Filter(filterName string, filterArgs ...interface{}) ([]interface{}, error) {
-	res, err := ls.client.Execute(ls.policy, ls.key, ls.packageName(), "filter", ls.binName, ls.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
+	res, err := ls.client.Execute(ls.policy, ls.key, ls.packageName, "filter", ls.binName, ls.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}

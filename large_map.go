@@ -30,31 +30,27 @@ type LargeMap struct {
 // NewLargeMap initializes a large map operator.
 func NewLargeMap(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeMap {
 	return &LargeMap{
-		baseLargeObject: newLargeObject(client, policy, key, binName, userModule),
+		baseLargeObject: newLargeObject(client, policy, key, binName, userModule, "lmap"),
 	}
-}
-
-func (lm *LargeMap) packageName() string {
-	return "lmap"
 }
 
 // Put adds an entry to the map.
 // If the map does not exist, create it using specified userModule configuration.
 func (lm *LargeMap) Put(name interface{}, value interface{}) error {
-	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "put", lm.binName, NewValue(name), NewValue(value), lm.userModule)
+	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName, "put", lm.binName, NewValue(name), NewValue(value), lm.userModule)
 	return err
 }
 
 // PutMap adds map values to the map.
 // If the map does not exist, create it using specified userModule configuration.
 func (lm *LargeMap) PutMap(theMap map[interface{}]interface{}) error {
-	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "put_all", lm.binName, NewMapValue(theMap), lm.userModule)
+	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName, "put_all", lm.binName, NewMapValue(theMap), lm.userModule)
 	return err
 }
 
 // Check existence of key in the map.
 func (lm *LargeMap) Exists(keyValue interface{}) (bool, error) {
-	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "exists", lm.binName, NewValue(keyValue))
+	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName, "exists", lm.binName, NewValue(keyValue))
 
 	if err != nil {
 		return false, err
@@ -68,7 +64,7 @@ func (lm *LargeMap) Exists(keyValue interface{}) (bool, error) {
 
 // Get returns  value from map corresponding with the provided key.
 func (lm *LargeMap) Get(name interface{}) (map[interface{}]interface{}, error) {
-	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "get", lm.binName, NewValue(name))
+	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName, "get", lm.binName, NewValue(name))
 
 	if err != nil {
 		return nil, err
@@ -82,13 +78,13 @@ func (lm *LargeMap) Get(name interface{}) (map[interface{}]interface{}, error) {
 
 // Remove deletes a value from map given a key.
 func (lm *LargeMap) Remove(name interface{}) error {
-	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "remove", lm.binName, NewValue(name))
+	_, err := lm.client.Execute(lm.policy, lm.key, lm.packageName, "remove", lm.binName, NewValue(name))
 	return err
 }
 
 // Scan returns all objects in the map.
 func (lm *LargeMap) Scan() (map[interface{}]interface{}, error) {
-	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "scan", lm.binName)
+	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName, "scan", lm.binName)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +97,7 @@ func (lm *LargeMap) Scan() (map[interface{}]interface{}, error) {
 
 // Filter selects items from the map.
 func (lm *LargeMap) Filter(filterName string, filterArgs ...interface{}) (map[interface{}]interface{}, error) {
-	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName(), "filter", lm.binName, lm.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
+	res, err := lm.client.Execute(lm.policy, lm.key, lm.packageName, "filter", lm.binName, lm.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}

@@ -31,12 +31,8 @@ type LargeStack struct {
 // NewLargeStack initializes a large stack operator.
 func NewLargeStack(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeStack {
 	return &LargeStack{
-		baseLargeObject: newLargeObject(client, policy, key, binName, userModule),
+		baseLargeObject: newLargeObject(client, policy, key, binName, userModule, "lstack"),
 	}
-}
-
-func (lstk *LargeStack) packageName() string {
-	return "lstack"
 }
 
 // Push pushes values onto stack.
@@ -44,16 +40,16 @@ func (lstk *LargeStack) packageName() string {
 func (lstk *LargeStack) Push(values ...interface{}) error {
 	var err error
 	if len(values) == 1 {
-		_, err = lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "push", lstk.binName, NewValue(values[0]), lstk.userModule)
+		_, err = lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName, "push", lstk.binName, NewValue(values[0]), lstk.userModule)
 	} else {
-		_, err = lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "push_all", lstk.binName, ToValueArray(values), lstk.userModule)
+		_, err = lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName, "push_all", lstk.binName, ToValueArray(values), lstk.userModule)
 	}
 	return err
 }
 
 // Peek select items from top of stack, without removing them
 func (lstk *LargeStack) Peek(peekCount int) ([]interface{}, error) {
-	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "peek", lstk.binName, NewIntegerValue(peekCount))
+	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName, "peek", lstk.binName, NewIntegerValue(peekCount))
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +62,7 @@ func (lstk *LargeStack) Peek(peekCount int) ([]interface{}, error) {
 
 // Pop selects items from top of stack and then removes them.
 func (lstk *LargeStack) Pop(count int) ([]interface{}, error) {
-	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "pop", lstk.binName, NewIntegerValue(count))
+	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName, "pop", lstk.binName, NewIntegerValue(count))
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +80,7 @@ func (lstk *LargeStack) Scan() ([]interface{}, error) {
 
 // Filter selects items from top of stack.
 func (lstk *LargeStack) Filter(peekCount int, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
-	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName(), "filter", lstk.binName, NewIntegerValue(peekCount), lstk.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
+	res, err := lstk.client.Execute(lstk.policy, lstk.key, lstk.packageName, "filter", lstk.binName, NewIntegerValue(peekCount), lstk.userModule, NewStringValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}

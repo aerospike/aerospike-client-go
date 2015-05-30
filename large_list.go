@@ -22,91 +22,181 @@ type LargeList struct {
 // NewLargeList initializes a large list operator.
 func NewLargeList(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *LargeList {
 	return &LargeList{
-		baseLargeObject: newLargeObject(client, policy, key, binName, userModule),
+		baseLargeObject: newLargeObject(client, policy, key, binName, userModule, "llist"),
 	}
-}
-
-func (ll *LargeList) packageName() string {
-	return "llist"
 }
 
 // Add adds values to the list.
-// If the list does not exist, create it using specified userModule configuration.
-func (ll *LargeList) Add(values ...interface{}) error {
-	var err error
-	if len(values) == 1 {
-		_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName(), "add", ll.binName, NewValue(values[0]), ll.userModule)
-	} else {
-		_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName(), "add_all", ll.binName, ToValueArray(values), ll.userModule)
-	}
+// If the list does not exist, create it
+func (ll *LargeList) Add(values ...interface{}) (err error) {
+	_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName, "add", ll.binName, ToValueArray(values))
 	return err
 }
 
 // Update updates/adds each value in values list depending if key exists or not.
-func (ll *LargeList) Update(values ...interface{}) error {
-	var err error
-	if len(values) == 1 {
-		_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName(), "update", ll.binName, NewValue(values[0]), ll.userModule)
-	} else {
-		_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName(), "update_all", ll.binName, ToValueArray(values), ll.userModule)
-	}
+func (ll *LargeList) Update(values ...interface{}) (err error) {
+	_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName, "update", ll.binName, ToValueArray(values))
 	return err
 }
 
 // Remove deletes value from list.
-func (ll *LargeList) Remove(value interface{}) error {
-	_, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "remove", ll.binName, NewValue(value))
+func (ll *LargeList) Remove(values ...interface{}) (err error) {
+	_, err = ll.client.Execute(ll.policy, ll.key, ll.packageName, "remove", ll.binName, ToValueArray(values))
 	return err
 }
 
 // Find selects values from list.
 func (ll *LargeList) Find(value interface{}) ([]interface{}, error) {
-	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "find", ll.binName, NewValue(value))
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find", ll.binName, NewValue(value))
 	if err != nil {
 		return nil, err
 	}
 
 	if res == nil {
-		return nil, nil
+		return []interface{}{}, nil
 	}
 	return res.([]interface{}), err
 }
 
 // FindThenFilter selects values from list and applies specified Lua filter.
-func (ll *LargeList) FindThenFilter(value interface{}, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
-	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "find_then_filter", ll.binName, NewValue(value), ll.userModule, NewValue(filterName), ToValueArray(filterArgs))
+func (ll *LargeList) FindThenFilter(value interface{}, filterModule, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find", ll.binName, NewValue(value), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}
 
 	if res == nil {
-		return nil, nil
+		return []interface{}{}, nil
+	}
+	return res.([]interface{}), err
+}
+
+// Select values from the beginning of list up to a maximum count.
+func (ll *LargeList) FindFirst(count int) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_first", ll.binName, NewValue(count))
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return []interface{}{}, nil
+	}
+	return res.([]interface{}), err
+}
+
+// Select values from the beginning of list up to a maximum count after applying lua filter.
+func (ll *LargeList) FFilterThenindFirst(count int, filterModule, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_first", ll.binName, NewValue(count), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return []interface{}{}, nil
+	}
+	return res.([]interface{}), err
+}
+
+// Select values from the end of list up to a maximum count.
+func (ll *LargeList) FindLast(count int) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_last", ll.binName, NewValue(count))
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return []interface{}{}, nil
+	}
+	return res.([]interface{}), err
+}
+
+// Select values from the end of list up to a maximum count after applying lua filter.
+func (ll *LargeList) FilterThenFindLast(count int, filterModule, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_last", ll.binName, NewValue(count), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return []interface{}{}, nil
+	}
+	return res.([]interface{}), err
+}
+
+// Select values from the begin key up to a maximum count.
+func (ll *LargeList) FindFrom(begin interface{}, count int) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_from", ll.binName, NewValue(begin), NewValue(count))
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return []interface{}{}, nil
+	}
+	return res.([]interface{}), err
+}
+
+// Select values from the begin key up to a maximum count after applying lua filter.
+func (ll *LargeList) FilterThenFindFrom(begin interface{}, count int, filterModule, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_from", ll.binName, NewValue(begin), NewValue(count), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return []interface{}{}, nil
 	}
 	return res.([]interface{}), err
 }
 
 // Select a range of values from the large list.
-func (ll *LargeList) Range(minValue, maxValue interface{}) ([]interface{}, error) {
-	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "range", ll.binName, NewValue(minValue), NewValue(maxValue))
+func (ll *LargeList) Range(begin, end interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_range", ll.binName, NewValue(begin), NewValue(end))
 	if err != nil {
 		return nil, err
 	}
 
 	if res == nil {
-		return nil, nil
+		return []interface{}{}, nil
 	}
 	return res.([]interface{}), err
 }
 
-// Select a range of values from the large list.
-func (ll *LargeList) RangeThenFilter(minValue, maxValue interface{}, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
-	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "range", ll.binName, NewValue(minValue), NewValue(maxValue), ll.userModule, NewValue(filterName), ToValueArray(filterArgs))
+// Select a range of values up to a maximum count from the large list.
+func (ll *LargeList) RangeN(begin, end interface{}, count int) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_range", ll.binName, NewValue(begin), NewValue(end), NewValue(count))
 	if err != nil {
 		return nil, err
 	}
 
 	if res == nil {
-		return nil, nil
+		return []interface{}{}, nil
+	}
+	return res.([]interface{}), err
+}
+
+// Select a range of values from the large list then apply filter.
+func (ll *LargeList) RangeThenFilter(begin, end interface{}, filterModule string, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "range", ll.binName, NewValue(begin), NewValue(end), NewValue(0), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return []interface{}{}, nil
+	}
+	return res.([]interface{}), err
+}
+
+// Select a range of values up to a maximum count from the large list then apply filter.
+func (ll *LargeList) RangeNThenFilter(begin, end interface{}, count int, filterModule string, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "range", ll.binName, NewValue(begin), NewValue(end), NewValue(count), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return []interface{}{}, nil
 	}
 	return res.([]interface{}), err
 }
@@ -117,14 +207,14 @@ func (ll *LargeList) Scan() ([]interface{}, error) {
 }
 
 // Filter selects values from list and apply specified Lua filter.
-func (ll *LargeList) Filter(filterName string, filterArgs ...interface{}) ([]interface{}, error) {
-	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName(), "filter", ll.binName, ll.userModule, NewValue(filterName), ToValueArray(filterArgs))
+func (ll *LargeList) Filter(filterModule, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "scan", ll.binName, NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
 		return nil, err
 	}
 
 	if res == nil {
-		return nil, nil
+		return []interface{}{}, nil
 	}
 	return res.([]interface{}), err
 }
@@ -137,6 +227,12 @@ func (ll *LargeList) Destroy() error {
 // Size returns size of list.
 func (ll *LargeList) Size() (int, error) {
 	return ll.size(ll)
+}
+
+// Set LDT page size.
+func (ll *LargeList) SetPageSize(pageSize int) error {
+	_, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "setPageSize", ll.binName, NewValue(pageSize))
+	return err
 }
 
 // GetConfig returns map of list configuration parameters.

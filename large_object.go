@@ -16,8 +16,6 @@ package aerospike
 
 // LargeObject interface defines methods to work with LDTs.
 type LargeObject interface {
-	packageName() string
-
 	// Destroy the bin containing LDT.
 	Destroy() error
 	// Size returns the size of the LDT.
@@ -28,11 +26,12 @@ type LargeObject interface {
 
 // Create and manage a large object within a single bin. A large object is last in/first out (LIFO).
 type baseLargeObject struct {
-	client     *Client
-	policy     *WritePolicy
-	key        *Key
-	binName    Value
-	userModule Value
+	client      *Client
+	policy      *WritePolicy
+	key         *Key
+	binName     Value
+	userModule  Value
+	packageName string
 }
 
 // Initialize large large object operator.
@@ -42,12 +41,13 @@ type baseLargeObject struct {
 // key         unique record identifier
 // binName       bin name
 // userModule      Lua function name that initializes list configuration parameters, pass nil for default large object
-func newLargeObject(client *Client, policy *WritePolicy, key *Key, binName string, userModule string) *baseLargeObject {
+func newLargeObject(client *Client, policy *WritePolicy, key *Key, binName, userModule string, packageName string) *baseLargeObject {
 	r := &baseLargeObject{
-		client:  client,
-		policy:  policy,
-		key:     key,
-		binName: NewStringValue(binName),
+		client:      client,
+		policy:      policy,
+		key:         key,
+		binName:     NewStringValue(binName),
+		packageName: packageName,
 	}
 
 	if userModule == "" {
@@ -61,13 +61,13 @@ func newLargeObject(client *Client, policy *WritePolicy, key *Key, binName strin
 
 // Delete bin containing the object.
 func (lo *baseLargeObject) destroy(ifc LargeObject) error {
-	_, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "destroy", lo.binName)
+	_, err := lo.client.Execute(lo.policy, lo.key, lo.packageName, "destroy", lo.binName)
 	return err
 }
 
 // Return size of object.
 func (lo *baseLargeObject) size(ifc LargeObject) (int, error) {
-	ret, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "size", lo.binName)
+	ret, err := lo.client.Execute(lo.policy, lo.key, lo.packageName, "size", lo.binName)
 	if err != nil {
 		return -1, err
 	}
@@ -80,7 +80,7 @@ func (lo *baseLargeObject) size(ifc LargeObject) (int, error) {
 
 // Return map of object configuration parameters.
 func (lo *baseLargeObject) getConfig(ifc LargeObject) (map[interface{}]interface{}, error) {
-	res, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "get_config", lo.binName)
+	res, err := lo.client.Execute(lo.policy, lo.key, lo.packageName, "get_config", lo.binName)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (lo *baseLargeObject) getConfig(ifc LargeObject) (map[interface{}]interface
 
 // Return list of all objects on the large object.
 func (lo *baseLargeObject) scan(ifc LargeObject) ([]interface{}, error) {
-	ret, err := lo.client.Execute(lo.policy, lo.key, ifc.packageName(), "scan", lo.binName)
+	ret, err := lo.client.Execute(lo.policy, lo.key, lo.packageName, "scan", lo.binName)
 	if err != nil {
 		return nil, err
 	}
