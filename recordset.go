@@ -20,7 +20,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
-type result struct {
+type Result struct {
 	Record *Record
 	Err    error
 }
@@ -80,8 +80,8 @@ func (rcs *Recordset) IsActive() bool {
 //     fmt.Println(res.Record.Bins)
 //   }
 // }
-func (rcs *Recordset) Results() <-chan *result {
-	res := make(chan *result, len(rcs.Records))
+func (rcs *Recordset) Results() <-chan *Result {
+	res := make(chan *Result, len(rcs.Records))
 
 	go func() {
 	L:
@@ -89,20 +89,20 @@ func (rcs *Recordset) Results() <-chan *result {
 			select {
 			case r := <-rcs.Records:
 				if r != nil {
-					res <- &result{Record: r, Err: nil}
+					res <- &Result{Record: r, Err: nil}
 				} else {
 					close(res)
 					break L
 				}
 			case e := <-rcs.Errors:
 				if e != nil {
-					res <- &result{Record: nil, Err: e}
+					res <- &Result{Record: nil, Err: e}
 				}
 			}
 		}
 	}()
 
-	return (<-chan *result)(res)
+	return (<-chan *Result)(res)
 }
 
 // Close all streams from different nodes.
