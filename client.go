@@ -620,8 +620,9 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	}
 
 	if _, exists := res["error"]; exists {
+		msg, _ := base64.StdEncoding.DecodeString(res["message"])
 		return nil, NewAerospikeError(COMMAND_REJECTED, fmt.Sprintf("Registration failed: %s\nFile: %s\nLine: %s\nMessage: %s",
-			res["error"], res["file"], res["line"], res["message"]))
+			res["error"], res["file"], res["line"], msg))
 	}
 	return NewRegisterTask(clnt.cluster, serverPath), nil
 }
