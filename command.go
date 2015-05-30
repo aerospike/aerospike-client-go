@@ -992,7 +992,12 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			// cancelling/closing the batch/multi commands will return an error, which will
 			// close the connection to throw away its data and signal the server about the
 			// situation. We will not put back the connection in the buffer.
-			node.InvalidateConnection(cmd.conn)
+			if KeepConnection(err) {
+				// Put connection back in pool.
+				node.PutConnection(cmd.conn)
+			} else {
+				node.InvalidateConnection(cmd.conn)
+			}
 			return err
 		}
 

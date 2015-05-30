@@ -204,9 +204,15 @@ const (
 )
 
 // Should connection be put back into pool.
-func KeepConnection(resultCode int) bool {
-	switch ResultCode(resultCode) {
-	case OK, // Exception did not originate on server.
+func KeepConnection(err error) bool {
+	// if error is not an Aerospike Errors, Throw it away
+	ae, ok := err.(AerospikeError)
+	if !ok {
+		return false
+	}
+
+	switch ae.resultCode {
+	case 0, // Zero Value
 		QUERY_TERMINATED,
 		SCAN_TERMINATED,
 		INVALID_NODE_ERROR,
@@ -219,6 +225,7 @@ func KeepConnection(resultCode int) bool {
 		INDEX_OOM,
 		QUERY_ABORTED,
 		QUERY_TIMEOUT:
+
 		return false
 
 	default:
