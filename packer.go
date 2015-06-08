@@ -54,6 +54,14 @@ func packAnyMap(val map[interface{}]interface{}) ([]byte, error) {
 	return packer.buffer.Bytes(), nil
 }
 
+func packAnyJson(val map[string]interface{}) ([]byte, error) {
+	packer := newPacker()
+	if err := packer.PackJson(val); err != nil {
+		return nil, nil
+	}
+	return packer.buffer.Bytes(), nil
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 func newPacker() *packer {
@@ -92,6 +100,19 @@ func (pckr *packer) PackArrayBegin(size int) {
 	} else {
 		pckr.PackInt(0xdd, int32(size))
 	}
+}
+
+func (pckr *packer) PackJson(theMap map[string]interface{}) error {
+	pckr.PackMapBegin(len(theMap))
+	for k, v := range theMap {
+		if err := pckr.PackObject(k); err != nil {
+			return err
+		}
+		if err := pckr.PackObject(v); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (pckr *packer) PackMap(theMap map[interface{}]interface{}) error {

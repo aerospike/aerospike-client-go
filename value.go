@@ -99,6 +99,8 @@ func NewValue(v interface{}) Value {
 		}
 	case []interface{}:
 		return NewListValue(val)
+	case map[string]interface{}:
+		return NewJsonValue(val)
 	case map[interface{}]interface{}:
 		return NewMapValue(val)
 	case Value:
@@ -565,6 +567,55 @@ func (vl *MapValue) reader() io.Reader {
 
 // String implements Stringer interface.
 func (vl *MapValue) String() string {
+	return fmt.Sprintf("%v", vl.vmap)
+}
+
+type JsonValue struct {
+	vmap  map[string]interface{}
+	bytes []byte
+}
+
+
+// MapValue encapsulates an JSON map.
+// Supported by Aerospike 3 servers only.
+func NewJsonValue(vmap map[string]interface{}) *JsonValue {
+	res := &JsonValue{
+		vmap: vmap,
+	}
+
+	res.bytes, _ = packAnyJson(vmap)
+	return res
+}
+
+func (vl *JsonValue) estimateSize() int {
+	return len(vl.bytes)
+}
+
+func (vl *JsonValue) write(buffer []byte, offset int) (int, error) {
+	return copy(buffer[offset:], vl.bytes), nil
+}
+
+func (vl *JsonValue) pack(packer *packer) error {
+	_, err := packer.buffer.Write(vl.bytes)
+	return err
+}
+
+// GetType returns wire protocol value type.
+func (vl *JsonValue) GetType() int {
+	return ParticleType.MAP
+}
+
+// GetObject returns original value as an interface{}.
+func (vl *JsonValue) GetObject() interface{} {
+	return vl.vmap
+}
+
+func (vl *JsonValue) reader() io.Reader {
+	return bytes.NewReader(vl.bytes)
+}
+
+// String implements Stringer interface.
+func (vl *JsonValue) String() string {
 	return fmt.Sprintf("%v", vl.vmap)
 }
 
