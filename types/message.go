@@ -17,6 +17,7 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
 )
@@ -59,12 +60,18 @@ func NewMessage(mtype messageType, data []byte) *Message {
 	}
 }
 
+const maxAllowedBufferSize = 1024 * 1024
+
 // Resize changes the internal buffer size for the message.
-func (msg *Message) Resize(newSize int64) {
+func (msg *Message) Resize(newSize int64) error {
+	if newSize > maxAllowedBufferSize {
+		return fmt.Errorf("Requested new buffer size is too big. Requested: %d, max allowed: %d", newSize, maxAllowedBufferSize)
+	}
 	if int64(len(msg.Data)) == newSize {
-		return
+		return nil
 	}
 	msg.Data = make([]byte, newSize)
+	return nil
 }
 
 // Serialize returns a byte slice containing the message.

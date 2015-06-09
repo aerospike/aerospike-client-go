@@ -120,7 +120,9 @@ func (nfo *info) sendCommand(conn *Connection) error {
 	}
 
 	// Logger.Debug("Header Response: %v %v %v %v", t.Type, t.Version, t.Length(), t.DataLen)
-	nfo.msg.Resize(nfo.msg.Length())
+	if err := nfo.msg.Resize(nfo.msg.Length()); err != nil {
+		return err
+	}
 	_, err := conn.Read(nfo.msg.Data, len(nfo.msg.Data))
 	return err
 }

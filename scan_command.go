@@ -66,6 +66,10 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 
 		if resultCode != 0 {
 			if resultCode == KEY_NOT_FOUND_ERROR {
+				// consume the rest of the input buffer from the socket
+				if cmd.dataOffset < receiveSize {
+					cmd.readBytes(receiveSize - cmd.dataOffset)
+				}
 				return false, nil
 			}
 			err := NewAerospikeError(resultCode)
