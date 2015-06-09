@@ -1,5 +1,15 @@
 # Change history
 
+## June 9 2015 : v1.6.1
+
+  Minor fix release.
+
+  * **Fixes**
+
+    * Fixed an issue where marshaller wouldn't marshal some embedded structs.
+
+    * Fixed an issue where querying/scanning empty sets wouldn't drain the socket before return.
+
 ## May 30 2015 : v1.6.0
 
   There's an important performance regression bug fix in this release. We recommend everyone to upgrade.
@@ -10,7 +20,7 @@
 
       * NOTICE! BREAKING CHANGE: New LargeList API on the Go Client uses the New API defined on newer server versions. As Such, it has changed some signatures in LargeList.
 
-  * ** Fixes **
+  * **Fixes**
 
     * Fixed an issue where connections where not put back to the pool on some non-critical errors.
 
