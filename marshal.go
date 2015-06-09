@@ -62,7 +62,7 @@ func valueToInterface(f reflect.Value) interface{} {
 			newMap[valueToInterface(mk)] = valueToInterface(f.MapIndex(mk))
 		}
 
-		return f.Interface()
+		return newMap
 	case reflect.Slice, reflect.Array:
 		if f.Kind() == reflect.Slice && f.IsNil() {
 			return nil
@@ -137,7 +137,6 @@ func structToMap(s reflect.Value) map[string]interface{} {
 
 func marshal(v interface{}) []*Bin {
 	s := reflect.Indirect(reflect.ValueOf(v).Elem())
-	typeOfT := s.Type()
 
 	// map tags
 	cacheObjectTags(s)
@@ -146,21 +145,11 @@ func marshal(v interface{}) []*Bin {
 	bins := binPool.Get(numFields).([]*Bin)
 
 	binCount := 0
-	for i := 0; i < numFields; i++ {
-		// skip unexported fields
-		if typeOfT.Field(i).PkgPath != "" {
-			continue
-		}
+	n := structToMap(s)
+	for k, v := range n {
+		bins[binCount].Name = k
 
-		binValue := valueToInterface(s.Field(i))
-
-		alias := fieldAlias(typeOfT.Field(i))
-		if alias == "" {
-			continue
-		}
-
-		bins[binCount].Name = alias
-		bins[binCount].Value = NewValue(binValue)
+		bins[binCount].Value = NewValue(v)
 		binCount++
 	}
 
