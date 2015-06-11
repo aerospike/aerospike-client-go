@@ -560,10 +560,11 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// make sure the
-				for r := range recordset.Records {
-					if bytes.Equal(key.Digest(), r.Key.Digest()) {
-						Expect(r.Key.Value()).To(Equal(key.Value()))
-						Expect(r.Bins).To(Equal(rec.Bins))
+				for r := range recordset.Results() {
+					Expect(r.Err).ToNot(HaveOccurred())
+					if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
+						Expect(r.Record.Key.Value()).To(Equal(key.Value()))
+						Expect(r.Record.Bins).To(Equal(rec.Bins))
 					}
 				}
 			})
@@ -814,10 +815,11 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// make sure the
-				for r := range recordset.Records {
-					if bytes.Equal(key.Digest(), r.Key.Digest()) {
-						Expect(r.Key.Value()).To(Equal(key.Value()))
-						Expect(r.Bins).To(Equal(rec.Bins))
+				for r := range recordset.Results() {
+					Expect(r.Err).ToNot(HaveOccurred())
+					if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
+						Expect(r.Record.Key.Value()).To(Equal(key.Value()))
+						Expect(r.Record.Bins).To(Equal(rec.Bins))
 					}
 				}
 			})
@@ -840,9 +842,10 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// make sure the key is not saved
-				for r := range recordset.Records {
-					if bytes.Equal(key.Digest(), r.Key.Digest()) {
-						Expect(r.Key.Value()).To(BeNil())
+				for r := range recordset.Results() {
+					Expect(r.Err).ToNot(HaveOccurred())
+					if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
+						Expect(r.Record.Key.Value()).To(BeNil())
 					}
 				}
 
@@ -858,10 +861,11 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// make sure the
-				for r := range recordset.Records {
-					if bytes.Equal(key.Digest(), r.Key.Digest()) {
-						Expect(r.Key.Value()).To(Equal(key.Value()))
-						Expect(r.Bins).To(Equal(rec.Bins))
+				for r := range recordset.Results() {
+					Expect(r.Err).ToNot(HaveOccurred())
+					if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
+						Expect(r.Record.Key.Value()).To(Equal(key.Value()))
+						Expect(r.Record.Bins).To(Equal(rec.Bins))
 					}
 				}
 			})

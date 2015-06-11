@@ -49,31 +49,22 @@ var _ = Describe("Scan operations", func() {
 	// if cancelCnt is set, it will cancel the scan after specified record count
 	var checkResults = func(recordset *Recordset, cancelCnt int) {
 		counter := 0
-	L:
-		for {
-			select {
-			case rec := <-recordset.Records:
-				if rec == nil {
-					break L
-				}
-				key, exists := keys[string(rec.Key.Digest())]
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			rec := res.Record
+			key, exists := keys[string(rec.Key.Digest())]
 
-				Expect(exists).To(Equal(true))
-				Expect(key.Value().GetObject()).To(Equal(rec.Key.Value().GetObject()))
-				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
-				Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+			Expect(exists).To(Equal(true))
+			Expect(key.Value().GetObject()).To(Equal(rec.Key.Value().GetObject()))
+			Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+			Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
 
-				delete(keys, string(rec.Key.Digest()))
+			delete(keys, string(rec.Key.Digest()))
 
-				counter++
-				// cancel scan abruptly
-				if cancelCnt != 0 && counter == cancelCnt {
-					recordset.Close()
-				}
-
-			case err := <-recordset.Errors:
-				// Expect(error) returns humongous error message
-				panic(err)
+			counter++
+			// cancel scan abruptly
+			if cancelCnt != 0 && counter == cancelCnt {
+				recordset.Close()
 			}
 		}
 
