@@ -132,9 +132,9 @@ func (rcs *Recordset) signalEnd() {
 }
 
 func (rcs *Recordset) sendError(err error) {
+	rcs.chanLock.Lock()
+	defer rcs.chanLock.Unlock()
 	if rcs.IsActive() {
-		rcs.chanLock.Lock()
-		defer rcs.chanLock.Unlock()
 		rcs.Errors <- err
 	}
 }
