@@ -41,6 +41,8 @@ type Recordset struct {
 
 	active    *AtomicBool
 	cancelled chan struct{}
+
+	chanLock sync.Mutex
 }
 
 // NewRecordset generates a new RecordSet instance.
@@ -115,6 +117,8 @@ func (rcs *Recordset) Close() {
 		// wait till all goroutines are done
 		rcs.wgGoroutines.Wait()
 
+		rcs.chanLock.Lock()
+		defer rcs.chanLock.Unlock()
 		close(rcs.Records)
 		close(rcs.Errors)
 	}
@@ -124,5 +128,13 @@ func (rcs *Recordset) signalEnd() {
 	rcs.wgGoroutines.Done()
 	if rcs.goroutines.DecrementAndGet() == 0 {
 		rcs.Close()
+	}
+}
+
+func (rcs *Recordset) sendError(err error) {
+	if rcs.IsActive() {
+		rcs.chanLock.Lock()
+		defer rcs.chanLock.Unlock()
+		rcs.Errors <- err
 	}
 }

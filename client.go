@@ -436,9 +436,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 		for _, node := range nodes {
 			go func(node *Node) {
 				if err := clnt.scanNode(&policy, node, res, namespace, setName, binNames...); err != nil {
-					if _, ok := <-res.Errors; ok {
-						res.Errors <- err
-					}
+					res.sendError(err)
 				}
 			}(node)
 		}
@@ -447,9 +445,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 		go func() {
 			for _, node := range nodes {
 				if err := clnt.scanNode(&policy, node, res, namespace, setName, binNames...); err != nil {
-					if _, ok := <-res.Errors; ok {
-						res.Errors <- err
-					}
+					res.sendError(err)
 					continue
 				}
 			}
@@ -860,7 +856,12 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		// copy policies to avoid race conditions
 		newPolicy := *policy
 		command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
-		go command.Execute()
+		go func() {
+			err := command.Execute()
+			if err != nil {
+				recSet.sendError(err)
+			}
+		}()
 	}
 
 	return recSet, nil
@@ -888,7 +889,12 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 	// copy policies to avoid race conditions
 	newPolicy := *policy
 	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
-	go command.Execute()
+	go func() {
+		err := command.Execute()
+		if err != nil {
+			recSet.sendError(err)
+		}
+	}()
 
 	return recSet, nil
 }
