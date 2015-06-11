@@ -25,7 +25,7 @@ import (
 type ExecuteTask struct {
 	*BaseTask
 
-	taskId int64
+	taskId uint64
 	scan   bool
 }
 
@@ -64,7 +64,7 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 		node.PutConnection(conn)
 
 		response := responseMap[command]
-		find := "job_id=" + strconv.FormatInt(etsk.taskId, 10) + ":"
+		find := "job_id=" + strconv.FormatUint(etsk.taskId, 10) + ":"
 		index := strings.Index(response, find)
 
 		if index < 0 {
