@@ -88,7 +88,7 @@ It is goroutine friendly, and works asynchronously.
 
 Supported operating systems:
 
-- Major Linux distributions (Ubuntu, Debian, Redhat)
+- Major Linux distributions (Ubuntu, Debian, Red Hat)
 - Mac OS X
 - Windows (untested)
 
@@ -110,7 +110,7 @@ Using [gopkg.io](http://gopkg.io/) is also supported.
 <a name="Performance"></a>
 ## Performance Tweaking
 
-We are bending all efforts to improve the client's performance. In out reference benchmarks, Go client performs almost as good as the C client.
+We are bending all efforts to improve the client's performance. In our reference benchmarks, Go client performs almost as good as the C client.
 
 To read about performance variables, please refer to [`docs/performance.md`](docs/performance.md)
 
