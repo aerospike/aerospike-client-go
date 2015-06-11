@@ -30,7 +30,7 @@ Policies
 
 ### Policies
 
-Policies contain the allowed values for policies for each of the [client](client.md) operations.
+Policies contain the allowed values for operation conditions for each of the [client](client.md) operations.
 
 For details, see [Policies Object](policies.md)
 
