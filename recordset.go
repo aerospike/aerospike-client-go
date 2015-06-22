@@ -64,24 +64,24 @@ func (rcs *Recordset) IsActive() bool {
 	return rcs.active.Get()
 }
 
-// Results returns a new receive-only channel with the results of the Scan/Query
+// Results returns a new receive-only channel with the results of the Scan/Query.
 // This is a more idiomatic approach to the iterator pattern in getting the
 // results back from the recordset, and doesn't require the user to write the
 // ugly select in their code.
-// Result embeds A Record and an error reference.
+// Result contains a Record and an error reference.
 //
 // Example:
 //
-// recordset, err := client.ScanAll(nil, namespace, set)
-// handleError(err)
-// for res := range recordset.Results() {
-//   if res.Err != nil {
-//     // handle error here
-//   } else {
-//     // process record here
-//     fmt.Println(res.Record.Bins)
-//   }
-// }
+//  recordset, err := client.ScanAll(nil, namespace, set)
+//  handleError(err)
+//  for res := range recordset.Results() {
+//    if res.Err != nil {
+//      // handle error here
+//    } else {
+//      // process record here
+//      fmt.Println(res.Record.Bins)
+//    }
+//  }
 func (rcs *Recordset) Results() <-chan *Result {
 	res := make(chan *Result, len(rcs.Records))
 
