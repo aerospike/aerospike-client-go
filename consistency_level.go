@@ -17,14 +17,16 @@
 
 package aerospike
 
-// How replicas should be consulted in a read operation to provide the desired
-// consistency guarantee.
+// ConsistencyLevel indicates how replicas should be consulted in a read
+// operation to provide the desired consistency guarantee.
 type ConsistencyLevel int
 
 const (
-	// Involve a single replica in the operation.
+	// CONSISTENCY_ONE indicates only a single replica should be consulted in
+	// the read operation.
 	CONSISTENCY_ONE = iota
 
-	// Involve all replicas in the operation.
+	// CONSISTENCY_ALL indicates that all replicas should be consulted in
+	// the read operation.
 	CONSISTENCY_ALL
 )

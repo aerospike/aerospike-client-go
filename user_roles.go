@@ -15,11 +15,11 @@
 
 package aerospike
 
-// User and assigned roles.
+// UserRoles contains information about a user.
 type UserRoles struct {
 	// User name.
 	User string
 
-	// List of assigned roles.
+	// Roles is a list of assigned roles.
 	Roles []string
 }

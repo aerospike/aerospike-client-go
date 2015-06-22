@@ -97,7 +97,7 @@ func NewKey(namespace string, setName string, key interface{}) (newKey *Key, err
 	return newKey, err
 }
 
-// NewKey initializes a key from namespace, optional set name and user key.
+// NewKeyWithDigest initializes a key from namespace, optional set name and user key.
 // The server handles record identifiers by digest only.
 func NewKeyWithDigest(namespace string, setName string, key interface{}, digest []byte) (newKey *Key, err error) {
 	newKey = &Key{
@@ -112,7 +112,7 @@ func NewKeyWithDigest(namespace string, setName string, key interface{}, digest 
 	return newKey, err
 }
 
-//Set custom hash
+// SetDigest sets a custom hash
 func (ky *Key) SetDigest(digest []byte) error {
 	if len(digest) != 20 {
 		return NewAerospikeError(PARAMETER_ERROR, "Invalid digest: Digest is required to be exactly 20 bytes.")

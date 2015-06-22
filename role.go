@@ -19,15 +19,15 @@ type Role string
 
 // Pre-defined user roles.
 const (
-	// Manage users their roles.
+	// UserAdmin allows to manages users and their roles.
 	UserAdmin Role = "user-admin"
 
-	// Manage indicies, user defined functions and server configuration.
+	// SysAdmin allows to manage indicies, user defined functions and server configuration.
 	SysAdmin Role = "sys-admin"
 
-	// Allow read and write transactions with the database.
+	// ReadWrite allows read and write transactions with the database.
 	ReadWrite Role = "read-write"
 
-	// Allow read transactions with the database.
+	// Read allow read transactions with the database.
 	Read Role = "Read"
 )

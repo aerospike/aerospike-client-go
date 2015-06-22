@@ -1025,7 +1025,7 @@ func (clnt *Client) DropIndex(
 // User administration
 //-------------------------------------------------------
 
-// Create user with password and roles. Clear-text password will be hashed using bcrypt
+// CreateUser creates a new user with password and roles. Clear-text password will be hashed using bcrypt
 // before sending to server.
 func (clnt *Client) CreateUser(policy *AdminPolicy, user string, password string, roles []string) error {
 	policy = clnt.getUsableAdminPolicy(policy)
@@ -1038,7 +1038,7 @@ func (clnt *Client) CreateUser(policy *AdminPolicy, user string, password string
 	return command.createUser(clnt.cluster, policy, user, hash, roles)
 }
 
-// Remove user from cluster.
+// DropUser removes a user from the cluster.
 func (clnt *Client) DropUser(policy *AdminPolicy, user string) error {
 	policy = clnt.getUsableAdminPolicy(policy)
 
@@ -1046,7 +1046,7 @@ func (clnt *Client) DropUser(policy *AdminPolicy, user string) error {
 	return command.dropUser(clnt.cluster, policy, user)
 }
 
-// Change user's password. Clear-text password will be hashed using bcrypt before sending to server.
+// ChangePassword changes a user's password. Clear-text password will be hashed using bcrypt before sending to server.
 func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password string) error {
 	policy = clnt.getUsableAdminPolicy(policy)
 
@@ -1077,7 +1077,7 @@ func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password st
 	return nil
 }
 
-// Add roles to user's list of roles.
+// GrantRoles adds roles to user's list of roles.
 func (clnt *Client) GrantRoles(policy *AdminPolicy, user string, roles []string) error {
 	policy = clnt.getUsableAdminPolicy(policy)
 
@@ -1085,7 +1085,7 @@ func (clnt *Client) GrantRoles(policy *AdminPolicy, user string, roles []string)
 	return command.grantRoles(clnt.cluster, policy, user, roles)
 }
 
-// Remove roles from user's list of roles.
+// RevokeRoles removes roles from user's list of roles.
 func (clnt *Client) RevokeRoles(policy *AdminPolicy, user string, roles []string) error {
 	policy = clnt.getUsableAdminPolicy(policy)
 
@@ -1093,7 +1093,7 @@ func (clnt *Client) RevokeRoles(policy *AdminPolicy, user string, roles []string
 	return command.revokeRoles(clnt.cluster, policy, user, roles)
 }
 
-// Retrieve roles for a given user.
+// QueryUser retrieves roles for a given user.
 func (clnt *Client) QueryUser(policy *AdminPolicy, user string) (*UserRoles, error) {
 	policy = clnt.getUsableAdminPolicy(policy)
 
@@ -1101,7 +1101,7 @@ func (clnt *Client) QueryUser(policy *AdminPolicy, user string) (*UserRoles, err
 	return command.queryUser(clnt.cluster, policy, user)
 }
 
-// Retrieve all users and their roles.
+// QueryUsers retrieves all users and their roles.
 func (clnt *Client) QueryUsers(policy *AdminPolicy) ([]*UserRoles, error) {
 	policy = clnt.getUsableAdminPolicy(policy)
 
@@ -1179,9 +1179,8 @@ func (clnt *Client) getUsablePolicy(policy *BasePolicy) *BasePolicy {
 	if policy == nil {
 		if clnt.DefaultPolicy != nil {
 			return clnt.DefaultPolicy
-		} else {
-			return NewPolicy()
 		}
+		return NewPolicy()
 	}
 	return policy
 }
@@ -1190,9 +1189,8 @@ func (clnt *Client) getUsableWritePolicy(policy *WritePolicy) *WritePolicy {
 	if policy == nil {
 		if clnt.DefaultWritePolicy != nil {
 			return clnt.DefaultWritePolicy
-		} else {
-			return NewWritePolicy(0, 0)
 		}
+		return NewWritePolicy(0, 0)
 	}
 	return policy
 }
@@ -1201,9 +1199,8 @@ func (clnt *Client) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
 	if policy == nil {
 		if clnt.DefaultScanPolicy != nil {
 			return clnt.DefaultScanPolicy
-		} else {
-			return NewScanPolicy()
 		}
+		return NewScanPolicy()
 	}
 	return policy
 }
@@ -1211,10 +1208,9 @@ func (clnt *Client) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
 func (clnt *Client) getUsableQueryPolicy(policy *QueryPolicy) *QueryPolicy {
 	if policy == nil {
 		if clnt.DefaultQueryPolicy != nil {
-			policy = clnt.DefaultQueryPolicy
-		} else {
-			policy = NewQueryPolicy()
+			return clnt.DefaultQueryPolicy
 		}
+		return NewQueryPolicy()
 	}
 	return policy
 }
@@ -1222,10 +1218,9 @@ func (clnt *Client) getUsableQueryPolicy(policy *QueryPolicy) *QueryPolicy {
 func (clnt *Client) getUsableAdminPolicy(policy *AdminPolicy) *AdminPolicy {
 	if policy == nil {
 		if clnt.DefaultAdminPolicy != nil {
-			policy = clnt.DefaultAdminPolicy
-		} else {
-			policy = NewAdminPolicy()
+			return clnt.DefaultAdminPolicy
 		}
+		return NewAdminPolicy()
 	}
 	return policy
 }
