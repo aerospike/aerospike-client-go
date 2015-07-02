@@ -35,8 +35,6 @@ type readCommand struct {
 
 	// pointer to the object that's going to be unmarshalled
 	object interface{}
-	// mapping of aliases for the object fields
-	objectMappings map[string]map[string]string
 }
 
 func newReadCommand(cluster *Cluster, policy Policy, key *Key, binNames []string) *readCommand {
@@ -194,8 +192,6 @@ func (cmd *readCommand) parseObject(
 
 		// map tags
 		cacheObjectTags(rv)
-
-		cmd.objectMappings = objectMappings.objectMappings //getMapping(rv.Type().Name())
 	}
 
 	for i := 0; i < opCount; i++ {
@@ -232,7 +228,7 @@ func (cmd *readCommand) setObjectField(obj reflect.Value, fieldName string, valu
 
 	// find the name based on tag mapping
 	iobj := reflect.Indirect(obj)
-	if name, exists := cmd.objectMappings[iobj.Type().Name()][fieldName]; exists {
+	if name, exists := objectMappings.getMapping(iobj)[fieldName]; exists {
 		fieldName = name
 	}
 	f := iobj.FieldByName(fieldName)
