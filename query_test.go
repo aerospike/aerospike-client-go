@@ -66,30 +66,23 @@ var _ = Describe("Query operations", func() {
 	// read all records from the channel and make sure all of them are returned
 	var checkResults = func(recordset *Recordset, cancelCnt int) {
 		counter := 0
-	L:
-		for {
-			select {
-			case rec, chanOpen := <-recordset.Records:
-				if rec == nil && !chanOpen {
-					break L
-				}
-				key, exists := keys[string(rec.Key.Digest())]
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			rec := res.Record
 
-				Expect(exists).To(Equal(true))
-				Expect(key.Value().GetObject()).To(Equal(rec.Key.Value().GetObject()))
-				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
-				Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+			key, exists := keys[string(rec.Key.Digest())]
 
-				delete(keys, string(rec.Key.Digest()))
+			Expect(exists).To(Equal(true))
+			Expect(key.Value().GetObject()).To(Equal(rec.Key.Value().GetObject()))
+			Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+			Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
 
-				counter++
-				// cancel scan abruptly
-				if cancelCnt != 0 && counter == cancelCnt {
-					recordset.Close()
-				}
+			delete(keys, string(rec.Key.Digest()))
 
-			case err := <-recordset.Errors:
-				panic(err)
+			counter++
+			// cancel scan abruptly
+			if cancelCnt != 0 && counter == cancelCnt {
+				recordset.Close()
 			}
 		}
 
@@ -144,20 +137,13 @@ var _ = Describe("Query operations", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		cnt := 0
-	L:
-		for {
-			select {
-			case rec, chanOpen := <-recordset.Records:
-				if !chanOpen {
-					break L
-				}
-				cnt++
-				_, exists := keys[string(rec.Key.Digest())]
-				Expect(exists).To(Equal(true))
-				Expect(rec.Bins[bin3.Name]).To(BeNumerically("<=", math.MaxInt16/2))
-			case err := <-recordset.Errors:
-				panic(err)
-			}
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			rec := res.Record
+			cnt++
+			_, exists := keys[string(rec.Key.Digest())]
+			Expect(exists).To(Equal(true))
+			Expect(rec.Bins[bin3.Name]).To(BeNumerically("<=", math.MaxInt16/2))
 		}
 
 		Expect(cnt).To(BeNumerically(">", 0))
@@ -206,18 +192,11 @@ var _ = Describe("Query operations", func() {
 
 		recs := []interface{}{}
 		// consume recordset and check errors
-	L:
-		for {
-			select {
-			case rec, chanOpen := <-recordset.Records:
-				if !chanOpen {
-					break L
-				}
-				Expect(rec).ToNot(BeNil())
-				recs = append(recs, rec.Bins[bin3.Name])
-			case err := <-recordset.Errors:
-				panic(err)
-			}
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			rec := res.Record
+			Expect(rec).ToNot(BeNil())
+			recs = append(recs, rec.Bins[bin3.Name])
 		}
 
 		// there should be at least one result

@@ -157,8 +157,9 @@ var _ = Describe("UDF/Query tests", func() {
 				recordset, err := client.ScanAll(nil, ns, set)
 				Expect(err).ToNot(HaveOccurred())
 
-				for fullRec := range recordset.Records {
-					Expect(fullRec.Bins[bin2.Name]).To(Equal(bin1.Value.GetObject().(int) / (i * 2)))
+				for fullRec := range recordset.Results() {
+					Expect(fullRec.Err).ToNot(HaveOccurred())
+					Expect(fullRec.Record.Bins[bin2.Name]).To(Equal(bin1.Value.GetObject().(int) / (i * 2)))
 				}
 			}
 		})
@@ -192,10 +193,11 @@ var _ = Describe("UDF/Query tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			i := 0
-			for fullRec := range recordset.Records {
+			for fullRec := range recordset.Results() {
+				Expect(fullRec.Err).ToNot(HaveOccurred())
 				i++
 				// only one record should be returned
-				Expect(fullRec.Bins[bin1.Name]).To(Equal(math.MaxInt16 + 1))
+				Expect(fullRec.Record.Bins[bin1.Name]).To(Equal(math.MaxInt16 + 1))
 			}
 			Expect(i).To(Equal(1))
 		})

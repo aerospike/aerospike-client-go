@@ -34,7 +34,6 @@ Fields are:
 - `Bins` — Bins and their values are represented as a BinMap (map[string]interface{})
 - `Key` — Associated Key pointer
 - `Node` — Database node from which the record was retrieved from.
-- `Duplicates` — If the writepolicy.GenerationPolicy is DUPLICATE, it will contain older versions of bin data
 - `Expiration` — TimeToLive of the record in seconds. Shows in how many seconds the data will be erased if not updated.
 - `Generation` — Record generation (number of times the record has been updated).
 
@@ -72,7 +71,9 @@ Simple example of a Read, Change, Update operation:
   panicOnError(err)
 
   // change data
-  rec.Bins["bin1"].(int) += 1
+  v := rec.Bins["bin1"].(int)
+  v += 1
+  rec.Bins["bin1"] = v
 
   // update
   err = client.Put(nil, key, rec.Bins)
@@ -100,23 +101,17 @@ Recordsets can be closed at any time to cancel the operation.
   // scan the whole cluster
   recordset, err := client.ScanAll(nil, "test", "demo")
 
-  L:
-  for{
-    select {
-      case record, open := <- recordset.Records:
-        if !open {
-          // scan completed successfully
-          break L
+  for res := range recordset.Results() {
+    if res.Err != nil {
+        // you may be able to find out on which node the error occured
+        if ne, ok := err.(NodeError); ok {
+          node := ne.Node
+          // do something
         }
-        // do something
-    case err := <- recordset.Errors:
-      // check if error is a NodeError
-      if ne, ok := err.(NodeError); ok {
-        node := ne.Node
-        // do something
-      }
-      panic(err)
     }
+
+    // process record
+    fmt.Println(res.Record)
   }
 ```
 
@@ -206,17 +201,14 @@ The following optional attributes can also be changed in the statement struct:
   recordset, err := client.Query(nil, stm)
 
   // consume recordset and check errors
-  L:
-  for {
-    select {
-    case rec, chanOpen := <-recordset.Records:
-      if !chanOpen {
-        break L
-      }
-      // do something
-    case err := <-recordset.Errors:
-      panic(err)
+  for res := recordset.Results() {
+    if res.Err != nil {
+      // handle error
+      panic(res.Err)
     }
+
+    // process record
+    fmt.Println(res.Record)
   }
 ```
 

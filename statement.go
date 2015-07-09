@@ -14,11 +14,7 @@
 
 package aerospike
 
-import (
-	"math"
-
-	xornd "github.com/aerospike/aerospike-client-go/types/rand"
-)
+import xornd "github.com/aerospike/aerospike-client-go/types/rand"
 
 // Statement encapsulates query statement parameters.
 type Statement struct {
@@ -47,7 +43,7 @@ type Statement struct {
 	functionArgs []Value
 
 	// TaskId determines query task id. (Optional)
-	TaskId int64
+	TaskId uint64
 
 	// determines if the query should return data
 	returnData bool
@@ -60,7 +56,7 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 		SetName:    set,
 		BinNames:   binNames,
 		returnData: true,
-		TaskId:     xornd.Int64(),
+		TaskId:     uint64(xornd.Int64()),
 	}
 }
 
@@ -89,6 +85,6 @@ func (stmt *Statement) IsScan() bool {
 // Always set the taskId client-side to a non-zero random value
 func (stmt *Statement) setTaskId() {
 	for stmt.TaskId == 0 {
-		stmt.TaskId = int64(math.Abs(float64(xornd.Int64())))
+		stmt.TaskId = uint64(xornd.Int64())
 	}
 }

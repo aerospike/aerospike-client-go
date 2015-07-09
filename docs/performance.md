@@ -32,6 +32,8 @@ Please let us know if you can suggest an improvement anywhere in the library.
 
   At its maximum number of 256 for each client, and `proto-fd-max` set to 10000 in your server node configuration, you can safely have around 50 clients **per server node**. In practice, this will approach 150 high performing clients. You can change this pool size in `ClientPolicy`, and then initialize your `Client` object using `NewClientWithPolicy(policy **ClientPolicy, hostname string, port int)` initializer.
 
+  You can also guard against the number of new connections to each node using `ClientPolicy.LimitConnectionsToQueueSize = true`, so that if a connection is not available in the pool, the client will wait or timeout instead of creating a new client.
+
 2. **Client Buffer Pool**: Client library pools its buffers to reduce memory allocation. Considering that unbounded memory pools are bugs you haven't found yet, our pool implementation enforces 2 bounds on pool:
 
   2.1. Initial buffer sizes are big enough for most operations, so they won't need to increase (512 bytes by default)

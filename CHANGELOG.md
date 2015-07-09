@@ -1,5 +1,19 @@
 # Change history
 
+## June 11 2015 : v1.6.2
+
+  Minor fix release.
+
+  * **Improvements**
+
+    * Improved documentation. Replaced all old API references regarding Recordset/Query/Scan to newer, more elegant API.
+
+  * **Fixes**
+
+    * Fixed an issue where erroring out on Scan would result a panic.
+
+    * Fixed an issue where `Statement.TaskId` would be negative. converted `Statement.TaskId` to `uint64`
+
 ## June 9 2015 : v1.6.1
 
   Minor fix release.

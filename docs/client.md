@@ -13,14 +13,15 @@ To customize a Client with a ClientPolicy:
 ```go
   clientPolicy := as.NewClientPolicy()
   clientPolicy.ConnectionQueueSize = 64
+  clientPolicy.LimitConnectionsToQueueSize = true
   clientPolicy.Timeout = 50 * time.Millisecond
 
   client, err := as.NewClientWithPolicy(clientPolicy, "127.0.0.1", 3000)
 ```
 
-*Notice*: Examples in the section are only intended to illuminate simple use cases without too much distraction. Always follow good coding practices in production.
+*Notice*: Examples in the section are only intended to illuminate simple use cases without too much distraction. Always follow good coding practices in production. Always check for errors.
 
-With a new client, you can use any of the methods specified below:
+With a new client, you can use any of the methods specified below. You need only *ONE* client object. This object is goroutine-friendly, and pools its resources internally.
 
 - [Methods](#methods)
   - [Add()](#add)
@@ -63,7 +64,7 @@ add()
 ### Add(policy *WritePolicy, key *Key, bins BinMap) error
 
 Using the provided key, adds values to the mentioned bins.
-Bin value types should by of `integer` for the command to have any effect.
+Bin value types should be of type `integer` for the command to have any effect.
 
 Parameters:
 
@@ -94,7 +95,7 @@ append()
 ### Append(policy *WritePolicy, key *Key, bins BinMap) error
 
 Using the provided key, appends provided values to the mentioned bins.
-Bin value types should by of `string` or `ByteArray` for the command to have any effect.
+Bin value types should be of type `string` or `[]byte` for the command to have any effect.
 
 Parameters:
 
@@ -249,7 +250,7 @@ getheader()
 
 ### GetHeader(policy *BasePolicy, key *Key) (*Record, error)
 
-Using the key provided, reads record metadata *ONLY* from the database cluster. Record metadata includes record generation and Expiration (TTL from the moment of retrieval, in seconds)
+Using the key provided, reads *ONLY* record metadata from the database cluster. Record metadata includes record generation and Expiration (TTL from the moment of retrieval, in seconds)
 
 ```record.Bins``` will always be empty in resulting ```record```.
 
@@ -342,7 +343,7 @@ prepend()
 ### Prepend(policy *WritePolicy, key *Key, bins BinMap) error
 
 Using the provided key, prepends provided values to the mentioned bins.
-Bin value types should by of `string` or `ByteArray` for the command to have any effect.
+Bin value types should be of type `string` or `[]byte` for the command to have any effect.
 
 Parameters:
 
@@ -480,23 +481,13 @@ Example:
   // scan the whole cluster
   recordset, err := client.ScanAll(nil, "test", "demo")
 
-  L:
-  for{
-    select {
-      case record, open := <- recordset.Records:
-        if !open {
-          // scan completed successfully
-          break L
-        }
-        // do something
-    case err := <- recordset.Errors:
-      // check if error is a NodeError
-      if ne, ok := err.(NodeError); ok {
-        node := ne.Node
-        // do something
-      }
-      panic(err)
+  for res := range recordset.Results() {
+    if res.Err != nil {
+      // handle error; or close the recordset and break
     }
+    
+  // process record
+  fmt.Println(res.Record)
   }
 ```
 
@@ -538,15 +529,13 @@ Example:
 
 ```go
   idxTask, err := client.CreateIndex(nil, "test", "demo", "indexName", "binName", NUMERIC)
+  panicOnErr(err)
 
-  if err == nil {
-    // wait until index is created.
-    // OnComplete() channel will return nil on success and an error on errors
-    for err := range idxTask.OnComplete() {
-      if err != nil {
-        panic(err)
-      }
-    }
+  // wait until index is created.
+  // OnComplete() channel will return nil on success and an error on errors
+  err = <- idxTask.OnComplete()
+  if err != nil {
+    panic(err)
   }
 ```
 
@@ -609,9 +598,11 @@ Example:
   end`
 
   regTask, err := client.RegisterUDF(nil, []byte(udfBody), "udf1.lua", LUA)
+  panicOnErr(err)
 
   // wait until UDF is created
-  for err := range regTask.OnComplete(); err != nil {
+  err = <-regTask.OnComplete()
+  if err != nil {
     panic(err)
   }
 ```
@@ -640,9 +631,11 @@ Example:
 
 ```go
   regTask, err := client.RegisterUDFFromFile(nil, "/path/udf.lua", "udf1.lua", LUA)
+  panicOnErr(err)
 
   // wait until UDF is created
-  for err := range regTask.OnComplete(); err != nil {
+  err = <- regTask.OnComplete()
+  if err != nil {
     panic(err)
   }
 ```
@@ -702,9 +695,11 @@ Considering the UDF registered in RegisterUDF example above:
 ```go
   statement := NewStatement("namespace", "set")
   exTask, err := client.ExecuteUDF(nil, statement, "udf1", "testFunc1")
+  panicOnErr(err)
 
   // wait until UDF is run on all records
-  for  err := range exTask.OnComplete(); err != nil {
+  err = <- exTask.OnComplete()
+  if err != nil {
     panic(err)
   }
 ```
@@ -739,16 +734,12 @@ Example:
   recordset, err := client.Query(nil, stm)
 
   // consume recordset and check errors
-  L:
-  for {
-    select {
-    case rec, chanOpen := <-recordset.Records:
-      if !chanOpen {
-        break L
-      }
-      // do something
-    case err := <-recordset.Errors:
-      panic(err)
+  for res := recordset.Results() {
+    if res.Err != nil {
+      // handle error, or close the recordset and break
     }
+
+    // process record
+    fmt.Println(res.Record)
   }
 ```
