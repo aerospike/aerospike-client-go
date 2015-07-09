@@ -84,7 +84,7 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 			return nil, err
 		}
 
-		fieldlen := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 0)))
+		fieldlen := int(Buffer.BytesToUint32(cmd.dataBuffer, 0))
 		if err = cmd.readBytes(fieldlen); err != nil {
 			return nil, err
 		}

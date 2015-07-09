@@ -129,6 +129,11 @@ func BytesToInt32(buf []byte, offset int) int32 {
 	return int32(binary.BigEndian.Uint32(buf[offset : offset+uint32sz]))
 }
 
+// Covertes a slice into int32; only maximum of 4 bytes will be used
+func BytesToUint32(buf []byte, offset int) uint32 {
+	return binary.BigEndian.Uint32(buf[offset : offset+uint32sz])
+}
+
 // Converts an int32 to a byte slice of size 4
 func Int32ToBytes(num int32, buffer []byte, offset int) []byte {
 	if buffer != nil {
@@ -143,6 +148,10 @@ func Int32ToBytes(num int32, buffer []byte, offset int) []byte {
 // Converts
 func BytesToInt16(buf []byte, offset int) int16 {
 	return int16(binary.BigEndian.Uint16(buf[offset : offset+uint16sz]))
+}
+
+func BytesToUint16(buf []byte, offset int) uint16 {
+	return binary.BigEndian.Uint16(buf[offset : offset+uint16sz])
 }
 
 // converts a

@@ -84,10 +84,10 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 			return false, nil
 		}
 
-		generation := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 6)))
-		expiration := TTL(int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 10))))
-		fieldCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 18)))
-		opCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 20)))
+		generation := int(Buffer.BytesToUint32(cmd.dataBuffer, 6))
+		expiration := TTL(int(Buffer.BytesToUint32(cmd.dataBuffer, 10)))
+		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
+		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
 		key, err := cmd.parseKey(fieldCount)
 		if err != nil {
@@ -104,7 +104,7 @@ func (cmd *scanCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 				return false, err
 			}
 
-			opSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 0)))
+			opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, 0))
 			particleType := int(cmd.dataBuffer[5])
 			nameSize := int(cmd.dataBuffer[7])
 

@@ -66,10 +66,10 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	sz := Buffer.BytesToInt64(cmd.dataBuffer, 0)
 	headerLength := int(cmd.dataBuffer[8])
 	resultCode := ResultCode(cmd.dataBuffer[13] & 0xFF)
-	generation := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 14)))
-	expiration := TTL(int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, 18))))
-	fieldCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 26))) // almost certainly 0
-	opCount := int(uint16(Buffer.BytesToInt16(cmd.dataBuffer, 28)))
+	generation := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
+	expiration := TTL(int(Buffer.BytesToUint32(cmd.dataBuffer, 18)))
+	fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 26)) // almost certainly 0
+	opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 28))
 	receiveSize := int((sz & 0xFFFFFFFFFFFF) - int64(headerLength))
 
 	// Read remaining message bytes.
@@ -141,13 +141,13 @@ func (cmd *readCommand) parseRecord(
 		// Just skip over all the fields
 		for i := 0; i < fieldCount; i++ {
 			// Logger.Debug("%d", receiveOffset)
-			fieldSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset)))
+			fieldSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
 			receiveOffset += (4 + fieldSize)
 		}
 	}
 
 	for i := 0; i < opCount; i++ {
-		opSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset)))
+		opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
 		particleType := int(cmd.dataBuffer[receiveOffset+5])
 		nameSize := int(cmd.dataBuffer[receiveOffset+7])
 		name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
@@ -181,7 +181,7 @@ func (cmd *readCommand) parseObject(
 		// Just skip over all the fields
 		for i := 0; i < fieldCount; i++ {
 			// Logger.Debug("%d", receiveOffset)
-			fieldSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset)))
+			fieldSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
 			receiveOffset += (4 + fieldSize)
 		}
 	}
@@ -195,7 +195,7 @@ func (cmd *readCommand) parseObject(
 	}
 
 	for i := 0; i < opCount; i++ {
-		opSize := int(uint32(Buffer.BytesToInt32(cmd.dataBuffer, receiveOffset)))
+		opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
 		particleType := int(cmd.dataBuffer[receiveOffset+5])
 		nameSize := int(cmd.dataBuffer[receiveOffset+7])
 		name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
