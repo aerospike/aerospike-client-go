@@ -88,10 +88,11 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 	// Don't worry about the loop; we've already set the timeout elsewhere
 	var r int
 	for total < length {
-		if r, err = ctn.conn.Read(buf[total:length]); err != nil {
+		r, err = ctn.conn.Read(buf[total:length])
+		total += r
+		if err != nil {
 			break
 		}
-		total += r
 	}
 
 	if err == nil && total == length {
