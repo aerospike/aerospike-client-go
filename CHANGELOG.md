@@ -1,5 +1,23 @@
 # Change history
 
+## July 9 2015 : v1.6.3
+
+  Minor fix release.
+
+  * **Improvements**
+
+    * Improved documentation. PR #64 and #68. Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+
+  * **Fixes**
+
+    * Fix a bunch of golint notices. PR #69, Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+
+    * Connection.Read() total bytes count on error. PR #71, Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+
+    * Fixed a race condition on objectMappings map. PR #72, Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+
+    * Fixed a few uint -> int convertions.
+
 ## June 11 2015 : v1.6.2
 
   Minor fix release.
