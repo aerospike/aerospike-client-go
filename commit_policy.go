@@ -17,13 +17,13 @@
 
 package aerospike
 
-// Desired consistency guarantee when committing a transaction on the server.
+// CommitLevel indicates the desired consistency guarantee when committing a transaction on the server.
 type CommitLevel int
 
 const (
-	// Server should wait until successfully committing master and all replicas.
+	// COMMIT_ALL indicates the server should wait until successfully committing master and all replicas.
 	COMMIT_ALL CommitLevel = iota
 
-	// Server should wait until successfully committing master only.
+	// COMMIT_MASTER indicates the server should wait until successfully committing master only.
 	COMMIT_MASTER
 )

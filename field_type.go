@@ -17,6 +17,7 @@ package aerospike
 // FieldType represents the type of the field in Aerospike Wire Protocol
 type FieldType int
 
+// FieldType constants used in the Aerospike Wire Protocol.
 const (
 	NAMESPACE FieldType = 0
 	TABLE     FieldType = 1

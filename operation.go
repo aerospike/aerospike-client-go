@@ -17,9 +17,12 @@ package aerospike
 // OperationType determines operation type
 type OperationType byte
 
+// Valid OperationType values that can be used to create custom Operations.
+// The names are self-explanatory.
 const (
 	READ OperationType = 1
 	// READ_HEADER OperationType = 1
+
 	WRITE   OperationType = 2
 	ADD     OperationType = 5
 	APPEND  OperationType = 9

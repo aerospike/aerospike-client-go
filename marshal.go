@@ -44,9 +44,8 @@ func valueToInterface(f reflect.Value) interface{} {
 	case reflect.Struct:
 		if f.Type().PkgPath() == "time" && f.Type().Name() == "Time" {
 			return f.Interface().(time.Time).UTC().UnixNano()
-		} else {
-			return structToMap(f)
 		}
+		return structToMap(f)
 	case reflect.Bool:
 		if f.Bool() == true {
 			return int64(1)
@@ -95,9 +94,8 @@ func fieldAlias(f reflect.StructField) string {
 			return ""
 		}
 		return alias
-	} else {
-		return f.Name
 	}
+	return f.Name
 }
 
 func structToMap(s reflect.Value) map[string]interface{} {

@@ -16,7 +16,7 @@ package aerospike
 
 import "time"
 
-// Policy attributes used for user administration commands.
+// AdminPolicy contains attributes used for user administration commands.
 type AdminPolicy struct {
 
 	// User administration command socket timeout in milliseconds.

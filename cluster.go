@@ -702,6 +702,7 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err 
 	}
 }
 
+// Password returns the password that is currently used with the cluster.
 func (clstr *Cluster) Password() (res []byte) {
 	clstr.mutex.RLock()
 	res = clstr.password
@@ -720,6 +721,7 @@ func (clstr *Cluster) changePassword(user string, password string, hash []byte) 
 	}
 }
 
+// ClientPolicy returns the client policy that is currently used with the cluster.
 func (clstr *Cluster) ClientPolicy() (res ClientPolicy) {
 	clstr.mutex.RLock()
 	res = clstr.clientPolicy

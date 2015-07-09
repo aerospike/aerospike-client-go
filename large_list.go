@@ -71,7 +71,7 @@ func (ll *LargeList) FindThenFilter(value interface{}, filterModule, filterName 
 	return res.([]interface{}), err
 }
 
-// Select values from the beginning of list up to a maximum count.
+// FindFirst selects values from the beginning of list up to a maximum count.
 func (ll *LargeList) FindFirst(count int) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_first", ll.binName, NewValue(count))
 	if err != nil {
@@ -84,7 +84,7 @@ func (ll *LargeList) FindFirst(count int) ([]interface{}, error) {
 	return res.([]interface{}), err
 }
 
-// Select values from the beginning of list up to a maximum count after applying lua filter.
+// FFilterThenindFirst selects values from the beginning of list up to a maximum count after applying lua filter.
 func (ll *LargeList) FFilterThenindFirst(count int, filterModule, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_first", ll.binName, NewValue(count), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
@@ -97,7 +97,7 @@ func (ll *LargeList) FFilterThenindFirst(count int, filterModule, filterName str
 	return res.([]interface{}), err
 }
 
-// Select values from the end of list up to a maximum count.
+// FindLast selects values from the end of list up to a maximum count.
 func (ll *LargeList) FindLast(count int) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_last", ll.binName, NewValue(count))
 	if err != nil {
@@ -110,7 +110,7 @@ func (ll *LargeList) FindLast(count int) ([]interface{}, error) {
 	return res.([]interface{}), err
 }
 
-// Select values from the end of list up to a maximum count after applying lua filter.
+// FilterThenFindLast selects values from the end of list up to a maximum count after applying lua filter.
 func (ll *LargeList) FilterThenFindLast(count int, filterModule, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_last", ll.binName, NewValue(count), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
@@ -123,7 +123,7 @@ func (ll *LargeList) FilterThenFindLast(count int, filterModule, filterName stri
 	return res.([]interface{}), err
 }
 
-// Select values from the begin key up to a maximum count.
+// FindFrom selects values from the begin key up to a maximum count.
 func (ll *LargeList) FindFrom(begin interface{}, count int) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_from", ll.binName, NewValue(begin), NewValue(count))
 	if err != nil {
@@ -136,7 +136,7 @@ func (ll *LargeList) FindFrom(begin interface{}, count int) ([]interface{}, erro
 	return res.([]interface{}), err
 }
 
-// Select values from the begin key up to a maximum count after applying lua filter.
+// FilterThenFindFrom selects values from the begin key up to a maximum count after applying lua filter.
 func (ll *LargeList) FilterThenFindFrom(begin interface{}, count int, filterModule, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_from", ll.binName, NewValue(begin), NewValue(count), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
@@ -149,7 +149,7 @@ func (ll *LargeList) FilterThenFindFrom(begin interface{}, count int, filterModu
 	return res.([]interface{}), err
 }
 
-// Select a range of values from the large list.
+// Range selects a range of values from the large list.
 func (ll *LargeList) Range(begin, end interface{}) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_range", ll.binName, NewValue(begin), NewValue(end))
 	if err != nil {
@@ -162,7 +162,7 @@ func (ll *LargeList) Range(begin, end interface{}) ([]interface{}, error) {
 	return res.([]interface{}), err
 }
 
-// Select a range of values up to a maximum count from the large list.
+// RangeN selects a range of values up to a maximum count from the large list.
 func (ll *LargeList) RangeN(begin, end interface{}, count int) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find_range", ll.binName, NewValue(begin), NewValue(end), NewValue(count))
 	if err != nil {
@@ -175,7 +175,7 @@ func (ll *LargeList) RangeN(begin, end interface{}, count int) ([]interface{}, e
 	return res.([]interface{}), err
 }
 
-// Select a range of values from the large list then apply filter.
+// RangeThenFilter selects a range of values from the large list then apply filter.
 func (ll *LargeList) RangeThenFilter(begin, end interface{}, filterModule string, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "range", ll.binName, NewValue(begin), NewValue(end), NewValue(0), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
@@ -188,7 +188,7 @@ func (ll *LargeList) RangeThenFilter(begin, end interface{}, filterModule string
 	return res.([]interface{}), err
 }
 
-// Select a range of values up to a maximum count from the large list then apply filter.
+// RangeNThenFilter selects a range of values up to a maximum count from the large list then apply filter.
 func (ll *LargeList) RangeNThenFilter(begin, end interface{}, count int, filterModule string, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "range", ll.binName, NewValue(begin), NewValue(end), NewValue(count), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))
 	if err != nil {
@@ -229,7 +229,7 @@ func (ll *LargeList) Size() (int, error) {
 	return ll.size(ll)
 }
 
-// Set LDT page size.
+// SetPageSize sets the LDT page size.
 func (ll *LargeList) SetPageSize(pageSize int) error {
 	_, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "setPageSize", ll.binName, NewValue(pageSize))
 	return err
