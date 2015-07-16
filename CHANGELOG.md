@@ -1,5 +1,13 @@
 # Change history
 
+## July 16 2015 : v1.6.4
+
+  Hot fix release.
+
+  * **Fixes**
+
+    * Fix panic when a scan/query fails and the connection is not dropped.
+
 ## July 9 2015 : v1.6.3
 
   Minor fix release.
