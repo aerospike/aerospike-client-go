@@ -110,7 +110,7 @@ Using [gopkg.in](https://gopkg.in/) is also supported: `go get -u gopkg.in/aeros
 <a name="Performance"></a>
 ## Performance Tweaking
 
-We are bending all efforts to improve the client's performance. In out reference benchmarks, Go client performs almost as good as the C client.
+We are bending all efforts to improve the client's performance. In our reference benchmarks, Go client performs almost as good as the C client.
 
 To read about performance variables, please refer to [`docs/performance.md`](docs/performance.md)
 
