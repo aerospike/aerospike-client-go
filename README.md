@@ -132,7 +132,6 @@ To run all the test cases with race detection:
 ## Examples
 
 A variety of example applications are provided in the [`examples`](examples) directory.
-See the [`examples/README.md`](examples/README.md) for details.
 
 <a name="Tools"></a>
 ### Tools
