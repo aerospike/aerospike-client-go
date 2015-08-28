@@ -88,7 +88,7 @@ It is goroutine friendly, and works asynchronously.
 
 Supported operating systems:
 
-- Major Linux distributions (Ubuntu, Debian, Redhat)
+- Major Linux distributions (Ubuntu, Debian, Red Hat)
 - Mac OS X
 - Windows (untested)
 
