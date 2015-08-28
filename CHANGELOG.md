@@ -1,5 +1,13 @@
 # Change history
 
+## August 2015 : v1.6.5
+
+  Minor maintenance release.
+
+  * **Improvements**
+
+    * Export `MaxBufferSize` to allow tweaking of maximum buffer size allowed to read a record. If a record is bigger than this size (e.g: A lot of LDT elements in scan), this setting wil allow to tweak the buffer size.
+
 ## July 16 2015 : v1.6.4
 
   Hot fix release.
