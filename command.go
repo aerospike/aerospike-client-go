@@ -875,10 +875,17 @@ func (cmd *baseCommand) sizeBuffer() error {
 	return cmd.sizeBufferSz(cmd.dataOffset)
 }
 
+var (
+	// MaxBufferSize protects against allocating massive memory blocks
+	// for buffers. Tweak this number if you are returning a lot of
+	// LDT elements in your queries.
+	MaxBufferSize = 1024 * 1024 * 10 // 10 MB
+)
+
 func (cmd *baseCommand) sizeBufferSz(size int) error {
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
-	if size > _MAX_BUFFER_SIZE {
+	if size > MaxBufferSize {
 		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid size for buffer: %d", size))
 	}
 

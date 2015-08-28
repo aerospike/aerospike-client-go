@@ -22,10 +22,6 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-const (
-	_MAX_BUFFER_SIZE = 1024 * 1024 * 10 // 10 MB
-)
-
 type multiCommand interface {
 	Stop()
 }
@@ -114,7 +110,7 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 	if length > len(cmd.dataBuffer) {
 		// Corrupted data streams can result in a huge length.
 		// Do a sanity check here.
-		if length > _MAX_BUFFER_SIZE {
+		if length > MaxBufferSize {
 			return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
 		}
 		cmd.dataBuffer = make([]byte, length)
