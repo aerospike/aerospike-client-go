@@ -30,7 +30,7 @@ const udfBody = `function testFunc1(rec, div)
 
    local x = rec['bin1']                 -- Get the value from record bin named "bin1"
 
-   rec['bin2'] = (x / div)               -- Set the value in record bin named "bin2"
+   rec['bin2'] = math.floor(x / div)     -- Set the value in record bin named "bin2"
 
    aerospike:update(rec)                 -- Update the main record
 
