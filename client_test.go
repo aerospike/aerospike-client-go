@@ -801,9 +801,9 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				ops1 := []*Operation{
-					GetOp(),
 					PutOp(bin1),
 					PutOp(bin2),
+					GetOp(),
 				}
 
 				wpolicy := NewWritePolicy(0, 0)
@@ -814,7 +814,7 @@ var _ = Describe("Aerospike", func() {
 				recordset, err := client.ScanAll(nil, key.Namespace(), key.SetName())
 				Expect(err).ToNot(HaveOccurred())
 
-				// make sure the
+				// make sure the result is what we put in
 				for r := range recordset.Results() {
 					Expect(r.Err).ToNot(HaveOccurred())
 					if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
@@ -875,9 +875,9 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				ops1 := []*Operation{
-					GetOp(),
 					PutOp(bin1),
 					PutOp(bin2),
+					GetOp(),
 				}
 
 				rec, err = client.Operate(nil, key, ops1...)
@@ -888,9 +888,9 @@ var _ = Describe("Aerospike", func() {
 				Expect(rec.Generation).To(Equal(1))
 
 				ops2 := []*Operation{
-					GetOp(),
 					AddOp(bin1),    // double the value of the bin
 					AppendOp(bin2), // with itself
+					GetOp(),
 				}
 
 				rec, err = client.Operate(nil, key, ops2...)
@@ -901,10 +901,10 @@ var _ = Describe("Aerospike", func() {
 				Expect(rec.Generation).To(Equal(2))
 
 				ops3 := []*Operation{
-					GetOp(),
 					AddOp(bin1),
 					PrependOp(bin2),
 					TouchOp(),
+					GetOp(),
 				}
 
 				rec, err = client.Operate(nil, key, ops3...)
