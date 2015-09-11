@@ -154,6 +154,13 @@ func (nd *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
 		host := friendInfo[0]
 		port, _ := strconv.Atoi(friendInfo[1])
 		alias := NewHost(host, port)
+
+		if nd.cluster.clientPolicy.IpMap != nil {
+			if alternativeHost, ok := nd.cluster.clientPolicy.IpMap[host]; ok {
+				alias = NewHost(alternativeHost, port)
+			}
+		}
+
 		node := nd.cluster.findAlias(alias)
 
 		if node != nil {

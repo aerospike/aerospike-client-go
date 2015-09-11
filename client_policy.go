@@ -51,6 +51,14 @@ type ClientPolicy struct {
 	// TendInterval determines interval for checking for cluster state changes.
 	// Minimum possible interval is 10 Miliseconds.
 	TendInterval time.Duration //= 1 second
+
+	// A IP translation table is used in cases where different clients
+	// use different server IP addresses.  This may be necessary when
+	// using clients from both inside and outside a local area
+	// network. Default is no translation.
+	// The key is the IP address returned from friend info requests to other servers.
+	// The value is the real IP address used to connect to the server.
+	IpMap map[string]string
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.
