@@ -25,6 +25,9 @@ const (
 	// SysAdmin allows to manage indicies, user defined functions and server configuration.
 	SysAdmin Role = "sys-admin"
 
+	// ReadWriteUDF allows read, write and UDF transactions with the database.
+	ReadWriteUDF Role = "read-write-udf"
+
 	// ReadWrite allows read and write transactions with the database.
 	ReadWrite Role = "read-write"
 
