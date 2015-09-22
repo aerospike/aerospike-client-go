@@ -343,7 +343,7 @@ func (pckr *packer) PackByteArray(src []byte, srcOffset int, srcLength int) {
 func (pckr *packer) PackLong(valType int, val int64) {
 	pckr.buffer.WriteByte(byte(valType))
 	pos := pckr.grow(_b8)
-	pckr.buffer.Write(Buffer.Int64ToBytes(val, pckr.buffer.Bytes(), pos))
+	Buffer.Int64ToBytes(val, pckr.buffer.Bytes(), pos)
 }
 
 func (pckr *packer) PackULong(val uint64) {
