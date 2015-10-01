@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"errors"
 	"math"
 	"reflect"
 	"strings"
@@ -423,6 +424,7 @@ func setValue(f reflect.Value, value interface{}) error {
 				setValue(f.Index(i), theArray.Index(i).Interface())
 			}
 		case reflect.Map:
+			emptyStruct := reflect.ValueOf(struct{}{})
 			theMap := value.(map[interface{}]interface{})
 			if theMap != nil {
 				newMap := reflect.MakeMap(f.Type())
@@ -434,13 +436,29 @@ func setValue(f reflect.Value, value interface{}) error {
 						newKey = reflect.Zero(f.Type().Key())
 					}
 
+					if newKey.Type() != f.Type().Key() {
+						newKey = newKey.Convert(f.Type().Key())
+					}
+
 					if elem != nil {
 						newVal = reflect.ValueOf(elem)
 					} else {
 						newVal = reflect.Zero(f.Type().Elem())
 					}
 
-					newMap.SetMapIndex(newKey, newVal)
+					if newVal.Type() != f.Type().Elem() {
+						newVal = newVal.Convert(f.Type().Elem())
+					}
+
+					if newVal.Kind() == reflect.Map && newVal.Len() == 0 && newMap.Type().Elem().Kind() == emptyStruct.Type().Kind() {
+						if newMap.Type().Elem().NumField() == 0 {
+							newMap.SetMapIndex(newKey, emptyStruct)
+						} else {
+							return errors.New("Map value type is struct{}, but data returned from database is a non-empty map[interface{}]interface{}")
+						}
+					} else {
+						newMap.SetMapIndex(newKey, newVal)
+					}
 				}
 				f.Set(newMap)
 			}

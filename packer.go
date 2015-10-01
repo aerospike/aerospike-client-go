@@ -195,6 +195,9 @@ func (pckr *packer) PackObject(obj interface{}) error {
 	case float64:
 		pckr.PackFloat64(v)
 		return nil
+	case struct{}:
+		pckr.PackMap(map[interface{}]interface{}{})
+		return nil
 	case []interface{}:
 		return pckr.PackList(obj.([]interface{}))
 	case map[interface{}]interface{}:
