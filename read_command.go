@@ -254,7 +254,13 @@ func setValue(f reflect.Value, value interface{}) error {
 				f.SetUint(value.(uint64))
 			}
 		case reflect.Float64, reflect.Float32:
-			f.SetFloat(float64(math.Float64frombits(uint64(value.(int)))))
+			// if value has returned as a float
+			if fv, ok := value.(float64); ok {
+				f.SetFloat(fv)
+			} else {
+				// otherwise it is an old float64<->int64 marshalling type cast which needs to be set as int
+				f.SetFloat(float64(math.Float64frombits(uint64(value.(int)))))
+			}
 		case reflect.String:
 			rv := reflect.ValueOf(value.(string))
 			if rv.Type() != f.Type() {
@@ -347,7 +353,15 @@ func setValue(f reflect.Value, value interface{}) error {
 				}
 				f.Set(rv)
 			case reflect.Float64:
-				tempV := math.Float64frombits(uint64(value.(int)))
+				// it is possible that the value is an integer set in the field
+				// via the old float<->int64 type cast
+				var tempV float64
+				if fv, ok := value.(float64); ok {
+					tempV = fv
+				} else {
+					tempV = math.Float64frombits(uint64(value.(int)))
+				}
+
 				rv := reflect.ValueOf(&tempV)
 				if rv.Type() != f.Type() {
 					rv = rv.Convert(f.Type())
@@ -361,7 +375,16 @@ func setValue(f reflect.Value, value interface{}) error {
 				}
 				f.Set(rv)
 			case reflect.Float32:
-				tempV := float32(math.Float64frombits(uint64(value.(int))))
+				// it is possible that the value is an integer set in the field
+				// via the old float<->int64 type cast
+				var tempV64 float64
+				if fv, ok := value.(float64); ok {
+					tempV64 = fv
+				} else {
+					tempV64 = math.Float64frombits(uint64(value.(int)))
+				}
+
+				tempV := float32(tempV64)
 				rv := reflect.ValueOf(&tempV)
 				if rv.Type() != f.Type() {
 					rv = rv.Convert(f.Type())
@@ -436,13 +459,21 @@ func setValue(f reflect.Value, value interface{}) error {
 						newKey = reflect.Zero(f.Type().Key())
 					}
 
+					if newKey.Type() != f.Type().Key() {
+						newKey = newKey.Convert(f.Type().Key())
+					}
+
 					if elem != nil {
 						newVal = reflect.ValueOf(elem)
 					} else {
 						newVal = reflect.Zero(f.Type().Elem())
 					}
 
-					if newVal.Len() == 0 && newMap.Type().Elem().Kind() == emptyStruct.Type().Kind() {
+					if newVal.Type() != f.Type().Elem() {
+						newVal = newVal.Convert(f.Type().Elem())
+					}
+
+					if newVal.Kind() == reflect.Map && newVal.Len() == 0 && newMap.Type().Elem().Kind() == emptyStruct.Type().Kind() {
 						if newMap.Type().Elem().NumField() == 0 {
 							newMap.SetMapIndex(newKey, emptyStruct)
 						} else {
