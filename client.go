@@ -147,7 +147,7 @@ func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err error) {
 	policy = clnt.getUsableWritePolicy(policy)
 
-	bins := marshal(obj)
+	bins := marshal(obj, clnt.cluster.supportsFloat.Get())
 	command := newWriteCommand(clnt.cluster, policy, key, bins, WRITE)
 	res := command.Execute()
 	binPool.Put(bins)

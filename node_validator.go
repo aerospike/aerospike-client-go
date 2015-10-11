@@ -18,6 +18,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -31,6 +32,8 @@ type nodeValidator struct {
 	address    string
 	useNewInfo bool //= true
 	cluster    *Cluster
+
+	supportsFloat, supportsBatchIndex, supportsReplicasAll bool
 }
 
 // Generates a node validator
@@ -96,13 +99,18 @@ func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
 			return err
 		}
 
-		infoMap, err := RequestInfo(conn, "node", "build")
+		infoMap, err := RequestInfo(conn, "node", "build", "features")
 		if err != nil {
 			return err
 		}
 		if nodeName, exists := infoMap["node"]; exists {
 			ndv.name = nodeName
 			ndv.address = address
+
+			// set features
+			if features, exists := infoMap["features"]; exists {
+				ndv.setFeatures(features)
+			}
 
 			// Check new info protocol support for >= 2.6.6 build
 			if buildVersion, exists := infoMap["build"]; exists {
@@ -116,6 +124,20 @@ func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
 		}
 	}
 	return nil
+}
+
+func (ndv *nodeValidator) setFeatures(features string) {
+	featureList := strings.Split(features, ";")
+	for i := range featureList {
+		switch featureList[i] {
+		case "float":
+			ndv.supportsFloat = true
+		case "batch-index":
+			ndv.supportsBatchIndex = true
+		case "replicas-all":
+			ndv.supportsReplicasAll = true
+		}
+	}
 }
 
 // parses a version string

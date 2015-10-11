@@ -52,6 +52,15 @@ func isValidLongValue(i int64, v Value) bool {
 	return true
 }
 
+func isValidFloatValue(i float64, v Value) bool {
+	Expect(reflect.TypeOf(v)).To(Equal(reflect.TypeOf(NewFloatValue(0))))
+	Expect(v.GetObject().(float64)).To(Equal(i))
+	Expect(v.estimateSize()).To(Equal(8))
+	Expect(v.GetType()).To(Equal(ParticleType.FLOAT))
+
+	return true
+}
+
 var _ = Describe("Value Test", func() {
 
 	Context("NullValue", func() {
@@ -192,6 +201,16 @@ var _ = Describe("Value Test", func() {
 			i = int64(math.MaxInt64)
 			v = NewValue(i)
 			isValidLongValue(i, v)
+		})
+
+		It("should create a valid FloatValue on boundries of float64", func() {
+			i := float64(-math.MaxFloat64)
+			v := NewValue(i)
+			isValidFloatValue(i, v)
+
+			i = float64(math.MaxFloat64)
+			v = NewValue(i)
+			isValidFloatValue(i, v)
 		})
 
 	}) // numeric values context

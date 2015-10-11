@@ -254,7 +254,7 @@ var _ = Describe("Aerospike", func() {
 				})
 			})
 
-			Context("Bins with `int64` only values (uint64 will be supported through big.Int) ", func() {
+			Context("Bins with `int64` only values (uint64 is supported via type cast to int64) ", func() {
 				It("must save a key with SINGLE bin", func() {
 					bin := NewBin("Aerospike", rand.Int63())
 					err = client.PutBins(wpolicy, key, bin)
@@ -273,6 +273,56 @@ var _ = Describe("Aerospike", func() {
 				It("must save a key with MULTIPLE bins", func() {
 					bin1 := NewBin("Aerospike1", math.MaxInt64)
 					bin2 := NewBin("Aerospike2", math.MinInt64)
+					err = client.PutBins(wpolicy, key, bin1, bin2)
+					Expect(err).ToNot(HaveOccurred())
+
+					rec, err = client.Get(rpolicy, key)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+				})
+			})
+
+			Context("Bins with `float32` only values", func() {
+				It("must save a key with SINGLE bin", func() {
+					bin := NewBin("Aerospike", rand.Float32())
+					err = client.PutBins(wpolicy, key, bin)
+					Expect(err).ToNot(HaveOccurred())
+
+					rec, err = client.Get(rpolicy, key)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(float64(rec.Bins[bin.Name].(float64))).To(Equal(bin.Value.GetObject()))
+				})
+
+				It("must save a key with MULTIPLE bins", func() {
+					bin1 := NewBin("Aerospike1", math.MaxFloat32)
+					bin2 := NewBin("Aerospike2", -math.MaxFloat32)
+					err = client.PutBins(wpolicy, key, bin1, bin2)
+					Expect(err).ToNot(HaveOccurred())
+
+					rec, err = client.Get(rpolicy, key)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+				})
+			})
+
+			Context("Bins with `float64` only values", func() {
+				It("must save a key with SINGLE bin", func() {
+					bin := NewBin("Aerospike", rand.Float64())
+					err = client.PutBins(wpolicy, key, bin)
+					Expect(err).ToNot(HaveOccurred())
+
+					rec, err = client.Get(rpolicy, key)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(float64(rec.Bins[bin.Name].(float64))).To(Equal(bin.Value.GetObject()))
+				})
+
+				It("must save a key with MULTIPLE bins", func() {
+					bin1 := NewBin("Aerospike1", math.MaxFloat64)
+					bin2 := NewBin("Aerospike2", -math.MaxFloat64)
 					err = client.PutBins(wpolicy, key, bin1, bin2)
 					Expect(err).ToNot(HaveOccurred())
 

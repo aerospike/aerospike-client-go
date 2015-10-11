@@ -93,6 +93,10 @@ func NewValue(v interface{}) Value {
 		return NewIntegerValue(int(val))
 	case uint32:
 		return NewIntegerValue(int(val))
+	case float32:
+		return NewFloatValue(float64(val))
+	case float64:
+		return NewFloatValue(val)
 	case uint:
 		if !Buffer.Arch64Bits || (val <= math.MaxInt64) {
 			return NewLongValue(int64(val))
@@ -389,6 +393,53 @@ func (vl LongValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// FloatValue encapsulates an float64 value.
+type FloatValue float64
+
+// NewFloatValue generates a FloatValue instance.
+func NewFloatValue(value float64) FloatValue {
+	return FloatValue(value)
+}
+
+func (vl FloatValue) estimateSize() int {
+	return 8
+}
+
+func (vl FloatValue) write(buffer []byte, offset int) (int, error) {
+	Buffer.Float64ToBytes(float64(vl), buffer, offset)
+	return 8, nil
+}
+
+func (vl FloatValue) pack(packer *packer) error {
+	packer.PackFloat64(float64(vl))
+	return nil
+}
+
+// GetType returns wire protocol value type.
+func (vl FloatValue) GetType() int {
+	return ParticleType.FLOAT
+}
+
+// GetObject returns original value as an interface{}.
+func (vl FloatValue) GetObject() interface{} {
+	return float64(vl)
+}
+
+// func (vl FloatValue) GetLuaValue() LuaValue {
+// 	return LuaFloat.valueOf(vl)
+// }
+
+func (vl FloatValue) reader() io.Reader {
+	return bytes.NewReader(Buffer.Float64ToBytes(float64(vl), nil, 0))
+}
+
+// String implements Stringer interface.
+func (vl FloatValue) String() string {
+	return (fmt.Sprintf("%f", vl))
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 // ValueArray encapsulates an array of Value.
 // Supported by Aerospike 3 servers only.
 type ValueArray struct {
@@ -576,6 +627,9 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 	case ParticleType.INTEGER:
 		return Buffer.BytesToNumber(buf, offset, length), nil
 
+	case ParticleType.FLOAT:
+		return Buffer.BytesToFloat64(buf, offset), nil
+
 	case ParticleType.STRING:
 		return string(buf[offset : offset+length]), nil
 
@@ -602,6 +656,9 @@ func bytesToKeyValue(pType int, buf []byte, offset int, len int) (Value, error) 
 
 	case ParticleType.INTEGER:
 		return NewLongValue(Buffer.VarBytesToInt64(buf, offset, len)), nil
+
+	case ParticleType.FLOAT:
+		return NewFloatValue(Buffer.BytesToFloat64(buf, offset)), nil
 
 	case ParticleType.BLOB:
 		bytes := make([]byte, len, len)

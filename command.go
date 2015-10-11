@@ -22,6 +22,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go/logger"
 
 	. "github.com/aerospike/aerospike-client-go/types"
+	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -767,6 +768,12 @@ func (cmd *baseCommand) writeKey(key *Key, sendKey bool) {
 
 func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) error {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], bin.Name)
+
+	// check for float support
+	if (bin.Value.GetType() == ParticleType.FLOAT) && !cmd.node.supportsFloat.Get() {
+		panic("The This cluster node doesn't support double precision floating-point values.")
+	}
+
 	valueLength, err := bin.Value.write(cmd.dataBuffer, cmd.dataOffset+int(_OPERATION_HEADER_SIZE)+nameLength)
 	if err != nil {
 		return err
@@ -789,6 +796,11 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.BinName)
+
+	// check for float support
+	if (operation.BinValue.GetType() == ParticleType.FLOAT) && !cmd.node.supportsFloat.Get() {
+		panic("The This cluster node doesn't support double precision floating-point values.")
+	}
 
 	valueLength, err := operation.BinValue.write(cmd.dataBuffer, cmd.dataOffset+int(_OPERATION_HEADER_SIZE)+nameLength)
 	if err != nil {
@@ -840,6 +852,12 @@ func (cmd *baseCommand) writeOperationForOperationType(operation OperationType) 
 func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) {
 	offset := cmd.dataOffset + int(_FIELD_HEADER_SIZE)
 	cmd.dataBuffer[offset] = byte(value.GetType())
+
+	// check for float support
+	if (value.GetType() == ParticleType.FLOAT) && !cmd.node.supportsFloat.Get() {
+		panic("The This cluster node doesn't support double precision floating-point values.")
+	}
+
 	offset++
 	len, _ := value.write(cmd.dataBuffer, offset)
 	len++

@@ -18,9 +18,9 @@ const (
 	// Server particle types. Unsupported types are commented out.
 	NULL    = 0
 	INTEGER = 1
-	// BIGNUM          = 2
-	STRING = 3
-	BLOB   = 4
+	FLOAT   = 2
+	STRING  = 3
+	BLOB    = 4
 	// TIMESTAMP       = 5
 	DIGEST = 6
 	// JBLOB  = 7

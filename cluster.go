@@ -51,6 +51,9 @@ type Cluster struct {
 	tendChannel chan struct{}
 	closed      AtomicBool
 
+	// Aerospike v3.6.0+
+	supportsFloat *AtomicBool
+
 	// User name in UTF-8 encoded bytes.
 	user string
 
@@ -68,6 +71,8 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		partitionWriteMap: make(map[string]*AtomicArray),
 		nodeIndex:         NewAtomicInt(0),
 		tendChannel:       make(chan struct{}),
+
+		supportsFloat: NewAtomicBool(false),
 	}
 
 	// setup auth info for cluster
@@ -162,9 +167,13 @@ func (clstr *Cluster) tend() error {
 	refreshCount := 0
 
 	// Clear node reference counts.
+	floatSupport := true
 	for _, node := range nodes {
 		node.referenceCount.Set(0)
 		node.responded.Set(false)
+
+		// make sure ALL nodes support float
+		floatSupport = floatSupport && node.supportsFloat.Get()
 
 		if node.IsActive() {
 			if friends, err := node.Refresh(); err != nil {
@@ -176,7 +185,14 @@ func (clstr *Cluster) tend() error {
 				}
 			}
 		}
+
 	}
+
+	if !floatSupport {
+		Logger.Warn("Some cluster nodes do not support float type. Disabling native float support in the client library...")
+	}
+	// set the float support
+	clstr.supportsFloat.Set(floatSupport)
 
 	// Add nodes in a batch.
 	if addList := clstr.findNodesToAdd(friendList); len(addList) > 0 {

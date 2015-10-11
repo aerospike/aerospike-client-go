@@ -27,7 +27,7 @@ const (
 	keyTag       = "key"
 )
 
-func valueToInterface(f reflect.Value) interface{} {
+func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 	// get to the core value
 	for f.Kind() == reflect.Ptr {
 		if f.IsNil() {
@@ -40,12 +40,18 @@ func valueToInterface(f reflect.Value) interface{} {
 	case reflect.Uint64:
 		return int64(f.Uint())
 	case reflect.Float64, reflect.Float32:
-		return int(math.Float64bits(f.Float()))
+		// support floats through integer encoding if
+		// server doesn't support floats
+		if clusterSupportsFloat {
+			return f.Float()
+		} else {
+			return int(math.Float64bits(f.Float()))
+		}
 	case reflect.Struct:
 		if f.Type().PkgPath() == "time" && f.Type().Name() == "Time" {
 			return f.Interface().(time.Time).UTC().UnixNano()
 		}
-		return structToMap(f)
+		return structToMap(f, clusterSupportsFloat)
 	case reflect.Bool:
 		if f.Bool() == true {
 			return int64(1)
@@ -58,7 +64,7 @@ func valueToInterface(f reflect.Value) interface{} {
 
 		newMap := make(map[interface{}]interface{}, f.Len())
 		for _, mk := range f.MapKeys() {
-			newMap[valueToInterface(mk)] = valueToInterface(f.MapIndex(mk))
+			newMap[valueToInterface(mk, clusterSupportsFloat)] = valueToInterface(f.MapIndex(mk), clusterSupportsFloat)
 		}
 
 		return newMap
@@ -70,7 +76,7 @@ func valueToInterface(f reflect.Value) interface{} {
 		// convert to primitives recursively
 		newSlice := make([]interface{}, f.Len(), f.Cap())
 		for i := 0; i < len(newSlice); i++ {
-			newSlice[i] = valueToInterface(f.Index(i))
+			newSlice[i] = valueToInterface(f.Index(i), clusterSupportsFloat)
 		}
 
 		return newSlice
@@ -98,7 +104,7 @@ func fieldAlias(f reflect.StructField) string {
 	return f.Name
 }
 
-func structToMap(s reflect.Value) map[string]interface{} {
+func structToMap(s reflect.Value, clusterSupportsFloat bool) map[string]interface{} {
 	if !s.IsValid() {
 		return nil
 	}
@@ -116,7 +122,7 @@ func structToMap(s reflect.Value) map[string]interface{} {
 			continue
 		}
 
-		binValue := valueToInterface(s.Field(i))
+		binValue := valueToInterface(s.Field(i), clusterSupportsFloat)
 
 		if binMap == nil {
 			binMap = make(map[string]interface{}, numFields)
@@ -133,7 +139,7 @@ func structToMap(s reflect.Value) map[string]interface{} {
 	return binMap
 }
 
-func marshal(v interface{}) []*Bin {
+func marshal(v interface{}, clusterSupportsFloat bool) []*Bin {
 	s := reflect.Indirect(reflect.ValueOf(v).Elem())
 
 	// map tags
@@ -143,7 +149,7 @@ func marshal(v interface{}) []*Bin {
 	bins := binPool.Get(numFields).([]*Bin)
 
 	binCount := 0
-	n := structToMap(s)
+	n := structToMap(s, clusterSupportsFloat)
 	for k, v := range n {
 		bins[binCount].Name = k
 
