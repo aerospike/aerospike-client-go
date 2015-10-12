@@ -469,6 +469,15 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	fieldCount++
 
 	if len(statement.Filters) > 0 {
+		if len(statement.Filters) >= 1 {
+			idxType := statement.Filters[0].IndexCollectionType()
+
+			if idxType != ICT_DEFAULT {
+				cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1
+				fieldCount++
+			}
+		}
+
 		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
 		filterSize++ // num filters
 
@@ -557,6 +566,16 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	cmd.dataOffset += 8
 
 	if len(statement.Filters) > 0 {
+		if len(statement.Filters) >= 1 {
+			idxType := statement.Filters[0].IndexCollectionType()
+
+			if idxType != ICT_DEFAULT {
+				cmd.writeFieldHeader(1, INDEX_TYPE)
+				cmd.dataBuffer[cmd.dataOffset] = byte(idxType)
+				cmd.dataOffset++
+			}
+		}
+
 		cmd.writeFieldHeader(filterSize, INDEX_RANGE)
 		cmd.dataBuffer[cmd.dataOffset] = byte(len(statement.Filters))
 		cmd.dataOffset++

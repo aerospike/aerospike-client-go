@@ -37,6 +37,7 @@ const (
 	INDEX_FILTER      FieldType = 23
 	INDEX_LIMIT       FieldType = 24
 	INDEX_ORDER_BY    FieldType = 25
+	INDEX_TYPE                  = 26
 	UDF_PACKAGE_NAME  FieldType = 30
 	UDF_FUNCTION      FieldType = 31
 	UDF_ARGLIST       FieldType = 32

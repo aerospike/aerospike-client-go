@@ -20,33 +20,45 @@ import (
 
 // Filter specifies a query filter definition.
 type Filter struct {
-	name  string
-	begin Value
-	end   Value
+	name    string
+	idxType IndexCollectionType
+	begin   Value
+	end     Value
 }
 
 // NewEqualFilter creates a new equality filter instance for query.
 func NewEqualFilter(binName string, value interface{}) *Filter {
 	val := NewValue(value)
-	return newFilter(binName, val, val)
+	return newFilter(binName, ICT_DEFAULT, val, val)
 }
 
 // NewRangeFilter creates a range filter for query.
 // Range arguments must be int64 values.
 // String ranges are not supported.
 func NewRangeFilter(binName string, begin int64, end int64) *Filter {
-	return newFilter(binName, NewValue(begin), NewValue(end))
+	return newFilter(binName, ICT_DEFAULT, NewValue(begin), NewValue(end))
+}
+
+// NewContainsFilter creates a contains filter for query on collection index.
+func NewContainsFilter(name string, indexCollectionType IndexCollectionType, value interface{}) *Filter {
+	return newFilter(name, indexCollectionType, NewValue(value), NewValue(value))
 }
 
 // Create a filter for query.
 // Range arguments must be longs or integers which can be cast to longs.
 // String ranges are not supported.
-func newFilter(name string, begin Value, end Value) *Filter {
+func newFilter(name string, indexCollectionType IndexCollectionType, begin Value, end Value) *Filter {
 	return &Filter{
-		name:  name,
-		begin: begin,
-		end:   end,
+		name:    name,
+		idxType: indexCollectionType,
+		begin:   begin,
+		end:     end,
 	}
+}
+
+// IndexType return filter's index type.
+func (fltr *Filter) IndexCollectionType() IndexCollectionType {
+	return fltr.idxType
 }
 
 func (fltr *Filter) estimateSize() (int, error) {

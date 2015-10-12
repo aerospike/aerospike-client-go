@@ -934,6 +934,26 @@ func (clnt *Client) CreateIndex(
 	indexType IndexType,
 ) (*IndexTask, error) {
 	policy = clnt.getUsableWritePolicy(policy)
+	return clnt.CreateComplexIndex(policy, namespace, setName, indexName, binName, indexType, ICT_DEFAULT)
+}
+
+// CreateComplexIndex creates a secondary index, with the ability to put indexes
+// on bin containing complex data types, e.g: Maps and Lists.
+// This asynchronous server call will return before the command is complete.
+// The user can optionally wait for command completion by using the returned
+// IndexTask instance.
+// This method is only supported by Aerospike 3 servers.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) CreateComplexIndex(
+	policy *WritePolicy,
+	namespace string,
+	setName string,
+	indexName string,
+	binName string,
+	indexType IndexType,
+	indexCollectionType IndexCollectionType,
+) (*IndexTask, error) {
+	policy = clnt.getUsableWritePolicy(policy)
 
 	var strCmd bytes.Buffer
 	_, err := strCmd.WriteString("sindex-create:ns=")
@@ -947,6 +967,12 @@ func (clnt *Client) CreateIndex(
 	_, err = strCmd.WriteString(";indexname=")
 	_, err = strCmd.WriteString(indexName)
 	_, err = strCmd.WriteString(";numbins=1")
+
+	if indexCollectionType != ICT_DEFAULT {
+		_, err = strCmd.WriteString(";indextype=")
+		_, err = strCmd.WriteString(ictToString(indexCollectionType))
+	}
+
 	_, err = strCmd.WriteString(";indexdata=")
 	_, err = strCmd.WriteString(binName)
 	_, err = strCmd.WriteString(",")
