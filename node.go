@@ -50,7 +50,7 @@ type Node struct {
 	active              *AtomicBool
 	mutex               sync.RWMutex
 
-	supportsFloat, supportsBatchIndex, supportsReplicasAll *AtomicBool
+	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo *AtomicBool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -77,6 +77,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		supportsFloat:       NewAtomicBool(nv.supportsFloat),
 		supportsBatchIndex:  NewAtomicBool(nv.supportsBatchIndex),
 		supportsReplicasAll: NewAtomicBool(nv.supportsReplicasAll),
+		supportsGeo:         NewAtomicBool(nv.supportsGeo),
 	}
 }
 

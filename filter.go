@@ -15,44 +15,69 @@
 package aerospike
 
 import (
+	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 // Filter specifies a query filter definition.
 type Filter struct {
-	name    string
-	idxType IndexCollectionType
-	begin   Value
-	end     Value
+	name              string
+	idxType           IndexCollectionType
+	valueParticleType int
+	begin             Value
+	end               Value
 }
 
 // NewEqualFilter creates a new equality filter instance for query.
 func NewEqualFilter(binName string, value interface{}) *Filter {
 	val := NewValue(value)
-	return newFilter(binName, ICT_DEFAULT, val, val)
+	return newFilter(binName, ICT_DEFAULT, val.GetType(), val, val)
 }
 
 // NewRangeFilter creates a range filter for query.
 // Range arguments must be int64 values.
 // String ranges are not supported.
 func NewRangeFilter(binName string, begin int64, end int64) *Filter {
-	return newFilter(binName, ICT_DEFAULT, NewValue(begin), NewValue(end))
+	vBegin, vEnd := NewValue(begin), NewValue(end)
+	return newFilter(binName, ICT_DEFAULT, vBegin.GetType(), vBegin, vEnd)
 }
 
 // NewContainsFilter creates a contains filter for query on collection index.
 func NewContainsFilter(name string, indexCollectionType IndexCollectionType, value interface{}) *Filter {
-	return newFilter(name, indexCollectionType, NewValue(value), NewValue(value))
+	v := NewValue(value)
+	return newFilter(name, indexCollectionType, v.GetType(), v, v)
+}
+
+// NewContainsRangeFilter creates a contains filter for query on ranges of data in a collection index.
+func NewContainsRangeFilter(name string, indexCollectionType IndexCollectionType, begin, end int64) *Filter {
+	vBegin, vEnd := NewValue(begin), NewValue(end)
+	return newFilter(name, indexCollectionType, vBegin.GetType(), vBegin, vEnd)
+}
+
+// NewGeoWithinRegionFilter creates a geospatial "within region" filter for query.
+// Argument must be a valid GeoJSON region.
+func NewGeoPointsWithinRegionFilter(name, region string) *Filter {
+	v := NewStringValue(region)
+	return newFilter(name, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
+}
+
+// GeoContainingPointFilter creates a geospatial "containing point" filter for query.
+// Argument must be a valid GeoJSON point.
+func NewGeoRegionContainingPointFilter(name, point string) *Filter {
+	v := NewStringValue(point)
+	return newFilter(name, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
 }
 
 // Create a filter for query.
 // Range arguments must be longs or integers which can be cast to longs.
 // String ranges are not supported.
-func newFilter(name string, indexCollectionType IndexCollectionType, begin Value, end Value) *Filter {
+func newFilter(name string, indexCollectionType IndexCollectionType, valueParticleType int, begin Value, end Value) *Filter {
 	return &Filter{
-		name:    name,
-		idxType: indexCollectionType,
-		begin:   begin,
-		end:     end,
+		name:              name,
+		idxType:           indexCollectionType,
+		valueParticleType: valueParticleType,
+		begin:             begin,
+		end:               end,
 	}
 }
 
@@ -75,7 +100,7 @@ func (fltr *Filter) write(buf []byte, offset int) (int, error) {
 	offset += len + 1
 
 	// Write particle type.
-	buf[offset] = byte(fltr.begin.GetType())
+	buf[offset] = byte(fltr.valueParticleType)
 	offset++
 
 	// Write filter begin.

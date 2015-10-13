@@ -33,7 +33,7 @@ type nodeValidator struct {
 	useNewInfo bool //= true
 	cluster    *Cluster
 
-	supportsFloat, supportsBatchIndex, supportsReplicasAll bool
+	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo bool
 }
 
 // Generates a node validator
@@ -136,6 +136,8 @@ func (ndv *nodeValidator) setFeatures(features string) {
 			ndv.supportsBatchIndex = true
 		case "replicas-all":
 			ndv.supportsReplicasAll = true
+		case "geo":
+			ndv.supportsGeo = true
 		}
 	}
 }

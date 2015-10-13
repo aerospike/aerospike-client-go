@@ -1,0 +1,167 @@
+// Copyright 2013-2015 Aerospike, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package aerospike_test
+
+// import (
+// 	"fmt"
+
+// 	. "github.com/aerospike/aerospike-client-go"
+
+// 	. "github.com/onsi/ginkgo"
+// 	. "github.com/onsi/gomega"
+// )
+
+// // ALL tests are isolated by SetName and Key, which are 50 random charachters
+// var _ = Describe("Geo Spacial Tests", func() {
+// 	initTestVars()
+
+// 	// connection data
+// 	var ns = "test"
+// 	var set = randString(50)
+// 	var wpolicy = NewWritePolicy(0, 0)
+// 	wpolicy.SendKey = true
+// 	var size = 20
+// 	const keyCount = 1000
+
+// 	var binName = "GeoBin"
+
+// 	// use the same client for all
+// 	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	It("must Query a specific Region Containing a Point and get only relevant records back", func() {
+
+// 		regions := []string{
+// 			`{
+// 		    "type": "Polygon",
+// 		    "coordinates": [
+// 		        [[-122.500000, 37.000000],[-121.000000, 37.000000],
+// 		         [-121.000000, 38.080000],[-122.500000, 38.080000],
+// 		         [-122.500000, 37.000000]]
+// 		    ]
+// 		}`,
+// 			// 	`{
+// 			//     "type": "Polygon",
+// 			//     "coordinates": [
+// 			//         [[-125.500000, 33.000000],[-124.000000, 31.000000],
+// 			//          [-123.000000, 32.080000],[-123.500000, 32.080000],
+// 			//          [-126.500000, 34.000000]]
+// 			//     ]
+// 			// }`,
+// 		}
+
+// 		for i, ptsb := range regions {
+// 			key, _ := NewKey(ns, set, i)
+// 			bin := NewBin(binName, NewGeoJSONValue(ptsb))
+// 			err := client.PutBins(wpolicy, key, bin)
+// 			Expect(err).ToNot(HaveOccurred())
+// 		}
+
+// 		// queries only work on indices
+// 		client.DropIndex(wpolicy, ns, set, set+binName)
+
+// 		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, GEO2DSPHERE)
+// 		Expect(err).ToNot(HaveOccurred())
+
+// 		// wait until index is created
+// 		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+
+// 		defer client.DropIndex(wpolicy, ns, set, set+binName)
+
+// 		points := []string{
+// 			`{ "type": "Point", "coordinates": [-122.000000, 37.500000] }`,
+// 			`{ "type": "Point", "coordinates": [-121.700000, 37.800000] }`,
+// 			`{ "type": "Point", "coordinates": [-121.900000, 37.600000] }`,
+// 			`{ "type": "Point", "coordinates": [-121.800000, 37.700000] }`,
+// 			`{ "type": "Point", "coordinates": [-121.600000, 37.900000] }`,
+// 			`{ "type": "Point", "coordinates": [-121.500000, 38.000000] }`,
+// 		}
+
+// 		for _, rgnsb := range points {
+// 			stm := NewStatement(ns, set)
+// 			stm.Addfilter(NewGeoPointsWithinRegionFilter(binName, rgnsb))
+// 			recordset, err := client.Query(nil, stm)
+// 			Expect(err).ToNot(HaveOccurred())
+
+// 			count := 0
+// 			for res := range recordset.Results() {
+// 				Expect(res.Err).ToNot(HaveOccurred())
+// 				Expect(regions).To(ContainElement(res.Record.Bins[binName].(string)))
+// 				count++
+// 			}
+
+// 			// 1 region should be found
+// 			Expect(count).To(Equal(1))
+// 		}
+// 	})
+
+// 	It("must Query a specific Point in Region and get only relevant records back", func() {
+// 		points := []string{}
+// 		for i := 0; i < size; i++ {
+// 			lng := -122.0 + (0.1 * float64(i))
+// 			lat := 37.5 + (0.1 * float64(i))
+// 			ptsb := "{ \"type\": \"Point\", \"coordinates\": ["
+// 			ptsb += fmt.Sprintf("%f", lng)
+// 			ptsb += ", "
+// 			ptsb += fmt.Sprintf("%f", lat)
+// 			ptsb += "] }"
+
+// 			points = append(points, ptsb)
+
+// 			key, _ := NewKey(ns, set, i)
+// 			bin := NewBin(binName, NewGeoJSONValue(ptsb))
+// 			err := client.PutBins(wpolicy, key, bin)
+// 			Expect(err).ToNot(HaveOccurred())
+// 		}
+
+// 		// queries only work on indices
+// 		client.DropIndex(wpolicy, ns, set, set+binName)
+
+// 		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, GEO2DSPHERE)
+// 		Expect(err).ToNot(HaveOccurred())
+
+// 		// wait until index is created
+// 		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+
+// 		defer client.DropIndex(wpolicy, ns, set, set+binName)
+
+// 		rgnsb := `{
+// 		    "type": "Polygon",
+// 		    "coordinates": [
+// 		        [[-122.500000, 37.000000],[-121.000000, 37.000000],
+// 		         [-121.000000, 38.080000],[-122.500000, 38.080000],
+// 		         [-122.500000, 37.000000]]
+// 		    ]
+// 		}`
+
+// 		stm := NewStatement(ns, set)
+// 		stm.Addfilter(NewGeoRegionContainingPointFilter(binName, rgnsb))
+// 		recordset, err := client.Query(nil, stm)
+// 		Expect(err).ToNot(HaveOccurred())
+
+// 		count := 0
+// 		for res := range recordset.Results() {
+// 			Expect(res.Err).ToNot(HaveOccurred())
+// 			Expect(points).To(ContainElement(res.Record.Bins[binName].(string)))
+// 			count++
+// 		}
+
+// 		// 6 points should be found
+// 		Expect(count).To(Equal(6))
+// 	})
+
+// })

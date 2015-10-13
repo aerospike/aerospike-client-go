@@ -98,7 +98,7 @@ var _ = Describe("Query operations on complex types", func() {
 		Expect(cnt).To(BeNumerically("==", keyCount))
 	})
 
-	It("must Query a specific non-existig range in list and get no records back", func() {
+	It("must Query a specific non-existig element in list and get no records back", func() {
 		stm := NewStatement(ns, set)
 		stm.Addfilter(NewContainsFilter(bin1.Name, ICT_LIST, 10))
 		recordset, err := client.Query(nil, stm)

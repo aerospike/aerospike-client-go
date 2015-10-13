@@ -35,6 +35,7 @@ const (
 	// RTA_APPEND_DICT = 16
 	// RTA_APPEND_LIST = 17
 	// LUA_BLOB        = 18
-	MAP  = 19
-	LIST = 20
+	MAP     = 19
+	LIST    = 20
+	GEOJSON = 23
 )

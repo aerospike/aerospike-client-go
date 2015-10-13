@@ -619,6 +619,58 @@ func (vl *MapValue) String() string {
 	return fmt.Sprintf("%v", vl.vmap)
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+// MapValue encapsulates a 2D Geo point.
+// Supported by Aerospike 3.6.1 servers only.
+type GeoJSONValue string
+
+// NewMapValue generates a GeoJSONValue instance.
+func NewGeoJSONValue(value string) GeoJSONValue {
+	res := GeoJSONValue(value)
+	return res
+}
+
+func (vl GeoJSONValue) estimateSize() int {
+	// flags + ncells + jsonstr
+	return 1 + 2 + len(string(vl))
+}
+
+func (vl GeoJSONValue) write(buffer []byte, offset int) (int, error) {
+	buffer[offset] = 0   // flags
+	buffer[offset+1] = 0 // flags
+	buffer[offset+2] = 0 // flags
+
+	return 1 + 2 + copy(buffer[offset+3:], string(vl)), nil
+}
+
+func (vl GeoJSONValue) pack(packer *packer) error {
+	return NewAerospikeError(PARAMETER_ERROR, "can't pack GeoJSON")
+}
+
+// GetType returns wire protocol value type.
+func (vl GeoJSONValue) GetType() int {
+	return ParticleType.GEOJSON
+}
+
+// GetObject returns original value as an interface{}.
+func (vl GeoJSONValue) GetObject() interface{} {
+	return string(vl)
+}
+
+// func (vl GeoJSONValue) GetLuaValue() LuaValue {
+// 	return nil
+// }
+
+func (vl GeoJSONValue) reader() io.Reader {
+	return strings.NewReader(string(vl))
+}
+
+// String implements Stringer interface.
+func (vl GeoJSONValue) String() string {
+	return string(vl)
+}
+
 //////////////////////////////////////////////////////////////////////////////
 
 func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}, error) {
@@ -644,6 +696,10 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 	case ParticleType.MAP:
 		return newUnpacker(buf, offset, length).UnpackMap()
 
+	case ParticleType.GEOJSON:
+		ncells := int(Buffer.BytesToInt16(buf, offset+1))
+		headerSize := 1 + 2 + (ncells * 8)
+		return string(buf[offset+headerSize : offset+length]), nil
 	}
 	return nil, nil
 }

@@ -789,9 +789,7 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], bin.Name)
 
 	// check for float support
-	if (bin.Value.GetType() == ParticleType.FLOAT) && !cmd.node.supportsFloat.Get() {
-		panic("The This cluster node doesn't support double precision floating-point values.")
-	}
+	cmd.checkServerCompatibility(bin.Value)
 
 	valueLength, err := bin.Value.write(cmd.dataBuffer, cmd.dataOffset+int(_OPERATION_HEADER_SIZE)+nameLength)
 	if err != nil {
@@ -817,9 +815,7 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.BinName)
 
 	// check for float support
-	if (operation.BinValue.GetType() == ParticleType.FLOAT) && !cmd.node.supportsFloat.Get() {
-		panic("The This cluster node doesn't support double precision floating-point values.")
-	}
+	cmd.checkServerCompatibility(operation.BinValue)
 
 	valueLength, err := operation.BinValue.write(cmd.dataBuffer, cmd.dataOffset+int(_OPERATION_HEADER_SIZE)+nameLength)
 	if err != nil {
@@ -868,14 +864,26 @@ func (cmd *baseCommand) writeOperationForOperationType(operation OperationType) 
 	cmd.dataOffset++
 }
 
+func (cmd *baseCommand) checkServerCompatibility(val Value) {
+	// check for float support
+	switch val.GetType() {
+	case ParticleType.FLOAT:
+		if !cmd.node.supportsFloat.Get() {
+			panic("This cluster node doesn't support double precision floating-point values.")
+		}
+	case ParticleType.GEOJSON:
+		if !cmd.node.supportsGeo.Get() {
+			panic("This cluster node doesn't support geo-spatial features.")
+		}
+	}
+}
+
 func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) {
 	offset := cmd.dataOffset + int(_FIELD_HEADER_SIZE)
 	cmd.dataBuffer[offset] = byte(value.GetType())
 
 	// check for float support
-	if (value.GetType() == ParticleType.FLOAT) && !cmd.node.supportsFloat.Get() {
-		panic("The This cluster node doesn't support double precision floating-point values.")
-	}
+	cmd.checkServerCompatibility(value)
 
 	offset++
 	len, _ := value.write(cmd.dataBuffer, offset)
