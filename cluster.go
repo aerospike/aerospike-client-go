@@ -536,7 +536,12 @@ func (clstr *Cluster) removeNodesCopy(nodesToRemove []*Node) {
 	// and the tend goroutine is the only goroutine modifying nodes, we are guaranteed that nodes
 	// in nodesToRemove exist.  Therefore, we know the final array size.
 	nodes := clstr.GetNodes()
-	nodeArray := make([]*Node, len(nodes)-len(nodesToRemove))
+	nodeNum := len(nodes) - len(nodesToRemove)
+	if nodeNum <= 0 {
+		Logger.Warn("Node remove is zero or negative, will cause panic. Aborting.")
+		return
+	}
+	nodeArray := make([]*Node, nodeNum)
 	count := 0
 
 	// Add nodes that are not in remove list.
