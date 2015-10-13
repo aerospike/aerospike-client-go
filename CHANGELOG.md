@@ -1,5 +1,29 @@
 # Change history
 
+## October 14 2015 : v1.7
+
+  Major release.
+
+  * **New Features**
+
+    * Added support for Geo spatial queries.
+
+    * Added support for creating indexes on List and Map bins, and querying them.
+
+    * Added support for native floting point values.
+
+    * Added `ClientPolicy.IpMap` to use IP translation for alias recognition. PR #81, Thanks to [Christopher Guiney](https://github.com/chrisguiney)
+
+  * **Fixes**
+
+    * Fixes an issue with unmarshalling maps of type map[ANY]struct{} into embedded structs.
+
+    * Fixes issue with unmarshalling maps of type map[ANY]struct{} into embedded structs.
+
+    * Fixes an issue with bound checking. PR #85, Thanks to [Tait Clarridge](https://github.com/oldmantaiter)
+    
+    * Fixes aa few typos in the docs. PR #76, Thanks to [Charl Matthee](https://github.com/charl)
+
 ## August 2015 : v1.6.5
 
   Minor maintenance release.
