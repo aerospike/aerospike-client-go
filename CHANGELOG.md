@@ -14,6 +14,10 @@
 
     * Added `ClientPolicy.IpMap` to use IP translation for alias recognition. PR #81, Thanks to [Christopher Guiney](https://github.com/chrisguiney)
 
+  * **Improvements**
+
+    * Cosmetic change to improve code consistency for `PackLong` in `packer.go`. PR #78, Thanks to [Erik Dubbelboer](https://github.com/ErikDubbelboer)
+
   * **Fixes**
 
     * Fixes an issue with unmarshalling maps of type map[ANY]struct{} into embedded structs.
