@@ -24,13 +24,16 @@ import (
 	as "github.com/aerospike/aerospike-client-go"
 )
 
-var host = flag.String("h", "127.0.0.1", "host (default 127.0.0.1)")
-var port = flag.Int("p", 3000, "port (default 3000)")
-var value = flag.String("v", "", "(fetch single value - default all)")
-var sepLines = flag.Bool("l", false, "(print in seperate lines - default false)")
-var user = flag.String("U", "", "User.")
-var password = flag.String("P", "", "Password.")
-var clientPolicy *as.ClientPolicy
+var (
+	host     = flag.String("h", "127.0.0.1", "host (default 127.0.0.1)")
+	port     = flag.Int("p", 3000, "port (default 3000)")
+	value    = flag.String("v", "", "(fetch single value - default all)")
+	sepLines = flag.Bool("l", false, "(print in seperate lines - default false)")
+	user     = flag.String("U", "", "User.")
+	password = flag.String("P", "", "Password.")
+
+	clientPolicy *as.ClientPolicy
+)
 
 func main() {
 	flag.Parse()
@@ -44,24 +47,35 @@ func main() {
 	}
 
 	// connect to the host
-	if client, err := as.NewClientWithPolicy(clientPolicy, *host, *port); err != nil {
-		log.Fatalln(err.Error())
-	} else {
-		node := client.GetNodes()[0]
-		if conn, err := node.GetConnection(time.Second); err != nil {
-			log.Fatalln(err.Error())
-		} else {
-			if infoMap, err := as.RequestInfo(conn, strings.Trim(*value, " ")); err != nil {
-				node.InvalidateConnection(conn)
-				log.Fatalln(err.Error())
-			} else {
-				node.PutConnection(conn)
-				cnt := 1
-				for k, v := range infoMap {
-					log.Printf("%d :  %s\n     %s\n\n", cnt, k, v)
-					cnt++
-				}
-			}
-		}
+	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+	dieIfError(err)
+
+	node := client.GetNodes()[0]
+
+	conn, err := node.GetConnection(time.Second)
+	dieIfError(err)
+
+	infoMap, err := as.RequestInfo(conn, strings.Trim(*value, " "))
+	dieIfError(err, func() {
+		node.InvalidateConnection(conn)
+	})
+
+	node.PutConnection(conn)
+
+	cnt := 1
+	for k, v := range infoMap {
+		log.Printf("%d :  %s\n     %s\n\n", cnt, k, v)
+		cnt++
 	}
+}
+
+// dieIfError calls each callback in turn before printing the error via log.Fatalln.
+func dieIfError(err error, cleanup ...func()) {
+	if err != nil {
+		for _, cb := range cleanup {
+			cb()
+		}
+		log.Fatalln(err.Error())
+	}
+	return
 }
