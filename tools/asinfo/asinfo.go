@@ -62,10 +62,20 @@ func main() {
 
 	node.PutConnection(conn)
 
+	outfmt := `%d :  %s;     %s;;`
+	if *sepLines {
+		outfmt = `%d :  %s\n     %s\n\n`
+	}
 	cnt := 1
 	for k, v := range infoMap {
-		log.Printf("%d :  %s\n     %s\n\n", cnt, k, v)
+		log.Printf(outfmt, cnt, k, v)
 		cnt++
+	}
+
+	if !*sepLines {
+		// Tack a newline on the end of output to be more
+		// terminal friendly if we haven't used them.
+		log.Println("")
 	}
 }
 
