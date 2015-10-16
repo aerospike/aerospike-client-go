@@ -158,6 +158,12 @@ func (nd *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
 
 	for _, friend := range friendNames {
 		friendInfo := strings.Split(friend, ":")
+
+		if len(friendInfo) != 2 {
+			Logger.Error("Node info from asinfo:services is malformed. Expected HOST:PORT, but got `%s`", friend)
+			continue
+		}
+
 		host := friendInfo[0]
 		port, _ := strconv.Atoi(friendInfo[1])
 		alias := NewHost(host, port)

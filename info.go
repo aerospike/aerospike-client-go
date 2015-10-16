@@ -127,57 +127,23 @@ func (nfo *info) sendCommand(conn *Connection) error {
 	return err
 }
 
-func (nfo *info) parseSingleResponse(name string) (string, error) {
-	return "-", nil
-}
-
 func (nfo *info) parseMultiResponse() (map[string]string, error) {
 	responses := make(map[string]string)
-	offset := int64(0)
-	begin := int64(0)
+	data := strings.Trim(string(nfo.msg.Data), "\n")
 
-	dataLen := int64(len(nfo.msg.Data))
+	keyValuesArr := strings.Split(data, "\n")
+	for _, keyValueStr := range keyValuesArr {
+		KeyValArr := strings.Split(keyValueStr, "\t")
 
-	// Create reusable StringBuilder for performance.
-	for offset < dataLen {
-		b := nfo.msg.Data[offset]
-
-		if b == '\t' {
-			name := nfo.msg.Data[begin:offset]
-			offset++
-			begin = offset
-
-			// Parse field value.
-			for offset < dataLen {
-				if nfo.msg.Data[offset] == '\n' {
-					break
-				}
-				offset++
-			}
-
-			if offset > begin {
-				value := nfo.msg.Data[begin:offset]
-				responses[string(name)] = string(value)
-			} else {
-				responses[string(name)] = ""
-			}
-			offset++
-			begin = offset
-		} else if b == '\n' {
-			if offset > begin {
-				name := nfo.msg.Data[begin:offset]
-				responses[string(name)] = ""
-			}
-			offset++
-			begin = offset
-		} else {
-			offset++
+		switch len(KeyValArr) {
+		case 1:
+			responses[KeyValArr[0]] = ""
+		case 2:
+			responses[KeyValArr[0]] = KeyValArr[1]
+		default:
+			Logger.Error("Requested info buffer does not adhere to the protocol: %s", data)
 		}
 	}
 
-	if offset > begin {
-		name := nfo.msg.Data[begin:offset]
-		responses[string(name)] = ""
-	}
 	return responses, nil
 }
