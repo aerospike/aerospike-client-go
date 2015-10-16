@@ -1,8 +1,8 @@
 # Change history
 
-## October 14 2015 : v1.7
+## October 16 2015 : v1.7
 
-  Major release.
+  Major release. Adds new features and fixes important bugs.
 
   * **New Features**
 
@@ -19,6 +19,8 @@
     * Cosmetic change to improve code consistency for `PackLong` in `packer.go`. PR #78, Thanks to [Erik Dubbelboer](https://github.com/ErikDubbelboer)
 
   * **Fixes**
+
+    * Fixes an issue when the info->services string was malformed and caused the client to panic.
 
     * Fixes an issue with unmarshalling maps of type map[ANY]struct{} into embedded structs.
 
