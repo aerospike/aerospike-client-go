@@ -45,26 +45,31 @@ func main() {
 		clientPolicy.User = *user
 		clientPolicy.Password = *password
 	}
+	*value = strings.Trim(*value, " ")
 
 	// connect to the host
 	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 	dieIfError(err)
 
 	node := client.GetNodes()[0]
-
 	conn, err := node.GetConnection(time.Second)
 	dieIfError(err)
 
-	infoMap, err := as.RequestInfo(conn, strings.Trim(*value, " "))
+	infoMap, err := as.RequestInfo(conn, *value)
 	dieIfError(err, func() {
 		node.InvalidateConnection(conn)
 	})
 
 	node.PutConnection(conn)
 
-	outfmt := `%d :  %s;     %s;;`
+	if len(infoMap) == 0 {
+		log.Printf("Query successful, no information for -v \"%s\"\n\n", *value)
+		return
+	}
+
+	outfmt := "%d :  %s;     %s;;"
 	if *sepLines {
-		outfmt = `%d :  %s\n     %s\n\n`
+		outfmt = "%d :  %s\n     %s\n\n"
 	}
 	cnt := 1
 	for k, v := range infoMap {
@@ -82,6 +87,7 @@ func main() {
 // dieIfError calls each callback in turn before printing the error via log.Fatalln.
 func dieIfError(err error, cleanup ...func()) {
 	if err != nil {
+		log.Println("Error:")
 		for _, cb := range cleanup {
 			cb()
 		}
