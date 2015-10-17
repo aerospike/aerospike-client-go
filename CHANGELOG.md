@@ -10,7 +10,7 @@
 
     * Added support for creating indexes on List and Map bins, and querying them.
 
-    * Added support for native floting point values.
+    * Added support for native floating point values.
 
     * Added `ClientPolicy.IpMap` to use IP translation for alias recognition. PR #81, Thanks to [Christopher Guiney](https://github.com/chrisguiney)
 
