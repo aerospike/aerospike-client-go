@@ -214,24 +214,11 @@ func KeepConnection(err error) bool {
 	}
 
 	switch ae.resultCode {
-	case 0, // Zero Value
-		QUERY_TERMINATED,
-		SCAN_TERMINATED,
-		INVALID_NODE_ERROR,
-		PARSE_ERROR,
-		SERIALIZE_ERROR,
-		SERVER_MEM_ERROR,
-		TIMEOUT,
-		SERVER_NOT_AVAILABLE,
-		SCAN_ABORT,
-		INDEX_OOM,
-		QUERY_ABORTED,
-		QUERY_TIMEOUT:
-
-		return false
+	case KEY_NOT_FOUND_ERROR:
+		return true
 
 	default:
-		return true
+		return false
 	}
 }
 

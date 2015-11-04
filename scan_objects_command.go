@@ -16,7 +16,9 @@ package aerospike
 
 import . "github.com/aerospike/aerospike-client-go/types"
 
-type scanCommand struct {
+// . "github.com/aerospike/aerospike-client-go/types/atomic"
+
+type scanObjectsCommand struct {
 	*baseMultiCommand
 
 	policy    *ScanPolicy
@@ -25,15 +27,15 @@ type scanCommand struct {
 	binNames  []string
 }
 
-func newScanCommand(
+func newScanObjectsCommand(
 	node *Node,
 	policy *ScanPolicy,
 	namespace string,
 	setName string,
 	binNames []string,
 	recordset *Recordset,
-) *scanCommand {
-	cmd := &scanCommand{
+) *scanObjectsCommand {
+	cmd := &scanObjectsCommand{
 		baseMultiCommand: newMultiCommand(node, recordset),
 		policy:           policy,
 		namespace:        namespace,
@@ -46,19 +48,19 @@ func newScanCommand(
 	return cmd
 }
 
-func (cmd *scanCommand) getPolicy(ifc command) Policy {
+func (cmd *scanObjectsCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *scanCommand) writeBuffer(ifc command) error {
+func (cmd *scanObjectsCommand) writeBuffer(ifc command) error {
 	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames)
 }
 
-func (cmd *scanCommand) parseResult(ifc command, conn *Connection) error {
+func (cmd *scanObjectsCommand) parseResult(ifc command, conn *Connection) error {
 	return cmd.baseMultiCommand.parseResult(ifc, conn)
 }
 
-func (cmd *scanCommand) Execute() error {
+func (cmd *scanObjectsCommand) Execute() error {
 	defer cmd.recordset.signalEnd()
 	return cmd.execute(cmd)
 }

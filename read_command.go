@@ -103,7 +103,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 
 	if cmd.object == nil {
 		if opCount == 0 {
-			// data Bin was not returned.
+			// data Bin was not returned
 			cmd.record = newRecord(cmd.node, cmd.key, nil, generation, expiration)
 			return nil
 		}
@@ -189,7 +189,20 @@ func (cmd *readCommand) parseObject(
 
 	var rv reflect.Value
 	if opCount > 0 {
-		rv = reflect.ValueOf(cmd.object).Elem()
+		rv = reflect.ValueOf(cmd.object)
+
+		if rv.Kind() != reflect.Ptr {
+			return errors.New("Invalid type for result object. It should be of type Struct Pointer.")
+		}
+		rv = rv.Elem()
+
+		if !rv.CanAddr() {
+			return errors.New("Invalid type for object. It should be addressable (a pointer)")
+		}
+
+		if rv.Kind() != reflect.Struct {
+			return errors.New("Invalid type for object. It should be a pointer to a struct.")
+		}
 
 		// map tags
 		cacheObjectTags(rv)
@@ -204,7 +217,7 @@ func (cmd *readCommand) parseObject(
 
 		particleBytesSize := int(opSize - (4 + nameSize))
 		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
-		if err := cmd.setObjectField(rv, name, value); err != nil {
+		if err := setObjectField(rv, name, value); err != nil {
 			return err
 		}
 
@@ -222,7 +235,7 @@ func (cmd *readCommand) Execute() error {
 	return cmd.execute(cmd)
 }
 
-func (cmd *readCommand) setObjectField(obj reflect.Value, fieldName string, value interface{}) error {
+func setObjectField(obj reflect.Value, fieldName string, value interface{}) error {
 	if value == nil {
 		return nil
 	}

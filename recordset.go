@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"reflect"
 	"sync"
 
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
@@ -25,12 +26,11 @@ type Result struct {
 	Err    error
 }
 
-// Recordset encapsulates the result of Scan and Query commands.
-type Recordset struct {
-	// Records is a channel on which the resulting records will be sent back.
-	// NOTE: Do not use Records directly. Range on channel returned by Results() instead.
-	// Will be unexported in the future
-	Records chan *Record
+// Objectset encapsulates the result of Scan and Query commands.
+type objectset struct {
+	// a reference to the object channel to close on end signal
+	objChan reflect.Value
+
 	// Errors is a channel on which all errors will be sent back.
 	// NOTE: Do not use Records directly. Range on channel returned by Results() instead.
 	// Will be unexported in the future
@@ -45,16 +45,45 @@ type Recordset struct {
 	chanLock sync.Mutex
 }
 
-// NewRecordset generates a new RecordSet instance.
-func newRecordset(recSize, goroutines int) *Recordset {
-	rs := &Recordset{
-		Records:    make(chan *Record, recSize),
+// Recordset encapsulates the result of Scan and Query commands.
+type Recordset struct {
+	objectset
+
+	// Records is a channel on which the resulting records will be sent back.
+	// NOTE: Do not use Records directly. Range on channel returned by Results() instead.
+	// Will be unexported in the future
+	Records chan *Record
+}
+
+// newObjectset generates a new RecordSet instance.
+func newObjectset(objChan reflect.Value, goroutines int) *objectset {
+
+	if objChan.Kind() != reflect.Chan ||
+		objChan.Type().Elem().Kind() != reflect.Ptr ||
+		objChan.Type().Elem().Elem().Kind() != reflect.Struct {
+		panic("Scan/Query object channels should be of type `chan *T`")
+	}
+
+	rs := &objectset{
+		objChan:    objChan,
 		Errors:     make(chan error, goroutines),
 		active:     NewAtomicBool(true),
 		goroutines: NewAtomicInt(goroutines),
 		cancelled:  make(chan struct{}),
 	}
 	rs.wgGoroutines.Add(goroutines)
+
+	return rs
+}
+
+// newRecordset generates a new RecordSet instance.
+func newRecordset(recSize, goroutines int) *Recordset {
+	var nilChan chan *struct{}
+
+	rs := &Recordset{
+		Records:   make(chan *Record, recSize),
+		objectset: *newObjectset(reflect.ValueOf(nilChan), goroutines),
+	}
 
 	return rs
 }
@@ -119,7 +148,13 @@ func (rcs *Recordset) Close() {
 
 		rcs.chanLock.Lock()
 		defer rcs.chanLock.Unlock()
-		close(rcs.Records)
+
+		if rcs.Records != nil {
+			close(rcs.Records)
+		} else if rcs.objChan.IsValid() {
+			rcs.objChan.Close()
+		}
+
 		close(rcs.Errors)
 	}
 }

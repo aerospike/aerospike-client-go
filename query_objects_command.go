@@ -16,12 +16,12 @@ package aerospike
 
 import . "github.com/aerospike/aerospike-client-go/types"
 
-type queryRecordCommand struct {
+type queryObjectsCommand struct {
 	*queryCommand
 }
 
-func newQueryRecordCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryRecordCommand {
-	cmd := &queryRecordCommand{
+func newQueryObjectsCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryObjectsCommand {
+	cmd := &queryObjectsCommand{
 		queryCommand: newQueryCommand(node, policy, statement, recordset),
 	}
 
@@ -30,7 +30,7 @@ func newQueryRecordCommand(node *Node, policy *QueryPolicy, statement *Statement
 	return cmd
 }
 
-func (cmd *queryRecordCommand) Execute() error {
+func (cmd *queryObjectsCommand) Execute() error {
 	defer cmd.recordset.signalEnd()
 	return cmd.execute(cmd)
 }

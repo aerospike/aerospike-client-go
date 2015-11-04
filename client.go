@@ -482,6 +482,87 @@ func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordse
 	return command.Execute()
 }
 
+// ScanAllObjects reads all records in specified namespace and set from all nodes.
+// If the policy's concurrentNodes is specified, each server node will be read in
+// parallel. Otherwise, server nodes are read sequentially.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
+	policy := *clnt.getUsableScanPolicy(apolicy)
+
+	nodes := clnt.cluster.GetNodes()
+	if len(nodes) == 0 {
+		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
+	}
+
+	if policy.WaitUntilMigrationsAreOver {
+		// wait until all migrations are finished
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+			return nil, err
+		}
+	}
+
+	// result recordset
+	os := newObjectset(reflect.ValueOf(objChan), len(nodes))
+	res := &Recordset{
+		objectset: *os,
+	}
+
+	// the whole call should be wrapped in a goroutine
+	if policy.ConcurrentNodes {
+		for _, node := range nodes {
+			go func(node *Node) {
+				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, binNames...); err != nil {
+					res.sendError(err)
+				}
+			}(node)
+		}
+	} else {
+		// scan nodes one by one
+		go func() {
+			for _, node := range nodes {
+				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, binNames...); err != nil {
+					res.sendError(err)
+					continue
+				}
+			}
+		}()
+	}
+
+	return res, nil
+}
+
+// ScanNodeObjects reads all records in specified namespace and set for one node only.
+// If the policy is nil, the default relevant policy will be used.
+// The resulting records will be marshalled into the objChan.
+// objChan will be closed after all the records are read.
+func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
+	policy := *clnt.getUsableScanPolicy(apolicy)
+
+	// results channel must be async for performance
+	os := newObjectset(reflect.ValueOf(objChan), 1)
+	res := &Recordset{
+		objectset: *os,
+	}
+
+	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, binNames...)
+	return res, nil
+}
+
+// ScanNode reads all records in specified namespace and set for one node only.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, binNames ...string) error {
+	if policy.WaitUntilMigrationsAreOver {
+		// wait until migrations on node are finished
+		if err := node.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+			recordset.signalEnd()
+			return err
+		}
+	}
+
+	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset)
+	return command.Execute()
+}
+
 //-------------------------------------------------------------------
 // Large collection functions (Supported by Aerospike 3 servers only)
 //-------------------------------------------------------------------
@@ -885,6 +966,84 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 
 	// results channel must be async for performance
 	recSet := newRecordset(policy.RecordQueueSize, 1)
+
+	// copy policies to avoid race conditions
+	newPolicy := *policy
+	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
+	go func() {
+		err := command.Execute()
+		if err != nil {
+			recSet.sendError(err)
+		}
+	}()
+
+	return recSet, nil
+}
+
+// QueryNodeObjects executes a query on all nodes in the cluster and marshals the records into the given channel.
+// The query executor puts records on the channel from separate goroutines.
+// The caller can concurrently pop objects.
+//
+// This method is only supported by Aerospike 3 servers.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, error) {
+	policy = clnt.getUsableQueryPolicy(policy)
+
+	nodes := clnt.cluster.GetNodes()
+	if len(nodes) == 0 {
+		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+	}
+
+	if policy.WaitUntilMigrationsAreOver {
+		// wait until all migrations are finished
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+			return nil, err
+		}
+	}
+
+	// results channel must be async for performance
+	os := newObjectset(reflect.ValueOf(objChan), len(nodes))
+	recSet := &Recordset{
+		objectset: *os,
+	}
+
+	// the whole call sho
+	// results channel must be async for performance
+	for _, node := range nodes {
+		// copy policies to avoid race conditions
+		newPolicy := *policy
+		command := newQueryObjectsCommand(node, &newPolicy, statement, recSet)
+		go func() {
+			err := command.Execute()
+			if err != nil {
+				recSet.sendError(err)
+			}
+		}()
+	}
+
+	return recSet, nil
+}
+
+// QueryNodeObjects executes a query on a specific node and marshals the records into the given channel.
+// The caller can concurrently pop records off the channel.
+//
+// This method is only supported by Aerospike 3 servers.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, error) {
+	policy = clnt.getUsableQueryPolicy(policy)
+
+	if policy.WaitUntilMigrationsAreOver {
+		// wait until all migrations are finished
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+			return nil, err
+		}
+	}
+
+	// results channel must be async for performance
+	os := newObjectset(reflect.ValueOf(objChan), 1)
+	recSet := &Recordset{
+		objectset: *os,
+	}
 
 	// copy policies to avoid race conditions
 	newPolicy := *policy

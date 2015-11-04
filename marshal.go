@@ -183,6 +183,9 @@ func (sm *SyncMap) mappingExists(obj reflect.Value) bool {
 }
 
 func (sm *SyncMap) getMapping(obj reflect.Value) map[string]string {
+	if !obj.IsValid() {
+		return nil
+	}
 	objType := obj.Type().Name()
 	sm.mutex.RLock()
 	mapping := sm.objectMappings[objType]
