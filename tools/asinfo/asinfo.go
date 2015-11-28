@@ -28,7 +28,6 @@ var (
 	host     = flag.String("h", "127.0.0.1", "host (default 127.0.0.1)")
 	port     = flag.Int("p", 3000, "port (default 3000)")
 	value    = flag.String("v", "", "(fetch single value - default all)")
-	sepLines = flag.Bool("l", false, "(print in seperate lines - default false)")
 	user     = flag.String("U", "", "User.")
 	password = flag.String("P", "", "Password.")
 
@@ -67,20 +66,11 @@ func main() {
 		return
 	}
 
-	outfmt := "%d :  %s;     %s;;"
-	if *sepLines {
-		outfmt = "%d :  %s\n     %s\n\n"
-	}
+	outfmt := "%d :  %s\n     %s\n"
 	cnt := 1
 	for k, v := range infoMap {
 		log.Printf(outfmt, cnt, k, v)
 		cnt++
-	}
-
-	if !*sepLines {
-		// Tack a newline on the end of output to be more
-		// terminal friendly if we haven't used them.
-		log.Println("")
 	}
 }
 
