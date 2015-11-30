@@ -828,7 +828,7 @@ var _ = Describe("Aerospike", func() {
 				for idx, rec := range records {
 					if exList[idx].shouldExist {
 						Expect(rec.Bins[bin.Name]).To(BeNil())
-						Expect(rec.Generation).To(Equal(2))
+						Expect(rec.Generation).To(Equal(uint32(2)))
 					} else {
 						Expect(rec).To(BeNil())
 					}
@@ -935,7 +935,7 @@ var _ = Describe("Aerospike", func() {
 
 				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject().(int)))
 				Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject().(string)))
-				Expect(rec.Generation).To(Equal(1))
+				Expect(rec.Generation).To(Equal(uint32(1)))
 
 				ops2 := []*Operation{
 					AddOp(bin1),    // double the value of the bin
@@ -948,7 +948,7 @@ var _ = Describe("Aerospike", func() {
 
 				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject().(int) * 2))
 				Expect(rec.Bins[bin2.Name]).To(Equal(strings.Repeat(bin2.Value.GetObject().(string), 2)))
-				Expect(rec.Generation).To(Equal(2))
+				Expect(rec.Generation).To(Equal(uint32(2)))
 
 				ops3 := []*Operation{
 					AddOp(bin1),
@@ -962,7 +962,7 @@ var _ = Describe("Aerospike", func() {
 
 				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject().(int) * 3))
 				Expect(rec.Bins[bin2.Name]).To(Equal(strings.Repeat(bin2.Value.GetObject().(string), 3)))
-				Expect(rec.Generation).To(Equal(3))
+				Expect(rec.Generation).To(Equal(uint32(3)))
 
 				ops4 := []*Operation{
 					TouchOp(),
@@ -972,7 +972,7 @@ var _ = Describe("Aerospike", func() {
 				rec, err = client.Operate(nil, key, ops4...)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(rec.Generation).To(Equal(4))
+				Expect(rec.Generation).To(Equal(uint32(4)))
 				Expect(len(rec.Bins)).To(Equal(0))
 
 				// GetOp should override GetHEaderOp
@@ -984,7 +984,7 @@ var _ = Describe("Aerospike", func() {
 				rec, err = client.Operate(nil, key, ops5...)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(rec.Generation).To(Equal(4))
+				Expect(rec.Generation).To(Equal(uint32(4)))
 				Expect(len(rec.Bins)).To(Equal(2))
 			})
 

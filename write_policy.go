@@ -35,16 +35,16 @@ type WritePolicy struct {
 	// Generation is the number of times a record has been
 	// modified (including creation) on the server.
 	// If a write operation is creating a record, the expected generation would be 0.
-	Generation int32
+	Generation uint32
 
 	// Expiration determimes record expiration in seconds. Also known as TTL (Time-To-Live).
 	// Seconds record will live before being removed by the server.
 	// Expiration values:
-	// -1: Never expire for Aerospike 2 server versions >= 2.7.2 and Aerospike 3 server
+	// MaxUint32: Never expire for Aerospike 2 server versions >= 2.7.2 and Aerospike 3 server
 	// versions >= 3.1.4.  Do not use -1 for older servers.
 	// 0: Default to namespace configuration variable "default-ttl" on the server.
 	// > 0: Actual expiration in seconds.
-	Expiration int32
+	Expiration uint32
 
 	// Send user defined key in addition to hash digest on a record put.
 	// The default is to not send the user defined key.
@@ -52,7 +52,7 @@ type WritePolicy struct {
 }
 
 // NewWritePolicy initializes a new WritePolicy instance with default parameters.
-func NewWritePolicy(generation, expiration int32) *WritePolicy {
+func NewWritePolicy(generation, expiration uint32) *WritePolicy {
 	return &WritePolicy{
 		BasePolicy:         *NewPolicy(),
 		RecordExistsAction: UPDATE,

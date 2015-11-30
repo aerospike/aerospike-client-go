@@ -145,6 +145,17 @@ func Int32ToBytes(num int32, buffer []byte, offset int) []byte {
 	return b
 }
 
+// Converts an int32 to a byte slice of size 4
+func Uint32ToBytes(num uint32, buffer []byte, offset int) []byte {
+	if buffer != nil {
+		binary.BigEndian.PutUint32(buffer[offset:], num)
+		return nil
+	}
+	b := make([]byte, uint32sz)
+	binary.BigEndian.PutUint32(b, num)
+	return b
+}
+
 // Converts
 func BytesToInt16(buf []byte, offset int) int16 {
 	return int16(binary.BigEndian.Uint16(buf[offset : offset+uint16sz]))

@@ -64,8 +64,8 @@ func (cmd *queryRecordCommand) parseRecordResults(ifc command, receiveSize int) 
 			return false, nil
 		}
 
-		generation := int(Buffer.BytesToUint32(cmd.dataBuffer, 6))
-		expiration := TTL(int(Buffer.BytesToUint32(cmd.dataBuffer, 10)))
+		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
+		expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
