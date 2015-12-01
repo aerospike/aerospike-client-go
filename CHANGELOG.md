@@ -1,5 +1,39 @@
 # Change history
 
+## December 1 2015 : v1.8
+
+  Major release. Adds new features and fixes important bugs.
+
+  * **New Features**
+
+    * Added `ScanAllObjects`, `ScanNodeObjects`, `QueryObjects` and `QueryNodeObjects` to the client, to facilitate automatic unmarshalling of data similar to `GetObject`.
+
+      * NOTICE: This feature and its API are experimental, and may change in the future. Please test your code throughly, and provide feedback via Github.
+
+    * Added `ScanPolicy.IncludeLDT` option (Usable with yet to be released server v 3.7.0)
+
+    * Added `LargeList.Exist` method.
+
+  * **Improvements**
+
+    * Makes Generation and Expiration values consistent for WritePolicy and Record.
+
+      * NOTICE! BREAKING CHANGE: Types of `Record.Generation` and `Record.Expiration`, and also `WritePolicy.Generation` and `WritePolicy.Expiration` have changed, and may require casting in older code.
+
+    *Refactor tools/asinfo to be more idiomatic Go. PR #86, thanks to [Tyler Gibbons](https://github.com/Kavec)
+
+    * Many documentation fixes thanks to [Charl Matthee](https://github.com/charl) and [Tyler Gibbons](https://github.com/Kavec)
+
+  * **Fixes**
+
+    * Changed the `KeepConnection` logic from black-list to white-list, to drop all 
+
+    * Fix RemoveNodesCopy logic error.
+
+    * Add missing send on recordset Error channel. PR #99, thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+
+    * Fix skipping of errors/records in (*recordset).Results() select after cancellation. PR #99, thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+
 ## October 16 2015 : v1.7
 
   Major release. Adds new features and fixes important bugs.
