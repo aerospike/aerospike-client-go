@@ -32,8 +32,8 @@ type objectset struct {
 	objChan reflect.Value
 
 	// Errors is a channel on which all errors will be sent back.
-	// NOTE: Do not use Records directly. Range on channel returned by Results() instead.
-	// Will be unexported in the future
+	// NOTE: Do not use Errors directly. Range on channel returned by Results() instead.
+	// This field is deprecated and will be unexported in the future
 	Errors chan error
 
 	wgGoroutines sync.WaitGroup
@@ -115,20 +115,27 @@ func (rcs *Recordset) Results() <-chan *Result {
 	res := make(chan *Result, len(rcs.Records))
 
 	go func() {
-	L:
+		defer close(res)
 		for {
 			select {
-			case r := <-rcs.Records:
-				if r != nil {
-					res <- &Result{Record: r, Err: nil}
-				} else {
-					close(res)
-					break L
+			case r, ok := <-rcs.Records:
+				if !ok {
+					for e := range rcs.Errors {
+						// empty Errors channel and/or wait until it's also closed
+						res <- &Result{Record: nil, Err: e}
+					}
+					return
 				}
-			case e := <-rcs.Errors:
-				if e != nil {
-					res <- &Result{Record: nil, Err: e}
+				res <- &Result{Record: r, Err: nil}
+			case e, ok := <-rcs.Errors:
+				if !ok {
+					for r := range rcs.Records {
+						// empty Records channel and/or wait until it's also closed
+						res <- &Result{Record: r, Err: nil}
+					}
+					return
 				}
+				res <- &Result{Record: nil, Err: e}
 			}
 		}
 	}()
