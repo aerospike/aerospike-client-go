@@ -531,7 +531,8 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 	return res, nil
 }
 
-// ScanNodeObjects reads all records in specified namespace and set for one node only.
+// scanNodeObjects reads all records in specified namespace and set for one node only,
+// and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
 // The resulting records will be marshalled into the objChan.
 // objChan will be closed after all the records are read.
@@ -548,7 +549,8 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 	return res, nil
 }
 
-// ScanNode reads all records in specified namespace and set for one node only.
+// scanNodeObjects reads all records in specified namespace and set for one node only,
+// and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, binNames ...string) error {
 	if policy.WaitUntilMigrationsAreOver {
