@@ -47,6 +47,7 @@ func (cmd *queryRecordCommand) parseRecordResults(ifc command, receiveSize int) 
 				// consume the rest of the input buffer from the socket
 				if cmd.dataOffset < receiveSize {
 					if err := cmd.readBytes(receiveSize - cmd.dataOffset); err != nil {
+						cmd.recordset.Errors <- newNodeError(cmd.node, err)
 						return false, err
 					}
 				}
