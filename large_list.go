@@ -58,6 +58,27 @@ func (ll *LargeList) Find(value interface{}) ([]interface{}, error) {
 	return res.([]interface{}), err
 }
 
+//  Do key/values exist?  Return list of results in one batch call.
+func (ll *LargeList) Exist(values ...interface{}) ([]bool, error) {
+	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "exists", ll.binName, NewValue(values))
+	if err != nil {
+		return nil, err
+	}
+
+	var ret []bool
+	if res == nil {
+		return make([]bool, len(values)), nil
+	} else {
+		ret = make([]bool, len(values))
+		resTyped := res.([]interface{})
+		for i := range resTyped {
+			ret[i] = resTyped[i].(int) != 0
+		}
+	}
+
+	return ret, err
+}
+
 // FindThenFilter selects values from list and applies specified Lua filter.
 func (ll *LargeList) FindThenFilter(value interface{}, filterModule, filterName string, filterArgs ...interface{}) ([]interface{}, error) {
 	res, err := ll.client.Execute(ll.policy, ll.key, ll.packageName, "find", ll.binName, NewValue(value), NewValue(filterModule), NewValue(filterName), ToValueArray(filterArgs))

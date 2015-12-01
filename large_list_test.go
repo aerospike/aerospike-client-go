@@ -100,6 +100,17 @@ var _ = Describe("LargeList Test", func() {
 		scanResult, err = llist.Scan()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(scanResult)).To(Equal(0))
+
+		err = llist.Add(1, 2, 3, 4, 5)
+		existsResult, err := llist.Exist(1)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(existsResult)).To(Equal(1))
+		Expect(existsResult[0]).To(Equal(true))
+
+		existsResult, err = llist.Exist(3, 4, 5, 6)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(existsResult)).To(Equal(4))
+		Expect(existsResult).To(Equal([]bool{true, true, true, false}))
 	})
 
 	It("should correctly GetConfig()", func() {
