@@ -162,6 +162,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 				// consume the rest of the input buffer from the socket
 				if cmd.dataOffset < receiveSize {
 					if err := cmd.readBytes(receiveSize - cmd.dataOffset); err != nil {
+						cmd.recordset.Errors <- newNodeError(cmd.node, err)
 						return false, err
 					}
 				}
@@ -240,6 +241,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		} else {
 			obj := reflect.New(cmd.resObjType)
 			if err := cmd.parseObject(obj, opCount, fieldCount, generation, expiration); err != nil {
+				cmd.recordset.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
 
@@ -248,7 +250,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 
 			chosen, _, _ := reflect.Select(cmd.selectCases)
 			switch chosen {
-			case 0:
+			case 0: // object sent
 			case 1: // cancel channel is closed
 				return false, NewAerospikeError(cmd.terminationErrorType)
 			}
