@@ -696,6 +696,9 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 	case ParticleType.MAP:
 		return newUnpacker(buf, offset, length).UnpackMap()
 
+	case ParticleType.LDT:
+		return newUnpacker(buf, offset, length).unpackObjects()
+
 	case ParticleType.GEOJSON:
 		ncells := int(Buffer.BytesToInt16(buf, offset+1))
 		headerSize := 1 + 2 + (ncells * 8)

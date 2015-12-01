@@ -113,6 +113,14 @@ func (upckr *unpacker) unpackMap(count int) (map[interface{}]interface{}, error)
 	return out, nil
 }
 
+func (upckr *unpacker) unpackObjects() (interface{}, error) {
+	if upckr.length <= 0 {
+		return nil, nil
+	}
+
+	return upckr.unpackObject()
+}
+
 func (upckr *unpacker) unpackBlob(count int) (interface{}, error) {
 	theType := upckr.buffer[upckr.offset] & 0xff
 	upckr.offset++

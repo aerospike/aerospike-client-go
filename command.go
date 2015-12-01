@@ -425,6 +425,11 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	if policy.FailOnClusterChange {
 		priority |= 0x08
 	}
+
+	if policy.IncludeLDT {
+		priority |= 0x02
+	}
+
 	cmd.dataBuffer[cmd.dataOffset] = priority
 	cmd.dataOffset++
 	cmd.dataBuffer[cmd.dataOffset] = byte(policy.ScanPercent)

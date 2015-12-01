@@ -37,5 +37,6 @@ const (
 	// LUA_BLOB        = 18
 	MAP     = 19
 	LIST    = 20
+	LDT     = 21
 	GEOJSON = 23
 )

@@ -29,6 +29,12 @@ type ScanPolicy struct {
 	// Indicates if bin data is retrieved. If false, only record digests are retrieved.
 	IncludeBinData bool //= true;
 
+	// Include large data type bin values in addition to large data type bin names.
+	// If false, LDT bin names will be returned, but LDT bin values will be empty.
+	// If true,  LDT bin names and the entire LDT bin values will be returned.
+	// Warning: LDT values may consume huge of amounts of memory depending on LDT size.
+	IncludeLDT bool
+
 	// FailOnClusterChange determines scan termination if cluster is in fluctuating state.
 	FailOnClusterChange bool
 }
@@ -40,6 +46,7 @@ func NewScanPolicy() *ScanPolicy {
 		ScanPercent:         100,
 		ConcurrentNodes:     true,
 		IncludeBinData:      true,
+		IncludeLDT:          false,
 		FailOnClusterChange: true,
 	}
 	// Retry policy must be one-shot for scans.

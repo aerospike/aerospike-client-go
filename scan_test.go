@@ -35,6 +35,7 @@ var _ = Describe("Scan operations", func() {
 	wpolicy.SendKey = true
 
 	const keyCount = 1000
+	const ldtElemCount = 10
 	bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("Aerospike2", randString(100))
 	var keys map[string]*Key
@@ -47,7 +48,7 @@ var _ = Describe("Scan operations", func() {
 
 	// read all records from the channel and make sure all of them are returned
 	// if cancelCnt is set, it will cancel the scan after specified record count
-	var checkResults = func(recordset *Recordset, cancelCnt int) {
+	var checkResults = func(recordset *Recordset, cancelCnt int, checkLDT bool) {
 		counter := 0
 		for res := range recordset.Results() {
 			Expect(res.Err).ToNot(HaveOccurred())
@@ -58,6 +59,12 @@ var _ = Describe("Scan operations", func() {
 			Expect(key.Value().GetObject()).To(Equal(rec.Key.Value().GetObject()))
 			Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
 			Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+
+			ldt := res.Record.Bins["LDT"]
+			if checkLDT {
+				Expect(ldt).NotTo(BeNil())
+				Expect(len(ldt.([]interface{}))).To(Equal(ldtElemCount))
+			}
 
 			delete(keys, string(rec.Key.Digest()))
 
@@ -117,7 +124,7 @@ var _ = Describe("Scan operations", func() {
 			recordset, err := client.ScanNode(nil, node, ns, set)
 			Expect(err).ToNot(HaveOccurred())
 
-			checkResults(recordset, 0)
+			checkResults(recordset, 0, false)
 		}
 
 		Expect(len(keys)).To(Equal(0))
@@ -129,7 +136,48 @@ var _ = Describe("Scan operations", func() {
 		recordset, err := client.ScanAll(nil, ns, set)
 		Expect(err).ToNot(HaveOccurred())
 
-		checkResults(recordset, 0)
+		checkResults(recordset, 0, false)
+
+		Expect(len(keys)).To(Equal(0))
+	})
+
+	It("must Scan and get all records back WITH LDT from all nodes concurrently", func() {
+		keys = make(map[string]*Key, keyCount)
+		set = randString(50)
+
+		ldtElems := make([]interface{}, ldtElemCount)
+		for i := 1; i <= ldtElemCount; i++ {
+			ldtElems[i-1] = i
+		}
+
+		for i := 0; i < keyCount; i++ {
+			key, err := NewKey(ns, set, randString(50))
+			Expect(err).ToNot(HaveOccurred())
+
+			keys[string(key.Digest())] = key
+			err = client.PutBins(wpolicy, key, bin1, bin2)
+			Expect(err).ToNot(HaveOccurred())
+
+			llist := client.GetLargeList(wpolicy, key, "LDT", "")
+
+			err = llist.Add(ldtElems...)
+			Expect(err).ToNot(HaveOccurred())
+
+			// confirm that the LLIST size has been increased to the expected size
+			sz, err := llist.Size()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(sz).To(Equal(ldtElemCount))
+		}
+
+		Expect(len(keys)).To(Equal(keyCount))
+
+		spolicy := NewScanPolicy()
+		spolicy.IncludeLDT = true
+
+		recordset, err := client.ScanAll(spolicy, ns, set)
+		Expect(err).ToNot(HaveOccurred())
+
+		checkResults(recordset, 0, true)
 
 		Expect(len(keys)).To(Equal(0))
 	})
@@ -143,7 +191,7 @@ var _ = Describe("Scan operations", func() {
 		recordset, err := client.ScanAll(scanPolicy, ns, set)
 		Expect(err).ToNot(HaveOccurred())
 
-		checkResults(recordset, 0)
+		checkResults(recordset, 0, false)
 
 		Expect(len(keys)).To(Equal(0))
 	})
@@ -154,7 +202,7 @@ var _ = Describe("Scan operations", func() {
 		recordset, err := client.ScanAll(nil, ns, set)
 		Expect(err).ToNot(HaveOccurred())
 
-		checkResults(recordset, keyCount/2)
+		checkResults(recordset, keyCount/2, false)
 
 		Expect(len(keys)).To(BeNumerically("<=", keyCount/2))
 	})
