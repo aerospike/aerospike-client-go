@@ -32,14 +32,14 @@ type Record struct {
 	Bins BinMap
 
 	// Generation shows record modification count.
-	Generation int
+	Generation uint32
 
 	// Expiration is TTL (Time-To-Live).
 	// Number of seconds until record expires.
-	Expiration int
+	Expiration uint32
 }
 
-func newRecord(node *Node, key *Key, bins BinMap, generation int, expiration int) *Record {
+func newRecord(node *Node, key *Key, bins BinMap, generation, expiration uint32) *Record {
 	r := &Record{
 		Node:       node,
 		Key:        key,

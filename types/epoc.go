@@ -10,6 +10,6 @@ const (
 )
 
 // TTL converts an Expiration time from citrusleaf epoc to TTL in seconds.
-func TTL(secsFromCitrusLeafEpoc int) int {
-	return int(int64(CITRUSLEAF_EPOCH+secsFromCitrusLeafEpoc) - time.Now().Unix())
+func TTL(secsFromCitrusLeafEpoc uint32) uint32 {
+	return uint32(int64(CITRUSLEAF_EPOCH+secsFromCitrusLeafEpoc) - time.Now().Unix())
 }

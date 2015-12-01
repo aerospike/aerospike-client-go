@@ -87,8 +87,8 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 			return false, nil
 		}
 
-		generation := int(Buffer.BytesToUint32(cmd.dataBuffer, 6))
-		expiration := TTL(int(Buffer.BytesToUint32(cmd.dataBuffer, 10)))
+		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
+		expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 		key, err := cmd.parseKey(fieldCount)
@@ -114,7 +114,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 
 // Parses the given byte buffer and populate the result object.
 // Returns the number of bytes that were parsed from the given buffer.
-func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation int, expiration int) (*Record, error) {
+func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expiration uint32) (*Record, error) {
 	bins := make(map[string]interface{}, opCount)
 
 	for i := 0; i < opCount; i++ {

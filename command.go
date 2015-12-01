@@ -719,7 +719,7 @@ func (cmd *baseCommand) writeHeader(policy *BasePolicy, readAttr int, writeAttr 
 // Header write for write operations.
 func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int, writeAttr int, fieldCount int, operationCount int) {
 	// Set flags.
-	generation := int32(0)
+	generation := uint32(0)
 	infoAttr := 0
 
 	switch policy.RecordExistsAction {
@@ -759,8 +759,8 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 	cmd.dataBuffer[11] = byte(infoAttr)
 	cmd.dataBuffer[12] = 0 // unused
 	cmd.dataBuffer[13] = 0 // clear the result code
-	Buffer.Int32ToBytes(generation, cmd.dataBuffer, 14)
-	Buffer.Int32ToBytes(policy.Expiration, cmd.dataBuffer, 18)
+	Buffer.Uint32ToBytes(generation, cmd.dataBuffer, 14)
+	Buffer.Uint32ToBytes(policy.Expiration, cmd.dataBuffer, 18)
 
 	// Initialize timeout. It will be written later.
 	cmd.dataBuffer[22] = 0

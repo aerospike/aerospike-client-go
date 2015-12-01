@@ -180,8 +180,8 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			return false, nil
 		}
 
-		generation := int(Buffer.BytesToUint32(cmd.dataBuffer, 6))
-		expiration := TTL(int(Buffer.BytesToUint32(cmd.dataBuffer, 10)))
+		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
+		expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
@@ -264,8 +264,8 @@ func (cmd *baseMultiCommand) parseObject(
 	obj reflect.Value,
 	opCount int,
 	fieldCount int,
-	generation int,
-	expiration int,
+	generation uint32,
+	expiration uint32,
 ) error {
 	for i := 0; i < opCount; i++ {
 		if err := cmd.readBytes(8); err != nil {

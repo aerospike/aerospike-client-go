@@ -67,8 +67,8 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	sz := Buffer.BytesToInt64(cmd.dataBuffer, 0)
 	headerLength := int(cmd.dataBuffer[8])
 	resultCode := ResultCode(cmd.dataBuffer[13] & 0xFF)
-	generation := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
-	expiration := TTL(int(Buffer.BytesToUint32(cmd.dataBuffer, 18)))
+	generation := Buffer.BytesToUint32(cmd.dataBuffer, 14)
+	expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 18))
 	fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 26)) // almost certainly 0
 	opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 28))
 	receiveSize := int((sz & 0xFFFFFFFFFFFF) - int64(headerLength))
@@ -129,8 +129,8 @@ func (cmd *readCommand) handleUdfError(resultCode ResultCode) error {
 func (cmd *readCommand) parseRecord(
 	opCount int,
 	fieldCount int,
-	generation int,
-	expiration int,
+	generation uint32,
+	expiration uint32,
 ) (*Record, error) {
 	var bins BinMap
 	receiveOffset := 0
@@ -170,8 +170,8 @@ func (cmd *readCommand) parseRecord(
 func (cmd *readCommand) parseObject(
 	opCount int,
 	fieldCount int,
-	generation int,
-	expiration int,
+	generation uint32,
+	expiration uint32,
 ) error {
 	receiveOffset := 0
 
