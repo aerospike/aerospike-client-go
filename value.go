@@ -625,7 +625,7 @@ func (vl *MapValue) String() string {
 // Supported by Aerospike 3.6.1 servers only.
 type GeoJSONValue string
 
-// NewMapValue generates a GeoJSONValue instance.
+// NewGeoJSONValue generates a GeoJSONValue instance.
 func NewGeoJSONValue(value string) GeoJSONValue {
 	res := GeoJSONValue(value)
 	return res
