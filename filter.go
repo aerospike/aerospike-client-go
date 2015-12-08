@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -54,18 +53,18 @@ func NewContainsRangeFilter(name string, indexCollectionType IndexCollectionType
 	return newFilter(name, indexCollectionType, vBegin.GetType(), vBegin, vEnd)
 }
 
-// NewGeoWithinRegionFilter creates a geospatial "within region" filter for query.
+// NewGeoPointsWithinRegionFilter creates a geospatial "within region" filter for query.
 // Argument must be a valid GeoJSON region.
 func NewGeoPointsWithinRegionFilter(name, region string) *Filter {
-	v := NewStringValue(region)
-	return newFilter(name, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
+	v := NewGeoJSONValue(region)
+	return newFilter(name, ICT_DEFAULT, v.GetType(), v, v)
 }
 
-// GeoContainingPointFilter creates a geospatial "containing point" filter for query.
+// NewGeoRegionContainingPointFilter creates a geospatial "containing point" filter for query.
 // Argument must be a valid GeoJSON point.
 func NewGeoRegionContainingPointFilter(name, point string) *Filter {
-	v := NewStringValue(point)
-	return newFilter(name, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
+	v := NewGeoJSONValue(point)
+	return newFilter(name, ICT_DEFAULT, v.GetType(), v, v)
 }
 
 // Create a filter for query.
