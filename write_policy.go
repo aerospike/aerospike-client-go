@@ -49,6 +49,17 @@ type WritePolicy struct {
 	// Send user defined key in addition to hash digest on a record put.
 	// The default is to not send the user defined key.
 	SendKey bool
+
+	// For client.Operate() method, return a result for every operation.
+	// Some list operations do not return results by default (ListClearOp() for example).
+	// This can sometimes make it difficult to determine the desired result offset in the returned
+	// bin's result list.
+	//
+	// Setting RespondPerEachOp to true makes it easier to identify the desired result offset
+	// (result offset equals bin's operate sequence). This only makes sense when multiple list
+	// operations are used in one operate call and some of those operations do not return results
+	// by default.
+	RespondPerEachOp bool
 }
 
 // NewWritePolicy initializes a new WritePolicy instance with default parameters.

@@ -367,6 +367,13 @@ func (pckr *packer) PackShort(valType int, val int16) {
 	Buffer.Int16ToBytes(val, pckr.buffer.Bytes(), pos)
 }
 
+// This method is not compatible with MsgPack specs and is only used by aerospike client<->server
+// for wire transfer only
+func (pckr *packer) PackShortRaw(val int16) {
+	pos := pckr.grow(_b2)
+	Buffer.Int16ToBytes(val, pckr.buffer.Bytes(), pos)
+}
+
 func (pckr *packer) PackByte(valType int, val byte) {
 	pckr.buffer.WriteByte(byte(valType))
 	pckr.buffer.WriteByte(val)

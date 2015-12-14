@@ -161,7 +161,19 @@ func (cmd *readCommand) parseRecord(
 		if bins == nil {
 			bins = make(BinMap, opCount)
 		}
-		bins[name] = value
+
+		// for operate list command results
+		if prev, exists := bins[name]; exists {
+			if res, ok := prev.([]interface{}); ok {
+				// List already exists.  Add to it.
+				bins[name] = append(res, value)
+			} else {
+				// Make a list to store all values.
+				bins[name] = []interface{}{prev, value}
+			}
+		} else {
+			bins[name] = value
+		}
 	}
 
 	return newRecord(cmd.node, cmd.key, bins, generation, expiration), nil

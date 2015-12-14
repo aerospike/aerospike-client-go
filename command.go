@@ -52,6 +52,9 @@ const (
 	// Create only. Fail if record already exists.
 	_INFO2_CREATE_ONLY int = (1 << 5)
 
+	// Return a result for every operation.
+	_INFO2_RESPOND_ALL_OPS int = (1 << 7)
+
 	// This is the last of a multi-part message.
 	_INFO3_LAST int = (1 << 0)
 	// Commit to master only before declaring success.
@@ -237,7 +240,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 
 	for i := range operations {
 		switch operations[i].OpType {
-		case READ:
+		case READ, CDT_READ:
 			if !operations[i].headerOnly {
 				readAttr |= _INFO1_READ
 
@@ -264,6 +267,10 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 
 	if readHeader && !readBin {
 		readAttr |= _INFO1_NOBINDATA
+	}
+
+	if writeAttr != 0 && policy.RespondPerEachOp {
+		writeAttr |= _INFO2_RESPOND_ALL_OPS
 	}
 
 	if writeAttr != 0 {

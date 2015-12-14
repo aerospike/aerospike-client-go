@@ -447,14 +447,20 @@ type ValueArray struct {
 	bytes []byte
 }
 
-// ToValueArray converts a []interface{} to []Value.
+// ToValueSlice converts a []interface{} to []Value.
 // It will panic if any of array element types are not supported.
-func ToValueArray(array []interface{}) *ValueArray {
+func ToValueSlice(array []interface{}) []Value {
 	res := make([]Value, 0, len(array))
 	for i := range array {
 		res = append(res, NewValue(array[i]))
 	}
-	return NewValueArray(res)
+	return res
+}
+
+// ToValueArray converts a []interface{} to a ValueArray type.
+// It will panic if any of array element types are not supported.
+func ToValueArray(array []interface{}) *ValueArray {
+	return NewValueArray(ToValueSlice(array))
 }
 
 // NewValueArray generates a ValueArray instance.
