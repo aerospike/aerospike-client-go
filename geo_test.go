@@ -93,7 +93,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 
 		for _, rgnsb := range points {
 			stm := NewStatement(ns, set)
-			stm.Addfilter(NewGeoPointsWithinRegionFilter(binName, rgnsb))
+			stm.Addfilter(NewGeoWithinRegionFilter(binName, rgnsb))
 			recordset, err := client.Query(nil, stm)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -199,7 +199,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 		radius := float64(50000.0)
 
 		stm := NewStatement(ns, set)
-		stm.Addfilter(NewGeoPointsWithinRadiusFilter(binName, lon, lat, radius))
+		stm.Addfilter(NewGeoWithinRadiusFilter(binName, lon, lat, radius))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
