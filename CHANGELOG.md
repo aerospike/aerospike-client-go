@@ -1,5 +1,19 @@
 # Change history
 
+## December 14 2015 : v1.9
+
+  Major release. Adds new features.
+
+  * **New Features**
+
+    * Added CDT List operations.
+
+    * Added `NewGeoWithinRadiusFilter` filter for queries.
+
+  * **Changes**
+
+    * Renamed `NewGeoPointsWithinRegionFilter` to `NewGeoWithinRegionFilter`
+
 ## December 1 2015 : v1.8
 
   Major release. Adds new features and fixes important bugs.
