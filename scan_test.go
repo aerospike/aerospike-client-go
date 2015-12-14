@@ -64,6 +64,8 @@ var _ = Describe("Scan operations", func() {
 			if checkLDT {
 				Expect(ldt).NotTo(BeNil())
 				Expect(len(ldt.([]interface{}))).To(Equal(ldtElemCount))
+			} else {
+				Expect(ldt).To(BeNil())
 			}
 
 			delete(keys, string(rec.Key.Digest()))
@@ -141,47 +143,6 @@ var _ = Describe("Scan operations", func() {
 		Expect(len(keys)).To(Equal(0))
 	})
 
-	It("must Scan and get all records back WITH LDT from all nodes concurrently", func() {
-		keys = make(map[string]*Key, keyCount)
-		set = randString(50)
-
-		ldtElems := make([]interface{}, ldtElemCount)
-		for i := 1; i <= ldtElemCount; i++ {
-			ldtElems[i-1] = i
-		}
-
-		for i := 0; i < keyCount; i++ {
-			key, err := NewKey(ns, set, randString(50))
-			Expect(err).ToNot(HaveOccurred())
-
-			keys[string(key.Digest())] = key
-			err = client.PutBins(wpolicy, key, bin1, bin2)
-			Expect(err).ToNot(HaveOccurred())
-
-			llist := client.GetLargeList(wpolicy, key, "LDT", "")
-
-			err = llist.Add(ldtElems...)
-			Expect(err).ToNot(HaveOccurred())
-
-			// confirm that the LLIST size has been increased to the expected size
-			sz, err := llist.Size()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(sz).To(Equal(ldtElemCount))
-		}
-
-		Expect(len(keys)).To(Equal(keyCount))
-
-		spolicy := NewScanPolicy()
-		spolicy.IncludeLDT = true
-
-		recordset, err := client.ScanAll(spolicy, ns, set)
-		Expect(err).ToNot(HaveOccurred())
-
-		checkResults(recordset, 0, true)
-
-		Expect(len(keys)).To(Equal(0))
-	})
-
 	It("must Scan and get all records back from all nodes sequnetially", func() {
 		Expect(len(keys)).To(Equal(keyCount))
 
@@ -205,6 +166,64 @@ var _ = Describe("Scan operations", func() {
 		checkResults(recordset, keyCount/2, false)
 
 		Expect(len(keys)).To(BeNumerically("<=", keyCount/2))
+	})
+
+	Describe("must consider ScanPolicy.IncludeLDT in results", func() {
+
+		BeforeEach(func() {
+			keys = make(map[string]*Key, keyCount)
+			set = randString(50)
+
+			ldtElems := make([]interface{}, ldtElemCount)
+			for i := 1; i <= ldtElemCount; i++ {
+				ldtElems[i-1] = i
+			}
+
+			for i := 0; i < keyCount; i++ {
+				key, err := NewKey(ns, set, randString(50))
+				Expect(err).ToNot(HaveOccurred())
+
+				keys[string(key.Digest())] = key
+				err = client.PutBins(wpolicy, key, bin1, bin2)
+				Expect(err).ToNot(HaveOccurred())
+
+				llist := client.GetLargeList(wpolicy, key, "LDT", "")
+
+				err = llist.Add(ldtElems...)
+				Expect(err).ToNot(HaveOccurred())
+
+				// confirm that the LLIST size has been increased to the expected size
+				sz, err := llist.Size()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(sz).To(Equal(ldtElemCount))
+			}
+
+			Expect(len(keys)).To(Equal(keyCount))
+		})
+
+		It("must Scan and get all records back WITH LDT from all nodes concurrently", func() {
+			spolicy := NewScanPolicy()
+			spolicy.IncludeLDT = true
+
+			recordset, err := client.ScanAll(spolicy, ns, set)
+			Expect(err).ToNot(HaveOccurred())
+
+			checkResults(recordset, 0, spolicy.IncludeLDT)
+
+			Expect(len(keys)).To(Equal(0))
+		})
+
+		It("must Scan and get all records back WITHOUT LDT from all nodes concurrently", func() {
+			spolicy := NewScanPolicy()
+			spolicy.IncludeLDT = false
+
+			recordset, err := client.ScanAll(spolicy, ns, set)
+			Expect(err).ToNot(HaveOccurred())
+
+			checkResults(recordset, 0, spolicy.IncludeLDT)
+
+			Expect(len(keys)).To(Equal(0))
+		})
 	})
 
 })

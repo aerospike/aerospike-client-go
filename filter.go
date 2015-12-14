@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"fmt"
+
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -43,29 +45,36 @@ func NewRangeFilter(binName string, begin int64, end int64) *Filter {
 }
 
 // NewContainsFilter creates a contains filter for query on collection index.
-func NewContainsFilter(name string, indexCollectionType IndexCollectionType, value interface{}) *Filter {
+func NewContainsFilter(binName string, indexCollectionType IndexCollectionType, value interface{}) *Filter {
 	v := NewValue(value)
-	return newFilter(name, indexCollectionType, v.GetType(), v, v)
+	return newFilter(binName, indexCollectionType, v.GetType(), v, v)
 }
 
 // NewContainsRangeFilter creates a contains filter for query on ranges of data in a collection index.
-func NewContainsRangeFilter(name string, indexCollectionType IndexCollectionType, begin, end int64) *Filter {
+func NewContainsRangeFilter(binName string, indexCollectionType IndexCollectionType, begin, end int64) *Filter {
 	vBegin, vEnd := NewValue(begin), NewValue(end)
-	return newFilter(name, indexCollectionType, vBegin.GetType(), vBegin, vEnd)
+	return newFilter(binName, indexCollectionType, vBegin.GetType(), vBegin, vEnd)
 }
 
 // NewGeoWithinRegionFilter creates a geospatial "within region" filter for query.
 // Argument must be a valid GeoJSON region.
-func NewGeoPointsWithinRegionFilter(name, region string) *Filter {
+func NewGeoWithinRegionFilter(binName, region string) *Filter {
 	v := NewStringValue(region)
-	return newFilter(name, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
+	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
 }
 
-// GeoContainingPointFilter creates a geospatial "containing point" filter for query.
+// NewGeoRegionsContainingPointFilter creates a geospatial "containing point" filter for query.
 // Argument must be a valid GeoJSON point.
-func NewGeoRegionContainingPointFilter(name, point string) *Filter {
+func NewGeoRegionsContainingPointFilter(binName, point string) *Filter {
 	v := NewStringValue(point)
-	return newFilter(name, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
+	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
+}
+
+// NewGeoWithinRadiusFilter creates a geospatial "within radius" filter for query.
+// Arguments must be valid longitude/latitude/radius (meters) values.
+func NewGeoWithinRadiusFilter(binName string, lng, lat, radius float64) *Filter {
+	rgnStr := fmt.Sprintf("{ \"type\": \"AeroCircle\", "+"\"coordinates\": [[%.8f, %.8f], %f] }", lng, lat, radius)
+	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, NewValue(rgnStr), NewValue(rgnStr))
 }
 
 // Create a filter for query.
