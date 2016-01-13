@@ -1,5 +1,21 @@
 # Change history
 
+## January 13 2015 : v1.10
+
+  Major release. Adds Aggregation.
+
+  * **New Features**
+
+    * Added `client.QueryAggregate` method.
+
+      * For examples regarding how to use this feature, look at the examples directory.
+
+      * You can find more documentation regarding the [Aggregation Feature on Aerospike Website](http://www.aerospike.com/docs/guide/aggregation.html)
+
+    * **Improvements**
+
+      * Improve Query/Scan performance by reading from the socket in bigger chunks
+
 ## December 14 2015 : v1.9
 
   Major release. Adds new features.

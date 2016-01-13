@@ -917,7 +917,7 @@ func SetLuaPath(lpath string) {
 	lualib.SetPath(lpath)
 }
 
-// QueryAggregate executes a query and returns a Recordset.
+// QueryAggregate executes a Map/Reduce query and returns the results.
 // The query executor puts records on the channel from separate goroutines.
 // The caller can concurrently pop records off the channel through the
 // Recordset.Records channel.
