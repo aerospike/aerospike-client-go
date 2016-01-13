@@ -76,6 +76,10 @@ func (ky *Key) Equals(other *Key) bool {
 
 // String implements Stringer interface and returns string representation of key.
 func (ky *Key) String() string {
+	if ky == nil {
+		return ""
+	}
+
 	if ky.userKey != nil {
 		return fmt.Sprintf("%s:%s:%s:%v", ky.namespace, ky.setName, ky.userKey.String(), Buffer.BytesToHexString(ky.digest))
 	}

@@ -75,11 +75,7 @@ var _ = Describe("UDF/Query tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until UDF is created
-		for {
-			if err := <-regTask.OnComplete(); err == nil {
-				break
-			}
-		}
+		Expect(<-regTask.OnComplete()).NotTo(HaveOccurred())
 	})
 
 	It("must run a UDF on a single record", func() {
@@ -118,11 +114,7 @@ var _ = Describe("UDF/Query tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until UDF is deleted
-		for {
-			if err := <-delTask.OnComplete(); err == nil {
-				break
-			}
-		}
+		Expect(<-delTask.OnComplete()).NotTo(HaveOccurred())
 
 		_, err = client.RemoveUDF(wpolicy, "udfToBeDropped.lua")
 		Expect(err).To(HaveOccurred())

@@ -12,6 +12,7 @@ install:
 - export PATH=$PATH:$HOME/gopath/bin
 - go get github.com/onsi/ginkgo/ginkgo
 - go get github.com/onsi/gomega
+- go get .
 - if ! go get code.google.com/p/go.tools/cmd/cover; then go get golang.org/x/tools/cmd/cover;
   fi
 - wget -O aerospike-server.tgz http://aerospike.com/download/server/latest/artifact/tgz
@@ -24,21 +25,26 @@ install:
 - ./bin/aerospike init --home instance2 --instance 2 --service-port 3010
 - cd instance1
 - sudo ./bin/aerospike start
+- ../../.travis/wait_for_node.sh var/log/aerospike.log
 - cd ../..
 - pwd
-- sleep 5
-- sudo tail -n 1000 aerospike-server/instance1/var/log/aerospike.log
 script:
-- find tools -name "*.go" -type f -exec go -- build {} ';'
-- find examples -name "*.go" -type f -exec go -- build {} ';'
-- ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites
+- ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites internal/lua
+- ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites types
+- ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites pkg
+- find tools -name "*.go" -type f -print0 | xargs -0 -n1 go build
+- find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
+- ginkgo -cover -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
 - cd aerospike-server/instance1
-- sudo ./bin/aerospike restart
+- sudo ./bin/aerospike stop
+- cat /dev/null > var/log/aerospike.log
+- sudo ./bin/aerospike start
+- ../../.travis/wait_for_node.sh var/log/aerospike.log
 - cd ../instance2
 - sudo ./bin/aerospike start
+- ../../.travis/wait_for_node.sh var/log/aerospike.log
 - cd ../..
-- sleep 5
-- ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites
+- ginkgo -cover -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
 - .travis/proxy_check.sh
 notifications:
   hipchat:

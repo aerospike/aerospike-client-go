@@ -14,9 +14,7 @@
 
 package aerospike
 
-import (
-	"fmt"
-)
+import "fmt"
 
 // Record is the container struct for database records.
 // Records are equivalent to rows.
@@ -59,5 +57,5 @@ func newRecord(node *Node, key *Key, bins BinMap, generation, expiration uint32)
 // String implements the Stringer interface.
 // Returns string representation of record.
 func (rc *Record) String() string {
-	return fmt.Sprintf("%v %v", *rc.Key, rc.Bins)
+	return fmt.Sprintf("%s %v", rc.Key, rc.Bins)
 }

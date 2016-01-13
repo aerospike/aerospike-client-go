@@ -147,6 +147,10 @@ func (cmd *readCommand) parseRecord(
 		}
 	}
 
+	if opCount > 0 {
+		bins = make(BinMap, opCount)
+	}
+
 	for i := 0; i < opCount; i++ {
 		opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
 		particleType := int(cmd.dataBuffer[receiveOffset+5])

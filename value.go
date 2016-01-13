@@ -50,9 +50,6 @@ type Value interface {
 	// String implements Stringer interface.
 	String() string
 
-	// Return value as an Object.
-	// GetLuaValue() LuaValue
-
 	reader() io.Reader
 }
 
@@ -175,10 +172,6 @@ func (vl NullValue) GetObject() interface{} {
 	return nil
 }
 
-// func (vl NullValue) GetLuaValue() LuaValue {
-// 	return LuaNil.NIL
-// }
-
 func (vl NullValue) reader() io.Reader {
 	return nil
 }
@@ -234,10 +227,6 @@ func (vl BytesValue) GetObject() interface{} {
 	return []byte(vl)
 }
 
-// func (vl BytesValue) GetLuaValue() LuaValue {
-// 	return LuaString.valueOf(vl.bytes)
-// }
-
 func (vl BytesValue) reader() io.Reader {
 	return bytes.NewReader(vl)
 }
@@ -279,10 +268,6 @@ func (vl StringValue) GetType() int {
 func (vl StringValue) GetObject() interface{} {
 	return string(vl)
 }
-
-// func (vl StringValue) GetLuaValue() LuaValue {
-// 	return LuaString.valueOf(vl)
-// }
 
 func (vl StringValue) reader() io.Reader {
 	return strings.NewReader(string(vl))
@@ -331,10 +316,6 @@ func (vl IntegerValue) GetObject() interface{} {
 	return int(vl)
 }
 
-// func (vl IntegerValue) GetLuaValue() LuaValue {
-// 	return LuaInteger.valueOf(vl)
-// }
-
 func (vl IntegerValue) reader() io.Reader {
 	return bytes.NewReader(Buffer.Int64ToBytes(int64(vl), nil, 0))
 }
@@ -378,10 +359,6 @@ func (vl LongValue) GetObject() interface{} {
 	return int64(vl)
 }
 
-// func (vl LongValue) GetLuaValue() LuaValue {
-// 	return LuaInteger.valueOf(vl)
-// }
-
 func (vl LongValue) reader() io.Reader {
 	return bytes.NewReader(Buffer.Int64ToBytes(int64(vl), nil, 0))
 }
@@ -424,10 +401,6 @@ func (vl FloatValue) GetType() int {
 func (vl FloatValue) GetObject() interface{} {
 	return float64(vl)
 }
-
-// func (vl FloatValue) GetLuaValue() LuaValue {
-// 	return LuaFloat.valueOf(vl)
-// }
 
 func (vl FloatValue) reader() io.Reader {
 	return bytes.NewReader(Buffer.Float64ToBytes(float64(vl), nil, 0))
@@ -497,10 +470,6 @@ func (vl *ValueArray) GetObject() interface{} {
 	return vl.array
 }
 
-// func (vl *ValueArray) GetLuaValue() LuaValue {
-// 	return nil
-// }
-
 func (vl *ValueArray) reader() io.Reader {
 	return bytes.NewReader(vl.bytes)
 }
@@ -555,10 +524,6 @@ func (vl *ListValue) GetObject() interface{} {
 	return vl.list
 }
 
-// func (vl *ListValue) GetLuaValue() LuaValue {
-// 	return nil
-// }
-
 func (vl *ListValue) reader() io.Reader {
 	return bytes.NewReader(vl.bytes)
 }
@@ -612,10 +577,6 @@ func (vl *MapValue) GetObject() interface{} {
 	return vl.vmap
 }
 
-// func (vl *MapValue) GetLuaValue() LuaValue {
-// 	return nil
-// }
-
 func (vl *MapValue) reader() io.Reader {
 	return bytes.NewReader(vl.bytes)
 }
@@ -663,10 +624,6 @@ func (vl GeoJSONValue) GetType() int {
 func (vl GeoJSONValue) GetObject() interface{} {
 	return string(vl)
 }
-
-// func (vl GeoJSONValue) GetLuaValue() LuaValue {
-// 	return nil
-// }
 
 func (vl GeoJSONValue) reader() io.Reader {
 	return strings.NewReader(string(vl))

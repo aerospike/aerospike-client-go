@@ -111,6 +111,16 @@ var _ = Describe("LargeList Test", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(existsResult)).To(Equal(4))
 		Expect(existsResult).To(Equal([]bool{true, true, true, false}))
+
+		ffResult, err := llist.FindFrom(3, 2)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(ffResult)).To(Equal(2))
+		Expect(ffResult).To(Equal([]interface{}{3, 4}))
+
+		ffResult2, err := llist.FindFrom(3, 1)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(ffResult2)).To(Equal(1))
+		Expect(ffResult2).To(Equal([]interface{}{3}))
 	})
 
 	It("should correctly GetConfig()", func() {
