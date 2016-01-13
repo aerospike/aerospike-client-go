@@ -41,7 +41,7 @@ func NewMultiPolicy() *MultiPolicy {
 	return &MultiPolicy{
 		BasePolicy:                 NewPolicy(),
 		MaxConcurrentNodes:         0,
-		RecordQueueSize:            5000,
+		RecordQueueSize:            50,
 		WaitUntilMigrationsAreOver: false,
 	}
 }

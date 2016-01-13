@@ -55,7 +55,7 @@ func (cmd *scanCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *scanCommand) parseResult(ifc command, conn *Connection) error {
-	return cmd.baseMultiCommand.parseResult(ifc, conn)
+	return cmd.baseMultiCommand.parseResult(cmd, conn)
 }
 
 func (cmd *scanCommand) Execute() error {

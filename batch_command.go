@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 
@@ -23,12 +24,22 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
+const (
+	_MAX_BUFFER_SIZE = 1024 * 1024 * 10 // 10 MB
+	_CHUNK_SIZE      = 4096
+)
+
 type multiCommand interface {
 	Stop()
 }
 
 type baseMultiCommand struct {
 	*baseCommand
+
+	buf     bytes.Buffer
+	remains int64
+
+	terminationError ResultCode
 
 	recordset *Recordset
 
@@ -69,17 +80,23 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 	// because the receive buffer would be too big.
 	status := true
 
+	var err error
+	rs := 0
+	cnt := 0
+
 	for status {
 		// Read header.
-		if err := cmd.readBytes(8); err != nil {
+		if _, err = cmd.conn.Read(cmd.dataBuffer, 8); err != nil {
 			return err
 		}
 
 		size := Buffer.BytesToInt64(cmd.dataBuffer, 0)
 		receiveSize := int(size & 0xFFFFFFFFFFFF)
+		cmd.remains = int64(receiveSize)
+		cnt++
+		rs += receiveSize
 
 		if receiveSize > 0 {
-			var err error
 			if status, err = ifc.parseRecordResults(ifc, receiveSize); err != nil {
 				return err
 			}
@@ -87,6 +104,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 			status = false
 		}
 	}
+
 	return nil
 }
 
@@ -128,7 +146,7 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 }
 
 func (cmd *baseMultiCommand) readBytes(length int) error {
-	if length > len(cmd.dataBuffer) {
+	if length > cap(cmd.dataBuffer) {
 		// Corrupted data streams can result in a huge length.
 		// Do a sanity check here.
 		if length > MaxBufferSize {
@@ -137,12 +155,42 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 		cmd.dataBuffer = make([]byte, length)
 	}
 
-	_, err := cmd.conn.Read(cmd.dataBuffer, length)
+	for cmd.buf.Len() < length {
+		if cmd.remains < 0 {
+			return fmt.Errorf("Requested socket read, but no bytes remain in buffer %d", 1)
+		}
+
+		if cmd.remains >= _CHUNK_SIZE {
+			cmd.readNextChunk(_CHUNK_SIZE)
+			cmd.remains -= _CHUNK_SIZE
+		} else {
+			cmd.readNextChunk(int(cmd.remains))
+			cmd.remains = 0
+		}
+	}
+
+	if n, err := cmd.buf.Read(cmd.dataBuffer[:length]); err != nil || n != length {
+		return fmt.Errorf("Requested to read %d bytes, but %d was read. (%v)", length, n, err)
+	}
+
+	cmd.dataOffset += length
+	return nil
+}
+
+func (cmd *baseMultiCommand) readNextChunk(length int) error {
+
+	// Corrupted data streams can result in a huge length.
+	// Do a sanity check here.
+	if length > _MAX_BUFFER_SIZE {
+		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
+	}
+
+	// read first chunk up front
+	_, err := cmd.conn.ReadN(&cmd.buf, int64(length))
 	if err != nil {
 		return err
 	}
 
-	cmd.dataOffset += length
 	return nil
 }
 
