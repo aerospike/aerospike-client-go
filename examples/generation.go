@@ -78,7 +78,7 @@ func runExample(client *as.Client) {
 
 	writePolicy := as.NewWritePolicy(0, 2)
 	writePolicy.GenerationPolicy = as.EXPECT_GEN_EQUAL
-	writePolicy.Generation = int32(record.Generation)
+	writePolicy.Generation = record.Generation
 	client.PutBins(writePolicy, key, bin)
 
 	// Set record with invalid generation and check results .

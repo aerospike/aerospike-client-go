@@ -19,6 +19,7 @@ package main
 
 import (
 	"log"
+	"math"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
@@ -96,7 +97,7 @@ func noExpireExample(client *as.Client) {
 	// Specify that record NEVER expires.
 	// The "Never Expire" value is -1, or 0xFFFFFFFF.
 	writePolicy := as.NewWritePolicy(0, 2)
-	writePolicy.Expiration = -1
+	writePolicy.Expiration = math.MaxUint32
 	client.PutBins(writePolicy, key, bin)
 
 	// Read the record, showing it is there.

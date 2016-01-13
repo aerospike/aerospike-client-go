@@ -144,8 +144,8 @@ func batchReadHeaders(
 		key := keys[i]
 		record := records[i]
 		level := asl.ERR
-		generation := 0
-		expiration := 0
+		generation := uint32(0)
+		expiration := uint32(0)
 
 		if record != nil && (record.Generation > 0 || record.Expiration > 0) {
 			level = asl.INFO

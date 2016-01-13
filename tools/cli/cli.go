@@ -72,7 +72,7 @@ func main() {
 			log.Println("Record not found.")
 		}
 	case "set":
-		policy := NewWritePolicy(0, int32(*recordTTL))
+		policy := NewWritePolicy(0, uint32(*recordTTL))
 		err = client.Put(policy, theKey, BinMap{*binName: *value})
 		quitOnError(err)
 	case "delete":
