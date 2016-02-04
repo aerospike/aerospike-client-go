@@ -269,7 +269,12 @@ func luaMapIndex(L *lua.LState) int {
 	ref := checkMap(L, 1)
 	key := L.CheckAny(2)
 
-	L.Push(ref.m[key])
+	v := ref.m[key]
+	if v == nil {
+		v = lua.LNil
+	}
+
+	L.Push(v)
 	return 1
 }
 

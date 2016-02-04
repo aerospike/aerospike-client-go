@@ -1,6 +1,15 @@
-# Change history
+# Change History
 
-## January 13 2015 : v1.10
+## February 4 2016 : v1.11
+
+  Minor improvements release.
+
+    * **Improvements**
+
+      * Improves marshalling of data types into and out of the Lua library.
+
+
+## January 13 2016 : v1.10
 
   Major release. Adds Aggregation.
 
@@ -50,7 +59,7 @@
 
       * NOTICE! BREAKING CHANGE: Types of `Record.Generation` and `Record.Expiration`, and also `WritePolicy.Generation` and `WritePolicy.Expiration` have changed, and may require casting in older code.
 
-    *Refactor tools/asinfo to be more idiomatic Go. PR #86, thanks to [Tyler Gibbons](https://github.com/Kavec)
+    * Refactor tools/asinfo to be more idiomatic Go. PR #86, thanks to [Tyler Gibbons](https://github.com/Kavec)
 
     * Many documentation fixes thanks to [Charl Matthee](https://github.com/charl) and [Tyler Gibbons](https://github.com/Kavec)
 

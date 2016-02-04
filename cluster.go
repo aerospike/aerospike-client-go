@@ -100,6 +100,11 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	return newCluster, nil
 }
 
+// String implements the stringer interface
+func (clstr *Cluster) String() string {
+	return fmt.Sprintf("%v", clstr.nodes)
+}
+
 // Maintains the cluster on intervals.
 // All clean up code for cluster is here as well.
 func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {

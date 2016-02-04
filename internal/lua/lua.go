@@ -16,6 +16,7 @@ package lua
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/yuin/gopher-lua"
 )
@@ -85,7 +86,38 @@ func NewValue(L *lua.LState, value interface{}) lua.LValue {
 		return ud
 	}
 
-	panic(fmt.Sprintf("unrecognized data type %#v", value))
+	// check for array and map
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Array, reflect.Slice:
+		l := rv.Len()
+		arr := make([]interface{}, l)
+		for i := 0; i < l; i++ {
+			arr[i] = rv.Index(i).Interface()
+		}
+
+		return NewValue(L, arr)
+	case reflect.Map:
+		l := rv.Len()
+		amap := make(map[interface{}]interface{}, l)
+		for _, i := range rv.MapKeys() {
+			amap[i.Interface()] = rv.MapIndex(i).Interface()
+		}
+
+		return NewValue(L, amap)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return NewValue(L, reflect.ValueOf(value).Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		return NewValue(L, int64(reflect.ValueOf(value).Uint()))
+	case reflect.String:
+		return NewValue(L, rv.String())
+	case reflect.Float32, reflect.Float64:
+		return NewValue(L, rv.Float())
+	case reflect.Bool:
+		return NewValue(L, rv.Bool())
+	}
+
+	panic(fmt.Sprintf("unrecognized data type for lua: %#v\n", value))
 }
 
 // LValueToInterface converts a generic LValue to a native type

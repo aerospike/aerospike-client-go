@@ -43,7 +43,7 @@ type ClientPolicy struct {
 
 	// If set to true, will not create a new connection
 	// to the node if there are already `ConnectionQueueSize` active connections.
-	LimitConnectionsToQueueSize bool //= false
+	LimitConnectionsToQueueSize bool //= true
 
 	// Throw exception if host connection fails during addHost().
 	FailIfNotConnected bool //= true
@@ -69,7 +69,7 @@ func NewClientPolicy() *ClientPolicy {
 		ConnectionQueueSize:         256,
 		FailIfNotConnected:          true,
 		TendInterval:                time.Second,
-		LimitConnectionsToQueueSize: false,
+		LimitConnectionsToQueueSize: true,
 	}
 }
 

@@ -81,7 +81,7 @@ function env_record()
         ["error"] = error,
         ["getmetatable"] = getmetatable,
         ["ipairs"] = ipairs,
-        ["load"] = load,
+        ["load"] = loadstring,
         ["module"] = module,
         ["next"] = next,
         ["pairs"] = pairs,

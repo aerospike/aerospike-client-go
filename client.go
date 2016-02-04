@@ -951,7 +951,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 	}
 
 	// Input Channel
-	inputChan := make(chan interface{}, 64)
+	inputChan := make(chan interface{}, 4096) // 4096 = number of partitions
 	istream := lualib.NewLuaStream(luaInstance, inputChan)
 
 	// Output Channe;
@@ -1011,7 +1011,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 
 		luaArgs := []lua.LValue{fn, lualib.NewValue(luaInstance, 2), istream, ostream}
 		for _, a := range functionArgs {
-			luaArgs = append(luaArgs, lualib.NewValue(luaInstance, a))
+			luaArgs = append(luaArgs, lualib.NewValue(luaInstance, unwrapValue(a)))
 		}
 
 		if err := luaInstance.CallByParam(lua.P{

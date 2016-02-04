@@ -691,3 +691,21 @@ func bytesToKeyValue(pType int, buf []byte, offset int, len int) (Value, error) 
 		return nil, nil
 	}
 }
+
+func unwrapValue(v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+
+	if uv, ok := v.(Value); ok {
+		return unwrapValue(uv.GetObject())
+	} else if uv, ok := v.([]Value); ok {
+		a := make([]interface{}, len(uv))
+		for i := range uv {
+			a[i] = unwrapValue(uv[i].GetObject())
+		}
+		return a
+	}
+
+	return v
+}

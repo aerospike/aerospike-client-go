@@ -365,6 +365,11 @@ func luaListIndex(L *lua.LState) int {
 	ref := checkLuaList(L, 1)
 	index := L.CheckInt(2)
 
+	if index <= 0 || index > len(ref.l) {
+		L.Push(lua.LNil)
+		return 1
+	}
+
 	item := ref.l[index-1]
 	L.Push(NewValue(L, item))
 	return 1
