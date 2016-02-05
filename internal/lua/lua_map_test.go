@@ -64,6 +64,7 @@ var _ = Describe("Lua Map API Test", func() {
 			err := instance.DoString(source)
 			Expect(err).NotTo(HaveOccurred())
 
+			By(source)
 			Expect(LValueToInterface(instance.CheckAny(-1))).To(Equal(expected))
 			instance.Pop(1) // remove received value
 		}

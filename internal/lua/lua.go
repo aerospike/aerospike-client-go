@@ -63,23 +63,14 @@ func NewValue(L *lua.LState, value interface{}) lua.LValue {
 	case bool:
 		return lua.LBool(v)
 	case map[interface{}]interface{}:
-		m := make(map[lua.LValue]lua.LValue, len(v))
-		for k, val := range v {
-			m[NewValue(L, k)] = NewValue(L, val)
-		}
-
-		luaMap := &LuaMap{m: m}
+		luaMap := &LuaMap{m: v}
 		ud := L.NewUserData()
 		ud.Value = luaMap
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaMapTypeName))
 		return ud
 
 	case []interface{}:
-		l := make([]lua.LValue, len(v))
-		for i := range v {
-			l[i] = NewValue(L, v[i])
-		}
-		luaList := &LuaList{l: l}
+		luaList := &LuaList{l: v}
 		ud := L.NewUserData()
 		ud.Value = luaList
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -135,17 +126,9 @@ func LValueToInterface(val lua.LValue) interface{} {
 		ud := val.(*lua.LUserData).Value
 		switch v := ud.(type) {
 		case *LuaMap:
-			m := make(map[interface{}]interface{}, len(v.m))
-			for k, v := range v.m {
-				m[LValueToInterface(k)] = LValueToInterface(v)
-			}
-			return m
+			return v.m
 		case *LuaList:
-			l := make([]interface{}, len(v.l))
-			for i := range v.l {
-				l[i] = LValueToInterface(v.l[i])
-			}
-			return l
+			return v.l
 		default:
 			return v
 		}

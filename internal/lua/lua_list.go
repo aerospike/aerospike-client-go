@@ -21,7 +21,7 @@ import (
 )
 
 type LuaList struct {
-	l []lua.LValue
+	l []interface{}
 }
 
 const luaLuaListTypeName = "LuaList"
@@ -72,7 +72,7 @@ func registerLuaListType(L *lua.LState) {
 // Constructor
 func createLuaList(L *lua.LState) int {
 	if L.GetTop() == 0 {
-		luaList := &LuaList{l: []lua.LValue{}}
+		luaList := &LuaList{l: []interface{}{}}
 		ud := L.NewUserData()
 		ud.Value = luaList
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -80,7 +80,7 @@ func createLuaList(L *lua.LState) int {
 		return 1
 	} else if L.GetTop() == 1 || L.GetTop() == 2 {
 		cp := L.CheckInt(1)
-		l := make([]lua.LValue, 0, cp)
+		l := make([]interface{}, 0, cp)
 
 		luaList := &LuaList{l: l}
 		ud := L.NewUserData()
@@ -96,7 +96,7 @@ func createLuaList(L *lua.LState) int {
 // Constructor
 func newLuaList(L *lua.LState) int {
 	if L.GetTop() == 1 {
-		luaList := &LuaList{l: []lua.LValue{}}
+		luaList := &LuaList{l: []interface{}{}}
 		ud := L.NewUserData()
 		ud.Value = luaList
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -104,9 +104,9 @@ func newLuaList(L *lua.LState) int {
 		return 1
 	} else if L.GetTop() == 2 {
 		t := L.CheckTable(2)
-		l := make([]lua.LValue, t.Len())
+		l := make([]interface{}, t.Len())
 		for i := 1; i <= t.Len(); i++ {
-			l[i-1] = t.RawGetInt(i)
+			l[i-1] = LValueToInterface(t.RawGetInt(i))
 		}
 
 		luaList := &LuaList{l: l}
@@ -158,7 +158,7 @@ func luaListInsert(L *lua.LState) int {
 		return 0
 	}
 	index := L.CheckInt(2)
-	value := L.CheckAny(3)
+	value := LValueToInterface(L.CheckAny(3))
 
 	if cap(p.l) > len(p.l) {
 		for i := len(p.l); i >= index; i-- {
@@ -170,7 +170,7 @@ func luaListInsert(L *lua.LState) int {
 		if ln > 256 {
 			ln = 256
 		}
-		newList := make([]lua.LValue, len(p.l)+1, ln)
+		newList := make([]interface{}, len(p.l)+1, ln)
 
 		copy(newList, p.l[:index-1])
 		newList[index-1] = value
@@ -187,7 +187,7 @@ func luaListAppend(L *lua.LState) int {
 		L.ArgError(1, "Only one argument expected for append method")
 		return 0
 	}
-	value := L.CheckAny(2)
+	value := LValueToInterface(L.CheckAny(2))
 	p.l = append(p.l, value)
 
 	return 0
@@ -199,7 +199,7 @@ func luaListPrepend(L *lua.LState) int {
 		L.ArgError(1, "Only one argument expected for append method")
 		return 0
 	}
-	value := L.CheckAny(2)
+	value := LValueToInterface(L.CheckAny(2))
 
 	if cap(p.l) > len(p.l) {
 		p.l = append(p.l, nil)
@@ -212,7 +212,7 @@ func luaListPrepend(L *lua.LState) int {
 		if ln > 256 {
 			ln = 256
 		}
-		newList := make([]lua.LValue, len(p.l)+1, ln)
+		newList := make([]interface{}, len(p.l)+1, ln)
 
 		copy(newList[1:], p.l)
 		newList[0] = value
@@ -251,11 +251,11 @@ func luaListDrop(L *lua.LState) int {
 	}
 
 	count := L.CheckInt(2)
-	var items []lua.LValue
+	var items []interface{}
 	if count < len(p.l) {
 		items = p.l[count:]
 	} else {
-		items = []lua.LValue{}
+		items = []interface{}{}
 	}
 
 	luaList := &LuaList{l: items}
@@ -303,7 +303,7 @@ func luaListClone(L *lua.LState) int {
 		return 0
 	}
 
-	newList := &LuaList{l: make([]lua.LValue, len(p.l))}
+	newList := &LuaList{l: make([]interface{}, len(p.l))}
 	copy(newList.l, p.l)
 
 	ud := L.NewUserData()
@@ -323,7 +323,7 @@ func luaListMerge(L *lua.LState) int {
 
 	sp := checkLuaList(L, 2)
 
-	newList := &LuaList{l: make([]lua.LValue, 0, len(p.l)+len(sp.l))}
+	newList := &LuaList{l: make([]interface{}, 0, len(p.l)+len(sp.l))}
 	for _, v := range p.l {
 		newList.l = append(newList.l, v)
 	}
@@ -380,7 +380,7 @@ func luaListNewIndex(L *lua.LState) int {
 	index := L.CheckInt(2)
 	value := L.CheckAny(3)
 
-	ref.l[index-1] = value
+	ref.l[index-1] = LValueToInterface(value)
 	return 0
 }
 

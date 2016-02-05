@@ -98,6 +98,7 @@ var _ = Describe("Lua List API Test", func() {
 			err := instance.DoString(source)
 			Expect(err).NotTo(HaveOccurred())
 
+			By(source)
 			Expect(LValueToInterface(instance.CheckAny(-1))).To(Equal(expected))
 			instance.Pop(1) // remove received value
 		}
@@ -108,6 +109,7 @@ var _ = Describe("Lua List API Test", func() {
 		instance := LuaPool.Get().(*lua.LState)
 		defer instance.Close()
 		for _, source := range errMatrix {
+			By(source)
 
 			err := instance.DoString(source)
 			Expect(err).To(HaveOccurred())
