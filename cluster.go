@@ -89,7 +89,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 	// apply policy rules
 	if policy.FailIfNotConnected && !newCluster.IsConnected() {
-		return nil, fmt.Errorf("Failed to connect to host(s): %v", hosts)
+		return nil, fmt.Errorf("Failed to connect to host(s): %v. The network connection(s) to cluster nodes may have timed out, or the cluster may be in a state of flux.", hosts)
 	}
 
 	// start up cluster maintenance go routine

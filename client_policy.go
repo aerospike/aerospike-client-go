@@ -64,7 +64,7 @@ type ClientPolicy struct {
 // NewClientPolicy generates a new ClientPolicy with default values.
 func NewClientPolicy() *ClientPolicy {
 	return &ClientPolicy{
-		Timeout:                     time.Second,
+		Timeout:                     30 * time.Second,
 		IdleTimeout:                 defaultIdleTimeout,
 		ConnectionQueueSize:         256,
 		FailIfNotConnected:          true,
