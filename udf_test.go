@@ -49,6 +49,16 @@ const udfEcho = `function echo(rec, param)
    return ret 		-- return the same value to make sure serializations are working well
 end`
 
+const udfCreateWithSendKey = `function createRecWithSendKey(rec)
+   rec['otherBin'] = 1
+   aerospike:create(rec)
+end
+
+function getRecordKeyValue(rec)
+	return record.key(rec)
+end
+`
+
 // ALL tests are isolated by SetName and Key, which are 50 random charachters
 var _ = Describe("UDF/Query tests", func() {
 	initTestVars()
@@ -94,6 +104,39 @@ var _ = Describe("UDF/Query tests", func() {
 
 		Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
 		Expect(rec.Bins[bin2.Name]).To(Equal(bin1.Value.GetObject().(int) / 2))
+	})
+
+	It("must run a UDF to create single record and persist the original key value", func() {
+		regTask, err := client.RegisterUDF(wpolicy, []byte(udfCreateWithSendKey), "udf1.lua", LUA)
+		Expect(err).ToNot(HaveOccurred())
+
+		// wait until UDF is created
+		Expect(<-regTask.OnComplete()).NotTo(HaveOccurred())
+
+		key, err = NewKey(ns, set, -1)
+		Expect(err).ToNot(HaveOccurred())
+
+		// make sure the record doesn't exist yet
+		_, err = client.Delete(nil, key)
+		Expect(err).ToNot(HaveOccurred())
+
+		exists, err := client.Exists(nil, key)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(exists).To(BeFalse())
+
+		wp := NewWritePolicy(0, 0)
+		wp.SendKey = true
+		_, err = client.Execute(wp, key, "udf1", "createRecWithSendKey")
+		Expect(err).ToNot(HaveOccurred())
+
+		// read all data and make sure it is consistent
+		exists, err = client.Exists(nil, key)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(exists).To(BeTrue())
+
+		res, err := client.Execute(nil, key, "udf1", "getRecordKeyValue")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(res).To(Equal(-1))
 	})
 
 	It("must list all udfs on the server", func() {

@@ -291,9 +291,9 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	return nil
 }
 
-func (cmd *baseCommand) setUdf(policy Policy, key *Key, packageName string, functionName string, args []Value) error {
+func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string, functionName string, args []Value) error {
 	cmd.begin()
-	fieldCount := cmd.estimateKeySize(key, false)
+	fieldCount := cmd.estimateKeySize(key, policy.SendKey)
 	argBytes, err := packValueArray(args)
 	if err != nil {
 		return err
@@ -304,7 +304,7 @@ func (cmd *baseCommand) setUdf(policy Policy, key *Key, packageName string, func
 		return nil
 	}
 	cmd.writeHeader(policy.GetBasePolicy(), 0, _INFO2_WRITE, fieldCount, 0)
-	cmd.writeKey(key, false)
+	cmd.writeKey(key, policy.SendKey)
 	cmd.writeFieldString(packageName, UDF_PACKAGE_NAME)
 	cmd.writeFieldString(functionName, UDF_FUNCTION)
 	cmd.writeFieldBytes(argBytes, UDF_ARGLIST)
