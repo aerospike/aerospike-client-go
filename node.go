@@ -92,7 +92,14 @@ func (nd *Node) Refresh() ([]*Host, error) {
 		return nil, err
 	}
 
-	infoMap, err := RequestInfo(conn, "node", "partition-generation", "services")
+	var commands []string
+	if !nd.cluster.useServicesAlternate {
+		commands = []string{"node", "partition-generation", "services"}
+	} else {
+		commands = []string{"node", "partition-generation", "services-alternate"}
+	}
+
+	infoMap, err := RequestInfo(conn, commands...)
 	if err != nil {
 		nd.InvalidateConnection(conn)
 		nd.DecreaseHealth()

@@ -49,7 +49,7 @@ type ClientPolicy struct {
 	FailIfNotConnected bool //= true
 
 	// TendInterval determines interval for checking for cluster state changes.
-	// Minimum possible interval is 10 Miliseconds.
+	// Minimum possible interval is 10 Milliseconds.
 	TendInterval time.Duration //= 1 second
 
 	// A IP translation table is used in cases where different clients
@@ -59,6 +59,15 @@ type ClientPolicy struct {
 	// The key is the IP address returned from friend info requests to other servers.
 	// The value is the real IP address used to connect to the server.
 	IpMap map[string]string
+
+	// UseServicesAlternate determines if the client should use "services-alternate" instead of "services"
+	// in info request during cluster tending.
+	//"services-alternate" returns server configured external IP addresses that client
+	// uses to talk to nodes.  "services-alternate" can be used in place of providing a client "ipMap".
+	// This feature is recommended instead of using the client-side IpMap above.
+	//
+	// "services-alternate" is available with Aerospike Server versions >= 3.7.1.
+	UseServicesAlternate bool // false
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.

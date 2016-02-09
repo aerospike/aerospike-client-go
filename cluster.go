@@ -54,6 +54,9 @@ type Cluster struct {
 	// Aerospike v3.6.0+
 	supportsFloat *AtomicBool
 
+	// Should use "services-alternate" instead of "services" in info request?
+	useServicesAlternate bool
+
 	// User name in UTF-8 encoded bytes.
 	user string
 
@@ -72,7 +75,8 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		nodeIndex:         NewAtomicInt(0),
 		tendChannel:       make(chan struct{}),
 
-		supportsFloat: NewAtomicBool(false),
+		supportsFloat:        NewAtomicBool(false),
+		useServicesAlternate: policy.UseServicesAlternate,
 	}
 
 	// setup auth info for cluster
