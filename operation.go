@@ -206,6 +206,17 @@ func ListPopRangeOp(binName string, index int, count int) *Operation {
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
 
+// ListPopRangeFromOp creates a list pop range operation.
+// Server returns items starting at specified index to the end of list and removes items from list bin.
+func ListPopRangeFromOp(binName string, index int) *Operation {
+	packer := newPacker()
+	packer.PackShortRaw(_CDT_LIST_POP_RANGE)
+	packer.PackArrayBegin(1)
+	packer.PackAInt(index)
+	bytes := packer.buffer.Bytes()
+	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
+}
+
 // ListRemoveOp creates a list remove operation.
 // Server removes item at specified index from list bin.
 // Server returns number of items removed.
@@ -231,6 +242,18 @@ func ListRemoveRangeOp(binName string, index int, count int) *Operation {
 	packer.PackArrayBegin(2)
 	packer.PackAInt(index)
 	packer.PackAInt(count)
+	bytes := packer.buffer.Bytes()
+	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
+}
+
+// ListRemoveRangeFromOp creates a list remove range operation.
+// Server removes all items starting at specified index to the end of list.
+// Server returns number of items removed.
+func ListRemoveRangeFromOp(binName string, index int) *Operation {
+	packer := newPacker()
+	packer.PackShortRaw(_CDT_LIST_REMOVE_RANGE)
+	packer.PackArrayBegin(1)
+	packer.PackAInt(index)
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -302,6 +325,17 @@ func ListGetRangeOp(binName string, index int, count int) *Operation {
 	packer.PackArrayBegin(2)
 	packer.PackAInt(index)
 	packer.PackAInt(count)
+	bytes := packer.buffer.Bytes()
+	return &Operation{OpType: CDT_READ, BinName: binName, BinValue: NewValue(bytes)}
+}
+
+// ListGetRangeFromOp creates a list get range operation.
+// Server returns items starting at specified index to the end of list.
+func ListGetRangeFromOp(binName string, index int) *Operation {
+	packer := newPacker()
+	packer.PackShortRaw(_CDT_LIST_GET_RANGE)
+	packer.PackArrayBegin(1)
+	packer.PackAInt(index)
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_READ, BinName: binName, BinValue: NewValue(bytes)}
 }

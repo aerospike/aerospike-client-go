@@ -102,6 +102,12 @@ var _ = Describe("CDT List Test", func() {
 			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{listSize - 2, listSize - 1, listSize - 0}))
 		})
 
+		It("should Get the from element #7 till the end of list", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, ListGetRangeFromOp(cdtBinName, 7))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{listSize - 2, listSize - 1, listSize - 0}))
+		})
+
 		It("should append an element to the tail", func() {
 			cdtListRes, err := client.Operate(wpolicy, key, ListAppendOp(cdtBinName, math.MaxInt64))
 			Expect(err).ToNot(HaveOccurred())
@@ -161,6 +167,21 @@ var _ = Describe("CDT List Test", func() {
 			}
 		})
 
+		It("should pop elements from element #7 to the end of list", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, ListGetRangeFromOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(list))
+
+			cdtPopRes, err := client.Operate(wpolicy, key, ListPopRangeFromOp(cdtBinName, 7))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtPopRes.Bins[cdtBinName]).To(Equal(list[7:]))
+
+			cdtListRes, err = client.Operate(wpolicy, key, ListGetRangeFromOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(list[:7]))
+
+		})
+
 		It("should remove elements from the head", func() {
 			for i := listSize; i > 0; i-- {
 				cdtListRes, err := client.Operate(wpolicy, key, ListRemoveOp(cdtBinName, 0))
@@ -176,6 +197,21 @@ var _ = Describe("CDT List Test", func() {
 					Expect(cdtListRes.Bins[cdtBinName]).To(Equal(list))
 				}
 			}
+		})
+
+		It("should remove elements from element #7 to the end of list", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, ListGetRangeFromOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(list))
+
+			cdtRemoveRes, err := client.Operate(wpolicy, key, ListRemoveRangeFromOp(cdtBinName, 7))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtRemoveRes.Bins[cdtBinName]).To(Equal(3))
+
+			cdtListRes, err = client.Operate(wpolicy, key, ListGetRangeFromOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(list[:7]))
+
 		})
 
 		It("should remove elements from the head in increasing numbers", func() {
