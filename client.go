@@ -1404,6 +1404,14 @@ func (clnt *Client) QueryUsers(policy *AdminPolicy) ([]*UserRoles, error) {
 	return command.queryUsers(clnt.cluster, policy)
 }
 
+// String implements the Stringer interface for client
+func (clnt *Client) String() string {
+	if clnt.cluster != nil {
+		return clnt.cluster.String()
+	}
+	return ""
+}
+
 //-------------------------------------------------------
 // Internal Methods
 //-------------------------------------------------------
