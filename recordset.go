@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"fmt"
 	"reflect"
 	"sync"
 
@@ -24,6 +25,14 @@ import (
 type Result struct {
 	Record *Record
 	Err    error
+}
+
+// String implements the Stringer interface
+func (res *Result) String() string {
+	if res.Record != nil {
+		return fmt.Sprintf("%v", res.Record)
+	}
+	return fmt.Sprintf("%v", res.Err)
 }
 
 // Objectset encapsulates the result of Scan and Query commands.
