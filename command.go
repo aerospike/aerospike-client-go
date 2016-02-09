@@ -481,7 +481,9 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	fieldCount++
 
 	if len(statement.Filters) > 0 {
-		if len(statement.Filters) >= 1 {
+		if len(statement.Filters) > 1 {
+			return NewAerospikeError(PARAMETER_ERROR, "Aerospike server currently supports only one filter.")
+		} else if len(statement.Filters) == 1 {
 			idxType := statement.Filters[0].IndexCollectionType()
 
 			if idxType != ICT_DEFAULT {

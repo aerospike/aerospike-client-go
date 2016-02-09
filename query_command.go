@@ -40,3 +40,13 @@ func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
 func (cmd *queryCommand) parseResult(ifc command, conn *Connection) error {
 	return cmd.baseMultiCommand.parseResult(ifc, conn)
 }
+
+// Execute will run the query.
+func (cmd *queryCommand) Execute() error {
+	defer cmd.recordset.signalEnd()
+	err := cmd.execute(cmd)
+	if err != nil {
+		cmd.recordset.sendError(err)
+	}
+	return err
+}

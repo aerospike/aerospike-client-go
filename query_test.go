@@ -19,6 +19,7 @@ import (
 	"math/rand"
 
 	. "github.com/aerospike/aerospike-client-go"
+	. "github.com/aerospike/aerospike-client-go/types"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -108,6 +109,24 @@ var _ = Describe("Query operations", func() {
 
 		// wait until index is created
 		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+	})
+
+	It("must return error if more than onlt filter passed to the command", func() {
+		stm := NewStatement(ns, set)
+		stm.Addfilter(NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
+		stm.Addfilter(NewRangeFilter(bin3.Name, 2, math.MaxInt16/2))
+
+		Expect(len(stm.Filters)).To(Equal(2))
+
+		recordset, err := client.Query(nil, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		for res := range recordset.Results() {
+			Expect(res.Err).To(HaveOccurred())
+			ae, ok := res.Err.(AerospikeError)
+			Expect(ok).To(BeTrue())
+			Expect(ae.ResultCode()).To(Equal(PARAMETER_ERROR))
+		}
 	})
 
 	It("must Query a range and get all records back", func() {
