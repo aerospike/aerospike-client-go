@@ -1,13 +1,22 @@
 # Change History
 
-## February 4 2016 : v1.11
+## February 9 2016 : v1.11
 
-  Minor improvements release.
+  Minor features and improvements release.
 
-    * **Improvements**
+  * **New Features**
 
-      * Improves marshalling of data types into and out of the Lua library.
+      * Can now use `services-alternate` for cluster tend.
+      
+      * New CDT List API: `ListGetRangeFromOp`, `ListRemoveRangeFromOp`, `ListPopRangeFromOp`
 
+  * **Improvements**
+
+      * Improves marshalling of data types into and out of the Lua library and avoids marshalling values before they are needed.
+
+      * Returns error for having more than one Filter on client-side to avoid confusion.
+
+      * Increases default `ClientPolicy.Timeout` and return a meaningful error message when the client is not fully connected to the cluster after `waitTillStabilized` call
 
 ## January 13 2016 : v1.10
 
@@ -21,9 +30,9 @@
 
       * You can find more documentation regarding the [Aggregation Feature on Aerospike Website](http://www.aerospike.com/docs/guide/aggregation.html)
 
-    * **Improvements**
+  * **Improvements**
 
-      * Improve Query/Scan performance by reading from the socket in bigger chunks
+    * Improve Query/Scan performance by reading from the socket in bigger chunks
 
 ## December 14 2015 : v1.9
 
