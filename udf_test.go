@@ -55,7 +55,9 @@ const udfCreateWithSendKey = `function createRecWithSendKey(rec)
 end
 
 function getRecordKeyValue(rec)
-	return record.key(rec)
+	local r = record.key(rec)
+	aerospike:remove(rec)
+	return r
 end
 `
 
@@ -107,13 +109,14 @@ var _ = Describe("UDF/Query tests", func() {
 	})
 
 	It("must run a UDF to create single record and persist the original key value", func() {
-		regTask, err := client.RegisterUDF(wpolicy, []byte(udfCreateWithSendKey), "udf1.lua", LUA)
+		regTask, err := client.RegisterUDF(wpolicy, []byte(udfCreateWithSendKey), "sendKey.lua", LUA)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until UDF is created
 		Expect(<-regTask.OnComplete()).NotTo(HaveOccurred())
 
-		key, err = NewKey(ns, set, -1)
+		tSet := randString(50)
+		key, err := NewKey(ns, tSet, -1)
 		Expect(err).ToNot(HaveOccurred())
 
 		// make sure the record doesn't exist yet
@@ -126,7 +129,7 @@ var _ = Describe("UDF/Query tests", func() {
 
 		wp := NewWritePolicy(0, 0)
 		wp.SendKey = true
-		_, err = client.Execute(wp, key, "udf1", "createRecWithSendKey")
+		_, err = client.Execute(wp, key, "sendKey", "createRecWithSendKey")
 		Expect(err).ToNot(HaveOccurred())
 
 		// read all data and make sure it is consistent
@@ -134,7 +137,7 @@ var _ = Describe("UDF/Query tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(exists).To(BeTrue())
 
-		res, err := client.Execute(nil, key, "udf1", "getRecordKeyValue")
+		res, err := client.Execute(nil, key, "sendKey", "getRecordKeyValue")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(res).To(Equal(-1))
 	})
