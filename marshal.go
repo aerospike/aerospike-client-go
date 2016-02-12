@@ -161,13 +161,13 @@ func marshal(v interface{}, clusterSupportsFloat bool) []*Bin {
 }
 
 type SyncMap struct {
-	objectMappings map[string]map[string]string
-	objectFields   map[string][]string
+	objectMappings map[reflect.Type]map[string]string
+	objectFields   map[reflect.Type][]string
 	mutex          sync.RWMutex
 }
 
 func (sm *SyncMap) setMapping(obj reflect.Value, mapping map[string]string, fields []string) {
-	objType := obj.Type().Name()
+	objType := obj.Type()
 	sm.mutex.Lock()
 	sm.objectMappings[objType] = mapping
 	sm.objectFields[objType] = fields
@@ -175,7 +175,7 @@ func (sm *SyncMap) setMapping(obj reflect.Value, mapping map[string]string, fiel
 }
 
 func (sm *SyncMap) mappingExists(obj reflect.Value) bool {
-	objType := obj.Type().Name()
+	objType := obj.Type()
 	sm.mutex.RLock()
 	_, exists := sm.objectMappings[objType]
 	sm.mutex.RUnlock()
@@ -186,7 +186,7 @@ func (sm *SyncMap) getMapping(obj reflect.Value) map[string]string {
 	if !obj.IsValid() {
 		return nil
 	}
-	objType := obj.Type().Name()
+	objType := obj.Type()
 	sm.mutex.RLock()
 	mapping := sm.objectMappings[objType]
 	sm.mutex.RUnlock()
@@ -194,14 +194,14 @@ func (sm *SyncMap) getMapping(obj reflect.Value) map[string]string {
 }
 
 func (sm *SyncMap) getFields(obj reflect.Value) []string {
-	objType := obj.Type().Name()
+	objType := obj.Type()
 	sm.mutex.RLock()
 	fields := sm.objectFields[objType]
 	sm.mutex.RUnlock()
 	return fields
 }
 
-var objectMappings = &SyncMap{objectMappings: map[string]map[string]string{}, objectFields: map[string][]string{}}
+var objectMappings = &SyncMap{objectMappings: map[reflect.Type]map[string]string{}, objectFields: map[reflect.Type][]string{}}
 
 func cacheObjectTags(obj reflect.Value) {
 	// exit if already processed
