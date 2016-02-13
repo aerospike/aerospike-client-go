@@ -164,6 +164,14 @@ var _ = Describe("Aerospike", func() {
 			// std lib type
 			Tm  time.Time
 			TmP *time.Time
+
+			Anonym struct {
+				SomeStruct
+			}
+
+			AnonymP *struct {
+				SomeStruct
+			}
 		}
 
 		makeTestObject := func() *testObject {
@@ -291,6 +299,9 @@ var _ = Describe("Aerospike", func() {
 
 				Tm:  now,
 				TmP: &now,
+
+				Anonym:  struct{ SomeStruct }{SomeStruct{A: 1, Self: &SomeStruct{A: 999}}},
+				AnonymP: &(struct{ SomeStruct }{SomeStruct{A: 1, Self: &SomeStruct{A: 999}}}),
 			}
 		}
 
@@ -306,7 +317,7 @@ var _ = Describe("Aerospike", func() {
 				err = client.GetObject(nil, key, resObj)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(resObj).To(Equal(testObj))
-
+				Expect(resObj.AnonymP).NotTo(BeNil())
 			})
 
 			It("must save an object and read it back respecting the tags", func() {
