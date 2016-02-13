@@ -2,7 +2,7 @@
 
 This document details available mechanisms to optimize client performance characteristics, and tries to suggest good practices in using the client in a cluster of computers.
 
-There are different options in the library to tweak performance for different workloads. It is important to keep in mind that you should benchmark and profile your application under reasonably production-looking workloads to gain best possible performance.
+There are different options in the library to tweak performance for different workloads. It is important to keep in mind that you should benchmark and profile your application under reasonably production-like workloads to gain best possible performance.
 
 This is a living document and we will keep it updated to help you make the best of our server and client solutions.
 
@@ -10,11 +10,11 @@ This is a living document and we will keep it updated to help you make the best 
 
 We have tweaked and profiled the client library under various workloads to achieve the following goals:
 
-  - **Minimal Memory Allocation**: We are conscious about this and have tried to remove as many allocations as possible. We are pooling buffers and hash objects whenever possible to achieve this goal.
+  - **Minimal Memory Allocation**: We are conscious of this and have tried to remove as many allocations as possible. We are pooling buffers and hash objects whenever possible to achieve this goal.
 
-  - **Customization Frindly**: We have added parameters to allow you customize some variables when those variables could influence performance under different workloads.
+  - **Customization Friendly**: We have added parameters to allow you to customize some variables when those variables could influence performance under different workloads.
 
-  - **Determinism**: We have tried to keep client inner workings deterministic. We have tried to stay away from data structures, or algorithms which are not deterministic. All pool and queue implementations in the client are bound in maximum memory size and perform in predetermined number of cycles. There are no heuristic algorithms in the client.
+  - **Determinism**: We have tried to keep the client inner workings deterministic. We have tried to stay away from data structures, or algorithms which are not deterministic. All pool and queue implementations in the client are bound in maximum memory size and perform in predetermined number of cycles. There are no heuristic algorithms in the client.
 
 Please let us know if you can suggest an improvement anywhere in the library.
 
