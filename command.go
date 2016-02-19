@@ -990,7 +990,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 	for {
 		// too many retries
 		if iterations++; (policy.MaxRetries > 0) && (iterations > policy.MaxRetries+1) {
-			break
+			return NewAerospikeError(TIMEOUT, "command execution timed out: Exceeded number of retries. See `Policy.MaxRetries`")
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -1082,7 +1082,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 	}
 
 	// execution timeout
-	return NewAerospikeError(TIMEOUT, "command execution timed out.")
+	return NewAerospikeError(TIMEOUT, "command execution timed out: See `Policy.Timeout`")
 }
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
