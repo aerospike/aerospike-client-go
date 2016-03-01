@@ -31,6 +31,8 @@ var pos uint64
 func init() {
 	for i := range pool {
 		pool[i] = NewXorRand()
+		// to guarantee a different number on less accurate system clocks
+		time.Sleep(time.Microsecond + 31*time.Nanosecond)
 	}
 }
 
