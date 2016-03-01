@@ -120,8 +120,13 @@ const (
 	// There are no more records left for query.
 	QUERY_END ResultCode = 50
 
-	SECURITY_NOT_SUPPORTED        ResultCode = 51
-	SECURITY_NOT_ENABLED          ResultCode = 52
+	// Security type not supported by connected server.
+	SECURITY_NOT_SUPPORTED ResultCode = 51
+
+	// Administration command is invalid.
+	SECURITY_NOT_ENABLED ResultCode = 52
+
+	// Administration field is invalid.
 	SECURITY_SCHEME_NOT_SUPPORTED ResultCode = 53
 
 	// Administration command is invalid.
@@ -130,6 +135,7 @@ const (
 	// Administration field is invalid.
 	INVALID_FIELD ResultCode = 55
 
+	// Security protocol not followed.
 	ILLEGAL_STATE ResultCode = 56
 
 	// User name is invalid.
@@ -171,6 +177,15 @@ const (
 	// The requested item in a large collection was not found.
 	LARGE_ITEM_NOT_FOUND ResultCode = 125
 
+	// Batch functionality has been disabled.
+	BATCH_DISABLED ResultCode = 150
+
+	// Batch max requests have been exceeded.
+	BATCH_MAX_REQUESTS_EXCEEDED ResultCode = 151
+
+	// All batch queues are full.
+	BATCH_QUEUES_FULL ResultCode = 152
+
 	// Secondary index already exists.
 	INDEX_FOUND ResultCode = 200
 
@@ -203,6 +218,18 @@ const (
 
 	// Generic query error.
 	QUERY_GENERIC ResultCode = 213
+
+	// Query NetIO error on server
+	QUERY_NETIO_ERR ResultCode = 214
+
+	// Duplicate TaskId sent for the statement
+	QUERY_DUPLICATE ResultCode = 215
+
+	// UDF does not exist.
+	AEROSPIKE_ERR_UDF_NOT_FOUND ResultCode = 1301
+
+	// LUA file does not exist.
+	AEROSPIKE_ERR_LUA_FILE_NOT_FOUND ResultCode = 1302
 )
 
 // Should connection be put back into pool.
@@ -378,6 +405,15 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case LARGE_ITEM_NOT_FOUND:
 		return "Large collection item not found"
 
+	case BATCH_DISABLED:
+		return "Batch functionality has been disabled"
+
+	case BATCH_MAX_REQUESTS_EXCEEDED:
+		return "Batch max requests have been exceeded"
+
+	case BATCH_QUEUES_FULL:
+		return "All batch queues are full"
+
 	case INDEX_FOUND:
 		return "Index already exists"
 
@@ -410,6 +446,18 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case QUERY_GENERIC:
 		return "Query error"
+
+	case QUERY_NETIO_ERR:
+		return "Query NetIO error on server"
+
+	case QUERY_DUPLICATE:
+		return "Duplicate TaskId sent for the statement"
+
+	case AEROSPIKE_ERR_UDF_NOT_FOUND:
+		return "UDF does not exist."
+
+	case AEROSPIKE_ERR_LUA_FILE_NOT_FOUND:
+		return "LUA package/file does not exist."
 
 	default:
 		return fmt.Sprintf("Error code (%v) not available yet - please file an issue on github.", resultCode)
