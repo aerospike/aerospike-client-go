@@ -363,6 +363,50 @@ var _ = Describe("Aerospike", func() {
 
 		}) // PutObject context
 
+		Context("Metadata operations", func() {
+
+			It("must save an object and read its metadata back", func() {
+
+				type objMeta struct {
+					TTL1, TTL2 uint32 `asm:"ttl"`
+					GEN1, GEN2 uint32 `asm:"gen"`
+					Val        int    `as:"val"`
+				}
+
+				testObj := objMeta{Val: 1}
+				err := client.PutObject(nil, key, &testObj)
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err := client.Get(nil, key)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rec.Bins).To(Equal(BinMap{"val": 1}))
+
+				resObj := &objMeta{}
+				err = client.GetObject(nil, key, resObj)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(resObj.TTL1).NotTo(Equal(uint32(0)))
+				Expect(resObj.TTL1).To(Equal(resObj.TTL2))
+
+				Expect(resObj.GEN1).To(Equal(uint32(1)))
+				Expect(resObj.GEN2).To(Equal(uint32(1)))
+
+				// put it again to check the generation
+				err = client.PutObject(nil, key, &testObj)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = client.GetObject(nil, key, resObj)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(resObj.TTL1).NotTo(Equal(uint32(0)))
+				Expect(resObj.TTL1).To(Equal(resObj.TTL2))
+
+				Expect(resObj.GEN1).To(Equal(uint32(2)))
+				Expect(resObj.GEN2).To(Equal(uint32(2)))
+			})
+
+		}) // PutObject context
+
 		Context("ScanObjects operations", func() {
 
 			type InnerStruct struct {

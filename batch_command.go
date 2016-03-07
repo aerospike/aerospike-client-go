@@ -47,8 +47,9 @@ type baseMultiCommand struct {
 
 	errChan chan error
 
-	resObjType  reflect.Type
-	selectCases []reflect.SelectCase
+	resObjType     reflect.Type
+	resObjMappings map[string]string
+	selectCases    []reflect.SelectCase
 }
 
 func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
@@ -61,6 +62,7 @@ func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	if cmd.recordset != nil && !cmd.recordset.objChan.IsNil() {
 		// this channel must be of type chan *T
 		cmd.resObjType = cmd.recordset.objChan.Type().Elem().Elem()
+		cmd.resObjMappings = objectMappings.getMapping(cmd.recordset.objChan.Type().Elem().Elem())
 
 		cmd.selectCases = []reflect.SelectCase{
 			reflect.SelectCase{Dir: reflect.SelectSend, Chan: cmd.recordset.objChan},
@@ -342,7 +344,12 @@ func (cmd *baseMultiCommand) parseObject(
 			return err
 		}
 
-		if err := setObjectField(obj, name, value); err != nil {
+		iobj := reflect.Indirect(obj)
+		for iobj.Kind() == reflect.Ptr {
+			iobj = reflect.Indirect(iobj)
+		}
+
+		if err := setObjectField(cmd.resObjMappings, iobj, name, value); err != nil {
 			return err
 		}
 	}

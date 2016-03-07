@@ -224,6 +224,15 @@ func (cmd *readCommand) parseObject(
 		cacheObjectTags(rv)
 	}
 
+	// find the name based on tag mapping
+	iobj := reflect.Indirect(rv)
+	for iobj.Kind() == reflect.Ptr {
+		iobj = reflect.Indirect(iobj)
+	}
+	mappings := objectMappings.getMapping(iobj.Type())
+
+	setObjectMetaFields(iobj, TTL(expiration), generation)
+
 	for i := 0; i < opCount; i++ {
 		opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
 		particleType := int(cmd.dataBuffer[receiveOffset+5])
@@ -233,7 +242,7 @@ func (cmd *readCommand) parseObject(
 
 		particleBytesSize := int(opSize - (4 + nameSize))
 		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
-		if err := setObjectField(rv, name, value); err != nil {
+		if err := setObjectField(mappings, iobj, name, value); err != nil {
 			return err
 		}
 
@@ -251,17 +260,38 @@ func (cmd *readCommand) Execute() error {
 	return cmd.execute(cmd)
 }
 
-func setObjectField(obj reflect.Value, fieldName string, value interface{}) error {
+func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) error {
+	// find the name based on tag mapping
+	iobj := reflect.Indirect(obj)
+
+	ttlMap, genMap := objectMappings.getMetaMappings(iobj)
+
+	if ttlMap != nil {
+		for i := range ttlMap {
+			f := iobj.FieldByName(ttlMap[i])
+			setValue(f, ttl)
+		}
+	}
+
+	if genMap != nil {
+		for i := range genMap {
+			f := iobj.FieldByName(genMap[i])
+			setValue(f, gen)
+		}
+	}
+
+	return nil
+}
+
+func setObjectField(mappings map[string]string, obj reflect.Value, fieldName string, value interface{}) error {
 	if value == nil {
 		return nil
 	}
 
-	// find the name based on tag mapping
-	iobj := reflect.Indirect(obj)
-	if name, exists := objectMappings.getMapping(iobj)[fieldName]; exists {
+	if name, exists := mappings[fieldName]; exists {
 		fieldName = name
 	}
-	f := iobj.FieldByName(fieldName)
+	f := obj.FieldByName(fieldName)
 	setValue(f, value)
 
 	return nil
@@ -277,10 +307,16 @@ func setValue(f reflect.Value, value interface{}) error {
 			switch v := value.(type) {
 			case uint8:
 				f.SetUint(uint64(v))
-			case int:
+			case uint16:
+				f.SetUint(uint64(v))
+			case uint32:
+				f.SetUint(uint64(v))
+			case uint64:
+				f.SetUint(uint64(v))
+			case uint:
 				f.SetUint(uint64(v))
 			default:
-				f.SetUint(value.(uint64))
+				f.SetUint(uint64(value.(int)))
 			}
 		case reflect.Float64, reflect.Float32:
 			// if value has returned as a float

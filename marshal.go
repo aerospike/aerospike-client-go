@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"strings"
@@ -23,8 +24,9 @@ import (
 )
 
 const (
-	aerospikeTag = "as"
-	keyTag       = "key"
+	aerospikeTag     = "as"
+	aerospikeMetaTag = "asm"
+	keyTag           = "key"
 )
 
 func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
@@ -90,6 +92,11 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 	}
 }
 
+func fieldIsMetadata(f reflect.StructField) bool {
+	meta := f.Tag.Get(aerospikeMetaTag)
+	return strings.Trim(meta, " ") != ""
+}
+
 func fieldAlias(f reflect.StructField) string {
 	alias := f.Tag.Get(aerospikeTag)
 	if alias != "" {
@@ -122,15 +129,20 @@ func structToMap(s reflect.Value, clusterSupportsFloat bool) map[string]interfac
 			continue
 		}
 
+		if fieldIsMetadata(typeOfT.Field(i)) {
+			continue
+		}
+
+		// skip transiet fields tagged `-`
+		alias := fieldAlias(typeOfT.Field(i))
+		if alias == "" {
+			continue
+		}
+
 		binValue := valueToInterface(s.Field(i), clusterSupportsFloat)
 
 		if binMap == nil {
 			binMap = make(map[string]interface{}, numFields)
-		}
-
-		alias := fieldAlias(typeOfT.Field(i))
-		if alias == "" {
-			continue
 		}
 
 		binMap[alias] = binValue
@@ -163,14 +175,18 @@ func marshal(v interface{}, clusterSupportsFloat bool) []*Bin {
 type SyncMap struct {
 	objectMappings map[reflect.Type]map[string]string
 	objectFields   map[reflect.Type][]string
+	objectTTLs     map[reflect.Type][]string
+	objectGen      map[reflect.Type][]string
 	mutex          sync.RWMutex
 }
 
-func (sm *SyncMap) setMapping(obj reflect.Value, mapping map[string]string, fields []string) {
+func (sm *SyncMap) setMapping(obj reflect.Value, mapping map[string]string, fields, ttl, gen []string) {
 	objType := obj.Type()
 	sm.mutex.Lock()
 	sm.objectMappings[objType] = mapping
 	sm.objectFields[objType] = fields
+	sm.objectTTLs[objType] = ttl
+	sm.objectGen[objType] = gen
 	sm.mutex.Unlock()
 }
 
@@ -182,15 +198,23 @@ func (sm *SyncMap) mappingExists(obj reflect.Value) bool {
 	return exists
 }
 
-func (sm *SyncMap) getMapping(obj reflect.Value) map[string]string {
-	if !obj.IsValid() {
-		return nil
-	}
-	objType := obj.Type()
+func (sm *SyncMap) getMapping(objType reflect.Type) map[string]string {
 	sm.mutex.RLock()
 	mapping := sm.objectMappings[objType]
 	sm.mutex.RUnlock()
 	return mapping
+}
+
+func (sm *SyncMap) getMetaMappings(obj reflect.Value) (ttl, gen []string) {
+	if !obj.IsValid() {
+		return nil, nil
+	}
+	objType := obj.Type()
+	sm.mutex.RLock()
+	ttl = sm.objectTTLs[objType]
+	gen = sm.objectGen[objType]
+	sm.mutex.RUnlock()
+	return ttl, gen
 }
 
 func (sm *SyncMap) getFields(obj reflect.Value) []string {
@@ -201,7 +225,12 @@ func (sm *SyncMap) getFields(obj reflect.Value) []string {
 	return fields
 }
 
-var objectMappings = &SyncMap{objectMappings: map[reflect.Type]map[string]string{}, objectFields: map[reflect.Type][]string{}}
+var objectMappings = &SyncMap{
+	objectMappings: map[reflect.Type]map[string]string{},
+	objectFields:   map[reflect.Type][]string{},
+	objectTTLs:     map[reflect.Type][]string{},
+	objectGen:      map[reflect.Type][]string{},
+}
 
 func cacheObjectTags(obj reflect.Value) {
 	// exit if already processed
@@ -218,6 +247,8 @@ func cacheObjectTags(obj reflect.Value) {
 
 	mapping := map[string]string{}
 	fields := []string{}
+	ttl := []string{}
+	gen := []string{}
 
 	typeOfT := obj.Type()
 	numFields := obj.NumField()
@@ -229,7 +260,13 @@ func cacheObjectTags(obj reflect.Value) {
 		}
 
 		tag := strings.Trim(f.Tag.Get(aerospikeTag), " ")
-		if tag != "-" {
+		tagM := strings.Trim(f.Tag.Get(aerospikeMetaTag), " ")
+
+		if tag != "" && tagM != "" {
+			panic(fmt.Sprintf("Cannot accept both data and metadata tags on the same attribute on struct: %s.%s", obj.Type().Name(), f.Name))
+		}
+
+		if tag != "-" && tagM == "" {
 			if tag != "" {
 				mapping[tag] = f.Name
 				fields = append(fields, tag)
@@ -237,7 +274,15 @@ func cacheObjectTags(obj reflect.Value) {
 				fields = append(fields, f.Name)
 			}
 		}
+
+		if tagM == "ttl" {
+			ttl = append(ttl, f.Name)
+		} else if tagM == "gen" {
+			gen = append(gen, f.Name)
+		} else if tagM != "" {
+			panic(fmt.Sprintf("Invalid metadata tag `%s` on struct attribute: %s.%s", tagM, obj.Type().Name(), f.Name))
+		}
 	}
 
-	objectMappings.setMapping(obj, mapping, fields)
+	objectMappings.setMapping(obj, mapping, fields, ttl, gen)
 }
