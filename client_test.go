@@ -359,7 +359,7 @@ var _ = Describe("Aerospike", func() {
 						bin6 := NewBin("Aerospike6", []uint16{0, 1, 2, 3, math.MaxUint16})
 						bin7 := NewBin("Aerospike7", []uint32{0, 1, 2, 3, math.MaxUint32})
 						bin8 := NewBin("Aerospike8", []string{"", "\n", "string"})
-						bin9 := NewBin("Aerospike9", []interface{}{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64})
+						bin9 := NewBin("Aerospike9", []interface{}{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`)})
 
 						// complex type, consisting different arrays
 						bin10 := NewBin("Aerospike10", []interface{}{
@@ -383,10 +383,11 @@ var _ = Describe("Aerospike", func() {
 								float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 								float32(math.MaxFloat32):  float32(math.MaxFloat32),
 								float64(math.MaxFloat64):  float64(math.MaxFloat64),
-								"true":   true,
-								"false":  false,
-								"string": map[interface{}]interface{}{nil: "string", "string": 19}, // map to complex array
-								nil:      []int{18, 41},                                            // array to complex map
+								"true":    true,
+								"false":   false,
+								"string":  map[interface{}]interface{}{nil: "string", "string": 19},             // map to complex array
+								nil:       []int{18, 41},                                                        // array to complex map
+								"GeoJSON": NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 							},
 						})
 
@@ -432,9 +433,10 @@ var _ = Describe("Aerospike", func() {
 							float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 							float32(math.MaxFloat32):  float32(math.MaxFloat32),
 							float64(math.MaxFloat64):  float64(math.MaxFloat64),
-							"string":                  map[interface{}]interface{}{nil: "string", "string": 19}, // map to complex array
-							nil:                       []int{18, 41},                                            // array to complex map
-							"longString":              strings.Repeat("s", 32911),                               // bit-sign test
+							"string":                  map[interface{}]interface{}{nil: "string", "string": 19},             // map to complex array
+							nil:                       []int{18, 41},                                                        // array to complex map
+							"longString":              strings.Repeat("s", 32911),                                           // bit-sign test
+							"GeoJSON":                 NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 						})
 
 						err = client.PutBins(wpolicy, key, bin1, bin2)

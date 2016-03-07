@@ -135,6 +135,10 @@ func (upckr *unpacker) unpackBlob(count int) (interface{}, error) {
 		b := make([]byte, count)
 		copy(b, upckr.buffer[upckr.offset:upckr.offset+count])
 		val = b
+
+	case ParticleType.GEOJSON:
+		val = NewGeoJSONValue(string(upckr.buffer[upckr.offset : upckr.offset+count]))
+
 	default:
 		panic(NewAerospikeError(SERIALIZE_ERROR, fmt.Sprintf("Error while unpacking BLOB. Type-header with code `%d` not recognized.", theType)))
 	}

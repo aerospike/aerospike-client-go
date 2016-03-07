@@ -339,6 +339,13 @@ func (pckr *packer) PackString(val string) {
 	pckr.buffer.WriteString(val)
 }
 
+func (pckr *packer) PackGeoJson(val string) {
+	size := len(val) + 1
+	pckr.PackByteArrayBegin(size)
+	pckr.buffer.WriteByte(byte(ParticleType.GEOJSON))
+	pckr.buffer.WriteString(val)
+}
+
 func (pckr *packer) PackByteArray(src []byte, srcOffset int, srcLength int) {
 	pckr.buffer.Write(src[srcOffset : srcOffset+srcLength])
 }

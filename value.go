@@ -612,7 +612,8 @@ func (vl GeoJSONValue) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl GeoJSONValue) pack(packer *packer) error {
-	return NewAerospikeError(PARAMETER_ERROR, "can't pack GeoJSON")
+	packer.PackGeoJson(string(vl))
+	return nil
 }
 
 // GetType returns wire protocol value type.
