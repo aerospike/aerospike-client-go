@@ -87,7 +87,7 @@ func (nd *Node) Refresh() ([]*Host, error) {
 
 	nd.refreshCount.IncrementAndGet()
 
-	conn, err := nd.GetConnection(1 * time.Second)
+	conn, err := nd.GetConnection(nd.cluster.ClientPolicy().Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -424,4 +424,20 @@ func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) (err error)
 	case err = <-done:
 		return err
 	}
+}
+
+// RequestInfo gets info values by name from the specified database server node.
+func (nd *Node) RequestInfo(name ...string) (map[string]string, error) {
+	conn, err := nd.GetConnection(_DEFAULT_TIMEOUT)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := RequestInfo(conn, name...)
+	if err != nil {
+		nd.InvalidateConnection(conn)
+		return nil, err
+	}
+	nd.PutConnection(conn)
+	return response, nil
 }
