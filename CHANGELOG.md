@@ -1,5 +1,49 @@
 # Change History
 
+## March 8 2016 : v1.12
+
+  Minor features and improvements release.
+
+  * **New Features**
+
+    * Support Metadata in struct tags to fetch TTL and Generation via `GetObject`.
+    Notice: Metadata attributes in an struct are considered transient, and won't be persisted.
+
+    Example:
+    ```go
+    type SomeStruct struct {
+      TTL  uint32         `asm:"ttl"` // record time-to-live in seconds
+      Gen  uint32         `asm:"gen"` // record generation
+      A    int
+      Self *SomeStruct
+    }
+
+    key, _ := as.NewKey("ns", "set", value)
+    err := client.PutObject(nil, key, obj)
+    // handle error here
+
+    rObj := &OtherStruct{}
+    err = client.GetObject(nil, key, rObj)
+    ```
+
+    * GeoJSON support in Lists and Maps
+
+  * **Improvements**
+  
+    * Use `ClientPolicy.timeout` for connection timeout when refreshing nodes
+
+    * Added new server error codes
+
+    * Protect RNG pool against low-precision clocks during init
+
+    * Better error message distingushing between timeout because of reaching deadline and exceeding maximum retries
+
+  * **Fixes**
+
+    * Fixed object mapping cache for anonymous structs.  PR #115, thanks to [Moshe Revah](https://github.com/zippoxer)
+
+    * Fixed an issue where `Execute()` method wasn't observing the `SendKey` flag in Policy.
+
 ## February 9 2016 : v1.11
 
   Minor features and improvements release.
