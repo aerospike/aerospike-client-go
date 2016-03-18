@@ -97,6 +97,14 @@ func (pckr *packer) PackArrayBegin(size int) {
 func (pckr *packer) PackMap(theMap map[interface{}]interface{}) error {
 	pckr.PackMapBegin(len(theMap))
 	for k, v := range theMap {
+		if k != nil {
+			t := reflect.TypeOf(k)
+			if t.Kind() == reflect.Map || t.Kind() == reflect.Slice ||
+				(t.Kind() == reflect.Array && t.Elem().Kind() != reflect.Uint8) {
+				panic("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys.")
+			}
+		}
+
 		if err := pckr.PackObject(k); err != nil {
 			return err
 		}
@@ -208,6 +216,17 @@ func (pckr *packer) PackObject(obj interface{}) error {
 	rv := reflect.ValueOf(obj)
 	switch reflect.TypeOf(obj).Kind() {
 	case reflect.Array, reflect.Slice:
+		// pack bounded array of bytes differently
+		if reflect.TypeOf(obj).Kind() == reflect.Array && reflect.TypeOf(obj).Elem().Kind() == reflect.Uint8 {
+			l := rv.Len()
+			arr := make([]byte, l)
+			for i := 0; i < l; i++ {
+				arr[i] = rv.Index(i).Interface().(uint8)
+			}
+			pckr.PackBytes(arr)
+			return nil
+		}
+
 		l := rv.Len()
 		arr := make([]interface{}, l)
 		for i := 0; i < l; i++ {

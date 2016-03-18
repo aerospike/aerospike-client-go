@@ -29,7 +29,7 @@ func testPackingFor(v interface{}) interface{} {
 	Expect(err).ToNot(HaveOccurred())
 
 	unpacker := newUnpacker(packer.buffer.Bytes(), 0, len(packer.buffer.Bytes()))
-	unpackedValue, err := unpacker.unpackObject()
+	unpackedValue, err := unpacker.unpackObject(false)
 	Expect(err).ToNot(HaveOccurred())
 
 	return unpackedValue

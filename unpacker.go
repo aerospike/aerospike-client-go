@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"reflect"
 
 	. "github.com/aerospike/aerospike-client-go/types"
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
@@ -64,7 +65,7 @@ func (upckr *unpacker) unpackList(count int) ([]interface{}, error) {
 	out := make([]interface{}, 0, count)
 
 	for i := 0; i < count; i++ {
-		obj, err := upckr.unpackObject()
+		obj, err := upckr.unpackObject(false)
 		if err != nil {
 			return nil, err
 		}
@@ -100,11 +101,12 @@ func (upckr *unpacker) unpackMap(count int) (map[interface{}]interface{}, error)
 	out := make(map[interface{}]interface{}, count)
 
 	for i := 0; i < count; i++ {
-		key, err := upckr.unpackObject()
+		key, err := upckr.unpackObject(true)
 		if err != nil {
 			return nil, err
 		}
-		val, err := upckr.unpackObject()
+
+		val, err := upckr.unpackObject(false)
 		if err != nil {
 			return nil, err
 		}
@@ -118,10 +120,10 @@ func (upckr *unpacker) unpackObjects() (interface{}, error) {
 		return nil, nil
 	}
 
-	return upckr.unpackObject()
+	return upckr.unpackObject(false)
 }
 
-func (upckr *unpacker) unpackBlob(count int) (interface{}, error) {
+func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (interface{}, error) {
 	theType := upckr.buffer[upckr.offset] & 0xff
 	upckr.offset++
 	count--
@@ -132,9 +134,16 @@ func (upckr *unpacker) unpackBlob(count int) (interface{}, error) {
 		val = string(upckr.buffer[upckr.offset : upckr.offset+count])
 
 	case ParticleType.BLOB:
-		b := make([]byte, count)
-		copy(b, upckr.buffer[upckr.offset:upckr.offset+count])
-		val = b
+		if isMapKey {
+			b := reflect.Indirect(reflect.New(reflect.ArrayOf(count, reflect.TypeOf(byte(0)))))
+			reflect.Copy(b, reflect.ValueOf(upckr.buffer[upckr.offset:upckr.offset+count]))
+
+			val = b.Interface()
+		} else {
+			b := make([]byte, count)
+			copy(b, upckr.buffer[upckr.offset:upckr.offset+count])
+			val = b
+		}
 
 	case ParticleType.GEOJSON:
 		val = NewGeoJSONValue(string(upckr.buffer[upckr.offset : upckr.offset+count]))
@@ -147,7 +156,7 @@ func (upckr *unpacker) unpackBlob(count int) (interface{}, error) {
 	return val, nil
 }
 
-func (upckr *unpacker) unpackObject() (interface{}, error) {
+func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, error) {
 	theType := upckr.buffer[upckr.offset] & 0xff
 	upckr.offset++
 
@@ -222,12 +231,12 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 	case 0xda:
 		count := int(Buffer.BytesToUint16(upckr.buffer, upckr.offset))
 		upckr.offset += 2
-		return upckr.unpackBlob(count)
+		return upckr.unpackBlob(count, isMapKey)
 
 	case 0xdb:
 		count := int(Buffer.BytesToUint32(upckr.buffer, upckr.offset))
 		upckr.offset += 4
-		return upckr.unpackBlob(count)
+		return upckr.unpackBlob(count, isMapKey)
 
 	case 0xdc:
 		count := int(Buffer.BytesToUint16(upckr.buffer, upckr.offset))
@@ -251,7 +260,7 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 
 	default:
 		if (theType & 0xe0) == 0xa0 {
-			return upckr.unpackBlob(int(theType & 0x1f))
+			return upckr.unpackBlob(int(theType&0x1f), isMapKey)
 		}
 
 		if (theType & 0xf0) == 0x80 {
@@ -259,7 +268,8 @@ func (upckr *unpacker) unpackObject() (interface{}, error) {
 		}
 
 		if (theType & 0xf0) == 0x90 {
-			return upckr.unpackList(int(theType & 0x0f))
+			count := int(theType & 0x0f)
+			return upckr.unpackList(count)
 		}
 
 		if theType < 0x80 {

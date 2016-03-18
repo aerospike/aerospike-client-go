@@ -359,7 +359,7 @@ var _ = Describe("Aerospike", func() {
 						bin6 := NewBin("Aerospike6", []uint16{0, 1, 2, 3, math.MaxUint16})
 						bin7 := NewBin("Aerospike7", []uint32{0, 1, 2, 3, math.MaxUint32})
 						bin8 := NewBin("Aerospike8", []string{"", "\n", "string"})
-						bin9 := NewBin("Aerospike9", []interface{}{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`)})
+						bin9 := NewBin("Aerospike9", []interface{}{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), [3]int{1, 2, 3}})
 
 						// complex type, consisting different arrays
 						bin10 := NewBin("Aerospike10", []interface{}{
@@ -374,6 +374,10 @@ var _ = Describe("Aerospike", func() {
 							bin8.Value.GetObject(),
 							bin9.Value.GetObject(),
 							map[interface{}]interface{}{
+								1: [16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+								[16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}: []interface{}{"string", 12, nil},
+								// [3]int{0, 1, 2}:          []interface{}{"string", 12, nil},
+								// [3]string{"0", "1", "2"}: []interface{}{"string", 12, nil},
 								15:                        nil,
 								int8(math.MaxInt8):        int8(math.MaxInt8),
 								int64(math.MinInt64):      int64(math.MinInt64),
