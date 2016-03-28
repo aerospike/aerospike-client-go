@@ -222,7 +222,7 @@ func testListMapCombined(client *as.Client) {
 func validateSize(expected, received int) {
 	if received != expected {
 		log.Fatalf(
-			"Size mismatch: expected=%s received=%s", expected, received)
+			"Size mismatch: expected=%d received=%d", expected, received)
 	}
 }
 
