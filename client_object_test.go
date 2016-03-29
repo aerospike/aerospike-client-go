@@ -535,7 +535,6 @@ var _ = Describe("Aerospike", func() {
 				}
 
 				for e := range rs.Errors {
-					panic(e.Error())
 					Expect(e).ToNot(HaveOccurred())
 				}
 
@@ -577,7 +576,6 @@ var _ = Describe("Aerospike", func() {
 				}
 
 				for e := range rs.Errors {
-					panic(e.Error())
 					Expect(e).ToNot(HaveOccurred())
 				}
 
