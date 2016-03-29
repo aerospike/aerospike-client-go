@@ -16,11 +16,8 @@ package buffer
 
 import (
 	"encoding/binary"
-	// "errors"
 	"fmt"
 	"math"
-
-	// . "github.com/aerospike/aerospike-client-go/logger"
 )
 
 const (
