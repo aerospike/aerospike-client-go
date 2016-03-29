@@ -81,7 +81,7 @@ func batchExists(
 	for i := 0; i < len(existsArray); i++ {
 		key := keys[i]
 		exists := existsArray[i]
-		log.Printf("Record: ns=%s set=%s key=%s exists=%s",
+		log.Printf("Record: ns=%s set=%s key=%s exists=%t",
 			key.Namespace(), key.SetName(), key.Value(), exists)
 	}
 }

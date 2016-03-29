@@ -18,8 +18,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-
-	// . "github.com/aerospike/aerospike-client-go/logger"
 )
 
 type messageType uint8

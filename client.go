@@ -1021,7 +1021,6 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 		},
 			luaArgs...,
 		); err != nil {
-			panic(err)
 			recSet.Errors <- err
 			return
 		}

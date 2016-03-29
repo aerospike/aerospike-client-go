@@ -43,8 +43,8 @@ func runExample(client *as.Client) {
 
 	if record == nil {
 		log.Fatalf(
-			"Failed to get: namespace=%s set=%s key=%s bin=%s value=%s",
-			key.Namespace(), key.SetName(), key.Value(), bin.Name, nil)
+			"Failed to get: namespace=%s set=%s key=%s bin=%s value=nil",
+			key.Namespace(), key.SetName(), key.Value(), bin.Name)
 	}
 
 	if record.Expiration == 0 {
