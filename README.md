@@ -1,5 +1,7 @@
 # Aerospike Go Client
 
+[![Aerospike Client Go](https://goreportcard.com/badge/github.com/aerospike/aerospike-client-go)](https://goreportcard.com/report/github.com/aerospike/aerospike-client-go)
+
 An Aerospike library for Go.
 
 This library is compatible with Go 1.5+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested)
