@@ -49,11 +49,9 @@ var _ = Describe("Index operations test", func() {
 		BeforeEach(func() {
 			client, err = NewClientWithPolicy(clientPolicy, *host, *port)
 			Expect(err).ToNot(HaveOccurred())
-			key, err = NewKey(ns, set, randString(50))
-			Expect(err).ToNot(HaveOccurred())
 
 			for i := 0; i < keyCount; i++ {
-				key, err := NewKey(ns, set, randString(50))
+				key, err = NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
 
 				err = client.PutBins(wpolicy, key, bin1, bin2)

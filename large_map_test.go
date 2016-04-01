@@ -116,6 +116,7 @@ var _ = Describe("LargeMap Test", func() {
 
 		scanExpectation = make(map[interface{}]interface{})
 		scanResult, err = lmap.Scan()
+		Expect(err).ToNot(HaveOccurred())
 		Expect(scanResult).To(Equal(scanExpectation))
 	})
 

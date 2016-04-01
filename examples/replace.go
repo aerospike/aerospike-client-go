@@ -53,6 +53,7 @@ func runReplaceExample(client *as.Client) {
 	log.Printf("Get: namespace=%s set=%s key=%s", key.Namespace(), key.SetName(), key.Value())
 
 	record, err := client.Get(shared.Policy, key)
+	shared.PanicOnError(err)
 
 	if record == nil {
 		log.Fatalf(

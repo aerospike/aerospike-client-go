@@ -83,7 +83,6 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 	status := true
 
 	var err error
-	rs := 0
 	cnt := 0
 
 	for status {
@@ -96,7 +95,6 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 		receiveSize := int(size & 0xFFFFFFFFFFFF)
 		cmd.remains = int64(receiveSize)
 		cnt++
-		rs += receiveSize
 
 		if receiveSize > 0 {
 			if status, err = ifc.parseRecordResults(ifc, receiveSize); err != nil {

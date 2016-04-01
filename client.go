@@ -670,7 +670,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(clnt.cluster.clientPolicy.Timeout)
+	conn, err := node.GetConnection(policy.Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -730,7 +730,7 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(clnt.cluster.clientPolicy.Timeout)
+	conn, err := node.GetConnection(policy.Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -772,7 +772,7 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(clnt.cluster.clientPolicy.Timeout)
+	conn, err := node.GetConnection(policy.Timeout)
 	if err != nil {
 		return nil, err
 	}

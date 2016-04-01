@@ -101,6 +101,7 @@ func runExample(client *as.Client) {
 
 	// Verify results.
 	record, err = client.Get(shared.Policy, key, bin.Name)
+	shared.PanicOnError(err)
 
 	if record == nil {
 		log.Fatalf(

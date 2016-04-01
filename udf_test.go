@@ -253,6 +253,9 @@ var _ = Describe("UDF/Query tests", func() {
 		<-regTask.OnComplete()
 		// a new record that is not in the range
 		key, err = NewKey(ns, set, randString(50))
+		if err != nil {
+			panic(err)
+		}
 
 		testMatrix := map[interface{}]interface{}{
 			math.MinInt64: math.MinInt64,
