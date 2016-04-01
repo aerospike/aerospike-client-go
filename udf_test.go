@@ -61,7 +61,7 @@ function getRecordKeyValue(rec)
 end
 `
 
-// ALL tests are isolated by SetName and Key, which are 50 random charachters
+// ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("UDF/Query tests", func() {
 	initTestVars()
 

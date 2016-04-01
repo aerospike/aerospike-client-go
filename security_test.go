@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// ALL tests are isolated by SetName and Key, which are 50 random charachters
+// ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Security tests", func() {
 
 	initTestVars()

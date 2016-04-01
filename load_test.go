@@ -40,7 +40,7 @@ func init() {
 	initTestVars()
 }
 
-// ALL tests are isolated by SetName and Key, which are 50 random charachters
+// ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Aerospike load tests", func() {
 	Describe("Single long random string test", func() {
 		// connection data

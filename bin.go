@@ -53,7 +53,7 @@ func binMapToBins(bins []*Bin, binMap BinMap) []*Bin {
 	return bins
 }
 
-// pool Bins so that we won't have to allocate them everytime
+// pool Bins so that we won't have to allocate them every time
 var binPool = NewPool(512)
 
 func init() {

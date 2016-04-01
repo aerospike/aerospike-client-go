@@ -103,7 +103,7 @@ Recordsets can be closed at any time to cancel the operation.
 
   for res := range recordset.Results() {
     if res.Err != nil {
-        // you may be able to find out on which node the error occured
+        // you may be able to find out on which node the error occurred
         if ne, ok := err.(NodeError); ok {
           node := ne.Node
           // do something

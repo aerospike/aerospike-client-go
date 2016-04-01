@@ -33,7 +33,7 @@ func registerUDF(client *Client, path, filename string) error {
 	return <-regTask.OnComplete()
 }
 
-// ALL tests are isolated by SetName and Key, which are 50 random charachters
+// ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Query Aggregate operations", func() {
 	initTestVars()
 

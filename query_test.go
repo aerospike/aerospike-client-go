@@ -40,7 +40,7 @@ function filter_by_name(stream,name)
  return stream : filter(filter_name) : map(map_profile)
 end`
 
-// ALL tests are isolated by SetName and Key, which are 50 random charachters
+// ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Query operations", func() {
 	initTestVars()
 

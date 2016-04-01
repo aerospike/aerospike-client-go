@@ -572,7 +572,7 @@ Loop:
 			}
 
 			if stats.Exit || time.Now().Sub(lastReportTime) >= time.Second {
-				// reset throuput
+				// reset throughput
 				atomic.StoreInt64(&currThroughput, 0)
 				atomic.StoreInt64(&lastReport, time.Now().UnixNano())
 
