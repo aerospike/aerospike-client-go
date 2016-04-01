@@ -1,5 +1,25 @@
 # Change History
 
+## April 1 2016 : v1.13
+
+  Minor features and improvements release.
+
+  * **New Features**
+
+    * Added `NewGeoWithinRegionForCollectionFilter`, `NewGeoRegionsContainingPointForCollectionFilter`, `NewGeoWithinRadiusForCollectionFilter` for queries on collection bins.
+
+  * **Fixes**
+
+    * Fixed an issue in which bounded byte arrays were silently being dropped as map keys.
+
+  * **Improvements**
+
+    * Removed and fixed unused assignments and variables.
+
+    * Fixed typos in the comments.
+
+    * Minor changes and formatting. PR #124, thanks to [Harmen](https://github.com/alicebob)
+
 ## March 8 2016 : v1.12
 
   Minor features and improvements release.
@@ -40,7 +60,7 @@
 
   * **Fixes**
 
-    * Fixed object mapping cache for anonymous structs.  PR #115, thanks to [Moshe Revah](https://github.com/zippoxer)
+    * Fixed object mapping cache for anonymous structs. PR #115, thanks to [Moshe Revah](https://github.com/zippoxer)
 
     * Fixed an issue where `Execute()` method wasn't observing the `SendKey` flag in Policy.
 
