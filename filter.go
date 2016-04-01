@@ -63,6 +63,13 @@ func NewGeoWithinRegionFilter(binName, region string) *Filter {
 	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
 }
 
+// NewGeoWithinRegionForCollectionFilter creates a geospatial "within region" filter for query on collection index.
+// Argument must be a valid GeoJSON region.
+func NewGeoWithinRegionForCollectionFilter(binName string, collectionType IndexCollectionType, region string) *Filter {
+	v := NewStringValue(region)
+	return newFilter(binName, collectionType, ParticleType.GEOJSON, v, v)
+}
+
 // NewGeoRegionsContainingPointFilter creates a geospatial "containing point" filter for query.
 // Argument must be a valid GeoJSON point.
 func NewGeoRegionsContainingPointFilter(binName, point string) *Filter {
@@ -70,11 +77,25 @@ func NewGeoRegionsContainingPointFilter(binName, point string) *Filter {
 	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
 }
 
+// collectionType creates a geospatial "containing point" filter for query on collection index.
+// Argument must be a valid GeoJSON point.
+func NewGeoRegionsContainingPointForCollectionFilter(binName string, collectionType IndexCollectionType, point string) *Filter {
+	v := NewStringValue(point)
+	return newFilter(binName, collectionType, ParticleType.GEOJSON, v, v)
+}
+
 // NewGeoWithinRadiusFilter creates a geospatial "within radius" filter for query.
 // Arguments must be valid longitude/latitude/radius (meters) values.
 func NewGeoWithinRadiusFilter(binName string, lng, lat, radius float64) *Filter {
 	rgnStr := fmt.Sprintf("{ \"type\": \"AeroCircle\", "+"\"coordinates\": [[%.8f, %.8f], %f] }", lng, lat, radius)
 	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, NewValue(rgnStr), NewValue(rgnStr))
+}
+
+// NewGeoWithinRadiusForCollectionFilter creates a geospatial "within radius" filter for query on collection index.
+// Arguments must be valid longitude/latitude/radius (meters) values.
+func NewGeoWithinRadiusForCollectionFilter(binName string, collectionType IndexCollectionType, lng, lat, radius float64) *Filter {
+	rgnStr := fmt.Sprintf("{ \"type\": \"AeroCircle\", "+"\"coordinates\": [[%.8f, %.8f], %f] }", lng, lat, radius)
+	return newFilter(binName, collectionType, ParticleType.GEOJSON, NewValue(rgnStr), NewValue(rgnStr))
 }
 
 // Create a filter for query.
