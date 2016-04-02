@@ -229,7 +229,7 @@ func (clstr *Cluster) tend() error {
 func (clstr *Cluster) waitTillStabilized() {
 	count := -1
 
-	doneCh := make(chan bool)
+	doneCh := make(chan bool, 1)
 
 	// will run until the cluster is stablized
 	go func() {
@@ -660,7 +660,7 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 		timeout = _DEFAULT_TIMEOUT
 	}
 
-	done := make(chan bool)
+	done := make(chan bool, 1)
 
 	go func() {
 		// this function is guaranteed to return after _DEFAULT_TIMEOUT
@@ -695,7 +695,7 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err 
 	if timeout <= 0 {
 		timeout = _NO_TIMEOUT
 	}
-	done := make(chan error)
+	done := make(chan error, 1)
 
 	go func() {
 		// this function is guaranteed to return after timeout
