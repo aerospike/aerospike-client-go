@@ -178,17 +178,15 @@ func (clstr *Cluster) tend() error {
 	// Clear node reference counts.
 	floatSupport := true
 	for _, node := range nodes {
-		node.referenceCount.Set(0)
-		node.responded.Set(false)
-
-		// make sure ALL nodes support float
-		floatSupport = floatSupport && node.supportsFloat.Get()
-
 		if node.IsActive() {
 			if friends, err := node.Refresh(); err != nil {
 				Logger.Warn("Node `%s` refresh failed: %s", node, err)
 			} else {
 				refreshCount++
+
+				// make sure ALL nodes support float
+				floatSupport = floatSupport && node.supportsFloat.Get()
+
 				if friends != nil {
 					friendList = append(friendList, friends...)
 				}

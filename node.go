@@ -83,6 +83,9 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 
 // Refresh requests current status from server node, and updates node with the result.
 func (nd *Node) Refresh() ([]*Host, error) {
+	nd.referenceCount.Set(0)
+	nd.responded.Set(false)
+
 	var friends []*Host
 
 	nd.refreshCount.IncrementAndGet()
