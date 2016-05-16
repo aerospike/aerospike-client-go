@@ -27,7 +27,7 @@ import (
 
 const (
 	_PARTITIONS  = 4096
-	_FULL_HEALTH = 100
+	// _FULL_HEALTH = 100
 )
 
 // Node represents an Aerospike Database Server Node
@@ -43,9 +43,9 @@ type Node struct {
 	health          *AtomicInt //AtomicInteger
 
 	partitionGeneration *AtomicInt
-	refreshCount        *AtomicInt
 	referenceCount      *AtomicInt
-	responded           *AtomicBool
+	failures		    *AtomicInt
+
 	useNewInfo          bool
 	active              *AtomicBool
 	mutex               sync.RWMutex
@@ -67,11 +67,9 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		host:                nv.aliases[0],
 		connections:         NewAtomicQueue(cluster.clientPolicy.ConnectionQueueSize),
 		connectionCount:     NewAtomicInt(0),
-		health:              NewAtomicInt(_FULL_HEALTH),
 		partitionGeneration: NewAtomicInt(-1),
 		referenceCount:      NewAtomicInt(0),
-		refreshCount:        NewAtomicInt(0),
-		responded:           NewAtomicBool(false),
+		failures:        NewAtomicInt(0),
 		active:              NewAtomicBool(true),
 
 		supportsFloat:       NewAtomicBool(nv.supportsFloat),
@@ -82,13 +80,8 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 }
 
 // Refresh requests current status from server node, and updates node with the result.
-func (nd *Node) Refresh() ([]*Host, error) {
+func (nd *Node) Refresh(friends []*Host) ([]*Host, error) {
 	nd.referenceCount.Set(0)
-	nd.responded.Set(false)
-
-	var friends []*Host
-
-	nd.refreshCount.IncrementAndGet()
 
 	conn, err := nd.GetConnection(nd.cluster.ClientPolicy().Timeout)
 	if err != nil {
@@ -105,7 +98,6 @@ func (nd *Node) Refresh() ([]*Host, error) {
 	infoMap, err := RequestInfo(conn, commands...)
 	if err != nil {
 		nd.InvalidateConnection(conn)
-		nd.DecreaseHealth()
 		return nil, err
 	}
 
@@ -113,10 +105,8 @@ func (nd *Node) Refresh() ([]*Host, error) {
 		nd.PutConnection(conn)
 		return nil, err
 	}
-	nd.RestoreHealth()
-	nd.responded.Set(true)
 
-	if friends, err = nd.addFriends(infoMap); err != nil {
+	if friends, err = nd.addFriends(infoMap, friends); err != nil {
 		nd.PutConnection(conn)
 		return nil, err
 	}
@@ -144,7 +134,6 @@ func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 	infoName, exists := infoMap["node"]
 
 	if !exists || len(infoName) == 0 {
-		nd.DecreaseHealth()
 		return NewAerospikeError(INVALID_NODE_ERROR, "Node name is empty")
 	}
 
@@ -156,9 +145,8 @@ func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 	return nil
 }
 
-func (nd *Node) addFriends(infoMap map[string]string) ([]*Host, error) {
+func (nd *Node) addFriends(infoMap map[string]string, friends []*Host) ([]*Host, error) {
 	friendString, exists := infoMap["services"]
-	var friends []*Host
 
 	if !exists || len(friendString) == 0 {
 		return friends, nil
@@ -301,23 +289,6 @@ func (nd *Node) PutConnection(conn *Connection) {
 func (nd *Node) InvalidateConnection(conn *Connection) {
 	nd.connectionCount.DecrementAndGet()
 	conn.Close()
-}
-
-// RestoreHealth marks the node as healthy.
-func (nd *Node) RestoreHealth() {
-	// There can be cases where health is full, but active is false.
-	// Once a node has been marked inactive, it stays inactive.
-	nd.health.Set(_FULL_HEALTH)
-}
-
-// DecreaseHealth decreases node Health as a result of bad connection or communication.
-func (nd *Node) DecreaseHealth() {
-	nd.health.DecrementAndGet()
-}
-
-// IsUnhealthy checks if the node is unhealthy.
-func (nd *Node) IsUnhealthy() bool {
-	return nd.health.Get() <= 0
 }
 
 // GetHost retrieves host for the node.

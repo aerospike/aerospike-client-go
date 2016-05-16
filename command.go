@@ -1005,7 +1005,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 		node, err := ifc.getNode(ifc)
 		if err != nil {
-			// Node is currently inactive.  Retry.
+			// Node is currently inactive. Retry.
 			continue
 		}
 
@@ -1014,9 +1014,6 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 		cmd.conn, err = node.GetConnection(policy.Timeout)
 		if err != nil {
-			// Socket connection error has occurred. Decrease health and retry.
-			node.DecreaseHealth()
-
 			Logger.Warn("Node " + node.String() + ": " + err.Error())
 			continue
 		}
@@ -1045,9 +1042,6 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			node.InvalidateConnection(cmd.conn)
 
 			Logger.Warn("Node " + node.String() + ": " + err.Error())
-			// IO error means connection to server node is unhealthy.
-			// Reflect cmd status.
-			node.DecreaseHealth()
 			continue
 		}
 
@@ -1066,9 +1060,6 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			}
 			return err
 		}
-
-		// Reflect healthy status.
-		node.RestoreHealth()
 
 		// Put connection back in pool.
 		node.PutConnection(cmd.conn)

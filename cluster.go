@@ -89,7 +89,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	}
 
 	// try to seed connections for first use
-	newCluster.waitTillStabilized()
+	newCluster.waitTillStabilized(policy.FailIfNotConnected)
 
 	// apply policy rules
 	if policy.FailIfNotConnected && !newCluster.IsConnected() {
@@ -98,7 +98,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 	// start up cluster maintenance go routine
 	newCluster.wgTend.Add(1)
-	go newCluster.clusterBoss(policy)
+	go newCluster.clusterBoss(&newCluster.clientPolicy)
 
 	Logger.Debug("New cluster initialized and ready to be used...")
 	return newCluster, nil
@@ -126,7 +126,7 @@ Loop:
 			// tend channel closed
 			break Loop
 		case <-time.After(tendInterval):
-			if err := clstr.tend(); err != nil {
+			if err := clstr.tend(policy.FailIfNotConnected); err != nil {
 				Logger.Warn(err.Error())
 			}
 		}
@@ -158,14 +158,17 @@ func (clstr *Cluster) getSeeds() []*Host {
 }
 
 // Updates cluster state
-func (clstr *Cluster) tend() error {
+func (clstr *Cluster) tend(failIfNotConnected bool) error {
 	nodes := clstr.GetNodes()
+	nodes_before_tend := len(nodes)
 
 	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
 	if len(nodes) == 0 {
 		Logger.Info("No connections available; seeding...")
-		clstr.seedNodes()
+		if _, err := clstr.seedNodes(failIfNotConnected); err != nil {
+			return err
+		}
 
 		// refresh nodes list after seeding
 		nodes = clstr.GetNodes()
@@ -178,10 +181,15 @@ func (clstr *Cluster) tend() error {
 	// Clear node reference counts.
 	floatSupport := true
 	for _, node := range nodes {
+		// Clear node reference counts.
+		node.referenceCount.Set(0)
+
 		if node.IsActive() {
-			if friends, err := node.Refresh(); err != nil {
+			if friends, err := node.Refresh(friendList); err != nil {
+				node.failures.IncrementAndGet()
 				Logger.Warn("Node `%s` refresh failed: %s", node, err)
 			} else {
+				node.failures.Set(0)
 				refreshCount++
 
 				// make sure ALL nodes support float
@@ -213,7 +221,10 @@ func (clstr *Cluster) tend() error {
 		clstr.removeNodes(removeList)
 	}
 
-	Logger.Info("Tend finished. Live node count: %d", len(clstr.GetNodes()))
+	// only log if node count is changed
+	if nodes_before_tend != len(clstr.GetNodes()) {
+		Logger.Info("Tend finished. Live node count: %d", len(clstr.GetNodes()))
+	}
 	return nil
 }
 
@@ -224,7 +235,7 @@ func (clstr *Cluster) tend() error {
 // If the cluster has not stabilized by the timeout, return
 // control as well.  Do not return an error since future
 // database requests may still succeed.
-func (clstr *Cluster) waitTillStabilized() {
+func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) {
 	count := -1
 
 	doneCh := make(chan bool)
@@ -232,7 +243,7 @@ func (clstr *Cluster) waitTillStabilized() {
 	// will run until the cluster is stablized
 	go func() {
 		for {
-			if err := clstr.tend(); err != nil {
+			if err := clstr.tend(failIfNotConnected); err != nil {
 				Logger.Warn(err.Error())
 			}
 
@@ -315,9 +326,10 @@ func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) error {
 }
 
 // Adds seeds to the cluster
-func (clstr *Cluster) seedNodes() {
+func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 	// Must copy array reference for copy on write semantics to work.
 	seedArray := clstr.getSeeds()
+	errorList := []error{}
 
 	Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
@@ -325,9 +337,18 @@ func (clstr *Cluster) seedNodes() {
 	list := []*Node{}
 
 	for _, seed := range seedArray {
+		// Check if seed already exists in cluster.
+		if clstr.findAlias(seed) != nil {
+			continue;
+		}
+ 
+
 		seedNodeValidator, err := newNodeValidator(clstr, seed, clstr.clientPolicy.Timeout)
 		if err != nil {
 			Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
+			if failIfNotConnected {
+				errorList = append(errorList, err)
+			}
 			continue
 		}
 
@@ -341,6 +362,9 @@ func (clstr *Cluster) seedNodes() {
 				nv, err = newNodeValidator(clstr, alias, clstr.clientPolicy.Timeout)
 				if err != nil {
 					Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
+					if failIfNotConnected {
+						errorList = append(errorList, err)
+					}
 					continue
 				}
 			}
@@ -353,9 +377,20 @@ func (clstr *Cluster) seedNodes() {
 		}
 	}
 
+	var err error
 	if len(list) > 0 {
 		clstr.addNodesCopy(list)
+		return true, nil
+	} else if failIfNotConnected {
+		msg := "Failed to connect to host(s): "
+		for _, err := range errorList {
+			msg += "\n" + err.Error()
+		}
+		err = NewAerospikeError(INVALID_NODE_ERROR, msg)
 	}
+
+
+	return false, err
 }
 
 // Finds a node by name in a list of nodes
@@ -437,14 +472,17 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 
 		switch len(nodes) {
 		case 1:
-			// Single node clusters rely solely on node health.
-			if node.IsUnhealthy() {
-				removeList = append(removeList, node)
+			// Single node clusters rely on whether it responded to info requests.
+			if (node.failures.Get() >= 5) {
+				// 5 consecutive info requests failed. Try seeds.
+				if missing, _ := clstr.seedNodes(false); missing {
+					removeList = append(removeList, node)
+				}
 			}
 
 		case 2:
 			// Two node clusters require at least one successful refresh before removing.
-			if node.refreshCount.Get() > 0 && refreshCount == 1 && node.referenceCount.Get() == 0 && !node.responded.Get() {
+			if refreshCount == 1 && node.referenceCount.Get() == 0 && node.failures.Get() > 0 {
 				// Node is not referenced nor did it respond.
 				removeList = append(removeList, node)
 			}
@@ -454,11 +492,11 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 			if refreshCount >= 2 && node.referenceCount.Get() == 0 {
 				// Node is not referenced by other nodes.
 				// Check if node responded to info request.
-				if node.responded.Get() {
+				if node.failures.Get() == 0{
 					// Node is alive, but not referenced by other nodes.  Check if mapped.
 					if !clstr.findNodeInPartitionMap(node) {
 						// Node doesn't have any partitions mapped to it.
-						// There is not point in keeping it in the cluster.
+						// There is no point in keeping it in the cluster.
 						removeList = append(removeList, node)
 					}
 				} else {

@@ -255,6 +255,9 @@ func KeepConnection(err error) bool {
 // Return result code as a string.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
+	case RECORDSET_CLOSED:
+		return "Recordset has already been closed or cancelled."
+
 	case NO_AVAILABLE_CONNECTIONS_TO_NODE:
 		return "No available connections to the node. Connection Pool was empty, and limited to certain number of connections."
 

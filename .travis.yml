@@ -8,6 +8,7 @@ matrix:
   allow_failures:
   - go: tip
 install:
+- ifconfig
 - if [ -d "$HOME/gopath/src/github.com/citrusleaf" ]; then mv $HOME/gopath/src/github.com/citrusleaf
   $HOME/gopath/src/github.com/aerospike; fi
 - export PATH=$PATH:$HOME/gopath/bin
