@@ -15,12 +15,12 @@
 package aerospike
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"sync"
 
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 type Result struct {
@@ -103,21 +103,27 @@ func (rcs *Recordset) IsActive() bool {
 	return rcs.active.Get()
 }
 
-var ErrRecordsetClosed = errors.New("aerospike: Recordset closed")
-
 // Read reads the next record from the Recordset. If the Recordset has been
 // closed, it returns ErrRecordsetClosed.
 func (rcs *Recordset) Read() (record *Record, err error) {
 	var ok bool
+
+L:
 	select {
-	case <-rcs.cancelled:
 	case record, ok = <-rcs.Records:
-	case err, ok = <-rcs.Errors:
+		if !ok {
+			err = ErrRecordsetClosed
+		}
+	case err = <-rcs.Errors:
+		if err == nil {
+			// if err == nil, it means the Errors chan has been closed
+			// we should not return nil as an error, so we should listen
+			// to other chans again to determine either cancellation,
+			// or normal EOR
+			goto L
+		}
 	}
 
-	if !ok {
-		err = ErrRecordsetClosed
-	}
 	return record, err
 }
 
@@ -184,19 +190,8 @@ func (rcs *Recordset) Close() error {
 	// this will broadcast to all commands listening to the channel
 	close(rcs.cancelled)
 
-	// wait till all goroutines are done
+	// wait till all goroutines are done, and signalEnd is called by the scan command
 	rcs.wgGoroutines.Wait()
-
-	rcs.chanLock.Lock()
-	defer rcs.chanLock.Unlock()
-
-	if rcs.Records != nil {
-		close(rcs.Records)
-	} else if rcs.objChan.IsValid() {
-		rcs.objChan.Close()
-	}
-
-	close(rcs.Errors)
 
 	return nil
 }
@@ -204,7 +199,19 @@ func (rcs *Recordset) Close() error {
 func (rcs *Recordset) signalEnd() {
 	rcs.wgGoroutines.Done()
 	if rcs.goroutines.DecrementAndGet() == 0 {
-		rcs.Close()
+		// mark the recordset as closed
+		rcs.active.Set(false)
+
+		rcs.chanLock.Lock()
+		defer rcs.chanLock.Unlock()
+
+		if rcs.Records != nil {
+			close(rcs.Records)
+		} else if rcs.objChan.IsValid() {
+			rcs.objChan.Close()
+		}
+
+		close(rcs.Errors)
 	}
 }
 

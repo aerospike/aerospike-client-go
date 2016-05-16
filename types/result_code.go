@@ -21,6 +21,9 @@ import "fmt"
 type ResultCode int
 
 const (
+	// Recordset has already been closed or cancelled
+	RECORDSET_CLOSED ResultCode = -9
+
 	// There were no connections available to the node in the pool, and the pool was limited
 	NO_AVAILABLE_CONNECTIONS_TO_NODE ResultCode = -8
 
