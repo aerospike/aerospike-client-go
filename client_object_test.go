@@ -559,7 +559,7 @@ var _ = Describe("Aerospike", func() {
 
 				qpolicy := NewQueryPolicy()
 				qpolicy.RecordQueueSize = 20
-				
+
 				rs, err := client.QueryObjects(nil, stmt, retChan)
 				Expect(err).ToNot(HaveOccurred())
 

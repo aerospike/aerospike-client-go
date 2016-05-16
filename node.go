@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	_PARTITIONS  = 4096
+	_PARTITIONS = 4096
 	// _FULL_HEALTH = 100
 )
 
@@ -44,11 +44,11 @@ type Node struct {
 
 	partitionGeneration *AtomicInt
 	referenceCount      *AtomicInt
-	failures		    *AtomicInt
+	failures            *AtomicInt
 
-	useNewInfo          bool
-	active              *AtomicBool
-	mutex               sync.RWMutex
+	useNewInfo bool
+	active     *AtomicBool
+	mutex      sync.RWMutex
 
 	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo *AtomicBool
 }
@@ -69,7 +69,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		connectionCount:     NewAtomicInt(0),
 		partitionGeneration: NewAtomicInt(-1),
 		referenceCount:      NewAtomicInt(0),
-		failures:        NewAtomicInt(0),
+		failures:            NewAtomicInt(0),
 		active:              NewAtomicBool(true),
 
 		supportsFloat:       NewAtomicBool(nv.supportsFloat),

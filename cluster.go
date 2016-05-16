@@ -339,9 +339,8 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 	for _, seed := range seedArray {
 		// Check if seed already exists in cluster.
 		if clstr.findAlias(seed) != nil {
-			continue;
+			continue
 		}
- 
 
 		seedNodeValidator, err := newNodeValidator(clstr, seed, clstr.clientPolicy.Timeout)
 		if err != nil {
@@ -388,7 +387,6 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 		}
 		err = NewAerospikeError(INVALID_NODE_ERROR, msg)
 	}
-
 
 	return false, err
 }
@@ -473,7 +471,7 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 		switch len(nodes) {
 		case 1:
 			// Single node clusters rely on whether it responded to info requests.
-			if (node.failures.Get() >= 5) {
+			if node.failures.Get() >= 5 {
 				// 5 consecutive info requests failed. Try seeds.
 				if missing, _ := clstr.seedNodes(false); missing {
 					removeList = append(removeList, node)
@@ -492,7 +490,7 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 			if refreshCount >= 2 && node.referenceCount.Get() == 0 {
 				// Node is not referenced by other nodes.
 				// Check if node responded to info request.
-				if node.failures.Get() == 0{
+				if node.failures.Get() == 0 {
 					// Node is alive, but not referenced by other nodes.  Check if mapped.
 					if !clstr.findNodeInPartitionMap(node) {
 						// Node doesn't have any partitions mapped to it.
