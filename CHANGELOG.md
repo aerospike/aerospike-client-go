@@ -1,5 +1,23 @@
 # Change History
 
+## May 16 2016 : v1.14
+
+  Minor fixes and improvements release.
+
+  * **Fixes**
+
+    * Fixed an issue in which go-routines were leaked in `Results()` method of `Recordset` on cancellation. Based on PR #128, thanks to [Noel Cower](https://github.com/nilium)
+
+    * Fixed issues regarding leaked goroutines in `Cluster.WaitTillStablized()`, `Cluster.MigrationInProgress()`, and `Cluster.WaitUntillMigrationIsFinished()` methods. PR #126, thanks to [Anton](https://github.com/yiiton)
+
+  * **Improvements**
+
+    * Improved cluster `tend()` logic.
+
+    * Added `Recordset.Read()` method.
+
+    * Minor fixes in docs and code formatting. Thanks to [Andrew Murray](https://github.com/radarhere) and [Erik Dubbelboer](https://github.com/erikdubbelboer)
+
 ## April 1 2016 : v1.13
 
   Minor features and improvements release.
