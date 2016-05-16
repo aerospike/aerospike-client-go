@@ -45,3 +45,5 @@ func NewAerospikeError(code ResultCode, messages ...string) error {
 	err := errors.New(strings.Join(messages, " "))
 	return AerospikeError{error: err, resultCode: code}
 }
+
+var ErrRecordsetClosed = NewAerospikeError(RECORDSET_CLOSED, "Recordset has already been closed.")
