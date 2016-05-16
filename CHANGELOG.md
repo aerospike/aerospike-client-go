@@ -298,7 +298,7 @@
 
   * **New Features**
 
-    * Introduces `ClientPolicy.LimitConnectionsToQueueSize`. If set to true, the client won't attemp to create new connections to the node if the total number of pooled connections to the node is equal or more than the pool size. The client will retry to poll a connection from the queue until a timeout occures. If no timeout is set, it will only retry for ten times.
+    * Introduces `ClientPolicy.LimitConnectionsToQueueSize`. If set to true, the client won't attemp to create new connections to the node if the total number of pooled connections to the node is equal or more than the pool size. The client will retry to poll a connection from the queue until a timeout occurs. If no timeout is set, it will only retry for ten times.
 
   * **Improvements**
 
