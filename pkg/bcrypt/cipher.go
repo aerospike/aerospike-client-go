@@ -272,10 +272,9 @@ var bf_crypt_ciphertext = [6]uint{
 	0x64657253, 0x63727944, 0x6f756274,
 }
 
-
 type cipher struct {
-	P [18]uint
-	S [1024]uint
+	P    [18]uint
+	S    [1024]uint
 	data [6]uint
 }
 
@@ -283,7 +282,7 @@ func (c *cipher) encipher(lr []uint, off int) {
 	l := lr[off] ^ c.P[0]
 	r := lr[off+1]
 
-	for i := 0; i <= BlowfishRounds-2; i += 2{
+	for i := 0; i <= BlowfishRounds-2; i += 2 {
 		// Feistel substitution on left and right word respectively
 		r ^= (((c.S[(l>>24)&0xff] + c.S[0x100|((l>>16)&0xff)]) ^ c.S[0x200|((l>>8)&0xff)]) + c.S[0x300|(l&0xff)]) ^ c.P[i+1]
 		l ^= (((c.S[(r>>24)&0xff] + c.S[0x100|((r>>16)&0xff)]) ^ c.S[0x200|((r>>8)&0xff)]) + c.S[0x300|(r&0xff)]) ^ c.P[i+2]
@@ -292,6 +291,7 @@ func (c *cipher) encipher(lr []uint, off int) {
 	lr[off] = r ^ c.P[BlowfishRounds+1]
 	lr[off+1] = l
 }
+
 /**
  * Cycically extract a word of key material
  * @param data the string to extract the data from
@@ -388,7 +388,7 @@ func (c *cipher) ekskey(data []byte, key []byte) {
  * @return	an array containing the binary hashed password
  */
 func crypt_raw(password []byte, salt []byte, log_rounds uint) []byte {
-	c := &cipher{P:p_orig, S:s_orig, data:bf_crypt_ciphertext}
+	c := &cipher{P: p_orig, S: s_orig, data: bf_crypt_ciphertext}
 
 	rounds := 1 << log_rounds
 	c.ekskey(salt, password)
@@ -402,10 +402,10 @@ func crypt_raw(password []byte, salt []byte, log_rounds uint) []byte {
 			c.encipher(c.data[:], j<<1)
 		}
 	}
-	
+
 	ret := make([]byte, 24)
 	for i := 0; i < 6; i++ {
-		k := i<<2
+		k := i << 2
 		ret[k] = (byte)((c.data[i] >> 24) & 0xff)
 		ret[k+1] = (byte)((c.data[i] >> 16) & 0xff)
 		ret[k+2] = (byte)((c.data[i] >> 8) & 0xff)
