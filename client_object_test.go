@@ -553,12 +553,12 @@ var _ = Describe("Aerospike", func() {
 
 				testObj := &InnerStruct{}
 
-				retChan := make(chan *InnerStruct, 10)
+				retChan := make(chan *InnerStruct, 1)
 				stmt := NewStatement(ns, set)
 				stmt.Addfilter(NewRangeFilter("inner1", 21, 70))
 
 				qpolicy := NewQueryPolicy()
-				qpolicy.RecordQueueSize = 20
+				qpolicy.RecordQueueSize = 1
 
 				rs, err := client.QueryObjects(nil, stmt, retChan)
 				Expect(err).ToNot(HaveOccurred())
@@ -575,6 +575,7 @@ var _ = Describe("Aerospike", func() {
 
 					if cnt >= 10 {
 						rs.Close()
+						Expect(rs.Errors).To(BeClosed())
 					}
 				}
 
@@ -582,7 +583,7 @@ var _ = Describe("Aerospike", func() {
 					Expect(e).ToNot(HaveOccurred())
 				}
 
-				Expect(cnt).To(BeNumerically("<", 20))
+				Expect(cnt).To(BeNumerically("<=", 11))
 			})
 
 		}) // QueryObject context
