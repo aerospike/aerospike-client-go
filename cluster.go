@@ -472,10 +472,8 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 		case 1:
 			// Single node clusters rely on whether it responded to info requests.
 			if node.failures.Get() >= 5 {
-				// 5 consecutive info requests failed. Try seeds.
-				if missing, _ := clstr.seedNodes(false); missing {
-					removeList = append(removeList, node)
-				}
+				// Remove node.  Seeds will be tried in next cluster tend iteration.
+				removeList = append(removeList, node)
 			}
 
 		case 2:
