@@ -74,7 +74,7 @@ func (upckr *unpacker) unpackList(count int) ([]interface{}, error) {
 	return out, nil
 }
 
-func (upckr *unpacker) UnpackMap() (map[interface{}]interface{}, error) {
+func (upckr *unpacker) UnpackMap() (interface{}, error) {
 	if upckr.length <= 0 {
 		return nil, nil
 	}
@@ -97,7 +97,14 @@ func (upckr *unpacker) UnpackMap() (map[interface{}]interface{}, error) {
 	return upckr.unpackMap(count)
 }
 
-func (upckr *unpacker) unpackMap(count int) (map[interface{}]interface{}, error) {
+func (upckr *unpacker) unpackMap(count int) (interface{}, error) {
+	if upckr.isMapCDT() {
+		return upckr.unpackCDTMap(count)
+	}
+	return upckr.unpackMapNormal(count)
+}
+
+func (upckr *unpacker) unpackMapNormal(count int) (map[interface{}]interface{}, error) {
 	out := make(map[interface{}]interface{}, count)
 
 	for i := 0; i < count; i++ {
@@ -113,6 +120,48 @@ func (upckr *unpacker) unpackMap(count int) (map[interface{}]interface{}, error)
 		out[key] = val
 	}
 	return out, nil
+}
+
+func (upckr *unpacker) unpackCDTMap(count int) ([]MapPair, error) {
+	out := make([]MapPair, count)
+
+	for i := 0; i < count; i++ {
+		key, err := upckr.unpackObject(true)
+		if err != nil {
+			return nil, err
+		}
+
+		val, err := upckr.unpackObject(false)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = MapPair{Key: key, Value: val}
+	}
+
+	return out, nil
+}
+
+func (upckr *unpacker) isMapCDT() bool {
+	if len(upckr.buffer) <= upckr.offset+2 {
+		return false
+	}
+
+	extensionType := upckr.buffer[upckr.offset+1] & 0xff
+
+	if extensionType == 0 {
+		mapBits := upckr.buffer[upckr.offset+2] & 0xff
+
+		// Extension is a map type.  Determine which one.
+		if (mapBits & (0x04 | 0x08)) != 0 {
+			// Index/rank range result where order needs to be preserved.
+			return true
+		} else if (mapBits & 0x01) != 0 {
+			// Sorted map
+			return true
+		}
+	}
+
+	return false
 }
 
 func (upckr *unpacker) unpackObjects() (interface{}, error) {

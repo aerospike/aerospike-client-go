@@ -237,9 +237,15 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	writeAttr := 0
 	readBin := false
 	readHeader := false
+	RespondPerEachOp := policy.RespondPerEachOp
 
 	for i := range operations {
 		switch operations[i].OpType {
+		case MAP_READ:
+			// Map operations require RespondPerEachOp to be true.
+			RespondPerEachOp = true
+			// Fall through to read.
+			fallthrough
 		case READ, CDT_READ:
 			if !operations[i].headerOnly {
 				readAttr |= _INFO1_READ
@@ -253,6 +259,11 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 				readAttr |= _INFO1_READ
 				readHeader = true
 			}
+		case MAP_MODIFY:
+			// Map operations require RespondPerEachOp to be true.
+			RespondPerEachOp = true
+			// Fall through to default.
+			fallthrough
 		default:
 			writeAttr = _INFO2_WRITE
 		}
@@ -269,7 +280,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		readAttr |= _INFO1_NOBINDATA
 	}
 
-	if writeAttr != 0 && policy.RespondPerEachOp {
+	if RespondPerEachOp {
 		writeAttr |= _INFO2_RESPOND_ALL_OPS
 	}
 
@@ -812,7 +823,7 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 
 	Buffer.Int32ToBytes(int32(nameLength+valueLength+4), cmd.dataBuffer, cmd.dataOffset)
 	cmd.dataOffset += 4
-	cmd.dataBuffer[cmd.dataOffset] = (byte(operation))
+	cmd.dataBuffer[cmd.dataOffset] = (operation.op)
 	cmd.dataOffset++
 	cmd.dataBuffer[cmd.dataOffset] = (byte(bin.Value.GetType()))
 	cmd.dataOffset++
@@ -838,7 +849,7 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 
 	Buffer.Int32ToBytes(int32(nameLength+valueLength+4), cmd.dataBuffer, cmd.dataOffset)
 	cmd.dataOffset += 4
-	cmd.dataBuffer[cmd.dataOffset] = (byte(operation.OpType))
+	cmd.dataBuffer[cmd.dataOffset] = (operation.OpType.op)
 	cmd.dataOffset++
 	cmd.dataBuffer[cmd.dataOffset] = (byte(operation.BinValue.GetType()))
 	cmd.dataOffset++
@@ -854,7 +865,7 @@ func (cmd *baseCommand) writeOperationForBinName(name string, operation Operatio
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], name)
 	Buffer.Int32ToBytes(int32(nameLength+4), cmd.dataBuffer, cmd.dataOffset)
 	cmd.dataOffset += 4
-	cmd.dataBuffer[cmd.dataOffset] = (byte(operation))
+	cmd.dataBuffer[cmd.dataOffset] = (operation.op)
 	cmd.dataOffset++
 	cmd.dataBuffer[cmd.dataOffset] = (byte(0))
 	cmd.dataOffset++
@@ -868,7 +879,7 @@ func (cmd *baseCommand) writeOperationForBinName(name string, operation Operatio
 func (cmd *baseCommand) writeOperationForOperationType(operation OperationType) {
 	Buffer.Int32ToBytes(int32(4), cmd.dataBuffer, cmd.dataOffset)
 	cmd.dataOffset += 4
-	cmd.dataBuffer[cmd.dataOffset] = (byte(operation))
+	cmd.dataBuffer[cmd.dataOffset] = (operation.op)
 	cmd.dataOffset++
 	cmd.dataBuffer[cmd.dataOffset] = (0)
 	cmd.dataOffset++

@@ -29,6 +29,11 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
+// Map pair is used when the client returns sorted maps from the server
+// Since the default map in Go is a hash map, we will use a slice
+// to return the results in server order
+type MapPair struct{ Key, Value interface{} }
+
 // Value interface is used to efficiently serialize objects into the wire protocol.
 type Value interface {
 

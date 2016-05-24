@@ -120,6 +120,7 @@ func Benchmark_UnPackMap(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		testUnPacker.offset = 0
-		m, _ = testUnPacker.UnpackMap()
+		res, _ := testUnPacker.UnpackMap()
+		m = res.(map[interface{}]interface{})
 	}
 }
