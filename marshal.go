@@ -152,7 +152,7 @@ func structToMap(s reflect.Value, clusterSupportsFloat bool) map[string]interfac
 }
 
 func marshal(v interface{}, clusterSupportsFloat bool) []*Bin {
-	s := reflect.Indirect(reflect.ValueOf(v).Elem())
+	s := indirect(reflect.ValueOf(v).Elem())
 
 	// map tags
 	cacheObjectTags(s)
@@ -181,6 +181,7 @@ type SyncMap struct {
 }
 
 func (sm *SyncMap) setMapping(obj reflect.Value, mapping map[string]string, fields, ttl, gen []string) {
+	// obj = indirect(obj)
 	objType := obj.Type()
 	sm.mutex.Lock()
 	sm.objectMappings[objType] = mapping
@@ -190,7 +191,18 @@ func (sm *SyncMap) setMapping(obj reflect.Value, mapping map[string]string, fiel
 	sm.mutex.Unlock()
 }
 
+func indirect(obj reflect.Value) reflect.Value {
+	for obj.Kind() == reflect.Ptr {
+		if obj.IsNil() {
+			return obj
+		}
+		obj = reflect.Indirect(obj)
+	}
+	return obj
+}
+
 func (sm *SyncMap) mappingExists(obj reflect.Value) bool {
+	// obj = indirect(obj)
 	objType := obj.Type()
 	sm.mutex.RLock()
 	_, exists := sm.objectMappings[objType]
@@ -209,6 +221,7 @@ func (sm *SyncMap) getMetaMappings(obj reflect.Value) (ttl, gen []string) {
 	if !obj.IsValid() {
 		return nil, nil
 	}
+	// obj = indirect(obj)
 	objType := obj.Type()
 	sm.mutex.RLock()
 	ttl = sm.objectTTLs[objType]
@@ -238,12 +251,7 @@ func cacheObjectTags(obj reflect.Value) {
 		return
 	}
 
-	for obj.Kind() == reflect.Ptr {
-		if obj.IsNil() {
-			return
-		}
-		obj = reflect.Indirect(obj)
-	}
+	obj = indirect(obj)
 
 	mapping := map[string]string{}
 	fields := []string{}

@@ -342,11 +342,7 @@ func (cmd *baseMultiCommand) parseObject(
 			return err
 		}
 
-		iobj := reflect.Indirect(obj)
-		for iobj.Kind() == reflect.Ptr {
-			iobj = reflect.Indirect(iobj)
-		}
-
+		iobj := indirect(obj)
 		if err := setObjectField(cmd.resObjMappings, iobj, name, value); err != nil {
 			return err
 		}

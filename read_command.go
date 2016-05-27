@@ -225,10 +225,7 @@ func (cmd *readCommand) parseObject(
 	}
 
 	// find the name based on tag mapping
-	iobj := reflect.Indirect(rv)
-	for iobj.Kind() == reflect.Ptr {
-		iobj = reflect.Indirect(iobj)
-	}
+	iobj := indirect(rv)
 	mappings := objectMappings.getMapping(iobj.Type())
 
 	setObjectMetaFields(iobj, TTL(expiration), generation)
@@ -262,7 +259,7 @@ func (cmd *readCommand) Execute() error {
 
 func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) error {
 	// find the name based on tag mapping
-	iobj := reflect.Indirect(obj)
+	iobj := indirect(obj)
 
 	ttlMap, genMap := objectMappings.getMetaMappings(iobj)
 
@@ -475,18 +472,19 @@ func setValue(f reflect.Value, value interface{}) error {
 						numFields := newObjPtr.Elem().NumField()
 						for i := 0; i < numFields; i++ {
 							// skip unexported fields
-							if theStruct.Field(i).PkgPath != "" {
+							fld := theStruct.Field(i)
+							if fld.PkgPath != "" {
 								continue
 							}
 
-							alias := theStruct.Field(i).Name
-							tag := strings.Trim(theStruct.Field(i).Tag.Get(aerospikeTag), " ")
+							alias := fld.Name
+							tag := strings.Trim(fld.Tag.Get(aerospikeTag), " ")
 							if tag != "" {
 								alias = tag
 							}
 
 							if valMap[alias] != nil {
-								setValue(reflect.Indirect(newObjPtr).FieldByName(alias), valMap[alias])
+								setValue(reflect.Indirect(newObjPtr).FieldByName(fld.Name), valMap[alias])
 							}
 						}
 
@@ -563,19 +561,20 @@ func setValue(f reflect.Value, value interface{}) error {
 			typeOfT := f.Type()
 			numFields := f.NumField()
 			for i := 0; i < numFields; i++ {
+				fld := typeOfT.Field(i)
 				// skip unexported fields
-				if typeOfT.Field(i).PkgPath != "" {
+				if fld.PkgPath != "" {
 					continue
 				}
 
-				alias := typeOfT.Field(i).Name
-				tag := strings.Trim(typeOfT.Field(i).Tag.Get(aerospikeTag), " ")
+				alias := fld.Name
+				tag := strings.Trim(fld.Tag.Get(aerospikeTag), " ")
 				if tag != "" {
 					alias = tag
 				}
 
 				if valMap[alias] != nil {
-					setValue(f.FieldByName(typeOfT.Field(i).Name), valMap[alias])
+					setValue(f.FieldByName(fld.Name), valMap[alias])
 				}
 			}
 

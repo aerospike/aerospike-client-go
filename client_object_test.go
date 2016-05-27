@@ -114,9 +114,12 @@ var _ = Describe("Aerospike", func() {
 			// InterfaceP interface{}
 			InterfacePP *interface{}
 
-			Array [3]interface{}
-			Slice []interface{}
-			Map   map[interface{}]interface{}
+			Array        [3]interface{}
+			SliceString  []string
+			SliceFloat64 []float64
+			SliceInt     []interface{}
+			Slice        []interface{}
+			Map          map[interface{}]interface{}
 
 			CustomBool    SomeBool
 			CustomBoolP   *SomeBool
@@ -172,6 +175,115 @@ var _ = Describe("Aerospike", func() {
 			AnonymP *struct {
 				SomeStruct
 			}
+		}
+
+		type testObjectTagged struct {
+			Nil  interface{} `as:"nil"`
+			NilP *int        `as:"nilp"`
+
+			Bool  bool  `as:"bool"`
+			BoolP *bool `as:"boolp"`
+
+			Byte  byte  `as:"byte"`
+			ByteP *byte `as:"bytep"`
+
+			Int  int  `as:"int"`
+			Intp *int `as:"intp"`
+
+			Int8   int8   `as:"int8"`
+			Int8P  *int8  `as:"int8p"`
+			UInt8  uint8  `as:"uint8"`
+			UInt8P *uint8 `as:"uint8p"`
+
+			Int16   int16   `as:"int16"`
+			Int16P  *int16  `as:"int16p"`
+			UInt16  uint16  `as:"uint16"`
+			UInt16P *uint16 `as:"uint16p"`
+
+			Int32   int32   `as:"int32"`
+			Int32P  *int32  `as:"int32p"`
+			UInt32  uint32  `as:"uint32"`
+			UInt32P *uint32 `as:"uint32p"`
+
+			Int64   int64   `as:"int64"`
+			Int64P  *int64  `as:"int64p"`
+			UInt64  uint64  `as:"uint64"`
+			UInt64P *uint64 `as:"uint64p"`
+
+			F32  float32  `as:"f32"`
+			F32P *float32 `as:"f32p"`
+
+			F64  float64  `as:"f64"`
+			F64P *float64 `as:"f64p"`
+
+			String  string  `as:"string"`
+			StringP *string `as:"stringp"`
+
+			Interface interface{} `as:"interface"`
+			// InterfaceP interface{}  `as:"// interface"`
+			InterfacePP *interface{} `as:"interfacepp"`
+
+			Array        [3]interface{}              `as:"array"`
+			SliceString  []string                    `as:"slicestring"`
+			SliceFloat64 []float64                   `as:"slicefloat64"`
+			SliceInt     []interface{}               `as:"sliceint"`
+			Slice        []interface{}               `as:"slice"`
+			Map          map[interface{}]interface{} `as:"map"`
+
+			CustomBool    SomeBool    `as:"custombool"`
+			CustomBoolP   *SomeBool   `as:"customboolp"`
+			CustomByte    SomeByte    `as:"custombyte"`
+			CustomByteP   *SomeByte   `as:"custombytep"`
+			CustomInt     SomeInt     `as:"customint"`
+			CustomIntP    *SomeInt    `as:"customintp"`
+			CustomUint    SomeUint    `as:"customuint"`
+			CustomUintP   *SomeUint   `as:"customuintp"`
+			CustomInt8    SomeInt8    `as:"customint8"`
+			CustomInt8P   *SomeInt8   `as:"customint8p"`
+			CustomUint8   SomeUint8   `as:"customuint8"`
+			CustomUint8P  *SomeUint8  `as:"customuint8p"`
+			CustomInt16   SomeInt16   `as:"customint16"`
+			CustomInt16P  *SomeInt16  `as:"customint16p"`
+			CustomUint16  SomeUint16  `as:"customuint16"`
+			CustomUint16P *SomeUint16 `as:"customuint16p"`
+			CustomInt32   SomeInt32   `as:"customint32"`
+			CustomInt32P  *SomeInt32  `as:"customint32p"`
+			CustomUint32  SomeUint32  `as:"customuint32"`
+			CustomUint32P *SomeUint32 `as:"customuint32p"`
+			CustomInt64   SomeInt64   `as:"customint64"`
+			CustomInt64P  *SomeInt64  `as:"customint64p"`
+			CustomUint64  SomeUint64  `as:"customuint64"`
+			CustomUint64P *SomeUint64 `as:"customuint64p"`
+
+			CustomFloat32  SomeFloat32  `as:"customfloat32"`
+			CustomFloat32P *SomeFloat32 `as:"customfloat32p"`
+			CustomFloat64  SomeFloat64  `as:"customfloat64"`
+			CustomFloat64P *SomeFloat64 `as:"customfloat64p"`
+
+			CustomString  SomeString  `as:"customstring"`
+			CustomStringP *SomeString `as:"customstringp"`
+
+			NestedObj     SomeStruct  `as:"nestedobj"`
+			NestedObjP    *testObject `as:"nestedobjp"`
+			EmpNestedObjP *testObject `as:"empnestedobj"`
+
+			// Important: Used in ODMs  `as:"// important"`
+			NestedObjSlice []SomeStruct  `as:"nestedobjslice"`
+			EmpNstdObjSlic []SomeStruct  `as:"empnstdobj"`
+			NstdObjPSlice  []*testObject `as:"nstdobjpslice"`
+			EmpNstdObjPSlc []*testObject `as:"empnstdobj"`
+
+			// std lib type  `as:"// std lib"`
+			Tm  time.Time  `as:"tm  time."`
+			TmP *time.Time `as:"tmp"`
+
+			Anonym struct {
+				SomeStruct
+			} `as:"anonym"`
+
+			AnonymP *struct {
+				SomeStruct
+			} `anonymp`
 		}
 
 		makeTestObject := func() *testObject {
@@ -254,9 +366,146 @@ var _ = Describe("Aerospike", func() {
 				// InterfaceP:  ifaceP, // NOTICE: NOT SUPPORTED
 				InterfacePP: &iface,
 
-				Array: [3]interface{}{1, "string", nil},
-				Slice: []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
-				Map:   map[interface{}]interface{}{1: "string", "string": nil, nil: map[interface{}]interface{}{"1": ip}, true: false},
+				Array:        [3]interface{}{1, "string", nil},
+				SliceString:  []string{"string1", "string2", "string3"},
+				SliceFloat64: []float64{1.1, 2.2, 3.3, 4.4},
+				SliceInt:     []interface{}{1, 2, 3},
+				Slice:        []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
+				Map:          map[interface{}]interface{}{1: "string", "string": nil, nil: map[interface{}]interface{}{"1": ip}, true: false},
+
+				CustomBool:    true,
+				CustomBoolP:   &ctbl,
+				CustomByte:    100,
+				CustomByteP:   &ctb,
+				CustomInt:     100,
+				CustomIntP:    &cti,
+				CustomUint:    100,
+				CustomUintP:   &ctui,
+				CustomInt8:    100,
+				CustomInt8P:   &cti8,
+				CustomUint8:   100,
+				CustomUint8P:  &ctui8,
+				CustomInt16:   100,
+				CustomInt16P:  &cti16,
+				CustomUint16:  100,
+				CustomUint16P: &ctui16,
+				CustomInt32:   100,
+				CustomInt32P:  &cti32,
+				CustomUint32:  100,
+				CustomUint32P: &ctui32,
+				CustomInt64:   100,
+				CustomInt64P:  &cti64,
+				CustomUint64:  100,
+				CustomUint64P: &ctui64,
+
+				CustomFloat32:  cf32,
+				CustomFloat32P: &cf32,
+				CustomFloat64:  cf64,
+				CustomFloat64P: &cf64,
+
+				CustomString:  ctstr,
+				CustomStringP: &ctstr,
+
+				NestedObj:  SomeStruct{A: 1, Self: &SomeStruct{A: 999}},
+				NestedObjP: &testObject{Int: 1, Intp: &ip, Tm: now},
+
+				NestedObjSlice: []SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 999}}, SomeStruct{A: 2, Self: &SomeStruct{A: 998}}},
+				NstdObjPSlice:  []*testObject{&testObject{Int: 1, Intp: &ip, Tm: now}, &testObject{Int: 2, Intp: &ip, Tm: now}},
+
+				Tm:  now,
+				TmP: &now,
+
+				Anonym:  struct{ SomeStruct }{SomeStruct{A: 1, Self: &SomeStruct{A: 999}}},
+				AnonymP: &(struct{ SomeStruct }{SomeStruct{A: 1, Self: &SomeStruct{A: 999}}}),
+			}
+		}
+
+		makeTestObjectTagged := func() *testObjectTagged {
+			bl := true
+			b := byte(0)
+			ip := 11
+			p8 := int8(4)
+			up8 := uint8(6)
+			p16 := int16(8)
+			up16 := uint16(10)
+			p32 := int32(12)
+			up32 := uint32(14)
+			p64 := int64(16)
+			up64 := uint64(math.MaxUint64)
+			f32p := float32(math.MaxFloat32)
+			f64p := math.MaxFloat64
+			str := "pointer to a string"
+			iface := interface{}("a string")
+
+			ctbl := SomeBool(true)
+			ctb := SomeByte(100)
+			cti := SomeInt(math.MinInt64)
+			ctui := SomeUint(math.MaxInt64)
+			cti8 := SomeInt8(103)
+			ctui8 := SomeUint8(math.MaxUint8)
+			cti16 := SomeInt16(math.MinInt16)
+			ctui16 := SomeUint16(math.MaxUint16)
+			cti32 := SomeInt32(math.MinInt32)
+			ctui32 := SomeUint32(math.MaxUint32)
+			cti64 := SomeInt64(math.MinInt64)
+			ctui64 := SomeUint64(math.MaxUint64)
+			cf32 := SomeFloat32(math.SmallestNonzeroFloat32)
+			cf64 := SomeFloat64(math.SmallestNonzeroFloat64)
+			ctstr := SomeString("Some string")
+
+			now := time.Now()
+
+			return &testObjectTagged{
+				Bool:  true,
+				BoolP: &bl,
+
+				Nil:  nil,
+				NilP: nil,
+
+				Byte:  byte(0),
+				ByteP: &b,
+
+				Int:  1,
+				Intp: &ip,
+
+				Int8:   3,
+				Int8P:  &p8,
+				UInt8:  5,
+				UInt8P: &up8,
+
+				Int16:   7,
+				Int16P:  &p16,
+				UInt16:  9,
+				UInt16P: &up16,
+
+				Int32:   11,
+				Int32P:  &p32,
+				UInt32:  13,
+				UInt32P: &up32,
+
+				Int64:   math.MaxInt64,
+				Int64P:  &p64,
+				UInt64:  math.MaxUint64,
+				UInt64P: &up64,
+
+				F32:  1.87132794,
+				F32P: &f32p,
+				F64:  59285092891.502818573,
+				F64P: &f64p,
+
+				String:  "string",
+				StringP: &str,
+
+				Interface: iface,
+				// InterfaceP:  ifaceP, // NOTICE: NOT SUPPORTED
+				InterfacePP: &iface,
+
+				Array:        [3]interface{}{1, "string", nil},
+				SliceString:  []string{"string1", "string2", "string3"},
+				SliceFloat64: []float64{1.1, 2.2, 3.3, 4.4},
+				SliceInt:     []interface{}{1, 2, 3},
+				Slice:        []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
+				Map:          map[interface{}]interface{}{1: "string", "string": nil, nil: map[interface{}]interface{}{"1": ip}, true: false},
 
 				CustomBool:    true,
 				CustomBoolP:   &ctbl,
@@ -320,7 +569,73 @@ var _ = Describe("Aerospike", func() {
 				Expect(resObj.AnonymP).NotTo(BeNil())
 			})
 
+			It("must save a tagged object with the most complex structure possible", func() {
+
+				testObj := makeTestObjectTagged()
+				err := client.PutObject(nil, key, &testObj)
+				Expect(err).ToNot(HaveOccurred())
+
+				resObj := &testObjectTagged{}
+				err = client.GetObject(nil, key, resObj)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(resObj).To(Equal(testObj))
+				Expect(resObj.AnonymP).NotTo(BeNil())
+			})
+
 			It("must save an object and read it back respecting the tags", func() {
+
+				type InnerStruct struct {
+					Strings         []string `as:"b"`
+					PersistNot      int      `as:"-"`
+					PersistAsInner1 int      `as:"inner1"`
+				}
+
+				type TaggedStruct struct {
+					Strings       []string `as:"b"`
+					DontPersist   int      `as:"-"`
+					PersistAsFld1 int      `as:"fld1"`
+
+					IStruct InnerStruct `as:"istruct"`
+				}
+
+				testObj := TaggedStruct{Strings: []string{"a", "b", "c"}, DontPersist: 1, PersistAsFld1: 2, IStruct: InnerStruct{Strings: []string{"d", "e", "f", "g"}, PersistNot: 10, PersistAsInner1: 11}}
+				err := client.PutObject(nil, key, &testObj)
+				Expect(err).ToNot(HaveOccurred())
+
+				resObj := &TaggedStruct{}
+				err = client.GetObject(nil, key, resObj)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(resObj.DontPersist).To(Equal(0))
+				Expect(resObj.PersistAsFld1).To(Equal(2))
+				Expect(resObj.IStruct.PersistNot).To(Equal(0))
+				Expect(resObj.IStruct.PersistAsInner1).To(Equal(11))
+
+				// get the bins and check for bin names
+				rec, err := client.Get(nil, key)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rec.Bins).To(Equal(
+					BinMap{
+						"b":    []interface{}{"a", "b", "c"},
+						"fld1": 2,
+						"istruct": map[interface{}]interface{}{
+							"b":      []interface{}{"d", "e", "f", "g"},
+							"inner1": 11,
+						},
+					}))
+
+				Expect(len(rec.Bins)).To(Equal(3))
+				Expect(rec.Bins["DontPersist"]).To(BeNil())
+				Expect(rec.Bins["fld1"]).To(Equal(2))
+				innerStruct := rec.Bins["istruct"].(map[interface{}]interface{})
+				Expect(len(innerStruct)).To(Equal(2))
+				Expect(innerStruct["PersistNot"]).To(BeNil())
+				Expect(innerStruct["inner1"]).To(Equal(11))
+
+			})
+
+			It("must save an object *pointer* and read it back respecting the tags", func() {
 
 				type InnerStruct struct {
 					PersistNot      int `as:"-"`
@@ -331,14 +646,14 @@ var _ = Describe("Aerospike", func() {
 					DontPersist   int `as:"-"`
 					PersistAsFld1 int `as:"fld1"`
 
-					IStruct InnerStruct
+					IStruct *InnerStruct
 				}
 
-				testObj := TaggedStruct{DontPersist: 1, PersistAsFld1: 2, IStruct: InnerStruct{PersistNot: 10, PersistAsInner1: 11}}
+				testObj := &TaggedStruct{DontPersist: 1, PersistAsFld1: 2, IStruct: &InnerStruct{PersistNot: 10, PersistAsInner1: 11}}
 				err := client.PutObject(nil, key, &testObj)
 				Expect(err).ToNot(HaveOccurred())
 
-				resObj := &TaggedStruct{}
+				resObj := &TaggedStruct{IStruct: &InnerStruct{}}
 				err = client.GetObject(nil, key, resObj)
 				Expect(err).ToNot(HaveOccurred())
 
