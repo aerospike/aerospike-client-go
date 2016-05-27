@@ -890,7 +890,7 @@ var _ = Describe("Aerospike", func() {
 
 					if cnt >= 10 {
 						rs.Close()
-						Expect(rs.Errors).To(BeClosed())
+						Eventually(rs.Errors).Should(BeClosed())
 					}
 				}
 
