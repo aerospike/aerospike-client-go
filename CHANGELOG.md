@@ -1,5 +1,13 @@
 # Change History
 
+## May 27 2016 : v1.15
+
+  Minor fixes and improvements release.
+
+  * **Fixes**
+
+    * Fixed an issue where unmarshalling embedded structs and pointers didn't work properly if they were tagged.
+
 ## May 16 2016 : v1.14
 
   Minor fixes and improvements release.
@@ -67,7 +75,7 @@
     * GeoJSON support in Lists and Maps
 
   * **Improvements**
-  
+
     * Use `ClientPolicy.timeout` for connection timeout when refreshing nodes
 
     * Added new server error codes
@@ -89,7 +97,7 @@
   * **New Features**
 
       * Can now use `services-alternate` for cluster tend.
-      
+
       * New CDT List API: `ListGetRangeFromOp`, `ListRemoveRangeFromOp`, `ListPopRangeFromOp`
 
   * **Improvements**
@@ -156,7 +164,7 @@
 
   * **Fixes**
 
-    * Changed the `KeepConnection` logic from black-list to white-list, to drop all 
+    * Changed the `KeepConnection` logic from black-list to white-list, to drop all
 
     * Fix RemoveNodesCopy logic error.
 
@@ -191,7 +199,7 @@
     * Fixes issue with unmarshalling maps of type map[ANY]struct{} into embedded structs.
 
     * Fixes an issue with bound checking. PR #85, Thanks to [Tait Clarridge](https://github.com/oldmantaiter)
-    
+
     * Fixes aa few typos in the docs. PR #76, Thanks to [Charl Matthee](https://github.com/charl)
 
 ## August 2015 : v1.6.5
@@ -336,7 +344,7 @@
     * `BatchCommandGet.parseRecord()` returned wrong values when `BinNames` was empty but not nil.
 
 ## March 31 2015 : v1.4.2
-  
+
   Maintenance release.
 
   * **Improvements**
@@ -423,7 +431,7 @@
     ```
 
     Use of the old pattern is discouraged and deprecated, and direct access to recordset.Records and recordset.Errors will be removed in a future release.
-      
+
   * **Improvements**
 
     * Custom Types are now allowed as bin values.
@@ -443,7 +451,7 @@
   * **New Features**
 
     * Added Security Features: Please consult [Security Docs](https://www.aerospike.com/docs/guide/security.html) on Aerospike website.
-      
+
       * `ClientPolicy.User`, `ClientPolicy.Password`
       * `Client.CreateUser()`, `Client.DropUser()`, `Client.ChangePassword()`
       * `Client.GrantRoles()`, `Client.RevokeRoles()`, `Client.ReplaceRoles()`
