@@ -122,15 +122,15 @@ type mapWriteMode struct {
 var MapWriteMode = struct {
 	// If the key already exists, the item will be overwritten.
 	// If the key does not exist, a new item will be created.
-	Update *mapWriteMode
+	UPDATE *mapWriteMode
 
 	// If the key already exists, the item will be overwritten.
 	// If the key does not exist, the write will fail.
-	UpdateOnly *mapWriteMode
+	UPDATE_ONLY *mapWriteMode
 
 	// If the key already exists, the write will fail.
 	// If the key does not exist, a new item will be created.
-	CreateOnly *mapWriteMode
+	CREATE_ONLY *mapWriteMode
 }{
 	&mapWriteMode{_CDT_MAP_PUT, _CDT_MAP_PUT_ITEMS},
 	&mapWriteMode{_CDT_MAP_REPLACE, _CDT_MAP_REPLACE_ITEMS},
@@ -152,6 +152,11 @@ func NewMapPolicy(order mapOrderType, writeMode *mapWriteMode) *MapPolicy {
 		itemCommand:  writeMode.itemCommand,
 		itemsCommand: writeMode.itemsCommand,
 	}
+}
+
+// DefaultMapPolicy returns the default map policy
+func DefaultMapPolicy() *MapPolicy {
+	return NewMapPolicy(MapOrder.UNORDERED, MapWriteMode.UPDATE)
 }
 
 func newMapSetPolicy(binName string, attributes mapOrderType) *Operation {

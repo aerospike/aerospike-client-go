@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -123,19 +124,22 @@ func (upckr *unpacker) unpackMapNormal(count int) (map[interface{}]interface{}, 
 }
 
 func (upckr *unpacker) unpackCDTMap(count int) ([]MapPair, error) {
-	out := make([]MapPair, count)
+	out := make([]MapPair, 0, count-1)
 
 	for i := 0; i < count; i++ {
 		key, err := upckr.unpackObject(true)
-		if err != nil {
+		if err != nil && err != skipHeaderErr {
 			return nil, err
 		}
 
 		val, err := upckr.unpackObject(false)
-		if err != nil {
+		if err != nil && err != skipHeaderErr {
 			return nil, err
 		}
-		out[i] = MapPair{Key: key, Value: val}
+
+		if key != nil {
+			out = append(out, MapPair{Key: key, Value: val})
+		}
 	}
 
 	return out, nil
@@ -204,6 +208,8 @@ func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (interface{}, error)
 
 	return val, nil
 }
+
+var skipHeaderErr = errors.New("Skip the unpacker error")
 
 func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, error) {
 	theType := upckr.buffer[upckr.offset] & 0xff
@@ -277,12 +283,17 @@ func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, error) {
 		}
 		return int64(val), nil
 
-	case 0xda:
+	case 0xc4, 0xd9:
+		count := int(upckr.offset & 0xff)
+		upckr.offset++
+		return upckr.unpackBlob(count, isMapKey)
+
+	case 0xc5, 0xda:
 		count := int(Buffer.BytesToUint16(upckr.buffer, upckr.offset))
 		upckr.offset += 2
 		return upckr.unpackBlob(count, isMapKey)
 
-	case 0xdb:
+	case 0xc6, 0xdb:
 		count := int(Buffer.BytesToUint32(upckr.buffer, upckr.offset))
 		upckr.offset += 4
 		return upckr.unpackBlob(count, isMapKey)
@@ -306,6 +317,46 @@ func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, error) {
 		count := int(Buffer.BytesToUint32(upckr.buffer, upckr.offset))
 		upckr.offset += 4
 		return upckr.unpackMap(count)
+
+	case 0xd4:
+		// Skip over type extension with 1 byte
+		upckr.offset += 1 + 1
+		return nil, skipHeaderErr
+
+	case 0xd5:
+		// Skip over type extension with 2 bytes
+		upckr.offset += 1 + 2
+		return nil, skipHeaderErr
+
+	case 0xd6:
+		// Skip over type extension with 4 bytes
+		upckr.offset += 1 + 4
+		return nil, skipHeaderErr
+
+	case 0xd7:
+		// Skip over type extension with 8 bytes
+		upckr.offset += 1 + 8
+		return nil, skipHeaderErr
+
+	case 0xd8:
+		// Skip over type extension with 16 bytes
+		upckr.offset += 1 + 16
+		return nil, skipHeaderErr
+
+	case 0xc7: // Skip over type extension with 8 bit header and bytes
+		count := int(upckr.buffer[upckr.offset] & 0xff)
+		upckr.offset += count + 1 + 1
+		return nil, skipHeaderErr
+
+	case 0xc8: // Skip over type extension with 16 bit header and bytes
+		count := int(Buffer.BytesToInt16(upckr.buffer, upckr.offset))
+		upckr.offset += count + 1 + 2
+		return nil, skipHeaderErr
+
+	case 0xc9: // Skip over type extension with 32 bit header and bytes
+		count := int(Buffer.BytesToInt32(upckr.buffer, upckr.offset))
+		upckr.offset += count + 1 + 4
+		return nil, skipHeaderErr
 
 	default:
 		if (theType & 0xe0) == 0xa0 {
