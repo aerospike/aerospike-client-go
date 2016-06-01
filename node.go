@@ -17,7 +17,7 @@ package aerospike
 import (
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -27,7 +27,6 @@ import (
 
 const (
 	_PARTITIONS = 4096
-	// _FULL_HEALTH = 100
 )
 
 // Node represents an Aerospike Database Server Node
@@ -35,7 +34,7 @@ type Node struct {
 	cluster *Cluster
 	name    string
 	host    *Host
-	aliases []*Host
+	aliases atomic.Value //[]*Host
 	address string
 
 	connections     *AtomicQueue //ArrayBlockingQueue<*Connection>
@@ -48,17 +47,16 @@ type Node struct {
 
 	useNewInfo bool
 	active     *AtomicBool
-	mutex      sync.RWMutex
 
 	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo *AtomicBool
 }
 
 // NewNode initializes a server node with connection parameters.
 func newNode(cluster *Cluster, nv *nodeValidator) *Node {
-	return &Node{
-		cluster:    cluster,
-		name:       nv.name,
-		aliases:    nv.aliases,
+	newNode := &Node{
+		cluster: cluster,
+		name:    nv.name,
+		// aliases:    nv.aliases,
 		address:    nv.address,
 		useNewInfo: nv.useNewInfo,
 
@@ -77,6 +75,10 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		supportsReplicasAll: NewAtomicBool(nv.supportsReplicasAll),
 		supportsGeo:         NewAtomicBool(nv.supportsGeo),
 	}
+
+	newNode.aliases.Store(nv.aliases)
+
+	return newNode
 }
 
 // Refresh requests current status from server node, and updates node with the result.
@@ -308,18 +310,12 @@ func (nd *Node) GetName() string {
 
 // GetAliases returnss node aliases.
 func (nd *Node) GetAliases() []*Host {
-	nd.mutex.RLock()
-	aliases := nd.aliases
-	nd.mutex.RUnlock()
-
-	return aliases
+	return nd.aliases.Load().([]*Host)
 }
 
 // Sets node aliases
 func (nd *Node) setAliases(aliases []*Host) {
-	nd.mutex.Lock()
-	nd.aliases = aliases
-	nd.mutex.Unlock()
+	nd.aliases.Store(aliases)
 }
 
 // AddAlias adds an alias for the node
