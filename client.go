@@ -314,10 +314,7 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 
 	command := newReadCommand(clnt.cluster, policy, key, binNames)
 	command.object = obj
-	if err := command.Execute(); err != nil {
-		return err
-	}
-	return nil
+	return command.Execute()
 }
 
 // GetHeader reads a record generation and expiration only for specified key.
@@ -857,7 +854,7 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 
 func mapContainsKeyPartial(theMap map[string]interface{}, key string) (bool, interface{}) {
 	for k, v := range theMap {
-		if strings.Index(k, key) >= 0 {
+		if strings.Contains(k, key) {
 			return true, v
 		}
 	}
@@ -1533,7 +1530,7 @@ func (clnt *Client) getUsableAdminPolicy(policy *AdminPolicy) *AdminPolicy {
 
 // mergeErrors merges several errors into one
 func mergeErrors(errs []error) error {
-	if errs == nil || len(errs) == 0 {
+	if len(errs) == 0 {
 		return nil
 	}
 	var msg bytes.Buffer

@@ -55,10 +55,7 @@ func (cmd *existsCommand) parseResult(ifc command, conn *Connection) error {
 		return NewAerospikeError(ResultCode(resultCode))
 	}
 	cmd.exists = resultCode == 0
-	if err := cmd.emptySocket(conn); err != nil {
-		return err
-	}
-	return nil
+	return cmd.emptySocket(conn)
 }
 
 func (cmd *existsCommand) Exists() bool {

@@ -55,7 +55,7 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 		}
 		return structToMap(f, clusterSupportsFloat)
 	case reflect.Bool:
-		if f.Bool() == true {
+		if f.Bool() {
 			return int64(1)
 		}
 		return int64(0)

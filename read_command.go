@@ -300,11 +300,7 @@ func setObjectField(mappings map[string]string, obj reflect.Value, fieldName str
 		fieldName = name
 	}
 	f := obj.FieldByName(fieldName)
-	if err := setValue(f, value); err != nil {
-		return err
-	}
-
-	return nil
+	return setValue(f, value)
 }
 
 func setValue(f reflect.Value, value interface{}) error {

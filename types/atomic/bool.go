@@ -34,10 +34,7 @@ func NewAtomicBool(value bool) *AtomicBool {
 
 // Get atomically retrieves the boolean value.
 func (ab *AtomicBool) Get() bool {
-	if atomic.LoadInt32(&(ab.val)) != 0 {
-		return true
-	}
-	return false
+	return atomic.LoadInt32(&(ab.val)) != 0
 }
 
 // Set atomically sets the boolean value.

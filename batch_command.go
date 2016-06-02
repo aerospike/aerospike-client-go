@@ -191,11 +191,7 @@ func (cmd *baseMultiCommand) readNextChunk(length int) error {
 
 	// read first chunk up front
 	_, err := cmd.conn.ReadN(&cmd.buf, int64(length))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {

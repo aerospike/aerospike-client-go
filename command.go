@@ -187,7 +187,7 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) error {
 
 // Writes the command for get operations (specified bins)
 func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string) (err error) {
-	if binNames != nil && len(binNames) > 0 {
+	if len(binNames) > 0 {
 		cmd.begin()
 		fieldCount := cmd.estimateKeySize(key, false)
 

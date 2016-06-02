@@ -227,7 +227,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 	tBegin := time.Now()
 	pollTries := 0
 L:
-	for timeout == 0 || time.Now().Sub(tBegin) <= timeout {
+	for timeout == 0 || time.Since(tBegin) <= timeout {
 		if t := nd.connections.Poll(); t != nil {
 			conn = t.(*Connection)
 			if conn.IsConnected() && !conn.isIdle() {

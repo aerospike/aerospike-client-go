@@ -287,11 +287,7 @@ func luaListConcat(L *lua.LState) int {
 	}
 
 	sp := checkLuaList(L, 2)
-
-	for _, v := range sp.l {
-		p.l = append(p.l, v)
-	}
-
+	p.l = append(p.l, sp.l...)
 	return 0
 }
 
@@ -324,13 +320,8 @@ func luaListMerge(L *lua.LState) int {
 	sp := checkLuaList(L, 2)
 
 	newList := &LuaList{l: make([]interface{}, 0, len(p.l)+len(sp.l))}
-	for _, v := range p.l {
-		newList.l = append(newList.l, v)
-	}
-
-	for _, v := range sp.l {
-		newList.l = append(newList.l, v)
-	}
+	newList.l = append(newList.l, p.l...)
+	newList.l = append(newList.l, sp.l...)
 
 	ud := L.NewUserData()
 	ud.Value = newList
