@@ -1,5 +1,21 @@
 # Change History
 
+## June 2 2016 : v1.16
+
+  Major feature and improvements release.
+
+  > NOTICE: Due to the relatively extensive code overhaul, upgrade with caution.
+
+  * **New Features**
+
+    * Added CDT Ordered Map API. (Requires server v3.8.3+)
+
+  * **Improvements**
+
+    * Removed mutexes from `Cluster` and `Node` code.
+
+    * Improved code quality using various linters.
+
 ## May 27 2016 : v1.15
 
   Minor fixes and improvements release.
