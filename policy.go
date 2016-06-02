@@ -20,11 +20,11 @@ import (
 
 // Policy Interface
 type Policy interface {
-	// Retrives BasePolicy
+	// Retrieves BasePolicy
 	GetBasePolicy() *BasePolicy
 }
 
-// BasePolicy excapsulates parameters for transaction policy attributes
+// BasePolicy encapsulates parameters for transaction policy attributes
 // used in all database operation calls.
 type BasePolicy struct {
 	Policy

@@ -47,7 +47,7 @@ func init() {
 	Arch32Bits = (SizeOfInt == SizeOfInt32)
 }
 
-// Coverts a byte slice into a hex string
+// BytesToHexString converts a byte slice into a hex string
 func BytesToHexString(buf []byte) string {
 	hlist := make([]byte, 3*len(buf))
 
@@ -59,7 +59,7 @@ func BytesToHexString(buf []byte) string {
 	return string(hlist)
 }
 
-// converts a slice of bytes into an interger with appropriate type
+// BytesToNumber converts a slice of bytes into an integer with appropriate type
 func BytesToNumber(buf []byte, offset, length int) interface{} {
 	if len(buf) == 0 {
 		return int(0)
@@ -81,7 +81,7 @@ func BytesToNumber(buf []byte, offset, length int) interface{} {
 	return int64(val)
 }
 
-// Covertes a slice into int32; only maximum of 4 bytes will be used
+// LittleBytesToInt32 converts a slice into int32; only maximum of 4 bytes will be used
 func LittleBytesToInt32(buf []byte, offset int) int32 {
 	l := len(buf[offset:])
 	if l > uint32sz {
@@ -91,7 +91,7 @@ func LittleBytesToInt32(buf []byte, offset int) int32 {
 	return r
 }
 
-// Covertes a slice into int64; only maximum of 8 bytes will be used
+// BytesToInt64 converts a slice into int64; only maximum of 8 bytes will be used
 func BytesToInt64(buf []byte, offset int) int64 {
 	l := len(buf[offset:])
 	if l > uint64sz {
@@ -110,7 +110,7 @@ func VarBytesToInt64(buf []byte, offset int, len int) int64 {
 	return val
 }
 
-// Converts an int64 into slice of Bytes.
+// Int64ToBytes converts an int64 into slice of Bytes.
 func Int64ToBytes(num int64, buffer []byte, offset int) []byte {
 	if buffer != nil {
 		binary.BigEndian.PutUint64(buffer[offset:], uint64(num))
@@ -121,17 +121,17 @@ func Int64ToBytes(num int64, buffer []byte, offset int) []byte {
 	return b
 }
 
-// Covertes a slice into int32; only maximum of 4 bytes will be used
+// BytesToInt32 converts a slice into int32; only maximum of 4 bytes will be used
 func BytesToInt32(buf []byte, offset int) int32 {
 	return int32(binary.BigEndian.Uint32(buf[offset : offset+uint32sz]))
 }
 
-// Covertes a slice into int32; only maximum of 4 bytes will be used
+// BytesToUint32 converts a slice into uint32; only maximum of 4 bytes will be used
 func BytesToUint32(buf []byte, offset int) uint32 {
 	return binary.BigEndian.Uint32(buf[offset : offset+uint32sz])
 }
 
-// Converts an int32 to a byte slice of size 4
+// Int32ToBytes converts an int32 to a byte slice of size 4
 func Int32ToBytes(num int32, buffer []byte, offset int) []byte {
 	if buffer != nil {
 		binary.BigEndian.PutUint32(buffer[offset:], uint32(num))
@@ -142,7 +142,7 @@ func Int32ToBytes(num int32, buffer []byte, offset int) []byte {
 	return b
 }
 
-// Converts an int32 to a byte slice of size 4
+// Uint32ToBytes converts an uint32 to a byte slice of size 4
 func Uint32ToBytes(num uint32, buffer []byte, offset int) []byte {
 	if buffer != nil {
 		binary.BigEndian.PutUint32(buffer[offset:], num)
@@ -153,7 +153,7 @@ func Uint32ToBytes(num uint32, buffer []byte, offset int) []byte {
 	return b
 }
 
-// Converts
+// BytesToInt16 converts a slice of bytes to an int16
 func BytesToInt16(buf []byte, offset int) int16 {
 	return int16(binary.BigEndian.Uint16(buf[offset : offset+uint16sz]))
 }
@@ -162,7 +162,7 @@ func BytesToUint16(buf []byte, offset int) uint16 {
 	return binary.BigEndian.Uint16(buf[offset : offset+uint16sz])
 }
 
-// converts a
+// Int16ToBytes converts an int16 to slice of bytes
 func Int16ToBytes(num int16, buffer []byte, offset int) []byte {
 	if buffer != nil {
 		binary.BigEndian.PutUint16(buffer[offset:], uint16(num))

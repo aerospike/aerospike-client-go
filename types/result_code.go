@@ -207,7 +207,7 @@ const (
 	// Index name maximum length exceeded.
 	INDEX_NAME_MAXLEN ResultCode = 205
 
-	// Maximum number of indicies exceeded.
+	// Maximum number of indexes exceeded.
 	INDEX_MAXCOUNT ResultCode = 206
 
 	// Secondary index query aborted.

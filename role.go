@@ -22,7 +22,7 @@ const (
 	// UserAdmin allows to manages users and their roles.
 	UserAdmin Role = "user-admin"
 
-	// SysAdmin allows to manage indicies, user defined functions and server configuration.
+	// SysAdmin allows to manage indexes, user defined functions and server configuration.
 	SysAdmin Role = "sys-admin"
 
 	// ReadWriteUDF allows read, write and UDF transactions with the database.

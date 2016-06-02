@@ -76,7 +76,7 @@ const (
 	_AS_MSG_TYPE               int64 = 3
 )
 
-// command intrerface describes all commands available
+// command interface describes all commands available
 type command interface {
 	getPolicy(ifc command) Policy
 

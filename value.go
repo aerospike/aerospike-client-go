@@ -486,7 +486,7 @@ func (vl *ValueArray) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// ListValue encapsulates any arbitray array.
+// ListValue encapsulates any arbitrary array.
 // Supported by Aerospike 3 servers only.
 type ListValue struct {
 	list  []interface{}
@@ -540,7 +540,7 @@ func (vl *ListValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// MapValue encapsulates an arbitray map.
+// MapValue encapsulates an arbitrary map.
 // Supported by Aerospike 3 servers only.
 type MapValue struct {
 	vmap  map[interface{}]interface{}

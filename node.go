@@ -242,7 +242,7 @@ L:
 		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.Get() >= nd.cluster.clientPolicy.ConnectionQueueSize {
 			// will avoid an infinite loop
 			if timeout != 0 || pollTries < 10 {
-				// 10 reteies, each waits for 100us for a total of 1 milliseconds
+				// 10 retries, each waits for 100us for a total of 1 milliseconds
 				time.Sleep(time.Microsecond * 100)
 				pollTries++
 				continue
@@ -308,7 +308,7 @@ func (nd *Node) GetName() string {
 	return nd.name
 }
 
-// GetAliases returnss node aliases.
+// GetAliases returns node aliases.
 func (nd *Node) GetAliases() []*Host {
 	return nd.aliases.Load().([]*Host)
 }
@@ -331,7 +331,7 @@ func (nd *Node) AddAlias(aliasToAdd *Host) {
 	nd.setAliases(aliases)
 }
 
-// Close marks node as inactice and closes all of its pooled connections.
+// Close marks node as inactive and closes all of its pooled connections.
 func (nd *Node) Close() {
 	nd.active.Set(false)
 	nd.closeConnections()

@@ -258,7 +258,7 @@ func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) {
 
 	doneCh := make(chan bool, 1)
 
-	// will run until the cluster is stablized
+	// will run until the cluster is stabilized
 	go func() {
 		for {
 			if err := clstr.tend(failIfNotConnected); err != nil {
@@ -278,7 +278,7 @@ func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) {
 		doneCh <- true
 	}()
 
-	// returns either on timeout or on cluster stablization
+	// returns either on timeout or on cluster stabilization
 	timeout := time.After(clstr.clientPolicy.Timeout)
 	select {
 	case <-timeout:

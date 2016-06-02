@@ -95,7 +95,7 @@ var _ = Describe("Index operations test", func() {
 				// wait until index is created
 				<-idxTask.OnComplete()
 
-				// droping second time is not expected to raise any errors
+				// dropping second time is not expected to raise any errors
 				err = client.DropIndex(wpolicy, ns, set, set+bin1.Name)
 				Expect(err).ToNot(HaveOccurred())
 

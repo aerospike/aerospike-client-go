@@ -34,7 +34,7 @@ var (
 	TOUCH      OperationType = &struct{ op byte }{11}
 )
 
-// Operation contasins operation definition.
+// Operation contains operation definition.
 // This struct is used in client's operate() method.
 type Operation struct {
 
