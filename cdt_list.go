@@ -56,16 +56,28 @@ func ListAppendOp(binName string, values ...interface{}) *Operation {
 	list := ToValueSlice(values)
 	if len(values) == 1 {
 		packer := newPacker()
-		packer.PackShortRaw(_CDT_LIST_APPEND)
-		packer.PackArrayBegin(1)
-		list[0].pack(packer)
+		if err := packer.PackShortRaw(_CDT_LIST_APPEND); err != nil {
+			panic(err)
+		}
+		if err := packer.PackArrayBegin(1); err != nil {
+			panic(err)
+		}
+		if err := list[0].pack(packer); err != nil {
+			panic(err)
+		}
 		bytes := packer.buffer.Bytes()
 		return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 	} else if len(values) > 1 {
 		packer := newPacker()
-		packer.PackShortRaw(_CDT_LIST_APPEND_ITEMS)
-		packer.PackArrayBegin(1)
-		packer.packValueArray(list)
+		if err := packer.PackShortRaw(_CDT_LIST_APPEND_ITEMS); err != nil {
+			panic(err)
+		}
+		if err := packer.PackArrayBegin(1); err != nil {
+			panic(err)
+		}
+		if err := packer.packValueArray(list); err != nil {
+			panic(err)
+		}
 		bytes := packer.buffer.Bytes()
 		return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 	}
@@ -81,18 +93,34 @@ func ListInsertOp(binName string, index int, values ...interface{}) *Operation {
 	list := ToValueSlice(values)
 	if len(values) == 1 {
 		packer := newPacker()
-		packer.PackShortRaw(_CDT_LIST_INSERT)
-		packer.PackArrayBegin(2)
-		packer.PackAInt(index)
-		list[0].pack(packer)
+		if err := packer.PackShortRaw(_CDT_LIST_INSERT); err != nil {
+			panic(err)
+		}
+		if err := packer.PackArrayBegin(2); err != nil {
+			panic(err)
+		}
+		if err := packer.PackAInt(index); err != nil {
+			panic(err)
+		}
+		if err := list[0].pack(packer); err != nil {
+			panic(err)
+		}
 		bytes := packer.buffer.Bytes()
 		return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 	} else if len(values) > 1 {
 		packer := newPacker()
-		packer.PackShortRaw(_CDT_LIST_INSERT_ITEMS)
-		packer.PackArrayBegin(2)
-		packer.PackAInt(index)
-		packer.packValueArray(list)
+		if err := packer.PackShortRaw(_CDT_LIST_INSERT_ITEMS); err != nil {
+			panic(err)
+		}
+		if err := packer.PackArrayBegin(2); err != nil {
+			panic(err)
+		}
+		if err := packer.PackAInt(index); err != nil {
+			panic(err)
+		}
+		if err := packer.packValueArray(list); err != nil {
+			panic(err)
+		}
 		bytes := packer.buffer.Bytes()
 		return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 	}
@@ -104,9 +132,15 @@ func ListInsertOp(binName string, index int, values ...interface{}) *Operation {
 // Server returns item at specified index and removes item from list bin.
 func ListPopOp(binName string, index int) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_POP)
-	packer.PackArrayBegin(1)
-	packer.PackAInt(index)
+	if err := packer.PackShortRaw(_CDT_LIST_POP); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(1); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -119,10 +153,18 @@ func ListPopRangeOp(binName string, index int, count int) *Operation {
 	}
 
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_POP_RANGE)
-	packer.PackArrayBegin(2)
-	packer.PackAInt(index)
-	packer.PackAInt(count)
+	if err := packer.PackShortRaw(_CDT_LIST_POP_RANGE); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(2); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(count); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -131,9 +173,15 @@ func ListPopRangeOp(binName string, index int, count int) *Operation {
 // Server returns items starting at specified index to the end of list and removes items from list bin.
 func ListPopRangeFromOp(binName string, index int) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_POP_RANGE)
-	packer.PackArrayBegin(1)
-	packer.PackAInt(index)
+	if err := packer.PackShortRaw(_CDT_LIST_POP_RANGE); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(1); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -143,9 +191,15 @@ func ListPopRangeFromOp(binName string, index int) *Operation {
 // Server returns number of items removed.
 func ListRemoveOp(binName string, index int) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_REMOVE)
-	packer.PackArrayBegin(1)
-	packer.PackAInt(index)
+	if err := packer.PackShortRaw(_CDT_LIST_REMOVE); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(1); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -159,10 +213,18 @@ func ListRemoveRangeOp(binName string, index int, count int) *Operation {
 	}
 
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_REMOVE_RANGE)
-	packer.PackArrayBegin(2)
-	packer.PackAInt(index)
-	packer.PackAInt(count)
+	if err := packer.PackShortRaw(_CDT_LIST_REMOVE_RANGE); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(2); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(count); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -172,9 +234,15 @@ func ListRemoveRangeOp(binName string, index int, count int) *Operation {
 // Server returns number of items removed.
 func ListRemoveRangeFromOp(binName string, index int) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_REMOVE_RANGE)
-	packer.PackArrayBegin(1)
-	packer.PackAInt(index)
+	if err := packer.PackShortRaw(_CDT_LIST_REMOVE_RANGE); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(1); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -184,10 +252,18 @@ func ListRemoveRangeFromOp(binName string, index int) *Operation {
 // Server does not return a result by default.
 func ListSetOp(binName string, index int, value interface{}) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_SET)
-	packer.PackArrayBegin(2)
-	packer.PackAInt(index)
-	NewValue(value).pack(packer)
+	if err := packer.PackShortRaw(_CDT_LIST_SET); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(2); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
+	if err := NewValue(value).pack(packer); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -198,10 +274,18 @@ func ListSetOp(binName string, index int, value interface{}) *Operation {
 // Server returns number of elemts that were removed.
 func ListTrimOp(binName string, index int, count int) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_TRIM)
-	packer.PackArrayBegin(2)
-	packer.PackAInt(index)
-	packer.PackAInt(count)
+	if err := packer.PackShortRaw(_CDT_LIST_TRIM); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(2); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(count); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -211,8 +295,12 @@ func ListTrimOp(binName string, index int, count int) *Operation {
 // Server does not return a result by default.
 func ListClearOp(binName string) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_CLEAR)
-	//packer.PackArrayBegin(0);
+	if err := packer.PackShortRaw(_CDT_LIST_CLEAR); err != nil {
+		panic(err)
+	}
+	// if err := packer.PackArrayBegin(0);; err != nil {
+	// 	panic(err)
+	// }
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -221,8 +309,12 @@ func ListClearOp(binName string) *Operation {
 // Server returns size of list on bin name.
 func ListSizeOp(binName string) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_SIZE)
-	//packer.PackArrayBegin(0);
+	if err := packer.PackShortRaw(_CDT_LIST_SIZE); err != nil {
+		panic(err)
+	}
+	// if err := packer.PackArrayBegin(0);; err != nil {
+	// 	panic(err)
+	// }
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_READ, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -231,9 +323,15 @@ func ListSizeOp(binName string) *Operation {
 // Server returns item at specified index in list bin.
 func ListGetOp(binName string, index int) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_GET)
-	packer.PackArrayBegin(1)
-	packer.PackAInt(index)
+	if err := packer.PackShortRaw(_CDT_LIST_GET); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(1); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_READ, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -242,10 +340,18 @@ func ListGetOp(binName string, index int) *Operation {
 // Server returns "count" items starting at specified index in list bin.
 func ListGetRangeOp(binName string, index int, count int) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_GET_RANGE)
-	packer.PackArrayBegin(2)
-	packer.PackAInt(index)
-	packer.PackAInt(count)
+	if err := packer.PackShortRaw(_CDT_LIST_GET_RANGE); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(2); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(count); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_READ, BinName: binName, BinValue: NewValue(bytes)}
 }
@@ -254,9 +360,15 @@ func ListGetRangeOp(binName string, index int, count int) *Operation {
 // Server returns items starting at specified index to the end of list.
 func ListGetRangeFromOp(binName string, index int) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_LIST_GET_RANGE)
-	packer.PackArrayBegin(1)
-	packer.PackAInt(index)
+	if err := packer.PackShortRaw(_CDT_LIST_GET_RANGE); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(1); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
 	bytes := packer.buffer.Bytes()
 	return &Operation{OpType: CDT_READ, BinName: binName, BinValue: NewValue(bytes)}
 }

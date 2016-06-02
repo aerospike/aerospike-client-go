@@ -163,8 +163,7 @@ func (vl NullValue) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl NullValue) pack(packer *packer) error {
-	packer.PackNil()
-	return nil
+	return packer.PackNil()
 }
 
 // GetType returns wire protocol value type.
@@ -218,8 +217,7 @@ func (vl BytesValue) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl BytesValue) pack(packer *packer) error {
-	packer.PackBytes(vl)
-	return nil
+	return packer.PackBytes(vl)
 }
 
 // GetType returns wire protocol value type.
@@ -260,8 +258,7 @@ func (vl StringValue) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl StringValue) pack(packer *packer) error {
-	packer.PackString(string(vl))
-	return nil
+	return packer.PackString(string(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -304,11 +301,10 @@ func (vl IntegerValue) write(buffer []byte, offset int) (int, error) {
 
 func (vl IntegerValue) pack(packer *packer) error {
 	if Buffer.SizeOfInt == Buffer.SizeOfInt32 {
-		packer.PackAInt(int(vl))
+		return packer.PackAInt(int(vl))
 	} else {
-		packer.PackALong(int64(vl))
+		return packer.PackALong(int64(vl))
 	}
-	return nil
 }
 
 // GetType returns wire protocol value type.
@@ -350,8 +346,7 @@ func (vl LongValue) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl LongValue) pack(packer *packer) error {
-	packer.PackALong(int64(vl))
-	return nil
+	return packer.PackALong(int64(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -393,8 +388,7 @@ func (vl FloatValue) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl FloatValue) pack(packer *packer) error {
-	packer.PackFloat64(float64(vl))
-	return nil
+	return packer.PackFloat64(float64(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -617,8 +611,7 @@ func (vl GeoJSONValue) write(buffer []byte, offset int) (int, error) {
 }
 
 func (vl GeoJSONValue) pack(packer *packer) error {
-	packer.PackGeoJson(string(vl))
-	return nil
+	return packer.PackGeoJson(string(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -694,7 +687,7 @@ func bytesToKeyValue(pType int, buf []byte, offset int, len int) (Value, error) 
 		return NewBytesValue(bytes), nil
 
 	default:
-		return nil, nil
+		return nil, NewAerospikeError(PARSE_ERROR, fmt.Sprintf("ParticleType %d not recognized. Please file a github issue.", pType))
 	}
 }
 

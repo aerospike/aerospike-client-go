@@ -1538,8 +1538,12 @@ func mergeErrors(errs []error) error {
 	}
 	var msg bytes.Buffer
 	for _, err := range errs {
-		msg.WriteString(err.Error())
-		msg.WriteString("\n")
+		if _, err := msg.WriteString(err.Error()); err != nil {
+			return err
+		}
+		if _, err := msg.WriteString("\n"); err != nil {
+			return err
+		}
 	}
 	return errors.New(msg.String())
 }

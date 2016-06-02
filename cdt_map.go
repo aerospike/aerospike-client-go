@@ -161,9 +161,15 @@ func DefaultMapPolicy() *MapPolicy {
 
 func newMapSetPolicy(binName string, attributes mapOrderType) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(_CDT_MAP_SET_TYPE)
-	packer.PackArrayBegin(1)
-	packer.PackAInt(int(attributes))
+	if err := packer.PackShortRaw(_CDT_MAP_SET_TYPE); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(1); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(int(attributes)); err != nil {
+		panic(err)
+	}
 	return &Operation{
 		OpType:   MAP_MODIFY,
 		BinName:  binName,
@@ -172,18 +178,34 @@ func newMapSetPolicy(binName string, attributes mapOrderType) *Operation {
 
 func newMapCreatePut(command int, attributes mapOrderType, binName string, value1 interface{}, value2 interface{}) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(int16(command))
+	if err := packer.PackShortRaw(int16(command)); err != nil {
+		panic(err)
+	}
 
 	if command == _CDT_MAP_REPLACE {
 		// Replace doesn't allow map attributes because it does not create on non-existing key.
-		packer.PackArrayBegin(2)
-		NewValue(value1).pack(packer)
-		NewValue(value2).pack(packer)
+		if err := packer.PackArrayBegin(2); err != nil {
+			panic(err)
+		}
+		if err := NewValue(value1).pack(packer); err != nil {
+			panic(err)
+		}
+		if err := NewValue(value2).pack(packer); err != nil {
+			panic(err)
+		}
 	} else {
-		packer.PackArrayBegin(3)
-		NewValue(value1).pack(packer)
-		NewValue(value2).pack(packer)
-		packer.PackAInt(int(attributes))
+		if err := packer.PackArrayBegin(3); err != nil {
+			panic(err)
+		}
+		if err := NewValue(value1).pack(packer); err != nil {
+			panic(err)
+		}
+		if err := NewValue(value2).pack(packer); err != nil {
+			panic(err)
+		}
+		if err := packer.PackAInt(int(attributes)); err != nil {
+			panic(err)
+		}
 	}
 	return &Operation{
 		OpType:   MAP_MODIFY,
@@ -194,11 +216,21 @@ func newMapCreatePut(command int, attributes mapOrderType, binName string, value
 
 func newMapCreateOperationValues2(command int, attributes mapOrderType, binName string, value1 interface{}, value2 interface{}) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(int16(command))
-	packer.PackArrayBegin(3)
-	NewValue(value1).pack(packer)
-	NewValue(value2).pack(packer)
-	packer.PackAInt(int(attributes))
+	if err := packer.PackShortRaw(int16(command)); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(3); err != nil {
+		panic(err)
+	}
+	if err := NewValue(value1).pack(packer); err != nil {
+		panic(err)
+	}
+	if err := NewValue(value2).pack(packer); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(int(attributes)); err != nil {
+		panic(err)
+	}
 	return &Operation{
 		OpType:   MAP_MODIFY,
 		BinName:  binName,
@@ -208,7 +240,9 @@ func newMapCreateOperationValues2(command int, attributes mapOrderType, binName 
 
 func newMapCreateOperationValues0(command int, typ OperationType, binName string) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(int16(command))
+	if err := packer.PackShortRaw(int16(command)); err != nil {
+		panic(err)
+	}
 	return &Operation{
 		OpType:   typ,
 		BinName:  binName,
@@ -220,10 +254,18 @@ func newMapCreateOperationValuesN(command int, typ OperationType, binName string
 	list := ToValueSlice(values)
 
 	packer := newPacker()
-	packer.PackShortRaw(int16(command))
-	packer.PackArrayBegin(2)
-	packer.PackAInt(int(returnType))
-	packer.packValueArray(list)
+	if err := packer.PackShortRaw(int16(command)); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(2); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(int(returnType)); err != nil {
+		panic(err)
+	}
+	if err := packer.packValueArray(list); err != nil {
+		panic(err)
+	}
 	return &Operation{
 		OpType:   typ,
 		BinName:  binName,
@@ -233,10 +275,18 @@ func newMapCreateOperationValuesN(command int, typ OperationType, binName string
 
 func newMapCreateOperationValue1(command int, typ OperationType, binName string, value interface{}, returnType mapReturnType) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(int16(command))
-	packer.PackArrayBegin(2)
-	packer.PackAInt(int(returnType))
-	NewValue(value).pack(packer)
+	if err := packer.PackShortRaw(int16(command)); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(2); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(int(returnType)); err != nil {
+		panic(err)
+	}
+	if err := NewValue(value).pack(packer); err != nil {
+		panic(err)
+	}
 	return &Operation{
 		OpType:   typ,
 		BinName:  binName,
@@ -246,10 +296,18 @@ func newMapCreateOperationValue1(command int, typ OperationType, binName string,
 
 func newMapCreateOperationIndex(command int, typ OperationType, binName string, index int, returnType mapReturnType) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(int16(command))
-	packer.PackArrayBegin(2)
-	packer.PackAInt(int(returnType))
-	packer.PackAInt(index)
+	if err := packer.PackShortRaw(int16(command)); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(2); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(int(returnType)); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
 	return &Operation{
 		OpType:   typ,
 		BinName:  binName,
@@ -259,11 +317,21 @@ func newMapCreateOperationIndex(command int, typ OperationType, binName string, 
 
 func newMapCreateOperationIndexCount(command int, typ OperationType, binName string, index int, count int, returnType mapReturnType) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(int16(command))
-	packer.PackArrayBegin(3)
-	packer.PackAInt(int(returnType))
-	packer.PackAInt(index)
-	packer.PackAInt(count)
+	if err := packer.PackShortRaw(int16(command)); err != nil {
+		panic(err)
+	}
+	if err := packer.PackArrayBegin(3); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(int(returnType)); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(index); err != nil {
+		panic(err)
+	}
+	if err := packer.PackAInt(count); err != nil {
+		panic(err)
+	}
 	return &Operation{
 		OpType:   typ,
 		BinName:  binName,
@@ -273,21 +341,37 @@ func newMapCreateOperationIndexCount(command int, typ OperationType, binName str
 
 func newMapCreateRangeOperation(command int, typ OperationType, binName string, begin interface{}, end interface{}, returnType mapReturnType) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(int16(command))
+	if err := packer.PackShortRaw(int16(command)); err != nil {
+		panic(err)
+	}
 
 	if begin == nil {
 		begin = NewNullValue()
 	}
 
 	if end == nil {
-		packer.PackArrayBegin(2)
-		packer.PackAInt(int(returnType))
-		NewValue(begin).pack(packer)
+		if err := packer.PackArrayBegin(2); err != nil {
+			panic(err)
+		}
+		if err := packer.PackAInt(int(returnType)); err != nil {
+			panic(err)
+		}
+		if err := NewValue(begin).pack(packer); err != nil {
+			panic(err)
+		}
 	} else {
-		packer.PackArrayBegin(3)
-		packer.PackAInt(int(returnType))
-		NewValue(begin).pack(packer)
-		NewValue(end).pack(packer)
+		if err := packer.PackArrayBegin(3); err != nil {
+			panic(err)
+		}
+		if err := packer.PackAInt(int(returnType)); err != nil {
+			panic(err)
+		}
+		if err := NewValue(begin).pack(packer); err != nil {
+			panic(err)
+		}
+		if err := NewValue(end).pack(packer); err != nil {
+			panic(err)
+		}
 	}
 	return &Operation{
 		OpType:   typ,
@@ -348,16 +432,28 @@ func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interfac
 // The map policy also specifies the mode used when writing items to the map.
 func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]interface{}) *Operation {
 	packer := newPacker()
-	packer.PackShortRaw(int16(policy.itemsCommand))
+	if err := packer.PackShortRaw(int16(policy.itemsCommand)); err != nil {
+		panic(err)
+	}
 
 	if policy.itemsCommand == int(_CDT_MAP_REPLACE_ITEMS) {
 		// Replace doesn't allow map attributes because it does not create on non-existing key.
-		packer.PackArrayBegin(1)
-		packer.PackMap(amap)
+		if err := packer.PackArrayBegin(1); err != nil {
+			panic(err)
+		}
+		if err := packer.PackMap(amap); err != nil {
+			panic(err)
+		}
 	} else {
-		packer.PackArrayBegin(2)
-		packer.PackMap(amap)
-		packer.PackAInt(int(policy.attributes))
+		if err := packer.PackArrayBegin(2); err != nil {
+			panic(err)
+		}
+		if err := packer.PackMap(amap); err != nil {
+			panic(err)
+		}
+		if err := packer.PackAInt(int(policy.attributes)); err != nil {
+			panic(err)
+		}
 	}
 	return &Operation{
 		OpType:   MAP_MODIFY,

@@ -144,11 +144,19 @@ func computeDigest(key *Key) ([]byte, error) {
 
 	buf := keyBufPool.Get().(*bytes.Buffer)
 	buf.Reset()
-	buf.WriteString(key.setName)
-	buf.WriteByte(byte(keyType))
-	buf.ReadFrom(key.userKey.reader())
+	if _, err := buf.WriteString(key.setName); err != nil {
+		return nil, NewAerospikeError(PARAMETER_ERROR, "Key Generation Error: "+err.Error())
+	}
+	if err := buf.WriteByte(byte(keyType)); err != nil {
+		return nil, NewAerospikeError(PARAMETER_ERROR, "Key Generation Error: "+err.Error())
+	}
+	if _, err := buf.ReadFrom(key.userKey.reader()); err != nil {
+		return nil, NewAerospikeError(PARAMETER_ERROR, "Key Generation Error: "+err.Error())
+	}
 
-	h.Write(buf.Bytes())
+	if _, err := h.Write(buf.Bytes()); err != nil {
+		return nil, NewAerospikeError(PARAMETER_ERROR, "Key Generation Error: "+err.Error())
+	}
 	res := h.Sum(nil)
 
 	// put hash object back to the pool

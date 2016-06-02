@@ -113,7 +113,9 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 			return err
 		}
 	} else {
-		cmd.parseObject(opCount, fieldCount, generation, expiration)
+		if err := cmd.parseObject(opCount, fieldCount, generation, expiration); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -231,7 +233,9 @@ func (cmd *readCommand) parseObject(
 	}
 	mappings := objectMappings.getMapping(iobj.Type())
 
-	setObjectMetaFields(iobj, TTL(expiration), generation)
+	if err := setObjectMetaFields(iobj, TTL(expiration), generation); err != nil {
+		return err
+	}
 
 	for i := 0; i < opCount; i++ {
 		opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
@@ -269,14 +273,18 @@ func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) error {
 	if ttlMap != nil {
 		for i := range ttlMap {
 			f := iobj.FieldByName(ttlMap[i])
-			setValue(f, ttl)
+			if err := setValue(f, ttl); err != nil {
+				return err
+			}
 		}
 	}
 
 	if genMap != nil {
 		for i := range genMap {
 			f := iobj.FieldByName(genMap[i])
-			setValue(f, gen)
+			if err := setValue(f, gen); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -292,7 +300,9 @@ func setObjectField(mappings map[string]string, obj reflect.Value, fieldName str
 		fieldName = name
 	}
 	f := obj.FieldByName(fieldName)
-	setValue(f, value)
+	if err := setValue(f, value); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -486,7 +496,9 @@ func setValue(f reflect.Value, value interface{}) error {
 							}
 
 							if valMap[alias] != nil {
-								setValue(reflect.Indirect(newObjPtr).FieldByName(alias), valMap[alias])
+								if err := setValue(reflect.Indirect(newObjPtr).FieldByName(alias), valMap[alias]); err != nil {
+									return err
+								}
 							}
 						}
 
@@ -509,7 +521,9 @@ func setValue(f reflect.Value, value interface{}) error {
 			}
 
 			for i := 0; i < theArray.Len(); i++ {
-				setValue(f.Index(i), theArray.Index(i).Interface())
+				if err := setValue(f.Index(i), theArray.Index(i).Interface()); err != nil {
+					return err
+				}
 			}
 		case reflect.Map:
 			emptyStruct := reflect.ValueOf(struct{}{})
@@ -575,7 +589,9 @@ func setValue(f reflect.Value, value interface{}) error {
 				}
 
 				if valMap[alias] != nil {
-					setValue(f.FieldByName(typeOfT.Field(i).Name), valMap[alias])
+					if err := setValue(f.FieldByName(typeOfT.Field(i).Name), valMap[alias]); err != nil {
+						return err
+					}
 				}
 			}
 
