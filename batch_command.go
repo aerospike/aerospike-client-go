@@ -161,10 +161,14 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 		}
 
 		if cmd.remains >= _CHUNK_SIZE {
-			cmd.readNextChunk(_CHUNK_SIZE)
+			if err := cmd.readNextChunk(_CHUNK_SIZE); err != nil {
+				return nil
+			}
 			cmd.remains -= _CHUNK_SIZE
 		} else {
-			cmd.readNextChunk(int(cmd.remains))
+			if err := cmd.readNextChunk(int(cmd.remains)); err != nil {
+				return err
+			}
 			cmd.remains = 0
 		}
 	}
@@ -187,11 +191,7 @@ func (cmd *baseMultiCommand) readNextChunk(length int) error {
 
 	// read first chunk up front
 	_, err := cmd.conn.ReadN(&cmd.buf, int64(length))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {

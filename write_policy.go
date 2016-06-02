@@ -37,7 +37,7 @@ type WritePolicy struct {
 	// If a write operation is creating a record, the expected generation would be 0.
 	Generation uint32
 
-	// Expiration determimes record expiration in seconds. Also known as TTL (Time-To-Live).
+	// Expiration determines record expiration in seconds. Also known as TTL (Time-To-Live).
 	// Seconds record will live before being removed by the server.
 	// Expiration values:
 	// MaxUint32: Never expire for Aerospike 2 server versions >= 2.7.2 and Aerospike 3 server

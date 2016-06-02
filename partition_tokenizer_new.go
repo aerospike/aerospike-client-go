@@ -116,7 +116,9 @@ func (pt *partitionTokenizerNew) UpdatePartition(nmap map[string]*AtomicArray, n
 				if (restoreBuffer[i>>3] & (0x80 >> uint((i & 7)))) != 0 {
 					// Logger.Info("Map: `" + namespace + "`," + strconv.Itoa(i) + "," + node.String())
 
-					nodeArray.Set(i, node)
+					if err := nodeArray.Set(i, node); err != nil {
+						return nil, err
+					}
 				}
 			}
 			pt.offset++

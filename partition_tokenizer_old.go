@@ -80,7 +80,9 @@ func (pt *partitionTokenizerOld) UpdatePartition(nmap map[string]*AtomicArray, n
 			amap[partition.Namespace] = nodeArray
 		}
 		Logger.Debug(partition.String() + "," + node.name)
-		nodeArray.Set(partition.PartitionId, node)
+		if err := nodeArray.Set(partition.PartitionId, node); err != nil {
+			return nil, err
+		}
 	}
 
 	if copied {

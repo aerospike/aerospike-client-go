@@ -55,7 +55,7 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 		}
 		return structToMap(f, clusterSupportsFloat)
 	case reflect.Bool:
-		if f.Bool() == true {
+		if f.Bool() {
 			return int64(1)
 		}
 		return int64(0)
@@ -172,7 +172,7 @@ func marshal(v interface{}, clusterSupportsFloat bool) []*Bin {
 	return bins[:binCount]
 }
 
-type SyncMap struct {
+type syncMap struct {
 	objectMappings map[reflect.Type]map[string]string
 	objectFields   map[reflect.Type][]string
 	objectTTLs     map[reflect.Type][]string
@@ -180,7 +180,7 @@ type SyncMap struct {
 	mutex          sync.RWMutex
 }
 
-func (sm *SyncMap) setMapping(obj reflect.Value, mapping map[string]string, fields, ttl, gen []string) {
+func (sm *syncMap) setMapping(obj reflect.Value, mapping map[string]string, fields, ttl, gen []string) {
 	// obj = indirect(obj)
 	objType := obj.Type()
 	sm.mutex.Lock()
@@ -201,7 +201,7 @@ func indirect(obj reflect.Value) reflect.Value {
 	return obj
 }
 
-func (sm *SyncMap) mappingExists(obj reflect.Value) bool {
+func (sm *syncMap) mappingExists(obj reflect.Value) bool {
 	// obj = indirect(obj)
 	objType := obj.Type()
 	sm.mutex.RLock()
@@ -210,14 +210,14 @@ func (sm *SyncMap) mappingExists(obj reflect.Value) bool {
 	return exists
 }
 
-func (sm *SyncMap) getMapping(objType reflect.Type) map[string]string {
+func (sm *syncMap) getMapping(objType reflect.Type) map[string]string {
 	sm.mutex.RLock()
 	mapping := sm.objectMappings[objType]
 	sm.mutex.RUnlock()
 	return mapping
 }
 
-func (sm *SyncMap) getMetaMappings(obj reflect.Value) (ttl, gen []string) {
+func (sm *syncMap) getMetaMappings(obj reflect.Value) (ttl, gen []string) {
 	if !obj.IsValid() {
 		return nil, nil
 	}
@@ -230,7 +230,7 @@ func (sm *SyncMap) getMetaMappings(obj reflect.Value) (ttl, gen []string) {
 	return ttl, gen
 }
 
-func (sm *SyncMap) getFields(obj reflect.Value) []string {
+func (sm *syncMap) getFields(obj reflect.Value) []string {
 	objType := obj.Type()
 	sm.mutex.RLock()
 	fields := sm.objectFields[objType]
@@ -238,7 +238,7 @@ func (sm *SyncMap) getFields(obj reflect.Value) []string {
 	return fields
 }
 
-var objectMappings = &SyncMap{
+var objectMappings = &syncMap{
 	objectMappings: map[reflect.Type]map[string]string{},
 	objectFields:   map[reflect.Type][]string{},
 	objectTTLs:     map[reflect.Type][]string{},

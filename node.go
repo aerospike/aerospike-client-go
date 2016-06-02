@@ -17,7 +17,7 @@ package aerospike
 import (
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -27,7 +27,6 @@ import (
 
 const (
 	_PARTITIONS = 4096
-	// _FULL_HEALTH = 100
 )
 
 // Node represents an Aerospike Database Server Node
@@ -35,7 +34,7 @@ type Node struct {
 	cluster *Cluster
 	name    string
 	host    *Host
-	aliases []*Host
+	aliases atomic.Value //[]*Host
 	address string
 
 	connections     *AtomicQueue //ArrayBlockingQueue<*Connection>
@@ -48,17 +47,16 @@ type Node struct {
 
 	useNewInfo bool
 	active     *AtomicBool
-	mutex      sync.RWMutex
 
 	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo *AtomicBool
 }
 
 // NewNode initializes a server node with connection parameters.
 func newNode(cluster *Cluster, nv *nodeValidator) *Node {
-	return &Node{
-		cluster:    cluster,
-		name:       nv.name,
-		aliases:    nv.aliases,
+	newNode := &Node{
+		cluster: cluster,
+		name:    nv.name,
+		// aliases:    nv.aliases,
 		address:    nv.address,
 		useNewInfo: nv.useNewInfo,
 
@@ -77,6 +75,10 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		supportsReplicasAll: NewAtomicBool(nv.supportsReplicasAll),
 		supportsGeo:         NewAtomicBool(nv.supportsGeo),
 	}
+
+	newNode.aliases.Store(nv.aliases)
+
+	return newNode
 }
 
 // Refresh requests current status from server node, and updates node with the result.
@@ -225,7 +227,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 	tBegin := time.Now()
 	pollTries := 0
 L:
-	for timeout == 0 || time.Now().Sub(tBegin) <= timeout {
+	for timeout == 0 || time.Since(tBegin) <= timeout {
 		if t := nd.connections.Poll(); t != nil {
 			conn = t.(*Connection)
 			if conn.IsConnected() && !conn.isIdle() {
@@ -240,7 +242,7 @@ L:
 		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.Get() >= nd.cluster.clientPolicy.ConnectionQueueSize {
 			// will avoid an infinite loop
 			if timeout != 0 || pollTries < 10 {
-				// 10 reteies, each waits for 100us for a total of 1 milliseconds
+				// 10 retries, each waits for 100us for a total of 1 milliseconds
 				time.Sleep(time.Microsecond * 100)
 				pollTries++
 				continue
@@ -306,20 +308,14 @@ func (nd *Node) GetName() string {
 	return nd.name
 }
 
-// GetAliases returnss node aliases.
+// GetAliases returns node aliases.
 func (nd *Node) GetAliases() []*Host {
-	nd.mutex.RLock()
-	aliases := nd.aliases
-	nd.mutex.RUnlock()
-
-	return aliases
+	return nd.aliases.Load().([]*Host)
 }
 
 // Sets node aliases
 func (nd *Node) setAliases(aliases []*Host) {
-	nd.mutex.Lock()
-	nd.aliases = aliases
-	nd.mutex.Unlock()
+	nd.aliases.Store(aliases)
 }
 
 // AddAlias adds an alias for the node
@@ -335,7 +331,7 @@ func (nd *Node) AddAlias(aliasToAdd *Host) {
 	nd.setAliases(aliases)
 }
 
-// Close marks node as inactice and closes all of its pooled connections.
+// Close marks node as inactive and closes all of its pooled connections.
 func (nd *Node) Close() {
 	nd.active.Set(false)
 	nd.closeConnections()

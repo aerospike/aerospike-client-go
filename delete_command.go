@@ -58,9 +58,7 @@ func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) error {
 	}
 	cmd.existed = resultCode == 0
 
-	cmd.emptySocket(conn)
-
-	return nil
+	return cmd.emptySocket(conn)
 }
 
 func (cmd *deleteCommand) Existed() bool {
