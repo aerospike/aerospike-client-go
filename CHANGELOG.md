@@ -1,5 +1,13 @@
 # Change History
 
+## June 6 2016 : v1.16.1
+
+  Minor bugfix release.
+
+  * **Fixes**
+
+    * Fixes an issue where complex maps and lists weren't unmarshalled correctly in `GetObject` method.
+
 ## June 2 2016 : v1.16
 
   Major feature and improvements release.

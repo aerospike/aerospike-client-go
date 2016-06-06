@@ -303,6 +303,13 @@ func setObjectField(mappings map[string]string, obj reflect.Value, fieldName str
 func setValue(f reflect.Value, value interface{}) error {
 	// find the name based on tag mapping
 	if f.CanSet() {
+		if value == nil {
+			if f.IsValid() && !f.IsNil() {
+				f.Set(reflect.ValueOf(value))
+			}
+			return nil
+		}
+
 		switch f.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			f.SetInt(int64(value.(int)))
@@ -543,7 +550,16 @@ func setValue(f reflect.Value, value interface{}) error {
 					}
 
 					if newVal.Type() != f.Type().Elem() {
-						newVal = newVal.Convert(f.Type().Elem())
+						switch newVal.Kind() {
+						case reflect.Map, reflect.Slice, reflect.Array:
+							newVal = reflect.New(f.Type().Elem())
+							if err := setValue(newVal.Elem(), elem); err != nil {
+								return err
+							}
+							newVal = reflect.Indirect(newVal)
+						default:
+							newVal = newVal.Convert(f.Type().Elem())
+						}
 					}
 
 					if newVal.Kind() == reflect.Map && newVal.Len() == 0 && newMap.Type().Elem().Kind() == emptyStruct.Type().Kind() {

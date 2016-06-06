@@ -114,12 +114,27 @@ var _ = Describe("Aerospike", func() {
 			// InterfaceP interface{}
 			InterfacePP *interface{}
 
-			Array        [3]interface{}
-			SliceString  []string
-			SliceFloat64 []float64
-			SliceInt     []interface{}
-			Slice        []interface{}
-			Map          map[interface{}]interface{}
+			Array         [3]interface{}
+			SliceString   []string
+			SliceFloat64  []float64
+			SliceInt      []interface{}
+			Slice         []interface{}
+			ArrayOfMaps   [1]map[int]string
+			SliceOfMaps   []map[int]string
+			ArrayOfSlices [1][]interface{}
+			SliceOfSlices [][]interface{}
+			ArrayOfArrays [1][1]interface{}
+			SliceOfArrays [][1]interface{}
+
+			ArrayOfStructs [1]SomeStruct
+			SliceOfStructs []SomeStruct
+
+			Map           map[interface{}]interface{}
+			MapOfMaps     map[string]map[int64]byte
+			MapOfSlices   map[string][]byte
+			MapOfArrays   map[string][3]byte
+			MapOfStructs  map[string]SomeStruct
+			MapOfPStructs map[string]*SomeStruct
 
 			CustomBool    SomeBool
 			CustomBoolP   *SomeBool
@@ -223,12 +238,27 @@ var _ = Describe("Aerospike", func() {
 			// InterfaceP interface{}  `as:"// interface"`
 			InterfacePP *interface{} `as:"interfacepp"`
 
-			Array        [3]interface{}              `as:"array"`
-			SliceString  []string                    `as:"slicestring"`
-			SliceFloat64 []float64                   `as:"slicefloat64"`
-			SliceInt     []interface{}               `as:"sliceint"`
-			Slice        []interface{}               `as:"slice"`
-			Map          map[interface{}]interface{} `as:"map"`
+			Array        [3]interface{} `as:"array"`
+			SliceString  []string       `as:"slicestring"`
+			SliceFloat64 []float64      `as:"slicefloat64"`
+			SliceInt     []interface{}  `as:"sliceint"`
+			Slice        []interface{}  `as:"slice"`
+
+			ArrayOfMaps    [1]map[int]string `as:"arrayOfMaps"`
+			SliceOfMaps    []map[int]string  `as:"sliceOfMaps"`
+			ArrayOfSlices  [1][]interface{}  `as:"arrayOfSlices"`
+			SliceOfSlices  [][]interface{}   `as:"sliceOfSlices"`
+			ArrayOfArrays  [1][1]interface{} `as:"arrayOfArrays"`
+			SliceOfArrays  [][1]interface{}  `as:"sliceOfArrays"`
+			ArrayOfStructs [1]SomeStruct     `as:"ArrayOfStructs"`
+			SliceOfStructs []SomeStruct      `as:"SliceOfStructs"`
+
+			Map           map[interface{}]interface{} `as:"map"`
+			MapOfMaps     map[string]map[int64]byte   `as:"mapOfMaps"`
+			MapOfSlices   map[string][]byte           `as:"mapOfSlices"`
+			MapOfArrays   map[string][3]byte          `as:"MapOfArrays"`
+			MapOfStructs  map[string]SomeStruct       `as:"mapOfStructs"`
+			MapOfPStructs map[string]*SomeStruct      `as:"mapOfPStructs"`
 
 			CustomBool    SomeBool    `as:"custombool"`
 			CustomBoolP   *SomeBool   `as:"customboolp"`
@@ -366,12 +396,26 @@ var _ = Describe("Aerospike", func() {
 				// InterfaceP:  ifaceP, // NOTICE: NOT SUPPORTED
 				InterfacePP: &iface,
 
-				Array:        [3]interface{}{1, "string", nil},
-				SliceString:  []string{"string1", "string2", "string3"},
-				SliceFloat64: []float64{1.1, 2.2, 3.3, 4.4},
-				SliceInt:     []interface{}{1, 2, 3},
-				Slice:        []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
-				Map:          map[interface{}]interface{}{1: "string", "string": nil, nil: map[interface{}]interface{}{"1": ip}, true: false},
+				Array:          [3]interface{}{1, "string", nil},
+				SliceString:    []string{"string1", "string2", "string3"},
+				SliceFloat64:   []float64{1.1, 2.2, 3.3, 4.4},
+				SliceInt:       []interface{}{1, 2, 3},
+				Slice:          []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
+				ArrayOfMaps:    [1]map[int]string{map[int]string{1: "str"}},
+				SliceOfMaps:    []map[int]string{map[int]string{1: "str"}},
+				ArrayOfSlices:  [1][]interface{}{{1, 2, 3}},
+				SliceOfSlices:  [][]interface{}{{1, 2, 3}, {4, 5, 6}},
+				ArrayOfArrays:  [1][1]interface{}{{1}},
+				SliceOfArrays:  [][1]interface{}{{1}, {2}, {3}},
+				ArrayOfStructs: [1]SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 1}}},
+				SliceOfStructs: []SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 1}}},
+
+				Map:           map[interface{}]interface{}{1: "string", "string": nil, nil: map[interface{}]interface{}{"1": ip}, true: false},
+				MapOfMaps:     map[string]map[int64]byte{"1": map[int64]byte{1: 1, 2: 2}},
+				MapOfSlices:   map[string][]byte{"1": []byte{1, 2}, "2": []byte{3, 4}},
+				MapOfArrays:   map[string][3]byte{"1": [3]byte{1, 2, 3}, "2": [3]byte{3, 4, 5}},
+				MapOfStructs:  map[string]SomeStruct{"1": SomeStruct{A: 10, Self: &SomeStruct{A: 10}}},
+				MapOfPStructs: map[string]*SomeStruct{"1": &SomeStruct{A: 10, Self: &SomeStruct{A: 10}}},
 
 				CustomBool:    true,
 				CustomBoolP:   &ctbl,
@@ -500,12 +544,26 @@ var _ = Describe("Aerospike", func() {
 				// InterfaceP:  ifaceP, // NOTICE: NOT SUPPORTED
 				InterfacePP: &iface,
 
-				Array:        [3]interface{}{1, "string", nil},
-				SliceString:  []string{"string1", "string2", "string3"},
-				SliceFloat64: []float64{1.1, 2.2, 3.3, 4.4},
-				SliceInt:     []interface{}{1, 2, 3},
-				Slice:        []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
-				Map:          map[interface{}]interface{}{1: "string", "string": nil, nil: map[interface{}]interface{}{"1": ip}, true: false},
+				Array:          [3]interface{}{1, "string", nil},
+				SliceString:    []string{"string1", "string2", "string3"},
+				SliceFloat64:   []float64{1.1, 2.2, 3.3, 4.4},
+				SliceInt:       []interface{}{1, 2, 3},
+				Slice:          []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
+				ArrayOfMaps:    [1]map[int]string{map[int]string{1: "str"}},
+				SliceOfMaps:    []map[int]string{map[int]string{1: "str"}},
+				ArrayOfSlices:  [1][]interface{}{{1, 2, 3}},
+				SliceOfSlices:  [][]interface{}{{1, 2, 3}, {4, 5, 6}},
+				ArrayOfArrays:  [1][1]interface{}{{1}},
+				SliceOfArrays:  [][1]interface{}{{1}, {2}, {3}},
+				ArrayOfStructs: [1]SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 1}}},
+				SliceOfStructs: []SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 1}}},
+
+				Map:           map[interface{}]interface{}{1: "string", "string": nil, nil: map[interface{}]interface{}{"1": ip}, true: false},
+				MapOfMaps:     map[string]map[int64]byte{"1": map[int64]byte{1: 1, 2: 2}},
+				MapOfSlices:   map[string][]byte{"1": []byte{1, 2}, "2": []byte{3, 4}},
+				MapOfArrays:   map[string][3]byte{"1": [3]byte{1, 2, 3}, "2": [3]byte{3, 4, 5}},
+				MapOfStructs:  map[string]SomeStruct{"1": SomeStruct{A: 10, Self: &SomeStruct{A: 10}}},
+				MapOfPStructs: map[string]*SomeStruct{"1": &SomeStruct{A: 10, Self: &SomeStruct{A: 10}}},
 
 				CustomBool:    true,
 				CustomBoolP:   &ctbl,
