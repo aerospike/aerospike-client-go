@@ -1,5 +1,13 @@
 # Change History
 
+## June 7 2016 : v1.16.2
+
+  Minor bugfix release.
+
+  * **Fixes**
+
+    * Fixes an issue where empty unordered maps were confused with CDT maps.
+
 ## June 6 2016 : v1.16.1
 
   Minor bugfix release.

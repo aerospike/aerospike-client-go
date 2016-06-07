@@ -146,7 +146,8 @@ func (upckr *unpacker) unpackCDTMap(count int) ([]MapPair, error) {
 }
 
 func (upckr *unpacker) isMapCDT() bool {
-	if len(upckr.buffer) <= upckr.offset+2 {
+	// make sure the buffer is long enough (for empty maps), and map type is ordered map
+	if upckr.offset >= len(upckr.buffer) || upckr.buffer[upckr.offset]&0xff != 0xc7 {
 		return false
 	}
 

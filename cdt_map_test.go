@@ -21,6 +21,68 @@ import (
 	. "github.com/aerospike/aerospike-client-go"
 )
 
+const udfCDTTests = `
+function add(rec, bin, key, value)
+	if not aerospike:exists(rec) then
+		--create record
+		local m1 = map()
+		local m2 = map()
+		m2[value] = key
+
+		m1[key] = m2			-- set map to map
+		rec[bin] = m1		-- set map to record
+		--create record
+		return aerospike:create(rec)
+	end
+
+	--record existed, let's see if key exists
+	local m1 = rec[bin]		--get map
+	local m2 = m1[key]		--get second map
+
+	--did list already exist?
+	if m2 == nil then
+		m2 = map() 		--map didn't exist yet, let's create it
+	end
+	local doesExist = m2[value]
+	if doesExist ~= nil then
+		return 0 --value already existed, no need to update record
+	end
+
+	m2[value] 	= key
+	--done setting values, let's store information back to set
+	m1[key] 		= m2		--map back to map
+	rec[bin] 	= m1	--map back to record
+
+	return aerospike:update(rec) --..and update aerospike :)
+end
+
+--remove from map[]map[]
+function remove(rec, bin, key, value)
+	if not aerospike:exists(rec) then
+		return 0 --record does not exist, cannot remove so no error
+	end
+
+	local m1 = rec[bin]
+	local m2 = m1[key]
+	if m2 == nil then
+		return 0 --key does not exist, cannot remove
+	end
+
+	--remove key from map
+	local doesExist = m2[value]
+	if doesExist == nil then
+		return 0 --value does not exist
+	end
+
+	map.remove(m2, value) --remove value from map
+	--done, let's update record with modified maps
+	m1[key] 		= m2 --back to map
+	rec[bin]		= m1 --back to record
+
+	return aerospike:update(rec) --and update!
+end
+`
+
 var _ = Describe("CDT Map Test", func() {
 	initTestVars()
 
@@ -49,6 +111,55 @@ var _ = Describe("CDT Map Test", func() {
 	})
 
 	Describe("Simple Usecases", func() {
+
+		It("should create a valid CDT Map using MapPutOp", func() {
+			cdtMap, err := client.Operate(wpolicy, key,
+				MapPutOp(putMode, cdtBinName, 1, 1),
+				MapPutOp(putMode, cdtBinName, 2, 2),
+				MapPutOp(addMode, cdtBinName, 3, 3),
+				MapPutOp(addMode, cdtBinName, 4, 4),
+				MapPutOp(addMode, cdtBinName, 6, 6),
+				MapPutOp(addMode, cdtBinName, 7, 7),
+				MapPutOp(addMode, cdtBinName, 8, 8),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			cdtMap, err = client.Get(nil, key, cdtBinName)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtMap.Bins[cdtBinName]).To(Equal(map[interface{}]interface{}{1: 1, 2: 2, 3: 3, 4: 4, 6: 6, 7: 7, 8: 8}))
+		})
+
+		It("should unpack an empty Non-Ordered CDT map correctly", func() {
+			cdtMap, err := client.Operate(wpolicy, key,
+				MapPutOp(putMode, cdtBinName, 1, 1),
+				MapRemoveByKeyOp(cdtBinName, 1, MapReturnType.NONE),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			cdtMap, err = client.Get(nil, key, cdtBinName)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtMap.Bins[cdtBinName]).To(Equal(map[interface{}]interface{}{}))
+		})
+
+		It("should unpack an empty Ordered CDT map correctly", func() {
+			_, err := client.Operate(wpolicy, key,
+				MapPutOp(NewMapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE), cdtBinName, 1, 1),
+				// MapRemoveByKeyOp(cdtBinName, 1, MapReturnType.NONE),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			// cdtMap, err = client.Get(nil, key, cdtBinName)
+			// Expect(err).ToNot(HaveOccurred())
+			// Expect(cdtMap.Bins[cdtBinName]).To(Equal([]MapPair{}))
+
+			rs, err := client.ScanAll(nil, ns, set)
+			Expect(err).ToNot(HaveOccurred())
+			for rs := range rs.Results() {
+				Expect(rs.Err).ToNot(HaveOccurred())
+
+			}
+
+		})
 
 		It("should create a valid CDT Map using MapPutOp", func() {
 			cdtMap, err := client.Operate(wpolicy, key,
@@ -363,6 +474,48 @@ var _ = Describe("CDT Map Test", func() {
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cdtMap.Bins).To(Equal(BinMap{cdtBinName: []interface{}{"p1", []interface{}{"p3", "p2", "p4"}}}))
+	})
+
+	It("should handle CDTs in UDFs", func() {
+
+		regTsk, err := client.RegisterUDF(nil, []byte(udfCDTTests), "cdt_tests.lua", LUA)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(<-regTsk.OnComplete()).ToNot(HaveOccurred())
+
+		_, err = client.Execute(nil, key, "cdt_tests", "add", NewValue("b"), NewValue("k"), NewValue(1))
+		Expect(err).ToNot(HaveOccurred())
+
+		sets, err := client.ScanAll(nil, "test", "skill")
+		Expect(err).ToNot(HaveOccurred())
+
+		rec, err := client.Get(nil, key)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(rec.Bins).To(Equal(BinMap{"b": map[interface{}]interface{}{"k": map[interface{}]interface{}{1: "k"}}}))
+
+		for res := range sets.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			_, err = client.Delete(nil, res.Record.Key)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		_, err = client.Execute(nil, key, "cdt_tests", "add", NewValue("b"), NewValue("k"), NewValue(1))
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = client.Execute(nil, key, "cdt_tests", "remove", NewValue("b"), NewValue("k"), NewValue(1))
+		Expect(err).ToNot(HaveOccurred())
+
+		rec, err = client.Get(nil, key)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(rec.Bins).To(Equal(BinMap{"b": map[interface{}]interface{}{"k": map[interface{}]interface{}{}}}))
+
+		sets, err = client.ScanAll(nil, ns, set)
+		Expect(err).ToNot(HaveOccurred())
+		for res := range sets.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			_, err = client.Delete(nil, res.Record.Key)
+			Expect(err).ToNot(HaveOccurred())
+		}
 	})
 
 }) // describe
