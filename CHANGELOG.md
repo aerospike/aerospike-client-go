@@ -1,5 +1,13 @@
 # Change History
 
+## June 9 2016 : v1.16.3
+
+  Minor bugfix release.
+
+  * **Fixes**
+
+    * Fixes an issue where `services-alternate` wasn't used in `Node.addFriends()` when instructed so in the policy.
+
 ## June 7 2016 : v1.16.2
 
   Minor bugfix release.
