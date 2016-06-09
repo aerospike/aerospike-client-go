@@ -148,7 +148,12 @@ func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 }
 
 func (nd *Node) addFriends(infoMap map[string]string, friends []*Host) ([]*Host, error) {
-	friendString, exists := infoMap["services"]
+	serviceStr := "services"
+	// use the right key
+	if nd.cluster.useServicesAlternate {
+		serviceStr = "services-alternate"
+	}
+	friendString, exists := infoMap[serviceStr]
 
 	if !exists || len(friendString) == 0 {
 		return friends, nil
