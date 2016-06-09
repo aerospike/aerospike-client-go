@@ -86,3 +86,10 @@ func NewClientPolicy() *ClientPolicy {
 func (cp *ClientPolicy) RequiresAuthentication() bool {
 	return (cp.User != "") || (cp.Password != "")
 }
+
+func (cp *ClientPolicy) serviceString() string {
+	if cp.UseServicesAlternate {
+		return "services-alternate"
+	}
+	return "services"
+}

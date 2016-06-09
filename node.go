@@ -90,12 +90,7 @@ func (nd *Node) Refresh(friends []*Host) ([]*Host, error) {
 		return nil, err
 	}
 
-	var commands []string
-	if !nd.cluster.useServicesAlternate {
-		commands = []string{"node", "partition-generation", "services"}
-	} else {
-		commands = []string{"node", "partition-generation", "services-alternate"}
-	}
+	commands := []string{"node", "partition-generation", nd.cluster.clientPolicy.serviceString()}
 
 	infoMap, err := RequestInfo(conn, commands...)
 	if err != nil {
@@ -148,12 +143,7 @@ func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 }
 
 func (nd *Node) addFriends(infoMap map[string]string, friends []*Host) ([]*Host, error) {
-	serviceStr := "services"
-	// use the right key
-	if nd.cluster.useServicesAlternate {
-		serviceStr = "services-alternate"
-	}
-	friendString, exists := infoMap[serviceStr]
+	friendString, exists := infoMap[nd.cluster.clientPolicy.serviceString()]
 
 	if !exists || len(friendString) == 0 {
 		return friends, nil

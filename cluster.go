@@ -55,9 +55,6 @@ type Cluster struct {
 	// Aerospike v3.6.0+
 	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo *AtomicBool
 
-	// Should use "services-alternate" instead of "services" in info request?
-	useServicesAlternate bool
-
 	// User name in UTF-8 encoded bytes.
 	user string
 
@@ -68,19 +65,14 @@ type Cluster struct {
 // NewCluster generates a Cluster instance.
 func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	newCluster := &Cluster{
-		// seeds:        hosts,
 		clientPolicy: *policy,
-		// aliases:      make(map[Host]*Node),
-		// nodes: []*Node{},
-		// partitionWriteMap: make(map[string]*AtomicArray),
-		nodeIndex:   NewAtomicInt(0),
-		tendChannel: make(chan struct{}),
+		nodeIndex:    NewAtomicInt(0),
+		tendChannel:  make(chan struct{}),
 
-		supportsFloat:        NewAtomicBool(false),
-		supportsBatchIndex:   NewAtomicBool(false),
-		supportsReplicasAll:  NewAtomicBool(false),
-		supportsGeo:          NewAtomicBool(false),
-		useServicesAlternate: policy.UseServicesAlternate,
+		supportsFloat:       NewAtomicBool(false),
+		supportsBatchIndex:  NewAtomicBool(false),
+		supportsReplicasAll: NewAtomicBool(false),
+		supportsGeo:         NewAtomicBool(false),
 	}
 
 	newCluster.seeds.Store(hosts)
