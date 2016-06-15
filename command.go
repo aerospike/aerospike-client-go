@@ -80,9 +80,6 @@ const (
 type command interface {
 	getPolicy(ifc command) Policy
 
-	setConnection(conn *Connection)
-	getConnection() *Connection
-
 	writeBuffer(ifc command) error
 	getNode(ifc command) (*Node, error)
 	parseResult(ifc command, conn *Connection) error
@@ -164,7 +161,7 @@ func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) error {
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
-	cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
+	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
 	cmd.writeKey(key, false)
 	cmd.end()
 	return nil
@@ -197,7 +194,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 		if err = cmd.sizeBuffer(); err != nil {
 			return nil
 		}
-		cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ, 0, fieldCount, len(binNames))
+		cmd.writeHeader(policy, _INFO1_READ, 0, fieldCount, len(binNames))
 		cmd.writeKey(key, false)
 
 		for i := range binNames {
@@ -220,7 +217,7 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 		return nil
 	}
 
-	cmd.writeHeader(policy.GetBasePolicy(), _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 1)
+	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 1)
 
 	cmd.writeKey(key, false)
 	cmd.writeOperationForBinName("", READ)
@@ -287,7 +284,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	if writeAttr != 0 {
 		cmd.writeHeaderWithPolicy(policy, readAttr, writeAttr, fieldCount, len(operations))
 	} else {
-		cmd.writeHeader(policy.GetBasePolicy(), readAttr, writeAttr, fieldCount, len(operations))
+		cmd.writeHeader(&policy.BasePolicy, readAttr, writeAttr, fieldCount, len(operations))
 	}
 	cmd.writeKey(key, policy.SendKey && writeAttr != 0)
 
@@ -314,7 +311,7 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
-	cmd.writeHeader(policy.GetBasePolicy(), 0, _INFO2_WRITE, fieldCount, 0)
+	cmd.writeHeader(&policy.BasePolicy, 0, _INFO2_WRITE, fieldCount, 0)
 	cmd.writeKey(key, policy.SendKey)
 	cmd.writeFieldString(packageName, UDF_PACKAGE_NAME)
 	cmd.writeFieldString(functionName, UDF_FUNCTION)
@@ -352,7 +349,7 @@ func (cmd *baseCommand) setBatchExists(policy *BasePolicy, keys []*Key, batch *b
 	return nil
 }
 
-func (cmd *baseCommand) setBatchGet(policy Policy, keys []*Key, batch *batchNamespace, binNames map[string]struct{}, readAttr int) error {
+func (cmd *baseCommand) setBatchGet(policy *BasePolicy, keys []*Key, batch *batchNamespace, binNames map[string]struct{}, readAttr int) error {
 	// Estimate buffer size
 	cmd.begin()
 	byteSize := batch.offsetSize * int(_DIGEST_SIZE)
@@ -369,7 +366,7 @@ func (cmd *baseCommand) setBatchGet(policy Policy, keys []*Key, batch *batchName
 	}
 
 	operationCount := len(binNames)
-	cmd.writeHeader(policy.GetBasePolicy(), readAttr, 0, 2, operationCount)
+	cmd.writeHeader(policy, readAttr, 0, 2, operationCount)
 	cmd.writeFieldString(*batch.namespace, NAMESPACE)
 	cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
 
@@ -426,7 +423,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	if binNames != nil {
 		operationCount = len(binNames)
 	}
-	cmd.writeHeader(policy.GetBasePolicy(), readAttr, 0, fieldCount, operationCount)
+	cmd.writeHeader(policy.BasePolicy, readAttr, 0, fieldCount, operationCount)
 
 	if namespace != nil {
 		cmd.writeFieldString(*namespace, NAMESPACE)
@@ -1089,12 +1086,4 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
 	panic(errors.New("Abstract method. Should not end up here"))
-}
-
-func (cmd *baseCommand) setConnection(conn *Connection) {
-	cmd.conn = conn
-}
-
-func (cmd *baseCommand) getConnection() *Connection {
-	return cmd.conn
 }

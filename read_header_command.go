@@ -22,11 +22,11 @@ import (
 type readHeaderCommand struct {
 	*singleCommand
 
-	policy Policy
+	policy *BasePolicy
 	record *Record
 }
 
-func newReadHeaderCommand(cluster *Cluster, policy Policy, key *Key) *readHeaderCommand {
+func newReadHeaderCommand(cluster *Cluster, policy *BasePolicy, key *Key) *readHeaderCommand {
 	newReadHeaderCmd := &readHeaderCommand{
 		singleCommand: newSingleCommand(cluster, key),
 		policy:        policy,
@@ -40,7 +40,7 @@ func (cmd *readHeaderCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *readHeaderCommand) writeBuffer(ifc command) error {
-	return cmd.setReadHeader(cmd.policy.GetBasePolicy(), cmd.key)
+	return cmd.setReadHeader(cmd.policy, cmd.key)
 }
 
 func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {

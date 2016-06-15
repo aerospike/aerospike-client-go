@@ -26,7 +26,7 @@ type batchCommandGet struct {
 	*baseMultiCommand
 
 	batchNamespace *batchNamespace
-	policy         Policy
+	policy         *BasePolicy
 	keys           []*Key
 	binNames       map[string]struct{}
 	records        []*Record
@@ -37,7 +37,7 @@ type batchCommandGet struct {
 func newBatchCommandGet(
 	node *Node,
 	batchNamespace *batchNamespace,
-	policy Policy,
+	policy *BasePolicy,
 	keys []*Key,
 	binNames map[string]struct{},
 	records []*Record,

@@ -33,7 +33,7 @@ func newExecuteCommand(
 	args []Value,
 ) *executeCommand {
 	return &executeCommand{
-		readCommand:  newReadCommand(cluster, policy, key, nil),
+		readCommand:  newReadCommand(cluster, &policy.BasePolicy, key, nil),
 		policy:       policy,
 		packageName:  packageName,
 		functionName: functionName,

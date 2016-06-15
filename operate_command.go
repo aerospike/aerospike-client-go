@@ -23,7 +23,7 @@ type operateCommand struct {
 
 func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) *operateCommand {
 	return &operateCommand{
-		readCommand: newReadCommand(cluster, policy, key, nil),
+		readCommand: newReadCommand(cluster, &policy.BasePolicy, key, nil),
 		policy:      policy,
 		operations:  operations,
 	}

@@ -36,11 +36,11 @@ func newExistsCommand(cluster *Cluster, policy *BasePolicy, key *Key) *existsCom
 }
 
 func (cmd *existsCommand) getPolicy(ifc command) Policy {
-	return cmd.policy.GetBasePolicy()
+	return cmd.policy
 }
 
 func (cmd *existsCommand) writeBuffer(ifc command) error {
-	return cmd.setExists(cmd.policy.GetBasePolicy(), cmd.key)
+	return cmd.setExists(cmd.policy, cmd.key)
 }
 
 func (cmd *existsCommand) parseResult(ifc command, conn *Connection) error {
