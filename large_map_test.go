@@ -24,6 +24,10 @@ import (
 var _ = Describe("LargeMap Test", func() {
 	initTestVars()
 
+	if !featureEnabled("ldt") {
+		return
+	}
+
 	// connection data
 	var client *Client
 	var err error

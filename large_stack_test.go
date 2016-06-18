@@ -24,6 +24,10 @@ import (
 var _ = Describe("LargeStack Test", func() {
 	initTestVars()
 
+	if !featureEnabled("ldt") {
+		return
+	}
+
 	// connection data
 	var client *Client
 	var err error

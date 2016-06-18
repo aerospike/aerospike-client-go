@@ -25,6 +25,10 @@ import (
 var _ = Describe("LargeList Test", func() {
 	initTestVars()
 
+	if !featureEnabled("ldt") {
+		return
+	}
+
 	// connection data
 	var client *Client
 	var err error

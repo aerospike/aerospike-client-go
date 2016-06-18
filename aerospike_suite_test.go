@@ -2,7 +2,9 @@ package aerospike_test
 
 import (
 	"flag"
+	"log"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,4 +34,19 @@ func initTestVars() {
 func TestAerospike(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Aerospike Client Library Suite")
+}
+
+func featureEnabled(feature string) bool {
+	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
+	if err != nil {
+		log.Fatal("Failed to connect to aerospike: err:", err)
+	}
+
+	node := client.GetNodes()[0]
+	infoMap, err := node.RequestInfo("features")
+	if err != nil {
+		log.Fatal("Failed to connect to aerospike: err:", err)
+	}
+
+	return strings.Contains(infoMap["features"], feature)
 }
