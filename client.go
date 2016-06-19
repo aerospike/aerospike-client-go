@@ -309,11 +309,10 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 	policy = clnt.getUsablePolicy(policy)
 
 	rval := reflect.ValueOf(obj)
-	cacheObjectTags(rval)
-	binNames := objectMappings.getFields(rval)
+	binNames := objectMappings.getFields(rval.Type())
 
 	command := newReadCommand(clnt.cluster, policy, key, binNames)
-	command.object = obj
+	command.object = &rval
 	return command.Execute()
 }
 

@@ -116,9 +116,6 @@ func structToMap(s reflect.Value, clusterSupportsFloat bool) map[string]interfac
 		return nil
 	}
 
-	// map tags
-	cacheObjectTags(s)
-
 	typeOfT := s.Type()
 	numFields := s.NumField()
 
@@ -154,9 +151,6 @@ func structToMap(s reflect.Value, clusterSupportsFloat bool) map[string]interfac
 func marshal(v interface{}, clusterSupportsFloat bool) []*Bin {
 	s := indirect(reflect.ValueOf(v).Elem())
 
-	// map tags
-	cacheObjectTags(s)
-
 	numFields := s.NumField()
 	bins := binPool.Get(numFields).([]*Bin)
 
@@ -180,9 +174,7 @@ type syncMap struct {
 	mutex          sync.RWMutex
 }
 
-func (sm *syncMap) setMapping(obj reflect.Value, mapping map[string]string, fields, ttl, gen []string) {
-	// obj = indirect(obj)
-	objType := obj.Type()
+func (sm *syncMap) setMapping(objType reflect.Type, mapping map[string]string, fields, ttl, gen []string) {
 	sm.mutex.Lock()
 	sm.objectMappings[objType] = mapping
 	sm.objectFields[objType] = fields
@@ -201,28 +193,37 @@ func indirect(obj reflect.Value) reflect.Value {
 	return obj
 }
 
-func (sm *syncMap) mappingExists(obj reflect.Value) bool {
-	// obj = indirect(obj)
-	objType := obj.Type()
+func indirectT(objType reflect.Type) reflect.Type {
+	for objType.Kind() == reflect.Ptr {
+		objType = objType.Elem()
+	}
+	return objType
+}
+
+func (sm *syncMap) mappingExists(objType reflect.Type) (map[string]string, bool) {
 	sm.mutex.RLock()
-	_, exists := sm.objectMappings[objType]
+	mapping, exists := sm.objectMappings[objType]
 	sm.mutex.RUnlock()
-	return exists
+	return mapping, exists
 }
 
 func (sm *syncMap) getMapping(objType reflect.Type) map[string]string {
-	sm.mutex.RLock()
-	mapping := sm.objectMappings[objType]
-	sm.mutex.RUnlock()
+	objType = indirectT(objType)
+	mapping, exists := sm.mappingExists(objType)
+	if !exists {
+		cacheObjectTags(objType)
+		mapping, _ = sm.mappingExists(objType)
+	}
+
 	return mapping
 }
 
-func (sm *syncMap) getMetaMappings(obj reflect.Value) (ttl, gen []string) {
-	if !obj.IsValid() {
-		return nil, nil
+func (sm *syncMap) getMetaMappings(objType reflect.Type) (ttl, gen []string) {
+	objType = indirectT(objType)
+	if _, exists := sm.mappingExists(objType); !exists {
+		cacheObjectTags(objType)
 	}
-	// obj = indirect(obj)
-	objType := obj.Type()
+
 	sm.mutex.RLock()
 	ttl = sm.objectTTLs[objType]
 	gen = sm.objectGen[objType]
@@ -230,11 +231,21 @@ func (sm *syncMap) getMetaMappings(obj reflect.Value) (ttl, gen []string) {
 	return ttl, gen
 }
 
-func (sm *syncMap) getFields(obj reflect.Value) []string {
-	objType := obj.Type()
+func (sm *syncMap) fieldsExists(objType reflect.Type) ([]string, bool) {
 	sm.mutex.RLock()
-	fields := sm.objectFields[objType]
+	mapping, exists := sm.objectFields[objType]
 	sm.mutex.RUnlock()
+	return mapping, exists
+}
+
+func (sm *syncMap) getFields(objType reflect.Type) []string {
+	objType = indirectT(objType)
+	fields, exists := sm.fieldsExists(objType)
+	if !exists {
+		cacheObjectTags(objType)
+		fields, _ = sm.fieldsExists(objType)
+	}
+
 	return fields
 }
 
@@ -245,23 +256,15 @@ var objectMappings = &syncMap{
 	objectGen:      map[reflect.Type][]string{},
 }
 
-func cacheObjectTags(obj reflect.Value) {
-	// exit if already processed
-	if objectMappings.mappingExists(obj) {
-		return
-	}
-
-	obj = indirect(obj)
-
+func cacheObjectTags(objType reflect.Type) {
 	mapping := map[string]string{}
 	fields := []string{}
 	ttl := []string{}
 	gen := []string{}
 
-	typeOfT := obj.Type()
-	numFields := obj.NumField()
+	numFields := objType.NumField()
 	for i := 0; i < numFields; i++ {
-		f := typeOfT.Field(i)
+		f := objType.Field(i)
 		// skip unexported fields
 		if f.PkgPath != "" {
 			continue
@@ -271,7 +274,7 @@ func cacheObjectTags(obj reflect.Value) {
 		tagM := strings.Trim(f.Tag.Get(aerospikeMetaTag), " ")
 
 		if tag != "" && tagM != "" {
-			panic(fmt.Sprintf("Cannot accept both data and metadata tags on the same attribute on struct: %s.%s", obj.Type().Name(), f.Name))
+			panic(fmt.Sprintf("Cannot accept both data and metadata tags on the same attribute on struct: %s.%s", objType.Name(), f.Name))
 		}
 
 		if tag != "-" && tagM == "" {
@@ -288,9 +291,9 @@ func cacheObjectTags(obj reflect.Value) {
 		} else if tagM == "gen" {
 			gen = append(gen, f.Name)
 		} else if tagM != "" {
-			panic(fmt.Sprintf("Invalid metadata tag `%s` on struct attribute: %s.%s", tagM, obj.Type().Name(), f.Name))
+			panic(fmt.Sprintf("Invalid metadata tag `%s` on struct attribute: %s.%s", tagM, objType.Name(), f.Name))
 		}
 	}
 
-	objectMappings.setMapping(obj, mapping, fields, ttl, gen)
+	objectMappings.setMapping(objType, mapping, fields, ttl, gen)
 }

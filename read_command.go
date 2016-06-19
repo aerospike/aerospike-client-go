@@ -35,7 +35,7 @@ type readCommand struct {
 	record   *Record
 
 	// pointer to the object that's going to be unmarshalled
-	object interface{}
+	object *reflect.Value
 }
 
 func newReadCommand(cluster *Cluster, policy *BasePolicy, key *Key, binNames []string) *readCommand {
@@ -207,7 +207,7 @@ func (cmd *readCommand) parseObject(
 
 	var rv reflect.Value
 	if opCount > 0 {
-		rv = reflect.ValueOf(cmd.object)
+		rv = *cmd.object
 
 		if rv.Kind() != reflect.Ptr {
 			return errors.New("Invalid type for result object. It should be of type Struct Pointer.")
@@ -221,9 +221,6 @@ func (cmd *readCommand) parseObject(
 		if rv.Kind() != reflect.Struct {
 			return errors.New("Invalid type for object. It should be a pointer to a struct.")
 		}
-
-		// map tags
-		cacheObjectTags(rv)
 	}
 
 	// find the name based on tag mapping
@@ -265,7 +262,7 @@ func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) error {
 	// find the name based on tag mapping
 	iobj := indirect(obj)
 
-	ttlMap, genMap := objectMappings.getMetaMappings(iobj)
+	ttlMap, genMap := objectMappings.getMetaMappings(iobj.Type())
 
 	if ttlMap != nil {
 		for i := range ttlMap {
