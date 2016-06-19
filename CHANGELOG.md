@@ -1,12 +1,18 @@
 # Change History
 
-## June 9 2016 : v1.16.3
+## June 19 2016 : v1.16.3
 
   Minor bugfix release.
+
+  * **Improvements**
+
+    * Skip LDT tests if LDT is not enabled.
 
   * **Fixes**
 
     * Fixes an issue where `services-alternate` wasn't used in `Node.addFriends()` when instructed so in the policy.
+
+    * Fixes an issue where object metadata wasn't cached if `QueryObjects` was called before `PutObject`.
 
 ## June 7 2016 : v1.16.2
 
