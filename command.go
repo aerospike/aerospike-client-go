@@ -952,7 +952,7 @@ var (
 func (cmd *baseCommand) sizeBufferSz(size int) error {
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
-	if size > MaxBufferSize {
+	if size > MaxBufferSize || size < 0 {
 		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid size for buffer: %d", size))
 	}
 

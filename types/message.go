@@ -62,8 +62,8 @@ const maxAllowedBufferSize = 1024 * 1024
 
 // Resize changes the internal buffer size for the message.
 func (msg *Message) Resize(newSize int64) error {
-	if newSize > maxAllowedBufferSize {
-		return fmt.Errorf("Requested new buffer size is too big. Requested: %d, max allowed: %d", newSize, maxAllowedBufferSize)
+	if newSize > maxAllowedBufferSize || newSize < 0 {
+		return fmt.Errorf("Requested new buffer size is invalid. Requested: %d, allowed: 0..%d", newSize, maxAllowedBufferSize)
 	}
 	if int64(len(msg.Data)) == newSize {
 		return nil

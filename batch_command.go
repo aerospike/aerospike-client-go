@@ -146,12 +146,13 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 }
 
 func (cmd *baseMultiCommand) readBytes(length int) error {
+	// Corrupted data streams can result in a huge length.
+	// Do a sanity check here.
+	if length > MaxBufferSize || length < 0 {
+		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
+	}
+
 	if length > cap(cmd.dataBuffer) {
-		// Corrupted data streams can result in a huge length.
-		// Do a sanity check here.
-		if length > MaxBufferSize {
-			return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
-		}
 		cmd.dataBuffer = make([]byte, length)
 	}
 
