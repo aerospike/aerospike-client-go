@@ -12,6 +12,8 @@
 
     * Reserves a connection for tend operation to avoid dropping a node when high load prevents acquiring a proper connection.
 
+    * Added Finalizers to `Client` and `Recordset`. Both will be automatically closed by the GC.
+
   * **Fixes**
 
     * Fixes an issue where `services-alternate` wasn't used in `Node.addFriends()` when instructed so in the policy.
