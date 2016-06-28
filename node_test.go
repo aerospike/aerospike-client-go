@@ -24,7 +24,7 @@ import (
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Aerospike", func() {
+var _ = Describe("Aerospike Node Tests", func() {
 	initTestVars()
 
 	Describe("Node Connection Pool", func() {
@@ -98,7 +98,8 @@ var _ = Describe("Aerospike", func() {
 
 				node := client.GetNodes()[0]
 
-				for i := 0; i < 4; i++ {
+				// 4-1 is because we reserve a connection for tend
+				for i := 0; i < 4-1; i++ {
 					c, err := node.GetConnection(0)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(c).NotTo(BeNil())
@@ -109,12 +110,10 @@ var _ = Describe("Aerospike", func() {
 					c.Close()
 				}
 
-				for i := 0; i < 4; i++ {
-					t := time.Now()
+				// 4-1 is because we reserve a connection for tend
+				for i := 0; i < 4-1; i++ {
 					_, err := node.GetConnection(0)
 					Expect(err).To(HaveOccurred())
-					Expect(time.Now().Sub(t)).To(BeNumerically(">=", time.Millisecond))
-					Expect(time.Now().Sub(t)).To(BeNumerically("<", 3*time.Millisecond))
 				}
 
 			})
@@ -126,7 +125,7 @@ var _ = Describe("Aerospike", func() {
 			It("must reuse connections before they become idle", func() {
 				clientPolicy := NewClientPolicy()
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
-				clientPolicy.TendInterval = time.Hour
+				// clientPolicy.TendInterval = time.Hour
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
@@ -186,7 +185,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(checkCount).To(BeNumerically(">", 500))
 
 				// sleep again until all connections are all idle
-				time.Sleep(clientPolicy.IdleTimeout)
+				<-time.After(2 * clientPolicy.IdleTimeout)
 
 				// get connections again, making sure they are all new
 				var conns3 []*Connection
@@ -217,7 +216,6 @@ var _ = Describe("Aerospike", func() {
 			It("must delay the connection from becoming idle if it is put back in the queue", func() {
 				clientPolicy := NewClientPolicy()
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
-				clientPolicy.TendInterval = time.Hour
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
@@ -237,8 +235,7 @@ var _ = Describe("Aerospike", func() {
 				node.PutConnection(c)
 
 				// continuously refresh the connection just before it goes idle
-				var lastRefresh time.Time
-				for i := 0; i < 3; i++ {
+				for i := 0; i < 5; i++ {
 					time.Sleep(clientPolicy.IdleTimeout - deadlineThreshold)
 					// By(fmt.Sprintf("Retrieving c2 i=%d", i))
 
@@ -248,15 +245,11 @@ var _ = Describe("Aerospike", func() {
 					Expect(c2).To(Equal(c))
 					Expect(c2.IsConnected()).To(BeTrue())
 
-					lastRefresh = time.Now()
 					node.PutConnection(c2)
 				}
 
 				// wait about the required time to become idle
-				for time.Now().Sub(lastRefresh) <= clientPolicy.IdleTimeout {
-					// By("Sleeping")
-					time.Sleep(1 * time.Millisecond)
-				}
+				<-time.After(2 * clientPolicy.IdleTimeout)
 
 				// we should get a new connection
 				c3, err := node.GetConnection(0)

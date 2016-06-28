@@ -176,7 +176,7 @@ func (ctn *Connection) setIdleTimeout(timeout time.Duration) {
 
 // isIdle returns true if the connection has reached the idle deadline.
 func (ctn *Connection) isIdle() bool {
-	return !time.Now().Before(ctn.idleDeadline)
+	return ctn.idleTimeout > 0 && !time.Now().Before(ctn.idleDeadline)
 }
 
 // refresh extends the idle deadline of the connection.

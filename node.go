@@ -37,6 +37,11 @@ type Node struct {
 	aliases atomic.Value //[]*Host
 	address string
 
+	// tendConn reserves a connection for tend so that it won't have to
+	// wait in queue for connections, since that will cause starvation
+	// and the node being dropped under load.
+	tendConn *Connection
+
 	connections     *AtomicQueue //ArrayBlockingQueue<*Connection>
 	connectionCount *AtomicInt
 	health          *AtomicInt //AtomicInteger
@@ -83,47 +88,47 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 
 // Refresh requests current status from server node, and updates node with the result.
 func (nd *Node) Refresh(friends []*Host) ([]*Host, error) {
+	// Close idleConnections
+	defer nd.dropIdleConnections()
+
 	nd.referenceCount.Set(0)
 
-	conn, err := nd.GetConnection(nd.cluster.ClientPolicy().Timeout)
-	if err != nil {
-		return nil, err
+	if nd.tendConn == nil {
+		// Tend connection required a long timeout
+		tendConn, err := nd.GetConnection(15 * time.Second)
+		if err != nil {
+			return nil, err
+		}
+
+		nd.tendConn = tendConn
 	}
+
+	// Set timeout for tend conn
+	nd.tendConn.SetTimeout(15 * time.Second)
 
 	commands := []string{"node", "partition-generation", nd.cluster.clientPolicy.serviceString()}
 
-	infoMap, err := RequestInfo(conn, commands...)
+	infoMap, err := RequestInfo(nd.tendConn, commands...)
 	if err != nil {
-		nd.InvalidateConnection(conn)
+		nd.InvalidateConnection(nd.tendConn)
+		nd.tendConn = nil
 		return nil, err
 	}
 
 	if err := nd.verifyNodeName(infoMap); err != nil {
-		nd.PutConnection(conn)
 		return nil, err
 	}
 
 	if friends, err = nd.addFriends(infoMap, friends); err != nil {
-		nd.PutConnection(conn)
 		return nil, err
 	}
 
-	if err := nd.updatePartitions(conn, infoMap); err != nil {
-		nd.InvalidateConnection(conn)
+	if err := nd.updatePartitions(nd.tendConn, infoMap); err != nil {
+		nd.InvalidateConnection(nd.tendConn)
+		nd.tendConn = nil
 		return nil, err
 	}
 
-	// Suppose there is a request peak, and we create lots of connections to
-	// handle those requests. We want to keep those connections around while the
-	// peak is taking place. When the peak is over, we hopefully will want to
-	// close and those connections, and remove pressure from our side (the
-	// client) and servers. Because the connection pool is a FIFO queue, if we
-	// refresh the connection here, we may end up preventing lots of unused
-	// connections from going idle, and therefore preventing them from being
-	// closed. We should keep the number of connections to servers as low as
-	// possible when there is no need for them. For that reason, we just put the
-	// connection back into the pool without refreshing it.
-	nd.PutConnection(conn)
 	return friends, nil
 }
 
@@ -216,60 +221,70 @@ func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) er
 	return nil
 }
 
+// dropIdleConnections picks a connection from the head of the connection pool queue
+// if that connection is idle, it drops it and takes the next one until it picks
+// a fresh connection or exhaust the queue.
+func (nd *Node) dropIdleConnections() {
+	for {
+		if t := nd.connections.Poll(); t != nil {
+			conn := t.(*Connection)
+			if conn.IsConnected() && !conn.isIdle() {
+				// put it back: this connection is the oldest, and is still fresh
+				// so the ones after it are likely also fresh
+				if !nd.connections.Offer(conn) {
+					nd.InvalidateConnection(conn)
+				}
+				return
+			}
+			nd.InvalidateConnection(conn)
+		} else {
+			// the queue is exhaused
+			break
+		}
+	}
+}
+
 // GetConnection gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
 func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err error) {
-	tBegin := time.Now()
-	pollTries := 0
-L:
-	for timeout == 0 || time.Since(tBegin) <= timeout {
-		if t := nd.connections.Poll(); t != nil {
-			conn = t.(*Connection)
-			if conn.IsConnected() && !conn.isIdle() {
-				if err := conn.SetTimeout(timeout); err == nil {
-					return conn, nil
-				}
-			}
-			nd.InvalidateConnection(conn)
+	// try to get a valid connection from the connection pool
+	for t := nd.connections.Poll(); t != nil; t = nd.connections.Poll() {
+		conn = t.(*Connection)
+		if conn.IsConnected() {
+			conn.refresh()
+			return conn, nil
 		}
-
-		// if connection count is limited and enough connections are already created, don't create a new one
-		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.Get() >= nd.cluster.clientPolicy.ConnectionQueueSize {
-			// will avoid an infinite loop
-			if timeout != 0 || pollTries < 10 {
-				// 10 retries, each waits for 100us for a total of 1 milliseconds
-				time.Sleep(time.Microsecond * 100)
-				pollTries++
-				continue
-			}
-			break L
-		}
-
-		if conn, err = NewConnection(nd.address, nd.cluster.clientPolicy.Timeout); err != nil {
-			return nil, err
-		}
-
-		// need to authenticate
-		if err = conn.Authenticate(nd.cluster.user, nd.cluster.Password()); err != nil {
-			// Socket not authenticated. Do not put back into pool.
-			conn.Close()
-
-			return nil, err
-		}
-
-		if err = conn.SetTimeout(timeout); err != nil {
-			// Socket not authenticated. Do not put back into pool.
-			conn.Close()
-			return nil, err
-		}
-
-		conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
-		conn.refresh()
-
-		nd.connectionCount.IncrementAndGet()
-		return conn, nil
+		nd.InvalidateConnection(conn)
 	}
-	return nil, NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE)
+
+	// if connection count is limited and enough connections are already created, don't create a new one
+	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.IncrementAndGet() > nd.cluster.clientPolicy.ConnectionQueueSize {
+		nd.connectionCount.DecrementAndGet()
+		return nil, NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE)
+	}
+
+	if conn, err = NewConnection(nd.address, nd.cluster.clientPolicy.Timeout); err != nil {
+		nd.connectionCount.DecrementAndGet()
+		return nil, err
+	}
+
+	// need to authenticate
+	if err = conn.Authenticate(nd.cluster.user, nd.cluster.Password()); err != nil {
+		// Socket not authenticated. Do not put back into pool.
+		nd.InvalidateConnection(conn)
+		return nil, err
+	}
+
+	if err = conn.SetTimeout(timeout); err != nil {
+		// Do not put back into pool.
+		nd.InvalidateConnection(conn)
+		return nil, err
+	}
+
+	conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
+	conn.refresh()
+
+	return conn, nil
 }
 
 // PutConnection puts back a connection to the pool.
