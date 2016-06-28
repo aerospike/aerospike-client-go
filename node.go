@@ -251,28 +251,30 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 	for t := nd.connections.Poll(); t != nil; t = nd.connections.Poll() {
 		conn = t.(*Connection)
 		if conn.IsConnected() {
-			conn.refresh()
-			return conn, nil
+			break
 		}
 		nd.InvalidateConnection(conn)
+		conn = nil
 	}
 
-	// if connection count is limited and enough connections are already created, don't create a new one
-	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.IncrementAndGet() > nd.cluster.clientPolicy.ConnectionQueueSize {
-		nd.connectionCount.DecrementAndGet()
-		return nil, NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE)
-	}
+	if conn == nil {
+		// if connection count is limited and enough connections are already created, don't create a new one
+		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.IncrementAndGet() > nd.cluster.clientPolicy.ConnectionQueueSize {
+			nd.connectionCount.DecrementAndGet()
+			return nil, NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE)
+		}
 
-	if conn, err = NewConnection(nd.address, nd.cluster.clientPolicy.Timeout); err != nil {
-		nd.connectionCount.DecrementAndGet()
-		return nil, err
-	}
+		if conn, err = NewConnection(nd.address, nd.cluster.clientPolicy.Timeout); err != nil {
+			nd.connectionCount.DecrementAndGet()
+			return nil, err
+		}
 
-	// need to authenticate
-	if err = conn.Authenticate(nd.cluster.user, nd.cluster.Password()); err != nil {
-		// Socket not authenticated. Do not put back into pool.
-		nd.InvalidateConnection(conn)
-		return nil, err
+		// need to authenticate
+		if err = conn.Authenticate(nd.cluster.user, nd.cluster.Password()); err != nil {
+			// Socket not authenticated. Do not put back into pool.
+			nd.InvalidateConnection(conn)
+			return nil, err
+		}
 	}
 
 	if err = conn.SetTimeout(timeout); err != nil {

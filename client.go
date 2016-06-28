@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,6 +46,10 @@ type Client struct {
 	DefaultQueryPolicy *QueryPolicy
 	// DefaultAdminPolicy is used for all security commands without a specific policy.
 	DefaultAdminPolicy *AdminPolicy
+}
+
+func clientFinalizer(f *Client) {
+	f.Close()
 }
 
 //-------------------------------------------------------
@@ -72,16 +77,20 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 
 	cluster, err := NewCluster(policy, hosts)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to connect to host(s): %v", hosts)
+		return nil, fmt.Errorf("Failed to connect to host(s): %v; error: %s", hosts, err)
 	}
-	return &Client{
+
+	client := &Client{
 		cluster:            cluster,
 		DefaultPolicy:      NewPolicy(),
 		DefaultWritePolicy: NewWritePolicy(0, 0),
 		DefaultScanPolicy:  NewScanPolicy(),
 		DefaultQueryPolicy: NewQueryPolicy(),
 		DefaultAdminPolicy: NewAdminPolicy(),
-	}, nil
+	}
+
+	runtime.SetFinalizer(client, clientFinalizer)
+	return client, nil
 
 }
 

@@ -17,6 +17,7 @@ package aerospike
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"sync"
 
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -65,6 +66,11 @@ type Recordset struct {
 	Records chan *Record
 }
 
+// makes sure the recordset is closed eventually, even if it is not consumed
+func recordsetFinalizer(rs *Recordset) {
+	rs.Close()
+}
+
 // newObjectset generates a new RecordSet instance.
 func newObjectset(objChan reflect.Value, goroutines int) *objectset {
 
@@ -95,6 +101,7 @@ func newRecordset(recSize, goroutines int) *Recordset {
 		objectset: *newObjectset(reflect.ValueOf(nilChan), goroutines),
 	}
 
+	runtime.SetFinalizer(rs, recordsetFinalizer)
 	return rs
 }
 
