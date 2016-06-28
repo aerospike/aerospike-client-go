@@ -998,7 +998,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 	for {
 		// too many retries
 		if iterations++; (policy.MaxRetries > 0) && (iterations > policy.MaxRetries+1) {
-			return NewAerospikeError(TIMEOUT, "command execution timed out: Exceeded number of retries. See `Policy.MaxRetries`")
+			return NewAerospikeError(TIMEOUT, fmt.Sprintf("command execution timed out: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err))
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -1011,18 +1011,16 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			break
 		}
 
-		node, err := ifc.getNode(ifc)
+		// set command node, so when you return a record it has the node
+		cmd.node, err = ifc.getNode(ifc)
 		if err != nil {
 			// Node is currently inactive. Retry.
 			continue
 		}
 
-		// set command node, so when you return a record it has the node
-		cmd.node = node
-
-		cmd.conn, err = node.GetConnection(policy.Timeout)
+		cmd.conn, err = cmd.node.GetConnection(policy.Timeout)
 		if err != nil {
-			Logger.Warn("Node " + node.String() + ": " + err.Error())
+			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 			continue
 		}
 
@@ -1035,7 +1033,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if err != nil {
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			node.InvalidateConnection(cmd.conn)
+			cmd.node.InvalidateConnection(cmd.conn)
 			return err
 		}
 
@@ -1047,9 +1045,9 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if err != nil {
 			// IO errors are considered temporary anomalies. Retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			node.InvalidateConnection(cmd.conn)
+			cmd.node.InvalidateConnection(cmd.conn)
 
-			Logger.Warn("Node " + node.String() + ": " + err.Error())
+			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 			continue
 		}
 
@@ -1062,15 +1060,15 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			// situation. We will not put back the connection in the buffer.
 			if KeepConnection(err) {
 				// Put connection back in pool.
-				node.PutConnection(cmd.conn)
+				cmd.node.PutConnection(cmd.conn)
 			} else {
-				node.InvalidateConnection(cmd.conn)
+				cmd.node.InvalidateConnection(cmd.conn)
 			}
 			return err
 		}
 
 		// Put connection back in pool.
-		node.PutConnection(cmd.conn)
+		cmd.node.PutConnection(cmd.conn)
 
 		// put back buffer to the pool
 		bufPool.Put(cmd.dataBuffer)
