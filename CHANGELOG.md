@@ -1,18 +1,26 @@
 # Change History
 
-## June 19 2016 : v1.16.3
+## June 28 2016 : v1.16.3
 
-  Minor bugfix release.
+  Major bugfix release. Update recommended.
 
   * **Improvements**
 
     * Skip LDT tests if LDT is not enabled.
+
+    * Returns last error after all retry attempts to run a command are exhausted.
+
+    * Reserves a connection for tend operation to avoid dropping a node when high load prevents acquiring a proper connection.
 
   * **Fixes**
 
     * Fixes an issue where `services-alternate` wasn't used in `Node.addFriends()` when instructed so in the policy.
 
     * Fixes an issue where object metadata wasn't cached if `QueryObjects` was called before `PutObject`.
+
+    * Fixes an issue where idle connections were not dropped.
+
+    * Fixes an issue where requested buffer sizes were not guarded against negative numbers.
 
 ## June 7 2016 : v1.16.2
 
