@@ -245,8 +245,37 @@ func (nd *Node) dropIdleConnections() {
 }
 
 // GetConnection gets a connection to the node.
-// If no pooled connection is available, a new connection will be created.
+// If no pooled connection is available, a new connection will be created, unless
+// ClientPolicy.MaxQueueSize number of connections are already created.
+// This method will retry to retrieve a connection in case the connection pool
+// is empty, until timeout is reached.
 func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err error) {
+	deadline := time.Now().Add(timeout)
+	if timeout == 0 {
+		deadline = time.Now().Add(time.Second)
+	}
+
+CL:
+	// try to acquire a connection; if the connection pool is empty, retry until
+	// timeout occures. If no timeout is set, will retry indefinitely.
+	conn, err = nd.getConnection(timeout)
+	if err != nil {
+		if err == ErrConnectionPoolEmpty && nd.IsActive() && time.Now().Before(deadline) {
+			// give the scheduler time to breath; affects latency minimally, but throughput drastically
+			time.Sleep(time.Microsecond)
+			goto CL
+		}
+
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+// getConnection gets a connection to the node.
+// If no pooled connection is available, a new connection will be created.
+// This method does not include logic to retry in case the connection pool is empty
+func (nd *Node) getConnection(timeout time.Duration) (conn *Connection, err error) {
 	// try to get a valid connection from the connection pool
 	for t := nd.connections.Poll(); t != nil; t = nd.connections.Poll() {
 		conn = t.(*Connection)
@@ -261,7 +290,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 		// if connection count is limited and enough connections are already created, don't create a new one
 		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.IncrementAndGet() > nd.cluster.clientPolicy.ConnectionQueueSize {
 			nd.connectionCount.DecrementAndGet()
-			return nil, NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE)
+			return nil, ErrConnectionPoolEmpty
 		}
 
 		if conn, err = NewConnection(nd.address, nd.cluster.clientPolicy.Timeout); err != nil {
