@@ -1,5 +1,13 @@
 # Change History
 
+## July 5 2016 : v1.16.4
+
+  Minor improvement release.
+
+  * **Improvements**
+
+    * `GetConnection` will now retry to acquire a connection until timeout.
+
 ## June 28 2016 : v1.16.3
 
   Major bugfix release. Update recommended.
