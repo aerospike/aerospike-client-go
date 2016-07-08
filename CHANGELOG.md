@@ -8,6 +8,10 @@
 
     * `GetConnection` will now retry to acquire a connection until timeout.
 
+  * **Fixes**
+
+    * Maps with 0 elements will automatically shortcut to unordered empty maps.
+
 ## June 28 2016 : v1.16.3
 
   Major bugfix release. Update recommended.
