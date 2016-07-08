@@ -99,6 +99,10 @@ func (upckr *unpacker) UnpackMap() (interface{}, error) {
 }
 
 func (upckr *unpacker) unpackMap(count int) (interface{}, error) {
+	if count <= 0 {
+		return make(map[interface{}]interface{}), nil
+	}
+
 	if upckr.isMapCDT() {
 		return upckr.unpackCDTMap(count)
 	}
