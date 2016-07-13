@@ -94,17 +94,26 @@ type dataStruct struct {
 	Bytes______ []byte
 }
 
+var logger *log.Logger
+
 func main() {
-	log.SetOutput(os.Stdout)
+	var buf bytes.Buffer
+	logger = log.New(&buf, "", log.LstdFlags)
+	logger.SetOutput(os.Stdout)
 
 	// use all cpus in the system for concurrency
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	readFlags()
 
+	if *debugMode {
+		Logger.SetLogger(logger)
+		Logger.SetLevel(DEBUG)
+	}
+
 	// launch profiler if in profile mode
 	if *profileMode {
 		go func() {
-			log.Println(http.ListenAndServe(":6060", nil))
+			logger.Println(http.ListenAndServe(":6060", nil))
 		}()
 	}
 
@@ -118,10 +127,10 @@ func main() {
 	clientPolicy.Timeout = 10 * time.Second
 	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 
-	log.Println("Nodes Found:", client.GetNodeNames())
+	logger.Println("Nodes Found:", client.GetNodeNames())
 
 	go reporter()
 	wg.Add(*concurrency)
@@ -155,20 +164,20 @@ func throughputToString() string {
 }
 
 func printBenchmarkParams() {
-	log.Printf("hosts:\t\t%s", *host)
-	log.Printf("port:\t\t%d", *port)
-	log.Printf("namespace:\t\t%s", *namespace)
-	log.Printf("set:\t\t%s", *set)
-	log.Printf("keys/records:\t%d", *keyCount)
-	log.Printf("object spec:\t%s, size: %d", binDataType, binDataSize)
-	log.Printf("random bin values\t%v", *randBinData)
-	log.Printf("workload:\t\t%s", workloadToString())
-	log.Printf("concurrency:\t%d", *concurrency)
-	log.Printf("max throughput\t%s", throughputToString())
-	log.Printf("timeout\t\t%v ms", *timeout)
-	log.Printf("max retries\t\t%d", *maxRetries)
-	log.Printf("debug:\t\t%v", *debugMode)
-	log.Printf("latency:\t\t%d:%d", latBase, latCols)
+	logger.Printf("hosts:\t\t%s", *host)
+	logger.Printf("port:\t\t%d", *port)
+	logger.Printf("namespace:\t\t%s", *namespace)
+	logger.Printf("set:\t\t%s", *set)
+	logger.Printf("keys/records:\t%d", *keyCount)
+	logger.Printf("object spec:\t%s, size: %d", binDataType, binDataSize)
+	logger.Printf("random bin values\t%v", *randBinData)
+	logger.Printf("workload:\t\t%s", workloadToString())
+	logger.Printf("concurrency:\t%d", *concurrency)
+	logger.Printf("max throughput\t%s", throughputToString())
+	logger.Printf("timeout\t\t%v ms", *timeout)
+	logger.Printf("max retries\t\t%d", *maxRetries)
+	logger.Printf("debug:\t\t%v", *debugMode)
+	logger.Printf("latency:\t\t%d:%d", latBase, latCols)
 }
 
 // parses an string of (key:value) type
@@ -201,7 +210,7 @@ func parseLatency(param string) (int, int) {
 		}
 	}
 
-	log.Fatal("Wrong latency values requested.")
+	logger.Fatal("Wrong latency values requested.")
 	return 0, 0
 }
 
@@ -577,12 +586,12 @@ Loop:
 				atomic.StoreInt64(&lastReport, time.Now().UnixNano())
 
 				if workloadType == "I" {
-					log.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d)%s",
+					logger.Printf("write(tps=%d timeouts=%d errors=%d totalCount=%d)%s",
 						totalWCount, totalTOCount, totalErrCount, totalCount,
 						memProfileStr(),
 					)
 				} else {
-					log.Printf(
+					logger.Printf(
 						"write(tps=%d timeouts=%d errors=%d) read(tps=%d timeouts=%d errors=%d) total(tps=%d timeouts=%d errors=%d, count=%d)%s",
 						totalWCount, totalWTOCount, totalWErrCount,
 						totalRCount, totalRTOCount, totalRErrCount,
@@ -596,21 +605,21 @@ Loop:
 					for i := 0; i < latCols; i++ {
 						strBuff.WriteString(fmt.Sprintf("|>%4d ms\t", latBase<<uint(i)))
 					}
-					log.Println(strBuff.String())
+					logger.Println(strBuff.String())
 					strBuff.Reset()
 
 					strBuff.WriteString(fmt.Sprintf("\tREAD\t%d\t%3.3f\t%d", rMinLat, float64(rTotalLat)/float64(totalRCount+1), rMaxLat))
 					for i := 0; i <= latCols; i++ {
 						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f%%", rLatList[i], float64(rLatList[i])/float64(totalRCount+1)*100))
 					}
-					log.Println(strBuff.String())
+					logger.Println(strBuff.String())
 					strBuff.Reset()
 
 					strBuff.WriteString(fmt.Sprintf("\tWRITE\t%d\t%3.3f\t%d", wMinLat, float64(wTotalLat)/float64(totalWCount+1), wMaxLat))
 					for i := 0; i <= latCols; i++ {
 						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f%%", wLatList[i], float64(wLatList[i])/float64(totalWCount+1)*100))
 					}
-					log.Println(strBuff.String())
+					logger.Println(strBuff.String())
 					strBuff.Reset()
 				}
 
