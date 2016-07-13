@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	. "github.com/aerospike/aerospike-client-go/types"
-	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
 // Parse node partitions using new protocol. This is more code than a String.split() implementation,
@@ -52,8 +51,8 @@ func newPartitionTokenizerNew(conn *Connection) (*partitionTokenizerNew, error) 
 	return pt, nil
 }
 
-func (pt *partitionTokenizerNew) UpdatePartition(nmap map[string]*AtomicArray, node *Node) (map[string]*AtomicArray, error) {
-	var amap map[string]*AtomicArray
+func (pt *partitionTokenizerNew) UpdatePartition(nmap partitionMap, node *Node) (partitionMap, error) {
+	var amap partitionMap
 
 	begin := pt.offset
 	copied := false
@@ -94,14 +93,14 @@ func (pt *partitionTokenizerNew) UpdatePartition(nmap map[string]*AtomicArray, n
 			if !exists {
 				if !copied {
 					// Make shallow copy of map.
-					amap = make(map[string]*AtomicArray, len(nmap))
+					amap = make(partitionMap, len(nmap))
 					for k, v := range nmap {
 						amap[k] = v
 					}
 					copied = true
 				}
 
-				nodeArray = NewAtomicArray(_PARTITIONS)
+				nodeArray = make([]*Node, _PARTITIONS)
 
 				amap[namespace] = nodeArray
 			}
@@ -115,10 +114,7 @@ func (pt *partitionTokenizerNew) UpdatePartition(nmap map[string]*AtomicArray, n
 			for i := 0; i < _PARTITIONS; i++ {
 				if (restoreBuffer[i>>3] & (0x80 >> uint((i & 7)))) != 0 {
 					// Logger.Info("Map: `" + namespace + "`," + strconv.Itoa(i) + "," + node.String())
-
-					if err := nodeArray.Set(i, node); err != nil {
-						return nil, err
-					}
+					nodeArray[i] = node
 				}
 			}
 			pt.offset++

@@ -16,14 +16,12 @@ package aerospike_test
 
 import (
 	"flag"
-	"log"
 	"math/rand"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"net/http"
 	_ "net/http/pprof"
 
 	. "github.com/aerospike/aerospike-client-go"
@@ -137,9 +135,6 @@ func Benchmark_Get_String__10000(b *testing.B) {
 }
 
 func Benchmark_Get_String_100000(b *testing.B) {
-	go func() {
-		log.Println(http.ListenAndServe(":6060", nil))
-	}()
 	set := "get_bench_str_10000"
 	bins := []*Bin{NewBin("b", strings.Repeat("s", 10000))}
 	b.N = 1000

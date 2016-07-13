@@ -27,20 +27,22 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
+type partitionMap map[string][]*Node
+
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
 type Cluster struct {
 	// Initial host nodes specified by user.
-	seeds atomic.Value //[]*Host
+	seeds *SyncVal //[]*Host
 
 	// All aliases for all nodes in cluster.
-	aliases atomic.Value //map[Host]*Node
+	aliases *SyncVal //map[Host]*Node
 
 	// Active nodes in cluster.
-	nodes atomic.Value //[]*Node
+	nodes *SyncVal //[]*Node
 
 	// Hints for best node for a partition
-	partitionWriteMap atomic.Value //map[string]*AtomicArray
+	partitionWriteMap atomic.Value //partitionMap
 
 	// Random node index.
 	nodeIndex *AtomicInt
@@ -59,7 +61,7 @@ type Cluster struct {
 	user string
 
 	// Password in hashed format in bytes.
-	password atomic.Value // []byte
+	password *SyncVal // []byte
 }
 
 // NewCluster generates a Cluster instance.
@@ -69,16 +71,19 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		nodeIndex:    NewAtomicInt(0),
 		tendChannel:  make(chan struct{}),
 
+		seeds:   NewSyncVal(hosts),
+		aliases: NewSyncVal(make(map[Host]*Node)),
+		nodes:   NewSyncVal([]*Node{}),
+
+		password: NewSyncVal(nil),
+
 		supportsFloat:       NewAtomicBool(false),
 		supportsBatchIndex:  NewAtomicBool(false),
 		supportsReplicasAll: NewAtomicBool(false),
 		supportsGeo:         NewAtomicBool(false),
 	}
 
-	newCluster.seeds.Store(hosts)
-	newCluster.aliases.Store(make(map[Host]*Node))
-	newCluster.nodes.Store([]*Node{})
-	newCluster.partitionWriteMap.Store(make(map[string]*AtomicArray))
+	newCluster.partitionWriteMap.Store(make(partitionMap))
 
 	// setup auth info for cluster
 	if policy.RequiresAuthentication() {
@@ -87,7 +92,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		if err != nil {
 			return nil, err
 		}
-		newCluster.password.Store(hashedPass)
+		newCluster.password = NewSyncVal(hashedPass)
 	}
 
 	// try to seed connections for first use
@@ -147,13 +152,11 @@ Loop:
 // AddSeeds adds new hosts to the cluster.
 // They will be added to the cluster on next tend call.
 func (clstr *Cluster) AddSeeds(hosts []*Host) {
-	seeds := clstr.seeds.Load().([]*Host)
-	seeds = append(seeds, hosts...)
-	clstr.seeds.Store(seeds)
-}
-
-func (clstr *Cluster) getSeeds() []*Host {
-	return clstr.seeds.Load().([]*Host)
+	clstr.seeds.Update(func(val interface{}) (interface{}, error) {
+		seeds := val.([]*Host)
+		seeds = append(seeds, hosts...)
+		return seeds, nil
+	})
 }
 
 // Updates cluster state
@@ -281,24 +284,28 @@ func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) {
 }
 
 func (clstr *Cluster) findAlias(alias *Host) *Node {
-	aliases := clstr.aliases.Load().(map[Host]*Node)
-	return aliases[*alias]
+	res, _ := clstr.aliases.GetSyncedVia(func(val interface{}) (interface{}, error) {
+		aliases := val.(map[Host]*Node)
+		return aliases[*alias], nil
+	})
+
+	return res.(*Node)
 }
 
-func (clstr *Cluster) setPartitions(partMap map[string]*AtomicArray) {
+func (clstr *Cluster) setPartitions(partMap partitionMap) {
 	clstr.partitionWriteMap.Store(partMap)
 }
 
-func (clstr *Cluster) getPartitions() map[string]*AtomicArray {
-	return clstr.partitionWriteMap.Load().(map[string]*AtomicArray)
+func (clstr *Cluster) getPartitions() partitionMap {
+	return clstr.partitionWriteMap.Load().(partitionMap)
 }
 
 func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) error {
 	// TODO: Cluster should not care about version of tokenizer
 	// decouple clstr interface
-	var nmap map[string]*AtomicArray
+	var nmap partitionMap
 	if node.useNewInfo {
-		Logger.Info("Updating partitions using new protocol...")
+		// Logger.Info("Updating partitions using new protocol...")
 		tokens, err := newPartitionTokenizerNew(conn)
 		if err != nil {
 			return err
@@ -308,7 +315,7 @@ func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) error {
 			return err
 		}
 	} else {
-		Logger.Info("Updating partitions using old protocol...")
+		// Logger.Info("Updating partitions using old protocol...")
 		tokens, err := newPartitionTokenizerOld(conn)
 		if err != nil {
 			return err
@@ -331,7 +338,15 @@ func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) error {
 // Adds seeds to the cluster
 func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 	// Must copy array reference for copy on write semantics to work.
-	seedArray := clstr.getSeeds()
+	seedArrayIfc, _ := clstr.seeds.GetSyncedVia(func(val interface{}) (interface{}, error) {
+		seeds := val.([]*Host)
+		seeds_copy := make([]*Host, len(seeds))
+		copy(seeds_copy, seeds)
+
+		return seeds_copy, nil
+	})
+	seedArray := seedArrayIfc.([]*Host)
+
 	errorList := []error{}
 
 	Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
@@ -406,17 +421,21 @@ func (clstr *Cluster) findNodeName(list []*Node, name string) bool {
 
 func (clstr *Cluster) addAlias(host *Host, node *Node) {
 	if host != nil && node != nil {
-		aliases := clstr.aliases.Load().(map[Host]*Node)
-		aliases[*host] = node
-		clstr.aliases.Store(aliases)
+		clstr.aliases.Update(func(val interface{}) (interface{}, error) {
+			aliases := val.(map[Host]*Node)
+			aliases[*host] = node
+			return aliases, nil
+		})
 	}
 }
 
 func (clstr *Cluster) removeAlias(alias *Host) {
 	if alias != nil {
-		aliases := clstr.aliases.Load().(map[Host]*Node)
-		delete(aliases, *alias)
-		clstr.aliases.Store(aliases)
+		clstr.aliases.Update(func(val interface{}) (interface{}, error) {
+			aliases := val.(map[Host]*Node)
+			delete(aliases, *alias)
+			return aliases, nil
+		})
 	}
 }
 
@@ -512,10 +531,10 @@ func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
 	partitions := clstr.getPartitions()
 
 	for j := range partitions {
-		max := partitions[j].Length()
+		max := len(partitions[j])
 
 		for i := 0; i < max; i++ {
-			node := partitions[j].Get(i)
+			node := partitions[j][i]
 			// Use reference equality for performance.
 			if node == filter {
 				return true
@@ -537,19 +556,24 @@ func (clstr *Cluster) addAliases(node *Node) {
 	// Add node's aliases to global alias set.
 	// Aliases are only used in tend goroutine, so synchronization is not necessary.
 	nodeAliases := node.GetAliases()
-	aliases := clstr.aliases.Load().(map[Host]*Node)
 
-	for _, alias := range nodeAliases {
-		aliases[*alias] = node
-	}
+	clstr.aliases.Update(func(val interface{}) (interface{}, error) {
+		aliases := val.(map[Host]*Node)
 
-	clstr.aliases.Store(aliases)
+		for _, alias := range nodeAliases {
+			aliases[*alias] = node
+		}
+
+		return aliases, nil
+	})
 }
 
 func (clstr *Cluster) addNodesCopy(nodesToAdd []*Node) {
-	nodes := clstr.nodes.Load().([]*Node)
-	nodes = append(nodes, nodesToAdd...)
-	clstr.nodes.Store(nodes)
+	clstr.nodes.Update(func(val interface{}) (interface{}, error) {
+		nodes := val.([]*Node)
+		nodes = append(nodes, nodesToAdd...)
+		return nodes, nil
+	})
 }
 
 func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
@@ -574,7 +598,7 @@ func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
 
 func (clstr *Cluster) setNodes(nodes []*Node) {
 	// Replace nodes with copy.
-	clstr.nodes.Store(nodes)
+	clstr.nodes.Set(nodes)
 }
 
 func (clstr *Cluster) removeNodesCopy(nodesToRemove []*Node) {
@@ -620,10 +644,10 @@ func (clstr *Cluster) GetNode(partition *Partition) (*Node, error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	nmap := clstr.getPartitions()
 	if nodeArray, exists := nmap[partition.Namespace]; exists {
-		nodeIfc := nodeArray.Get(partition.PartitionId)
+		node := nodeArray[partition.PartitionId]
 
-		if nodeIfc != nil && nodeIfc.(*Node).IsActive() {
-			return nodeIfc.(*Node), nil
+		if node != nil && node.IsActive() {
+			return node, nil
 		}
 	}
 	return clstr.GetRandomNode()
@@ -650,7 +674,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 // GetNodes returns a list of all nodes in the cluster
 func (clstr *Cluster) GetNodes() []*Node {
 	// Must copy array reference for copy on write semantics to work.
-	return clstr.nodes.Load().([]*Node)
+	return clstr.nodes.Get().([]*Node)
 }
 
 // GetNodeByName finds a node by name and returns an
@@ -752,7 +776,7 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err 
 
 // Password returns the password that is currently used with the cluster.
 func (clstr *Cluster) Password() (res []byte) {
-	pass := clstr.password.Load()
+	pass := clstr.password.Get()
 	if pass != nil {
 		return pass.([]byte)
 	}
@@ -763,7 +787,7 @@ func (clstr *Cluster) changePassword(user string, password string, hash []byte) 
 	// change password ONLY if the user is the same
 	if clstr.user == user {
 		clstr.clientPolicy.Password = password
-		clstr.password.Store(hash)
+		clstr.password.Set(hash)
 	}
 }
 
