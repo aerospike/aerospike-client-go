@@ -17,7 +17,6 @@ package aerospike
 import (
 	"bytes"
 
-	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -106,7 +105,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 				}
 			}
 		} else {
-			Logger.Debug("Unexpected batch key returned: " + string(key.namespace) + "," + Buffer.BytesToHexString(key.digest))
+			return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(key.namespace)+","+Buffer.BytesToHexString(key.digest))
 		}
 	}
 	return true, nil
