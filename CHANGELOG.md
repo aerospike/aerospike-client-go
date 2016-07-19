@@ -16,6 +16,8 @@
 
     * Async tasks like `CreateIndex` will retry a few times before deciding a non-existing job means it has finished.
 
+    * Don't use math.MaxInt64, it breaks 32-bit builds. PR #139, thanks to [Cameron Sparr](https://github.com/sparrc)
+
   * **Fixes**
 
     * Maps with 0 elements will automatically shortcut to unordered empty maps.
