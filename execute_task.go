@@ -68,7 +68,9 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 		index := strings.Index(response, find)
 
 		if index < 0 {
-			done = true
+			if etsk.retries > 2 {
+				done = true
+			}
 			continue
 		}
 

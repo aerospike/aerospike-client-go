@@ -56,7 +56,9 @@ func (tski *IndexTask) IsDone() (bool, error) {
 			index := strings.Index(response, find)
 
 			if index < 0 {
-				complete = true
+				if tski.retries > 2 {
+					complete = true
+				}
 				continue
 			}
 
