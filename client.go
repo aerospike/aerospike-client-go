@@ -1276,7 +1276,7 @@ func (clnt *Client) CreateComplexIndex(
 	return nil, NewAerospikeError(INDEX_GENERIC, "Create index failed: "+response)
 }
 
-// DropIndex deletes a secondary index.
+// DropIndex deletes a secondary index. It will block until index is dropped on all nodes.
 // This method is only supported by Aerospike 3 servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) DropIndex(
@@ -1308,7 +1308,9 @@ func (clnt *Client) DropIndex(
 		response = v
 
 		if strings.ToUpper(response) == "OK" {
-			return nil
+			// Return task that could optionally be polled for completion.
+			task := NewDropIndexTask(clnt.cluster, namespace, indexName)
+			return <-task.OnComplete()
 		}
 
 		if strings.HasPrefix(response, "FAIL:201") {
