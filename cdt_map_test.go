@@ -87,7 +87,6 @@ var _ = Describe("CDT Map Test", func() {
 	initTestVars()
 
 	// connection data
-	var client *Client
 	var err error
 	var ns = "test"
 	var set = randString(50)
@@ -102,8 +101,6 @@ var _ = Describe("CDT Map Test", func() {
 	orderedUpdateMode := NewMapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE_ONLY)
 
 	BeforeEach(func() {
-		client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-		Expect(err).ToNot(HaveOccurred())
 		key, err = NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 

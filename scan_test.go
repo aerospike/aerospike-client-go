@@ -40,12 +40,6 @@ var _ = Describe("Scan operations", func() {
 	bin2 := NewBin("Aerospike2", randString(100))
 	var keys map[string]*Key
 
-	// use the same client for all
-	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
-	if err != nil {
-		panic(err)
-	}
-
 	// read all records from the channel and make sure all of them are returned
 	// if cancelCnt is set, it will cancel the scan after specified record count
 	var checkResults = func(recordset *Recordset, cancelCnt int, checkLDT bool) {

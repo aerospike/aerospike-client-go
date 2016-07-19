@@ -43,21 +43,17 @@ func init() {
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Aerospike load tests", func() {
 	Describe("Single long random string test", func() {
-		// connection data
-		var client *Client
 		var ns = "test"
 		var set = "load"
 		var wpolicy = NewWritePolicy(0, 0)
 		var rpolicy = NewPolicy()
 		rpolicy.Timeout = 200 * time.Millisecond
+		if *useReplicas {
+			rpolicy.ReplicaPolicy = MASTER_PROLES
+		}
 
 		bname1 := randString(14)
 		bname2 := randString(14)
-
-		BeforeEach(func() {
-			client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-			Expect(err).ToNot(HaveOccurred())
-		})
 
 		Context("Concurrent Load", func() {
 

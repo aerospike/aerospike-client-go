@@ -34,8 +34,6 @@ var _ = Describe("Index operations test", func() {
 	initTestVars()
 
 	Describe("Index creation", func() {
-		// connection data
-		var client *Client
 		var err error
 		var ns = "test"
 		var set = randString(50)
@@ -47,9 +45,6 @@ var _ = Describe("Index operations test", func() {
 		bin2 := NewBin("Aerospike2", randString(100))
 
 		BeforeEach(func() {
-			client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-			Expect(err).ToNot(HaveOccurred())
-
 			for i := 0; i < keyCount; i++ {
 				key, err = NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())

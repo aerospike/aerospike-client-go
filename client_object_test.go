@@ -35,12 +35,8 @@ var _ = Describe("Aerospike", func() {
 		var ns = "test"
 		var set = randString(50)
 		var key *Key
-		var client *Client
 
 		BeforeEach(func() {
-			// use the same client for all
-			client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-			Expect(err).ToNot(HaveOccurred())
 
 			key, err = NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
@@ -788,10 +784,6 @@ var _ = Describe("Aerospike", func() {
 			}
 
 			BeforeEach(func() {
-				// use the same client for all
-				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-				Expect(err).ToNot(HaveOccurred())
-
 				set = randString(50)
 
 				for i := 1; i < 100; i++ {
@@ -837,10 +829,6 @@ var _ = Describe("Aerospike", func() {
 			}
 
 			BeforeEach(func() {
-				// use the same client for all
-				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-				Expect(err).ToNot(HaveOccurred())
-
 				set = randString(50)
 
 				for i := 1; i < 100; i++ {

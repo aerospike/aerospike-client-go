@@ -36,8 +36,6 @@ var _ = Describe("LargeSet Test", func() {
 		return
 	}
 
-	// connection data
-	var client *Client
 	var err error
 	var ns = "test"
 	var set = randString(50)
@@ -45,8 +43,6 @@ var _ = Describe("LargeSet Test", func() {
 	var wpolicy = NewWritePolicy(0, 0)
 
 	BeforeEach(func() {
-		client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-		Expect(err).ToNot(HaveOccurred())
 		key, err = NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 	})

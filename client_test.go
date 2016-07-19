@@ -52,13 +52,12 @@ var _ = Describe("Aerospike", func() {
 		var wpolicy = NewWritePolicy(0, 0)
 		var rpolicy = NewPolicy()
 		var rec *Record
-		var client *Client
+
+		if *useReplicas {
+			rpolicy.ReplicaPolicy = MASTER_PROLES
+		}
 
 		BeforeEach(func() {
-			// use the same client for all
-			client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-			Expect(err).ToNot(HaveOccurred())
-
 			key, err = NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 		})

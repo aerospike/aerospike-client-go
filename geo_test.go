@@ -37,12 +37,6 @@ var _ = Describe("Geo Spacial Tests", func() {
 
 	var binName = "GeoBin"
 
-	// use the same client for all
-	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
-	if err != nil {
-		panic(err)
-	}
-
 	It("must Query a specific Region Containing a Point and get only relevant records back", func() {
 
 		regions := []string{

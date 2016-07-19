@@ -40,12 +40,6 @@ var _ = Describe("Query operations on complex types", func() {
 	bin2 := NewBin("Map", valueMap)
 	var keys map[string]*Key
 
-	// use the same client for all
-	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
-	if err != nil {
-		panic(err)
-	}
-
 	BeforeEach(func() {
 		keys = make(map[string]*Key, keyCount)
 		set = randString(50)

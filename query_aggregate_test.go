@@ -50,12 +50,6 @@ var _ = Describe("Query Aggregate operations", func() {
 
 	const keyCount = 10
 
-	// use the same client for all
-	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
-	if err != nil {
-		panic(err)
-	}
-
 	BeforeSuite(func() {
 		err := registerUDF(client, luaPath, "sum_single_bin")
 		Expect(err).ToNot(HaveOccurred())

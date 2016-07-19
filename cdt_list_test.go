@@ -28,8 +28,6 @@ var _ = Describe("CDT List Test", func() {
 	initTestVars()
 
 	// connection data
-	var client *Client
-	var err error
 	var ns = "test"
 	var set = randString(50)
 	var key *Key
@@ -38,8 +36,6 @@ var _ = Describe("CDT List Test", func() {
 	var list []interface{}
 
 	BeforeEach(func() {
-		client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-		Expect(err).ToNot(HaveOccurred())
 		key, err = NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 

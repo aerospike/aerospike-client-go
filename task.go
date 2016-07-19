@@ -53,7 +53,7 @@ func (btsk *BaseTask) onComplete(ifc Task) chan error {
 	btsk.onCompleteChan = make(chan error)
 
 	// goroutine will loop every <interval> until IsDone() returns true or error
-	const interval = 500 * time.Millisecond
+	const interval = 1 * time.Second
 	go func() {
 		// always close the channel on return
 		defer close(btsk.onCompleteChan)

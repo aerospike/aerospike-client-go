@@ -58,12 +58,6 @@ var _ = Describe("Query operations", func() {
 	bin5 := NewBin("Aerospike5", -1)
 	var keys map[string]*Key
 
-	// use the same client for all
-	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
-	if err != nil {
-		panic(err)
-	}
-
 	// read all records from the channel and make sure all of them are returned
 	var checkResults = func(recordset *Recordset, cancelCnt int) {
 		counter := 0

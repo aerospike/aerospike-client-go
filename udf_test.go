@@ -65,8 +65,6 @@ end
 var _ = Describe("UDF/Query tests", func() {
 	initTestVars()
 
-	// connection data
-	var client *Client
 	var err error
 	var ns = "test"
 	var set = randString(50)
@@ -76,11 +74,6 @@ var _ = Describe("UDF/Query tests", func() {
 	const keyCount = 1000
 	bin1 := NewBin("bin1", rand.Intn(math.MaxInt16))
 	bin2 := NewBin("bin2", 1)
-
-	client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-	if err != nil {
-		panic(err)
-	}
 
 	It("must Register a UDF", func() {
 		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udf1.lua", LUA)

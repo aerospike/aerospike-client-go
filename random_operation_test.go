@@ -41,10 +41,8 @@ var _ = Describe("Aerospike", func() {
 		var rpolicy = NewPolicy()
 		var rec *Record
 
-		// use the same client for all
-		client, err := NewClientWithPolicy(clientPolicy, *host, *port)
-		if err != nil {
-			panic(err)
+		if *useReplicas {
+			rpolicy.ReplicaPolicy = MASTER_PROLES
 		}
 
 		Context("Put/Get operations", func() {

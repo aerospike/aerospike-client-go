@@ -19,6 +19,8 @@ var port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address por
 var user = flag.String("U", "", "Username.")
 var password = flag.String("P", "", "Password.")
 var clientPolicy *ClientPolicy
+var client *Client
+var useReplicas = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
 
 func initTestVars() {
 	rand.Seed(time.Now().UnixNano())
@@ -28,6 +30,20 @@ func initTestVars() {
 	if *user != "" {
 		clientPolicy.User = *user
 		clientPolicy.Password = *password
+	}
+
+	clientPolicy.RequestProleReplicas = *useReplicas
+
+	if client == nil || !client.IsConnected() {
+		client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+
+		// set default policies
+		if *useReplicas {
+			client.DefaultPolicy.ReplicaPolicy = MASTER_PROLES
+		}
 	}
 }
 

@@ -31,7 +31,6 @@ var _ = Describe("Complex Index operations test", func() {
 
 	Describe("Complex Index Creation", func() {
 		// connection data
-		var client *Client
 		var err error
 		var ns = "test"
 		var set = randString(50)
@@ -47,9 +46,6 @@ var _ = Describe("Complex Index operations test", func() {
 		bin2 := NewBin("Aerospike2", valueMap)
 
 		BeforeEach(func() {
-			client, err = NewClientWithPolicy(clientPolicy, *host, *port)
-			Expect(err).ToNot(HaveOccurred())
-
 			for i := 0; i < keyCount; i++ {
 				key, err = NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
