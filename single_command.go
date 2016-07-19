@@ -35,10 +35,6 @@ func newSingleCommand(cluster *Cluster, key *Key) *singleCommand {
 	}
 }
 
-func (cmd *singleCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.GetNode(cmd.partition)
-}
-
 func (cmd *singleCommand) emptySocket(conn *Connection) error {
 	// There should not be any more bytes.
 	// Empty the socket to be safe.

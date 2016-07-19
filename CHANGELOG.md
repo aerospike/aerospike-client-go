@@ -1,16 +1,26 @@
 # Change History
 
-## July 5 2016 : v1.16.4
+## July 19 2016 : v1.17.0
 
-  Minor improvement release.
+  Major feature and improvement release.
+
+  * **New Features**
+
+    * Client now supports distributing reads from Replicas using `ClientPolicy.RequestProleReplicas` and `Policy.ReplicaPolicy`
 
   * **Improvements**
 
-    * `GetConnection` will now retry to acquire a connection until timeout.
+    * `Cluster.GetConnection` will now retry to acquire a connection until timeout.
+
+    * `Client.DropIndex` method now blocks until all nodes report the index is dropped.
+
+    * Async tasks like `CreateIndex` will retry a few times before deciding a non-existing job means it has finished.
 
   * **Fixes**
 
     * Maps with 0 elements will automatically shortcut to unordered empty maps.
+
+    * Return the error in BatchCommandGet on parse error.
 
 ## June 28 2016 : v1.16.3
 

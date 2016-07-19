@@ -28,6 +28,7 @@ type Task interface {
 
 // BaseTask is used to poll for server task completion.
 type BaseTask struct {
+	retries        int
 	cluster        *Cluster
 	done           bool
 	onCompleteChan chan error
@@ -52,7 +53,7 @@ func (btsk *BaseTask) onComplete(ifc Task) chan error {
 	btsk.onCompleteChan = make(chan error)
 
 	// goroutine will loop every <interval> until IsDone() returns true or error
-	const interval = 1 * time.Second
+	const interval = 500 * time.Millisecond
 	go func() {
 		// always close the channel on return
 		defer close(btsk.onCompleteChan)
@@ -61,6 +62,7 @@ func (btsk *BaseTask) onComplete(ifc Task) chan error {
 			select {
 			case <-time.After(interval):
 				done, err := ifc.IsDone()
+				btsk.retries++
 				if err != nil {
 					btsk.onCompleteChan <- err
 					return

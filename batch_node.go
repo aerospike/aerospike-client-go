@@ -24,7 +24,7 @@ type batchNode struct {
 	KeyCapacity     int
 }
 
-func newBatchNodeList(cluster *Cluster, keys []*Key) ([]*batchNode, error) {
+func newBatchNodeList(cluster *Cluster, policy *BasePolicy, keys []*Key) ([]*batchNode, error) {
 	nodes := cluster.GetNodes()
 
 	if len(nodes) == 0 {
@@ -41,7 +41,7 @@ func newBatchNodeList(cluster *Cluster, keys []*Key) ([]*batchNode, error) {
 		partition := NewPartitionByKey(key)
 
 		// error not required
-		node, _ := cluster.GetNode(partition)
+		node, _ := cluster.getReadNode(partition, policy.ReplicaPolicy)
 		batchNode := findBatchNode(batchNodes, node)
 
 		if batchNode == nil {

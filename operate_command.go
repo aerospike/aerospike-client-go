@@ -33,6 +33,10 @@ func (cmd *operateCommand) writeBuffer(ifc command) error {
 	return cmd.setOperate(cmd.policy, cmd.key, cmd.operations)
 }
 
+func (cmd *operateCommand) getNode(ifc command) (*Node, error) {
+	return cmd.cluster.getMasterNode(cmd.partition)
+}
+
 func (cmd *operateCommand) Execute() error {
 	return cmd.execute(cmd)
 }

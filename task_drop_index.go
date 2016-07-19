@@ -14,23 +14,19 @@
 
 package aerospike
 
-import (
-	"regexp"
-	"strconv"
-	"strings"
-)
+import "strings"
 
-// IndexTask is used to poll for long running create index completion.
-type IndexTask struct {
+// DropIndexTask is used to poll for long running create index completion.
+type DropIndexTask struct {
 	*BaseTask
 
 	namespace string
 	indexName string
 }
 
-// NewIndexTask initializes a task with fields needed to query server nodes.
-func NewIndexTask(cluster *Cluster, namespace string, indexName string) *IndexTask {
-	return &IndexTask{
+// NewDropIndexTask initializes a task with fields needed to query server nodes.
+func NewDropIndexTask(cluster *Cluster, namespace string, indexName string) *DropIndexTask {
+	return &DropIndexTask{
 		BaseTask:  NewTask(cluster, false),
 		namespace: namespace,
 		indexName: indexName,
@@ -38,12 +34,10 @@ func NewIndexTask(cluster *Cluster, namespace string, indexName string) *IndexTa
 }
 
 // IsDone queries all nodes for task completion status.
-func (tski *IndexTask) IsDone() (bool, error) {
+func (tski *DropIndexTask) IsDone() (bool, error) {
 	command := "sindex/" + tski.namespace + "/" + tski.indexName
 	nodes := tski.cluster.GetNodes()
 	complete := false
-
-	r := regexp.MustCompile(`\.*load_pct=(\d+)\.*`)
 
 	for _, node := range nodes {
 		responseMap, err := RequestNodeInfo(node, command)
@@ -52,24 +46,12 @@ func (tski *IndexTask) IsDone() (bool, error) {
 		}
 
 		for _, response := range responseMap {
-			find := "load_pct="
-			index := strings.Index(response, find)
-
-			if index < 0 {
-				if tski.retries > 2 {
-					complete = true
-				}
+			if strings.Contains(response, "FAIL:201") {
+				complete = true
 				continue
 			}
 
-			matchRes := r.FindStringSubmatch(response)
-			// we know it exists and is a valid number
-			pct, _ := strconv.Atoi(matchRes[1])
-
-			if pct >= 0 && pct < 100 {
-				return false, nil
-			}
-			complete = true
+			return false, nil
 		}
 	}
 	return complete, nil
@@ -77,6 +59,6 @@ func (tski *IndexTask) IsDone() (bool, error) {
 
 // OnComplete returns a channel that will be closed as soon as the task is finished.
 // If an error is encountered during operation, an error will be sent on the channel.
-func (tski *IndexTask) OnComplete() chan error {
+func (tski *DropIndexTask) OnComplete() chan error {
 	return tski.onComplete(tski)
 }

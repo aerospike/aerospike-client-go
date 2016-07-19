@@ -15,8 +15,10 @@
 package aerospike
 
 import (
+	"bytes"
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,7 +29,31 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
-type partitionMap map[string][]*Node
+type partitionMap map[string][][]*Node
+
+// String implements stringer interface for partitionMap
+func (pm partitionMap) String() string {
+	res := bytes.Buffer{}
+	for ns, replicaArray := range pm {
+		for i, nodeArray := range replicaArray {
+			for j, node := range nodeArray {
+				res.WriteString(ns)
+				res.WriteString(",")
+				res.WriteString(strconv.Itoa(i))
+				res.WriteString(",")
+				res.WriteString(strconv.Itoa(j))
+				res.WriteString(",")
+				if node != nil {
+					res.WriteString(node.String())
+				} else {
+					res.WriteString("NIL")
+				}
+				res.WriteString("\n")
+			}
+		}
+	}
+	return res.String()
+}
 
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
@@ -47,6 +73,9 @@ type Cluster struct {
 	// Random node index.
 	nodeIndex *AtomicInt
 
+	// Random partition replica index.
+	replicaIndex *AtomicInt
+
 	clientPolicy ClientPolicy
 
 	mutex       sync.Mutex
@@ -56,6 +85,7 @@ type Cluster struct {
 
 	// Aerospike v3.6.0+
 	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo *AtomicBool
+	requestProleReplicas                                                *AtomicBool
 
 	// User name in UTF-8 encoded bytes.
 	user string
@@ -69,6 +99,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	newCluster := &Cluster{
 		clientPolicy: *policy,
 		nodeIndex:    NewAtomicInt(0),
+		replicaIndex: NewAtomicInt(0),
 		tendChannel:  make(chan struct{}),
 
 		seeds:   NewSyncVal(hosts),
@@ -77,10 +108,11 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 		password: NewSyncVal(nil),
 
-		supportsFloat:       NewAtomicBool(false),
-		supportsBatchIndex:  NewAtomicBool(false),
-		supportsReplicasAll: NewAtomicBool(false),
-		supportsGeo:         NewAtomicBool(false),
+		supportsFloat:        NewAtomicBool(false),
+		supportsBatchIndex:   NewAtomicBool(false),
+		supportsReplicasAll:  NewAtomicBool(false),
+		supportsGeo:          NewAtomicBool(false),
+		requestProleReplicas: NewAtomicBool(policy.RequestProleReplicas),
 	}
 
 	newCluster.partitionWriteMap.Store(make(partitionMap))
@@ -216,10 +248,16 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 		Logger.Warn("Some cluster nodes do not support float type. Disabling native float support in the client library...")
 	}
 
+	// Disable prole requests if some nodes don't support it.
+	if clstr.clientPolicy.RequestProleReplicas && !replicasAllSupport {
+		Logger.Warn("Some nodes don't support 'replicas-all'. Will use 'replicas-master' for all nodes.")
+	}
+
 	// set the cluster supported features
 	clstr.supportsFloat.Set(floatSupport)
 	clstr.supportsBatchIndex.Set(batchIndexSupport)
 	clstr.supportsReplicasAll.Set(replicasAllSupport)
+	clstr.requestProleReplicas.Set(clstr.clientPolicy.RequestProleReplicas && replicasAllSupport)
 	clstr.supportsGeo.Set(geoSupport)
 
 	// Add nodes in a batch.
@@ -300,39 +338,18 @@ func (clstr *Cluster) getPartitions() partitionMap {
 	return clstr.partitionWriteMap.Load().(partitionMap)
 }
 
-func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) error {
-	// TODO: Cluster should not care about version of tokenizer
-	// decouple clstr interface
-	var nmap partitionMap
-	if node.useNewInfo {
-		// Logger.Info("Updating partitions using new protocol...")
-		tokens, err := newPartitionTokenizerNew(conn)
-		if err != nil {
-			return err
-		}
-		nmap, err = tokens.UpdatePartition(clstr.getPartitions(), node)
-		if err != nil {
-			return err
-		}
-	} else {
-		// Logger.Info("Updating partitions using old protocol...")
-		tokens, err := newPartitionTokenizerOld(conn)
-		if err != nil {
-			return err
-		}
-		nmap, err = tokens.UpdatePartition(clstr.getPartitions(), node)
-		if err != nil {
-			return err
-		}
+func (clstr *Cluster) updatePartitions(conn *Connection, node *Node) (int, error) {
+	parser, err := newPartitionParser(conn, node, clstr.getPartitions(), _PARTITIONS, clstr.requestProleReplicas.Get())
+	if err != nil {
+		return -1, err
 	}
 
 	// update partition write map
-	if nmap != nil {
-		clstr.setPartitions(nmap)
+	if parser.isPartitionMapCopied() {
+		clstr.setPartitions(parser.getPartitionMap())
 	}
 
-	Logger.Info("Partitions updated...")
-	return nil
+	return parser.getGeneration(), nil
 }
 
 // Adds seeds to the cluster
@@ -530,14 +547,13 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
 	partitions := clstr.getPartitions()
 
-	for j := range partitions {
-		max := len(partitions[j])
-
-		for i := 0; i < max; i++ {
-			node := partitions[j][i]
-			// Use reference equality for performance.
-			if node == filter {
-				return true
+	for _, replicaArray := range partitions {
+		for _, nodeArray := range replicaArray {
+			for _, node := range nodeArray {
+				// Use reference equality for performance.
+				if node == filter {
+					return true
+				}
 			}
 		}
 	}
@@ -639,17 +655,46 @@ func (clstr *Cluster) IsConnected() bool {
 	return (len(nodeArray) > 0) && !clstr.closed.Get()
 }
 
-// GetNode returns a node for the provided partition.
-func (clstr *Cluster) GetNode(partition *Partition) (*Node, error) {
-	// Must copy hashmap reference for copy on write semantics to work.
-	nmap := clstr.getPartitions()
-	if nodeArray, exists := nmap[partition.Namespace]; exists {
-		node := nodeArray[partition.PartitionId]
+func (clstr *Cluster) getReadNode(partition *Partition, replica ReplicaPolicy) (*Node, error) {
+	switch replica {
+	case MASTER:
+		return clstr.getMasterNode(partition)
+	case MASTER_PROLES:
+		return clstr.getMasterProleNode(partition)
+	default:
+		// includes case RANDOM:
+		return clstr.GetRandomNode()
+	}
+}
 
+func (clstr *Cluster) getMasterNode(partition *Partition) (*Node, error) {
+	pmap := clstr.getPartitions()
+	replicaArray := pmap[partition.Namespace]
+
+	if replicaArray != nil {
+		node := replicaArray[0][partition.PartitionId]
 		if node != nil && node.IsActive() {
 			return node, nil
 		}
 	}
+
+	return clstr.GetRandomNode()
+}
+
+func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
+	pmap := clstr.getPartitions()
+	replicaArray := pmap[partition.Namespace]
+
+	if replicaArray != nil {
+		for range replicaArray {
+			index := int(math.Abs(float64(clstr.replicaIndex.IncrementAndGet() % len(replicaArray))))
+			node := replicaArray[index][partition.PartitionId]
+			if node != nil && node.IsActive() {
+				return node, nil
+			}
+		}
+	}
+
 	return clstr.GetRandomNode()
 }
 
@@ -660,7 +705,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 	length := len(nodeArray)
 	for i := 0; i < length; i++ {
 		// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
-		index := int(math.Abs(float64(clstr.nodeIndex.GetAndIncrement() % length)))
+		index := int(math.Abs(float64(clstr.nodeIndex.IncrementAndGet() % length)))
 		node := nodeArray[index]
 
 		if node.IsActive() {

@@ -53,6 +53,12 @@ type BasePolicy struct {
 	// SleepBetweenReplies determines duration to sleep between retries if a transaction fails and the
 	// timeout was not exceeded.  Enter zero to skip sleep.
 	SleepBetweenRetries time.Duration //= 500ms;
+
+	// ReplicaPolicy detemines the node to the send the read commands containing the key's partition replica type.
+	// Write commands are not affected by this setting, because all writes are directed
+	// to the node containing the key's master partition.
+	// Default to sending read commands to the node containing the key's master partition.
+	ReplicaPolicy ReplicaPolicy
 }
 
 // NewPolicy generates a new BasePolicy instance with default values.
@@ -63,6 +69,7 @@ func NewPolicy() *BasePolicy {
 		Timeout:             0 * time.Millisecond,
 		MaxRetries:          2,
 		SleepBetweenRetries: 500 * time.Millisecond,
+		ReplicaPolicy:       MASTER,
 	}
 }
 

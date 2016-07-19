@@ -45,6 +45,10 @@ func (cmd *executeCommand) writeBuffer(ifc command) error {
 	return cmd.setUdf(cmd.policy, cmd.key, cmd.packageName, cmd.functionName, cmd.args)
 }
 
+func (cmd *executeCommand) getNode(ifc command) (*Node, error) {
+	return cmd.cluster.getMasterNode(cmd.partition)
+}
+
 func (cmd *executeCommand) Execute() error {
 	return cmd.execute(cmd)
 }
