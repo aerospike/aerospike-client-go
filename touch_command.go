@@ -44,6 +44,10 @@ func (cmd *touchCommand) writeBuffer(ifc command) error {
 	return cmd.setTouch(cmd.policy, cmd.key)
 }
 
+func (cmd *touchCommand) getNode(ifc command) (*Node, error) {
+	return cmd.cluster.getMasterNode(cmd.partition)
+}
+
 func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
 	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {

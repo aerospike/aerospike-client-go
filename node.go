@@ -209,12 +209,12 @@ func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) er
 	}
 
 	generation, _ := strconv.Atoi(genString)
-
 	if nd.partitionGeneration.Get() != generation {
-		Logger.Info("Node %s partition generation %d changed", nd.GetName(), generation)
-		if err := nd.cluster.updatePartitions(conn, nd); err != nil {
+		generation, err := nd.cluster.updatePartitions(conn, nd)
+		if err != nil {
 			return err
 		}
+		Logger.Info("Node %s partition generation %d changed to %d", nd.GetName(), nd.partitionGeneration.Get(), generation)
 		nd.partitionGeneration.Set(generation)
 	}
 

@@ -54,6 +54,10 @@ func (cmd *readCommand) writeBuffer(ifc command) error {
 	return cmd.setRead(cmd.policy, cmd.key, cmd.binNames)
 }
 
+func (cmd *readCommand) getNode(ifc command) (*Node, error) {
+	return cmd.cluster.getReadNode(cmd.partition, cmd.policy.ReplicaPolicy)
+}
+
 func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
 	_, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE))

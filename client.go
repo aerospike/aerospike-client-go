@@ -285,7 +285,7 @@ func (clnt *Client) BatchExists(policy *BasePolicy, keys []*Key) ([]bool, error)
 	// when a key exists, the corresponding index will be marked true
 	existsArray := make([]bool, len(keys))
 
-	if err := clnt.batchExecute(keys, func(node *Node, bns *batchNamespace) command {
+	if err := clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
 		return newBatchCommandExists(node, bns, policy, keys, existsArray)
 	}); err != nil {
 		return nil, err
@@ -360,7 +360,7 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 		binSet[binNames[idx]] = struct{}{}
 	}
 
-	err := clnt.batchExecute(keys, func(node *Node, bns *batchNamespace) command {
+	err := clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
 		return newBatchCommandGet(node, bns, policy, keys, binSet, records, _INFO1_READ)
 	})
 	if err != nil {
@@ -382,7 +382,7 @@ func (clnt *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, 
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	err := clnt.batchExecute(keys, func(node *Node, bns *batchNamespace) command {
+	err := clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
 		return newBatchCommandGet(node, bns, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
 	})
 	if err != nil {
@@ -1448,9 +1448,9 @@ func (clnt *Client) sendInfoCommand(policy *WritePolicy, command string) (map[st
 
 // batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
 // and waits for their return
-func (clnt *Client) batchExecute(keys []*Key, cmdGen func(node *Node, bns *batchNamespace) command) error {
+func (clnt *Client) batchExecute(policy *BasePolicy, keys []*Key, cmdGen func(node *Node, bns *batchNamespace) command) error {
 
-	batchNodes, err := newBatchNodeList(clnt.cluster, keys)
+	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
 	if err != nil {
 		return err
 	}
