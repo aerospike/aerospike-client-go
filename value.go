@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -100,7 +99,8 @@ func NewValue(v interface{}) Value {
 	case float64:
 		return NewFloatValue(val)
 	case uint:
-		if !Buffer.Arch64Bits || (val <= math.MaxInt64) {
+		maxInt := ^uint(0) >> 1
+		if !Buffer.Arch64Bits || (val <= maxInt) {
 			return NewLongValue(int64(val))
 		}
 	case []interface{}:
