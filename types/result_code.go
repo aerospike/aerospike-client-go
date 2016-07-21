@@ -237,18 +237,30 @@ const (
 
 // Should connection be put back into pool.
 func KeepConnection(err error) bool {
-	// if error is not an Aerospike Errors, Throw it away
+	// if error is not an AerospikeError, Throw the connection away conservatively
 	ae, ok := err.(AerospikeError)
 	if !ok {
 		return false
 	}
 
 	switch ae.resultCode {
-	case KEY_NOT_FOUND_ERROR:
-		return true
+	case 0, // Zero Value
+		QUERY_TERMINATED,
+		SCAN_TERMINATED,
+		PARSE_ERROR,
+		SERIALIZE_ERROR,
+		SERVER_NOT_AVAILABLE,
+		SCAN_ABORT,
+		QUERY_ABORTED,
 
-	default:
+		INVALID_NODE_ERROR,
+		SERVER_MEM_ERROR,
+		TIMEOUT,
+		INDEX_OOM,
+		QUERY_TIMEOUT:
 		return false
+	default:
+		return true
 	}
 }
 
