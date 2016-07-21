@@ -40,15 +40,16 @@ func NewExecuteTask(cluster *Cluster, statement *Statement) *ExecuteTask {
 
 // IsDone queries all nodes for task completion status.
 func (etsk *ExecuteTask) IsDone() (bool, error) {
-	var command string
+	var module string
 	if etsk.scan {
-		command = "scan-list"
+		module = "scan"
 	} else {
-		command = "query-list"
+		module = "query"
 	}
 
+	command := "jobs:module=" + module + ";cmd=get-job;trid=" + strconv.FormatUint(etsk.taskId, 10)
+
 	nodes := etsk.cluster.GetNodes()
-	done := false
 
 	for _, node := range nodes {
 		conn, err := node.GetConnection(0)
@@ -64,40 +65,42 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 		node.PutConnection(conn)
 
 		response := responseMap[command]
-		find := "job_id=" + strconv.FormatUint(etsk.taskId, 10) + ":"
+
+		if strings.HasPrefix(response, "ERROR:2") {
+			// Task not found. This could mean task already completed or
+			// task not started yet.  We are going to have to assume that
+			// the task already completed...
+			continue
+		}
+
+		if strings.HasPrefix(response, "ERROR:") {
+			// Mark done and quit immediately.
+			return false, NewAerospikeError(UDF_BAD_RESPONSE, response)
+		}
+
+		find := "job_status="
 		index := strings.Index(response, find)
 
 		if index < 0 {
-			if etsk.retries > 2 {
-				done = true
-			}
-			continue
+			return false, nil
 		}
 
 		begin := index + len(find)
 		response = response[begin:]
-		find = "job_status="
+		find = ":"
 		index = strings.Index(response, find)
 
 		if index < 0 {
 			continue
 		}
 
-		begin = index + len(find)
-		response = response[begin:]
-		end := strings.Index(response, ":")
-		status := response[:end]
-
-		if status == "ABORTED" {
-			return false, NewAerospikeError(QUERY_TERMINATED)
-		} else if status == "IN PROGRESS" {
+		status := strings.ToUpper(response[:index])
+		if status != "DONE" {
 			return false, nil
-		} else if status == "DONE" {
-			done = true
 		}
 	}
 
-	return done, nil
+	return true, nil
 }
 
 // OnComplete returns a channel which will be closed when the task is
