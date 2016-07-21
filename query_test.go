@@ -57,6 +57,7 @@ var _ = Describe("Query operations", func() {
 	bin4 := NewBin("Aerospike4", "constValue")
 	bin5 := NewBin("Aerospike5", -1)
 	var keys map[string]*Key
+	var indexName string
 
 	// read all records from the channel and make sure all of them are returned
 	var checkResults = func(recordset *Recordset, cancelCnt int) {
@@ -98,7 +99,8 @@ var _ = Describe("Query operations", func() {
 		}
 
 		// queries only work on indices
-		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin3.Name, bin3.Name, NUMERIC)
+		indexName = set + bin3.Name
+		idxTask, err := client.CreateIndex(wpolicy, ns, set, indexName, bin3.Name, NUMERIC)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until index is created
@@ -106,6 +108,8 @@ var _ = Describe("Query operations", func() {
 	})
 
 	It("must return error if more than onlt filter passed to the command", func() {
+		defer client.DropIndex(nil, ns, set, indexName)
+
 		stm := NewStatement(ns, set)
 		stm.Addfilter(NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
 		stm.Addfilter(NewRangeFilter(bin3.Name, 2, math.MaxInt16/2))
@@ -127,6 +131,8 @@ var _ = Describe("Query operations", func() {
 	})
 
 	It("must Query a range and get all records back", func() {
+		defer client.DropIndex(nil, ns, set, indexName)
+
 		stm := NewStatement(ns, set)
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
@@ -137,6 +143,8 @@ var _ = Describe("Query operations", func() {
 	})
 
 	It("must Cancel Query abruptly", func() {
+		defer client.DropIndex(nil, ns, set, indexName)
+
 		stm := NewStatement(ns, set)
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
@@ -147,6 +155,8 @@ var _ = Describe("Query operations", func() {
 	})
 
 	It("must Query a specific range and get only relevant records back", func() {
+		defer client.DropIndex(nil, ns, set, indexName)
+
 		stm := NewStatement(ns, set)
 		stm.Addfilter(NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
 		recordset, err := client.Query(nil, stm)
@@ -166,6 +176,8 @@ var _ = Describe("Query operations", func() {
 	})
 
 	It("must Query a specific range by applying a udf filter and get only relevant records back", func() {
+		defer client.DropIndex(nil, ns, set, indexName)
+
 		regTask, err := client.RegisterUDF(nil, []byte(udfFilter), "udfFilter.lua", LUA)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -192,6 +204,8 @@ var _ = Describe("Query operations", func() {
 	})
 
 	It("must Query specific equality filters and get only relevant records back", func() {
+		defer client.DropIndex(nil, ns, set, indexName)
+
 		// save a record with requested value
 		key, err := NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())

@@ -74,6 +74,12 @@ var _ = Describe("Query operations on complex types", func() {
 		Expect(<-idxTask3.OnComplete()).ToNot(HaveOccurred())
 	})
 
+	AfterEach(func() {
+		Expect(client.DropIndex(nil, ns, set, set+bin1.Name)).ToNot(HaveOccurred())
+		Expect(client.DropIndex(nil, ns, set, set+bin2.Name+"keys")).ToNot(HaveOccurred())
+		Expect(client.DropIndex(nil, ns, set, set+bin2.Name+"values")).ToNot(HaveOccurred())
+	})
+
 	It("must Query a specific element in list and get only relevant records back", func() {
 		stm := NewStatement(ns, set)
 		stm.Addfilter(NewContainsFilter(bin1.Name, ICT_LIST, 1))

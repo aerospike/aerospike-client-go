@@ -198,6 +198,8 @@ var _ = Describe("UDF/Query tests", func() {
 		It("must run a DeleteUDF on a range of records", func() {
 			idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, NUMERIC)
 			Expect(err).ToNot(HaveOccurred())
+			defer client.DropIndex(nil, ns, set, set+bin1.Name)
+
 			Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 
 			regTask, err := client.RegisterUDF(wpolicy, []byte(udfDelete), "udfDelete.lua", LUA)

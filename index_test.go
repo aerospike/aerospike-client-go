@@ -100,6 +100,8 @@ var _ = Describe("Index operations test", func() {
 				// wait until index is created
 				Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 
+				err = client.DropIndex(wpolicy, ns, set, set+bin1.Name)
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 		})

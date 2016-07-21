@@ -73,7 +73,7 @@ var _ = Describe("Complex Index operations test", func() {
 			It("must create a complex Index for Map Keys", func() {
 				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin2.Name, STRING, ICT_MAPKEYS)
 				Expect(err).ToNot(HaveOccurred())
-				defer client.DropIndex(wpolicy, ns, set, set+bin1.Name)
+				defer client.DropIndex(wpolicy, ns, set, set+bin2.Name+"keys")
 
 				// wait until index is created
 				<-idxTask.OnComplete()
@@ -86,7 +86,7 @@ var _ = Describe("Complex Index operations test", func() {
 			It("must create a complex Index for Map Values", func() {
 				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"values", bin2.Name, STRING, ICT_MAPVALUES)
 				Expect(err).ToNot(HaveOccurred())
-				defer client.DropIndex(wpolicy, ns, set, set+bin1.Name)
+				defer client.DropIndex(wpolicy, ns, set, set+bin2.Name+"values")
 
 				// wait until index is created
 				<-idxTask.OnComplete()
