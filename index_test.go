@@ -17,7 +17,6 @@ package aerospike_test
 import (
 	"math"
 	"math/rand"
-	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
 	// . "github.com/aerospike/aerospike-client-go/logger"
@@ -88,21 +87,18 @@ var _ = Describe("Index operations test", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// wait until index is created
-				<-idxTask.OnComplete()
+				Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 
 				// dropping second time is not expected to raise any errors
 				err = client.DropIndex(wpolicy, ns, set, set+bin1.Name)
 				Expect(err).ToNot(HaveOccurred())
-
-				// wait a few secs to make sure index has been dropped everywhere
-				time.Sleep(3 * time.Second)
 
 				// create the index again; should not encounter any errors
 				idxTask, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, STRING)
 				Expect(err).ToNot(HaveOccurred())
 
 				// wait until index is created
-				<-idxTask.OnComplete()
+				Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 
 			})
 

@@ -54,6 +54,13 @@ type objectset struct {
 	cancelled chan struct{}
 
 	chanLock sync.Mutex
+
+	taskId uint64
+}
+
+// TaskId returns the transactionId/jobId sent to the server for this recordset.
+func (os *objectset) TaskId() uint64 {
+	return os.taskId
 }
 
 // Recordset encapsulates the result of Scan and Query commands.
@@ -72,7 +79,7 @@ func recordsetFinalizer(rs *Recordset) {
 }
 
 // newObjectset generates a new RecordSet instance.
-func newObjectset(objChan reflect.Value, goroutines int) *objectset {
+func newObjectset(objChan reflect.Value, goroutines int, taskId uint64) *objectset {
 
 	if objChan.Kind() != reflect.Chan ||
 		objChan.Type().Elem().Kind() != reflect.Ptr ||
@@ -86,6 +93,7 @@ func newObjectset(objChan reflect.Value, goroutines int) *objectset {
 		active:     NewAtomicBool(true),
 		goroutines: NewAtomicInt(goroutines),
 		cancelled:  make(chan struct{}),
+		taskId:     taskId,
 	}
 	rs.wgGoroutines.Add(goroutines)
 
@@ -93,12 +101,12 @@ func newObjectset(objChan reflect.Value, goroutines int) *objectset {
 }
 
 // newRecordset generates a new RecordSet instance.
-func newRecordset(recSize, goroutines int) *Recordset {
+func newRecordset(recSize, goroutines int, taskId uint64) *Recordset {
 	var nilChan chan *struct{}
 
 	rs := &Recordset{
 		Records:   make(chan *Record, recSize),
-		objectset: *newObjectset(reflect.ValueOf(nilChan), goroutines),
+		objectset: *newObjectset(reflect.ValueOf(nilChan), goroutines, taskId),
 	}
 
 	runtime.SetFinalizer(rs, recordsetFinalizer)

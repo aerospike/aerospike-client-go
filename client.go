@@ -28,6 +28,7 @@ import (
 
 	lualib "github.com/aerospike/aerospike-client-go/internal/lua"
 	. "github.com/aerospike/aerospike-client-go/types"
+	xornd "github.com/aerospike/aerospike-client-go/types/rand"
 	"github.com/yuin/gopher-lua"
 )
 
@@ -436,13 +437,14 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 	}
 
 	// result recordset
-	res := newRecordset(policy.RecordQueueSize, len(nodes))
+	taskId := uint64(xornd.Int64())
+	res := newRecordset(policy.RecordQueueSize, len(nodes), taskId)
 
 	// the whole call should be wrapped in a goroutine
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
 			go func(node *Node) {
-				if err := clnt.scanNode(&policy, node, res, namespace, setName, binNames...); err != nil {
+				if err := clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
 					res.sendError(err)
 				}
 			}(node)
@@ -451,7 +453,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				if err := clnt.scanNode(&policy, node, res, namespace, setName, binNames...); err != nil {
+				if err := clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
 					res.sendError(err)
 					continue
 				}
@@ -468,15 +470,16 @@ func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, 
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	// results channel must be async for performance
-	res := newRecordset(policy.RecordQueueSize, 1)
+	taskId := uint64(xornd.Int64())
+	res := newRecordset(policy.RecordQueueSize, 1, taskId)
 
-	go clnt.scanNode(&policy, node, res, namespace, setName, binNames...)
+	go clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...)
 	return res, nil
 }
 
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, binNames ...string) error {
+func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskId uint64, binNames ...string) error {
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until migrations on node are finished
 		if err := node.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
@@ -485,7 +488,7 @@ func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordse
 		}
 	}
 
-	command := newScanCommand(node, policy, namespace, setName, binNames, recordset)
+	command := newScanCommand(node, policy, namespace, setName, binNames, recordset, taskId)
 	return command.Execute()
 }
 
@@ -509,7 +512,8 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 	}
 
 	// result recordset
-	os := newObjectset(reflect.ValueOf(objChan), len(nodes))
+	taskId := uint64(xornd.Int64())
+	os := newObjectset(reflect.ValueOf(objChan), len(nodes), taskId)
 	res := &Recordset{
 		objectset: *os,
 	}
@@ -518,7 +522,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
 			go func(node *Node) {
-				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, binNames...); err != nil {
+				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
 					res.sendError(err)
 				}
 			}(node)
@@ -527,7 +531,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, binNames...); err != nil {
+				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
 					res.sendError(err)
 					continue
 				}
@@ -547,19 +551,20 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), 1)
+	taskId := uint64(xornd.Int64())
+	os := newObjectset(reflect.ValueOf(objChan), 1, taskId)
 	res := &Recordset{
 		objectset: *os,
 	}
 
-	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, binNames...)
+	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
 	return res, nil
 }
 
 // scanNodeObjects reads all records in specified namespace and set for one node only,
 // and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, binNames ...string) error {
+func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskId uint64, binNames ...string) error {
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until migrations on node are finished
 		if err := node.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
@@ -568,7 +573,7 @@ func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *R
 		}
 	}
 
-	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset)
+	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset, taskId)
 	return command.Execute()
 }
 
@@ -947,7 +952,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 	}
 
 	// results channel must be async for performance
-	recSet := newRecordset(policy.RecordQueueSize, len(nodes))
+	recSet := newRecordset(policy.RecordQueueSize, len(nodes), statement.TaskId)
 
 	// get a lua instance
 	luaInstance := lualib.LuaPool.Get().(*lua.LState)
@@ -1064,7 +1069,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 	}
 
 	// results channel must be async for performance
-	recSet := newRecordset(policy.RecordQueueSize, len(nodes))
+	recSet := newRecordset(policy.RecordQueueSize, len(nodes), statement.TaskId)
 
 	// results channel must be async for performance
 	for _, node := range nodes {
@@ -1099,7 +1104,7 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 	}
 
 	// results channel must be async for performance
-	recSet := newRecordset(policy.RecordQueueSize, 1)
+	recSet := newRecordset(policy.RecordQueueSize, 1, statement.TaskId)
 
 	// copy policies to avoid race conditions
 	newPolicy := *policy
@@ -1136,7 +1141,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 	}
 
 	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), len(nodes))
+	os := newObjectset(reflect.ValueOf(objChan), len(nodes), statement.TaskId)
 	recSet := &Recordset{
 		objectset: *os,
 	}
@@ -1174,7 +1179,7 @@ func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement 
 	}
 
 	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), 1)
+	os := newObjectset(reflect.ValueOf(objChan), 1, statement.TaskId)
 	recSet := &Recordset{
 		objectset: *os,
 	}

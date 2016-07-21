@@ -25,6 +25,7 @@ type scanObjectsCommand struct {
 	namespace string
 	setName   string
 	binNames  []string
+	taskId    uint64
 }
 
 func newScanObjectsCommand(
@@ -34,6 +35,7 @@ func newScanObjectsCommand(
 	setName string,
 	binNames []string,
 	recordset *Recordset,
+	taskId uint64,
 ) *scanObjectsCommand {
 	cmd := &scanObjectsCommand{
 		baseMultiCommand: newMultiCommand(node, recordset),
@@ -41,6 +43,7 @@ func newScanObjectsCommand(
 		namespace:        namespace,
 		setName:          setName,
 		binNames:         binNames,
+		taskId:           taskId,
 	}
 
 	cmd.terminationErrorType = SCAN_TERMINATED
@@ -53,7 +56,7 @@ func (cmd *scanObjectsCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *scanObjectsCommand) writeBuffer(ifc command) error {
-	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames)
+	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames, cmd.taskId)
 }
 
 func (cmd *scanObjectsCommand) parseResult(ifc command, conn *Connection) error {

@@ -80,7 +80,7 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 
 // IsScan determines is the Statement is a full namespace/set scan or a selective Query.
 func (stmt *Statement) IsScan() bool {
-	return stmt.Filters == nil
+	return len(stmt.Filters) == 0
 }
 
 // Always set the taskId client-side to a non-zero random value

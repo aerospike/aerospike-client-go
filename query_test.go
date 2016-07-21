@@ -115,6 +115,9 @@ var _ = Describe("Query operations", func() {
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
+		Expect(recordset.TaskId()).To(Equal(stm.TaskId))
+		Expect(recordset.TaskId()).To(BeNumerically(">", 0))
+
 		for res := range recordset.Results() {
 			Expect(res.Err).To(HaveOccurred())
 			ae, ok := res.Err.(AerospikeError)

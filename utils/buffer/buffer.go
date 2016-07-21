@@ -121,6 +121,17 @@ func Int64ToBytes(num int64, buffer []byte, offset int) []byte {
 	return b
 }
 
+// Uint64ToBytes converts an uint64 into slice of Bytes.
+func Uint64ToBytes(num uint64, buffer []byte, offset int) []byte {
+	if buffer != nil {
+		binary.BigEndian.PutUint64(buffer[offset:], num)
+		return nil
+	}
+	b := make([]byte, uint64sz)
+	binary.BigEndian.PutUint64(b, num)
+	return b
+}
+
 // BytesToInt32 converts a slice into int32; only maximum of 4 bytes will be used
 func BytesToInt32(buf []byte, offset int) int32 {
 	return int32(binary.BigEndian.Uint32(buf[offset : offset+uint32sz]))

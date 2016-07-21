@@ -387,7 +387,7 @@ func (cmd *baseCommand) setBatchGet(policy *BasePolicy, keys []*Key, batch *batc
 	return nil
 }
 
-func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string) error {
+func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskId uint64) error {
 	cmd.begin()
 	fieldCount := 0
 
@@ -403,6 +403,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 	// Estimate scan options size.
 	cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
+	fieldCount++
+
+	// Allocate space for TaskId field.
+	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
 
 	if binNames != nil {
@@ -449,6 +453,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.dataOffset++
 	cmd.dataBuffer[cmd.dataOffset] = byte(policy.ScanPercent)
 	cmd.dataOffset++
+
+	cmd.writeFieldHeader(8, TRAN_ID)
+	Buffer.Uint64ToBytes(taskId, cmd.dataBuffer, cmd.dataOffset)
+	cmd.dataOffset += 8
 
 	if binNames != nil {
 		for i := range binNames {
@@ -584,7 +592,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	}
 
 	cmd.writeFieldHeader(8, TRAN_ID)
-	Buffer.Int64ToBytes(int64(statement.TaskId), cmd.dataBuffer, cmd.dataOffset)
+	Buffer.Uint64ToBytes(statement.TaskId, cmd.dataBuffer, cmd.dataOffset)
 	cmd.dataOffset += 8
 
 	if len(statement.Filters) > 0 {

@@ -20,7 +20,6 @@ import (
 	"reflect"
 
 	. "github.com/aerospike/aerospike-client-go/types"
-	// . "github.com/aerospike/aerospike-client-go/types/atomic"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 

@@ -81,6 +81,9 @@ var _ = Describe("Query Aggregate operations", func() {
 		res, err := client.QueryAggregate(nil, stm, "sum_single_bin", "sum_single_bin", "bin1")
 		Expect(err).ToNot(HaveOccurred())
 
+		Expect(res.TaskId()).To(Equal(stm.TaskId))
+		Expect(res.TaskId()).To(BeNumerically(">", 0))
+
 		for rec := range res.Results() {
 			Expect(rec.Err).ToNot(HaveOccurred())
 			Expect(rec.Record.Bins["SUCCESS"]).To(Equal(float64(55)))
