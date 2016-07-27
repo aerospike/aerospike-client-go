@@ -1,5 +1,21 @@
 # Change History
 
+## July 27 2016 : v1.17.1
+
+  Minor improvements release.
+
+  * **Improvements**
+
+    * Add `TaskId()` method for `Recordset`.
+
+    * Cleanup indexes after test cases.
+
+    * Keep connections on recoverable server errors.
+
+    * Return the error on unexpected keys in `BatchCommandGet/Header`.
+
+    * Use the same client object in tests and support using replicas on travis.
+
 ## July 19 2016 : v1.17.0
 
   Major feature and improvement release.
