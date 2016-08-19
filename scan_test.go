@@ -164,6 +164,11 @@ var _ = Describe("Scan operations", func() {
 
 	Describe("must consider ScanPolicy.IncludeLDT in results", func() {
 
+		if nsInfo(ns, "ldt-enabled") != "true" {
+			By("ScanPolicy.IncludeLDT Tests are not supported since LDT is disabled.")
+			return
+		}
+
 		BeforeEach(func() {
 			keys = make(map[string]*Key, keyCount)
 			set = randString(50)

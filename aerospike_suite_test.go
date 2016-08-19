@@ -66,3 +66,27 @@ func featureEnabled(feature string) bool {
 
 	return strings.Contains(infoMap["features"], feature)
 }
+
+func nsInfo(ns string, feature string) string {
+	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
+	if err != nil {
+		log.Fatal("Failed to connect to aerospike: err:", err)
+	}
+
+	node := client.GetNodes()[0]
+	infoMap, err := node.RequestInfo("namespace/" + ns)
+	if err != nil {
+		log.Fatal("Failed to connect to aerospike: err:", err)
+	}
+
+	infoStr := infoMap["namespace/"+ns]
+	infoPairs := strings.Split(infoStr, ";")
+	for _, pairs := range infoPairs {
+		pair := strings.Split(pairs, "=")
+		if pair[0] == feature {
+			return pair[1]
+		}
+	}
+
+	return ""
+}

@@ -86,6 +86,11 @@ end
 var _ = Describe("CDT Map Test", func() {
 	initTestVars()
 
+	if !featureEnabled("cdt-map") {
+		By("CDT Map Tests will not run since feature is not supported by the server.")
+		return
+	}
+
 	// connection data
 	var err error
 	var ns = "test"

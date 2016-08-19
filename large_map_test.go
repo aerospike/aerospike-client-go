@@ -24,15 +24,16 @@ import (
 var _ = Describe("LargeMap Test", func() {
 	initTestVars()
 
-	if !featureEnabled("ldt") {
-		return
-	}
-
 	var err error
 	var ns = "test"
 	var set = randString(50)
 	var key *Key
 	var wpolicy = NewWritePolicy(0, 0)
+
+	if nsInfo(ns, "ldt-enabled") != "true" {
+		By("LargeMap Tests are not supported since LDT is disabled.")
+		return
+	}
 
 	BeforeEach(func() {
 		key, err = NewKey(ns, set, randString(50))

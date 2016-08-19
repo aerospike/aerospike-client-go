@@ -27,6 +27,11 @@ import (
 var _ = Describe("Geo Spacial Tests", func() {
 	initTestVars()
 
+	if !featureEnabled("geo") {
+		By("Geo Tests will not run since feature is not supported by the server.")
+		return
+	}
+
 	// connection data
 	var ns = "test"
 	var set = randString(50)

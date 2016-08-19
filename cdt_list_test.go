@@ -27,6 +27,11 @@ import (
 var _ = Describe("CDT List Test", func() {
 	initTestVars()
 
+	if !featureEnabled("cdt-list") {
+		By("CDT List Tests will not run since feature is not supported by the server.")
+		return
+	}
+
 	// connection data
 	var ns = "test"
 	var set = randString(50)
