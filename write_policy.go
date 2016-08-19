@@ -50,7 +50,7 @@ type WritePolicy struct {
 	// The default is to not send the user defined key.
 	SendKey bool
 
-	// For client.Operate() method, return a result for every operation.
+	// RespondPerEachOp defines for client.Operate() method, return a result for every operation.
 	// Some list operations do not return results by default (ListClearOp() for example).
 	// This can sometimes make it difficult to determine the desired result offset in the returned
 	// bin's result list.
@@ -60,6 +60,11 @@ type WritePolicy struct {
 	// operations are used in one operate call and some of those operations do not return results
 	// by default.
 	RespondPerEachOp bool
+
+	// DurableDelete leaves a tombstone for the record if the transaction results in a record deletion.
+	// This prevents deleted records from reappearing after node failures.
+	// Valid for Aerospike Server Enterprise Edition 4+ only.
+	DurableDelete bool
 }
 
 // NewWritePolicy initializes a new WritePolicy instance with default parameters.

@@ -47,8 +47,8 @@ const (
 	_INFO2_GENERATION int = (1 << 2)
 	// Update if new generation >= old, good for restore.
 	_INFO2_GENERATION_GT int = (1 << 3)
-	// Create a duplicate on a generation collision.
-	_INFO2_GENERATION_DUP int = (1 << 4)
+	// Transaction resulting in record deletion leaves tombstone (Enterprise only).
+	_INFO2_DURABLE_DELETE int = (1 << 4)
 	// Create only. Fail if record already exists.
 	_INFO2_CREATE_ONLY int = (1 << 5)
 
@@ -775,6 +775,10 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 
 	if policy.ConsistencyLevel == CONSISTENCY_ALL {
 		readAttr |= _INFO1_CONSISTENCY_ALL
+	}
+
+	if policy.DurableDelete {
+		writeAttr |= _INFO2_DURABLE_DELETE
 	}
 
 	// Write all header data except total size which must be written last.
