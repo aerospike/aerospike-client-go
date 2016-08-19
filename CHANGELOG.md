@@ -1,5 +1,20 @@
 # Change History
 
+## August 19 2016 : v1.18.0
+
+  Minor improvements release.
+
+  * **New Features**
+
+    * Support 'Durable Deletes' for the next version of Aerospike Server Enterprise.
+
+  * **Improvements**
+
+    * Don't run tests for features that are not supported by the server.
+
+    * Added new server error codes.
+
+
 ## July 27 2016 : v1.17.1
 
   Minor improvements release.
