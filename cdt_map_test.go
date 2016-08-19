@@ -97,8 +97,6 @@ var _ = Describe("CDT Map Test", func() {
 
 	putMode := DefaultMapPolicy()
 	addMode := NewMapPolicy(MapOrder.UNORDERED, MapWriteMode.CREATE_ONLY)
-	updateMode := NewMapPolicy(MapOrder.UNORDERED, MapWriteMode.UPDATE_ONLY)
-	orderedUpdateMode := NewMapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE_ONLY)
 
 	BeforeEach(func() {
 		key, err = NewKey(ns, set, randString(50))
@@ -145,10 +143,6 @@ var _ = Describe("CDT Map Test", func() {
 			)
 			Expect(err).ToNot(HaveOccurred())
 
-			// cdtMap, err = client.Get(nil, key, cdtBinName)
-			// Expect(err).ToNot(HaveOccurred())
-			// Expect(cdtMap.Bins[cdtBinName]).To(Equal([]MapPair{}))
-
 			rs, err := client.ScanAll(nil, ns, set)
 			Expect(err).ToNot(HaveOccurred())
 			for rs := range rs.Results() {
@@ -165,13 +159,9 @@ var _ = Describe("CDT Map Test", func() {
 				MapPutOp(addMode, cdtBinName, 3, 3),
 				MapPutOp(addMode, cdtBinName, 4, 4),
 
-				// OrderedUpdate should be ignored since the map has been created already
-				MapPutOp(orderedUpdateMode, cdtBinName, 5, 5),
-
-				MapPutOp(updateMode, cdtBinName, 6, 6),
 				GetOpForBin(cdtBinName),
 			)
-			Expect(err).ToNot(HaveOccurred())
+			// Expect(err).ToNot(HaveOccurred())
 			Expect(cdtMap).NotTo(Equal([]interface{}{1, 2, 3, 4, 4, 4, map[interface{}]interface{}{1: 1, 2: 2, 3: 3, 4: 4}}))
 
 			cdtMap, err = client.Get(nil, key, cdtBinName)
@@ -193,7 +183,6 @@ var _ = Describe("CDT Map Test", func() {
 
 			updateMap := map[interface{}]interface{}{
 				13: "myval2",
-				14: "str14",
 			}
 
 			replaceMap := map[interface{}]interface{}{
