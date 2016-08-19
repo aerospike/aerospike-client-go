@@ -120,6 +120,12 @@ const (
 	// Operation not allowed at this time.
 	FAIL_FORBIDDEN ResultCode = 22
 
+	// Element Not Found in CDT
+	FAIL_ELEMENT_NOT_FOUND = 23
+
+	// Element Already Exists in CDT
+	FAIL_ELEMENT_EXISTS = 24
+
 	// There are no more records left for query.
 	QUERY_END ResultCode = 50
 
@@ -362,6 +368,12 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case FAIL_FORBIDDEN:
 		return "Operation not allowed at this time"
+
+	case FAIL_ELEMENT_NOT_FOUND:
+		return "Element not found."
+
+	case FAIL_ELEMENT_EXISTS:
+		return "Element exists"
 
 	case QUERY_END:
 		return "Query end"
