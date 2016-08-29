@@ -17,7 +17,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -51,8 +50,7 @@ func runMultiBinExample(client *as.Client) {
 	shared.PanicOnError(err)
 
 	if record == nil {
-		panic(errors.New(fmt.Sprintf(
-			"Failed to get: namespace=%s set=%s key=%s", key.Namespace(), key.SetName(), key.Value())))
+		panic(fmt.Errorf("Failed to get: namespace=%s set=%s key=%s", key.Namespace(), key.SetName(), key.Value()))
 	}
 
 	shared.ValidateBin(key, bin1, record)
@@ -75,8 +73,7 @@ func runSingleBinExample(client *as.Client) {
 	shared.PanicOnError(err)
 
 	if record == nil {
-		panic(errors.New(fmt.Sprintf(
-			"Failed to get: namespace=%s set=%s key=%s", key.Namespace(), key.SetName(), key.Value())))
+		panic(fmt.Errorf("Failed to get: namespace=%s set=%s key=%s", key.Namespace(), key.SetName(), key.Value()))
 	}
 
 	shared.ValidateBin(key, bin, record)
@@ -91,14 +88,12 @@ func runGetHeaderExample(client *as.Client) {
 	shared.PanicOnError(err)
 
 	if record == nil {
-		panic(errors.New(fmt.Sprintf(
-			"Failed to get: namespace=%s set=%s key=%s", key.Namespace(), key.SetName(), key.Value())))
+		panic(fmt.Errorf("Failed to get: namespace=%s set=%s key=%s", key.Namespace(), key.SetName(), key.Value()))
 	}
 
 	// Generation should be greater than zero.  Make sure it's populated.
 	if record.Generation == 0 {
-		panic(errors.New(fmt.Sprintf(
-			"Invalid record header: generation=%d expiration=%d", record.Generation, record.Expiration)))
+		panic(fmt.Errorf("Invalid record header: generation=%d expiration=%d", record.Generation, record.Expiration))
 	}
 	log.Printf("Received: generation=%d expiration=%d (%s)\n", record.Generation, record.Expiration, time.Duration(record.Expiration)*time.Second)
 }

@@ -327,7 +327,7 @@ func luaMapKeys(L *lua.LState) int {
 	iter := make(chan interface{})
 
 	go func() {
-		for k, _ := range ref.m {
+		for k := range ref.m {
 			iter <- k
 		}
 		close(iter)
