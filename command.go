@@ -17,11 +17,12 @@ package aerospike
 import (
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
-
 	. "github.com/aerospike/aerospike-client-go/types"
+
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -1066,6 +1067,15 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		// Parse results.
 		err = ifc.parseResult(ifc, cmd.conn)
 		if err != nil {
+			if err == io.EOF {
+				// IO errors are considered temporary anomalies. Retry.
+				// Close socket to flush out possible garbage. Do not put back in pool.
+				cmd.node.InvalidateConnection(cmd.conn)
+
+				Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
+				continue
+			}
+
 			// close the connection
 			// cancelling/closing the batch/multi commands will return an error, which will
 			// close the connection to throw away its data and signal the server about the
