@@ -195,6 +195,9 @@ const (
 	// All batch queues are full.
 	BATCH_QUEUES_FULL ResultCode = 152
 
+	// Invalid GeoJSON on insert/update
+	GEO_INVALID_GEOJSON = 160
+
 	// Secondary index already exists.
 	INDEX_FOUND ResultCode = 200
 
@@ -443,6 +446,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case BATCH_QUEUES_FULL:
 		return "All batch queues are full"
+
+	case GEO_INVALID_GEOJSON:
+		return "Invalid GeoJSON on insert/update"
 
 	case INDEX_FOUND:
 		return "Index already exists"
