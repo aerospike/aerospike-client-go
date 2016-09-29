@@ -15,7 +15,6 @@
 package aerospike_test
 
 import (
-	"bytes"
 	"runtime"
 
 	. "github.com/aerospike/aerospike-client-go"
@@ -29,7 +28,8 @@ var err error
 type OBJECT struct {
 	Price  int
 	DBName string
-	Blob   []byte
+	// Blob   []byte
+	Blob []int64
 }
 
 func benchGet(times int, client *Client, key *Key, obj interface{}) {
@@ -47,15 +47,17 @@ func benchGet(times int, client *Client, key *Key, obj interface{}) {
 }
 
 func benchPut(times int, client *Client, key *Key, wp *WritePolicy, obj interface{}) {
-	for i := 0; i < times; i++ {
-		if obj == nil {
-			dbName := NewBin("dbname", "CouchDB")
-			price := NewBin("price", 0)
-			keywords := NewBin("keywords", []string{"concurrent", "fast"})
+	if obj == nil {
+		dbName := NewBin("dbname", "CouchDB")
+		price := NewBin("price", 0)
+		keywords := NewBin("keywords", []string{"concurrent", "fast"})
+		for i := 0; i < times; i++ {
 			if err = client.PutBins(wp, key, dbName, price, keywords); err != nil {
 				panic(err)
 			}
-		} else {
+		}
+	} else {
+		for i := 0; i < times; i++ {
 			if err = client.PutObject(wp, key, obj); err != nil {
 				panic(err)
 			}
@@ -70,10 +72,14 @@ func Benchmark_Get(b *testing.B) {
 	}
 
 	key, _ := NewKey("test", "databases", "Aerospike")
-	obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
-	client.PutObject(nil, key, obj)
+	// obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
+	// obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1}}
+	client.Delete(nil, key)
+	client.PutBins(nil, key, NewBin("b", []interface{}{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, "a", "b"}))
+	// client.PutBins(nil, key, NewBin("b", 1))
+	// client.PutObject(nil, key, &obj)
 
-	b.N = 100000
+	b.N = 100
 	runtime.GC()
 	b.ResetTimer()
 	benchGet(b.N, client, key, nil)
@@ -87,10 +93,10 @@ func Benchmark_GetObject(b *testing.B) {
 
 	key, _ := NewKey("test", "databases", "Aerospike")
 
-	obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
+	obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1, 2, 3, 4, 5, 6}}
 	client.PutObject(nil, key, obj)
 
-	b.N = 100000
+	b.N = 1
 	runtime.GC()
 	b.ResetTimer()
 	benchGet(b.N, client, key, obj)
@@ -105,7 +111,7 @@ func Benchmark_Put(b *testing.B) {
 	key, _ := NewKey("test", "databases", "Aerospike")
 	writepolicy := NewWritePolicy(0, 0)
 
-	b.N = 100000
+	b.N = 100
 	runtime.GC()
 	b.ResetTimer()
 	benchPut(b.N, client, key, writepolicy, nil)
@@ -117,11 +123,12 @@ func Benchmark_PutObject(b *testing.B) {
 		b.Fail()
 	}
 
-	obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
+	// obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
+	obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1, 2, 3, 4, 5, 6}}
 	key, _ := NewKey("test", "databases", "Aerospike")
 	writepolicy := NewWritePolicy(0, 0)
 
-	b.N = 100000
+	b.N = 100
 	runtime.GC()
 	b.ResetTimer()
 	benchPut(b.N, client, key, writepolicy, obj)

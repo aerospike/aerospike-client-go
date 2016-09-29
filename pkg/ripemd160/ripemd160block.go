@@ -42,7 +42,7 @@ var r_ = [80]uint{
 	8, 5, 12, 9, 12, 5, 14, 6, 8, 13, 6, 5, 15, 13, 11, 11,
 }
 
-func _Block(md *digest, p []byte) int {
+func _Block(md *Digest, p []byte) int {
 	n := 0
 	var x [16]uint32
 	var alpha, beta uint32

@@ -20,7 +20,7 @@ import (
 )
 
 type readHeaderCommand struct {
-	*singleCommand
+	singleCommand
 
 	policy *BasePolicy
 	record *Record
@@ -28,7 +28,7 @@ type readHeaderCommand struct {
 
 func newReadHeaderCommand(cluster *Cluster, policy *BasePolicy, key *Key) *readHeaderCommand {
 	newReadHeaderCmd := &readHeaderCommand{
-		singleCommand: newSingleCommand(cluster, key),
+		singleCommand: *newSingleCommand(cluster, key),
 		policy:        policy,
 	}
 

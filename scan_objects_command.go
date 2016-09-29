@@ -19,7 +19,7 @@ import . "github.com/aerospike/aerospike-client-go/types"
 // . "github.com/aerospike/aerospike-client-go/types/atomic"
 
 type scanObjectsCommand struct {
-	*baseMultiCommand
+	baseMultiCommand
 
 	policy    *ScanPolicy
 	namespace string
@@ -38,7 +38,7 @@ func newScanObjectsCommand(
 	taskId uint64,
 ) *scanObjectsCommand {
 	cmd := &scanObjectsCommand{
-		baseMultiCommand: newMultiCommand(node, recordset),
+		baseMultiCommand: *newMultiCommand(node, recordset),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,

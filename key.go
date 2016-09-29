@@ -17,11 +17,8 @@ package aerospike
 import (
 	"bytes"
 	"fmt"
-	"hash"
 
-	"github.com/aerospike/aerospike-client-go/pkg/ripemd160"
 	. "github.com/aerospike/aerospike-client-go/types"
-	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -37,7 +34,7 @@ type Key struct {
 	setName string
 
 	// Unique server hash value generated from set name and user key.
-	digest []byte
+	digest [20]byte
 
 	// Original user key. This key is immediately converted to a hash digest.
 	// This key is not used or returned by the server by default. If the user key needs
@@ -47,6 +44,8 @@ type Key struct {
 	// and retrieved on multi-record scans and queries.
 	// Explicitly store and retrieve the key in a bin.
 	userKey Value
+
+	keyWriter keyWriter
 }
 
 // Namespace returns key's namespace.
@@ -66,12 +65,12 @@ func (ky *Key) Value() Value {
 
 // Digest returns key digest.
 func (ky *Key) Digest() []byte {
-	return ky.digest
+	return ky.digest[:]
 }
 
 // Equals uses key digests to compare key equality.
 func (ky *Key) Equals(other *Key) bool {
-	return bytes.Equal(ky.digest, other.digest)
+	return bytes.Equal(ky.digest[:], other.digest[:])
 }
 
 // String implements Stringer interface and returns string representation of key.
@@ -81,9 +80,9 @@ func (ky *Key) String() string {
 	}
 
 	if ky.userKey != nil {
-		return fmt.Sprintf("%s:%s:%s:%v", ky.namespace, ky.setName, ky.userKey.String(), Buffer.BytesToHexString(ky.digest))
+		return fmt.Sprintf("%s:%s:%s:%v", ky.namespace, ky.setName, ky.userKey.String(), Buffer.BytesToHexString(ky.digest[:]))
 	}
-	return fmt.Sprintf("%s:%s::%v", ky.namespace, ky.setName, Buffer.BytesToHexString(ky.digest))
+	return fmt.Sprintf("%s:%s::%v", ky.namespace, ky.setName, Buffer.BytesToHexString(ky.digest[:]))
 }
 
 // NewKey initializes a key from namespace, optional set name and user key.
@@ -96,9 +95,11 @@ func NewKey(namespace string, setName string, key interface{}) (newKey *Key, err
 		userKey:   NewValue(key),
 	}
 
-	newKey.digest, err = computeDigest(newKey)
+	if err := newKey.computeDigest(); err != nil {
+		return nil, err
+	}
 
-	return newKey, err
+	return newKey, nil
 }
 
 // NewKeyWithDigest initializes a key from namespace, optional set name and user key.
@@ -121,63 +122,31 @@ func (ky *Key) SetDigest(digest []byte) error {
 	if len(digest) != 20 {
 		return NewAerospikeError(PARAMETER_ERROR, "Invalid digest: Digest is required to be exactly 20 bytes.")
 	}
-	ky.digest = digest
+	copy(ky.digest[:], digest)
 	return nil
 }
 
 // Generate unique server hash value from set name, key type and user defined key.
 // The hash function is RIPEMD-160 (a 160 bit hash).
-func computeDigest(key *Key) ([]byte, error) {
-	keyType := key.userKey.GetType()
+func (ky *Key) computeDigest() error {
+	// With custom changes to the ripemd160 package,
+	// now the following line does not allocate on the heap anymore/.
+	ky.keyWriter.hash.Reset()
 
-	if keyType == ParticleType.NULL {
-		return nil, NewAerospikeError(PARAMETER_ERROR, "Invalid key: nil")
+	if _, err := ky.keyWriter.Write([]byte(ky.setName)); err != nil {
+		return err
 	}
 
-	if keyType == ParticleType.MAP {
-		return nil, NewAerospikeError(PARAMETER_ERROR, "Invalid key: Maps are not allowed. Iterartion on maps is random, and thus the digest is unstable.")
+	if _, err := ky.keyWriter.Write([]byte{byte(ky.userKey.GetType())}); err != nil {
+		return err
 	}
 
-	// retrieve hash from hash pool
-	h := hashPool.Get().(hash.Hash)
-	h.Reset()
-
-	buf := keyBufPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	if _, err := buf.WriteString(key.setName); err != nil {
-		return nil, NewAerospikeError(PARAMETER_ERROR, "Key Generation Error: "+err.Error())
-	}
-	if err := buf.WriteByte(byte(keyType)); err != nil {
-		return nil, NewAerospikeError(PARAMETER_ERROR, "Key Generation Error: "+err.Error())
-	}
-	if _, err := buf.ReadFrom(key.userKey.reader()); err != nil {
-		return nil, NewAerospikeError(PARAMETER_ERROR, "Key Generation Error: "+err.Error())
+	if err := ky.keyWriter.writeKey(ky.userKey); err != nil {
+		return err
 	}
 
-	if _, err := h.Write(buf.Bytes()); err != nil {
-		return nil, NewAerospikeError(PARAMETER_ERROR, "Key Generation Error: "+err.Error())
-	}
-	res := h.Sum(nil)
-
-	// put hash object back to the pool
-	hashPool.Put(h)
-	keyBufPool.Put(buf)
-
-	return res, nil
-}
-
-// hash pool
-var hashPool *Pool
-var keyBufPool *Pool
-
-func init() {
-	hashPool = NewPool(512)
-	hashPool.New = func(params ...interface{}) interface{} {
-		return ripemd160.New()
-	}
-
-	keyBufPool = NewPool(512)
-	keyBufPool.New = func(params ...interface{}) interface{} {
-		return new(bytes.Buffer)
-	}
+	// With custom changes to the ripemd160 package,
+	// the following line does not allocate on he heap anymore.
+	ky.keyWriter.hash.Sum(ky.digest[:])
+	return nil
 }

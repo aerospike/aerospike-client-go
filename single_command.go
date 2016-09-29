@@ -19,7 +19,7 @@ import (
 )
 
 type singleCommand struct {
-	*baseCommand
+	baseCommand
 
 	cluster   *Cluster
 	key       *Key
@@ -28,7 +28,7 @@ type singleCommand struct {
 
 func newSingleCommand(cluster *Cluster, key *Key) *singleCommand {
 	return &singleCommand{
-		baseCommand: &baseCommand{},
+		baseCommand: baseCommand{},
 		cluster:     cluster,
 		key:         key,
 		partition:   NewPartitionByKey(key),

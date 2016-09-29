@@ -18,7 +18,6 @@ import (
 	"fmt"
 
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 // Filter specifies a query filter definition.
@@ -118,36 +117,78 @@ func (fltr *Filter) IndexCollectionType() IndexCollectionType {
 
 func (fltr *Filter) estimateSize() (int, error) {
 	// bin name size(1) + particle type size(1) + begin particle size(4) + end particle size(4) = 10
-	return len(fltr.name) + fltr.begin.estimateSize() + fltr.end.estimateSize() + 10, nil
+	szBegin, err := fltr.begin.estimateSize()
+	if err != nil {
+		return szBegin, err
+	}
+
+	szEnd, err := fltr.end.estimateSize()
+	if err != nil {
+		return szEnd, err
+	}
+
+	return len(fltr.name) + szBegin + szEnd + 10, nil
 }
 
-func (fltr *Filter) write(buf []byte, offset int) (int, error) {
-	var err error
+func (fltr *Filter) write(cmd *baseCommand) (int, error) {
+	size := 0
 
-	// Write name.
-	len := copy(buf[offset+1:], fltr.name)
-	buf[offset] = byte(len)
-	offset += len + 1
+	// Write name length
+	n, err := cmd.WriteByte(byte(len(fltr.name)))
+	if err != nil {
+		return n, err
+	}
+	size += n
+
+	// Write Name
+	n, err = cmd.WriteString(fltr.name)
+	if err != nil {
+		return size + n, err
+	}
+	size += n
 
 	// Write particle type.
-	buf[offset] = byte(fltr.valueParticleType)
-	offset++
+	n, err = cmd.WriteByte(byte(fltr.valueParticleType))
+	if err != nil {
+		return n, err
+	}
+	size += n
 
 	// Write filter begin.
-	len, err = fltr.begin.write(buf, offset+4)
+	esz, err := fltr.begin.estimateSize()
 	if err != nil {
-		return -1, err
+		return size, err
 	}
-	Buffer.Int32ToBytes(int32(len), buf, offset)
-	offset += len + 4
+
+	n, err = cmd.WriteInt32(int32(esz))
+	if err != nil {
+		return size + n, err
+	}
+	size += n
+
+	n, err = fltr.begin.write(cmd)
+	if err != nil {
+		return size + n, err
+	}
+	size += n
 
 	// Write filter end.
-	len, err = fltr.end.write(buf, offset+4)
+	esz, err = fltr.end.estimateSize()
 	if err != nil {
-		return -1, err
+		return size, err
 	}
-	Buffer.Int32ToBytes(int32(len), buf, offset)
-	offset += len + 4
 
-	return offset, nil
+	n, err = cmd.WriteInt32(int32(esz))
+	if err != nil {
+		return size + n, err
+	}
+	size += n
+
+	n, err = fltr.end.write(cmd)
+	if err != nil {
+		return size + n, err
+	}
+	size += n
+
+	return size, nil
 }

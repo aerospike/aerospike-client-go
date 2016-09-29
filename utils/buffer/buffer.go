@@ -110,28 +110,6 @@ func VarBytesToInt64(buf []byte, offset int, len int) int64 {
 	return val
 }
 
-// Int64ToBytes converts an int64 into slice of Bytes.
-func Int64ToBytes(num int64, buffer []byte, offset int) []byte {
-	if buffer != nil {
-		binary.BigEndian.PutUint64(buffer[offset:], uint64(num))
-		return nil
-	}
-	b := make([]byte, uint64sz)
-	binary.BigEndian.PutUint64(b, uint64(num))
-	return b
-}
-
-// Uint64ToBytes converts an uint64 into slice of Bytes.
-func Uint64ToBytes(num uint64, buffer []byte, offset int) []byte {
-	if buffer != nil {
-		binary.BigEndian.PutUint64(buffer[offset:], num)
-		return nil
-	}
-	b := make([]byte, uint64sz)
-	binary.BigEndian.PutUint64(b, num)
-	return b
-}
-
 // BytesToInt32 converts a slice into int32; only maximum of 4 bytes will be used
 func BytesToInt32(buf []byte, offset int) int32 {
 	return int32(binary.BigEndian.Uint32(buf[offset : offset+uint32sz]))
@@ -140,28 +118,6 @@ func BytesToInt32(buf []byte, offset int) int32 {
 // BytesToUint32 converts a slice into uint32; only maximum of 4 bytes will be used
 func BytesToUint32(buf []byte, offset int) uint32 {
 	return binary.BigEndian.Uint32(buf[offset : offset+uint32sz])
-}
-
-// Int32ToBytes converts an int32 to a byte slice of size 4
-func Int32ToBytes(num int32, buffer []byte, offset int) []byte {
-	if buffer != nil {
-		binary.BigEndian.PutUint32(buffer[offset:], uint32(num))
-		return nil
-	}
-	b := make([]byte, uint32sz)
-	binary.BigEndian.PutUint32(b, uint32(num))
-	return b
-}
-
-// Uint32ToBytes converts an uint32 to a byte slice of size 4
-func Uint32ToBytes(num uint32, buffer []byte, offset int) []byte {
-	if buffer != nil {
-		binary.BigEndian.PutUint32(buffer[offset:], num)
-		return nil
-	}
-	b := make([]byte, uint32sz)
-	binary.BigEndian.PutUint32(b, num)
-	return b
 }
 
 // BytesToInt16 converts a slice of bytes to an int16
@@ -173,49 +129,14 @@ func BytesToUint16(buf []byte, offset int) uint16 {
 	return binary.BigEndian.Uint16(buf[offset : offset+uint16sz])
 }
 
-// Int16ToBytes converts an int16 to slice of bytes
-func Int16ToBytes(num int16, buffer []byte, offset int) []byte {
-	if buffer != nil {
-		binary.BigEndian.PutUint16(buffer[offset:], uint16(num))
-		return nil
-	}
-	b := make([]byte, uint16sz)
-	binary.BigEndian.PutUint16(b, uint16(num))
-	return b
-}
-
 func BytesToFloat32(buf []byte, offset int) float32 {
 	bits := binary.BigEndian.Uint32(buf[offset : offset+float32sz])
 	return math.Float32frombits(bits)
 }
 
-func Float32ToBytes(float float32, buffer []byte, offset int) []byte {
-	bits := math.Float32bits(float)
-	if buffer != nil {
-		binary.BigEndian.PutUint32(buffer[offset:], bits)
-		return nil
-	}
-
-	bytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(bytes, bits)
-	return bytes
-}
-
 func BytesToFloat64(buf []byte, offset int) float64 {
 	bits := binary.BigEndian.Uint64(buf[offset : offset+float64sz])
 	return math.Float64frombits(bits)
-}
-
-func Float64ToBytes(float float64, buffer []byte, offset int) []byte {
-	bits := math.Float64bits(float)
-	if buffer != nil {
-		binary.BigEndian.PutUint64(buffer[offset:], bits)
-		return nil
-	}
-
-	bytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(bytes, bits)
-	return bytes
 }
 
 func GetUnsigned(b byte) int {

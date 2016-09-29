@@ -22,7 +22,7 @@ import (
 var _ command = &existsCommand{}
 
 type existsCommand struct {
-	*singleCommand
+	singleCommand
 
 	policy *BasePolicy
 	exists bool
@@ -30,7 +30,7 @@ type existsCommand struct {
 
 func newExistsCommand(cluster *Cluster, policy *BasePolicy, key *Key) *existsCommand {
 	return &existsCommand{
-		singleCommand: newSingleCommand(cluster, key),
+		singleCommand: *newSingleCommand(cluster, key),
 		policy:        policy,
 	}
 }

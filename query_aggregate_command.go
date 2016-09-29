@@ -23,7 +23,7 @@ import (
 )
 
 type queryAggregateCommand struct {
-	*queryCommand
+	queryCommand
 
 	luaInstance *lua.LState
 	inputChan   chan interface{}
@@ -31,7 +31,7 @@ type queryAggregateCommand struct {
 
 func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryAggregateCommand {
 	cmd := &queryAggregateCommand{
-		queryCommand: newQueryCommand(node, policy, statement, recordset),
+		queryCommand: *newQueryCommand(node, policy, statement, recordset),
 	}
 
 	cmd.terminationErrorType = QUERY_TERMINATED

@@ -15,7 +15,7 @@
 package aerospike
 
 type queryCommand struct {
-	*baseMultiCommand
+	baseMultiCommand
 
 	policy    *QueryPolicy
 	statement *Statement
@@ -23,7 +23,7 @@ type queryCommand struct {
 
 func newQueryCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryCommand {
 	return &queryCommand{
-		baseMultiCommand: newMultiCommand(node, recordset),
+		baseMultiCommand: *newMultiCommand(node, recordset),
 		policy:           policy,
 		statement:        statement,
 	}

@@ -33,7 +33,7 @@ var user = flag.String("U", "", "Username.")
 var password = flag.String("P", "", "Password.")
 var clientPolicy *ClientPolicy
 
-var benchGetClient *Client
+var benchClient *Client
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -47,20 +47,24 @@ func init() {
 	}
 
 	var err error
-	if benchGetClient, err = NewClientWithPolicy(clientPolicy, *host, *port); err != nil {
+	if benchClient, err = NewClientWithPolicy(clientPolicy, *host, *port); err != nil {
 		panic(err)
 	}
 }
 
 func makeDataForGetBench(set string, bins []*Bin) {
 	key, _ := NewKey("test", set, 0)
-	benchGetClient.PutBins(nil, key, bins...)
+	benchClient.PutBins(nil, key, bins...)
 }
 
 func doGet(set string, b *testing.B) {
+	var err error
 	key, _ := NewKey("test", set, 0)
 	for i := 0; i < b.N; i++ {
-		benchGetClient.Get(nil, key)
+		_, err = benchClient.Get(nil, key)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 

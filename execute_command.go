@@ -15,13 +15,13 @@
 package aerospike
 
 type executeCommand struct {
-	*readCommand
+	readCommand
 
 	// overwrite
 	policy       *WritePolicy
 	packageName  string
 	functionName string
-	args         []Value
+	args         *ValueArray
 }
 
 func newExecuteCommand(
@@ -30,10 +30,10 @@ func newExecuteCommand(
 	key *Key,
 	packageName string,
 	functionName string,
-	args []Value,
+	args *ValueArray,
 ) *executeCommand {
 	return &executeCommand{
-		readCommand:  newReadCommand(cluster, &policy.BasePolicy, key, nil),
+		readCommand:  *newReadCommand(cluster, &policy.BasePolicy, key, nil),
 		policy:       policy,
 		packageName:  packageName,
 		functionName: functionName,

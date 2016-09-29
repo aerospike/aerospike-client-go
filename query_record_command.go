@@ -17,12 +17,12 @@ package aerospike
 import . "github.com/aerospike/aerospike-client-go/types"
 
 type queryRecordCommand struct {
-	*queryCommand
+	queryCommand
 }
 
 func newQueryRecordCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryRecordCommand {
 	cmd := &queryRecordCommand{
-		queryCommand: newQueryCommand(node, policy, statement, recordset),
+		queryCommand: *newQueryCommand(node, policy, statement, recordset),
 	}
 
 	cmd.terminationErrorType = QUERY_TERMINATED

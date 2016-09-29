@@ -33,7 +33,7 @@ type multiCommand interface {
 }
 
 type baseMultiCommand struct {
-	*baseCommand
+	baseCommand
 
 	buf     bytes.Buffer
 	remains int64
@@ -53,7 +53,7 @@ type baseMultiCommand struct {
 
 func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	cmd := &baseMultiCommand{
-		baseCommand: &baseCommand{node: node},
+		baseCommand: baseCommand{node: node},
 		recordset:   recordset,
 	}
 
@@ -108,7 +108,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 }
 
 func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
-	var digest []byte
+	var digest [20]byte
 	var namespace, setName string
 	var userKey Value
 	var err error
@@ -128,8 +128,7 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 
 		switch fieldtype {
 		case DIGEST_RIPE:
-			digest = make([]byte, size, size)
-			copy(digest, cmd.dataBuffer[1:size+1])
+			copy(digest[:], cmd.dataBuffer[1:size+1])
 		case NAMESPACE:
 			namespace = string(cmd.dataBuffer[1 : size+1])
 		case TABLE:

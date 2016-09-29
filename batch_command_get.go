@@ -22,7 +22,7 @@ import (
 )
 
 type batchCommandGet struct {
-	*baseMultiCommand
+	baseMultiCommand
 
 	batchNamespace *batchNamespace
 	policy         *BasePolicy
@@ -43,7 +43,7 @@ func newBatchCommandGet(
 	readAttr int,
 ) *batchCommandGet {
 	return &batchCommandGet{
-		baseMultiCommand: newMultiCommand(node, nil),
+		baseMultiCommand: *newMultiCommand(node, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
 		keys:             keys,
@@ -98,14 +98,14 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		offset := cmd.batchNamespace.offsets[cmd.index] //cmd.keyMap[string(key.digest)]
 		cmd.index++
 
-		if bytes.Equal(key.digest, cmd.keys[offset].digest) {
+		if bytes.Equal(key.digest[:], cmd.keys[offset].digest[:]) {
 			if resultCode == 0 {
 				if cmd.records[offset], err = cmd.parseRecord(key, opCount, generation, expiration); err != nil {
 					return false, err
 				}
 			}
 		} else {
-			return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(key.namespace)+","+Buffer.BytesToHexString(key.digest))
+			return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(key.namespace)+","+Buffer.BytesToHexString(key.digest[:]))
 		}
 	}
 	return true, nil

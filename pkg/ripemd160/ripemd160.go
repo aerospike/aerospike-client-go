@@ -5,18 +5,15 @@
 // Package ripemd160 implements the RIPEMD-160 hash algorithm.
 package ripemd160
 
+import "hash"
+
 // RIPEMD-160 is designed by by Hans Dobbertin, Antoon Bosselaers, and Bart
 // Preneel with specifications available at:
 // http://homes.esat.kuleuven.be/~cosicart/pdf/AB-9601/AB-9601.pdf.
 
-import (
-	"crypto"
-	"hash"
-)
-
-func init() {
-	crypto.RegisterHash(crypto.RIPEMD160, New)
-}
+// func init() {
+// 	crypto.RegisterHash(crypto.RIPEMD160, New)
+// }
 
 // The size of the checksum in bytes.
 const Size = 20
@@ -32,15 +29,15 @@ const (
 	_s4 = 0xc3d2e1f0
 )
 
-// digest represents the partial evaluation of a checksum.
-type digest struct {
+// Digest represents the partial evaluation of a checksum.
+type Digest struct {
 	s  [5]uint32       // running context
 	x  [BlockSize]byte // temporary buffer
 	nx int             // index into x
 	tc uint64          // total count of bytes processed
 }
 
-func (d *digest) Reset() {
+func (d *Digest) Reset() {
 	d.s[0], d.s[1], d.s[2], d.s[3], d.s[4] = _s0, _s1, _s2, _s3, _s4
 	d.nx = 0
 	d.tc = 0
@@ -48,16 +45,16 @@ func (d *digest) Reset() {
 
 // New returns a new hash.Hash computing the checksum.
 func New() hash.Hash {
-	result := new(digest)
+	result := Digest{}
 	result.Reset()
-	return result
+	return &result
 }
 
-func (d *digest) Size() int { return Size }
+func (d *Digest) Size() int { return Size }
 
-func (d *digest) BlockSize() int { return BlockSize }
+func (d *Digest) BlockSize() int { return BlockSize }
 
-func (d *digest) Write(p []byte) (nn int, err error) {
+func (d *Digest) Write(p []byte) (nn int, err error) {
 	nn = len(p)
 	d.tc += uint64(nn)
 	if d.nx > 0 {
@@ -83,7 +80,7 @@ func (d *digest) Write(p []byte) (nn int, err error) {
 	return
 }
 
-func (d *digest) Sum(in []byte) []byte {
+func (d *Digest) Sum(res []byte) []byte {
 	// Make a copy of d0 so that caller can keep writing and summing.
 	// d := *d0
 
@@ -108,14 +105,15 @@ func (d *digest) Sum(in []byte) []byte {
 		panic("d.nx != 0")
 	}
 
-	var digest [Size]byte
+	var Digest [Size]byte
 	for i, s := range d.s {
-		digest[i*4] = byte(s)
-		digest[i*4+1] = byte(s >> 8)
-		digest[i*4+2] = byte(s >> 16)
-		digest[i*4+3] = byte(s >> 24)
+		Digest[i*4] = byte(s)
+		Digest[i*4+1] = byte(s >> 8)
+		Digest[i*4+2] = byte(s >> 16)
+		Digest[i*4+3] = byte(s >> 24)
 	}
 
-	return digest[:]
-	// return append(in, digest[:]...)
+	copy(res, Digest[:])
+	// return append(in, Digest[:]...)
+	return nil
 }

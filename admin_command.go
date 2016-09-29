@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"encoding/binary"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/pkg/bcrypt"
@@ -59,9 +60,12 @@ type AdminCommand struct {
 	dataOffset int
 }
 
-func newAdminCommand() *AdminCommand {
+func newAdminCommand(buf []byte) *AdminCommand {
+	if buf == nil {
+		buf = make([]byte, 10*1024)
+	}
 	return &AdminCommand{
-		dataBuffer: bufPool.Get(),
+		dataBuffer: buf,
 		dataOffset: 8,
 	}
 }
@@ -82,7 +86,7 @@ func (acmd *AdminCommand) authenticate(conn *Connection, user string, password [
 		return NewAerospikeError(ResultCode(result), "Authentication failed")
 	}
 
-	bufPool.Put(acmd.dataBuffer)
+	// bufPool.Put(acmd.dataBuffer)
 
 	return nil
 }
@@ -142,7 +146,7 @@ func (acmd *AdminCommand) revokeRoles(cluster *Cluster, policy *AdminPolicy, use
 func (acmd *AdminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user string) (*UserRoles, error) {
 	// TODO: Remove the workaround in the future
 	time.Sleep(time.Millisecond * 10)
-	defer bufPool.Put(acmd.dataBuffer)
+	// defer bufPool.Put(acmd.dataBuffer)
 
 	acmd.writeHeader(_QUERY_USERS, 1)
 	acmd.writeFieldStr(_USER, user)
@@ -161,7 +165,7 @@ func (acmd *AdminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user 
 func (acmd *AdminCommand) queryUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, error) {
 	// TODO: Remove the workaround in the future
 	time.Sleep(time.Millisecond * 10)
-	defer bufPool.Put(acmd.dataBuffer)
+	// defer bufPool.Put(acmd.dataBuffer)
 
 	acmd.writeHeader(_QUERY_USERS, 0)
 	list, err := acmd.readUsers(cluster, policy)
@@ -190,7 +194,7 @@ func (acmd *AdminCommand) writeRoles(roles []string) {
 func (acmd *AdminCommand) writeSize() {
 	// Write total size of message which is the current offset.
 	var size = int64(acmd.dataOffset-8) | (_MSG_VERSION << 56) | (_MSG_TYPE << 48)
-	Buffer.Int64ToBytes(size, acmd.dataBuffer, 0)
+	binary.BigEndian.PutUint64(acmd.dataBuffer[0:], uint64(size))
 }
 
 func (acmd *AdminCommand) writeHeader(command byte, fieldCount int) {
@@ -216,7 +220,9 @@ func (acmd *AdminCommand) writeFieldBytes(id byte, bytes []byte) {
 }
 
 func (acmd *AdminCommand) writeFieldHeader(id byte, size int) {
-	Buffer.Int32ToBytes(int32(size+1), acmd.dataBuffer, acmd.dataOffset)
+	// Buffer.Int32ToBytes(int32(size+1), acmd.dataBuffer, acmd.dataOffset)
+	binary.BigEndian.PutUint32(acmd.dataBuffer[acmd.dataOffset:], uint32(size+1))
+
 	acmd.dataOffset += 4
 	acmd.dataBuffer[acmd.dataOffset] = id
 	acmd.dataOffset++
@@ -226,7 +232,7 @@ func (acmd *AdminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 	// TODO: Remove the workaround in the future
 	defer time.Sleep(time.Millisecond * 10)
 
-	defer bufPool.Put(acmd.dataBuffer)
+	// defer bufPool.Put(acmd.dataBuffer)
 
 	acmd.writeSize()
 	node, err := cluster.GetRandomNode()

@@ -840,7 +840,7 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (interface{}, error) {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newExecuteCommand(clnt.cluster, policy, key, packageName, functionName, args)
+	command := newExecuteCommand(clnt.cluster, policy, key, packageName, functionName, NewValueArray(args))
 	if err := command.Execute(); err != nil {
 		return nil, err
 	}
@@ -1340,7 +1340,7 @@ func (clnt *Client) CreateUser(policy *AdminPolicy, user string, password string
 	if err != nil {
 		return err
 	}
-	command := newAdminCommand()
+	command := newAdminCommand(nil)
 	return command.createUser(clnt.cluster, policy, user, hash, roles)
 }
 
@@ -1348,7 +1348,7 @@ func (clnt *Client) CreateUser(policy *AdminPolicy, user string, password string
 func (clnt *Client) DropUser(policy *AdminPolicy, user string) error {
 	policy = clnt.getUsableAdminPolicy(policy)
 
-	command := newAdminCommand()
+	command := newAdminCommand(nil)
 	return command.dropUser(clnt.cluster, policy, user)
 }
 
@@ -1364,7 +1364,7 @@ func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password st
 	if err != nil {
 		return err
 	}
-	command := newAdminCommand()
+	command := newAdminCommand(nil)
 
 	if user == clnt.cluster.user {
 		// Change own password.
@@ -1387,7 +1387,7 @@ func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password st
 func (clnt *Client) GrantRoles(policy *AdminPolicy, user string, roles []string) error {
 	policy = clnt.getUsableAdminPolicy(policy)
 
-	command := newAdminCommand()
+	command := newAdminCommand(nil)
 	return command.grantRoles(clnt.cluster, policy, user, roles)
 }
 
@@ -1395,7 +1395,7 @@ func (clnt *Client) GrantRoles(policy *AdminPolicy, user string, roles []string)
 func (clnt *Client) RevokeRoles(policy *AdminPolicy, user string, roles []string) error {
 	policy = clnt.getUsableAdminPolicy(policy)
 
-	command := newAdminCommand()
+	command := newAdminCommand(nil)
 	return command.revokeRoles(clnt.cluster, policy, user, roles)
 }
 
@@ -1403,7 +1403,7 @@ func (clnt *Client) RevokeRoles(policy *AdminPolicy, user string, roles []string
 func (clnt *Client) QueryUser(policy *AdminPolicy, user string) (*UserRoles, error) {
 	policy = clnt.getUsableAdminPolicy(policy)
 
-	command := newAdminCommand()
+	command := newAdminCommand(nil)
 	return command.queryUser(clnt.cluster, policy, user)
 }
 
@@ -1411,7 +1411,7 @@ func (clnt *Client) QueryUser(policy *AdminPolicy, user string) (*UserRoles, err
 func (clnt *Client) QueryUsers(policy *AdminPolicy) ([]*UserRoles, error) {
 	policy = clnt.getUsableAdminPolicy(policy)
 
-	command := newAdminCommand()
+	command := newAdminCommand(nil)
 	return command.queryUsers(clnt.cluster, policy)
 }
 

@@ -34,6 +34,10 @@ type Connection struct {
 
 	// connection object
 	conn net.Conn
+
+	// to avoid having a buffer pool and contention
+	dataBuffer []byte
+	keyWriter  keyWriter
 }
 
 func errToTimeoutErr(err error) error {
@@ -48,7 +52,7 @@ func errToTimeoutErr(err error) error {
 // If the connection is not established in the specified timeout,
 // an error will be returned
 func NewConnection(address string, timeout time.Duration) (*Connection, error) {
-	newConn := &Connection{}
+	newConn := &Connection{dataBuffer: make([]byte, 1024)}
 
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
@@ -160,7 +164,7 @@ func (ctn *Connection) Close() {
 func (ctn *Connection) Authenticate(user string, password []byte) error {
 	// need to authenticate
 	if user != "" {
-		command := newAdminCommand()
+		command := newAdminCommand(ctn.dataBuffer)
 		if err := command.authenticate(ctn, user, password); err != nil {
 			// Socket not authenticated. Do not put back into pool.
 			return err

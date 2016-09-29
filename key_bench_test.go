@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	"math/rand"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -30,7 +29,7 @@ func doTheHash(buf []byte, b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		hash.Reset()
 		hash.Write(buf)
-		res = hash.Sum(nil)
+		hash.Sum(res)
 	}
 }
 
@@ -66,8 +65,10 @@ func Benchmark_K_Hash_S_100_000(b *testing.B) {
 
 func makeKeys(val interface{}, b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		key, _ := NewKey("ns", "set", val)
-		res = key.Digest()
+		_, err := NewKey("ns", "set", val)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -134,164 +135,30 @@ func Benchmark_NewKey_________Int(b *testing.B) {
 	makeKeys(rand.Int63(), b)
 }
 
+func Benchmark_NewKey_____Float64(b *testing.B) {
+	makeKeys(rand.Float64(), b)
+}
+
 func Benchmark_NewKey_List_No_Reflect(b *testing.B) {
 	list := []interface{}{
-		strings.Repeat("s", 1),
-		strings.Repeat("s", 10),
-		strings.Repeat("s", 100),
-		strings.Repeat("s", 1000),
-		strings.Repeat("s", 10000),
-		strings.Repeat("s", 100000),
+		strings.Repeat("s", 1e3),
+		strings.Repeat("s", 1e3),
+		strings.Repeat("s", 1e3),
+		strings.Repeat("s", 1e3),
+		strings.Repeat("s", 1e3),
+		strings.Repeat("s", 1e3),
 	}
 	makeKeys(list, b)
 }
 
 func Benchmark_NewKey_List_With_Reflect(b *testing.B) {
 	list := []string{
-		strings.Repeat("s", 1),
-		strings.Repeat("s", 10),
-		strings.Repeat("s", 100),
-		strings.Repeat("s", 1000),
-		strings.Repeat("s", 10000),
-		strings.Repeat("s", 100000),
+		strings.Repeat("s", 1e3),
+		strings.Repeat("s", 1e3),
+		strings.Repeat("s", 1e3),
+		strings.Repeat("s", 1e3),
+		strings.Repeat("s", 1e3),
+		strings.Repeat("s", 1e3),
 	}
 	makeKeys(list, b)
 }
-
-func Benchmark_NewKey_Map_No_Reflect(b *testing.B) {
-	theMap := map[interface{}]interface{}{
-		1: strings.Repeat("s", 1),
-		2: strings.Repeat("s", 10),
-		3: strings.Repeat("s", 100),
-		4: strings.Repeat("s", 1000),
-		5: strings.Repeat("s", 10000),
-		6: strings.Repeat("s", 100000),
-		7: rand.Int63(),
-	}
-	makeKeys(theMap, b)
-}
-
-func Benchmark_NewKey_Map_With_Reflect(b *testing.B) {
-	theMap := map[int]interface{}{
-		1: strings.Repeat("s", 1),
-		2: strings.Repeat("s", 10),
-		3: strings.Repeat("s", 100),
-		4: strings.Repeat("s", 1000),
-		5: strings.Repeat("s", 10000),
-		6: strings.Repeat("s", 100000),
-		7: rand.Int63(),
-	}
-	makeKeys(theMap, b)
-}
-
-var _k, _v interface{}
-
-func Benchmark_Map_Native_Iterate(b *testing.B) {
-	theMap := map[interface{}]interface{}{
-		1: strings.Repeat("s", 1),
-		7: rand.Int63(),
-	}
-
-	for i := 0; i < b.N; i++ {
-		for k, v := range theMap {
-			_k, _v = k, v
-		}
-	}
-}
-
-func Benchmark_Map_Reflect_Iterate(b *testing.B) {
-	theMap := map[interface{}]interface{}{
-		1: strings.Repeat("s", 1),
-		7: rand.Int63(),
-	}
-
-	var interfaceMap interface{} = theMap
-
-	for i := 0; i < b.N; i++ {
-		s := reflect.ValueOf(interfaceMap)
-		for _, k := range s.MapKeys() {
-			_k, _v = k.Interface(), s.MapIndex(k).Interface()
-		}
-	}
-}
-
-// func Benchmark_Key_New(b *testing.B) {
-// 	for i := 0; i < b.N; i++ {
-// 		key, _ = NewKeyNew(str, str, str)
-// 		res = key.Digest()
-// 	}
-// }
-
-// func Benchmark_K_ComputeDigest_Orig(b *testing.B) {
-// 	key, _ := NewKey(str, str, str)
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		res, _ = computeDigest(key)
-// 	}
-// }
-
-// func Benchmark_K_ComputeDigest_Verify(b *testing.B) {
-// 	var res1, res2 []byte
-// 	var key *Key
-// 	for i := 0; i < b.N; i++ {
-// 		key, _ = NewKey(str, str, i)
-// 		res1, _ = computeDigest(key)
-// 		res2, _ = computeDigestNew(key)
-
-// 		if !bytes.Equal(res1, res2) {
-// 			panic("Oh oh!")
-// 		}
-
-// 		key, _ = NewKey(str, str, fmt.Sprintf("%s%d", str, i))
-// 		res1, _ = computeDigest(key)
-// 		res2, _ = computeDigestNew(key)
-
-// 		if !bytes.Equal(res1, res2) {
-// 			panic(fmt.Sprintf("Oh oh!\n%v\n%v", res1, res2))
-// 		}
-// 	}
-// }
-
-// func Benchmark_K_ComputeDigest_Raw(b *testing.B) {
-// 	h := ripemd160.New()
-// 	setName := []byte(str)
-// 	keyType := []byte{byte(ParticleType.STRING)}
-// 	keyVal := []byte(str)
-// 	for i := 0; i < b.N; i++ {
-// 		h.Reset()
-
-// 		// write will not fail; no error checking necessary
-// 		h.Write(setName)
-// 		h.Write(keyType)
-// 		h.Write(keyVal)
-
-// 		res = h.Sum(nil)
-// 	}
-// }
-
-// func Benchmark_ComputeDigest_New(b *testing.B) {
-// 	for i := 0; i < b.N; i++ {
-// 		res, _ = ComputeDigestNew(str, strVal)
-// 	}
-// }
-
-// func Test_Compare_ComputeDigests(t *testing.T) {
-// 	for i := 0; i < 100000; i++ {
-// 		str := randString(rand.Intn(100))
-// 		// v := str
-// 		// v := rand.Int()
-// 		// v := rand.Int63()
-// 		// v := []byte{}
-// 		// v := []byte{17, 191, 241}
-// 		// v := []int{17, 191, 241}
-// 		// v := []interface{}{17, "191", nil}
-// 		v := []Value{NewValue(17), NewValue("191"), NewValue(nil)}
-// 		val := NewValue(v)
-
-// 		a, _ := ComputeDigest(str, val)
-// 		b, _ := ComputeDigestNew(str, val)
-// 		if !bytes.Equal(a, b) {
-// 			panic("Digests are not the same")
-// 		}
-// 	}
-// }

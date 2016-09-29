@@ -15,14 +15,11 @@
 package aerospike
 
 import (
-	"bytes"
 	"fmt"
-	"io"
+	"math"
 	"reflect"
 	"strconv"
-	"strings"
 
-	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -37,13 +34,13 @@ type MapPair struct{ Key, Value interface{} }
 type Value interface {
 
 	// Calculate number of vl.bytes necessary to serialize the value in the wire protocol.
-	estimateSize() int
+	estimateSize() (int, error)
 
 	// Serialize the value in the wire protocol.
-	write(buffer []byte, offset int) (int, error)
+	write(cmd AerospikeBuffer) (int, error)
 
 	// Serialize the value using MessagePack.
-	pack(packer *packer) error
+	pack(cmd AerospikeBuffer) (int, error)
 
 	// GetType returns wire protocol value type.
 	GetType() int
@@ -53,12 +50,8 @@ type Value interface {
 
 	// String implements Stringer interface.
 	String() string
-
-	reader() io.Reader
 }
 
-// AerospikeBlob defines an interface to automatically
-// encode an object to a []byte.
 type AerospikeBlob interface {
 	// EncodeBlob returns a byte slice representing the encoding of the
 	// receiver for transmission to a Decoder, usually of the same
@@ -70,45 +63,50 @@ type AerospikeBlob interface {
 // If the type is not supported, NewValue will panic.
 func NewValue(v interface{}) Value {
 	switch val := v.(type) {
-	case nil:
-		return &NullValue{}
+	case Value:
+		return val
 	case int:
-		return NewIntegerValue(val)
+		return IntegerValue(val)
 	case int64:
-		return NewLongValue(val)
+		return LongValue(val)
 	case string:
-		return NewStringValue(val)
+		return StringValue(val)
+	case []interface{}:
+		return ListValue(val)
+	case map[string]interface{}:
+		return JsonValue(val)
+	case map[interface{}]interface{}:
+		return NewMapValue(val)
+	case nil:
+		return nullValue
 	case []Value:
 		return NewValueArray(val)
 	case []byte:
-		return NewBytesValue(val)
+		return BytesValue(val)
 	case int8:
-		return NewIntegerValue(int(val))
+		return IntegerValue(int(val))
 	case int16:
-		return NewIntegerValue(int(val))
+		return IntegerValue(int(val))
 	case int32:
-		return NewIntegerValue(int(val))
+		return IntegerValue(int(val))
 	case uint8: // byte supported here
-		return NewIntegerValue(int(val))
+		return IntegerValue(int(val))
 	case uint16:
-		return NewIntegerValue(int(val))
+		return IntegerValue(int(val))
 	case uint32:
-		return NewIntegerValue(int(val))
+		return IntegerValue(int(val))
 	case float32:
-		return NewFloatValue(float64(val))
+		return FloatValue(float64(val))
 	case float64:
-		return NewFloatValue(val)
+		return FloatValue(val)
 	case uint:
-		maxInt := ^uint(0) >> 1
-		if !Buffer.Arch64Bits || (val <= maxInt) {
-			return NewLongValue(int64(val))
+		if val <= math.MaxInt64 {
+			return LongValue(int64(val))
 		}
-	case []interface{}:
-		return NewListValue(val)
-	case map[interface{}]interface{}:
-		return NewMapValue(val)
-	case Value:
-		return val
+	case MapIter:
+		return NewMapperValue(val)
+	case ListIter:
+		return NewListerValue(val)
 	case AerospikeBlob:
 		return NewBlobValue(val)
 	}
@@ -154,16 +152,16 @@ func NewNullValue() NullValue {
 	return nullValue
 }
 
-func (vl NullValue) estimateSize() int {
-	return 0
-}
-
-func (vl NullValue) write(buffer []byte, offset int) (int, error) {
+func (vl NullValue) estimateSize() (int, error) {
 	return 0, nil
 }
 
-func (vl NullValue) pack(packer *packer) error {
-	return packer.PackNil()
+func (vl NullValue) write(cmd AerospikeBuffer) (int, error) {
+	return 0, nil
+}
+
+func (vl NullValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackNil(cmd)
 }
 
 // GetType returns wire protocol value type.
@@ -176,11 +174,6 @@ func (vl NullValue) GetObject() interface{} {
 	return nil
 }
 
-func (vl NullValue) reader() io.Reader {
-	return nil
-}
-
-// String implements Stringer interface.
 func (vl NullValue) String() string {
 	return ""
 }
@@ -207,17 +200,16 @@ func NewBlobValue(object AerospikeBlob) BytesValue {
 	return NewBytesValue(buf)
 }
 
-func (vl BytesValue) estimateSize() int {
-	return len(vl)
+func (vl BytesValue) estimateSize() (int, error) {
+	return len(vl), nil
 }
 
-func (vl BytesValue) write(buffer []byte, offset int) (int, error) {
-	len := copy(buffer[offset:], vl)
-	return len, nil
+func (vl BytesValue) write(cmd AerospikeBuffer) (int, error) {
+	return cmd.Write(vl)
 }
 
-func (vl BytesValue) pack(packer *packer) error {
-	return packer.PackBytes(vl)
+func (vl BytesValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackBytes(cmd, vl)
 }
 
 // GetType returns wire protocol value type.
@@ -228,10 +220,6 @@ func (vl BytesValue) GetType() int {
 // GetObject returns original value as an interface{}.
 func (vl BytesValue) GetObject() interface{} {
 	return []byte(vl)
-}
-
-func (vl BytesValue) reader() io.Reader {
-	return bytes.NewReader(vl)
 }
 
 // String implements Stringer interface.
@@ -249,16 +237,16 @@ func NewStringValue(value string) StringValue {
 	return StringValue(value)
 }
 
-func (vl StringValue) estimateSize() int {
-	return len(vl)
+func (vl StringValue) estimateSize() (int, error) {
+	return len(vl), nil
 }
 
-func (vl StringValue) write(buffer []byte, offset int) (int, error) {
-	return copy(buffer[offset:], vl), nil
+func (vl StringValue) write(cmd AerospikeBuffer) (int, error) {
+	return cmd.WriteString(string(vl))
 }
 
-func (vl StringValue) pack(packer *packer) error {
-	return packer.PackString(string(vl))
+func (vl StringValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackString(cmd, string(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -269,10 +257,6 @@ func (vl StringValue) GetType() int {
 // GetObject returns original value as an interface{}.
 func (vl StringValue) GetObject() interface{} {
 	return string(vl)
-}
-
-func (vl StringValue) reader() io.Reader {
-	return strings.NewReader(string(vl))
 }
 
 // String implements Stringer interface.
@@ -290,21 +274,16 @@ func NewIntegerValue(value int) IntegerValue {
 	return IntegerValue(value)
 }
 
-func (vl IntegerValue) estimateSize() int {
-	return 8
-}
-
-func (vl IntegerValue) write(buffer []byte, offset int) (int, error) {
-	Buffer.Int64ToBytes(int64(vl), buffer, offset)
+func (vl IntegerValue) estimateSize() (int, error) {
 	return 8, nil
 }
 
-func (vl IntegerValue) pack(packer *packer) error {
-	if Buffer.SizeOfInt == Buffer.SizeOfInt32 {
-		return packer.PackAInt(int(vl))
-	} else {
-		return packer.PackALong(int64(vl))
-	}
+func (vl IntegerValue) write(cmd AerospikeBuffer) (int, error) {
+	return cmd.WriteInt64(int64(vl))
+}
+
+func (vl IntegerValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackAInt64(cmd, int64(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -315,10 +294,6 @@ func (vl IntegerValue) GetType() int {
 // GetObject returns original value as an interface{}.
 func (vl IntegerValue) GetObject() interface{} {
 	return int(vl)
-}
-
-func (vl IntegerValue) reader() io.Reader {
-	return bytes.NewReader(Buffer.Int64ToBytes(int64(vl), nil, 0))
 }
 
 // String implements Stringer interface.
@@ -336,17 +311,16 @@ func NewLongValue(value int64) LongValue {
 	return LongValue(value)
 }
 
-func (vl LongValue) estimateSize() int {
-	return 8
-}
-
-func (vl LongValue) write(buffer []byte, offset int) (int, error) {
-	Buffer.Int64ToBytes(int64(vl), buffer, offset)
+func (vl LongValue) estimateSize() (int, error) {
 	return 8, nil
 }
 
-func (vl LongValue) pack(packer *packer) error {
-	return packer.PackALong(int64(vl))
+func (vl LongValue) write(cmd AerospikeBuffer) (int, error) {
+	return cmd.WriteInt64(int64(vl))
+}
+
+func (vl LongValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackAInt64(cmd, int64(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -357,10 +331,6 @@ func (vl LongValue) GetType() int {
 // GetObject returns original value as an interface{}.
 func (vl LongValue) GetObject() interface{} {
 	return int64(vl)
-}
-
-func (vl LongValue) reader() io.Reader {
-	return bytes.NewReader(Buffer.Int64ToBytes(int64(vl), nil, 0))
 }
 
 // String implements Stringer interface.
@@ -378,17 +348,16 @@ func NewFloatValue(value float64) FloatValue {
 	return FloatValue(value)
 }
 
-func (vl FloatValue) estimateSize() int {
-	return 8
-}
-
-func (vl FloatValue) write(buffer []byte, offset int) (int, error) {
-	Buffer.Float64ToBytes(float64(vl), buffer, offset)
+func (vl FloatValue) estimateSize() (int, error) {
 	return 8, nil
 }
 
-func (vl FloatValue) pack(packer *packer) error {
-	return packer.PackFloat64(float64(vl))
+func (vl FloatValue) write(cmd AerospikeBuffer) (int, error) {
+	return cmd.WriteFloat64(float64(vl))
+}
+
+func (vl FloatValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackFloat64(cmd, float64(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -401,10 +370,6 @@ func (vl FloatValue) GetObject() interface{} {
 	return float64(vl)
 }
 
-func (vl FloatValue) reader() io.Reader {
-	return bytes.NewReader(Buffer.Float64ToBytes(float64(vl), nil, 0))
-}
-
 // String implements Stringer interface.
 func (vl FloatValue) String() string {
 	return (fmt.Sprintf("%f", vl))
@@ -415,12 +380,12 @@ func (vl FloatValue) String() string {
 // ValueArray encapsulates an array of Value.
 // Supported by Aerospike 3 servers only.
 type ValueArray struct {
-	array []Value
-	bytes []byte
+	*ListerValue
 }
 
 // ToValueSlice converts a []interface{} to []Value.
 // It will panic if any of array element types are not supported.
+// TODO: Do something about this
 func ToValueSlice(array []interface{}) []Value {
 	res := make([]Value, 0, len(array))
 	for i := range array {
@@ -432,103 +397,97 @@ func ToValueSlice(array []interface{}) []Value {
 // ToValueArray converts a []interface{} to a ValueArray type.
 // It will panic if any of array element types are not supported.
 func ToValueArray(array []interface{}) *ValueArray {
-	return NewValueArray(ToValueSlice(array))
+	// return NewValueArray(ToValueSlice(array))
+	res := ValueArray{NewListerValue(ifcValueList(array))}
+	return &res
+
 }
 
 // NewValueArray generates a ValueArray instance.
 func NewValueArray(array []Value) *ValueArray {
-	res := &ValueArray{
-		array: array,
-	}
-
-	res.bytes, _ = packValueArray(array)
-
-	return res
-}
-
-func (vl *ValueArray) estimateSize() int {
-	return len(vl.bytes)
-}
-
-func (vl *ValueArray) write(buffer []byte, offset int) (int, error) {
-	res := copy(buffer[offset:], vl.bytes)
-	return res, nil
-}
-
-func (vl *ValueArray) pack(packer *packer) error {
-	return packer.packValueArray(vl.array)
-}
-
-// GetType returns wire protocol value type.
-func (vl *ValueArray) GetType() int {
-	return ParticleType.LIST
-}
-
-// GetObject returns original value as an interface{}.
-func (vl *ValueArray) GetObject() interface{} {
-	return vl.array
-}
-
-func (vl *ValueArray) reader() io.Reader {
-	return bytes.NewReader(vl.bytes)
-}
-
-// String implements Stringer interface.
-func (vl *ValueArray) String() string {
-	return fmt.Sprintf("%v", vl.array)
+	res := ValueArray{NewListerValue(valueList(array))}
+	return &res
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 // ListValue encapsulates any arbitrary array.
 // Supported by Aerospike 3 servers only.
-type ListValue struct {
-	list  []interface{}
-	bytes []byte
-}
+type ListValue []interface{}
 
 // NewListValue generates a ListValue instance.
-func NewListValue(list []interface{}) *ListValue {
-	res := &ListValue{
-		list: list,
-	}
-
-	res.bytes, _ = packAnyArray(list)
-
-	return res
+func NewListValue(list []interface{}) ListValue {
+	return ListValue(list)
 }
 
-func (vl *ListValue) estimateSize() int {
-	return len(vl.bytes)
+func (vl ListValue) estimateSize() (int, error) {
+	return __PackIfcList(nil, vl)
 }
 
-func (vl *ListValue) write(buffer []byte, offset int) (int, error) {
-	l := copy(buffer[offset:], vl.bytes)
-	return l, nil
+func (vl ListValue) write(cmd AerospikeBuffer) (int, error) {
+	return __PackIfcList(cmd, vl)
 }
 
-func (vl *ListValue) pack(packer *packer) error {
-	// return packer.PackList(vl.list)
-	_, err := packer.buffer.Write(vl.bytes)
-	return err
+func (vl ListValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackIfcList(cmd, []interface{}(vl))
 }
 
 // GetType returns wire protocol value type.
-func (vl *ListValue) GetType() int {
+func (vl ListValue) GetType() int {
 	return ParticleType.LIST
 }
 
 // GetObject returns original value as an interface{}.
-func (vl *ListValue) GetObject() interface{} {
-	return vl.list
-}
-
-func (vl *ListValue) reader() io.Reader {
-	return bytes.NewReader(vl.bytes)
+func (vl ListValue) GetObject() interface{} {
+	return vl
 }
 
 // String implements Stringer interface.
-func (vl *ListValue) String() string {
+func (vl ListValue) String() string {
+	return fmt.Sprintf("%v", []interface{}(vl))
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// ListValue encapsulates any arbitrary array.
+// Supported by Aerospike 3 servers only.
+type ListerValue struct {
+	list ListIter
+}
+
+// NewListValue generates a ListValue instance.
+func NewListerValue(list ListIter) *ListerValue {
+	res := &ListerValue{
+		list: list,
+	}
+
+	return res
+}
+
+func (vl *ListerValue) estimateSize() (int, error) {
+	return __PackList(nil, vl.list)
+}
+
+func (vl *ListerValue) write(cmd AerospikeBuffer) (int, error) {
+	return __PackList(cmd, vl.list)
+}
+
+func (vl *ListerValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackList(cmd, vl.list)
+}
+
+// GetType returns wire protocol value type.
+func (vl *ListerValue) GetType() int {
+	return ParticleType.LIST
+}
+
+// GetObject returns original value as an interface{}.
+func (vl *ListerValue) GetObject() interface{} {
+	return vl.list
+}
+
+// String implements Stringer interface.
+func (vl *ListerValue) String() string {
 	return fmt.Sprintf("%v", vl.list)
 }
 
@@ -536,58 +495,122 @@ func (vl *ListValue) String() string {
 
 // MapValue encapsulates an arbitrary map.
 // Supported by Aerospike 3 servers only.
-type MapValue struct {
-	vmap  map[interface{}]interface{}
-	bytes []byte
-}
+type MapValue map[interface{}]interface{}
 
 // NewMapValue generates a MapValue instance.
-func NewMapValue(vmap map[interface{}]interface{}) *MapValue {
-	res := &MapValue{
-		vmap: vmap,
-	}
-
-	res.bytes, _ = packAnyMap(vmap)
-
-	return res
+func NewMapValue(vmap map[interface{}]interface{}) MapValue {
+	return MapValue(vmap)
 }
 
-func (vl *MapValue) estimateSize() int {
-	return len(vl.bytes)
+func (vl MapValue) estimateSize() (int, error) {
+	return __PackIfcMap(nil, vl)
 }
 
-func (vl *MapValue) write(buffer []byte, offset int) (int, error) {
-	return copy(buffer[offset:], vl.bytes), nil
+func (vl MapValue) write(cmd AerospikeBuffer) (int, error) {
+	return __PackIfcMap(cmd, vl)
 }
 
-func (vl *MapValue) pack(packer *packer) error {
-	// return packer.PackMap(vl.vmap)
-	_, err := packer.buffer.Write(vl.bytes)
-	return err
+func (vl MapValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackIfcMap(cmd, vl)
 }
 
 // GetType returns wire protocol value type.
-func (vl *MapValue) GetType() int {
+func (vl MapValue) GetType() int {
 	return ParticleType.MAP
 }
 
 // GetObject returns original value as an interface{}.
-func (vl *MapValue) GetObject() interface{} {
+func (vl MapValue) GetObject() interface{} {
+	return vl
+}
+
+func (vl MapValue) String() string {
+	return fmt.Sprintf("%v", map[interface{}]interface{}(vl))
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// JsonValue encapsulates a Json map.
+// Supported by Aerospike 3 servers only.
+type JsonValue map[string]interface{}
+
+// NewMapValue generates a JsonValue instance.
+func NewJsonValue(vmap map[string]interface{}) JsonValue {
+	return JsonValue(vmap)
+}
+
+func (vl JsonValue) estimateSize() (int, error) {
+	return __PackJsonMap(nil, vl)
+}
+
+func (vl JsonValue) write(cmd AerospikeBuffer) (int, error) {
+	return __PackJsonMap(cmd, vl)
+}
+
+func (vl JsonValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackJsonMap(cmd, vl)
+}
+
+// GetType returns wire protocol value type.
+func (vl JsonValue) GetType() int {
+	return ParticleType.MAP
+}
+
+// GetObject returns original value as an interface{}.
+func (vl JsonValue) GetObject() interface{} {
+	return vl
+}
+
+func (vl JsonValue) String() string {
+	return fmt.Sprintf("%v", map[string]interface{}(vl))
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// MapperValue encapsulates an arbitrary map which implements a MapIter interface.
+// Supported by Aerospike 3 servers only.
+type MapperValue struct {
+	vmap MapIter
+}
+
+// NewMapValue generates a MapperValue instance.
+func NewMapperValue(vmap MapIter) *MapperValue {
+	res := &MapperValue{
+		vmap: vmap,
+	}
+
+	return res
+}
+
+func (vl *MapperValue) estimateSize() (int, error) {
+	return __PackMap(nil, vl.vmap)
+}
+
+func (vl *MapperValue) write(cmd AerospikeBuffer) (int, error) {
+	return __PackMap(cmd, vl.vmap)
+}
+
+func (vl *MapperValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackMap(cmd, vl.vmap)
+}
+
+// GetType returns wire protocol value type.
+func (vl *MapperValue) GetType() int {
+	return ParticleType.MAP
+}
+
+// GetObject returns original value as an interface{}.
+func (vl *MapperValue) GetObject() interface{} {
 	return vl.vmap
 }
 
-func (vl *MapValue) reader() io.Reader {
-	return bytes.NewReader(vl.bytes)
-}
-
-// String implements Stringer interface.
-func (vl *MapValue) String() string {
+func (vl *MapperValue) String() string {
 	return fmt.Sprintf("%v", vl.vmap)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// MapValue encapsulates a 2D Geo point.
+// GeoJSONValue encapsulates a 2D Geo point.
 // Supported by Aerospike 3.6.1 servers only.
 type GeoJSONValue string
 
@@ -597,21 +620,21 @@ func NewGeoJSONValue(value string) GeoJSONValue {
 	return res
 }
 
-func (vl GeoJSONValue) estimateSize() int {
+func (vl GeoJSONValue) estimateSize() (int, error) {
 	// flags + ncells + jsonstr
-	return 1 + 2 + len(string(vl))
+	return 1 + 2 + len(string(vl)), nil
 }
 
-func (vl GeoJSONValue) write(buffer []byte, offset int) (int, error) {
-	buffer[offset] = 0   // flags
-	buffer[offset+1] = 0 // flags
-	buffer[offset+2] = 0 // flags
+func (vl GeoJSONValue) write(cmd AerospikeBuffer) (int, error) {
+	cmd.WriteByte(0) // flags
+	cmd.WriteByte(0) // flags
+	cmd.WriteByte(0) // flags
 
-	return 1 + 2 + copy(buffer[offset+3:], string(vl)), nil
+	return cmd.WriteString(string(vl))
 }
 
-func (vl GeoJSONValue) pack(packer *packer) error {
-	return packer.PackGeoJson(string(vl))
+func (vl GeoJSONValue) pack(cmd AerospikeBuffer) (int, error) {
+	return __PackGeoJson(cmd, string(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -622,10 +645,6 @@ func (vl GeoJSONValue) GetType() int {
 // GetObject returns original value as an interface{}.
 func (vl GeoJSONValue) GetObject() interface{} {
 	return string(vl)
-}
-
-func (vl GeoJSONValue) reader() io.Reader {
-	return strings.NewReader(string(vl))
 }
 
 // String implements Stringer interface.
@@ -707,4 +726,18 @@ func unwrapValue(v interface{}) interface{} {
 	}
 
 	return v
+}
+
+type AerospikeBuffer interface {
+	WriteInt64(num int64) (int, error)
+	WriteUint64(num uint64) (int, error)
+	WriteInt32(num int32) (int, error)
+	WriteUint32(num uint32) (int, error)
+	WriteInt16(num int16) (int, error)
+	WriteUint16(num uint16) (int, error)
+	WriteFloat32(float float32) (int, error)
+	WriteFloat64(float float64) (int, error)
+	WriteByte(b byte) (int, error)
+	WriteString(s string) (int, error)
+	Write(b []byte) (int, error)
 }
