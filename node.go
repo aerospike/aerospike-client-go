@@ -35,25 +35,27 @@ type Node struct {
 	name    string
 	host    *Host
 	aliases atomic.Value //[]*Host
-	address string
 
 	// tendConn reserves a connection for tend so that it won't have to
 	// wait in queue for connections, since that will cause starvation
 	// and the node being dropped under load.
 	tendConn *Connection
 
-	connections     *AtomicQueue //ArrayBlockingQueue<*Connection>
-	connectionCount *AtomicInt
-	health          *AtomicInt //AtomicInteger
+	peersGeneration AtomicInt
+	peersCount      AtomicInt
 
-	partitionGeneration *AtomicInt
-	referenceCount      *AtomicInt
-	failures            *AtomicInt
+	connections     AtomicQueue //ArrayBlockingQueue<*Connection>
+	connectionCount AtomicInt
+	health          AtomicInt //AtomicInteger
 
-	useNewInfo bool
-	active     *AtomicBool
+	partitionGeneration AtomicInt
+	referenceCount      AtomicInt
+	failures            AtomicInt
+	partitionChanged    AtomicBool
 
-	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo *AtomicBool
+	active AtomicBool
+
+	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo, supportsPeers AtomicBool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -61,24 +63,25 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	newNode := &Node{
 		cluster: cluster,
 		name:    nv.name,
-		// aliases:    nv.aliases,
-		address:    nv.address,
-		useNewInfo: nv.useNewInfo,
+		// address: nv.primaryAddress,
+		host: nv.primaryHost,
 
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).
-		host:                nv.aliases[0],
-		connections:         NewAtomicQueue(cluster.clientPolicy.ConnectionQueueSize),
-		connectionCount:     NewAtomicInt(0),
-		partitionGeneration: NewAtomicInt(-1),
-		referenceCount:      NewAtomicInt(0),
-		failures:            NewAtomicInt(0),
-		active:              NewAtomicBool(true),
+		connections:         *NewAtomicQueue(cluster.clientPolicy.ConnectionQueueSize),
+		connectionCount:     *NewAtomicInt(0),
+		peersGeneration:     *NewAtomicInt(-1),
+		partitionGeneration: *NewAtomicInt(-1),
+		referenceCount:      *NewAtomicInt(0),
+		failures:            *NewAtomicInt(0),
+		active:              *NewAtomicBool(true),
+		partitionChanged:    *NewAtomicBool(false),
 
-		supportsFloat:       NewAtomicBool(nv.supportsFloat),
-		supportsBatchIndex:  NewAtomicBool(nv.supportsBatchIndex),
-		supportsReplicasAll: NewAtomicBool(nv.supportsReplicasAll),
-		supportsGeo:         NewAtomicBool(nv.supportsGeo),
+		supportsFloat:       *NewAtomicBool(nv.supportsFloat),
+		supportsBatchIndex:  *NewAtomicBool(nv.supportsBatchIndex),
+		supportsReplicasAll: *NewAtomicBool(nv.supportsReplicasAll),
+		supportsGeo:         *NewAtomicBool(nv.supportsGeo),
+		supportsPeers:       *NewAtomicBool(nv.supportsPeers),
 	}
 
 	newNode.aliases.Store(nv.aliases)
@@ -87,7 +90,11 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 }
 
 // Refresh requests current status from server node, and updates node with the result.
-func (nd *Node) Refresh(friends []*Host) ([]*Host, error) {
+func (nd *Node) Refresh(peers *peers) error {
+	if !nd.active.Get() {
+		return nil
+	}
+
 	// Close idleConnections
 	defer nd.dropIdleConnections()
 
@@ -97,7 +104,7 @@ func (nd *Node) Refresh(friends []*Host) ([]*Host, error) {
 		// Tend connection required a long timeout
 		tendConn, err := nd.GetConnection(15 * time.Second)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		nd.tendConn = tendConn
@@ -106,30 +113,51 @@ func (nd *Node) Refresh(friends []*Host) ([]*Host, error) {
 	// Set timeout for tend conn
 	nd.tendConn.SetTimeout(15 * time.Second)
 
-	commands := []string{"node", "partition-generation", nd.cluster.clientPolicy.serviceString()}
+	if peers.usePeers {
+		infoMap, err := RequestInfo(nd.tendConn, "node", "peers-generation", "partition-generation")
+		if err != nil {
+			nd.InvalidateConnection(nd.tendConn)
+			nd.tendConn = nil
+			return err
+		}
 
-	infoMap, err := RequestInfo(nd.tendConn, commands...)
-	if err != nil {
-		nd.InvalidateConnection(nd.tendConn)
-		nd.tendConn = nil
-		return nil, err
+		if err := nd.verifyNodeName(infoMap); err != nil {
+			return err
+		}
+
+		if err := nd.verifyPeersGeneration(infoMap, peers); err != nil {
+			return err
+		}
+
+		if err := nd.verifyPartitionGeneration(infoMap); err != nil {
+			return err
+		}
+	} else {
+		commands := []string{"node", "partition-generation", nd.cluster.clientPolicy.serviceString()}
+
+		infoMap, err := RequestInfo(nd.tendConn, commands...)
+		if err != nil {
+			nd.InvalidateConnection(nd.tendConn)
+			nd.tendConn = nil
+			return err
+		}
+
+		if err := nd.verifyNodeName(infoMap); err != nil {
+			return err
+		}
+
+		if err = nd.verifyPartitionGeneration(infoMap); err != nil {
+			return err
+		}
+
+		if err = nd.addFriends(infoMap, peers); err != nil {
+			return err
+		}
 	}
+	peers.refreshCount++
+	nd.referenceCount.IncrementAndGet()
 
-	if err := nd.verifyNodeName(infoMap); err != nil {
-		return nil, err
-	}
-
-	if friends, err = nd.addFriends(infoMap, friends); err != nil {
-		return nil, err
-	}
-
-	if err := nd.updatePartitions(nd.tendConn, infoMap); err != nil {
-		nd.InvalidateConnection(nd.tendConn)
-		nd.tendConn = nil
-		return nil, err
-	}
-
-	return friends, nil
+	return nil
 }
 
 func (nd *Node) verifyNodeName(infoMap map[string]string) error {
@@ -147,14 +175,54 @@ func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 	return nil
 }
 
-func (nd *Node) addFriends(infoMap map[string]string, friends []*Host) ([]*Host, error) {
+func (nd *Node) verifyPeersGeneration(infoMap map[string]string, peers *peers) error {
+	genString := infoMap["peers-generation"]
+
+	if len(genString) == 0 {
+		return NewAerospikeError(PARSE_ERROR, "peers-generation is empty")
+	}
+
+	gen, err := strconv.Atoi(genString)
+	if err != nil {
+		return NewAerospikeError(PARSE_ERROR, "peers-generation is not a number:"+genString)
+
+		return err
+	}
+
+	if nd.peersGeneration.Get() != gen {
+		peers.genChanged = true
+	}
+	return nil
+}
+
+func (nd *Node) verifyPartitionGeneration(infoMap map[string]string) error {
+	genString := infoMap["partition-generation"]
+
+	if len(genString) == 0 {
+		return NewAerospikeError(PARSE_ERROR, "partition-generation is empty")
+	}
+
+	gen, err := strconv.Atoi(genString)
+	if err != nil {
+		return NewAerospikeError(PARSE_ERROR, "partition-generation is not a number:"+genString)
+	}
+
+	if nd.partitionGeneration.Get() != gen {
+		nd.partitionChanged.Set(true)
+	}
+	return nil
+}
+
+func (nd *Node) addFriends(infoMap map[string]string, peers *peers) error {
 	friendString, exists := infoMap[nd.cluster.clientPolicy.serviceString()]
 
 	if !exists || len(friendString) == 0 {
-		return friends, nil
+		nd.peersCount.Set(0)
+		return nil
 	}
 
 	friendNames := strings.Split(friendString, ";")
+	nd.peersCount.Set(len(friendNames))
 
 	for _, friend := range friendNames {
 		friendInfo := strings.Split(friend, ":")
@@ -164,61 +232,164 @@ func (nd *Node) addFriends(infoMap map[string]string, friends []*Host) ([]*Host,
 			continue
 		}
 
-		host := friendInfo[0]
+		hostName := friendInfo[0]
 		port, _ := strconv.Atoi(friendInfo[1])
-		alias := NewHost(host, port)
 
 		if nd.cluster.clientPolicy.IpMap != nil {
-			if alternativeHost, ok := nd.cluster.clientPolicy.IpMap[host]; ok {
-				alias = NewHost(alternativeHost, port)
+			if alternativeHost, ok := nd.cluster.clientPolicy.IpMap[hostName]; ok {
+				hostName = alternativeHost
 			}
 		}
 
-		node := nd.cluster.findAlias(alias)
+		host := NewHost(hostName, port)
+		node := nd.cluster.findAlias(host)
 
 		if node != nil {
 			node.referenceCount.IncrementAndGet()
 		} else {
-			if !nd.findAlias(friends, alias) {
-				if friends == nil {
-					friends = make([]*Host, 0, 16)
-				}
-
-				friends = append(friends, alias)
+			// TODO: should do proper check; this will always fail since host is a new pointer
+			if _, exists := peers.hosts[*host]; !exists {
+				nd.prepareFriend(host, peers)
 			}
 		}
 	}
 
-	return friends, nil
+	return nil
 }
 
-func (nd *Node) findAlias(friends []*Host, alias *Host) bool {
-	for _, host := range friends {
-		if *host == *alias {
-			return true
+func (nd *Node) prepareFriend(host *Host, peers *peers) bool {
+	nv := &nodeValidator{}
+	if err := nv.validateNode(nd.cluster, host); err != nil {
+		Logger.Warn("Adding node `%s` failed: ", host, err)
+		return false
+	}
+
+	node := peers.nodes[nv.name]
+
+	if node != nil {
+		// Duplicate node name found.  This usually occurs when the server
+		// services list contains both internal and external IP addresses
+		// for the same node.
+		nv.conn.Close()
+		peers.hosts[*host] = struct{}{}
+		node.addAlias(host)
+		return true
+	}
+
+	// Check for duplicate nodes in cluster.
+	node = nd.cluster.nodesMap.Get().(map[string]*Node)[nv.name]
+
+	if node != nil {
+		nv.conn.Close()
+		peers.hosts[*host] = struct{}{}
+		node.addAlias(host)
+		node.referenceCount.IncrementAndGet()
+		nd.cluster.addAlias(host, node)
+		return true
+	}
+
+	node = nd.cluster.createNode(nv)
+	peers.hosts[*host] = struct{}{}
+	peers.nodes[nv.name] = node
+	return true
+}
+
+func (nd *Node) refreshPeers(peers *peers) {
+	// Do not refresh peers when node connection has already failed during this cluster tend iteration.
+	if nd.failures.Get() > 0 || !nd.active.Get() {
+		return
+	}
+
+	peerParser, err := parsePeers(nd.cluster, nd)
+	if err != nil {
+		nd.refreshFailed(err)
+		return
+	}
+	peers.peers = peerParser.peers
+	nd.peersGeneration.Set(int(peerParser.generation()))
+	nd.peersCount.Set(len(peers.peers))
+
+	for _, peer := range peers.peers {
+		if nd.peerExists(nd.cluster, peers, peer.nodeName) {
+			// Node already exists. Do not even try to connect to hosts.
+			continue
+		}
+
+		// find the first host that connects
+		for _, host := range peer.hosts {
+			// attempt connection to the host
+			nv := nodeValidator{}
+			if err := nv.validateNode(nd.cluster, host); err != nil {
+				Logger.Warn("Add node `%s` failed: `%s`", host, err)
+			}
+
+			// Must look for new node name in the unlikely event that node names do not agree.
+			if peer.nodeName != nv.name {
+				Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", peer.nodeName, nv.name, host)
+			}
+
+			if nd.peerExists(nd.cluster, peers, nv.name) {
+				// Node already exists. Do not even try to connect to hosts.
+				nv.conn.Close()
+				break
+			}
+
+			// Create new node.
+			node := nd.cluster.createNode(&nv)
+			peers.nodes[nv.name] = node
+			break
 		}
 	}
+
+	peers.refreshCount++
+}
+
+func (nd *Node) peerExists(cluster *Cluster, peers *peers, nodeName string) bool {
+	node, _ := cluster.GetNodeByName(nodeName)
+	if node != nil {
+		node.referenceCount.IncrementAndGet()
+		return true
+	}
+
+	node = peers.nodes[nodeName]
+	if node != nil {
+		node.referenceCount.IncrementAndGet()
+		return true
+	}
+
 	return false
 }
 
-func (nd *Node) updatePartitions(conn *Connection, infoMap map[string]string) error {
-	genString, exists := infoMap["partition-generation"]
-
-	if !exists || len(genString) == 0 {
-		return NewAerospikeError(PARSE_ERROR, "partition-generation is empty")
+func (nd *Node) refreshPartitions(peers *peers) {
+	// Do not refresh peers when node connection has already failed during this cluster tend iteration.
+	// Also, avoid "split cluster" case where this node thinks it's a 1-node cluster.
+	// Unchecked, such a node can dominate the partition map and cause all other
+	// nodes to be dropped.
+	if nd.failures.Get() > 0 || !nd.active.Get() || (nd.peersCount.Get() == 0 && peers.refreshCount > 1) {
+		return
 	}
 
-	generation, _ := strconv.Atoi(genString)
-	if nd.partitionGeneration.Get() != generation {
-		generation, err := nd.cluster.updatePartitions(conn, nd)
-		if err != nil {
-			return err
-		}
-		Logger.Info("Node %s partition generation %d changed to %d", nd.GetName(), nd.partitionGeneration.Get(), generation)
-		nd.partitionGeneration.Set(generation)
+	parser, err := newPartitionParser(nd.tendConn, nd, nd.cluster.partitionWriteMap.Load().(partitionMap), _PARTITIONS, nd.cluster.clientPolicy.RequestProleReplicas)
+	if err != nil {
+		nd.refreshFailed(err)
+		return
 	}
 
-	return nil
+	if parser.isPartitionMapCopied() {
+		nd.cluster.setPartitions(parser.getPartitionMap())
+		nd.partitionGeneration.Set(parser.getGeneration())
+		Logger.Info("Node %s partition generation %d changed to %d", nd.GetName(), nd.partitionGeneration.Get(), parser.getGeneration())
+	}
+}
+
+func (nd *Node) refreshFailed(e error) {
+	nd.failures.IncrementAndGet()
+	nd.tendConn.Close()
+
+	// Only log message if cluster is still active.
+	if nd.cluster.IsConnected() {
+		Logger.Warn("Node `%s` refresh failed: `%s`", nd, e)
+	}
 }
 
 // dropIdleConnections picks a connection from the head of the connection pool queue
@@ -293,7 +464,7 @@ func (nd *Node) getConnection(timeout time.Duration) (conn *Connection, err erro
 			return nil, ErrConnectionPoolEmpty
 		}
 
-		if conn, err = NewConnection(nd.address, nd.cluster.clientPolicy.Timeout); err != nil {
+		if conn, err = NewSecureConnection(&nd.cluster.clientPolicy, nd.host); err != nil {
 			nd.connectionCount.DecrementAndGet()
 			return nil, err
 		}
@@ -360,7 +531,7 @@ func (nd *Node) setAliases(aliases []*Host) {
 }
 
 // AddAlias adds an alias for the node
-func (nd *Node) AddAlias(aliasToAdd *Host) {
+func (nd *Node) addAlias(aliasToAdd *Host) {
 	// Aliases are only referenced in the cluster tend goroutine,
 	// so synchronization is not necessary.
 	aliases := nd.GetAliases()
