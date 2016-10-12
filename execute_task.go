@@ -78,7 +78,7 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 			return false, NewAerospikeError(UDF_BAD_RESPONSE, response)
 		}
 
-		find := "job_status="
+		find := "status="
 		index := strings.Index(response, find)
 
 		if index < 0 {
@@ -94,8 +94,8 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 			continue
 		}
 
-		status := strings.ToUpper(response[:index])
-		if status != "DONE" {
+		status := strings.ToLower(response[:index])
+		if !strings.HasPrefix(status, "done") {
 			return false, nil
 		}
 	}
