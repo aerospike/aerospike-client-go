@@ -78,11 +78,13 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 }
 
 func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
+	var resErr error
 	for _, alias := range ndv.aliases {
 		address := net.JoinHostPort(alias.Name, strconv.Itoa(alias.Port))
 		conn, err := NewConnection(address, time.Second)
 		if err != nil {
-			return err
+			resErr = err
+			continue // try next alias
 		}
 
 		defer conn.Close()
@@ -92,16 +94,19 @@ func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
 			// Socket not authenticated. Do not put back into pool.
 			conn.Close()
 
-			return err
+			resErr = err
+			continue // try next alias
 		}
 
 		if err := conn.SetTimeout(timeout); err != nil {
-			return err
+			resErr = err
+			continue // try next alias
 		}
 
 		infoMap, err := RequestInfo(conn, "node", "build", "features")
 		if err != nil {
-			return err
+			resErr = err
+			continue // try next alias
 		}
 		if nodeName, exists := infoMap["node"]; exists {
 			ndv.name = nodeName
@@ -117,13 +122,17 @@ func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
 				v1, v2, v3, err := parseVersionString(buildVersion)
 				if err != nil {
 					Logger.Error(err.Error())
-					return err
+					resErr = err
+					continue // try next alias
 				}
 				ndv.useNewInfo = v1 > 2 || (v1 == 2 && (v2 > 6 || (v2 == 6 && v3 >= 6)))
 			}
 		}
+
+		return nil
 	}
-	return nil
+
+	return resErr
 }
 
 func (ndv *nodeValidator) setFeatures(features string) {
