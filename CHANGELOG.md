@@ -1,5 +1,17 @@
 # Change History
 
+## October 12 2016
+
+  * **Improvements**
+
+    * Will retry the operation even when reading from the buffer. Set `Policy.MaxRetries = 0` to avoid this behavior. PR #143, thanks to [Hector Jusforgues](https://github.com/hectorj)
+
+  * **Fixes**
+
+    * Try all alias IPs in node validator. Resolves #144.
+
+    * Updated job status check for execute tasks.
+
 ## August 19 2016 : v1.18.0
 
   Minor improvements release.
