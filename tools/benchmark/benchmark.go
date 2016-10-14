@@ -98,7 +98,7 @@ var logger *log.Logger
 
 func main() {
 	var buf bytes.Buffer
-	logger = log.New(&buf, "", log.LstdFlags)
+	logger = log.New(&buf, "", log.LstdFlags|log.Lshortfile)
 	logger.SetOutput(os.Stdout)
 
 	// use all cpus in the system for concurrency

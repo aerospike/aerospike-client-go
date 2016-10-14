@@ -59,28 +59,6 @@ func BytesToHexString(buf []byte) string {
 	return string(hlist)
 }
 
-// BytesToNumber converts a slice of bytes into an integer with appropriate type
-func BytesToNumber(buf []byte, offset, length int) interface{} {
-	if len(buf) == 0 {
-		return int(0)
-	}
-
-	// This will work for negative integers too which
-	// will be represented in two's compliment representation.
-	val := int64(0)
-
-	for i := 0; i < length; i++ {
-		val <<= 8
-		val = val | int64((buf[offset+i] & 0xFF))
-	}
-
-	if (SizeOfInt == SizeOfInt64) || (val <= math.MaxInt32 && val >= math.MinInt32) {
-		return int(val)
-	}
-
-	return int64(val)
-}
-
 // LittleBytesToInt32 converts a slice into int32; only maximum of 4 bytes will be used
 func LittleBytesToInt32(buf []byte, offset int) int32 {
 	l := len(buf[offset:])
@@ -102,6 +80,14 @@ func BytesToInt64(buf []byte, offset int) int64 {
 }
 
 func VarBytesToInt64(buf []byte, offset int, len int) int64 {
+	if len == 8 {
+		return BytesToInt64(buf, offset)
+	} else if len == 4 {
+		return int64(BytesToInt32(buf, offset))
+	} else if len == 2 {
+		return int64(BytesToInt16(buf, offset))
+	}
+
 	val := int64(0)
 	for i := 0; i < len; i++ {
 		val <<= 8

@@ -287,6 +287,8 @@ func (pp *partitionParser) parseReplicasAll(node *Node) error {
 }
 
 func (pp *partitionParser) decodeBitmap(node *Node, nodeArray []*Node, begin int) error {
+	pp.copyPartitionMap()
+
 	restoreBuffer, err := base64.StdEncoding.DecodeString(string(pp.buffer[begin:pp.offset]))
 	if err != nil {
 		return err
