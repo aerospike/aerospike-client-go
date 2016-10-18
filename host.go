@@ -14,9 +14,7 @@
 
 package aerospike
 
-import (
-	"strconv"
-)
+import "strconv"
 
 // Host name/port of database server.
 type Host struct {
@@ -24,18 +22,24 @@ type Host struct {
 	// Host name or IP address of database server.
 	Name string
 
+	//TLSName defines the TLS certificate name used for secure connections.
+	TLSName string
+
 	// Port of database server.
 	Port int
-
-	addPort string
 }
 
 // NewHost initializes new host instance.
 func NewHost(name string, port int) *Host {
-	return &Host{Name: name, Port: port, addPort: name + ":" + strconv.Itoa(port)}
+	return &Host{Name: name, Port: port}
 }
 
 // Implements stringer interface
 func (h *Host) String() string {
-	return h.addPort
+	return h.Name + ":" + strconv.Itoa(h.Port)
+}
+
+// Implements stringer interface
+func (h *Host) equals(other *Host) bool {
+	return h.Name == other.Name && h.Port == other.Port
 }

@@ -1,5 +1,31 @@
 # Change History
 
+## October 14 2016 : v1.19.0
+
+  Major feature and improvement release.
+
+  * **New Features**
+
+    * Support TLS secured connections. (Feature will be supported in coming server releases.)
+
+    * Support IPv6 protocol. Supported by Aerospike Server 3.10+.
+
+    * Support `cluster-name` verification. Supported by Aerospike Server 3.10+.
+
+    * Support new peers info protocol. Supported by Aerospike Server 3.10+.
+
+  * **Improvements**
+
+    * Will retry the operation even when reading from the buffer. Set `Policy.MaxRetries = 0` to avoid this behavior. PR #143, thanks to [Hector Jusforgues](https://github.com/hectorj)
+
+    * Much improved cluster management algorithm. Will now handle the case where multiple nodes go down simultaneously, still protecting against split brain rogue nodes.
+
+  * **Fixes**
+
+    * Try all alias IPs in node validator. Resolves #144.
+
+    * Updated job status check for execute tasks.
+
 ## August 19 2016 : v1.18.0
 
   Minor improvements release.

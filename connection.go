@@ -15,8 +15,10 @@
 package aerospike
 
 import (
+	"crypto/tls"
 	"io"
 	"net"
+	"strconv"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -63,6 +65,32 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 
 	// set timeout at the last possible moment
 	if err := newConn.SetTimeout(timeout); err != nil {
+		return nil, err
+	}
+	return newConn, nil
+}
+
+// NewSecureConnection creates a TLS connection on the network and returns the pointer.
+// A minimum timeout of 2 seconds will always be applied.
+// If the connection is not established in the specified timeout,
+// an error will be returned
+func NewSecureConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
+	address := host.Name + ":" + strconv.Itoa(host.Port)
+	if policy.TlsConfig == nil {
+		return NewConnection(address, policy.Timeout)
+	}
+
+	newConn := &Connection{}
+
+	conn, err := tls.Dial("tcp", address, policy.TlsConfig)
+	if err != nil {
+		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
+		return nil, errToTimeoutErr(err)
+	}
+	newConn.conn = conn
+
+	// set timeout at the last possible moment
+	if err := newConn.SetTimeout(policy.Timeout); err != nil {
 		return nil, err
 	}
 	return newConn, nil

@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"crypto/tls"
 	"time"
 )
 
@@ -29,6 +30,11 @@ type ClientPolicy struct {
 	// in hashed format. Leave empty for clusters running without restricted access.
 	Password string
 
+	// ClusterName sets the expected cluster ID.  If not null, server nodes must return this cluster ID in order to
+	// join the client's view of the cluster. Should only be set when connecting to servers that
+	// support the "cluster-id" info command. (v3.10+)
+	ClusterName string //=""
+
 	// Initial host connection timeout in milliseconds.  The timeout when opening a connection
 	// to the server host for the first time.
 	Timeout time.Duration //= 1 second
@@ -38,7 +44,7 @@ type ClientPolicy struct {
 	// the connection will be closed and discarded from the connection pool.
 	IdleTimeout time.Duration //= 14 seconds
 
-	// Size of the Connection Queue cache.
+	// ConnectionQueueCache specifies the size of the Connection Queue cache PER NODE.
 	ConnectionQueueSize int //= 256
 
 	// If set to true, will not create a new connection
@@ -75,6 +81,9 @@ type ClientPolicy struct {
 	// extra storage multiplied by the replication factor.
 	// The default is false (only request master replicas and never prole replicas).
 	RequestProleReplicas bool // false
+
+	// TlsConfig specifies TLS secure connection policy for TLS enabled servers.
+	TlsConfig *tls.Config //= nil
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.

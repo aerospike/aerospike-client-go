@@ -71,6 +71,9 @@ func newPartitionParser(conn *Connection, node *Node, pmap partitionMap, partiti
 		return nil, err
 	}
 
+	// always copy the partition Map
+	newPartitionParser.copyPartitionMap()
+
 	if requestProleReplicas {
 		err = newPartitionParser.parseReplicasAll(node)
 	} else {
@@ -154,7 +157,6 @@ func (pp *partitionParser) parseReplicasMaster(node *Node) error {
 			if replicaArray == nil {
 				replicaArray = make([][]*Node, 1)
 				replicaArray[0] = make([]*Node, pp.partitionCount)
-				pp.copyPartitionMap()
 				pp.pmap[namespace] = replicaArray
 			}
 
@@ -220,7 +222,6 @@ func (pp *partitionParser) parseReplicasAll(node *Node) error {
 					replicaArray[i] = make([]*Node, pp.partitionCount)
 				}
 
-				pp.copyPartitionMap()
 				pp.pmap[namespace] = replicaArray
 			} else if len(replicaArray) != replicaCount {
 				Logger.Info("Namespace `%s` replication factor changed from `%d` to `%d` ", namespace, len(replicaArray), replicaCount)
@@ -247,7 +248,6 @@ func (pp *partitionParser) parseReplicasAll(node *Node) error {
 					}
 				}
 
-				pp.copyPartitionMap()
 				replicaArray = replicaTarget
 				pp.pmap[namespace] = replicaArray
 			}

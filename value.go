@@ -658,32 +658,33 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 
 	switch ptype {
 	case ParticleType.INTEGER:
-		return Buffer.BytesToNumber(buf, offset, length), nil
+		return int(Buffer.VarBytesToInt64(buf, offset, length)), nil
+
+	case ParticleType.STRING:
+		return string(buf[offset : offset+length]), nil
 
 	case ParticleType.FLOAT:
 		return Buffer.BytesToFloat64(buf, offset), nil
 
-	case ParticleType.STRING:
-		return string(buf[offset : offset+length]), nil
+	case ParticleType.MAP:
+		return newUnpacker(buf, offset, length).UnpackMap()
+
+	case ParticleType.LIST:
+		return newUnpacker(buf, offset, length).UnpackList()
+
+	case ParticleType.GEOJSON:
+		ncells := int(Buffer.BytesToInt16(buf, offset+1))
+		headerSize := 1 + 2 + (ncells * 8)
+		return string(buf[offset+headerSize : offset+length]), nil
 
 	case ParticleType.BLOB:
 		newObj := make([]byte, length)
 		copy(newObj, buf[offset:offset+length])
 		return newObj, nil
 
-	case ParticleType.LIST:
-		return newUnpacker(buf, offset, length).UnpackList()
-
-	case ParticleType.MAP:
-		return newUnpacker(buf, offset, length).UnpackMap()
-
 	case ParticleType.LDT:
 		return newUnpacker(buf, offset, length).unpackObjects()
 
-	case ParticleType.GEOJSON:
-		ncells := int(Buffer.BytesToInt16(buf, offset+1))
-		headerSize := 1 + 2 + (ncells * 8)
-		return string(buf[offset+headerSize : offset+length]), nil
 	}
 	return nil, nil
 }

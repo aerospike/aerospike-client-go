@@ -16,10 +16,7 @@ package aerospike
 
 import (
 	"net"
-	"regexp"
-	"strconv"
 	"strings"
-	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -27,31 +24,60 @@ import (
 
 // Validates a Database server node
 type nodeValidator struct {
-	name       string
-	aliases    []*Host
-	address    string
-	useNewInfo bool //= true
-	cluster    *Cluster
+	name        string
+	aliases     []*Host
+	primaryHost *Host
 
-	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo bool
+	conn *Connection
+
+	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo, supportsPeers bool
 }
 
-// Generates a node validator
-func newNodeValidator(cluster *Cluster, host *Host, timeout time.Duration) (*nodeValidator, error) {
-	newNodeValidator := &nodeValidator{
-		useNewInfo: true,
-		cluster:    cluster,
+func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd map[string]*Node) error {
+	if err := ndv.setAliases(host); err != nil {
+		return err
 	}
 
-	if err := newNodeValidator.setAliases(host); err != nil {
-		return nil, err
+	found := false
+	var resultErr error
+	for _, alias := range ndv.aliases {
+		if err := ndv.validateAlias(cluster, alias); err != nil {
+			Logger.Debug("Alias %s failed:", err)
+			continue
+		}
+
+		found = true
+		if _, exists := nodesToAdd[ndv.name]; !exists {
+			// found a new node
+			node := cluster.createNode(ndv)
+			nodesToAdd[ndv.name] = node
+		} else {
+			ndv.conn.Close()
+		}
 	}
 
-	if err := newNodeValidator.setAddress(timeout); err != nil {
-		return nil, err
+	if !found {
+		return resultErr
+	}
+	return nil
+}
+
+func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) error {
+	if err := ndv.setAliases(host); err != nil {
+		return err
 	}
 
-	return newNodeValidator, nil
+	var resultErr error
+	for _, alias := range ndv.aliases {
+		if err := ndv.validateAlias(cluster, alias); err != nil {
+			resultErr = err
+			Logger.Debug("Aliases %s failed: %s", alias, err)
+			continue
+		}
+		return nil
+	}
+
+	return resultErr
 }
 
 func (ndv *nodeValidator) setAliases(host *Host) error {
@@ -77,52 +103,48 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 	return nil
 }
 
-func (ndv *nodeValidator) setAddress(timeout time.Duration) error {
-	for _, alias := range ndv.aliases {
-		address := net.JoinHostPort(alias.Name, strconv.Itoa(alias.Port))
-		conn, err := NewConnection(address, time.Second)
-		if err != nil {
-			return err
-		}
-
-		defer conn.Close()
-
-		// need to authenticate
-		if err := conn.Authenticate(ndv.cluster.user, ndv.cluster.Password()); err != nil {
-			// Socket not authenticated. Do not put back into pool.
-			conn.Close()
-
-			return err
-		}
-
-		if err := conn.SetTimeout(timeout); err != nil {
-			return err
-		}
-
-		infoMap, err := RequestInfo(conn, "node", "build", "features")
-		if err != nil {
-			return err
-		}
-		if nodeName, exists := infoMap["node"]; exists {
-			ndv.name = nodeName
-			ndv.address = address
-
-			// set features
-			if features, exists := infoMap["features"]; exists {
-				ndv.setFeatures(features)
-			}
-
-			// Check new info protocol support for >= 2.6.6 build
-			if buildVersion, exists := infoMap["build"]; exists {
-				v1, v2, v3, err := parseVersionString(buildVersion)
-				if err != nil {
-					Logger.Error(err.Error())
-					return err
-				}
-				ndv.useNewInfo = v1 > 2 || (v1 == 2 && (v2 > 6 || (v2 == 6 && v3 >= 6)))
-			}
-		}
+func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
+	conn, err := NewSecureConnection(&cluster.clientPolicy, alias)
+	if err != nil {
+		return err
 	}
+
+	// need to authenticate
+	if err := conn.Authenticate(cluster.user, cluster.Password()); err != nil {
+		// Socket not authenticated. Do not put back into pool.
+		conn.Close()
+
+		return err
+	}
+
+	hasClusterName := len(cluster.clientPolicy.ClusterName) > 0
+
+	var infoKeys []string
+	if hasClusterName {
+		infoKeys = []string{"node", "features", "cluster-id"}
+	} else {
+
+		infoKeys = []string{"node", "features"}
+	}
+	infoMap, err := RequestInfo(conn, infoKeys...)
+	if err != nil {
+		return err
+	}
+
+	nodeName, exists := infoMap["node"]
+	if !exists {
+		return NewAerospikeError(INVALID_NODE_ERROR)
+	}
+
+	// set features
+	if features, exists := infoMap["features"]; exists {
+		ndv.setFeatures(features)
+	}
+
+	ndv.name = nodeName
+	ndv.primaryHost = alias
+	ndv.conn = conn
+
 	return nil
 }
 
@@ -138,24 +160,8 @@ func (ndv *nodeValidator) setFeatures(features string) {
 			ndv.supportsReplicasAll = true
 		case "geo":
 			ndv.supportsGeo = true
+		case "peers":
+			ndv.supportsPeers = true
 		}
 	}
-}
-
-// parses a version string
-var r = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+).*`)
-
-func parseVersionString(version string) (int, int, int, error) {
-	vNumber := r.FindStringSubmatch(version)
-	if len(vNumber) < 4 {
-		return -1, -1, -1, NewAerospikeError(PARSE_ERROR, "Invalid build version string in Info: "+version)
-	}
-	v1, err1 := strconv.Atoi(vNumber[1])
-	v2, err2 := strconv.Atoi(vNumber[2])
-	v3, err3 := strconv.Atoi(vNumber[3])
-	if err1 == nil && err2 == nil && err3 == nil {
-		return v1, v2, v3, nil
-	}
-	Logger.Error("Invalid build version string in Info: " + version)
-	return -1, -1, -1, NewAerospikeError(PARSE_ERROR, "Invalid build version string in Info: "+version)
 }
