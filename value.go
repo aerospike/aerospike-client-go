@@ -37,10 +37,10 @@ type Value interface {
 	estimateSize() (int, error)
 
 	// Serialize the value in the wire protocol.
-	write(cmd AerospikeBuffer) (int, error)
+	write(cmd aerospikeBuffer) (int, error)
 
 	// Serialize the value using MessagePack.
-	pack(cmd AerospikeBuffer) (int, error)
+	pack(cmd aerospikeBuffer) (int, error)
 
 	// GetType returns wire protocol value type.
 	GetType() int
@@ -156,11 +156,11 @@ func (vl NullValue) estimateSize() (int, error) {
 	return 0, nil
 }
 
-func (vl NullValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl NullValue) write(cmd aerospikeBuffer) (int, error) {
 	return 0, nil
 }
 
-func (vl NullValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl NullValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackNil(cmd)
 }
 
@@ -204,11 +204,11 @@ func (vl BytesValue) estimateSize() (int, error) {
 	return len(vl), nil
 }
 
-func (vl BytesValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl BytesValue) write(cmd aerospikeBuffer) (int, error) {
 	return cmd.Write(vl)
 }
 
-func (vl BytesValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl BytesValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackBytes(cmd, vl)
 }
 
@@ -241,11 +241,11 @@ func (vl StringValue) estimateSize() (int, error) {
 	return len(vl), nil
 }
 
-func (vl StringValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl StringValue) write(cmd aerospikeBuffer) (int, error) {
 	return cmd.WriteString(string(vl))
 }
 
-func (vl StringValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl StringValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackString(cmd, string(vl))
 }
 
@@ -278,11 +278,11 @@ func (vl IntegerValue) estimateSize() (int, error) {
 	return 8, nil
 }
 
-func (vl IntegerValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl IntegerValue) write(cmd aerospikeBuffer) (int, error) {
 	return cmd.WriteInt64(int64(vl))
 }
 
-func (vl IntegerValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl IntegerValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackAInt64(cmd, int64(vl))
 }
 
@@ -315,11 +315,11 @@ func (vl LongValue) estimateSize() (int, error) {
 	return 8, nil
 }
 
-func (vl LongValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl LongValue) write(cmd aerospikeBuffer) (int, error) {
 	return cmd.WriteInt64(int64(vl))
 }
 
-func (vl LongValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl LongValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackAInt64(cmd, int64(vl))
 }
 
@@ -352,11 +352,11 @@ func (vl FloatValue) estimateSize() (int, error) {
 	return 8, nil
 }
 
-func (vl FloatValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl FloatValue) write(cmd aerospikeBuffer) (int, error) {
 	return cmd.WriteFloat64(float64(vl))
 }
 
-func (vl FloatValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl FloatValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackFloat64(cmd, float64(vl))
 }
 
@@ -424,11 +424,11 @@ func (vl ListValue) estimateSize() (int, error) {
 	return __PackIfcList(nil, vl)
 }
 
-func (vl ListValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl ListValue) write(cmd aerospikeBuffer) (int, error) {
 	return __PackIfcList(cmd, vl)
 }
 
-func (vl ListValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl ListValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackIfcList(cmd, []interface{}(vl))
 }
 
@@ -468,11 +468,11 @@ func (vl *ListerValue) estimateSize() (int, error) {
 	return __PackList(nil, vl.list)
 }
 
-func (vl *ListerValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl *ListerValue) write(cmd aerospikeBuffer) (int, error) {
 	return __PackList(cmd, vl.list)
 }
 
-func (vl *ListerValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl *ListerValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackList(cmd, vl.list)
 }
 
@@ -506,11 +506,11 @@ func (vl MapValue) estimateSize() (int, error) {
 	return __PackIfcMap(nil, vl)
 }
 
-func (vl MapValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl MapValue) write(cmd aerospikeBuffer) (int, error) {
 	return __PackIfcMap(cmd, vl)
 }
 
-func (vl MapValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl MapValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackIfcMap(cmd, vl)
 }
 
@@ -543,11 +543,11 @@ func (vl JsonValue) estimateSize() (int, error) {
 	return __PackJsonMap(nil, vl)
 }
 
-func (vl JsonValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl JsonValue) write(cmd aerospikeBuffer) (int, error) {
 	return __PackJsonMap(cmd, vl)
 }
 
-func (vl JsonValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl JsonValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackJsonMap(cmd, vl)
 }
 
@@ -586,11 +586,11 @@ func (vl *MapperValue) estimateSize() (int, error) {
 	return __PackMap(nil, vl.vmap)
 }
 
-func (vl *MapperValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl *MapperValue) write(cmd aerospikeBuffer) (int, error) {
 	return __PackMap(cmd, vl.vmap)
 }
 
-func (vl *MapperValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl *MapperValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackMap(cmd, vl.vmap)
 }
 
@@ -625,7 +625,7 @@ func (vl GeoJSONValue) estimateSize() (int, error) {
 	return 1 + 2 + len(string(vl)), nil
 }
 
-func (vl GeoJSONValue) write(cmd AerospikeBuffer) (int, error) {
+func (vl GeoJSONValue) write(cmd aerospikeBuffer) (int, error) {
 	cmd.WriteByte(0) // flags
 	cmd.WriteByte(0) // flags
 	cmd.WriteByte(0) // flags
@@ -633,7 +633,7 @@ func (vl GeoJSONValue) write(cmd AerospikeBuffer) (int, error) {
 	return cmd.WriteString(string(vl))
 }
 
-func (vl GeoJSONValue) pack(cmd AerospikeBuffer) (int, error) {
+func (vl GeoJSONValue) pack(cmd aerospikeBuffer) (int, error) {
 	return __PackGeoJson(cmd, string(vl))
 }
 
@@ -727,18 +727,4 @@ func unwrapValue(v interface{}) interface{} {
 	}
 
 	return v
-}
-
-type AerospikeBuffer interface {
-	WriteInt64(num int64) (int, error)
-	WriteUint64(num uint64) (int, error)
-	WriteInt32(num int32) (int, error)
-	WriteUint32(num uint32) (int, error)
-	WriteInt16(num int16) (int, error)
-	WriteUint16(num uint16) (int, error)
-	WriteFloat32(float float32) (int, error)
-	WriteFloat64(float float64) (int, error)
-	WriteByte(b byte) (int, error)
-	WriteString(s string) (int, error)
-	Write(b []byte) (int, error)
 }

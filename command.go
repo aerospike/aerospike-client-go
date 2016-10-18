@@ -350,13 +350,8 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	cmd.writeKey(key, policy.SendKey)
 	cmd.writeFieldString(packageName, UDF_PACKAGE_NAME)
 	cmd.writeFieldString(functionName, UDF_FUNCTION)
-	// offset := cmd.dataOffset
-	// cmd.writeFieldValue(NewValueArray(args), UDF_ARGLIST)
 	cmd.writeUdfArgs(args)
 	cmd.end()
-
-	// fmt.Printf("%v\n", cmd.dataBuffer[offset:cmd.dataOffset])
-	// fmt.Printf("%v\n", cmd.dataBuffer[:cmd.dataOffset])
 
 	return nil
 }

@@ -22,21 +22,10 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
-// type devNull struct{}
-
-// func (dn *devNull) Write(b []byte) (int, error) {
-// 	return len(b), nil
-// }
-
-// func (dn *devNull) Reset() {
-// 	return
-// }
-
 type keyWriter struct {
 	buffer [8]byte
 	offset int
 	hash   ripemd160.Digest
-	// hash devNull
 }
 
 // Int64ToBytes converts an int64 into slice of Bytes.
@@ -71,7 +60,7 @@ func (vb *keyWriter) WriteInt16(num int16) (int, error) {
 // UInt16ToBytes converts an iuint16 to slice of bytes
 func (vb *keyWriter) WriteUint16(num uint16) (int, error) {
 	binary.BigEndian.PutUint16(vb.buffer[:2], num)
-	vb.hash.Write(vb.buffer[:4])
+	vb.hash.Write(vb.buffer[:2])
 	return 2, nil
 }
 

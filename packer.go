@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"math"
 	"reflect"
@@ -24,7 +26,7 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-func __PackIfcList(cmd AerospikeBuffer, list []interface{}) (int, error) {
+func __PackIfcList(cmd aerospikeBuffer, list []interface{}) (int, error) {
 	size := 0
 	n, err := __PackArrayBegin(cmd, len(list))
 	if err != nil {
@@ -43,7 +45,7 @@ func __PackIfcList(cmd AerospikeBuffer, list []interface{}) (int, error) {
 	return size, err
 }
 
-func __PackList(cmd AerospikeBuffer, list ListIter) (int, error) {
+func __PackList(cmd aerospikeBuffer, list ListIter) (int, error) {
 	size := 0
 	n, err := __PackArrayBegin(cmd, list.Len())
 	if err != nil {
@@ -65,7 +67,7 @@ func __PackList(cmd AerospikeBuffer, list ListIter) (int, error) {
 	return size, err
 }
 
-func __PackArrayBegin(cmd AerospikeBuffer, size int) (int, error) {
+func __PackArrayBegin(cmd aerospikeBuffer, size int) (int, error) {
 	if size < 16 {
 		return __PackAByte(cmd, 0x90|byte(size))
 	} else if size <= math.MaxUint16 {
@@ -75,7 +77,7 @@ func __PackArrayBegin(cmd AerospikeBuffer, size int) (int, error) {
 	}
 }
 
-func __PackIfcMap(cmd AerospikeBuffer, theMap map[interface{}]interface{}) (int, error) {
+func __PackIfcMap(cmd aerospikeBuffer, theMap map[interface{}]interface{}) (int, error) {
 	size := 0
 	n, err := __PackMapBegin(cmd, len(theMap))
 	if err != nil {
@@ -108,7 +110,7 @@ func __PackIfcMap(cmd AerospikeBuffer, theMap map[interface{}]interface{}) (int,
 	return size, err
 }
 
-func __PackJsonMap(cmd AerospikeBuffer, theMap map[string]interface{}) (int, error) {
+func __PackJsonMap(cmd aerospikeBuffer, theMap map[string]interface{}) (int, error) {
 	size := 0
 	n, err := __PackMapBegin(cmd, len(theMap))
 	if err != nil {
@@ -132,7 +134,7 @@ func __PackJsonMap(cmd AerospikeBuffer, theMap map[string]interface{}) (int, err
 	return size, err
 }
 
-func __PackMap(cmd AerospikeBuffer, theMap MapIter) (int, error) {
+func __PackMap(cmd aerospikeBuffer, theMap MapIter) (int, error) {
 	size := 0
 	n, err := __PackMapBegin(cmd, theMap.Len())
 	if err != nil {
@@ -168,7 +170,7 @@ func __PackMap(cmd AerospikeBuffer, theMap MapIter) (int, error) {
 	return size, err
 }
 
-func __PackMapBegin(cmd AerospikeBuffer, size int) (int, error) {
+func __PackMapBegin(cmd aerospikeBuffer, size int) (int, error) {
 	if size < 16 {
 		return __PackAByte(cmd, 0x80|byte(size))
 	} else if size <= math.MaxUint16 {
@@ -178,7 +180,7 @@ func __PackMapBegin(cmd AerospikeBuffer, size int) (int, error) {
 	}
 }
 
-func __PackBytes(cmd AerospikeBuffer, b []byte) (int, error) {
+func __PackBytes(cmd aerospikeBuffer, b []byte) (int, error) {
 	size := 0
 	n, err := __PackByteArrayBegin(cmd, len(b)+1)
 	if err != nil {
@@ -201,7 +203,7 @@ func __PackBytes(cmd AerospikeBuffer, b []byte) (int, error) {
 	return size, nil
 }
 
-func __PackByteArrayBegin(cmd AerospikeBuffer, length int) (int, error) {
+func __PackByteArrayBegin(cmd aerospikeBuffer, length int) (int, error) {
 	if length < 32 {
 		return __PackAByte(cmd, 0xa0|byte(length))
 	} else if length < 65536 {
@@ -211,7 +213,7 @@ func __PackByteArrayBegin(cmd AerospikeBuffer, length int) (int, error) {
 	}
 }
 
-func __PackObject(cmd AerospikeBuffer, obj interface{}) (int, error) {
+func __PackObject(cmd aerospikeBuffer, obj interface{}) (int, error) {
 	switch v := obj.(type) {
 	case Value:
 		return v.pack(cmd)
@@ -309,11 +311,11 @@ func __PackObject(cmd AerospikeBuffer, obj interface{}) (int, error) {
 	panic(fmt.Sprintf("Type `%v` not supported to pack.", reflect.TypeOf(obj)))
 }
 
-func __PackAUInt64(cmd AerospikeBuffer, val uint64) (int, error) {
+func __PackAUInt64(cmd aerospikeBuffer, val uint64) (int, error) {
 	return __PackUInt64(cmd, val)
 }
 
-func __PackAInt64(cmd AerospikeBuffer, val int64) (int, error) {
+func __PackAInt64(cmd aerospikeBuffer, val int64) (int, error) {
 	if val >= 0 {
 		if val < 128 {
 			return __PackAByte(cmd, byte(val))
@@ -351,7 +353,7 @@ func __PackAInt64(cmd AerospikeBuffer, val int64) (int, error) {
 	}
 }
 
-func __PackAInt(cmd AerospikeBuffer, val int) (int, error) {
+func __PackAInt(cmd aerospikeBuffer, val int) (int, error) {
 	if val >= 0 {
 		if val < 128 {
 			return __PackAByte(cmd, byte(val))
@@ -381,7 +383,7 @@ func __PackAInt(cmd AerospikeBuffer, val int) (int, error) {
 	}
 }
 
-func __PackString(cmd AerospikeBuffer, val string) (int, error) {
+func __PackString(cmd aerospikeBuffer, val string) (int, error) {
 	size := 0
 	slen := len(val) + 1
 	n, err := __PackByteArrayBegin(cmd, slen)
@@ -409,7 +411,7 @@ func __PackString(cmd AerospikeBuffer, val string) (int, error) {
 	return size, nil
 }
 
-func __PackGeoJson(cmd AerospikeBuffer, val string) (int, error) {
+func __PackGeoJson(cmd aerospikeBuffer, val string) (int, error) {
 	size := 0
 	slen := len(val) + 1
 	n, err := __PackByteArrayBegin(cmd, slen)
@@ -437,14 +439,14 @@ func __PackGeoJson(cmd AerospikeBuffer, val string) (int, error) {
 	return size, nil
 }
 
-func __PackByteArray(cmd AerospikeBuffer, src []byte) (int, error) {
+func __PackByteArray(cmd aerospikeBuffer, src []byte) (int, error) {
 	if cmd != nil {
 		return cmd.Write(src)
 	}
 	return len(src), nil
 }
 
-func __PackInt64(cmd AerospikeBuffer, valType int, val int64) (int, error) {
+func __PackInt64(cmd aerospikeBuffer, valType int, val int64) (int, error) {
 	if cmd != nil {
 		size, err := cmd.WriteByte(byte(valType))
 		if err != nil {
@@ -457,7 +459,7 @@ func __PackInt64(cmd AerospikeBuffer, valType int, val int64) (int, error) {
 	return 1 + 8, nil
 }
 
-func __PackUInt64(cmd AerospikeBuffer, val uint64) (int, error) {
+func __PackUInt64(cmd aerospikeBuffer, val uint64) (int, error) {
 	if cmd != nil {
 		size, err := cmd.WriteByte(byte(0xcf))
 		if err != nil {
@@ -470,7 +472,7 @@ func __PackUInt64(cmd AerospikeBuffer, val uint64) (int, error) {
 	return 1 + 8, nil
 }
 
-func __PackInt(cmd AerospikeBuffer, valType int, val int32) (int, error) {
+func __PackInt(cmd aerospikeBuffer, valType int, val int32) (int, error) {
 	if cmd != nil {
 		size, err := cmd.WriteByte(byte(valType))
 		if err != nil {
@@ -482,7 +484,7 @@ func __PackInt(cmd AerospikeBuffer, valType int, val int32) (int, error) {
 	return 1 + 4, nil
 }
 
-func __PackShort(cmd AerospikeBuffer, valType int, val int16) (int, error) {
+func __PackShort(cmd aerospikeBuffer, valType int, val int16) (int, error) {
 	if cmd != nil {
 		size, err := cmd.WriteByte(byte(valType))
 		if err != nil {
@@ -497,14 +499,14 @@ func __PackShort(cmd AerospikeBuffer, valType int, val int16) (int, error) {
 
 // This method is not compatible with MsgPack specs and is only used by aerospike client<->server
 // for wire transfer only
-func __PackShortRaw(cmd AerospikeBuffer, val int16) (int, error) {
+func __PackShortRaw(cmd aerospikeBuffer, val int16) (int, error) {
 	if cmd != nil {
 		return cmd.WriteInt16(val)
 	}
 	return 2, nil
 }
 
-func __PackByte(cmd AerospikeBuffer, valType int, val byte) (int, error) {
+func __PackByte(cmd aerospikeBuffer, valType int, val byte) (int, error) {
 	if cmd != nil {
 		size := 0
 		n, err := cmd.WriteByte(byte(valType))
@@ -524,14 +526,14 @@ func __PackByte(cmd AerospikeBuffer, valType int, val byte) (int, error) {
 	return 1 + 1, nil
 }
 
-func __PackNil(cmd AerospikeBuffer) (int, error) {
+func __PackNil(cmd aerospikeBuffer) (int, error) {
 	if cmd != nil {
 		return cmd.WriteByte(0xc0)
 	}
 	return 1, nil
 }
 
-func __PackBool(cmd AerospikeBuffer, val bool) (int, error) {
+func __PackBool(cmd aerospikeBuffer, val bool) (int, error) {
 	if cmd != nil {
 		if val {
 			return cmd.WriteByte(0xc3)
@@ -541,7 +543,7 @@ func __PackBool(cmd AerospikeBuffer, val bool) (int, error) {
 	return 1, nil
 }
 
-func __PackFloat32(cmd AerospikeBuffer, val float32) (int, error) {
+func __PackFloat32(cmd aerospikeBuffer, val float32) (int, error) {
 	if cmd != nil {
 		size := 0
 		n, err := cmd.WriteByte(0xca)
@@ -555,7 +557,7 @@ func __PackFloat32(cmd AerospikeBuffer, val float32) (int, error) {
 	return 1 + 4, nil
 }
 
-func __PackFloat64(cmd AerospikeBuffer, val float64) (int, error) {
+func __PackFloat64(cmd aerospikeBuffer, val float64) (int, error) {
 	if cmd != nil {
 		size := 0
 		n, err := cmd.WriteByte(0xcb)
@@ -569,9 +571,97 @@ func __PackFloat64(cmd AerospikeBuffer, val float64) (int, error) {
 	return 1 + 8, nil
 }
 
-func __PackAByte(cmd AerospikeBuffer, val byte) (int, error) {
+func __PackAByte(cmd aerospikeBuffer, val byte) (int, error) {
 	if cmd != nil {
 		return cmd.WriteByte(val)
 	}
 	return 1, nil
+}
+
+// packer implements a buffered packer
+type packer struct {
+	bytes.Buffer
+	tempBuffer [8]byte
+}
+
+func newPacker() *packer {
+	return &packer{}
+}
+
+// Int64ToBytes converts an int64 into slice of Bytes.
+func (vb *packer) WriteInt64(num int64) (int, error) {
+	return vb.WriteUint64(uint64(num))
+}
+
+// Uint64ToBytes converts an uint64 into slice of Bytes.
+func (vb *packer) WriteUint64(num uint64) (int, error) {
+	binary.BigEndian.PutUint64(vb.tempBuffer[:8], num)
+	vb.Write(vb.tempBuffer[:8])
+	return 8, nil
+}
+
+// Int32ToBytes converts an int32 to a byte slice of size 4
+func (vb *packer) WriteInt32(num int32) (int, error) {
+	return vb.WriteUint32(uint32(num))
+}
+
+// Uint32ToBytes converts an uint32 to a byte slice of size 4
+func (vb *packer) WriteUint32(num uint32) (int, error) {
+	binary.BigEndian.PutUint32(vb.tempBuffer[:4], num)
+	vb.Write(vb.tempBuffer[:4])
+	return 4, nil
+}
+
+// Int16ToBytes converts an int16 to slice of bytes
+func (vb *packer) WriteInt16(num int16) (int, error) {
+	return vb.WriteUint16(uint16(num))
+}
+
+// UInt16ToBytes converts an iuint16 to slice of bytes
+func (vb *packer) WriteUint16(num uint16) (int, error) {
+	binary.BigEndian.PutUint16(vb.tempBuffer[:2], num)
+	vb.Write(vb.tempBuffer[:2])
+	return 2, nil
+}
+
+func (vb *packer) WriteFloat32(float float32) (int, error) {
+	bits := math.Float32bits(float)
+	binary.BigEndian.PutUint32(vb.tempBuffer[:4], bits)
+	vb.Write(vb.tempBuffer[:4])
+	return 4, nil
+}
+
+func (vb *packer) WriteFloat64(float float64) (int, error) {
+	bits := math.Float64bits(float)
+	binary.BigEndian.PutUint64(vb.tempBuffer[:8], bits)
+	vb.Write(vb.tempBuffer[:8])
+	return 8, nil
+}
+
+func (vb *packer) WriteByte(b byte) (int, error) {
+	vb.Write([]byte{b})
+	return 1, nil
+}
+
+func (vb *packer) WriteString(s string) (int, error) {
+	// To avoid allocating memory, write the strings in small chunks
+	l := len(s)
+	const size = 128
+	b := [size]byte{}
+	cnt := 0
+	for i := 0; i < l; i++ {
+		b[cnt] = s[i]
+		cnt++
+
+		if cnt == size {
+			vb.Write(b[:])
+			cnt = 0
+		}
+	}
+
+	if cnt > 0 {
+		vb.Write(b[:cnt])
+	}
+
+	return len(s), nil
 }
