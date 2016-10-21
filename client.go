@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -134,11 +133,9 @@ func (clnt *Client) GetNodeNames() []string {
 // handled when the record already exists.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Put(policy *WritePolicy, key *Key, binMap BinMap) error {
-	// get a slice of pre-allocated and pooled bins
-	bins := binPool.Get(len(binMap)).([]*Bin)
-	res := clnt.PutBins(policy, key, binMapToBins(bins[:len(binMap)], binMap)...)
-	binPool.Put(bins)
-	return res
+	policy = clnt.getUsableWritePolicy(policy)
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, WRITE)
+	return command.Execute()
 }
 
 // PutBins writes record bin(s) to the server.
@@ -148,22 +145,8 @@ func (clnt *Client) Put(policy *WritePolicy, key *Key, binMap BinMap) error {
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, bins, WRITE)
+	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, WRITE)
 	return command.Execute()
-}
-
-// PutObject writes record bin(s) to the server.
-// The policy specifies the transaction timeout, record expiration and how the transaction is
-// handled when the record already exists.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err error) {
-	policy = clnt.getUsableWritePolicy(policy)
-
-	bins := marshal(obj, clnt.cluster.supportsFloat.Get())
-	command := newWriteCommand(clnt.cluster, policy, key, bins, WRITE)
-	res := command.Execute()
-	binPool.Put(bins)
-	return res
 }
 
 //-------------------------------------------------------
@@ -176,17 +159,15 @@ func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (e
 // This call only works for string and []byte values.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Append(policy *WritePolicy, key *Key, binMap BinMap) error {
-	// get a slice of pre-allocated and pooled bins
-	bins := binPool.Get(len(binMap)).([]*Bin)
-	res := clnt.AppendBins(policy, key, binMapToBins(bins[:len(binMap)], binMap)...)
-	binPool.Put(bins)
-	return res
+	policy = clnt.getUsableWritePolicy(policy)
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, APPEND)
+	return command.Execute()
 }
 
 // AppendBins works the same as Append, but avoids BinMap allocation and iteration.
 func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, bins, APPEND)
+	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, APPEND)
 	return command.Execute()
 }
 
@@ -196,16 +177,15 @@ func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) erro
 // This call works only for string and []byte values.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Prepend(policy *WritePolicy, key *Key, binMap BinMap) error {
-	bins := binPool.Get(len(binMap)).([]*Bin)
-	res := clnt.PrependBins(policy, key, binMapToBins(bins[:len(binMap)], binMap)...)
-	binPool.Put(bins)
-	return res
+	policy = clnt.getUsableWritePolicy(policy)
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, PREPEND)
+	return command.Execute()
 }
 
 // PrependBins works the same as Prepend, but avoids BinMap allocation and iteration.
 func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, bins, PREPEND)
+	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, PREPEND)
 	return command.Execute()
 }
 
@@ -219,17 +199,15 @@ func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) err
 // This call only works for integer values.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Add(policy *WritePolicy, key *Key, binMap BinMap) error {
-	// get a slice of pre-allocated and pooled bins
-	bins := binPool.Get(len(binMap)).([]*Bin)
-	res := clnt.AddBins(policy, key, binMapToBins(bins[:len(binMap)], binMap)...)
-	binPool.Put(bins)
-	return res
+	policy = clnt.getUsableWritePolicy(policy)
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, ADD)
+	return command.Execute()
 }
 
 // AddBins works the same as Add, but avoids BinMap allocation and iteration.
 func (clnt *Client) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, bins, ADD)
+	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, ADD)
 	return command.Execute()
 }
 
@@ -310,20 +288,6 @@ func (clnt *Client) Get(policy *BasePolicy, key *Key, binNames ...string) (*Reco
 		return nil, err
 	}
 	return command.GetRecord(), nil
-}
-
-// GetObject reads a record for specified key and puts the result into the provided object.
-// The policy can be used to specify timeouts.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) error {
-	policy = clnt.getUsablePolicy(policy)
-
-	rval := reflect.ValueOf(obj)
-	binNames := objectMappings.getFields(rval.Type())
-
-	command := newReadCommand(clnt.cluster, policy, key, binNames)
-	command.object = &rval
-	return command.Execute()
 }
 
 // GetHeader reads a record generation and expiration only for specified key.
@@ -489,91 +453,6 @@ func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordse
 	}
 
 	command := newScanCommand(node, policy, namespace, setName, binNames, recordset, taskId)
-	return command.Execute()
-}
-
-// ScanAllObjects reads all records in specified namespace and set from all nodes.
-// If the policy's concurrentNodes is specified, each server node will be read in
-// parallel. Otherwise, server nodes are read sequentially.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
-	policy := *clnt.getUsableScanPolicy(apolicy)
-
-	nodes := clnt.cluster.GetNodes()
-	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
-	}
-
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
-			return nil, err
-		}
-	}
-
-	// result recordset
-	taskId := uint64(xornd.Int64())
-	os := newObjectset(reflect.ValueOf(objChan), len(nodes), taskId)
-	res := &Recordset{
-		objectset: *os,
-	}
-
-	// the whole call should be wrapped in a goroutine
-	if policy.ConcurrentNodes {
-		for _, node := range nodes {
-			go func(node *Node) {
-				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-				}
-			}(node)
-		}
-	} else {
-		// scan nodes one by one
-		go func() {
-			for _, node := range nodes {
-				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-					continue
-				}
-			}
-		}()
-	}
-
-	return res, nil
-}
-
-// scanNodeObjects reads all records in specified namespace and set for one node only,
-// and marshalls the results into the objects of the provided channel in Recordset.
-// If the policy is nil, the default relevant policy will be used.
-// The resulting records will be marshalled into the objChan.
-// objChan will be closed after all the records are read.
-func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
-	policy := *clnt.getUsableScanPolicy(apolicy)
-
-	// results channel must be async for performance
-	taskId := uint64(xornd.Int64())
-	os := newObjectset(reflect.ValueOf(objChan), 1, taskId)
-	res := &Recordset{
-		objectset: *os,
-	}
-
-	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
-	return res, nil
-}
-
-// scanNodeObjects reads all records in specified namespace and set for one node only,
-// and marshalls the results into the objects of the provided channel in Recordset.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskId uint64, binNames ...string) error {
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until migrations on node are finished
-		if err := node.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
-			recordset.signalEnd()
-			return err
-		}
-	}
-
-	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset, taskId)
 	return command.Execute()
 }
 
@@ -1105,84 +984,6 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 
 	// results channel must be async for performance
 	recSet := newRecordset(policy.RecordQueueSize, 1, statement.TaskId)
-
-	// copy policies to avoid race conditions
-	newPolicy := *policy
-	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
-	go func() {
-		err := command.Execute()
-		if err != nil {
-			recSet.sendError(err)
-		}
-	}()
-
-	return recSet, nil
-}
-
-// QueryNodeObjects executes a query on all nodes in the cluster and marshals the records into the given channel.
-// The query executor puts records on the channel from separate goroutines.
-// The caller can concurrently pop objects.
-//
-// This method is only supported by Aerospike 3 servers.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, error) {
-	policy = clnt.getUsableQueryPolicy(policy)
-
-	nodes := clnt.cluster.GetNodes()
-	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
-	}
-
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
-			return nil, err
-		}
-	}
-
-	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), len(nodes), statement.TaskId)
-	recSet := &Recordset{
-		objectset: *os,
-	}
-
-	// the whole call sho
-	// results channel must be async for performance
-	for _, node := range nodes {
-		// copy policies to avoid race conditions
-		newPolicy := *policy
-		command := newQueryObjectsCommand(node, &newPolicy, statement, recSet)
-		go func() {
-			err := command.Execute()
-			if err != nil {
-				recSet.sendError(err)
-			}
-		}()
-	}
-
-	return recSet, nil
-}
-
-// QueryNodeObjects executes a query on a specific node and marshals the records into the given channel.
-// The caller can concurrently pop records off the channel.
-//
-// This method is only supported by Aerospike 3 servers.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, error) {
-	policy = clnt.getUsableQueryPolicy(policy)
-
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
-			return nil, err
-		}
-	}
-
-	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), 1, statement.TaskId)
-	recSet := &Recordset{
-		objectset: *os,
-	}
 
 	// copy policies to avoid race conditions
 	newPolicy := *policy

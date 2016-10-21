@@ -1,3 +1,5 @@
+// +build !as_performance
+
 // Copyright 2013-2016 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,66 +24,52 @@ import (
 	"testing"
 )
 
-var r *Record
-var err error
-
-type OBJECT struct {
-	Price  int
-	DBName string
-	// Blob   []byte
-	Blob []int64
-}
-
-func benchGet(times int, client *Client, key *Key) {
+func benchGetObj(times int, client *Client, key *Key, obj interface{}) {
 	for i := 0; i < times; i++ {
-		if r, err = client.Get(nil, key); err != nil {
+		if err = client.GetObject(nil, key, obj); err != nil {
 			panic(err)
 		}
 	}
 }
 
-func benchPut(times int, client *Client, key *Key, wp *WritePolicy) {
-	dbName := NewBin("dbname", "CouchDB")
-	price := NewBin("price", 0)
-	keywords := NewBin("keywords", []string{"concurrent", "fast"})
+func benchPutObj(times int, client *Client, key *Key, wp *WritePolicy, obj interface{}) {
 	for i := 0; i < times; i++ {
-		if err = client.PutBins(wp, key, dbName, price, keywords); err != nil {
+		if err = client.PutObject(wp, key, obj); err != nil {
 			panic(err)
 		}
 	}
 }
 
-func Benchmark_Get(b *testing.B) {
+func Benchmark_GetObject(b *testing.B) {
 	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		b.Fail()
 	}
 
 	key, _ := NewKey("test", "databases", "Aerospike")
-	// obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
-	// obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1}}
-	client.Delete(nil, key)
-	client.PutBins(nil, key, NewBin("b", []interface{}{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, "a", "b"}))
-	// client.PutBins(nil, key, NewBin("b", 1))
-	// client.PutObject(nil, key, &obj)
 
-	b.N = 100
+	obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1, 2, 3, 4, 5, 6}}
+	client.PutObject(nil, key, obj)
+
+	b.N = 1
 	runtime.GC()
 	b.ResetTimer()
-	benchGet(b.N, client, key)
+	benchGetObj(b.N, client, key, obj)
 }
 
-func Benchmark_Put(b *testing.B) {
+func Benchmark_PutObject(b *testing.B) {
 	client, err := NewClient(*host, *port)
 	if err != nil {
 		b.Fail()
 	}
 
+	// obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
+	obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1, 2, 3, 4, 5, 6}}
 	key, _ := NewKey("test", "databases", "Aerospike")
 	writepolicy := NewWritePolicy(0, 0)
 
 	b.N = 100
 	runtime.GC()
 	b.ResetTimer()
-	benchPut(b.N, client, key, writepolicy)
+	benchPutObj(b.N, client, key, writepolicy, obj)
 }

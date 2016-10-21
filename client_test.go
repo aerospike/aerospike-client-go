@@ -350,14 +350,14 @@ var _ = Describe("Aerospike", func() {
 				Context("Bins with LIST type", func() {
 
 					It("must save a key with Array Types", func() {
-						bin1 := NewBin("Aerospike1", []int8{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
-						bin2 := NewBin("Aerospike2", []int16{math.MinInt16, 0, 1, 2, 3, math.MaxInt16})
-						bin3 := NewBin("Aerospike3", []int32{math.MinInt32, 0, 1, 2, 3, math.MaxInt32})
-						bin4 := NewBin("Aerospike4", []int64{math.MinInt64, 0, 1, 2, 3, math.MaxInt64})
-						bin5 := NewBin("Aerospike5", []uint8{0, 1, 2, 3, math.MaxUint8})
-						bin6 := NewBin("Aerospike6", []uint16{0, 1, 2, 3, math.MaxUint16})
-						bin7 := NewBin("Aerospike7", []uint32{0, 1, 2, 3, math.MaxUint32})
-						bin8 := NewBin("Aerospike8", []string{"", "\n", "string"})
+						bin1 := NewBin("Aerospike1", []interface{}{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
+						bin2 := NewBin("Aerospike2", []interface{}{math.MinInt16, 0, 1, 2, 3, math.MaxInt16})
+						bin3 := NewBin("Aerospike3", []interface{}{math.MinInt32, 0, 1, 2, 3, math.MaxInt32})
+						bin4 := NewBin("Aerospike4", []interface{}{math.MinInt64, 0, 1, 2, 3, math.MaxInt64})
+						bin5 := NewBin("Aerospike5", []interface{}{0, 1, 2, 3, math.MaxUint8})
+						bin6 := NewBin("Aerospike6", []interface{}{0, 1, 2, 3, math.MaxUint16})
+						bin7 := NewBin("Aerospike7", []interface{}{0, 1, 2, 3, math.MaxUint32})
+						bin8 := NewBin("Aerospike8", []interface{}{"", "\n", "string"})
 						bin9 := NewBin("Aerospike9", []interface{}{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), [3]int{1, 2, 3}})
 
 						// complex type, consisting different arrays
@@ -389,7 +389,7 @@ var _ = Describe("Aerospike", func() {
 								"true":    true,
 								"false":   false,
 								"string":  map[interface{}]interface{}{nil: "string", "string": 19},             // map to complex array
-								nil:       []int{18, 41},                                                        // array to complex map
+								nil:       []interface{}{18, 41},                                                // array to complex map
 								"GeoJSON": NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 							},
 						})
@@ -418,7 +418,7 @@ var _ = Describe("Aerospike", func() {
 
 					It("must save a key with Array Types", func() {
 						// complex type, consisting different maps
-						bin1 := NewBin("Aerospike1", map[int32]string{
+						bin1 := NewBin("Aerospike1", map[interface{}]interface{}{
 							0:                    "",
 							int32(math.MaxInt32): randString(100),
 							int32(math.MinInt32): randString(100),
@@ -437,7 +437,7 @@ var _ = Describe("Aerospike", func() {
 							float32(math.MaxFloat32):  float32(math.MaxFloat32),
 							float64(math.MaxFloat64):  float64(math.MaxFloat64),
 							"string":                  map[interface{}]interface{}{nil: "string", "string": 19},             // map to complex array
-							nil:                       []int{18, 41},                                                        // array to complex map
+							nil:                       []interface{}{18, 41},                                                // array to complex map
 							"longString":              strings.Repeat("s", 32911),                                           // bit-sign test
 							"GeoJSON":                 NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 						})

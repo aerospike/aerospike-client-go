@@ -25,6 +25,9 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
+// this function will be set in value_slow file if included
+var newValueReflect func(interface{}) Value
+
 // Map pair is used when the client returns sorted maps from the server
 // Since the default map in Go is a hash map, we will use a slice
 // to return the results in server order
@@ -111,31 +114,10 @@ func NewValue(v interface{}) Value {
 		return NewBlobValue(val)
 	}
 
-	// check for array and map
-	rv := reflect.ValueOf(v)
-	switch rv.Kind() {
-	case reflect.Array, reflect.Slice:
-		l := rv.Len()
-		arr := make([]interface{}, l)
-		for i := 0; i < l; i++ {
-			arr[i] = rv.Index(i).Interface()
+	if newValueReflect != nil {
+		if res := newValueReflect(v); res != nil {
+			return res
 		}
-
-		return NewListValue(arr)
-	case reflect.Map:
-		l := rv.Len()
-		amap := make(map[interface{}]interface{}, l)
-		for _, i := range rv.MapKeys() {
-			amap[i.Interface()] = rv.MapIndex(i).Interface()
-		}
-
-		return NewMapValue(amap)
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return NewLongValue(reflect.ValueOf(v).Int())
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
-		return NewLongValue(int64(reflect.ValueOf(v).Uint()))
-	case reflect.String:
-		return NewStringValue(rv.String())
 	}
 
 	// panic for anything that is not supported.

@@ -105,27 +105,53 @@ type baseCommand struct {
 }
 
 // Writes the command for write operations
-func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, key *Key, bins []*Bin) error {
+func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, key *Key, bins []*Bin, binMap BinMap) error {
 	cmd.begin()
 	fieldCount, err := cmd.estimateKeySize(key, policy.SendKey)
 	if err != nil {
 		return err
 	}
 
-	for i := range bins {
-		cmd.estimateOperationSizeForBin(bins[i])
+	if binMap == nil {
+		for i := range bins {
+			if err := cmd.estimateOperationSizeForBin(bins[i]); err != nil {
+				return err
+			}
+		}
+	} else {
+		for name, value := range binMap {
+			if err := cmd.estimateOperationSizeForBinNameAndValue(name, value); err != nil {
+				return err
+			}
+		}
 	}
+
 	if err := cmd.sizeBuffer(); err != nil {
 		return err
 	}
-	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, len(bins))
+
+	if binMap == nil {
+		cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, len(bins))
+	} else {
+		cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, len(binMap))
+	}
+
 	cmd.writeKey(key, policy.SendKey)
 
-	for i := range bins {
-		if err := cmd.writeOperationForBin(bins[i], operation); err != nil {
-			return err
+	if binMap == nil {
+		for i := range bins {
+			if err := cmd.writeOperationForBin(bins[i], operation); err != nil {
+				return err
+			}
+		}
+	} else {
+		for name, value := range binMap {
+			if err := cmd.writeOperationForBinNameAndValue(name, value, operation); err != nil {
+				return err
+			}
 		}
 	}
+
 	cmd.end()
 
 	return nil
@@ -747,6 +773,16 @@ func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) error {
 	return nil
 }
 
+func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, value interface{}) error {
+	cmd.dataOffset += len(name) + int(_OPERATION_HEADER_SIZE)
+	sz, err := NewValue(value).estimateSize()
+	if err != nil {
+		return err
+	}
+	cmd.dataOffset += sz
+	return nil
+}
+
 func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) error {
 	binLen := len(operation.BinName)
 	cmd.dataOffset += binLen + int(_OPERATION_HEADER_SIZE)
@@ -889,6 +925,29 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 	cmd.WriteByte((byte(nameLength)))
 	cmd.dataOffset += nameLength
 	_, err = bin.Value.write(cmd)
+	return err
+}
+
+func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interface{}, operation OperationType) error {
+	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], name)
+
+	v := NewValue(val)
+
+	// check for float support
+	cmd.checkServerCompatibility(v)
+
+	valueLength, err := v.estimateSize()
+	if err != nil {
+		return err
+	}
+
+	cmd.WriteInt32(int32(nameLength + valueLength + 4))
+	cmd.WriteByte((operation.op))
+	cmd.WriteByte((byte(v.GetType())))
+	cmd.WriteByte((byte(0)))
+	cmd.WriteByte((byte(nameLength)))
+	cmd.dataOffset += nameLength
+	_, err = v.write(cmd)
 	return err
 }
 

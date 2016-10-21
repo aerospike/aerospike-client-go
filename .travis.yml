@@ -39,6 +39,7 @@ script:
 - find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
 - ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
 - ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -- -use-replicas
+- ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -tags="as_performance"
 - cd aerospike-server/instance1
 - sudo ./bin/aerospike stop
 - cat /dev/null > var/log/aerospike.log
@@ -50,6 +51,7 @@ script:
 - cd ../..
 - ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
 - ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -- -use-replicas
+- ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -tags="as_performance"
 - .travis/proxy_check.sh
 notifications:
   hipchat:

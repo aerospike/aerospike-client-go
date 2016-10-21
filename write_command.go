@@ -24,6 +24,7 @@ type writeCommand struct {
 
 	policy    *WritePolicy
 	bins      []*Bin
+	binMap    BinMap
 	operation OperationType
 }
 
@@ -31,12 +32,14 @@ func newWriteCommand(cluster *Cluster,
 	policy *WritePolicy,
 	key *Key,
 	bins []*Bin,
+	binMap BinMap,
 	operation OperationType) *writeCommand {
 
 	newWriteCmd := &writeCommand{
 		singleCommand: *newSingleCommand(cluster, key),
 		policy:        policy,
 		bins:          bins,
+		binMap:        binMap,
 		operation:     operation,
 	}
 
@@ -48,7 +51,7 @@ func (cmd *writeCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *writeCommand) writeBuffer(ifc command) error {
-	return cmd.setWrite(cmd.policy, cmd.operation, cmd.key, cmd.bins)
+	return cmd.setWrite(cmd.policy, cmd.operation, cmd.key, cmd.bins, cmd.binMap)
 }
 
 func (cmd *writeCommand) getNode(ifc command) (*Node, error) {

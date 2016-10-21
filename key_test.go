@@ -120,13 +120,6 @@ var _ = Describe("Key Test", func() {
 			key, _ := NewKey("namespace", "set", []interface{}{})
 			Expect(hex.EncodeToString(key.Digest())).To(Equal("2af0111192df4ca297232d1641ff52c2ce51ce2d"))
 
-			// The following two cases should be in exact order
-			key, _ = NewKey("namespace", "set", []int{1, 2, 3})
-			Expect(hex.EncodeToString(key.Digest())).To(Equal("a8b63a8208ebebb49d027d51899121fd0d03d2f7"))
-
-			keyInterfaceArrayOfTheSameValues, _ := NewKey("namespace", "set", []interface{}{1, 2, 3})
-			Expect(hex.EncodeToString(keyInterfaceArrayOfTheSameValues.Digest())).To(Equal(hex.EncodeToString(key.Digest())))
-
 			key, _ = NewKey("namespace", "set", []interface{}{1, []byte{1, 17}, "str"})
 			Expect(hex.EncodeToString(key.Digest())).To(Equal("8f5129e079cf66333a8372192d93072a4c661be2"))
 

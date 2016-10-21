@@ -51,24 +51,26 @@ type baseMultiCommand struct {
 	selectCases    []reflect.SelectCase
 }
 
+var multiObjectParser func(
+	cmd *baseMultiCommand,
+	obj reflect.Value,
+	opCount int,
+	fieldCount int,
+	generation uint32,
+	expiration uint32,
+) error
+
+var prepareReflectionData func(cmd *baseMultiCommand)
+
 func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	cmd := &baseMultiCommand{
 		baseCommand: baseCommand{node: node},
 		recordset:   recordset,
 	}
 
-	// if a channel is assigned, assign its value type
-	if cmd.recordset != nil && !cmd.recordset.objChan.IsNil() {
-		// this channel must be of type chan *T
-		cmd.resObjType = cmd.recordset.objChan.Type().Elem().Elem()
-		cmd.resObjMappings = objectMappings.getMapping(cmd.recordset.objChan.Type().Elem().Elem())
-
-		cmd.selectCases = []reflect.SelectCase{
-			reflect.SelectCase{Dir: reflect.SelectSend, Chan: cmd.recordset.objChan},
-			reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cmd.recordset.cancelled)},
-		}
+	if prepareReflectionData != nil {
+		prepareReflectionData(cmd)
 	}
-
 	return cmd
 }
 
@@ -283,9 +285,9 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			case <-cmd.recordset.cancelled:
 				return false, NewAerospikeError(cmd.terminationErrorType)
 			}
-		} else {
+		} else if multiObjectParser != nil {
 			obj := reflect.New(cmd.resObjType)
-			if err := cmd.parseObject(obj, opCount, fieldCount, generation, expiration); err != nil {
+			if err := multiObjectParser(cmd, obj, opCount, fieldCount, generation, expiration); err != nil {
 				cmd.recordset.Errors <- newNodeError(cmd.node, err)
 				return false, err
 			}
@@ -303,47 +305,4 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 	}
 
 	return true, nil
-}
-
-func (cmd *baseMultiCommand) parseObject(
-	obj reflect.Value,
-	opCount int,
-	fieldCount int,
-	generation uint32,
-	expiration uint32,
-) error {
-	for i := 0; i < opCount; i++ {
-		if err := cmd.readBytes(8); err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
-			return err
-		}
-
-		opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, 0))
-		particleType := int(cmd.dataBuffer[5])
-		nameSize := int(cmd.dataBuffer[7])
-
-		if err := cmd.readBytes(nameSize); err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
-			return err
-		}
-		name := string(cmd.dataBuffer[:nameSize])
-
-		particleBytesSize := int((opSize - (4 + nameSize)))
-		if err := cmd.readBytes(particleBytesSize); err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
-			return err
-		}
-		value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
-		if err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
-			return err
-		}
-
-		iobj := indirect(obj)
-		if err := setObjectField(cmd.resObjMappings, iobj, name, value); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

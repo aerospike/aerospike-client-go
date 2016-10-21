@@ -35,7 +35,7 @@ func doPut(set string, value interface{}, b *testing.B) {
 	key, _ := NewKey("test", set, 1000)
 
 	for i := 0; i < b.N; i++ {
-		command := newWriteCommand(nil, policy, key, bins, WRITE)
+		command := newWriteCommand(nil, policy, key, bins, nil, WRITE)
 		command.baseCommand.dataBuffer = dataBuffer
 		err = command.writeBuffer(command)
 		if err != nil {

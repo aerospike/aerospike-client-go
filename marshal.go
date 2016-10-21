@@ -1,3 +1,5 @@
+// +build !as_performance
+
 // Copyright 2013-2016 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +23,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 const (
@@ -296,4 +300,33 @@ func cacheObjectTags(objType reflect.Type) {
 	}
 
 	objectMappings.setMapping(objType, mapping, fields, ttl, gen)
+}
+
+func binMapToBins(bins []*Bin, binMap BinMap) []*Bin {
+	i := 0
+	for k, v := range binMap {
+		bins[i].Name = k
+		bins[i].Value = NewValue(v)
+		i++
+	}
+
+	return bins
+}
+
+// pool Bins so that we won't have to allocate them every time
+var binPool = NewPool(512)
+
+func init() {
+	binPool.New = func(params ...interface{}) interface{} {
+		size := params[0].(int)
+		bins := make([]*Bin, size, size)
+		for i := range bins {
+			bins[i] = &Bin{}
+		}
+		return bins
+	}
+
+	binPool.IsUsable = func(obj interface{}, params ...interface{}) bool {
+		return len(obj.([]*Bin)) >= params[0].(int)
+	}
 }
