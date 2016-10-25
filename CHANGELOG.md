@@ -1,5 +1,28 @@
 # Change History
 
+## October 25 2016 : v1.20.0
+
+  Major improvements release. There has been major changes in the library. Please test rigorously before upgrading to the new version.
+
+  * **New Features**
+
+    - Let user define the desired tag for bin names in structs using `SetAerospikeTag` function.
+    - Added `as_performance` build tag to avoid including the slow convenience API which uses reflections in the client code.
+      To use this feature, you should include -tags="as_performance" when building your project.
+
+      *NOTICE*: Keep in mind that your code may not compile using this flag. That is by design.
+
+  * **Improvements**
+
+    - Added special packer for map[string]interface{} in `NewValue` method.
+    - Avoid allocating memory for Map and List values.
+    - Allocate commands on the stack to avoid heap allcations.
+    - Avoid allocating memory for `packer`.
+    - Avoid Allocating memory in computeHash for keys.
+    - Avoid allocating memory in Ripe160MD digest.
+    - Removed BufferPool and moved buffers to `Connection` objects to remove lock contention.
+    - Added `ListIter` and `MapIter` interfaces to support passing Maps and Lists to the client without using reflection.
+
 ## October 14 2016 : v1.19.0
 
   Major feature and improvement release.
