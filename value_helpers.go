@@ -27,37 +27,3 @@ type ListIter interface {
 	Range(func(interface{}) error) error
 	Len() int
 }
-
-// supports old value arrays
-type ifcValueList []interface{}
-
-func (m ifcValueList) Range(f func(interface{}) error) error {
-	for idx := range []interface{}(m) {
-		if err := f(NewValue(m[idx])); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m ifcValueList) Len() int {
-	return len(m)
-}
-
-// supports old value arrays
-type valueList []Value
-
-func (m valueList) Range(f func(interface{}) error) error {
-	for idx := range []Value(m) {
-		if err := f(m[idx]); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m valueList) Len() int {
-	return len(m)
-}

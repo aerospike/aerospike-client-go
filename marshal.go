@@ -27,11 +27,19 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
+var aerospikeTag = "as"
+
 const (
-	aerospikeTag     = "as"
 	aerospikeMetaTag = "asm"
 	keyTag           = "key"
 )
+
+// SetAerospikeTag sets the bin tag to the specified tag.
+// This will be useful for when a user wants to use the same tag name for two different concerns.
+// For example, one will be able to use the same tag name for both json and aerospike bin name.
+func SetAerospikeTag(tag string) {
+	aerospikeTag = tag
+}
 
 func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 	// get to the core value
