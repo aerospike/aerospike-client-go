@@ -33,39 +33,42 @@ func doTheHash(buf []byte, b *testing.B) {
 	}
 }
 
-func Benchmark_K_Hash_S_______1(b *testing.B) {
+func Benchmark_Key_Hash_S_______1(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 1))
 	doTheHash(buffer, b)
 }
 
-func Benchmark_K_Hash_S______10(b *testing.B) {
+func Benchmark_Key_Hash_S______10(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 10))
 	doTheHash(buffer, b)
 }
 
-func Benchmark_K_Hash_S_____100(b *testing.B) {
+func Benchmark_Key_Hash_S_____100(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 100))
 	doTheHash(buffer, b)
 }
 
-func Benchmark_K_Hash_S____1000(b *testing.B) {
+func Benchmark_Key_Hash_S____1000(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 1000))
 	doTheHash(buffer, b)
 }
 
-func Benchmark_K_Hash_S__10_000(b *testing.B) {
+func Benchmark_Key_Hash_S__10_000(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 10000))
 	doTheHash(buffer, b)
 }
 
-func Benchmark_K_Hash_S_100_000(b *testing.B) {
+func Benchmark_Key_Hash_S_100_000(b *testing.B) {
 	buffer := []byte(strings.Repeat("s", 100000))
 	doTheHash(buffer, b)
 }
 
+var _key *Key
+
 func makeKeys(val interface{}, b *testing.B) {
+	var err error
 	for i := 0; i < b.N; i++ {
-		_, err := NewKey("ns", "set", val)
+		_key, err = NewKey("ns", "set", val)
 		if err != nil {
 			panic(err)
 		}
