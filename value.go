@@ -361,9 +361,7 @@ func (vl FloatValue) String() string {
 
 // ValueArray encapsulates an array of Value.
 // Supported by Aerospike 3 servers only.
-type ValueArray struct {
-	*ListerValue
-}
+type ValueArray []Value
 
 // ToValueSlice converts a []interface{} to []Value.
 // It will panic if any of array element types are not supported.
@@ -379,16 +377,41 @@ func ToValueSlice(array []interface{}) []Value {
 // ToValueArray converts a []interface{} to a ValueArray type.
 // It will panic if any of array element types are not supported.
 func ToValueArray(array []interface{}) *ValueArray {
-	// return NewValueArray(ToValueSlice(array))
-	res := ValueArray{NewListerValue(ifcValueList(array))}
-	return &res
-
+	return NewValueArray(ToValueSlice(array))
 }
 
 // NewValueArray generates a ValueArray instance.
 func NewValueArray(array []Value) *ValueArray {
-	res := ValueArray{NewListerValue(valueList(array))}
+	// return &ValueArray{*NewListerValue(valueList(array))}
+	res := ValueArray(array)
 	return &res
+}
+
+func (va ValueArray) estimateSize() (int, error) {
+	return __PackValueArray(nil, va)
+}
+
+func (va ValueArray) write(cmd aerospikeBuffer) (int, error) {
+	return __PackValueArray(cmd, va)
+}
+
+func (va ValueArray) pack(cmd aerospikeBuffer) (int, error) {
+	return __PackValueArray(cmd, []Value(va))
+}
+
+// GetType returns wire protocol value type.
+func (va ValueArray) GetType() int {
+	return ParticleType.LIST
+}
+
+// GetObject returns original value as an interface{}.
+func (va ValueArray) GetObject() interface{} {
+	return va
+}
+
+// String implements Stringer interface.
+func (va ValueArray) String() string {
+	return fmt.Sprintf("%v", []Value(va))
 }
 
 ///////////////////////////////////////////////////////////////////////////////

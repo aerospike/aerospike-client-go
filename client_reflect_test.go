@@ -160,6 +160,73 @@ var _ = Describe("Aerospike", func() {
 
 				}) // context map
 
+				Context("Bins with LIST type", func() {
+
+					It("must save a key with Array Types", func() {
+						bin1 := NewBin("Aerospike1", []interface{}{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
+						bin2 := NewBin("Aerospike2", []interface{}{math.MinInt16, 0, 1, 2, 3, math.MaxInt16})
+						bin3 := NewBin("Aerospike3", []interface{}{math.MinInt32, 0, 1, 2, 3, math.MaxInt32})
+						bin4 := NewBin("Aerospike4", []interface{}{math.MinInt64, 0, 1, 2, 3, math.MaxInt64})
+						bin5 := NewBin("Aerospike5", []interface{}{0, 1, 2, 3, math.MaxUint8})
+						bin6 := NewBin("Aerospike6", []interface{}{0, 1, 2, 3, math.MaxUint16})
+						bin7 := NewBin("Aerospike7", []interface{}{0, 1, 2, 3, math.MaxUint32})
+						bin8 := NewBin("Aerospike8", []interface{}{"", "\n", "string"})
+						bin9 := NewBin("Aerospike9", []interface{}{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), [3]int{1, 2, 3}})
+
+						// complex type, consisting different arrays
+						bin10 := NewBin("Aerospike10", []interface{}{
+							nil,
+							bin1.Value.GetObject(),
+							bin2.Value.GetObject(),
+							bin3.Value.GetObject(),
+							bin4.Value.GetObject(),
+							bin5.Value.GetObject(),
+							bin6.Value.GetObject(),
+							bin7.Value.GetObject(),
+							bin8.Value.GetObject(),
+							bin9.Value.GetObject(),
+							map[interface{}]interface{}{
+								1: [16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+								[16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}: []interface{}{"string", 12, nil},
+								// [3]int{0, 1, 2}:          []interface{}{"string", 12, nil},
+								// [3]string{"0", "1", "2"}: []interface{}{"string", 12, nil},
+								15:                        nil,
+								int8(math.MaxInt8):        int8(math.MaxInt8),
+								int64(math.MinInt64):      int64(math.MinInt64),
+								int64(math.MaxInt64):      int64(math.MaxInt64),
+								uint64(math.MaxUint64):    uint64(math.MaxUint64),
+								float32(-math.MaxFloat32): float32(-math.MaxFloat32),
+								float64(-math.MaxFloat64): float64(-math.MaxFloat64),
+								float32(math.MaxFloat32):  float32(math.MaxFloat32),
+								float64(math.MaxFloat64):  float64(math.MaxFloat64),
+								"true":    true,
+								"false":   false,
+								"string":  map[interface{}]interface{}{nil: "string", "string": 19},             // map to complex array
+								nil:       []interface{}{18, 41},                                                // array to complex map
+								"GeoJSON": NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
+							},
+						})
+
+						err = client.PutBins(wpolicy, key, bin1, bin2, bin3, bin4, bin5, bin6, bin7, bin8, bin9, bin10)
+						Expect(err).ToNot(HaveOccurred())
+
+						rec, err = client.Get(rpolicy, key)
+						Expect(err).ToNot(HaveOccurred())
+
+						arraysEqual(rec.Bins[bin1.Name], bin1.Value.GetObject())
+						arraysEqual(rec.Bins[bin2.Name], bin2.Value.GetObject())
+						arraysEqual(rec.Bins[bin3.Name], bin3.Value.GetObject())
+						arraysEqual(rec.Bins[bin4.Name], bin4.Value.GetObject())
+						arraysEqual(rec.Bins[bin5.Name], bin5.Value.GetObject())
+						arraysEqual(rec.Bins[bin6.Name], bin6.Value.GetObject())
+						arraysEqual(rec.Bins[bin7.Name], bin7.Value.GetObject())
+						arraysEqual(rec.Bins[bin8.Name], bin8.Value.GetObject())
+						arraysEqual(rec.Bins[bin9.Name], bin9.Value.GetObject())
+						arraysEqual(rec.Bins[bin10.Name], bin10.Value.GetObject())
+					})
+
+				}) // context list
+
 				Context("Bins with MAP type", func() {
 
 					It("must save a key with Array Types", func() {

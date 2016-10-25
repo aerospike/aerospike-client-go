@@ -139,3 +139,23 @@ func Benchmark_ReadCommand_Complex_Map(b *testing.B) {
 	b.ResetTimer()
 	doGet(set, value, b)
 }
+
+func Benchmark_ReadCommand_JSON_Map(b *testing.B) {
+	set := "put_bench_str_10000"
+	value := map[string]interface{}{
+		strings.Repeat("a", 16): rand.Int63(),
+		strings.Repeat("b", 16): strings.Repeat("s", 100),
+		strings.Repeat("c", 16): []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+		strings.Repeat("d", 16): map[interface{}]interface{}{
+			rand.Int63(): rand.Int63(),
+			nil:          1,
+			"s":          491871,
+			15892987:     strings.Repeat("s", 100),
+			"s2":         []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+		},
+	}
+	b.N = 1000
+	runtime.GC()
+	b.ResetTimer()
+	doGet(set, value, b)
+}

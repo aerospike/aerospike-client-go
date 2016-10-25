@@ -19,12 +19,13 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"reflect"
 	"time"
 
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
+
+var __packObjectReflect func(aerospikeBuffer, interface{}, bool) (int, error)
 
 func __PackIfcList(cmd aerospikeBuffer, list []interface{}) (int, error) {
 	size := 0
@@ -35,7 +36,7 @@ func __PackIfcList(cmd aerospikeBuffer, list []interface{}) (int, error) {
 	size += n
 
 	for i := range list {
-		n, err := __PackObject(cmd, list[i])
+		n, err := __PackObject(cmd, list[i], false)
 		if err != nil {
 			return 0, err
 		}
@@ -54,7 +55,7 @@ func __PackList(cmd aerospikeBuffer, list ListIter) (int, error) {
 	size += n
 
 	f := func(v interface{}) error {
-		n, err := __PackObject(cmd, v)
+		n, err := __PackObject(cmd, v, false)
 		if err != nil {
 			return err
 		}
@@ -64,6 +65,25 @@ func __PackList(cmd aerospikeBuffer, list ListIter) (int, error) {
 	}
 
 	err = list.Range(f)
+	return size, err
+}
+
+func __PackValueArray(cmd aerospikeBuffer, list ValueArray) (int, error) {
+	size := 0
+	n, err := __PackArrayBegin(cmd, len(list))
+	if err != nil {
+		return n, err
+	}
+	size += n
+
+	for i := range list {
+		n, err := list[i].pack(cmd)
+		if err != nil {
+			return 0, err
+		}
+		size += n
+	}
+
 	return size, err
 }
 
@@ -86,21 +106,12 @@ func __PackIfcMap(cmd aerospikeBuffer, theMap map[interface{}]interface{}) (int,
 	size += n
 
 	for k, v := range theMap {
-		// TODO: This needs to go, possibly by the use of Value in Iter
-		// if k != nil {
-		// 	t := reflect.TypeOf(k)
-		// 	if t.Kind() == reflect.Map || t.Kind() == reflect.Slice ||
-		// 		(t.Kind() == reflect.Array && t.Elem().Kind() != reflect.Uint8) {
-		// 		panic("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys.")
-		// 	}
-		// }
-
-		n, err := __PackObject(cmd, k)
+		n, err := __PackObject(cmd, k, true)
 		if err != nil {
 			return 0, err
 		}
 		size += n
-		n, err = __PackObject(cmd, v)
+		n, err = __PackObject(cmd, v, false)
 		if err != nil {
 			return 0, err
 		}
@@ -124,7 +135,7 @@ func __PackJsonMap(cmd aerospikeBuffer, theMap map[string]interface{}) (int, err
 			return 0, err
 		}
 		size += n
-		n, err = __PackObject(cmd, v)
+		n, err = __PackObject(cmd, v, false)
 		if err != nil {
 			return 0, err
 		}
@@ -143,21 +154,12 @@ func __PackMap(cmd aerospikeBuffer, theMap MapIter) (int, error) {
 	size += n
 
 	f := func(k, v interface{}) error {
-		// TODO: This needs to go, possibly by the use of Value in Iter
-		if k != nil {
-			t := reflect.TypeOf(k)
-			if t.Kind() == reflect.Map || t.Kind() == reflect.Slice ||
-				(t.Kind() == reflect.Array && t.Elem().Kind() != reflect.Uint8) {
-				panic("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys.")
-			}
-		}
-
-		n, err := __PackObject(cmd, k)
+		n, err := __PackObject(cmd, k, true)
 		if err != nil {
 			return err
 		}
 		size += n
-		n, err = __PackObject(cmd, v)
+		n, err = __PackObject(cmd, v, false)
 		if err != nil {
 			return err
 		}
@@ -213,7 +215,7 @@ func __PackByteArrayBegin(cmd aerospikeBuffer, length int) (int, error) {
 	}
 }
 
-func __PackObject(cmd aerospikeBuffer, obj interface{}) (int, error) {
+func __PackObject(cmd aerospikeBuffer, obj interface{}, mapKey bool) (int, error) {
 	switch v := obj.(type) {
 	case Value:
 		return v.pack(cmd)
@@ -258,57 +260,37 @@ func __PackObject(cmd aerospikeBuffer, obj interface{}) (int, error) {
 	case float64:
 		return __PackFloat64(cmd, v)
 	case struct{}:
+		if mapKey {
+			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
+		}
 		return __PackIfcMap(cmd, map[interface{}]interface{}{})
 	case []interface{}:
+		if mapKey {
+			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
+		}
 		return __PackIfcList(cmd, v)
 	case map[interface{}]interface{}:
+		if mapKey {
+			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
+		}
 		return __PackIfcMap(cmd, v)
 	case ListIter:
+		if mapKey {
+			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
+		}
 		return __PackList(cmd, obj.(ListIter))
 	case MapIter:
+		if mapKey {
+			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
+		}
 		return __PackMap(cmd, obj.(MapIter))
 	}
 
-	// check for array and map
-	rv := reflect.ValueOf(obj)
-	switch reflect.TypeOf(obj).Kind() {
-	case reflect.Array, reflect.Slice:
-		// pack bounded array of bytes differently
-		if reflect.TypeOf(obj).Kind() == reflect.Array && reflect.TypeOf(obj).Elem().Kind() == reflect.Uint8 {
-			l := rv.Len()
-			arr := make([]byte, l)
-			for i := 0; i < l; i++ {
-				arr[i] = rv.Index(i).Interface().(uint8)
-			}
-			return __PackBytes(cmd, arr)
-		}
-
-		l := rv.Len()
-		arr := make([]interface{}, l)
-		for i := 0; i < l; i++ {
-			arr[i] = rv.Index(i).Interface()
-		}
-		return __PackIfcList(cmd, arr)
-	case reflect.Map:
-		l := rv.Len()
-		amap := make(map[interface{}]interface{}, l)
-		for _, i := range rv.MapKeys() {
-			amap[i.Interface()] = rv.MapIndex(i).Interface()
-		}
-		return __PackIfcMap(cmd, amap)
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return __PackObject(cmd, rv.Int())
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return __PackObject(cmd, rv.Uint())
-	case reflect.Bool:
-		return __PackObject(cmd, rv.Bool())
-	case reflect.String:
-		return __PackObject(cmd, rv.String())
-	case reflect.Float32, reflect.Float64:
-		return __PackObject(cmd, rv.Float())
+	if __packObjectReflect != nil {
+		return __packObjectReflect(cmd, obj, mapKey)
 	}
 
-	panic(fmt.Sprintf("Type `%v` not supported to pack.", reflect.TypeOf(obj)))
+	panic(fmt.Sprintf("Type `%#v` not supported to pack. ", obj))
 }
 
 func __PackAUInt64(cmd aerospikeBuffer, val uint64) (int, error) {
