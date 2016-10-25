@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	"fmt"
-	"math"
 	"reflect"
 	"strconv"
 
@@ -103,7 +102,8 @@ func NewValue(v interface{}) Value {
 	case float64:
 		return FloatValue(val)
 	case uint:
-		if val <= math.MaxInt64 {
+		// if it doesn't overflow int64, it is OK
+		if int64(val) >= 0 {
 			return LongValue(int64(val))
 		}
 	case MapIter:
@@ -640,7 +640,11 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 
 	switch ptype {
 	case ParticleType.INTEGER:
-		return int(Buffer.VarBytesToInt64(buf, offset, length)), nil
+		// return `int` for 64bit platforms for compatibility reasons
+		if Buffer.Arch64Bits {
+			return int(Buffer.VarBytesToInt64(buf, offset, length)), nil
+		}
+		return Buffer.VarBytesToInt64(buf, offset, length), nil
 
 	case ParticleType.STRING:
 		return string(buf[offset : offset+length]), nil
