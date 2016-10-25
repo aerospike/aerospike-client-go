@@ -22,7 +22,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/pkg/ripemd160"
 )
 
-var res []byte
+var res []byte = make([]byte, 20)
 
 func doTheHash(buf []byte, b *testing.B) {
 	hash := ripemd160.New()

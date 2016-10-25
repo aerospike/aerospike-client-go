@@ -113,7 +113,9 @@ func (d *Digest) Sum(res []byte) []byte {
 		Digest[i*4+3] = byte(s >> 24)
 	}
 
-	copy(res, Digest[:])
-	// return append(in, Digest[:]...)
-	return nil
+	if res != nil {
+		copy(res, Digest[:])
+		return nil
+	}
+	return append(res, Digest[:]...)
 }
