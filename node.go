@@ -17,6 +17,7 @@ package aerospike
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -39,7 +40,8 @@ type Node struct {
 	// tendConn reserves a connection for tend so that it won't have to
 	// wait in queue for connections, since that will cause starvation
 	// and the node being dropped under load.
-	tendConn *Connection
+	tendConn     *Connection
+	tendConnLock sync.Mutex // All uses of tend connection should be synchronized
 
 	peersGeneration AtomicInt
 	peersCount      AtomicInt
@@ -100,24 +102,9 @@ func (nd *Node) Refresh(peers *peers) error {
 
 	nd.referenceCount.Set(0)
 
-	if nd.tendConn == nil {
-		// Tend connection required a long timeout
-		tendConn, err := nd.GetConnection(15 * time.Second)
-		if err != nil {
-			return err
-		}
-
-		nd.tendConn = tendConn
-	}
-
-	// Set timeout for tend conn
-	nd.tendConn.SetTimeout(15 * time.Second)
-
 	if peers.usePeers {
-		infoMap, err := RequestInfo(nd.tendConn, "node", "peers-generation", "partition-generation")
+		infoMap, err := nd.RequestInfo("node", "peers-generation", "partition-generation")
 		if err != nil {
-			nd.InvalidateConnection(nd.tendConn)
-			nd.tendConn = nil
 			return err
 		}
 
@@ -135,10 +122,8 @@ func (nd *Node) Refresh(peers *peers) error {
 	} else {
 		commands := []string{"node", "partition-generation", nd.cluster.clientPolicy.serviceString()}
 
-		infoMap, err := RequestInfo(nd.tendConn, commands...)
+		infoMap, err := nd.RequestInfo(commands...)
 		if err != nil {
-			nd.InvalidateConnection(nd.tendConn)
-			nd.tendConn = nil
 			return err
 		}
 
@@ -369,7 +354,7 @@ func (nd *Node) refreshPartitions(peers *peers) {
 		return
 	}
 
-	parser, err := newPartitionParser(nd.tendConn, nd, nd.cluster.partitionWriteMap.Load().(partitionMap), _PARTITIONS, nd.cluster.clientPolicy.RequestProleReplicas)
+	parser, err := newPartitionParser(nd, nd.cluster.partitionWriteMap.Load().(partitionMap), _PARTITIONS, nd.cluster.clientPolicy.RequestProleReplicas)
 	if err != nil {
 		nd.refreshFailed(err)
 		return
@@ -384,7 +369,6 @@ func (nd *Node) refreshPartitions(peers *peers) {
 
 func (nd *Node) refreshFailed(e error) {
 	nd.failures.IncrementAndGet()
-	nd.tendConn.Close()
 
 	// Only log message if cluster is still active.
 	if nd.cluster.IsConnected() {
@@ -608,18 +592,59 @@ func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) (err error)
 	}
 }
 
+// initTendConn sets up a connection to be used for info requests.
+// The same connection will be used for tend.
+func (nd *Node) initTendConn(timeout time.Duration) error {
+	nd.tendConnLock.Lock()
+	defer nd.tendConnLock.Unlock()
+
+	if nd.tendConn == nil {
+		// Tend connection required a long timeout
+		tendConn, err := nd.GetConnection(timeout)
+		if err != nil {
+			return err
+		}
+
+		nd.tendConn = tendConn
+	}
+
+	// Set timeout for tend conn
+	return nd.tendConn.SetTimeout(timeout)
+}
+
 // RequestInfo gets info values by name from the specified database server node.
 func (nd *Node) RequestInfo(name ...string) (map[string]string, error) {
-	conn, err := nd.GetConnection(_DEFAULT_TIMEOUT)
-	if err != nil {
+	if err := nd.initTendConn(nd.cluster.clientPolicy.Timeout); err != nil {
 		return nil, err
 	}
 
-	response, err := RequestInfo(conn, name...)
+	nd.tendConnLock.Lock()
+	defer nd.tendConnLock.Unlock()
+
+	response, err := RequestInfo(nd.tendConn, name...)
 	if err != nil {
-		nd.InvalidateConnection(conn)
+		nd.InvalidateConnection(nd.tendConn)
+		nd.tendConn = nil
 		return nil, err
 	}
-	nd.PutConnection(conn)
+	return response, nil
+}
+
+// requestRawInfo gets info values by name from the specified database server node.
+// It won't parse the results.
+func (nd *Node) requestRawInfo(name ...string) (*info, error) {
+	if err := nd.initTendConn(nd.cluster.clientPolicy.Timeout); err != nil {
+		return nil, err
+	}
+
+	nd.tendConnLock.Lock()
+	defer nd.tendConnLock.Unlock()
+
+	response, err := newInfo(nd.tendConn, name...)
+	if err != nil {
+		nd.InvalidateConnection(nd.tendConn)
+		nd.tendConn = nil
+		return nil, err
+	}
 	return response, nil
 }

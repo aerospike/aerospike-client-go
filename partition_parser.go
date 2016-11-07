@@ -43,7 +43,7 @@ type partitionParser struct {
 	copied         bool
 }
 
-func newPartitionParser(conn *Connection, node *Node, pmap partitionMap, partitionCount int, requestProleReplicas bool) (*partitionParser, error) {
+func newPartitionParser(node *Node, pmap partitionMap, partitionCount int, requestProleReplicas bool) (*partitionParser, error) {
 	newPartitionParser := &partitionParser{
 		partitionCount: partitionCount,
 		pmap:           pmap,
@@ -55,7 +55,7 @@ func newPartitionParser(conn *Connection, node *Node, pmap partitionMap, partiti
 	if requestProleReplicas {
 		command = _ReplicasAll
 	}
-	info, err := newInfo(conn, _PartitionGeneration, command)
+	info, err := node.requestRawInfo(_PartitionGeneration, command)
 	if err != nil {
 		return nil, err
 	}
