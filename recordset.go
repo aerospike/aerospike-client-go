@@ -161,7 +161,11 @@ L:
 //    }
 //  }
 func (rcs *Recordset) Results() <-chan *Result {
-	res := make(chan *Result, len(rcs.Records))
+	recCap := cap(rcs.Records)
+	if recCap < 1 {
+		recCap = 1
+	}
+	res := make(chan *Result, recCap)
 
 	select {
 	case <-rcs.cancelled:
@@ -202,8 +206,13 @@ func (rcs *Recordset) Close() error {
 		return ErrRecordsetClosed
 	}
 
+	// check and close cancelled channel
 	// this will broadcast to all commands listening to the channel
-	close(rcs.cancelled)
+	select {
+	case <-rcs.cancelled:
+	default:
+		close(rcs.cancelled)
+	}
 
 	// wait till all goroutines are done, and signalEnd is called by the scan command
 	rcs.wgGoroutines.Wait()
@@ -216,6 +225,13 @@ func (rcs *Recordset) signalEnd() {
 	if rcs.goroutines.DecrementAndGet() == 0 {
 		// mark the recordset as closed
 		rcs.active.Set(false)
+
+		// check and close cancelled channel
+		select {
+		case <-rcs.cancelled:
+		default:
+			close(rcs.cancelled)
+		}
 
 		rcs.chanLock.Lock()
 		defer rcs.chanLock.Unlock()
