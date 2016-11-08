@@ -201,17 +201,17 @@ func (rcs *Recordset) Results() <-chan *Result {
 // Close all streams from different nodes. A successful close return nil,
 // subsequent calls to the method will return ErrRecordsetClosed.
 func (rcs *Recordset) Close() error {
-	// do it only once
-	if !rcs.active.CompareAndToggle(true) {
-		return ErrRecordsetClosed
-	}
-
 	// check and close cancelled channel
 	// this will broadcast to all commands listening to the channel
 	select {
 	case <-rcs.cancelled:
 	default:
 		close(rcs.cancelled)
+	}
+
+	// do it only once
+	if !rcs.active.CompareAndToggle(true) {
+		return ErrRecordsetClosed
 	}
 
 	// wait till all goroutines are done, and signalEnd is called by the scan command
@@ -225,13 +225,6 @@ func (rcs *Recordset) signalEnd() {
 	if rcs.goroutines.DecrementAndGet() == 0 {
 		// mark the recordset as closed
 		rcs.active.Set(false)
-
-		// check and close cancelled channel
-		select {
-		case <-rcs.cancelled:
-		default:
-			close(rcs.cancelled)
-		}
 
 		rcs.chanLock.Lock()
 		defer rcs.chanLock.Unlock()
