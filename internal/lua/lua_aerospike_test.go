@@ -43,7 +43,7 @@ var _ = Describe("Lua Aerospike API Test", func() {
 	It("must run all code blocks", func() {
 		instance := LuaPool.Get().(*lua.LState)
 		defer instance.Close()
-		for source, _ := range testMatrix {
+		for source := range testMatrix {
 			err := instance.DoString(source)
 			Expect(err).NotTo(HaveOccurred())
 		}
