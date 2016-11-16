@@ -1,6 +1,7 @@
 package types
 
 import (
+	"math"
 	"time"
 )
 
@@ -11,5 +12,11 @@ const (
 
 // TTL converts an Expiration time from citrusleaf epoc to TTL in seconds.
 func TTL(secsFromCitrusLeafEpoc uint32) uint32 {
-	return uint32(int64(CITRUSLEAF_EPOCH+secsFromCitrusLeafEpoc) - time.Now().Unix())
+	switch secsFromCitrusLeafEpoc {
+	// don't convert magic values
+	case 0: // when set to don't expire, this value is returned
+		return math.MaxUint32
+	default:
+		return uint32(int64(CITRUSLEAF_EPOCH+secsFromCitrusLeafEpoc) - time.Now().Unix())
+	}
 }
