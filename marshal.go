@@ -87,13 +87,18 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 			return nil
 		}
 
-		// convert to primitives recursively
-		newSlice := make([]interface{}, f.Len(), f.Cap())
-		for i := 0; i < len(newSlice); i++ {
-			newSlice[i] = valueToInterface(f.Index(i), clusterSupportsFloat)
-		}
+		if f.Kind() == reflect.Slice && reflect.TypeOf(f.Interface()).Elem().Kind() == reflect.Uint8 {
+			// handle blobs
+			return f.Interface().([]byte)
+		} else {
+			// convert to primitives recursively
+			newSlice := make([]interface{}, f.Len(), f.Cap())
+			for i := 0; i < len(newSlice); i++ {
+				newSlice[i] = valueToInterface(f.Index(i), clusterSupportsFloat)
+			}
 
-		return newSlice
+			return newSlice
+		}
 	case reflect.Interface:
 		if f.IsNil() {
 			return nil
