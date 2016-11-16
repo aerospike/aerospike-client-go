@@ -112,6 +112,7 @@ var _ = Describe("Aerospike", func() {
 			// InterfaceP interface{}
 			InterfacePP *interface{}
 
+			ByteArray     []byte
 			Array         [3]interface{}
 			SliceString   []string
 			SliceFloat64  []float64
@@ -236,6 +237,7 @@ var _ = Describe("Aerospike", func() {
 			// InterfaceP interface{}  `as:"// interface"`
 			InterfacePP *interface{} `as:"interfacepp"`
 
+			ByteArray    []byte         `as:"bytearray"`
 			Array        [3]interface{} `as:"array"`
 			SliceString  []string       `as:"slicestring"`
 			SliceFloat64 []float64      `as:"slicefloat64"`
@@ -394,6 +396,7 @@ var _ = Describe("Aerospike", func() {
 				// InterfaceP:  ifaceP, // NOTICE: NOT SUPPORTED
 				InterfacePP: &iface,
 
+				ByteArray:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
 				Array:          [3]interface{}{1, "string", nil},
 				SliceString:    []string{"string1", "string2", "string3"},
 				SliceFloat64:   []float64{1.1, 2.2, 3.3, 4.4},
@@ -542,6 +545,7 @@ var _ = Describe("Aerospike", func() {
 				// InterfaceP:  ifaceP, // NOTICE: NOT SUPPORTED
 				InterfacePP: &iface,
 
+				ByteArray:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
 				Array:          [3]interface{}{1, "string", nil},
 				SliceString:    []string{"string1", "string2", "string3"},
 				SliceFloat64:   []float64{1.1, 2.2, 3.3, 4.4},
@@ -650,11 +654,12 @@ var _ = Describe("Aerospike", func() {
 					Strings       []string `as:"b"`
 					DontPersist   int      `as:"-"`
 					PersistAsFld1 int      `as:"fld1"`
+					Bytes         []byte   `as:"fldbytes"`
 
 					IStruct InnerStruct `as:"istruct"`
 				}
 
-				testObj := TaggedStruct{Strings: []string{"a", "b", "c"}, DontPersist: 1, PersistAsFld1: 2, IStruct: InnerStruct{Strings: []string{"d", "e", "f", "g"}, PersistNot: 10, PersistAsInner1: 11}}
+				testObj := TaggedStruct{Strings: []string{"a", "b", "c"}, DontPersist: 1, PersistAsFld1: 2, Bytes: []byte{1, 2, 3, 4}, IStruct: InnerStruct{Strings: []string{"d", "e", "f", "g"}, PersistNot: 10, PersistAsInner1: 11}}
 				err := client.PutObject(nil, key, &testObj)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -673,15 +678,16 @@ var _ = Describe("Aerospike", func() {
 
 				Expect(rec.Bins).To(Equal(
 					BinMap{
-						"b":    []interface{}{"a", "b", "c"},
-						"fld1": 2,
+						"b":        []interface{}{"a", "b", "c"},
+						"fld1":     2,
+						"fldbytes": []byte{1, 2, 3, 4},
 						"istruct": map[interface{}]interface{}{
 							"b":      []interface{}{"d", "e", "f", "g"},
 							"inner1": 11,
 						},
 					}))
 
-				Expect(len(rec.Bins)).To(Equal(3))
+				Expect(len(rec.Bins)).To(Equal(4))
 				Expect(rec.Bins["DontPersist"]).To(BeNil())
 				Expect(rec.Bins["fld1"]).To(Equal(2))
 				innerStruct := rec.Bins["istruct"].(map[interface{}]interface{})
