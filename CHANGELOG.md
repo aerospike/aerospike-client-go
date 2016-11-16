@@ -1,5 +1,24 @@
 # Change History
 
+## November 16 2016 : v1.21.0
+
+  Minor fix release.
+
+  * **New Features**
+
+    - Added new constants for expiration in `WritePolicy`: `TTLServerDefault`, `TTLDontExpire`, `TTLDontUpdate`
+
+  * **Improvements**
+
+    - Corrects typos in the code. PR #142, thanks to [Muyiwa Olurin ](https://github.com/muyiwaolurin)
+    - Use the tend connection for `RequestInfo` commands.
+
+  * **Fixes**
+
+    - Fixes an issue where TTL values were calcualted wrongly when they were set not to expire.
+    - Fixes an issue where `PutObjects` would marshal `[]byte` to `List` in database. PR #152, thanks to [blide](https://github.com/blide)
+    - Fixes an issue where `Recordset` could leak goroutines. PR #153, thanks to [Deepak Prabhakara](https://github.com/deepakprabhakara)
+
 ## October 25 2016 : v1.20.0
 
   Major improvements release. There has been major changes in the library. Please test rigorously before upgrading to the new version.
