@@ -50,8 +50,8 @@ type objectset struct {
 	wgGoroutines sync.WaitGroup
 	goroutines   *AtomicInt
 
-	active    *AtomicBool
-	cancelled chan struct{}
+	closed, active *AtomicBool
+	cancelled      chan struct{}
 
 	chanLock sync.Mutex
 
@@ -91,6 +91,7 @@ func newObjectset(objChan reflect.Value, goroutines int, taskId uint64) *objects
 		objChan:    objChan,
 		Errors:     make(chan error, goroutines),
 		active:     NewAtomicBool(true),
+		closed:     NewAtomicBool(false),
 		goroutines: NewAtomicInt(goroutines),
 		cancelled:  make(chan struct{}),
 		taskId:     taskId,
@@ -161,7 +162,11 @@ L:
 //    }
 //  }
 func (rcs *Recordset) Results() <-chan *Result {
-	res := make(chan *Result, len(rcs.Records))
+	recCap := cap(rcs.Records)
+	if recCap < 1 {
+		recCap = 1
+	}
+	res := make(chan *Result, recCap)
 
 	select {
 	case <-rcs.cancelled:
@@ -198,11 +203,13 @@ func (rcs *Recordset) Results() <-chan *Result {
 // subsequent calls to the method will return ErrRecordsetClosed.
 func (rcs *Recordset) Close() error {
 	// do it only once
-	if !rcs.active.CompareAndToggle(true) {
+	if !rcs.closed.CompareAndToggle(false) {
 		return ErrRecordsetClosed
 	}
 
-	// this will broadcast to all commands listening to the channel
+	// mark the recordset as inactive
+	rcs.active.Set(false)
+
 	close(rcs.cancelled)
 
 	// wait till all goroutines are done, and signalEnd is called by the scan command
@@ -214,7 +221,7 @@ func (rcs *Recordset) Close() error {
 func (rcs *Recordset) signalEnd() {
 	rcs.wgGoroutines.Done()
 	if rcs.goroutines.DecrementAndGet() == 0 {
-		// mark the recordset as closed
+		// mark the recordset as inactive
 		rcs.active.Set(false)
 
 		rcs.chanLock.Lock()

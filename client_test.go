@@ -19,6 +19,7 @@ import (
 	"math"
 	"math/rand"
 	"strings"
+	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
 	. "github.com/aerospike/aerospike-client-go/utils/buffer"
