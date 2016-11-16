@@ -211,11 +211,11 @@ var _ = Describe("CDT Map Test", func() {
 			)
 
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cdtMap.Bins[cdtBinName]).To(Equal([]interface{}{3, 4, 4, 4, "my default", "changed", []MapPair{MapPair{Key: 12, Value: 23}, MapPair{Key: 13, Value: "myval2"}}}))
+			Expect(cdtMap.Bins[cdtBinName]).To(Equal([]interface{}{3, 4, 4, 4, "my default", "changed", []MapPair{{Key: 12, Value: 23}, {Key: 13, Value: "myval2"}}}))
 
 			cdtMap, err = client.Get(nil, key, cdtBinName)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cdtMap.Bins[cdtBinName]).To(Equal([]MapPair{MapPair{Key: -8734, Value: "changed"}, MapPair{Key: 1, Value: "my default"}, MapPair{Key: 12, Value: 23}, MapPair{Key: 13, Value: "myval2"}}))
+			Expect(cdtMap.Bins[cdtBinName]).To(Equal([]MapPair{{Key: -8734, Value: "changed"}, {Key: 1, Value: "my default"}, {Key: 12, Value: 23}, {Key: 13, Value: "myval2"}}))
 		})
 
 		It("should create a valid CDT Map using mixed MapPutOp and MapPutItemsOp", func() {
@@ -246,7 +246,7 @@ var _ = Describe("CDT Map Test", func() {
 
 			cdtMap, err = client.Get(nil, key)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cdtMap.Bins).To(Equal(BinMap{cdtBinName: []MapPair{MapPair{Key: -8734, Value: "str2"}, MapPair{Key: 1, Value: "my default"}, MapPair{Key: 7, Value: 1}, MapPair{Key: 12, Value: "myval"}}, "other_bin": "head...tail"}))
+			Expect(cdtMap.Bins).To(Equal(BinMap{cdtBinName: []MapPair{{Key: -8734, Value: "str2"}, {Key: 1, Value: "my default"}, {Key: 7, Value: 1}, {Key: 12, Value: "myval"}}, "other_bin": "head...tail"}))
 		})
 
 		It("should create a valid CDT Map and then Switch Policy For Order", func() {
@@ -262,7 +262,7 @@ var _ = Describe("CDT Map Test", func() {
 			)
 
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cdtMap.Bins).To(Equal(BinMap{cdtBinName: []interface{}{1, 2, 3, 4, []MapPair{MapPair{Key: 3, Value: 2}}, []MapPair{MapPair{Key: 1, Value: 4}, MapPair{Key: 2, Value: 3}, MapPair{Key: 3, Value: 2}, MapPair{Key: 4, Value: 1}}}}))
+			Expect(cdtMap.Bins).To(Equal(BinMap{cdtBinName: []interface{}{1, 2, 3, 4, []MapPair{{Key: 3, Value: 2}}, []MapPair{{Key: 1, Value: 4}, {Key: 2, Value: 3}, {Key: 3, Value: 2}, {Key: 4, Value: 1}}}}))
 
 			cdtMap, err = client.Operate(wpolicy, key,
 				MapSetPolicyOp(NewMapPolicy(MapOrder.KEY_ORDERED, MapWriteMode.UPDATE), cdtBinName),
@@ -273,7 +273,7 @@ var _ = Describe("CDT Map Test", func() {
 			)
 
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cdtMap.Bins).To(Equal(BinMap{cdtBinName: []interface{}{interface{}(nil), 2, []MapPair{MapPair{Key: 1, Value: 4}}, []MapPair{MapPair{Key: 1, Value: 4}, MapPair{Key: 2, Value: 3}, MapPair{Key: 3, Value: 2}, MapPair{Key: 4, Value: 1}}}}))
+			Expect(cdtMap.Bins).To(Equal(BinMap{cdtBinName: []interface{}{interface{}(nil), 2, []MapPair{{Key: 1, Value: 4}}, []MapPair{{Key: 1, Value: 4}, {Key: 2, Value: 3}, {Key: 3, Value: 2}, {Key: 4, Value: 1}}}}))
 
 		})
 
@@ -324,7 +324,7 @@ var _ = Describe("CDT Map Test", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(cdtMap.Bins).To(Equal(BinMap{cdtBinName: []interface{}{"Harry", "Jim", []MapPair{MapPair{Key: "Charlie", Value: 55}, MapPair{Key: "John", Value: 81}}, 55, "Harry", []interface{}{3}, 1, []MapPair{MapPair{Key: "Jim", Value: 94}}, []interface{}{"John"}, []interface{}{}, []interface{}{1}, 0, 3}}))
+			Expect(cdtMap.Bins).To(Equal(BinMap{cdtBinName: []interface{}{"Harry", "Jim", []MapPair{{Key: "Charlie", Value: 55}, {Key: "John", Value: 81}}, 55, "Harry", []interface{}{3}, 1, []MapPair{{Key: "Jim", Value: 94}}, []interface{}{"John"}, []interface{}{}, []interface{}{1}, 0, 3}}))
 		})
 
 		It("should create a valid CDT Map and then execute Remove operations", func() {

@@ -274,10 +274,10 @@ var _ = Describe("Aerospike", func() {
 						if Arch32Bits {
 							return NewBin("Aerospike2", int(math.MinInt32)),
 								NewBin("Aerospike3", uint(math.MaxInt32))
-						} else {
-							return NewBin("Aerospike2", int(math.MinInt64)),
-								NewBin("Aerospike3", uint(math.MaxInt64))
 						}
+						return NewBin("Aerospike2", int(math.MinInt64)),
+							NewBin("Aerospike3", uint(math.MaxInt64))
+
 					}()
 
 					err = client.PutBins(wpolicy, key, bin1, bin2, bin3)
@@ -676,7 +676,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("must check Existance of a non-existing key", func() {
+			It("must check Existence of a non-existing key", func() {
 				var nxkey *Key
 				nxkey, err = NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
@@ -687,7 +687,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(exists).To(Equal(false))
 			})
 
-			It("must checks Existance of an existing key", func() {
+			It("must checks Existence of an existing key", func() {
 				var exists bool
 				exists, err = client.Exists(rpolicy, key)
 				Expect(err).ToNot(HaveOccurred())
@@ -745,18 +745,18 @@ var _ = Describe("Aerospike", func() {
 				binRedundant := NewBin("Redundant", "Redundant")
 
 				var records []*Record
-				type existance struct {
+				type existence struct {
 					key         *Key
 					shouldExist bool // set randomly and checked against later
 				}
 
-				exList := make([]existance, 0, keyCount)
+				exList := make([]existence, 0, keyCount)
 				keys := make([]*Key, 0, keyCount)
 
 				for i := 0; i < keyCount; i++ {
 					key, err := NewKey(ns, set, randString(50))
 					Expect(err).ToNot(HaveOccurred())
-					e := existance{key: key, shouldExist: rand.Intn(100) > 50}
+					e := existence{key: key, shouldExist: rand.Intn(100) > 50}
 					exList = append(exList, e)
 					keys = append(keys, key)
 
@@ -838,18 +838,18 @@ var _ = Describe("Aerospike", func() {
 
 			It("must return the records with same ordering as keys", func() {
 				var records []*Record
-				type existance struct {
+				type existence struct {
 					key         *Key
 					shouldExist bool // set randomly and checked against later
 				}
 
-				exList := []existance{}
+				exList := []existence{}
 				keys := []*Key{}
 
 				for i := 0; i < keyCount; i++ {
 					key, err := NewKey(ns, set, randString(50))
 					Expect(err).ToNot(HaveOccurred())
-					e := existance{key: key, shouldExist: rand.Intn(100) > 50}
+					e := existence{key: key, shouldExist: rand.Intn(100) > 50}
 					exList = append(exList, e)
 					keys = append(keys, key)
 

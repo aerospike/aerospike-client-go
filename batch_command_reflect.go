@@ -36,8 +36,8 @@ func concretePrepareReflectionData(cmd *baseMultiCommand) {
 		cmd.resObjMappings = objectMappings.getMapping(cmd.recordset.objChan.Type().Elem().Elem())
 
 		cmd.selectCases = []reflect.SelectCase{
-			reflect.SelectCase{Dir: reflect.SelectSend, Chan: cmd.recordset.objChan},
-			reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cmd.recordset.cancelled)},
+			{Dir: reflect.SelectSend, Chan: cmd.recordset.objChan},
+			{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(cmd.recordset.cancelled)},
 		}
 	}
 }

@@ -402,21 +402,21 @@ var _ = Describe("Aerospike", func() {
 				SliceFloat64:   []float64{1.1, 2.2, 3.3, 4.4},
 				SliceInt:       []interface{}{1, 2, 3},
 				Slice:          []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
-				ArrayOfMaps:    [1]map[int]string{map[int]string{1: "str"}},
-				SliceOfMaps:    []map[int]string{map[int]string{1: "str"}},
+				ArrayOfMaps:    [1]map[int]string{{1: "str"}},
+				SliceOfMaps:    []map[int]string{{1: "str"}},
 				ArrayOfSlices:  [1][]interface{}{{1, 2, 3}},
 				SliceOfSlices:  [][]interface{}{{1, 2, 3}, {4, 5, 6}},
 				ArrayOfArrays:  [1][1]interface{}{{1}},
 				SliceOfArrays:  [][1]interface{}{{1}, {2}, {3}},
-				ArrayOfStructs: [1]SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 1}}},
-				SliceOfStructs: []SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 1}}},
+				ArrayOfStructs: [1]SomeStruct{{A: 1, Self: &SomeStruct{A: 1}}},
+				SliceOfStructs: []SomeStruct{{A: 1, Self: &SomeStruct{A: 1}}},
 
 				Map:           map[interface{}]interface{}{1: "string", "string": nil, nil: map[interface{}]interface{}{"1": ip}, true: false},
-				MapOfMaps:     map[string]map[int64]byte{"1": map[int64]byte{1: 1, 2: 2}},
-				MapOfSlices:   map[string][]byte{"1": []byte{1, 2}, "2": []byte{3, 4}},
-				MapOfArrays:   map[string][3]byte{"1": [3]byte{1, 2, 3}, "2": [3]byte{3, 4, 5}},
-				MapOfStructs:  map[string]SomeStruct{"1": SomeStruct{A: 10, Self: &SomeStruct{A: 10}}},
-				MapOfPStructs: map[string]*SomeStruct{"1": &SomeStruct{A: 10, Self: &SomeStruct{A: 10}}},
+				MapOfMaps:     map[string]map[int64]byte{"1": {1: 1, 2: 2}},
+				MapOfSlices:   map[string][]byte{"1": {1, 2}, "2": {3, 4}},
+				MapOfArrays:   map[string][3]byte{"1": {1, 2, 3}, "2": {3, 4, 5}},
+				MapOfStructs:  map[string]SomeStruct{"1": {A: 10, Self: &SomeStruct{A: 10}}},
+				MapOfPStructs: map[string]*SomeStruct{"1": {A: 10, Self: &SomeStruct{A: 10}}},
 
 				CustomBool:    true,
 				CustomBoolP:   &ctbl,
@@ -454,8 +454,8 @@ var _ = Describe("Aerospike", func() {
 				NestedObj:  SomeStruct{A: 1, Self: &SomeStruct{A: 999}},
 				NestedObjP: &testObject{Int: 1, Intp: &ip, Tm: now},
 
-				NestedObjSlice: []SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 999}}, SomeStruct{A: 2, Self: &SomeStruct{A: 998}}},
-				NstdObjPSlice:  []*testObject{&testObject{Int: 1, Intp: &ip, Tm: now}, &testObject{Int: 2, Intp: &ip, Tm: now}},
+				NestedObjSlice: []SomeStruct{{A: 1, Self: &SomeStruct{A: 999}}, {A: 2, Self: &SomeStruct{A: 998}}},
+				NstdObjPSlice:  []*testObject{{Int: 1, Intp: &ip, Tm: now}, {Int: 2, Intp: &ip, Tm: now}},
 
 				Tm:  now,
 				TmP: &now,
@@ -551,21 +551,21 @@ var _ = Describe("Aerospike", func() {
 				SliceFloat64:   []float64{1.1, 2.2, 3.3, 4.4},
 				SliceInt:       []interface{}{1, 2, 3},
 				Slice:          []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
-				ArrayOfMaps:    [1]map[int]string{map[int]string{1: "str"}},
-				SliceOfMaps:    []map[int]string{map[int]string{1: "str"}},
+				ArrayOfMaps:    [1]map[int]string{{1: "str"}},
+				SliceOfMaps:    []map[int]string{{1: "str"}},
 				ArrayOfSlices:  [1][]interface{}{{1, 2, 3}},
 				SliceOfSlices:  [][]interface{}{{1, 2, 3}, {4, 5, 6}},
 				ArrayOfArrays:  [1][1]interface{}{{1}},
 				SliceOfArrays:  [][1]interface{}{{1}, {2}, {3}},
-				ArrayOfStructs: [1]SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 1}}},
-				SliceOfStructs: []SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 1}}},
+				ArrayOfStructs: [1]SomeStruct{{A: 1, Self: &SomeStruct{A: 1}}},
+				SliceOfStructs: []SomeStruct{{A: 1, Self: &SomeStruct{A: 1}}},
 
 				Map:           map[interface{}]interface{}{1: "string", "string": nil, nil: map[interface{}]interface{}{"1": ip}, true: false},
-				MapOfMaps:     map[string]map[int64]byte{"1": map[int64]byte{1: 1, 2: 2}},
-				MapOfSlices:   map[string][]byte{"1": []byte{1, 2}, "2": []byte{3, 4}},
-				MapOfArrays:   map[string][3]byte{"1": [3]byte{1, 2, 3}, "2": [3]byte{3, 4, 5}},
-				MapOfStructs:  map[string]SomeStruct{"1": SomeStruct{A: 10, Self: &SomeStruct{A: 10}}},
-				MapOfPStructs: map[string]*SomeStruct{"1": &SomeStruct{A: 10, Self: &SomeStruct{A: 10}}},
+				MapOfMaps:     map[string]map[int64]byte{"1": {1: 1, 2: 2}},
+				MapOfSlices:   map[string][]byte{"1": {1, 2}, "2": {3, 4}},
+				MapOfArrays:   map[string][3]byte{"1": {1, 2, 3}, "2": {3, 4, 5}},
+				MapOfStructs:  map[string]SomeStruct{"1": {A: 10, Self: &SomeStruct{A: 10}}},
+				MapOfPStructs: map[string]*SomeStruct{"1": {A: 10, Self: &SomeStruct{A: 10}}},
 
 				CustomBool:    true,
 				CustomBoolP:   &ctbl,
@@ -603,8 +603,8 @@ var _ = Describe("Aerospike", func() {
 				NestedObj:  SomeStruct{A: 1, Self: &SomeStruct{A: 999}},
 				NestedObjP: &testObject{Int: 1, Intp: &ip, Tm: now},
 
-				NestedObjSlice: []SomeStruct{SomeStruct{A: 1, Self: &SomeStruct{A: 999}}, SomeStruct{A: 2, Self: &SomeStruct{A: 998}}},
-				NstdObjPSlice:  []*testObject{&testObject{Int: 1, Intp: &ip, Tm: now}, &testObject{Int: 2, Intp: &ip, Tm: now}},
+				NestedObjSlice: []SomeStruct{{A: 1, Self: &SomeStruct{A: 999}}, {A: 2, Self: &SomeStruct{A: 998}}},
+				NstdObjPSlice:  []*testObject{{Int: 1, Intp: &ip, Tm: now}, {Int: 2, Intp: &ip, Tm: now}},
 
 				Tm:  now,
 				TmP: &now,
@@ -873,7 +873,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(cnt).To(Equal(99))
 			})
 
-			It("must query only relevent objects with the most complex structure possible", func() {
+			It("must query only relevant objects with the most complex structure possible", func() {
 
 				// first create an index
 				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", NUMERIC)
@@ -910,7 +910,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(cnt).To(Equal(50))
 			})
 
-			It("must query only relevent objects, and close and return", func() {
+			It("must query only relevant objects, and close and return", func() {
 
 				// first create an index
 				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", NUMERIC)
