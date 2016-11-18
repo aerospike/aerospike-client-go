@@ -41,8 +41,8 @@ func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd map
 	found := false
 	var resultErr error
 	for _, alias := range ndv.aliases {
-		if err := ndv.validateAlias(cluster, alias); err != nil {
-			Logger.Debug("Alias %s failed:", err)
+		if resultErr = ndv.validateAlias(cluster, alias); resultErr != nil {
+			Logger.Debug("Alias %s failed: %s", alias, resultErr)
 			continue
 		}
 
@@ -115,6 +115,21 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 		conn.Close()
 
 		return err
+	}
+
+	// check to make sure we have actually connected
+	info, err := RequestInfo(conn, "build")
+	if err != nil {
+		// Socket not authenticated. Do not put back into pool.
+		conn.Close()
+
+		return err
+	}
+	if _, exists := info["ERROR:80:not authenticated"]; exists {
+		// Socket not authenticated. Do not put back into pool.
+		conn.Close()
+
+		return NewAerospikeError(NOT_AUTHENTICATED)
 	}
 
 	hasClusterName := len(cluster.clientPolicy.ClusterName) > 0

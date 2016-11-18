@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	lualib "github.com/aerospike/aerospike-client-go/internal/lua"
+	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	xornd "github.com/aerospike/aerospike-client-go/types/rand"
 	"github.com/yuin/gopher-lua"
@@ -77,6 +78,10 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 
 	cluster, err := NewCluster(policy, hosts)
 	if err != nil {
+		if aerr, ok := err.(AerospikeError); ok {
+			Logger.Debug("Failed to connect to host(s): %v; error: %s", hosts, err)
+			return nil, aerr
+		}
 		return nil, fmt.Errorf("Failed to connect to host(s): %v; error: %s", hosts, err)
 	}
 

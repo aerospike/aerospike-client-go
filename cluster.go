@@ -154,10 +154,13 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	}
 
 	// try to seed connections for first use
-	newCluster.waitTillStabilized(policy.FailIfNotConnected)
+	err := newCluster.waitTillStabilized(policy.FailIfNotConnected)
 
 	// apply policy rules
 	if policy.FailIfNotConnected && !newCluster.IsConnected() {
+		if err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("Failed to connect to host(s): %v. The network connection(s) to cluster nodes may have timed out, or the cluster may be in a state of flux.", hosts)
 	}
 
@@ -315,15 +318,20 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 // If the cluster has not stabilized by the timeout, return
 // control as well.  Do not return an error since future
 // database requests may still succeed.
-func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) {
+func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) error {
 	count := -1
 
 	doneCh := make(chan bool, 1)
 
+	var err error
 	// will run until the cluster is stabilized
 	go func() {
 		for {
-			if err := clstr.tend(failIfNotConnected); err != nil {
+			if err = clstr.tend(failIfNotConnected); err != nil {
+				if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == NOT_AUTHENTICATED {
+					err = aerr
+					break
+				}
 				Logger.Warn(err.Error())
 			}
 
@@ -344,10 +352,12 @@ func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) {
 	timeout := time.After(clstr.clientPolicy.Timeout)
 	select {
 	case <-timeout:
-		return
+		return err
 	case <-doneCh:
-		return
+		return err
 	}
+
+	return err
 }
 
 func (clstr *Cluster) findAlias(alias *Host) *Node {
@@ -402,8 +412,12 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 		clstr.addNodes(nodesToAdd)
 		return true, nil
 	} else if failIfNotConnected {
+		Logger.Debug("%v", errorList)
 		errStrs := make([]string, len(errorList))
-		for i := range errorList {
+		for i, err := range errorList {
+			if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == NOT_AUTHENTICATED {
+				return false, NewAerospikeError(NOT_AUTHENTICATED)
+			}
 			errStrs[i] = errorList[i].Error()
 		}
 
