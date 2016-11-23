@@ -58,9 +58,9 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 		// server doesn't support floats
 		if clusterSupportsFloat {
 			return f.Float()
-		} else {
-			return int(math.Float64bits(f.Float()))
 		}
+		return int(math.Float64bits(f.Float()))
+
 	case reflect.Struct:
 		if f.Type().PkgPath() == "time" && f.Type().Name() == "Time" {
 			return f.Interface().(time.Time).UTC().UnixNano()
@@ -86,19 +86,16 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 		if f.Kind() == reflect.Slice && f.IsNil() {
 			return nil
 		}
-
 		if f.Kind() == reflect.Slice && reflect.TypeOf(f.Interface()).Elem().Kind() == reflect.Uint8 {
 			// handle blobs
 			return f.Interface().([]byte)
-		} else {
-			// convert to primitives recursively
-			newSlice := make([]interface{}, f.Len(), f.Cap())
-			for i := 0; i < len(newSlice); i++ {
-				newSlice[i] = valueToInterface(f.Index(i), clusterSupportsFloat)
-			}
-
-			return newSlice
 		}
+		// convert to primitives recursively
+		newSlice := make([]interface{}, f.Len(), f.Cap())
+		for i := 0; i < len(newSlice); i++ {
+			newSlice[i] = valueToInterface(f.Index(i), clusterSupportsFloat)
+		}
+		return newSlice
 	case reflect.Interface:
 		if f.IsNil() {
 			return nil
@@ -166,8 +163,7 @@ func structToMap(s reflect.Value, clusterSupportsFloat bool) map[string]interfac
 }
 
 func marshal(v interface{}, clusterSupportsFloat bool) []*Bin {
-	s := indirect(reflect.ValueOf(v).Elem())
-
+	s := indirect(reflect.ValueOf(v))
 	numFields := s.NumField()
 	bins := binPool.Get(numFields).([]*Bin)
 
@@ -205,7 +201,7 @@ func indirect(obj reflect.Value) reflect.Value {
 		if obj.IsNil() {
 			return obj
 		}
-		obj = reflect.Indirect(obj)
+		obj = obj.Elem()
 	}
 	return obj
 }
