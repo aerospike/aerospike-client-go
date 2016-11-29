@@ -1,5 +1,13 @@
 # Change History
 
+## November 29 2016 : v1.22.0
+
+  Hot fix release. Please upgrade if you have been using other aerospike clients with your database parallel to Go.
+
+  * **Fixes**
+
+    - Fixes an issue where short strings in Lists and Maps wouldn't unpack correctly. Resolves #161.
+
 ## November 16 2016 : v1.21.0
 
   Minor fix release.
