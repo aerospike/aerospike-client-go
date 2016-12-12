@@ -360,10 +360,10 @@ func (nd *Node) refreshPartitions(peers *peers) {
 		return
 	}
 
-	if parser.isPartitionMapCopied() {
+	if parser.generation != nd.partitionGeneration.Get() {
+		Logger.Info("Node %s partition generation %d changed to %d", nd.GetName(), nd.partitionGeneration.Get(), parser.getGeneration())
 		nd.cluster.setPartitions(parser.getPartitionMap())
 		nd.partitionGeneration.Set(parser.getGeneration())
-		Logger.Info("Node %s partition generation %d changed to %d", nd.GetName(), nd.partitionGeneration.Get(), parser.getGeneration())
 	}
 }
 
