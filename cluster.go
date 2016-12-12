@@ -532,7 +532,9 @@ func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
 	nodes = append(nodes, oldNodes...)
 
 	for _, node := range nodesToAdd {
-		nodes = append(nodes, node)
+		if node != nil {
+			nodes = append(nodes, node)
+		}
 	}
 
 	nodesMap := make(map[string]*Node, len(nodes))
@@ -670,6 +672,36 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 func (clstr *Cluster) GetNodes() []*Node {
 	// Must copy array reference for copy on write semantics to work.
 	return clstr.nodes.Get().([]*Node)
+}
+
+// GetSeeds returns a list of all seed nodes in the cluster
+func (clstr *Cluster) GetSeeds() []Host {
+	res, _ := clstr.seeds.GetSyncedVia(func(val interface{}) (interface{}, error) {
+		seeds := val.([]*Host)
+		res := make([]Host, 0, len(seeds))
+		for _, seed := range seeds {
+			res = append(res, *seed)
+		}
+
+		return res, nil
+	})
+
+	return res.([]Host)
+}
+
+// GetAliases returns a list of all node aliases in the cluster
+func (clstr *Cluster) GetAliases() map[Host]*Node {
+	res, _ := clstr.aliases.GetSyncedVia(func(val interface{}) (interface{}, error) {
+		aliases := val.(map[Host]*Node)
+		res := make(map[Host]*Node, len(aliases))
+		for h, n := range aliases {
+			res[h] = n
+		}
+
+		return res, nil
+	})
+
+	return res.(map[Host]*Node)
 }
 
 // GetNodeByName finds a node by name and returns an
