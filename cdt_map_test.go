@@ -415,6 +415,7 @@ var _ = Describe("CDT Map Test", func() {
 			MapSizeOp(cdtBinName),
 		)
 
+		Expect(err).ToNot(HaveOccurred())
 		Expect(cdtMap.Bins).To(Equal(BinMap{cdtBinName: []interface{}{nil, 0}}))
 	})
 
