@@ -1221,6 +1221,11 @@ func (clnt *Client) QueryUsers(policy *AdminPolicy) ([]*UserRoles, error) {
 	return command.queryUsers(clnt.cluster, policy)
 }
 
+// Cluster exposes the cluster object to the user
+func (clnt *Client) Cluster() *Cluster {
+	return clnt.cluster
+}
+
 // String implements the Stringer interface for client
 func (clnt *Client) String() string {
 	if clnt.cluster != nil {
