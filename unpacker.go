@@ -289,7 +289,7 @@ func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, error) {
 		return int64(val), nil
 
 	case 0xc4, 0xd9:
-		count := int(upckr.offset & 0xff)
+		count := int(upckr.buffer[upckr.offset] & 0xff)
 		upckr.offset++
 		return upckr.unpackBlob(count, isMapKey)
 
