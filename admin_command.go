@@ -244,22 +244,21 @@ func (acmd *AdminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 		timeout = policy.Timeout
 	}
 
-	conn, err := node.GetConnection(timeout)
-	if err != nil {
+	if err := node.initTendConn(timeout); err != nil {
 		return err
 	}
 
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
+	conn := node.tendConn
 	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
-		node.InvalidateConnection(conn)
 		return err
 	}
 
 	if _, err := conn.Read(acmd.dataBuffer, _HEADER_SIZE); err != nil {
-		node.InvalidateConnection(conn)
 		return err
 	}
-
-	node.PutConnection(conn)
 
 	result := acmd.dataBuffer[_RESULT_CODE]
 	if result != 0 {
@@ -280,22 +279,22 @@ func (acmd *AdminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*U
 		timeout = policy.Timeout
 	}
 
-	conn, err := node.GetConnection(timeout)
-	if err != nil {
+	if err := node.initTendConn(timeout); err != nil {
 		return nil, err
 	}
 
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
+	conn := node.tendConn
 	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
-		node.InvalidateConnection(conn)
 		return nil, err
 	}
 
 	status, list, err := acmd.readUserBlocks(conn)
 	if err != nil {
-		node.InvalidateConnection(conn)
 		return nil, err
 	}
-	node.PutConnection(conn)
 
 	if status > 0 {
 		return nil, NewAerospikeError(ResultCode(status))
