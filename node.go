@@ -305,7 +305,9 @@ func (nd *Node) refreshPeers(peers *peers) {
 			// attempt connection to the host
 			nv := nodeValidator{}
 			if err := nv.validateNode(nd.cluster, host); err != nil {
+				nv.conn.Close()
 				Logger.Warn("Add node `%s` failed: `%s`", host, err)
+				continue
 			}
 
 			// Must look for new node name in the unlikely event that node names do not agree.
