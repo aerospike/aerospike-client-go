@@ -14,7 +14,10 @@
 
 package aerospike
 
-import . "github.com/aerospike/aerospike-client-go/types"
+import (
+	. "github.com/aerospike/aerospike-client-go/types"
+	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+)
 
 // guarantee writeCommand implements command interface
 var _ command = &writeCommand{}
@@ -61,6 +64,13 @@ func (cmd *writeCommand) getNode(ifc command) (*Node, error) {
 func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
 	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
+		return err
+	}
+
+	header := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+
+	// Validate header to make sure we are at the beginning of a message
+	if err := cmd.validateHeader(header); err != nil {
 		return err
 	}
 

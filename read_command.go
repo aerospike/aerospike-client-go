@@ -75,6 +75,12 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	// A number of these are commented out because we just don't care enough to read
 	// that section of the header. If we do care, uncomment and check!
 	sz := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+
+	// Validate header to make sure we are at the beginning of a message
+	if err := cmd.validateHeader(sz); err != nil {
+		return err
+	}
+
 	headerLength := int(cmd.dataBuffer[8])
 	resultCode := ResultCode(cmd.dataBuffer[13] & 0xFF)
 	generation := Buffer.BytesToUint32(cmd.dataBuffer, 14)

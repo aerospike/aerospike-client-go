@@ -53,6 +53,13 @@ func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {
 		return err
 	}
 
+	header := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+
+	// Validate header to make sure we are at the beginning of a message
+	if err := cmd.validateHeader(header); err != nil {
+		return err
+	}
+
 	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	if resultCode == 0 {

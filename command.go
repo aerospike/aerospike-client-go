@@ -1130,6 +1130,25 @@ func (cmd *baseCommand) sizeBuffer() error {
 	return cmd.sizeBufferSz(cmd.dataOffset)
 }
 
+func (cmd *baseCommand) validateHeader(header int64) error {
+	msgVersion := (uint64(header) & 0xFF00000000000000) >> 56
+	if msgVersion != 2 {
+		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected version to be 2, but got %v", msgVersion))
+	}
+
+	msgType := uint64((uint64(header) & 0x00FF000000000000)) >> 49
+	if !(msgType == 1 || msgType == 3) {
+		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected type to be 1 or 3, but got %v", msgType))
+	}
+
+	msgSize := int64((header & 0x0000FFFFFFFFFFFF))
+	if msgVersion > 10*1024*1024 {
+		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected size to be under 10MiB, but got %v", msgSize))
+	}
+
+	return nil
+}
+
 var (
 	// MaxBufferSize protects against allocating massive memory blocks
 	// for buffers. Tweak this number if you are returning a lot of

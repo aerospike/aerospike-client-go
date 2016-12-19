@@ -92,6 +92,12 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 		}
 
 		size := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+
+		// Validate header to make sure we are at the beginning of a message
+		if err := cmd.validateHeader(size); err != nil {
+			return err
+		}
+
 		receiveSize := int(size & 0xFFFFFFFFFFFF)
 		cmd.remains = int64(receiveSize)
 
