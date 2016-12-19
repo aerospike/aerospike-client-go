@@ -471,6 +471,7 @@ func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordse
 //
 // This method is only supported by Aerospike 3 servers.
 // If the policy is nil, the default relevant policy will be used.
+// NOTICE: DEPRECATED ON SERVER. Will be removed in future. Use CDT operations instead.
 func (clnt *Client) GetLargeList(policy *WritePolicy, key *Key, binName string, userModule string) *LargeList {
 	policy = clnt.getUsableWritePolicy(policy)
 	return NewLargeList(clnt, policy, key, binName, userModule)
@@ -482,7 +483,7 @@ func (clnt *Client) GetLargeList(policy *WritePolicy, key *Key, binName string, 
 //
 // This method is only supported by Aerospike 3 servers.
 // If the policy is nil, the default relevant policy will be used.
-// NOTICE: DEPRECATED ON SERVER. Will be removed in future.
+// NOTICE: DEPRECATED ON SERVER. Will be removed in future. Use CDT operations instead.
 func (clnt *Client) GetLargeMap(policy *WritePolicy, key *Key, binName string, userModule string) *LargeMap {
 	policy = clnt.getUsableWritePolicy(policy)
 	return NewLargeMap(clnt, policy, key, binName, userModule)
