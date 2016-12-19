@@ -143,9 +143,6 @@ func (vb *keyWriter) writeKey(val Value) error {
 	case BytesValue:
 		vb.Write(v)
 		return nil
-	case GeoJSONValue:
-		vb.Write([]byte(v))
-		return nil
 	}
 
 	return NewAerospikeError(PARAMETER_ERROR, "Key Generation Error. Value not supported: "+val.String())
