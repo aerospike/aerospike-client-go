@@ -105,18 +105,22 @@ func (nd *Node) Refresh(peers *peers) error {
 	if peers.usePeers {
 		infoMap, err := nd.RequestInfo("node", "peers-generation", "partition-generation")
 		if err != nil {
+			nd.refreshFailed(err)
 			return err
 		}
 
 		if err := nd.verifyNodeName(infoMap); err != nil {
+			nd.refreshFailed(err)
 			return err
 		}
 
 		if err := nd.verifyPeersGeneration(infoMap, peers); err != nil {
+			nd.refreshFailed(err)
 			return err
 		}
 
 		if err := nd.verifyPartitionGeneration(infoMap); err != nil {
+			nd.refreshFailed(err)
 			return err
 		}
 	} else {
@@ -124,18 +128,22 @@ func (nd *Node) Refresh(peers *peers) error {
 
 		infoMap, err := nd.RequestInfo(commands...)
 		if err != nil {
+			nd.refreshFailed(err)
 			return err
 		}
 
 		if err := nd.verifyNodeName(infoMap); err != nil {
+			nd.refreshFailed(err)
 			return err
 		}
 
 		if err = nd.verifyPartitionGeneration(infoMap); err != nil {
+			nd.refreshFailed(err)
 			return err
 		}
 
 		if err = nd.addFriends(infoMap, peers); err != nil {
+			nd.refreshFailed(err)
 			return err
 		}
 	}
@@ -162,21 +170,16 @@ func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 
 func (nd *Node) verifyPeersGeneration(infoMap map[string]string, peers *peers) error {
 	genString := infoMap["peers-generation"]
-
 	if len(genString) == 0 {
 		return NewAerospikeError(PARSE_ERROR, "peers-generation is empty")
 	}
 
 	gen, err := strconv.Atoi(genString)
 	if err != nil {
-		return NewAerospikeError(PARSE_ERROR, "peers-generation is not a number:"+genString)
-
-		return err
+		return NewAerospikeError(PARSE_ERROR, "peers-generation is not a number: "+genString)
 	}
 
-	if nd.peersGeneration.Get() != gen {
-		peers.genChanged = true
-	}
+	peers.genChanged = nd.peersGeneration.Get() != gen
 	return nil
 }
 
@@ -287,6 +290,7 @@ func (nd *Node) refreshPeers(peers *peers) {
 
 	peerParser, err := parsePeers(nd.cluster, nd)
 	if err != nil {
+		Logger.Debug("Parsing peers failed: %s", err)
 		nd.refreshFailed(err)
 		return
 	}
@@ -548,7 +552,7 @@ func (nd *Node) closeConnections() {
 
 // Equals compares equality of two nodes based on their names.
 func (nd *Node) Equals(other *Node) bool {
-	return nd.name == other.name
+	return nd != nil && other != nil && (nd == other || nd.name == other.name)
 }
 
 // MigrationInProgress determines if the node is participating in a data migration

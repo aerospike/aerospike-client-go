@@ -25,10 +25,11 @@ type peers struct {
 
 func newPeers(peerCapacity int, addCapacity int) *peers {
 	return &peers{
-		peers:    make([]*peer, 0, peerCapacity),
-		hosts:    make(map[Host]struct{}, addCapacity),
-		nodes:    make(map[string]*Node, addCapacity),
-		usePeers: true,
+		peers:      make([]*peer, 0, peerCapacity),
+		hosts:      make(map[Host]struct{}, addCapacity),
+		nodes:      make(map[string]*Node, addCapacity),
+		usePeers:   true,
+		genChanged: true,
 	}
 }
 

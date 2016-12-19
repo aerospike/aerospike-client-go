@@ -56,6 +56,11 @@ func errToTimeoutErr(err error) error {
 func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 	newConn := &Connection{dataBuffer: make([]byte, 1024)}
 
+	// don't wait indefinitely
+	if timeout == 0 {
+		timeout = 5 * time.Second
+	}
+
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
 		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
@@ -76,24 +81,25 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 // an error will be returned
 func NewSecureConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
 	address := host.Name + ":" + strconv.Itoa(host.Port)
-	if policy.TlsConfig == nil {
-		return NewConnection(address, policy.Timeout)
-	}
-
-	newConn := &Connection{}
-
-	conn, err := tls.Dial("tcp", address, policy.TlsConfig)
+	conn, err := NewConnection(address, policy.Timeout)
 	if err != nil {
-		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
-		return nil, errToTimeoutErr(err)
-	}
-	newConn.conn = conn
-
-	// set timeout at the last possible moment
-	if err := newConn.SetTimeout(policy.Timeout); err != nil {
 		return nil, err
 	}
-	return newConn, nil
+
+	if policy.TlsConfig == nil {
+		return conn, nil
+	}
+
+	sconn := tls.Client(conn.conn, policy.TlsConfig)
+	if host.TLSName != "" {
+		if err := sconn.VerifyHostname(host.TLSName); err != nil {
+			Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
+			return nil, errToTimeoutErr(err)
+		}
+	}
+
+	conn.conn = sconn
+	return conn, nil
 }
 
 // Write writes the slice to the connection buffer.

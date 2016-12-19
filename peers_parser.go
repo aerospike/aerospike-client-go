@@ -15,8 +15,6 @@
 package aerospike
 
 import (
-	// "regexp"
-
 	// . "github.com/aerospike/aerospike-client-go/logger"
 
 	"io"
