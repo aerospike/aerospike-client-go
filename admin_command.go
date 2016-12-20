@@ -55,22 +55,22 @@ const (
 	_QUERY_END        int = 50
 )
 
-type AdminCommand struct {
+type adminCommand struct {
 	dataBuffer []byte
 	dataOffset int
 }
 
-func newAdminCommand(buf []byte) *AdminCommand {
+func newAdminCommand(buf []byte) *adminCommand {
 	if buf == nil {
 		buf = make([]byte, 10*1024)
 	}
-	return &AdminCommand{
+	return &adminCommand{
 		dataBuffer: buf,
 		dataOffset: 8,
 	}
 }
 
-func (acmd *AdminCommand) authenticate(conn *Connection, user string, password []byte) error {
+func (acmd *adminCommand) authenticate(conn *Connection, user string, password []byte) error {
 
 	acmd.setAuthenticate(user, password)
 	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
@@ -91,7 +91,7 @@ func (acmd *AdminCommand) authenticate(conn *Connection, user string, password [
 	return nil
 }
 
-func (acmd *AdminCommand) setAuthenticate(user string, password []byte) int {
+func (acmd *adminCommand) setAuthenticate(user string, password []byte) int {
 	acmd.writeHeader(_AUTHENTICATE, 2)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeFieldBytes(_CREDENTIAL, password)
@@ -100,7 +100,7 @@ func (acmd *AdminCommand) setAuthenticate(user string, password []byte) int {
 	return acmd.dataOffset
 }
 
-func (acmd *AdminCommand) createUser(cluster *Cluster, policy *AdminPolicy, user string, password []byte, roles []string) error {
+func (acmd *adminCommand) createUser(cluster *Cluster, policy *AdminPolicy, user string, password []byte, roles []string) error {
 	acmd.writeHeader(_CREATE_USER, 3)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeFieldBytes(_PASSWORD, password)
@@ -108,20 +108,20 @@ func (acmd *AdminCommand) createUser(cluster *Cluster, policy *AdminPolicy, user
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *AdminCommand) dropUser(cluster *Cluster, policy *AdminPolicy, user string) error {
+func (acmd *adminCommand) dropUser(cluster *Cluster, policy *AdminPolicy, user string) error {
 	acmd.writeHeader(_DROP_USER, 1)
 	acmd.writeFieldStr(_USER, user)
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *AdminCommand) setPassword(cluster *Cluster, policy *AdminPolicy, user string, password []byte) error {
+func (acmd *adminCommand) setPassword(cluster *Cluster, policy *AdminPolicy, user string, password []byte) error {
 	acmd.writeHeader(_SET_PASSWORD, 2)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeFieldBytes(_PASSWORD, password)
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *AdminCommand) changePassword(cluster *Cluster, policy *AdminPolicy, user string, password []byte) error {
+func (acmd *adminCommand) changePassword(cluster *Cluster, policy *AdminPolicy, user string, password []byte) error {
 	acmd.writeHeader(_CHANGE_PASSWORD, 3)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeFieldBytes(_OLD_PASSWORD, cluster.Password())
@@ -129,21 +129,21 @@ func (acmd *AdminCommand) changePassword(cluster *Cluster, policy *AdminPolicy, 
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *AdminCommand) grantRoles(cluster *Cluster, policy *AdminPolicy, user string, roles []string) error {
+func (acmd *adminCommand) grantRoles(cluster *Cluster, policy *AdminPolicy, user string, roles []string) error {
 	acmd.writeHeader(_GRANT_ROLES, 2)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeRoles(roles)
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *AdminCommand) revokeRoles(cluster *Cluster, policy *AdminPolicy, user string, roles []string) error {
+func (acmd *adminCommand) revokeRoles(cluster *Cluster, policy *AdminPolicy, user string, roles []string) error {
 	acmd.writeHeader(_REVOKE_ROLES, 2)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeRoles(roles)
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *AdminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user string) (*UserRoles, error) {
+func (acmd *adminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user string) (*UserRoles, error) {
 	// TODO: Remove the workaround in the future
 	time.Sleep(time.Millisecond * 10)
 	// defer bufPool.Put(acmd.dataBuffer)
@@ -162,7 +162,7 @@ func (acmd *AdminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user 
 	return nil, nil
 }
 
-func (acmd *AdminCommand) queryUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, error) {
+func (acmd *adminCommand) queryUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, error) {
 	// TODO: Remove the workaround in the future
 	time.Sleep(time.Millisecond * 10)
 	// defer bufPool.Put(acmd.dataBuffer)
@@ -175,7 +175,7 @@ func (acmd *AdminCommand) queryUsers(cluster *Cluster, policy *AdminPolicy) ([]*
 	return list, nil
 }
 
-func (acmd *AdminCommand) writeRoles(roles []string) {
+func (acmd *adminCommand) writeRoles(roles []string) {
 	offset := acmd.dataOffset + int(_FIELD_HEADER_SIZE)
 	acmd.dataBuffer[offset] = byte(len(roles))
 	offset++
@@ -191,13 +191,13 @@ func (acmd *AdminCommand) writeRoles(roles []string) {
 	acmd.dataOffset = offset
 }
 
-func (acmd *AdminCommand) writeSize() {
+func (acmd *adminCommand) writeSize() {
 	// Write total size of message which is the current offset.
 	var size = int64(acmd.dataOffset-8) | (_MSG_VERSION << 56) | (_MSG_TYPE << 48)
 	binary.BigEndian.PutUint64(acmd.dataBuffer[0:], uint64(size))
 }
 
-func (acmd *AdminCommand) writeHeader(command byte, fieldCount int) {
+func (acmd *adminCommand) writeHeader(command byte, fieldCount int) {
 	// Authenticate header is almost all zeros
 	for i := acmd.dataOffset; i < acmd.dataOffset+16; i++ {
 		acmd.dataBuffer[i] = 0
@@ -207,19 +207,19 @@ func (acmd *AdminCommand) writeHeader(command byte, fieldCount int) {
 	acmd.dataOffset += 16
 }
 
-func (acmd *AdminCommand) writeFieldStr(id byte, str string) {
+func (acmd *adminCommand) writeFieldStr(id byte, str string) {
 	len := copy(acmd.dataBuffer[acmd.dataOffset+int(_FIELD_HEADER_SIZE):], str)
 	acmd.writeFieldHeader(id, len)
 	acmd.dataOffset += len
 }
 
-func (acmd *AdminCommand) writeFieldBytes(id byte, bytes []byte) {
+func (acmd *adminCommand) writeFieldBytes(id byte, bytes []byte) {
 	copy(acmd.dataBuffer[acmd.dataOffset+int(_FIELD_HEADER_SIZE):], bytes)
 	acmd.writeFieldHeader(id, len(bytes))
 	acmd.dataOffset += len(bytes)
 }
 
-func (acmd *AdminCommand) writeFieldHeader(id byte, size int) {
+func (acmd *adminCommand) writeFieldHeader(id byte, size int) {
 	// Buffer.Int32ToBytes(int32(size+1), acmd.dataBuffer, acmd.dataOffset)
 	binary.BigEndian.PutUint32(acmd.dataBuffer[acmd.dataOffset:], uint32(size+1))
 
@@ -228,7 +228,7 @@ func (acmd *AdminCommand) writeFieldHeader(id byte, size int) {
 	acmd.dataOffset++
 }
 
-func (acmd *AdminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) error {
+func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) error {
 	// TODO: Remove the workaround in the future
 	defer time.Sleep(time.Millisecond * 10)
 
@@ -268,7 +268,7 @@ func (acmd *AdminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 	return nil
 }
 
-func (acmd *AdminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, error) {
+func (acmd *adminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, error) {
 	acmd.writeSize()
 	node, err := cluster.GetRandomNode()
 	if err != nil {
@@ -302,7 +302,7 @@ func (acmd *AdminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*U
 	return list, nil
 }
 
-func (acmd *AdminCommand) readUserBlocks(conn *Connection) (status int, rlist []*UserRoles, err error) {
+func (acmd *adminCommand) readUserBlocks(conn *Connection) (status int, rlist []*UserRoles, err error) {
 
 	var list []*UserRoles
 
@@ -333,7 +333,7 @@ func (acmd *AdminCommand) readUserBlocks(conn *Connection) (status int, rlist []
 	return status, rlist, nil
 }
 
-func (acmd *AdminCommand) parseUsers(receiveSize int) (int, []*UserRoles, error) {
+func (acmd *adminCommand) parseUsers(receiveSize int) (int, []*UserRoles, error) {
 	acmd.dataOffset = 0
 	list := make([]*UserRoles, 0, 100)
 
@@ -381,7 +381,7 @@ func (acmd *AdminCommand) parseUsers(receiveSize int) (int, []*UserRoles, error)
 	return 0, list, nil
 }
 
-func (acmd *AdminCommand) parseRoles(userRoles *UserRoles) {
+func (acmd *adminCommand) parseRoles(userRoles *UserRoles) {
 	size := int(acmd.dataBuffer[acmd.dataOffset])
 	acmd.dataOffset++
 	userRoles.Roles = make([]string, 0, size)
