@@ -20,7 +20,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	. "github.com/aerospike/aerospike-client-go/internal/lua"
+	. "github.com/aerospike/aerospike-client-go/lib/lua"
 )
 
 var _ = Describe("Lua Map API Test", func() {
