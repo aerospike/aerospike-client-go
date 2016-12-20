@@ -124,7 +124,7 @@ func Benchmark_Pack_String_100000(b *testing.B) {
 	doPack(val, b)
 }
 
-func Benchmark_Pack_Complex_Array_Direct(b *testing.B) {
+func Benchmark_Pack_Complex_IfcArray_Direct(b *testing.B) {
 	val := []interface{}{1, 1, 1, "a simple string", nil, rand.Int63(), []byte{12, 198, 211}}
 	b.N = 1000
 	runtime.GC()
@@ -137,14 +137,16 @@ var _ ListIter = myList([]string{})
 // supports old generic slices
 type myList []string
 
-func (m myList) Range(f func(interface{}) error) error {
-	for idx := range m {
-		if err := f(m[idx]); err != nil {
-			return err
+func (cs myList) PackList(buf BufferEx) (int, error) {
+	size := 0
+	for _, elem := range cs {
+		n, err := __PackString(buf, elem)
+		size += n
+		if err != nil {
+			return size, err
 		}
 	}
-
-	return nil
+	return size, nil
 }
 
 func (m myList) Len() int {

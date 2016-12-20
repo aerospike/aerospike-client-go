@@ -25,7 +25,7 @@ func init() {
 	__packObjectReflect = __concretePackObjectReflect
 }
 
-func __concretePackObjectReflect(cmd aerospikeBuffer, obj interface{}, mapKey bool) (int, error) {
+func __concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
 	// check for array and map
 	rv := reflect.ValueOf(obj)
 	switch reflect.TypeOf(obj).Kind() {

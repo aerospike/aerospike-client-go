@@ -14,7 +14,8 @@
 
 package aerospike
 
-type aerospikeBuffer interface {
+// BufferEx is a specialized buffer interface for aerospike client.
+type BufferEx interface {
 	WriteInt64(num int64) (int, error)
 	WriteUint64(num uint64) (int, error)
 	WriteInt32(num int32) (int, error)

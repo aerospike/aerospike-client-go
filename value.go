@@ -39,10 +39,10 @@ type Value interface {
 	estimateSize() (int, error)
 
 	// Serialize the value in the wire protocol.
-	write(cmd aerospikeBuffer) (int, error)
+	write(cmd BufferEx) (int, error)
 
 	// Serialize the value using MessagePack.
-	pack(cmd aerospikeBuffer) (int, error)
+	pack(cmd BufferEx) (int, error)
 
 	// GetType returns wire protocol value type.
 	GetType() int
@@ -63,6 +63,9 @@ type AerospikeBlob interface {
 
 // NewValue generates a new Value object based on the type.
 // If the type is not supported, NewValue will panic.
+// This method is a convenience method, and should not be used
+// when absolute performance is required. In those cases,
+// call the NewXXXValue specialized methods instead.
 func NewValue(v interface{}) Value {
 	switch val := v.(type) {
 	case Value:
@@ -138,11 +141,11 @@ func (vl NullValue) estimateSize() (int, error) {
 	return 0, nil
 }
 
-func (vl NullValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl NullValue) write(cmd BufferEx) (int, error) {
 	return 0, nil
 }
 
-func (vl NullValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl NullValue) pack(cmd BufferEx) (int, error) {
 	return __PackNil(cmd)
 }
 
@@ -186,11 +189,11 @@ func (vl BytesValue) estimateSize() (int, error) {
 	return len(vl), nil
 }
 
-func (vl BytesValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl BytesValue) write(cmd BufferEx) (int, error) {
 	return cmd.Write(vl)
 }
 
-func (vl BytesValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl BytesValue) pack(cmd BufferEx) (int, error) {
 	return __PackBytes(cmd, vl)
 }
 
@@ -223,11 +226,11 @@ func (vl StringValue) estimateSize() (int, error) {
 	return len(vl), nil
 }
 
-func (vl StringValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl StringValue) write(cmd BufferEx) (int, error) {
 	return cmd.WriteString(string(vl))
 }
 
-func (vl StringValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl StringValue) pack(cmd BufferEx) (int, error) {
 	return __PackString(cmd, string(vl))
 }
 
@@ -260,11 +263,11 @@ func (vl IntegerValue) estimateSize() (int, error) {
 	return 8, nil
 }
 
-func (vl IntegerValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl IntegerValue) write(cmd BufferEx) (int, error) {
 	return cmd.WriteInt64(int64(vl))
 }
 
-func (vl IntegerValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl IntegerValue) pack(cmd BufferEx) (int, error) {
 	return __PackAInt64(cmd, int64(vl))
 }
 
@@ -297,11 +300,11 @@ func (vl LongValue) estimateSize() (int, error) {
 	return 8, nil
 }
 
-func (vl LongValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl LongValue) write(cmd BufferEx) (int, error) {
 	return cmd.WriteInt64(int64(vl))
 }
 
-func (vl LongValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl LongValue) pack(cmd BufferEx) (int, error) {
 	return __PackAInt64(cmd, int64(vl))
 }
 
@@ -334,11 +337,11 @@ func (vl FloatValue) estimateSize() (int, error) {
 	return 8, nil
 }
 
-func (vl FloatValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl FloatValue) write(cmd BufferEx) (int, error) {
 	return cmd.WriteFloat64(float64(vl))
 }
 
-func (vl FloatValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl FloatValue) pack(cmd BufferEx) (int, error) {
 	return __PackFloat64(cmd, float64(vl))
 }
 
@@ -365,8 +368,8 @@ type ValueArray []Value
 
 // ToValueSlice converts a []interface{} to []Value.
 // It will panic if any of array element types are not supported.
-// TODO: Do something about this
 func ToValueSlice(array []interface{}) []Value {
+	// TODO: Do something about this method
 	res := make([]Value, 0, len(array))
 	for i := range array {
 		res = append(res, NewValue(array[i]))
@@ -391,11 +394,11 @@ func (va ValueArray) estimateSize() (int, error) {
 	return __PackValueArray(nil, va)
 }
 
-func (va ValueArray) write(cmd aerospikeBuffer) (int, error) {
+func (va ValueArray) write(cmd BufferEx) (int, error) {
 	return __PackValueArray(cmd, va)
 }
 
-func (va ValueArray) pack(cmd aerospikeBuffer) (int, error) {
+func (va ValueArray) pack(cmd BufferEx) (int, error) {
 	return __PackValueArray(cmd, []Value(va))
 }
 
@@ -429,11 +432,11 @@ func (vl ListValue) estimateSize() (int, error) {
 	return __PackIfcList(nil, vl)
 }
 
-func (vl ListValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl ListValue) write(cmd BufferEx) (int, error) {
 	return __PackIfcList(cmd, vl)
 }
 
-func (vl ListValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl ListValue) pack(cmd BufferEx) (int, error) {
 	return __PackIfcList(cmd, []interface{}(vl))
 }
 
@@ -473,11 +476,11 @@ func (vl *ListerValue) estimateSize() (int, error) {
 	return __PackList(nil, vl.list)
 }
 
-func (vl *ListerValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl *ListerValue) write(cmd BufferEx) (int, error) {
 	return __PackList(cmd, vl.list)
 }
 
-func (vl *ListerValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl *ListerValue) pack(cmd BufferEx) (int, error) {
 	return __PackList(cmd, vl.list)
 }
 
@@ -511,11 +514,11 @@ func (vl MapValue) estimateSize() (int, error) {
 	return __PackIfcMap(nil, vl)
 }
 
-func (vl MapValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl MapValue) write(cmd BufferEx) (int, error) {
 	return __PackIfcMap(cmd, vl)
 }
 
-func (vl MapValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl MapValue) pack(cmd BufferEx) (int, error) {
 	return __PackIfcMap(cmd, vl)
 }
 
@@ -548,11 +551,11 @@ func (vl JsonValue) estimateSize() (int, error) {
 	return __PackJsonMap(nil, vl)
 }
 
-func (vl JsonValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl JsonValue) write(cmd BufferEx) (int, error) {
 	return __PackJsonMap(cmd, vl)
 }
 
-func (vl JsonValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl JsonValue) pack(cmd BufferEx) (int, error) {
 	return __PackJsonMap(cmd, vl)
 }
 
@@ -591,11 +594,11 @@ func (vl *MapperValue) estimateSize() (int, error) {
 	return __PackMap(nil, vl.vmap)
 }
 
-func (vl *MapperValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl *MapperValue) write(cmd BufferEx) (int, error) {
 	return __PackMap(cmd, vl.vmap)
 }
 
-func (vl *MapperValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl *MapperValue) pack(cmd BufferEx) (int, error) {
 	return __PackMap(cmd, vl.vmap)
 }
 
@@ -630,7 +633,7 @@ func (vl GeoJSONValue) estimateSize() (int, error) {
 	return 1 + 2 + len(string(vl)), nil
 }
 
-func (vl GeoJSONValue) write(cmd aerospikeBuffer) (int, error) {
+func (vl GeoJSONValue) write(cmd BufferEx) (int, error) {
 	cmd.WriteByte(0) // flags
 	cmd.WriteByte(0) // flags
 	cmd.WriteByte(0) // flags
@@ -638,7 +641,7 @@ func (vl GeoJSONValue) write(cmd aerospikeBuffer) (int, error) {
 	return cmd.WriteString(string(vl))
 }
 
-func (vl GeoJSONValue) pack(cmd aerospikeBuffer) (int, error) {
+func (vl GeoJSONValue) pack(cmd BufferEx) (int, error) {
 	return __PackGeoJson(cmd, string(vl))
 }
 
