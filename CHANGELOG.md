@@ -1,5 +1,30 @@
 # Change History
 
+## December 20 2016 : v1.23.0
+
+  Minor feature and fix release.
+
+  * **New Features**
+
+    - Exposes the internal `client.Cluster` object to the users.
+    - Added New API for high-performance complex data type packing, and removed the old API.
+
+  * **Improvements**
+
+    - Only update the partition map if the partition generatio has changed.
+    - Use tend connection for user management commands.
+    - Marks LargeList as deprecated. Use CDT methods instead.
+    - Always validate the message header to avoid reading the remainder of other command buffers.
+    - Removes GeoJson from key helper.
+    - Improves tend algorthm to allow complete disconnection from the cluster if none of the clusters are accessible.
+    - `PutObject` method will now accept objects as well. PR #156, thanks to [Sarath S Pillai](https://github.com/sarathsp06)
+
+  * **Fixes**
+
+    - Do not attemp to add a node which were unaccessible to avoid panic.
+    - Fix invalid connectionCount. PR #168, thanks to [Jun Kimura](https://github.com/bluele)
+    - Fixes minor bug that didn't return the error on reading from the connection during scans.
+
 ## November 29 2016 : v1.22.0
 
   Hot fix release. Please upgrade if you have been using other aerospike clients with your database parallel to Go.
