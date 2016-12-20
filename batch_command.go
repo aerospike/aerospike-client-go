@@ -167,7 +167,7 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 
 		if cmd.remains >= _CHUNK_SIZE {
 			if err := cmd.readNextChunk(_CHUNK_SIZE); err != nil {
-				return nil
+				return err
 			}
 			cmd.remains -= _CHUNK_SIZE
 		} else {
