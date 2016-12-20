@@ -1142,7 +1142,7 @@ func (cmd *baseCommand) validateHeader(header int64) error {
 	}
 
 	msgSize := int64((header & 0x0000FFFFFFFFFFFF))
-	if msgVersion > 10*1024*1024 {
+	if msgSize > int64(MaxBufferSize) {
 		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected size to be under 10MiB, but got %v", msgSize))
 	}
 
