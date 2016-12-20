@@ -26,24 +26,24 @@ type Task interface {
 	OnComplete() chan error
 }
 
-// BaseTask is used to poll for server task completion.
-type BaseTask struct {
+// baseTask is used to poll for server task completion.
+type baseTask struct {
 	retries        int
 	cluster        *Cluster
 	done           bool
 	onCompleteChan chan error
 }
 
-// NewTask initializes task with fields needed to query server nodes.
-func NewTask(cluster *Cluster, done bool) *BaseTask {
-	return &BaseTask{
+// newTask initializes task with fields needed to query server nodes.
+func newTask(cluster *Cluster, done bool) *baseTask {
+	return &baseTask{
 		cluster: cluster,
 		done:    done,
 	}
 }
 
 // Wait for asynchronous task to complete using default sleep interval.
-func (btsk *BaseTask) onComplete(ifc Task) chan error {
+func (btsk *baseTask) onComplete(ifc Task) chan error {
 	// create the channel if it doesn't exist yet
 	if btsk.onCompleteChan != nil {
 		// channel and goroutine already exists; just return the channel

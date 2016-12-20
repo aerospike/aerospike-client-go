@@ -18,7 +18,7 @@ import "strings"
 
 // DropIndexTask is used to poll for long running create index completion.
 type DropIndexTask struct {
-	*BaseTask
+	*baseTask
 
 	namespace string
 	indexName string
@@ -27,7 +27,7 @@ type DropIndexTask struct {
 // NewDropIndexTask initializes a task with fields needed to query server nodes.
 func NewDropIndexTask(cluster *Cluster, namespace string, indexName string) *DropIndexTask {
 	return &DropIndexTask{
-		BaseTask:  NewTask(cluster, false),
+		baseTask:  newTask(cluster, false),
 		namespace: namespace,
 		indexName: indexName,
 	}

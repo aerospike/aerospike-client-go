@@ -20,7 +20,7 @@ import (
 
 // RegisterTask is used to poll for UDF registration completion.
 type RegisterTask struct {
-	*BaseTask
+	*baseTask
 
 	packageName string
 }
@@ -28,7 +28,7 @@ type RegisterTask struct {
 // NewRegisterTask initializes a RegisterTask with fields needed to query server nodes.
 func NewRegisterTask(cluster *Cluster, packageName string) *RegisterTask {
 	return &RegisterTask{
-		BaseTask:    NewTask(cluster, false),
+		baseTask:    newTask(cluster, false),
 		packageName: packageName,
 	}
 }
