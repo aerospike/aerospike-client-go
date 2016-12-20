@@ -448,8 +448,10 @@ func (nd *Node) getConnection(timeout time.Duration) (conn *Connection, err erro
 	}
 
 	if conn == nil {
+		cc := nd.connectionCount.IncrementAndGet()
+
 		// if connection count is limited and enough connections are already created, don't create a new one
-		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.IncrementAndGet() > nd.cluster.clientPolicy.ConnectionQueueSize {
+		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
 			nd.connectionCount.DecrementAndGet()
 			return nil, ErrConnectionPoolEmpty
 		}
