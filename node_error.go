@@ -41,3 +41,6 @@ func newAerospikeNodeError(node *Node, code ResultCode, messages ...string) *Nod
 
 // Node returns the node where the error occurred.
 func (ne *NodeError) Node() *Node { return ne.node }
+
+// Err returns the error
+func (ne *NodeError) Err() error { return ne.error }
