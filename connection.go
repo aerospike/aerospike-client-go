@@ -49,6 +49,18 @@ func errToTimeoutErr(err error) error {
 	return err
 }
 
+func shouldClose(err error) bool {
+	if err == io.EOF {
+		return true
+	}
+
+	if err, ok := err.(net.Error); ok && err.Timeout() {
+		return true
+	}
+
+	return false
+}
+
 // NewConnection creates a connection on the network and returns the pointer
 // A minimum timeout of 2 seconds will always be applied.
 // If the connection is not established in the specified timeout,
@@ -121,7 +133,7 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 	return total, errToTimeoutErr(err)
 }
 
-// ReadN reads N bytes from connection buffer to the provided slice.
+// ReadN reads N bytes from connection buffer to the provided Writer.
 func (ctn *Connection) ReadN(buf io.Writer, length int64) (total int64, err error) {
 	// if all bytes are not read, retry until successful
 	// Don't worry about the loop; we've already set the timeout elsewhere
@@ -130,10 +142,13 @@ func (ctn *Connection) ReadN(buf io.Writer, length int64) (total int64, err erro
 	if err == nil && total == length {
 		return total, nil
 	} else if err != nil {
+		if shouldClose(err) {
+			ctn.Close()
+		}
 		return total, errToTimeoutErr(err)
-	} else {
-		return total, NewAerospikeError(SERVER_ERROR)
 	}
+	ctn.Close()
+	return total, NewAerospikeError(SERVER_ERROR)
 }
 
 // Read reads from connection buffer to the provided slice.
@@ -152,10 +167,13 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 	if err == nil && total == length {
 		return total, nil
 	} else if err != nil {
+		if shouldClose(err) {
+			ctn.Close()
+		}
 		return total, errToTimeoutErr(err)
-	} else {
-		return total, NewAerospikeError(SERVER_ERROR)
 	}
+	ctn.Close()
+	return total, NewAerospikeError(SERVER_ERROR)
 }
 
 // IsConnected returns true if the connection is not closed yet.
