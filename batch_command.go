@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	"bytes"
 	"fmt"
 	"reflect"
 
@@ -34,9 +33,6 @@ type multiCommand interface {
 
 type baseMultiCommand struct {
 	baseCommand
-
-	buf     bytes.Buffer
-	remains int64
 
 	terminationError ResultCode
 
@@ -78,6 +74,16 @@ func (cmd *baseMultiCommand) getNode(ifc command) (*Node, error) {
 	return cmd.node, nil
 }
 
+func (cmd *baseMultiCommand) drainConn(receiveSize int) error {
+	// consume the rest of the input buffer from the socket
+	if cmd.dataOffset < receiveSize && cmd.conn.IsConnected() {
+		if err := cmd.readBytes(receiveSize - cmd.dataOffset); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 	// Read socket into receive buffer one record at a time.  Do not read entire receive size
 	// because the receive buffer would be too big.
@@ -99,10 +105,10 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 		}
 
 		receiveSize := int(size & 0xFFFFFFFFFFFF)
-		cmd.remains = int64(receiveSize)
-
 		if receiveSize > 0 {
-			if status, err = ifc.parseRecordResults(ifc, receiveSize); err != nil {
+			status, err = ifc.parseRecordResults(ifc, receiveSize)
+			cmd.drainConn(receiveSize)
+			if err != nil {
 				return err
 			}
 		} else {
@@ -160,43 +166,12 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 		cmd.dataBuffer = make([]byte, length)
 	}
 
-	for cmd.buf.Len() < length {
-		if cmd.remains < 0 {
-			return fmt.Errorf("Requested socket read, but no bytes remain in buffer %d", 1)
-		}
-
-		if cmd.remains >= _CHUNK_SIZE {
-			if err := cmd.readNextChunk(_CHUNK_SIZE); err != nil {
-				return err
-			}
-			cmd.remains -= _CHUNK_SIZE
-		} else {
-			if err := cmd.readNextChunk(int(cmd.remains)); err != nil {
-				return err
-			}
-			cmd.remains = 0
-		}
-	}
-
-	if n, err := cmd.buf.Read(cmd.dataBuffer[:length]); err != nil || n != length {
+	if n, err := cmd.conn.Read(cmd.dataBuffer[:length], length); err != nil {
 		return fmt.Errorf("Requested to read %d bytes, but %d was read. (%v)", length, n, err)
 	}
 
 	cmd.dataOffset += length
 	return nil
-}
-
-func (cmd *baseMultiCommand) readNextChunk(length int) error {
-
-	// Corrupted data streams can result in a huge length.
-	// Do a sanity check here.
-	if length > _MAX_BUFFER_SIZE {
-		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
-	}
-
-	// read first chunk up front
-	_, err := cmd.conn.ReadN(&cmd.buf, int64(length))
-	return err
 }
 
 func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
@@ -212,13 +187,6 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 
 		if resultCode != 0 {
 			if resultCode == KEY_NOT_FOUND_ERROR {
-				// consume the rest of the input buffer from the socket
-				if cmd.dataOffset < receiveSize {
-					if err := cmd.readBytes(receiveSize - cmd.dataOffset); err != nil {
-						cmd.recordset.Errors <- newNodeError(cmd.node, err)
-						return false, err
-					}
-				}
 				return false, nil
 			}
 			err := NewAerospikeError(resultCode)
