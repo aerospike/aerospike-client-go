@@ -1192,31 +1192,31 @@ func SetCommandBufferPool(poolSize, initBufSize, maxBufferSize int) {
 
 func (cmd *baseCommand) execute(ifc command) (err error) {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
-	iterations := 0
+	iterations := -1
 
 	// set timeout outside the loop
-	limit := time.Now().Add(policy.Timeout)
+	deadline := time.Now().Add(policy.Timeout)
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
 		// too many retries
-		if iterations++; (policy.MaxRetries > 0) && (iterations > policy.MaxRetries+1) {
+		if iterations++; (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
 			return NewAerospikeError(TIMEOUT, fmt.Sprintf("command execution timed out: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err))
 		}
 
 		// Sleep before trying again, after the first iteration
-		if iterations > 1 && policy.SleepBetweenRetries > 0 {
+		if iterations > 0 && policy.SleepBetweenRetries > 0 {
 			time.Sleep(policy.SleepBetweenRetries)
 		}
 
 		// check for command timeout
-		if policy.Timeout > 0 && time.Now().After(limit) {
+		if policy.Timeout > 0 && time.Now().After(deadline) {
 			break
 		}
 
 		// set command node, so when you return a record it has the node
 		cmd.node, err = ifc.getNode(ifc)
-		if err != nil {
+		if cmd.node == nil || !cmd.node.IsActive() || err != nil {
 			// Node is currently inactive. Retry.
 			continue
 		}
@@ -1273,7 +1273,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			// cancelling/closing the batch/multi commands will return an error, which will
 			// close the connection to throw away its data and signal the server about the
 			// situation. We will not put back the connection in the buffer.
-			if KeepConnection(err) {
+			if cmd.conn.IsConnected() && KeepConnection(err) {
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
