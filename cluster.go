@@ -671,7 +671,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 		index := int(math.Abs(float64(clstr.nodeIndex.IncrementAndGet() % length)))
 		node := nodeArray[index]
 
-		if node.IsActive() {
+		if node != nil && node.IsActive() {
 			// Logger.Debug("Node `%s` is active. index=%d", node, index)
 			return node, nil
 		}
