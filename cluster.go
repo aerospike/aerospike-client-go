@@ -262,7 +262,7 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 	}
 
 	// Refresh peers when necessary.
-	if peers.genChanged {
+	if peers.usePeers && peers.genChanged {
 		// Refresh peers for all nodes that responded the first time even if only one node's peers changed.
 		peers.refreshCount = 0
 
@@ -589,18 +589,20 @@ func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
 	// Remove all nodes at once to avoid copying entire array multiple times.
 	clstr.nodes.Update(func(val interface{}) (interface{}, error) {
 		nodes := val.([]*Node)
-		for i, n := range nodes {
+		nlist := make([]*Node, 0, len(nodes))
+		nlist = append(nlist, nodes...)
+		for i, n := range nlist {
 			for _, ntr := range nodesToRemove {
 				if ntr.Equals(n) {
-					nodes[i] = nil
+					nlist[i] = nil
 				}
 			}
 		}
 
-		newNodes := make([]*Node, 0, len(nodes))
-		for i := range nodes {
-			if nodes[i] != nil {
-				newNodes = append(newNodes, nodes[i])
+		newNodes := make([]*Node, 0, len(nlist))
+		for i := range nlist {
+			if nlist[i] != nil {
+				newNodes = append(newNodes, nlist[i])
 			}
 		}
 
