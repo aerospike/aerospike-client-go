@@ -107,7 +107,19 @@ var _ = Describe("Query operations", func() {
 		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 	})
 
-	It("must return error if more than onlt filter passed to the command", func() {
+	It("must return error if query on non-indexed field", func() {
+		stm := NewStatement(ns, set)
+		stm.Addfilter(NewRangeFilter("Non-Existing", 0, math.MaxInt16/2))
+
+		recordset, err := client.Query(nil, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		for res := range recordset.Results() {
+			Expect(res.Err).To(HaveOccurred())
+		}
+	})
+
+	It("must return error if more than one filter passed to the command", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
 
 		stm := NewStatement(ns, set)
