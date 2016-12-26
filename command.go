@@ -280,6 +280,10 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 
 // Implements different command operations
 func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) error {
+	if len(operations) == 0 {
+		return NewAerospikeError(PARAMETER_ERROR, "No operations were passed.")
+	}
+
 	cmd.begin()
 	fieldCount := 0
 	readAttr := 0
@@ -326,7 +330,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	fieldCount += ksz
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	if readHeader && !readBin {

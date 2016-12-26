@@ -893,6 +893,18 @@ var _ = Describe("Aerospike", func() {
 				// Expect(err).ToNot(HaveOccurred())
 			})
 
+			It("must work correctly when no BinOps are passed as argument", func() {
+				key, err := NewKey(ns, set, randString(50))
+				Expect(err).ToNot(HaveOccurred())
+
+				ops1 := []*Operation{}
+
+				wpolicy := NewWritePolicy(0, 0)
+				rec, err = client.Operate(wpolicy, key, ops1...)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("No operations were passed."))
+			})
+
 			It("must send key on Put operations", func() {
 				key, err := NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
