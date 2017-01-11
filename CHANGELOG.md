@@ -1,5 +1,28 @@
 # Change History
 
+## January 11 2017: v1.24.0
+
+  Minor feature and fix release.
+
+  * **New Features**
+
+    - TLS/SSL connections are now officially supported.
+    - Added Role/Privilege API.
+
+  * **Improvements**
+
+    - Return a client-side error when no ops are passed to the operate command.
+    - Export error attribute in `NodeError`
+    - Do not attempt to refresh peers if it is not supported by the nodes.
+
+  * **Fixes**
+
+    - Use namespace default-ttl for tests instead of assuming 30d
+    - Always drain scan connections after parsing the records.
+    - Fix panic in GetObject() if all bins in result is nil. PR #172, thanks to [Hamper](https://github.com/hamper)
+    - Fix WritePolicy usage with UDF. PR #174, thanks to [Bertrand Paquet](https://github.com/bpaquet)
+    - Close connection right when it has an io error and don't wait for the caller.
+
 ## December 20 2016 : v1.23.0
 
   Minor feature and fix release.
