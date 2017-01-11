@@ -627,6 +627,14 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(resObj).To(Equal(testObj))
 				Expect(resObj.AnonymP).NotTo(BeNil())
+
+				// should not panic if read back to an object with none of the bins
+				T := struct {
+					NonExisting int `as:"nonexisting"`
+				}{-1}
+				err = client.GetObject(nil, key, &T)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(T.NonExisting).To(Equal(-1))
 			})
 
 			It("must save a tagged object with the most complex structure possible", func() {
