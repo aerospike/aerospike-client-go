@@ -376,7 +376,7 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 		return nil
 	}
 
-	cmd.writeHeader(&policy.BasePolicy, 0, _INFO2_WRITE, fieldCount, 0)
+	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 0)
 	cmd.writeKey(key, policy.SendKey)
 	cmd.writeFieldString(packageName, UDF_PACKAGE_NAME)
 	cmd.writeFieldString(functionName, UDF_FUNCTION)
