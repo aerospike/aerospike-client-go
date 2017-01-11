@@ -18,6 +18,7 @@ import (
 	"math"
 	"math/rand"
 	"strings"
+	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
 
@@ -89,13 +90,18 @@ var _ = Describe("UDF/Query tests", func() {
 		err = client.PutBins(wpolicy, key, bin1, bin2)
 		Expect(err).ToNot(HaveOccurred())
 
-		res, err := client.Execute(nil, key, "udf1", "testFunc1", NewValue(2))
+		wpolicy := NewWritePolicy(0, 1000)
+		res, err := client.Execute(wpolicy, key, "udf1", "testFunc1", NewValue(2))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(res).To(Equal(map[interface{}]interface{}{"status": "OK"}))
+
+		time.Sleep(3 * time.Second)
 
 		// read all data and make sure it is consistent
 		rec, err := client.Get(nil, key)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(rec.Expiration).To(BeNumerically("<=", 997))
+		Expect(rec.Expiration).To(BeNumerically(">", 900)) // give a bit of leeway for slow testing VMs
 
 		Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
 		Expect(rec.Bins[bin2.Name]).To(Equal(bin1.Value.GetObject().(int) / 2))
