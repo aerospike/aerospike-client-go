@@ -102,8 +102,12 @@ func NewSecureConnection(policy *ClientPolicy, host *Host) (*Connection, error) 
 		return conn, nil
 	}
 
-	sconn := tls.Client(conn.conn, policy.TlsConfig)
-	if host.TLSName != "" {
+	// To be on the safe side
+	tlsConfig := *policy.TlsConfig
+	tlsConfig.ServerName = host.TLSName
+
+	sconn := tls.Client(conn.conn, &tlsConfig)
+	if host.TLSName != "" && !tlsConfig.InsecureSkipVerify {
 		if err := sconn.VerifyHostname(host.TLSName); err != nil {
 			Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
 			return nil, errToTimeoutErr(err)
