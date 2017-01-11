@@ -18,7 +18,8 @@ install:
 - go get .
 - if ! go get code.google.com/p/go.tools/cmd/cover; then go get golang.org/x/tools/cmd/cover;
   fi
-- wget -O aerospike-server.tgz http://aerospike.com/download/server/latest/artifact/tgz
+#- wget -O aerospike-server.tgz http://aerospike.com/download/server/latest/artifact/tgz
+- wget -O aerospike-server.tgz http://aerospike.com/download/server/3.10.1/artifact/tgz
 - tar xvzf aerospike-server.tgz
 - cp -f .travis/aerospike.conf ./aerospike-server/share/etc
 - cd aerospike-server
