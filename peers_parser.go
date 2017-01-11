@@ -200,7 +200,7 @@ func (p *peerListParser) ParseHost(host string) (*Host, error) {
 	return NewHost(addr, port), nil
 }
 
-func (p *peerListParser) ReadHosts() ([]*Host, error) {
+func (p *peerListParser) ReadHosts(tlsName string) ([]*Host, error) {
 	if !p.Expect('[') {
 		return nil, aeroerr
 	}
@@ -221,6 +221,7 @@ func (p *peerListParser) ReadHosts() ([]*Host, error) {
 			return nil, aeroerr
 		}
 
+		host.TLSName = tlsName
 		hostList = append(hostList, host)
 
 		if !p.Expect(',') {
@@ -257,7 +258,7 @@ func (p *peerListParser) ReadPeer() (*peer, error) {
 		return nil, aeroerr
 	}
 
-	hostList, err := p.ReadHosts()
+	hostList, err := p.ReadHosts(tlsName)
 	if err != nil {
 		return nil, err
 	}
