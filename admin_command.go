@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"encoding/binary"
+	"fmt"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/pkg/bcrypt"
@@ -25,17 +26,19 @@ import (
 
 const (
 	// Commands
-	_AUTHENTICATE    byte = 0
-	_CREATE_USER     byte = 1
-	_DROP_USER       byte = 2
-	_SET_PASSWORD    byte = 3
-	_CHANGE_PASSWORD byte = 4
-	_GRANT_ROLES     byte = 5
-	_REVOKE_ROLES    byte = 6
-	_REPLACE_ROLES   byte = 7
-	//_CREATE_ROLE byte = 8;
-	_QUERY_USERS byte = 9
-	//_QUERY_ROLES byte =  10;
+	_AUTHENTICATE      byte = 0
+	_CREATE_USER       byte = 1
+	_DROP_USER         byte = 2
+	_SET_PASSWORD      byte = 3
+	_CHANGE_PASSWORD   byte = 4
+	_GRANT_ROLES       byte = 5
+	_REVOKE_ROLES      byte = 6
+	_QUERY_USERS       byte = 9
+	_CREATE_ROLE       byte = 10
+	_DROP_ROLE         byte = 11
+	_GRANT_PRIVILEGES  byte = 12
+	_REVOKE_PRIVILEGES byte = 13
+	_QUERY_ROLES       byte = 16
 
 	// Field IDs
 	_USER         byte = 0
@@ -43,7 +46,8 @@ const (
 	_OLD_PASSWORD byte = 2
 	_CREDENTIAL   byte = 3
 	_ROLES        byte = 10
-	//_PRIVILEGES byte =  11;
+	_ROLE         byte = 11
+	_PRIVILEGES   byte = 12
 
 	// Misc
 	_MSG_VERSION int64 = 0
@@ -143,6 +147,39 @@ func (acmd *adminCommand) revokeRoles(cluster *Cluster, policy *AdminPolicy, use
 	return acmd.executeCommand(cluster, policy)
 }
 
+func (acmd *adminCommand) createRole(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege) error {
+	acmd.writeHeader(_CREATE_ROLE, 2)
+	acmd.writeFieldStr(_ROLE, roleName)
+	if err := acmd.writePrivileges(privileges); err != nil {
+		return err
+	}
+	return acmd.executeCommand(cluster, policy)
+}
+
+func (acmd *adminCommand) dropRole(cluster *Cluster, policy *AdminPolicy, roleName string) error {
+	acmd.writeHeader(_DROP_ROLE, 1)
+	acmd.writeFieldStr(_ROLE, roleName)
+	return acmd.executeCommand(cluster, policy)
+}
+
+func (acmd *adminCommand) grantPrivileges(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege) error {
+	acmd.writeHeader(_GRANT_PRIVILEGES, 2)
+	acmd.writeFieldStr(_ROLE, roleName)
+	if err := acmd.writePrivileges(privileges); err != nil {
+		return err
+	}
+	return acmd.executeCommand(cluster, policy)
+}
+
+func (acmd *adminCommand) revokePrivileges(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege) error {
+	acmd.writeHeader(_REVOKE_PRIVILEGES, 2)
+	acmd.writeFieldStr(_ROLE, roleName)
+	if err := acmd.writePrivileges(privileges); err != nil {
+		return err
+	}
+	return acmd.executeCommand(cluster, policy)
+}
+
 func (acmd *adminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user string) (*UserRoles, error) {
 	// TODO: Remove the workaround in the future
 	time.Sleep(time.Millisecond * 10)
@@ -175,6 +212,38 @@ func (acmd *adminCommand) queryUsers(cluster *Cluster, policy *AdminPolicy) ([]*
 	return list, nil
 }
 
+func (acmd *adminCommand) queryRole(cluster *Cluster, policy *AdminPolicy, roleName string) (*Role, error) {
+	// TODO: Remove the workaround in the future
+	time.Sleep(time.Millisecond * 10)
+	// defer bufPool.Put(acmd.dataBuffer)
+
+	acmd.writeHeader(_QUERY_ROLES, 1)
+	acmd.writeFieldStr(_ROLE, roleName)
+	list, err := acmd.readRoles(cluster, policy)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(list) > 0 {
+		return list[0], nil
+	}
+
+	return nil, nil
+}
+
+func (acmd *adminCommand) queryRoles(cluster *Cluster, policy *AdminPolicy) ([]*Role, error) {
+	// TODO: Remove the workaround in the future
+	time.Sleep(time.Millisecond * 10)
+	// defer bufPool.Put(acmd.dataBuffer)
+
+	acmd.writeHeader(_QUERY_ROLES, 0)
+	list, err := acmd.readRoles(cluster, policy)
+	if err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
 func (acmd *adminCommand) writeRoles(roles []string) {
 	offset := acmd.dataOffset + int(_FIELD_HEADER_SIZE)
 	acmd.dataBuffer[offset] = byte(len(roles))
@@ -191,6 +260,45 @@ func (acmd *adminCommand) writeRoles(roles []string) {
 	acmd.dataOffset = offset
 }
 
+func (acmd *adminCommand) writePrivileges(privileges []Privilege) error {
+	offset := acmd.dataOffset + int(_FIELD_HEADER_SIZE)
+	acmd.dataBuffer[offset] = byte(len(privileges))
+	offset++
+
+	for _, privilege := range privileges {
+		code := privilege.code()
+
+		acmd.dataBuffer[offset] = byte(code)
+		offset++
+
+		if privilege.canScope() {
+
+			if len(privilege.SetName) > 0 && len(privilege.Namespace) == 0 {
+				return NewAerospikeError(INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
+			}
+
+			acmd.dataBuffer[offset] = byte(len(privilege.Namespace))
+			offset++
+			copy(acmd.dataBuffer[offset:], privilege.Namespace)
+			offset += len(privilege.Namespace)
+
+			acmd.dataBuffer[offset] = byte(len(privilege.SetName))
+			offset++
+			copy(acmd.dataBuffer[offset:], privilege.SetName)
+			offset += len(privilege.SetName)
+		} else {
+			if len(privilege.Namespace) > 0 || len(privilege.SetName) > 0 {
+				return NewAerospikeError(INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
+			}
+		}
+	}
+
+	size := offset - acmd.dataOffset - int(_FIELD_HEADER_SIZE)
+	acmd.writeFieldHeader(_PRIVILEGES, size)
+	acmd.dataOffset = offset
+
+	return nil
+}
 func (acmd *adminCommand) writeSize() {
 	// Write total size of message which is the current offset.
 	var size = int64(acmd.dataOffset-8) | (_MSG_VERSION << 56) | (_MSG_TYPE << 48)
@@ -403,4 +511,141 @@ func hashPassword(password string) ([]byte, error) {
 		return nil, err
 	}
 	return []byte(hashedPassword), nil
+}
+
+func (acmd *adminCommand) readRoles(cluster *Cluster, policy *AdminPolicy) ([]*Role, error) {
+	acmd.writeSize()
+	node, err := cluster.GetRandomNode()
+	if err != nil {
+		return nil, err
+	}
+	timeout := 1 * time.Second
+	if policy != nil && policy.Timeout > 0 {
+		timeout = policy.Timeout
+	}
+
+	if err := node.initTendConn(timeout); err != nil {
+		return nil, err
+	}
+
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
+	conn := node.tendConn
+	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
+		return nil, err
+	}
+
+	status, list, err := acmd.readRoleBlocks(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	if status > 0 {
+		return nil, NewAerospikeError(ResultCode(status))
+	}
+	return list, nil
+}
+
+func (acmd *adminCommand) readRoleBlocks(conn *Connection) (status int, rlist []*Role, err error) {
+
+	var list []*Role
+
+	for status == 0 {
+		if _, err = conn.Read(acmd.dataBuffer, 8); err != nil {
+			return -1, nil, err
+		}
+
+		size := Buffer.BytesToInt64(acmd.dataBuffer, 0)
+		receiveSize := int(size & 0xFFFFFFFFFFFF)
+
+		if receiveSize > 0 {
+			if receiveSize > len(acmd.dataBuffer) {
+				acmd.dataBuffer = make([]byte, receiveSize)
+			}
+			if _, err = conn.Read(acmd.dataBuffer, int(receiveSize)); err != nil {
+				return -1, nil, err
+			}
+			status, list, err = acmd.parseRolesFull(receiveSize)
+			if err != nil {
+				return -1, nil, err
+			}
+			rlist = append(rlist, list...)
+		} else {
+			break
+		}
+	}
+	return status, rlist, nil
+}
+
+func (acmd *adminCommand) parseRolesFull(receiveSize int) (int, []*Role, error) {
+	acmd.dataOffset = 0
+
+	var list []*Role
+	for acmd.dataOffset < receiveSize {
+		resultCode := int(acmd.dataBuffer[acmd.dataOffset+1])
+
+		if resultCode != 0 {
+			if resultCode == _QUERY_END {
+				return -1, nil, nil
+			}
+			return resultCode, nil, nil
+		}
+
+		role := &Role{}
+		fieldCount := int(acmd.dataBuffer[acmd.dataOffset+3])
+		acmd.dataOffset += _HEADER_REMAINING
+
+		for i := 0; i < fieldCount; i++ {
+			len := int(Buffer.BytesToInt32(acmd.dataBuffer, acmd.dataOffset))
+			acmd.dataOffset += 4
+			id := acmd.dataBuffer[acmd.dataOffset]
+			acmd.dataOffset++
+			len--
+
+			if id == _ROLE {
+				role.Name = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
+				acmd.dataOffset += len
+			} else if id == _PRIVILEGES {
+				acmd.parsePrivileges(role)
+			} else {
+				acmd.dataOffset += len
+			}
+		}
+
+		if len(role.Name) == 0 && len(role.Privileges) == 0 {
+			continue
+		}
+
+		if role.Privileges == nil {
+			role.Privileges = []Privilege{}
+		}
+		list = append(list, role)
+	}
+	return 0, list, nil
+}
+
+func (acmd *adminCommand) parsePrivileges(role *Role) {
+	size := int(acmd.dataBuffer[acmd.dataOffset])
+	acmd.dataOffset++
+	role.Privileges = make([]Privilege, 0, size)
+
+	for i := 0; i < size; i++ {
+		priv := Privilege{}
+		priv.Code = privilegeFrom(acmd.dataBuffer[acmd.dataOffset])
+		acmd.dataOffset++
+
+		if priv.canScope() {
+			len := int(acmd.dataBuffer[acmd.dataOffset])
+			acmd.dataOffset++
+			priv.Namespace = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
+			acmd.dataOffset += len
+
+			len = int(acmd.dataBuffer[acmd.dataOffset])
+			acmd.dataOffset++
+			priv.SetName = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
+			acmd.dataOffset += len
+		}
+		role.Privileges = append(role.Privileges, priv)
+	}
 }

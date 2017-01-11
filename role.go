@@ -15,22 +15,30 @@
 
 package aerospike
 
-type Role string
+// Role allows granular access to database entities for users.
+type Role struct {
+	Name string
+
+	Privileges []Privilege
+}
 
 // Pre-defined user roles.
 const (
 	// UserAdmin allows to manages users and their roles.
-	UserAdmin Role = "user-admin"
+	UserAdmin privilegeCode = "user-admin"
 
 	// SysAdmin allows to manage indexes, user defined functions and server configuration.
-	SysAdmin Role = "sys-admin"
+	SysAdmin privilegeCode = "sys-admin"
+
+	// DataAdmin allows to manage indicies and user defined functions.
+	DataAdmin privilegeCode = "data-admin"
 
 	// ReadWriteUDF allows read, write and UDF transactions with the database.
-	ReadWriteUDF Role = "read-write-udf"
+	ReadWriteUDF privilegeCode = "read-write-udf"
 
 	// ReadWrite allows read and write transactions with the database.
-	ReadWrite Role = "read-write"
+	ReadWrite privilegeCode = "read-write"
 
-	// Read allow read transactions with the database.
-	Read Role = "Read"
+	// Read allows read transactions with the database.
+	Read privilegeCode = "read"
 )

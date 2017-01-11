@@ -1222,6 +1222,54 @@ func (clnt *Client) QueryUsers(policy *AdminPolicy) ([]*UserRoles, error) {
 	return command.queryUsers(clnt.cluster, policy)
 }
 
+// QueryRole retrieves privileges for a given role.
+func (clnt *Client) QueryRole(policy *AdminPolicy, role string) (*Role, error) {
+	policy = clnt.getUsableAdminPolicy(policy)
+
+	command := newAdminCommand(nil)
+	return command.queryRole(clnt.cluster, policy, role)
+}
+
+// QueryRoles retrieves all roles and their privileges.
+func (clnt *Client) QueryRoles(policy *AdminPolicy) ([]*Role, error) {
+	policy = clnt.getUsableAdminPolicy(policy)
+
+	command := newAdminCommand(nil)
+	return command.queryRoles(clnt.cluster, policy)
+}
+
+// CreateRole creates a user-defined role.
+func (clnt *Client) CreateRole(policy *AdminPolicy, roleName string, privileges []Privilege) error {
+	policy = clnt.getUsableAdminPolicy(policy)
+
+	command := newAdminCommand(nil)
+	return command.createRole(clnt.cluster, policy, roleName, privileges)
+}
+
+// DropRole removes a user-defined role.
+func (clnt *Client) DropRole(policy *AdminPolicy, roleName string) error {
+	policy = clnt.getUsableAdminPolicy(policy)
+
+	command := newAdminCommand(nil)
+	return command.dropRole(clnt.cluster, policy, roleName)
+}
+
+// GrantPrivileges grant privileges to a user-defined role.
+func (clnt *Client) GrantPrivileges(policy *AdminPolicy, roleName string, privileges []Privilege) error {
+	policy = clnt.getUsableAdminPolicy(policy)
+
+	command := newAdminCommand(nil)
+	return command.grantPrivileges(clnt.cluster, policy, roleName, privileges)
+}
+
+// RevokePrivileges revokes privileges from a user-defined role.
+func (clnt *Client) RevokePrivileges(policy *AdminPolicy, roleName string, privileges []Privilege) error {
+	policy = clnt.getUsableAdminPolicy(policy)
+
+	command := newAdminCommand(nil)
+	return command.revokePrivileges(clnt.cluster, policy, roleName, privileges)
+}
+
 // Cluster exposes the cluster object to the user
 func (clnt *Client) Cluster() *Cluster {
 	return clnt.cluster

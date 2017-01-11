@@ -51,7 +51,55 @@ var _ = Describe("Security tests", func() {
 				client.CreateUser(nil, "test_user", "test", []string{"user-admin"})
 			})
 
-			It("Must query Roles Perfectly", func() {
+			It("Must work with Roles Perfectly", func() {
+				defer client.DropRole(nil, "role-read-test-test")
+				defer client.DropRole(nil, "role-write-test")
+				defer client.DropRole(nil, "dummy-role")
+
+				// Add a user defined Role
+				err := client.CreateRole(nil, "role-read-test-test", []Privilege{{Code: Read, Namespace: "test", SetName: "test"}})
+				Expect(err).ToNot(HaveOccurred())
+
+				err = client.CreateRole(nil, "role-write-test", []Privilege{{Code: ReadWrite, Namespace: "test", SetName: ""}})
+				Expect(err).ToNot(HaveOccurred())
+
+				// Add privileges to the roles
+				err = client.GrantPrivileges(nil, "role-read-test-test", []Privilege{{Code: ReadWrite, Namespace: "test", SetName: "bar"}, {Code: ReadWriteUDF, Namespace: "test", SetName: "test"}})
+				Expect(err).ToNot(HaveOccurred())
+
+				// // Revoke privileges from the roles
+				err = client.RevokePrivileges(nil, "role-read-test-test", []Privilege{{Code: ReadWriteUDF, Namespace: "test", SetName: "test"}})
+				Expect(err).ToNot(HaveOccurred())
+
+				err = client.CreateRole(nil, "dummy-role", []Privilege{{Code: Read, Namespace: "", SetName: ""}})
+				Expect(err).ToNot(HaveOccurred())
+
+				// Drop the dummy role to make sure DropRoles Works
+				err = client.DropRole(nil, "dummy-role")
+				Expect(err).ToNot(HaveOccurred())
+
+				// Wait until servers syncronize
+				time.Sleep(3 * time.Second)
+
+				roles, err := client.QueryRoles(nil)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(len(roles)).To(Equal(8))
+
+				// Predefined Roles
+				Expect(roles).To(ContainElement(&Role{Name: "read", Privileges: []Privilege{{Code: Read, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&Role{Name: "read-write", Privileges: []Privilege{{Code: ReadWrite, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&Role{Name: "read-write-udf", Privileges: []Privilege{{Code: ReadWriteUDF, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&Role{Name: "sys-admin", Privileges: []Privilege{{Code: SysAdmin, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&Role{Name: "user-admin", Privileges: []Privilege{{Code: UserAdmin, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&Role{Name: "data-admin", Privileges: []Privilege{{Code: DataAdmin, Namespace: "", SetName: ""}}}))
+
+				// Our test Roles
+				Expect(roles).To(ContainElement(&Role{Name: "role-read-test-test", Privileges: []Privilege{{Code: Read, Namespace: "test", SetName: "test"}, {Code: ReadWrite, Namespace: "test", SetName: "bar"}}}))
+				Expect(roles).To(ContainElement(&Role{Name: "role-write-test", Privileges: []Privilege{{Code: ReadWrite, Namespace: "test", SetName: ""}}}))
+			})
+
+			It("Must query User Roles Perfectly", func() {
 				admin, err := client.QueryUser(nil, "test_user")
 				Expect(err).ToNot(HaveOccurred())
 
