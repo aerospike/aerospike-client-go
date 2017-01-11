@@ -53,9 +53,8 @@ func parseObject(
 		}
 	}
 
-	var rv reflect.Value
 	if opCount > 0 {
-		rv = *cmd.object
+		rv := *cmd.object
 
 		if rv.Kind() != reflect.Ptr {
 			return errors.New("Invalid type for result object. It should be of type Struct Pointer.")
@@ -69,30 +68,30 @@ func parseObject(
 		if rv.Kind() != reflect.Struct {
 			return errors.New("Invalid type for object. It should be a pointer to a struct.")
 		}
-	}
 
-	// find the name based on tag mapping
-	iobj := indirect(rv)
-	mappings := objectMappings.getMapping(iobj.Type())
+		// find the name based on tag mapping
+		iobj := indirect(rv)
+		mappings := objectMappings.getMapping(iobj.Type())
 
-	if err := setObjectMetaFields(iobj, TTL(expiration), generation); err != nil {
-		return err
-	}
-
-	for i := 0; i < opCount; i++ {
-		opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
-		particleType := int(cmd.dataBuffer[receiveOffset+5])
-		nameSize := int(cmd.dataBuffer[receiveOffset+7])
-		name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
-		receiveOffset += 4 + 4 + nameSize
-
-		particleBytesSize := int(opSize - (4 + nameSize))
-		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
-		if err := setObjectField(mappings, iobj, name, value); err != nil {
+		if err := setObjectMetaFields(iobj, TTL(expiration), generation); err != nil {
 			return err
 		}
 
-		receiveOffset += particleBytesSize
+		for i := 0; i < opCount; i++ {
+			opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
+			particleType := int(cmd.dataBuffer[receiveOffset+5])
+			nameSize := int(cmd.dataBuffer[receiveOffset+7])
+			name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
+			receiveOffset += 4 + 4 + nameSize
+
+			particleBytesSize := int(opSize - (4 + nameSize))
+			value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
+			if err := setObjectField(mappings, iobj, name, value); err != nil {
+				return err
+			}
+
+			receiveOffset += particleBytesSize
+		}
 	}
 
 	return nil
