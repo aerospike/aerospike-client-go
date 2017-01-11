@@ -18,7 +18,9 @@ import (
 	"bytes"
 	"math"
 	"math/rand"
+	"strconv"
 	"strings"
+	"time"
 
 	. "github.com/aerospike/aerospike-client-go"
 	. "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -65,6 +67,7 @@ var _ = Describe("Aerospike", func() {
 		Context("Put operations", func() {
 
 			Context("Expiration values", func() {
+
 				It("must return 30d if set to TTLServerDefault", func() {
 					wpolicy := NewWritePolicy(0, TTLServerDefault)
 					bin := NewBin("Aerospike", "value")
@@ -73,7 +76,11 @@ var _ = Describe("Aerospike", func() {
 
 					rec, err = client.Get(rpolicy, key)
 					Expect(err).ToNot(HaveOccurred())
-					Expect(rec.Expiration).To(Equal(uint32(30 * 24 * 60 * 60))) // default expiration on server is set to 30d
+
+					defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(rec.Expiration).To(Equal(uint32(defaultTTL)))
 				})
 
 				It("must return TTLDontExpire if set to TTLDontExpire", func() {
@@ -87,24 +94,26 @@ var _ = Describe("Aerospike", func() {
 					Expect(rec.Expiration).To(Equal(uint32(TTLDontExpire)))
 				})
 
-				// TODO: Enable after 3.10.1 release
-				// It("must not change the TTL if set to TTLDontTouch", func() {
-				// 	wpolicy := NewWritePolicy(0, TTLServerDefault)
-				// 	bin := NewBin("Aerospike", "value")
-				// 	err = client.PutBins(wpolicy, key, bin)
-				// 	Expect(err).ToNot(HaveOccurred())
+				It("must not change the TTL if set to TTLDontUpdate", func() {
+					wpolicy := NewWritePolicy(0, TTLServerDefault)
+					bin := NewBin("Aerospike", "value")
+					err = client.PutBins(wpolicy, key, bin)
+					Expect(err).ToNot(HaveOccurred())
 
-				// 	time.Sleep(3)
+					time.Sleep(3 * time.Second)
 
-				// 	// wpolicy = NewWritePolicy(0, TTLDontUpdate)
-				// 	bin = NewBin("Aerospike", "value")
-				// 	err = client.PutBins(wpolicy, key, bin)
-				// 	Expect(err).ToNot(HaveOccurred())
+					wpolicy = NewWritePolicy(0, TTLDontUpdate)
+					bin = NewBin("Aerospike", "value")
+					err = client.PutBins(wpolicy, key, bin)
+					Expect(err).ToNot(HaveOccurred())
 
-				// 	rec, err = client.Get(rpolicy, key)
-				// 	Expect(err).ToNot(HaveOccurred())
-				// 	Expect(rec.Expiration).To(BeNumerically("<", uint32(30*24*60*60))) // default expiration on server is set to 30d
-				// })
+					defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))
+					Expect(err).ToNot(HaveOccurred())
+
+					rec, err = client.Get(rpolicy, key)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(rec.Expiration).To(BeNumerically("<=", uint32(defaultTTL-3))) // default expiration on server is set to 30d
+				})
 			})
 
 			Context("Bins with `nil` values should be deleted", func() {
