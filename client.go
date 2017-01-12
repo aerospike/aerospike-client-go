@@ -39,6 +39,8 @@ type Client struct {
 
 	// DefaultPolicy is used for all read commands without a specific policy.
 	DefaultPolicy *BasePolicy
+	// DefaultBatchPolicy is used for all batch commands without a specific policy.
+	DefaultBatchPolicy *BatchPolicy
 	// DefaultWritePolicy is used for all write commands without a specific policy.
 	DefaultWritePolicy *WritePolicy
 	// DefaultScanPolicy is used for all query commands without a specific policy.
@@ -88,6 +90,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	client := &Client{
 		cluster:            cluster,
 		DefaultPolicy:      NewPolicy(),
+		DefaultBatchPolicy: NewBatchPolicy(),
 		DefaultWritePolicy: NewWritePolicy(0, 0),
 		DefaultScanPolicy:  NewScanPolicy(),
 		DefaultQueryPolicy: NewQueryPolicy(),
@@ -262,8 +265,8 @@ func (clnt *Client) Exists(policy *BasePolicy, key *Key) (bool, error) {
 // The returned boolean array is in positional order with the original key array order.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchExists(policy *BasePolicy, keys []*Key) ([]bool, error) {
-	policy = clnt.getUsablePolicy(policy)
+func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, error) {
+	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be marked true
@@ -318,20 +321,15 @@ func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
 // If a key is not found, the positional record will be nil.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string) ([]*Record, error) {
-	policy = clnt.getUsablePolicy(policy)
+func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...string) ([]*Record, error) {
+	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	binSet := map[string]struct{}{}
-	for idx := range binNames {
-		binSet[binNames[idx]] = struct{}{}
-	}
-
 	err := clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
-		return newBatchCommandGet(node, bns, policy, keys, binSet, records, _INFO1_READ)
+		return newBatchCommandGet(node, bns, policy, keys, binNames, records, _INFO1_READ)
 	})
 	if err != nil {
 		return nil, err
@@ -345,8 +343,8 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 // If a key is not found, the positional record will be nil.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, error) {
-	policy = clnt.getUsablePolicy(policy)
+func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record, error) {
+	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be set to record
@@ -1315,7 +1313,7 @@ func (clnt *Client) sendInfoCommand(policy *WritePolicy, command string) (map[st
 
 // batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
 // and waits for their return
-func (clnt *Client) batchExecute(policy *BasePolicy, keys []*Key, cmdGen func(node *Node, bns *batchNamespace) command) error {
+func (clnt *Client) batchExecute(policy *BatchPolicy, keys []*Key, cmdGen func(node *Node, bns *batchNamespace) command) error {
 
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
 	if err != nil {
@@ -1355,6 +1353,16 @@ func (clnt *Client) getUsablePolicy(policy *BasePolicy) *BasePolicy {
 			return clnt.DefaultPolicy
 		}
 		return NewPolicy()
+	}
+	return policy
+}
+
+func (clnt *Client) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
+	if policy == nil {
+		if clnt.DefaultBatchPolicy != nil {
+			return clnt.DefaultBatchPolicy
+		}
+		return NewBatchPolicy()
 	}
 	return policy
 }

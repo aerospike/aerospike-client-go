@@ -25,9 +25,9 @@ type batchCommandGet struct {
 	baseMultiCommand
 
 	batchNamespace *batchNamespace
-	policy         *BasePolicy
+	policy         *BatchPolicy
 	keys           []*Key
-	binNames       map[string]struct{}
+	binNames       []string
 	records        []*Record
 	readAttr       int
 	index          int
@@ -36,9 +36,9 @@ type batchCommandGet struct {
 func newBatchCommandGet(
 	node *Node,
 	batchNamespace *batchNamespace,
-	policy *BasePolicy,
+	policy *BatchPolicy,
 	keys []*Key,
-	binNames map[string]struct{},
+	binNames []string,
 	records []*Record,
 	readAttr int,
 ) *batchCommandGet {
@@ -58,7 +58,10 @@ func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) error {
-	return cmd.setBatchGet(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
+	if cmd.policy.UseBatchDirect || !cmd.node.supportsBatchIndex.Get() {
+		return cmd.setBatchReadDirect(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
+	}
+	return cmd.setBatchRead(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
 }
 
 // Parse all results in the batch.  Add records to shared list.
@@ -88,6 +91,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 
 		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
 		expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
+		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 		key, err := cmd.parseKey(fieldCount)
@@ -95,8 +99,13 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 			return false, err
 		}
 
-		offset := cmd.batchNamespace.offsets[cmd.index] //cmd.keyMap[string(key.digest)]
-		cmd.index++
+		var offset int
+		if cmd.node.supportsBatchIndex.Get() {
+			offset = batchIndex
+		} else {
+			offset = cmd.batchNamespace.offsets[cmd.index]
+			cmd.index++
+		}
 
 		if bytes.Equal(key.digest[:], cmd.keys[offset].digest[:]) {
 			if resultCode == 0 {
@@ -114,7 +123,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 // Parses the given byte buffer and populate the result object.
 // Returns the number of bytes that were parsed from the given buffer.
 func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expiration uint32) (*Record, error) {
-	bins := make(map[string]interface{}, opCount)
+	bins := make(BinMap, opCount)
 
 	for i := 0; i < opCount; i++ {
 		if err := cmd.readBytes(8); err != nil {

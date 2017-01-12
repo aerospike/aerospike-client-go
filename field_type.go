@@ -29,18 +29,20 @@ const (
 
 	//GU_TID FieldType = 5;
 
-	DIGEST_RIPE_ARRAY FieldType = 6
-	TRAN_ID           FieldType = 7 // user supplied transaction id, which is simply passed back
-	SCAN_OPTIONS      FieldType = 8
-	INDEX_NAME        FieldType = 21
-	INDEX_RANGE       FieldType = 22
-	INDEX_FILTER      FieldType = 23
-	INDEX_LIMIT       FieldType = 24
-	INDEX_ORDER_BY    FieldType = 25
-	INDEX_TYPE                  = 26
-	UDF_PACKAGE_NAME  FieldType = 30
-	UDF_FUNCTION      FieldType = 31
-	UDF_ARGLIST       FieldType = 32
-	UDF_OP            FieldType = 33
-	QUERY_BINLIST     FieldType = 40
+	DIGEST_RIPE_ARRAY    FieldType = 6
+	TRAN_ID              FieldType = 7 // user supplied transaction id, which is simply passed back
+	SCAN_OPTIONS         FieldType = 8
+	INDEX_NAME           FieldType = 21
+	INDEX_RANGE          FieldType = 22
+	INDEX_FILTER         FieldType = 23
+	INDEX_LIMIT          FieldType = 24
+	INDEX_ORDER_BY       FieldType = 25
+	INDEX_TYPE                     = 26
+	UDF_PACKAGE_NAME     FieldType = 30
+	UDF_FUNCTION         FieldType = 31
+	UDF_ARGLIST          FieldType = 32
+	UDF_OP               FieldType = 33
+	QUERY_BINLIST        FieldType = 40
+	BATCH_INDEX          FieldType = 41
+	BATCH_INDEX_WITH_SET FieldType = 42
 )

@@ -25,7 +25,7 @@ type batchCommandExists struct {
 	baseMultiCommand
 
 	batchNamespace *batchNamespace
-	policy         *BasePolicy
+	policy         *BatchPolicy
 	keys           []*Key
 	existsArray    []bool
 	index          int
@@ -34,7 +34,7 @@ type batchCommandExists struct {
 func newBatchCommandExists(
 	node *Node,
 	batchNamespace *batchNamespace,
-	policy *BasePolicy,
+	policy *BatchPolicy,
 	keys []*Key,
 	existsArray []bool,
 ) *batchCommandExists {
@@ -52,7 +52,7 @@ func (cmd *batchCommandExists) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandExists) writeBuffer(ifc command) error {
-	return cmd.setBatchExists(cmd.policy, cmd.keys, cmd.batchNamespace)
+	return cmd.setBatchExists(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.node.supportsBatchIndex.Get())
 }
 
 // Parse all results in the batch.  Add records to shared list.
@@ -81,6 +81,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			return false, nil
 		}
 
+		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
@@ -93,8 +94,13 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			return false, err
 		}
 
-		offset := cmd.batchNamespace.offsets[cmd.index]
-		cmd.index++
+		var offset int
+		if cmd.node.supportsBatchIndex.Get() {
+			offset = batchIndex
+		} else {
+			offset = cmd.batchNamespace.offsets[cmd.index]
+			cmd.index++
+		}
 
 		if bytes.Equal(key.digest[:], cmd.keys[offset].digest[:]) {
 			// only set the results to true; as a result, no synchronization is needed
