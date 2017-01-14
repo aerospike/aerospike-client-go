@@ -102,7 +102,7 @@ func (nd *Node) Refresh(peers *peers) error {
 
 	nd.referenceCount.Set(0)
 
-	if peers.usePeers {
+	if peers.usePeers.Get() {
 		infoMap, err := nd.RequestInfo("node", "peers-generation", "partition-generation")
 		if err != nil {
 			nd.refreshFailed(err)
@@ -147,7 +147,7 @@ func (nd *Node) Refresh(peers *peers) error {
 			return err
 		}
 	}
-	peers.refreshCount++
+	peers.refreshCount.IncrementAndGet()
 	nd.referenceCount.IncrementAndGet()
 
 	return nil
@@ -179,7 +179,7 @@ func (nd *Node) verifyPeersGeneration(infoMap map[string]string, peers *peers) e
 		return NewAerospikeError(PARSE_ERROR, "peers-generation is not a number: "+genString)
 	}
 
-	peers.genChanged = nd.peersGeneration.Get() != gen
+	peers.genChanged.Set(nd.peersGeneration.Get() != gen)
 	return nil
 }
 
@@ -235,8 +235,7 @@ func (nd *Node) addFriends(infoMap map[string]string, peers *peers) error {
 		if node != nil {
 			node.referenceCount.IncrementAndGet()
 		} else {
-			// TODO: should do proper check; this will always fail since host is a new pointer
-			if _, exists := peers.hosts[*host]; !exists {
+			if !peers.hostExists(*host) {
 				nd.prepareFriend(host, peers)
 			}
 		}
@@ -252,14 +251,14 @@ func (nd *Node) prepareFriend(host *Host, peers *peers) bool {
 		return false
 	}
 
-	node := peers.nodes[nv.name]
+	node := peers.nodeByName(nv.name)
 
 	if node != nil {
 		// Duplicate node name found.  This usually occurs when the server
 		// services list contains both internal and external IP addresses
 		// for the same node.
 		nv.conn.Close()
-		peers.hosts[*host] = struct{}{}
+		peers.addHost(*host)
 		node.addAlias(host)
 		return true
 	}
@@ -269,7 +268,7 @@ func (nd *Node) prepareFriend(host *Host, peers *peers) bool {
 
 	if node != nil {
 		nv.conn.Close()
-		peers.hosts[*host] = struct{}{}
+		peers.addHost(*host)
 		node.addAlias(host)
 		node.referenceCount.IncrementAndGet()
 		nd.cluster.addAlias(host, node)
@@ -277,8 +276,8 @@ func (nd *Node) prepareFriend(host *Host, peers *peers) bool {
 	}
 
 	node = nd.cluster.createNode(nv)
-	peers.hosts[*host] = struct{}{}
-	peers.nodes[nv.name] = node
+	peers.addHost(*host)
+	peers.addNode(nv.name, node)
 	return true
 }
 
@@ -294,45 +293,53 @@ func (nd *Node) refreshPeers(peers *peers) {
 		nd.refreshFailed(err)
 		return
 	}
-	peers.peers = peerParser.peers
-	nd.peersGeneration.Set(int(peerParser.generation()))
-	nd.peersCount.Set(len(peers.peers))
 
-	for _, peer := range peers.peers {
-		if nd.peerExists(nd.cluster, peers, peer.nodeName) {
+	peers.setPeers(peerParser.peers)
+	nd.peersGeneration.Set(int(peerParser.generation()))
+	nd.peersCount.Set(len(peers.peers()))
+
+	// find the first host that connects
+	wg := new(sync.WaitGroup)
+	for _, _peer := range peers.peers() {
+		if nd.peerExists(nd.cluster, peers, _peer.nodeName) {
 			// Node already exists. Do not even try to connect to hosts.
 			continue
 		}
 
-		// find the first host that connects
-		for _, host := range peer.hosts {
-			// attempt connection to the host
-			nv := nodeValidator{}
-			if err := nv.validateNode(nd.cluster, host); err != nil {
-				nv.conn.Close()
-				Logger.Warn("Add node `%s` failed: `%s`", host, err)
-				continue
-			}
+		wg.Add(1)
+		go func(__peer *peer) {
+			defer wg.Done()
+			for _, host := range __peer.hosts {
 
-			// Must look for new node name in the unlikely event that node names do not agree.
-			if peer.nodeName != nv.name {
-				Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", peer.nodeName, nv.name, host)
-			}
+				// attempt connection to the host
+				nv := nodeValidator{}
+				if err := nv.validateNode(nd.cluster, host); err != nil {
+					nv.conn.Close()
+					Logger.Warn("Add node `%s` failed: `%s`", host, err)
+					continue
+				}
 
-			if nd.peerExists(nd.cluster, peers, nv.name) {
-				// Node already exists. Do not even try to connect to hosts.
-				nv.conn.Close()
+				// Must look for new node name in the unlikely event that node names do not agree.
+				if __peer.nodeName != nv.name {
+					Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", __peer.nodeName, nv.name, host)
+				}
+
+				if nd.peerExists(nd.cluster, peers, nv.name) {
+					// Node already exists. Do not even try to connect to hosts.
+					nv.conn.Close()
+					break
+				}
+
+				// Create new node.
+				node := nd.cluster.createNode(&nv)
+				peers.addNode(nv.name, node)
 				break
 			}
-
-			// Create new node.
-			node := nd.cluster.createNode(&nv)
-			peers.nodes[nv.name] = node
-			break
-		}
+		}(_peer)
 	}
+	wg.Wait()
 
-	peers.refreshCount++
+	peers.refreshCount.IncrementAndGet()
 }
 
 func (nd *Node) peerExists(cluster *Cluster, peers *peers, nodeName string) bool {
@@ -342,7 +349,7 @@ func (nd *Node) peerExists(cluster *Cluster, peers *peers, nodeName string) bool
 		return true
 	}
 
-	node = peers.nodes[nodeName]
+	node = peers.nodeByName(nodeName)
 	if node != nil {
 		node.referenceCount.IncrementAndGet()
 		return true
@@ -356,7 +363,7 @@ func (nd *Node) refreshPartitions(peers *peers) {
 	// Also, avoid "split cluster" case where this node thinks it's a 1-node cluster.
 	// Unchecked, such a node can dominate the partition map and cause all other
 	// nodes to be dropped.
-	if nd.failures.Get() > 0 || !nd.active.Get() || (nd.peersCount.Get() == 0 && peers.refreshCount > 1) {
+	if nd.failures.Get() > 0 || !nd.active.Get() || (nd.peersCount.Get() == 0 && peers.refreshCount.Get() > 1) {
 		return
 	}
 
@@ -504,7 +511,7 @@ func (nd *Node) GetHost() *Host {
 
 // IsActive Checks if the node is active.
 func (nd *Node) IsActive() bool {
-	return nd.active.Get()
+	return nd.active.Get() && nd.partitionGeneration.Get() >= 0
 }
 
 // GetName returns node name.
@@ -606,7 +613,11 @@ func (nd *Node) initTendConn(timeout time.Duration) error {
 	nd.tendConnLock.Lock()
 	defer nd.tendConnLock.Unlock()
 
-	if nd.tendConn == nil {
+	if nd.tendConn == nil || !nd.tendConn.IsConnected() {
+		if nd.tendConn != nil {
+			nd.InvalidateConnection(nd.tendConn)
+		}
+
 		// Tend connection required a long timeout
 		tendConn, err := nd.GetConnection(timeout)
 		if err != nil {
@@ -631,8 +642,7 @@ func (nd *Node) RequestInfo(name ...string) (map[string]string, error) {
 
 	response, err := RequestInfo(nd.tendConn, name...)
 	if err != nil {
-		nd.InvalidateConnection(nd.tendConn)
-		nd.tendConn = nil
+		nd.tendConn.Close()
 		return nil, err
 	}
 	return response, nil
@@ -650,8 +660,7 @@ func (nd *Node) requestRawInfo(name ...string) (*info, error) {
 
 	response, err := newInfo(nd.tendConn, name...)
 	if err != nil {
-		nd.InvalidateConnection(nd.tendConn)
-		nd.tendConn = nil
+		nd.tendConn.Close()
 		return nil, err
 	}
 	return response, nil

@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -225,7 +226,7 @@ func (clstr *Cluster) AddSeeds(hosts []*Host) {
 func (clstr *Cluster) tend(failIfNotConnected bool) error {
 
 	nodes := clstr.GetNodes()
-	nodes_before_tend := len(nodes)
+	nodeCountBeforeTend := len(nodes)
 
 	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
@@ -251,36 +252,52 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 		node.referenceCount.Set(0)
 		node.partitionChanged.Set(false)
 		if !node.supportsPeers.Get() {
-			peers.usePeers = false
+			peers.usePeers.Set(false)
 		}
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(len(nodes))
 	for _, node := range nodes {
-		if err := node.Refresh(peers); err != nil {
-			Logger.Debug("Error occured while refreshing node: %s", node.String())
-		}
+		go func(node *Node) {
+			defer wg.Done()
+			if err := node.Refresh(peers); err != nil {
+				Logger.Debug("Error occured while refreshing node: %s", node.String())
+			}
+		}(node)
 	}
+	wg.Wait()
 
 	// Refresh peers when necessary.
-	if peers.usePeers && peers.genChanged {
+	if peers.usePeers.Get() && peers.genChanged.Get() {
 		// Refresh peers for all nodes that responded the first time even if only one node's peers changed.
-		peers.refreshCount = 0
+		peers.refreshCount.Set(0)
 
+		wg.Add(len(nodes))
 		for _, node := range nodes {
-			node.refreshPeers(peers)
+			go func(node *Node) {
+				defer wg.Done()
+				node.refreshPeers(peers)
+			}(node)
 		}
+		wg.Wait()
 	}
 
 	// Refresh partition map when necessary.
+	wg.Add(len(nodes))
 	for _, node := range nodes {
-		if node.partitionChanged.Get() {
-			node.refreshPartitions(peers)
-		}
+		go func(node *Node) {
+			defer wg.Done()
+			if node.partitionChanged.Get() {
+				node.refreshPartitions(peers)
+			}
+		}(node)
 	}
+	wg.Wait()
 
-	if peers.genChanged || !peers.usePeers {
+	if peers.genChanged.Get() || !peers.usePeers.Get() {
 		// Handle nodes changes determined from refreshes.
-		removeList := clstr.findNodesToRemove(peers.refreshCount)
+		removeList := clstr.findNodesToRemove(peers.refreshCount.Get())
 
 		// Remove nodes in a batch.
 		if len(removeList) > 0 {
@@ -290,9 +307,10 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 			clstr.removeNodes(removeList)
 		}
 	}
+
 	// Add nodes in a batch.
-	if len(peers.nodes) > 0 {
-		clstr.addNodes(peers.nodes)
+	if len(peers.nodes()) > 0 {
+		clstr.addNodes(peers.nodes())
 	}
 
 	if !floatSupport {
@@ -312,8 +330,8 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 	clstr.supportsGeo.Set(geoSupport)
 
 	// only log if node count is changed
-	if nodes_before_tend != len(clstr.GetNodes()) {
-		Logger.Info("Tend finished. Live node count: %d", len(clstr.GetNodes()))
+	if nodeCountBeforeTend != len(clstr.GetNodes()) {
+		Logger.Info("Tend finished. Live node count changes from %d to %d", nodeCountBeforeTend, len(clstr.GetNodes()))
 	}
 	return nil
 }
@@ -328,11 +346,11 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) error {
 	count := -1
 
-	doneCh := make(chan bool, 1)
+	doneCh := make(chan error, 1)
 
-	var err error
 	// will run until the cluster is stabilized
 	go func() {
+		var err error
 		for {
 			if err = clstr.tend(failIfNotConnected); err != nil {
 				if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == NOT_AUTHENTICATED {
@@ -352,19 +370,17 @@ func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) error {
 
 			count = len(clstr.GetNodes())
 		}
-		doneCh <- true
+		doneCh <- err
 	}()
 
 	// returns either on timeout or on cluster stabilization
 	timeout := time.After(clstr.clientPolicy.Timeout)
 	select {
 	case <-timeout:
-		return err
-	case <-doneCh:
+		return errors.New("Connecting to the cluster timed out.")
+	case err := <-doneCh:
 		return err
 	}
-
-	return err
 }
 
 func (clstr *Cluster) findAlias(alias *Host) *Node {
@@ -401,8 +417,7 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 	Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
 	// Add all nodes at once to avoid copying entire array multiple times.
-	nodesToAdd := map[string]*Node{}
-
+	nodesToAdd := &nodesToAddT{nodesToAdd: map[string]*Node{}}
 	for _, seed := range seedArray {
 		nv := nodeValidator{}
 		err := nv.seedNodes(clstr, seed, nodesToAdd)
@@ -415,8 +430,8 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 		}
 	}
 
-	if len(nodesToAdd) > 0 {
-		clstr.addNodes(nodesToAdd)
+	if len(nodesToAdd.nodesToAdd) > 0 {
+		clstr.addNodes(nodesToAdd.nodesToAdd)
 		return true, nil
 	} else if failIfNotConnected {
 		Logger.Debug("%v", errorList)
@@ -535,12 +550,13 @@ func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
 }
 
 func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
-	oldNodes := clstr.nodes.Get().([]*Node)
+	oldNodes := clstr.GetNodes()
 	nodes := make([]*Node, 0, len(oldNodes)+len(nodesToAdd))
 	nodes = append(nodes, oldNodes...)
 
 	for _, node := range nodesToAdd {
-		if node != nil {
+		if node != nil && !clstr.findNodeName(oldNodes, node.name) {
+			Logger.Debug("Adding node %s (%s) to the cluster.", node.name, node.host.String())
 			nodes = append(nodes, node)
 		}
 	}

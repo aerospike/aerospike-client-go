@@ -14,23 +14,74 @@
 
 package aerospike
 
+import (
+	"sync"
+
+	. "github.com/aerospike/aerospike-client-go/types/atomic"
+)
+
 type peers struct {
-	peers        []*peer
-	hosts        map[Host]struct{}
-	nodes        map[string]*Node
-	refreshCount int
-	usePeers     bool
-	genChanged   bool
+	_peers       []*peer
+	_hosts       map[Host]struct{}
+	_nodes       map[string]*Node
+	refreshCount AtomicInt
+	usePeers     AtomicBool
+	genChanged   AtomicBool
+
+	mutex sync.RWMutex
 }
 
 func newPeers(peerCapacity int, addCapacity int) *peers {
 	return &peers{
-		peers:      make([]*peer, 0, peerCapacity),
-		hosts:      make(map[Host]struct{}, addCapacity),
-		nodes:      make(map[string]*Node, addCapacity),
-		usePeers:   true,
-		genChanged: true,
+		_peers:     make([]*peer, 0, peerCapacity),
+		_hosts:     make(map[Host]struct{}, addCapacity),
+		_nodes:     make(map[string]*Node, addCapacity),
+		usePeers:   *NewAtomicBool(true),
+		genChanged: *NewAtomicBool(true),
 	}
+}
+
+func (ps *peers) hostExists(host Host) bool {
+	ps.mutex.RLock()
+	defer ps.mutex.RUnlock()
+	_, exists := ps._hosts[host]
+	return exists
+}
+
+func (ps *peers) addHost(host Host) {
+	ps.mutex.Lock()
+	defer ps.mutex.Unlock()
+	ps._hosts[host] = struct{}{}
+}
+
+func (ps *peers) addNode(name string, node *Node) {
+	ps.mutex.Lock()
+	defer ps.mutex.Unlock()
+	ps._nodes[name] = node
+}
+
+func (ps *peers) nodeByName(name string) *Node {
+	ps.mutex.RLock()
+	defer ps.mutex.RUnlock()
+	return ps._nodes[name]
+}
+
+func (ps *peers) setPeers(peers []*peer) {
+	ps.mutex.Lock()
+	defer ps.mutex.Unlock()
+	ps._peers = peers
+}
+
+func (ps *peers) peers() []*peer {
+	ps.mutex.RLock()
+	defer ps.mutex.RUnlock()
+	return ps._peers
+}
+
+func (ps *peers) nodes() map[string]*Node {
+	ps.mutex.RLock()
+	defer ps.mutex.RUnlock()
+	return ps._nodes
 }
 
 type peer struct {

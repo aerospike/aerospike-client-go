@@ -17,10 +17,29 @@ package aerospike
 import (
 	"net"
 	"strings"
+	"sync"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 )
+
+type nodesToAddT struct {
+	nodesToAdd map[string]*Node
+	mutex      sync.RWMutex
+}
+
+func (nta *nodesToAddT) addNodeIfNotExists(ndv *nodeValidator, cluster *Cluster) bool {
+	nta.mutex.Lock()
+	defer nta.mutex.Unlock()
+
+	_, exists := nta.nodesToAdd[ndv.name]
+	if !exists {
+		// found a new node
+		node := cluster.createNode(ndv)
+		nta.nodesToAdd[ndv.name] = node
+	}
+	return exists
+}
 
 // Validates a Database server node
 type nodeValidator struct {
@@ -33,7 +52,7 @@ type nodeValidator struct {
 	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo, supportsPeers bool
 }
 
-func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd map[string]*Node) error {
+func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd *nodesToAddT) error {
 	if err := ndv.setAliases(host); err != nil {
 		return err
 	}
@@ -47,11 +66,7 @@ func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd map
 		}
 
 		found = true
-		if _, exists := nodesToAdd[ndv.name]; !exists {
-			// found a new node
-			node := cluster.createNode(ndv)
-			nodesToAdd[ndv.name] = node
-		} else {
+		if !nodesToAdd.addNodeIfNotExists(ndv, cluster) {
 			ndv.conn.Close()
 		}
 	}
@@ -99,7 +114,7 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 		}
 		ndv.aliases = aliases
 	}
-	Logger.Debug("Node Validator has %d nodes.", len(ndv.aliases))
+	Logger.Debug("Node Validator has %d nodes and they are: %v", len(ndv.aliases), ndv.aliases)
 	return nil
 }
 
