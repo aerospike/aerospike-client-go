@@ -269,7 +269,7 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 	wg.Wait()
 
 	// Refresh peers when necessary.
-	if peers.usePeers.Get() && peers.genChanged.Get() {
+	if peers.usePeers.Get() && (peers.genChanged.Get() || len(peers.peers()) != nodeCountBeforeTend) {
 		// Refresh peers for all nodes that responded the first time even if only one node's peers changed.
 		peers.refreshCount.Set(0)
 
