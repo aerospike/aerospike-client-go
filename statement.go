@@ -42,6 +42,9 @@ type Statement struct {
 	functionName string
 	functionArgs []Value
 
+	// Ordered list of predicate expressions
+	PredExps []*PredExp
+	
 	// TaskId determines query task id. (Optional)
 	TaskId uint64
 

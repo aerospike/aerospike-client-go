@@ -43,4 +43,5 @@ const (
 	UDF_ARGLIST       FieldType = 32
 	UDF_OP            FieldType = 33
 	QUERY_BINLIST     FieldType = 40
+	PREDEXP			  FieldType = 43
 )

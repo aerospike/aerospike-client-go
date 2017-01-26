@@ -534,6 +534,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
+	predExpsSize := 0
 
 	cmd.begin()
 
@@ -599,6 +600,15 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		fieldCount++
 	}
 
+	if len(statement.PredExps) > 0 {
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
+		for _, predexp := range statement.PredExps {
+			predExpsSize += (*predexp).MarshaledSize()
+		}
+		cmd.dataOffset += predExpsSize
+		fieldCount++
+	}
+	
 	var functionArgs *ValueArray
 	if statement.functionName != "" {
 		cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1 // udf type
@@ -714,6 +724,16 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		if len(statement.BinNames) > 0 {
 			for _, binName := range statement.BinNames {
 				cmd.writeOperationForBinName(binName, READ)
+			}
+		}
+	}
+
+	if len(statement.PredExps) > 0 {
+		cmd.writeFieldHeader(predExpsSize, PREDEXP)
+		for _, predexp := range statement.PredExps {
+			err := (*predexp).Marshal(cmd)
+			if err != nil {
+				return err
 			}
 		}
 	}
