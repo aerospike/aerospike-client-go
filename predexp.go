@@ -56,142 +56,142 @@ type PredExp interface {
 	Marshal(cmd *baseCommand) error
 }
 
-type PredExpBase struct {
+type predExpBase struct {
 }
 
-func (self *PredExpBase) MarshaledSize() int {
+func (self *predExpBase) MarshaledSize() int {
 	return 2 + 4	// sizeof(TAG) + sizeof(LEN)
 }
 
-func (self *PredExpBase) MarshalTL(
+func (self *predExpBase) MarshalTL(
 	cmd *baseCommand,
 	tag uint16,
 	len uint32) int {
 	return 2 + 4	// sizeof(TAG) + sizeof(LEN)
 }
 
-// ---------------- PredExpAnd
+// ---------------- predExpAnd
 
-type PredExpAnd struct {
-	PredExpBase
+type predExpAnd struct {
+	predExpBase
 	nexpr uint16	// number of child expressions
 }
 
-func NewPredExpAnd(nexpr uint16) *PredExpAnd {
-	return &PredExpAnd{ nexpr: nexpr }
+func NewPredExpAnd(nexpr uint16) *predExpAnd {
+	return &predExpAnd{ nexpr: nexpr }
 }
 
-func (self *PredExpAnd) MarshaledSize() int {
-	return self.PredExpBase.MarshaledSize() + 2
+func (self *predExpAnd) MarshaledSize() int {
+	return self.predExpBase.MarshaledSize() + 2
 }
 
-func (self *PredExpAnd) Marshal(cmd *baseCommand) error {
+func (self *predExpAnd) Marshal(cmd *baseCommand) error {
 	self.MarshalTL(cmd, AS_PREDEXP_AND, 2)
 	cmd.WriteUint16(self.nexpr)
 	return nil
 }
 
-// ---------------- PredExpOr
+// ---------------- predExpOr
 
-type PredExpOr struct {
-	PredExpBase
+type predExpOr struct {
+	predExpBase
 	nexpr uint16	// number of child expressions
 }
 
-func NewPredExpOr(nexpr uint16) *PredExpOr {
-	return &PredExpOr{ nexpr: nexpr }
+func NewPredExpOr(nexpr uint16) *predExpOr {
+	return &predExpOr{ nexpr: nexpr }
 }
 
-func (self *PredExpOr) MarshaledSize() int {
-	return self.PredExpBase.MarshaledSize() + 2
+func (self *predExpOr) MarshaledSize() int {
+	return self.predExpBase.MarshaledSize() + 2
 }
 
-func (self *PredExpOr) Marshal(cmd *baseCommand) error {
+func (self *predExpOr) Marshal(cmd *baseCommand) error {
 	self.MarshalTL(cmd, AS_PREDEXP_OR, 2)
 	cmd.WriteUint16(self.nexpr)
 	return nil
 }
 
-// ---------------- PredExpNot
+// ---------------- predExpNot
 
-type PredExpNot struct {
-	PredExpBase
+type predExpNot struct {
+	predExpBase
 }
 
-func NewPredExpNot() *PredExpNot {
-	return &PredExpNot{ }
+func NewPredExpNot() *predExpNot {
+	return &predExpNot{ }
 }
 
-func (self *PredExpNot) MarshaledSize() int {
-	return self.PredExpBase.MarshaledSize()
+func (self *predExpNot) MarshaledSize() int {
+	return self.predExpBase.MarshaledSize()
 }
 
-func (self *PredExpNot) Marshal(cmd *baseCommand) error {
+func (self *predExpNot) Marshal(cmd *baseCommand) error {
 	self.MarshalTL(cmd, AS_PREDEXP_NOT, 0)
 	return nil
 }
 
-// ---------------- PredExpIntegerValue
+// ---------------- predExpIntegerValue
 
-type PredExpIntegerValue struct {
-	PredExpBase
+type predExpIntegerValue struct {
+	predExpBase
 	val int64
 }
 
-func NewPredExpIntegerValue(val int64) *PredExpIntegerValue {
-	return &PredExpIntegerValue{ val: val }
+func NewPredExpIntegerValue(val int64) *predExpIntegerValue {
+	return &predExpIntegerValue{ val: val }
 }
 
-func (self *PredExpIntegerValue) MarshaledSize() int {
-	return self.PredExpBase.MarshaledSize() + 8
+func (self *predExpIntegerValue) MarshaledSize() int {
+	return self.predExpBase.MarshaledSize() + 8
 }
 
-func (self *PredExpIntegerValue) Marshal(cmd *baseCommand) error {
+func (self *predExpIntegerValue) Marshal(cmd *baseCommand) error {
 	self.MarshalTL(cmd, AS_PREDEXP_INTEGER_VALUE, 8)
 	cmd.WriteInt64(self.val)
 	return nil
 }
 
-// ---------------- PredExpStringValue
+// ---------------- predExpStringValue
 
-type PredExpStringValue struct {
-	PredExpBase
+type predExpStringValue struct {
+	predExpBase
 	val string
 }
 
-func NewPredExpStringValue(val string) *PredExpStringValue {
-	return &PredExpStringValue{ val: val }
+func NewPredExpStringValue(val string) *predExpStringValue {
+	return &predExpStringValue{ val: val }
 }
 
-func (self *PredExpStringValue) MarshaledSize() int {
-	return self.PredExpBase.MarshaledSize() + len(self.val)
+func (self *predExpStringValue) MarshaledSize() int {
+	return self.predExpBase.MarshaledSize() + len(self.val)
 }
 
-func (self *PredExpStringValue) Marshal(cmd *baseCommand) error {
+func (self *predExpStringValue) Marshal(cmd *baseCommand) error {
 	self.MarshalTL(cmd, AS_PREDEXP_STRING_VALUE, uint32(len(self.val)))
 	cmd.WriteString(self.val)
 	return nil
 }
 
-// ---------------- PredExpGeoJSONValue
+// ---------------- predExpGeoJSONValue
 
-type PredExpGeoJSONValue struct {
-	PredExpBase
+type predExpGeoJSONValue struct {
+	predExpBase
 	val string
 }
 
-func NewPredExpGeoJSONValue(val string) *PredExpGeoJSONValue {
-	return &PredExpGeoJSONValue{ val: val }
+func NewPredExpGeoJSONValue(val string) *predExpGeoJSONValue {
+	return &predExpGeoJSONValue{ val: val }
 }
 
-func (self *PredExpGeoJSONValue) MarshaledSize() int {
-	return self.PredExpBase.MarshaledSize() +
+func (self *predExpGeoJSONValue) MarshaledSize() int {
+	return self.predExpBase.MarshaledSize() +
 		1 +				// flags
 		2 + 			// ncells
 		len(self.val)	// strlen value
 }
 
-func (self *PredExpGeoJSONValue) Marshal(cmd *baseCommand) error {
+func (self *predExpGeoJSONValue) Marshal(cmd *baseCommand) error {
 	self.MarshalTL(cmd, AS_PREDEXP_GEOJSON_VALUE, uint32(1 + 2 + len(self.val)))
 	cmd.WriteByte(uint8(0))
 	cmd.WriteUint16(0)
@@ -199,137 +199,137 @@ func (self *PredExpGeoJSONValue) Marshal(cmd *baseCommand) error {
 	return nil
 }
 
-// ---------------- PredExp???Bin
+// ---------------- predExp???Bin
 
-type PredExpBin struct {
-	PredExpBase
+type predExpBin struct {
+	predExpBase
 	name string
 	tag uint16	// not marshaled
 }
 
-func NewPredExpIntegerBin(name string) *PredExpBin {
-	return &PredExpBin{ name: name, tag: AS_PREDEXP_INTEGER_BIN, }
+func NewPredExpIntegerBin(name string) *predExpBin {
+	return &predExpBin{ name: name, tag: AS_PREDEXP_INTEGER_BIN, }
 }
 
-func NewPredExpStringBin(name string) *PredExpBin {
-	return &PredExpBin{ name: name, tag: AS_PREDEXP_STRING_BIN, }
+func NewPredExpStringBin(name string) *predExpBin {
+	return &predExpBin{ name: name, tag: AS_PREDEXP_STRING_BIN, }
 }
 
-func NewPredExpGeoJSONBin(name string) *PredExpBin {
-	return &PredExpBin{ name: name, tag: AS_PREDEXP_GEOJSON_BIN, }
+func NewPredExpGeoJSONBin(name string) *predExpBin {
+	return &predExpBin{ name: name, tag: AS_PREDEXP_GEOJSON_BIN, }
 }
 
-func (self *PredExpBin) MarshaledSize() int {
-	return self.PredExpBase.MarshaledSize() + 1 + len(self.name)
+func (self *predExpBin) MarshaledSize() int {
+	return self.predExpBase.MarshaledSize() + 1 + len(self.name)
 }
 
-func (self *PredExpBin) Marshal(cmd *baseCommand) error {
+func (self *predExpBin) Marshal(cmd *baseCommand) error {
 	self.MarshalTL(cmd, self.tag, uint32(1 + len(self.name)))
 	cmd.WriteByte(uint8(len(self.name)))
 	cmd.WriteString(self.name)
 	return nil
 }
 
-// ---------------- PredExpMD (RecSize, LastUpdate, VoidTime)
+// ---------------- predExpMD (RecSize, LastUpdate, VoidTime)
 
-type PredExpMD struct {
-	PredExpBase
+type predExpMD struct {
+	predExpBase
 	tag uint16	// not marshaled
 }
 
-func (self *PredExpMD) MarshaledSize() int {
-	return self.PredExpBase.MarshaledSize()
+func (self *predExpMD) MarshaledSize() int {
+	return self.predExpBase.MarshaledSize()
 }
 
-func (self *PredExpMD) Marshal(cmd *baseCommand) error {
+func (self *predExpMD) Marshal(cmd *baseCommand) error {
 	self.MarshalTL(cmd, self.tag, 0)
 	return nil
 }
 
-func NewPredExpRecSize() *PredExpMD {
-	return &PredExpMD{ tag: AS_PREDEXP_RECSIZE }
+func NewPredExpRecSize() *predExpMD {
+	return &predExpMD{ tag: AS_PREDEXP_RECSIZE }
 }
 
-func NewPredExpLastUpdate() *PredExpMD {
-	return &PredExpMD{ tag: AS_PREDEXP_LAST_UPDATE }
+func NewPredExpLastUpdate() *predExpMD {
+	return &predExpMD{ tag: AS_PREDEXP_LAST_UPDATE }
 }
 
-func NewPredExpVoidTime() *PredExpMD {
-	return &PredExpMD{ tag: AS_PREDEXP_VOID_TIME }
+func NewPredExpVoidTime() *predExpMD {
+	return &predExpMD{ tag: AS_PREDEXP_VOID_TIME }
 }
 
-// ---------------- PredExpCompare 
+// ---------------- predExpCompare 
 
-type PredExpCompare struct {
-	PredExpBase
+type predExpCompare struct {
+	predExpBase
 	tag uint16	// not marshaled
 }
 
-func (self *PredExpCompare) MarshaledSize() int {
-	return self.PredExpBase.MarshaledSize()
+func (self *predExpCompare) MarshaledSize() int {
+	return self.predExpBase.MarshaledSize()
 }
 
-func (self *PredExpCompare) Marshal(cmd *baseCommand) error {
+func (self *predExpCompare) Marshal(cmd *baseCommand) error {
 	self.MarshalTL(cmd, self.tag, 0)
 	return nil
 }
 
-func NewPredExpIntegerEqual() *PredExpCompare {
-	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_EQUAL }
+func NewPredExpIntegerEqual() *predExpCompare {
+	return &predExpCompare{ tag: AS_PREDEXP_INTEGER_EQUAL }
 }
 
-func NewPredExpIntegerUnequal() *PredExpCompare {
-	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_UNEQUAL }
+func NewPredExpIntegerUnequal() *predExpCompare {
+	return &predExpCompare{ tag: AS_PREDEXP_INTEGER_UNEQUAL }
 }
 
-func NewPredExpIntegerGreater() *PredExpCompare {
-	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_GREATER }
+func NewPredExpIntegerGreater() *predExpCompare {
+	return &predExpCompare{ tag: AS_PREDEXP_INTEGER_GREATER }
 }
 
-func NewPredExpIntegerGreaterEq() *PredExpCompare {
-	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_GREATEREQ }
+func NewPredExpIntegerGreaterEq() *predExpCompare {
+	return &predExpCompare{ tag: AS_PREDEXP_INTEGER_GREATEREQ }
 }
 
-func NewPredExpIntegerLess() *PredExpCompare {
-	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_LESS }
+func NewPredExpIntegerLess() *predExpCompare {
+	return &predExpCompare{ tag: AS_PREDEXP_INTEGER_LESS }
 }
 
-func NewPredExpIntegerLessEq() *PredExpCompare {
-	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_LESSEQ }
+func NewPredExpIntegerLessEq() *predExpCompare {
+	return &predExpCompare{ tag: AS_PREDEXP_INTEGER_LESSEQ }
 }
 
-func NewPredExpStringEqual() *PredExpCompare {
-	return &PredExpCompare{ tag: AS_PREDEXP_STRING_EQUAL }
+func NewPredExpStringEqual() *predExpCompare {
+	return &predExpCompare{ tag: AS_PREDEXP_STRING_EQUAL }
 }
 
-func NewPredExpStringUnequal() *PredExpCompare {
-	return &PredExpCompare{ tag: AS_PREDEXP_STRING_UNEQUAL }
+func NewPredExpStringUnequal() *predExpCompare {
+	return &predExpCompare{ tag: AS_PREDEXP_STRING_UNEQUAL }
 }
 
-func NewPredExpGeoJSONWithin() *PredExpCompare {
-	return &PredExpCompare{ tag: AS_PREDEXP_GEOJSON_WITHIN }
+func NewPredExpGeoJSONWithin() *predExpCompare {
+	return &predExpCompare{ tag: AS_PREDEXP_GEOJSON_WITHIN }
 }
 
-func NewPredExpGeoJSONContains() *PredExpCompare {
-	return &PredExpCompare{ tag: AS_PREDEXP_GEOJSON_CONTAINS }
+func NewPredExpGeoJSONContains() *predExpCompare {
+	return &predExpCompare{ tag: AS_PREDEXP_GEOJSON_CONTAINS }
 }
 
-// ---------------- PredExpStringRegex
+// ---------------- predExpStringRegex
 
-type PredExpStringRegex struct {
-	PredExpBase
+type predExpStringRegex struct {
+	predExpBase
 	cflags uint32		// cflags
 }
 
-func NewPredExpStringRegex(cflags uint32) *PredExpStringRegex {
-	return &PredExpStringRegex{ cflags: cflags }
+func NewPredExpStringRegex(cflags uint32) *predExpStringRegex {
+	return &predExpStringRegex{ cflags: cflags }
 }
 
-func (self *PredExpStringRegex) MarshaledSize() int {
-	return self.PredExpBase.MarshaledSize() + 4
+func (self *predExpStringRegex) MarshaledSize() int {
+	return self.predExpBase.MarshaledSize() + 4
 }
 
-func (self *PredExpStringRegex) Marshal(cmd *baseCommand) error {
+func (self *predExpStringRegex) Marshal(cmd *baseCommand) error {
 	self.MarshalTL(cmd, AS_PREDEXP_STRING_REGEX, 4)
 	cmd.WriteUint32(self.cflags)
 	return nil
