@@ -1,4 +1,4 @@
-// Copyright 2013-2017 Aerospike, Inc.
+// Copyright 2017 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -131,7 +131,7 @@ func (self *PredExpNot) Marshal(cmd *baseCommand) error {
 	return nil
 }
 
-// ----------------
+// ---------------- PredExpIntegerValue
 
 type PredExpIntegerValue struct {
 	PredExpBase
@@ -152,7 +152,7 @@ func (self *PredExpIntegerValue) Marshal(cmd *baseCommand) error {
 	return nil
 }
 
-// ----------------
+// ---------------- PredExpStringValue
 
 type PredExpStringValue struct {
 	PredExpBase
@@ -173,11 +173,33 @@ func (self *PredExpStringValue) Marshal(cmd *baseCommand) error {
 	return nil
 }
 
-// ----------------
+// ---------------- PredExpGeoJSONValue
 
-// FIXME - Need GeoJSON here ...
+type PredExpGeoJSONValue struct {
+	PredExpBase
+	val string
+}
 
-// ----------------
+func NewPredExpGeoJSONValue(val string) *PredExpGeoJSONValue {
+	return &PredExpGeoJSONValue{ val: val }
+}
+
+func (self *PredExpGeoJSONValue) MarshaledSize() int {
+	return self.PredExpBase.MarshaledSize() +
+		1 +				// flags
+		2 + 			// ncells
+		len(self.val)	// strlen value
+}
+
+func (self *PredExpGeoJSONValue) Marshal(cmd *baseCommand) error {
+	self.MarshalTL(cmd, AS_PREDEXP_GEOJSON_VALUE, uint32(1 + 2 + len(self.val)))
+	cmd.WriteByte(uint8(0))
+	cmd.WriteUint16(0)
+	cmd.WriteString(self.val)
+	return nil
+}
+
+// ---------------- PredExp???Bin
 
 type PredExpBin struct {
 	PredExpBase
@@ -208,4 +230,107 @@ func (self *PredExpBin) Marshal(cmd *baseCommand) error {
 	return nil
 }
 
-// FIXME - Need to pick up with rest here ...
+// ---------------- PredExpMD (RecSize, LastUpdate, VoidTime)
+
+type PredExpMD struct {
+	PredExpBase
+	tag uint16	// not marshaled
+}
+
+func (self *PredExpMD) MarshaledSize() int {
+	return self.PredExpBase.MarshaledSize()
+}
+
+func (self *PredExpMD) Marshal(cmd *baseCommand) error {
+	self.MarshalTL(cmd, self.tag, 0)
+	return nil
+}
+
+func NewPredExpRecSize() *PredExpMD {
+	return &PredExpMD{ tag: AS_PREDEXP_RECSIZE }
+}
+
+func NewPredExpLastUpdate() *PredExpMD {
+	return &PredExpMD{ tag: AS_PREDEXP_LAST_UPDATE }
+}
+
+func NewPredExpVoidTime() *PredExpMD {
+	return &PredExpMD{ tag: AS_PREDEXP_VOID_TIME }
+}
+
+// ---------------- PredExpCompare 
+
+type PredExpCompare struct {
+	PredExpBase
+	tag uint16	// not marshaled
+}
+
+func (self *PredExpCompare) MarshaledSize() int {
+	return self.PredExpBase.MarshaledSize()
+}
+
+func (self *PredExpCompare) Marshal(cmd *baseCommand) error {
+	self.MarshalTL(cmd, self.tag, 0)
+	return nil
+}
+
+func NewPredExpIntegerEqual() *PredExpCompare {
+	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_EQUAL }
+}
+
+func NewPredExpIntegerUnequal() *PredExpCompare {
+	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_UNEQUAL }
+}
+
+func NewPredExpIntegerGreater() *PredExpCompare {
+	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_GREATER }
+}
+
+func NewPredExpIntegerGreaterEq() *PredExpCompare {
+	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_GREATEREQ }
+}
+
+func NewPredExpIntegerLess() *PredExpCompare {
+	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_LESS }
+}
+
+func NewPredExpIntegerLessEq() *PredExpCompare {
+	return &PredExpCompare{ tag: AS_PREDEXP_INTEGER_LESSEQ }
+}
+
+func NewPredExpStringEqual() *PredExpCompare {
+	return &PredExpCompare{ tag: AS_PREDEXP_STRING_EQUAL }
+}
+
+func NewPredExpStringUnequal() *PredExpCompare {
+	return &PredExpCompare{ tag: AS_PREDEXP_STRING_UNEQUAL }
+}
+
+func NewPredExpGeoJSONWithin() *PredExpCompare {
+	return &PredExpCompare{ tag: AS_PREDEXP_GEOJSON_WITHIN }
+}
+
+func NewPredExpGeoJSONContains() *PredExpCompare {
+	return &PredExpCompare{ tag: AS_PREDEXP_GEOJSON_CONTAINS }
+}
+
+// ---------------- PredExpStringRegex
+
+type PredExpStringRegex struct {
+	PredExpBase
+	cflags uint32		// cflags
+}
+
+func NewPredExpStringRegex(cflags uint32) *PredExpStringRegex {
+	return &PredExpStringRegex{ cflags: cflags }
+}
+
+func (self *PredExpStringRegex) MarshaledSize() int {
+	return self.PredExpBase.MarshaledSize() + 4
+}
+
+func (self *PredExpStringRegex) Marshal(cmd *baseCommand) error {
+	self.MarshalTL(cmd, AS_PREDEXP_STRING_REGEX, 4)
+	cmd.WriteUint32(self.cflags)
+	return nil
+}
