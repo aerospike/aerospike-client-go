@@ -43,7 +43,7 @@ type Statement struct {
 	functionArgs []Value
 
 	// Ordered list of predicate expressions
-	PredExps []*PredExp
+	PredExps []PredExp
 	
 	// TaskId determines query task id. (Optional)
 	TaskId uint64
@@ -68,6 +68,11 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 func (stmt *Statement) Addfilter(filter *Filter) error {
 	stmt.Filters = append(stmt.Filters, filter)
 
+	return nil
+}
+
+func (stmt *Statement) AddPredExp(predexp PredExp) error {
+	stmt.PredExps = append(stmt.PredExps, predexp)
 	return nil
 }
 
