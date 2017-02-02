@@ -455,7 +455,8 @@ func (cmd *baseCommand) setBatchGet(policy *BasePolicy, keys []*Key, batch *batc
 func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskId uint64) error {
 	cmd.begin()
 	fieldCount := 0
-
+	// predExpsSize := 0
+	
 	if namespace != nil {
 		cmd.dataOffset += len(*namespace) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
@@ -479,6 +480,18 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 	}
+
+//  FIXME - How are we getting the predexp arguments in here?
+//	
+//	if len(statement.PredExps) > 0 {
+//		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
+//		for _, predexp := range statement.PredExps {
+//			predExpsSize += predexp.marshaledSize()
+//		}
+//		cmd.dataOffset += predExpsSize
+//		fieldCount++
+//	}
+	
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
@@ -525,6 +538,19 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.writeOperationForBinName(binNames[i], READ)
 		}
 	}
+
+//  FIXME - How are we getting the predexp arguments in here?
+//	
+//	if len(statement.PredExps) > 0 {
+//		cmd.writeFieldHeader(predExpsSize, PREDEXP)
+//		for _, predexp := range statement.PredExps {
+//			err := predexp.marshal(cmd)
+//			if err != nil {
+//				return err
+//			}
+//		}
+//	}
+	
 	cmd.end()
 
 	return nil
