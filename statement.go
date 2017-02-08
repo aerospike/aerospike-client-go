@@ -77,7 +77,7 @@ func (stmt *Statement) AddPredExp(predexp predExp) error {
 	return nil
 }
 
-func (stmt *Statement) Where(exp *boolExpression) error {
+func (stmt *Statement) SetPredicate(exp *boolExpression) error {
 	stmt.predicate = exp
 	return nil
 }

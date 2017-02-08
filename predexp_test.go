@@ -194,7 +194,7 @@ var _ = Describe("predexp operations", func() {
 
 		stm := NewStatement(ns, set)
 		stm.Addfilter(NewRangeFilter("intval", 0, 400))
-		stm.Where(BinValue("modval").EqualOrGreaterThan(8))
+		stm.SetPredicate(BinValue("modval").EqualOrGreaterThan(8))
 
 		// stm.AddPredExp(NewPredExpIntegerValue(8))
 		// stm.AddPredExp(NewPredExpIntegerBin("modval"))
@@ -236,7 +236,7 @@ var _ = Describe("predexp operations", func() {
 	It("predexp must work with implied scan using Predicate API", func() {
 
 		stm := NewStatement(ns, set)
-		stm.Where(BinValue("strval").Equal("0x0001"))
+		stm.SetPredicate(BinValue("strval").Equal("0x0001"))
 		// stm.AddPredExp(NewPredExpStringValue("0x0001"))
 		// stm.AddPredExp(NewPredExpStringBin("strval"))
 		// stm.AddPredExp(NewPredExpStringEqual())
@@ -323,7 +323,7 @@ var _ = Describe("predexp operations", func() {
 	It("predexp regex match must work using Predicate API", func() {
 
 		stm := NewStatement(ns, set)
-		stm.Where(BinValue("strval").Regexp("0x00.[12]"))
+		stm.SetPredicate(BinValue("strval").Regexp("0x00.[12]"))
 		// stm.AddPredExp(NewPredExpStringValue("0x00.[12]"))
 		// stm.AddPredExp(NewPredExpStringBin("strval"))
 		// stm.AddPredExp(NewPredExpStringRegex(0))
@@ -390,7 +390,7 @@ var _ = Describe("predexp operations", func() {
 				"}"
 
 		stm := NewStatement(ns, set)
-		stm.Where(BinValue("locval").GeoWithin(region))
+		stm.SetPredicate(BinValue("locval").GeoWithin(region))
 		// stm.AddPredExp(NewPredExpGeoJSONValue(region))
 		// stm.AddPredExp(NewPredExpGeoJSONBin("locval"))
 		// stm.AddPredExp(NewPredExpGeoJSONWithin())
@@ -451,7 +451,7 @@ var _ = Describe("predexp operations", func() {
 				"}"
 
 		stm := NewStatement(ns, set)
-		stm.Where(BinValue("rgnval").GeoContains(point))
+		stm.SetPredicate(BinValue("rgnval").GeoContains(point))
 		// stm.AddPredExp(NewPredExpGeoJSONValue(point))
 		// stm.AddPredExp(NewPredExpGeoJSONBin("rgnval"))
 		// stm.AddPredExp(NewPredExpGeoJSONContains())
@@ -498,7 +498,7 @@ var _ = Describe("predexp operations", func() {
 	It("predexp last_update must work using Predicate API", func() {
 
 		stm := NewStatement(ns, set)
-		stm.Where(RecLastUpdate().GreaterThan(gaptime))
+		stm.SetPredicate(RecLastUpdate().GreaterThan(gaptime))
 		// stm.AddPredExp(NewPredExpIntegerValue(gaptime))
 		// stm.AddPredExp(NewPredExpLastUpdate())
 		// stm.AddPredExp(NewPredExpIntegerGreater())
@@ -539,7 +539,7 @@ var _ = Describe("predexp operations", func() {
 	It("predexp void_time must work using Predicate API", func() {
 
 		stm := NewStatement(ns, set)
-		stm.Where(RecExpiration().Equal(0))
+		stm.SetPredicate(RecExpiration().Equal(0))
 		// stm.AddPredExp(NewPredExpIntegerValue(0))
 		// stm.AddPredExp(NewPredExpVoidTime())
 		// stm.AddPredExp(NewPredExpIntegerEqual())
@@ -581,7 +581,7 @@ var _ = Describe("predexp operations", func() {
 	It("predexp rec_size work using Predicate API", func() {
 
 		stm := NewStatement(ns, set)
-		stm.Where(RecSize().EqualOrGreaterThan(12 * 1024))
+		stm.SetPredicate(RecSize().EqualOrGreaterThan(12 * 1024))
 		// stm.AddPredExp(NewPredExpIntegerValue(12 * 1024))
 		// stm.AddPredExp(NewPredExpRecSize())
 		// stm.AddPredExp(NewPredExpIntegerGreaterEq())
