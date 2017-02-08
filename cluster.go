@@ -283,6 +283,43 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 		wg.Wait()
 	}
 
+	// find the first host that connects
+	for _, _peer := range peers.peers() {
+		if clstr.peerExists(peers, _peer.nodeName) {
+			// Node already exists. Do not even try to connect to hosts.
+			continue
+		}
+
+		wg.Add(1)
+		go func(__peer *peer) {
+			defer wg.Done()
+			for _, host := range __peer.hosts {
+				// attempt connection to the host
+				nv := nodeValidator{}
+				if err := nv.validateNode(clstr, host); err != nil {
+					Logger.Warn("Add node `%s` failed: `%s`", host, err)
+					continue
+				}
+
+				// Must look for new node name in the unlikely event that node names do not agree.
+				if __peer.nodeName != nv.name {
+					Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", __peer.nodeName, nv.name, host)
+				}
+
+				if clstr.peerExists(peers, nv.name) {
+					// Node already exists. Do not even try to connect to hosts.
+					break
+				}
+
+				// Create new node.
+				node := clstr.createNode(&nv)
+				peers.addNode(nv.name, node)
+				node.refreshPartitions(peers)
+				break
+			}
+		}(_peer)
+	}
+
 	// Refresh partition map when necessary.
 	wg.Add(len(nodes))
 	for _, node := range nodes {
@@ -293,6 +330,8 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 			}
 		}(node)
 	}
+
+	// This waits for the both steps above
 	wg.Wait()
 
 	if peers.genChanged.Get() || !peers.usePeers.Get() {
@@ -334,6 +373,22 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 		Logger.Info("Tend finished. Live node count changes from %d to %d", nodeCountBeforeTend, len(clstr.GetNodes()))
 	}
 	return nil
+}
+
+func (clstr *Cluster) peerExists(peers *peers, nodeName string) bool {
+	node := clstr.findNodeByName(nodeName)
+	if node != nil {
+		node.referenceCount.IncrementAndGet()
+		return true
+	}
+
+	node = peers.nodeByName(nodeName)
+	if node != nil {
+		node.referenceCount.IncrementAndGet()
+		return true
+	}
+
+	return false
 }
 
 // Tend the cluster until it has stabilized and return control.

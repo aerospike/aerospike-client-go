@@ -58,7 +58,7 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 		}
 		responseMap, err := RequestInfo(conn, command)
 		if err != nil {
-			node.InvalidateConnection(conn)
+			conn.Close()
 			return false, err
 		}
 

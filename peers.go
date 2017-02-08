@@ -17,11 +17,12 @@ package aerospike
 import (
 	"sync"
 
+	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
 type peers struct {
-	_peers       []*peer
+	_peers       map[string]*peer
 	_hosts       map[Host]struct{}
 	_nodes       map[string]*Node
 	refreshCount AtomicInt
@@ -33,7 +34,7 @@ type peers struct {
 
 func newPeers(peerCapacity int, addCapacity int) *peers {
 	return &peers{
-		_peers:     make([]*peer, 0, peerCapacity),
+		_peers:     make(map[string]*peer, peerCapacity),
 		_hosts:     make(map[Host]struct{}, addCapacity),
 		_nodes:     make(map[string]*Node, addCapacity),
 		usePeers:   *NewAtomicBool(true),
@@ -66,16 +67,25 @@ func (ps *peers) nodeByName(name string) *Node {
 	return ps._nodes[name]
 }
 
-func (ps *peers) setPeers(peers []*peer) {
+func (ps *peers) appendPeers(peers []*peer) {
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
-	ps._peers = peers
+
+	for _, peer := range peers {
+		ps._peers[peer.nodeName] = peer
+	}
+
 }
 
 func (ps *peers) peers() []*peer {
 	ps.mutex.RLock()
 	defer ps.mutex.RUnlock()
-	return ps._peers
+
+	res := make([]*peer, 0, len(ps._peers))
+	for _, peer := range ps._peers {
+		res = append(res, peer)
+	}
+	return res
 }
 
 func (ps *peers) nodes() map[string]*Node {
