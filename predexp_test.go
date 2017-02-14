@@ -96,6 +96,13 @@ var _ = Describe("predexp operations", func() {
 						"  \"coordinates\": [[0.0, 0.0], 3000.0 ] }"
 			}
 
+			listval := []int{}
+			for _, ff := range []int{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31} {
+				if ii % ff == 0 {
+					listval = append(listval, ff)
+				}
+			}
+
 			ballast := make([]byte, ii*16)
 
 			bins := BinMap{
@@ -104,6 +111,7 @@ var _ = Describe("predexp operations", func() {
 				"modval":  ii % 10,
 				"locval":  NewGeoJSONValue(pointstr),
 				"rgnval":  NewGeoJSONValue(regionstr),
+				"lstval":  listval,
 				"ballast": ballast,
 			}
 			err = client.Put(wpolicy, key, bins)
@@ -599,4 +607,27 @@ var _ = Describe("predexp operations", func() {
 		Expect(cnt).To(BeNumerically(">", 250))
 		Expect(cnt).To(BeNumerically("<", 300))
 	})
+
+	It("predexp list_iter_or work", func() {
+
+		stm := NewStatement(ns, set)
+		stm.AddPredExp(NewPredExpIntegerValue(17))
+		stm.AddPredExp(NewPredExpIntegerVar("ff"))
+		stm.AddPredExp(NewPredExpIntegerEqual())
+		stm.AddPredExp(NewPredExpListBin("lstval"))
+		stm.AddPredExp(NewPredExpListIterateOr("ff"))
+		recordset, err := client.Query(nil, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		cnt := 0
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			cnt++
+		}
+
+		// Answer should be ceil(1000 / 17) = 59
+
+		Expect(cnt).To(BeNumerically("==", 59))
+	})
+
 })

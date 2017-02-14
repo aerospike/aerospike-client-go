@@ -34,7 +34,13 @@ const (
 	_AS_PREDEXP_INTEGER_BIN uint16 = 100
 	_AS_PREDEXP_STRING_BIN  uint16 = 101
 	_AS_PREDEXP_GEOJSON_BIN uint16 = 102
+	_AS_PREDEXP_LIST_BIN	uint16 = 103
+	_AS_PREDEXP_MAP_BIN		uint16 = 104
 
+	_AS_PREDEXP_INTEGER_VAR uint16 = 120
+	_AS_PREDEXP_STRING_VAR  uint16 = 121
+	_AS_PREDEXP_GEOJSON_VAR uint16 = 122
+	
 	_AS_PREDEXP_RECSIZE     uint16 = 150
 	_AS_PREDEXP_LAST_UPDATE uint16 = 151
 	_AS_PREDEXP_VOID_TIME   uint16 = 152
@@ -52,6 +58,13 @@ const (
 
 	_AS_PREDEXP_GEOJSON_WITHIN   uint16 = 220
 	_AS_PREDEXP_GEOJSON_CONTAINS uint16 = 221
+
+	_AS_PREDEXP_LIST_ITERATE_OR     uint16 = 250
+	_AS_PREDEXP_MAPKEY_ITERATE_OR	uint16 = 251
+	_AS_PREDEXP_MAPVAL_ITERATE_OR	uint16 = 252
+	_AS_PREDEXP_LIST_ITERATE_AND    uint16 = 253
+	_AS_PREDEXP_MAPKEY_ITERATE_AND	uint16 = 254
+	_AS_PREDEXP_MAPVAL_ITERATE_AND	uint16 = 255
 )
 
 // ----------------
@@ -236,6 +249,7 @@ type predExpBin struct {
 }
 
 func (e *predExpBin) String() string {
+	// FIXME - This is not currently distinguished from a var.
 	return e.name
 }
 
@@ -255,11 +269,55 @@ func NewPredExpGeoJSONBin(name string) *predExpBin {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_GEOJSON_BIN}
 }
 
+func NewPredExpListBin(name string) *predExpBin {
+	return &predExpBin{name: name, tag: _AS_PREDEXP_LIST_BIN}
+}
+
+func NewPredExpMapBin(name string) *predExpBin {
+	return &predExpBin{name: name, tag: _AS_PREDEXP_MAP_BIN}
+}
+
 func (self *predExpBin) marshaledSize() int {
 	return self.predExpBase.marshaledSize() + 1 + len(self.name)
 }
 
 func (self *predExpBin) marshal(cmd *baseCommand) error {
+	self.marshalTL(cmd, self.tag, uint32(1+len(self.name)))
+	cmd.WriteByte(uint8(len(self.name)))
+	cmd.WriteString(self.name)
+	return nil
+}
+
+// ---------------- predExp???Var
+
+type predExpVar struct {
+	predExpBase
+	name string
+	tag  uint16 // not marshaled
+}
+
+func (e *predExpVar) String() string {
+	// FIXME - This is not currently distinguished from a bin.
+	return e.name
+}
+
+func NewPredExpIntegerVar(name string) *predExpVar {
+	return &predExpVar{name: name, tag: _AS_PREDEXP_INTEGER_VAR}
+}
+
+func NewPredExpStringVar(name string) *predExpVar {
+	return &predExpVar{name: name, tag: _AS_PREDEXP_STRING_VAR}
+}
+
+func NewPredExpGeoJSONVar(name string) *predExpVar {
+	return &predExpVar{name: name, tag: _AS_PREDEXP_GEOJSON_VAR}
+}
+
+func (self *predExpVar) marshaledSize() int {
+	return self.predExpBase.marshaledSize() + 1 + len(self.name)
+}
+
+func (self *predExpVar) marshal(cmd *baseCommand) error {
 	self.marshalTL(cmd, self.tag, uint32(1+len(self.name)))
 	cmd.WriteByte(uint8(len(self.name)))
 	cmd.WriteString(self.name)
@@ -410,5 +468,67 @@ func (self *predExpStringRegex) marshaledSize() int {
 func (self *predExpStringRegex) marshal(cmd *baseCommand) error {
 	self.marshalTL(cmd, _AS_PREDEXP_STRING_REGEX, 4)
 	cmd.WriteUint32(self.cflags)
+	return nil
+}
+
+// ---------------- predExp???Iterate???
+
+type predExpIter struct {
+	predExpBase
+	name string
+	tag  uint16 // not marshaled
+}
+
+func (e *predExpIter) String() string {
+	switch e.tag {
+	case _AS_PREDEXP_LIST_ITERATE_OR:
+		return "list_iterate_or using \"" + e.name + "\":"
+	case _AS_PREDEXP_MAPKEY_ITERATE_OR:
+		return "mapkey_iterate_or using \"" + e.name + "\":"
+	case _AS_PREDEXP_MAPVAL_ITERATE_OR:
+		return "mapval_iterate_or using \"" + e.name + "\":"
+	case _AS_PREDEXP_LIST_ITERATE_AND:
+		return "list_iterate_and using \"" + e.name + "\":"
+	case _AS_PREDEXP_MAPKEY_ITERATE_AND:
+		return "mapkey_iterate_and using \"" + e.name + "\":"
+	case _AS_PREDEXP_MAPVAL_ITERATE_AND:
+		return "mapval_iterate_and using \"" + e.name + "\":"
+	default:
+		panic("Invalid Metadata tag.")
+	}
+}
+
+func NewPredExpListIterateOr(name string) *predExpIter {
+	return &predExpIter{name: name, tag: _AS_PREDEXP_LIST_ITERATE_OR}
+}
+
+func NewPredExpMapKeyIterateOr(name string) *predExpIter {
+	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPKEY_ITERATE_OR}
+}
+
+func NewPredExpMapValIterateOr(name string) *predExpIter {
+	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPVAL_ITERATE_OR}
+}
+
+func NewPredExpListIterateAnd(name string) *predExpIter {
+	return &predExpIter{name: name, tag: _AS_PREDEXP_LIST_ITERATE_AND}
+}
+
+func NewPredExpMapKeyIterateAnd(name string) *predExpIter {
+	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPKEY_ITERATE_AND}
+}
+
+func NewPredExpMapValIterateAnd(name string) *predExpIter {
+	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPVAL_ITERATE_AND}
+}
+
+func (self *predExpIter) marshaledSize() int {
+	return self.predExpBase.marshaledSize() + 1 + len(self.name)
+}
+
+func (self *predExpIter) marshal(cmd *baseCommand) error {
+	self.marshalTL(cmd, self.tag, uint32(1+len(self.name)))
+	cmd.WriteByte(uint8(len(self.name)))
+	cmd.WriteString(self.name)
 	return nil
 }
