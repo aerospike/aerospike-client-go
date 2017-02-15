@@ -105,7 +105,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	readFlags()
 
-	countReportChan = make(chan *TStats, 4*concurrency) // async chan
+	countReportChan = make(chan *TStats, 4*(*concurrency)) // async chan
 
 	if *debugMode {
 		asl.Logger.SetLogger(logger)
@@ -500,6 +500,7 @@ func runBench_RU(client *as.Client, ident int, times int) {
 		i++
 		rLat, wLat = 0, 0
 		key.SetValue(as.IntegerValue(partition + (i % times)))
+		// key, _ := as.NewKey(*namespace, *set, as.IntegerValue(partition+(i%times)))
 		if int(xr.Uint64()%100) >= workloadPercent {
 			WCount++
 			if !*useMarshalling {

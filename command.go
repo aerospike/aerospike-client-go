@@ -102,8 +102,6 @@ type baseCommand struct {
 
 	dataBuffer []byte
 	dataOffset int
-
-	keyWriter *keyWriter
 }
 
 // Writes the command for write operations
@@ -1236,9 +1234,6 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 		// Assign the connection buffer to the command buffer
 		cmd.dataBuffer = cmd.conn.dataBuffer
-
-		// Assign the connection buffer to the command buffer
-		cmd.keyWriter = &cmd.conn.keyWriter
 
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)

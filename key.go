@@ -44,8 +44,6 @@ type Key struct {
 	// and retrieved on multi-record scans and queries.
 	// Explicitly store and retrieve the key in a bin.
 	userKey Value
-
-	keyWriter keyWriter
 }
 
 // Namespace returns key's namespace.
@@ -95,8 +93,8 @@ func (ky *Key) String() string {
 // NewKey initializes a key from namespace, optional set name and user key.
 // The set name and user defined key are converted to a digest before sending to the server.
 // The server handles record identifiers by digest only.
-func NewKey(namespace string, setName string, key interface{}) (newKey *Key, err error) {
-	newKey = &Key{
+func NewKey(namespace string, setName string, key interface{}) (*Key, error) {
+	newKey := &Key{
 		namespace: namespace,
 		setName:   setName,
 		userKey:   NewValue(key),
@@ -111,17 +109,17 @@ func NewKey(namespace string, setName string, key interface{}) (newKey *Key, err
 
 // NewKeyWithDigest initializes a key from namespace, optional set name and user key.
 // The server handles record identifiers by digest only.
-func NewKeyWithDigest(namespace string, setName string, key interface{}, digest []byte) (newKey *Key, err error) {
-	newKey = &Key{
+func NewKeyWithDigest(namespace string, setName string, key interface{}, digest []byte) (*Key, error) {
+	newKey := &Key{
 		namespace: namespace,
 		setName:   setName,
 		userKey:   NewValue(key),
 	}
 
-	if err = newKey.SetDigest(digest); err != nil {
+	if err := newKey.SetDigest(digest); err != nil {
 		return nil, err
 	}
-	return newKey, err
+	return newKey, nil
 }
 
 // SetDigest sets a custom hash
@@ -138,22 +136,23 @@ func (ky *Key) SetDigest(digest []byte) error {
 func (ky *Key) computeDigest() error {
 	// With custom changes to the ripemd160 package,
 	// now the following line does not allocate on the heap anymore/.
-	ky.keyWriter.hash.Reset()
+	var keyWriter keyWriter
+	keyWriter.hash.Reset()
 
-	if _, err := ky.keyWriter.Write([]byte(ky.setName)); err != nil {
+	if _, err := keyWriter.Write([]byte(ky.setName)); err != nil {
 		return err
 	}
 
-	if _, err := ky.keyWriter.Write([]byte{byte(ky.userKey.GetType())}); err != nil {
+	if _, err := keyWriter.Write([]byte{byte(ky.userKey.GetType())}); err != nil {
 		return err
 	}
 
-	if err := ky.keyWriter.writeKey(ky.userKey); err != nil {
+	if err := keyWriter.writeKey(ky.userKey); err != nil {
 		return err
 	}
 
 	// With custom changes to the ripemd160 package,
 	// the following line does not allocate on he heap anymore.
-	ky.keyWriter.hash.Sum(ky.digest[:])
+	keyWriter.hash.Sum(ky.digest[:])
 	return nil
 }

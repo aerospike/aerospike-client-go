@@ -39,7 +39,6 @@ type Connection struct {
 
 	// to avoid having a buffer pool and contention
 	dataBuffer []byte
-	keyWriter  keyWriter
 }
 
 func errToTimeoutErr(err error) error {
