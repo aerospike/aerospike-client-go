@@ -44,6 +44,8 @@ type Key struct {
 	// and retrieved on multi-record scans and queries.
 	// Explicitly store and retrieve the key in a bin.
 	userKey Value
+
+	keyWriter keyWriter
 }
 
 // Namespace returns key's namespace.
@@ -136,23 +138,22 @@ func (ky *Key) SetDigest(digest []byte) error {
 func (ky *Key) computeDigest() error {
 	// With custom changes to the ripemd160 package,
 	// now the following line does not allocate on the heap anymore/.
-	var keyWriter keyWriter
-	keyWriter.hash.Reset()
+	ky.keyWriter.hash.Reset()
 
-	if _, err := keyWriter.Write([]byte(ky.setName)); err != nil {
+	if _, err := ky.keyWriter.Write([]byte(ky.setName)); err != nil {
 		return err
 	}
 
-	if _, err := keyWriter.Write([]byte{byte(ky.userKey.GetType())}); err != nil {
+	if _, err := ky.keyWriter.Write([]byte{byte(ky.userKey.GetType())}); err != nil {
 		return err
 	}
 
-	if err := keyWriter.writeKey(ky.userKey); err != nil {
+	if err := ky.keyWriter.writeKey(ky.userKey); err != nil {
 		return err
 	}
 
 	// With custom changes to the ripemd160 package,
 	// the following line does not allocate on he heap anymore.
-	keyWriter.hash.Sum(ky.digest[:])
+	ky.keyWriter.hash.Sum(ky.digest[:])
 	return nil
 }
