@@ -97,9 +97,11 @@ var _ = Describe("predexp operations", func() {
 			}
 
 			listval := []int{}
+			mapval := map[int]string{}
 			for _, ff := range []int{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31} {
-				if ii % ff == 0 {
+				if ii >= ff && ii % ff == 0 {
 					listval = append(listval, ff)
+					mapval[ff] = fmt.Sprintf("0x%04x", ff)
 				}
 			}
 
@@ -112,6 +114,7 @@ var _ = Describe("predexp operations", func() {
 				"locval":  NewGeoJSONValue(pointstr),
 				"rgnval":  NewGeoJSONValue(regionstr),
 				"lstval":  listval,
+				"mapval":  mapval,
 				"ballast": ballast,
 			}
 			err = client.Put(wpolicy, key, bins)
@@ -610,6 +613,8 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp list_iter_or work", func() {
 
+		// Select all records w/ list contains a 17.
+		
 		stm := NewStatement(ns, set)
 		stm.AddPredExp(NewPredExpIntegerValue(17))
 		stm.AddPredExp(NewPredExpIntegerVar("ff"))
@@ -625,9 +630,132 @@ var _ = Describe("predexp operations", func() {
 			cnt++
 		}
 
-		// Answer should be ceil(1000 / 17) = 59
+		// Answer should be floor(1000 / 17) = 58
 
-		Expect(cnt).To(BeNumerically("==", 59))
+		Expect(cnt).To(BeNumerically("==", 58))
+	})
+
+	It("predexp list_iter_and work", func() {
+
+		// Select all records w/ list doesn't have a 3.
+
+		stm := NewStatement(ns, set)
+		stm.AddPredExp(NewPredExpIntegerValue(3))
+		stm.AddPredExp(NewPredExpIntegerVar("ff"))
+		stm.AddPredExp(NewPredExpIntegerEqual())
+		stm.AddPredExp(NewPredExpNot())
+		stm.AddPredExp(NewPredExpListBin("lstval"))
+		stm.AddPredExp(NewPredExpListIterateAnd("ff"))
+		recordset, err := client.Query(nil, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		cnt := 0
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			cnt++
+		}
+
+		// Answer should be 1000 - (ceil(1000 / 3) - 1) = 667
+
+		Expect(cnt).To(BeNumerically("==", 667))
+	})
+
+	It("predexp mapkey_iter_or work", func() {
+
+		// Select all records w/ mapkey containing 19.
+		
+		stm := NewStatement(ns, set)
+		stm.AddPredExp(NewPredExpIntegerValue(19))
+		stm.AddPredExp(NewPredExpIntegerVar("kk"))
+		stm.AddPredExp(NewPredExpIntegerEqual())
+		stm.AddPredExp(NewPredExpMapBin("mapval"))
+		stm.AddPredExp(NewPredExpMapKeyIterateOr("kk"))
+		recordset, err := client.Query(nil, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		cnt := 0
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			cnt++
+		}
+
+		// Answer should be floor(1000 / 19) = 52
+
+		Expect(cnt).To(BeNumerically("==", 52))
+	})
+
+	It("predexp mapkey_iter_and work", func() {
+
+		// Select all records w/ no mapkey containing 5.
+		
+		stm := NewStatement(ns, set)
+		stm.AddPredExp(NewPredExpIntegerValue(5))
+		stm.AddPredExp(NewPredExpIntegerVar("kk"))
+		stm.AddPredExp(NewPredExpIntegerEqual())
+		stm.AddPredExp(NewPredExpNot())
+		stm.AddPredExp(NewPredExpMapBin("mapval"))
+		stm.AddPredExp(NewPredExpMapKeyIterateAnd("kk"))
+		recordset, err := client.Query(nil, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		cnt := 0
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			cnt++
+		}
+
+		// Answer should be 1000 - (ceil(1000 / 5) - 1) = 801
+
+		Expect(cnt).To(BeNumerically("==", 801))
+	})
+
+	It("predexp mapval_iter_or work", func() {
+
+		// Select all records w/ mapval of 19 ("0x0013")
+		
+		stm := NewStatement(ns, set)
+		stm.AddPredExp(NewPredExpStringValue("0x0013"))
+		stm.AddPredExp(NewPredExpStringVar("vv"))
+		stm.AddPredExp(NewPredExpStringEqual())
+		stm.AddPredExp(NewPredExpMapBin("mapval"))
+		stm.AddPredExp(NewPredExpMapValIterateOr("vv"))
+		recordset, err := client.Query(nil, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		cnt := 0
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			cnt++
+		}
+
+		// Answer should be floor(1000 / 19) = 52
+
+		Expect(cnt).To(BeNumerically("==", 52))
+	})
+
+	It("predexp mapval_iter_and work", func() {
+
+		// Select all records w/ no mapval of 5 ("0x0005").
+		
+		stm := NewStatement(ns, set)
+		stm.AddPredExp(NewPredExpStringValue("0x0005"))
+		stm.AddPredExp(NewPredExpStringVar("vv"))
+		stm.AddPredExp(NewPredExpStringEqual())
+		stm.AddPredExp(NewPredExpNot())
+		stm.AddPredExp(NewPredExpMapBin("mapval"))
+		stm.AddPredExp(NewPredExpMapValIterateAnd("vv"))
+		recordset, err := client.Query(nil, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		cnt := 0
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			cnt++
+		}
+
+		// Answer should be 1000 - (ceil(1000 / 5) - 1) = 801
+
+		Expect(cnt).To(BeNumerically("==", 801))
 	})
 
 })
