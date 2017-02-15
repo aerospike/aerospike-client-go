@@ -46,7 +46,7 @@ type Node struct {
 	peersGeneration AtomicInt
 	peersCount      AtomicInt
 
-	connections     AtomicQueue //ArrayBlockingQueue<*Connection>
+	connections     connectionQueue //AtomicQueue //ArrayBlockingQueue<*Connection>
 	connectionCount AtomicInt
 	health          AtomicInt //AtomicInteger
 
@@ -70,7 +70,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).
-		connections:         *NewAtomicQueue(cluster.clientPolicy.ConnectionQueueSize),
+		connections:         *newConnectionQueue(cluster.clientPolicy.ConnectionQueueSize), //*NewAtomicQueue(cluster.clientPolicy.ConnectionQueueSize),
 		connectionCount:     *NewAtomicInt(0),
 		peersGeneration:     *NewAtomicInt(-1),
 		partitionGeneration: *NewAtomicInt(-1),
@@ -387,12 +387,12 @@ func (nd *Node) refreshFailed(e error) {
 // a fresh connection or exhaust the queue.
 func (nd *Node) dropIdleConnections() {
 	for {
-		if t := nd.connections.Poll(); t != nil {
-			conn := t.(*Connection)
+		if t := nd.connections.Poll(0); t != nil {
+			conn := t //.(*Connection)
 			if conn.IsConnected() && !conn.isIdle() {
 				// put it back: this connection is the oldest, and is still fresh
 				// so the ones after it are likely also fresh
-				if !nd.connections.Offer(conn) {
+				if !nd.connections.Offer(conn, 0) {
 					nd.InvalidateConnection(conn)
 				}
 				return
@@ -437,9 +437,16 @@ CL:
 // If no pooled connection is available, a new connection will be created.
 // This method does not include logic to retry in case the connection pool is empty
 func (nd *Node) getConnection(timeout time.Duration) (conn *Connection, err error) {
+	return nd.getConnectionWithHint(timeout, 0)
+}
+
+// getConnectionWithHint gets a connection to the node.
+// If no pooled connection is available, a new connection will be created.
+// This method does not include logic to retry in case the connection pool is empty
+func (nd *Node) getConnectionWithHint(timeout time.Duration, hint byte) (conn *Connection, err error) {
 	// try to get a valid connection from the connection pool
-	for t := nd.connections.Poll(); t != nil; t = nd.connections.Poll() {
-		conn = t.(*Connection)
+	for t := nd.connections.Poll(hint); t != nil; t = nd.connections.Poll(hint) {
+		conn = t //.(*Connection)
 		if conn.IsConnected() {
 			break
 		}
@@ -484,11 +491,18 @@ func (nd *Node) getConnection(timeout time.Duration) (conn *Connection, err erro
 // PutConnection puts back a connection to the pool.
 // If connection pool is full, the connection will be
 // closed and discarded.
-func (nd *Node) PutConnection(conn *Connection) {
+func (nd *Node) putConnectionWithHint(conn *Connection, hint byte) {
 	conn.refresh()
-	if !nd.active.Get() || !nd.connections.Offer(conn) {
+	if !nd.active.Get() || !nd.connections.Offer(conn, hint) {
 		nd.InvalidateConnection(conn)
 	}
+}
+
+// PutConnection puts back a connection to the pool.
+// If connection pool is full, the connection will be
+// closed and discarded.
+func (nd *Node) PutConnection(conn *Connection) {
+	nd.putConnectionWithHint(conn, 0)
 }
 
 // InvalidateConnection closes and discards a connection from the pool.
@@ -547,8 +561,9 @@ func (nd *Node) String() string {
 }
 
 func (nd *Node) closeConnections() {
-	for conn := nd.connections.Poll(); conn != nil; conn = nd.connections.Poll() {
-		conn.(*Connection).Close()
+	for conn := nd.connections.Poll(0); conn != nil; conn = nd.connections.Poll(0) {
+		// conn.(*Connection).Close()
+		conn.Close()
 	}
 }
 

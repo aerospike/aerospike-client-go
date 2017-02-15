@@ -17,7 +17,7 @@ package aerospike
 import (
 	"bytes"
 	"fmt"
-	"math"
+	// "math"
 	"strconv"
 	"strings"
 	"sync"
@@ -77,14 +77,14 @@ type Cluster struct {
 	partitionWriteMap atomic.Value //partitionMap
 
 	// Random node index.
-	nodeIndex *AtomicInt
+	// nodeIndex *AtomicInt
 
 	// Random partition replica index.
-	replicaIndex *AtomicInt
+	// replicaIndex *AtomicInt
 
 	clientPolicy ClientPolicy
 
-	mutex       sync.Mutex
+	// mutex       sync.Mutex
 	wgTend      sync.WaitGroup
 	tendChannel chan struct{}
 	closed      AtomicBool
@@ -123,9 +123,9 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 	newCluster := &Cluster{
 		clientPolicy: *policy,
-		nodeIndex:    NewAtomicInt(0),
-		replicaIndex: NewAtomicInt(0),
-		tendChannel:  make(chan struct{}),
+		// nodeIndex:    NewAtomicInt(0),
+		// replicaIndex: NewAtomicInt(0),
+		tendChannel: make(chan struct{}),
 
 		seeds:    NewSyncVal(hosts),
 		aliases:  NewSyncVal(make(map[Host]*Node)),
@@ -650,7 +650,8 @@ func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
 
 	if replicaArray != nil {
 		for range replicaArray {
-			index := int(math.Abs(float64(clstr.replicaIndex.IncrementAndGet() % len(replicaArray))))
+			// index := int(math.Abs(float64(clstr.replicaIndex.IncrementAndGet() % len(replicaArray))))
+			index := int(time.Now().UnixNano() % int64(len(replicaArray)))
 			node := replicaArray[index][partition.PartitionId]
 			if node != nil && node.IsActive() {
 				return node, nil
@@ -668,7 +669,8 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 	length := len(nodeArray)
 	for i := 0; i < length; i++ {
 		// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
-		index := int(math.Abs(float64(clstr.nodeIndex.IncrementAndGet() % length)))
+		// index := int(math.Abs(float64(clstr.nodeIndex.IncrementAndGet() % length)))
+		index := int(time.Now().UnixNano() % int64(length))
 		node := nodeArray[index]
 
 		if node != nil && node.IsActive() {

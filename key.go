@@ -63,6 +63,13 @@ func (ky *Key) Value() Value {
 	return ky.userKey
 }
 
+// SetValue sets the Key's value and recompute's its digest without allocating new memory.
+// This allows the keys to be reusable.
+func (ky *Key) SetValue(val Value) error {
+	ky.userKey = val
+	return ky.computeDigest()
+}
+
 // Digest returns key digest.
 func (ky *Key) Digest() []byte {
 	return ky.digest[:]

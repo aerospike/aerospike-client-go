@@ -17,8 +17,10 @@ package aerospike
 import (
 	"fmt"
 	"reflect"
+	"time"
 
 	. "github.com/aerospike/aerospike-client-go/types"
+	xrand "github.com/aerospike/aerospike-client-go/types/rand"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -72,6 +74,14 @@ func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 
 func (cmd *baseMultiCommand) getNode(ifc command) (*Node, error) {
 	return cmd.node, nil
+}
+
+func (cmd *baseMultiCommand) getConnection(timeout time.Duration) (*Connection, error) {
+	return cmd.node.getConnectionWithHint(timeout, byte(xrand.Int64()%256))
+}
+
+func (cmd *baseMultiCommand) putConnection(conn *Connection) {
+	cmd.node.putConnectionWithHint(conn, byte(xrand.Int64()%256))
 }
 
 func (cmd *baseMultiCommand) drainConn(receiveSize int) error {

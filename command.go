@@ -85,6 +85,8 @@ type command interface {
 
 	writeBuffer(ifc command) error
 	getNode(ifc command) (*Node, error)
+	getConnection(timeout time.Duration) (*Connection, error)
+	putConnection(conn *Connection)
 	parseResult(ifc command, conn *Connection) error
 	parseRecordResults(ifc command, receiveSize int) (bool, error)
 
@@ -1225,7 +1227,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			continue
 		}
 
-		cmd.conn, err = cmd.node.GetConnection(policy.Timeout)
+		// cmd.conn, err = cmd.node.GetConnection(policy.Timeout)
+		cmd.conn, err = ifc.getConnection(policy.Timeout)
 		if err != nil {
 			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 			continue
@@ -1290,7 +1293,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		cmd.conn.dataBuffer = cmd.dataBuffer
 
 		// Put connection back in pool.
-		cmd.node.PutConnection(cmd.conn)
+		// cmd.node.PutConnection(cmd.conn)
+		ifc.putConnection(cmd.conn)
 
 		// command has completed successfully.  Exit method.
 		return nil
