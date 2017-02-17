@@ -196,7 +196,8 @@ Loop:
 			Logger.Debug("Tend channel closed. Shutting down the cluster...")
 			break Loop
 		case <-time.After(tendInterval):
-			if err := clstr.tend(policy.FailIfNotConnected); err != nil {
+			// failIfNotConnected should be false, otherwise on invalid addresses tending will stop
+			if err := clstr.tend(false); err != nil {
 				Logger.Warn(err.Error())
 			}
 		}
@@ -232,7 +233,7 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 	// If active nodes don't exist, seed cluster.
 	if len(nodes) == 0 {
 		Logger.Info("No connections available; seeding...")
-		if _, err := clstr.seedNodes(failIfNotConnected); err != nil {
+		if newNodesFound, err := clstr.seedNodes(failIfNotConnected); !newNodesFound {
 			return err
 		}
 
@@ -485,12 +486,13 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 		}
 	}
 
+	var errStrs []string
 	if len(nodesToAdd.nodesToAdd) > 0 {
 		clstr.addNodes(nodesToAdd.nodesToAdd)
 		return true, nil
 	} else if failIfNotConnected {
 		Logger.Debug("%v", errorList)
-		errStrs := make([]string, len(errorList))
+		errStrs = make([]string, len(errorList))
 		for i, err := range errorList {
 			if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == NOT_AUTHENTICATED {
 				return false, NewAerospikeError(NOT_AUTHENTICATED)
@@ -501,7 +503,7 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 		return false, NewAerospikeError(INVALID_NODE_ERROR, "Failed to connect to hosts:"+strings.Join(errStrs, "\n"))
 	}
 
-	return false, nil
+	return false, NewAerospikeError(SERVER_NOT_AVAILABLE, "Failed to connect to the cluster. "+strings.Join(errStrs, "\n"))
 }
 
 func (clstr *Cluster) createNode(nv *nodeValidator) *Node {
