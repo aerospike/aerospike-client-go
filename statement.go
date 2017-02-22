@@ -43,7 +43,7 @@ type Statement struct {
 	functionArgs []Value
 
 	// Ordered list of predicate expressions
-	PredExps  []predExp
+	predExps  []predExp
 	predicate *boolExpression
 
 	// TaskId determines query task id. (Optional)
@@ -72,11 +72,12 @@ func (stmt *Statement) Addfilter(filter *Filter) error {
 	return nil
 }
 
-func (stmt *Statement) AddPredExp(predexp predExp) error {
+func (stmt *Statement) addPredExp(predexp predExp) error {
 	stmt.PredExps = append(stmt.PredExps, predexp)
 	return nil
 }
 
+// SetPredicate accepts a predicate to evaluate on the server-side for non-indexed bins.
 func (stmt *Statement) SetPredicate(exp *boolExpression) error {
 	stmt.predicate = exp
 	return nil
