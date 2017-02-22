@@ -18,7 +18,7 @@ import (
 	"errors"
 
 	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
@@ -32,7 +32,7 @@ var _ = Describe("Recordset test", func() {
 		rs.Close()
 		rs.sendError(errors.New("Error"))
 
-		Expect(<-rs.Errors).NotTo(BeNil())
+		gm.Expect(<-rs.Errors).NotTo(gm.BeNil())
 		// Expect(<-rs.Errors).To(BeNil())
 	})
 

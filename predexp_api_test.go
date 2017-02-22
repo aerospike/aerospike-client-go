@@ -16,7 +16,7 @@ package aerospike
 
 import (
 	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
@@ -26,8 +26,6 @@ var _ = Describe("Predicate API Test", func() {
 
 		matrix := map[*boolExpression]string{
 			BinValue("bin").Equal(5):                                                       "bin = 5",
-			BinValue("bin").Equal(BinValue("hello")):                                       "bin = 'hello'",
-			BinValue("bin").Equal(BinValue("hello")):                                       "bin = 'hello'",
 			BinValue("bin").Equal("hello"):                                                 "bin = 'hello'",
 			BinValue("bin1").Equal("hello").And(BinValue("bin2").Equal(5)):                 "bin1 = 'hello' AND bin2 = 5",
 			BinValue("bin1").NotEqual("hello").And(BinValue("bin2").NotEqual(5)):           "bin1 != 'hello' AND bin2 != 5",
@@ -39,7 +37,7 @@ var _ = Describe("Predicate API Test", func() {
 		}
 
 		for e, expected := range matrix {
-			Expect((*expression)(e).String()).To(Equal(expected))
+			gm.Expect((*expression)(e).String()).To(gm.Equal(expected))
 		}
 	})
 

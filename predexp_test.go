@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -32,7 +32,7 @@ var _ = Describe("predexp operations", func() {
 
 	var ns = "test"
 	var set = randString(10)
-	var wpolicy = NewWritePolicy(0, 0)
+	var wpolicy = as.NewWritePolicy(0, 0)
 
 	starbucks := [][2]float64{
 		{-122.1708441, 37.4241193},
@@ -55,7 +55,7 @@ var _ = Describe("predexp operations", func() {
 	var gaptime int64
 
 	BeforeEach(func() {
-		wpolicy = NewWritePolicy(0, 24*60*60)
+		wpolicy = as.NewWritePolicy(0, 24*60*60)
 
 		for ii := 0; ii < keyCount; ii++ {
 
@@ -71,10 +71,10 @@ var _ = Describe("predexp operations", func() {
 				gaptime = time.Now().UnixNano()
 				<-time.After(5 * time.Millisecond)
 
-				wpolicy = NewWritePolicy(0, TTLDontExpire)
+				wpolicy = as.NewWritePolicy(0, as.TTLDontExpire)
 			}
 
-			key, err := NewKey(ns, set, ii)
+			key, err := as.NewKey(ns, set, ii)
 			Expect(err).ToNot(HaveOccurred())
 
 			lng := -122.0 + (0.1 * float64(ii))
@@ -99,7 +99,7 @@ var _ = Describe("predexp operations", func() {
 			listval := []int{}
 			mapval := map[int]string{}
 			for _, ff := range []int{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31} {
-				if ii >= ff && ii % ff == 0 {
+				if ii >= ff && ii%ff == 0 {
 					listval = append(listval, ff)
 					mapval[ff] = fmt.Sprintf("0x%04x", ff)
 				}
@@ -107,12 +107,12 @@ var _ = Describe("predexp operations", func() {
 
 			ballast := make([]byte, ii*16)
 
-			bins := BinMap{
+			bins := as.BinMap{
 				"intval":  ii,
 				"strval":  fmt.Sprintf("0x%04x", ii),
 				"modval":  ii % 10,
-				"locval":  NewGeoJSONValue(pointstr),
-				"rgnval":  NewGeoJSONValue(regionstr),
+				"locval":  as.NewGeoJSONValue(pointstr),
+				"rgnval":  as.NewGeoJSONValue(regionstr),
 				"lstval":  listval,
 				"mapval":  mapval,
 				"ballast": ballast,
@@ -121,12 +121,12 @@ var _ = Describe("predexp operations", func() {
 		}
 
 		idxTask, err := client.CreateIndex(
-			wpolicy, ns, set, "intval", "intval", NUMERIC)
+			wpolicy, ns, set, "intval", "intval", as.NUMERIC)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 
 		idxTask, err = client.CreateIndex(
-			wpolicy, ns, set, "strval", "strval", STRING)
+			wpolicy, ns, set, "strval", "strval", as.STRING)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 	})
@@ -139,9 +139,9 @@ var _ = Describe("predexp operations", func() {
 	It("server error with top level predexp value node", func() {
 
 		// This statement doesn't form a predicate expression.
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewRangeFilter("intval", 0, 400))
-		stm.AddPredExp(NewPredExpIntegerValue(8))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewRangeFilter("intval", 0, 400))
+		stm.AddPredExp(as.NewPredExpIntegerValue(8))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 		for res := range recordset.Results() {
@@ -151,14 +151,14 @@ var _ = Describe("predexp operations", func() {
 
 	It("server error with multiple top-level predexp", func() {
 
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewRangeFilter("intval", 0, 400))
-		stm.AddPredExp(NewPredExpIntegerValue(8))
-		stm.AddPredExp(NewPredExpIntegerBin("modval"))
-		stm.AddPredExp(NewPredExpIntegerGreaterEq())
-		stm.AddPredExp(NewPredExpIntegerValue(8))
-		stm.AddPredExp(NewPredExpIntegerBin("modval"))
-		stm.AddPredExp(NewPredExpIntegerGreaterEq())
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewRangeFilter("intval", 0, 400))
+		stm.AddPredExp(as.NewPredExpIntegerValue(8))
+		stm.AddPredExp(as.NewPredExpIntegerBin("modval"))
+		stm.AddPredExp(as.NewPredExpIntegerGreaterEq())
+		stm.AddPredExp(as.NewPredExpIntegerValue(8))
+		stm.AddPredExp(as.NewPredExpIntegerBin("modval"))
+		stm.AddPredExp(as.NewPredExpIntegerGreaterEq())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 		for res := range recordset.Results() {
@@ -168,10 +168,10 @@ var _ = Describe("predexp operations", func() {
 
 	It("server error with missing child predexp", func() {
 
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewRangeFilter("intval", 0, 400))
-		stm.AddPredExp(NewPredExpIntegerValue(8))
-		stm.AddPredExp(NewPredExpIntegerGreaterEq()) // needs two children!
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewRangeFilter("intval", 0, 400))
+		stm.AddPredExp(as.NewPredExpIntegerValue(8))
+		stm.AddPredExp(as.NewPredExpIntegerGreaterEq()) // needs two children!
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 		for res := range recordset.Results() {
@@ -181,11 +181,11 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp must additionally filter indexed query results", func() {
 
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewRangeFilter("intval", 0, 400))
-		stm.AddPredExp(NewPredExpIntegerValue(8))
-		stm.AddPredExp(NewPredExpIntegerBin("modval"))
-		stm.AddPredExp(NewPredExpIntegerGreaterEq())
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewRangeFilter("intval", 0, 400))
+		stm.AddPredExp(as.NewPredExpIntegerValue(8))
+		stm.AddPredExp(as.NewPredExpIntegerBin("modval"))
+		stm.AddPredExp(as.NewPredExpIntegerGreaterEq())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -203,13 +203,13 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp must additionally filter indexed query results using Predicate API", func() {
 
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewRangeFilter("intval", 0, 400))
-		stm.SetPredicate(BinValue("modval").EqualOrGreaterThan(8))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewRangeFilter("intval", 0, 400))
+		stm.SetPredicate(as.BinValue("modval").EqualOrGreaterThan(8))
 
-		// stm.AddPredExp(NewPredExpIntegerValue(8))
-		// stm.AddPredExp(NewPredExpIntegerBin("modval"))
-		// stm.AddPredExp(NewPredExpIntegerGreaterEq())
+		// stm.AddPredExp(as.NewPredExpIntegerValue(8))
+		// stm.AddPredExp(as.NewPredExpIntegerBin("modval"))
+		// stm.AddPredExp(as.NewPredExpIntegerGreaterEq())
 
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
@@ -228,10 +228,10 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp must work with implied scan", func() {
 
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpStringValue("0x0001"))
-		stm.AddPredExp(NewPredExpStringBin("strval"))
-		stm.AddPredExp(NewPredExpStringEqual())
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpStringValue("0x0001"))
+		stm.AddPredExp(as.NewPredExpStringBin("strval"))
+		stm.AddPredExp(as.NewPredExpStringEqual())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -246,11 +246,11 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp must work with implied scan using Predicate API", func() {
 
-		stm := NewStatement(ns, set)
-		stm.SetPredicate(BinValue("strval").Equal("0x0001"))
-		// stm.AddPredExp(NewPredExpStringValue("0x0001"))
-		// stm.AddPredExp(NewPredExpStringBin("strval"))
-		// stm.AddPredExp(NewPredExpStringEqual())
+		stm := as.NewStatement(ns, set)
+		stm.SetPredicate(as.BinValue("strval").Equal("0x0001"))
+		// stm.AddPredExp(as.NewPredExpStringValue("0x0001"))
+		// stm.AddPredExp(as.NewPredExpStringBin("strval"))
+		// stm.AddPredExp(as.NewPredExpStringEqual())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -265,35 +265,35 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp and or and not must all work", func() {
 
-		stm := NewStatement(ns, set)
+		stm := as.NewStatement(ns, set)
 
 		// This returns 999
-		stm.AddPredExp(NewPredExpStringValue("0x0001"))
-		stm.AddPredExp(NewPredExpStringBin("strval"))
-		stm.AddPredExp(NewPredExpStringEqual())
-		stm.AddPredExp(NewPredExpNot())
+		stm.AddPredExp(as.NewPredExpStringValue("0x0001"))
+		stm.AddPredExp(as.NewPredExpStringBin("strval"))
+		stm.AddPredExp(as.NewPredExpStringEqual())
+		stm.AddPredExp(as.NewPredExpNot())
 
 		// This is two per decade
-		stm.AddPredExp(NewPredExpIntegerValue(8))
-		stm.AddPredExp(NewPredExpIntegerBin("modval"))
-		stm.AddPredExp(NewPredExpIntegerGreaterEq())
+		stm.AddPredExp(as.NewPredExpIntegerValue(8))
+		stm.AddPredExp(as.NewPredExpIntegerBin("modval"))
+		stm.AddPredExp(as.NewPredExpIntegerGreaterEq())
 
 		// Should be 200
-		stm.AddPredExp(NewPredExpAnd(2))
+		stm.AddPredExp(as.NewPredExpAnd(2))
 
 		// Should exactly match 3 values not in prior set
-		stm.AddPredExp(NewPredExpStringValue("0x0104"))
-		stm.AddPredExp(NewPredExpStringBin("strval"))
-		stm.AddPredExp(NewPredExpStringEqual())
-		stm.AddPredExp(NewPredExpStringValue("0x0105"))
-		stm.AddPredExp(NewPredExpStringBin("strval"))
-		stm.AddPredExp(NewPredExpStringEqual())
-		stm.AddPredExp(NewPredExpStringValue("0x0106"))
-		stm.AddPredExp(NewPredExpStringBin("strval"))
-		stm.AddPredExp(NewPredExpStringEqual())
+		stm.AddPredExp(as.NewPredExpStringValue("0x0104"))
+		stm.AddPredExp(as.NewPredExpStringBin("strval"))
+		stm.AddPredExp(as.NewPredExpStringEqual())
+		stm.AddPredExp(as.NewPredExpStringValue("0x0105"))
+		stm.AddPredExp(as.NewPredExpStringBin("strval"))
+		stm.AddPredExp(as.NewPredExpStringEqual())
+		stm.AddPredExp(as.NewPredExpStringValue("0x0106"))
+		stm.AddPredExp(as.NewPredExpStringBin("strval"))
+		stm.AddPredExp(as.NewPredExpStringEqual())
 
 		// 200 + 3
-		stm.AddPredExp(NewPredExpOr(4))
+		stm.AddPredExp(as.NewPredExpOr(4))
 
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
@@ -309,10 +309,10 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp regex match must work", func() {
 
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpStringValue("0x00.[12]"))
-		stm.AddPredExp(NewPredExpStringBin("strval"))
-		stm.AddPredExp(NewPredExpStringRegex(0))
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpStringValue("0x00.[12]"))
+		stm.AddPredExp(as.NewPredExpStringBin("strval"))
+		stm.AddPredExp(as.NewPredExpStringRegex(0))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -333,11 +333,11 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp regex match must work using Predicate API", func() {
 
-		stm := NewStatement(ns, set)
-		stm.SetPredicate(BinValue("strval").Regexp("0x00.[12]"))
-		// stm.AddPredExp(NewPredExpStringValue("0x00.[12]"))
-		// stm.AddPredExp(NewPredExpStringBin("strval"))
-		// stm.AddPredExp(NewPredExpStringRegex(0))
+		stm := as.NewStatement(ns, set)
+		stm.SetPredicate(as.BinValue("strval").Regexp("0x00.[12]"))
+		// stm.AddPredExp(as.NewPredExpStringValue("0x00.[12]"))
+		// stm.AddPredExp(as.NewPredExpStringBin("strval"))
+		// stm.AddPredExp(as.NewPredExpStringRegex(0))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -368,10 +368,10 @@ var _ = Describe("predexp operations", func() {
 				"    ] " +
 				"}"
 
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpGeoJSONValue(region))
-		stm.AddPredExp(NewPredExpGeoJSONBin("locval"))
-		stm.AddPredExp(NewPredExpGeoJSONWithin())
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpGeoJSONValue(region))
+		stm.AddPredExp(as.NewPredExpGeoJSONBin("locval"))
+		stm.AddPredExp(as.NewPredExpGeoJSONWithin())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -400,11 +400,11 @@ var _ = Describe("predexp operations", func() {
 				"    ] " +
 				"}"
 
-		stm := NewStatement(ns, set)
-		stm.SetPredicate(BinValue("locval").GeoWithin(region))
-		// stm.AddPredExp(NewPredExpGeoJSONValue(region))
-		// stm.AddPredExp(NewPredExpGeoJSONBin("locval"))
-		// stm.AddPredExp(NewPredExpGeoJSONWithin())
+		stm := as.NewStatement(ns, set)
+		stm.SetPredicate(as.BinValue("locval").GeoWithin(region))
+		// stm.AddPredExp(as.NewPredExpGeoJSONValue(region))
+		// stm.AddPredExp(as.NewPredExpGeoJSONBin("locval"))
+		// stm.AddPredExp(as.NewPredExpGeoJSONWithin())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -429,10 +429,10 @@ var _ = Describe("predexp operations", func() {
 				"    \"coordinates\": [ -122.0986857, 37.4214209 ] " +
 				"}"
 
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpGeoJSONValue(point))
-		stm.AddPredExp(NewPredExpGeoJSONBin("rgnval"))
-		stm.AddPredExp(NewPredExpGeoJSONContains())
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpGeoJSONValue(point))
+		stm.AddPredExp(as.NewPredExpGeoJSONBin("rgnval"))
+		stm.AddPredExp(as.NewPredExpGeoJSONContains())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -461,11 +461,11 @@ var _ = Describe("predexp operations", func() {
 				"    \"coordinates\": [ -122.0986857, 37.4214209 ] " +
 				"}"
 
-		stm := NewStatement(ns, set)
-		stm.SetPredicate(BinValue("rgnval").GeoContains(point))
-		// stm.AddPredExp(NewPredExpGeoJSONValue(point))
-		// stm.AddPredExp(NewPredExpGeoJSONBin("rgnval"))
-		// stm.AddPredExp(NewPredExpGeoJSONContains())
+		stm := as.NewStatement(ns, set)
+		stm.SetPredicate(as.BinValue("rgnval").GeoContains(point))
+		// stm.AddPredExp(as.NewPredExpGeoJSONValue(point))
+		// stm.AddPredExp(as.NewPredExpGeoJSONBin("rgnval"))
+		// stm.AddPredExp(as.NewPredExpGeoJSONContains())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -488,10 +488,10 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp last_update must work", func() {
 
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpIntegerValue(gaptime))
-		stm.AddPredExp(NewPredExpLastUpdate())
-		stm.AddPredExp(NewPredExpIntegerGreater())
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpIntegerValue(gaptime))
+		stm.AddPredExp(as.NewPredExpLastUpdate())
+		stm.AddPredExp(as.NewPredExpIntegerGreater())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -508,11 +508,11 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp last_update must work using Predicate API", func() {
 
-		stm := NewStatement(ns, set)
-		stm.SetPredicate(RecLastUpdate().GreaterThan(gaptime))
-		// stm.AddPredExp(NewPredExpIntegerValue(gaptime))
-		// stm.AddPredExp(NewPredExpLastUpdate())
-		// stm.AddPredExp(NewPredExpIntegerGreater())
+		stm := as.NewStatement(ns, set)
+		stm.SetPredicate(as.RecLastUpdate().GreaterThan(gaptime))
+		// stm.AddPredExp(as.NewPredExpIntegerValue(gaptime))
+		// stm.AddPredExp(as.NewPredExpLastUpdate())
+		// stm.AddPredExp(as.NewPredExpIntegerGreater())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -529,10 +529,10 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp void_time must work", func() {
 
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpIntegerValue(0))
-		stm.AddPredExp(NewPredExpVoidTime())
-		stm.AddPredExp(NewPredExpIntegerEqual())
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpIntegerValue(0))
+		stm.AddPredExp(as.NewPredExpVoidTime())
+		stm.AddPredExp(as.NewPredExpIntegerEqual())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -549,11 +549,11 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp void_time must work using Predicate API", func() {
 
-		stm := NewStatement(ns, set)
-		stm.SetPredicate(RecExpiration().Equal(0))
-		// stm.AddPredExp(NewPredExpIntegerValue(0))
-		// stm.AddPredExp(NewPredExpVoidTime())
-		// stm.AddPredExp(NewPredExpIntegerEqual())
+		stm := as.NewStatement(ns, set)
+		stm.SetPredicate(as.RecExpiration().Equal(0))
+		// stm.AddPredExp(as.NewPredExpIntegerValue(0))
+		// stm.AddPredExp(as.NewPredExpVoidTime())
+		// stm.AddPredExp(as.NewPredExpIntegerEqual())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -570,10 +570,10 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp rec_size work", func() {
 
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpIntegerValue(12 * 1024))
-		stm.AddPredExp(NewPredExpRecSize())
-		stm.AddPredExp(NewPredExpIntegerGreaterEq())
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpIntegerValue(12 * 1024))
+		stm.AddPredExp(as.NewPredExpRecSize())
+		stm.AddPredExp(as.NewPredExpIntegerGreaterEq())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -591,11 +591,11 @@ var _ = Describe("predexp operations", func() {
 
 	It("predexp rec_size work using Predicate API", func() {
 
-		stm := NewStatement(ns, set)
-		stm.SetPredicate(RecSize().EqualOrGreaterThan(12 * 1024))
-		// stm.AddPredExp(NewPredExpIntegerValue(12 * 1024))
-		// stm.AddPredExp(NewPredExpRecSize())
-		// stm.AddPredExp(NewPredExpIntegerGreaterEq())
+		stm := as.NewStatement(ns, set)
+		stm.SetPredicate(as.RecSize().EqualOrGreaterThan(12 * 1024))
+		// stm.AddPredExp(as.NewPredExpIntegerValue(12 * 1024))
+		// stm.AddPredExp(as.NewPredExpRecSize())
+		// stm.AddPredExp(as.NewPredExpIntegerGreaterEq())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -614,13 +614,13 @@ var _ = Describe("predexp operations", func() {
 	It("predexp list_iter_or work", func() {
 
 		// Select all records w/ list contains a 17.
-		
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpIntegerValue(17))
-		stm.AddPredExp(NewPredExpIntegerVar("ff"))
-		stm.AddPredExp(NewPredExpIntegerEqual())
-		stm.AddPredExp(NewPredExpListBin("lstval"))
-		stm.AddPredExp(NewPredExpListIterateOr("ff"))
+
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpIntegerValue(17))
+		stm.AddPredExp(as.NewPredExpIntegerVar("ff"))
+		stm.AddPredExp(as.NewPredExpIntegerEqual())
+		stm.AddPredExp(as.NewPredExpListBin("lstval"))
+		stm.AddPredExp(as.NewPredExpListIterateOr("ff"))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -639,13 +639,13 @@ var _ = Describe("predexp operations", func() {
 
 		// Select all records w/ list doesn't have a 3.
 
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpIntegerValue(3))
-		stm.AddPredExp(NewPredExpIntegerVar("ff"))
-		stm.AddPredExp(NewPredExpIntegerEqual())
-		stm.AddPredExp(NewPredExpNot())
-		stm.AddPredExp(NewPredExpListBin("lstval"))
-		stm.AddPredExp(NewPredExpListIterateAnd("ff"))
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpIntegerValue(3))
+		stm.AddPredExp(as.NewPredExpIntegerVar("ff"))
+		stm.AddPredExp(as.NewPredExpIntegerEqual())
+		stm.AddPredExp(as.NewPredExpNot())
+		stm.AddPredExp(as.NewPredExpListBin("lstval"))
+		stm.AddPredExp(as.NewPredExpListIterateAnd("ff"))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -663,13 +663,13 @@ var _ = Describe("predexp operations", func() {
 	It("predexp mapkey_iter_or work", func() {
 
 		// Select all records w/ mapkey containing 19.
-		
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpIntegerValue(19))
-		stm.AddPredExp(NewPredExpIntegerVar("kk"))
-		stm.AddPredExp(NewPredExpIntegerEqual())
-		stm.AddPredExp(NewPredExpMapBin("mapval"))
-		stm.AddPredExp(NewPredExpMapKeyIterateOr("kk"))
+
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpIntegerValue(19))
+		stm.AddPredExp(as.NewPredExpIntegerVar("kk"))
+		stm.AddPredExp(as.NewPredExpIntegerEqual())
+		stm.AddPredExp(as.NewPredExpMapBin("mapval"))
+		stm.AddPredExp(as.NewPredExpMapKeyIterateOr("kk"))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -687,14 +687,14 @@ var _ = Describe("predexp operations", func() {
 	It("predexp mapkey_iter_and work", func() {
 
 		// Select all records w/ no mapkey containing 5.
-		
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpIntegerValue(5))
-		stm.AddPredExp(NewPredExpIntegerVar("kk"))
-		stm.AddPredExp(NewPredExpIntegerEqual())
-		stm.AddPredExp(NewPredExpNot())
-		stm.AddPredExp(NewPredExpMapBin("mapval"))
-		stm.AddPredExp(NewPredExpMapKeyIterateAnd("kk"))
+
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpIntegerValue(5))
+		stm.AddPredExp(as.NewPredExpIntegerVar("kk"))
+		stm.AddPredExp(as.NewPredExpIntegerEqual())
+		stm.AddPredExp(as.NewPredExpNot())
+		stm.AddPredExp(as.NewPredExpMapBin("mapval"))
+		stm.AddPredExp(as.NewPredExpMapKeyIterateAnd("kk"))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -712,13 +712,13 @@ var _ = Describe("predexp operations", func() {
 	It("predexp mapval_iter_or work", func() {
 
 		// Select all records w/ mapval of 19 ("0x0013")
-		
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpStringValue("0x0013"))
-		stm.AddPredExp(NewPredExpStringVar("vv"))
-		stm.AddPredExp(NewPredExpStringEqual())
-		stm.AddPredExp(NewPredExpMapBin("mapval"))
-		stm.AddPredExp(NewPredExpMapValIterateOr("vv"))
+
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpStringValue("0x0013"))
+		stm.AddPredExp(as.NewPredExpStringVar("vv"))
+		stm.AddPredExp(as.NewPredExpStringEqual())
+		stm.AddPredExp(as.NewPredExpMapBin("mapval"))
+		stm.AddPredExp(as.NewPredExpMapValIterateOr("vv"))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -736,14 +736,14 @@ var _ = Describe("predexp operations", func() {
 	It("predexp mapval_iter_and work", func() {
 
 		// Select all records w/ no mapval of 5 ("0x0005").
-		
-		stm := NewStatement(ns, set)
-		stm.AddPredExp(NewPredExpStringValue("0x0005"))
-		stm.AddPredExp(NewPredExpStringVar("vv"))
-		stm.AddPredExp(NewPredExpStringEqual())
-		stm.AddPredExp(NewPredExpNot())
-		stm.AddPredExp(NewPredExpMapBin("mapval"))
-		stm.AddPredExp(NewPredExpMapValIterateAnd("vv"))
+
+		stm := as.NewStatement(ns, set)
+		stm.AddPredExp(as.NewPredExpStringValue("0x0005"))
+		stm.AddPredExp(as.NewPredExpStringVar("vv"))
+		stm.AddPredExp(as.NewPredExpStringEqual())
+		stm.AddPredExp(as.NewPredExpNot())
+		stm.AddPredExp(as.NewPredExpMapBin("mapval"))
+		stm.AddPredExp(as.NewPredExpMapValIterateAnd("vv"))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 

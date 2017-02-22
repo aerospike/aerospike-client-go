@@ -76,53 +76,27 @@ func (e *expression) marshal(cmd *baseCommand) error {
 
 type boolExpression expression
 
-// *NewPredExpAnd(nexpr uint16)
-// *NewPredExpOr(nexpr uint16)
-// *NewPredExpNot()
-
-// *NewPredExpIntegerValue(val int64)
-// *NewPredExpStringValue(val string)
-// *NewPredExpGeoJSONValue(val string)
-
-// NewPredExpUnknownBin(name string)
-// NewPredExpIntegerBin(name string)
-// NewPredExpStringBin(name string)
-// NewPredExpGeoJSONBin(name string)
-
-// *NewPredExpRecSize()
-// *NewPredExpLastUpdate()
-// *NewPredExpVoidTime()
-
-// *NewPredExpIntegerEqual()
-// *NewPredExpIntegerUnequal()
-// *NewPredExpIntegerGreater()
-// *NewPredExpIntegerGreaterEq()
-// *NewPredExpIntegerLess()
-// *NewPredExpIntegerLessEq()
-
-// *NewPredExpStringEqual()
-// *NewPredExpStringUnequal()
-// *NewPredExpStringRegex(cflags uint32)
-
-// *NewPredExpGeoJSONWithin()
-// *NewPredExpGeoJSONContains()
-
+// BinValue creates a predicate of type Bin
 func BinValue(name string) *expression {
 	return &expression{predicate: NewPredExpUnknownBin(name)}
 }
 
+// RecExpiration creates a predicate specifying the record's Expiration
 func RecExpiration() *expression {
 	return &expression{predicate: NewPredExpVoidTime()}
 }
 
+// RecLastUpdate creates a predicate specifying record's last update timestamp
 func RecLastUpdate() *expression {
 	return &expression{predicate: NewPredExpLastUpdate()}
 }
 
+// RecSize creates a predicate specifying record's size in bytes
 func RecSize() *expression {
 	return &expression{predicate: NewPredExpRecSize()}
 }
 
+// Regexp creates a predicate value specifying a regular expression to be evaluated against a bin's string value.
 func (e *expression) Regexp(val string) *boolExpression {
 	if _, ok := e.predicate.(*predExpBin); !ok {
 		panic("Only bin names can be used for regexp predicates.")
@@ -134,6 +108,7 @@ func (e *expression) Regexp(val string) *boolExpression {
 	return exp
 }
 
+// GeoContains creates a predicate value specifying regions containing a geojson point.
 func (e *expression) GeoContains(point string) *boolExpression {
 	if _, ok := e.predicate.(*predExpBin); !ok {
 		panic("Only bin names can be used for regexp predicates.")
@@ -144,6 +119,7 @@ func (e *expression) GeoContains(point string) *boolExpression {
 	return exp
 }
 
+// GeoWithin creates a predicate value specifying points or regions contained within a region.
 func (e *expression) GeoWithin(region string) *boolExpression {
 	if _, ok := e.predicate.(*predExpBin); !ok {
 		panic("Only bin names can be used for regexp predicates.")
@@ -154,14 +130,17 @@ func (e *expression) GeoWithin(region string) *boolExpression {
 	return exp
 }
 
+// And creates an `and` predicate.
 func (e *boolExpression) And(exp *boolExpression) *boolExpression {
 	return &boolExpression{predicate: NewPredExpAnd(2), left: (*expression)(e), right: (*expression)(exp)}
 }
 
+// Or creates an `or` predicate.
 func (e *boolExpression) Or(exp *boolExpression) *boolExpression {
 	return &boolExpression{predicate: NewPredExpOr(2), left: (*expression)(e), right: (*expression)(exp)}
 }
 
+// NotEqual creates an `not equal` predicate.
 func (e *expression) NotEqual(val interface{}) *boolExpression {
 	exp := e.Equal(val)
 
@@ -175,7 +154,8 @@ func (e *expression) NotEqual(val interface{}) *boolExpression {
 	return exp
 }
 
-func Not_(exp *boolExpression) *boolExpression {
+// Not creates a `not` predicate.
+func Not(exp *boolExpression) *boolExpression {
 	return &boolExpression{predicate: NewPredExpNot(), left: nil, right: (*expression)(exp)}
 }
 
@@ -189,6 +169,7 @@ func setBinType(predExp predExp, binType uint16) predExp {
 	return predExp
 }
 
+// Equal creates a `=` predicate.
 func (e *expression) Equal(val interface{}) *boolExpression {
 	var exp *boolExpression
 
@@ -240,34 +221,35 @@ func (e *expression) Equal(val interface{}) *boolExpression {
 	return exp
 }
 
+// EqualOrLess creates a `<=` predicate.
 func (e *expression) EqualOrLessThan(val interface{}) *boolExpression {
 	var exp *boolExpression
 
 	switch v := val.(type) {
 	case int8:
-		return &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case int16:
-		return &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case int32:
-		return &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case int64:
-		return &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint8:
-		return &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint16:
-		return &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint32:
-		return &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint64:
 		panic("uint64 is not supported as a value in expressions")
 	case int:
-		return &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint:
 		panic("uint is not supported as a value in expressions")
 	case LongValue:
-		return &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case IntegerValue:
-		return &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerLessEq(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	default:
 		panic(fmt.Sprintf("type of value %#v is not supported as a value in expressions", v))
 	}
@@ -276,6 +258,7 @@ func (e *expression) EqualOrLessThan(val interface{}) *boolExpression {
 	return exp
 }
 
+// EqualOrGreaterThan creates a `>=` predicate.
 func (e *expression) EqualOrGreaterThan(val interface{}) *boolExpression {
 	var exp *boolExpression
 
@@ -312,34 +295,35 @@ func (e *expression) EqualOrGreaterThan(val interface{}) *boolExpression {
 	return exp
 }
 
+// GreaterThan creates a `>` predicate.
 func (e *expression) GreaterThan(val interface{}) *boolExpression {
 	var exp *boolExpression
 
 	switch v := val.(type) {
 	case int8:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case int16:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case int32:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case int64:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint8:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint16:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint32:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint64:
 		panic("uint64 is not supported as a value in expressions")
 	case int:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint:
 		panic("uint is not supported as a value in expressions")
 	case LongValue:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case IntegerValue:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	default:
 		panic(fmt.Sprintf("type of value %#v is not supported as a value in expressions", v))
 	}
@@ -348,34 +332,35 @@ func (e *expression) GreaterThan(val interface{}) *boolExpression {
 	return exp
 }
 
+// LessThan creates a `<` predicate.
 func (e *expression) LessThan(val interface{}) *boolExpression {
 	var exp *boolExpression
 
 	switch v := val.(type) {
 	case int8:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case int16:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case int32:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case int64:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint8:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint16:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint32:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint64:
 		panic("uint64 is not supported as a value in expressions")
 	case int:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case uint:
 		panic("uint is not supported as a value in expressions")
 	case LongValue:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	case IntegerValue:
-		return &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
+		exp = &boolExpression{predicate: NewPredExpIntegerGreater(), left: e, right: &expression{predicate: NewPredExpIntegerValue(int64(v))}}
 	default:
 		panic(fmt.Sprintf("type of value %#v is not supported as a value in expressions", v))
 	}

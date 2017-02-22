@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -36,23 +36,23 @@ var _ = Describe("Aerospike", func() {
 		var err error
 		var ns = "test"
 		var set = randString(50)
-		var key *Key
-		var wpolicy = NewWritePolicy(0, 0)
-		var rpolicy = NewPolicy()
-		var rec *Record
+		var key *as.Key
+		var wpolicy = as.NewWritePolicy(0, 0)
+		var rpolicy = as.NewPolicy()
+		var rec *as.Record
 
 		if *useReplicas {
-			rpolicy.ReplicaPolicy = MASTER_PROLES
+			rpolicy.ReplicaPolicy = as.MASTER_PROLES
 		}
 
 		Context("Put/Get operations", func() {
 
 			It("must create, update and read keys consistently", func() {
-				key, err = NewKey(ns, set, randString(50))
+				key, err = as.NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
 
-				bin1 := NewBin("Aerospike1", 0)
-				bin2 := NewBin("Aerospike2", "a") // to avoid deletion of key
+				bin1 := as.NewBin("Aerospike1", 0)
+				bin2 := as.NewBin("Aerospike2", "a") // to avoid deletion of key
 
 				i := 0
 				for i < RANDOM_OPS_RUNS {
@@ -65,7 +65,7 @@ var _ = Describe("Aerospike", func() {
 						Expect(err).ToNot(HaveOccurred())
 
 						// update
-						err = client.PutBins(wpolicy, key, NewBin("Aerospike1", i), NewBin("Aerospike2", strings.Repeat("a", i)))
+						err = client.PutBins(wpolicy, key, as.NewBin("Aerospike1", i), as.NewBin("Aerospike2", strings.Repeat("a", i)))
 						Expect(err).ToNot(HaveOccurred())
 					}
 
@@ -84,7 +84,7 @@ var _ = Describe("Aerospike", func() {
 
 				errChan := make(chan error, 100)
 
-				func_delete := func(keys ...*Key) {
+				func_delete := func(keys ...*as.Key) {
 					defer GinkgoRecover()
 					for _, key := range keys {
 						existed, err := client.Delete(wpolicy, key)
@@ -99,10 +99,10 @@ var _ = Describe("Aerospike", func() {
 					for wr := 0; wr < iters; wr++ {
 						i++
 
-						key, err = NewKey(ns, set, randString(50))
+						key, err = as.NewKey(ns, set, randString(50))
 						Expect(err).ToNot(HaveOccurred())
 
-						err = client.PutBins(wpolicy, key, NewBin("Aerospike1", i), NewBin("Aerospike2", strings.Repeat("a", i)))
+						err = client.PutBins(wpolicy, key, as.NewBin("Aerospike1", i), as.NewBin("Aerospike2", strings.Repeat("a", i)))
 						Expect(err).ToNot(HaveOccurred())
 
 						go func_delete(key)

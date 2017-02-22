@@ -26,7 +26,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 )
 
 var _ = Describe("LargeSet Test", func() {
@@ -35,8 +35,8 @@ var _ = Describe("LargeSet Test", func() {
 	var err error
 	var ns = "test"
 	var set = randString(50)
-	var key *Key
-	var wpolicy = NewWritePolicy(0, 0)
+	var key *as.Key
+	var wpolicy = as.NewWritePolicy(0, 0)
 
 	if nsInfo(ns, "ldt-enabled") != "true" {
 		By("LargeSet Tests are not supported since LDT is disabled.")
@@ -44,7 +44,7 @@ var _ = Describe("LargeSet Test", func() {
 	}
 
 	BeforeEach(func() {
-		key, err = NewKey(ns, set, randString(50))
+		key, err = as.NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -86,16 +86,16 @@ var _ = Describe("LargeSet Test", func() {
 
 		for i := 1; i <= elems; i++ {
 			// confirm that the value already exists in the LSET
-			exists, err := lset.Exists(NewValue(i))
+			exists, err := lset.Exists(as.NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(exists).To(BeTrue())
 
 			// remove the value
-			err = lset.Remove(NewValue(i))
+			err = lset.Remove(as.NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
 
 			// make sure the value has been removed
-			exists, err = lset.Exists(NewValue(i))
+			exists, err = lset.Exists(as.NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(exists).To(BeFalse())
 		}
@@ -110,7 +110,7 @@ var _ = Describe("LargeSet Test", func() {
 
 	It("should correctly GetConfig()", func() {
 		lset := client.GetLargeSet(wpolicy, key, randString(10), "")
-		err = lset.Add(NewValue(0))
+		err = lset.Add(as.NewValue(0))
 		Expect(err).ToNot(HaveOccurred())
 
 		config, err := lset.GetConfig()

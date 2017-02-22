@@ -20,7 +20,7 @@ import (
 	"math"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 	. "github.com/onsi/ginkgo"
@@ -36,11 +36,11 @@ var _ = Describe("Aerospike", func() {
 		var err error
 		var ns = "test"
 		var set = randString(50)
-		var key *Key
+		var key *as.Key
 
 		BeforeEach(func() {
 
-			key, err = NewKey(ns, set, randString(50))
+			key, err = as.NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -685,7 +685,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(rec.Bins).To(Equal(
-					BinMap{
+					as.BinMap{
 						"b":        []interface{}{"a", "b", "c"},
 						"fld1":     2,
 						"fldbytes": []byte{1, 2, 3, 4},
@@ -764,7 +764,7 @@ var _ = Describe("Aerospike", func() {
 
 				rec, err := client.Get(nil, key)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(rec.Bins).To(Equal(BinMap{"val": 1}))
+				Expect(rec.Bins).To(Equal(as.BinMap{"val": 1}))
 
 				resObj := &objMeta{}
 				err = client.GetObject(nil, key, resObj)
@@ -803,7 +803,7 @@ var _ = Describe("Aerospike", func() {
 				set = randString(50)
 
 				for i := 1; i < 100; i++ {
-					key, err = NewKey(ns, set, randString(50))
+					key, err = as.NewKey(ns, set, randString(50))
 					Expect(err).ToNot(HaveOccurred())
 
 					testObj := InnerStruct{PersistAsInner1: i}
@@ -848,7 +848,7 @@ var _ = Describe("Aerospike", func() {
 				set = randString(50)
 
 				for i := 1; i < 100; i++ {
-					key, err = NewKey(ns, set, randString(50))
+					key, err = as.NewKey(ns, set, randString(50))
 					Expect(err).ToNot(HaveOccurred())
 
 					testObj := InnerStruct{PersistAsInner1: i}
@@ -863,7 +863,7 @@ var _ = Describe("Aerospike", func() {
 				testObj := &InnerStruct{}
 
 				retChan := make(chan *InnerStruct, 10)
-				stmt := NewStatement(ns, set)
+				stmt := as.NewStatement(ns, set)
 
 				_, err := client.QueryObjects(nil, stmt, retChan)
 				Expect(err).ToNot(HaveOccurred())
@@ -884,7 +884,7 @@ var _ = Describe("Aerospike", func() {
 			It("must query only relevant objects with the most complex structure possible", func() {
 
 				// first create an index
-				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", NUMERIC)
+				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.DropIndex(nil, ns, set, set+"inner1")
 
@@ -894,8 +894,8 @@ var _ = Describe("Aerospike", func() {
 				testObj := &InnerStruct{}
 
 				retChan := make(chan *InnerStruct, 10)
-				stmt := NewStatement(ns, set)
-				stmt.Addfilter(NewRangeFilter("inner1", 21, 70))
+				stmt := as.NewStatement(ns, set)
+				stmt.Addfilter(as.NewRangeFilter("inner1", 21, 70))
 
 				rs, err := client.QueryObjects(nil, stmt, retChan)
 				Expect(err).ToNot(HaveOccurred())
@@ -921,7 +921,7 @@ var _ = Describe("Aerospike", func() {
 			It("must query only relevant objects, and close and return", func() {
 
 				// first create an index
-				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", NUMERIC)
+				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.DropIndex(nil, ns, set, set+"inner1")
 
@@ -931,10 +931,10 @@ var _ = Describe("Aerospike", func() {
 				testObj := &InnerStruct{}
 
 				retChan := make(chan *InnerStruct, 1)
-				stmt := NewStatement(ns, set)
-				stmt.Addfilter(NewRangeFilter("inner1", 21, 70))
+				stmt := as.NewStatement(ns, set)
+				stmt.Addfilter(as.NewRangeFilter("inner1", 21, 70))
 
-				qpolicy := NewQueryPolicy()
+				qpolicy := as.NewQueryPolicy()
 				qpolicy.RecordQueueSize = 1
 
 				rs, err := client.QueryObjects(nil, stmt, retChan)
