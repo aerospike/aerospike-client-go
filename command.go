@@ -483,9 +483,9 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 	//  FIXME - How are we getting the predexp arguments in here?
 	//
-	//	if len(statement.PredExps) > 0 {
+	//	if len(statement.predExps) > 0 {
 	//		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
-	//		for _, predexp := range statement.PredExps {
+	//		for _, predexp := range statement.predExps {
 	//			predExpsSize += predexp.marshaledSize()
 	//		}
 	//		cmd.dataOffset += predExpsSize
@@ -541,9 +541,9 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 	//  FIXME - How are we getting the predexp arguments in here?
 	//
-	//	if len(statement.PredExps) > 0 {
+	//	if len(statement.predExps) > 0 {
 	//		cmd.writeFieldHeader(predExpsSize, PREDEXP)
-	//		for _, predexp := range statement.PredExps {
+	//		for _, predexp := range statement.predExps {
 	//			err := predexp.marshal(cmd)
 	//			if err != nil {
 	//				return err
@@ -626,9 +626,9 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		fieldCount++
 	}
 
-	if len(statement.PredExps) > 0 {
+	if len(statement.predExps) > 0 {
 		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
-		for _, predexp := range statement.PredExps {
+		for _, predexp := range statement.predExps {
 			predExpsSize += predexp.marshaledSize()
 		}
 		cmd.dataOffset += predExpsSize
@@ -736,9 +736,9 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		cmd.WriteByte(byte(100))
 	}
 
-	if len(statement.PredExps) > 0 {
+	if len(statement.predExps) > 0 {
 		cmd.writeFieldHeader(predExpsSize, PREDEXP)
-		for _, predexp := range statement.PredExps {
+		for _, predexp := range statement.predExps {
 			if err := predexp.marshal(cmd); err != nil {
 				return err
 			}

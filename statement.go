@@ -72,8 +72,9 @@ func (stmt *Statement) Addfilter(filter *Filter) error {
 	return nil
 }
 
-func (stmt *Statement) addPredExp(predexp predExp) error {
-	stmt.PredExps = append(stmt.PredExps, predexp)
+// Adds a low-level predicate to the statement. Used fr internal testing only.
+func (stmt *Statement) AddPredExp(predexp predExp) error {
+	stmt.predExps = append(stmt.predExps, predexp)
 	return nil
 }
 
