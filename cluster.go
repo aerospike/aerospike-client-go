@@ -76,15 +76,8 @@ type Cluster struct {
 	// Hints for best node for a partition
 	partitionWriteMap atomic.Value //partitionMap
 
-	// Random node index.
-	// nodeIndex *AtomicInt
-
-	// Random partition replica index.
-	// replicaIndex *AtomicInt
-
 	clientPolicy ClientPolicy
 
-	// mutex       sync.Mutex
 	wgTend      sync.WaitGroup
 	tendChannel chan struct{}
 	closed      AtomicBool
@@ -626,7 +619,7 @@ func (clstr *Cluster) getReadNode(partition *Partition, replica ReplicaPolicy) (
 		return clstr.getMasterProleNode(partition)
 	default:
 		// includes case RANDOM:
-		return clstr.GetRandomNode()
+		return clstr.getRandomNode(partition.PartitionId)
 	}
 }
 
@@ -641,7 +634,7 @@ func (clstr *Cluster) getMasterNode(partition *Partition) (*Node, error) {
 		}
 	}
 
-	return clstr.GetRandomNode()
+	return clstr.getRandomNode(partition.PartitionId)
 }
 
 func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
@@ -650,8 +643,7 @@ func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
 
 	if replicaArray != nil {
 		for range replicaArray {
-			// index := int(math.Abs(float64(clstr.replicaIndex.IncrementAndGet() % len(replicaArray))))
-			index := int(time.Now().UnixNano() % int64(len(replicaArray)))
+			index := partition.PartitionId % len(replicaArray)
 			node := replicaArray[index][partition.PartitionId]
 			if node != nil && node.IsActive() {
 				return node, nil
@@ -659,18 +651,17 @@ func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
 		}
 	}
 
-	return clstr.GetRandomNode()
+	return clstr.getRandomNode(partition.PartitionId)
 }
 
-// GetRandomNode returns a random node on the cluster
-func (clstr *Cluster) GetRandomNode() (*Node, error) {
+// getRandomNode returns a random node on the cluster
+func (clstr *Cluster) getRandomNode(hint int) (*Node, error) {
 	// Must copy array reference for copy on write semantics to work.
 	nodeArray := clstr.GetNodes()
 	length := len(nodeArray)
 	for i := 0; i < length; i++ {
 		// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
-		// index := int(math.Abs(float64(clstr.nodeIndex.IncrementAndGet() % length)))
-		index := int(time.Now().UnixNano() % int64(length))
+		index := hint % length
 		node := nodeArray[index]
 
 		if node != nil && node.IsActive() {
@@ -679,6 +670,11 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 		}
 	}
 	return nil, NewAerospikeError(INVALID_NODE_ERROR)
+}
+
+// GetRandomNode returns a random node on the cluster
+func (clstr *Cluster) GetRandomNode() (*Node, error) {
+	return clstr.getRandomNode(int(time.Now().UnixNano() % 255))
 }
 
 // GetNodes returns a list of all nodes in the cluster
