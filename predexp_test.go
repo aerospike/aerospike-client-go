@@ -96,6 +96,7 @@ var _ = Describe("predexp operations", func() {
 						"  \"coordinates\": [[0.0, 0.0], 3000.0 ] }"
 			}
 
+			// Accumulate prime factors of the index into a list and map.
 			listval := []int{}
 			mapval := map[int]string{}
 			for _, ff := range []int{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31} {
