@@ -278,12 +278,11 @@ func NewPredExpMapBin(name string) *predExpBin {
 }
 
 func (self *predExpBin) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + 1 + len(self.name)
+	return self.predExpBase.marshaledSize() + len(self.name)
 }
 
 func (self *predExpBin) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, self.tag, uint32(1+len(self.name)))
-	cmd.WriteByte(uint8(len(self.name)))
+	self.marshalTL(cmd, self.tag, uint32(len(self.name)))
 	cmd.WriteString(self.name)
 	return nil
 }
@@ -314,12 +313,11 @@ func NewPredExpGeoJSONVar(name string) *predExpVar {
 }
 
 func (self *predExpVar) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + 1 + len(self.name)
+	return self.predExpBase.marshaledSize() + len(self.name)
 }
 
 func (self *predExpVar) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, self.tag, uint32(1+len(self.name)))
-	cmd.WriteByte(uint8(len(self.name)))
+	self.marshalTL(cmd, self.tag, uint32(len(self.name)))
 	cmd.WriteString(self.name)
 	return nil
 }
@@ -523,12 +521,11 @@ func NewPredExpMapValIterateAnd(name string) *predExpIter {
 }
 
 func (self *predExpIter) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + 1 + len(self.name)
+	return self.predExpBase.marshaledSize() + len(self.name)
 }
 
 func (self *predExpIter) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, self.tag, uint32(1+len(self.name)))
-	cmd.WriteByte(uint8(len(self.name)))
+	self.marshalTL(cmd, self.tag, uint32(len(self.name)))
 	cmd.WriteString(self.name)
 	return nil
 }
