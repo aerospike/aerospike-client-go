@@ -196,8 +196,15 @@ Loop:
 			break Loop
 		case <-time.After(tendInterval):
 			// failIfNotConnected should be false, otherwise on invalid addresses tending will stop
+			tm := time.Now()
 			if err := clstr.tend(false); err != nil {
 				Logger.Warn(err.Error())
+			}
+
+			// Tending took longer than requested tend interval.
+			// Tending is too slow for the cluster, and may be falling behind scheule.
+			if tendDuration := time.Since(tm); tendDuration > clstr.clientPolicy.TendInterval {
+				Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clstr.clientPolicy.TendInterval)
 			}
 		}
 	}
