@@ -85,7 +85,6 @@ type Cluster struct {
 
 	clientPolicy ClientPolicy
 
-	mutex       sync.Mutex
 	wgTend      sync.WaitGroup
 	tendChannel chan struct{}
 	closed      AtomicBool
@@ -468,42 +467,53 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 	})
 	seedArray := seedArrayIfc.([]*Host)
 
-	errorList := []error{}
+	errorList := make([]error, len(seedArray))
+	successChan := make(chan struct{}, len(seedArray))
 
 	Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
 	// Add all nodes at once to avoid copying entire array multiple times.
-	nodesToAdd := &nodesToAddT{nodesToAdd: map[string]*Node{}}
-	for _, seed := range seedArray {
-		nv := nodeValidator{}
-		err := nv.seedNodes(clstr, seed, nodesToAdd)
-		if err != nil {
-			Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
-			if failIfNotConnected {
-				errorList = append(errorList, err)
+	var wg sync.WaitGroup
+	wg.Add(len(seedArray))
+	for i, seed := range seedArray {
+		go func(index int, seed *Host) {
+			defer wg.Done()
+
+			nodesToAdd := &nodesToAddT{nodesToAdd: map[string]*Node{}}
+			nv := nodeValidator{}
+			err := nv.seedNodes(clstr, seed, nodesToAdd)
+			if err != nil {
+				Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
+				if failIfNotConnected {
+					errorList[index] = err
+				}
+				return
 			}
-			continue
-		}
+			clstr.addNodes(nodesToAdd.nodesToAdd)
+			successChan <- struct{}{}
+		}(i, seed)
+	}
+
+	select {
+	case <-successChan:
+		// even one seed is enough
+		return true, nil
+	case <-time.After(clstr.clientPolicy.Timeout):
+		// time is up, no seeds found
+		wg.Wait()
 	}
 
 	var errStrs []string
-	if len(nodesToAdd.nodesToAdd) > 0 {
-		clstr.addNodes(nodesToAdd.nodesToAdd)
-		return true, nil
-	} else if failIfNotConnected {
-		Logger.Debug("%v", errorList)
-		errStrs = make([]string, len(errorList))
-		for i, err := range errorList {
+	for _, err := range errorList {
+		if err != nil {
 			if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == NOT_AUTHENTICATED {
 				return false, NewAerospikeError(NOT_AUTHENTICATED)
 			}
-			errStrs[i] = errorList[i].Error()
+			errStrs = append(errStrs, err.Error())
 		}
-
-		return false, NewAerospikeError(INVALID_NODE_ERROR, "Failed to connect to hosts:"+strings.Join(errStrs, "\n"))
 	}
 
-	return false, NewAerospikeError(SERVER_NOT_AVAILABLE, "Failed to connect to the cluster. "+strings.Join(errStrs, "\n"))
+	return false, NewAerospikeError(INVALID_NODE_ERROR, "Failed to connect to hosts:"+strings.Join(errStrs, "\n"))
 }
 
 func (clstr *Cluster) createNode(nv *nodeValidator) *Node {
@@ -607,30 +617,30 @@ func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
 }
 
 func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
-	oldNodes := clstr.GetNodes()
-	nodes := make([]*Node, 0, len(oldNodes)+len(nodesToAdd))
-	nodes = append(nodes, oldNodes...)
-
-	for _, node := range nodesToAdd {
-		if node != nil && !clstr.findNodeName(oldNodes, node.name) {
-			Logger.Debug("Adding node %s (%s) to the cluster.", node.name, node.host.String())
-			nodes = append(nodes, node)
+	clstr.nodes.Update(func(val interface{}) (interface{}, error) {
+		nodes := val.([]*Node)
+		for _, node := range nodesToAdd {
+			if node != nil && !clstr.findNodeName(nodes, node.name) {
+				Logger.Debug("Adding node %s (%s) to the cluster.", node.name, node.host.String())
+				nodes = append(nodes, node)
+			}
 		}
-	}
 
-	nodesMap := make(map[string]*Node, len(nodes))
-	nodesAliases := make(map[Host]*Node, len(nodes))
-	for i := range nodes {
-		nodesMap[nodes[i].name] = nodes[i]
+		nodesMap := make(map[string]*Node, len(nodes))
+		nodesAliases := make(map[Host]*Node, len(nodes))
+		for i := range nodes {
+			nodesMap[nodes[i].name] = nodes[i]
 
-		for _, alias := range nodes[i].GetAliases() {
-			nodesAliases[*alias] = nodes[i]
+			for _, alias := range nodes[i].GetAliases() {
+				nodesAliases[*alias] = nodes[i]
+			}
 		}
-	}
 
-	clstr.nodes.Set(nodes)
-	clstr.nodesMap.Set(nodesMap)
-	clstr.aliases.Set(nodesAliases)
+		clstr.nodesMap.Set(nodesMap)
+		clstr.aliases.Set(nodesAliases)
+
+		return nodes, nil
+	})
 }
 
 func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
