@@ -50,6 +50,7 @@ type Node struct {
 	connectionCount AtomicInt
 	health          AtomicInt //AtomicInteger
 
+	partitionMap        partitionMap
 	partitionGeneration AtomicInt
 	referenceCount      AtomicInt
 	failures            AtomicInt
@@ -308,7 +309,7 @@ func (nd *Node) refreshPartitions(peers *peers) {
 		return
 	}
 
-	parser, err := newPartitionParser(nd, nd.cluster.partitionWriteMap.Load().(partitionMap), _PARTITIONS, nd.cluster.clientPolicy.RequestProleReplicas)
+	parser, err := newPartitionParser(nd, _PARTITIONS, nd.cluster.clientPolicy.RequestProleReplicas)
 	if err != nil {
 		nd.refreshFailed(err)
 		return
@@ -316,7 +317,8 @@ func (nd *Node) refreshPartitions(peers *peers) {
 
 	if parser.generation != nd.partitionGeneration.Get() {
 		Logger.Info("Node %s partition generation %d changed to %d", nd.GetName(), nd.partitionGeneration.Get(), parser.getGeneration())
-		nd.cluster.setPartitions(parser.getPartitionMap())
+		nd.partitionMap = parser.getPartitionMap()
+		nd.partitionChanged.Set(true)
 		nd.partitionGeneration.Set(parser.getGeneration())
 	}
 }

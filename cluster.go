@@ -34,6 +34,44 @@ import (
 type partitionMap map[string][][]*Node
 
 // String implements stringer interface for partitionMap
+func (pm partitionMap) clone() partitionMap {
+	// Make shallow copy of map.
+	pmap := make(partitionMap, len(pm))
+	for ns, replArr := range pm {
+		newReplArr := make([][]*Node, len(replArr))
+		for i, nArr := range replArr {
+			newNArr := make([]*Node, len(nArr))
+			copy(newNArr, nArr)
+			newReplArr[i] = newNArr
+		}
+		pmap[ns] = newReplArr
+	}
+	return pmap
+}
+
+// String implements stringer interface for partitionMap
+func (pm partitionMap) merge(partMap partitionMap) {
+	// merge partitions; iterate over the new partition and update the old one
+	for ns, replicaArray := range partMap {
+		if pm[ns] == nil {
+			pm[ns] = make([][]*Node, len(replicaArray))
+		}
+
+		for i, nodeArray := range replicaArray {
+			if pm[ns][i] == nil {
+				pm[ns][i] = make([]*Node, len(nodeArray))
+			}
+
+			for j, node := range nodeArray {
+				if node != nil {
+					pm[ns][i][j] = node
+				}
+			}
+		}
+	}
+}
+
+// String implements stringer interface for partitionMap
 func (pm partitionMap) String() string {
 	res := bytes.Buffer{}
 	for ns, replicaArray := range pm {
@@ -75,7 +113,8 @@ type Cluster struct {
 	nodes *SyncVal //[]*Node
 
 	// Hints for best node for a partition
-	partitionWriteMap atomic.Value //partitionMap
+	partitionWriteMap    atomic.Value //partitionMap
+	partitionUpdateMutex sync.Mutex
 
 	// Random node index.
 	nodeIndex *AtomicInt
@@ -374,6 +413,22 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 	clstr.supportsReplicasAll.Set(replicasAllSupport)
 	clstr.requestProleReplicas.Set(clstr.clientPolicy.RequestProleReplicas && replicasAllSupport)
 	clstr.supportsGeo.Set(geoSupport)
+
+	// update all partitions in one go
+	var partitionMap partitionMap
+	for _, node := range clstr.GetNodes() {
+		if node.partitionChanged.Get() {
+			if partitionMap == nil {
+				partitionMap = clstr.getPartitions().clone()
+			}
+
+			partitionMap.merge(node.partitionMap)
+		}
+	}
+
+	if partitionMap != nil {
+		clstr.setPartitions(partitionMap)
+	}
 
 	// only log if node count is changed
 	if nodeCountBeforeTend != len(clstr.GetNodes()) {
