@@ -573,7 +573,7 @@ var _ = Describe("predexp operations", func() {
 
 		stm := as.NewStatement(ns, set)
 		stm.AddPredExp(as.NewPredExpIntegerValue(12 * 1024))
-		stm.AddPredExp(as.NewPredExpRecSize())
+		stm.AddPredExp(as.NewPredExpRecDeviceSize())
 		stm.AddPredExp(as.NewPredExpIntegerGreaterEq())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
@@ -593,9 +593,9 @@ var _ = Describe("predexp operations", func() {
 	It("predexp rec_size work using Predicate API", func() {
 
 		stm := as.NewStatement(ns, set)
-		stm.SetPredicate(as.RecSize().EqualOrGreaterThan(12 * 1024))
+		stm.SetPredicate(as.RecDeviceSize().EqualOrGreaterThan(12 * 1024))
 		// stm.AddPredExp(as.NewPredExpIntegerValue(12 * 1024))
-		// stm.AddPredExp(as.NewPredExpRecSize())
+		// stm.AddPredExp(as.NewPredExpRecDeviceSize())
 		// stm.AddPredExp(as.NewPredExpIntegerGreaterEq())
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())

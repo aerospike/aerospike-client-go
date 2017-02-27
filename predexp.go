@@ -41,7 +41,7 @@ const (
 	_AS_PREDEXP_STRING_VAR  uint16 = 121
 	_AS_PREDEXP_GEOJSON_VAR uint16 = 122
 
-	_AS_PREDEXP_RECSIZE     uint16 = 150
+	_AS_PREDEXP_RECDEVICESIZE     uint16 = 150
 	_AS_PREDEXP_LAST_UPDATE uint16 = 151
 	_AS_PREDEXP_VOID_TIME   uint16 = 152
 
@@ -322,7 +322,7 @@ func (self *predExpVar) marshal(cmd *baseCommand) error {
 	return nil
 }
 
-// ---------------- predExpMD (RecSize, LastUpdate, VoidTime)
+// ---------------- predExpMD (RecDeviceSize, LastUpdate, VoidTime)
 
 type predExpMD struct {
 	predExpBase
@@ -331,8 +331,8 @@ type predExpMD struct {
 
 func (e *predExpMD) String() string {
 	switch e.tag {
-	case _AS_PREDEXP_RECSIZE:
-		return "rec.Size"
+	case _AS_PREDEXP_RECDEVICESIZE:
+		return "rec.DeviceSize"
 	case _AS_PREDEXP_LAST_UPDATE:
 		return "rec.LastUpdate"
 	case _AS_PREDEXP_VOID_TIME:
@@ -351,8 +351,8 @@ func (self *predExpMD) marshal(cmd *baseCommand) error {
 	return nil
 }
 
-func NewPredExpRecSize() *predExpMD {
-	return &predExpMD{tag: _AS_PREDEXP_RECSIZE}
+func NewPredExpRecDeviceSize() *predExpMD {
+	return &predExpMD{tag: _AS_PREDEXP_RECDEVICESIZE}
 }
 
 func NewPredExpLastUpdate() *predExpMD {

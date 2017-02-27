@@ -91,9 +91,9 @@ func RecLastUpdate() *expression {
 	return &expression{predicate: NewPredExpLastUpdate()}
 }
 
-// RecSize creates a predicate specifying record's size in bytes
-func RecSize() *expression {
-	return &expression{predicate: NewPredExpRecSize()}
+// RecDeviceSize creates a predicate specifying record's size in bytes
+func RecDeviceSize() *expression {
+	return &expression{predicate: NewPredExpRecDeviceSize()}
 }
 
 // Regexp creates a predicate value specifying a regular expression to be evaluated against a bin's string value.
