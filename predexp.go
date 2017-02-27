@@ -41,9 +41,9 @@ const (
 	_AS_PREDEXP_STRING_VAR  uint16 = 121
 	_AS_PREDEXP_GEOJSON_VAR uint16 = 122
 
-	_AS_PREDEXP_RECDEVICESIZE     uint16 = 150
-	_AS_PREDEXP_LAST_UPDATE uint16 = 151
-	_AS_PREDEXP_VOID_TIME   uint16 = 152
+	_AS_PREDEXP_REC_DEVICE_SIZE   uint16 = 150
+	_AS_PREDEXP_REC_LAST_UPDATE	  uint16 = 151
+	_AS_PREDEXP_REC_VOID_TIME  	  uint16 = 152
 
 	_AS_PREDEXP_INTEGER_EQUAL     uint16 = 200
 	_AS_PREDEXP_INTEGER_UNEQUAL   uint16 = 201
@@ -322,7 +322,7 @@ func (self *predExpVar) marshal(cmd *baseCommand) error {
 	return nil
 }
 
-// ---------------- predExpMD (RecDeviceSize, LastUpdate, VoidTime)
+// ---------------- predExpMD (RecDeviceSize, RecLastUpdate, RecVoidTime)
 
 type predExpMD struct {
 	predExpBase
@@ -331,11 +331,11 @@ type predExpMD struct {
 
 func (e *predExpMD) String() string {
 	switch e.tag {
-	case _AS_PREDEXP_RECDEVICESIZE:
+	case _AS_PREDEXP_REC_DEVICE_SIZE:
 		return "rec.DeviceSize"
-	case _AS_PREDEXP_LAST_UPDATE:
+	case _AS_PREDEXP_REC_LAST_UPDATE:
 		return "rec.LastUpdate"
-	case _AS_PREDEXP_VOID_TIME:
+	case _AS_PREDEXP_REC_VOID_TIME:
 		return "rec.Expiration"
 	default:
 		panic("Invalid Metadata tag.")
@@ -352,15 +352,15 @@ func (self *predExpMD) marshal(cmd *baseCommand) error {
 }
 
 func NewPredExpRecDeviceSize() *predExpMD {
-	return &predExpMD{tag: _AS_PREDEXP_RECDEVICESIZE}
+	return &predExpMD{tag: _AS_PREDEXP_REC_DEVICE_SIZE}
 }
 
-func NewPredExpLastUpdate() *predExpMD {
-	return &predExpMD{tag: _AS_PREDEXP_LAST_UPDATE}
+func NewPredExpRecLastUpdate() *predExpMD {
+	return &predExpMD{tag: _AS_PREDEXP_REC_LAST_UPDATE}
 }
 
-func NewPredExpVoidTime() *predExpMD {
-	return &predExpMD{tag: _AS_PREDEXP_VOID_TIME}
+func NewPredExpRecVoidTime() *predExpMD {
+	return &predExpMD{tag: _AS_PREDEXP_REC_VOID_TIME}
 }
 
 // ---------------- predExpCompare

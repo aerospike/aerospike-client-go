@@ -83,12 +83,12 @@ func BinValue(name string) *expression {
 
 // RecExpiration creates a predicate specifying the record's Expiration
 func RecExpiration() *expression {
-	return &expression{predicate: NewPredExpVoidTime()}
+	return &expression{predicate: NewPredExpRecVoidTime()}
 }
 
 // RecLastUpdate creates a predicate specifying record's last update timestamp
 func RecLastUpdate() *expression {
-	return &expression{predicate: NewPredExpLastUpdate()}
+	return &expression{predicate: NewPredExpRecLastUpdate()}
 }
 
 // RecDeviceSize creates a predicate specifying record's size in bytes
