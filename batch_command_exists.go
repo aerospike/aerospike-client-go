@@ -52,6 +52,9 @@ func (cmd *batchCommandExists) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandExists) writeBuffer(ifc command) error {
+	if cmd.policy.UseBatchDirect && cmd.node.supportsBatchIndex.Get() {
+		return cmd.setBatchReadDirect(cmd.policy, cmd.keys, cmd.batchNamespace, nil, _INFO1_READ|_INFO1_NOBINDATA)
+	}
 	return cmd.setBatchExists(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.node.supportsBatchIndex.Get())
 }
 
@@ -94,6 +97,8 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			return false, err
 		}
 
+		// offset := cmd.batchNamespace.offsets[cmd.index]
+		// cmd.index++
 		var offset int
 		if cmd.node.supportsBatchIndex.Get() {
 			offset = batchIndex

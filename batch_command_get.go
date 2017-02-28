@@ -58,7 +58,7 @@ func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) error {
-	if cmd.policy.UseBatchDirect || cmd.node.supportsBatchIndex.Get() {
+	if cmd.policy.UseBatchDirect && cmd.node.supportsBatchIndex.Get() {
 		return cmd.setBatchReadDirect(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
 	}
 	return cmd.setBatchRead(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
@@ -90,8 +90,8 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		}
 
 		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
-		expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
 		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
+		expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 		key, err := cmd.parseKey(fieldCount)
@@ -99,12 +99,14 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 			return false, err
 		}
 
+		// offset := cmd.batchNamespace.offsets[cmd.index]
+		// cmd.index++
 		var offset int
-		if cmd.node.supportsBatchIndex.Get() {
-			offset = batchIndex
-		} else {
+		if cmd.policy.UseBatchDirect && cmd.node.supportsBatchIndex.Get() {
 			offset = cmd.batchNamespace.offsets[cmd.index]
 			cmd.index++
+		} else {
+			offset = batchIndex
 		}
 
 		if bytes.Equal(key.digest[:], cmd.keys[offset].digest[:]) {
