@@ -454,7 +454,7 @@ func (nd *Node) GetHost() *Host {
 
 // IsActive Checks if the node is active.
 func (nd *Node) IsActive() bool {
-	return nd.active.Get() && nd.partitionGeneration.Get() >= -1
+	return nd != nil && nd.active.Get() && nd.partitionGeneration.Get() >= -1
 }
 
 // GetName returns node name.
