@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"time"
+
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -33,6 +35,14 @@ func newSingleCommand(cluster *Cluster, key *Key) *singleCommand {
 		key:         key,
 		partition:   NewPartitionByKey(key),
 	}
+}
+
+func (cmd *singleCommand) getConnection(timeout time.Duration) (*Connection, error) {
+	return cmd.node.getConnectionWithHint(timeout, cmd.key.digest[0])
+}
+
+func (cmd *singleCommand) putConnection(conn *Connection) {
+	cmd.node.putConnectionWithHint(conn, cmd.key.digest[0])
 }
 
 func (cmd *singleCommand) emptySocket(conn *Connection) error {

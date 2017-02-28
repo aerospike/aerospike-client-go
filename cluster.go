@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -116,13 +115,10 @@ type Cluster struct {
 	partitionWriteMap    atomic.Value //partitionMap
 	partitionUpdateMutex sync.Mutex
 
-	// Random node index.
-	nodeIndex *AtomicInt
-
-	// Random partition replica index.
-	replicaIndex *AtomicInt
-
 	clientPolicy ClientPolicy
+
+	nodeIndex    uint64 // only used via atomic operations
+	replicaIndex uint64 // only used via atomic operations
 
 	wgTend      sync.WaitGroup
 	tendChannel chan struct{}
@@ -162,8 +158,6 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 	newCluster := &Cluster{
 		clientPolicy: *policy,
-		nodeIndex:    NewAtomicInt(0),
-		replicaIndex: NewAtomicInt(0),
 		tendChannel:  make(chan struct{}),
 
 		seeds:    NewSyncVal(hosts),
@@ -795,7 +789,7 @@ func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
 
 	if replicaArray != nil {
 		for range replicaArray {
-			index := int(math.Abs(float64(clstr.replicaIndex.IncrementAndGet() % len(replicaArray))))
+			index := int(atomic.AddUint64(&clstr.replicaIndex, 1) % uint64(len(replicaArray)))
 			node := replicaArray[index][partition.PartitionId]
 			if node != nil && node.IsActive() {
 				return node, nil
@@ -813,7 +807,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 	length := len(nodeArray)
 	for i := 0; i < length; i++ {
 		// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
-		index := int(math.Abs(float64(clstr.nodeIndex.IncrementAndGet() % length)))
+		index := int(atomic.AddUint64(&clstr.nodeIndex, 1) % uint64(length))
 		node := nodeArray[index]
 
 		if node != nil && node.IsActive() {

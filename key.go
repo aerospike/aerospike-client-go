@@ -63,6 +63,13 @@ func (ky *Key) Value() Value {
 	return ky.userKey
 }
 
+// SetValue sets the Key's value and recompute's its digest without allocating new memory.
+// This allows the keys to be reusable.
+func (ky *Key) SetValue(val Value) error {
+	ky.userKey = val
+	return ky.computeDigest()
+}
+
 // Digest returns key digest.
 func (ky *Key) Digest() []byte {
 	return ky.digest[:]
@@ -88,8 +95,8 @@ func (ky *Key) String() string {
 // NewKey initializes a key from namespace, optional set name and user key.
 // The set name and user defined key are converted to a digest before sending to the server.
 // The server handles record identifiers by digest only.
-func NewKey(namespace string, setName string, key interface{}) (newKey *Key, err error) {
-	newKey = &Key{
+func NewKey(namespace string, setName string, key interface{}) (*Key, error) {
+	newKey := &Key{
 		namespace: namespace,
 		setName:   setName,
 		userKey:   NewValue(key),
@@ -104,17 +111,17 @@ func NewKey(namespace string, setName string, key interface{}) (newKey *Key, err
 
 // NewKeyWithDigest initializes a key from namespace, optional set name and user key.
 // The server handles record identifiers by digest only.
-func NewKeyWithDigest(namespace string, setName string, key interface{}, digest []byte) (newKey *Key, err error) {
-	newKey = &Key{
+func NewKeyWithDigest(namespace string, setName string, key interface{}, digest []byte) (*Key, error) {
+	newKey := &Key{
 		namespace: namespace,
 		setName:   setName,
 		userKey:   NewValue(key),
 	}
 
-	if err = newKey.SetDigest(digest); err != nil {
+	if err := newKey.SetDigest(digest); err != nil {
 		return nil, err
 	}
-	return newKey, err
+	return newKey, nil
 }
 
 // SetDigest sets a custom hash

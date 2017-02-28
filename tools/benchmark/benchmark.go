@@ -16,7 +16,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"log"
@@ -31,9 +30,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
-	. "github.com/aerospike/aerospike-client-go/logger"
-	. "github.com/aerospike/aerospike-client-go/types"
+	as "github.com/aerospike/aerospike-client-go"
+	asl "github.com/aerospike/aerospike-client-go/logger"
+	ast "github.com/aerospike/aerospike-client-go/types"
 )
 
 type TStats struct {
@@ -47,7 +46,7 @@ type TStats struct {
 	Wn, Rn     []int64
 }
 
-var countReportChan = make(chan *TStats, 100) // async chan
+var countReportChan chan *TStats
 
 var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
 var port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
@@ -89,9 +88,9 @@ var lastReport int64
 
 // Underscores are there so that the field name is the same as key/value mode
 type dataStruct struct {
-	Int________ int64
-	String_____ string
-	Bytes______ []byte
+	I int64
+	S string
+	B []byte
 }
 
 var logger *log.Logger
@@ -102,16 +101,20 @@ func main() {
 	logger.SetOutput(os.Stdout)
 
 	// use all cpus in the system for concurrency
+	log.Printf("Setting number of CPUs to use: %d", runtime.NumCPU())
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	readFlags()
 
+	countReportChan = make(chan *TStats, 4*(*concurrency)) // async chan
+
 	if *debugMode {
-		Logger.SetLogger(logger)
-		Logger.SetLevel(DEBUG)
+		asl.Logger.SetLogger(logger)
+		asl.Logger.SetLevel(asl.DEBUG)
 	}
 
 	// launch profiler if in profile mode
 	if *profileMode {
+		runtime.SetBlockProfileRate(1)
 		go func() {
 			logger.Println(http.ListenAndServe(":6060", nil))
 		}()
@@ -119,13 +122,13 @@ func main() {
 
 	printBenchmarkParams()
 
-	clientPolicy := NewClientPolicy()
+	clientPolicy := as.NewClientPolicy()
 	// cache lots  connections
 	clientPolicy.ConnectionQueueSize = *connQueueSize
 	clientPolicy.User = *user
 	clientPolicy.Password = *password
 	clientPolicy.Timeout = 10 * time.Second
-	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
+	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -133,13 +136,23 @@ func main() {
 	logger.Println("Nodes Found:", client.GetNodeNames())
 
 	go reporter()
-	wg.Add(*concurrency)
-	for i := 1; i < *concurrency; i++ {
-		go runBench(client, i-1, *keyCount / *concurrency)
-	}
-	go runBench(client, *concurrency-1, *keyCount / *concurrency + *keyCount%*concurrency)
 
-	wg.Wait()
+	switch workloadType {
+	case "I":
+		wg.Add(*concurrency)
+		for i := 1; i < *concurrency; i++ {
+			go runBench_I(client, i-1, *keyCount / *concurrency)
+		}
+		go runBench_I(client, *concurrency-1, *keyCount / *concurrency + *keyCount%*concurrency)
+		wg.Wait()
+	case "RU":
+		for i := 1; i < *concurrency; i++ {
+			go runBench_RU(client, i-1, *keyCount / *concurrency)
+		}
+		runBench_RU(client, *concurrency-1, *keyCount / *concurrency + *keyCount%*concurrency)
+	default:
+		log.Fatal("Invalid workload type " + workloadType)
+	}
 
 	// send term to reporter, and wait for it to terminate
 	countReportChan <- &TStats{Exit: true}
@@ -224,7 +237,7 @@ func readFlags() {
 	}
 
 	if *debugMode {
-		Logger.SetLevel(INFO)
+		asl.Logger.SetLevel(asl.INFO)
 	}
 
 	if *latency != "" {
@@ -259,105 +272,210 @@ func readFlags() {
 }
 
 // new random bin generator based on benchmark specs
-func getRandValue() Value {
+func getRandValue(xr *XorRand) as.Value {
 	switch binDataType {
 	case "B":
-		return NewBytesValue(randBytes(binDataSize))
+		return as.NewBytesValue(randBytes(binDataSize, xr))
 	case "S":
-		return NewStringValue(string(randBytes(binDataSize)))
+		return as.NewStringValue(string(randBytes(binDataSize, xr)))
 	default:
-		return NewLongValue(xr.Int64())
+		return as.NewLongValue(xr.Int64())
 	}
 }
 
 // new random bin generator based on benchmark specs
-func getBin() *Bin {
-	var bin *Bin
+func getBin(xr *XorRand) *as.Bin {
+	var bin *as.Bin
 	switch binDataType {
 	case "B":
-		bin = &Bin{Name: "Bytes______", Value: getRandValue()}
+		bin = &as.Bin{Name: "B", Value: getRandValue(xr)}
 	case "S":
-		bin = &Bin{Name: "String_____", Value: getRandValue()}
+		bin = &as.Bin{Name: "S", Value: getRandValue(xr)}
 	default:
-		bin = &Bin{Name: "Int________", Value: getRandValue()}
+		bin = &as.Bin{Name: "I", Value: getRandValue(xr)}
 	}
 
 	return bin
 }
 
-func setBin(bin *Bin) {
+func setBin(bin *as.Bin, xr *XorRand) {
 	switch binDataType {
 	case "B":
-		bin.Value = getRandValue()
+		bin.Value = getRandValue(xr)
 	case "S":
-		bin.Value = getRandValue()
+		bin.Value = getRandValue(xr)
 	default:
-		bin.Value = getRandValue()
+		bin.Value = getRandValue(xr)
 	}
 }
 
 // new random bin generator based on benchmark specs
-func getDataStruct() *dataStruct {
+func getDataStruct(xr *XorRand) *dataStruct {
 	var ds *dataStruct
 	switch binDataType {
 	case "B":
-		ds = &dataStruct{Bytes______: randBytes(binDataSize)}
+		ds = &dataStruct{B: randBytes(binDataSize, xr)}
 	case "S":
-		ds = &dataStruct{String_____: string(randBytes(binDataSize))}
+		ds = &dataStruct{S: string(randBytes(binDataSize, xr))}
 	default:
-		ds = &dataStruct{Int________: xr.Int64()}
+		ds = &dataStruct{I: xr.Int64()}
 	}
 
 	return ds
 }
 
 // new random bin generator based on benchmark specs
-func setDataStruct(ds *dataStruct) {
+func setDataStruct(ds *dataStruct, xr *XorRand) {
 	switch binDataType {
 	case "B":
-		ds.Bytes______ = randBytes(binDataSize)
+		ds.B = randBytes(binDataSize, xr)
 	case "S":
-		ds.String_____ = string(randBytes(binDataSize))
+		ds.S = string(randBytes(binDataSize, xr))
 	default:
-		ds.Int________ = xr.Int64()
+		ds.I = xr.Int64()
 	}
 }
-
-var r *Record
 
 const random_alpha_num = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 const l = 62
 
-var xr = NewXorRand()
-
-func randBytes(size int) []byte {
+func randBytes(size int, xr *XorRand) []byte {
 	buf := make([]byte, size, size)
 	xr.Read(buf)
 	return buf
 }
 
 func incOnError(op, timeout *int, err error) {
-	if ae, ok := err.(AerospikeError); ok && ae.ResultCode() == TIMEOUT {
+	if ae, ok := err.(ast.AerospikeError); ok && ae.ResultCode() == ast.TIMEOUT {
 		*timeout++
 	} else {
 		*op++
 	}
 }
 
-func runBench(client *Client, ident int, times int) {
+func runBench_I(client *as.Client, ident int, times int) {
 	defer wg.Done()
+
+	xr := NewXorRand()
 
 	var err error
 	var forceReport bool = false
 
-	writepolicy := NewWritePolicy(0, 0)
+	writepolicy := as.NewWritePolicy(0, 0)
+	writepolicy.Timeout = time.Duration(*timeout) * time.Millisecond
+	writepolicy.MaxRetries = *maxRetries
+
+	defaultBin := getBin(xr)
+	defaultObj := getDataStruct(xr)
+
+	t := time.Now()
+	var WCount int
+	var writeErr int
+	var writeTOErr int
+
+	var tm time.Time
+	var wLat int64
+	var wLatTotal int64
+	var wMinLat int64
+	var wMaxLat int64
+
+	wLatList := make([]int64, latCols+1)
+
+	bin := defaultBin
+	obj := defaultObj
+	key, _ := as.NewKey(*namespace, *set, 0)
+	partition := ident * times
+	for i := 1; i <= times; i++ {
+		wLat = 0
+		key.SetValue(as.IntegerValue(partition + (i % times)))
+		WCount++
+		if !*useMarshalling {
+			// if randomBin data has been requested
+			if *randBinData {
+				setBin(bin, xr)
+			}
+			tm = time.Now()
+			if err = client.PutBins(writepolicy, key, bin); err != nil {
+				incOnError(&writeErr, &writeTOErr, err)
+			}
+		} else {
+			// if randomBin data has been requested
+			if *randBinData {
+				setDataStruct(obj, xr)
+			}
+			tm = time.Now()
+			if err = client.PutObject(writepolicy, key, obj); err != nil {
+				incOnError(&writeErr, &writeTOErr, err)
+			}
+		}
+		wLat = int64(time.Now().Sub(tm) / time.Millisecond)
+		wLatTotal += wLat
+
+		// under 1 ms
+		if wLat <= int64(latBase) {
+			wLatList[0]++
+		}
+
+		for i := 1; i <= latCols; i++ {
+			if wLat > int64(latBase<<uint(i-1)) {
+				wLatList[i]++
+			}
+		}
+
+		wMinLat = min(wLat, wMinLat)
+		wMaxLat = max(wLat, wMaxLat)
+
+		// if throughput is set, check for threshold. All goroutines add a record on first iteration,
+		// so take that into account as well
+		if *throughput > 0 {
+			forceReport = atomic.LoadInt64(&currThroughput) >= (*throughput - int64(*concurrency))
+			if !forceReport {
+				atomic.AddInt64(&currThroughput, 1)
+			}
+		}
+
+		if forceReport || (time.Now().Sub(t) > (99 * time.Millisecond)) {
+			countReportChan <- &TStats{false, WCount, 0, writeErr, 0, writeTOErr, 0, wMinLat, wMaxLat, 0, 0, wLatTotal, 0, wLatList, nil}
+			WCount = 0
+			writeErr = 0
+			writeTOErr = 0
+
+			// reset stats
+			wLatTotal = 0
+			wMinLat, wMaxLat = 0, 0
+
+			wLatList = make([]int64, latCols+1)
+
+			t = time.Now()
+		}
+
+		if forceReport {
+			forceReport = false
+			// sleep till next report
+			time.Sleep(time.Second - time.Duration(time.Now().UnixNano()-atomic.LoadInt64(&lastReport)))
+		}
+	}
+	countReportChan <- &TStats{false, WCount, 0, writeErr, 0, writeTOErr, 0, wMinLat, wMaxLat, 0, 0, wLatTotal, 0, wLatList, nil}
+}
+
+func runBench_RU(client *as.Client, ident int, times int) {
+	defer wg.Done()
+
+	xr := NewXorRand()
+
+	// var r *as.Record
+
+	var err error
+	var forceReport bool = false
+
+	writepolicy := as.NewWritePolicy(0, 0)
 	writepolicy.Timeout = time.Duration(*timeout) * time.Millisecond
 	writepolicy.MaxRetries = *maxRetries
 
 	readpolicy := writepolicy.GetBasePolicy()
 
-	defaultBin := getBin()
-	defaultObj := getDataStruct()
+	defaultBin := getBin(xr)
+	defaultObj := getDataStruct(xr)
 
 	t := time.Now()
 	var WCount, RCount int
@@ -375,32 +493,36 @@ func runBench(client *Client, ident int, times int) {
 
 	bin := defaultBin
 	obj := defaultObj
-	for i := 1; workloadType == "RU" || i <= times; i++ {
+	i := 0
+	key, _ := as.NewKey(*namespace, *set, 0)
+	partition := ident * times
+	for {
+		i++
 		rLat, wLat = 0, 0
-		key, _ := NewKey(*namespace, *set, ident*times+(i%times))
-		if workloadType == "I" || int(xr.Uint64()%100) >= workloadPercent {
+		key.SetValue(as.IntegerValue(partition + (i % times)))
+		// key, _ := as.NewKey(*namespace, *set, as.IntegerValue(partition+(i%times)))
+		if int(xr.Uint64()%100) >= workloadPercent {
 			WCount++
 			if !*useMarshalling {
 				// if randomBin data has been requested
 				if *randBinData {
-					setBin(bin)
+					setBin(bin, xr)
 				}
 				tm = time.Now()
-				if err = client.PutBins(writepolicy, key, bin); err != nil {
-					incOnError(&writeErr, &writeTOErr, err)
-				}
+				err = client.PutBins(writepolicy, key, bin)
 			} else {
 				// if randomBin data has been requested
 				if *randBinData {
-					setDataStruct(obj)
+					setDataStruct(obj, xr)
 				}
 				tm = time.Now()
-				if err = client.PutObject(writepolicy, key, obj); err != nil {
-					incOnError(&writeErr, &writeTOErr, err)
-				}
+				err = client.PutObject(writepolicy, key, obj)
 			}
 			wLat = int64(time.Now().Sub(tm) / time.Millisecond)
 			wLatTotal += wLat
+			if err != nil {
+				incOnError(&writeErr, &writeTOErr, err)
+			}
 
 			// under 1 ms
 			if wLat <= int64(latBase) {
@@ -417,18 +539,18 @@ func runBench(client *Client, ident int, times int) {
 			wMaxLat = max(wLat, wMaxLat)
 		} else {
 			RCount++
-			tm = time.Now()
 			if !*useMarshalling {
-				if r, err = client.Get(readpolicy, key, bin.Name); err != nil {
-					incOnError(&readErr, &readTOErr, err)
-				}
+				tm = time.Now()
+				_, err = client.Get(readpolicy, key, bin.Name)
 			} else {
-				if err = client.GetObject(readpolicy, key, obj); err != nil {
-					incOnError(&readErr, &readTOErr, err)
-				}
+				tm = time.Now()
+				err = client.GetObject(readpolicy, key, obj)
 			}
 			rLat = int64(time.Now().Sub(tm) / time.Millisecond)
 			rLatTotal += rLat
+			if err != nil {
+				incOnError(&readErr, &readTOErr, err)
+			}
 
 			// under 1 ms
 			if rLat <= int64(latBase) {
@@ -454,7 +576,7 @@ func runBench(client *Client, ident int, times int) {
 			}
 		}
 
-		if forceReport || (time.Now().Sub(t) > (100 * time.Millisecond)) {
+		if forceReport || (time.Now().Sub(t) > (99 * time.Millisecond)) {
 			countReportChan <- &TStats{false, WCount, RCount, writeErr, readErr, writeTOErr, readTOErr, wMinLat, wMaxLat, rMinLat, rMaxLat, wLatTotal, rLatTotal, wLatList, rLatList}
 			WCount, RCount = 0, 0
 			writeErr, readErr = 0, 0
@@ -644,33 +766,4 @@ Loop:
 		}
 	}
 	countReportChan <- &TStats{}
-}
-
-type XorRand struct {
-	src [2]uint64
-}
-
-func NewXorRand() *XorRand {
-	return &XorRand{[2]uint64{uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano())}}
-}
-
-func (r *XorRand) Int64() int64 {
-	return int64(r.Uint64())
-}
-
-func (r *XorRand) Uint64() uint64 {
-	s1 := r.src[0]
-	s0 := r.src[1]
-	r.src[0] = s0
-	s1 ^= s1 << 23
-	r.src[1] = (s1 ^ s0 ^ (s1 >> 17) ^ (s0 >> 26))
-	return r.src[1] + s0
-}
-
-func (r *XorRand) Read(p []byte) (n int, err error) {
-	l := len(p) / 8
-	for i := 0; i < l; i += 8 {
-		binary.PutUvarint(p[i:], r.Uint64())
-	}
-	return len(p), nil
 }
