@@ -27,10 +27,10 @@ const (
 	// There were no connections available to the node in the pool, and the pool was limited
 	NO_AVAILABLE_CONNECTIONS_TO_NODE ResultCode = -8
 
-	// Asynchronous max concurrent database commands have been exceeded and therefore rejected.
+	// Data type is not supported by aerospike server.
 	TYPE_NOT_SUPPORTED ResultCode = -7
 
-	// Asynchronous max concurrent database commands have been exceeded and therefore rejected.
+	// Info Command was rejected by the server.
 	COMMAND_REJECTED ResultCode = -6
 
 	// Query was terminated by user.
@@ -105,7 +105,7 @@ const (
 	// Specified bin name does not exist in record.
 	BIN_NOT_FOUND ResultCode = 17
 
-	// Specified bin name does not exist in record.
+	// Device not keeping up with writes.
 	DEVICE_OVERLOAD ResultCode = 18
 
 	// Key type mismatch.
