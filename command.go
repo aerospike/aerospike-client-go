@@ -557,7 +557,7 @@ func (cmd *baseCommand) setBatchReadDirect(policy *BatchPolicy, keys []*Key, bat
 	}
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	operationCount := len(binNames)

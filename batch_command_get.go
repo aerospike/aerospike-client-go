@@ -58,7 +58,7 @@ func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) error {
-	if cmd.policy.UseBatchDirect || !cmd.node.supportsBatchIndex.Get() {
+	if cmd.policy.UseBatchDirect || cmd.node.supportsBatchIndex.Get() {
 		return cmd.setBatchReadDirect(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
 	}
 	return cmd.setBatchRead(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
