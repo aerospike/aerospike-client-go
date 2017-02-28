@@ -106,8 +106,9 @@ var _ = Describe("Aerospike Node Tests", func() {
 					Expect(c.IsConnected()).To(BeTrue())
 
 					// don't call invalidate here; we are testing node's connection queue behaviour
-					// if there are connections which are not invalidated
-					c.Close()
+					// if there are connections which are not invalidated.
+					// Don't call close as well, since it automatically reduces the total conn count.
+					// c.Close()
 				}
 
 				// 4-1 is because we reserve a connection for tend
