@@ -17,10 +17,29 @@ package aerospike
 import (
 	"net"
 	"strings"
+	"sync"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 )
+
+type nodesToAddT struct {
+	nodesToAdd map[string]*Node
+	mutex      sync.RWMutex
+}
+
+func (nta *nodesToAddT) addNodeIfNotExists(ndv *nodeValidator, cluster *Cluster) bool {
+	nta.mutex.Lock()
+	defer nta.mutex.Unlock()
+
+	_, exists := nta.nodesToAdd[ndv.name]
+	if !exists {
+		// found a new node
+		node := cluster.createNode(ndv)
+		nta.nodesToAdd[ndv.name] = node
+	}
+	return exists
+}
 
 // Validates a Database server node
 type nodeValidator struct {
@@ -28,12 +47,10 @@ type nodeValidator struct {
 	aliases     []*Host
 	primaryHost *Host
 
-	conn *Connection
-
 	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo, supportsPeers bool
 }
 
-func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd map[string]*Node) error {
+func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd *nodesToAddT) error {
 	if err := ndv.setAliases(host); err != nil {
 		return err
 	}
@@ -47,13 +64,7 @@ func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd map
 		}
 
 		found = true
-		if _, exists := nodesToAdd[ndv.name]; !exists {
-			// found a new node
-			node := cluster.createNode(ndv)
-			nodesToAdd[ndv.name] = node
-		} else {
-			ndv.conn.Close()
-		}
+		nodesToAdd.addNodeIfNotExists(ndv, cluster)
 	}
 
 	if !found {
@@ -86,20 +97,22 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 	if ip != nil {
 		aliases := make([]*Host, 1)
 		aliases[0] = NewHost(host.Name, host.Port)
+		aliases[0].TLSName = host.TLSName
 		ndv.aliases = aliases
 	} else {
 		addresses, err := net.LookupHost(host.Name)
 		if err != nil {
-			Logger.Error("HostLookup failed with error: ", err)
+			Logger.Error("Host lookup failed with error: %s", err.Error())
 			return err
 		}
 		aliases := make([]*Host, len(addresses))
 		for idx, addr := range addresses {
 			aliases[idx] = NewHost(addr, host.Port)
+			aliases[idx].TLSName = host.TLSName
 		}
 		ndv.aliases = aliases
 	}
-	Logger.Debug("Node Validator has %d nodes.", len(ndv.aliases))
+	Logger.Debug("Node Validator has %d nodes and they are: %v", len(ndv.aliases), ndv.aliases)
 	return nil
 }
 
@@ -108,27 +121,19 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 
 	// need to authenticate
 	if err := conn.Authenticate(cluster.user, cluster.Password()); err != nil {
-		// Socket not authenticated. Do not put back into pool.
-		conn.Close()
-
 		return err
 	}
 
 	// check to make sure we have actually connected
 	info, err := RequestInfo(conn, "build")
 	if err != nil {
-		// Socket not authenticated. Do not put back into pool.
-		conn.Close()
-
 		return err
 	}
 	if _, exists := info["ERROR:80:not authenticated"]; exists {
-		// Socket not authenticated. Do not put back into pool.
-		conn.Close()
-
 		return NewAerospikeError(NOT_AUTHENTICATED)
 	}
 
@@ -138,7 +143,6 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	if hasClusterName {
 		infoKeys = []string{"node", "features", "cluster-id"}
 	} else {
-
 		infoKeys = []string{"node", "features"}
 	}
 	infoMap, err := RequestInfo(conn, infoKeys...)
@@ -158,7 +162,6 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 
 	ndv.name = nodeName
 	ndv.primaryHost = alias
-	ndv.conn = conn
 
 	return nil
 }

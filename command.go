@@ -87,6 +87,8 @@ type command interface {
 
 	writeBuffer(ifc command) error
 	getNode(ifc command) (*Node, error)
+	getConnection(timeout time.Duration) (*Connection, error)
+	putConnection(conn *Connection)
 	parseResult(ifc command, conn *Connection) error
 	parseRecordResults(ifc command, receiveSize int) (bool, error)
 
@@ -102,8 +104,6 @@ type baseCommand struct {
 
 	dataBuffer []byte
 	dataOffset int
-
-	keyWriter *keyWriter
 }
 
 // Writes the command for write operations
@@ -1355,7 +1355,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			continue
 		}
 
-		cmd.conn, err = cmd.node.GetConnection(policy.Timeout)
+		// cmd.conn, err = cmd.node.GetConnection(policy.Timeout)
+		cmd.conn, err = ifc.getConnection(policy.Timeout)
 		if err != nil {
 			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 			continue
@@ -1364,15 +1365,12 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		// Assign the connection buffer to the command buffer
 		cmd.dataBuffer = cmd.conn.dataBuffer
 
-		// Assign the connection buffer to the command buffer
-		cmd.keyWriter = &cmd.conn.keyWriter
-
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
 		if err != nil {
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.node.InvalidateConnection(cmd.conn)
+			cmd.conn.Close()
 			return err
 		}
 
@@ -1385,7 +1383,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if err != nil {
 			// IO errors are considered temporary anomalies. Retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.node.InvalidateConnection(cmd.conn)
+			cmd.conn.Close()
 
 			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 			continue
@@ -1397,7 +1395,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			if err == io.EOF {
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
-				cmd.node.InvalidateConnection(cmd.conn)
+				cmd.conn.Close()
 
 				Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 				continue
@@ -1411,7 +1409,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
-				cmd.node.InvalidateConnection(cmd.conn)
+				cmd.conn.Close()
+
 			}
 			return err
 		}
@@ -1420,7 +1419,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		cmd.conn.dataBuffer = cmd.dataBuffer
 
 		// Put connection back in pool.
-		cmd.node.PutConnection(cmd.conn)
+		// cmd.node.PutConnection(cmd.conn)
+		ifc.putConnection(cmd.conn)
 
 		// command has completed successfully.  Exit method.
 		return nil

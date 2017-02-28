@@ -31,11 +31,17 @@ func newBatchNodeList(cluster *Cluster, policy *BatchPolicy, keys []*Key) ([]*ba
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
 	}
 
-	nodeCount := len(nodes)
-	keysPerNode := len(keys)/nodeCount + 10
+	// Create initial key capacity for each node as average + 25%.
+	keysPerNode := len(keys) / len(nodes)
+	keysPerNode += keysPerNode / 2
+
+	// The minimum key capacity is 10.
+	if keysPerNode < 10 {
+		keysPerNode = 10
+	}
 
 	// Split keys by server node.
-	batchNodes := make([]*batchNode, 0, nodeCount+1)
+	batchNodes := make([]*batchNode, 0, len(nodes))
 
 	for i, key := range keys {
 		partition := NewPartitionByKey(key)
@@ -102,20 +108,15 @@ type batchNamespace struct {
 func newBatchNamespace(namespace string, capacity, offset int) *batchNamespace {
 	res := &batchNamespace{
 		namespace:  namespace,
-		offsets:    make([]int, capacity),
+		offsets:    make([]int, 0, capacity),
 		offsetSize: 1,
 	}
-	res.offsets[0] = offset
+	res.offsets = append(res.offsets, offset)
 
 	return res
 }
 
 func (bn *batchNamespace) add(offset int) {
-	if bn.offsetSize >= len(bn.offsets) {
-		cpy := make([]int, bn.offsetSize*2)
-		copy(cpy, bn.offsets)
-		bn.offsets = cpy
-	}
-	bn.offsets[bn.offsetSize] = offset
+	bn.offsets = append(bn.offsets, offset)
 	bn.offsetSize++
 }

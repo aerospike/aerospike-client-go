@@ -46,10 +46,11 @@ type Node struct {
 	peersGeneration AtomicInt
 	peersCount      AtomicInt
 
-	connections     AtomicQueue //ArrayBlockingQueue<*Connection>
+	connections     connectionQueue //AtomicQueue //ArrayBlockingQueue<*Connection>
 	connectionCount AtomicInt
 	health          AtomicInt //AtomicInteger
 
+	partitionMap        partitionMap
 	partitionGeneration AtomicInt
 	referenceCount      AtomicInt
 	failures            AtomicInt
@@ -70,10 +71,10 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).
-		connections:         *NewAtomicQueue(cluster.clientPolicy.ConnectionQueueSize),
+		connections:         *newConnectionQueue(cluster.clientPolicy.ConnectionQueueSize), //*NewAtomicQueue(cluster.clientPolicy.ConnectionQueueSize),
 		connectionCount:     *NewAtomicInt(0),
 		peersGeneration:     *NewAtomicInt(-1),
-		partitionGeneration: *NewAtomicInt(-1),
+		partitionGeneration: *NewAtomicInt(-2),
 		referenceCount:      *NewAtomicInt(0),
 		failures:            *NewAtomicInt(0),
 		active:              *NewAtomicBool(true),
@@ -102,7 +103,7 @@ func (nd *Node) Refresh(peers *peers) error {
 
 	nd.referenceCount.Set(0)
 
-	if peers.usePeers {
+	if peers.usePeers.Get() {
 		infoMap, err := nd.RequestInfo("node", "peers-generation", "partition-generation")
 		if err != nil {
 			nd.refreshFailed(err)
@@ -147,7 +148,8 @@ func (nd *Node) Refresh(peers *peers) error {
 			return err
 		}
 	}
-	peers.refreshCount++
+	nd.failures.Set(0)
+	peers.refreshCount.IncrementAndGet()
 	nd.referenceCount.IncrementAndGet()
 
 	return nil
@@ -179,7 +181,7 @@ func (nd *Node) verifyPeersGeneration(infoMap map[string]string, peers *peers) e
 		return NewAerospikeError(PARSE_ERROR, "peers-generation is not a number: "+genString)
 	}
 
-	peers.genChanged = nd.peersGeneration.Get() != gen
+	peers.genChanged.Or(nd.peersGeneration.Get() != gen)
 	return nil
 }
 
@@ -235,8 +237,7 @@ func (nd *Node) addFriends(infoMap map[string]string, peers *peers) error {
 		if node != nil {
 			node.referenceCount.IncrementAndGet()
 		} else {
-			// TODO: should do proper check; this will always fail since host is a new pointer
-			if _, exists := peers.hosts[*host]; !exists {
+			if !peers.hostExists(*host) {
 				nd.prepareFriend(host, peers)
 			}
 		}
@@ -252,14 +253,13 @@ func (nd *Node) prepareFriend(host *Host, peers *peers) bool {
 		return false
 	}
 
-	node := peers.nodes[nv.name]
+	node := peers.nodeByName(nv.name)
 
 	if node != nil {
 		// Duplicate node name found.  This usually occurs when the server
 		// services list contains both internal and external IP addresses
 		// for the same node.
-		nv.conn.Close()
-		peers.hosts[*host] = struct{}{}
+		peers.addHost(*host)
 		node.addAlias(host)
 		return true
 	}
@@ -268,8 +268,7 @@ func (nd *Node) prepareFriend(host *Host, peers *peers) bool {
 	node = nd.cluster.nodesMap.Get().(map[string]*Node)[nv.name]
 
 	if node != nil {
-		nv.conn.Close()
-		peers.hosts[*host] = struct{}{}
+		peers.addHost(*host)
 		node.addAlias(host)
 		node.referenceCount.IncrementAndGet()
 		nd.cluster.addAlias(host, node)
@@ -277,8 +276,8 @@ func (nd *Node) prepareFriend(host *Host, peers *peers) bool {
 	}
 
 	node = nd.cluster.createNode(nv)
-	peers.hosts[*host] = struct{}{}
-	peers.nodes[nv.name] = node
+	peers.addHost(*host)
+	peers.addNode(nv.name, node)
 	return true
 }
 
@@ -294,61 +293,11 @@ func (nd *Node) refreshPeers(peers *peers) {
 		nd.refreshFailed(err)
 		return
 	}
-	peers.peers = peerParser.peers
+
+	peers.appendPeers(peerParser.peers)
 	nd.peersGeneration.Set(int(peerParser.generation()))
-	nd.peersCount.Set(len(peers.peers))
-
-	for _, peer := range peers.peers {
-		if nd.peerExists(nd.cluster, peers, peer.nodeName) {
-			// Node already exists. Do not even try to connect to hosts.
-			continue
-		}
-
-		// find the first host that connects
-		for _, host := range peer.hosts {
-			// attempt connection to the host
-			nv := nodeValidator{}
-			if err := nv.validateNode(nd.cluster, host); err != nil {
-				nv.conn.Close()
-				Logger.Warn("Add node `%s` failed: `%s`", host, err)
-				continue
-			}
-
-			// Must look for new node name in the unlikely event that node names do not agree.
-			if peer.nodeName != nv.name {
-				Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", peer.nodeName, nv.name, host)
-			}
-
-			if nd.peerExists(nd.cluster, peers, nv.name) {
-				// Node already exists. Do not even try to connect to hosts.
-				nv.conn.Close()
-				break
-			}
-
-			// Create new node.
-			node := nd.cluster.createNode(&nv)
-			peers.nodes[nv.name] = node
-			break
-		}
-	}
-
-	peers.refreshCount++
-}
-
-func (nd *Node) peerExists(cluster *Cluster, peers *peers, nodeName string) bool {
-	node, _ := cluster.GetNodeByName(nodeName)
-	if node != nil {
-		node.referenceCount.IncrementAndGet()
-		return true
-	}
-
-	node = peers.nodes[nodeName]
-	if node != nil {
-		node.referenceCount.IncrementAndGet()
-		return true
-	}
-
-	return false
+	nd.peersCount.Set(len(peers.peers()))
+	peers.refreshCount.IncrementAndGet()
 }
 
 func (nd *Node) refreshPartitions(peers *peers) {
@@ -356,11 +305,11 @@ func (nd *Node) refreshPartitions(peers *peers) {
 	// Also, avoid "split cluster" case where this node thinks it's a 1-node cluster.
 	// Unchecked, such a node can dominate the partition map and cause all other
 	// nodes to be dropped.
-	if nd.failures.Get() > 0 || !nd.active.Get() || (nd.peersCount.Get() == 0 && peers.refreshCount > 1) {
+	if nd.failures.Get() > 0 || !nd.active.Get() || (nd.peersCount.Get() == 0 && peers.refreshCount.Get() > 1) {
 		return
 	}
 
-	parser, err := newPartitionParser(nd, nd.cluster.partitionWriteMap.Load().(partitionMap), _PARTITIONS, nd.cluster.clientPolicy.RequestProleReplicas)
+	parser, err := newPartitionParser(nd, _PARTITIONS, nd.cluster.clientPolicy.RequestProleReplicas)
 	if err != nil {
 		nd.refreshFailed(err)
 		return
@@ -368,7 +317,8 @@ func (nd *Node) refreshPartitions(peers *peers) {
 
 	if parser.generation != nd.partitionGeneration.Get() {
 		Logger.Info("Node %s partition generation %d changed to %d", nd.GetName(), nd.partitionGeneration.Get(), parser.getGeneration())
-		nd.cluster.setPartitions(parser.getPartitionMap())
+		nd.partitionMap = parser.getPartitionMap()
+		nd.partitionChanged.Set(true)
 		nd.partitionGeneration.Set(parser.getGeneration())
 	}
 }
@@ -387,17 +337,17 @@ func (nd *Node) refreshFailed(e error) {
 // a fresh connection or exhaust the queue.
 func (nd *Node) dropIdleConnections() {
 	for {
-		if t := nd.connections.Poll(); t != nil {
-			conn := t.(*Connection)
+		if t := nd.connections.Poll(0); t != nil {
+			conn := t //.(*Connection)
 			if conn.IsConnected() && !conn.isIdle() {
 				// put it back: this connection is the oldest, and is still fresh
 				// so the ones after it are likely also fresh
-				if !nd.connections.Offer(conn) {
-					nd.InvalidateConnection(conn)
+				if !nd.connections.Offer(conn, 0) {
+					conn.Close()
 				}
 				return
 			}
-			nd.InvalidateConnection(conn)
+			conn.Close()
 		} else {
 			// the queue is exhaused
 			break
@@ -437,13 +387,20 @@ CL:
 // If no pooled connection is available, a new connection will be created.
 // This method does not include logic to retry in case the connection pool is empty
 func (nd *Node) getConnection(timeout time.Duration) (conn *Connection, err error) {
+	return nd.getConnectionWithHint(timeout, 0)
+}
+
+// getConnectionWithHint gets a connection to the node.
+// If no pooled connection is available, a new connection will be created.
+// This method does not include logic to retry in case the connection pool is empty
+func (nd *Node) getConnectionWithHint(timeout time.Duration, hint byte) (conn *Connection, err error) {
 	// try to get a valid connection from the connection pool
-	for t := nd.connections.Poll(); t != nil; t = nd.connections.Poll() {
-		conn = t.(*Connection)
+	for t := nd.connections.Poll(hint); t != nil; t = nd.connections.Poll(hint) {
+		conn = t //.(*Connection)
 		if conn.IsConnected() {
 			break
 		}
-		nd.InvalidateConnection(conn)
+		conn.Close()
 		conn = nil
 	}
 
@@ -460,18 +417,19 @@ func (nd *Node) getConnection(timeout time.Duration) (conn *Connection, err erro
 			nd.connectionCount.DecrementAndGet()
 			return nil, err
 		}
+		conn.node = nd
 
 		// need to authenticate
 		if err = conn.Authenticate(nd.cluster.user, nd.cluster.Password()); err != nil {
 			// Socket not authenticated. Do not put back into pool.
-			nd.InvalidateConnection(conn)
+			conn.Close()
 			return nil, err
 		}
 	}
 
 	if err = conn.SetTimeout(timeout); err != nil {
 		// Do not put back into pool.
-		nd.InvalidateConnection(conn)
+		conn.Close()
 		return nil, err
 	}
 
@@ -484,16 +442,22 @@ func (nd *Node) getConnection(timeout time.Duration) (conn *Connection, err erro
 // PutConnection puts back a connection to the pool.
 // If connection pool is full, the connection will be
 // closed and discarded.
-func (nd *Node) PutConnection(conn *Connection) {
+func (nd *Node) putConnectionWithHint(conn *Connection, hint byte) {
 	conn.refresh()
-	if !nd.active.Get() || !nd.connections.Offer(conn) {
-		nd.InvalidateConnection(conn)
+	if !nd.active.Get() || !nd.connections.Offer(conn, hint) {
+		conn.Close()
 	}
+}
+
+// PutConnection puts back a connection to the pool.
+// If connection pool is full, the connection will be
+// closed and discarded.
+func (nd *Node) PutConnection(conn *Connection) {
+	nd.putConnectionWithHint(conn, 0)
 }
 
 // InvalidateConnection closes and discards a connection from the pool.
 func (nd *Node) InvalidateConnection(conn *Connection) {
-	nd.connectionCount.DecrementAndGet()
 	conn.Close()
 }
 
@@ -504,7 +468,7 @@ func (nd *Node) GetHost() *Host {
 
 // IsActive Checks if the node is active.
 func (nd *Node) IsActive() bool {
-	return nd.active.Get()
+	return nd != nil && nd.active.Get() && nd.partitionGeneration.Get() >= -1
 }
 
 // GetName returns node name.
@@ -547,8 +511,9 @@ func (nd *Node) String() string {
 }
 
 func (nd *Node) closeConnections() {
-	for conn := nd.connections.Poll(); conn != nil; conn = nd.connections.Poll() {
-		conn.(*Connection).Close()
+	for conn := nd.connections.Poll(0); conn != nil; conn = nd.connections.Poll(0) {
+		// conn.(*Connection).Close()
+		conn.Close()
 	}
 }
 
@@ -603,10 +568,7 @@ func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) (err error)
 // initTendConn sets up a connection to be used for info requests.
 // The same connection will be used for tend.
 func (nd *Node) initTendConn(timeout time.Duration) error {
-	nd.tendConnLock.Lock()
-	defer nd.tendConnLock.Unlock()
-
-	if nd.tendConn == nil {
+	if nd.tendConn == nil || !nd.tendConn.IsConnected() {
 		// Tend connection required a long timeout
 		tendConn, err := nd.GetConnection(timeout)
 		if err != nil {
@@ -622,17 +584,16 @@ func (nd *Node) initTendConn(timeout time.Duration) error {
 
 // RequestInfo gets info values by name from the specified database server node.
 func (nd *Node) RequestInfo(name ...string) (map[string]string, error) {
+	nd.tendConnLock.Lock()
+	defer nd.tendConnLock.Unlock()
+
 	if err := nd.initTendConn(nd.cluster.clientPolicy.Timeout); err != nil {
 		return nil, err
 	}
 
-	nd.tendConnLock.Lock()
-	defer nd.tendConnLock.Unlock()
-
 	response, err := RequestInfo(nd.tendConn, name...)
 	if err != nil {
-		nd.InvalidateConnection(nd.tendConn)
-		nd.tendConn = nil
+		nd.tendConn.Close()
 		return nil, err
 	}
 	return response, nil
@@ -641,17 +602,16 @@ func (nd *Node) RequestInfo(name ...string) (map[string]string, error) {
 // requestRawInfo gets info values by name from the specified database server node.
 // It won't parse the results.
 func (nd *Node) requestRawInfo(name ...string) (*info, error) {
+	nd.tendConnLock.Lock()
+	defer nd.tendConnLock.Unlock()
+
 	if err := nd.initTendConn(nd.cluster.clientPolicy.Timeout); err != nil {
 		return nil, err
 	}
 
-	nd.tendConnLock.Lock()
-	defer nd.tendConnLock.Unlock()
-
 	response, err := newInfo(nd.tendConn, name...)
 	if err != nil {
-		nd.InvalidateConnection(nd.tendConn)
-		nd.tendConn = nil
+		nd.tendConn.Close()
 		return nil, err
 	}
 	return response, nil

@@ -27,6 +27,8 @@ import (
 
 // Connection represents a connection with a timeout.
 type Connection struct {
+	node *Node
+
 	// timeout
 	timeout time.Duration
 
@@ -39,7 +41,6 @@ type Connection struct {
 
 	// to avoid having a buffer pool and contention
 	dataBuffer []byte
-	keyWriter  keyWriter
 }
 
 func errToTimeoutErr(err error) error {
@@ -107,8 +108,14 @@ func NewSecureConnection(policy *ClientPolicy, host *Host) (*Connection, error) 
 	tlsConfig.ServerName = host.TLSName
 
 	sconn := tls.Client(conn.conn, &tlsConfig)
+	if err := sconn.Handshake(); err != nil {
+		sconn.Close()
+		return nil, err
+	}
+
 	if host.TLSName != "" && !tlsConfig.InsecureSkipVerify {
 		if err := sconn.VerifyHostname(host.TLSName); err != nil {
+			sconn.Close()
 			Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
 			return nil, errToTimeoutErr(err)
 		}
@@ -209,6 +216,11 @@ func (ctn *Connection) SetTimeout(timeout time.Duration) error {
 // Close closes the connection
 func (ctn *Connection) Close() {
 	if ctn != nil && ctn.conn != nil {
+		// deregister
+		if ctn.node != nil {
+			ctn.node.connectionCount.DecrementAndGet()
+		}
+
 		if err := ctn.conn.Close(); err != nil {
 			Logger.Warn(err.Error())
 		}

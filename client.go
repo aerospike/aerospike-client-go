@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	lualib "github.com/aerospike/aerospike-client-go/internal/lua"
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -558,30 +559,12 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	_, err = strCmd.WriteString(";")
 
 	// Send UDF to one node. That node will distribute the UDF to other nodes.
-	node, err := clnt.cluster.GetRandomNode()
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	responseMap, err := RequestInfo(conn, strCmd.String())
-	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	var response string
-	for _, v := range responseMap {
-		if strings.Trim(v, " ") != "" {
-			response = v
-		}
-	}
-
+	response := responseMap[strCmd.String()]
 	res := make(map[string]string)
 	vals := strings.Split(response, ";")
 	for _, pair := range vals {
@@ -618,30 +601,12 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 	_, err = strCmd.WriteString(";")
 
 	// Send command to one node. That node will distribute it to other nodes.
-	node, err := clnt.cluster.GetRandomNode()
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	responseMap, err := RequestInfo(conn, strCmd.String())
-	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	var response string
-	for _, v := range responseMap {
-		if strings.Trim(v, " ") != "" {
-			response = v
-		}
-	}
-
+	response := responseMap[strCmd.String()]
 	if response == "ok" {
 		return NewRemoveTask(clnt.cluster, udfName), nil
 	}
@@ -660,30 +625,12 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 	_, err := strCmd.WriteString("udf-list")
 
 	// Send command to one node. That node will distribute it to other nodes.
-	node, err := clnt.cluster.GetRandomNode()
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	responseMap, err := RequestInfo(conn, strCmd.String())
-	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	var response string
-	for _, v := range responseMap {
-		if strings.Trim(v, " ") != "" {
-			response = v
-		}
-	}
-
+	response := responseMap[strCmd.String()]
 	vals := strings.Split(response, ";")
 	res := make([]*UDF, 0, len(vals))
 
@@ -1063,7 +1010,7 @@ func (clnt *Client) CreateComplexIndex(
 	_, err = strCmd.WriteString(";priority=normal")
 
 	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
@@ -1108,7 +1055,7 @@ func (clnt *Client) DropIndex(
 	_, err = strCmd.WriteString(indexName)
 
 	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return err
 	}
@@ -1285,26 +1232,22 @@ func (clnt *Client) String() string {
 // Internal Methods
 //-------------------------------------------------------
 
-func (clnt *Client) sendInfoCommand(policy *WritePolicy, command string) (map[string]string, error) {
+func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[string]string, error) {
 	node, err := clnt.cluster.GetRandomNode()
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
+	if err := node.initTendConn(timeout); err != nil {
 		return nil, err
 	}
 
-	info, err := newInfo(conn, command)
+	results, err := RequestInfo(node.tendConn, command)
 	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	results, err := info.parseMultiResponse()
-	if err != nil {
+		node.tendConn.Close()
 		return nil, err
 	}
 
