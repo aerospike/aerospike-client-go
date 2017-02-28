@@ -43,7 +43,7 @@ func RequestNodeInfo(node *Node, name ...string) (map[string]string, error) {
 
 	response, err := RequestInfo(conn, name...)
 	if err != nil {
-		node.InvalidateConnection(conn)
+		conn.Close()
 		return nil, err
 	}
 	node.PutConnection(conn)

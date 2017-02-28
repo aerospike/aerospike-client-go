@@ -35,13 +35,16 @@ func newBatchNodeList(cluster *Cluster, policy *BasePolicy, keys []*Key) ([]*bat
 	keysPerNode := len(keys)/nodeCount + 10
 
 	// Split keys by server node.
-	batchNodes := make([]*batchNode, 0, nodeCount+1)
+	batchNodes := make([]*batchNode, 0, nodeCount)
 
 	for i, key := range keys {
 		partition := NewPartitionByKey(key)
 
 		// error not required
-		node, _ := cluster.getReadNode(partition, policy.ReplicaPolicy)
+		node, err := cluster.getReadNode(partition, policy.ReplicaPolicy)
+		if err != nil {
+			return nil, err
+		}
 		batchNode := findBatchNode(batchNodes, node)
 
 		if batchNode == nil {
@@ -100,20 +103,15 @@ type batchNamespace struct {
 func newBatchNamespace(namespace *string, capacity, offset int) *batchNamespace {
 	res := &batchNamespace{
 		namespace:  namespace,
-		offsets:    make([]int, capacity),
+		offsets:    make([]int, 0, capacity),
 		offsetSize: 1,
 	}
-	res.offsets[0] = offset
+	res.offsets = append(res.offsets, offset)
 
 	return res
 }
 
 func (bn *batchNamespace) add(offset int) {
-	if bn.offsetSize >= len(bn.offsets) {
-		cpy := make([]int, bn.offsetSize*2)
-		copy(cpy, bn.offsets)
-		bn.offsets = cpy
-	}
-	bn.offsets[bn.offsetSize] = offset
+	bn.offsets = append(bn.offsets, offset)
 	bn.offsetSize++
 }

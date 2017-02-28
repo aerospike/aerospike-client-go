@@ -1242,7 +1242,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if err != nil {
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.node.InvalidateConnection(cmd.conn)
+			cmd.conn.Close()
 			return err
 		}
 
@@ -1255,7 +1255,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if err != nil {
 			// IO errors are considered temporary anomalies. Retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.node.InvalidateConnection(cmd.conn)
+			cmd.conn.Close()
 
 			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 			continue
@@ -1267,7 +1267,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			if err == io.EOF {
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
-				cmd.node.InvalidateConnection(cmd.conn)
+				cmd.conn.Close()
 
 				Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 				continue
@@ -1281,7 +1281,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
-				cmd.node.InvalidateConnection(cmd.conn)
+				cmd.conn.Close()
+
 			}
 			return err
 		}

@@ -40,7 +40,7 @@ func (tski *DropIndexTask) IsDone() (bool, error) {
 	complete := false
 
 	for _, node := range nodes {
-		responseMap, err := RequestNodeInfo(node, command)
+		responseMap, err := node.RequestInfo(command)
 		if err != nil {
 			return false, err
 		}
