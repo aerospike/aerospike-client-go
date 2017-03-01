@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"log"
@@ -766,4 +767,33 @@ Loop:
 		}
 	}
 	countReportChan <- &TStats{}
+}
+
+type XorRand struct {
+	src [2]uint64
+}
+
+func NewXorRand() *XorRand {
+	return &XorRand{[2]uint64{uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano())}}
+}
+
+func (r *XorRand) Int64() int64 {
+	return int64(r.Uint64())
+}
+
+func (r *XorRand) Uint64() uint64 {
+	s1 := r.src[0]
+	s0 := r.src[1]
+	r.src[0] = s0
+	s1 ^= s1 << 23
+	r.src[1] = (s1 ^ s0 ^ (s1 >> 17) ^ (s0 >> 26))
+	return r.src[1] + s0
+}
+
+func (r *XorRand) Read(p []byte) (n int, err error) {
+	l := len(p) / 8
+	for i := 0; i < l; i += 8 {
+		binary.PutUvarint(p[i:], r.Uint64())
+	}
+	return len(p), nil
 }
