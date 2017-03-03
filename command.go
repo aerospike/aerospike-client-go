@@ -397,7 +397,7 @@ func (cmd *baseCommand) setBatchExists(policy *BatchPolicy, keys []*Key, batch *
 
 		cmd.dataOffset += len(batch.namespace) + int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
 		if err := cmd.sizeBuffer(); err != nil {
-			return nil
+			return err
 		}
 
 		cmd.writeHeader(&policy.BasePolicy, _INFO1_READ|_INFO1_NOBINDATA|_INFO1_BATCH, 0, 2, 0)
@@ -421,7 +421,7 @@ func (cmd *baseCommand) setBatchExists(policy *BatchPolicy, keys []*Key, batch *
 
 		cmd.dataOffset += len(batch.namespace) + int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
 		if err := cmd.sizeBuffer(); err != nil {
-			return nil
+			return err
 		}
 
 		cmd.writeHeader(&policy.BasePolicy, _INFO1_READ|_INFO1_NOBINDATA, 0, 2, 0)
@@ -484,15 +484,17 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 	}
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	cmd.writeHeader(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 1, 0)
-	fieldSizeOffset := cmd.dataOffset
+
+	// Write real field size.
+	fieldSizeOffset := len(cmd.dataBuffer) - int(_MSG_TOTAL_HEADER_SIZE) - 4
 	if policy.SendSetName {
-		cmd.writeFieldHeader(0, BATCH_INDEX_WITH_SET)
+		cmd.writeFieldHeader(fieldSizeOffset, BATCH_INDEX_WITH_SET)
 	} else {
-		cmd.writeFieldHeader(0, BATCH_INDEX)
+		cmd.writeFieldHeader(fieldSizeOffset, BATCH_INDEX)
 	}
 
 	cmd.WriteUint32(uint32(max))
@@ -503,6 +505,7 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 		cmd.WriteByte(0)
 	}
 
+	prev = nil
 	for i := 0; i < max; i++ {
 		index := offsets[i]
 		cmd.WriteUint32(uint32(index))
@@ -537,8 +540,6 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 		}
 	}
 
-	// Write real field size.
-	binary.BigEndian.PutUint32(cmd.dataBuffer[fieldSizeOffset:fieldSizeOffset+4], uint32(cmd.dataOffset-int(_MSG_TOTAL_HEADER_SIZE)-4))
 	cmd.end()
 
 	return nil

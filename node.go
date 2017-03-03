@@ -80,9 +80,8 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		active:              *NewAtomicBool(true),
 		partitionChanged:    *NewAtomicBool(false),
 
-		supportsFloat: *NewAtomicBool(nv.supportsFloat),
-		// supportsBatchIndex:  *NewAtomicBool(nv.supportsBatchIndex),
-		supportsBatchIndex:  *NewAtomicBool(false),
+		supportsFloat:       *NewAtomicBool(nv.supportsFloat),
+		supportsBatchIndex:  *NewAtomicBool(nv.supportsBatchIndex),
 		supportsReplicasAll: *NewAtomicBool(nv.supportsReplicasAll),
 		supportsGeo:         *NewAtomicBool(nv.supportsGeo),
 		supportsPeers:       *NewAtomicBool(nv.supportsPeers),
