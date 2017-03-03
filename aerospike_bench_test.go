@@ -23,6 +23,7 @@ import (
 )
 
 var r *Record
+var rs []*Record
 var err error
 
 type OBJECT struct {
@@ -35,6 +36,14 @@ type OBJECT struct {
 func benchGet(times int, client *Client, key *Key) {
 	for i := 0; i < times; i++ {
 		if r, err = client.Get(nil, key); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func benchBatchGet(times int, client *Client, keys []*Key) {
+	for i := 0; i < times; i++ {
+		if rs, err = client.BatchGet(nil, keys); err != nil {
 			panic(err)
 		}
 	}
@@ -57,7 +66,7 @@ func Benchmark_Get(b *testing.B) {
 		b.Fail()
 	}
 
-	key, _ := NewKey("test", "databases", "Aerospike")
+	key, _ := NewKey("test", "test", "Aerospike")
 	// obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
 	// obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1}}
 	client.Delete(nil, key)
@@ -77,11 +86,31 @@ func Benchmark_Put(b *testing.B) {
 		b.Fail()
 	}
 
-	key, _ := NewKey("test", "databases", "Aerospike")
+	key, _ := NewKey("test", "test", "Aerospike")
 	writepolicy := NewWritePolicy(0, 0)
 
 	b.N = 100
 	runtime.GC()
 	b.ResetTimer()
 	benchPut(b.N, client, key, writepolicy)
+}
+
+func Benchmark_BatchGet(b *testing.B) {
+	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
+	if err != nil {
+		b.Fail()
+	}
+
+	var keys []*Key
+	for i := 0; i < 10; i++ {
+		key, _ := NewKey("test", "test", i)
+		if err := client.PutBins(nil, key, NewBin("b", 1)); err == nil {
+			keys = append(keys, key)
+		}
+	}
+
+	b.N = 1e4
+	runtime.GC()
+	b.ResetTimer()
+	benchBatchGet(b.N, client, keys)
 }
