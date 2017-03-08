@@ -1,5 +1,13 @@
 # Change History
 
+## March 8 2017: v1.25.1
+
+  Hot fix release. Updating the client is recommended.
+
+  * **Fixes**
+
+    - Fixed an issue where errors in Scan/Query unmarshalling would be duplicated and could cause a deadlock.
+
 ## February 28 2017: v1.25.0
 
   Performance improvements and fix release.
