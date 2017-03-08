@@ -819,7 +819,7 @@ var _ = Describe("Aerospike", func() {
 
 				retChan := make(chan *InnerStruct, 10)
 
-				_, err := client.ScanAllObjects(nil, retChan, ns, set)
+				rs, err := client.ScanAllObjects(nil, retChan, ns, set)
 				Expect(err).ToNot(HaveOccurred())
 
 				cnt := 0
@@ -830,6 +830,10 @@ var _ = Describe("Aerospike", func() {
 					testObj.PersistAsInner1 = resObj.PersistAsInner1
 					Expect(resObj).To(Equal(testObj))
 					cnt++
+				}
+
+				for e := range rs.Errors {
+					Expect(e).ToNot(HaveOccurred())
 				}
 
 				Expect(cnt).To(Equal(99))
@@ -865,7 +869,7 @@ var _ = Describe("Aerospike", func() {
 				retChan := make(chan *InnerStruct, 10)
 				stmt := NewStatement(ns, set)
 
-				_, err := client.QueryObjects(nil, stmt, retChan)
+				rs, err := client.QueryObjects(nil, stmt, retChan)
 				Expect(err).ToNot(HaveOccurred())
 
 				cnt := 0
@@ -876,6 +880,10 @@ var _ = Describe("Aerospike", func() {
 					testObj.PersistAsInner1 = resObj.PersistAsInner1
 					Expect(resObj).To(Equal(testObj))
 					cnt++
+				}
+
+				for e := range rs.Errors {
+					Expect(e).ToNot(HaveOccurred())
 				}
 
 				Expect(cnt).To(Equal(99))

@@ -81,19 +81,16 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
 			go func(node *Node) {
-				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-				}
+				// Errors are handled inside the command itself
+				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
 			}(node)
 		}
 	} else {
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-					continue
-				}
+				// Errors are handled inside the command itself
+				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
 			}
 		}()
 	}
@@ -170,10 +167,8 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 		newPolicy := *policy
 		command := newQueryObjectsCommand(node, &newPolicy, statement, recSet)
 		go func() {
-			err := command.Execute()
-			if err != nil {
-				recSet.sendError(err)
-			}
+			// Do not send the error to the channel; it is already handled in the Execute method
+			command.Execute()
 		}()
 	}
 
@@ -205,10 +200,7 @@ func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement 
 	newPolicy := *policy
 	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
 	go func() {
-		err := command.Execute()
-		if err != nil {
-			recSet.sendError(err)
-		}
+		command.Execute()
 	}()
 
 	return recSet, nil

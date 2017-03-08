@@ -190,7 +190,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return false, err
 		}
 		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
@@ -200,7 +200,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 				return false, nil
 			}
 			err := NewAerospikeError(resultCode)
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return false, err
 		}
 
@@ -218,7 +218,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 
 		key, err := cmd.parseKey(fieldCount)
 		if err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return false, err
 		}
 
@@ -230,7 +230,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 
 			for i := 0; i < opCount; i++ {
 				if err := cmd.readBytes(8); err != nil {
-					cmd.recordset.Errors <- newNodeError(cmd.node, err)
+					err = newNodeError(cmd.node, err)
 					return false, err
 				}
 
@@ -239,19 +239,19 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 				nameSize := int(cmd.dataBuffer[7])
 
 				if err := cmd.readBytes(nameSize); err != nil {
-					cmd.recordset.Errors <- newNodeError(cmd.node, err)
+					err = newNodeError(cmd.node, err)
 					return false, err
 				}
 				name := string(cmd.dataBuffer[:nameSize])
 
 				particleBytesSize := int((opSize - (4 + nameSize)))
 				if err = cmd.readBytes(particleBytesSize); err != nil {
-					cmd.recordset.Errors <- newNodeError(cmd.node, err)
+					err = newNodeError(cmd.node, err)
 					return false, err
 				}
 				value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
 				if err != nil {
-					cmd.recordset.Errors <- newNodeError(cmd.node, err)
+					err = newNodeError(cmd.node, err)
 					return false, err
 				}
 
@@ -272,7 +272,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		} else if multiObjectParser != nil {
 			obj := reflect.New(cmd.resObjType)
 			if err := multiObjectParser(cmd, obj, opCount, fieldCount, generation, expiration); err != nil {
-				cmd.recordset.Errors <- newNodeError(cmd.node, err)
+				err = newNodeError(cmd.node, err)
 				return false, err
 			}
 
