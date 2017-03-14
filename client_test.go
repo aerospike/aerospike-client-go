@@ -71,10 +71,7 @@ var _ = Describe("Aerospike", func() {
 				It("must return 30d if set to TTLServerDefault", func() {
 					wpolicy := NewWritePolicy(0, TTLServerDefault)
 					bin := NewBin("Aerospike", "value")
-					err = client.PutBins(wpolicy, key, bin)
-					Expect(err).ToNot(HaveOccurred())
-
-					rec, err = client.Get(rpolicy, key)
+					rec, err = client.Operate(wpolicy, key, PutOp(bin), GetOp())
 					Expect(err).ToNot(HaveOccurred())
 
 					defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))
