@@ -41,9 +41,9 @@ const (
 	_AS_PREDEXP_STRING_VAR  uint16 = 121
 	_AS_PREDEXP_GEOJSON_VAR uint16 = 122
 
-	_AS_PREDEXP_REC_DEVICE_SIZE   uint16 = 150
-	_AS_PREDEXP_REC_LAST_UPDATE	  uint16 = 151
-	_AS_PREDEXP_REC_VOID_TIME  	  uint16 = 152
+	_AS_PREDEXP_REC_DEVICE_SIZE uint16 = 150
+	_AS_PREDEXP_REC_LAST_UPDATE uint16 = 151
+	_AS_PREDEXP_REC_VOID_TIME   uint16 = 152
 
 	_AS_PREDEXP_INTEGER_EQUAL     uint16 = 200
 	_AS_PREDEXP_INTEGER_UNEQUAL   uint16 = 201
@@ -68,6 +68,8 @@ const (
 )
 
 // ----------------
+
+type PredExp predExp
 
 type predExp interface {
 	String() string

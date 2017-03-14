@@ -336,9 +336,13 @@ var _ = Describe("predexp operations", func() {
 
 		stm := as.NewStatement(ns, set)
 		stm.SetPredicate(as.BinValue("strval").Regexp("0x00.[12]"))
-		// stm.AddPredExp(as.NewPredExpStringBin("strval"))
-		// stm.AddPredExp(as.NewPredExpStringValue("0x00.[12]"))
-		// stm.AddPredExp(as.NewPredExpStringRegex(0))
+
+		Expect(as.BinValue("strval").Regexp("0x00.[12]").Predicates()).To(ConsistOf(
+			[]as.PredExp{
+				as.NewPredExpStringBin("strval"),
+				as.NewPredExpStringValue("0x00.[12]"),
+				as.NewPredExpStringRegex(0),
+			}))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -511,9 +515,12 @@ var _ = Describe("predexp operations", func() {
 
 		stm := as.NewStatement(ns, set)
 		stm.SetPredicate(as.RecLastUpdate().GreaterThan(gaptime))
-		// stm.AddPredExp(as.NewPredExpRecLastUpdate())
-		// stm.AddPredExp(as.NewPredExpIntegerValue(gaptime))
-		// stm.AddPredExp(as.NewPredExpIntegerGreater())
+		Expect(as.RecLastUpdate().GreaterThan(gaptime).Predicates()).To(ConsistOf(
+			[]as.PredExp{
+				as.NewPredExpRecLastUpdate(),
+				as.NewPredExpIntegerValue(gaptime),
+				as.NewPredExpIntegerGreater(),
+			}))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
