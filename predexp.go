@@ -44,6 +44,7 @@ const (
 	_AS_PREDEXP_REC_DEVICE_SIZE   uint16 = 150
 	_AS_PREDEXP_REC_LAST_UPDATE	  uint16 = 151
 	_AS_PREDEXP_REC_VOID_TIME  	  uint16 = 152
+	_AS_PREDEXP_REC_DIGEST_MODULO uint16 = 153
 
 	_AS_PREDEXP_INTEGER_EQUAL     uint16 = 200
 	_AS_PREDEXP_INTEGER_UNEQUAL   uint16 = 201
@@ -337,6 +338,8 @@ func (e *predExpMD) String() string {
 		return "rec.LastUpdate"
 	case _AS_PREDEXP_REC_VOID_TIME:
 		return "rec.Expiration"
+	case _AS_PREDEXP_REC_DIGEST_MODULO:
+		return "rec.DigestModulo"
 	default:
 		panic("Invalid Metadata tag.")
 	}
@@ -361,6 +364,29 @@ func NewPredExpRecLastUpdate() *predExpMD {
 
 func NewPredExpRecVoidTime() *predExpMD {
 	return &predExpMD{tag: _AS_PREDEXP_REC_VOID_TIME}
+}
+
+type predExpMDDigestModulo struct {
+	predExpBase
+	mod int64
+}
+
+func (e *predExpMDDigestModulo) String() string {
+	return "rec.DigestModulo"
+}
+
+func (self *predExpMDDigestModulo) marshaledSize() int {
+	return self.predExpBase.marshaledSize() + 8
+}
+
+func (self *predExpMDDigestModulo) marshal(cmd *baseCommand) error {
+	self.marshalTL(cmd, _AS_PREDEXP_REC_DIGEST_MODULO, 8)
+	cmd.WriteInt64(self.mod)
+	return nil
+}
+
+func NewPredExpRecDigestModulo(mod int64) *predExpMDDigestModulo {
+	return &predExpMDDigestModulo{mod: mod}
 }
 
 // ---------------- predExpCompare
