@@ -1003,11 +1003,7 @@ func (clnt *Client) CreateComplexIndex(
 		return nil, err
 	}
 
-	response := ""
-	for _, v := range responseMap {
-		response = v
-	}
-
+	response := responseMap[strCmd.String()]
 	if strings.ToUpper(response) == "OK" {
 		// Return task that could optionally be polled for completion.
 		return NewIndexTask(clnt.cluster, namespace, indexName), nil
@@ -1048,23 +1044,55 @@ func (clnt *Client) DropIndex(
 		return err
 	}
 
-	response := ""
-	for _, v := range responseMap {
-		response = v
+	response := responseMap[strCmd.String()]
 
-		if strings.ToUpper(response) == "OK" {
-			// Return task that could optionally be polled for completion.
-			task := NewDropIndexTask(clnt.cluster, namespace, indexName)
-			return <-task.OnComplete()
-		}
+	if strings.ToUpper(response) == "OK" {
+		// Return task that could optionally be polled for completion.
+		task := NewDropIndexTask(clnt.cluster, namespace, indexName)
+		return <-task.OnComplete()
+	}
 
-		if strings.HasPrefix(response, "FAIL:201") {
-			// Index did not previously exist. Return without error.
-			return nil
-		}
+	if strings.HasPrefix(response, "FAIL:201") {
+		// Index did not previously exist. Return without error.
+		return nil
 	}
 
 	return NewAerospikeError(INDEX_GENERIC, "Drop index failed: "+response)
+}
+
+// Remove records in specified namespace/set efficiently.  This method is many orders of magnitude
+// faster than deleting records one at a time.  Works with Aerospike Server versions >= 3.12.
+// This asynchronous server call may return before the truncation is complete.  The user can still
+// write new records after the server call returns because new records will have last update times
+// greater than the truncate cutoff (set at the time of truncate call).
+func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) error {
+	policy = clnt.getUsableWritePolicy(policy)
+
+	var strCmd bytes.Buffer
+	_, err := strCmd.WriteString("truncate:namespace=")
+	_, err = strCmd.WriteString(namespace)
+
+	if len(set) > 0 {
+		_, err = strCmd.WriteString(";set=")
+		_, err = strCmd.WriteString(set)
+	}
+	if beforeLastUpdate != nil {
+		_, err = strCmd.WriteString(";lut=")
+		_, err = strCmd.WriteString(strconv.FormatInt(beforeLastUpdate.UnixNano(), 10))
+	}
+
+	// Send index command to one node. That node will distribute the command to other nodes.
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
+	if err != nil {
+		return err
+	}
+
+	response := responseMap[strCmd.String()]
+	if strings.ToUpper(response) == "OK" {
+		return nil
+	}
+
+	return NewAerospikeError(SERVER_ERROR, "Truncate failed: "+response)
 }
 
 //-------------------------------------------------------
