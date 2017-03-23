@@ -368,9 +368,11 @@ func NewPredExpRecVoidTime() *predExpMD {
 	return &predExpMD{tag: _AS_PREDEXP_REC_VOID_TIME}
 }
 
+// ---------------- predExpMDDigestModulo
+
 type predExpMDDigestModulo struct {
 	predExpBase
-	mod int64
+	mod int32
 }
 
 func (e *predExpMDDigestModulo) String() string {
@@ -378,16 +380,16 @@ func (e *predExpMDDigestModulo) String() string {
 }
 
 func (self *predExpMDDigestModulo) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + 8
+	return self.predExpBase.marshaledSize() + 4
 }
 
 func (self *predExpMDDigestModulo) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, _AS_PREDEXP_REC_DIGEST_MODULO, 8)
-	cmd.WriteInt64(self.mod)
+	self.marshalTL(cmd, _AS_PREDEXP_REC_DIGEST_MODULO, 4)
+	cmd.WriteInt32(self.mod)
 	return nil
 }
 
-func NewPredExpRecDigestModulo(mod int64) *predExpMDDigestModulo {
+func NewPredExpRecDigestModulo(mod int32) *predExpMDDigestModulo {
 	return &predExpMDDigestModulo{mod: mod}
 }
 
