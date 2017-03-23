@@ -70,6 +70,8 @@ const (
 
 // ----------------
 
+type PredExp predExp
+
 type predExp interface {
 	String() string
 	marshaledSize() int
