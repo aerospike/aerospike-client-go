@@ -42,7 +42,7 @@ func newBatchCommandGet(
 	records []*Record,
 	readAttr int,
 ) *batchCommandGet {
-	return &batchCommandGet{
+	res := &batchCommandGet{
 		baseMultiCommand: *newMultiCommand(node, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
@@ -51,6 +51,8 @@ func newBatchCommandGet(
 		records:          records,
 		readAttr:         readAttr,
 	}
+	res.oneShot = false
+	return res
 }
 
 func (cmd *batchCommandGet) getPolicy(ifc command) Policy {

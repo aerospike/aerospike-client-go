@@ -102,6 +102,10 @@ type baseCommand struct {
 
 	dataBuffer []byte
 	dataOffset int
+
+	// oneShot determines if streaming commands like query, scan or queryAggregate
+	// are not retried if they error out mid-parsing
+	oneShot bool
 }
 
 // Writes the command for write operations
@@ -1268,7 +1272,11 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 				cmd.conn.Close()
 
 				Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
-				continue
+
+				// retry only for non-streaming commands
+				if !cmd.oneShot {
+					continue
+				}
 			}
 
 			// close the connection

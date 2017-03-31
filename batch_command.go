@@ -62,8 +62,11 @@ var prepareReflectionData func(cmd *baseMultiCommand)
 
 func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	cmd := &baseMultiCommand{
-		baseCommand: baseCommand{node: node},
-		recordset:   recordset,
+		baseCommand: baseCommand{
+			node:    node,
+			oneShot: true,
+		},
+		recordset: recordset,
 	}
 
 	if prepareReflectionData != nil {

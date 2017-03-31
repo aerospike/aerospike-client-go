@@ -41,7 +41,7 @@ type ScanPolicy struct {
 
 // NewScanPolicy creates a new ScanPolicy instance with default values.
 func NewScanPolicy() *ScanPolicy {
-	res := &ScanPolicy{
+	return &ScanPolicy{
 		MultiPolicy:         NewMultiPolicy(),
 		ScanPercent:         100,
 		ConcurrentNodes:     true,
@@ -49,8 +49,4 @@ func NewScanPolicy() *ScanPolicy {
 		IncludeLDT:          false,
 		FailOnClusterChange: true,
 	}
-	// Retry policy must be one-shot for scans.
-	res.MaxRetries = 0
-
-	return res
 }

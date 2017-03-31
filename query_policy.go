@@ -21,12 +21,7 @@ type QueryPolicy struct {
 
 // NewQueryPolicy generates a new QueryPolicy instance with default values.
 func NewQueryPolicy() *QueryPolicy {
-	res := &QueryPolicy{
+	return &QueryPolicy{
 		MultiPolicy: NewMultiPolicy(),
 	}
-
-	// Retry policy must be one-shot for queries
-	res.MaxRetries = 0
-
-	return res
 }
