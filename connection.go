@@ -104,10 +104,10 @@ func NewSecureConnection(policy *ClientPolicy, host *Host) (*Connection, error) 
 	}
 
 	// To be on the safe side
-	tlsConfig := *policy.TlsConfig
+	tlsConfig := policy.TlsConfig.Clone()
 	tlsConfig.ServerName = host.TLSName
 
-	sconn := tls.Client(conn.conn, &tlsConfig)
+	sconn := tls.Client(conn.conn, tlsConfig)
 	if err := sconn.Handshake(); err != nil {
 		sconn.Close()
 		return nil, err
