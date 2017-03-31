@@ -187,7 +187,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	}
 
 	// try to seed connections for first use
-	err := newCluster.waitTillStabilized(policy.FailIfNotConnected)
+	err := newCluster.waitTillStabilized()
 
 	// apply policy rules
 	if policy.FailIfNotConnected && !newCluster.IsConnected() {
@@ -202,7 +202,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	go newCluster.clusterBoss(&newCluster.clientPolicy)
 
 	Logger.Debug("New cluster initialized and ready to be used...")
-	return newCluster, nil
+	return newCluster, err
 }
 
 // String implements the stringer interface
@@ -228,9 +228,8 @@ Loop:
 			Logger.Debug("Tend channel closed. Shutting down the cluster...")
 			break Loop
 		case <-time.After(tendInterval):
-			// failIfNotConnected should be false, otherwise on invalid addresses tending will stop
 			tm := time.Now()
-			if err := clstr.tend(false); err != nil {
+			if err := clstr.tend(); err != nil {
 				Logger.Warn(err.Error())
 			}
 
@@ -263,7 +262,7 @@ func (clstr *Cluster) AddSeeds(hosts []*Host) {
 }
 
 // Updates cluster state
-func (clstr *Cluster) tend(failIfNotConnected bool) error {
+func (clstr *Cluster) tend() error {
 
 	nodes := clstr.GetNodes()
 	nodeCountBeforeTend := len(nodes)
@@ -272,7 +271,7 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 	// If active nodes don't exist, seed cluster.
 	if len(nodes) == 0 {
 		Logger.Info("No connections available; seeding...")
-		if newNodesFound, err := clstr.seedNodes(failIfNotConnected); !newNodesFound {
+		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
 			return err
 		}
 
@@ -454,19 +453,22 @@ func (clstr *Cluster) peerExists(peers *peers, nodeName string) bool {
 // If the cluster has not stabilized by the timeout, return
 // control as well.  Do not return an error since future
 // database requests may still succeed.
-func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) error {
+func (clstr *Cluster) waitTillStabilized() error {
 	count := -1
 
-	doneCh := make(chan error, 1)
+	doneCh := make(chan error, 10)
 
 	// will run until the cluster is stabilized
 	go func() {
 		var err error
 		for {
-			if err = clstr.tend(failIfNotConnected); err != nil {
-				if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == NOT_AUTHENTICATED {
-					err = aerr
-					break
+			if err = clstr.tend(); err != nil {
+				if aerr, ok := err.(AerospikeError); ok {
+					switch aerr.ResultCode() {
+					case NOT_AUTHENTICATED, CLUSTER_NAME_MISMATCH_ERROR:
+						doneCh <- err
+						return
+					}
 				}
 				Logger.Warn(err.Error())
 			}
@@ -484,10 +486,8 @@ func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) error {
 		doneCh <- err
 	}()
 
-	// returns either on timeout or on cluster stabilization
-	timeout := time.After(clstr.clientPolicy.Timeout)
 	select {
-	case <-timeout:
+	case <-time.After(clstr.clientPolicy.Timeout):
 		return errors.New("Connecting to the cluster timed out.")
 	case err := <-doneCh:
 		return err
@@ -512,7 +512,7 @@ func (clstr *Cluster) getPartitions() partitionMap {
 }
 
 // Adds seeds to the cluster
-func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
+func (clstr *Cluster) seedNodes() (bool, error) {
 	// Must copy array reference for copy on write semantics to work.
 	seedArrayIfc, _ := clstr.seeds.GetSyncedVia(func(val interface{}) (interface{}, error) {
 		seeds := val.([]*Host)
@@ -523,8 +523,8 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 	})
 	seedArray := seedArrayIfc.([]*Host)
 
-	errorList := make([]error, len(seedArray))
 	successChan := make(chan struct{}, len(seedArray))
+	errChan := make(chan error, len(seedArray))
 
 	Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
@@ -540,9 +540,7 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 			err := nv.seedNodes(clstr, seed, nodesToAdd)
 			if err != nil {
 				Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
-				if failIfNotConnected {
-					errorList[index] = err
-				}
+				errChan <- err
 				return
 			}
 			clstr.addNodes(nodesToAdd.nodesToAdd)
@@ -550,20 +548,37 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 		}(i, seed)
 	}
 
-	select {
-	case <-successChan:
-		// even one seed is enough
-		return true, nil
-	case <-time.After(clstr.clientPolicy.Timeout):
-		// time is up, no seeds found
-		wg.Wait()
+	errorList := make([]error, 0, len(seedArray))
+	seedCount := len(seedArray)
+L:
+	for {
+		select {
+		case err := <-errChan:
+			errorList = append(errorList, err)
+			seedCount--
+			if seedCount <= 0 {
+				break L
+			}
+		case <-successChan:
+			// even one seed is enough
+			return true, nil
+		case <-time.After(clstr.clientPolicy.Timeout):
+			// time is up, no seeds found
+			wg.Wait()
+			break L
+		}
 	}
 
 	var errStrs []string
 	for _, err := range errorList {
 		if err != nil {
-			if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == NOT_AUTHENTICATED {
-				return false, NewAerospikeError(NOT_AUTHENTICATED)
+			if aerr, ok := err.(AerospikeError); ok {
+				switch aerr.ResultCode() {
+				case NOT_AUTHENTICATED:
+					return false, NewAerospikeError(NOT_AUTHENTICATED)
+				case CLUSTER_NAME_MISMATCH_ERROR:
+					return false, aerr
+				}
 			}
 			errStrs = append(errStrs, err.Error())
 		}

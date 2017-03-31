@@ -78,7 +78,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	}
 
 	cluster, err := NewCluster(policy, hosts)
-	if err != nil {
+	if err != nil && policy.FailIfNotConnected {
 		if aerr, ok := err.(AerospikeError); ok {
 			Logger.Debug("Failed to connect to host(s): %v; error: %s", hosts, err)
 			return nil, aerr
@@ -96,7 +96,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	}
 
 	runtime.SetFinalizer(client, clientFinalizer)
-	return client, nil
+	return client, err
 
 }
 

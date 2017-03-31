@@ -21,6 +21,9 @@ import "fmt"
 type ResultCode int
 
 const (
+	// Cluster Name does not match the ClientPolicy.ClusterName value.
+	CLUSTER_NAME_MISMATCH_ERROR ResultCode = -10
+
 	// Recordset has already been closed or cancelled
 	RECORDSET_CLOSED ResultCode = -9
 
@@ -276,6 +279,9 @@ func KeepConnection(err error) bool {
 // Return result code as a string.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
+	case CLUSTER_NAME_MISMATCH_ERROR:
+		return "Cluster Name does not match the ClientPolicy.ClusterName value"
+
 	case RECORDSET_CLOSED:
 		return "Recordset has already been closed or cancelled."
 

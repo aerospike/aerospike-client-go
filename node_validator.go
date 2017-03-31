@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -141,7 +142,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 
 	var infoKeys []string
 	if hasClusterName {
-		infoKeys = []string{"node", "features", "cluster-id"}
+		infoKeys = []string{"node", "features", "cluster-name"}
 	} else {
 		infoKeys = []string{"node", "features"}
 	}
@@ -153,6 +154,14 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	nodeName, exists := infoMap["node"]
 	if !exists {
 		return NewAerospikeError(INVALID_NODE_ERROR)
+	}
+
+	if hasClusterName {
+		id := infoMap["cluster-name"]
+
+		if len(id) == 0 || id != cluster.clientPolicy.ClusterName {
+			return NewAerospikeError(CLUSTER_NAME_MISMATCH_ERROR, fmt.Sprintf("Node %s (%s) expected cluster name `%s` but received `%s`", nodeName, alias.String(), cluster.clientPolicy.ClusterName, id))
+		}
 	}
 
 	// set features
