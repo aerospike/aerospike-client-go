@@ -93,7 +93,7 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 // If the connection is not established in the specified timeout,
 // an error will be returned
 func NewSecureConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
-	address := host.Name + ":" + strconv.Itoa(host.Port)
+	address := net.JoinHostPort(host.Name, strconv.Itoa(host.Port))
 	conn, err := NewConnection(address, policy.Timeout)
 	if err != nil {
 		return nil, err

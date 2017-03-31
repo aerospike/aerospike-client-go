@@ -14,7 +14,10 @@
 
 package aerospike
 
-import "strconv"
+import (
+	"net"
+	"strconv"
+)
 
 // Host name/port of database server.
 type Host struct {
@@ -36,7 +39,7 @@ func NewHost(name string, port int) *Host {
 
 // Implements stringer interface
 func (h *Host) String() string {
-	return h.Name + ":" + strconv.Itoa(h.Port)
+	return net.JoinHostPort(h.Name, strconv.Itoa(h.Port))
 }
 
 // Implements stringer interface
