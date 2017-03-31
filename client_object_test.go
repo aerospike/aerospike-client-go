@@ -313,7 +313,7 @@ var _ = Describe("Aerospike", func() {
 
 			AnonymP *struct {
 				SomeStruct
-			} `anonymp`
+			} `as:"anonymp"`
 		}
 
 		makeTestObject := func() *testObject {

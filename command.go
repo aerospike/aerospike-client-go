@@ -1112,10 +1112,10 @@ func (cmd *baseCommand) WriteFloat64(float float64) (int, error) {
 	return 8, nil
 }
 
-func (cmd *baseCommand) WriteByte(b byte) (int, error) {
+func (cmd *baseCommand) WriteByte(b byte) error {
 	cmd.dataBuffer[cmd.dataOffset] = b
 	cmd.dataOffset++
-	return 1, nil
+	return nil
 }
 
 func (cmd *baseCommand) WriteString(s string) (int, error) {

@@ -72,9 +72,8 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 
 	// result recordset
 	taskId := uint64(xornd.Int64())
-	os := newObjectset(reflect.ValueOf(objChan), len(nodes), taskId)
 	res := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes), taskId),
 	}
 
 	// the whole call should be wrapped in a goroutine
@@ -108,9 +107,8 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 
 	// results channel must be async for performance
 	taskId := uint64(xornd.Int64())
-	os := newObjectset(reflect.ValueOf(objChan), 1, taskId)
 	res := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1, taskId),
 	}
 
 	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
@@ -155,9 +153,8 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 	}
 
 	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), len(nodes), statement.TaskId)
 	recSet := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes), statement.TaskId),
 	}
 
 	// the whole call sho
@@ -191,9 +188,8 @@ func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement 
 	}
 
 	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), 1, statement.TaskId)
 	recSet := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1, statement.TaskId),
 	}
 
 	// copy policies to avoid race conditions

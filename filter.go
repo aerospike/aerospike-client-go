@@ -134,25 +134,25 @@ func (fltr *Filter) write(cmd *baseCommand) (int, error) {
 	size := 0
 
 	// Write name length
-	n, err := cmd.WriteByte(byte(len(fltr.name)))
+	err := cmd.WriteByte(byte(len(fltr.name)))
 	if err != nil {
-		return n, err
+		return 0, err
 	}
-	size += n
+	size++
 
 	// Write Name
-	n, err = cmd.WriteString(fltr.name)
+	n, err := cmd.WriteString(fltr.name)
 	if err != nil {
 		return size + n, err
 	}
 	size += n
 
 	// Write particle type.
-	n, err = cmd.WriteByte(byte(fltr.valueParticleType))
+	err = cmd.WriteByte(byte(fltr.valueParticleType))
 	if err != nil {
-		return n, err
+		return size, err
 	}
-	size += n
+	size++
 
 	// Write filter begin.
 	esz, err := fltr.begin.estimateSize()
