@@ -475,6 +475,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
 
+	// Estimate scan timeout size.
+	cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+	fieldCount++
+
 	// Allocate space for TaskId field.
 	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
@@ -522,6 +526,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 	cmd.WriteByte(priority)
 	cmd.WriteByte(byte(policy.ScanPercent))
+
+	// Write scan timeout
+	cmd.writeFieldHeader(4, SCAN_TIMEOUT)
+	cmd.WriteInt32(int32(policy.ServerSocketTimeout / time.Millisecond)) // in milliseconds
 
 	cmd.writeFieldHeader(8, TRAN_ID)
 	cmd.WriteUint64(taskId)
