@@ -103,8 +103,8 @@ func NewSecureConnection(policy *ClientPolicy, host *Host) (*Connection, error) 
 		return conn, nil
 	}
 
-	// To be on the safe side
-	tlsConfig := policy.TlsConfig.Clone()
+	// Use version dependent clone function to clone the config
+	tlsConfig := cloneTlsConfig(policy.TlsConfig)
 	tlsConfig.ServerName = host.TLSName
 
 	sconn := tls.Client(conn.conn, tlsConfig)

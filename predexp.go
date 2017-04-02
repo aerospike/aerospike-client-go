@@ -419,7 +419,7 @@ func (e *predExpCompare) String() string {
 	case _AS_PREDEXP_GEOJSON_WITHIN:
 		return "WITHIN"
 	default:
-		panic(fmt.Sprintf("unexpected predicate tag:", e.tag))
+		panic(fmt.Sprintf("unexpected predicate tag: %d", e.tag))
 	}
 }
 
