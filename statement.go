@@ -43,8 +43,7 @@ type Statement struct {
 	functionArgs []Value
 
 	// Ordered list of predicate expressions
-	predExps  []predExp
-	predicate *boolExpression
+	predExps []predExp
 
 	// TaskId determines query task id. (Optional)
 	TaskId uint64
@@ -72,15 +71,42 @@ func (stmt *Statement) Addfilter(filter *Filter) error {
 	return nil
 }
 
-// Adds a low-level predicate to the statement. Used fr internal testing only.
-func (stmt *Statement) AddPredExp(predexp predExp) error {
-	stmt.predExps = append(stmt.predExps, predexp)
-	return nil
-}
-
-// SetPredicate accepts a predicate to evaluate on the server-side for non-indexed bins.
-func (stmt *Statement) SetPredicate(exp *boolExpression) error {
-	stmt.predicate = exp
+// SetPredExp sets low-level predicate expressions for the statement in postfix notation.
+// Supported only by Aerospike Server v3.12+.
+// Predicate expression filters are applied on the query results on the server.
+// Predicate expression filters may occur on any bin in the record.
+// To learn how to use this API, consult predexp_test.go file.
+//
+// Postfix notation is described here: http://wiki.c2.com/?PostfixNotation
+//
+// Example: (c >= 11 and c <= 20) or (d > 3 and (d < 5)
+//
+// stmt.SetPredExp(
+//   NewPredExpIntegerValue(11),
+//   NewPredExpIntegerBin("c"),
+//   NewPredExpIntegerGreaterEq(),
+//   NewPredExpIntegerValue(20),
+//   NewPredExpIntegerBin("c"),
+//   NewPredExpIntegerLessEq(),
+//   NewPredExpAnd(2),
+//   NewPredExpIntegerValue(3),
+//   NewPredExpIntegerBin("d"),
+//   NewPredExpIntegerGreater(),
+//   NewPredExpIntegerValue(5),
+//   NewPredExpIntegerBin("d"),
+//   NewPredExpIntegerLess(),
+//   NewPredExpAnd(2),
+//   NewPredExpOr(2)
+// );
+//
+// // Record last update time > 2017-01-15
+// stmt.SetPredExp(
+//   NewIntegerValue(time.Date(2017, 0, 15, 0, 0, 0, 0, time.UTC).UnixNano()),
+//   NewPredExpLastUpdate(),
+//   NewPredExpIntegerGreater(),
+// );
+func (stmt *Statement) SetPredExp(predexp ...predExp) error {
+	stmt.predExps = predexp
 	return nil
 }
 

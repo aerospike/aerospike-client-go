@@ -69,8 +69,6 @@ const (
 
 // ----------------
 
-type PredExp predExp
-
 type predExp interface {
 	String() string
 	marshaledSize() int
@@ -96,10 +94,12 @@ type predExpAnd struct {
 	nexpr uint16 // number of child expressions
 }
 
+// String implements the Stringer interface
 func (e *predExpAnd) String() string {
 	return "AND"
 }
 
+// NewPredExpAnd creates an AND predicate. Argument describes the number of expressions.
 func NewPredExpAnd(nexpr uint16) *predExpAnd {
 	return &predExpAnd{nexpr: nexpr}
 }
@@ -121,10 +121,12 @@ type predExpOr struct {
 	nexpr uint16 // number of child expressions
 }
 
+// String implements the Stringer interface
 func (e *predExpOr) String() string {
 	return "OR"
 }
 
+// NewPredExpOr creates an OR predicate. Argument describes the number of expressions.
 func NewPredExpOr(nexpr uint16) *predExpOr {
 	return &predExpOr{nexpr: nexpr}
 }
@@ -145,10 +147,12 @@ type predExpNot struct {
 	predExpBase
 }
 
+// String implements the Stringer interface
 func (e *predExpNot) String() string {
 	return "NOT"
 }
 
+// NewPredExpNot creates a NOT predicate
 func NewPredExpNot() *predExpNot {
 	return &predExpNot{}
 }
@@ -169,10 +173,12 @@ type predExpIntegerValue struct {
 	val int64
 }
 
+// String implements the Stringer interface
 func (e *predExpIntegerValue) String() string {
 	return strconv.FormatInt(e.val, 10)
 }
 
+// NewPredExpIntegerValue embeds an int64 value in a predicate expression.
 func NewPredExpIntegerValue(val int64) *predExpIntegerValue {
 	return &predExpIntegerValue{val: val}
 }
@@ -194,10 +200,12 @@ type predExpStringValue struct {
 	val string
 }
 
+// String implements the Stringer interface
 func (e *predExpStringValue) String() string {
 	return "'" + e.val + "'"
 }
 
+// NewPredExpStringValue embeds a string value in a predicate expression.
 func NewPredExpStringValue(val string) *predExpStringValue {
 	return &predExpStringValue{val: val}
 }
@@ -219,10 +227,12 @@ type predExpGeoJSONValue struct {
 	val string
 }
 
+// String implements the Stringer interface
 func (e *predExpGeoJSONValue) String() string {
 	return e.val
 }
 
+// NewPredExpGeoJSONValue embeds a GeoJSON value in a predicate expression.
 func NewPredExpGeoJSONValue(val string) *predExpGeoJSONValue {
 	return &predExpGeoJSONValue{val: val}
 }
@@ -250,31 +260,38 @@ type predExpBin struct {
 	tag  uint16 // not marshaled
 }
 
+// String implements the Stringer interface
 func (e *predExpBin) String() string {
 	// FIXME - This is not currently distinguished from a var.
 	return e.name
 }
 
+// NewPredExpUnknownBin creates a Bin predicate expression which its type is not known.
 func NewPredExpUnknownBin(name string) *predExpBin {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_UNKNOWN_BIN}
 }
 
+// NewPredExpUnknownBin creates a Bin predicate expression which its type is integer.
 func NewPredExpIntegerBin(name string) *predExpBin {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_INTEGER_BIN}
 }
 
+// NewPredExpUnknownBin creates a Bin predicate expression which its type is String.
 func NewPredExpStringBin(name string) *predExpBin {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_STRING_BIN}
 }
 
+// NewPredExpUnknownBin creates a Bin predicate expression which its type is GeoJSON.
 func NewPredExpGeoJSONBin(name string) *predExpBin {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_GEOJSON_BIN}
 }
 
+// NewPredExpUnknownBin creates a Bin predicate expression which its type is List.
 func NewPredExpListBin(name string) *predExpBin {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_LIST_BIN}
 }
 
+// NewPredExpUnknownBin creates a Bin predicate expression which its type is Map.
 func NewPredExpMapBin(name string) *predExpBin {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_MAP_BIN}
 }
@@ -297,19 +314,23 @@ type predExpVar struct {
 	tag  uint16 // not marshaled
 }
 
+// String implements the Stringer interface
 func (e *predExpVar) String() string {
 	// FIXME - This is not currently distinguished from a bin.
 	return e.name
 }
 
+// NewPredExpIntegerVar creates 64 bit integer variable used in list/map iterations.
 func NewPredExpIntegerVar(name string) *predExpVar {
 	return &predExpVar{name: name, tag: _AS_PREDEXP_INTEGER_VAR}
 }
 
+// NewPredExpStringVar creates string variable used in list/map iterations.
 func NewPredExpStringVar(name string) *predExpVar {
 	return &predExpVar{name: name, tag: _AS_PREDEXP_STRING_VAR}
 }
 
+// NewPredExpGeoJSONVar creates GeoJSON variable used in list/map iterations.
 func NewPredExpGeoJSONVar(name string) *predExpVar {
 	return &predExpVar{name: name, tag: _AS_PREDEXP_GEOJSON_VAR}
 }
@@ -331,6 +352,7 @@ type predExpMD struct {
 	tag uint16 // not marshaled
 }
 
+// String implements the Stringer interface
 func (e *predExpMD) String() string {
 	switch e.tag {
 	case _AS_PREDEXP_REC_DEVICE_SIZE:
@@ -353,14 +375,17 @@ func (self *predExpMD) marshal(cmd *baseCommand) error {
 	return nil
 }
 
+// NewPredExpRecDeviceSize creates record size on disk predicate
 func NewPredExpRecDeviceSize() *predExpMD {
 	return &predExpMD{tag: _AS_PREDEXP_REC_DEVICE_SIZE}
 }
 
+// NewPredExpRecLastUpdate creates record last update predicate
 func NewPredExpRecLastUpdate() *predExpMD {
 	return &predExpMD{tag: _AS_PREDEXP_REC_LAST_UPDATE}
 }
 
+// NewPredExpRecVoidTime creates record expiration time predicate expressed in nanoseconds since 1970-01-01 epoch as 64 bit integer.
 func NewPredExpRecVoidTime() *predExpMD {
 	return &predExpMD{tag: _AS_PREDEXP_REC_VOID_TIME}
 }
@@ -372,6 +397,7 @@ type predExpCompare struct {
 	tag uint16 // not marshaled
 }
 
+// String implements the Stringer interface
 func (e *predExpCompare) String() string {
 	switch e.tag {
 	case _AS_PREDEXP_INTEGER_EQUAL, _AS_PREDEXP_STRING_EQUAL:
@@ -406,42 +432,52 @@ func (self *predExpCompare) marshal(cmd *baseCommand) error {
 	return nil
 }
 
+// NewPredExpIntegerEqual creates Equal predicate for integer values
 func NewPredExpIntegerEqual() *predExpCompare {
 	return &predExpCompare{tag: _AS_PREDEXP_INTEGER_EQUAL}
 }
 
+// NewPredExpIntegerUnequal creates NotEqual predicate for integer values
 func NewPredExpIntegerUnequal() *predExpCompare {
 	return &predExpCompare{tag: _AS_PREDEXP_INTEGER_UNEQUAL}
 }
 
+// NewPredExpIntegerGreater creates Greater Than predicate for integer values
 func NewPredExpIntegerGreater() *predExpCompare {
 	return &predExpCompare{tag: _AS_PREDEXP_INTEGER_GREATER}
 }
 
+// NewPredExpIntegerGreaterEq creates Greater Than Or Equal predicate for integer values
 func NewPredExpIntegerGreaterEq() *predExpCompare {
 	return &predExpCompare{tag: _AS_PREDEXP_INTEGER_GREATEREQ}
 }
 
+// NewPredExpIntegerLess creates Less Than predicate for integer values
 func NewPredExpIntegerLess() *predExpCompare {
 	return &predExpCompare{tag: _AS_PREDEXP_INTEGER_LESS}
 }
 
+// NewPredExpIntegerLessEq creates Less Than Or Equal predicate for integer values
 func NewPredExpIntegerLessEq() *predExpCompare {
 	return &predExpCompare{tag: _AS_PREDEXP_INTEGER_LESSEQ}
 }
 
+// NewPredExpStringEqual creates Equal predicate for string values
 func NewPredExpStringEqual() *predExpCompare {
 	return &predExpCompare{tag: _AS_PREDEXP_STRING_EQUAL}
 }
 
+// NewPredExpStringUnequal creates Not Equal predicate for string values
 func NewPredExpStringUnequal() *predExpCompare {
 	return &predExpCompare{tag: _AS_PREDEXP_STRING_UNEQUAL}
 }
 
+// NewPredExpGeoJSONWithin creates Within Region predicate for GeoJSON values
 func NewPredExpGeoJSONWithin() *predExpCompare {
 	return &predExpCompare{tag: _AS_PREDEXP_GEOJSON_WITHIN}
 }
 
+// NewPredExpGeoJSONContains creates Region Contains predicate for GeoJSON values
 func NewPredExpGeoJSONContains() *predExpCompare {
 	return &predExpCompare{tag: _AS_PREDEXP_GEOJSON_CONTAINS}
 }
@@ -453,10 +489,12 @@ type predExpStringRegex struct {
 	cflags uint32 // cflags
 }
 
+// String implements the Stringer interface
 func (e *predExpStringRegex) String() string {
 	return "regex:"
 }
 
+// NewPredExpStringRegex creates a Regex predicate
 func NewPredExpStringRegex(cflags uint32) *predExpStringRegex {
 	return &predExpStringRegex{cflags: cflags}
 }
@@ -479,6 +517,7 @@ type predExpIter struct {
 	tag  uint16 // not marshaled
 }
 
+// String implements the Stringer interface
 func (e *predExpIter) String() string {
 	switch e.tag {
 	case _AS_PREDEXP_LIST_ITERATE_OR:
@@ -498,26 +537,32 @@ func (e *predExpIter) String() string {
 	}
 }
 
+// NewPredExpListIterateOr creates an Or iterator predicate for list items
 func NewPredExpListIterateOr(name string) *predExpIter {
 	return &predExpIter{name: name, tag: _AS_PREDEXP_LIST_ITERATE_OR}
 }
 
+// NewPredExpMapKeyIterateOr creates an Or iterator predicate on map keys
 func NewPredExpMapKeyIterateOr(name string) *predExpIter {
 	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPKEY_ITERATE_OR}
 }
 
+// NewPredExpMapValIterateOr creates an Or iterator predicate on map values
 func NewPredExpMapValIterateOr(name string) *predExpIter {
 	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPVAL_ITERATE_OR}
 }
 
+// NewPredExpListIterateAnd creates an And iterator predicate for list items
 func NewPredExpListIterateAnd(name string) *predExpIter {
 	return &predExpIter{name: name, tag: _AS_PREDEXP_LIST_ITERATE_AND}
 }
 
+// NewPredExpMapKeyIterateAnd creates an And iterator predicate on map keys
 func NewPredExpMapKeyIterateAnd(name string) *predExpIter {
 	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPKEY_ITERATE_AND}
 }
 
+// NewPredExpMapKeyIterateAnd creates an And iterator predicate on map values
 func NewPredExpMapValIterateAnd(name string) *predExpIter {
 	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPVAL_ITERATE_AND}
 }
