@@ -459,6 +459,7 @@ func (cmd *baseCommand) setBatchGet(policy *BasePolicy, keys []*Key, batch *batc
 func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskId uint64) error {
 	cmd.begin()
 	fieldCount := 0
+	// predExpsSize := 0
 
 	if namespace != nil {
 		cmd.dataOffset += len(*namespace) + int(_FIELD_HEADER_SIZE)
@@ -483,6 +484,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 	}
+
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
@@ -529,6 +531,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.writeOperationForBinName(binNames[i], READ)
 		}
 	}
+
 	cmd.end()
 
 	return nil
@@ -538,6 +541,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
+	predExpsSize := 0
 
 	cmd.begin()
 
@@ -600,6 +604,15 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		// Calling query with no filters is more efficiently handled by a primary index scan.
 		// Estimate scan options size.
 		cmd.dataOffset += (2 + int(_FIELD_HEADER_SIZE))
+		fieldCount++
+	}
+
+	if len(statement.predExps) > 0 {
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
+		for _, predexp := range statement.predExps {
+			predExpsSize += predexp.marshaledSize()
+		}
+		cmd.dataOffset += predExpsSize
 		fieldCount++
 	}
 
@@ -697,6 +710,15 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		priority <<= 4
 		cmd.WriteByte(priority)
 		cmd.WriteByte(byte(100))
+	}
+
+	if len(statement.predExps) > 0 {
+		cmd.writeFieldHeader(predExpsSize, PREDEXP)
+		for _, predexp := range statement.predExps {
+			if err := predexp.marshal(cmd); err != nil {
+				return err
+			}
+		}
 	}
 
 	if statement.functionName != "" {

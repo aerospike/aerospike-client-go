@@ -15,7 +15,7 @@
 package aerospike_test
 
 import (
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -28,7 +28,7 @@ var _ = Describe("Query operations on complex types", func() {
 	// connection data
 	var ns = "test"
 	var set = randString(50)
-	var wpolicy = NewWritePolicy(0, 0)
+	var wpolicy = as.NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
 
 	const keyCount = 1000
@@ -36,15 +36,15 @@ var _ = Describe("Query operations on complex types", func() {
 	valueList := []interface{}{1, 2, 3, "a", "ab", "abc"}
 	valueMap := map[interface{}]interface{}{"a": "b", 0: 1, 1: "a", "b": 2}
 
-	bin1 := NewBin("List", valueList)
-	bin2 := NewBin("Map", valueMap)
-	var keys map[string]*Key
+	bin1 := as.NewBin("List", valueList)
+	bin2 := as.NewBin("Map", valueMap)
+	var keys map[string]*as.Key
 
 	BeforeEach(func() {
-		keys = make(map[string]*Key, keyCount)
+		keys = make(map[string]*as.Key, keyCount)
 		set = randString(50)
 		for i := 0; i < keyCount; i++ {
-			key, err := NewKey(ns, set, randString(50))
+			key, err := as.NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 
 			keys[string(key.Digest())] = key
@@ -53,21 +53,21 @@ var _ = Describe("Query operations on complex types", func() {
 		}
 
 		// queries only work on indices
-		idxTask1, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, NUMERIC, ICT_LIST)
+		idxTask1, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC, as.ICT_LIST)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until index is created
 		Expect(<-idxTask1.OnComplete()).ToNot(HaveOccurred())
 
 		// queries only work on indices
-		idxTask2, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin2.Name, NUMERIC, ICT_MAPKEYS)
+		idxTask2, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin2.Name, as.NUMERIC, as.ICT_MAPKEYS)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until index is created
 		Expect(<-idxTask2.OnComplete()).ToNot(HaveOccurred())
 
 		// queries only work on indices
-		idxTask3, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"values", bin2.Name, NUMERIC, ICT_MAPVALUES)
+		idxTask3, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"values", bin2.Name, as.NUMERIC, as.ICT_MAPVALUES)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until index is created
@@ -81,8 +81,8 @@ var _ = Describe("Query operations on complex types", func() {
 	})
 
 	It("must Query a specific element in list and get only relevant records back", func() {
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewContainsFilter(bin1.Name, ICT_LIST, 1))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 1))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -99,8 +99,8 @@ var _ = Describe("Query operations on complex types", func() {
 	})
 
 	It("must Query a specific non-existig element in list and get no records back", func() {
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewContainsFilter(bin1.Name, ICT_LIST, 10))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 10))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -114,8 +114,8 @@ var _ = Describe("Query operations on complex types", func() {
 	})
 
 	It("must Query a key in map and get only relevant records back", func() {
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewContainsFilter(bin2.Name, ICT_MAPKEYS, 0))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 0))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -132,8 +132,8 @@ var _ = Describe("Query operations on complex types", func() {
 	})
 
 	It("must Query a specific non-existig key in map and get no records back", func() {
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewContainsFilter(bin2.Name, ICT_MAPKEYS, 10))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 10))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -147,8 +147,8 @@ var _ = Describe("Query operations on complex types", func() {
 	})
 
 	It("must Query a value in map and get only relevant records back", func() {
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewContainsFilter(bin2.Name, ICT_MAPVALUES, 1))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 1))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -165,8 +165,8 @@ var _ = Describe("Query operations on complex types", func() {
 	})
 
 	It("must Query a specific non-existig value in map and get no records back", func() {
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewContainsFilter(bin2.Name, ICT_MAPVALUES, 10))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 10))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 

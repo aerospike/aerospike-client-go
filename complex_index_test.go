@@ -15,11 +15,7 @@
 package aerospike_test
 
 import (
-	. "github.com/aerospike/aerospike-client-go"
-	// . "github.com/aerospike/aerospike-client-go/logger"
-	// . "github.com/aerospike/aerospike-client-go/types"
-
-	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -34,20 +30,20 @@ var _ = Describe("Complex Index operations test", func() {
 		var err error
 		var ns = "test"
 		var set = randString(50)
-		var key *Key
-		var wpolicy = NewWritePolicy(0, 0)
+		var key *as.Key
+		var wpolicy = as.NewWritePolicy(0, 0)
 
 		const keyCount = 1000
 
 		valueList := []interface{}{1, 2, 3, "a", "ab", "abc"}
 		valueMap := map[interface{}]interface{}{"a": "b", 0: 1, 1: "a", "b": 2}
 
-		bin1 := NewBin("Aerospike1", valueList)
-		bin2 := NewBin("Aerospike2", valueMap)
+		bin1 := as.NewBin("Aerospike1", valueList)
+		bin2 := as.NewBin("Aerospike2", valueMap)
 
 		BeforeEach(func() {
 			for i := 0; i < keyCount; i++ {
-				key, err = NewKey(ns, set, randString(50))
+				key, err = as.NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
 
 				err = client.PutBins(wpolicy, key, bin1, bin2)
@@ -58,7 +54,7 @@ var _ = Describe("Complex Index operations test", func() {
 		Context("Create non-existing complex index", func() {
 
 			It("must create a complex Index for Lists", func() {
-				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, STRING, ICT_LIST)
+				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING, as.ICT_LIST)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.DropIndex(wpolicy, ns, set, set+bin1.Name)
 
@@ -66,12 +62,12 @@ var _ = Describe("Complex Index operations test", func() {
 				<-idxTask.OnComplete()
 
 				// no duplicate index is allowed
-				_, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, STRING)
+				_, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
 				Expect(err).To(HaveOccurred())
 			})
 
 			It("must create a complex Index for Map Keys", func() {
-				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin2.Name, STRING, ICT_MAPKEYS)
+				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin2.Name, as.STRING, as.ICT_MAPKEYS)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.DropIndex(wpolicy, ns, set, set+bin2.Name+"keys")
 
@@ -79,12 +75,12 @@ var _ = Describe("Complex Index operations test", func() {
 				<-idxTask.OnComplete()
 
 				// no duplicate index is allowed
-				_, err = client.CreateIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin1.Name, STRING)
+				_, err = client.CreateIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin1.Name, as.STRING)
 				Expect(err).To(HaveOccurred())
 			})
 
 			It("must create a complex Index for Map Values", func() {
-				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"values", bin2.Name, STRING, ICT_MAPVALUES)
+				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"values", bin2.Name, as.STRING, as.ICT_MAPVALUES)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.DropIndex(wpolicy, ns, set, set+bin2.Name+"values")
 
@@ -92,7 +88,7 @@ var _ = Describe("Complex Index operations test", func() {
 				<-idxTask.OnComplete()
 
 				// no duplicate index is allowed
-				_, err = client.CreateIndex(wpolicy, ns, set, set+bin2.Name+"values", bin1.Name, STRING)
+				_, err = client.CreateIndex(wpolicy, ns, set, set+bin2.Name+"values", bin1.Name, as.STRING)
 				Expect(err).To(HaveOccurred())
 			})
 

@@ -18,11 +18,7 @@ import (
 	"math"
 	"math/rand"
 
-	. "github.com/aerospike/aerospike-client-go"
-	// . "github.com/aerospike/aerospike-client-go/logger"
-	// . "github.com/aerospike/aerospike-client-go/types"
-
-	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -36,16 +32,16 @@ var _ = Describe("Index operations test", func() {
 		var err error
 		var ns = "test"
 		var set = randString(50)
-		var key *Key
-		var wpolicy = NewWritePolicy(0, 0)
+		var key *as.Key
+		var wpolicy = as.NewWritePolicy(0, 0)
 
 		const keyCount = 1000
-		bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
-		bin2 := NewBin("Aerospike2", randString(100))
+		bin1 := as.NewBin("Aerospike1", rand.Intn(math.MaxInt16))
+		bin2 := as.NewBin("Aerospike2", randString(100))
 
 		BeforeEach(func() {
 			for i := 0; i < keyCount; i++ {
-				key, err = NewKey(ns, set, randString(50))
+				key, err = as.NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
 
 				err = client.PutBins(wpolicy, key, bin1, bin2)
@@ -56,7 +52,7 @@ var _ = Describe("Index operations test", func() {
 		Context("Create non-existing index", func() {
 
 			It("must create an Index", func() {
-				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, STRING)
+				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.DropIndex(wpolicy, ns, set, set+bin1.Name)
 
@@ -64,12 +60,12 @@ var _ = Describe("Index operations test", func() {
 				<-idxTask.OnComplete()
 
 				// no duplicate index is allowed
-				_, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, STRING)
+				_, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
 				Expect(err).To(HaveOccurred())
 			})
 
 			It("must drop an Index", func() {
-				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, STRING)
+				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
 				Expect(err).ToNot(HaveOccurred())
 
 				// wait until index is created
@@ -83,7 +79,7 @@ var _ = Describe("Index operations test", func() {
 			})
 
 			It("must drop an Index, and recreate it again to verify", func() {
-				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, STRING)
+				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
 				Expect(err).ToNot(HaveOccurred())
 
 				// wait until index is created
@@ -94,7 +90,7 @@ var _ = Describe("Index operations test", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// create the index again; should not encounter any errors
-				idxTask, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, STRING)
+				idxTask, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
 				Expect(err).ToNot(HaveOccurred())
 
 				// wait until index is created
