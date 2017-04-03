@@ -45,7 +45,7 @@ type MapIter interface {
 // func (cs *CustomSlice) PackList(buf aerospike.BufferEx) (int, error) {
 // 	size := 0
 // 	for _, elem := range cs {
-// 		n, err := PackXXX(buf, elem, false)
+// 		n, err := PackXXX(buf, elem)
 // 		size += n
 // 		if err != nil {
 // 			return size, err

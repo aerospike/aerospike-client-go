@@ -64,8 +64,18 @@ type AerospikeBlob interface {
 // NewValue generates a new Value object based on the type.
 // If the type is not supported, NewValue will panic.
 // This method is a convenience method, and should not be used
-// when absolute performance is required. In those cases,
-// call the NewXXXValue specialized methods instead.
+// when absolute performance is required unless for the reason mentioned below.
+//
+// If you have custom maps or slices like:
+//     type MyMap map[primitive1]primitive2, eg: map[int]string
+// or
+//     type MySlice []primitive, eg: []float64
+// cast them to their primitive type when passing them to this method:
+//     v := NewValue(map[int]string(myVar))
+//     v := NewValue([]float64(myVar))
+// This way you will avoid hitting reflection.
+// To completely avoid reflection in the library,
+// use the build tag: as_performance while building your program.
 func NewValue(v interface{}) Value {
 	switch val := v.(type) {
 	case Value:
@@ -115,6 +125,253 @@ func NewValue(v interface{}) Value {
 		return NewListerValue(val)
 	case AerospikeBlob:
 		return NewBlobValue(val)
+
+	/*
+		The following cases will try to avoid using reflection by matching against the
+		internal generic types.
+		If you have custom type aliases in your code, you can use the same aerospike types to cast your type into,
+		to avoid hitting the generics.
+	*/
+	case []string:
+		return NewListerValue(stringSlice(val))
+	case []int:
+		return NewListerValue(intSlice(val))
+	case []int8:
+		return NewListerValue(int8Slice(val))
+	case []int16:
+		return NewListerValue(int16Slice(val))
+	case []int32:
+		return NewListerValue(int32Slice(val))
+	case []int64:
+		return NewListerValue(int64Slice(val))
+	case []uint16:
+		return NewListerValue(uint16Slice(val))
+	case []uint32:
+		return NewListerValue(uint32Slice(val))
+	case []uint64:
+		return NewListerValue(uint64Slice(val))
+	case []float32:
+		return NewListerValue(float32Slice(val))
+	case []float64:
+		return NewListerValue(float64Slice(val))
+	case map[string]string:
+		return NewMapperValue(stringStringMap(val))
+	case map[string]int:
+		return NewMapperValue(stringIntMap(val))
+	case map[string]int8:
+		return NewMapperValue(stringInt8Map(val))
+	case map[string]int16:
+		return NewMapperValue(stringInt16Map(val))
+	case map[string]int32:
+		return NewMapperValue(stringInt32Map(val))
+	case map[string]int64:
+		return NewMapperValue(stringInt64Map(val))
+	case map[string]uint16:
+		return NewMapperValue(stringUint16Map(val))
+	case map[string]uint32:
+		return NewMapperValue(stringUint32Map(val))
+	case map[string]float32:
+		return NewMapperValue(stringFloat32Map(val))
+	case map[string]float64:
+		return NewMapperValue(stringFloat64Map(val))
+	case map[int]string:
+		return NewMapperValue(intStringMap(val))
+	case map[int]int:
+		return NewMapperValue(intIntMap(val))
+	case map[int]int8:
+		return NewMapperValue(intInt8Map(val))
+	case map[int]int16:
+		return NewMapperValue(intInt16Map(val))
+	case map[int]int32:
+		return NewMapperValue(intInt32Map(val))
+	case map[int]int64:
+		return NewMapperValue(intInt64Map(val))
+	case map[int]uint16:
+		return NewMapperValue(intUint16Map(val))
+	case map[int]uint32:
+		return NewMapperValue(intUint32Map(val))
+	case map[int]float32:
+		return NewMapperValue(intFloat32Map(val))
+	case map[int]float64:
+		return NewMapperValue(intFloat64Map(val))
+	case map[int]interface{}:
+		return NewMapperValue(intInterfaceMap(val))
+	case map[int8]string:
+		return NewMapperValue(int8StringMap(val))
+	case map[int8]int:
+		return NewMapperValue(int8IntMap(val))
+	case map[int8]int8:
+		return NewMapperValue(int8Int8Map(val))
+	case map[int8]int16:
+		return NewMapperValue(int8Int16Map(val))
+	case map[int8]int32:
+		return NewMapperValue(int8Int32Map(val))
+	case map[int8]int64:
+		return NewMapperValue(int8Int64Map(val))
+	case map[int8]uint16:
+		return NewMapperValue(int8Uint16Map(val))
+	case map[int8]uint32:
+		return NewMapperValue(int8Uint32Map(val))
+	case map[int8]float32:
+		return NewMapperValue(int8Float32Map(val))
+	case map[int8]float64:
+		return NewMapperValue(int8Float64Map(val))
+	case map[int8]interface{}:
+		return NewMapperValue(int8InterfaceMap(val))
+	case map[int16]string:
+		return NewMapperValue(int16StringMap(val))
+	case map[int16]int:
+		return NewMapperValue(int16IntMap(val))
+	case map[int16]int8:
+		return NewMapperValue(int16Int8Map(val))
+	case map[int16]int16:
+		return NewMapperValue(int16Int16Map(val))
+	case map[int16]int32:
+		return NewMapperValue(int16Int32Map(val))
+	case map[int16]int64:
+		return NewMapperValue(int16Int64Map(val))
+	case map[int16]uint16:
+		return NewMapperValue(int16Uint16Map(val))
+	case map[int16]uint32:
+		return NewMapperValue(int16Uint32Map(val))
+	case map[int16]float32:
+		return NewMapperValue(int16Float32Map(val))
+	case map[int16]float64:
+		return NewMapperValue(int16Float64Map(val))
+	case map[int16]interface{}:
+		return NewMapperValue(int16InterfaceMap(val))
+	case map[int32]string:
+		return NewMapperValue(int32StringMap(val))
+	case map[int32]int:
+		return NewMapperValue(int32IntMap(val))
+	case map[int32]int8:
+		return NewMapperValue(int32Int8Map(val))
+	case map[int32]int16:
+		return NewMapperValue(int32Int16Map(val))
+	case map[int32]int32:
+		return NewMapperValue(int32Int32Map(val))
+	case map[int32]int64:
+		return NewMapperValue(int32Int64Map(val))
+	case map[int32]uint16:
+		return NewMapperValue(int32Uint16Map(val))
+	case map[int32]uint32:
+		return NewMapperValue(int32Uint32Map(val))
+	case map[int32]float32:
+		return NewMapperValue(int32Float32Map(val))
+	case map[int32]float64:
+		return NewMapperValue(int32Float64Map(val))
+	case map[int32]interface{}:
+		return NewMapperValue(int32InterfaceMap(val))
+	case map[int64]string:
+		return NewMapperValue(int64StringMap(val))
+	case map[int64]int:
+		return NewMapperValue(int64IntMap(val))
+	case map[int64]int8:
+		return NewMapperValue(int64Int8Map(val))
+	case map[int64]int16:
+		return NewMapperValue(int64Int16Map(val))
+	case map[int64]int32:
+		return NewMapperValue(int64Int32Map(val))
+	case map[int64]int64:
+		return NewMapperValue(int64Int64Map(val))
+	case map[int64]uint16:
+		return NewMapperValue(int64Uint16Map(val))
+	case map[int64]uint32:
+		return NewMapperValue(int64Uint32Map(val))
+	case map[int64]float32:
+		return NewMapperValue(int64Float32Map(val))
+	case map[int64]float64:
+		return NewMapperValue(int64Float64Map(val))
+	case map[int64]interface{}:
+		return NewMapperValue(int64InterfaceMap(val))
+	case map[uint16]string:
+		return NewMapperValue(uint16StringMap(val))
+	case map[uint16]int:
+		return NewMapperValue(uint16IntMap(val))
+	case map[uint16]int8:
+		return NewMapperValue(uint16Int8Map(val))
+	case map[uint16]int16:
+		return NewMapperValue(uint16Int16Map(val))
+	case map[uint16]int32:
+		return NewMapperValue(uint16Int32Map(val))
+	case map[uint16]int64:
+		return NewMapperValue(uint16Int64Map(val))
+	case map[uint16]uint16:
+		return NewMapperValue(uint16Uint16Map(val))
+	case map[uint16]uint32:
+		return NewMapperValue(uint16Uint32Map(val))
+	case map[uint16]float32:
+		return NewMapperValue(uint16Float32Map(val))
+	case map[uint16]float64:
+		return NewMapperValue(uint16Float64Map(val))
+	case map[uint16]interface{}:
+		return NewMapperValue(uint16InterfaceMap(val))
+	case map[uint32]string:
+		return NewMapperValue(uint32StringMap(val))
+	case map[uint32]int:
+		return NewMapperValue(uint32IntMap(val))
+	case map[uint32]int8:
+		return NewMapperValue(uint32Int8Map(val))
+	case map[uint32]int16:
+		return NewMapperValue(uint32Int16Map(val))
+	case map[uint32]int32:
+		return NewMapperValue(uint32Int32Map(val))
+	case map[uint32]int64:
+		return NewMapperValue(uint32Int64Map(val))
+	case map[uint32]uint16:
+		return NewMapperValue(uint32Uint16Map(val))
+	case map[uint32]uint32:
+		return NewMapperValue(uint32Uint32Map(val))
+	case map[uint32]float32:
+		return NewMapperValue(uint32Float32Map(val))
+	case map[uint32]float64:
+		return NewMapperValue(uint32Float64Map(val))
+	case map[uint32]interface{}:
+		return NewMapperValue(uint32InterfaceMap(val))
+	case map[float32]string:
+		return NewMapperValue(float32StringMap(val))
+	case map[float32]int:
+		return NewMapperValue(float32IntMap(val))
+	case map[float32]int8:
+		return NewMapperValue(float32Int8Map(val))
+	case map[float32]int16:
+		return NewMapperValue(float32Int16Map(val))
+	case map[float32]int32:
+		return NewMapperValue(float32Int32Map(val))
+	case map[float32]int64:
+		return NewMapperValue(float32Int64Map(val))
+	case map[float32]uint16:
+		return NewMapperValue(float32Uint16Map(val))
+	case map[float32]uint32:
+		return NewMapperValue(float32Uint32Map(val))
+	case map[float32]float32:
+		return NewMapperValue(float32Float32Map(val))
+	case map[float32]float64:
+		return NewMapperValue(float32Float64Map(val))
+	case map[float32]interface{}:
+		return NewMapperValue(float32InterfaceMap(val))
+	case map[float64]string:
+		return NewMapperValue(float64StringMap(val))
+	case map[float64]int:
+		return NewMapperValue(float64IntMap(val))
+	case map[float64]int8:
+		return NewMapperValue(float64Int8Map(val))
+	case map[float64]int16:
+		return NewMapperValue(float64Int16Map(val))
+	case map[float64]int32:
+		return NewMapperValue(float64Int32Map(val))
+	case map[float64]int64:
+		return NewMapperValue(float64Int64Map(val))
+	case map[float64]uint16:
+		return NewMapperValue(float64Uint16Map(val))
+	case map[float64]uint32:
+		return NewMapperValue(float64Uint32Map(val))
+	case map[float64]float32:
+		return NewMapperValue(float64Float32Map(val))
+	case map[float64]float64:
+		return NewMapperValue(float64Float64Map(val))
+	case map[float64]interface{}:
+		return NewMapperValue(float64InterfaceMap(val))
 	}
 
 	if newValueReflect != nil {
@@ -124,7 +381,7 @@ func NewValue(v interface{}) Value {
 	}
 
 	// panic for anything that is not supported.
-	panic(NewAerospikeError(TYPE_NOT_SUPPORTED, "Value type '"+reflect.TypeOf(v).Name()+"' not supported"))
+	panic(NewAerospikeError(TYPE_NOT_SUPPORTED, "Value type '"+reflect.TypeOf(v).String()+"' not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)"))
 }
 
 // NullValue is an empty value.
