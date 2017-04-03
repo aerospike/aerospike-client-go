@@ -443,9 +443,11 @@ var _ = Describe("predexp operations", func() {
 		cnt := []int{0, 0, 0}
 		for _, ndx := range []int64{0, 1, 2} {
 			stm := as.NewStatement(ns, set)
-			stm.AddPredExp(as.NewPredExpRecDigestModulo(3))
-			stm.AddPredExp(as.NewPredExpIntegerValue(ndx))
-			stm.AddPredExp(as.NewPredExpIntegerEqual())
+			stm.SetPredExp(
+				as.NewPredExpRecDigestModulo(3),
+				as.NewPredExpIntegerValue(ndx),
+				as.NewPredExpIntegerEqual(),
+			)
 			recordset, err := client.Query(nil, stm)
 			Expect(err).ToNot(HaveOccurred())
 

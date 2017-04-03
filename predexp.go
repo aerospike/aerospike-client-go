@@ -42,8 +42,8 @@ const (
 	_AS_PREDEXP_GEOJSON_VAR uint16 = 122
 
 	_AS_PREDEXP_REC_DEVICE_SIZE   uint16 = 150
-	_AS_PREDEXP_REC_LAST_UPDATE	  uint16 = 151
-	_AS_PREDEXP_REC_VOID_TIME  	  uint16 = 152
+	_AS_PREDEXP_REC_LAST_UPDATE   uint16 = 151
+	_AS_PREDEXP_REC_VOID_TIME     uint16 = 152
 	_AS_PREDEXP_REC_DIGEST_MODULO uint16 = 153
 
 	_AS_PREDEXP_INTEGER_EQUAL     uint16 = 200
@@ -400,6 +400,7 @@ type predExpMDDigestModulo struct {
 	mod int32
 }
 
+// String implements the Stringer interface
 func (e *predExpMDDigestModulo) String() string {
 	return "rec.DigestModulo"
 }
@@ -414,6 +415,17 @@ func (self *predExpMDDigestModulo) marshal(cmd *baseCommand) error {
 	return nil
 }
 
+// NewPredExpRecDigestModulo creates a digest modulo record metadata value predicate expression.
+// The digest modulo expression assumes the value of 4 bytes of the
+// record's key digest modulo as its argument.
+//
+// For example, the following sequence of predicate expressions
+// selects records that have digest(key) % 3 == 1):
+// stmt.SetPredExp(
+// 		NewPredExpRecDigestModulo(3),
+// 		NewPredExpIntegerValue(1),
+// 		NewPredExpIntegerEqual(),
+// )
 func NewPredExpRecDigestModulo(mod int32) *predExpMDDigestModulo {
 	return &predExpMDDigestModulo{mod: mod}
 }
