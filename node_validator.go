@@ -15,11 +15,11 @@
 package aerospike
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"strings"
 	"sync"
-	"bytes"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -76,8 +76,8 @@ func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd *no
 }
 
 func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) error {
-	if cluster.clientPolicy.IgnoreOtherSubnetAliases {
-		masterHostname := cluster.GetNodes()[0].host.Name
+	if clusterNodes := cluster.GetNodes(); cluster.clientPolicy.IgnoreOtherSubnetAliases && len(clusterNodes) > 0 {
+		masterHostname := clusterNodes[0].host.Name
 		ip, ipnet, err := net.ParseCIDR(masterHostname + "/24")
 		if err != nil {
 			Logger.Error(err.Error())
