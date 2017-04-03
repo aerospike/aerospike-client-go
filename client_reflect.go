@@ -72,28 +72,24 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 
 	// result recordset
 	taskId := uint64(xornd.Int64())
-	os := newObjectset(reflect.ValueOf(objChan), len(nodes), taskId)
 	res := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes), taskId),
 	}
 
 	// the whole call should be wrapped in a goroutine
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
 			go func(node *Node) {
-				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-				}
+				// Errors are handled inside the command itself
+				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
 			}(node)
 		}
 	} else {
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-					continue
-				}
+				// Errors are handled inside the command itself
+				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
 			}
 		}()
 	}
@@ -111,9 +107,8 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 
 	// results channel must be async for performance
 	taskId := uint64(xornd.Int64())
-	os := newObjectset(reflect.ValueOf(objChan), 1, taskId)
 	res := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1, taskId),
 	}
 
 	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
@@ -158,9 +153,8 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 	}
 
 	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), len(nodes), statement.TaskId)
 	recSet := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes), statement.TaskId),
 	}
 
 	// the whole call sho
@@ -170,10 +164,8 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 		newPolicy := *policy
 		command := newQueryObjectsCommand(node, &newPolicy, statement, recSet)
 		go func() {
-			err := command.Execute()
-			if err != nil {
-				recSet.sendError(err)
-			}
+			// Do not send the error to the channel; it is already handled in the Execute method
+			command.Execute()
 		}()
 	}
 
@@ -196,19 +188,15 @@ func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement 
 	}
 
 	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), 1, statement.TaskId)
 	recSet := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1, statement.TaskId),
 	}
 
 	// copy policies to avoid race conditions
 	newPolicy := *policy
 	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
 	go func() {
-		err := command.Execute()
-		if err != nil {
-			recSet.sendError(err)
-		}
+		command.Execute()
 	}()
 
 	return recSet, nil

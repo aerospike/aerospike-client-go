@@ -23,6 +23,7 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
+	. "github.com/aerospike/aerospike-client-go/types"
 	. "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 	. "github.com/onsi/ginkgo"
@@ -34,6 +35,7 @@ var _ = Describe("Aerospike", func() {
 	initTestVars()
 
 	Describe("Client Management", func() {
+
 		It("must open and close the client without a problem", func() {
 			// use the same client for all
 			client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
@@ -43,6 +45,47 @@ var _ = Describe("Aerospike", func() {
 			client.Close()
 			Expect(client.IsConnected()).To(BeFalse())
 		})
+
+		It("must return an error if supplied cluster-name is wrong", func() {
+			// use the same client for all
+			cpolicy := *clientPolicy
+			cpolicy.ClusterName = "haha"
+			cpolicy.Timeout = 10 * time.Second
+			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+			aerr, ok := err.(AerospikeError)
+			Expect(ok).To(BeTrue())
+			Expect(err).To(HaveOccurred())
+			Expect(aerr.ResultCode()).To(Equal(CLUSTER_NAME_MISMATCH_ERROR))
+			Expect(nclient).To(BeNil())
+		})
+
+		It("must return a client even if cluster-name is wrong, but failIfConnected is false", func() {
+			// use the same client for all
+			cpolicy := *clientPolicy
+			cpolicy.ClusterName = "haha"
+			cpolicy.Timeout = 10 * time.Second
+			cpolicy.FailIfNotConnected = false
+			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+			aerr, ok := err.(AerospikeError)
+			Expect(ok).To(BeTrue())
+			Expect(err).To(HaveOccurred())
+			Expect(aerr.ResultCode()).To(Equal(CLUSTER_NAME_MISMATCH_ERROR))
+			Expect(nclient).NotTo(BeNil())
+			Expect(nclient.IsConnected()).To(BeFalse())
+		})
+
+		It("must connect to the cluster when cluster-name is correct", func() {
+			nodeCount := len(client.GetNodes())
+
+			// use the same client for all
+			cpolicy := *clientPolicy
+			cpolicy.ClusterName = "null"
+			cpolicy.Timeout = 10 * time.Second
+			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(nclient.GetNodes())).To(Equal(nodeCount))
+		})
+
 	})
 
 	Describe("Data operations on native types", func() {
@@ -71,10 +114,7 @@ var _ = Describe("Aerospike", func() {
 				It("must return 30d if set to TTLServerDefault", func() {
 					wpolicy := as.NewWritePolicy(0, as.TTLServerDefault)
 					bin := as.NewBin("Aerospike", "value")
-					err = client.PutBins(wpolicy, key, bin)
-					Expect(err).ToNot(HaveOccurred())
-
-					rec, err = client.Get(rpolicy, key)
+					rec, err = client.Operate(wpolicy, key, as.PutOp(bin), as.GetOp())
 					Expect(err).ToNot(HaveOccurred())
 
 					defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))

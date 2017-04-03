@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	lualib "github.com/aerospike/aerospike-client-go/internal/lua"
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -77,7 +78,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	}
 
 	cluster, err := NewCluster(policy, hosts)
-	if err != nil {
+	if err != nil && policy.FailIfNotConnected {
 		if aerr, ok := err.(AerospikeError); ok {
 			Logger.Debug("Failed to connect to host(s): %v; error: %s", hosts, err)
 			return nil, aerr
@@ -95,7 +96,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	}
 
 	runtime.SetFinalizer(client, clientFinalizer)
-	return client, nil
+	return client, err
 
 }
 
@@ -413,19 +414,14 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
 			go func(node *Node) {
-				if err := clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-				}
+				clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...)
 			}(node)
 		}
 	} else {
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				if err := clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-					continue
-				}
+				clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...)
 			}
 		}()
 	}
@@ -560,30 +556,12 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	_, err = strCmd.WriteString(";")
 
 	// Send UDF to one node. That node will distribute the UDF to other nodes.
-	node, err := clnt.cluster.GetRandomNode()
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	responseMap, err := RequestInfo(conn, strCmd.String())
-	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	var response string
-	for _, v := range responseMap {
-		if strings.Trim(v, " ") != "" {
-			response = v
-		}
-	}
-
+	response := responseMap[strCmd.String()]
 	res := make(map[string]string)
 	vals := strings.Split(response, ";")
 	for _, pair := range vals {
@@ -620,30 +598,12 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 	_, err = strCmd.WriteString(";")
 
 	// Send command to one node. That node will distribute it to other nodes.
-	node, err := clnt.cluster.GetRandomNode()
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	responseMap, err := RequestInfo(conn, strCmd.String())
-	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	var response string
-	for _, v := range responseMap {
-		if strings.Trim(v, " ") != "" {
-			response = v
-		}
-	}
-
+	response := responseMap[strCmd.String()]
 	if response == "ok" {
 		return NewRemoveTask(clnt.cluster, udfName), nil
 	}
@@ -662,30 +622,12 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 	_, err := strCmd.WriteString("udf-list")
 
 	// Send command to one node. That node will distribute it to other nodes.
-	node, err := clnt.cluster.GetRandomNode()
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	responseMap, err := RequestInfo(conn, strCmd.String())
-	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	var response string
-	for _, v := range responseMap {
-		if strings.Trim(v, " ") != "" {
-			response = v
-		}
-	}
-
+	response := responseMap[strCmd.String()]
 	vals := strings.Split(response, ";")
 	res := make([]*UDF, 0, len(vals))
 
@@ -865,10 +807,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 
 		go func() {
 			defer wg.Done()
-			err := command.Execute()
-			if err != nil {
-				recSet.sendError(err)
-			}
+			command.Execute()
 		}()
 	}
 
@@ -962,10 +901,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		newPolicy := *policy
 		command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
 		go func() {
-			err := command.Execute()
-			if err != nil {
-				recSet.sendError(err)
-			}
+			command.Execute()
 		}()
 	}
 
@@ -995,10 +931,7 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 	newPolicy := *policy
 	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
 	go func() {
-		err := command.Execute()
-		if err != nil {
-			recSet.sendError(err)
-		}
+		command.Execute()
 	}()
 
 	return recSet, nil
@@ -1065,16 +998,12 @@ func (clnt *Client) CreateComplexIndex(
 	_, err = strCmd.WriteString(";priority=normal")
 
 	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	response := ""
-	for _, v := range responseMap {
-		response = v
-	}
-
+	response := responseMap[strCmd.String()]
 	if strings.ToUpper(response) == "OK" {
 		// Return task that could optionally be polled for completion.
 		return NewIndexTask(clnt.cluster, namespace, indexName), nil
@@ -1110,28 +1039,60 @@ func (clnt *Client) DropIndex(
 	_, err = strCmd.WriteString(indexName)
 
 	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return err
 	}
 
-	response := ""
-	for _, v := range responseMap {
-		response = v
+	response := responseMap[strCmd.String()]
 
-		if strings.ToUpper(response) == "OK" {
-			// Return task that could optionally be polled for completion.
-			task := NewDropIndexTask(clnt.cluster, namespace, indexName)
-			return <-task.OnComplete()
-		}
+	if strings.ToUpper(response) == "OK" {
+		// Return task that could optionally be polled for completion.
+		task := NewDropIndexTask(clnt.cluster, namespace, indexName)
+		return <-task.OnComplete()
+	}
 
-		if strings.HasPrefix(response, "FAIL:201") {
-			// Index did not previously exist. Return without error.
-			return nil
-		}
+	if strings.HasPrefix(response, "FAIL:201") {
+		// Index did not previously exist. Return without error.
+		return nil
 	}
 
 	return NewAerospikeError(INDEX_GENERIC, "Drop index failed: "+response)
+}
+
+// Remove records in specified namespace/set efficiently.  This method is many orders of magnitude
+// faster than deleting records one at a time.  Works with Aerospike Server versions >= 3.12.
+// This asynchronous server call may return before the truncation is complete.  The user can still
+// write new records after the server call returns because new records will have last update times
+// greater than the truncate cutoff (set at the time of truncate call).
+func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) error {
+	policy = clnt.getUsableWritePolicy(policy)
+
+	var strCmd bytes.Buffer
+	_, err := strCmd.WriteString("truncate:namespace=")
+	_, err = strCmd.WriteString(namespace)
+
+	if len(set) > 0 {
+		_, err = strCmd.WriteString(";set=")
+		_, err = strCmd.WriteString(set)
+	}
+	if beforeLastUpdate != nil {
+		_, err = strCmd.WriteString(";lut=")
+		_, err = strCmd.WriteString(strconv.FormatInt(beforeLastUpdate.UnixNano(), 10))
+	}
+
+	// Send index command to one node. That node will distribute the command to other nodes.
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
+	if err != nil {
+		return err
+	}
+
+	response := responseMap[strCmd.String()]
+	if strings.ToUpper(response) == "OK" {
+		return nil
+	}
+
+	return NewAerospikeError(SERVER_ERROR, "Truncate failed: "+response)
 }
 
 //-------------------------------------------------------
@@ -1287,26 +1248,22 @@ func (clnt *Client) String() string {
 // Internal Methods
 //-------------------------------------------------------
 
-func (clnt *Client) sendInfoCommand(policy *WritePolicy, command string) (map[string]string, error) {
+func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[string]string, error) {
 	node, err := clnt.cluster.GetRandomNode()
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
+	if err := node.initTendConn(timeout); err != nil {
 		return nil, err
 	}
 
-	info, err := newInfo(conn, command)
+	results, err := RequestInfo(node.tendConn, command)
 	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	results, err := info.parseMultiResponse()
-	if err != nil {
+		node.tendConn.Close()
 		return nil, err
 	}
 

@@ -1,3 +1,5 @@
+// +build go1.8
+
 // Copyright 2013-2017 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,27 +16,10 @@
 
 package aerospike
 
-import . "github.com/aerospike/aerospike-client-go/types"
+import (
+	"crypto/tls"
+)
 
-type queryObjectsCommand struct {
-	queryCommand
-}
-
-func newQueryObjectsCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryObjectsCommand {
-	cmd := &queryObjectsCommand{
-		queryCommand: *newQueryCommand(node, policy, statement, recordset),
-	}
-
-	cmd.terminationErrorType = QUERY_TERMINATED
-
-	return cmd
-}
-
-func (cmd *queryObjectsCommand) Execute() error {
-	defer cmd.recordset.signalEnd()
-	err := cmd.execute(cmd)
-	if err != nil {
-		cmd.recordset.sendError(err)
-	}
-	return err
+func cloneTlsConfig(c *tls.Config) *tls.Config {
+	return c.Clone()
 }

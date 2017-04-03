@@ -52,7 +52,7 @@ func batchParseObject(
 ) error {
 	for i := 0; i < opCount; i++ {
 		if err := cmd.readBytes(8); err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return err
 		}
 
@@ -61,19 +61,19 @@ func batchParseObject(
 		nameSize := int(cmd.dataBuffer[7])
 
 		if err := cmd.readBytes(nameSize); err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return err
 		}
 		name := string(cmd.dataBuffer[:nameSize])
 
 		particleBytesSize := int((opSize - (4 + nameSize)))
 		if err := cmd.readBytes(particleBytesSize); err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return err
 		}
 		value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
 		if err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return err
 		}
 

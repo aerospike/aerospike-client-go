@@ -85,6 +85,8 @@ type command interface {
 
 	writeBuffer(ifc command) error
 	getNode(ifc command) (*Node, error)
+	getConnection(timeout time.Duration) (*Connection, error)
+	putConnection(conn *Connection)
 	parseResult(ifc command, conn *Connection) error
 	parseRecordResults(ifc command, receiveSize int) (bool, error)
 
@@ -101,7 +103,9 @@ type baseCommand struct {
 	dataBuffer []byte
 	dataOffset int
 
-	keyWriter *keyWriter
+	// oneShot determines if streaming commands like query, scan or queryAggregate
+	// are not retried if they error out mid-parsing
+	oneShot bool
 }
 
 // Writes the command for write operations
@@ -471,6 +475,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
 
+	// Estimate scan timeout size.
+	cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+	fieldCount++
+
 	// Allocate space for TaskId field.
 	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
@@ -480,17 +488,6 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 	}
-
-	//  FIXME - How are we getting the predexp arguments in here?
-	//
-	//	if len(statement.predExps) > 0 {
-	//		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
-	//		for _, predexp := range statement.predExps {
-	//			predExpsSize += predexp.marshaledSize()
-	//		}
-	//		cmd.dataOffset += predExpsSize
-	//		fieldCount++
-	//	}
 
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
@@ -530,6 +527,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.WriteByte(priority)
 	cmd.WriteByte(byte(policy.ScanPercent))
 
+	// Write scan timeout
+	cmd.writeFieldHeader(4, SCAN_TIMEOUT)
+	cmd.WriteInt32(int32(policy.ServerSocketTimeout / time.Millisecond)) // in milliseconds
+
 	cmd.writeFieldHeader(8, TRAN_ID)
 	cmd.WriteUint64(taskId)
 
@@ -538,18 +539,6 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.writeOperationForBinName(binNames[i], READ)
 		}
 	}
-
-	//  FIXME - How are we getting the predexp arguments in here?
-	//
-	//	if len(statement.predExps) > 0 {
-	//		cmd.writeFieldHeader(predExpsSize, PREDEXP)
-	//		for _, predexp := range statement.predExps {
-	//			err := predexp.marshal(cmd)
-	//			if err != nil {
-	//				return err
-	//			}
-	//		}
-	//	}
 
 	cmd.end()
 
@@ -631,11 +620,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		for _, predexp := range statement.predExps {
 			predExpsSize += predexp.marshaledSize()
 		}
-		cmd.dataOffset += predExpsSize
-		fieldCount++
-	} else if statement.predicate != nil {
-		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
-		predExpsSize = (*expression)(statement.predicate).marshaledSize()
 		cmd.dataOffset += predExpsSize
 		fieldCount++
 	}
@@ -742,11 +726,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 			if err := predexp.marshal(cmd); err != nil {
 				return err
 			}
-		}
-	} else if statement.predicate != nil {
-		cmd.writeFieldHeader(predExpsSize, PREDEXP)
-		if err := (*expression)(statement.predicate).marshal(cmd); err != nil {
-			return err
 		}
 	}
 
@@ -1163,10 +1142,10 @@ func (cmd *baseCommand) WriteFloat64(float float64) (int, error) {
 	return 8, nil
 }
 
-func (cmd *baseCommand) WriteByte(b byte) (int, error) {
+func (cmd *baseCommand) WriteByte(b byte) error {
 	cmd.dataBuffer[cmd.dataOffset] = b
 	cmd.dataOffset++
-	return 1, nil
+	return nil
 }
 
 func (cmd *baseCommand) WriteString(s string) (int, error) {
@@ -1280,7 +1259,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			continue
 		}
 
-		cmd.conn, err = cmd.node.GetConnection(policy.Timeout)
+		// cmd.conn, err = cmd.node.GetConnection(policy.Timeout)
+		cmd.conn, err = ifc.getConnection(policy.Timeout)
 		if err != nil {
 			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 			continue
@@ -1289,15 +1269,12 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		// Assign the connection buffer to the command buffer
 		cmd.dataBuffer = cmd.conn.dataBuffer
 
-		// Assign the connection buffer to the command buffer
-		cmd.keyWriter = &cmd.conn.keyWriter
-
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
 		if err != nil {
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.node.InvalidateConnection(cmd.conn)
+			cmd.conn.Close()
 			return err
 		}
 
@@ -1310,7 +1287,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if err != nil {
 			// IO errors are considered temporary anomalies. Retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.node.InvalidateConnection(cmd.conn)
+			cmd.conn.Close()
 
 			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 			continue
@@ -1322,10 +1299,14 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			if err == io.EOF {
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
-				cmd.node.InvalidateConnection(cmd.conn)
+				cmd.conn.Close()
 
 				Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
-				continue
+
+				// retry only for non-streaming commands
+				if !cmd.oneShot {
+					continue
+				}
 			}
 
 			// close the connection
@@ -1336,7 +1317,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
-				cmd.node.InvalidateConnection(cmd.conn)
+				cmd.conn.Close()
+
 			}
 			return err
 		}
@@ -1345,7 +1327,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		cmd.conn.dataBuffer = cmd.dataBuffer
 
 		// Put connection back in pool.
-		cmd.node.PutConnection(cmd.conn)
+		// cmd.node.PutConnection(cmd.conn)
+		ifc.putConnection(cmd.conn)
 
 		// command has completed successfully.  Exit method.
 		return nil

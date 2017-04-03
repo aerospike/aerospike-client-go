@@ -24,7 +24,7 @@ type BufferEx interface {
 	WriteUint16(num uint16) (int, error)
 	WriteFloat32(float float32) (int, error)
 	WriteFloat64(float float64) (int, error)
-	WriteByte(b byte) (int, error)
+	WriteByte(b byte) error
 	WriteString(s string) (int, error)
 	Write(b []byte) (int, error)
 }

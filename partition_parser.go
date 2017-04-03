@@ -40,13 +40,11 @@ type partitionParser struct {
 	generation     int
 	length         int
 	offset         int
-	copied         bool
 }
 
-func newPartitionParser(node *Node, pmap partitionMap, partitionCount int, requestProleReplicas bool) (*partitionParser, error) {
+func newPartitionParser(node *Node, partitionCount int, requestProleReplicas bool) (*partitionParser, error) {
 	newPartitionParser := &partitionParser{
 		partitionCount: partitionCount,
-		pmap:           pmap,
 	}
 
 	// Send format 1:  partition-generation\nreplicas-master\n
@@ -71,8 +69,7 @@ func newPartitionParser(node *Node, pmap partitionMap, partitionCount int, reque
 		return nil, err
 	}
 
-	// always copy the partition Map
-	newPartitionParser.copyPartitionMap()
+	newPartitionParser.pmap = make(partitionMap)
 
 	if requestProleReplicas {
 		err = newPartitionParser.parseReplicasAll(node)
@@ -89,10 +86,6 @@ func newPartitionParser(node *Node, pmap partitionMap, partitionCount int, reque
 
 func (pp *partitionParser) getGeneration() int {
 	return pp.generation
-}
-
-func (pp *partitionParser) isPartitionMapCopied() bool {
-	return pp.copied
 }
 
 func (pp *partitionParser) getPartitionMap() partitionMap {
@@ -317,24 +310,6 @@ func (pp *partitionParser) decodeBitmap(node *Node, nodeArray []*Node, begin int
 	}
 
 	return nil
-}
-
-func (pp *partitionParser) copyPartitionMap() {
-	if !pp.copied {
-		// Make shallow copy of map.
-		pmap := make(partitionMap, len(pp.pmap))
-		for ns, replArr := range pp.pmap {
-			newReplArr := make([][]*Node, len(replArr))
-			for i, nArr := range replArr {
-				newNArr := make([]*Node, len(nArr))
-				copy(newNArr, nArr)
-				newReplArr[i] = newNArr
-			}
-			pmap[ns] = newReplArr
-		}
-		pp.pmap = pmap
-		pp.copied = true
-	}
 }
 
 func (pp *partitionParser) expectName(name string) error {

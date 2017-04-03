@@ -253,10 +253,10 @@ func (bb *benchBuffer) WriteFloat64(float float64) (int, error) {
 	return 8, nil
 }
 
-func (bb *benchBuffer) WriteByte(b byte) (int, error) {
+func (bb *benchBuffer) WriteByte(b byte) error {
 	bb.dataBuffer[bb.dataOffset] = b
 	bb.dataOffset++
-	return 1, nil
+	return nil
 }
 
 func (bb *benchBuffer) WriteString(s string) (int, error) {

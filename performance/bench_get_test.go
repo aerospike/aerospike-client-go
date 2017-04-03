@@ -169,3 +169,40 @@ func Benchmark_Get_Complex_Map(b *testing.B) {
 	makeDataForGetBench(set, bins)
 	doGet(set, b)
 }
+
+func doPut(set string, value interface{}, b *testing.B) {
+	var err error
+	// key, _ := NewKey("test", set, 0)
+	for i := 0; i < b.N; i++ {
+		bin := NewBin("b", value)
+		// err = benchClient.PutBins(nil, key, bin)
+		if err != nil || bin == nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark_Put_Complex_ArrayFloat64(b *testing.B) {
+	set := "Benchmark_Put_Complex_ArrayInt2Int"
+	a := make([]float64, 1000)
+	for i := range a {
+		a[i] = float64(i)
+	}
+
+	// b.N = 1000
+	runtime.GC()
+	b.ResetTimer()
+	doPut(set, a, b)
+}
+
+func Benchmark_Put_Complex_MapFloat642Float64(b *testing.B) {
+	set := "Benchmark_Put_Complex_MapFloat642Float64"
+	a := make(map[float64]float64, 1000)
+	for i := 0; i < 1000; i++ {
+		a[float64(i)] = float64(i)
+	}
+	// b.N = 1000
+	runtime.GC()
+	b.ResetTimer()
+	doPut(set, a, b)
+}

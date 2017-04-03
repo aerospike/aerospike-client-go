@@ -1,5 +1,30 @@
 # Change History
 
+## March 8 2017: v1.25.1
+
+  Hot fix release. Updating the client is recommended.
+
+  * **Fixes**
+
+    - Fixed an issue where errors in Scan/Query unmarshalling would be duplicated and could cause a deadlock.
+
+## February 28 2017: v1.25.0
+
+  Performance improvements and fix release.
+
+  * **Improvements**
+
+    - Check tend duration and compare it to tend interval, and warn the user if tend takes longer than tend interval.
+    - Seed the cluster concurrently, and return as soon as any of the seeds is validated.
+    - Tend the cluster concurrently. Allows use of very big clusters with no delay.
+    - Partitions the connection queue to avoid contention.
+    - Cluster partition map is merged from all node fragments and updated only once per tend to reduce contention to absolute minimum.
+
+  * **Fixes**
+
+    - Fixed an issue where a valid but unreachable seed could timeout and stall connecting and tending the cluster..
+    - Fix result code comments.
+
 ## January 11 2017: v1.24.0
 
   Minor feature and fix release.

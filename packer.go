@@ -354,7 +354,7 @@ func __PackString(cmd BufferEx, val string) (int, error) {
 	size += n
 
 	if cmd != nil {
-		n, err = cmd.WriteByte(byte(ParticleType.STRING))
+		n, err = 1, cmd.WriteByte(byte(ParticleType.STRING))
 		if err != nil {
 			return size + n, err
 		}
@@ -382,7 +382,7 @@ func __PackGeoJson(cmd BufferEx, val string) (int, error) {
 	size += n
 
 	if cmd != nil {
-		n, err = cmd.WriteByte(byte(ParticleType.GEOJSON))
+		n, err = 1, cmd.WriteByte(byte(ParticleType.GEOJSON))
 		if err != nil {
 			return size + n, err
 		}
@@ -409,7 +409,7 @@ func __PackByteArray(cmd BufferEx, src []byte) (int, error) {
 
 func __PackInt64(cmd BufferEx, valType int, val int64) (int, error) {
 	if cmd != nil {
-		size, err := cmd.WriteByte(byte(valType))
+		size, err := 1, cmd.WriteByte(byte(valType))
 		if err != nil {
 			return size, err
 		}
@@ -427,7 +427,7 @@ func PackUInt64(cmd BufferEx, val uint64) (int, error) {
 
 func __PackUInt64(cmd BufferEx, val uint64) (int, error) {
 	if cmd != nil {
-		size, err := cmd.WriteByte(byte(0xcf))
+		size, err := 1, cmd.WriteByte(byte(0xcf))
 		if err != nil {
 			return size, err
 		}
@@ -440,7 +440,7 @@ func __PackUInt64(cmd BufferEx, val uint64) (int, error) {
 
 func __PackInt(cmd BufferEx, valType int, val int32) (int, error) {
 	if cmd != nil {
-		size, err := cmd.WriteByte(byte(valType))
+		size, err := 1, cmd.WriteByte(byte(valType))
 		if err != nil {
 			return size, err
 		}
@@ -452,7 +452,7 @@ func __PackInt(cmd BufferEx, valType int, val int32) (int, error) {
 
 func __PackShort(cmd BufferEx, valType int, val int16) (int, error) {
 	if cmd != nil {
-		size, err := cmd.WriteByte(byte(valType))
+		size, err := 1, cmd.WriteByte(byte(valType))
 		if err != nil {
 			return size, err
 		}
@@ -475,13 +475,13 @@ func __PackShortRaw(cmd BufferEx, val int16) (int, error) {
 func __PackByte(cmd BufferEx, valType int, val byte) (int, error) {
 	if cmd != nil {
 		size := 0
-		n, err := cmd.WriteByte(byte(valType))
+		n, err := 1, cmd.WriteByte(byte(valType))
 		if err != nil {
 			return n, err
 		}
 		size += n
 
-		n, err = cmd.WriteByte(val)
+		n, err = 1, cmd.WriteByte(val)
 		if err != nil {
 			return size + n, err
 		}
@@ -499,7 +499,7 @@ func PackNil(cmd BufferEx) (int, error) {
 
 func __PackNil(cmd BufferEx) (int, error) {
 	if cmd != nil {
-		return cmd.WriteByte(0xc0)
+		return 1, cmd.WriteByte(0xc0)
 	}
 	return 1, nil
 }
@@ -512,9 +512,9 @@ func PackBool(cmd BufferEx, val bool) (int, error) {
 func __PackBool(cmd BufferEx, val bool) (int, error) {
 	if cmd != nil {
 		if val {
-			return cmd.WriteByte(0xc3)
+			return 1, cmd.WriteByte(0xc3)
 		}
-		return cmd.WriteByte(0xc2)
+		return 1, cmd.WriteByte(0xc2)
 	}
 	return 1, nil
 }
@@ -527,7 +527,7 @@ func PackFloat32(cmd BufferEx, val float32) (int, error) {
 func __PackFloat32(cmd BufferEx, val float32) (int, error) {
 	if cmd != nil {
 		size := 0
-		n, err := cmd.WriteByte(0xca)
+		n, err := 1, cmd.WriteByte(0xca)
 		if err != nil {
 			return n, err
 		}
@@ -546,7 +546,7 @@ func PackFloat64(cmd BufferEx, val float64) (int, error) {
 func __PackFloat64(cmd BufferEx, val float64) (int, error) {
 	if cmd != nil {
 		size := 0
-		n, err := cmd.WriteByte(0xcb)
+		n, err := 1, cmd.WriteByte(0xcb)
 		if err != nil {
 			return n, err
 		}
@@ -559,7 +559,7 @@ func __PackFloat64(cmd BufferEx, val float64) (int, error) {
 
 func __PackAByte(cmd BufferEx, val byte) (int, error) {
 	if cmd != nil {
-		return cmd.WriteByte(val)
+		return 1, cmd.WriteByte(val)
 	}
 	return 1, nil
 }
@@ -624,9 +624,9 @@ func (vb *packer) WriteFloat64(float float64) (int, error) {
 	return 8, nil
 }
 
-func (vb *packer) WriteByte(b byte) (int, error) {
-	vb.Write([]byte{b})
-	return 1, nil
+func (vb *packer) WriteByte(b byte) error {
+	_, err := vb.Write([]byte{b})
+	return err
 }
 
 func (vb *packer) WriteString(s string) (int, error) {

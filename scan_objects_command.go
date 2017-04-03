@@ -65,5 +65,9 @@ func (cmd *scanObjectsCommand) parseResult(ifc command, conn *Connection) error 
 
 func (cmd *scanObjectsCommand) Execute() error {
 	defer cmd.recordset.signalEnd()
-	return cmd.execute(cmd)
+	err := cmd.execute(cmd)
+	if err != nil {
+		cmd.recordset.sendError(err)
+	}
+	return err
 }

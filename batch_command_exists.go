@@ -38,13 +38,15 @@ func newBatchCommandExists(
 	keys []*Key,
 	existsArray []bool,
 ) *batchCommandExists {
-	return &batchCommandExists{
+	res := &batchCommandExists{
 		baseMultiCommand: *newMultiCommand(node, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
 		keys:             keys,
 		existsArray:      existsArray,
 	}
+	res.oneShot = false
+	return res
 }
 
 func (cmd *batchCommandExists) getPolicy(ifc command) Policy {

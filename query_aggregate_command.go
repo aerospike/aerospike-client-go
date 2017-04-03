@@ -41,7 +41,11 @@ func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statem
 
 func (cmd *queryAggregateCommand) Execute() error {
 	// defer cmd.recordset.signalEnd()
-	return cmd.execute(cmd)
+	err := cmd.execute(cmd)
+	if err != nil {
+		cmd.recordset.sendError(err)
+	}
+	return err
 }
 
 func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
@@ -50,7 +54,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return false, err
 		}
 		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
@@ -60,14 +64,14 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 				// consume the rest of the input buffer from the socket
 				if cmd.dataOffset < receiveSize {
 					if err := cmd.readBytes(receiveSize - cmd.dataOffset); err != nil {
-						cmd.recordset.Errors <- newNodeError(cmd.node, err)
+						err = newNodeError(cmd.node, err)
 						return false, err
 					}
 				}
 				return false, nil
 			}
 			err := NewAerospikeError(resultCode)
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return false, err
 		}
 
@@ -85,13 +89,13 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 
 		if opCount != 1 {
 			err := fmt.Errorf("Query aggregate command expects exactly only one bin. Received: %d", opCount)
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return false, err
 		}
 
 		_, err := cmd.parseKey(fieldCount)
 		if err != nil {
-			cmd.recordset.Errors <- newNodeError(cmd.node, err)
+			err = newNodeError(cmd.node, err)
 			return false, err
 		}
 
@@ -103,7 +107,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 
 		for i := 0; i < opCount; i++ {
 			if err := cmd.readBytes(8); err != nil {
-				cmd.recordset.Errors <- newNodeError(cmd.node, err)
+				err = newNodeError(cmd.node, err)
 				return false, err
 			}
 
@@ -112,19 +116,19 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 			nameSize := int(cmd.dataBuffer[7])
 
 			if err := cmd.readBytes(nameSize); err != nil {
-				cmd.recordset.Errors <- newNodeError(cmd.node, err)
+				err = newNodeError(cmd.node, err)
 				return false, err
 			}
 			name := string(cmd.dataBuffer[:nameSize])
 
 			particleBytesSize := int((opSize - (4 + nameSize)))
 			if err = cmd.readBytes(particleBytesSize); err != nil {
-				cmd.recordset.Errors <- newNodeError(cmd.node, err)
+				err = newNodeError(cmd.node, err)
 				return false, err
 			}
 			value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
 			if err != nil {
-				cmd.recordset.Errors <- newNodeError(cmd.node, err)
+				err = newNodeError(cmd.node, err)
 				return false, err
 			}
 
@@ -137,10 +141,10 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		recs, exists := bins["SUCCESS"]
 		if !exists {
 			if errStr, exists := bins["FAILURE"]; exists {
-				cmd.recordset.Errors <- NewAerospikeError(QUERY_GENERIC, errStr.(string))
+				err = NewAerospikeError(QUERY_GENERIC, errStr.(string))
 				return false, err
 			} else {
-				cmd.recordset.Errors <- NewAerospikeError(QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
+				err = NewAerospikeError(QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
 				return false, err
 			}
 		}

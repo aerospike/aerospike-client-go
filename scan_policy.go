@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "time"
+
 // ScanPolicy encapsulates parameters used in scan operations.
 type ScanPolicy struct {
 	*MultiPolicy
@@ -22,6 +24,11 @@ type ScanPolicy struct {
 	// Valid integer range is 1 to 100.
 	// Default is 100.
 	ScanPercent int //= 100;
+
+	// ServerSocketTimeout defines maximum time that the server will before droping an idle socket.
+	// Zero means there is no socket timeout.
+	// Default is 10 seconds.
+	ServerSocketTimeout time.Duration //= 10 seconds
 
 	// ConcurrentNodes determines how to issue scan requests (in parallel or sequentially).
 	ConcurrentNodes bool //= true;
@@ -41,16 +48,13 @@ type ScanPolicy struct {
 
 // NewScanPolicy creates a new ScanPolicy instance with default values.
 func NewScanPolicy() *ScanPolicy {
-	res := &ScanPolicy{
+	return &ScanPolicy{
 		MultiPolicy:         NewMultiPolicy(),
 		ScanPercent:         100,
+		ServerSocketTimeout: 10 * time.Second,
 		ConcurrentNodes:     true,
 		IncludeBinData:      true,
 		IncludeLDT:          false,
 		FailOnClusterChange: true,
 	}
-	// Retry policy must be one-shot for scans.
-	res.MaxRetries = 0
-
-	return res
 }
