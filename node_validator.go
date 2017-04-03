@@ -19,6 +19,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"bytes"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -75,6 +76,22 @@ func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd *no
 }
 
 func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) error {
+	if cluster.clientPolicy.IgnoreOtherSubnetAliases {
+		masterHostname := cluster.GetNodes()[0].host.Name
+		ip, ipnet, err := net.ParseCIDR(masterHostname + "/24")
+		if err != nil {
+			Logger.Error(err.Error())
+			return NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Failed parsing hostname...")
+		}
+
+		stop := ip.Mask(ipnet.Mask)
+		stop[3] += 255
+		if bytes.Compare(net.ParseIP(host.Name).To4(), ip.Mask(ipnet.Mask).To4()) >= 0 && bytes.Compare(net.ParseIP(host.Name).To4(), stop.To4()) < 0 {
+		} else {
+			return NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Ignored hostname from other subnet...")
+		}
+	}
+
 	if err := ndv.setAliases(host); err != nil {
 		return err
 	}
