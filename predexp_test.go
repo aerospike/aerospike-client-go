@@ -460,7 +460,7 @@ var _ = Describe("predexp operations", func() {
 		// The count should be split 3 ways, roughly equally.
 		sum := 0
 		for _, cc := range cnt {
-			Expect(cc).To(BeNumerically(">", 300))
+			Expect(cc).To(BeNumerically(">", 270))
 			Expect(cc).To(BeNumerically("<", 370))
 			sum += cc
 		}
