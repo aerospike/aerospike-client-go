@@ -442,6 +442,28 @@ var _ = Describe("Aerospike", func() {
 				Context("Bins with LIST type", func() {
 
 					It("must save a key with Array Types", func() {
+						// All int types and sizes should be encoded into an int64,
+						// unless if they are of type uint64, which always encodes to uint64
+						// regardless of the values inside
+						intList := []interface{}{math.MinInt64, math.MinInt64 + 1}
+						for i := uint(0); i < 64; i++ {
+							intList = append(intList, -(1 << i))
+							intList = append(intList, -(1<<i)-1)
+							intList = append(intList, -(1<<i)+1)
+							intList = append(intList, 1<<i)
+							intList = append(intList, (1<<i)-1)
+							intList = append(intList, (1<<i)+1)
+						}
+						intList = append(intList, -1)
+						intList = append(intList, 0)
+						intList = append(intList, uint64(1))
+						intList = append(intList, math.MaxInt64-1)
+						intList = append(intList, math.MaxInt64)
+						intList = append(intList, uint64(math.MaxInt64+1))
+						intList = append(intList, uint64(math.MaxUint64-1))
+						intList = append(intList, uint64(math.MaxUint64))
+						bin0 := as.NewBin("Aerospike0", intList)
+
 						bin1 := as.NewBin("Aerospike1", []interface{}{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
 						bin2 := as.NewBin("Aerospike2", []interface{}{math.MinInt16, 0, 1, 2, 3, math.MaxInt16})
 						bin3 := as.NewBin("Aerospike3", []interface{}{math.MinInt32, 0, 1, 2, 3, math.MaxInt32})
@@ -455,6 +477,7 @@ var _ = Describe("Aerospike", func() {
 						// complex type, consisting different arrays
 						bin10 := as.NewBin("Aerospike10", []interface{}{
 							nil,
+							bin0.Value.GetObject(),
 							bin1.Value.GetObject(),
 							bin2.Value.GetObject(),
 							bin3.Value.GetObject(),
@@ -482,15 +505,17 @@ var _ = Describe("Aerospike", func() {
 								"string":  map[interface{}]interface{}{nil: "string", "string": 19},                // map to complex array
 								nil:       []interface{}{18, 41},                                                   // array to complex map
 								"GeoJSON": as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
+								"intList": intList,
 							},
 						})
 
-						err = client.PutBins(wpolicy, key, bin1, bin2, bin3, bin4, bin5, bin6, bin7, bin8, bin9, bin10)
+						err = client.PutBins(wpolicy, key, bin0, bin1, bin2, bin3, bin4, bin5, bin6, bin7, bin8, bin9, bin10)
 						Expect(err).ToNot(HaveOccurred())
 
 						rec, err = client.Get(rpolicy, key)
 						Expect(err).ToNot(HaveOccurred())
 
+						arraysEqual(rec.Bins[bin0.Name], bin0.Value.GetObject())
 						arraysEqual(rec.Bins[bin1.Name], bin1.Value.GetObject())
 						arraysEqual(rec.Bins[bin2.Name], bin2.Value.GetObject())
 						arraysEqual(rec.Bins[bin3.Name], bin3.Value.GetObject())
