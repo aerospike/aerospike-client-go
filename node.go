@@ -336,23 +336,7 @@ func (nd *Node) refreshFailed(e error) {
 // if that connection is idle, it drops it and takes the next one until it picks
 // a fresh connection or exhaust the queue.
 func (nd *Node) dropIdleConnections() {
-	for {
-		if t := nd.connections.Poll(0); t != nil {
-			conn := t //.(*Connection)
-			if conn.IsConnected() && !conn.isIdle() {
-				// put it back: this connection is the oldest, and is still fresh
-				// so the ones after it are likely also fresh
-				if !nd.connections.Offer(conn, 0) {
-					conn.Close()
-				}
-				return
-			}
-			conn.Close()
-		} else {
-			// the queue is exhaused
-			break
-		}
-	}
+	nd.connections.DropIdle()
 }
 
 // GetConnection gets a connection to the node.

@@ -143,3 +143,21 @@ func (q *connectionQueue) Poll(hint byte) (res *Connection) {
 	}
 	return nil
 }
+
+// DropIdle closes all idle connections.
+func (q *connectionQueue) DropIdle() {
+L:
+	for i := 0; i < len(q.queues); i++ {
+		for conn := q.queues[i].Poll(); conn != nil; conn = q.queues[i].Poll() {
+			if conn.IsConnected() && !conn.isIdle() {
+				// put it back: this connection is the oldest, and is still fresh
+				// so the ones after it are likely also fresh
+				if !q.queues[i].Offer(conn) {
+					conn.Close()
+				}
+				continue L
+			}
+			conn.Close()
+		}
+	}
+}
