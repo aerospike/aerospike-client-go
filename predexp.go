@@ -418,6 +418,7 @@ func (self *predExpMDDigestModulo) marshal(cmd *baseCommand) error {
 // NewPredExpRecDigestModulo creates a digest modulo record metadata value predicate expression.
 // The digest modulo expression assumes the value of 4 bytes of the
 // record's key digest modulo as its argument.
+// This predicate is available in Aerospike server versions 3.12.1+
 //
 // For example, the following sequence of predicate expressions
 // selects records that have digest(key) % 3 == 1):
