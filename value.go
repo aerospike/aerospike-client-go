@@ -372,6 +372,50 @@ func NewValue(v interface{}) Value {
 		return NewMapperValue(float64Float64Map(val))
 	case map[float64]interface{}:
 		return NewMapperValue(float64InterfaceMap(val))
+	case map[string]uint64:
+		return NewMapperValue(stringUint64Map(val))
+	case map[int]uint64:
+		return NewMapperValue(intUint64Map(val))
+	case map[int8]uint64:
+		return NewMapperValue(int8Uint64Map(val))
+	case map[int16]uint64:
+		return NewMapperValue(int16Uint64Map(val))
+	case map[int32]uint64:
+		return NewMapperValue(int32Uint64Map(val))
+	case map[int64]uint64:
+		return NewMapperValue(int64Uint64Map(val))
+	case map[uint16]uint64:
+		return NewMapperValue(uint16Uint64Map(val))
+	case map[uint32]uint64:
+		return NewMapperValue(uint32Uint64Map(val))
+	case map[float32]uint64:
+		return NewMapperValue(float32Uint64Map(val))
+	case map[float64]uint64:
+		return NewMapperValue(float64Uint64Map(val))
+	case map[uint64]string:
+		return NewMapperValue(uint64StringMap(val))
+	case map[uint64]int:
+		return NewMapperValue(uint64IntMap(val))
+	case map[uint64]int8:
+		return NewMapperValue(uint64Int8Map(val))
+	case map[uint64]int16:
+		return NewMapperValue(uint64Int16Map(val))
+	case map[uint64]int32:
+		return NewMapperValue(uint64Int32Map(val))
+	case map[uint64]int64:
+		return NewMapperValue(uint64Int64Map(val))
+	case map[uint64]uint16:
+		return NewMapperValue(uint64Uint16Map(val))
+	case map[uint64]uint32:
+		return NewMapperValue(uint64Uint32Map(val))
+	case map[uint64]uint64:
+		return NewMapperValue(uint64Uint64Map(val))
+	case map[uint64]float32:
+		return NewMapperValue(uint64Float32Map(val))
+	case map[uint64]float64:
+		return NewMapperValue(uint64Float64Map(val))
+	case map[uint64]interface{}:
+		return NewMapperValue(uint64InterfaceMap(val))
 	}
 
 	if newValueReflect != nil {
