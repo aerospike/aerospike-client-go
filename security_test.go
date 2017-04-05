@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -33,11 +33,11 @@ var _ = Describe("Security tests", func() {
 	if clientPolicy.RequiresAuthentication() {
 
 		// connection data
-		var client *Client
+		var client *as.Client
 		var err error
 
 		BeforeEach(func() {
-			client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+			client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -57,21 +57,21 @@ var _ = Describe("Security tests", func() {
 				defer client.DropRole(nil, "dummy-role")
 
 				// Add a user defined Role
-				err := client.CreateRole(nil, "role-read-test-test", []Privilege{{Code: Read, Namespace: "test", SetName: "test"}})
+				err := client.CreateRole(nil, "role-read-test-test", []as.Privilege{{Code: as.Read, Namespace: "test", SetName: "test"}})
 				Expect(err).ToNot(HaveOccurred())
 
-				err = client.CreateRole(nil, "role-write-test", []Privilege{{Code: ReadWrite, Namespace: "test", SetName: ""}})
+				err = client.CreateRole(nil, "role-write-test", []as.Privilege{{Code: as.ReadWrite, Namespace: "test", SetName: ""}})
 				Expect(err).ToNot(HaveOccurred())
 
 				// Add privileges to the roles
-				err = client.GrantPrivileges(nil, "role-read-test-test", []Privilege{{Code: ReadWrite, Namespace: "test", SetName: "bar"}, {Code: ReadWriteUDF, Namespace: "test", SetName: "test"}})
+				err = client.GrantPrivileges(nil, "role-read-test-test", []as.Privilege{{Code: as.ReadWrite, Namespace: "test", SetName: "bar"}, {Code: as.ReadWriteUDF, Namespace: "test", SetName: "test"}})
 				Expect(err).ToNot(HaveOccurred())
 
 				// // Revoke privileges from the roles
-				err = client.RevokePrivileges(nil, "role-read-test-test", []Privilege{{Code: ReadWriteUDF, Namespace: "test", SetName: "test"}})
+				err = client.RevokePrivileges(nil, "role-read-test-test", []as.Privilege{{Code: as.ReadWriteUDF, Namespace: "test", SetName: "test"}})
 				Expect(err).ToNot(HaveOccurred())
 
-				err = client.CreateRole(nil, "dummy-role", []Privilege{{Code: Read, Namespace: "", SetName: ""}})
+				err = client.CreateRole(nil, "dummy-role", []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}})
 				Expect(err).ToNot(HaveOccurred())
 
 				// Drop the dummy role to make sure DropRoles Works
@@ -87,16 +87,16 @@ var _ = Describe("Security tests", func() {
 				Expect(len(roles)).To(Equal(8))
 
 				// Predefined Roles
-				Expect(roles).To(ContainElement(&Role{Name: "read", Privileges: []Privilege{{Code: Read, Namespace: "", SetName: ""}}}))
-				Expect(roles).To(ContainElement(&Role{Name: "read-write", Privileges: []Privilege{{Code: ReadWrite, Namespace: "", SetName: ""}}}))
-				Expect(roles).To(ContainElement(&Role{Name: "read-write-udf", Privileges: []Privilege{{Code: ReadWriteUDF, Namespace: "", SetName: ""}}}))
-				Expect(roles).To(ContainElement(&Role{Name: "sys-admin", Privileges: []Privilege{{Code: SysAdmin, Namespace: "", SetName: ""}}}))
-				Expect(roles).To(ContainElement(&Role{Name: "user-admin", Privileges: []Privilege{{Code: UserAdmin, Namespace: "", SetName: ""}}}))
-				Expect(roles).To(ContainElement(&Role{Name: "data-admin", Privileges: []Privilege{{Code: DataAdmin, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&as.Role{Name: "read", Privileges: []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&as.Role{Name: "read-write", Privileges: []as.Privilege{{Code: as.ReadWrite, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&as.Role{Name: "read-write-udf", Privileges: []as.Privilege{{Code: as.ReadWriteUDF, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&as.Role{Name: "sys-admin", Privileges: []as.Privilege{{Code: as.SysAdmin, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&as.Role{Name: "user-admin", Privileges: []as.Privilege{{Code: as.UserAdmin, Namespace: "", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&as.Role{Name: "data-admin", Privileges: []as.Privilege{{Code: as.DataAdmin, Namespace: "", SetName: ""}}}))
 
 				// Our test Roles
-				Expect(roles).To(ContainElement(&Role{Name: "role-read-test-test", Privileges: []Privilege{{Code: Read, Namespace: "test", SetName: "test"}, {Code: ReadWrite, Namespace: "test", SetName: "bar"}}}))
-				Expect(roles).To(ContainElement(&Role{Name: "role-write-test", Privileges: []Privilege{{Code: ReadWrite, Namespace: "test", SetName: ""}}}))
+				Expect(roles).To(ContainElement(&as.Role{Name: "role-read-test-test", Privileges: []as.Privilege{{Code: as.Read, Namespace: "test", SetName: "test"}, {Code: as.ReadWrite, Namespace: "test", SetName: "bar"}}}))
+				Expect(roles).To(ContainElement(&as.Role{Name: "role-write-test", Privileges: []as.Privilege{{Code: as.ReadWrite, Namespace: "test", SetName: ""}}}))
 			})
 
 			It("Must query User Roles Perfectly", func() {
@@ -153,10 +153,10 @@ var _ = Describe("Security tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// connect using the new user
-				client_policy := NewClientPolicy()
+				client_policy := as.NewClientPolicy()
 				client_policy.User = "test_user"
 				client_policy.Password = "test"
-				new_client, err := NewClientWithPolicy(client_policy, *host, *port)
+				new_client, err := as.NewClientWithPolicy(client_policy, *host, *port)
 				Expect(err).ToNot(HaveOccurred())
 				defer new_client.Close()
 

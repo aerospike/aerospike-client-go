@@ -102,6 +102,10 @@ type baseCommand struct {
 
 	dataBuffer []byte
 	dataOffset int
+
+	// oneShot determines if streaming commands like query, scan or queryAggregate
+	// are not retried if they error out mid-parsing
+	oneShot bool
 }
 
 // Writes the command for write operations
@@ -455,6 +459,7 @@ func (cmd *baseCommand) setBatchGet(policy *BasePolicy, keys []*Key, batch *batc
 func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskId uint64) error {
 	cmd.begin()
 	fieldCount := 0
+	// predExpsSize := 0
 
 	if namespace != nil {
 		cmd.dataOffset += len(*namespace) + int(_FIELD_HEADER_SIZE)
@@ -470,6 +475,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
 
+	// Estimate scan timeout size.
+	cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+	fieldCount++
+
 	// Allocate space for TaskId field.
 	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
@@ -479,6 +488,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 	}
+
 	if err := cmd.sizeBuffer(); err != nil {
 		return nil
 	}
@@ -517,6 +527,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.WriteByte(priority)
 	cmd.WriteByte(byte(policy.ScanPercent))
 
+	// Write scan timeout
+	cmd.writeFieldHeader(4, SCAN_TIMEOUT)
+	cmd.WriteInt32(int32(policy.ServerSocketTimeout / time.Millisecond)) // in milliseconds
+
 	cmd.writeFieldHeader(8, TRAN_ID)
 	cmd.WriteUint64(taskId)
 
@@ -525,6 +539,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.writeOperationForBinName(binNames[i], READ)
 		}
 	}
+
 	cmd.end()
 
 	return nil
@@ -534,6 +549,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
+	predExpsSize := 0
 
 	cmd.begin()
 
@@ -596,6 +612,15 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		// Calling query with no filters is more efficiently handled by a primary index scan.
 		// Estimate scan options size.
 		cmd.dataOffset += (2 + int(_FIELD_HEADER_SIZE))
+		fieldCount++
+	}
+
+	if len(statement.predExps) > 0 {
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
+		for _, predexp := range statement.predExps {
+			predExpsSize += predexp.marshaledSize()
+		}
+		cmd.dataOffset += predExpsSize
 		fieldCount++
 	}
 
@@ -693,6 +718,15 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		priority <<= 4
 		cmd.WriteByte(priority)
 		cmd.WriteByte(byte(100))
+	}
+
+	if len(statement.predExps) > 0 {
+		cmd.writeFieldHeader(predExpsSize, PREDEXP)
+		for _, predexp := range statement.predExps {
+			if err := predexp.marshal(cmd); err != nil {
+				return err
+			}
+		}
 	}
 
 	if statement.functionName != "" {
@@ -1108,10 +1142,10 @@ func (cmd *baseCommand) WriteFloat64(float float64) (int, error) {
 	return 8, nil
 }
 
-func (cmd *baseCommand) WriteByte(b byte) (int, error) {
+func (cmd *baseCommand) WriteByte(b byte) error {
 	cmd.dataBuffer[cmd.dataOffset] = b
 	cmd.dataOffset++
-	return 1, nil
+	return nil
 }
 
 func (cmd *baseCommand) WriteString(s string) (int, error) {
@@ -1268,7 +1302,11 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 				cmd.conn.Close()
 
 				Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
-				continue
+
+				// retry only for non-streaming commands
+				if !cmd.oneShot {
+					continue
+				}
 			}
 
 			// close the connection

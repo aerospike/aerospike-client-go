@@ -18,7 +18,7 @@ import (
 	"math"
 	"math/rand"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 	. "github.com/aerospike/aerospike-client-go/types"
 
 	. "github.com/onsi/ginkgo"
@@ -47,20 +47,20 @@ var _ = Describe("Query operations", func() {
 	// connection data
 	var ns = "test"
 	var set = randString(50)
-	var wpolicy = NewWritePolicy(0, 0)
+	var wpolicy = as.NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
 
 	const keyCount = 1000
-	bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
-	bin2 := NewBin("Aerospike2", randString(100))
-	bin3 := NewBin("Aerospike3", rand.Intn(math.MaxInt16))
-	bin4 := NewBin("Aerospike4", "constValue")
-	bin5 := NewBin("Aerospike5", -1)
-	var keys map[string]*Key
+	bin1 := as.NewBin("Aerospike1", rand.Intn(math.MaxInt16))
+	bin2 := as.NewBin("Aerospike2", randString(100))
+	bin3 := as.NewBin("Aerospike3", rand.Intn(math.MaxInt16))
+	bin4 := as.NewBin("Aerospike4", "constValue")
+	bin5 := as.NewBin("Aerospike5", -1)
+	var keys map[string]*as.Key
 	var indexName string
 
 	// read all records from the channel and make sure all of them are returned
-	var checkResults = func(recordset *Recordset, cancelCnt int) {
+	var checkResults = func(recordset *as.Recordset, cancelCnt int) {
 		counter := 0
 		for res := range recordset.Results() {
 			Expect(res.Err).ToNot(HaveOccurred())
@@ -86,21 +86,21 @@ var _ = Describe("Query operations", func() {
 	}
 
 	BeforeEach(func() {
-		keys = make(map[string]*Key, keyCount)
+		keys = make(map[string]*as.Key, keyCount)
 		set = randString(50)
 		for i := 0; i < keyCount; i++ {
-			key, err := NewKey(ns, set, randString(50))
+			key, err := as.NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 
 			keys[string(key.Digest())] = key
-			bin3 = NewBin("Aerospike3", rand.Intn(math.MaxInt16))
+			bin3 = as.NewBin("Aerospike3", rand.Intn(math.MaxInt16))
 			err = client.PutBins(wpolicy, key, bin1, bin2, bin3, bin4, bin5)
 			Expect(err).ToNot(HaveOccurred())
 		}
 
 		// queries only work on indices
 		indexName = set + bin3.Name
-		idxTask, err := client.CreateIndex(wpolicy, ns, set, indexName, bin3.Name, NUMERIC)
+		idxTask, err := client.CreateIndex(wpolicy, ns, set, indexName, bin3.Name, as.NUMERIC)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until index is created
@@ -108,8 +108,8 @@ var _ = Describe("Query operations", func() {
 	})
 
 	It("must return error if query on non-indexed field", func() {
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewRangeFilter("Non-Existing", 0, math.MaxInt16/2))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewRangeFilter("Non-Existing", 0, math.MaxInt16/2))
 
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
@@ -122,9 +122,9 @@ var _ = Describe("Query operations", func() {
 	It("must return error if more than one filter passed to the command", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
 
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
-		stm.Addfilter(NewRangeFilter(bin3.Name, 2, math.MaxInt16/2))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
+		stm.Addfilter(as.NewRangeFilter(bin3.Name, 2, math.MaxInt16/2))
 
 		Expect(len(stm.Filters)).To(Equal(2))
 
@@ -145,7 +145,7 @@ var _ = Describe("Query operations", func() {
 	It("must Query a range and get all records back", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
 
-		stm := NewStatement(ns, set)
+		stm := as.NewStatement(ns, set)
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -157,7 +157,7 @@ var _ = Describe("Query operations", func() {
 	It("must Cancel Query abruptly", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
 
-		stm := NewStatement(ns, set)
+		stm := as.NewStatement(ns, set)
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -169,8 +169,8 @@ var _ = Describe("Query operations", func() {
 	It("must Query a specific range and get only relevant records back", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
 
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -190,16 +190,16 @@ var _ = Describe("Query operations", func() {
 	It("must Query a specific range by applying a udf filter and get only relevant records back", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
 
-		regTask, err := client.RegisterUDF(nil, []byte(udfFilter), "udfFilter.lua", LUA)
+		regTask, err := client.RegisterUDF(nil, []byte(udfFilter), "udfFilter.lua", as.LUA)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until UDF is created
 		err = <-regTask.OnComplete()
 		Expect(err).ToNot(HaveOccurred())
 
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
-		stm.SetAggregateFunction("udfFilter", "filter_by_name", []Value{NewValue("Aeropsike")}, true)
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
+		stm.SetAggregateFunction("udfFilter", "filter_by_name", []as.Value{as.NewValue("Aeropsike")}, true)
 
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
@@ -219,15 +219,15 @@ var _ = Describe("Query operations", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
 
 		// save a record with requested value
-		key, err := NewKey(ns, set, randString(50))
+		key, err := as.NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 
-		bin3 := NewBin("Aerospike3", rand.Intn(math.MaxInt16))
+		bin3 := as.NewBin("Aerospike3", rand.Intn(math.MaxInt16))
 		err = client.PutBins(wpolicy, key, bin3)
 		Expect(err).ToNot(HaveOccurred())
 
-		stm := NewStatement(ns, set, bin3.Name)
-		stm.Addfilter(NewEqualFilter(bin3.Name, bin3.Value))
+		stm := as.NewStatement(ns, set, bin3.Name)
+		stm.Addfilter(as.NewEqualFilter(bin3.Name, bin3.Value))
 
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())

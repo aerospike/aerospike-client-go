@@ -18,7 +18,7 @@ import (
 	"math"
 	"math/rand"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -31,18 +31,18 @@ var _ = Describe("Scan operations", func() {
 	// connection data
 	var ns = "test"
 	var set = randString(50)
-	var wpolicy = NewWritePolicy(0, 0)
+	var wpolicy = as.NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
 
 	const keyCount = 1000
 	const ldtElemCount = 10
-	bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
-	bin2 := NewBin("Aerospike2", randString(100))
-	var keys map[string]*Key
+	bin1 := as.NewBin("Aerospike1", rand.Intn(math.MaxInt16))
+	bin2 := as.NewBin("Aerospike2", randString(100))
+	var keys map[string]*as.Key
 
 	// read all records from the channel and make sure all of them are returned
 	// if cancelCnt is set, it will cancel the scan after specified record count
-	var checkResults = func(recordset *Recordset, cancelCnt int, checkLDT bool) {
+	var checkResults = func(recordset *as.Recordset, cancelCnt int, checkLDT bool) {
 		counter := 0
 		for res := range recordset.Results() {
 			Expect(res.Err).ToNot(HaveOccurred())
@@ -75,10 +75,10 @@ var _ = Describe("Scan operations", func() {
 	}
 
 	BeforeEach(func() {
-		keys = make(map[string]*Key, keyCount)
+		keys = make(map[string]*as.Key, keyCount)
 		set = randString(50)
 		for i := 0; i < keyCount; i++ {
-			key, err := NewKey(ns, set, randString(50))
+			key, err := as.NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 
 			keys[string(key.Digest())] = key
@@ -140,7 +140,7 @@ var _ = Describe("Scan operations", func() {
 	It("must Scan and get all records back from all nodes sequnetially", func() {
 		Expect(len(keys)).To(Equal(keyCount))
 
-		scanPolicy := NewScanPolicy()
+		scanPolicy := as.NewScanPolicy()
 		scanPolicy.ConcurrentNodes = false
 
 		recordset, err := client.ScanAll(scanPolicy, ns, set)
@@ -170,7 +170,7 @@ var _ = Describe("Scan operations", func() {
 		}
 
 		BeforeEach(func() {
-			keys = make(map[string]*Key, keyCount)
+			keys = make(map[string]*as.Key, keyCount)
 			set = randString(50)
 
 			ldtElems := make([]interface{}, ldtElemCount)
@@ -179,7 +179,7 @@ var _ = Describe("Scan operations", func() {
 			}
 
 			for i := 0; i < keyCount; i++ {
-				key, err := NewKey(ns, set, randString(50))
+				key, err := as.NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
 
 				keys[string(key.Digest())] = key
@@ -201,7 +201,7 @@ var _ = Describe("Scan operations", func() {
 		})
 
 		It("must Scan and get all records back WITH LDT from all nodes concurrently", func() {
-			spolicy := NewScanPolicy()
+			spolicy := as.NewScanPolicy()
 			spolicy.IncludeLDT = true
 
 			recordset, err := client.ScanAll(spolicy, ns, set)
@@ -213,7 +213,7 @@ var _ = Describe("Scan operations", func() {
 		})
 
 		It("must Scan and get all records back WITHOUT LDT from all nodes concurrently", func() {
-			spolicy := NewScanPolicy()
+			spolicy := as.NewScanPolicy()
 			spolicy.IncludeLDT = false
 
 			recordset, err := client.ScanAll(spolicy, ns, set)

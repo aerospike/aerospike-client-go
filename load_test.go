@@ -15,19 +15,12 @@
 package aerospike_test
 
 import (
-
-	// "fmt"
-	"sync"
-	// "math"
 	"math/rand"
-	// "strings"
 	"runtime"
+	"sync"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
-	// . "github.com/aerospike/aerospike-client-go/logger"
-
-	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -45,11 +38,11 @@ var _ = Describe("Aerospike load tests", func() {
 	Describe("Single long random string test", func() {
 		var ns = "test"
 		var set = "load"
-		var wpolicy = NewWritePolicy(0, 0)
-		var rpolicy = NewPolicy()
+		var wpolicy = as.NewWritePolicy(0, 0)
+		var rpolicy = as.NewPolicy()
 		rpolicy.Timeout = 200 * time.Millisecond
 		if *useReplicas {
-			rpolicy.ReplicaPolicy = MASTER_PROLES
+			rpolicy.ReplicaPolicy = as.MASTER_PROLES
 		}
 
 		bname1 := randString(14)
@@ -69,11 +62,11 @@ var _ = Describe("Aerospike load tests", func() {
 						defer GinkgoRecover()
 						defer wg.Done()
 						for i := 0; i < IterationPerWorker; i++ {
-							key, err := NewKey(ns, set, randString(50))
+							key, err := as.NewKey(ns, set, randString(50))
 							Expect(err).ToNot(HaveOccurred())
 
-							bin1 := NewBin(bname1, randString(10))
-							bin2 := NewBin(bname2, rand.Int())
+							bin1 := as.NewBin(bname1, randString(10))
+							bin2 := as.NewBin(bname2, rand.Int())
 							err = client.PutBins(wpolicy, key, bin1, bin2)
 							Expect(err).ToNot(HaveOccurred())
 

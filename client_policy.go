@@ -32,7 +32,7 @@ type ClientPolicy struct {
 
 	// ClusterName sets the expected cluster ID.  If not null, server nodes must return this cluster ID in order to
 	// join the client's view of the cluster. Should only be set when connecting to servers that
-	// support the "cluster-id" info command. (v3.10+)
+	// support the "cluster-name" info command. (v3.10+)
 	ClusterName string //=""
 
 	// Initial host connection timeout in milliseconds.  The timeout when opening a connection
@@ -86,6 +86,9 @@ type ClientPolicy struct {
 	// For better performance, we suggest prefering the server-side ciphers by
 	// setting PreferServerCipherSuites = true.
 	TlsConfig *tls.Config //= nil
+
+	// IgnoreOtherSubnetAliases helps to ignore aliases that are outside main subnet
+	IgnoreOtherSubnetAliases bool //= false
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.
@@ -98,6 +101,7 @@ func NewClientPolicy() *ClientPolicy {
 		TendInterval:                time.Second,
 		LimitConnectionsToQueueSize: true,
 		RequestProleReplicas:        false,
+		IgnoreOtherSubnetAliases:    false,
 	}
 }
 

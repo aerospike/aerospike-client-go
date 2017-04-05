@@ -19,7 +19,7 @@ import (
 	"reflect"
 
 	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gm "github.com/onsi/gomega"
 
 	// . "github.com/aerospike/aerospike-client-go"
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
@@ -35,28 +35,28 @@ func (b *testBLOB) EncodeBlob() ([]byte, error) {
 }
 
 func isValidIntegerValue(i int, v Value) bool {
-	Expect(reflect.TypeOf(v)).To(Equal(reflect.TypeOf(NewIntegerValue(0))))
-	Expect(v.GetObject()).To(Equal(i))
-	Expect(v.estimateSize()).To(Equal(int(SizeOfInt)))
-	Expect(v.GetType()).To(Equal(ParticleType.INTEGER))
+	gm.Expect(reflect.TypeOf(v)).To(gm.Equal(reflect.TypeOf(NewIntegerValue(0))))
+	gm.Expect(v.GetObject()).To(gm.Equal(i))
+	gm.Expect(v.estimateSize()).To(gm.Equal(int(SizeOfInt)))
+	gm.Expect(v.GetType()).To(gm.Equal(ParticleType.INTEGER))
 
 	return true
 }
 
 func isValidLongValue(i int64, v Value) bool {
-	Expect(reflect.TypeOf(v)).To(Equal(reflect.TypeOf(NewLongValue(0))))
-	Expect(v.GetObject().(int64)).To(Equal(i))
-	Expect(v.estimateSize()).To(Equal(int(SizeOfInt64)))
-	Expect(v.GetType()).To(Equal(ParticleType.INTEGER))
+	gm.Expect(reflect.TypeOf(v)).To(gm.Equal(reflect.TypeOf(NewLongValue(0))))
+	gm.Expect(v.GetObject().(int64)).To(gm.Equal(i))
+	gm.Expect(v.estimateSize()).To(gm.Equal(int(SizeOfInt64)))
+	gm.Expect(v.GetType()).To(gm.Equal(ParticleType.INTEGER))
 
 	return true
 }
 
 func isValidFloatValue(i float64, v Value) bool {
-	Expect(reflect.TypeOf(v)).To(Equal(reflect.TypeOf(NewFloatValue(0))))
-	Expect(v.GetObject().(float64)).To(Equal(i))
-	Expect(v.estimateSize()).To(Equal(8))
-	Expect(v.GetType()).To(Equal(ParticleType.FLOAT))
+	gm.Expect(reflect.TypeOf(v)).To(gm.Equal(reflect.TypeOf(NewFloatValue(0))))
+	gm.Expect(v.GetObject().(float64)).To(gm.Equal(i))
+	gm.Expect(v.estimateSize()).To(gm.Equal(8))
+	gm.Expect(v.GetType()).To(gm.Equal(ParticleType.FLOAT))
 
 	return true
 }
@@ -67,9 +67,9 @@ var _ = Describe("Value Test", func() {
 		It("should create a valid NullValue", func() {
 			v := NewValue(nil)
 
-			Expect(v.GetObject()).To(BeNil())
-			Expect(v.estimateSize()).To(Equal(0))
-			Expect(v.GetType()).To(Equal(ParticleType.NULL))
+			gm.Expect(v.GetObject()).To(gm.BeNil())
+			gm.Expect(v.estimateSize()).To(gm.Equal(0))
+			gm.Expect(v.GetType()).To(gm.Equal(ParticleType.NULL))
 		})
 	})
 
@@ -78,18 +78,18 @@ var _ = Describe("Value Test", func() {
 			str := "string value"
 			v := NewValue(str)
 
-			Expect(v.GetObject()).To(Equal(str))
-			Expect(v.estimateSize()).To(Equal(len(str)))
-			Expect(v.GetType()).To(Equal(ParticleType.STRING))
+			gm.Expect(v.GetObject()).To(gm.Equal(str))
+			gm.Expect(v.estimateSize()).To(gm.Equal(len(str)))
+			gm.Expect(v.GetType()).To(gm.Equal(ParticleType.STRING))
 		})
 
 		It("should create a valid empty string value", func() {
 			str := ""
 			v := NewValue(str)
 
-			Expect(v.GetObject()).To(Equal(str))
-			Expect(v.estimateSize()).To(Equal(len(str)))
-			Expect(v.GetType()).To(Equal(ParticleType.STRING))
+			gm.Expect(v.GetObject()).To(gm.Equal(str))
+			gm.Expect(v.estimateSize()).To(gm.Equal(len(str)))
+			gm.Expect(v.GetType()).To(gm.Equal(ParticleType.STRING))
 		})
 	})
 
@@ -99,9 +99,9 @@ var _ = Describe("Value Test", func() {
 			person := &testBLOB{name: "SomeDude"}
 
 			bval := NewValue(person)
-			Expect(bval.GetType()).To(Equal(ParticleType.BLOB))
-			Expect(bval).To(BeAssignableToTypeOf(BytesValue{}))
-			Expect(bval.GetObject()).To(Equal([]byte(person.name)))
+			gm.Expect(bval.GetType()).To(gm.Equal(ParticleType.BLOB))
+			gm.Expect(bval).To(gm.BeAssignableToTypeOf(BytesValue{}))
+			gm.Expect(bval.GetObject()).To(gm.Equal([]byte(person.name)))
 		})
 	})
 

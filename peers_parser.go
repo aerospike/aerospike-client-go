@@ -87,7 +87,7 @@ func (p *peerListParser) Expect(ch byte) bool {
 	return false
 }
 
-func (p *peerListParser) ReadByte() *byte {
+func (p *peerListParser) readByte() *byte {
 	if p.pos == len(p.buf) {
 		return nil
 	}
@@ -106,7 +106,7 @@ func (p *peerListParser) PeekByte() *byte {
 	return &ch
 }
 
-func (p *peerListParser) ReadInt64() (*int64, error) {
+func (p *peerListParser) readInt64() (*int64, error) {
 	if p.pos == len(p.buf) {
 		return nil, io.EOF
 	}
@@ -131,7 +131,7 @@ func (p *peerListParser) ReadInt64() (*int64, error) {
 	return &num, nil
 }
 
-func (p *peerListParser) ReadString() (string, error) {
+func (p *peerListParser) readString() (string, error) {
 	if p.pos == len(p.buf) {
 		return "", io.EOF
 	}
@@ -200,14 +200,14 @@ func (p *peerListParser) ParseHost(host string) (*Host, error) {
 	return NewHost(addr, port), nil
 }
 
-func (p *peerListParser) ReadHosts(tlsName string) ([]*Host, error) {
+func (p *peerListParser) readHosts(tlsName string) ([]*Host, error) {
 	if !p.Expect('[') {
 		return nil, aeroerr
 	}
 
 	hostList := []*Host{}
 	for {
-		hostStr, err := p.ReadString()
+		hostStr, err := p.readString()
 		if err != nil {
 			return nil, err
 		}
@@ -236,12 +236,12 @@ func (p *peerListParser) ReadHosts(tlsName string) ([]*Host, error) {
 	return hostList, nil
 }
 
-func (p *peerListParser) ReadPeer() (*peer, error) {
+func (p *peerListParser) readPeer() (*peer, error) {
 	if !p.Expect('[') {
 		return nil, nil
 	}
 
-	nodeName, err := p.ReadString()
+	nodeName, err := p.readString()
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (p *peerListParser) ReadPeer() (*peer, error) {
 	if !p.Expect(',') {
 		return nil, aeroerr
 	}
-	tlsName, err := p.ReadString()
+	tlsName, err := p.readString()
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func (p *peerListParser) ReadPeer() (*peer, error) {
 		return nil, aeroerr
 	}
 
-	hostList, err := p.ReadHosts(tlsName)
+	hostList, err := p.readHosts(tlsName)
 	if err != nil {
 		return nil, err
 	}
@@ -271,8 +271,8 @@ func (p *peerListParser) ReadPeer() (*peer, error) {
 	return nodeData, nil
 }
 
-func (p *peerListParser) ReadNodeList() ([]*peer, error) {
-	ch := p.ReadByte()
+func (p *peerListParser) readNodeList() ([]*peer, error) {
+	ch := p.readByte()
 	if ch == nil {
 		return nil, nil
 	}
@@ -283,7 +283,7 @@ func (p *peerListParser) ReadNodeList() ([]*peer, error) {
 
 	nodeList := []*peer{}
 	for {
-		node, err := p.ReadPeer()
+		node, err := p.readPeer()
 		if err != nil {
 			return nil, err
 		}
@@ -308,7 +308,7 @@ func (p *peerListParser) ReadNodeList() ([]*peer, error) {
 
 func (p *peerListParser) Parse() error {
 	var err error
-	p.gen, err = p.ReadInt64()
+	p.gen, err = p.readInt64()
 	if err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ func (p *peerListParser) Parse() error {
 		return aeroerr
 	}
 
-	p.defPort, err = p.ReadInt64()
+	p.defPort, err = p.readInt64()
 	if err != nil {
 		return err
 	}
@@ -326,7 +326,7 @@ func (p *peerListParser) Parse() error {
 		return aeroerr
 	}
 
-	p.peers, err = p.ReadNodeList()
+	p.peers, err = p.readNodeList()
 	if err != nil {
 		return err
 	}

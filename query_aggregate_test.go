@@ -17,14 +17,14 @@ package aerospike_test
 import (
 	"os"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-func registerUDF(client *Client, path, filename string) error {
-	regTask, err := client.RegisterUDFFromFile(nil, path+filename+".lua", filename+".lua", LUA)
+func registerUDF(client *as.Client, path, filename string) error {
+	regTask, err := client.RegisterUDFFromFile(nil, path+filename+".lua", filename+".lua", as.LUA)
 	if err != nil {
 		return err
 	}
@@ -40,13 +40,13 @@ var _ = Describe("Query Aggregate operations", func() {
 	// connection data
 	var ns = "test"
 	var set = randString(50)
-	var wpolicy = NewWritePolicy(0, 0)
+	var wpolicy = as.NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
 
 	// Set LuaPath
 	luaPath, _ := os.Getwd()
 	luaPath += "/test/resources/"
-	SetLuaPath(luaPath)
+	as.SetLuaPath(luaPath)
 
 	const keyCount = 10
 
@@ -61,10 +61,10 @@ var _ = Describe("Query Aggregate operations", func() {
 	BeforeEach(func() {
 		set = randString(50)
 		for i := 1; i <= keyCount; i++ {
-			key, err := NewKey(ns, set, randString(50))
+			key, err := as.NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 
-			bin1 := NewBin("bin1", i)
+			bin1 := as.NewBin("bin1", i)
 			client.PutBins(nil, key, bin1)
 		}
 
@@ -77,7 +77,7 @@ var _ = Describe("Query Aggregate operations", func() {
 	})
 
 	It("must return the sum of specified bin to the client", func() {
-		stm := NewStatement(ns, set)
+		stm := as.NewStatement(ns, set)
 		res, err := client.QueryAggregate(nil, stm, "sum_single_bin", "sum_single_bin", "bin1")
 		Expect(err).ToNot(HaveOccurred())
 
@@ -91,7 +91,7 @@ var _ = Describe("Query Aggregate operations", func() {
 	})
 
 	It("must return Sum and Count to the client", func() {
-		stm := NewStatement(ns, set)
+		stm := as.NewStatement(ns, set)
 		res, err := client.QueryAggregate(nil, stm, "average", "average", "bin1")
 		Expect(err).ToNot(HaveOccurred())
 

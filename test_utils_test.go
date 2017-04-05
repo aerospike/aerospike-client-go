@@ -97,7 +97,22 @@ func arraysEqual(ia, ib interface{}) {
 	b := sliceToIfcSlice(ib)
 
 	Expect(len(a)).To(Equal(len(b)))
-	Expect(a).To(BeEquivalentTo(b))
+	// Expect(a).To(BeEquivalentTo(b))
+
+	for i := range a {
+		switch reflect.ValueOf(a[i]).Kind() {
+		case reflect.Map:
+			mapsEqual(a[i], b[i])
+		case reflect.Slice:
+			arraysEqual(a[i], b[i])
+		default:
+			if a[i] != nil {
+				Expect(a[i]).To(BeEquivalentTo(b[i]))
+			} else {
+				Expect(b[i]).To(BeNil())
+			}
+		}
+	}
 }
 
 func mapsEqual(ia, ib interface{}) {

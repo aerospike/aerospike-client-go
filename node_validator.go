@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"bytes"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -74,6 +76,22 @@ func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd *no
 }
 
 func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) error {
+	if clusterNodes := cluster.GetNodes(); cluster.clientPolicy.IgnoreOtherSubnetAliases && len(clusterNodes) > 0 {
+		masterHostname := clusterNodes[0].host.Name
+		ip, ipnet, err := net.ParseCIDR(masterHostname + "/24")
+		if err != nil {
+			Logger.Error(err.Error())
+			return NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Failed parsing hostname...")
+		}
+
+		stop := ip.Mask(ipnet.Mask)
+		stop[3] += 255
+		if bytes.Compare(net.ParseIP(host.Name).To4(), ip.Mask(ipnet.Mask).To4()) >= 0 && bytes.Compare(net.ParseIP(host.Name).To4(), stop.To4()) < 0 {
+		} else {
+			return NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Ignored hostname from other subnet...")
+		}
+	}
+
 	if err := ndv.setAliases(host); err != nil {
 		return err
 	}
@@ -141,7 +159,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 
 	var infoKeys []string
 	if hasClusterName {
-		infoKeys = []string{"node", "features", "cluster-id"}
+		infoKeys = []string{"node", "features", "cluster-name"}
 	} else {
 		infoKeys = []string{"node", "features"}
 	}
@@ -153,6 +171,14 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	nodeName, exists := infoMap["node"]
 	if !exists {
 		return NewAerospikeError(INVALID_NODE_ERROR)
+	}
+
+	if hasClusterName {
+		id := infoMap["cluster-name"]
+
+		if len(id) == 0 || id != cluster.clientPolicy.ClusterName {
+			return NewAerospikeError(CLUSTER_NAME_MISMATCH_ERROR, fmt.Sprintf("Node %s (%s) expected cluster name `%s` but received `%s`", nodeName, alias.String(), cluster.clientPolicy.ClusterName, id))
+		}
 	}
 
 	// set features

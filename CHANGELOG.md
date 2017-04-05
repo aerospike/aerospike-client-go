@@ -1,5 +1,28 @@
 # Change History
 
+## April 5 2017: v1.26.0
+
+  Feature, Performance improvements and bug fix release.
+
+  * **New Features**
+
+    - Predicate API is supported (for server v3.12+)
+    - Added `Truncate` method to quickly remove all data from namespaces or sets (for server v3.12+).
+    - Support `ScanPolicy.ServerSocketTimeout` (for server v3.12+).
+    - Support `ClientPolicy.IgnoreOtherSubnetAliases` to ignore hosts from other subnets. PR #182, thanks to [wedi-dev](https://github.com/wedi-dev)
+
+  * **Improvements**
+
+    - Added a lot of predefined generic slice and map types in `NewValue` method to avoid hitting reflection as much as possible.
+    - Fix `go vet` complaints.
+
+  * **Fixes**
+
+    - Allow streaming commands (scan/query/aggregation) to retry unless the error occurs during parsing of the results. Fixes issue #187
+    - Use `net.JoinHostPort` to concatinate host and port values instead of doing it directly. Fixes some issues in IPv6 connection strings.
+    - Improved initial Tend run.
+    - Fixes `cluster-name` checking bug.
+
 ## March 8 2017: v1.25.1
 
   Hot fix release. Updating the client is recommended.

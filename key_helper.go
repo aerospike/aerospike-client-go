@@ -78,9 +78,9 @@ func (vb *keyWriter) WriteFloat64(float float64) (int, error) {
 	return 8, nil
 }
 
-func (vb *keyWriter) WriteByte(b byte) (int, error) {
-	vb.hash.Write([]byte{b})
-	return 1, nil
+func (vb *keyWriter) WriteByte(b byte) error {
+	_, err := vb.hash.Write([]byte{b})
+	return err
 }
 
 func (vb *keyWriter) WriteString(s string) (int, error) {
