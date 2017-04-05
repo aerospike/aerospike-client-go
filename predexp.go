@@ -41,9 +41,10 @@ const (
 	_AS_PREDEXP_STRING_VAR  uint16 = 121
 	_AS_PREDEXP_GEOJSON_VAR uint16 = 122
 
-	_AS_PREDEXP_REC_DEVICE_SIZE uint16 = 150
-	_AS_PREDEXP_REC_LAST_UPDATE uint16 = 151
-	_AS_PREDEXP_REC_VOID_TIME   uint16 = 152
+	_AS_PREDEXP_REC_DEVICE_SIZE   uint16 = 150
+	_AS_PREDEXP_REC_LAST_UPDATE   uint16 = 151
+	_AS_PREDEXP_REC_VOID_TIME     uint16 = 152
+	_AS_PREDEXP_REC_DIGEST_MODULO uint16 = 153
 
 	_AS_PREDEXP_INTEGER_EQUAL     uint16 = 200
 	_AS_PREDEXP_INTEGER_UNEQUAL   uint16 = 201
@@ -361,6 +362,8 @@ func (e *predExpMD) String() string {
 		return "rec.LastUpdate"
 	case _AS_PREDEXP_REC_VOID_TIME:
 		return "rec.Expiration"
+	case _AS_PREDEXP_REC_DIGEST_MODULO:
+		return "rec.DigestModulo"
 	default:
 		panic("Invalid Metadata tag.")
 	}
@@ -388,6 +391,43 @@ func NewPredExpRecLastUpdate() *predExpMD {
 // NewPredExpRecVoidTime creates record expiration time predicate expressed in nanoseconds since 1970-01-01 epoch as 64 bit integer.
 func NewPredExpRecVoidTime() *predExpMD {
 	return &predExpMD{tag: _AS_PREDEXP_REC_VOID_TIME}
+}
+
+// ---------------- predExpMDDigestModulo
+
+type predExpMDDigestModulo struct {
+	predExpBase
+	mod int32
+}
+
+// String implements the Stringer interface
+func (e *predExpMDDigestModulo) String() string {
+	return "rec.DigestModulo"
+}
+
+func (self *predExpMDDigestModulo) marshaledSize() int {
+	return self.predExpBase.marshaledSize() + 4
+}
+
+func (self *predExpMDDigestModulo) marshal(cmd *baseCommand) error {
+	self.marshalTL(cmd, _AS_PREDEXP_REC_DIGEST_MODULO, 4)
+	cmd.WriteInt32(self.mod)
+	return nil
+}
+
+// NewPredExpRecDigestModulo creates a digest modulo record metadata value predicate expression.
+// The digest modulo expression assumes the value of 4 bytes of the
+// record's key digest modulo as its argument.
+//
+// For example, the following sequence of predicate expressions
+// selects records that have digest(key) % 3 == 1):
+// stmt.SetPredExp(
+// 		NewPredExpRecDigestModulo(3),
+// 		NewPredExpIntegerValue(1),
+// 		NewPredExpIntegerEqual(),
+// )
+func NewPredExpRecDigestModulo(mod int32) *predExpMDDigestModulo {
+	return &predExpMDDigestModulo{mod: mod}
 }
 
 // ---------------- predExpCompare

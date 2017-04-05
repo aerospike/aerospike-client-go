@@ -438,6 +438,35 @@ var _ = Describe("predexp operations", func() {
 		Expect(cnt).To(BeNumerically("<", 300))
 	})
 
+	It("predexp digest_modulo must work", func() {
+
+		cnt := []int{0, 0, 0}
+		for _, ndx := range []int64{0, 1, 2} {
+			stm := as.NewStatement(ns, set)
+			stm.SetPredExp(
+				as.NewPredExpRecDigestModulo(3),
+				as.NewPredExpIntegerValue(ndx),
+				as.NewPredExpIntegerEqual(),
+			)
+			recordset, err := client.Query(nil, stm)
+			Expect(err).ToNot(HaveOccurred())
+
+			for res := range recordset.Results() {
+				Expect(res.Err).ToNot(HaveOccurred())
+				cnt[ndx]++
+			}
+		}
+
+		// The count should be split 3 ways, roughly equally.
+		sum := 0
+		for _, cc := range cnt {
+			Expect(cc).To(BeNumerically(">", 300))
+			Expect(cc).To(BeNumerically("<", 370))
+			sum += cc
+		}
+		Expect(sum).To(BeNumerically("==", 1000))
+	})
+
 	It("predexp list_iter_or work", func() {
 
 		// Select all records w/ list contains a 17.
