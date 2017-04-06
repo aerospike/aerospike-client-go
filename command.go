@@ -825,8 +825,16 @@ func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) 
 	binLen := len(operation.BinName)
 	cmd.dataOffset += binLen + int(_OPERATION_HEADER_SIZE)
 
-	if operation.BinValue != nil {
-		sz, err := operation.BinValue.estimateSize()
+	if operation.encoder == nil {
+		if operation.BinValue != nil {
+			sz, err := operation.BinValue.estimateSize()
+			if err != nil {
+				return err
+			}
+			cmd.dataOffset += sz
+		}
+	} else {
+		sz, err := operation.encoder(operation, nil)
 		if err != nil {
 			return err
 		}
@@ -995,19 +1003,35 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 	// check for float support
 	cmd.checkServerCompatibility(operation.BinValue)
 
-	valueLength, err := operation.BinValue.estimateSize()
-	if err != nil {
+	if operation.encoder == nil {
+		valueLength, err := operation.BinValue.estimateSize()
+		if err != nil {
+			return err
+		}
+
+		cmd.WriteInt32(int32(nameLength + valueLength + 4))
+		cmd.WriteByte((operation.OpType.op))
+		cmd.WriteByte((byte(operation.BinValue.GetType())))
+		cmd.WriteByte((byte(0)))
+		cmd.WriteByte((byte(nameLength)))
+		cmd.dataOffset += nameLength
+		_, err = operation.BinValue.write(cmd)
+		return err
+	} else {
+		valueLength, err := operation.encoder(operation, nil)
+		if err != nil {
+			return err
+		}
+
+		cmd.WriteInt32(int32(nameLength + valueLength + 4))
+		cmd.WriteByte((operation.OpType.op))
+		cmd.WriteByte((byte(ParticleType.BLOB)))
+		cmd.WriteByte((byte(0)))
+		cmd.WriteByte((byte(nameLength)))
+		cmd.dataOffset += nameLength
+		_, err = operation.encoder(operation, cmd)
 		return err
 	}
-
-	cmd.WriteInt32(int32(nameLength + valueLength + 4))
-	cmd.WriteByte((operation.OpType.op))
-	cmd.WriteByte((byte(operation.BinValue.GetType())))
-	cmd.WriteByte((byte(0)))
-	cmd.WriteByte((byte(nameLength)))
-	cmd.dataOffset += nameLength
-	_, err = operation.BinValue.write(cmd)
-	return err
 }
 
 func (cmd *baseCommand) writeOperationForBinName(name string, operation OperationType) {

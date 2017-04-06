@@ -276,8 +276,16 @@ var _ = Describe("CDT List Test", func() {
 			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(elems))
 		})
 
-		It("should trim list elements", func() {
-			cdtListRes, err := client.Operate(wpolicy, key, as.ListClearOp(cdtBinName))
+		It("should clear list elements", func() {
+			for i := 0; i < listSize; i++ {
+				_, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, i))
+				Expect(err).ToNot(HaveOccurred())
+			}
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListSizeOp(cdtBinName))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).NotTo(Equal(0))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListClearOp(cdtBinName))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cdtListRes.Bins[cdtBinName]).To(BeNil())
 
