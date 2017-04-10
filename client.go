@@ -42,9 +42,9 @@ type Client struct {
 	DefaultPolicy *BasePolicy
 	// DefaultWritePolicy is used for all write commands without a specific policy.
 	DefaultWritePolicy *WritePolicy
-	// DefaultScanPolicy is used for all query commands without a specific policy.
+	// DefaultScanPolicy is used for all scan commands without a specific policy.
 	DefaultScanPolicy *ScanPolicy
-	// DefaultQueryPolicy is used for all scan commands without a specific policy.
+	// DefaultQueryPolicy is used for all query commands without a specific policy.
 	DefaultQueryPolicy *QueryPolicy
 	// DefaultAdminPolicy is used for all security commands without a specific policy.
 	DefaultAdminPolicy *AdminPolicy
