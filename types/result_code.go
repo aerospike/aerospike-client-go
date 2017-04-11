@@ -124,10 +124,10 @@ const (
 	FAIL_FORBIDDEN ResultCode = 22
 
 	// Element Not Found in CDT
-	FAIL_ELEMENT_NOT_FOUND = 23
+	FAIL_ELEMENT_NOT_FOUND ResultCode = 23
 
 	// Element Already Exists in CDT
-	FAIL_ELEMENT_EXISTS = 24
+	FAIL_ELEMENT_EXISTS ResultCode = 24
 
 	// There are no more records left for query.
 	QUERY_END ResultCode = 50
@@ -199,7 +199,7 @@ const (
 	BATCH_QUEUES_FULL ResultCode = 152
 
 	// Invalid GeoJSON on insert/update
-	GEO_INVALID_GEOJSON = 160
+	GEO_INVALID_GEOJSON ResultCode = 160
 
 	// Secondary index already exists.
 	INDEX_FOUND ResultCode = 200
