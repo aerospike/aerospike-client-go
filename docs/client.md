@@ -138,7 +138,7 @@ remove()
 -->
 <a name="delete"></a>
 
-### Delete(policy *WritePoicy, key *Key) (existed bool, err error)
+### Delete(policy *WritePolicy, key *Key) (bool, error)
 
 Removes a record with the specified key from the database cluster.
 
@@ -275,7 +275,7 @@ batchget()
 -->
 <a name="batchget"></a>
 
-### BatchGet(policy *BasePolicy, keys *[]Key, bins ...string) ([]*Record, error)
+### BatchGet(policy *BasePolicy, keys []*Key, bins ...string) ([]*Record, error)
 
 Using the keys provided, reads all relevant records from the database cluster in a single request.
 
@@ -302,7 +302,7 @@ batchgetheader()
 -->
 <a name="batchgetheader"></a>
 
-### BatchGetHeader(policy *BasePolicy, keys *[]Key) ([]*Record, error)
+### BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, error)
 
 Using the keys provided, reads all relevant record metadata from the database cluster in a single request.
 
