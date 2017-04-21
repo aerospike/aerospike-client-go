@@ -54,6 +54,10 @@ type BasePolicy struct {
 	// timeout was not exceeded.  Enter zero to skip sleep.
 	SleepBetweenRetries time.Duration //= 1ms;
 
+	// SleepMultiplier specifies the multiplying factor to be used for exponential backoff during retries.
+	// Default to (1.0).
+	SleepMultiplier float64 //= 1.0;
+
 	// ReplicaPolicy detemines the node to the send the read commands containing the key's partition replica type.
 	// Write commands are not affected by this setting, because all writes are directed
 	// to the node containing the key's master partition.
@@ -69,6 +73,7 @@ func NewPolicy() *BasePolicy {
 		Timeout:             0 * time.Millisecond,
 		MaxRetries:          2,
 		SleepBetweenRetries: 1 * time.Millisecond,
+		SleepMultiplier:     1.0,
 		ReplicaPolicy:       MASTER,
 	}
 }

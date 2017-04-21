@@ -24,6 +24,7 @@ When invoking an operation, you can choose:
     Timeout:             0 * time.Millisecond, // no timeout
     MaxRetries:          2,
     SleepBetweenRetries: 500 * time.Millisecond,
+    SleepMultiplier:     1.5
   }
 ```
 
@@ -58,7 +59,9 @@ Attributes:
                             * Default: `2`
 - `SleepBetweenRetries`     – Duration of waiting between retries.
                             * Default: `500 * time.Milliseconds`
-
+- `SleepMultiplier`         - The multiplying factor to be used for exponential
+                            backoff during retries.
+                            * Default: `1.0`
 
 <!--
 ################################################################################
