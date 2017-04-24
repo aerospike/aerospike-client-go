@@ -159,222 +159,130 @@ func DefaultMapPolicy() *MapPolicy {
 	return NewMapPolicy(MapOrder.UNORDERED, MapWriteMode.UPDATE)
 }
 
+func newMapSetPolicyEncoder(op *Operation, packer BufferEx) (int, error) {
+	return packCDTParamsAsArray(packer, _CDT_MAP_SET_TYPE, op.BinValue.(IntegerValue))
+}
+
 func newMapSetPolicy(binName string, attributes mapOrderType) *Operation {
-	packer := newPacker()
-	if _, err := __PackShortRaw(packer, _CDT_MAP_SET_TYPE); err != nil {
-		panic(err)
-	}
-	if _, err := __PackArrayBegin(packer, 1); err != nil {
-		panic(err)
-	}
-	if _, err := __PackAInt(packer, int(attributes)); err != nil {
-		panic(err)
-	}
 	return &Operation{
 		OpType:   MAP_MODIFY,
 		BinName:  binName,
-		BinValue: NewValue(packer.Bytes())}
+		BinValue: IntegerValue(attributes),
+		encoder:  newMapSetPolicyEncoder,
+	}
+}
+
+func newMapCreatePutEncoder(op *Operation, packer BufferEx) (int, error) {
+	return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.BinValue.(ListValue))
 }
 
 func newMapCreatePut(command int, attributes mapOrderType, binName string, value1 interface{}, value2 interface{}) *Operation {
-	packer := newPacker()
-	if _, err := __PackShortRaw(packer, int16(command)); err != nil {
-		panic(err)
-	}
-
 	if command == _CDT_MAP_REPLACE {
 		// Replace doesn't allow map attributes because it does not create on non-existing key.
-		if _, err := __PackArrayBegin(packer, 2); err != nil {
-			panic(err)
-		}
-		if _, err := NewValue(value1).pack(packer); err != nil {
-			panic(err)
-		}
-		if _, err := NewValue(value2).pack(packer); err != nil {
-			panic(err)
-		}
-	} else {
-		if _, err := __PackArrayBegin(packer, 3); err != nil {
-			panic(err)
-		}
-		if _, err := NewValue(value1).pack(packer); err != nil {
-			panic(err)
-		}
-		if _, err := NewValue(value2).pack(packer); err != nil {
-			panic(err)
-		}
-		if _, err := __PackAInt(packer, int(attributes)); err != nil {
-			panic(err)
+		return &Operation{
+			OpType:    MAP_MODIFY,
+			opSubType: &command,
+			BinName:   binName,
+			BinValue:  ListValue([]interface{}{value1, value2}),
+			encoder:   newMapCreatePutEncoder,
 		}
 	}
+
 	return &Operation{
-		OpType:   MAP_MODIFY,
-		BinName:  binName,
-		BinValue: NewValue(packer.Bytes()),
+		OpType:    MAP_MODIFY,
+		opSubType: &command,
+		BinName:   binName,
+		BinValue:  ListValue([]interface{}{value1, value2, attributes}),
+		encoder:   newMapCreatePutEncoder,
 	}
 }
 
+func newMapCreateOperationEncoder(op *Operation, packer BufferEx) (int, error) {
+	if op.BinValue != nil {
+		if params := op.BinValue.(ListValue); len(params) > 0 {
+			return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.BinValue.(ListValue))
+		}
+	}
+	return packCDTParamsAsArray(packer, int16(*op.opSubType))
+}
+
 func newMapCreateOperationValues2(command int, attributes mapOrderType, binName string, value1 interface{}, value2 interface{}) *Operation {
-	packer := newPacker()
-	if _, err := __PackShortRaw(packer, int16(command)); err != nil {
-		panic(err)
-	}
-	if _, err := __PackArrayBegin(packer, 3); err != nil {
-		panic(err)
-	}
-	if _, err := NewValue(value1).pack(packer); err != nil {
-		panic(err)
-	}
-	if _, err := NewValue(value2).pack(packer); err != nil {
-		panic(err)
-	}
-	if _, err := __PackAInt(packer, int(attributes)); err != nil {
-		panic(err)
-	}
 	return &Operation{
-		OpType:   MAP_MODIFY,
-		BinName:  binName,
-		BinValue: NewValue(packer.Bytes()),
+		OpType:    MAP_MODIFY,
+		opSubType: &command,
+		BinName:   binName,
+		BinValue:  ListValue([]interface{}{value1, value2, attributes}),
+		encoder:   newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateOperationValues0(command int, typ OperationType, binName string) *Operation {
-	packer := newPacker()
-	if _, err := __PackShortRaw(packer, int16(command)); err != nil {
-		panic(err)
-	}
 	return &Operation{
-		OpType:   typ,
-		BinName:  binName,
-		BinValue: NewValue(packer.Bytes()),
+		OpType:    typ,
+		opSubType: &command,
+		BinName:   binName,
+		// BinValue: NewNullValue(),
+		encoder: newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateOperationValuesN(command int, typ OperationType, binName string, values []interface{}, returnType mapReturnType) *Operation {
-	packer := newPacker()
-	if _, err := __PackShortRaw(packer, int16(command)); err != nil {
-		panic(err)
-	}
-	if _, err := __PackArrayBegin(packer, 2); err != nil {
-		panic(err)
-	}
-	if _, err := __PackAInt(packer, int(returnType)); err != nil {
-		panic(err)
-	}
-	if _, err := __PackIfcList(packer, values); err != nil {
-		panic(err)
-	}
 	return &Operation{
-		OpType:   typ,
-		BinName:  binName,
-		BinValue: NewValue(packer.Bytes()),
+		OpType:    typ,
+		opSubType: &command,
+		BinName:   binName,
+		BinValue:  ListValue([]interface{}{IntegerValue(returnType), ListValue(values)}),
+		encoder:   newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateOperationValue1(command int, typ OperationType, binName string, value interface{}, returnType mapReturnType) *Operation {
-	packer := newPacker()
-	if _, err := __PackShortRaw(packer, int16(command)); err != nil {
-		panic(err)
-	}
-	if _, err := __PackArrayBegin(packer, 2); err != nil {
-		panic(err)
-	}
-	if _, err := __PackAInt(packer, int(returnType)); err != nil {
-		panic(err)
-	}
-	if _, err := NewValue(value).pack(packer); err != nil {
-		panic(err)
-	}
 	return &Operation{
-		OpType:   typ,
-		BinName:  binName,
-		BinValue: NewValue(packer.Bytes()),
+		OpType:    typ,
+		opSubType: &command,
+		BinName:   binName,
+		BinValue:  ListValue([]interface{}{IntegerValue(returnType), value}),
+		encoder:   newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateOperationIndex(command int, typ OperationType, binName string, index int, returnType mapReturnType) *Operation {
-	packer := newPacker()
-	if _, err := __PackShortRaw(packer, int16(command)); err != nil {
-		panic(err)
-	}
-	if _, err := __PackArrayBegin(packer, 2); err != nil {
-		panic(err)
-	}
-	if _, err := __PackAInt(packer, int(returnType)); err != nil {
-		panic(err)
-	}
-	if _, err := __PackAInt(packer, index); err != nil {
-		panic(err)
-	}
 	return &Operation{
-		OpType:   typ,
-		BinName:  binName,
-		BinValue: NewValue(packer.Bytes()),
+		OpType:    typ,
+		opSubType: &command,
+		BinName:   binName,
+		BinValue:  ListValue([]interface{}{IntegerValue(returnType), index}),
+		encoder:   newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateOperationIndexCount(command int, typ OperationType, binName string, index int, count int, returnType mapReturnType) *Operation {
-	packer := newPacker()
-	if _, err := __PackShortRaw(packer, int16(command)); err != nil {
-		panic(err)
-	}
-	if _, err := __PackArrayBegin(packer, 3); err != nil {
-		panic(err)
-	}
-	if _, err := __PackAInt(packer, int(returnType)); err != nil {
-		panic(err)
-	}
-	if _, err := __PackAInt(packer, index); err != nil {
-		panic(err)
-	}
-	if _, err := __PackAInt(packer, count); err != nil {
-		panic(err)
-	}
 	return &Operation{
-		OpType:   typ,
-		BinName:  binName,
-		BinValue: NewValue(packer.Bytes()),
+		OpType:    typ,
+		opSubType: &command,
+		BinName:   binName,
+		BinValue:  ListValue([]interface{}{IntegerValue(returnType), index, count}),
+		encoder:   newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateRangeOperation(command int, typ OperationType, binName string, begin interface{}, end interface{}, returnType mapReturnType) *Operation {
-	packer := newPacker()
-	if _, err := __PackShortRaw(packer, int16(command)); err != nil {
-		panic(err)
-	}
-
-	if begin == nil {
-		begin = NewNullValue()
-	}
-
 	if end == nil {
-		if _, err := __PackArrayBegin(packer, 2); err != nil {
-			panic(err)
-		}
-		if _, err := __PackAInt(packer, int(returnType)); err != nil {
-			panic(err)
-		}
-		if _, err := NewValue(begin).pack(packer); err != nil {
-			panic(err)
-		}
-	} else {
-		if _, err := __PackArrayBegin(packer, 3); err != nil {
-			panic(err)
-		}
-		if _, err := __PackAInt(packer, int(returnType)); err != nil {
-			panic(err)
-		}
-		if _, err := NewValue(begin).pack(packer); err != nil {
-			panic(err)
-		}
-		if _, err := NewValue(end).pack(packer); err != nil {
-			panic(err)
+		return &Operation{
+			OpType:    typ,
+			opSubType: &command,
+			BinName:   binName,
+			BinValue:  ListValue([]interface{}{IntegerValue(returnType), begin}),
+			encoder:   newMapCreateOperationEncoder,
 		}
 	}
+
 	return &Operation{
-		OpType:   typ,
-		BinName:  binName,
-		BinValue: NewValue(packer.Bytes()),
+		OpType:    typ,
+		opSubType: &command,
+		BinName:   binName,
+		BinValue:  ListValue([]interface{}{IntegerValue(returnType), begin, end}),
+		encoder:   newMapCreateOperationEncoder,
 	}
 }
 
@@ -429,34 +337,23 @@ func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interfac
 // The required map policy dictates the type of map to create when it does not exist.
 // The map policy also specifies the mode used when writing items to the map.
 func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]interface{}) *Operation {
-	packer := newPacker()
-	if _, err := __PackShortRaw(packer, int16(policy.itemsCommand)); err != nil {
-		panic(err)
-	}
-
 	if policy.itemsCommand == int(_CDT_MAP_REPLACE_ITEMS) {
 		// Replace doesn't allow map attributes because it does not create on non-existing key.
-		if _, err := __PackArrayBegin(packer, 1); err != nil {
-			panic(err)
-		}
-		if _, err := __PackIfcMap(packer, amap); err != nil {
-			panic(err)
-		}
-	} else {
-		if _, err := __PackArrayBegin(packer, 2); err != nil {
-			panic(err)
-		}
-		if _, err := __PackIfcMap(packer, amap); err != nil {
-			panic(err)
-		}
-		if _, err := __PackAInt(packer, int(policy.attributes)); err != nil {
-			panic(err)
+		return &Operation{
+			OpType:    MAP_MODIFY,
+			opSubType: &policy.itemsCommand,
+			BinName:   binName,
+			BinValue:  ListValue([]interface{}{MapValue(amap)}),
+			encoder:   newMapCreateOperationEncoder,
 		}
 	}
+
 	return &Operation{
-		OpType:   MAP_MODIFY,
-		BinName:  binName,
-		BinValue: NewValue(packer.Bytes()),
+		OpType:    MAP_MODIFY,
+		opSubType: &policy.itemsCommand,
+		BinName:   binName,
+		BinValue:  ListValue([]interface{}{MapValue(amap), IntegerValue(policy.attributes)}),
+		encoder:   newMapCreateOperationEncoder,
 	}
 }
 

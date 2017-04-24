@@ -20,7 +20,7 @@ type operation interface {
 
 // OperationType determines operation type
 type OperationType *struct{ op byte }
-type OperationSubType *struct{ op byte }
+type OperationSubType *int
 
 // Valid OperationType values that can be used to create custom Operations.
 // The names are self-explanatory.
@@ -46,7 +46,8 @@ type Operation struct {
 	// OpType determines type of operation.
 	OpType OperationType
 	// used in CDT commands
-	// opSubType OperationSubType
+	opSubType OperationSubType
+
 	encoder func(*Operation, BufferEx) (int, error)
 
 	// BinName (Optional) determines the name of bin used in operation.

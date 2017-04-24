@@ -1054,6 +1054,10 @@ func (cmd *baseCommand) writeOperationForOperationType(operation OperationType) 
 
 // TODO: Remove this method and move it to the appropriate VALUE method
 func (cmd *baseCommand) checkServerCompatibility(val Value) {
+	if val == nil {
+		return
+	}
+
 	// check for float support
 	switch val.GetType() {
 	case ParticleType.FLOAT:

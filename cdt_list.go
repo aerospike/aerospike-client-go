@@ -76,6 +76,30 @@ func packCDTParamsAsArray(packer BufferEx, opType int16, params ...Value) (int, 
 	return size, nil
 }
 
+func packCDTIfcParamsAsArray(packer BufferEx, opType int16, params ListValue) (int, error) {
+	size := 0
+	n, err := __PackShortRaw(packer, opType)
+	if err != nil {
+		return n, err
+	}
+	size += n
+
+	if len(params) > 0 {
+		if n, err = __PackArrayBegin(packer, len(params)); err != nil {
+			return size + n, err
+		}
+		size += n
+
+		for i := range params {
+			if n, err = NewValue(params[i]).pack(packer); err != nil {
+				return size + n, err
+			}
+			size += n
+		}
+	}
+	return size, nil
+}
+
 func listAppendOpEncoder(op *Operation, packer BufferEx) (int, error) {
 	params := op.BinValue.(ListValue)
 	if len(params) == 1 {
@@ -126,8 +150,7 @@ func ListPopOp(binName string, index int) *Operation {
 }
 
 func listPopRangeOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	params := op.BinValue.(ValueArray)
-	return packCDTParamsAsArray(packer, _CDT_LIST_POP_RANGE, params...)
+	return packCDTParamsAsArray(packer, _CDT_LIST_POP_RANGE, op.BinValue.(ValueArray)...)
 }
 
 // ListPopRangeOp creates a list pop range operation.
@@ -162,8 +185,7 @@ func ListRemoveOp(binName string, index int) *Operation {
 }
 
 func listRemoveRangeOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	params := op.BinValue.(ValueArray)
-	return packCDTParamsAsArray(packer, _CDT_LIST_REMOVE_RANGE, params...)
+	return packCDTParamsAsArray(packer, _CDT_LIST_REMOVE_RANGE, op.BinValue.(ValueArray)...)
 }
 
 // ListRemoveRangeOp creates a list remove range operation.
@@ -189,8 +211,7 @@ func ListRemoveRangeFromOp(binName string, index int) *Operation {
 }
 
 func listSetOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	params := op.BinValue.(ValueArray)
-	return packCDTParamsAsArray(packer, _CDT_LIST_SET, params...)
+	return packCDTParamsAsArray(packer, _CDT_LIST_SET, op.BinValue.(ValueArray)...)
 }
 
 // ListSetOp creates a list set operation.
@@ -201,8 +222,7 @@ func ListSetOp(binName string, index int, value interface{}) *Operation {
 }
 
 func listTrimOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	params := op.BinValue.(ValueArray)
-	return packCDTParamsAsArray(packer, _CDT_LIST_TRIM, params...)
+	return packCDTParamsAsArray(packer, _CDT_LIST_TRIM, op.BinValue.(ValueArray)...)
 }
 
 // ListTrimOp creates a list trim operation.
@@ -245,8 +265,7 @@ func ListGetOp(binName string, index int) *Operation {
 }
 
 func listGetRangeOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	params := op.BinValue.(ValueArray)
-	return packCDTParamsAsArray(packer, _CDT_LIST_GET_RANGE, params...)
+	return packCDTParamsAsArray(packer, _CDT_LIST_GET_RANGE, op.BinValue.(ValueArray)...)
 }
 
 // ListGetRangeOp creates a list get range operation.
