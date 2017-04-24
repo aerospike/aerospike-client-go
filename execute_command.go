@@ -31,9 +31,9 @@ func newExecuteCommand(
 	packageName string,
 	functionName string,
 	args *ValueArray,
-) *executeCommand {
-	return &executeCommand{
-		readCommand:  *newReadCommand(cluster, &policy.BasePolicy, key, nil),
+) executeCommand {
+	return executeCommand{
+		readCommand:  newReadCommand(cluster, &policy.BasePolicy, key, nil),
 		policy:       policy,
 		packageName:  packageName,
 		functionName: functionName,
@@ -46,7 +46,7 @@ func (cmd *executeCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *executeCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getMasterNode(cmd.partition)
+	return cmd.cluster.getMasterNode(&cmd.partition)
 }
 
 func (cmd *executeCommand) Execute() error {

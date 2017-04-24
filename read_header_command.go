@@ -28,7 +28,7 @@ type readHeaderCommand struct {
 
 func newReadHeaderCommand(cluster *Cluster, policy *BasePolicy, key *Key) *readHeaderCommand {
 	newReadHeaderCmd := &readHeaderCommand{
-		singleCommand: *newSingleCommand(cluster, key),
+		singleCommand: newSingleCommand(cluster, key),
 		policy:        policy,
 	}
 
@@ -44,7 +44,7 @@ func (cmd *readHeaderCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *readHeaderCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getReadNode(cmd.partition, cmd.policy.ReplicaPolicy)
+	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy)
 }
 
 func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {

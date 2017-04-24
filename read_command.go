@@ -44,9 +44,9 @@ var objectParser func(
 	expiration uint32,
 ) error
 
-func newReadCommand(cluster *Cluster, policy *BasePolicy, key *Key, binNames []string) *readCommand {
-	return &readCommand{
-		singleCommand: *newSingleCommand(cluster, key),
+func newReadCommand(cluster *Cluster, policy *BasePolicy, key *Key, binNames []string) readCommand {
+	return readCommand{
+		singleCommand: newSingleCommand(cluster, key),
 		binNames:      binNames,
 		policy:        policy,
 	}
@@ -61,7 +61,7 @@ func (cmd *readCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *readCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getReadNode(cmd.partition, cmd.policy.ReplicaPolicy)
+	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy)
 }
 
 func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {

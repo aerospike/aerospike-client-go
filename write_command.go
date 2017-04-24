@@ -39,7 +39,7 @@ func newWriteCommand(cluster *Cluster,
 	operation OperationType) *writeCommand {
 
 	newWriteCmd := &writeCommand{
-		singleCommand: *newSingleCommand(cluster, key),
+		singleCommand: newSingleCommand(cluster, key),
 		policy:        policy,
 		bins:          bins,
 		binMap:        binMap,
@@ -58,7 +58,7 @@ func (cmd *writeCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *writeCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getMasterNode(cmd.partition)
+	return cmd.cluster.getMasterNode(&cmd.partition)
 }
 
 func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {
