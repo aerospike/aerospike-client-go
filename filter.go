@@ -76,7 +76,7 @@ func NewGeoRegionsContainingPointFilter(binName, point string) *Filter {
 	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
 }
 
-// collectionType creates a geospatial "containing point" filter for query on collection index.
+// NewGeoRegionsContainingPointForCollectionFilter creates a geospatial "containing point" filter for query on collection index.
 // Argument must be a valid GeoJSON point.
 func NewGeoRegionsContainingPointForCollectionFilter(binName string, collectionType IndexCollectionType, point string) *Filter {
 	v := NewStringValue(point)
