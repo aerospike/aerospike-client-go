@@ -1232,6 +1232,9 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	iterations := -1
 
+	// for exponential backoff
+	interval := policy.SleepBetweenRetries
+
 	// set timeout outside the loop
 	deadline := time.Now().Add(policy.Timeout)
 
@@ -1244,7 +1247,10 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 		// Sleep before trying again, after the first iteration
 		if iterations > 0 && policy.SleepBetweenRetries > 0 {
-			time.Sleep(policy.SleepBetweenRetries)
+			time.Sleep(interval)
+			if policy.SleepMultiplier > 1 {
+				interval = time.Duration(float64(interval) * policy.SleepMultiplier)
+			}
 		}
 
 		// check for command timeout
