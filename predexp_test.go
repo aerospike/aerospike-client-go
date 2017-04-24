@@ -55,6 +55,7 @@ var _ = Describe("predexp operations", func() {
 	var gaptime int64
 
 	BeforeEach(func() {
+		set = randString(10)
 		wpolicy = as.NewWritePolicy(0, 24*60*60)
 
 		for ii := 0; ii < keyCount; ii++ {
