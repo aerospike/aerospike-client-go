@@ -19,6 +19,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"reflect"
 	"time"
 
 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
@@ -293,7 +294,7 @@ func __PackObject(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
 		return __packObjectReflect(cmd, obj, mapKey)
 	}
 
-	panic(fmt.Sprintf("Type `%#v` not supported to pack. ", obj))
+	panic(fmt.Sprintf("Type `%v (%s)` not supported to pack. ", obj, reflect.TypeOf(obj).String()))
 }
 
 func __PackAUInt64(cmd BufferEx, val uint64) (int, error) {

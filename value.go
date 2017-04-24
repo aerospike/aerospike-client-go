@@ -435,7 +435,7 @@ func NewValue(v interface{}) Value {
 	}
 
 	// panic for anything that is not supported.
-	panic(NewAerospikeError(TYPE_NOT_SUPPORTED, "Value type '"+reflect.TypeOf(v).String()+"' not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)"))
+	panic(NewAerospikeError(TYPE_NOT_SUPPORTED, fmt.Sprintf("Value type '%v' (%s) not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)", v, reflect.TypeOf(v).String())))
 }
 
 // NullValue is an empty value.

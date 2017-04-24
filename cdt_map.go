@@ -192,7 +192,7 @@ func newMapCreatePut(command int, attributes mapOrderType, binName string, value
 		opType:    MAP_MODIFY,
 		opSubType: &command,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{value1, value2, attributes}),
+		binValue:  ListValue([]interface{}{value1, value2, IntegerValue(attributes)}),
 		encoder:   newMapCreatePutEncoder,
 	}
 }
@@ -211,7 +211,7 @@ func newMapCreateOperationValues2(command int, attributes mapOrderType, binName 
 		opType:    MAP_MODIFY,
 		opSubType: &command,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{value1, value2, attributes}),
+		binValue:  ListValue([]interface{}{value1, value2, IntegerValue(attributes)}),
 		encoder:   newMapCreateOperationEncoder,
 	}
 }
