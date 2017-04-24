@@ -1248,7 +1248,9 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		// Sleep before trying again, after the first iteration
 		if iterations > 0 && policy.SleepBetweenRetries > 0 {
 			time.Sleep(interval)
-			interval = time.Duration(float64(interval) * policy.SleepMultiplier)
+			if policy.SleepMultiplier > 1 {
+				interval = time.Duration(float64(interval) * policy.SleepMultiplier)
+			}
 		}
 
 		// check for command timeout

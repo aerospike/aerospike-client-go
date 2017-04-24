@@ -55,7 +55,7 @@ type BasePolicy struct {
 	SleepBetweenRetries time.Duration //= 1ms;
 
 	// SleepMultiplier specifies the multiplying factor to be used for exponential backoff during retries.
-	// Default to (1.0).
+	// Default to (1.0); Only values greater than 1 are valid.
 	SleepMultiplier float64 //= 1.0;
 
 	// ReplicaPolicy detemines the node to the send the read commands containing the key's partition replica type.
