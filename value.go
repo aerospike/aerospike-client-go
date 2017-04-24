@@ -61,22 +61,9 @@ type AerospikeBlob interface {
 	EncodeBlob() ([]byte, error)
 }
 
-// NewValue generates a new Value object based on the type.
-// If the type is not supported, NewValue will panic.
-// This method is a convenience method, and should not be used
-// when absolute performance is required unless for the reason mentioned below.
-//
-// If you have custom maps or slices like:
-//     type MyMap map[primitive1]primitive2, eg: map[int]string
-// or
-//     type MySlice []primitive, eg: []float64
-// cast them to their primitive type when passing them to this method:
-//     v := NewValue(map[int]string(myVar))
-//     v := NewValue([]float64(myVar))
-// This way you will avoid hitting reflection.
-// To completely avoid reflection in the library,
-// use the build tag: as_performance while building your program.
-func NewValue(v interface{}) Value {
+// tryConcreteValue will return an aerospike value.
+// If the encoder does not exists, it will not try to use reflection.
+func tryConcreteValue(v interface{}) Value {
 	switch val := v.(type) {
 	case Value:
 		return val
@@ -416,6 +403,29 @@ func NewValue(v interface{}) Value {
 		return NewMapperValue(uint64Float64Map(val))
 	case map[uint64]interface{}:
 		return NewMapperValue(uint64InterfaceMap(val))
+	}
+
+	return nil
+}
+
+// NewValue generates a new Value object based on the type.
+// If the type is not supported, NewValue will panic.
+// This method is a convenience method, and should not be used
+// when absolute performance is required unless for the reason mentioned below.
+//
+// If you have custom maps or slices like:
+//     type MyMap map[primitive1]primitive2, eg: map[int]string
+// or
+//     type MySlice []primitive, eg: []float64
+// cast them to their primitive type when passing them to this method:
+//     v := NewValue(map[int]string(myVar))
+//     v := NewValue([]float64(myVar))
+// This way you will avoid hitting reflection.
+// To completely avoid reflection in the library,
+// use the build tag: as_performance while building your program.
+func NewValue(v interface{}) Value {
+	if value := tryConcreteValue(v); value != nil {
+		return value
 	}
 
 	if newValueReflect != nil {

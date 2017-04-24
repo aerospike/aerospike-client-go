@@ -214,6 +214,8 @@ func __PackObject(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
 	switch v := obj.(type) {
 	case Value:
 		return v.pack(cmd)
+	case []Value:
+		return ValueArray(v).pack(cmd)
 	case string:
 		return __PackString(cmd, v)
 	case []byte:
@@ -279,6 +281,12 @@ func __PackObject(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
 			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
 		return __PackMap(cmd, obj.(MapIter))
+	}
+
+	// try to see if the object is convertible to a concrete value.
+	// This will be faster and much more memory efficient than reflection.
+	if v := tryConcreteValue(obj); v != nil {
+		return v.pack(cmd)
 	}
 
 	if __packObjectReflect != nil {
