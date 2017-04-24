@@ -77,6 +77,10 @@ func packCDTParamsAsArray(packer BufferEx, opType int16, params ...Value) (int, 
 }
 
 func packCDTIfcParamsAsArray(packer BufferEx, opType int16, params ListValue) (int, error) {
+	return packCDTIfcVarParamsAsArray(packer, opType, []interface{}(params)...)
+}
+
+func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, params ...interface{}) (int, error) {
 	size := 0
 	n, err := __PackShortRaw(packer, opType)
 	if err != nil {
@@ -91,7 +95,7 @@ func packCDTIfcParamsAsArray(packer BufferEx, opType int16, params ListValue) (i
 		size += n
 
 		for i := range params {
-			if n, err = NewValue(params[i]).pack(packer); err != nil {
+			if n, err = __PackObject(packer, params[i], false); err != nil {
 				return size + n, err
 			}
 			size += n
@@ -103,7 +107,7 @@ func packCDTIfcParamsAsArray(packer BufferEx, opType int16, params ListValue) (i
 func listAppendOpEncoder(op *Operation, packer BufferEx) (int, error) {
 	params := op.BinValue.(ListValue)
 	if len(params) == 1 {
-		return packCDTParamsAsArray(packer, _CDT_LIST_APPEND, NewValue(params[0]))
+		return packCDTIfcVarParamsAsArray(packer, _CDT_LIST_APPEND, params[0])
 	} else if len(params) > 1 {
 		return packCDTParamsAsArray(packer, _CDT_LIST_APPEND_ITEMS, params)
 	}
@@ -123,7 +127,7 @@ func listInsertOpEncoder(op *Operation, packer BufferEx) (int, error) {
 	args := op.BinValue.(ValueArray)
 	params := args[1].(ListValue)
 	if len(params) == 1 {
-		return packCDTParamsAsArray(packer, _CDT_LIST_INSERT, args[0], NewValue(params[0]))
+		return packCDTIfcVarParamsAsArray(packer, _CDT_LIST_INSERT, args[0], params[0])
 	} else if len(params) > 1 {
 		return packCDTParamsAsArray(packer, _CDT_LIST_INSERT_ITEMS, args[0], params)
 	}
@@ -211,14 +215,14 @@ func ListRemoveRangeFromOp(binName string, index int) *Operation {
 }
 
 func listSetOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_SET, op.BinValue.(ValueArray)...)
+	return packCDTIfcParamsAsArray(packer, _CDT_LIST_SET, op.BinValue.(ListValue))
 }
 
 // ListSetOp creates a list set operation.
 // Server sets item value at specified index in list bin.
 // Server does not return a result by default.
 func ListSetOp(binName string, index int, value interface{}) *Operation {
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: ValueArray([]Value{IntegerValue(index), NewValue(value)}), encoder: listSetOpEncoder}
+	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: ListValue([]interface{}{IntegerValue(index), value}), encoder: listSetOpEncoder}
 }
 
 func listTrimOpEncoder(op *Operation, packer BufferEx) (int, error) {
