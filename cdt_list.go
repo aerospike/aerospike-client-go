@@ -105,7 +105,7 @@ func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, params ...interfa
 }
 
 func listAppendOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	params := op.BinValue.(ListValue)
+	params := op.binValue.(ListValue)
 	if len(params) == 1 {
 		return packCDTIfcVarParamsAsArray(packer, _CDT_LIST_APPEND, params[0])
 	} else if len(params) > 1 {
@@ -120,11 +120,11 @@ func listAppendOpEncoder(op *Operation, packer BufferEx) (int, error) {
 // Server returns list size on bin name.
 // It will panic is no values have been passed.
 func ListAppendOp(binName string, values ...interface{}) *Operation {
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: ListValue(values), encoder: listAppendOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ListValue(values), encoder: listAppendOpEncoder}
 }
 
 func listInsertOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	args := op.BinValue.(ValueArray)
+	args := op.binValue.(ValueArray)
 	params := args[1].(ListValue)
 	if len(params) == 1 {
 		return packCDTIfcVarParamsAsArray(packer, _CDT_LIST_INSERT, args[0], params[0])
@@ -140,21 +140,21 @@ func listInsertOpEncoder(op *Operation, packer BufferEx) (int, error) {
 // Server returns list size on bin name.
 // It will panic is no values have been passed.
 func ListInsertOp(binName string, index int, values ...interface{}) *Operation {
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: ValueArray([]Value{IntegerValue(index), ListValue(values)}), encoder: listInsertOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ValueArray([]Value{IntegerValue(index), ListValue(values)}), encoder: listInsertOpEncoder}
 }
 
 func listPopOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_POP, op.BinValue)
+	return packCDTParamsAsArray(packer, _CDT_LIST_POP, op.binValue)
 }
 
 // ListPopOp creates list pop operation.
 // Server returns item at specified index and removes item from list bin.
 func ListPopOp(binName string, index int) *Operation {
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: IntegerValue(index), encoder: listPopOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: IntegerValue(index), encoder: listPopOpEncoder}
 }
 
 func listPopRangeOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_POP_RANGE, op.BinValue.(ValueArray)...)
+	return packCDTParamsAsArray(packer, _CDT_LIST_POP_RANGE, op.binValue.(ValueArray)...)
 }
 
 // ListPopRangeOp creates a list pop range operation.
@@ -164,32 +164,32 @@ func ListPopRangeOp(binName string, index int, count int) *Operation {
 		return ListPopOp(binName, index)
 	}
 
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: ValueArray([]Value{IntegerValue(index), IntegerValue(count)}), encoder: listPopRangeOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ValueArray([]Value{IntegerValue(index), IntegerValue(count)}), encoder: listPopRangeOpEncoder}
 }
 
 func listPopRangeFromOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_POP_RANGE, op.BinValue)
+	return packCDTParamsAsArray(packer, _CDT_LIST_POP_RANGE, op.binValue)
 }
 
 // ListPopRangeFromOp creates a list pop range operation.
 // Server returns items starting at specified index to the end of list and removes items from list bin.
 func ListPopRangeFromOp(binName string, index int) *Operation {
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: IntegerValue(index), encoder: listPopRangeFromOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: IntegerValue(index), encoder: listPopRangeFromOpEncoder}
 }
 
 func listRemoveOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_REMOVE, op.BinValue)
+	return packCDTParamsAsArray(packer, _CDT_LIST_REMOVE, op.binValue)
 }
 
 // ListRemoveOp creates a list remove operation.
 // Server removes item at specified index from list bin.
 // Server returns number of items removed.
 func ListRemoveOp(binName string, index int) *Operation {
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: IntegerValue(index), encoder: listRemoveOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: IntegerValue(index), encoder: listRemoveOpEncoder}
 }
 
 func listRemoveRangeOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_REMOVE_RANGE, op.BinValue.(ValueArray)...)
+	return packCDTParamsAsArray(packer, _CDT_LIST_REMOVE_RANGE, op.binValue.(ValueArray)...)
 }
 
 // ListRemoveRangeOp creates a list remove range operation.
@@ -200,33 +200,33 @@ func ListRemoveRangeOp(binName string, index int, count int) *Operation {
 		return ListRemoveOp(binName, index)
 	}
 
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: ValueArray([]Value{IntegerValue(index), IntegerValue(count)}), encoder: listRemoveRangeOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ValueArray([]Value{IntegerValue(index), IntegerValue(count)}), encoder: listRemoveRangeOpEncoder}
 }
 
 func listRemoveRangeFromOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_REMOVE_RANGE, op.BinValue)
+	return packCDTParamsAsArray(packer, _CDT_LIST_REMOVE_RANGE, op.binValue)
 }
 
 // ListRemoveRangeFromOp creates a list remove range operation.
 // Server removes all items starting at specified index to the end of list.
 // Server returns number of items removed.
 func ListRemoveRangeFromOp(binName string, index int) *Operation {
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: IntegerValue(index), encoder: listRemoveRangeFromOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: IntegerValue(index), encoder: listRemoveRangeFromOpEncoder}
 }
 
 func listSetOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTIfcParamsAsArray(packer, _CDT_LIST_SET, op.BinValue.(ListValue))
+	return packCDTIfcParamsAsArray(packer, _CDT_LIST_SET, op.binValue.(ListValue))
 }
 
 // ListSetOp creates a list set operation.
 // Server sets item value at specified index in list bin.
 // Server does not return a result by default.
 func ListSetOp(binName string, index int, value interface{}) *Operation {
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: ListValue([]interface{}{IntegerValue(index), value}), encoder: listSetOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ListValue([]interface{}{IntegerValue(index), value}), encoder: listSetOpEncoder}
 }
 
 func listTrimOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_TRIM, op.BinValue.(ValueArray)...)
+	return packCDTParamsAsArray(packer, _CDT_LIST_TRIM, op.binValue.(ValueArray)...)
 }
 
 // ListTrimOp creates a list trim operation.
@@ -234,7 +234,7 @@ func listTrimOpEncoder(op *Operation, packer BufferEx) (int, error) {
 // by index and count range.  If the range is out of bounds, then all items will be removed.
 // Server returns number of elemts that were removed.
 func ListTrimOp(binName string, index int, count int) *Operation {
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: ValueArray([]Value{IntegerValue(index), IntegerValue(count)}), encoder: listTrimOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ValueArray([]Value{IntegerValue(index), IntegerValue(count)}), encoder: listTrimOpEncoder}
 }
 
 func listClearOpEncoder(op *Operation, packer BufferEx) (int, error) {
@@ -245,7 +245,7 @@ func listClearOpEncoder(op *Operation, packer BufferEx) (int, error) {
 // Server removes all items in list bin.
 // Server does not return a result by default.
 func ListClearOp(binName string) *Operation {
-	return &Operation{OpType: CDT_MODIFY, BinName: binName, BinValue: NewNullValue(), encoder: listClearOpEncoder}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: NewNullValue(), encoder: listClearOpEncoder}
 }
 
 func listSizeOpEncoder(op *Operation, packer BufferEx) (int, error) {
@@ -255,35 +255,35 @@ func listSizeOpEncoder(op *Operation, packer BufferEx) (int, error) {
 // ListSizeOp creates a list size operation.
 // Server returns size of list on bin name.
 func ListSizeOp(binName string) *Operation {
-	return &Operation{OpType: CDT_READ, BinName: binName, BinValue: NewNullValue(), encoder: listSizeOpEncoder}
+	return &Operation{opType: CDT_READ, binName: binName, binValue: NewNullValue(), encoder: listSizeOpEncoder}
 }
 
 func listGetOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_GET, op.BinValue)
+	return packCDTParamsAsArray(packer, _CDT_LIST_GET, op.binValue)
 }
 
 // ListGetOp creates a list get operation.
 // Server returns item at specified index in list bin.
 func ListGetOp(binName string, index int) *Operation {
-	return &Operation{OpType: CDT_READ, BinName: binName, BinValue: IntegerValue(index), encoder: listGetOpEncoder}
+	return &Operation{opType: CDT_READ, binName: binName, binValue: IntegerValue(index), encoder: listGetOpEncoder}
 }
 
 func listGetRangeOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_GET_RANGE, op.BinValue.(ValueArray)...)
+	return packCDTParamsAsArray(packer, _CDT_LIST_GET_RANGE, op.binValue.(ValueArray)...)
 }
 
 // ListGetRangeOp creates a list get range operation.
 // Server returns "count" items starting at specified index in list bin.
 func ListGetRangeOp(binName string, index int, count int) *Operation {
-	return &Operation{OpType: CDT_READ, BinName: binName, BinValue: ValueArray([]Value{IntegerValue(index), IntegerValue(count)}), encoder: listGetRangeOpEncoder}
+	return &Operation{opType: CDT_READ, binName: binName, binValue: ValueArray([]Value{IntegerValue(index), IntegerValue(count)}), encoder: listGetRangeOpEncoder}
 }
 
 func listGetRangeFromOpEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_LIST_GET_RANGE, op.BinValue)
+	return packCDTParamsAsArray(packer, _CDT_LIST_GET_RANGE, op.binValue)
 }
 
 // ListGetRangeFromOp creates a list get range operation.
 // Server returns items starting at specified index to the end of list.
 func ListGetRangeFromOp(binName string, index int) *Operation {
-	return &Operation{OpType: CDT_READ, BinName: binName, BinValue: IntegerValue(index), encoder: listGetRangeFromOpEncoder}
+	return &Operation{opType: CDT_READ, binName: binName, binValue: IntegerValue(index), encoder: listGetRangeFromOpEncoder}
 }

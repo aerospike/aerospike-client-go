@@ -160,47 +160,47 @@ func DefaultMapPolicy() *MapPolicy {
 }
 
 func newMapSetPolicyEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTParamsAsArray(packer, _CDT_MAP_SET_TYPE, op.BinValue.(IntegerValue))
+	return packCDTParamsAsArray(packer, _CDT_MAP_SET_TYPE, op.binValue.(IntegerValue))
 }
 
 func newMapSetPolicy(binName string, attributes mapOrderType) *Operation {
 	return &Operation{
-		OpType:   MAP_MODIFY,
-		BinName:  binName,
-		BinValue: IntegerValue(attributes),
+		opType:   MAP_MODIFY,
+		binName:  binName,
+		binValue: IntegerValue(attributes),
 		encoder:  newMapSetPolicyEncoder,
 	}
 }
 
 func newMapCreatePutEncoder(op *Operation, packer BufferEx) (int, error) {
-	return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.BinValue.(ListValue))
+	return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.binValue.(ListValue))
 }
 
 func newMapCreatePut(command int, attributes mapOrderType, binName string, value1 interface{}, value2 interface{}) *Operation {
 	if command == _CDT_MAP_REPLACE {
 		// Replace doesn't allow map attributes because it does not create on non-existing key.
 		return &Operation{
-			OpType:    MAP_MODIFY,
+			opType:    MAP_MODIFY,
 			opSubType: &command,
-			BinName:   binName,
-			BinValue:  ListValue([]interface{}{value1, value2}),
+			binName:   binName,
+			binValue:  ListValue([]interface{}{value1, value2}),
 			encoder:   newMapCreatePutEncoder,
 		}
 	}
 
 	return &Operation{
-		OpType:    MAP_MODIFY,
+		opType:    MAP_MODIFY,
 		opSubType: &command,
-		BinName:   binName,
-		BinValue:  ListValue([]interface{}{value1, value2, attributes}),
+		binName:   binName,
+		binValue:  ListValue([]interface{}{value1, value2, attributes}),
 		encoder:   newMapCreatePutEncoder,
 	}
 }
 
 func newMapCreateOperationEncoder(op *Operation, packer BufferEx) (int, error) {
-	if op.BinValue != nil {
-		if params := op.BinValue.(ListValue); len(params) > 0 {
-			return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.BinValue.(ListValue))
+	if op.binValue != nil {
+		if params := op.binValue.(ListValue); len(params) > 0 {
+			return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.binValue.(ListValue))
 		}
 	}
 	return packCDTParamsAsArray(packer, int16(*op.opSubType))
@@ -208,60 +208,60 @@ func newMapCreateOperationEncoder(op *Operation, packer BufferEx) (int, error) {
 
 func newMapCreateOperationValues2(command int, attributes mapOrderType, binName string, value1 interface{}, value2 interface{}) *Operation {
 	return &Operation{
-		OpType:    MAP_MODIFY,
+		opType:    MAP_MODIFY,
 		opSubType: &command,
-		BinName:   binName,
-		BinValue:  ListValue([]interface{}{value1, value2, attributes}),
+		binName:   binName,
+		binValue:  ListValue([]interface{}{value1, value2, attributes}),
 		encoder:   newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateOperationValues0(command int, typ OperationType, binName string) *Operation {
 	return &Operation{
-		OpType:    typ,
+		opType:    typ,
 		opSubType: &command,
-		BinName:   binName,
-		// BinValue: NewNullValue(),
+		binName:   binName,
+		// binValue: NewNullValue(),
 		encoder: newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateOperationValuesN(command int, typ OperationType, binName string, values []interface{}, returnType mapReturnType) *Operation {
 	return &Operation{
-		OpType:    typ,
+		opType:    typ,
 		opSubType: &command,
-		BinName:   binName,
-		BinValue:  ListValue([]interface{}{IntegerValue(returnType), ListValue(values)}),
+		binName:   binName,
+		binValue:  ListValue([]interface{}{IntegerValue(returnType), ListValue(values)}),
 		encoder:   newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateOperationValue1(command int, typ OperationType, binName string, value interface{}, returnType mapReturnType) *Operation {
 	return &Operation{
-		OpType:    typ,
+		opType:    typ,
 		opSubType: &command,
-		BinName:   binName,
-		BinValue:  ListValue([]interface{}{IntegerValue(returnType), value}),
+		binName:   binName,
+		binValue:  ListValue([]interface{}{IntegerValue(returnType), value}),
 		encoder:   newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateOperationIndex(command int, typ OperationType, binName string, index int, returnType mapReturnType) *Operation {
 	return &Operation{
-		OpType:    typ,
+		opType:    typ,
 		opSubType: &command,
-		BinName:   binName,
-		BinValue:  ListValue([]interface{}{IntegerValue(returnType), index}),
+		binName:   binName,
+		binValue:  ListValue([]interface{}{IntegerValue(returnType), index}),
 		encoder:   newMapCreateOperationEncoder,
 	}
 }
 
 func newMapCreateOperationIndexCount(command int, typ OperationType, binName string, index int, count int, returnType mapReturnType) *Operation {
 	return &Operation{
-		OpType:    typ,
+		opType:    typ,
 		opSubType: &command,
-		BinName:   binName,
-		BinValue:  ListValue([]interface{}{IntegerValue(returnType), index, count}),
+		binName:   binName,
+		binValue:  ListValue([]interface{}{IntegerValue(returnType), index, count}),
 		encoder:   newMapCreateOperationEncoder,
 	}
 }
@@ -269,19 +269,19 @@ func newMapCreateOperationIndexCount(command int, typ OperationType, binName str
 func newMapCreateRangeOperation(command int, typ OperationType, binName string, begin interface{}, end interface{}, returnType mapReturnType) *Operation {
 	if end == nil {
 		return &Operation{
-			OpType:    typ,
+			opType:    typ,
 			opSubType: &command,
-			BinName:   binName,
-			BinValue:  ListValue([]interface{}{IntegerValue(returnType), begin}),
+			binName:   binName,
+			binValue:  ListValue([]interface{}{IntegerValue(returnType), begin}),
 			encoder:   newMapCreateOperationEncoder,
 		}
 	}
 
 	return &Operation{
-		OpType:    typ,
+		opType:    typ,
 		opSubType: &command,
-		BinName:   binName,
-		BinValue:  ListValue([]interface{}{IntegerValue(returnType), begin, end}),
+		binName:   binName,
+		binValue:  ListValue([]interface{}{IntegerValue(returnType), begin, end}),
 		encoder:   newMapCreateOperationEncoder,
 	}
 }
@@ -340,19 +340,19 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 	if policy.itemsCommand == int(_CDT_MAP_REPLACE_ITEMS) {
 		// Replace doesn't allow map attributes because it does not create on non-existing key.
 		return &Operation{
-			OpType:    MAP_MODIFY,
+			opType:    MAP_MODIFY,
 			opSubType: &policy.itemsCommand,
-			BinName:   binName,
-			BinValue:  ListValue([]interface{}{MapValue(amap)}),
+			binName:   binName,
+			binValue:  ListValue([]interface{}{MapValue(amap)}),
 			encoder:   newMapCreateOperationEncoder,
 		}
 	}
 
 	return &Operation{
-		OpType:    MAP_MODIFY,
+		opType:    MAP_MODIFY,
 		opSubType: &policy.itemsCommand,
-		BinName:   binName,
-		BinValue:  ListValue([]interface{}{MapValue(amap), IntegerValue(policy.attributes)}),
+		binName:   binName,
+		binValue:  ListValue([]interface{}{MapValue(amap), IntegerValue(policy.attributes)}),
 		encoder:   newMapCreateOperationEncoder,
 	}
 }
