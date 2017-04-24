@@ -35,9 +35,9 @@ type ClientPolicy struct {
 	// support the "cluster-name" info command. (v3.10+)
 	ClusterName string //=""
 
-	// Initial host connection timeout in milliseconds.  The timeout when opening a connection
+	// Initial host connection timeout duration.  The timeout when opening a connection
 	// to the server host for the first time.
-	Timeout time.Duration //= 1 second
+	Timeout time.Duration //= 30 seconds
 
 	// Connection idle timeout. Every time a connection is used, its idle
 	// deadline will be extended by this duration. When this deadline is reached,
