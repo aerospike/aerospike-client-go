@@ -1,5 +1,27 @@
 # Change History
 
+## April 25 2017: v1.27.0
+
+  Feature, Performance improvements and bug fix release.
+
+  * **New Features**
+
+    - Added `BatchGetObjects` method.
+    - Added Exponential Backoff by introducing `BasePolicy.SleepMultiplier`. Only Values > 1.0 are effective. PR #192, thanks to [Venil Noronha](https://github.com/venilnoronha)
+
+  * **Improvements**
+
+    - Packer tries to see if it can use generic data types before using reflection.
+    - Operations, including CDTs do not allocate a buffer anymore, unless reused.
+
+  * **Incompatible changes**:
+    - `BinName` and `BinValue` are not exported in `Operation` anymore. These fields shouldn't have been used anyway since `Operation`s used to cache their internal command.
+
+  * **Fixes**
+
+    - Documentation Fixes. Thanks to [Nassor Paulino da Silva](https://github.com/nassor) and [HArmen](https://github.com/alicebob)
+
+
 ## April 5 2017: v1.26.0
 
   Feature, Performance improvements and bug fix release.
