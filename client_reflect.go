@@ -17,6 +17,7 @@
 package aerospike
 
 import (
+	"errors"
 	"reflect"
 
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -49,6 +50,43 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 	command := newReadCommand(clnt.cluster, policy, key, binNames)
 	command.object = &rval
 	return command.Execute()
+}
+
+// BatchGetObject reads multiple record headers and bins for specified keys in one batch request.
+// The returned objects are in positional order with the original key array order.
+// If a key is not found, the positional object will not change, and the positional found boolean will be false.
+// The policy can be used to specify timeouts.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) BatchGetObjects(policy *BasePolicy, keys []*Key, objects []interface{}) (found []bool, err error) {
+	policy = clnt.getUsablePolicy(policy)
+
+	// check the size of  key and objects
+	if (len(keys) != len(objects)) || (len(keys) == 0) {
+		return nil, errors.New("Wrong Number of arguments to BatchGetObject. Number of keys and objects do not match.")
+	}
+
+	binSet := map[string]struct{}{}
+	objectsVal := make([]*reflect.Value, len(objects))
+	for i := range objects {
+		rval := reflect.ValueOf(objects[i])
+		objectsVal[i] = &rval
+		for _, bn := range objectMappings.getFields(rval.Type()) {
+			binSet[bn] = struct{}{}
+		}
+	}
+
+	objectsFound := make([]bool, len(keys))
+	err = clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
+		cmd := newBatchCommandGet(node, bns, policy, keys, binSet, nil, _INFO1_READ)
+		cmd.objects = objectsVal
+		cmd.objectsFound = objectsFound
+		return cmd
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return objectsFound, nil
 }
 
 // ScanAllObjects reads all records in specified namespace and set from all nodes.

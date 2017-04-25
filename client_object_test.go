@@ -635,6 +635,15 @@ var _ = Describe("Aerospike", func() {
 				err = client.GetObject(nil, key, &T)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(T.NonExisting).To(Equal(-1))
+
+				// get the same object via BatchGetObject
+				resObj = &testObject{}
+				found, err := client.BatchGetObjects(nil, []*as.Key{key}, []interface{}{resObj})
+				Expect(len(found)).To(Equal(1))
+				Expect(found[0]).To(BeTrue())
+				Expect(err).ToNot(HaveOccurred())
+				Expect(resObj).To(Equal(testObj))
+				Expect(resObj.AnonymP).NotTo(BeNil())
 			})
 
 			It("must save a tagged object with the most complex structure possible", func() {
@@ -791,6 +800,69 @@ var _ = Describe("Aerospike", func() {
 			})
 
 		}) // PutObject context
+
+		Context("BatchGetObjects operations", func() {
+
+			var keys []*as.Key
+			var resObjects []interface{}
+			var objects []*testObjectTagged
+
+			BeforeEach(func() {
+				set = randString(50)
+
+				keys = nil
+				resObjects = nil
+				objects = nil
+
+				for i := 0; i < 100; i++ {
+					key, err = as.NewKey(ns, set, randString(50))
+					Expect(err).ToNot(HaveOccurred())
+					keys = append(keys, key)
+					resObjects = append(resObjects, new(testObjectTagged))
+
+					// only put odd objects in the db
+					if i%2 == 0 {
+						objects = append(objects, new(testObjectTagged))
+						continue
+					}
+
+					testObj := makeTestObjectTagged()
+					objects = append(objects, testObj)
+					err := client.PutObject(nil, key, testObj)
+					Expect(err).ToNot(HaveOccurred())
+				}
+
+			})
+
+			It("must return error on invalid input", func() {
+				_, err := client.BatchGetObjects(nil, nil, resObjects)
+				Expect(err).To(HaveOccurred())
+
+				_, err = client.BatchGetObjects(nil, nil, nil)
+				Expect(err).To(HaveOccurred())
+
+				_, err = client.BatchGetObjects(nil, []*as.Key{}, []interface{}{})
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("must get all objects with the most complex structure possible", func() {
+				found, err := client.BatchGetObjects(nil, keys, resObjects)
+				Expect(err).ToNot(HaveOccurred())
+
+				for i := range resObjects {
+					if i%2 == 0 {
+						Expect(found[i]).To(BeFalse())
+						resObj := resObjects[i].(*testObjectTagged)
+						Expect(*resObj).To(BeZero())
+					} else {
+						Expect(found[i]).To(BeTrue())
+						resObj := resObjects[i].(*testObjectTagged)
+						Expect(resObj).To(Equal(objects[i]))
+					}
+				}
+			})
+
+		}) // ScanObjects context
 
 		Context("ScanObjects operations", func() {
 
