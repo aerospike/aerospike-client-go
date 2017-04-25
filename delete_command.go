@@ -31,7 +31,7 @@ type deleteCommand struct {
 
 func newDeleteCommand(cluster *Cluster, policy *WritePolicy, key *Key) *deleteCommand {
 	newDeleteCmd := &deleteCommand{
-		singleCommand: *newSingleCommand(cluster, key),
+		singleCommand: newSingleCommand(cluster, key),
 		policy:        policy,
 	}
 
@@ -47,7 +47,7 @@ func (cmd *deleteCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *deleteCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getMasterNode(cmd.partition)
+	return cmd.cluster.getMasterNode(&cmd.partition)
 }
 
 func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) error {

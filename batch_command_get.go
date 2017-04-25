@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"bytes"
+	"reflect"
 
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -31,7 +32,22 @@ type batchCommandGet struct {
 	records        []*Record
 	readAttr       int
 	index          int
+
+	// pointer to the object that's going to be unmarshalled
+	objects      []*reflect.Value
+	objectsFound []bool
 }
+
+// this method uses reflection.
+// Will not be set if performance flag is passed for the build.
+var batchObjectParser func(
+	cmd *batchCommandGet,
+	offset int,
+	opCount int,
+	fieldCount int,
+	generation uint32,
+	expiration uint32,
+) error
 
 func newBatchCommandGet(
 	node *Node,
@@ -102,8 +118,16 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 
 		if bytes.Equal(key.digest[:], cmd.keys[offset].digest[:]) {
 			if resultCode == 0 {
-				if cmd.records[offset], err = cmd.parseRecord(key, opCount, generation, expiration); err != nil {
-					return false, err
+				if cmd.objects == nil {
+					if cmd.records[offset], err = cmd.parseRecord(key, opCount, generation, expiration); err != nil {
+						return false, err
+					}
+				} else if batchObjectParser != nil {
+					// mark it as found
+					cmd.objectsFound[offset] = true
+					if err := batchObjectParser(cmd, offset, opCount, fieldCount, generation, expiration); err != nil {
+						return false, err
+					}
 				}
 			}
 		} else {

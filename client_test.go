@@ -1121,6 +1121,48 @@ var _ = Describe("Aerospike", func() {
 				Expect(len(rec.Bins)).To(Equal(2))
 			})
 
+			It("must re-apply the same operations, and result should match expectation", func() {
+				bin1 := as.NewBin("Aerospike1", 1)
+				bin2 := as.NewBin("Aerospike2", "a")
+
+				key, err := as.NewKey(ns, set, randString(50))
+				Expect(err).ToNot(HaveOccurred())
+
+				ops1 := []*as.Operation{
+					as.PutOp(bin1),
+					as.PutOp(bin2),
+					as.GetOp(),
+				}
+
+				rec, err = client.Operate(nil, key, ops1...)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject().(int)))
+				Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject().(string)))
+				Expect(rec.Generation).To(Equal(uint32(1)))
+
+				ops2 := []*as.Operation{
+					as.AddOp(bin1),
+					as.AppendOp(bin2),
+					as.GetOp(),
+				}
+
+				rec, err = client.Operate(nil, key, ops2...)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject().(int) + 1))
+				Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject().(string) + "a"))
+				Expect(rec.Generation).To(Equal(uint32(2)))
+
+				rec, err = client.Operate(nil, key, ops2...)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject().(int) + 2))
+				Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject().(string) + "aa"))
+				Expect(rec.Generation).To(Equal(uint32(3)))
+
+			})
+
 		}) // GetHeader context
 
 	})

@@ -97,6 +97,17 @@ var _ = Describe("CDT List Test", func() {
 			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(listSize))
 		})
 
+		It("should Get the last element again", func() {
+			ops := []*as.Operation{as.ListGetOp(cdtBinName, -1)}
+			cdtListRes, err := client.Operate(wpolicy, key, ops...)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(listSize))
+
+			cdtListRes, err = client.Operate(wpolicy, key, ops...)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(listSize))
+		})
+
 		It("should Get the last 3 element", func() {
 			cdtListRes, err := client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, -3, 3))
 			Expect(err).ToNot(HaveOccurred())
@@ -113,6 +124,25 @@ var _ = Describe("CDT List Test", func() {
 			cdtListRes, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, math.MaxInt64))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(listSize + 1))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, listSize))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(math.MaxInt64))
+		})
+
+		It("should append the same cached element to the tail", func() {
+			ops := []*as.Operation{as.ListAppendOp(cdtBinName, math.MaxInt64)}
+			cdtListRes, err := client.Operate(wpolicy, key, ops...)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(listSize + 1))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, listSize))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(math.MaxInt64))
+
+			cdtListRes, err = client.Operate(wpolicy, key, ops...)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(listSize + 2))
 
 			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, listSize))
 			Expect(err).ToNot(HaveOccurred())
@@ -276,8 +306,16 @@ var _ = Describe("CDT List Test", func() {
 			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(elems))
 		})
 
-		It("should trim list elements", func() {
-			cdtListRes, err := client.Operate(wpolicy, key, as.ListClearOp(cdtBinName))
+		It("should clear list elements", func() {
+			for i := 0; i < listSize; i++ {
+				_, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, i))
+				Expect(err).ToNot(HaveOccurred())
+			}
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListSizeOp(cdtBinName))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).NotTo(Equal(0))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListClearOp(cdtBinName))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cdtListRes.Bins[cdtBinName]).To(BeNil())
 

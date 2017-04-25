@@ -21,9 +21,9 @@ type operateCommand struct {
 	operations []*Operation
 }
 
-func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) *operateCommand {
-	return &operateCommand{
-		readCommand: *newReadCommand(cluster, &policy.BasePolicy, key, nil),
+func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) operateCommand {
+	return operateCommand{
+		readCommand: newReadCommand(cluster, &policy.BasePolicy, key, nil),
 		policy:      policy,
 		operations:  operations,
 	}
@@ -34,7 +34,7 @@ func (cmd *operateCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *operateCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getMasterNode(cmd.partition)
+	return cmd.cluster.getMasterNode(&cmd.partition)
 }
 
 func (cmd *operateCommand) Execute() error {

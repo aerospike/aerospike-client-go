@@ -297,7 +297,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	RespondPerEachOp := policy.RespondPerEachOp
 
 	for i := range operations {
-		switch operations[i].OpType {
+		switch operations[i].opType {
 		case MAP_READ:
 			// Map operations require RespondPerEachOp to be true.
 			RespondPerEachOp = true
@@ -308,7 +308,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 				readAttr |= _INFO1_READ
 
 				// Read all bins if no bin is specified.
-				if operations[i].BinName == "" {
+				if operations[i].binName == "" {
 					readAttr |= _INFO1_GET_ALL
 				}
 				readBin = true
@@ -822,11 +822,19 @@ func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, val
 }
 
 func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) error {
-	binLen := len(operation.BinName)
+	binLen := len(operation.binName)
 	cmd.dataOffset += binLen + int(_OPERATION_HEADER_SIZE)
 
-	if operation.BinValue != nil {
-		sz, err := operation.BinValue.estimateSize()
+	if operation.encoder == nil {
+		if operation.binValue != nil {
+			sz, err := operation.binValue.estimateSize()
+			if err != nil {
+				return err
+			}
+			cmd.dataOffset += sz
+		}
+	} else {
+		sz, err := operation.encoder(operation, nil)
 		if err != nil {
 			return err
 		}
@@ -990,24 +998,47 @@ func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interf
 }
 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.BinName)
+	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.binName)
 
 	// check for float support
-	cmd.checkServerCompatibility(operation.BinValue)
+	cmd.checkServerCompatibility(operation.binValue)
 
-	valueLength, err := operation.BinValue.estimateSize()
-	if err != nil {
-		return err
+	if operation.used {
+		// cahce will set the used flag to false again
+		operation.cache()
 	}
 
-	cmd.WriteInt32(int32(nameLength + valueLength + 4))
-	cmd.WriteByte((operation.OpType.op))
-	cmd.WriteByte((byte(operation.BinValue.GetType())))
-	cmd.WriteByte((byte(0)))
-	cmd.WriteByte((byte(nameLength)))
-	cmd.dataOffset += nameLength
-	_, err = operation.BinValue.write(cmd)
-	return err
+	if operation.encoder == nil {
+		valueLength, err := operation.binValue.estimateSize()
+		if err != nil {
+			return err
+		}
+
+		cmd.WriteInt32(int32(nameLength + valueLength + 4))
+		cmd.WriteByte((operation.opType.op))
+		cmd.WriteByte((byte(operation.binValue.GetType())))
+		cmd.WriteByte((byte(0)))
+		cmd.WriteByte((byte(nameLength)))
+		cmd.dataOffset += nameLength
+		_, err = operation.binValue.write(cmd)
+		return err
+	} else {
+		valueLength, err := operation.encoder(operation, nil)
+		if err != nil {
+			return err
+		}
+
+		cmd.WriteInt32(int32(nameLength + valueLength + 4))
+		cmd.WriteByte((operation.opType.op))
+		cmd.WriteByte((byte(ParticleType.BLOB)))
+		cmd.WriteByte((byte(0)))
+		cmd.WriteByte((byte(nameLength)))
+		cmd.dataOffset += nameLength
+		_, err = operation.encoder(operation, cmd)
+		//mark the operation as used, so that it will be cached the next time it is used
+		operation.used = err == nil
+		return err
+	}
 }
 
 func (cmd *baseCommand) writeOperationForBinName(name string, operation OperationType) {
@@ -1030,6 +1061,10 @@ func (cmd *baseCommand) writeOperationForOperationType(operation OperationType) 
 
 // TODO: Remove this method and move it to the appropriate VALUE method
 func (cmd *baseCommand) checkServerCompatibility(val Value) {
+	if val == nil {
+		return
+	}
+
 	// check for float support
 	switch val.GetType() {
 	case ParticleType.FLOAT:

@@ -29,7 +29,14 @@ type Partition struct {
 // NewPartitionByKey initializes a partition and determines the Partition Id
 // from key digest automatically.
 func NewPartitionByKey(key *Key) *Partition {
-	return &Partition{
+	partition := newPartitionByKey(key)
+	return &partition
+}
+
+// newPartitionByKey initializes a partition and determines the Partition Id
+// from key digest automatically. It return the struct itself, and not the address
+func newPartitionByKey(key *Key) Partition {
+	return Partition{
 		Namespace: key.namespace,
 
 		// CAN'T USE MOD directly - mod will give negative numbers.

@@ -30,7 +30,7 @@ type touchCommand struct {
 
 func newTouchCommand(cluster *Cluster, policy *WritePolicy, key *Key) *touchCommand {
 	newTouchCmd := &touchCommand{
-		singleCommand: *newSingleCommand(cluster, key),
+		singleCommand: newSingleCommand(cluster, key),
 		policy:        policy,
 	}
 
@@ -46,7 +46,7 @@ func (cmd *touchCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *touchCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getMasterNode(cmd.partition)
+	return cmd.cluster.getMasterNode(&cmd.partition)
 }
 
 func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
