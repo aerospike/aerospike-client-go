@@ -1122,6 +1122,30 @@ var _ = Describe("Aerospike", func() {
 			})
 
 			It("must re-apply the same operations, and result should match expectation", func() {
+				const listSize = 10
+				const cdtBinName = "cdtBin"
+
+				// First Part: For CDTs
+				list := []interface{}{}
+				opAppend := as.ListAppendOp(cdtBinName, 1)
+				for i := 1; i <= listSize; i++ {
+					list = append(list, i)
+
+					sz, err := client.Operate(wpolicy, key, opAppend)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(sz.Bins[cdtBinName]).To(Equal(i))
+				}
+
+				op := as.ListGetOp(cdtBinName, -1)
+				cdtListRes, err := client.Operate(wpolicy, key, op)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cdtListRes.Bins[cdtBinName]).To(Equal(1))
+
+				cdtListRes, err = client.Operate(wpolicy, key, op)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cdtListRes.Bins[cdtBinName]).To(Equal(1))
+
+				// Second Part: For other normal Ops
 				bin1 := as.NewBin("Aerospike1", 1)
 				bin2 := as.NewBin("Aerospike2", "a")
 
