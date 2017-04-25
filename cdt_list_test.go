@@ -182,6 +182,16 @@ var _ = Describe("CDT List Test", func() {
 		})
 
 		It("should pop elements from the head", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListPopRangeOp(cdtBinName, 0, 3))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(list[:3]))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.GetOpForBin(cdtBinName))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(list[3:]))
+		})
+
+		It("should pop element range from the index", func() {
 			for i := listSize; i > 0; i-- {
 				cdtListRes, err := client.Operate(wpolicy, key, as.ListPopOp(cdtBinName, 0))
 				Expect(err).ToNot(HaveOccurred())
