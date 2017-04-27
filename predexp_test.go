@@ -462,7 +462,7 @@ var _ = Describe("predexp operations", func() {
 		sum := 0
 		for _, cc := range cnt {
 			Expect(cc).To(BeNumerically(">", 270))
-			Expect(cc).To(BeNumerically("<", 370))
+			Expect(cc).To(BeNumerically("<", 385))
 			sum += cc
 		}
 		Expect(sum).To(BeNumerically("==", 1000))
