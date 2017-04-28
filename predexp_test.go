@@ -31,7 +31,7 @@ var _ = Describe("predexp operations", func() {
 	const keyCount = 1000
 
 	var ns = "test"
-	var set = randString(10)
+	var set = "predexp_tests" // The name of the set should be consistent because of predexp_modulo tests, since set name is a part of the digest
 	var wpolicy = as.NewWritePolicy(0, 0)
 
 	starbucks := [][2]float64{
@@ -55,7 +55,6 @@ var _ = Describe("predexp operations", func() {
 	var gaptime int64
 
 	BeforeEach(func() {
-		set = randString(10)
 		wpolicy = as.NewWritePolicy(0, 24*60*60)
 
 		for ii := 0; ii < keyCount; ii++ {
@@ -460,9 +459,8 @@ var _ = Describe("predexp operations", func() {
 
 		// The count should be split 3 ways, roughly equally.
 		sum := 0
+		Expect(cnt).To(Equal([]int{308, 374, 318}))
 		for _, cc := range cnt {
-			Expect(cc).To(BeNumerically(">", 270))
-			Expect(cc).To(BeNumerically("<", 385))
 			sum += cc
 		}
 		Expect(sum).To(BeNumerically("==", 1000))
