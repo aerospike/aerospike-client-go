@@ -5,6 +5,13 @@ Benchmark tool is intended to generate artificial yet customizable load on your 
 
 ## Usage
 
+To build this tool:
+
+```
+cd $GOPATH/src/github.com/aerospike-client-go/tools/benchmark
+go build .
+```
+
 To see available switches:
 
 ```$ ./benchmark -u```
