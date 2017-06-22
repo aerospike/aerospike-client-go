@@ -17,6 +17,7 @@ Please refer to [`CHANGELOG.md`](CHANGELOG.md) if you encounter breaking changes
 - [Tests](#Tests)
 - [Examples](#Examples)
   - [Tools](#Tools)
+- [Alternatives](#Alternatives)
 
 
 ## Usage:
@@ -150,6 +151,11 @@ See the [`tools/benchmark/README.md`](tools/benchmark/README.md) for details.
 ## API Documentation
 
 API documentation is available in the [`docs`](docs/README.md) directory.
+
+<a name="Alternatives"></a>
+## Alternatives
+
+* [aerogo/aerospike](https://github.com/aerogo/aerospike) A slightly more high-level API built on top of this package.
 
 ## License
 
