@@ -283,15 +283,16 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 }
 
 // Implements different command operations
-func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) error {
+func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) (bool, error) {
 	if len(operations) == 0 {
-		return NewAerospikeError(PARAMETER_ERROR, "No operations were passed.")
+		return false, NewAerospikeError(PARAMETER_ERROR, "No operations were passed.")
 	}
 
 	cmd.begin()
 	fieldCount := 0
 	readAttr := 0
 	writeAttr := 0
+	hasWrite := false
 	readBin := false
 	readHeader := false
 	RespondPerEachOp := policy.RespondPerEachOp
@@ -323,18 +324,19 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 			fallthrough
 		default:
 			writeAttr = _INFO2_WRITE
+			hasWrite = true
 		}
 		cmd.estimateOperationSizeForOperation(operations[i])
 	}
 
 	ksz, err := cmd.estimateKeySize(key, policy.SendKey && writeAttr != 0)
 	if err != nil {
-		return err
+		return hasWrite, err
 	}
 	fieldCount += ksz
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return err
+		return hasWrite, err
 	}
 
 	if readHeader && !readBin {
@@ -354,13 +356,13 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 
 	for _, operation := range operations {
 		if err := cmd.writeOperationForOperation(operation); err != nil {
-			return err
+			return hasWrite, err
 		}
 	}
 
 	cmd.end()
 
-	return nil
+	return hasWrite, nil
 }
 
 func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string, functionName string, args *ValueArray) error {

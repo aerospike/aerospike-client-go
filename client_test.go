@@ -967,6 +967,18 @@ var _ = Describe("Aerospike", func() {
 				// Expect(err).ToNot(HaveOccurred())
 			})
 
+			It("must return proper error on write operations, but not reads", func() {
+				key, err := as.NewKey(ns, set, randString(50))
+				Expect(err).ToNot(HaveOccurred())
+
+				wpolicy := as.NewWritePolicy(0, 0)
+				rec, err = client.Operate(wpolicy, key, as.GetOp())
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err = client.Operate(wpolicy, key, as.TouchOp())
+				Expect(err).To(HaveOccurred())
+			})
+
 			It("must work correctly when no BinOps are passed as argument", func() {
 				key, err := as.NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())

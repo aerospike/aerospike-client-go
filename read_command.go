@@ -23,6 +23,12 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
+type readCommandLike interface {
+	command
+
+	handleWriteKeyNotFoundError(ResultCode) error
+}
+
 type readCommand struct {
 	singleCommand
 
@@ -104,6 +110,9 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 
 	if resultCode != 0 {
 		if resultCode == KEY_NOT_FOUND_ERROR && cmd.object == nil {
+			if rcmd, ok := ifc.(readCommandLike); ok {
+				return rcmd.handleWriteKeyNotFoundError(resultCode)
+			}
 			return nil
 		}
 
@@ -207,4 +216,9 @@ func (cmd *readCommand) GetRecord() *Record {
 
 func (cmd *readCommand) Execute() error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *readCommand) handleWriteKeyNotFoundError(resultCode ResultCode) error {
+	// command returns no error if key was not found
+	return nil
 }

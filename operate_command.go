@@ -14,11 +14,17 @@
 
 package aerospike
 
+import (
+	. "github.com/aerospike/aerospike-client-go/types"
+)
+
 type operateCommand struct {
 	readCommand
 
 	policy     *WritePolicy
 	operations []*Operation
+
+	hasWrite bool
 }
 
 func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) operateCommand {
@@ -29,8 +35,9 @@ func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operatio
 	}
 }
 
-func (cmd *operateCommand) writeBuffer(ifc command) error {
-	return cmd.setOperate(cmd.policy, cmd.key, cmd.operations)
+func (cmd *operateCommand) writeBuffer(ifc command) (err error) {
+	cmd.hasWrite, err = cmd.setOperate(cmd.policy, cmd.key, cmd.operations)
+	return err
 }
 
 func (cmd *operateCommand) getNode(ifc command) (*Node, error) {
@@ -39,4 +46,11 @@ func (cmd *operateCommand) getNode(ifc command) (*Node, error) {
 
 func (cmd *operateCommand) Execute() error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *operateCommand) handleWriteKeyNotFoundError(resultCode ResultCode) error {
+	if cmd.hasWrite {
+		return NewAerospikeError(resultCode)
+	}
+	return nil
 }
