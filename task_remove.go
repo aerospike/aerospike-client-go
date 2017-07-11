@@ -40,7 +40,7 @@ func (tskr *RemoveTask) IsDone() (bool, error) {
 	done := false
 
 	for _, node := range nodes {
-		responseMap, err := node.RequestInfo(command)
+		responseMap, err := node.requestInfoWithRetry(5, command)
 		if err != nil {
 			return false, err
 		}

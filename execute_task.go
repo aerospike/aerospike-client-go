@@ -52,7 +52,7 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 	nodes := etsk.cluster.GetNodes()
 
 	for _, node := range nodes {
-		responseMap, err := node.RequestInfo(command)
+		responseMap, err := node.requestInfoWithRetry(5, command)
 		if err != nil {
 			return false, err
 		}

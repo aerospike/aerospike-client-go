@@ -566,12 +566,33 @@ func (nd *Node) initTendConn(timeout time.Duration) error {
 	return nd.tendConn.SetTimeout(timeout)
 }
 
+// requestInfoWithRetry gets info values by name from the specified database server node.
+// It will try at least N times before returning an error.
+func (nd *Node) requestInfoWithRetry(n int, name ...string) (res map[string]string, err error) {
+	for i := 0; i < n; i++ {
+		if res, err = nd.requestInfo(10*time.Second, name...); err == nil {
+			return res, nil
+		}
+
+		Logger.Error("Error occured while fetching info from the server node %s: %s", nd.host.String(), err.Error())
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// return the last error
+	return nil, err
+}
+
 // RequestInfo gets info values by name from the specified database server node.
 func (nd *Node) RequestInfo(name ...string) (map[string]string, error) {
+	return nd.requestInfo(nd.cluster.clientPolicy.Timeout, name...)
+}
+
+// RequestInfo gets info values by name from the specified database server node.
+func (nd *Node) requestInfo(timeout time.Duration, name ...string) (map[string]string, error) {
 	nd.tendConnLock.Lock()
 	defer nd.tendConnLock.Unlock()
 
-	if err := nd.initTendConn(nd.cluster.clientPolicy.Timeout); err != nil {
+	if err := nd.initTendConn(timeout); err != nil {
 		return nil, err
 	}
 
