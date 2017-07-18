@@ -98,6 +98,8 @@ var _ = Describe("Aerospike Node Tests", func() {
 
 				node := client.GetNodes()[0]
 
+				cList := []*as.Connection{}
+
 				// 4-1 is because we reserve a connection for tend
 				for i := 0; i < 4-1; i++ {
 					c, err := node.GetConnection(0)
@@ -109,6 +111,8 @@ var _ = Describe("Aerospike Node Tests", func() {
 					// if there are connections which are not invalidated.
 					// Don't call close as well, since it automatically reduces the total conn count.
 					// c.Close()
+					// append the connections to the list to prevent the invalidator closing them
+					cList = append(cList, c)
 				}
 
 				// 4-1 is because we reserve a connection for tend
@@ -117,6 +121,10 @@ var _ = Describe("Aerospike Node Tests", func() {
 					Expect(err).To(HaveOccurred())
 				}
 
+				// prevent the optimizer optimizing the cList and it's contents out, since that would trigger the connection finzalizer
+				for _, c := range cList {
+					Expect(c.IsConnected()).To(BeTrue())
+				}
 			})
 
 		})

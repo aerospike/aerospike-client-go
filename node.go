@@ -499,6 +499,13 @@ func (nd *Node) closeConnections() {
 		// conn.(*Connection).Close()
 		conn.Close()
 	}
+
+	// close the tend connection
+	nd.tendConnLock.Lock()
+	defer nd.tendConnLock.Unlock()
+	if nd.tendConn != nil {
+		nd.tendConn.Close()
+	}
 }
 
 // Equals compares equality of two nodes based on their names.
