@@ -23,61 +23,71 @@ type AtomicInt struct {
 
 // NewAtomicInt generates a newVal AtomicInt instance.
 func NewAtomicInt(value int) *AtomicInt {
+	v := int64(value)
 	return &AtomicInt{
-		val: int64(value),
+		val: v,
 	}
 }
 
 // AddAndGet atomically adds the given value to the current value.
 func (ai *AtomicInt) AddAndGet(delta int) int {
-	return int(atomic.AddInt64(&(ai.val), int64(delta)))
+	res := int(atomic.AddInt64(&ai.val, int64(delta)))
+	return res
 }
 
 // CompareAndSet atomically sets the value to the given updated value if the current value == expected value.
 // Returns true if the expectation was met
 func (ai *AtomicInt) CompareAndSet(expect int, update int) bool {
-	return atomic.CompareAndSwapInt64(&(ai.val), int64(expect), int64(update))
+	res := atomic.CompareAndSwapInt64(&ai.val, int64(expect), int64(update))
+	return res
 }
 
 // DecrementAndGet atomically decrements current value by one and returns the result.
 func (ai *AtomicInt) DecrementAndGet() int {
-	return int(atomic.AddInt64(&(ai.val), -1))
+	res := int(atomic.AddInt64(&ai.val, -1))
+	return res
 }
 
 // Get atomically retrieves the current value.
 func (ai *AtomicInt) Get() int {
-	return int(atomic.LoadInt64(&(ai.val)))
+	res := int(atomic.LoadInt64(&ai.val))
+	return res
 }
 
 // GetAndAdd atomically adds the given delta to the current value and returns the result.
 func (ai *AtomicInt) GetAndAdd(delta int) int {
-	newVal := atomic.AddInt64(&(ai.val), int64(delta))
-	return int(newVal - int64(delta))
+	newVal := atomic.AddInt64(&ai.val, int64(delta))
+	res := int(newVal - int64(delta))
+	return res
 }
 
 // GetAndDecrement atomically decrements the current value by one and returns the result.
 func (ai *AtomicInt) GetAndDecrement() int {
-	newVal := atomic.AddInt64(&(ai.val), -1)
-	return int(newVal + 1)
+	newVal := atomic.AddInt64(&ai.val, -1)
+	res := int(newVal + 1)
+	return res
 }
 
 // GetAndIncrement atomically increments current value by one and returns the result.
 func (ai *AtomicInt) GetAndIncrement() int {
-	newVal := atomic.AddInt64(&(ai.val), 1)
-	return int(newVal - 1)
+	newVal := atomic.AddInt64(&ai.val, 1)
+	res := int(newVal - 1)
+	return res
 }
 
 // GetAndSet atomically sets current value to the given value and returns the old value.
 func (ai *AtomicInt) GetAndSet(newValue int) int {
-	return int(atomic.SwapInt64(&(ai.val), int64(newValue)))
+	res := int(atomic.SwapInt64(&ai.val, int64(newValue)))
+	return res
 }
 
 // IncrementAndGet atomically increments current value by one and returns the result.
 func (ai *AtomicInt) IncrementAndGet() int {
-	return int(atomic.AddInt64(&(ai.val), 1))
+	res := int(atomic.AddInt64(&ai.val, 1))
+	return res
 }
 
 // Set atomically sets current value to the given value.
 func (ai *AtomicInt) Set(newValue int) {
-	atomic.StoreInt64(&(ai.val), int64(newValue))
+	atomic.StoreInt64(&ai.val, int64(newValue))
 }

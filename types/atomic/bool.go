@@ -61,5 +61,6 @@ func (ab *AtomicBool) CompareAndToggle(expect bool) bool {
 	if expect {
 		updated = 0
 	}
-	return atomic.CompareAndSwapInt32(&ab.val, int32(1-updated), int32(updated))
+	res := atomic.CompareAndSwapInt32(&ab.val, int32(1-updated), int32(updated))
+	return res
 }
