@@ -345,7 +345,7 @@ func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 	acmd.writeSize()
 	node, err := cluster.GetRandomNode()
 	if err != nil {
-		return nil
+		return err
 	}
 	timeout := 1 * time.Second
 	if policy != nil && policy.Timeout > 0 {

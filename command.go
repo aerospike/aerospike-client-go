@@ -169,7 +169,7 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
 		return err
 	}
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE|_INFO2_DELETE, fieldCount, 0)
 	cmd.writeKey(key, false)
@@ -188,7 +188,7 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 
 	cmd.estimateOperationSize()
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 1)
 	cmd.writeKey(key, policy.SendKey)
@@ -206,7 +206,7 @@ func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) error {
 		return err
 	}
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
 	cmd.writeKey(key, false)
@@ -223,7 +223,7 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) error {
 		return err
 	}
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
 	cmd.writeKey(key, false)
@@ -270,7 +270,7 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 	}
 	cmd.estimateOperationSizeForBinName("")
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 1)
@@ -379,7 +379,7 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	fieldCount += fc
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 0)
@@ -400,7 +400,7 @@ func (cmd *baseCommand) setBatchExists(policy *BasePolicy, keys []*Key, batch *b
 	cmd.dataOffset += len(*batch.namespace) +
 		int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, 2, 0)
@@ -433,7 +433,7 @@ func (cmd *baseCommand) setBatchGet(policy *BasePolicy, keys []*Key, batch *batc
 	}
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	operationCount := len(binNames)
@@ -492,7 +492,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	}
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	readAttr := _INFO1_READ
 
@@ -654,7 +654,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	}
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	operationCount := 0
