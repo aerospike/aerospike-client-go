@@ -18,7 +18,9 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -41,6 +43,13 @@ type Connection struct {
 
 	// to avoid having a buffer pool and contention
 	dataBuffer []byte
+
+	lck sync.Mutex
+}
+
+// makes sure that the connection is closed eventually, even if it is not consumed
+func connectionFinalizer(c *Connection) {
+	c.Close()
 }
 
 func errToTimeoutErr(err error) error {
@@ -68,6 +77,7 @@ func shouldClose(err error) bool {
 // an error will be returned
 func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 	newConn := &Connection{dataBuffer: make([]byte, 1024)}
+	runtime.SetFinalizer(newConn, connectionFinalizer)
 
 	// don't wait indefinitely
 	if timeout == 0 {
@@ -83,8 +93,10 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 
 	// set timeout at the last possible moment
 	if err := newConn.SetTimeout(timeout); err != nil {
+		newConn.Close()
 		return nil, err
 	}
+
 	return newConn, nil
 }
 
@@ -141,6 +153,8 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 	if err == nil {
 		return total, nil
 	}
+
+	ctn.Close()
 	return total, errToTimeoutErr(err)
 }
 
@@ -215,10 +229,13 @@ func (ctn *Connection) SetTimeout(timeout time.Duration) error {
 
 // Close closes the connection
 func (ctn *Connection) Close() {
+	ctn.lck.Lock()
+	defer ctn.lck.Unlock()
+
 	if ctn != nil && ctn.conn != nil {
 		// deregister
 		if ctn.node != nil {
-			ctn.node.connectionCount.DecrementAndGet()
+			defer ctn.node.connectionCount.DecrementAndGet()
 		}
 
 		if err := ctn.conn.Close(); err != nil {
@@ -235,6 +252,7 @@ func (ctn *Connection) Authenticate(user string, password []byte) error {
 		command := newAdminCommand(ctn.dataBuffer)
 		if err := command.authenticate(ctn, user, password); err != nil {
 			// Socket not authenticated. Do not put back into pool.
+			ctn.Close()
 			return err
 		}
 	}
