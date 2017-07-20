@@ -31,7 +31,7 @@ type IndexTask struct {
 // NewIndexTask initializes a task with fields needed to query server nodes.
 func NewIndexTask(cluster *Cluster, namespace string, indexName string) *IndexTask {
 	return &IndexTask{
-		baseTask:  newTask(cluster, false),
+		baseTask:  newTask(cluster),
 		namespace: namespace,
 		indexName: indexName,
 	}

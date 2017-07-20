@@ -30,14 +30,12 @@ type Task interface {
 type baseTask struct {
 	retries int
 	cluster *Cluster
-	done    bool
 }
 
 // newTask initializes task with fields needed to query server nodes.
-func newTask(cluster *Cluster, done bool) *baseTask {
+func newTask(cluster *Cluster) *baseTask {
 	return &baseTask{
 		cluster: cluster,
-		done:    done,
 	}
 }
 
