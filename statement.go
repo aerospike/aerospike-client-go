@@ -65,10 +65,8 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 
 // Addfilter adds a filter to the statement.
 // Aerospike Server currently only supports using a single filter per statement/query.
-func (stmt *Statement) Addfilter(filter *Filter) error {
+func (stmt *Statement) Addfilter(filter *Filter) {
 	stmt.Filters = append(stmt.Filters, filter)
-
-	return nil
 }
 
 // SetPredExp sets low-level predicate expressions for the statement in postfix notation.
@@ -105,9 +103,8 @@ func (stmt *Statement) Addfilter(filter *Filter) error {
 //   NewPredExpLastUpdate(),
 //   NewPredExpIntegerGreater(),
 // );
-func (stmt *Statement) SetPredExp(predexp ...predExp) error {
+func (stmt *Statement) SetPredExp(predexp ...predExp) {
 	stmt.predExps = predexp
-	return nil
 }
 
 // SetAggregateFunction sets aggregation function parameters.
