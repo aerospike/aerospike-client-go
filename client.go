@@ -130,6 +130,16 @@ func (clnt *Client) GetNodeNames() []string {
 	return names
 }
 
+// GetConnectionCount return sum connection count of all active nodes in cluster
+func (clnt *Client) GetConnectionCount() (result int) {
+	for _, node := range clnt.GetNodes() {
+		if node.IsActive() {
+			result += node.GetConnectionCount()
+		}
+	}
+	return
+}
+
 //-------------------------------------------------------
 // Write Record Operations
 //-------------------------------------------------------
