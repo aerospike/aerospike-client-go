@@ -33,9 +33,6 @@ type ScanPolicy struct {
 	// ConcurrentNodes determines how to issue scan requests (in parallel or sequentially).
 	ConcurrentNodes bool //= true;
 
-	// Indicates if bin data is retrieved. If false, only record digests are retrieved.
-	IncludeBinData bool //= true;
-
 	// Include large data type bin values in addition to large data type bin names.
 	// If false, LDT bin names will be returned, but LDT bin values will be empty.
 	// If true,  LDT bin names and the entire LDT bin values will be returned.
@@ -53,7 +50,6 @@ func NewScanPolicy() *ScanPolicy {
 		ScanPercent:         100,
 		ServerSocketTimeout: 10 * time.Second,
 		ConcurrentNodes:     true,
-		IncludeBinData:      true,
 		IncludeLDT:          false,
 		FailOnClusterChange: true,
 	}

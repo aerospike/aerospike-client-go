@@ -154,6 +154,31 @@ var _ = Describe("Query operations", func() {
 		Expect(len(keys)).To(Equal(0))
 	})
 
+	It("must Query a range and get all records back without the Bin Data", func() {
+		defer client.DropIndex(nil, ns, set, indexName)
+
+		stm := as.NewStatement(ns, set)
+		qp := as.NewQueryPolicy()
+		qp.IncludeBinData = false
+		recordset, err := client.Query(qp, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			rec := res.Record
+
+			key, exists := keys[string(rec.Key.Digest())]
+
+			Expect(exists).To(Equal(true))
+			Expect(key.Value().GetObject()).To(Equal(rec.Key.Value().GetObject()))
+			Expect(len(rec.Bins)).To(Equal(0))
+
+			delete(keys, string(rec.Key.Digest()))
+		}
+
+		Expect(len(keys)).To(Equal(0))
+	})
+
 	It("must Cancel Query abruptly", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
 

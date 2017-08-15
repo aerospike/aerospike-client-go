@@ -665,7 +665,11 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	if write {
 		cmd.writeHeader(policy.BasePolicy, _INFO1_READ, _INFO2_WRITE, fieldCount, operationCount)
 	} else {
-		cmd.writeHeader(policy.BasePolicy, _INFO1_READ, 0, fieldCount, operationCount)
+		readAttr := _INFO1_READ | _INFO1_NOBINDATA
+		if policy.IncludeBinData {
+			readAttr = _INFO1_READ
+		}
+		cmd.writeHeader(policy.BasePolicy, readAttr, 0, fieldCount, operationCount)
 	}
 
 	if statement.Namespace != "" {

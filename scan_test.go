@@ -137,6 +137,29 @@ var _ = Describe("Scan operations", func() {
 		Expect(len(keys)).To(Equal(0))
 	})
 
+	It("must Scan and get all records back from all nodes concurrently without the Bin Data", func() {
+		Expect(len(keys)).To(Equal(keyCount))
+
+		sp := as.NewScanPolicy()
+		sp.IncludeBinData = false
+		recordset, err := client.ScanAll(sp, ns, set)
+		Expect(err).ToNot(HaveOccurred())
+
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			rec := res.Record
+			key, exists := keys[string(rec.Key.Digest())]
+
+			Expect(exists).To(Equal(true))
+			Expect(key.Value().GetObject()).To(Equal(rec.Key.Value().GetObject()))
+			Expect(len(rec.Bins)).To(Equal(0))
+
+			delete(keys, string(res.Record.Key.Digest()))
+		}
+
+		Expect(len(keys)).To(Equal(0))
+	})
+
 	It("must Scan and get all records back from all nodes sequnetially", func() {
 		Expect(len(keys)).To(Equal(keyCount))
 
