@@ -230,8 +230,8 @@ func listTrimOpEncoder(op *Operation, packer BufferEx) (int, error) {
 }
 
 // ListTrimOp creates a list trim operation.
-// Server removes "count" items in list bin that do not fall into range specified
-// by index and count range.  If the range is out of bounds, then all items will be removed.
+// Server removes items in list bin that do not fall into range specified by index
+// and count range. If the range is out of bounds, then all items will be removed.
 // Server returns number of elemts that were removed.
 func ListTrimOp(binName string, index int, count int) *Operation {
 	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ValueArray([]Value{IntegerValue(index), IntegerValue(count)}), encoder: listTrimOpEncoder}
