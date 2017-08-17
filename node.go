@@ -455,6 +455,11 @@ func (nd *Node) IsActive() bool {
 	return nd != nil && nd.active.Get() && nd.partitionGeneration.Get() >= -1
 }
 
+// GetConnectionCount retrieves connection count
+func (nd *Node) GetConnectionCount() int {
+	return nd.connectionCount.Get()
+}
+
 // GetName returns node name.
 func (nd *Node) GetName() string {
 	return nd.name
