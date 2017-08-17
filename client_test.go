@@ -42,6 +42,10 @@ var _ = Describe("Aerospike", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(client.IsConnected()).To(BeTrue())
 
+			stats, err := client.Stats()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(stats)).To(BeNumerically(">", 0))
+
 			client.Close()
 			Expect(client.IsConnected()).To(BeFalse())
 		})

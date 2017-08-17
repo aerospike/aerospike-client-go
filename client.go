@@ -1244,6 +1244,27 @@ func (clnt *Client) String() string {
 	return ""
 }
 
+// Stats returns internal statistics regarding the inner state of the client and the cluster.
+func (clnt *Client) Stats() (map[string]interface{}, error) {
+	nodes := clnt.cluster.GetNodes()
+	res := make(map[string]interface{}, len(nodes))
+
+	totalConns := 0
+	for _, n := range nodes {
+		if n != nil {
+			conns := n.connectionCount.Get()
+			totalConns += conns
+			res[n.GetHost().String()] = map[string]interface{}{
+				"open-connections": conns,
+			}
+		}
+	}
+
+	res["open-connections"] = totalConns
+
+	return res, nil
+}
+
 //-------------------------------------------------------
 // Internal Methods
 //-------------------------------------------------------
