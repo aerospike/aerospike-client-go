@@ -1283,7 +1283,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 	for {
 		// too many retries
 		if iterations++; (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
-			return NewAerospikeError(TIMEOUT, fmt.Sprintf("command execution timed out: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err))
+			return NewAerospikeError(TIMEOUT, fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err))
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -1306,8 +1306,12 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			continue
 		}
 
-		// cmd.conn, err = cmd.node.GetConnection(policy.Timeout)
-		cmd.conn, err = ifc.getConnection(policy.Timeout)
+		socketTimeout, err := policy.socketTimeout()
+		if err != nil {
+			return err
+		}
+
+		cmd.conn, err = ifc.getConnection(socketTimeout)
 		if err != nil {
 			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
 			continue
@@ -1383,7 +1387,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 	}
 
 	// execution timeout
-	return NewAerospikeError(TIMEOUT, "command execution timed out: See `Policy.Timeout`")
+	return NewAerospikeError(TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
 }
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {

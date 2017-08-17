@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -38,11 +39,34 @@ type BasePolicy struct {
 	// read operation.
 	ConsistencyLevel ConsistencyLevel //= CONSISTENCY_ONE
 
-	// Timeout specifies transaction timeout.
-	// This timeout is used to set the socket timeout and is also sent to the
-	// server along with the transaction in the wire protocol.
-	// Default to no timeout (0).
+	// Timeout specifies total transaction timeout.
+	//
+	// The Timeout is tracked on the client and also sent to the server along
+	// with the transaction in the wire protocol. The client will most likely
+	// timeout first, but the server has the capability to Timeout the transaction.
+	//
+	// If Timeout is not zero and Timeout is reached before the transaction
+	// completes, the transaction will abort with Timeout error.
+	//
+	// If Timeout is zero, there will be no time limit and the transaction will retry
+	// on network timeouts/errors until MaxRetries is exceeded. If MaxRetries is exceeded, the
+	// transaction also aborts with Timeout error.
+	//
+	// Default: 0 (no time limit and rely on MaxRetries).
 	Timeout time.Duration
+
+	// SocketTimeout determines network timeout for each attempt.
+	//
+	// If SocketTimeout is not zero and SocketTimeout is reached before an attempt completes,
+	// the Timeout above is checked. If Timeout is not exceeded, the transaction
+	// is retried. If both SocketTimeout and Timeout are non-zero, SocketTimeout must be less
+	// than or equal to Timeout.
+	//
+	// If SocketTimeout is zero, there will be no time limit per attempt. If the transaction
+	// fails on a network error, the Timeout still applies.
+	//
+	// Default: 0 (no SocketTimeout for each attempt).
+	SocketTimeout time.Duration
 
 	// MaxRetries determines maximum number of retries before aborting the current transaction.
 	// A retry is attempted when there is a network error other than timeout.
@@ -82,3 +106,24 @@ var _ Policy = &BasePolicy{}
 
 // GetBasePolicy returns embedded BasePolicy in all types that embed this struct.
 func (p *BasePolicy) GetBasePolicy() *BasePolicy { return p }
+
+// socketTimeout validates and then calculates the timeout to be used for the socket
+// based on Timeout and SocketTimeout values.
+func (p *BasePolicy) socketTimeout() (time.Duration, error) {
+	if p.Timeout == 0 {
+		if p.SocketTimeout > 0 {
+			return p.SocketTimeout, nil
+		}
+		return 0, nil
+	} else if p.Timeout > 0 {
+		if p.SocketTimeout == 0 {
+			return p.Timeout, nil
+		} else if p.SocketTimeout > 0 {
+			if p.SocketTimeout > p.Timeout {
+				return 0, fmt.Errorf("Socket timeout %v is longer than the total transaction Timeout %v", p.SocketTimeout, p.Timeout)
+			}
+			return p.SocketTimeout, nil
+		}
+	}
+	return 0, fmt.Errorf("Ivalid Socket timeout %v and/or total transaction Timeout %v", p.SocketTimeout, p.Timeout)
+}
