@@ -1,5 +1,32 @@
 # Change History
 
+## August 17 2017: v1.28.0
+
+  Feature, Performance improvements and bug fix release.
+
+  * **New Features**
+
+    - Added `Client.Stats` method to get client's internal statistics.
+    - Added `Policy.SocketTimeout` to differentiate between network timeouts and the total transaction timeouts.
+    - Added `Policy.SocketTimeout` to differentiate between network timeouts and the total transaction timeouts.
+    - Support `policy.IncludeBinData` for queries. Only for servers that support this feature.
+    - Minor documentation updates.
+    - Return key not found exception (instead of returning nil record) for Operate() command where operations include a write.
+
+  * **Improvements**
+
+    - Close the tend connection when closing node connections.
+    - Added Connection finalizer to make sure all connections are closed eventually.
+    - Automatically retry failed info requests on async tasks before returning an error.
+    - Updated build instructions for the benchmark tool.
+    - Make digest_modulo test deterministic.
+    - Relax predexp_modulo test a bit to avoid occasional failures.
+
+  * **Fixes**
+
+    - Indirect CAS ops to prevent the compiler from optimizing them out.
+    - Return errors instead of nil.
+
 ## April 25 2017: v1.27.0
 
   Feature, Performance improvements and bug fix release.
