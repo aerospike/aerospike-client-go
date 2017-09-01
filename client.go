@@ -17,6 +17,7 @@ package aerospike
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -1246,21 +1247,27 @@ func (clnt *Client) String() string {
 
 // Stats returns internal statistics regarding the inner state of the client and the cluster.
 func (clnt *Client) Stats() (map[string]interface{}, error) {
-	nodes := clnt.cluster.GetNodes()
-	res := make(map[string]interface{}, len(nodes))
+	resStats := clnt.cluster.statsCopy()
 
-	totalConns := 0
-	for _, n := range nodes {
-		if n != nil {
-			conns := n.connectionCount.Get()
-			totalConns += conns
-			res[n.GetHost().String()] = map[string]interface{}{
-				"open-connections": conns,
-			}
-		}
+	clusterStats := nodeStats{}
+	for _, stats := range resStats {
+		clusterStats.aggregate(&stats)
 	}
 
-	res["open-connections"] = totalConns
+	resStats["cluster-aggregated-stats"] = clusterStats
+
+	b, err := json.Marshal(resStats)
+	if err != nil {
+		return nil, err
+	}
+
+	res := map[string]interface{}{}
+	err = json.Unmarshal(b, &res)
+	if err != nil {
+		return nil, err
+	}
+
+	res["open-connections"] = clusterStats.ConnectionsOpen
 
 	return res, nil
 }

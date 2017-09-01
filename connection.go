@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -154,6 +155,7 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 		return total, nil
 	}
 
+	atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	ctn.Close()
 	return total, errToTimeoutErr(err)
 }
@@ -172,6 +174,8 @@ func (ctn *Connection) ReadN(buf io.Writer, length int64) (total int64, err erro
 		}
 		return total, errToTimeoutErr(err)
 	}
+
+	atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	ctn.Close()
 	return total, NewAerospikeError(SERVER_ERROR)
 }
@@ -197,6 +201,8 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 		}
 		return total, errToTimeoutErr(err)
 	}
+
+	atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	ctn.Close()
 	return total, NewAerospikeError(SERVER_ERROR)
 }
@@ -235,7 +241,7 @@ func (ctn *Connection) Close() {
 	if ctn != nil && ctn.conn != nil {
 		// deregister
 		if ctn.node != nil {
-			defer ctn.node.connectionCount.DecrementAndGet()
+			ctn.node.connectionCount.DecrementAndGet()
 		}
 
 		if err := ctn.conn.Close(); err != nil {

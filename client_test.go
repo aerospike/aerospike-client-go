@@ -42,9 +42,20 @@ var _ = Describe("Aerospike", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(client.IsConnected()).To(BeTrue())
 
+			time.Sleep(5 * time.Second)
+
 			stats, err := client.Stats()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(len(stats)).To(BeNumerically(">", 0))
+			for _, nodeStatsIfc := range stats {
+				if nodeStats, ok := nodeStatsIfc.(map[string]interface{}); ok {
+					Expect(nodeStats["connections-attempts"].(float64)).To(BeNumerically(">=", 1))
+					Expect(nodeStats["node-added-count"].(float64)).To(BeNumerically(">=", 1))
+					Expect(nodeStats["partition-map-updates"].(float64)).To(BeNumerically(">=", 1))
+					Expect(nodeStats["tends-successful"].(float64)).To(BeNumerically(">", 1))
+					Expect(nodeStats["tends-total"].(float64)).To(BeNumerically(">", 1))
+				}
+			}
 
 			client.Close()
 			Expect(client.IsConnected()).To(BeFalse())

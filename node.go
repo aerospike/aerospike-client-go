@@ -36,6 +36,7 @@ type Node struct {
 	name    string
 	host    *Host
 	aliases atomic.Value //[]*Host
+	stats   nodeStats
 
 	// tendConn reserves a connection for tend so that it won't have to
 	// wait in queue for connections, since that will cause starvation
@@ -89,6 +90,10 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 
 	newNode.aliases.Store(nv.aliases)
 
+	// this will reset to zero on first aggregation on the cluster,
+	// therefore will only be counted once.
+	atomic.AddInt64(&newNode.stats.NodeAdded, 1)
+
 	return newNode
 }
 
@@ -97,6 +102,8 @@ func (nd *Node) Refresh(peers *peers) error {
 	if !nd.active.Get() {
 		return nil
 	}
+
+	atomic.AddInt64(&nd.stats.TendsTotal, 1)
 
 	// Close idleConnections
 	defer nd.dropIdleConnections()
@@ -151,6 +158,7 @@ func (nd *Node) Refresh(peers *peers) error {
 	nd.failures.Set(0)
 	peers.refreshCount.IncrementAndGet()
 	nd.referenceCount.IncrementAndGet()
+	atomic.AddInt64(&nd.stats.TendsSuccessful, 1)
 
 	return nil
 }
@@ -320,11 +328,13 @@ func (nd *Node) refreshPartitions(peers *peers) {
 		nd.partitionMap = parser.getPartitionMap()
 		nd.partitionChanged.Set(true)
 		nd.partitionGeneration.Set(parser.getGeneration())
+		atomic.AddInt64(&nd.stats.PartitionMapUpdates, 1)
 	}
 }
 
 func (nd *Node) refreshFailed(e error) {
 	nd.failures.IncrementAndGet()
+	atomic.AddInt64(&nd.stats.TendsFailed, 1)
 
 	// Only log message if cluster is still active.
 	if nd.cluster.IsConnected() {
@@ -394,24 +404,33 @@ func (nd *Node) getConnectionWithHint(timeout time.Duration, hint byte) (conn *C
 		// if connection count is limited and enough connections are already created, don't create a new one
 		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
 			nd.connectionCount.DecrementAndGet()
+			atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
 			return nil, ErrConnectionPoolEmpty
 		}
 
+		atomic.AddInt64(&nd.stats.ConnectionsAttempts, 1)
 		if conn, err = NewSecureConnection(&nd.cluster.clientPolicy, nd.host); err != nil {
 			nd.connectionCount.DecrementAndGet()
+			atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
 			return nil, err
 		}
 		conn.node = nd
 
 		// need to authenticate
 		if err = conn.Authenticate(nd.cluster.user, nd.cluster.Password()); err != nil {
+			atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
+
 			// Socket not authenticated. Do not put back into pool.
 			conn.Close()
 			return nil, err
 		}
+
+		atomic.AddInt64(&nd.stats.ConnectionsSuccessful, 1)
 	}
 
 	if err = conn.SetTimeout(timeout); err != nil {
+		atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
+
 		// Do not put back into pool.
 		conn.Close()
 		return nil, err
@@ -486,6 +505,7 @@ func (nd *Node) addAlias(aliasToAdd *Host) {
 // Close marks node as inactive and closes all of its pooled connections.
 func (nd *Node) Close() {
 	nd.active.Set(false)
+	atomic.AddInt64(&nd.stats.NodeRemoved, 1)
 	nd.closeConnections()
 }
 
