@@ -38,6 +38,8 @@ type readCommand struct {
 
 	// pointer to the object that's going to be unmarshalled
 	object *reflect.Value
+
+	replicaSequence int
 }
 
 // this method uses reflection.
@@ -67,7 +69,7 @@ func (cmd *readCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *readCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy)
+	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy, &cmd.replicaSequence)
 }
 
 func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {

@@ -41,7 +41,8 @@ func newBatchNodeList(cluster *Cluster, policy *BasePolicy, keys []*Key) ([]*bat
 		partition := NewPartitionByKey(key)
 
 		// error not required
-		node, err := cluster.getReadNode(partition, policy.ReplicaPolicy)
+		seq := 0
+		node, err := cluster.getReadNode(partition, policy.ReplicaPolicy, &seq)
 		if err != nil {
 			return nil, err
 		}

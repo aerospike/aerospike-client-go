@@ -772,8 +772,10 @@ func (clstr *Cluster) IsConnected() bool {
 	return (len(nodeArray) > 0) && !clstr.closed.Get()
 }
 
-func (clstr *Cluster) getReadNode(partition *Partition, replica ReplicaPolicy) (*Node, error) {
+func (clstr *Cluster) getReadNode(partition *Partition, replica ReplicaPolicy, seq *int) (*Node, error) {
 	switch replica {
+	case SEQUENCE:
+		return clstr.getSequenceNode(partition, seq)
 	case MASTER:
 		return clstr.getMasterNode(partition)
 	case MASTER_PROLES:
@@ -782,6 +784,23 @@ func (clstr *Cluster) getReadNode(partition *Partition, replica ReplicaPolicy) (
 		// includes case RANDOM:
 		return clstr.GetRandomNode()
 	}
+}
+
+func (clstr *Cluster) getSequenceNode(partition *Partition, seq *int) (*Node, error) {
+	pmap := clstr.getPartitions()
+	replicaArray := pmap[partition.Namespace]
+
+	if replicaArray != nil {
+		index := *seq % len(replicaArray)
+		node := replicaArray[index][partition.PartitionId]
+
+		if node != nil && node.IsActive() {
+			return node, nil
+		}
+		*seq++
+	}
+
+	return clstr.GetRandomNode()
 }
 
 func (clstr *Cluster) getMasterNode(partition *Partition) (*Node, error) {

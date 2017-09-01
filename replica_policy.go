@@ -34,4 +34,13 @@ const (
 	// This option is useful when the replication factor equals the number
 	// of nodes in the cluster and the overhead of requesting proles is not desired.
 	RANDOM
+
+	// SEQUENCE Tries node containing master partition first.
+	// If connection fails, all commands try nodes containing replicated partitions.
+	// If socketTimeout is reached, reads also try nodes containing replicated partitions,
+	// but writes remain on master node.
+	//
+	// This option requires ClientPolicy.RequestProleReplicas to be enabled
+	// in order to function properly.
+	SEQUENCE
 )

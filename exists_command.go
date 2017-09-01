@@ -27,6 +27,8 @@ type existsCommand struct {
 
 	policy *BasePolicy
 	exists bool
+
+	replicaSequence int
 }
 
 func newExistsCommand(cluster *Cluster, policy *BasePolicy, key *Key) *existsCommand {
@@ -45,7 +47,7 @@ func (cmd *existsCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *existsCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy)
+	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy, &cmd.replicaSequence)
 }
 
 func (cmd *existsCommand) parseResult(ifc command, conn *Connection) error {
