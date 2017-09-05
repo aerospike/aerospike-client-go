@@ -70,7 +70,7 @@ const (
 
 // ----------------
 
-type predExp interface {
+type PredExp interface {
 	String() string
 	marshaledSize() int
 	marshal(*baseCommand) error
