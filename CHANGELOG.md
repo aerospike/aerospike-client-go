@@ -1,13 +1,27 @@
 # Change History
 
+## September 5 2017: v1.29.0
+
+  Feature and improvements release.
+
+  * **New Features**
+
+    - Added `ListIncrementOp` to the CDT list operations.
+    - Added `SEQUENCE` to replica policies.
+
+  * **Improvements**
+
+    - Tweaked node removal algorithm to cover more corner cases.
+    - Make `predExp` interface public. Closes issue #205.
+    - Added more stats to the `Client.Stats()`.
+
 ## August 17 2017: v1.28.0
 
   Feature, Performance improvements and bug fix release.
 
   * **New Features**
 
-    - Added `Client.Stats` method to get client's internal statistics.
-    - Added `Policy.SocketTimeout` to differentiate between network timeouts and the total transaction timeouts.
+    - Added `Client.Stats()` method to get client's internal statistics.
     - Added `Policy.SocketTimeout` to differentiate between network timeouts and the total transaction timeouts.
     - Support `policy.IncludeBinData` for queries. Only for servers that support this feature.
     - Minor documentation updates.
