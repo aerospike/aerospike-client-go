@@ -47,6 +47,7 @@ const (
 	_CDT_LIST_SET          = 9
 	_CDT_LIST_TRIM         = 10
 	_CDT_LIST_CLEAR        = 11
+	_CDT_LIST_INCREMENT    = 12
 	_CDT_LIST_SIZE         = 16
 	_CDT_LIST_GET          = 17
 	_CDT_LIST_GET_RANGE    = 18
@@ -246,6 +247,24 @@ func listClearOpEncoder(op *Operation, packer BufferEx) (int, error) {
 // Server does not return a result by default.
 func ListClearOp(binName string) *Operation {
 	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: NewNullValue(), encoder: listClearOpEncoder}
+}
+
+func listIncrementOpEncoder(op *Operation, packer BufferEx) (int, error) {
+	return packCDTParamsAsArray(packer, _CDT_LIST_INCREMENT, op.binValue.(ValueArray)...)
+}
+
+// ListIncrementOp creates a list increment operation.
+// Server increments list[index] by value.
+// Value should be integer(IntegerValue, LongValue) or float(FloatValue).
+// Server returns list[index] after incrementing.
+func ListIncrementOp(binName string, index int, value interface{}) *Operation {
+	val := NewValue(value)
+	switch val.(type) {
+	case LongValue, IntegerValue, FloatValue:
+	default:
+		panic("Increment operation only accepts Integer or Float values")
+	}
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ValueArray([]Value{IntegerValue(index), val}), encoder: listIncrementOpEncoder}
 }
 
 func listSizeOpEncoder(op *Operation, packer BufferEx) (int, error) {

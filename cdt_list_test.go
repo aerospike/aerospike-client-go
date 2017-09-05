@@ -276,6 +276,20 @@ var _ = Describe("CDT List Test", func() {
 			}
 		})
 
+		It("should increment elements", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListGetRangeFromOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(list))
+
+			elemRes, err := client.Operate(wpolicy, key, as.ListIncrementOp(cdtBinName, 0, 10))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(elemRes.Bins[cdtBinName]).To(Equal(11))
+
+			elemRes, err = client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(elemRes.Bins[cdtBinName]).To(Equal(11))
+		})
+
 		It("should set elements", func() {
 			elems := []interface{}{}
 			for i := 0; i < listSize; i++ {
