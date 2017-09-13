@@ -19,6 +19,10 @@ import (
 	"math/rand"
 
 	as "github.com/aerospike/aerospike-client-go"
+	// . "github.com/aerospike/aerospike-client-go/logger"
+	ast "github.com/aerospike/aerospike-client-go/types"
+
+	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -62,6 +66,7 @@ var _ = Describe("Index operations test", func() {
 				// no duplicate index is allowed
 				_, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
 				Expect(err).To(HaveOccurred())
+				Expect(err.(ast.AerospikeError).ResultCode()).To(Equal(ast.INDEX_FOUND))
 			})
 
 			It("must drop an Index", func() {
