@@ -34,6 +34,8 @@ import (
 var _ = Describe("Aerospike", func() {
 	initTestVars()
 
+	var actualClusterName string
+
 	Describe("Client Management", func() {
 
 		It("must open and close the client without a problem", func() {
@@ -43,6 +45,14 @@ var _ = Describe("Aerospike", func() {
 			Expect(client.IsConnected()).To(BeTrue())
 
 			time.Sleep(5 * time.Second)
+
+			// set actual cluster name
+			node, err := client.Cluster().GetRandomNode()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(node).NotTo(BeNil())
+			res, err := node.RequestInfo("cluster-name")
+			Expect(err).ToNot(HaveOccurred())
+			actualClusterName = res["cluster-name"]
 
 			stats, err := client.Stats()
 			Expect(err).ToNot(HaveOccurred())
@@ -94,7 +104,7 @@ var _ = Describe("Aerospike", func() {
 
 			// use the same client for all
 			cpolicy := *clientPolicy
-			cpolicy.ClusterName = "null"
+			cpolicy.ClusterName = actualClusterName
 			cpolicy.Timeout = 10 * time.Second
 			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
 			Expect(err).NotTo(HaveOccurred())
