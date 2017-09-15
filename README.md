@@ -4,7 +4,7 @@
 
 An Aerospike library for Go.
 
-This library is compatible with Go 1.5+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested)
+This library is compatible with Go 1.7+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested)
 
 Please refer to [`CHANGELOG.md`](CHANGELOG.md) if you encounter breaking changes.
 
