@@ -245,8 +245,6 @@ Loop:
 	}
 
 	// cleanup code goes here
-	clstr.closed.Set(true)
-
 	// close the nodes
 	nodeArray := clstr.GetNodes()
 	for _, node := range nodeArray {
@@ -952,7 +950,7 @@ func (clstr *Cluster) findNodeByName(nodeName string) *Node {
 // Close closes all cached connections to the cluster nodes
 // and stops the tend goroutine.
 func (clstr *Cluster) Close() {
-	if !clstr.closed.Get() {
+	if clstr.closed.CompareAndToggle(false) {
 		// send close signal to maintenance channel
 		close(clstr.tendChannel)
 
