@@ -745,6 +745,40 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	return NewExecuteTask(clnt.cluster, statement), mergeErrors(errs)
 }
 
+// ExecuteUDFNode applies user defined function on records that match the statement filter on the specified node.
+// Records are not returned to the client.
+// This asynchronous server call will return before command is complete.
+// The user can optionally wait for command completion by using the returned
+// ExecuteTask instance.
+//
+// This method is only supported by Aerospike 3 servers.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
+	node *Node,
+	statement *Statement,
+	packageName string,
+	functionName string,
+	functionArgs ...Value,
+) (*ExecuteTask, error) {
+	policy = clnt.getUsableQueryPolicy(policy)
+
+	if node == nil {
+		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteUDFNode failed because node is nil.")
+	}
+
+	// wait until all migrations are finished
+	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		return nil, err
+	}
+
+	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
+
+	command := newServerCommand(node, policy, statement)
+	err := command.Execute()
+
+	return NewExecuteTask(clnt.cluster, statement), err
+}
+
 //--------------------------------------------------------
 // Query Aggregate functions (Supported by Aerospike 3 servers only)
 //--------------------------------------------------------
