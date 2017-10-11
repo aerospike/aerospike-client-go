@@ -1269,7 +1269,7 @@ func SetCommandBufferPool(poolSize, initBufSize, maxBufferSize int) {
 	panic("There is no need to optimize the buffer pool anymore. Buffers have moved to Connection object.")
 }
 
-func (cmd *baseCommand) execute(ifc command) (err error) {
+func (cmd *baseCommand) execute(ifc command) error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	iterations := -1
 
@@ -1278,6 +1278,11 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 
 	// set timeout outside the loop
 	deadline := time.Now().Add(policy.Timeout)
+
+	socketTimeout, err := policy.socketTimeout()
+	if err != nil {
+		return err
+	}
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
@@ -1304,11 +1309,6 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if cmd.node == nil || !cmd.node.IsActive() || err != nil {
 			// Node is currently inactive. Retry.
 			continue
-		}
-
-		socketTimeout, err := policy.socketTimeout()
-		if err != nil {
-			return err
 		}
 
 		cmd.conn, err = ifc.getConnection(socketTimeout)
