@@ -1,5 +1,23 @@
 # Change History
 
+## October 12 2017: v1.30.0
+
+  Fix and improvements release.
+
+  * **Changes**
+
+    - Deprecated LDTs and removed them from the official build.
+    - Change supported go versions to 1.7+ due to gopher-lua requiring `Context`.
+
+  * **Improvements**
+
+    - Get socket timeout once per command execution, do not redefine err var in command execution loop. PR #211, thanks to [Maxim Krasilnikov](https://github.com/chapsuk)
+    - Allow running a UDF on a specific node only.
+    - Close cluster only once. PR #208, thanks to [Jun Kimura](https://github.com/bluele)
+    - Use actual cluster name in tests instead of assuming `null`.
+    - Check for the type of error as well in Duplicate Index Creation.
+    - Update description for error code 21. PR #207, thanks to [Maxim Krasilnikov](https://github.com/chapsuk)
+
 ## September 5 2017: v1.29.0
 
   Feature and improvements release.
