@@ -21,21 +21,29 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
+type batcher interface {
+	cloneBatchCommand(batch *batchNode, bns *batchNamespace) command
+}
+
 type batchCommandGet struct {
 	baseMultiCommand
 
 	batchNamespace *batchNamespace
+	batch          *batchNode
 	policy         *BatchPolicy
 	keys           []*Key
 	binNames       []string
 	records        []*Record
+	indexRecords   []*BatchRead
 	readAttr       int
 	index          int
+	isBatchIndex   bool
 }
 
 func newBatchCommandGet(
 	node *Node,
 	batchNamespace *batchNamespace,
+	batch *batchNode,
 	policy *BatchPolicy,
 	keys []*Key,
 	binNames []string,
@@ -45,12 +53,24 @@ func newBatchCommandGet(
 	return &batchCommandGet{
 		baseMultiCommand: *newMultiCommand(node, nil),
 		batchNamespace:   batchNamespace,
+		batch:            batch,
 		policy:           policy,
 		keys:             keys,
 		binNames:         binNames,
 		records:          records,
 		readAttr:         readAttr,
+		isBatchIndex:     !policy.UseBatchDirect && node != nil && node.supportsBatchIndex.Get(),
 	}
+}
+
+func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode, bns *batchNamespace) command {
+	res := *cmd
+	res.node = batch.Node
+	res.batch = batch
+	res.batchNamespace = bns
+	res.isBatchIndex = !cmd.policy.UseBatchDirect && batch.Node.supportsBatchIndex.Get()
+
+	return &res
 }
 
 func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
@@ -58,8 +78,8 @@ func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) error {
-	if cmd.policy.UseBatchDirect && cmd.node.supportsBatchIndex.Get() {
-		return cmd.setBatchReadDirect(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
+	if cmd.isBatchIndex {
+		return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, cmd.binNames, cmd.readAttr)
 	}
 	return cmd.setBatchRead(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
 }
@@ -90,8 +110,8 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		}
 
 		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
-		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
+		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 		key, err := cmd.parseKey(fieldCount)
@@ -99,24 +119,36 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 			return false, err
 		}
 
-		// offset := cmd.batchNamespace.offsets[cmd.index]
-		// cmd.index++
 		var offset int
-		if cmd.policy.UseBatchDirect && cmd.node.supportsBatchIndex.Get() {
+		if !cmd.isBatchIndex {
 			offset = cmd.batchNamespace.offsets[cmd.index]
 			cmd.index++
 		} else {
 			offset = batchIndex
 		}
 
-		if bytes.Equal(key.digest[:], cmd.keys[offset].digest[:]) {
-			if resultCode == 0 {
-				if cmd.records[offset], err = cmd.parseRecord(key, opCount, generation, expiration); err != nil {
-					return false, err
+		if cmd.isBatchIndex && cmd.indexRecords != nil {
+			if len(cmd.indexRecords) > 0 {
+				if bytes.Equal(key.digest[:], cmd.indexRecords[offset].Key.digest[:]) {
+					if resultCode == 0 {
+						if cmd.indexRecords[offset].Record, err = cmd.parseRecord(key, opCount, generation, expiration); err != nil {
+							return false, err
+						}
+					}
 				}
+			} else {
+				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(key.namespace)+","+Buffer.BytesToHexString(key.digest[:])+". Expected:"+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
 			}
 		} else {
-			return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(key.namespace)+","+Buffer.BytesToHexString(key.digest[:]))
+			if bytes.Equal(key.digest[:], cmd.keys[offset].digest[:]) {
+				if resultCode == 0 {
+					if cmd.records[offset], err = cmd.parseRecord(key, opCount, generation, expiration); err != nil {
+						return false, err
+					}
+				}
+			} else {
+				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(key.namespace)+","+Buffer.BytesToHexString(key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
+			}
 		}
 	}
 	return true, nil

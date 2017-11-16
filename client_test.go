@@ -751,7 +751,7 @@ var _ = Describe("Aerospike", func() {
 			BeforeEach(func() {
 			})
 
-			It("must return the records with same ordering as keys", func() {
+			It("must return the records with same ordering as keys1", func() {
 				binRedundant := NewBin("Redundant", "Redundant")
 
 				var records []*Record
@@ -785,6 +785,23 @@ var _ = Describe("Aerospike", func() {
 						exists, err := client.Exists(rpolicy, key)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(exists).To(Equal(false))
+					}
+				}
+
+				brecords := make([]*BatchRead, len(keys))
+				for i := range keys {
+					brecords[i] = &BatchRead{
+						Key:         keys[i],
+						ReadAllBins: true,
+					}
+				}
+				err = client.BatchGetComplex(bpolicy, brecords)
+				Expect(err).ToNot(HaveOccurred())
+				for idx, rec := range brecords {
+					if exList[idx].shouldExist {
+						Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+					} else {
+						Expect(rec.Record).To(BeNil())
 					}
 				}
 
