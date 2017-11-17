@@ -21,6 +21,9 @@ import "fmt"
 type ResultCode int
 
 const (
+	// Server is not accepting requests.
+	SERVER_NOT_AVAILABLE ResultCode = -11
+
 	// Cluster Name does not match the ClientPolicy.ClusterName value.
 	CLUSTER_NAME_MISMATCH_ERROR ResultCode = -10
 
@@ -86,8 +89,8 @@ const (
 	// Operation not allowed in current configuration.
 	ALWAYS_FORBIDDEN ResultCode = 10
 
-	// Server is not accepting requests.
-	SERVER_NOT_AVAILABLE ResultCode = 11
+	// Partition is unavailable.
+	PARTITION_UNAVAILABLE ResultCode = 11
 
 	// Operation is not supported with configured bin type (single-bin or
 	// multi-bin).
@@ -343,8 +346,8 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case ALWAYS_FORBIDDEN:
 		return "Operation not allowed in current configuration."
 
-	case SERVER_NOT_AVAILABLE:
-		return "Server not available"
+	case PARTITION_UNAVAILABLE:
+		return "Partition not available"
 
 	case BIN_TYPE_ERROR:
 		return "Bin type error"
