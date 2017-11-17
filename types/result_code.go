@@ -83,8 +83,8 @@ const (
 	// Client or server has timed out.
 	TIMEOUT ResultCode = 9
 
-	// XDS product is not available.
-	NO_XDS ResultCode = 10
+	// Operation not allowed in current configuration.
+	ALWAYS_FORBIDDEN ResultCode = 10
 
 	// Server is not accepting requests.
 	SERVER_NOT_AVAILABLE ResultCode = 11
@@ -340,8 +340,8 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case TIMEOUT:
 		return "Timeout"
 
-	case NO_XDS:
-		return "XDS not available"
+	case ALWAYS_FORBIDDEN:
+		return "Operation not allowed in current configuration."
 
 	case SERVER_NOT_AVAILABLE:
 		return "Server not available"
