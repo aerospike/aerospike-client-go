@@ -689,7 +689,7 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 		}
 
 		// Two node clusters require at least one successful refresh before removing.
-		if refreshCount >= 1 && node.referenceCount.Get() == 0 {
+		if len(nodes) > 1 && refreshCount >= 1 && node.referenceCount.Get() == 0 {
 			// Node is not referenced by other nodes.
 			// Check if node responded to info request.
 			if node.failures.Get() == 0 {
