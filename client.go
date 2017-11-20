@@ -41,6 +41,8 @@ type Client struct {
 
 	// DefaultPolicy is used for all read commands without a specific policy.
 	DefaultPolicy *BasePolicy
+	// DefaultBatchPolicy is used for all batch commands without a specific policy.
+	DefaultBatchPolicy *BatchPolicy
 	// DefaultWritePolicy is used for all write commands without a specific policy.
 	DefaultWritePolicy *WritePolicy
 	// DefaultScanPolicy is used for all scan commands without a specific policy.
@@ -90,6 +92,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	client := &Client{
 		cluster:            cluster,
 		DefaultPolicy:      NewPolicy(),
+		DefaultBatchPolicy: NewBatchPolicy(),
 		DefaultWritePolicy: NewWritePolicy(0, 0),
 		DefaultScanPolicy:  NewScanPolicy(),
 		DefaultQueryPolicy: NewQueryPolicy(),
@@ -264,16 +267,16 @@ func (clnt *Client) Exists(policy *BasePolicy, key *Key) (bool, error) {
 // The returned boolean array is in positional order with the original key array order.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchExists(policy *BasePolicy, keys []*Key) ([]bool, error) {
-	policy = clnt.getUsablePolicy(policy)
+func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, error) {
+	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be marked true
 	existsArray := make([]bool, len(keys))
 
-	if err := clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
-		return newBatchCommandExists(node, bns, policy, keys, existsArray)
-	}); err != nil {
+	// pass nil to make sure it will be cloned and prepared
+	cmd := newBatchCommandExists(nil, nil, nil, policy, keys, existsArray)
+	if err := clnt.batchExecute(policy, keys, cmd); err != nil {
 		return nil, err
 	}
 
@@ -320,21 +323,15 @@ func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
 // If a key is not found, the positional record will be nil.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string) ([]*Record, error) {
-	policy = clnt.getUsablePolicy(policy)
+func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...string) ([]*Record, error) {
+	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	binSet := map[string]struct{}{}
-	for idx := range binNames {
-		binSet[binNames[idx]] = struct{}{}
-	}
-
-	err := clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
-		return newBatchCommandGet(node, bns, policy, keys, binSet, records, _INFO1_READ)
-	})
+	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, binNames, records, _INFO1_READ)
+	err := clnt.batchExecute(policy, keys, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -342,21 +339,37 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 	return records, nil
 }
 
+// BatchGetComplex reads multiple record reads multiple records for specified batch keys in one batch call.
+// This method allows different namespaces/bins to be requested for each key in the batch.
+// The returned records are located in the same list.
+// If the BatchRead key field is not found, the corresponding record field will be null.
+// The policy can be used to specify timeouts and maximum concurrent threads.
+// This method requires Aerospike Server version >= 3.6.0.
+func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) error {
+	policy = clnt.getUsableBatchPolicy(policy)
+
+	cmd := newBatchIndexCommandGet(nil, policy, records)
+	if err := clnt.batchIndexExecute(policy, records, cmd); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // BatchGetHeader reads multiple record header data for specified keys in one batch request.
 // The returned records are in positional order with the original key array order.
 // If a key is not found, the positional record will be nil.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, error) {
-	policy = clnt.getUsablePolicy(policy)
+func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record, error) {
+	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	err := clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
-		return newBatchCommandGet(node, bns, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
-	})
+	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
+	err := clnt.batchExecute(policy, keys, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -1282,9 +1295,49 @@ func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[
 
 // batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
 // and waits for their return
-func (clnt *Client) batchExecute(policy *BasePolicy, keys []*Key, cmdGen func(node *Node, bns *batchNamespace) command) error {
-
+func (clnt *Client) batchExecute(policy *BatchPolicy, keys []*Key, cmd batcher) error {
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+
+	// Use a goroutine per namespace per node
+	errs := []error{}
+	errm := new(sync.Mutex)
+
+	for _, batchNode := range batchNodes {
+		// There may be multiple goroutines for a single node because the
+		// wire protocol only allows one namespace per command.  Multiple namespaces
+		// require multiple goroutines per node.
+		batchNode.splitByNamespace(keys)
+
+		wg.Add(len(batchNode.BatchNamespaces))
+	}
+
+	for _, batchNode := range batchNodes {
+		for _, bns := range batchNode.BatchNamespaces {
+			newCmd := cmd.cloneBatchCommand(batchNode, bns)
+			go func(cmd command) {
+				defer wg.Done()
+				if err := cmd.Execute(); err != nil {
+					errm.Lock()
+					errs = append(errs, err)
+					errm.Unlock()
+				}
+			}(newCmd)
+		}
+	}
+
+	wg.Wait()
+	return mergeErrors(errs)
+}
+
+// batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
+// and waits for their return
+func (clnt *Client) batchIndexExecute(policy *BatchPolicy, records []*BatchRead, cmd batchIndexer) error {
+	batchNodes, err := newBatchIndexNodeList(clnt.cluster, policy, records)
 	if err != nil {
 		return err
 	}
@@ -1298,18 +1351,15 @@ func (clnt *Client) batchExecute(policy *BasePolicy, keys []*Key, cmdGen func(no
 	wg.Add(len(batchNodes))
 	for _, batchNode := range batchNodes {
 		// copy to avoid race condition
-		bn := *batchNode
-		for _, bns := range bn.BatchNamespaces {
-			go func(bn *Node, bns *batchNamespace) {
-				defer wg.Done()
-				command := cmdGen(bn, bns)
-				if err := command.Execute(); err != nil {
-					errm.Lock()
-					errs = append(errs, err)
-					errm.Unlock()
-				}
-			}(bn.Node, bns)
-		}
+		newCmd := cmd.cloneBatchIndexCommand(batchNode)
+		go func(cmd command) {
+			defer wg.Done()
+			if err := cmd.Execute(); err != nil {
+				errm.Lock()
+				errs = append(errs, err)
+				errm.Unlock()
+			}
+		}(newCmd)
 	}
 
 	wg.Wait()
@@ -1322,6 +1372,16 @@ func (clnt *Client) getUsablePolicy(policy *BasePolicy) *BasePolicy {
 			return clnt.DefaultPolicy
 		}
 		return NewPolicy()
+	}
+	return policy
+}
+
+func (clnt *Client) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
+	if policy == nil {
+		if clnt.DefaultBatchPolicy != nil {
+			return clnt.DefaultBatchPolicy
+		}
+		return NewBatchPolicy()
 	}
 	return policy
 }

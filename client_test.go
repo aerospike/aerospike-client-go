@@ -121,6 +121,7 @@ var _ = Describe("Aerospike", func() {
 		var key *as.Key
 		var wpolicy = as.NewWritePolicy(0, 0)
 		var rpolicy = as.NewPolicy()
+		var bpolicy = as.NewBatchPolicy()
 		var rec *as.Record
 
 		if *useReplicas {
@@ -823,7 +824,7 @@ var _ = Describe("Aerospike", func() {
 					}
 				}
 
-				exists, err = client.BatchExists(rpolicy, keys)
+				exists, err = client.BatchExists(bpolicy, keys)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(len(exists)).To(Equal(len(keys)))
 				for idx, keyExists := range exists {
@@ -877,7 +878,24 @@ var _ = Describe("Aerospike", func() {
 					}
 				}
 
-				records, err = client.BatchGet(rpolicy, keys)
+				brecords := make([]*as.BatchRead, len(keys))
+				for i := range keys {
+					brecords[i] = &as.BatchRead{
+						Key:         keys[i],
+						ReadAllBins: true,
+					}
+				}
+				err = client.BatchGetComplex(bpolicy, brecords)
+				Expect(err).ToNot(HaveOccurred())
+				for idx, rec := range brecords {
+					if exList[idx].shouldExist {
+						Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+					} else {
+						Expect(rec.Record).To(BeNil())
+					}
+				}
+
+				records, err = client.BatchGet(bpolicy, keys)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(len(records)).To(Equal(len(keys)))
 				for idx, rec := range records {
@@ -888,7 +906,7 @@ var _ = Describe("Aerospike", func() {
 					}
 				}
 
-				records, err = client.BatchGet(rpolicy, keys, bin.Name)
+				records, err = client.BatchGet(bpolicy, keys, bin.Name)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(len(records)).To(Equal(len(keys)))
 				for idx, rec := range records {
@@ -968,7 +986,7 @@ var _ = Describe("Aerospike", func() {
 					}
 				}
 
-				records, err = client.BatchGetHeader(rpolicy, keys)
+				records, err = client.BatchGetHeader(bpolicy, keys)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(len(records)).To(Equal(len(keys)))
 				for idx, rec := range records {
