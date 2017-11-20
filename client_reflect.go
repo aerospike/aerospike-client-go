@@ -57,8 +57,8 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 // If a key is not found, the positional object will not change, and the positional found boolean will be false.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGetObjects(policy *BasePolicy, keys []*Key, objects []interface{}) (found []bool, err error) {
-	policy = clnt.getUsablePolicy(policy)
+func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err error) {
+	policy = clnt.getUsableBatchPolicy(policy)
 
 	// check the size of  key and objects
 	if (len(keys) != len(objects)) || (len(keys) == 0) {
@@ -74,15 +74,17 @@ func (clnt *Client) BatchGetObjects(policy *BasePolicy, keys []*Key, objects []i
 			binSet[bn] = struct{}{}
 		}
 	}
+	binNames := make([]string, 0, len(binSet))
+	for binName := range binSet {
+		binNames = append(binNames, binName)
+	}
 
 	objectsFound := make([]bool, len(keys))
-	err = clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
-		cmd := newBatchCommandGet(node, bns, policy, keys, binSet, nil, _INFO1_READ)
-		cmd.objects = objectsVal
-		cmd.objectsFound = objectsFound
-		return cmd
-	})
-	if err != nil {
+	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, binNames, nil, _INFO1_READ)
+	cmd.objects = objectsVal
+	cmd.objectsFound = objectsFound
+
+	if err = clnt.batchExecute(policy, keys, cmd); err != nil {
 		return nil, err
 	}
 
