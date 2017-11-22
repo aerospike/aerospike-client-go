@@ -58,6 +58,10 @@ type ClientPolicy struct {
 	// Minimum possible interval is 10 Milliseconds.
 	TendInterval time.Duration //= 1 second
 
+	// Initial cluster connection timeout duration.
+	// The timeout when connecting to the cluster for the first time.
+	TendTimeout time.Duration //= 30 seconds
+
 	// A IP translation table is used in cases where different clients
 	// use different server IP addresses.  This may be necessary when
 	// using clients from both inside and outside a local area
@@ -95,6 +99,7 @@ type ClientPolicy struct {
 func NewClientPolicy() *ClientPolicy {
 	return &ClientPolicy{
 		Timeout:                     30 * time.Second,
+		TendTimeout:                 30 * time.Second,
 		IdleTimeout:                 defaultIdleTimeout,
 		ConnectionQueueSize:         256,
 		FailIfNotConnected:          true,
