@@ -50,7 +50,7 @@ type BatchPolicy struct {
 	// The new batch index protocol will perform this record proxy when necessary.
 	UseBatchDirect bool // = false
 
-	// Allow batch to be processed immediately in the server's receiving goroutine when the server
+	// Allow batch to be processed immediately in the server's receiving thread when the server
 	// deems it to be appropriate.  If false, the batch will always be processed in separate
 	// transaction goroutines.  This field is only relevant for the new batch index protocol.
 	//
