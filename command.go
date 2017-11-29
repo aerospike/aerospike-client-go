@@ -635,7 +635,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 		index := offsets[i]
 		cmd.WriteUint32(uint32(index))
 
-		record := records[i]
+		record := records[index]
 		key := record.Key
 		binNames := record.BinNames
 		cmd.Write(key.digest[:])
