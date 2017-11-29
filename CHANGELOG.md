@@ -1,5 +1,18 @@
 # Change History
 
+## November 29 2017: v1.31.0
+
+  Feature release.
+
+  * **New Features**
+  
+    - Support for newer Batch Protocol. Add `BatchGetComplex` for complex batch queries. Old batch API upgraded to automatically support the new protocol under the hood, unless `BatchPolicy.UseBatchDirect` flag is iet to `true`.
+
+  * **Changes**
+
+    - Renames ResultCode `NO_XDS` to `ALWAYS_FORBIDDEN`.
+    - Makes `SERVER_NOT_AVAILABLE` a client generated error.
+
 ## October 12 2017: v1.30.0
 
   Fix and improvements release.
