@@ -901,6 +901,7 @@ var _ = Describe("Aerospike", func() {
 						for idx, rec := range brecords {
 							if exList[idx].shouldExist {
 								Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+								Expect(rec.Record.Key).To(Equal(keys[idx]))
 							} else {
 								Expect(rec.Record).To(BeNil())
 							}
@@ -912,6 +913,7 @@ var _ = Describe("Aerospike", func() {
 						for idx, rec := range records {
 							if exList[idx].shouldExist {
 								Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+								Expect(rec.Key).To(Equal(keys[idx]))
 							} else {
 								Expect(rec).To(BeNil())
 							}
@@ -925,6 +927,7 @@ var _ = Describe("Aerospike", func() {
 								// only bin1 has been requested
 								Expect(rec.Bins[binRedundant.Name]).To(BeNil())
 								Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+								Expect(rec.Key).To(Equal(keys[idx]))
 							} else {
 								Expect(rec).To(BeNil())
 							}
@@ -981,6 +984,7 @@ var _ = Describe("Aerospike", func() {
 						for idx, rec := range brecords {
 							if exList[idx].shouldExist {
 								Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+								Expect(rec.Record.Key).To(Equal(keys[idx]))
 							} else {
 								Expect(rec.Record).To(BeNil())
 							}
@@ -1001,6 +1005,7 @@ var _ = Describe("Aerospike", func() {
 						for idx, rec := range brecords {
 							if exList[idx].shouldExist {
 								Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+								Expect(rec.Record.Key).To(Equal(keys[idx]))
 							} else {
 								Expect(rec.Record).To(BeNil())
 							}
@@ -1021,6 +1026,7 @@ var _ = Describe("Aerospike", func() {
 						for idx, rec := range brecords {
 							if exList[idx].shouldExist {
 								Expect(len(rec.Record.Bins)).To(Equal(0))
+								Expect(rec.Record.Key).To(Equal(keys[idx]))
 							} else {
 								Expect(rec.Record).To(BeNil())
 							}
