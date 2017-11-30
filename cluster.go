@@ -533,7 +533,7 @@ func (clstr *Cluster) waitTillStabilized() error {
 	}()
 
 	select {
-	case <-time.After(clstr.clientPolicy.Timeout):
+	case <-time.After(clstr.clientPolicy.TendTimeout):
 		return errors.New("Connecting to the cluster timed out.")
 	case err := <-doneCh:
 		return err
@@ -608,7 +608,7 @@ L:
 		case <-successChan:
 			// even one seed is enough
 			return true, nil
-		case <-time.After(clstr.clientPolicy.Timeout):
+		case <-time.After(clstr.clientPolicy.TendTimeout):
 			// time is up, no seeds found
 			wg.Wait()
 			break L
