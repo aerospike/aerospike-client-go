@@ -30,7 +30,7 @@ type singleConnectionQueue struct {
 	mutex      sync.Mutex
 }
 
-// NewQueue creates a new queue with initial size.
+// newSingleConnectionQueue creates a new queue with initial size.
 func newSingleConnectionQueue(size int) *singleConnectionQueue {
 	if size <= 0 {
 		panic("Queue size cannot be less than 1")
@@ -77,10 +77,24 @@ func (q *singleConnectionQueue) Poll() (res *Connection) {
 		}
 		q.tail = (q.tail + 1) % q.size
 		res = q.data[q.tail]
+		q.data[q.tail] = nil
 	}
 
 	q.mutex.Unlock()
 	return res
+}
+
+// Len returns the number of connections in the queue
+func (q *singleConnectionQueue) Len() int {
+	cnt := 0
+	q.mutex.Lock()
+	if !q.wrapped {
+		cnt = int(q.head - q.tail)
+	} else {
+		cnt = int(q.size - (q.tail - q.head))
+	}
+	q.mutex.Unlock()
+	return cnt
 }
 
 // singleConnectionQueue is a non-blocking FIFO queue.
@@ -131,8 +145,6 @@ func (q *connectionQueue) Offer(conn *Connection, hint byte) bool {
 // Poll removes and returns an item from the queue.
 // If the queue is empty, nil will be returned.
 func (q *connectionQueue) Poll(hint byte) (res *Connection) {
-	// fmt.Println(int(hint) % len(q.queues))
-
 	idx := int(hint)
 
 	end := idx + len(q.queues)
@@ -160,4 +172,18 @@ L:
 			conn.Close()
 		}
 	}
+}
+
+// Len returns the number of connections in all or a specific sub-queue.
+// If hint is < 0 or invalid, then the total number of connections will be returned.
+func (q *connectionQueue) Len(hint byte) (cnt int) {
+	if hint >= 0 && int(hint) < len(q.queues) {
+		cnt = q.queues[hint].Len()
+	} else {
+		for i := range q.queues {
+			cnt += q.queues[i].Len()
+		}
+	}
+
+	return cnt
 }
