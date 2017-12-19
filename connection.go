@@ -28,6 +28,11 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
+// DefaultBufferSize specifies the initial size of the connection buffer when it is created.
+// If not big enough (as big as the average record), it will be reallocated to size again
+// which will be more expensive.
+const DefaultBufferSize = 64 * 1024 // 64 KiB
+
 // Connection represents a connection with a timeout.
 type Connection struct {
 	node *Node
@@ -45,7 +50,7 @@ type Connection struct {
 	// to avoid having a buffer pool and contention
 	dataBuffer []byte
 
-	lck sync.Mutex
+	closer sync.Once
 }
 
 // makes sure that the connection is closed eventually, even if it is not consumed
@@ -77,7 +82,7 @@ func shouldClose(err error) bool {
 // If the connection is not established in the specified timeout,
 // an error will be returned
 func NewConnection(address string, timeout time.Duration) (*Connection, error) {
-	newConn := &Connection{dataBuffer: make([]byte, 1024)}
+	newConn := &Connection{dataBuffer: make([]byte, DefaultBufferSize)}
 	runtime.SetFinalizer(newConn, connectionFinalizer)
 
 	// don't wait indefinitely
@@ -155,7 +160,9 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 		return total, nil
 	}
 
-	atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+	if ctn.node != nil {
+		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+	}
 	ctn.Close()
 	return total, errToTimeoutErr(err)
 }
@@ -169,13 +176,19 @@ func (ctn *Connection) ReadN(buf io.Writer, length int64) (total int64, err erro
 	if err == nil && total == length {
 		return total, nil
 	} else if err != nil {
+		if ctn.node != nil {
+			atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+		}
+
 		if shouldClose(err) {
 			ctn.Close()
 		}
 		return total, errToTimeoutErr(err)
 	}
 
-	atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+	if ctn.node != nil {
+		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+	}
 	ctn.Close()
 	return total, NewAerospikeError(SERVER_ERROR)
 }
@@ -196,13 +209,18 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 	if err == nil && total == length {
 		return total, nil
 	} else if err != nil {
+		if ctn.node != nil {
+			atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+		}
 		if shouldClose(err) {
 			ctn.Close()
 		}
 		return total, errToTimeoutErr(err)
 	}
 
-	atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+	if ctn.node != nil {
+		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+	}
 	ctn.Close()
 	return total, NewAerospikeError(SERVER_ERROR)
 }
@@ -214,7 +232,7 @@ func (ctn *Connection) IsConnected() bool {
 
 // SetTimeout sets connection timeout for both read and write operations.
 func (ctn *Connection) SetTimeout(timeout time.Duration) error {
-	// Set timeout ONLY if there is or has been a timeout
+	// Set timeout ONLY if there is or has been a timeout set before
 	if timeout > 0 || ctn.timeout != 0 {
 		ctn.timeout = timeout
 
@@ -225,6 +243,9 @@ func (ctn *Connection) SetTimeout(timeout time.Duration) error {
 				deadline = time.Now().Add(timeout)
 			}
 			if err := ctn.conn.SetDeadline(deadline); err != nil {
+				if ctn.node != nil {
+					atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+				}
 				return err
 			}
 		}
@@ -235,20 +256,19 @@ func (ctn *Connection) SetTimeout(timeout time.Duration) error {
 
 // Close closes the connection
 func (ctn *Connection) Close() {
-	ctn.lck.Lock()
-	defer ctn.lck.Unlock()
+	ctn.closer.Do(func() {
+		if ctn != nil && ctn.conn != nil {
+			// deregister
+			if ctn.node != nil {
+				ctn.node.connectionCount.DecrementAndGet()
+			}
 
-	if ctn != nil && ctn.conn != nil {
-		// deregister
-		if ctn.node != nil {
-			ctn.node.connectionCount.DecrementAndGet()
+			if err := ctn.conn.Close(); err != nil {
+				Logger.Warn(err.Error())
+			}
+			ctn.conn = nil
 		}
-
-		if err := ctn.conn.Close(); err != nil {
-			Logger.Warn(err.Error())
-		}
-		ctn.conn = nil
-	}
+	})
 }
 
 // Authenticate will send authentication information to the server.
@@ -257,6 +277,9 @@ func (ctn *Connection) Authenticate(user string, password []byte) error {
 	if user != "" {
 		command := newAdminCommand(ctn.dataBuffer)
 		if err := command.authenticate(ctn, user, password); err != nil {
+			if ctn.node != nil {
+				atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+			}
 			// Socket not authenticated. Do not put back into pool.
 			ctn.Close()
 			return err
