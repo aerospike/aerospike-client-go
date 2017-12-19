@@ -1589,7 +1589,7 @@ func (cmd *baseCommand) execute(ifc command) error {
 
 		cmd.conn, err = ifc.getConnection(socketTimeout)
 		if err != nil {
-			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
+			Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
 		}
 
@@ -1616,7 +1616,7 @@ func (cmd *baseCommand) execute(ifc command) error {
 			// Close socket to flush out possible garbage. Do not put back in pool.
 			cmd.conn.Close()
 
-			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
+			Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
 		}
 
@@ -1628,7 +1628,7 @@ func (cmd *baseCommand) execute(ifc command) error {
 				// Close socket to flush out possible garbage. Do not put back in pool.
 				cmd.conn.Close()
 
-				Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
+				Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 
 				// retry only for non-streaming commands
 				if !cmd.oneShot {
