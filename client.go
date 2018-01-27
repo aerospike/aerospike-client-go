@@ -31,7 +31,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	xornd "github.com/aerospike/aerospike-client-go/types/rand"
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 )
 
 // Client encapsulates an Aerospike cluster.
@@ -1056,11 +1056,12 @@ func (clnt *Client) DropIndex(
 	return NewAerospikeError(INDEX_GENERIC, "Drop index failed: "+response)
 }
 
-// Remove records in specified namespace/set efficiently.  This method is many orders of magnitude
+// Truncate removes records in specified namespace/set efficiently.  This method is many orders of magnitude
 // faster than deleting records one at a time.  Works with Aerospike Server versions >= 3.12.
 // This asynchronous server call may return before the truncation is complete.  The user can still
 // write new records after the server call returns because new records will have last update times
 // greater than the truncate cutoff (set at the time of truncate call).
+// For more information, See https://www.aerospike.com/docs/reference/info#truncate
 func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) error {
 	policy = clnt.getUsableWritePolicy(policy)
 
