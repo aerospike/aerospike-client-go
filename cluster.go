@@ -534,8 +534,12 @@ func (clstr *Cluster) waitTillStabilized() error {
 
 	select {
 	case <-time.After(clstr.clientPolicy.Timeout):
+		clstr.Close()
 		return errors.New("Connecting to the cluster timed out.")
 	case err := <-doneCh:
+		if err != nil {
+			clstr.Close()
+		}
 		return err
 	}
 }
