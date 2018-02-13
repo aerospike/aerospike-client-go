@@ -34,22 +34,8 @@ Please let us know if you can suggest an improvement anywhere in the library.
 
   You can also guard against the number of new connections to each node using `ClientPolicy.LimitConnectionsToQueueSize = true`, so that if a connection is not available in the pool, the client will wait or timeout instead of creating a new client.
 
-2. **Client Buffer Pool**: Client library pools its buffers to reduce memory allocation. Considering that unbounded memory pools are bugs you haven't found yet, our pool implementation enforces 2 bounds on pool:
-
-  2.1. Initial buffer sizes are big enough for most operations, so they won't need to increase (512 bytes by default)
-
-  2.2. Pool size is limited (512 buffers by default)
-
-  2.3. Buffer sizes are limited. If a buffer is bigger than this limit, it won't be put back in the pool. (128 Kibs by default)
-
-  These limits will make the pool deterministic in performance and memory size (maximum 64MiB by default). While the default values will perform well under most circumstances, they might under perform in the following conditions:
-
-    - When initial size is too small, and final size too big: Each allocation will be too small for the operation (say you have records bigger than 128K limit)
-
-    - When pool size is too small, and initial buffer size is too small or final buffer size is too big: buffers will be allocated, and then thrown away because the pool doesn't have enough room for them most of the time.
-
-  If you ever determine that in fact this pool size is a bottleneck in your application, you are able to change it using `SetCommandBufferPool(poolSize, initBufSize, maxBufferSize int)`. Be aware that this pool is a package object, and is shared between all clients (in case you have more than one).
+2. **Initial Connection Buffer Size**: Client library retains its buffers to reduce memory allocation. The memory buffers are grown automatically, but the initial size can be set to avoid reallocations in case the initial size is always too small. If you ever determine that the initial pool size is sub-optimal for you application, you can set the size by `DefaultBufferSize`.
 
 3. **Using `Bin` objects in `Put` operations instead of BinMaps**: `Put` method requires you to pass a map for bin values. While convenient, it will allocate an array of bins on each call, iterate on the map, and make `Bin` objects to use.
 
-  If performance is absolutely important, use `PutBins` method and pass bins yourself to avoid BinMap allocation, []Bin allocation and an iteration over the BinMap. (2 allocations and an O(n) algorithm)
+  If performance is absolutely important, use `PutBins` method and pass bins yourself.

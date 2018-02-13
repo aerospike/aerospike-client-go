@@ -1542,7 +1542,7 @@ func (cmd *baseCommand) end() {
 // the pool for different workloads
 // This method is deprecated.
 func SetCommandBufferPool(poolSize, initBufSize, maxBufferSize int) {
-	panic("There is no need to optimize the buffer pool anymore. Buffers have moved to Connection object.")
+	panic("There is no need to optimize the buffer pool anymore. Buffers have moved to Connection object. To tweak the initial buffer sizes, use DefaultBufferSize.")
 }
 
 func (cmd *baseCommand) execute(ifc command) error {
