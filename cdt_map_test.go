@@ -262,7 +262,12 @@ var _ = Describe("CDT Map Test", func() {
 			)
 
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{1, 2, 3, 4, []as.MapPair{{Key: 3, Value: 2}}, []as.MapPair{{Key: 1, Value: 4}, {Key: 2, Value: 3}, {Key: 3, Value: 2}, {Key: 4, Value: 1}}}}))
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[0]).To(Equal(1))
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[1]).To(Equal(2))
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[2]).To(Equal(3))
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[3]).To(Equal(4))
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[4]).To(Equal([]as.MapPair{{Key: 3, Value: 2}}))
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[5]).To(ConsistOf([]as.MapPair{{Key: 1, Value: 4}, {Key: 2, Value: 3}, {Key: 3, Value: 2}, {Key: 4, Value: 1}}))
 
 			cdtMap, err = client.Operate(wpolicy, key,
 				as.MapSetPolicyOp(as.NewMapPolicy(as.MapOrder.KEY_ORDERED, as.MapWriteMode.UPDATE), cdtBinName),
@@ -356,7 +361,12 @@ var _ = Describe("CDT Map Test", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{7, nil, 98, []interface{}{79, 84}, []interface{}{"Charlie"}}}))
+			// Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{7, nil, 98, []interface{}{79, 84}, []interface{}{"Charlie"}}}))
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[0]).To(Equal(7))
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[1]).To(BeNil())
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[2]).To(Equal(98))
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[3]).To(ConsistOf([]interface{}{79, 84}))
+			Expect(cdtMap.Bins[cdtBinName].([]interface{})[4]).To(Equal([]interface{}{"Charlie"}))
 		})
 
 	})

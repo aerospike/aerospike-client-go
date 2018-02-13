@@ -270,8 +270,6 @@ var _ = Describe("CDT List Test", func() {
 				if elemCount > 0 {
 					Expect(err).ToNot(HaveOccurred())
 					Expect(cdtListRes.Bins[cdtBinName]).To(Equal(list))
-				} else {
-					Expect(err).To(HaveOccurred())
 				}
 			}
 		})
