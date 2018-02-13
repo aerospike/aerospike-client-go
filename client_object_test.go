@@ -349,7 +349,7 @@ var _ = Describe("Aerospike", func() {
 			cf64 := SomeFloat64(math.SmallestNonzeroFloat64)
 			ctstr := SomeString("Some string")
 
-			now := time.Now()
+			now := time.Now().Round(time.Nanosecond)
 
 			return &testObject{
 				Bool:  true,
@@ -498,7 +498,7 @@ var _ = Describe("Aerospike", func() {
 			cf64 := SomeFloat64(math.SmallestNonzeroFloat64)
 			ctstr := SomeString("Some string")
 
-			now := time.Now()
+			now := time.Now().Round(time.Nanosecond)
 
 			return &testObjectTagged{
 				Bool:  true,
