@@ -28,51 +28,39 @@ type Task interface {
 
 // baseTask is used to poll for server task completion.
 type baseTask struct {
-	retries        int
-	cluster        *Cluster
-	done           bool
-	onCompleteChan chan error
+	retries int
+	cluster *Cluster
 }
 
 // newTask initializes task with fields needed to query server nodes.
-func newTask(cluster *Cluster, done bool) *baseTask {
+func newTask(cluster *Cluster) *baseTask {
 	return &baseTask{
 		cluster: cluster,
-		done:    done,
 	}
 }
 
 // Wait for asynchronous task to complete using default sleep interval.
 func (btsk *baseTask) onComplete(ifc Task) chan error {
-	// create the channel if it doesn't exist yet
-	if btsk.onCompleteChan != nil {
-		// channel and goroutine already exists; just return the channel
-		return btsk.onCompleteChan
-	}
-
-	btsk.onCompleteChan = make(chan error)
-
+	var ch = make(chan error, 1)
 	// goroutine will loop every <interval> until IsDone() returns true or error
 	const interval = 1 * time.Second
 	go func() {
 		// always close the channel on return
-		defer close(btsk.onCompleteChan)
+		defer close(ch)
 
 		for {
-			select {
-			case <-time.After(interval):
-				done, err := ifc.IsDone()
-				btsk.retries++
-				if err != nil {
-					btsk.onCompleteChan <- err
-					return
-				} else if done {
-					btsk.onCompleteChan <- nil
-					return
-				}
-			} // select
+			<-time.After(interval)
+			done, err := ifc.IsDone()
+			btsk.retries++
+			if err != nil {
+				ch <- err
+				return
+			}
+			if done {
+				return
+			}
 		} // for
 	}()
 
-	return btsk.onCompleteChan
+	return ch
 }
