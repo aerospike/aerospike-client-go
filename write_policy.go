@@ -58,6 +58,8 @@ type WritePolicy struct {
 	Expiration uint32
 
 	// Send user defined key in addition to hash digest on a record put.
+	// If the key is sent on a write, the key will be stored with the record on
+	// the server.
 	// The default is to not send the user defined key.
 	SendKey bool
 

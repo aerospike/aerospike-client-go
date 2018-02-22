@@ -3,8 +3,9 @@ dir: src/github.com/aerospike/aerospike-client-go
 
 container:
   - base:
-      - docker.qe.aerospike.com/build/aerospike-client-go:golang-1.5
-      - docker.qe.aerospike.com/build/aerospike-client-go:golang-1.6
+      - docker.qe.aerospike.com/build/aerospike-client-go:golang-1.7
+      - docker.qe.aerospike.com/build/aerospike-client-go:golang-1.8
+      - docker.qe.aerospike.com/build/aerospike-client-go:golang-1.9
 
 build:
   - name: build

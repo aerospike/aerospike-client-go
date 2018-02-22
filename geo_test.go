@@ -17,7 +17,7 @@ package aerospike_test
 import (
 	"fmt"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -35,7 +35,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 	// connection data
 	var ns = "test"
 	var set = randString(50)
-	var wpolicy = NewWritePolicy(0, 0)
+	var wpolicy = as.NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
 	var size = 20
 	const keyCount = 1000
@@ -64,8 +64,8 @@ var _ = Describe("Geo Spacial Tests", func() {
 		}
 
 		for i, ptsb := range regions {
-			key, _ := NewKey(ns, set, i)
-			bin := NewBin(binName, NewGeoJSONValue(ptsb))
+			key, _ := as.NewKey(ns, set, i)
+			bin := as.NewBin(binName, as.NewGeoJSONValue(ptsb))
 			err := client.PutBins(wpolicy, key, bin)
 			Expect(err).ToNot(HaveOccurred())
 		}
@@ -73,7 +73,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 		// queries only work on indices
 		client.DropIndex(wpolicy, ns, set, set+binName)
 
-		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, GEO2DSPHERE)
+		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until index is created
@@ -91,8 +91,8 @@ var _ = Describe("Geo Spacial Tests", func() {
 		}
 
 		for _, rgnsb := range points {
-			stm := NewStatement(ns, set)
-			stm.Addfilter(NewGeoWithinRegionFilter(binName, rgnsb))
+			stm := as.NewStatement(ns, set)
+			stm.Addfilter(as.NewGeoWithinRegionFilter(binName, rgnsb))
 			recordset, err := client.Query(nil, stm)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -121,8 +121,8 @@ var _ = Describe("Geo Spacial Tests", func() {
 
 			points = append(points, ptsb)
 
-			key, _ := NewKey(ns, set, i)
-			bin := NewBin(binName, NewGeoJSONValue(ptsb))
+			key, _ := as.NewKey(ns, set, i)
+			bin := as.NewBin(binName, as.NewGeoJSONValue(ptsb))
 			err := client.PutBins(wpolicy, key, bin)
 			Expect(err).ToNot(HaveOccurred())
 		}
@@ -130,7 +130,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 		// queries only work on indices
 		client.DropIndex(wpolicy, ns, set, set+binName)
 
-		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, GEO2DSPHERE)
+		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until index is created
@@ -147,8 +147,8 @@ var _ = Describe("Geo Spacial Tests", func() {
 		    ]
 		}`
 
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewGeoRegionsContainingPointFilter(binName, rgnsb))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewGeoRegionsContainingPointFilter(binName, rgnsb))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -176,8 +176,8 @@ var _ = Describe("Geo Spacial Tests", func() {
 
 			points = append(points, ptsb)
 
-			key, _ := NewKey(ns, set, i)
-			bin := NewBin(binName, NewGeoJSONValue(ptsb))
+			key, _ := as.NewKey(ns, set, i)
+			bin := as.NewBin(binName, as.NewGeoJSONValue(ptsb))
 			err := client.PutBins(wpolicy, key, bin)
 			Expect(err).ToNot(HaveOccurred())
 		}
@@ -185,7 +185,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 		// queries only work on indices
 		client.DropIndex(wpolicy, ns, set, set+binName)
 
-		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, GEO2DSPHERE)
+		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until index is created
@@ -197,8 +197,8 @@ var _ = Describe("Geo Spacial Tests", func() {
 		lat := float64(37.5)
 		radius := float64(50000.0)
 
-		stm := NewStatement(ns, set)
-		stm.Addfilter(NewGeoWithinRadiusFilter(binName, lon, lat, radius))
+		stm := as.NewStatement(ns, set)
+		stm.Addfilter(as.NewGeoWithinRadiusFilter(binName, lon, lat, radius))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 

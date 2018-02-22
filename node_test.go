@@ -17,7 +17,7 @@ package aerospike_test
 import (
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -30,11 +30,11 @@ var _ = Describe("Aerospike Node Tests", func() {
 	Describe("Node Connection Pool", func() {
 		// connection data
 		var err error
-		var client *Client
+		var client *as.Client
 
 		BeforeEach(func() {
 			// use the same client for all
-			client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+			client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -43,11 +43,11 @@ var _ = Describe("Aerospike Node Tests", func() {
 			if *user != "" {
 
 				It("must return error if it fails to authenticate", func() {
-					clientPolicy := NewClientPolicy()
+					clientPolicy := as.NewClientPolicy()
 					clientPolicy.User = "non_existent_user"
 					clientPolicy.Password = "non_existent_user"
 
-					client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+					client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
 					Expect(err).To(HaveOccurred())
 				})
 
@@ -58,13 +58,13 @@ var _ = Describe("Aerospike Node Tests", func() {
 		Context("When No Connection Count Limit Is Set", func() {
 
 			It("must return a new connection on every poll", func() {
-				clientPolicy := NewClientPolicy()
+				clientPolicy := as.NewClientPolicy()
 				clientPolicy.LimitConnectionsToQueueSize = false
 				clientPolicy.ConnectionQueueSize = 4
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
-				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.Close()
 
@@ -86,17 +86,19 @@ var _ = Describe("Aerospike Node Tests", func() {
 		Context("When A Connection Count Limit Is Set", func() {
 
 			It("must return an error when maximum number of connections are polled", func() {
-				clientPolicy := NewClientPolicy()
+				clientPolicy := as.NewClientPolicy()
 				clientPolicy.LimitConnectionsToQueueSize = true
 				clientPolicy.ConnectionQueueSize = 4
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
-				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.Close()
 
 				node := client.GetNodes()[0]
+
+				cList := []*as.Connection{}
 
 				// 4-1 is because we reserve a connection for tend
 				for i := 0; i < 4-1; i++ {
@@ -106,8 +108,11 @@ var _ = Describe("Aerospike Node Tests", func() {
 					Expect(c.IsConnected()).To(BeTrue())
 
 					// don't call invalidate here; we are testing node's connection queue behaviour
-					// if there are connections which are not invalidated
-					c.Close()
+					// if there are connections which are not invalidated.
+					// Don't call close as well, since it automatically reduces the total conn count.
+					// c.Close()
+					// append the connections to the list to prevent the invalidator closing them
+					cList = append(cList, c)
 				}
 
 				// 4-1 is because we reserve a connection for tend
@@ -116,6 +121,10 @@ var _ = Describe("Aerospike Node Tests", func() {
 					Expect(err).To(HaveOccurred())
 				}
 
+				// prevent the optimizer optimizing the cList and it's contents out, since that would trigger the connection finzalizer
+				for _, c := range cList {
+					Expect(c.IsConnected()).To(BeTrue())
+				}
 			})
 
 		})
@@ -123,20 +132,20 @@ var _ = Describe("Aerospike Node Tests", func() {
 		Context("When Idle Timeout Is Used", func() {
 
 			It("must reuse connections before they become idle", func() {
-				clientPolicy := NewClientPolicy()
+				clientPolicy := as.NewClientPolicy()
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
 				// clientPolicy.TendInterval = time.Hour
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
-				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.Close()
 
 				node := client.GetNodes()[0]
 
 				// get a few connections at once
-				var conns []*Connection
+				var conns []*as.Connection
 				for i := 0; i < 4; i++ {
 					// By(fmt.Sprintf("Retrieving conns i=%d", i))
 					c, err := node.GetConnection(0)
@@ -161,7 +170,7 @@ var _ = Describe("Aerospike Node Tests", func() {
 				for estimatedDeadline.Sub(time.Now()) > deadlineThreshold {
 					checkCount++
 					// By(fmt.Sprintf("Retrieving conns2 checkCount=%d", checkCount))
-					var conns2 []*Connection
+					var conns2 []*as.Connection
 					for i := 0; i < len(conns); i++ {
 						c, err := node.GetConnection(0)
 						Expect(err).NotTo(HaveOccurred())
@@ -188,7 +197,7 @@ var _ = Describe("Aerospike Node Tests", func() {
 				<-time.After(2 * clientPolicy.IdleTimeout)
 
 				// get connections again, making sure they are all new
-				var conns3 []*Connection
+				var conns3 []*as.Connection
 				for i := 0; i < len(conns); i++ {
 					// By(fmt.Sprintf("Retrieving conns3 i=%d", i))
 					c, err := node.GetConnection(0)
@@ -214,12 +223,12 @@ var _ = Describe("Aerospike Node Tests", func() {
 			})
 
 			It("must delay the connection from becoming idle if it is put back in the queue", func() {
-				clientPolicy := NewClientPolicy()
+				clientPolicy := as.NewClientPolicy()
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
-				client, err = NewClientWithPolicy(clientPolicy, *host, *port)
+				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.Close()
 

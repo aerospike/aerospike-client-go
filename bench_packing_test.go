@@ -50,9 +50,11 @@ func Benchmark_Pack_binary_PutUint64(b *testing.B) {
 
 func doPack(val interface{}, b *testing.B) {
 	var err error
+	v := NewValue(val)
+	runtime.GC()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		buf.dataOffset = 0
-		v := NewValue(val)
 		_, err = v.pack(buf)
 		if err != nil {
 			panic(err)
@@ -62,73 +64,46 @@ func doPack(val interface{}, b *testing.B) {
 
 func Benchmark_Pack_________Int64(b *testing.B) {
 	val := rand.Int63()
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
 func Benchmark_Pack_________Int32(b *testing.B) {
 	val := rand.Int31()
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
 func Benchmark_Pack_String______1(b *testing.B) {
 	val := strings.Repeat("s", 1)
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
 func Benchmark_Pack_String_____10(b *testing.B) {
 	val := strings.Repeat("s", 10)
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
 func Benchmark_Pack_String____100(b *testing.B) {
 	val := strings.Repeat("s", 100)
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
 func Benchmark_Pack_String___1000(b *testing.B) {
 	val := strings.Repeat("s", 1000)
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
 func Benchmark_Pack_String__10000(b *testing.B) {
 	val := strings.Repeat("s", 10000)
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
 func Benchmark_Pack_String_100000(b *testing.B) {
 	val := strings.Repeat("s", 100000)
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
 func Benchmark_Pack_Complex_IfcArray_Direct(b *testing.B) {
 	val := []interface{}{1, 1, 1, "a simple string", nil, rand.Int63(), []byte{12, 198, 211}}
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
@@ -155,17 +130,11 @@ func (m myList) Len() int {
 
 func Benchmark_Pack_Complex_Array_ListIter(b *testing.B) {
 	val := myList([]string{strings.Repeat("s", 1), strings.Repeat("s", 2), strings.Repeat("s", 3), strings.Repeat("s", 4), strings.Repeat("s", 5), strings.Repeat("s", 6), strings.Repeat("s", 7), strings.Repeat("s", 8), strings.Repeat("s", 9), strings.Repeat("s", 10)})
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
 func Benchmark_Pack_Complex_ValueArray(b *testing.B) {
 	val := []Value{NewValue(1), NewValue(strings.Repeat("s", 100000)), NewValue(1.75), NewValue(nil)}
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
@@ -177,9 +146,6 @@ func Benchmark_Pack_Complex_Map(b *testing.B) {
 		15892987:     strings.Repeat("s", 100),
 		"s2":         []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 	}
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
@@ -191,9 +157,6 @@ func Benchmark_Pack_Complex_JsonMap(b *testing.B) {
 		"15892987":     strings.Repeat("s", 100),
 		"s2":           []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 	}
-	b.N = 1000
-	runtime.GC()
-	b.ResetTimer()
 	doPack(val, b)
 }
 
@@ -253,10 +216,10 @@ func (bb *benchBuffer) WriteFloat64(float float64) (int, error) {
 	return 8, nil
 }
 
-func (bb *benchBuffer) WriteByte(b byte) (int, error) {
+func (bb *benchBuffer) WriteByte(b byte) error {
 	bb.dataBuffer[bb.dataOffset] = b
 	bb.dataOffset++
-	return 1, nil
+	return nil
 }
 
 func (bb *benchBuffer) WriteString(s string) (int, error) {

@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"time"
+
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -23,16 +25,24 @@ type singleCommand struct {
 
 	cluster   *Cluster
 	key       *Key
-	partition *Partition
+	partition Partition
 }
 
-func newSingleCommand(cluster *Cluster, key *Key) *singleCommand {
-	return &singleCommand{
+func newSingleCommand(cluster *Cluster, key *Key) singleCommand {
+	return singleCommand{
 		baseCommand: baseCommand{},
 		cluster:     cluster,
 		key:         key,
-		partition:   NewPartitionByKey(key),
+		partition:   newPartitionByKey(key),
 	}
+}
+
+func (cmd *singleCommand) getConnection(timeout time.Duration) (*Connection, error) {
+	return cmd.node.getConnectionWithHint(timeout, cmd.key.digest[0])
+}
+
+func (cmd *singleCommand) putConnection(conn *Connection) {
+	cmd.node.putConnectionWithHint(conn, cmd.key.digest[0])
 }
 
 func (cmd *singleCommand) emptySocket(conn *Connection) error {

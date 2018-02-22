@@ -35,6 +35,8 @@ const (
 	_INFO1_READ int = (1 << 0)
 	// Get all bins.
 	_INFO1_GET_ALL int = (1 << 1)
+	// Batch read or exists.
+	_INFO1_BATCH int = (1 << 3)
 
 	// Do not read the bins
 	_INFO1_NOBINDATA int = (1 << 5)
@@ -85,6 +87,8 @@ type command interface {
 
 	writeBuffer(ifc command) error
 	getNode(ifc command) (*Node, error)
+	getConnection(timeout time.Duration) (*Connection, error)
+	putConnection(conn *Connection)
 	parseResult(ifc command, conn *Connection) error
 	parseRecordResults(ifc command, receiveSize int) (bool, error)
 
@@ -101,7 +105,9 @@ type baseCommand struct {
 	dataBuffer []byte
 	dataOffset int
 
-	keyWriter *keyWriter
+	// oneShot determines if streaming commands like query, scan or queryAggregate
+	// are not retried if they error out mid-parsing
+	oneShot bool
 }
 
 // Writes the command for write operations
@@ -165,7 +171,7 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
 		return err
 	}
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE|_INFO2_DELETE, fieldCount, 0)
 	cmd.writeKey(key, false)
@@ -184,7 +190,7 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 
 	cmd.estimateOperationSize()
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 1)
 	cmd.writeKey(key, policy.SendKey)
@@ -202,7 +208,7 @@ func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) error {
 		return err
 	}
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
 	cmd.writeKey(key, false)
@@ -219,7 +225,7 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) error {
 		return err
 	}
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
 	cmd.writeKey(key, false)
@@ -266,7 +272,7 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 	}
 	cmd.estimateOperationSizeForBinName("")
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 1)
@@ -279,21 +285,22 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 }
 
 // Implements different command operations
-func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) error {
+func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) (bool, error) {
 	if len(operations) == 0 {
-		return NewAerospikeError(PARAMETER_ERROR, "No operations were passed.")
+		return false, NewAerospikeError(PARAMETER_ERROR, "No operations were passed.")
 	}
 
 	cmd.begin()
 	fieldCount := 0
 	readAttr := 0
 	writeAttr := 0
+	hasWrite := false
 	readBin := false
 	readHeader := false
 	RespondPerEachOp := policy.RespondPerEachOp
 
 	for i := range operations {
-		switch operations[i].OpType {
+		switch operations[i].opType {
 		case MAP_READ:
 			// Map operations require RespondPerEachOp to be true.
 			RespondPerEachOp = true
@@ -304,7 +311,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 				readAttr |= _INFO1_READ
 
 				// Read all bins if no bin is specified.
-				if operations[i].BinName == "" {
+				if operations[i].binName == "" {
 					readAttr |= _INFO1_GET_ALL
 				}
 				readBin = true
@@ -319,18 +326,19 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 			fallthrough
 		default:
 			writeAttr = _INFO2_WRITE
+			hasWrite = true
 		}
 		cmd.estimateOperationSizeForOperation(operations[i])
 	}
 
 	ksz, err := cmd.estimateKeySize(key, policy.SendKey && writeAttr != 0)
 	if err != nil {
-		return err
+		return hasWrite, err
 	}
 	fieldCount += ksz
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return err
+		return hasWrite, err
 	}
 
 	if readHeader && !readBin {
@@ -350,13 +358,13 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 
 	for _, operation := range operations {
 		if err := cmd.writeOperationForOperation(operation); err != nil {
-			return err
+			return hasWrite, err
 		}
 	}
 
 	cmd.end()
 
-	return nil
+	return hasWrite, nil
 }
 
 func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string, functionName string, args *ValueArray) error {
@@ -373,7 +381,7 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	fieldCount += fc
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 0)
@@ -386,57 +394,325 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	return nil
 }
 
-func (cmd *baseCommand) setBatchExists(policy *BasePolicy, keys []*Key, batch *batchNamespace) error {
+func (cmd *baseCommand) setBatchExists(policy *BatchPolicy, keys []*Key, batch *batchNamespace, supportsBatchIndex bool) error {
 	// Estimate buffer size
 	cmd.begin()
-	byteSize := batch.offsetSize * int(_DIGEST_SIZE)
 
-	cmd.dataOffset += len(*batch.namespace) +
-		int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
-	if err := cmd.sizeBuffer(); err != nil {
-		return nil
-	}
+	if supportsBatchIndex {
+		byteSize := len(batch.offsets) * int(_DIGEST_SIZE+4)
 
-	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, 2, 0)
-	cmd.writeFieldString(*batch.namespace, NAMESPACE)
-	cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
+		cmd.dataOffset += len(batch.namespace) + int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
+		if err := cmd.sizeBuffer(); err != nil {
+			return err
+		}
 
-	offsets := batch.offsets
-	max := batch.offsetSize
+		cmd.writeHeader(&policy.BasePolicy, _INFO1_READ|_INFO1_NOBINDATA|_INFO1_BATCH, 0, 2, 0)
+		cmd.writeFieldString(batch.namespace, NAMESPACE)
+		cmd.writeFieldHeader(byteSize, BATCH_INDEX)
 
-	for i := 0; i < max; i++ {
-		key := keys[offsets[i]]
-		copy(cmd.dataBuffer[cmd.dataOffset:], key.digest[:])
-		cmd.dataOffset += len(key.digest)
+		offsets := batch.offsets
+		max := len(batch.offsets)
+
+		for i := 0; i < max; i++ {
+			index := offsets[i]
+			binary.BigEndian.PutUint32(cmd.dataBuffer[cmd.dataOffset:cmd.dataOffset+4], uint32(index))
+			cmd.dataOffset += 4
+
+			key := keys[index]
+			copy(cmd.dataBuffer[cmd.dataOffset:], key.digest[:])
+			cmd.dataOffset += len(key.digest)
+		}
+	} else {
+		byteSize := len(batch.offsets) * int(_DIGEST_SIZE)
+
+		cmd.dataOffset += len(batch.namespace) + int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
+		if err := cmd.sizeBuffer(); err != nil {
+			return err
+		}
+
+		cmd.writeHeader(&policy.BasePolicy, _INFO1_READ|_INFO1_NOBINDATA, 0, 2, 0)
+		cmd.writeFieldString(batch.namespace, NAMESPACE)
+		cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
+
+		offsets := batch.offsets
+		max := len(batch.offsets)
+
+		for i := 0; i < max; i++ {
+			key := keys[offsets[i]]
+			copy(cmd.dataBuffer[cmd.dataOffset:], key.digest[:])
+			cmd.dataOffset += len(key.digest)
+		}
 	}
 	cmd.end()
 
 	return nil
 }
 
-func (cmd *baseCommand) setBatchGet(policy *BasePolicy, keys []*Key, batch *batchNamespace, binNames map[string]struct{}, readAttr int) error {
+func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key, batch *batchNode, binNames []string, readAttr int) error {
+	offsets := batch.offsets
+	max := len(batch.offsets)
+	fieldCount := 1
+	if policy.SendSetName {
+		fieldCount = 2
+	}
+
+	binNameSize := 0
+	operationCount := len(binNames)
+	for _, binName := range binNames {
+		binNameSize += len(binName) + int(_OPERATION_HEADER_SIZE)
+	}
+
 	// Estimate buffer size
 	cmd.begin()
-	byteSize := batch.offsetSize * int(_DIGEST_SIZE)
 
-	cmd.dataOffset += len(*batch.namespace) +
+	cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 5
+
+	var prev *Key
+	for i := 0; i < max; i++ {
+		key := keys[offsets[i]]
+		cmd.dataOffset += len(key.digest) + 4
+
+		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
+		if prev != nil && prev.namespace == key.namespace &&
+			(!policy.SendSetName || prev.setName == key.setName) {
+			// Can set repeat previous namespace/bin names to save space.
+			cmd.dataOffset++
+		} else {
+			// Must write full header and namespace/set/bin names.
+			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE) + 6
+
+			if policy.SendSetName {
+				cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
+			}
+			cmd.dataOffset += binNameSize
+			prev = key
+		}
+	}
+
+	if err := cmd.sizeBuffer(); err != nil {
+		return err
+	}
+
+	if policy.ConsistencyLevel == CONSISTENCY_ALL {
+		readAttr |= _INFO1_CONSISTENCY_ALL
+	}
+
+	if len(binNames) == 0 {
+		readAttr |= _INFO1_GET_ALL
+	}
+
+	cmd.writeHeader(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 1, 0)
+
+	// Write real field size.
+	fieldSizeOffset := cmd.dataOffset
+	if policy.SendSetName {
+		cmd.writeFieldHeader(0, BATCH_INDEX_WITH_SET)
+	} else {
+		cmd.writeFieldHeader(0, BATCH_INDEX)
+	}
+
+	cmd.WriteUint32(uint32(max))
+
+	if policy.AllowInline {
+		cmd.WriteByte(1)
+	} else {
+		cmd.WriteByte(0)
+	}
+
+	prev = nil
+	for i := 0; i < max; i++ {
+		index := offsets[i]
+		cmd.WriteUint32(uint32(index))
+
+		key := keys[index]
+		cmd.Write(key.digest[:])
+		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
+		if prev != nil && prev.namespace == key.namespace &&
+			(!policy.SendSetName || prev.setName == key.setName) {
+			// Can set repeat previous namespace/bin names to save space.
+			cmd.WriteByte(1) // repeat
+		} else {
+			// Write full header, namespace and bin names.
+			cmd.WriteByte(0) // do not repeat
+			cmd.WriteByte(byte(readAttr))
+			cmd.WriteUint16(uint16(fieldCount))
+			cmd.WriteUint16(uint16(operationCount))
+			cmd.writeFieldString(key.namespace, NAMESPACE)
+
+			if policy.SendSetName {
+				cmd.writeFieldString(key.setName, TABLE)
+			}
+
+			for _, binName := range binNames {
+				cmd.writeOperationForBinName(binName, READ)
+			}
+
+			prev = key
+		}
+	}
+
+	cmd.WriteUint32At(uint32(cmd.dataOffset)-uint32(_MSG_TOTAL_HEADER_SIZE)-4, fieldSizeOffset)
+	cmd.end()
+
+	return nil
+}
+
+func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchRead, batch *batchNode) error {
+	offsets := batch.offsets
+	max := len(batch.offsets)
+	fieldCount := 1
+	if policy.SendSetName {
+		fieldCount = 2
+	}
+
+	// Estimate buffer size
+	cmd.begin()
+
+	cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 5
+
+	var prev *BatchRead
+	for i := 0; i < max; i++ {
+		record := records[offsets[i]]
+		key := record.Key
+		binNames := record.BinNames
+
+		cmd.dataOffset += len(key.digest) + 4
+
+		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
+		if prev != nil && prev.Key.namespace == key.namespace &&
+			(!policy.SendSetName || prev.Key.setName == key.setName) &&
+			&prev.BinNames == &binNames && prev.ReadAllBins == record.ReadAllBins {
+			// Can set repeat previous namespace/bin names to save space.
+			cmd.dataOffset++
+		} else {
+			// Must write full header and namespace/set/bin names.
+			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE) + 6
+
+			if policy.SendSetName {
+				cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
+			}
+
+			if len(binNames) != 0 {
+				for _, binName := range binNames {
+					cmd.estimateOperationSizeForBinName(binName)
+				}
+			}
+
+			prev = record
+		}
+	}
+
+	if err := cmd.sizeBuffer(); err != nil {
+		return err
+	}
+
+	readAttr := _INFO1_READ
+	if policy.ConsistencyLevel == CONSISTENCY_ALL {
+		readAttr |= _INFO1_CONSISTENCY_ALL
+	}
+
+	cmd.writeHeader(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 1, 0)
+	cmd.writeHeader(&policy.BasePolicy, _INFO1_READ|_INFO1_BATCH, 0, 1, 0)
+
+	// Write real field size.
+	fieldSizeOffset := cmd.dataOffset
+	if policy.SendSetName {
+		cmd.writeFieldHeader(0, BATCH_INDEX_WITH_SET)
+	} else {
+		cmd.writeFieldHeader(0, BATCH_INDEX)
+	}
+
+	cmd.WriteUint32(uint32(max))
+
+	if policy.AllowInline {
+		cmd.WriteByte(1)
+	} else {
+		cmd.WriteByte(0)
+	}
+
+	prev = nil
+	for i := 0; i < max; i++ {
+		index := offsets[i]
+		cmd.WriteUint32(uint32(index))
+
+		record := records[index]
+		key := record.Key
+		binNames := record.BinNames
+		cmd.Write(key.digest[:])
+
+		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
+		if prev != nil && prev.Key.namespace == key.namespace &&
+			(!policy.SendSetName || prev.Key.setName == key.setName) &&
+			&prev.BinNames == &binNames && prev.ReadAllBins == record.ReadAllBins {
+			// Can set repeat previous namespace/bin names to save space.
+			cmd.WriteByte(1) // repeat
+		} else {
+			// Write full header, namespace and bin names.
+			cmd.WriteByte(0) // do not repeat
+			if len(binNames) > 0 {
+				cmd.WriteByte(byte(readAttr))
+				cmd.WriteUint16(uint16(fieldCount))
+				cmd.WriteUint16(uint16(len(binNames)))
+				cmd.writeFieldString(key.namespace, NAMESPACE)
+
+				if policy.SendSetName {
+					cmd.writeFieldString(key.setName, TABLE)
+				}
+
+				for _, binName := range binNames {
+					cmd.writeOperationForBinName(binName, READ)
+				}
+			} else {
+				attr := byte(readAttr)
+				if record.ReadAllBins {
+					attr |= byte(_INFO1_GET_ALL)
+				} else {
+					attr |= byte(_INFO1_NOBINDATA)
+				}
+				cmd.WriteByte(attr)
+
+				cmd.WriteUint16(uint16(fieldCount))
+				cmd.WriteUint16(0)
+				cmd.writeFieldString(key.namespace, NAMESPACE)
+
+				if policy.SendSetName {
+					cmd.writeFieldString(key.setName, TABLE)
+				}
+			}
+
+			prev = record
+		}
+	}
+
+	cmd.WriteUint32At(uint32(cmd.dataOffset)-uint32(_MSG_TOTAL_HEADER_SIZE)-4, fieldSizeOffset)
+	cmd.end()
+
+	return nil
+}
+
+func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *batchNamespace, binNames []string, readAttr int) error {
+	// Estimate buffer size
+	cmd.begin()
+	byteSize := len(batch.offsets) * int(_DIGEST_SIZE)
+
+	cmd.dataOffset += len(batch.namespace) +
 		int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
 
-	for binName := range binNames {
+	for _, binName := range binNames {
 		cmd.estimateOperationSizeForBinName(binName)
 	}
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	operationCount := len(binNames)
-	cmd.writeHeader(policy, readAttr, 0, 2, operationCount)
-	cmd.writeFieldString(*batch.namespace, NAMESPACE)
+	cmd.writeHeader(&policy.BasePolicy, readAttr, 0, 2, operationCount)
+	cmd.writeFieldString(batch.namespace, NAMESPACE)
 	cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
 
 	offsets := batch.offsets
-	max := batch.offsetSize
+	max := len(batch.offsets)
 
 	for i := 0; i < max; i++ {
 		key := keys[offsets[i]]
@@ -444,7 +720,7 @@ func (cmd *baseCommand) setBatchGet(policy *BasePolicy, keys []*Key, batch *batc
 		cmd.dataOffset += len(key.digest)
 	}
 
-	for binName := range binNames {
+	for _, binName := range binNames {
 		cmd.writeOperationForBinName(binName, READ)
 	}
 	cmd.end()
@@ -455,6 +731,7 @@ func (cmd *baseCommand) setBatchGet(policy *BasePolicy, keys []*Key, batch *batc
 func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskId uint64) error {
 	cmd.begin()
 	fieldCount := 0
+	// predExpsSize := 0
 
 	if namespace != nil {
 		cmd.dataOffset += len(*namespace) + int(_FIELD_HEADER_SIZE)
@@ -470,6 +747,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
 
+	// Estimate scan timeout size.
+	cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+	fieldCount++
+
 	// Allocate space for TaskId field.
 	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
@@ -479,8 +760,9 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 	}
+
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 	readAttr := _INFO1_READ
 
@@ -517,6 +799,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.WriteByte(priority)
 	cmd.WriteByte(byte(policy.ScanPercent))
 
+	// Write scan timeout
+	cmd.writeFieldHeader(4, SCAN_TIMEOUT)
+	cmd.WriteInt32(int32(policy.ServerSocketTimeout / time.Millisecond)) // in milliseconds
+
 	cmd.writeFieldHeader(8, TRAN_ID)
 	cmd.WriteUint64(taskId)
 
@@ -525,6 +811,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 			cmd.writeOperationForBinName(binNames[i], READ)
 		}
 	}
+
 	cmd.end()
 
 	return nil
@@ -534,6 +821,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
+	predExpsSize := 0
 
 	cmd.begin()
 
@@ -599,6 +887,15 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		fieldCount++
 	}
 
+	if len(statement.predExps) > 0 {
+		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
+		for _, predexp := range statement.predExps {
+			predExpsSize += predexp.marshaledSize()
+		}
+		cmd.dataOffset += predExpsSize
+		fieldCount++
+	}
+
 	var functionArgs *ValueArray
 	if statement.functionName != "" {
 		cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1 // udf type
@@ -627,7 +924,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	}
 
 	if err := cmd.sizeBuffer(); err != nil {
-		return nil
+		return err
 	}
 
 	operationCount := 0
@@ -638,7 +935,11 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	if write {
 		cmd.writeHeader(policy.BasePolicy, _INFO1_READ, _INFO2_WRITE, fieldCount, operationCount)
 	} else {
-		cmd.writeHeader(policy.BasePolicy, _INFO1_READ, 0, fieldCount, operationCount)
+		readAttr := _INFO1_READ | _INFO1_NOBINDATA
+		if policy.IncludeBinData {
+			readAttr = _INFO1_READ
+		}
+		cmd.writeHeader(policy.BasePolicy, readAttr, 0, fieldCount, operationCount)
 	}
 
 	if statement.Namespace != "" {
@@ -693,6 +994,15 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		priority <<= 4
 		cmd.WriteByte(priority)
 		cmd.WriteByte(byte(100))
+	}
+
+	if len(statement.predExps) > 0 {
+		cmd.writeFieldHeader(predExpsSize, PREDEXP)
+		for _, predexp := range statement.predExps {
+			if err := predexp.marshal(cmd); err != nil {
+				return err
+			}
+		}
 	}
 
 	if statement.functionName != "" {
@@ -788,11 +1098,19 @@ func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, val
 }
 
 func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) error {
-	binLen := len(operation.BinName)
+	binLen := len(operation.binName)
 	cmd.dataOffset += binLen + int(_OPERATION_HEADER_SIZE)
 
-	if operation.BinValue != nil {
-		sz, err := operation.BinValue.estimateSize()
+	if operation.encoder == nil {
+		if operation.binValue != nil {
+			sz, err := operation.binValue.estimateSize()
+			if err != nil {
+				return err
+			}
+			cmd.dataOffset += sz
+		}
+	} else {
+		sz, err := operation.encoder(operation, nil)
 		if err != nil {
 			return err
 		}
@@ -956,24 +1274,47 @@ func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interf
 }
 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
-	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.BinName)
+	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.binName)
 
 	// check for float support
-	cmd.checkServerCompatibility(operation.BinValue)
+	cmd.checkServerCompatibility(operation.binValue)
 
-	valueLength, err := operation.BinValue.estimateSize()
-	if err != nil {
-		return err
+	if operation.used {
+		// cahce will set the used flag to false again
+		operation.cache()
 	}
 
-	cmd.WriteInt32(int32(nameLength + valueLength + 4))
-	cmd.WriteByte((operation.OpType.op))
-	cmd.WriteByte((byte(operation.BinValue.GetType())))
-	cmd.WriteByte((byte(0)))
-	cmd.WriteByte((byte(nameLength)))
-	cmd.dataOffset += nameLength
-	_, err = operation.BinValue.write(cmd)
-	return err
+	if operation.encoder == nil {
+		valueLength, err := operation.binValue.estimateSize()
+		if err != nil {
+			return err
+		}
+
+		cmd.WriteInt32(int32(nameLength + valueLength + 4))
+		cmd.WriteByte((operation.opType.op))
+		cmd.WriteByte((byte(operation.binValue.GetType())))
+		cmd.WriteByte((byte(0)))
+		cmd.WriteByte((byte(nameLength)))
+		cmd.dataOffset += nameLength
+		_, err = operation.binValue.write(cmd)
+		return err
+	} else {
+		valueLength, err := operation.encoder(operation, nil)
+		if err != nil {
+			return err
+		}
+
+		cmd.WriteInt32(int32(nameLength + valueLength + 4))
+		cmd.WriteByte((operation.opType.op))
+		cmd.WriteByte((byte(ParticleType.BLOB)))
+		cmd.WriteByte((byte(0)))
+		cmd.WriteByte((byte(nameLength)))
+		cmd.dataOffset += nameLength
+		_, err = operation.encoder(operation, cmd)
+		//mark the operation as used, so that it will be cached the next time it is used
+		operation.used = err == nil
+		return err
+	}
 }
 
 func (cmd *baseCommand) writeOperationForBinName(name string, operation OperationType) {
@@ -996,6 +1337,10 @@ func (cmd *baseCommand) writeOperationForOperationType(operation OperationType) 
 
 // TODO: Remove this method and move it to the appropriate VALUE method
 func (cmd *baseCommand) checkServerCompatibility(val Value) {
+	if val == nil {
+		return
+	}
+
 	// check for float support
 	switch val.GetType() {
 	case ParticleType.FLOAT:
@@ -1082,6 +1427,12 @@ func (cmd *baseCommand) WriteUint32(num uint32) (int, error) {
 	return 4, nil
 }
 
+// Uint32ToBytes converts an uint32 to a byte slice of size 4
+func (cmd *baseCommand) WriteUint32At(num uint32, index int) (int, error) {
+	binary.BigEndian.PutUint32(cmd.dataBuffer[index:index+4], num)
+	return 4, nil
+}
+
 // Int16ToBytes converts an int16 to slice of bytes
 func (cmd *baseCommand) WriteInt16(num int16) (int, error) {
 	return cmd.WriteUint16(uint16(num))
@@ -1108,10 +1459,10 @@ func (cmd *baseCommand) WriteFloat64(float float64) (int, error) {
 	return 8, nil
 }
 
-func (cmd *baseCommand) WriteByte(b byte) (int, error) {
+func (cmd *baseCommand) WriteByte(b byte) error {
 	cmd.dataBuffer[cmd.dataOffset] = b
 	cmd.dataOffset++
-	return 1, nil
+	return nil
 }
 
 func (cmd *baseCommand) WriteString(s string) (int, error) {
@@ -1191,26 +1542,37 @@ func (cmd *baseCommand) end() {
 // the pool for different workloads
 // This method is deprecated.
 func SetCommandBufferPool(poolSize, initBufSize, maxBufferSize int) {
-	panic("There is no need to optimize the buffer pool anymore. Buffers have moved to Connection object.")
+	panic("There is no need to optimize the buffer pool anymore. Buffers have moved to Connection object. To tweak the initial buffer sizes, use DefaultBufferSize.")
 }
 
-func (cmd *baseCommand) execute(ifc command) (err error) {
+func (cmd *baseCommand) execute(ifc command) error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	iterations := -1
 
+	// for exponential backoff
+	interval := policy.SleepBetweenRetries
+
 	// set timeout outside the loop
 	deadline := time.Now().Add(policy.Timeout)
+
+	socketTimeout, err := policy.socketTimeout()
+	if err != nil {
+		return err
+	}
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
 		// too many retries
 		if iterations++; (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
-			return NewAerospikeError(TIMEOUT, fmt.Sprintf("command execution timed out: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err))
+			return NewAerospikeError(TIMEOUT, fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err))
 		}
 
 		// Sleep before trying again, after the first iteration
 		if iterations > 0 && policy.SleepBetweenRetries > 0 {
-			time.Sleep(policy.SleepBetweenRetries)
+			time.Sleep(interval)
+			if policy.SleepMultiplier > 1 {
+				interval = time.Duration(float64(interval) * policy.SleepMultiplier)
+			}
 		}
 
 		// check for command timeout
@@ -1225,24 +1587,21 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			continue
 		}
 
-		cmd.conn, err = cmd.node.GetConnection(policy.Timeout)
+		cmd.conn, err = ifc.getConnection(socketTimeout)
 		if err != nil {
-			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
+			Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
 		}
 
 		// Assign the connection buffer to the command buffer
 		cmd.dataBuffer = cmd.conn.dataBuffer
 
-		// Assign the connection buffer to the command buffer
-		cmd.keyWriter = &cmd.conn.keyWriter
-
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
 		if err != nil {
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.node.InvalidateConnection(cmd.conn)
+			cmd.conn.Close()
 			return err
 		}
 
@@ -1255,9 +1614,9 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		if err != nil {
 			// IO errors are considered temporary anomalies. Retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.node.InvalidateConnection(cmd.conn)
+			cmd.conn.Close()
 
-			Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
+			Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
 		}
 
@@ -1267,10 +1626,14 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 			if err == io.EOF {
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
-				cmd.node.InvalidateConnection(cmd.conn)
+				cmd.conn.Close()
 
-				Logger.Warn("Node " + cmd.node.String() + ": " + err.Error())
-				continue
+				Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
+
+				// retry only for non-streaming commands
+				if !cmd.oneShot {
+					continue
+				}
 			}
 
 			// close the connection
@@ -1281,7 +1644,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
-				cmd.node.InvalidateConnection(cmd.conn)
+				cmd.conn.Close()
+
 			}
 			return err
 		}
@@ -1290,7 +1654,8 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 		cmd.conn.dataBuffer = cmd.dataBuffer
 
 		// Put connection back in pool.
-		cmd.node.PutConnection(cmd.conn)
+		// cmd.node.PutConnection(cmd.conn)
+		ifc.putConnection(cmd.conn)
 
 		// command has completed successfully.  Exit method.
 		return nil
@@ -1298,7 +1663,7 @@ func (cmd *baseCommand) execute(ifc command) (err error) {
 	}
 
 	// execution timeout
-	return NewAerospikeError(TIMEOUT, "command execution timed out: See `Policy.Timeout`")
+	return NewAerospikeError(TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
 }
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {

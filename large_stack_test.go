@@ -1,3 +1,5 @@
+// +build ldt
+//
 // Copyright 2013-2017 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +20,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 )
 
 var _ = Describe("LargeStack Test", func() {
@@ -27,8 +29,8 @@ var _ = Describe("LargeStack Test", func() {
 	var err error
 	var ns = "test"
 	var set = randString(50)
-	var key *Key
-	var wpolicy = NewWritePolicy(0, 0)
+	var key *as.Key
+	var wpolicy = as.NewWritePolicy(0, 0)
 
 	if nsInfo(ns, "ldt-enabled") != "true" {
 		By("LargeStack Tests are not supported since LDT is disabled.")
@@ -36,7 +38,7 @@ var _ = Describe("LargeStack Test", func() {
 	}
 
 	BeforeEach(func() {
-		key, err = NewKey(ns, set, randString(50))
+		key, err = as.NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -47,7 +49,7 @@ var _ = Describe("LargeStack Test", func() {
 		Expect(res).To(Equal(0))
 
 		for i := 1; i <= 100; i++ {
-			err = lstack.Push(NewValue(i))
+			err = lstack.Push(as.NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
 
 			// confirm that the LSTACK size has been increased to the expected size
@@ -90,7 +92,7 @@ var _ = Describe("LargeStack Test", func() {
 
 	It("should correctly GetConfig()", func() {
 		lstack := client.GetLargeStack(wpolicy, key, randString(10), "")
-		err = lstack.Push(NewValue(0))
+		err = lstack.Push(as.NewValue(0))
 		Expect(err).ToNot(HaveOccurred())
 
 		config, err := lstack.GetConfig()

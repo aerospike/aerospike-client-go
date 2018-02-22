@@ -16,41 +16,80 @@ package aerospike
 
 import (
 	"bytes"
+	"reflect"
 
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
+type batcher interface {
+	cloneBatchCommand(batch *batchNode, bns *batchNamespace) command
+}
+
 type batchCommandGet struct {
 	baseMultiCommand
 
 	batchNamespace *batchNamespace
-	policy         *BasePolicy
+	batch          *batchNode
+	policy         *BatchPolicy
 	keys           []*Key
-	binNames       map[string]struct{}
+	binNames       []string
 	records        []*Record
+	indexRecords   []*BatchRead
 	readAttr       int
 	index          int
+	key            Key
+
+	// pointer to the object that's going to be unmarshalled
+	objects      []*reflect.Value
+	objectsFound []bool
+	isBatchIndex bool
 }
+
+// this method uses reflection.
+// Will not be set if performance flag is passed for the build.
+var batchObjectParser func(
+	cmd *batchCommandGet,
+	offset int,
+	opCount int,
+	fieldCount int,
+	generation uint32,
+	expiration uint32,
+) error
 
 func newBatchCommandGet(
 	node *Node,
 	batchNamespace *batchNamespace,
-	policy *BasePolicy,
+	batch *batchNode,
+	policy *BatchPolicy,
 	keys []*Key,
-	binNames map[string]struct{},
+	binNames []string,
 	records []*Record,
 	readAttr int,
 ) *batchCommandGet {
-	return &batchCommandGet{
+	res := &batchCommandGet{
 		baseMultiCommand: *newMultiCommand(node, nil),
 		batchNamespace:   batchNamespace,
+		batch:            batch,
 		policy:           policy,
 		keys:             keys,
 		binNames:         binNames,
 		records:          records,
 		readAttr:         readAttr,
+		isBatchIndex:     !policy.UseBatchDirect && node != nil && node.supportsBatchIndex.Get(),
 	}
+	res.oneShot = false
+	return res
+}
+
+func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode, bns *batchNamespace) command {
+	res := *cmd
+	res.node = batch.Node
+	res.batch = batch
+	res.batchNamespace = bns
+	res.isBatchIndex = !cmd.policy.UseBatchDirect && batch.Node.supportsBatchIndex.Get()
+
+	return &res
 }
 
 func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
@@ -58,7 +97,48 @@ func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) error {
-	return cmd.setBatchGet(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
+	if cmd.isBatchIndex {
+		return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, cmd.binNames, cmd.readAttr)
+	}
+	return cmd.setBatchRead(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
+}
+
+// On batch operations the key values are not returned from the server
+// So we reuse the Key on the batch Object
+func (cmd *batchCommandGet) parseKey(fieldCount int) error {
+	// var digest [20]byte
+	// var namespace, setName string
+	// var userKey Value
+	var err error
+
+	for i := 0; i < fieldCount; i++ {
+		if err = cmd.readBytes(4); err != nil {
+			return err
+		}
+
+		fieldlen := int(Buffer.BytesToUint32(cmd.dataBuffer, 0))
+		if err = cmd.readBytes(fieldlen); err != nil {
+			return err
+		}
+
+		fieldtype := FieldType(cmd.dataBuffer[0])
+		size := fieldlen - 1
+
+		switch fieldtype {
+		case DIGEST_RIPE:
+			copy(cmd.key.digest[:], cmd.dataBuffer[1:size+1])
+		case NAMESPACE:
+			cmd.key.namespace = string(cmd.dataBuffer[1 : size+1])
+		case TABLE:
+			cmd.key.setName = string(cmd.dataBuffer[1 : size+1])
+		case KEY:
+			if cmd.key.userKey, err = bytesToKeyValue(int(cmd.dataBuffer[1]), cmd.dataBuffer, 2, size-1); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // Parse all results in the batch.  Add records to shared list.
@@ -88,24 +168,53 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 
 		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
 		expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
+		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
-		key, err := cmd.parseKey(fieldCount)
+		err := cmd.parseKey(fieldCount)
 		if err != nil {
 			return false, err
 		}
 
-		offset := cmd.batchNamespace.offsets[cmd.index] //cmd.keyMap[string(key.digest)]
-		cmd.index++
+		var offset int
+		if !cmd.isBatchIndex {
+			offset = cmd.batchNamespace.offsets[cmd.index]
+			cmd.index++
+		} else {
+			offset = batchIndex
+		}
 
-		if bytes.Equal(key.digest[:], cmd.keys[offset].digest[:]) {
-			if resultCode == 0 {
-				if cmd.records[offset], err = cmd.parseRecord(key, opCount, generation, expiration); err != nil {
-					return false, err
+		if cmd.isBatchIndex && cmd.indexRecords != nil {
+			if len(cmd.indexRecords) > 0 {
+				if bytes.Equal(cmd.key.digest[:], cmd.indexRecords[offset].Key.digest[:]) {
+					if resultCode == 0 {
+						if cmd.indexRecords[offset].Record, err = cmd.parseRecord(cmd.indexRecords[offset].Key, opCount, generation, expiration); err != nil {
+							return false, err
+						}
+					}
 				}
+			} else {
+				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(cmd.key.namespace)+","+Buffer.BytesToHexString(cmd.key.digest[:])+". Expected:"+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
 			}
 		} else {
-			return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(key.namespace)+","+Buffer.BytesToHexString(key.digest[:]))
+			if bytes.Equal(cmd.key.digest[:], cmd.keys[offset].digest[:]) {
+				if resultCode == 0 {
+					if cmd.objects == nil {
+						if cmd.records[offset], err = cmd.parseRecord(cmd.keys[offset], opCount, generation, expiration); err != nil {
+							return false, err
+						}
+					} else if batchObjectParser != nil {
+						// mark it as found
+						cmd.objectsFound[offset] = true
+						if err := batchObjectParser(cmd, offset, opCount, fieldCount, generation, expiration); err != nil {
+							return false, err
+
+						}
+					}
+				}
+			} else {
+				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(cmd.key.namespace)+","+Buffer.BytesToHexString(cmd.key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
+			}
 		}
 	}
 	return true, nil
@@ -114,7 +223,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 // Parses the given byte buffer and populate the result object.
 // Returns the number of bytes that were parsed from the given buffer.
 func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expiration uint32) (*Record, error) {
-	bins := make(map[string]interface{}, opCount)
+	bins := make(BinMap, opCount)
 
 	for i := 0; i < opCount; i++ {
 		if err := cmd.readBytes(8); err != nil {

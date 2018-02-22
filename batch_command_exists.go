@@ -25,26 +25,42 @@ type batchCommandExists struct {
 	baseMultiCommand
 
 	batchNamespace *batchNamespace
-	policy         *BasePolicy
+	batch          *batchNode
+	policy         *BatchPolicy
 	keys           []*Key
 	existsArray    []bool
 	index          int
+	isBatchIndex   bool
 }
 
 func newBatchCommandExists(
 	node *Node,
 	batchNamespace *batchNamespace,
-	policy *BasePolicy,
+	batch *batchNode,
+	policy *BatchPolicy,
 	keys []*Key,
 	existsArray []bool,
 ) *batchCommandExists {
-	return &batchCommandExists{
+	res := &batchCommandExists{
 		baseMultiCommand: *newMultiCommand(node, nil),
 		batchNamespace:   batchNamespace,
 		policy:           policy,
 		keys:             keys,
 		existsArray:      existsArray,
+		isBatchIndex:     !policy.UseBatchDirect && node != nil && node.supportsBatchIndex.Get(),
 	}
+	res.oneShot = false
+	return res
+}
+
+func (cmd *batchCommandExists) cloneBatchCommand(batch *batchNode, bns *batchNamespace) command {
+	res := *cmd
+	res.node = batch.Node
+	res.batch = batch
+	res.batchNamespace = bns
+	res.isBatchIndex = !cmd.policy.UseBatchDirect && batch.Node.supportsBatchIndex.Get()
+
+	return &res
 }
 
 func (cmd *batchCommandExists) getPolicy(ifc command) Policy {
@@ -52,7 +68,10 @@ func (cmd *batchCommandExists) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandExists) writeBuffer(ifc command) error {
-	return cmd.setBatchExists(cmd.policy, cmd.keys, cmd.batchNamespace)
+	if cmd.isBatchIndex {
+		return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, nil, _INFO1_READ|_INFO1_NOBINDATA)
+	}
+	return cmd.setBatchExists(cmd.policy, cmd.keys, cmd.batchNamespace, false)
 }
 
 // Parse all results in the batch.  Add records to shared list.
@@ -81,6 +100,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			return false, nil
 		}
 
+		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
@@ -93,8 +113,13 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			return false, err
 		}
 
-		offset := cmd.batchNamespace.offsets[cmd.index]
-		cmd.index++
+		var offset int
+		if cmd.isBatchIndex {
+			offset = batchIndex
+		} else {
+			offset = cmd.batchNamespace.offsets[cmd.index]
+			cmd.index++
+		}
 
 		if bytes.Equal(key.digest[:], cmd.keys[offset].digest[:]) {
 			// only set the results to true; as a result, no synchronization is needed
@@ -102,7 +127,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 				cmd.existsArray[offset] = true
 			}
 		} else {
-			return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(key.namespace)+","+Buffer.BytesToHexString(key.digest[:]))
+			return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(key.namespace)+","+Buffer.BytesToHexString(key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.keys[offset].digest[:]))
 		}
 	}
 	return true, nil

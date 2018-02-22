@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -69,15 +69,15 @@ var _ = Describe("UDF/Query tests", func() {
 	var err error
 	var ns = "test"
 	var set = randString(50)
-	var key *Key
-	var wpolicy = NewWritePolicy(0, 0)
+	var key *as.Key
+	var wpolicy = as.NewWritePolicy(0, 0)
 
 	const keyCount = 1000
-	bin1 := NewBin("bin1", rand.Intn(math.MaxInt16))
-	bin2 := NewBin("bin2", 1)
+	bin1 := as.NewBin("bin1", rand.Intn(math.MaxInt16))
+	bin2 := as.NewBin("bin2", 1)
 
 	It("must Register a UDF", func() {
-		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udf1.lua", LUA)
+		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udf1.lua", as.LUA)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until UDF is created
@@ -85,13 +85,13 @@ var _ = Describe("UDF/Query tests", func() {
 	})
 
 	It("must run a UDF on a single record", func() {
-		key, err = NewKey(ns, set, randString(50))
+		key, err = as.NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 		err = client.PutBins(wpolicy, key, bin1, bin2)
 		Expect(err).ToNot(HaveOccurred())
 
-		wpolicy := NewWritePolicy(0, 1000)
-		res, err := client.Execute(wpolicy, key, "udf1", "testFunc1", NewValue(2))
+		wpolicy := as.NewWritePolicy(0, 1000)
+		res, err := client.Execute(wpolicy, key, "udf1", "testFunc1", as.NewValue(2))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(res).To(Equal(map[interface{}]interface{}{"status": "OK"}))
 
@@ -108,14 +108,14 @@ var _ = Describe("UDF/Query tests", func() {
 	})
 
 	It("must run a UDF to create single record and persist the original key value", func() {
-		regTask, err := client.RegisterUDF(wpolicy, []byte(udfCreateWithSendKey), "sendKey.lua", LUA)
+		regTask, err := client.RegisterUDF(wpolicy, []byte(udfCreateWithSendKey), "sendKey.lua", as.LUA)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until UDF is created
 		Expect(<-regTask.OnComplete()).NotTo(HaveOccurred())
 
 		tSet := randString(50)
-		key, err := NewKey(ns, tSet, -1)
+		key, err := as.NewKey(ns, tSet, -1)
 		Expect(err).ToNot(HaveOccurred())
 
 		// make sure the record doesn't exist yet
@@ -126,7 +126,7 @@ var _ = Describe("UDF/Query tests", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(exists).To(BeFalse())
 
-		wp := NewWritePolicy(0, 0)
+		wp := as.NewWritePolicy(0, 0)
 		wp.SendKey = true
 		_, err = client.Execute(wp, key, "sendKey", "createRecWithSendKey")
 		Expect(err).ToNot(HaveOccurred())
@@ -148,7 +148,7 @@ var _ = Describe("UDF/Query tests", func() {
 	})
 
 	It("must drop a udf on the server", func() {
-		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udfToBeDropped.lua", LUA)
+		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udfToBeDropped.lua", as.LUA)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until UDF is created
@@ -171,7 +171,7 @@ var _ = Describe("UDF/Query tests", func() {
 		BeforeEach(func() {
 			set = randString(50)
 			for i := 0; i < keyCount; i++ {
-				key, err = NewKey(ns, set, randString(50))
+				key, err = as.NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
 
 				err = client.PutBins(wpolicy, key, bin1, bin2)
@@ -182,8 +182,8 @@ var _ = Describe("UDF/Query tests", func() {
 		It("must run a UDF on all records", func() {
 			// run the UDF 3 times consecutively
 			for i := 1; i <= 3; i++ {
-				statement := NewStatement(ns, set)
-				exTask, err := client.ExecuteUDF(nil, statement, "udf1", "testFunc1", NewValue(i*2))
+				statement := as.NewStatement(ns, set)
+				exTask, err := client.ExecuteUDF(nil, statement, "udf1", "testFunc1", as.NewValue(i*2))
 				Expect(err).ToNot(HaveOccurred())
 
 				// wait until UDF is run on all records
@@ -202,20 +202,20 @@ var _ = Describe("UDF/Query tests", func() {
 		})
 
 		It("must run a DeleteUDF on a range of records", func() {
-			idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, NUMERIC)
+			idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC)
 			Expect(err).ToNot(HaveOccurred())
 			defer client.DropIndex(nil, ns, set, set+bin1.Name)
 
 			Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 
-			regTask, err := client.RegisterUDF(wpolicy, []byte(udfDelete), "udfDelete.lua", LUA)
+			regTask, err := client.RegisterUDF(wpolicy, []byte(udfDelete), "udfDelete.lua", as.LUA)
 			Expect(err).ToNot(HaveOccurred())
 
 			// wait until UDF is created
 			Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
 
-			statement := NewStatement(ns, set)
-			statement.Addfilter(NewRangeFilter(bin1.Name, 0, math.MaxInt16))
+			statement := as.NewStatement(ns, set)
+			statement.Addfilter(as.NewRangeFilter(bin1.Name, 0, math.MaxInt16))
 			exTask, err := client.ExecuteUDF(nil, statement, "udfDelete", "deleteRecord")
 			Expect(err).ToNot(HaveOccurred())
 
@@ -223,9 +223,9 @@ var _ = Describe("UDF/Query tests", func() {
 			Expect(<-exTask.OnComplete()).ToNot(HaveOccurred())
 
 			// a new record that is not in the range
-			key, err = NewKey(ns, set, randString(50))
+			key, err = as.NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
-			err = client.PutBins(wpolicy, key, NewBin(bin1.Name, math.MaxInt16+1))
+			err = client.PutBins(wpolicy, key, as.NewBin(bin1.Name, math.MaxInt16+1))
 			Expect(err).ToNot(HaveOccurred())
 
 			// read all data and make sure it is consistent
@@ -246,14 +246,14 @@ var _ = Describe("UDF/Query tests", func() {
 
 	Context("must serialize parameters and return values sensibly", func() {
 
-		regTask, err := client.RegisterUDF(wpolicy, []byte(udfEcho), "udfEcho.lua", LUA)
+		regTask, err := client.RegisterUDF(wpolicy, []byte(udfEcho), "udfEcho.lua", as.LUA)
 		if err != nil {
 			panic(err)
 		}
 		// wait until UDF is created
 		<-regTask.OnComplete()
 		// a new record that is not in the range
-		key, err = NewKey(ns, set, randString(50))
+		key, err = as.NewKey(ns, set, randString(50))
 		if err != nil {
 			panic(err)
 		}
@@ -284,7 +284,7 @@ var _ = Describe("UDF/Query tests", func() {
 
 		It("must serialize nil values to echo function and get the same value back", func() {
 
-			res, err := client.Execute(nil, key, "udfEcho", "echo", NewValue(nil))
+			res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(nil))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(res.(map[interface{}]interface{})["val"]).To(BeNil())
 
@@ -293,7 +293,7 @@ var _ = Describe("UDF/Query tests", func() {
 		It("must serialize values to echo function and get the same value back", func() {
 
 			for k, v := range testMatrix {
-				res, err := client.Execute(nil, key, "udfEcho", "echo", NewValue(k))
+				res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(k))
 				Expect(err).ToNot(HaveOccurred())
 				Expect(res.(map[interface{}]interface{})["val"]).To(Equal(v))
 			}
@@ -344,7 +344,7 @@ var _ = Describe("UDF/Query tests", func() {
 				"Hello, 世界",
 			}
 
-			res, err := client.Execute(nil, key, "udfEcho", "echo", NewValue(v))
+			res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(v))
 
 			// for i := range v {
 			// 	fmt.Printf("%v => %T\n", res.(map[interface{}]interface{})["val"].([]interface{})[i], res.(map[interface{}]interface{})["val"].([]interface{})[i])
@@ -398,7 +398,7 @@ var _ = Describe("UDF/Query tests", func() {
 				"Hello, 世界": "Hello, 世界",
 			}
 
-			res, err := client.Execute(nil, key, "udfEcho", "echo", NewValue(v))
+			res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(v))
 			Expect(err).ToNot(HaveOccurred())
 
 			resMap := res.(map[interface{}]interface{})["val"].(map[interface{}]interface{})

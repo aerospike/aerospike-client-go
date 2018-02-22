@@ -1,3 +1,5 @@
+// +build ldt
+//
 // Copyright 2013-2017 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +20,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	. "github.com/aerospike/aerospike-client-go"
-	// . "github.com/aerospike/aerospike-client-go/types"
+	as "github.com/aerospike/aerospike-client-go"
 )
 
 var _ = Describe("LargeList Test", func() {
@@ -28,8 +29,8 @@ var _ = Describe("LargeList Test", func() {
 	var err error
 	var ns = "test"
 	var set = randString(50)
-	var key *Key
-	var wpolicy = NewWritePolicy(0, 0)
+	var key *as.Key
+	var wpolicy = as.NewWritePolicy(0, 0)
 
 	if nsInfo(ns, "ldt-enabled") != "true" {
 		By("LargeList Tests are not supported since LDT is disabled.")
@@ -37,7 +38,7 @@ var _ = Describe("LargeList Test", func() {
 	}
 
 	BeforeEach(func() {
-		key, err = NewKey(ns, set, randString(50))
+		key, err = as.NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -48,7 +49,7 @@ var _ = Describe("LargeList Test", func() {
 		Expect(res).To(Equal(0))
 
 		for i := 1; i <= 100; i++ {
-			err = llist.Add(NewValue(i))
+			err = llist.Add(as.NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
 
 			// confirm that the LLIST size has been increased to the expected size
@@ -74,7 +75,7 @@ var _ = Describe("LargeList Test", func() {
 
 		for i := 1; i <= 100; i++ {
 			// confirm that the value already exists in the LLIST
-			findResult, err := llist.Find(NewValue(i))
+			findResult, err := llist.Find(as.NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(findResult).To(Equal([]interface{}{i}))
 
@@ -84,11 +85,11 @@ var _ = Describe("LargeList Test", func() {
 			Expect(findResult).To(BeNil())
 
 			// remove the value
-			err = llist.Remove(NewValue(i))
+			err = llist.Remove(as.NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
 
 			// make sure the value has been removed
-			findResult, err = llist.Find(NewValue(i))
+			findResult, err = llist.Find(as.NewValue(i))
 			Expect(len(findResult)).To(Equal(0))
 			// TODO: Revert in the future
 			// Expect(err).To(HaveOccurred())
@@ -126,7 +127,7 @@ var _ = Describe("LargeList Test", func() {
 
 	It("should correctly GetConfig()", func() {
 		llist := client.GetLargeList(wpolicy, key, randString(10), "")
-		err = llist.Add(NewValue(0))
+		err = llist.Add(as.NewValue(0))
 		Expect(err).ToNot(HaveOccurred())
 
 		config, err := llist.GetConfig()

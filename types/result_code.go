@@ -21,16 +21,22 @@ import "fmt"
 type ResultCode int
 
 const (
+	// Server is not accepting requests.
+	SERVER_NOT_AVAILABLE ResultCode = -11
+
+	// Cluster Name does not match the ClientPolicy.ClusterName value.
+	CLUSTER_NAME_MISMATCH_ERROR ResultCode = -10
+
 	// Recordset has already been closed or cancelled
 	RECORDSET_CLOSED ResultCode = -9
 
 	// There were no connections available to the node in the pool, and the pool was limited
 	NO_AVAILABLE_CONNECTIONS_TO_NODE ResultCode = -8
 
-	// Asynchronous max concurrent database commands have been exceeded and therefore rejected.
+	// Data type is not supported by aerospike server.
 	TYPE_NOT_SUPPORTED ResultCode = -7
 
-	// Asynchronous max concurrent database commands have been exceeded and therefore rejected.
+	// Info Command was rejected by the server.
 	COMMAND_REJECTED ResultCode = -6
 
 	// Query was terminated by user.
@@ -80,11 +86,11 @@ const (
 	// Client or server has timed out.
 	TIMEOUT ResultCode = 9
 
-	// XDS product is not available.
-	NO_XDS ResultCode = 10
+	// Operation not allowed in current configuration.
+	ALWAYS_FORBIDDEN ResultCode = 10
 
-	// Server is not accepting requests.
-	SERVER_NOT_AVAILABLE ResultCode = 11
+	// Partition is unavailable.
+	PARTITION_UNAVAILABLE ResultCode = 11
 
 	// Operation is not supported with configured bin type (single-bin or
 	// multi-bin).
@@ -105,7 +111,7 @@ const (
 	// Specified bin name does not exist in record.
 	BIN_NOT_FOUND ResultCode = 17
 
-	// Specified bin name does not exist in record.
+	// Device not keeping up with writes.
 	DEVICE_OVERLOAD ResultCode = 18
 
 	// Key type mismatch.
@@ -114,17 +120,18 @@ const (
 	// Invalid namespace.
 	INVALID_NAMESPACE ResultCode = 20
 
-	// Bin name length greater than 14 characters.
+	// Bin name length greater than 14 characters,
+	// or maximum number of unique bin names are exceeded.
 	BIN_NAME_TOO_LONG ResultCode = 21
 
 	// Operation not allowed at this time.
 	FAIL_FORBIDDEN ResultCode = 22
 
 	// Element Not Found in CDT
-	FAIL_ELEMENT_NOT_FOUND = 23
+	FAIL_ELEMENT_NOT_FOUND ResultCode = 23
 
 	// Element Already Exists in CDT
-	FAIL_ELEMENT_EXISTS = 24
+	FAIL_ELEMENT_EXISTS ResultCode = 24
 
 	// There are no more records left for query.
 	QUERY_END ResultCode = 50
@@ -196,7 +203,7 @@ const (
 	BATCH_QUEUES_FULL ResultCode = 152
 
 	// Invalid GeoJSON on insert/update
-	GEO_INVALID_GEOJSON = 160
+	GEO_INVALID_GEOJSON ResultCode = 160
 
 	// Secondary index already exists.
 	INDEX_FOUND ResultCode = 200
@@ -276,6 +283,9 @@ func KeepConnection(err error) bool {
 // Return result code as a string.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
+	case CLUSTER_NAME_MISMATCH_ERROR:
+		return "Cluster Name does not match the ClientPolicy.ClusterName value"
+
 	case RECORDSET_CLOSED:
 		return "Recordset has already been closed or cancelled."
 
@@ -333,11 +343,11 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case TIMEOUT:
 		return "Timeout"
 
-	case NO_XDS:
-		return "XDS not available"
+	case ALWAYS_FORBIDDEN:
+		return "Operation not allowed in current configuration."
 
-	case SERVER_NOT_AVAILABLE:
-		return "Server not available"
+	case PARTITION_UNAVAILABLE:
+		return "Partition not available"
 
 	case BIN_TYPE_ERROR:
 		return "Bin type error"
@@ -367,7 +377,7 @@ func ResultCodeToString(resultCode ResultCode) string {
 		return "Namespace not found"
 
 	case BIN_NAME_TOO_LONG:
-		return "Bin name length greater than 14 characters"
+		return "Bin name length greater than 14 characters, or maximum number of unique bin names are exceeded"
 
 	case FAIL_FORBIDDEN:
 		return "Operation not allowed at this time"

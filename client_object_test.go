@@ -20,7 +20,7 @@ import (
 	"math"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 	. "github.com/onsi/ginkgo"
@@ -36,11 +36,11 @@ var _ = Describe("Aerospike", func() {
 		var err error
 		var ns = "test"
 		var set = randString(50)
-		var key *Key
+		var key *as.Key
 
 		BeforeEach(func() {
 
-			key, err = NewKey(ns, set, randString(50))
+			key, err = as.NewKey(ns, set, randString(50))
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -313,7 +313,7 @@ var _ = Describe("Aerospike", func() {
 
 			AnonymP *struct {
 				SomeStruct
-			} `anonymp`
+			} `as:"anonymp"`
 		}
 
 		makeTestObject := func() *testObject {
@@ -349,7 +349,7 @@ var _ = Describe("Aerospike", func() {
 			cf64 := SomeFloat64(math.SmallestNonzeroFloat64)
 			ctstr := SomeString("Some string")
 
-			now := time.Now()
+			now := time.Now().Round(time.Nanosecond)
 
 			return &testObject{
 				Bool:  true,
@@ -498,7 +498,7 @@ var _ = Describe("Aerospike", func() {
 			cf64 := SomeFloat64(math.SmallestNonzeroFloat64)
 			ctstr := SomeString("Some string")
 
-			now := time.Now()
+			now := time.Now().Round(time.Nanosecond)
 
 			return &testObjectTagged{
 				Bool:  true,
@@ -635,6 +635,15 @@ var _ = Describe("Aerospike", func() {
 				err = client.GetObject(nil, key, &T)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(T.NonExisting).To(Equal(-1))
+
+				// get the same object via BatchGetObject
+				resObj = &testObject{}
+				found, err := client.BatchGetObjects(nil, []*as.Key{key}, []interface{}{resObj})
+				Expect(len(found)).To(Equal(1))
+				Expect(found[0]).To(BeTrue())
+				Expect(err).ToNot(HaveOccurred())
+				Expect(resObj).To(Equal(testObj))
+				Expect(resObj.AnonymP).NotTo(BeNil())
 			})
 
 			It("must save a tagged object with the most complex structure possible", func() {
@@ -685,7 +694,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(rec.Bins).To(Equal(
-					BinMap{
+					as.BinMap{
 						"b":        []interface{}{"a", "b", "c"},
 						"fld1":     2,
 						"fldbytes": []byte{1, 2, 3, 4},
@@ -764,7 +773,7 @@ var _ = Describe("Aerospike", func() {
 
 				rec, err := client.Get(nil, key)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(rec.Bins).To(Equal(BinMap{"val": 1}))
+				Expect(rec.Bins).To(Equal(as.BinMap{"val": 1}))
 
 				resObj := &objMeta{}
 				err = client.GetObject(nil, key, resObj)
@@ -792,6 +801,69 @@ var _ = Describe("Aerospike", func() {
 
 		}) // PutObject context
 
+		Context("BatchGetObjects operations", func() {
+
+			var keys []*as.Key
+			var resObjects []interface{}
+			var objects []*testObjectTagged
+
+			BeforeEach(func() {
+				set = randString(50)
+
+				keys = nil
+				resObjects = nil
+				objects = nil
+
+				for i := 0; i < 100; i++ {
+					key, err = as.NewKey(ns, set, randString(50))
+					Expect(err).ToNot(HaveOccurred())
+					keys = append(keys, key)
+					resObjects = append(resObjects, new(testObjectTagged))
+
+					// only put odd objects in the db
+					if i%2 == 0 {
+						objects = append(objects, new(testObjectTagged))
+						continue
+					}
+
+					testObj := makeTestObjectTagged()
+					objects = append(objects, testObj)
+					err := client.PutObject(nil, key, testObj)
+					Expect(err).ToNot(HaveOccurred())
+				}
+
+			})
+
+			It("must return error on invalid input", func() {
+				_, err := client.BatchGetObjects(nil, nil, resObjects)
+				Expect(err).To(HaveOccurred())
+
+				_, err = client.BatchGetObjects(nil, nil, nil)
+				Expect(err).To(HaveOccurred())
+
+				_, err = client.BatchGetObjects(nil, []*as.Key{}, []interface{}{})
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("must get all objects with the most complex structure possible", func() {
+				found, err := client.BatchGetObjects(nil, keys, resObjects)
+				Expect(err).ToNot(HaveOccurred())
+
+				for i := range resObjects {
+					if i%2 == 0 {
+						Expect(found[i]).To(BeFalse())
+						resObj := resObjects[i].(*testObjectTagged)
+						Expect(*resObj).To(BeZero())
+					} else {
+						Expect(found[i]).To(BeTrue())
+						resObj := resObjects[i].(*testObjectTagged)
+						Expect(resObj).To(Equal(objects[i]))
+					}
+				}
+			})
+
+		}) // ScanObjects context
+
 		Context("ScanObjects operations", func() {
 
 			type InnerStruct struct {
@@ -803,7 +875,7 @@ var _ = Describe("Aerospike", func() {
 				set = randString(50)
 
 				for i := 1; i < 100; i++ {
-					key, err = NewKey(ns, set, randString(50))
+					key, err = as.NewKey(ns, set, randString(50))
 					Expect(err).ToNot(HaveOccurred())
 
 					testObj := InnerStruct{PersistAsInner1: i}
@@ -819,7 +891,7 @@ var _ = Describe("Aerospike", func() {
 
 				retChan := make(chan *InnerStruct, 10)
 
-				_, err := client.ScanAllObjects(nil, retChan, ns, set)
+				rs, err := client.ScanAllObjects(nil, retChan, ns, set)
 				Expect(err).ToNot(HaveOccurred())
 
 				cnt := 0
@@ -830,6 +902,10 @@ var _ = Describe("Aerospike", func() {
 					testObj.PersistAsInner1 = resObj.PersistAsInner1
 					Expect(resObj).To(Equal(testObj))
 					cnt++
+				}
+
+				for e := range rs.Errors {
+					Expect(e).ToNot(HaveOccurred())
 				}
 
 				Expect(cnt).To(Equal(99))
@@ -848,7 +924,7 @@ var _ = Describe("Aerospike", func() {
 				set = randString(50)
 
 				for i := 1; i < 100; i++ {
-					key, err = NewKey(ns, set, randString(50))
+					key, err = as.NewKey(ns, set, randString(50))
 					Expect(err).ToNot(HaveOccurred())
 
 					testObj := InnerStruct{PersistAsInner1: i}
@@ -863,9 +939,9 @@ var _ = Describe("Aerospike", func() {
 				testObj := &InnerStruct{}
 
 				retChan := make(chan *InnerStruct, 10)
-				stmt := NewStatement(ns, set)
+				stmt := as.NewStatement(ns, set)
 
-				_, err := client.QueryObjects(nil, stmt, retChan)
+				rs, err := client.QueryObjects(nil, stmt, retChan)
 				Expect(err).ToNot(HaveOccurred())
 
 				cnt := 0
@@ -878,13 +954,17 @@ var _ = Describe("Aerospike", func() {
 					cnt++
 				}
 
+				for e := range rs.Errors {
+					Expect(e).ToNot(HaveOccurred())
+				}
+
 				Expect(cnt).To(Equal(99))
 			})
 
 			It("must query only relevant objects with the most complex structure possible", func() {
 
 				// first create an index
-				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", NUMERIC)
+				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.DropIndex(nil, ns, set, set+"inner1")
 
@@ -894,8 +974,8 @@ var _ = Describe("Aerospike", func() {
 				testObj := &InnerStruct{}
 
 				retChan := make(chan *InnerStruct, 10)
-				stmt := NewStatement(ns, set)
-				stmt.Addfilter(NewRangeFilter("inner1", 21, 70))
+				stmt := as.NewStatement(ns, set)
+				stmt.Addfilter(as.NewRangeFilter("inner1", 21, 70))
 
 				rs, err := client.QueryObjects(nil, stmt, retChan)
 				Expect(err).ToNot(HaveOccurred())
@@ -921,7 +1001,7 @@ var _ = Describe("Aerospike", func() {
 			It("must query only relevant objects, and close and return", func() {
 
 				// first create an index
-				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", NUMERIC)
+				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
 				Expect(err).ToNot(HaveOccurred())
 				defer client.DropIndex(nil, ns, set, set+"inner1")
 
@@ -931,10 +1011,10 @@ var _ = Describe("Aerospike", func() {
 				testObj := &InnerStruct{}
 
 				retChan := make(chan *InnerStruct, 1)
-				stmt := NewStatement(ns, set)
-				stmt.Addfilter(NewRangeFilter("inner1", 21, 70))
+				stmt := as.NewStatement(ns, set)
+				stmt.Addfilter(as.NewRangeFilter("inner1", 21, 70))
 
-				qpolicy := NewQueryPolicy()
+				qpolicy := as.NewQueryPolicy()
 				qpolicy.RecordQueueSize = 1
 
 				rs, err := client.QueryObjects(nil, stmt, retChan)

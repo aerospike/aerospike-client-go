@@ -76,7 +76,7 @@ func NewGeoRegionsContainingPointFilter(binName, point string) *Filter {
 	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
 }
 
-// collectionType creates a geospatial "containing point" filter for query on collection index.
+// NewGeoRegionsContainingPointForCollectionFilter creates a geospatial "containing point" filter for query on collection index.
 // Argument must be a valid GeoJSON point.
 func NewGeoRegionsContainingPointForCollectionFilter(binName string, collectionType IndexCollectionType, point string) *Filter {
 	v := NewStringValue(point)
@@ -134,25 +134,25 @@ func (fltr *Filter) write(cmd *baseCommand) (int, error) {
 	size := 0
 
 	// Write name length
-	n, err := cmd.WriteByte(byte(len(fltr.name)))
+	err := cmd.WriteByte(byte(len(fltr.name)))
 	if err != nil {
-		return n, err
+		return 0, err
 	}
-	size += n
+	size++
 
 	// Write Name
-	n, err = cmd.WriteString(fltr.name)
+	n, err := cmd.WriteString(fltr.name)
 	if err != nil {
 		return size + n, err
 	}
 	size += n
 
 	// Write particle type.
-	n, err = cmd.WriteByte(byte(fltr.valueParticleType))
+	err = cmd.WriteByte(byte(fltr.valueParticleType))
 	if err != nil {
-		return n, err
+		return size, err
 	}
-	size += n
+	size++
 
 	// Write filter begin.
 	esz, err := fltr.begin.estimateSize()

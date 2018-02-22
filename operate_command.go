@@ -14,29 +14,43 @@
 
 package aerospike
 
+import (
+	. "github.com/aerospike/aerospike-client-go/types"
+)
+
 type operateCommand struct {
 	readCommand
 
 	policy     *WritePolicy
 	operations []*Operation
+
+	hasWrite bool
 }
 
-func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) *operateCommand {
-	return &operateCommand{
-		readCommand: *newReadCommand(cluster, &policy.BasePolicy, key, nil),
+func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) operateCommand {
+	return operateCommand{
+		readCommand: newReadCommand(cluster, &policy.BasePolicy, key, nil),
 		policy:      policy,
 		operations:  operations,
 	}
 }
 
-func (cmd *operateCommand) writeBuffer(ifc command) error {
-	return cmd.setOperate(cmd.policy, cmd.key, cmd.operations)
+func (cmd *operateCommand) writeBuffer(ifc command) (err error) {
+	cmd.hasWrite, err = cmd.setOperate(cmd.policy, cmd.key, cmd.operations)
+	return err
 }
 
 func (cmd *operateCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getMasterNode(cmd.partition)
+	return cmd.cluster.getMasterNode(&cmd.partition)
 }
 
 func (cmd *operateCommand) Execute() error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *operateCommand) handleWriteKeyNotFoundError(resultCode ResultCode) error {
+	if cmd.hasWrite {
+		return NewAerospikeError(resultCode)
+	}
+	return nil
 }

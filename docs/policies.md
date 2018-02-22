@@ -24,6 +24,7 @@ When invoking an operation, you can choose:
     Timeout:             0 * time.Millisecond, // no timeout
     MaxRetries:          2,
     SleepBetweenRetries: 500 * time.Millisecond,
+    SleepMultiplier:     1.5
   }
 ```
 
@@ -58,7 +59,9 @@ Attributes:
                             * Default: `2`
 - `SleepBetweenRetries`     – Duration of waiting between retries.
                             * Default: `500 * time.Milliseconds`
-
+- `SleepMultiplier`         - The multiplying factor to be used for exponential
+                            backoff during retries.
+                            * Default: `1.0`
 
 <!--
 ################################################################################
@@ -123,7 +126,7 @@ A policy effecting the behaviour of scan operations.
 
 Includes All Base Policy attributes, plus:
 
-- `ScanPercent`           –  Maximum number of concurrent requests to server nodes at any point in time. If there are 16 nodes in the cluster and maxConcurrentNodes is 8, then queries will be made to 8 nodes in parallel. When a query completes, a new query will be issued until all 16 nodes have been queried.
+- `ScanPercent`           –  ScanPercent determines percent of data to scan. Valid integer range is 1 to 100.
                            * Default: `100` All records.
 - `MaxConcurrentNodes`    –  Maximum number of concurrent requests to server nodes at any point in time. If there are 16 nodes in the cluster and maxConcurrentNodes is 8, then scans will be made to 8 nodes in parallel. When a scan completes, a new scan will be issued until all 16 nodes have been queried.
                            * Default: `0` All nodes together.

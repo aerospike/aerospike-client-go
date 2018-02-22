@@ -52,18 +52,10 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 	nodes := etsk.cluster.GetNodes()
 
 	for _, node := range nodes {
-		conn, err := node.GetConnection(0)
+		responseMap, err := node.requestInfoWithRetry(5, command)
 		if err != nil {
 			return false, err
 		}
-		responseMap, err := RequestInfo(conn, command)
-		if err != nil {
-			node.InvalidateConnection(conn)
-			return false, err
-		}
-
-		node.PutConnection(conn)
-
 		response := responseMap[command]
 
 		if strings.HasPrefix(response, "ERROR:2") {

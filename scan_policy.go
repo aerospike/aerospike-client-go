@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "time"
+
 // ScanPolicy encapsulates parameters used in scan operations.
 type ScanPolicy struct {
 	*MultiPolicy
@@ -23,16 +25,19 @@ type ScanPolicy struct {
 	// Default is 100.
 	ScanPercent int //= 100;
 
+	// ServerSocketTimeout defines maximum time that the server will before droping an idle socket.
+	// Zero means there is no socket timeout.
+	// Default is 10 seconds.
+	ServerSocketTimeout time.Duration //= 10 seconds
+
 	// ConcurrentNodes determines how to issue scan requests (in parallel or sequentially).
 	ConcurrentNodes bool //= true;
-
-	// Indicates if bin data is retrieved. If false, only record digests are retrieved.
-	IncludeBinData bool //= true;
 
 	// Include large data type bin values in addition to large data type bin names.
 	// If false, LDT bin names will be returned, but LDT bin values will be empty.
 	// If true,  LDT bin names and the entire LDT bin values will be returned.
 	// Warning: LDT values may consume huge of amounts of memory depending on LDT size.
+	// Warning: LDT as a feature is deprecated on the servers v3.15+ and will be removed from the client in 2018.
 	IncludeLDT bool
 
 	// FailOnClusterChange determines scan termination if cluster is in fluctuating state.
@@ -41,16 +46,12 @@ type ScanPolicy struct {
 
 // NewScanPolicy creates a new ScanPolicy instance with default values.
 func NewScanPolicy() *ScanPolicy {
-	res := &ScanPolicy{
+	return &ScanPolicy{
 		MultiPolicy:         NewMultiPolicy(),
 		ScanPercent:         100,
+		ServerSocketTimeout: 10 * time.Second,
 		ConcurrentNodes:     true,
-		IncludeBinData:      true,
 		IncludeLDT:          false,
 		FailOnClusterChange: true,
 	}
-	// Retry policy must be one-shot for scans.
-	res.MaxRetries = 0
-
-	return res
 }

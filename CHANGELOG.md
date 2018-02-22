@@ -1,5 +1,147 @@
 # Change History
 
+## November 29 2017: v1.31.0
+
+  Feature release.
+
+  * **New Features**
+  
+    - Support for newer Batch Protocol. Add `BatchGetComplex` for complex batch queries. Old batch API upgraded to automatically support the new protocol under the hood, unless `BatchPolicy.UseBatchDirect` flag is iet to `true`.
+
+  * **Changes**
+
+    - Renames ResultCode `NO_XDS` to `ALWAYS_FORBIDDEN`.
+    - Makes `SERVER_NOT_AVAILABLE` a client generated error.
+
+## October 12 2017: v1.30.0
+
+  Fix and improvements release.
+
+  * **Changes**
+
+    - Deprecated LDTs and removed them from the official build.
+    - Change supported go versions to 1.7+ due to gopher-lua requiring `Context`.
+
+  * **Improvements**
+
+    - Get socket timeout once per command execution, do not redefine err var in command execution loop. PR #211, thanks to [Maxim Krasilnikov](https://github.com/chapsuk)
+    - Allow running a UDF on a specific node only.
+    - Close cluster only once. PR #208, thanks to [Jun Kimura](https://github.com/bluele)
+    - Use actual cluster name in tests instead of assuming `null`.
+    - Check for the type of error as well in Duplicate Index Creation.
+    - Update description for error code 21. PR #207, thanks to [Maxim Krasilnikov](https://github.com/chapsuk)
+
+## September 5 2017: v1.29.0
+
+  Feature and improvements release.
+
+  * **New Features**
+
+    - Added `ListIncrementOp` to the CDT list operations.
+    - Added `SEQUENCE` to replica policies.
+
+  * **Improvements**
+
+    - Tweaked node removal algorithm to cover more corner cases.
+    - Make `predExp` interface public. Closes issue #205.
+    - Added more stats to the `Client.Stats()`.
+
+## August 17 2017: v1.28.0
+
+  Feature, Performance improvements and bug fix release.
+
+  * **New Features**
+
+    - Added `Client.Stats()` method to get client's internal statistics.
+    - Added `Policy.SocketTimeout` to differentiate between network timeouts and the total transaction timeouts.
+    - Support `policy.IncludeBinData` for queries. Only for servers that support this feature.
+    - Minor documentation updates.
+    - Return key not found exception (instead of returning nil record) for Operate() command where operations include a write.
+
+  * **Improvements**
+
+    - Close the tend connection when closing node connections.
+    - Added Connection finalizer to make sure all connections are closed eventually.
+    - Automatically retry failed info requests on async tasks before returning an error.
+    - Updated build instructions for the benchmark tool.
+    - Make digest_modulo test deterministic.
+    - Relax predexp_modulo test a bit to avoid occasional failures.
+
+  * **Fixes**
+
+    - Indirect CAS ops to prevent the compiler from optimizing them out.
+    - Return errors instead of nil.
+
+## April 25 2017: v1.27.0
+
+  Feature, Performance improvements and bug fix release.
+
+  * **New Features**
+
+    - Added `BatchGetObjects` method.
+    - Added Exponential Backoff by introducing `BasePolicy.SleepMultiplier`. Only Values > 1.0 are effective. PR #192, thanks to [Venil Noronha](https://github.com/venilnoronha)
+
+  * **Improvements**
+
+    - Packer tries to see if it can use generic data types before using reflection.
+    - Operations, including CDTs do not allocate a buffer anymore, unless reused.
+
+  * **Incompatible changes**:
+    - `BinName` and `BinValue` are not exported in `Operation` anymore. These fields shouldn't have been used anyway since `Operation`s used to cache their internal command.
+
+  * **Fixes**
+
+    - Documentation Fixes. Thanks to [Nassor Paulino da Silva](https://github.com/nassor) and [HArmen](https://github.com/alicebob)
+
+
+## April 5 2017: v1.26.0
+
+  Feature, Performance improvements and bug fix release.
+
+  * **New Features**
+
+    - Predicate API is supported (for server v3.12+)
+    - Added `Truncate` method to quickly remove all data from namespaces or sets (for server v3.12+).
+    - Support `ScanPolicy.ServerSocketTimeout` (for server v3.12+).
+    - Support `ClientPolicy.IgnoreOtherSubnetAliases` to ignore hosts from other subnets. PR #182, thanks to [wedi-dev](https://github.com/wedi-dev)
+
+  * **Improvements**
+
+    - Added a lot of predefined generic slice and map types in `NewValue` method to avoid hitting reflection as much as possible.
+    - Fix `go vet` complaints.
+
+  * **Fixes**
+
+    - Allow streaming commands (scan/query/aggregation) to retry unless the error occurs during parsing of the results. Fixes issue #187
+    - Use `net.JoinHostPort` to concatinate host and port values instead of doing it directly. Fixes some issues in IPv6 connection strings.
+    - Improved initial Tend run.
+    - Fixes `cluster-name` checking bug.
+
+## March 8 2017: v1.25.1
+
+  Hot fix release. Updating the client is recommended.
+
+  * **Fixes**
+
+    - Fixed an issue where errors in Scan/Query unmarshalling would be duplicated and could cause a deadlock.
+
+## February 28 2017: v1.25.0
+
+  Performance improvements and fix release.
+
+  * **Improvements**
+
+    - Check tend duration and compare it to tend interval, and warn the user if tend takes longer than tend interval.
+    - Seed the cluster concurrently, and return as soon as any of the seeds is validated.
+    - Tend the cluster concurrently. Allows use of very big clusters with no delay.
+    - Partitions the connection queue to avoid contention.
+    - Cluster partition map is merged from all node fragments and updated only once per tend to reduce contention to absolute minimum.
+
+  * **Fixes**
+
+    - Fixed an issue where a valid but unreachable seed could timeout and stall connecting and tending the cluster..
+    - Fix result code comments.
+
 ## January 11 2017: v1.24.0
 
   Minor feature and fix release.

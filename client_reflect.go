@@ -17,6 +17,7 @@
 package aerospike
 
 import (
+	"errors"
 	"reflect"
 
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -51,6 +52,45 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 	return command.Execute()
 }
 
+// BatchGetObject reads multiple record headers and bins for specified keys in one batch request.
+// The returned objects are in positional order with the original key array order.
+// If a key is not found, the positional object will not change, and the positional found boolean will be false.
+// The policy can be used to specify timeouts.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err error) {
+	policy = clnt.getUsableBatchPolicy(policy)
+
+	// check the size of  key and objects
+	if (len(keys) != len(objects)) || (len(keys) == 0) {
+		return nil, errors.New("Wrong Number of arguments to BatchGetObject. Number of keys and objects do not match.")
+	}
+
+	binSet := map[string]struct{}{}
+	objectsVal := make([]*reflect.Value, len(objects))
+	for i := range objects {
+		rval := reflect.ValueOf(objects[i])
+		objectsVal[i] = &rval
+		for _, bn := range objectMappings.getFields(rval.Type()) {
+			binSet[bn] = struct{}{}
+		}
+	}
+	binNames := make([]string, 0, len(binSet))
+	for binName := range binSet {
+		binNames = append(binNames, binName)
+	}
+
+	objectsFound := make([]bool, len(keys))
+	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, binNames, nil, _INFO1_READ)
+	cmd.objects = objectsVal
+	cmd.objectsFound = objectsFound
+
+	if err = clnt.batchExecute(policy, keys, cmd); err != nil {
+		return nil, err
+	}
+
+	return objectsFound, nil
+}
+
 // ScanAllObjects reads all records in specified namespace and set from all nodes.
 // If the policy's concurrentNodes is specified, each server node will be read in
 // parallel. Otherwise, server nodes are read sequentially.
@@ -72,28 +112,24 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 
 	// result recordset
 	taskId := uint64(xornd.Int64())
-	os := newObjectset(reflect.ValueOf(objChan), len(nodes), taskId)
 	res := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes), taskId),
 	}
 
 	// the whole call should be wrapped in a goroutine
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
 			go func(node *Node) {
-				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-				}
+				// Errors are handled inside the command itself
+				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
 			}(node)
 		}
 	} else {
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				if err := clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-					continue
-				}
+				// Errors are handled inside the command itself
+				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
 			}
 		}()
 	}
@@ -111,9 +147,8 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 
 	// results channel must be async for performance
 	taskId := uint64(xornd.Int64())
-	os := newObjectset(reflect.ValueOf(objChan), 1, taskId)
 	res := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1, taskId),
 	}
 
 	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
@@ -158,9 +193,8 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 	}
 
 	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), len(nodes), statement.TaskId)
 	recSet := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes), statement.TaskId),
 	}
 
 	// the whole call sho
@@ -170,10 +204,8 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 		newPolicy := *policy
 		command := newQueryObjectsCommand(node, &newPolicy, statement, recSet)
 		go func() {
-			err := command.Execute()
-			if err != nil {
-				recSet.sendError(err)
-			}
+			// Do not send the error to the channel; it is already handled in the Execute method
+			command.Execute()
 		}()
 	}
 
@@ -196,19 +228,15 @@ func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement 
 	}
 
 	// results channel must be async for performance
-	os := newObjectset(reflect.ValueOf(objChan), 1, statement.TaskId)
 	recSet := &Recordset{
-		objectset: *os,
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1, statement.TaskId),
 	}
 
 	// copy policies to avoid race conditions
 	newPolicy := *policy
 	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
 	go func() {
-		err := command.Execute()
-		if err != nil {
-			recSet.sendError(err)
-		}
+		command.Execute()
 	}()
 
 	return recSet, nil

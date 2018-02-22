@@ -345,19 +345,19 @@ func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 	acmd.writeSize()
 	node, err := cluster.GetRandomNode()
 	if err != nil {
-		return nil
+		return err
 	}
 	timeout := 1 * time.Second
 	if policy != nil && policy.Timeout > 0 {
 		timeout = policy.Timeout
 	}
 
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
 	if err := node.initTendConn(timeout); err != nil {
 		return err
 	}
-
-	node.tendConnLock.Lock()
-	defer node.tendConnLock.Unlock()
 
 	conn := node.tendConn
 	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
@@ -387,12 +387,12 @@ func (acmd *adminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*U
 		timeout = policy.Timeout
 	}
 
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
 	if err := node.initTendConn(timeout); err != nil {
 		return nil, err
 	}
-
-	node.tendConnLock.Lock()
-	defer node.tendConnLock.Unlock()
 
 	conn := node.tendConn
 	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
@@ -524,12 +524,12 @@ func (acmd *adminCommand) readRoles(cluster *Cluster, policy *AdminPolicy) ([]*R
 		timeout = policy.Timeout
 	}
 
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
 	if err := node.initTendConn(timeout); err != nil {
 		return nil, err
 	}
-
-	node.tendConnLock.Lock()
-	defer node.tendConnLock.Unlock()
 
 	conn := node.tendConn
 	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {

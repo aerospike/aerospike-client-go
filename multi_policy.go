@@ -32,6 +32,9 @@ type MultiPolicy struct {
 	// If the queue is full, the producer goroutines will block until records are consumed.
 	RecordQueueSize int //= 5000
 
+	// Indicates if bin data is retrieved. If false, only record digests are retrieved.
+	IncludeBinData bool //= true;
+
 	// Blocks until on-going migrations are over
 	WaitUntilMigrationsAreOver bool //=false
 }
@@ -42,6 +45,7 @@ func NewMultiPolicy() *MultiPolicy {
 		BasePolicy:                 NewPolicy(),
 		MaxConcurrentNodes:         0,
 		RecordQueueSize:            50,
+		IncludeBinData:             true,
 		WaitUntilMigrationsAreOver: false,
 	}
 }

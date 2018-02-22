@@ -23,6 +23,12 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
+type readCommandLike interface {
+	command
+
+	handleWriteKeyNotFoundError(ResultCode) error
+}
+
 type readCommand struct {
 	singleCommand
 
@@ -32,6 +38,8 @@ type readCommand struct {
 
 	// pointer to the object that's going to be unmarshalled
 	object *reflect.Value
+
+	replicaSequence int
 }
 
 // this method uses reflection.
@@ -44,9 +52,9 @@ var objectParser func(
 	expiration uint32,
 ) error
 
-func newReadCommand(cluster *Cluster, policy *BasePolicy, key *Key, binNames []string) *readCommand {
-	return &readCommand{
-		singleCommand: *newSingleCommand(cluster, key),
+func newReadCommand(cluster *Cluster, policy *BasePolicy, key *Key, binNames []string) readCommand {
+	return readCommand{
+		singleCommand: newSingleCommand(cluster, key),
 		binNames:      binNames,
 		policy:        policy,
 	}
@@ -61,7 +69,7 @@ func (cmd *readCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *readCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getReadNode(cmd.partition, cmd.policy.ReplicaPolicy)
+	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy, &cmd.replicaSequence)
 }
 
 func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
@@ -104,6 +112,9 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 
 	if resultCode != 0 {
 		if resultCode == KEY_NOT_FOUND_ERROR && cmd.object == nil {
+			if rcmd, ok := ifc.(readCommandLike); ok {
+				return rcmd.handleWriteKeyNotFoundError(resultCode)
+			}
 			return nil
 		}
 
@@ -207,4 +218,9 @@ func (cmd *readCommand) GetRecord() *Record {
 
 func (cmd *readCommand) Execute() error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *readCommand) handleWriteKeyNotFoundError(resultCode ResultCode) error {
+	// command returns no error if key was not found
+	return nil
 }

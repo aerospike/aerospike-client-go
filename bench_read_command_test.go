@@ -37,7 +37,7 @@ func doGet(set string, value interface{}, b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		command := newReadCommand(nil, policy, key, binNames)
 		command.baseCommand.dataBuffer = dataBuffer
-		err = command.writeBuffer(command)
+		err = command.writeBuffer(&command)
 		if err != nil {
 			panic(err)
 		}

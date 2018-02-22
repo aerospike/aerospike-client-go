@@ -17,6 +17,7 @@ package aerospike
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -24,12 +25,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	lualib "github.com/aerospike/aerospike-client-go/internal/lua"
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	xornd "github.com/aerospike/aerospike-client-go/types/rand"
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 )
 
 // Client encapsulates an Aerospike cluster.
@@ -39,11 +41,13 @@ type Client struct {
 
 	// DefaultPolicy is used for all read commands without a specific policy.
 	DefaultPolicy *BasePolicy
+	// DefaultBatchPolicy is used for all batch commands without a specific policy.
+	DefaultBatchPolicy *BatchPolicy
 	// DefaultWritePolicy is used for all write commands without a specific policy.
 	DefaultWritePolicy *WritePolicy
-	// DefaultScanPolicy is used for all query commands without a specific policy.
+	// DefaultScanPolicy is used for all scan commands without a specific policy.
 	DefaultScanPolicy *ScanPolicy
-	// DefaultQueryPolicy is used for all scan commands without a specific policy.
+	// DefaultQueryPolicy is used for all query commands without a specific policy.
 	DefaultQueryPolicy *QueryPolicy
 	// DefaultAdminPolicy is used for all security commands without a specific policy.
 	DefaultAdminPolicy *AdminPolicy
@@ -77,7 +81,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	}
 
 	cluster, err := NewCluster(policy, hosts)
-	if err != nil {
+	if err != nil && policy.FailIfNotConnected {
 		if aerr, ok := err.(AerospikeError); ok {
 			Logger.Debug("Failed to connect to host(s): %v; error: %s", hosts, err)
 			return nil, aerr
@@ -88,6 +92,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	client := &Client{
 		cluster:            cluster,
 		DefaultPolicy:      NewPolicy(),
+		DefaultBatchPolicy: NewBatchPolicy(),
 		DefaultWritePolicy: NewWritePolicy(0, 0),
 		DefaultScanPolicy:  NewScanPolicy(),
 		DefaultQueryPolicy: NewQueryPolicy(),
@@ -95,7 +100,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	}
 
 	runtime.SetFinalizer(client, clientFinalizer)
-	return client, nil
+	return client, err
 
 }
 
@@ -262,16 +267,16 @@ func (clnt *Client) Exists(policy *BasePolicy, key *Key) (bool, error) {
 // The returned boolean array is in positional order with the original key array order.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchExists(policy *BasePolicy, keys []*Key) ([]bool, error) {
-	policy = clnt.getUsablePolicy(policy)
+func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, error) {
+	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be marked true
 	existsArray := make([]bool, len(keys))
 
-	if err := clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
-		return newBatchCommandExists(node, bns, policy, keys, existsArray)
-	}); err != nil {
+	// pass nil to make sure it will be cloned and prepared
+	cmd := newBatchCommandExists(nil, nil, nil, policy, keys, existsArray)
+	if err := clnt.batchExecute(policy, keys, cmd); err != nil {
 		return nil, err
 	}
 
@@ -318,21 +323,15 @@ func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
 // If a key is not found, the positional record will be nil.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string) ([]*Record, error) {
-	policy = clnt.getUsablePolicy(policy)
+func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...string) ([]*Record, error) {
+	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	binSet := map[string]struct{}{}
-	for idx := range binNames {
-		binSet[binNames[idx]] = struct{}{}
-	}
-
-	err := clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
-		return newBatchCommandGet(node, bns, policy, keys, binSet, records, _INFO1_READ)
-	})
+	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, binNames, records, _INFO1_READ)
+	err := clnt.batchExecute(policy, keys, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -340,21 +339,37 @@ func (clnt *Client) BatchGet(policy *BasePolicy, keys []*Key, binNames ...string
 	return records, nil
 }
 
+// BatchGetComplex reads multiple record reads multiple records for specified batch keys in one batch call.
+// This method allows different namespaces/bins to be requested for each key in the batch.
+// The returned records are located in the same list.
+// If the BatchRead key field is not found, the corresponding record field will be null.
+// The policy can be used to specify timeouts and maximum concurrent threads.
+// This method requires Aerospike Server version >= 3.6.0.
+func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) error {
+	policy = clnt.getUsableBatchPolicy(policy)
+
+	cmd := newBatchIndexCommandGet(nil, policy, records)
+	if err := clnt.batchIndexExecute(policy, records, cmd); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // BatchGetHeader reads multiple record header data for specified keys in one batch request.
 // The returned records are in positional order with the original key array order.
 // If a key is not found, the positional record will be nil.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGetHeader(policy *BasePolicy, keys []*Key) ([]*Record, error) {
-	policy = clnt.getUsablePolicy(policy)
+func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record, error) {
+	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	err := clnt.batchExecute(policy, keys, func(node *Node, bns *batchNamespace) command {
-		return newBatchCommandGet(node, bns, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
-	})
+	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
+	err := clnt.batchExecute(policy, keys, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -413,19 +428,14 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
 			go func(node *Node) {
-				if err := clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-				}
+				clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...)
 			}(node)
 		}
 	} else {
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				if err := clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...); err != nil {
-					res.sendError(err)
-					continue
-				}
+				clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...)
 			}
 		}()
 	}
@@ -459,58 +469,6 @@ func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordse
 
 	command := newScanCommand(node, policy, namespace, setName, binNames, recordset, taskId)
 	return command.Execute()
-}
-
-//-------------------------------------------------------------------
-// Large collection functions (Supported by Aerospike 3 servers only)
-//-------------------------------------------------------------------
-
-// GetLargeList initializes large list operator.
-// This operator can be used to create and manage a list
-// within a single bin.
-//
-// This method is only supported by Aerospike 3 servers.
-// If the policy is nil, the default relevant policy will be used.
-// NOTICE: DEPRECATED ON SERVER. Will be removed in future. Use CDT operations instead.
-func (clnt *Client) GetLargeList(policy *WritePolicy, key *Key, binName string, userModule string) *LargeList {
-	policy = clnt.getUsableWritePolicy(policy)
-	return NewLargeList(clnt, policy, key, binName, userModule)
-}
-
-// GetLargeMap initializes a large map operator.
-// This operator can be used to create and manage a map
-// within a single bin.
-//
-// This method is only supported by Aerospike 3 servers.
-// If the policy is nil, the default relevant policy will be used.
-// NOTICE: DEPRECATED ON SERVER. Will be removed in future. Use CDT operations instead.
-func (clnt *Client) GetLargeMap(policy *WritePolicy, key *Key, binName string, userModule string) *LargeMap {
-	policy = clnt.getUsableWritePolicy(policy)
-	return NewLargeMap(clnt, policy, key, binName, userModule)
-}
-
-// GetLargeSet initializes large set operator.
-// This operator can be used to create and manage a set
-// within a single bin.
-//
-// This method is only supported by Aerospike 3 servers.
-// If the policy is nil, the default relevant policy will be used.
-// NOTICE: DEPRECATED ON SERVER. Will be removed in future.
-func (clnt *Client) GetLargeSet(policy *WritePolicy, key *Key, binName string, userModule string) *LargeSet {
-	policy = clnt.getUsableWritePolicy(policy)
-	return NewLargeSet(clnt, policy, key, binName, userModule)
-}
-
-// GetLargeStack initializes large stack operator.
-// This operator can be used to create and manage a stack
-// within a single bin.
-//
-// This method is only supported by Aerospike 3 servers.
-// If the policy is nil, the default relevant policy will be used.
-// NOTICE: DEPRECATED ON SERVER. Will be removed in future.
-func (clnt *Client) GetLargeStack(policy *WritePolicy, key *Key, binName string, userModule string) *LargeStack {
-	policy = clnt.getUsableWritePolicy(policy)
-	return NewLargeStack(clnt, policy, key, binName, userModule)
 }
 
 //---------------------------------------------------------------
@@ -560,30 +518,12 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	_, err = strCmd.WriteString(";")
 
 	// Send UDF to one node. That node will distribute the UDF to other nodes.
-	node, err := clnt.cluster.GetRandomNode()
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	responseMap, err := RequestInfo(conn, strCmd.String())
-	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	var response string
-	for _, v := range responseMap {
-		if strings.Trim(v, " ") != "" {
-			response = v
-		}
-	}
-
+	response := responseMap[strCmd.String()]
 	res := make(map[string]string)
 	vals := strings.Split(response, ";")
 	for _, pair := range vals {
@@ -620,30 +560,12 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 	_, err = strCmd.WriteString(";")
 
 	// Send command to one node. That node will distribute it to other nodes.
-	node, err := clnt.cluster.GetRandomNode()
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	responseMap, err := RequestInfo(conn, strCmd.String())
-	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	var response string
-	for _, v := range responseMap {
-		if strings.Trim(v, " ") != "" {
-			response = v
-		}
-	}
-
+	response := responseMap[strCmd.String()]
 	if response == "ok" {
 		return NewRemoveTask(clnt.cluster, udfName), nil
 	}
@@ -662,30 +584,12 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 	_, err := strCmd.WriteString("udf-list")
 
 	// Send command to one node. That node will distribute it to other nodes.
-	node, err := clnt.cluster.GetRandomNode()
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	responseMap, err := RequestInfo(conn, strCmd.String())
-	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	var response string
-	for _, v := range responseMap {
-		if strings.Trim(v, " ") != "" {
-			response = v
-		}
-	}
-
+	response := responseMap[strCmd.String()]
 	vals := strings.Split(response, ";")
 	res := make([]*UDF, 0, len(vals))
 
@@ -802,6 +706,40 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	return NewExecuteTask(clnt.cluster, statement), mergeErrors(errs)
 }
 
+// ExecuteUDFNode applies user defined function on records that match the statement filter on the specified node.
+// Records are not returned to the client.
+// This asynchronous server call will return before command is complete.
+// The user can optionally wait for command completion by using the returned
+// ExecuteTask instance.
+//
+// This method is only supported by Aerospike 3 servers.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
+	node *Node,
+	statement *Statement,
+	packageName string,
+	functionName string,
+	functionArgs ...Value,
+) (*ExecuteTask, error) {
+	policy = clnt.getUsableQueryPolicy(policy)
+
+	if node == nil {
+		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteUDFNode failed because node is nil.")
+	}
+
+	// wait until all migrations are finished
+	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		return nil, err
+	}
+
+	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
+
+	command := newServerCommand(node, policy, statement)
+	err := command.Execute()
+
+	return NewExecuteTask(clnt.cluster, statement), err
+}
+
 //--------------------------------------------------------
 // Query Aggregate functions (Supported by Aerospike 3 servers only)
 //--------------------------------------------------------
@@ -865,10 +803,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 
 		go func() {
 			defer wg.Done()
-			err := command.Execute()
-			if err != nil {
-				recSet.sendError(err)
-			}
+			command.Execute()
 		}()
 	}
 
@@ -962,10 +897,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		newPolicy := *policy
 		command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
 		go func() {
-			err := command.Execute()
-			if err != nil {
-				recSet.sendError(err)
-			}
+			command.Execute()
 		}()
 	}
 
@@ -995,10 +927,7 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 	newPolicy := *policy
 	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
 	go func() {
-		err := command.Execute()
-		if err != nil {
-			recSet.sendError(err)
-		}
+		command.Execute()
 	}()
 
 	return recSet, nil
@@ -1065,16 +994,12 @@ func (clnt *Client) CreateComplexIndex(
 	_, err = strCmd.WriteString(";priority=normal")
 
 	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
 
-	response := ""
-	for _, v := range responseMap {
-		response = v
-	}
-
+	response := responseMap[strCmd.String()]
 	if strings.ToUpper(response) == "OK" {
 		// Return task that could optionally be polled for completion.
 		return NewIndexTask(clnt.cluster, namespace, indexName), nil
@@ -1110,28 +1035,61 @@ func (clnt *Client) DropIndex(
 	_, err = strCmd.WriteString(indexName)
 
 	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
 	if err != nil {
 		return err
 	}
 
-	response := ""
-	for _, v := range responseMap {
-		response = v
+	response := responseMap[strCmd.String()]
 
-		if strings.ToUpper(response) == "OK" {
-			// Return task that could optionally be polled for completion.
-			task := NewDropIndexTask(clnt.cluster, namespace, indexName)
-			return <-task.OnComplete()
-		}
+	if strings.ToUpper(response) == "OK" {
+		// Return task that could optionally be polled for completion.
+		task := NewDropIndexTask(clnt.cluster, namespace, indexName)
+		return <-task.OnComplete()
+	}
 
-		if strings.HasPrefix(response, "FAIL:201") {
-			// Index did not previously exist. Return without error.
-			return nil
-		}
+	if strings.HasPrefix(response, "FAIL:201") {
+		// Index did not previously exist. Return without error.
+		return nil
 	}
 
 	return NewAerospikeError(INDEX_GENERIC, "Drop index failed: "+response)
+}
+
+// Truncate removes records in specified namespace/set efficiently.  This method is many orders of magnitude
+// faster than deleting records one at a time.  Works with Aerospike Server versions >= 3.12.
+// This asynchronous server call may return before the truncation is complete.  The user can still
+// write new records after the server call returns because new records will have last update times
+// greater than the truncate cutoff (set at the time of truncate call).
+// For more information, See https://www.aerospike.com/docs/reference/info#truncate
+func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) error {
+	policy = clnt.getUsableWritePolicy(policy)
+
+	var strCmd bytes.Buffer
+	_, err := strCmd.WriteString("truncate:namespace=")
+	_, err = strCmd.WriteString(namespace)
+
+	if len(set) > 0 {
+		_, err = strCmd.WriteString(";set=")
+		_, err = strCmd.WriteString(set)
+	}
+	if beforeLastUpdate != nil {
+		_, err = strCmd.WriteString(";lut=")
+		_, err = strCmd.WriteString(strconv.FormatInt(beforeLastUpdate.UnixNano(), 10))
+	}
+
+	// Send index command to one node. That node will distribute the command to other nodes.
+	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
+	if err != nil {
+		return err
+	}
+
+	response := responseMap[strCmd.String()]
+	if strings.ToUpper(response) == "OK" {
+		return nil
+	}
+
+	return NewAerospikeError(SERVER_ERROR, "Truncate failed: "+response)
 }
 
 //-------------------------------------------------------
@@ -1283,30 +1241,53 @@ func (clnt *Client) String() string {
 	return ""
 }
 
+// Stats returns internal statistics regarding the inner state of the client and the cluster.
+func (clnt *Client) Stats() (map[string]interface{}, error) {
+	resStats := clnt.cluster.statsCopy()
+
+	clusterStats := nodeStats{}
+	for _, stats := range resStats {
+		clusterStats.aggregate(&stats)
+	}
+
+	resStats["cluster-aggregated-stats"] = clusterStats
+
+	b, err := json.Marshal(resStats)
+	if err != nil {
+		return nil, err
+	}
+
+	res := map[string]interface{}{}
+	err = json.Unmarshal(b, &res)
+	if err != nil {
+		return nil, err
+	}
+
+	res["open-connections"] = clusterStats.ConnectionsOpen
+
+	return res, nil
+}
+
 //-------------------------------------------------------
 // Internal Methods
 //-------------------------------------------------------
 
-func (clnt *Client) sendInfoCommand(policy *WritePolicy, command string) (map[string]string, error) {
+func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[string]string, error) {
 	node, err := clnt.cluster.GetRandomNode()
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := node.GetConnection(policy.Timeout)
-	if err != nil {
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
+	if err := node.initTendConn(timeout); err != nil {
 		return nil, err
 	}
 
-	info, err := newInfo(conn, command)
+	results, err := RequestInfo(node.tendConn, command)
 	if err != nil {
-		node.InvalidateConnection(conn)
-		return nil, err
-	}
-	node.PutConnection(conn)
-
-	results, err := info.parseMultiResponse()
-	if err != nil {
+		node.tendConn.Close()
 		return nil, err
 	}
 
@@ -1315,9 +1296,49 @@ func (clnt *Client) sendInfoCommand(policy *WritePolicy, command string) (map[st
 
 // batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
 // and waits for their return
-func (clnt *Client) batchExecute(policy *BasePolicy, keys []*Key, cmdGen func(node *Node, bns *batchNamespace) command) error {
-
+func (clnt *Client) batchExecute(policy *BatchPolicy, keys []*Key, cmd batcher) error {
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+
+	// Use a goroutine per namespace per node
+	errs := []error{}
+	errm := new(sync.Mutex)
+
+	for _, batchNode := range batchNodes {
+		// There may be multiple goroutines for a single node because the
+		// wire protocol only allows one namespace per command.  Multiple namespaces
+		// require multiple goroutines per node.
+		batchNode.splitByNamespace(keys)
+
+		wg.Add(len(batchNode.BatchNamespaces))
+	}
+
+	for _, batchNode := range batchNodes {
+		for _, bns := range batchNode.BatchNamespaces {
+			newCmd := cmd.cloneBatchCommand(batchNode, bns)
+			go func(cmd command) {
+				defer wg.Done()
+				if err := cmd.Execute(); err != nil {
+					errm.Lock()
+					errs = append(errs, err)
+					errm.Unlock()
+				}
+			}(newCmd)
+		}
+	}
+
+	wg.Wait()
+	return mergeErrors(errs)
+}
+
+// batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
+// and waits for their return
+func (clnt *Client) batchIndexExecute(policy *BatchPolicy, records []*BatchRead, cmd batchIndexer) error {
+	batchNodes, err := newBatchIndexNodeList(clnt.cluster, policy, records)
 	if err != nil {
 		return err
 	}
@@ -1331,18 +1352,15 @@ func (clnt *Client) batchExecute(policy *BasePolicy, keys []*Key, cmdGen func(no
 	wg.Add(len(batchNodes))
 	for _, batchNode := range batchNodes {
 		// copy to avoid race condition
-		bn := *batchNode
-		for _, bns := range bn.BatchNamespaces {
-			go func(bn *Node, bns *batchNamespace) {
-				defer wg.Done()
-				command := cmdGen(bn, bns)
-				if err := command.Execute(); err != nil {
-					errm.Lock()
-					errs = append(errs, err)
-					errm.Unlock()
-				}
-			}(bn.Node, bns)
-		}
+		newCmd := cmd.cloneBatchIndexCommand(batchNode)
+		go func(cmd command) {
+			defer wg.Done()
+			if err := cmd.Execute(); err != nil {
+				errm.Lock()
+				errs = append(errs, err)
+				errm.Unlock()
+			}
+		}(newCmd)
 	}
 
 	wg.Wait()
@@ -1355,6 +1373,16 @@ func (clnt *Client) getUsablePolicy(policy *BasePolicy) *BasePolicy {
 			return clnt.DefaultPolicy
 		}
 		return NewPolicy()
+	}
+	return policy
+}
+
+func (clnt *Client) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
+	if policy == nil {
+		if clnt.DefaultBatchPolicy != nil {
+			return clnt.DefaultBatchPolicy
+		}
+		return NewBatchPolicy()
 	}
 	return policy
 }

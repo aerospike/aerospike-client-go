@@ -1,3 +1,5 @@
+// +build ldt
+//
 // Copyright 2013-2017 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +20,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 )
 
 var _ = Describe("LargeMap Test", func() {
@@ -27,8 +29,8 @@ var _ = Describe("LargeMap Test", func() {
 	var err error
 	var ns = "test"
 	var set = randString(50)
-	var key *Key
-	var wpolicy = NewWritePolicy(0, 0)
+	var key *as.Key
+	var wpolicy = as.NewWritePolicy(0, 0)
 
 	if nsInfo(ns, "ldt-enabled") != "true" {
 		By("LargeMap Tests are not supported since LDT is disabled.")
@@ -36,7 +38,7 @@ var _ = Describe("LargeMap Test", func() {
 	}
 
 	BeforeEach(func() {
-		key, err = NewKey(ns, set, randString(50))
+		key, err = as.NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -74,7 +76,7 @@ var _ = Describe("LargeMap Test", func() {
 		Expect(res).To(Equal(0))
 
 		for i := 1; i <= 100; i++ {
-			err = lmap.Put(NewValue(i*100), NewValue(i))
+			err = lmap.Put(as.NewValue(i*100), as.NewValue(i))
 			Expect(err).ToNot(HaveOccurred())
 
 			// check if it can be retrieved
@@ -123,7 +125,7 @@ var _ = Describe("LargeMap Test", func() {
 
 	It("should correctly GetConfig()", func() {
 		lmap := client.GetLargeMap(wpolicy, key, randString(10), "")
-		err = lmap.Put(NewValue(0), NewValue(0))
+		err = lmap.Put(as.NewValue(0), as.NewValue(0))
 		Expect(err).ToNot(HaveOccurred())
 
 		config, err := lmap.GetConfig()

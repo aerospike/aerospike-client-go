@@ -16,8 +16,8 @@ package aerospike
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,6 +31,44 @@ import (
 )
 
 type partitionMap map[string][][]*Node
+
+// String implements stringer interface for partitionMap
+func (pm partitionMap) clone() partitionMap {
+	// Make shallow copy of map.
+	pmap := make(partitionMap, len(pm))
+	for ns, replArr := range pm {
+		newReplArr := make([][]*Node, len(replArr))
+		for i, nArr := range replArr {
+			newNArr := make([]*Node, len(nArr))
+			copy(newNArr, nArr)
+			newReplArr[i] = newNArr
+		}
+		pmap[ns] = newReplArr
+	}
+	return pmap
+}
+
+// String implements stringer interface for partitionMap
+func (pm partitionMap) merge(partMap partitionMap) {
+	// merge partitions; iterate over the new partition and update the old one
+	for ns, replicaArray := range partMap {
+		if pm[ns] == nil {
+			pm[ns] = make([][]*Node, len(replicaArray))
+		}
+
+		for i, nodeArray := range replicaArray {
+			if pm[ns][i] == nil {
+				pm[ns][i] = make([]*Node, len(nodeArray))
+			}
+
+			for j, node := range nodeArray {
+				if node != nil {
+					pm[ns][i][j] = node
+				}
+			}
+		}
+	}
+}
 
 // String implements stringer interface for partitionMap
 func (pm partitionMap) String() string {
@@ -71,20 +109,19 @@ type Cluster struct {
 	nodesMap *SyncVal //map[string]*Node
 
 	// Active nodes in cluster.
-	nodes *SyncVal //[]*Node
+	nodes     *SyncVal              //[]*Node
+	stats     map[string]*nodeStats //host => stats
+	statsLock sync.Mutex
 
 	// Hints for best node for a partition
-	partitionWriteMap atomic.Value //partitionMap
-
-	// Random node index.
-	nodeIndex *AtomicInt
-
-	// Random partition replica index.
-	replicaIndex *AtomicInt
+	partitionWriteMap    atomic.Value //partitionMap
+	partitionUpdateMutex sync.Mutex
 
 	clientPolicy ClientPolicy
 
-	mutex       sync.Mutex
+	nodeIndex    uint64 // only used via atomic operations
+	replicaIndex uint64 // only used via atomic operations
+
 	wgTend      sync.WaitGroup
 	tendChannel chan struct{}
 	closed      AtomicBool
@@ -123,14 +160,13 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 	newCluster := &Cluster{
 		clientPolicy: *policy,
-		nodeIndex:    NewAtomicInt(0),
-		replicaIndex: NewAtomicInt(0),
 		tendChannel:  make(chan struct{}),
 
 		seeds:    NewSyncVal(hosts),
 		aliases:  NewSyncVal(make(map[Host]*Node)),
 		nodesMap: NewSyncVal(make(map[string]*Node)),
 		nodes:    NewSyncVal([]*Node{}),
+		stats:    map[string]*nodeStats{},
 
 		password: NewSyncVal(nil),
 
@@ -154,7 +190,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	}
 
 	// try to seed connections for first use
-	err := newCluster.waitTillStabilized(policy.FailIfNotConnected)
+	err := newCluster.waitTillStabilized()
 
 	// apply policy rules
 	if policy.FailIfNotConnected && !newCluster.IsConnected() {
@@ -169,7 +205,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	go newCluster.clusterBoss(&newCluster.clientPolicy)
 
 	Logger.Debug("New cluster initialized and ready to be used...")
-	return newCluster, nil
+	return newCluster, err
 }
 
 // String implements the stringer interface
@@ -195,15 +231,20 @@ Loop:
 			Logger.Debug("Tend channel closed. Shutting down the cluster...")
 			break Loop
 		case <-time.After(tendInterval):
-			if err := clstr.tend(policy.FailIfNotConnected); err != nil {
+			tm := time.Now()
+			if err := clstr.tend(); err != nil {
 				Logger.Warn(err.Error())
+			}
+
+			// Tending took longer than requested tend interval.
+			// Tending is too slow for the cluster, and may be falling behind scheule.
+			if tendDuration := time.Since(tm); tendDuration > clstr.clientPolicy.TendInterval {
+				Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clstr.clientPolicy.TendInterval)
 			}
 		}
 	}
 
 	// cleanup code goes here
-	clstr.closed.Set(true)
-
 	// close the nodes
 	nodeArray := clstr.GetNodes()
 	for _, node := range nodeArray {
@@ -222,16 +263,16 @@ func (clstr *Cluster) AddSeeds(hosts []*Host) {
 }
 
 // Updates cluster state
-func (clstr *Cluster) tend(failIfNotConnected bool) error {
+func (clstr *Cluster) tend() error {
 
 	nodes := clstr.GetNodes()
-	nodes_before_tend := len(nodes)
+	nodeCountBeforeTend := len(nodes)
 
 	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
 	if len(nodes) == 0 {
 		Logger.Info("No connections available; seeding...")
-		if _, err := clstr.seedNodes(failIfNotConnected); err != nil {
+		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
 			return err
 		}
 
@@ -251,36 +292,91 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 		node.referenceCount.Set(0)
 		node.partitionChanged.Set(false)
 		if !node.supportsPeers.Get() {
-			peers.usePeers = false
+			peers.usePeers.Set(false)
 		}
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(len(nodes))
 	for _, node := range nodes {
-		if err := node.Refresh(peers); err != nil {
-			Logger.Debug("Error occured while refreshing node: %s", node.String())
-		}
+		go func(node *Node) {
+			defer wg.Done()
+			if err := node.Refresh(peers); err != nil {
+				Logger.Debug("Error occured while refreshing node: %s", node.String())
+			}
+		}(node)
 	}
+	wg.Wait()
 
 	// Refresh peers when necessary.
-	if peers.usePeers && peers.genChanged {
+	if peers.usePeers.Get() && (peers.genChanged.Get() || len(peers.peers()) != nodeCountBeforeTend) {
 		// Refresh peers for all nodes that responded the first time even if only one node's peers changed.
-		peers.refreshCount = 0
+		peers.refreshCount.Set(0)
 
+		wg.Add(len(nodes))
 		for _, node := range nodes {
-			node.refreshPeers(peers)
+			go func(node *Node) {
+				defer wg.Done()
+				node.refreshPeers(peers)
+			}(node)
 		}
+		wg.Wait()
+	}
+
+	// find the first host that connects
+	for _, _peer := range peers.peers() {
+		if clstr.peerExists(peers, _peer.nodeName) {
+			// Node already exists. Do not even try to connect to hosts.
+			continue
+		}
+
+		wg.Add(1)
+		go func(__peer *peer) {
+			defer wg.Done()
+			for _, host := range __peer.hosts {
+				// attempt connection to the host
+				nv := nodeValidator{}
+				if err := nv.validateNode(clstr, host); err != nil {
+					Logger.Warn("Add node `%s` failed: `%s`", host, err)
+					continue
+				}
+
+				// Must look for new node name in the unlikely event that node names do not agree.
+				if __peer.nodeName != nv.name {
+					Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", __peer.nodeName, nv.name, host)
+				}
+
+				if clstr.peerExists(peers, nv.name) {
+					// Node already exists. Do not even try to connect to hosts.
+					break
+				}
+
+				// Create new node.
+				node := clstr.createNode(&nv)
+				peers.addNode(nv.name, node)
+				node.refreshPartitions(peers)
+				break
+			}
+		}(_peer)
 	}
 
 	// Refresh partition map when necessary.
+	wg.Add(len(nodes))
 	for _, node := range nodes {
-		if node.partitionChanged.Get() {
-			node.refreshPartitions(peers)
-		}
+		go func(node *Node) {
+			defer wg.Done()
+			if node.partitionChanged.Get() {
+				node.refreshPartitions(peers)
+			}
+		}(node)
 	}
 
-	if peers.genChanged || !peers.usePeers {
+	// This waits for the both steps above
+	wg.Wait()
+
+	if peers.genChanged.Get() || !peers.usePeers.Get() {
 		// Handle nodes changes determined from refreshes.
-		removeList := clstr.findNodesToRemove(peers.refreshCount)
+		removeList := clstr.findNodesToRemove(peers.refreshCount.Get())
 
 		// Remove nodes in a batch.
 		if len(removeList) > 0 {
@@ -289,10 +385,13 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 			}
 			clstr.removeNodes(removeList)
 		}
+
+		clstr.aggregateNodestats(removeList)
 	}
+
 	// Add nodes in a batch.
-	if len(peers.nodes) > 0 {
-		clstr.addNodes(peers.nodes)
+	if len(peers.nodes()) > 0 {
+		clstr.addNodes(peers.nodes())
 	}
 
 	if !floatSupport {
@@ -311,11 +410,86 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 	clstr.requestProleReplicas.Set(clstr.clientPolicy.RequestProleReplicas && replicasAllSupport)
 	clstr.supportsGeo.Set(geoSupport)
 
-	// only log if node count is changed
-	if nodes_before_tend != len(clstr.GetNodes()) {
-		Logger.Info("Tend finished. Live node count: %d", len(clstr.GetNodes()))
+	// update all partitions in one go
+	var partitionMap partitionMap
+	for _, node := range clstr.GetNodes() {
+		if node.partitionChanged.Get() {
+			if partitionMap == nil {
+				partitionMap = clstr.getPartitions().clone()
+			}
+
+			partitionMap.merge(node.partitionMap)
+		}
 	}
+
+	if partitionMap != nil {
+		clstr.setPartitions(partitionMap)
+	}
+
+	// only log if node count is changed
+	if nodeCountBeforeTend != len(clstr.GetNodes()) {
+		Logger.Info("Tend finished. Live node count changes from %d to %d", nodeCountBeforeTend, len(clstr.GetNodes()))
+	}
+
+	clstr.aggregateNodestats(clstr.GetNodes())
+
 	return nil
+}
+
+func (clstr *Cluster) aggregateNodestats(nodeList []*Node) {
+	// update stats
+	clstr.statsLock.Lock()
+	defer clstr.statsLock.Unlock()
+
+	for _, node := range nodeList {
+		h := node.host.String()
+		if stats, exists := clstr.stats[h]; exists {
+			stats.aggregate(node.stats.getAndReset())
+		} else {
+			clstr.stats[h] = node.stats.getAndReset()
+		}
+	}
+}
+
+func (clstr *Cluster) statsCopy() map[string]nodeStats {
+	clstr.statsLock.Lock()
+	defer clstr.statsLock.Unlock()
+
+	res := make(map[string]nodeStats, len(clstr.stats))
+	for _, node := range clstr.GetNodes() {
+		h := node.host.String()
+		if stats, exists := clstr.stats[h]; exists {
+			statsCopy := stats.clone()
+			statsCopy.ConnectionsOpen = int64(node.connectionCount.Get())
+			res[h] = statsCopy
+		}
+	}
+
+	// stats for nodes which do not exist anymore
+	for h, stats := range clstr.stats {
+		if _, exists := res[h]; !exists {
+			stats.ConnectionsOpen = 0
+			res[h] = stats.clone()
+		}
+	}
+
+	return res
+}
+
+func (clstr *Cluster) peerExists(peers *peers, nodeName string) bool {
+	node := clstr.findNodeByName(nodeName)
+	if node != nil {
+		node.referenceCount.IncrementAndGet()
+		return true
+	}
+
+	node = peers.nodeByName(nodeName)
+	if node != nil {
+		node.referenceCount.IncrementAndGet()
+		return true
+	}
+
+	return false
 }
 
 // Tend the cluster until it has stabilized and return control.
@@ -325,19 +499,22 @@ func (clstr *Cluster) tend(failIfNotConnected bool) error {
 // If the cluster has not stabilized by the timeout, return
 // control as well.  Do not return an error since future
 // database requests may still succeed.
-func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) error {
+func (clstr *Cluster) waitTillStabilized() error {
 	count := -1
 
-	doneCh := make(chan bool, 1)
+	doneCh := make(chan error, 10)
 
-	var err error
 	// will run until the cluster is stabilized
 	go func() {
+		var err error
 		for {
-			if err = clstr.tend(failIfNotConnected); err != nil {
-				if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == NOT_AUTHENTICATED {
-					err = aerr
-					break
+			if err = clstr.tend(); err != nil {
+				if aerr, ok := err.(AerospikeError); ok {
+					switch aerr.ResultCode() {
+					case NOT_AUTHENTICATED, CLUSTER_NAME_MISMATCH_ERROR:
+						doneCh <- err
+						return
+					}
 				}
 				Logger.Warn(err.Error())
 			}
@@ -352,19 +529,19 @@ func (clstr *Cluster) waitTillStabilized(failIfNotConnected bool) error {
 
 			count = len(clstr.GetNodes())
 		}
-		doneCh <- true
+		doneCh <- err
 	}()
 
-	// returns either on timeout or on cluster stabilization
-	timeout := time.After(clstr.clientPolicy.Timeout)
 	select {
-	case <-timeout:
-		return err
-	case <-doneCh:
+	case <-time.After(clstr.clientPolicy.Timeout):
+		clstr.Close()
+		return errors.New("Connecting to the cluster timed out.")
+	case err := <-doneCh:
+		if err != nil {
+			clstr.Close()
+		}
 		return err
 	}
-
-	return err
 }
 
 func (clstr *Cluster) findAlias(alias *Host) *Node {
@@ -385,7 +562,7 @@ func (clstr *Cluster) getPartitions() partitionMap {
 }
 
 // Adds seeds to the cluster
-func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
+func (clstr *Cluster) seedNodes() (bool, error) {
 	// Must copy array reference for copy on write semantics to work.
 	seedArrayIfc, _ := clstr.seeds.GetSyncedVia(func(val interface{}) (interface{}, error) {
 		seeds := val.([]*Host)
@@ -396,42 +573,68 @@ func (clstr *Cluster) seedNodes(failIfNotConnected bool) (bool, error) {
 	})
 	seedArray := seedArrayIfc.([]*Host)
 
-	errorList := []error{}
+	successChan := make(chan struct{}, len(seedArray))
+	errChan := make(chan error, len(seedArray))
 
 	Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
 	// Add all nodes at once to avoid copying entire array multiple times.
-	nodesToAdd := map[string]*Node{}
+	var wg sync.WaitGroup
+	wg.Add(len(seedArray))
+	for i, seed := range seedArray {
+		go func(index int, seed *Host) {
+			defer wg.Done()
 
-	for _, seed := range seedArray {
-		nv := nodeValidator{}
-		err := nv.seedNodes(clstr, seed, nodesToAdd)
+			nodesToAdd := &nodesToAddT{nodesToAdd: map[string]*Node{}}
+			nv := nodeValidator{}
+			err := nv.seedNodes(clstr, seed, nodesToAdd)
+			if err != nil {
+				Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
+				errChan <- err
+				return
+			}
+			clstr.addNodes(nodesToAdd.nodesToAdd)
+			successChan <- struct{}{}
+		}(i, seed)
+	}
+
+	errorList := make([]error, 0, len(seedArray))
+	seedCount := len(seedArray)
+L:
+	for {
+		select {
+		case err := <-errChan:
+			errorList = append(errorList, err)
+			seedCount--
+			if seedCount <= 0 {
+				break L
+			}
+		case <-successChan:
+			// even one seed is enough
+			return true, nil
+		case <-time.After(clstr.clientPolicy.Timeout):
+			// time is up, no seeds found
+			wg.Wait()
+			break L
+		}
+	}
+
+	var errStrs []string
+	for _, err := range errorList {
 		if err != nil {
-			Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
-			if failIfNotConnected {
-				errorList = append(errorList, err)
+			if aerr, ok := err.(AerospikeError); ok {
+				switch aerr.ResultCode() {
+				case NOT_AUTHENTICATED:
+					return false, NewAerospikeError(NOT_AUTHENTICATED)
+				case CLUSTER_NAME_MISMATCH_ERROR:
+					return false, aerr
+				}
 			}
-			continue
+			errStrs = append(errStrs, err.Error())
 		}
 	}
 
-	if len(nodesToAdd) > 0 {
-		clstr.addNodes(nodesToAdd)
-		return true, nil
-	} else if failIfNotConnected {
-		Logger.Debug("%v", errorList)
-		errStrs := make([]string, len(errorList))
-		for i, err := range errorList {
-			if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == NOT_AUTHENTICATED {
-				return false, NewAerospikeError(NOT_AUTHENTICATED)
-			}
-			errStrs[i] = errorList[i].Error()
-		}
-
-		return false, NewAerospikeError(INVALID_NODE_ERROR, "Failed to connect to hosts:"+strings.Join(errStrs, "\n"))
-	}
-
-	return false, nil
+	return false, NewAerospikeError(INVALID_NODE_ERROR, "Failed to connect to hosts:"+strings.Join(errStrs, "\n"))
 }
 
 func (clstr *Cluster) createNode(nv *nodeValidator) *Node {
@@ -480,41 +683,33 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 			continue
 		}
 
-		switch len(nodes) {
-		case 1:
-			// Single node clusters rely on whether it responded to info requests.
-			if node.failures.Get() >= 5 {
-				// Remove node.  Seeds will be tried in next cluster tend iteration.
-				removeList = append(removeList, node)
-			}
+		// Single node clusters rely on whether it responded to info requests.
+		if refreshCount == 0 && node.failures.Get() >= 5 {
+			// All node info requests failed and this node had 5 consecutive failures.
+			// Remove node.  If no nodes are left, seeds will be tried in next cluster
+			// tend iteration.
+			removeList = append(removeList, node)
+			continue
+		}
 
-		case 2:
-			// Two node clusters require at least one successful refresh before removing.
-			if refreshCount == 1 && node.referenceCount.Get() == 0 && node.failures.Get() > 0 {
-				// Node is not referenced nor did it respond.
-				removeList = append(removeList, node)
-			}
-
-		default:
-			// Multi-node clusters require at least one successful refresh before removing
-			// or alternatively, if connection to the whle cluster has been cut.
-			if (refreshCount >= 1 && node.referenceCount.Get() == 0) || (refreshCount == 0 && node.failures.Get() > 5) {
-				// Node is not referenced by other nodes.
-				// Check if node responded to info request.
-				if node.failures.Get() == 0 {
-					// Node is alive, but not referenced by other nodes.  Check if mapped.
-					if !clstr.findNodeInPartitionMap(node) {
-						// Node doesn't have any partitions mapped to it.
-						// There is no point in keeping it in the cluster.
-						removeList = append(removeList, node)
-					}
-				} else {
-					// Node not responding. Remove it.
+		// Two node clusters require at least one successful refresh before removing.
+		if len(nodes) > 1 && refreshCount >= 1 && node.referenceCount.Get() == 0 {
+			// Node is not referenced by other nodes.
+			// Check if node responded to info request.
+			if node.failures.Get() == 0 {
+				// Node is alive, but not referenced by other nodes.  Check if mapped.
+				if !clstr.findNodeInPartitionMap(node) {
+					// Node doesn't have any partitions mapped to it.
+					// There is no point in keeping it in the cluster.
 					removeList = append(removeList, node)
 				}
+			} else {
+				// Node not responding. Remove it.
+				removeList = append(removeList, node)
 			}
 		}
 	}
+
 	return removeList
 }
 
@@ -535,29 +730,30 @@ func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
 }
 
 func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
-	oldNodes := clstr.nodes.Get().([]*Node)
-	nodes := make([]*Node, 0, len(oldNodes)+len(nodesToAdd))
-	nodes = append(nodes, oldNodes...)
-
-	for _, node := range nodesToAdd {
-		if node != nil {
-			nodes = append(nodes, node)
+	clstr.nodes.Update(func(val interface{}) (interface{}, error) {
+		nodes := val.([]*Node)
+		for _, node := range nodesToAdd {
+			if node != nil && !clstr.findNodeName(nodes, node.name) {
+				Logger.Debug("Adding node %s (%s) to the cluster.", node.name, node.host.String())
+				nodes = append(nodes, node)
+			}
 		}
-	}
 
-	nodesMap := make(map[string]*Node, len(nodes))
-	nodesAliases := make(map[Host]*Node, len(nodes))
-	for i := range nodes {
-		nodesMap[nodes[i].name] = nodes[i]
+		nodesMap := make(map[string]*Node, len(nodes))
+		nodesAliases := make(map[Host]*Node, len(nodes))
+		for i := range nodes {
+			nodesMap[nodes[i].name] = nodes[i]
 
-		for _, alias := range nodes[i].GetAliases() {
-			nodesAliases[*alias] = nodes[i]
+			for _, alias := range nodes[i].GetAliases() {
+				nodesAliases[*alias] = nodes[i]
+			}
 		}
-	}
 
-	clstr.nodes.Set(nodes)
-	clstr.nodesMap.Set(nodesMap)
-	clstr.aliases.Set(nodesAliases)
+		clstr.nodesMap.Set(nodesMap)
+		clstr.aliases.Set(nodesAliases)
+
+		return nodes, nil
+	})
 }
 
 func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
@@ -618,8 +814,10 @@ func (clstr *Cluster) IsConnected() bool {
 	return (len(nodeArray) > 0) && !clstr.closed.Get()
 }
 
-func (clstr *Cluster) getReadNode(partition *Partition, replica ReplicaPolicy) (*Node, error) {
+func (clstr *Cluster) getReadNode(partition *Partition, replica ReplicaPolicy, seq *int) (*Node, error) {
 	switch replica {
+	case SEQUENCE:
+		return clstr.getSequenceNode(partition, seq)
 	case MASTER:
 		return clstr.getMasterNode(partition)
 	case MASTER_PROLES:
@@ -628,6 +826,23 @@ func (clstr *Cluster) getReadNode(partition *Partition, replica ReplicaPolicy) (
 		// includes case RANDOM:
 		return clstr.GetRandomNode()
 	}
+}
+
+func (clstr *Cluster) getSequenceNode(partition *Partition, seq *int) (*Node, error) {
+	pmap := clstr.getPartitions()
+	replicaArray := pmap[partition.Namespace]
+
+	if replicaArray != nil {
+		index := *seq % len(replicaArray)
+		node := replicaArray[index][partition.PartitionId]
+
+		if node != nil && node.IsActive() {
+			return node, nil
+		}
+		*seq++
+	}
+
+	return clstr.GetRandomNode()
 }
 
 func (clstr *Cluster) getMasterNode(partition *Partition) (*Node, error) {
@@ -650,7 +865,7 @@ func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
 
 	if replicaArray != nil {
 		for range replicaArray {
-			index := int(math.Abs(float64(clstr.replicaIndex.IncrementAndGet() % len(replicaArray))))
+			index := int(atomic.AddUint64(&clstr.replicaIndex, 1) % uint64(len(replicaArray)))
 			node := replicaArray[index][partition.PartitionId]
 			if node != nil && node.IsActive() {
 				return node, nil
@@ -668,7 +883,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 	length := len(nodeArray)
 	for i := 0; i < length; i++ {
 		// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
-		index := int(math.Abs(float64(clstr.nodeIndex.IncrementAndGet() % length)))
+		index := int(atomic.AddUint64(&clstr.nodeIndex, 1) % uint64(length))
 		node := nodeArray[index]
 
 		if node != nil && node.IsActive() {
@@ -739,7 +954,7 @@ func (clstr *Cluster) findNodeByName(nodeName string) *Node {
 // Close closes all cached connections to the cluster nodes
 // and stops the tend goroutine.
 func (clstr *Cluster) Close() {
-	if !clstr.closed.Get() {
+	if clstr.closed.CompareAndToggle(false) {
 		// send close signal to maintenance channel
 		close(clstr.tendChannel)
 
