@@ -17,9 +17,9 @@ package aerospike
 import (
 	"bytes"
 	"encoding/binary"
+	"regexp"
 	"strings"
 	"time"
-
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 )
@@ -27,11 +27,60 @@ import (
 const (
 	_DEFAULT_TIMEOUT = 2 * time.Second
 	_NO_TIMEOUT      = 365 * 24 * time.Hour
+	_FIELD = 0
+	_VALUE = 1
 )
 
 // Access server's info monitoring protocol.
 type info struct {
 	msg *Message
+}
+
+func RequestNodeLatency(node *Node) (map[string]map[string]string, error) {
+        infoMap, err := RequestNodeInfo(node, "latency:")
+        if err != nil {
+                return nil, err
+        }
+        res := make(map[string]map[string]string)
+        v, exists := infoMap["latency:"]
+        if !exists {
+                return res, nil
+        }
+        values := strings.Split(v, ";")
+		flag_type := _FIELD
+		var tmp_list []string
+        for _, value := range values {
+        		if value == "error-no-data-yet-or-back-too-small"{
+        			continue
+        		}
+        		kv := strings.Split(value, ",")
+        		if flag_type == _FIELD{
+        			tmp_list = kv
+        			flag_type = _VALUE
+        		}else{
+        			tmp_map := make(map[string]string)
+        			namespace := ""
+        			operation := ""
+        			for in,field:= range tmp_list{
+        				if in == 0{
+        					matched_string := regexp.MustCompile("{.+}").FindStringSubmatch(field)
+        					namespace = strings.Trim(matched_string[0],"{}")
+        					matched_string = regexp.MustCompile("-[a-zA-Z]+:").FindStringSubmatch(field)
+        					operation = strings.Trim(matched_string[0],"-:")
+        					continue
+        				}
+        				tmp_map[operation+"_"+field] = kv[in]
+        			}
+        			for k,v := range tmp_map{
+        				if res[namespace] == nil{
+        					res[namespace]=make(map[string]string)
+        				}
+        				res[namespace][k] =v
+        			}	
+        			flag_type = _FIELD
+        		}
+        }
+        return res, nil
 }
 
 // RequestNodeInfo gets info values by name from the specified database server node.
@@ -147,3 +196,5 @@ func (nfo *info) parseMultiResponse() (map[string]string, error) {
 
 	return responses, nil
 }
+
+
