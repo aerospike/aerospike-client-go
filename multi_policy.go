@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "time"
+
 // MultiPolicy contains parameters for policy attributes used in
 // query and scan operations.
 type MultiPolicy struct {
@@ -41,8 +43,11 @@ type MultiPolicy struct {
 
 // NewMultiPolicy initializes a MultiPolicy instance with default values.
 func NewMultiPolicy() *MultiPolicy {
+	bp := NewPolicy()
+	bp.SocketTimeout = 10 * time.Second
+
 	return &MultiPolicy{
-		BasePolicy:                 NewPolicy(),
+		BasePolicy:                 bp,
 		MaxConcurrentNodes:         0,
 		RecordQueueSize:            50,
 		IncludeBinData:             true,

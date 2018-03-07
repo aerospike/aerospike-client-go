@@ -82,7 +82,7 @@ type WritePolicy struct {
 
 // NewWritePolicy initializes a new WritePolicy instance with default parameters.
 func NewWritePolicy(generation, expiration uint32) *WritePolicy {
-	return &WritePolicy{
+	res := &WritePolicy{
 		BasePolicy:         *NewPolicy(),
 		RecordExistsAction: UPDATE,
 		GenerationPolicy:   NONE,
@@ -91,4 +91,10 @@ func NewWritePolicy(generation, expiration uint32) *WritePolicy {
 		Expiration:         expiration,
 		SendKey:            false,
 	}
+
+	// Writes may not be idempotent.
+	// do not allow retries on writes by default.
+	res.MaxRetries = 0
+
+	return res
 }

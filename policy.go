@@ -68,14 +68,40 @@ type BasePolicy struct {
 	// Default: 0 (no SocketTimeout for each attempt).
 	SocketTimeout time.Duration
 
-	// MaxRetries determines maximum number of retries before aborting the current transaction.
-	// A retry is attempted when there is a network error other than timeout.
-	// If maxRetries is exceeded, the abort will occur even if the timeout
-	// has not yet been exceeded.
+	// MaxRetries determines the maximum number of retries before aborting the current transaction.
+	// The initial attempt is not counted as a retry.
+	//
+	// If MaxRetries is exceeded, the transaction will abort with an error.
+	//
+	// WARNING: Database writes that are not idempotent (such as AddOp)
+	// should not be retried because the write operation may be performed
+	// multiple times if the client timed out previous transaction attempts.
+	// It's important to use a distinct WritePolicy for non-idempotent
+	// writes which sets maxRetries = 0;
+	//
+	// Default for read: 2 (initial attempt + 2 retries = 3 attempts)
+	//
+	// Default for write/query/scan: 0 (no retries)
 	MaxRetries int //= 2;
 
-	// SleepBetweenReplies determines duration to sleep between retries if a transaction fails and the
-	// timeout was not exceeded.  Enter zero to skip sleep.
+	// SleepBetweenRtries determines the duration to sleep between retries.  Enter zero to skip sleep.
+	// This field is ignored when maxRetries is zero.
+	// This field is also ignored in async mode.
+	//
+	// The sleep only occurs on connection errors and server timeouts
+	// which suggest a node is down and the cluster is reforming.
+	// The sleep does not occur when the client's socketTimeout expires.
+	//
+	// Reads do not have to sleep when a node goes down because the cluster
+	// does not shut out reads during cluster reformation.  The default for
+	// reads is zero.
+	//
+	// The default for writes is also zero because writes are not retried by default.
+	// Writes need to wait for the cluster to reform when a node goes down.
+	// Immediate write retries on node failure have been shown to consistently
+	// result in errors.  If maxRetries is greater than zero on a write, then
+	// sleepBetweenRetries should be set high enough to allow the cluster to
+	// reform (>= 500ms).
 	SleepBetweenRetries time.Duration //= 1ms;
 
 	// SleepMultiplier specifies the multiplying factor to be used for exponential backoff during retries.
@@ -96,6 +122,7 @@ func NewPolicy() *BasePolicy {
 		Priority:            DEFAULT,
 		ConsistencyLevel:    CONSISTENCY_ONE,
 		Timeout:             0 * time.Millisecond,
+		SocketTimeout:       100 * time.Millisecond,
 		MaxRetries:          2,
 		SleepBetweenRetries: 1 * time.Millisecond,
 		SleepMultiplier:     1.0,

@@ -44,6 +44,8 @@ type baseMultiCommand struct {
 
 	errChan chan error
 
+	socketTimeout time.Duration
+
 	resObjType     reflect.Type
 	resObjMappings map[string]string
 	selectCases    []reflect.SelectCase
@@ -80,6 +82,7 @@ func (cmd *baseMultiCommand) getNode(ifc command) (*Node, error) {
 }
 
 func (cmd *baseMultiCommand) getConnection(timeout time.Duration) (*Connection, error) {
+	cmd.socketTimeout = timeout
 	return cmd.node.getConnectionWithHint(timeout, byte(xrand.Int64()%256))
 }
 
@@ -177,6 +180,11 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 
 	if length > cap(cmd.dataBuffer) {
 		cmd.dataBuffer = make([]byte, length)
+	}
+
+	// enforce socketTimeout on each read
+	if err := cmd.conn.SetTimeout(cmd.socketTimeout); err != nil {
+		return err
 	}
 
 	if n, err := cmd.conn.Read(cmd.dataBuffer[:length], length); err != nil {
