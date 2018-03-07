@@ -57,12 +57,6 @@ type WritePolicy struct {
 	// > 0: Actual expiration in seconds.
 	Expiration uint32
 
-	// Send user defined key in addition to hash digest on a record put.
-	// If the key is sent on a write, the key will be stored with the record on
-	// the server.
-	// The default is to not send the user defined key.
-	SendKey bool
-
 	// RespondPerEachOp defines for client.Operate() method, return a result for every operation.
 	// Some list operations do not return results by default (ListClearOp() for example).
 	// This can sometimes make it difficult to determine the desired result offset in the returned
@@ -89,7 +83,6 @@ func NewWritePolicy(generation, expiration uint32) *WritePolicy {
 		CommitLevel:        COMMIT_ALL,
 		Generation:         generation,
 		Expiration:         expiration,
-		SendKey:            false,
 	}
 
 	// Writes may not be idempotent.

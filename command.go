@@ -71,6 +71,8 @@ const (
 	_INFO3_CREATE_OR_REPLACE int = (1 << 4)
 	// Completely replace existing record only.
 	_INFO3_REPLACE_ONLY int = (1 << 5)
+	// Linearize read when in CP mode.
+	_INFO3_LINEARIZE_READ int = (1 << 6)
 
 	_MSG_TOTAL_HEADER_SIZE     uint8 = 30
 	_FIELD_HEADER_SIZE         uint8 = 5
@@ -1129,6 +1131,10 @@ func (cmd *baseCommand) estimateOperationSize() {
 
 // Generic header write.
 func (cmd *baseCommand) writeHeader(policy *BasePolicy, readAttr int, writeAttr int, fieldCount int, operationCount int) {
+	infoAttr := 0
+	if policy.LinearizeRead {
+		infoAttr |= _INFO3_LINEARIZE_READ
+	}
 
 	if policy.ConsistencyLevel == CONSISTENCY_ALL {
 		readAttr |= _INFO1_CONSISTENCY_ALL
@@ -1138,8 +1144,9 @@ func (cmd *baseCommand) writeHeader(policy *BasePolicy, readAttr int, writeAttr 
 	cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
 	cmd.dataBuffer[9] = byte(readAttr)
 	cmd.dataBuffer[10] = byte(writeAttr)
+	cmd.dataBuffer[11] = byte(infoAttr)
 
-	for i := 11; i < 26; i++ {
+	for i := 12; i < 26; i++ {
 		cmd.dataBuffer[i] = 0
 	}
 	cmd.dataOffset = 26
@@ -1178,6 +1185,10 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 
 	if policy.CommitLevel == COMMIT_MASTER {
 		infoAttr |= _INFO3_COMMIT_MASTER
+	}
+
+	if policy.LinearizeRead {
+		infoAttr |= _INFO3_LINEARIZE_READ
 	}
 
 	if policy.ConsistencyLevel == CONSISTENCY_ALL {

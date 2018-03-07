@@ -15,10 +15,8 @@
 package aerospike
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,70 +27,6 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
-
-type partitionMap map[string][][]*Node
-
-// String implements stringer interface for partitionMap
-func (pm partitionMap) clone() partitionMap {
-	// Make shallow copy of map.
-	pmap := make(partitionMap, len(pm))
-	for ns, replArr := range pm {
-		newReplArr := make([][]*Node, len(replArr))
-		for i, nArr := range replArr {
-			newNArr := make([]*Node, len(nArr))
-			copy(newNArr, nArr)
-			newReplArr[i] = newNArr
-		}
-		pmap[ns] = newReplArr
-	}
-	return pmap
-}
-
-// String implements stringer interface for partitionMap
-func (pm partitionMap) merge(partMap partitionMap) {
-	// merge partitions; iterate over the new partition and update the old one
-	for ns, replicaArray := range partMap {
-		if pm[ns] == nil {
-			pm[ns] = make([][]*Node, len(replicaArray))
-		}
-
-		for i, nodeArray := range replicaArray {
-			if pm[ns][i] == nil {
-				pm[ns][i] = make([]*Node, len(nodeArray))
-			}
-
-			for j, node := range nodeArray {
-				if node != nil {
-					pm[ns][i][j] = node
-				}
-			}
-		}
-	}
-}
-
-// String implements stringer interface for partitionMap
-func (pm partitionMap) String() string {
-	res := bytes.Buffer{}
-	for ns, replicaArray := range pm {
-		for i, nodeArray := range replicaArray {
-			for j, node := range nodeArray {
-				res.WriteString(ns)
-				res.WriteString(",")
-				res.WriteString(strconv.Itoa(i))
-				res.WriteString(",")
-				res.WriteString(strconv.Itoa(j))
-				res.WriteString(",")
-				if node != nil {
-					res.WriteString(node.String())
-				} else {
-					res.WriteString("NIL")
-				}
-				res.WriteString("\n")
-			}
-		}
-	}
-	return res.String()
-}
 
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
@@ -714,10 +648,10 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 }
 
 func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
-	partitions := clstr.getPartitions()
+	partitionMap := clstr.getPartitions()
 
-	for _, replicaArray := range partitions {
-		for _, nodeArray := range replicaArray {
+	for _, partitions := range partitionMap {
+		for _, nodeArray := range partitions.Replicas {
 			for _, node := range nodeArray {
 				// Use reference equality for performance.
 				if node == filter {
@@ -830,7 +764,12 @@ func (clstr *Cluster) getReadNode(partition *Partition, replica ReplicaPolicy, s
 
 func (clstr *Cluster) getSequenceNode(partition *Partition, seq *int) (*Node, error) {
 	pmap := clstr.getPartitions()
-	replicaArray := pmap[partition.Namespace]
+	partitions := pmap[partition.Namespace]
+	if partitions == nil {
+		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace", partition.Namespace)
+	}
+
+	replicaArray := partitions.Replicas
 
 	if replicaArray != nil {
 		index := *seq % len(replicaArray)
@@ -842,26 +781,38 @@ func (clstr *Cluster) getSequenceNode(partition *Partition, seq *int) (*Node, er
 		*seq++
 	}
 
-	return clstr.GetRandomNode()
-}
-
-func (clstr *Cluster) getMasterNode(partition *Partition) (*Node, error) {
-	pmap := clstr.getPartitions()
-	replicaArray := pmap[partition.Namespace]
-
-	if replicaArray != nil {
-		node := replicaArray[0][partition.PartitionId]
-		if node != nil && node.IsActive() {
-			return node, nil
-		}
+	if partitions.CPMode {
+		// When master only specified, both AP and CP modes should never get random nodes.
+		return nil, NewAerospikeError(INVALID_NODE_ERROR)
 	}
 
 	return clstr.GetRandomNode()
 }
 
+func (clstr *Cluster) getMasterNode(partition *Partition) (*Node, error) {
+	pmap := clstr.getPartitions()
+	partitions := pmap[partition.Namespace]
+	if partitions == nil {
+		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace", partition.Namespace)
+	}
+
+	node := partitions.Replicas[0][partition.PartitionId]
+	if node != nil && node.IsActive() {
+		return node, nil
+	}
+
+	// When master only specified, both AP and CP modes should never get random nodes.
+	return nil, NewAerospikeError(INVALID_NODE_ERROR)
+}
+
 func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
 	pmap := clstr.getPartitions()
-	replicaArray := pmap[partition.Namespace]
+	partitions := pmap[partition.Namespace]
+	if partitions == nil {
+		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace", partition.Namespace)
+	}
+
+	replicaArray := partitions.Replicas
 
 	if replicaArray != nil {
 		for range replicaArray {
@@ -871,6 +822,11 @@ func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
 				return node, nil
 			}
 		}
+	}
+
+	if partitions.CPMode {
+		// When master only specified, both AP and CP modes should never get random nodes.
+		return nil, NewAerospikeError(INVALID_NODE_ERROR)
 	}
 
 	return clstr.GetRandomNode()

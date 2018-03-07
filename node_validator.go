@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -49,7 +50,7 @@ type nodeValidator struct {
 	aliases     []*Host
 	primaryHost *Host
 
-	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo, supportsPeers bool
+	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsReplicas, supportsGeo, supportsPeers bool
 }
 
 func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd *nodesToAddT) error {
@@ -159,9 +160,9 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 
 	var infoKeys []string
 	if hasClusterName {
-		infoKeys = []string{"node", "features", "cluster-name"}
+		infoKeys = []string{"node", "partition-generation", "features", "cluster-name"}
 	} else {
-		infoKeys = []string{"node", "features"}
+		infoKeys = []string{"node", "partition-generation", "features"}
 	}
 	infoMap, err := RequestInfo(conn, infoKeys...)
 	if err != nil {
@@ -171,6 +172,20 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	nodeName, exists := infoMap["node"]
 	if !exists {
 		return NewAerospikeError(INVALID_NODE_ERROR)
+	}
+
+	genStr, exists := infoMap["partition-generation"]
+	if !exists {
+		return NewAerospikeError(INVALID_NODE_ERROR)
+	}
+
+	gen, err := strconv.Atoi(genStr)
+	if err != nil {
+		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid partition-generation for Node %s (%s), value: %s", nodeName, alias.String(), genStr))
+	}
+
+	if gen == -1 {
+		return NewAerospikeError(INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is not yet fully initialized", nodeName, alias.String()))
 	}
 
 	if hasClusterName {
@@ -200,6 +215,8 @@ func (ndv *nodeValidator) setFeatures(features string) {
 			ndv.supportsFloat = true
 		case "batch-index":
 			ndv.supportsBatchIndex = true
+		case "replicas":
+			ndv.supportsReplicas = true
 		case "replicas-all":
 			ndv.supportsReplicasAll = true
 		case "geo":

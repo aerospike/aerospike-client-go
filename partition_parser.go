@@ -29,6 +29,7 @@ import (
 const (
 	_PartitionGeneration = "partition-generation"
 	_ReplicasMaster      = "replicas-master"
+	_Replicas            = "replicas"
 	_ReplicasAll         = "replicas-all"
 )
 
@@ -47,12 +48,16 @@ func newPartitionParser(node *Node, partitionCount int, requestProleReplicas boo
 		partitionCount: partitionCount,
 	}
 
-	// Send format 1:  partition-generation\nreplicas-master\n
+	// Send format 1:  partition-generation\nreplicas\n
 	// Send format 2:  partition-generation\nreplicas-all\n
+	// Send format 3:  partition-generation\nreplicas-master\n
 	command := _ReplicasMaster
-	if requestProleReplicas {
+	if node.supportsReplicas.Get() {
+		command = _Replicas
+	} else if requestProleReplicas {
 		command = _ReplicasAll
 	}
+
 	info, err := node.requestRawInfo(_PartitionGeneration, command)
 	if err != nil {
 		return nil, err
@@ -71,8 +76,10 @@ func newPartitionParser(node *Node, partitionCount int, requestProleReplicas boo
 
 	newPartitionParser.pmap = make(partitionMap)
 
-	if requestProleReplicas {
-		err = newPartitionParser.parseReplicasAll(node)
+	if node.supportsReplicas.Get() {
+		err = newPartitionParser.parseReplicasAll(node, command)
+	} else if requestProleReplicas {
+		err = newPartitionParser.parseReplicasAll(node, command)
 	} else {
 		err = newPartitionParser.parseReplicasMaster(node)
 	}
@@ -145,15 +152,14 @@ func (pp *partitionParser) parseReplicasMaster(node *Node) error {
 				return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Empty partition id for namespace `%s` response: `%s`", namespace, response))
 			}
 
-			replicaArray := pp.pmap[namespace]
-
-			if replicaArray == nil {
-				replicaArray = make([][]*Node, 1)
-				replicaArray[0] = make([]*Node, pp.partitionCount)
-				pp.pmap[namespace] = replicaArray
+			partitions := pp.pmap[namespace]
+			if partitions == nil {
+				// Create new replica array.
+				partitions = newPartitions(pp.partitionCount, 1, false)
+				pp.pmap[namespace] = partitions
 			}
 
-			if err := pp.decodeBitmap(node, replicaArray[0], begin); err != nil {
+			if err := pp.decodeBitmap(node, partitions, 0, 0, begin); err != nil {
 				return err
 			}
 			pp.offset++
@@ -166,16 +172,17 @@ func (pp *partitionParser) parseReplicasMaster(node *Node) error {
 	return nil
 }
 
-func (pp *partitionParser) parseReplicasAll(node *Node) error {
+func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 	// Use low-level info methods and parse byte array directly for maximum performance.
 	// Receive format: replicas-all\t
-	//                 <ns1>:<count>,<base 64 encoded bitmap1>,<base 64 encoded bitmap2>...;
-	//                 <ns2>:<count>,<base 64 encoded bitmap1>,<base 64 encoded bitmap2>...;\n
-	if err := pp.expectName(_ReplicasAll); err != nil {
+	//                 <ns1>:[regime],<count>,<base 64 encoded bitmap1>,<base 64 encoded bitmap2>...;
+	//                 <ns2>:[regime],<count>,<base 64 encoded bitmap1>,<base 64 encoded bitmap2>...;\n
+	if err := pp.expectName(command); err != nil {
 		return err
 	}
 
 	begin := pp.offset
+	regime := 0
 
 	for pp.offset < pp.length {
 		if pp.buffer[pp.offset] == ':' {
@@ -188,6 +195,27 @@ func (pp *partitionParser) parseReplicasAll(node *Node) error {
 			}
 			pp.offset++
 			begin = pp.offset
+
+			// Parse regime.
+			if command == _Replicas {
+				for pp.offset < pp.length {
+					b := pp.buffer[pp.offset]
+
+					if b == ',' {
+						break
+					}
+					pp.offset++
+				}
+
+				var err error
+				regime, err = strconv.Atoi(string(pp.buffer[begin:pp.offset]))
+				if err != nil {
+					return err
+				}
+
+				pp.offset++
+				begin = pp.offset
+			}
 
 			// Parse replica count.
 			for pp.offset < pp.length {
@@ -204,45 +232,17 @@ func (pp *partitionParser) parseReplicasAll(node *Node) error {
 				return err
 			}
 
-			// Ensure replicaArray is correct size.
-			replicaArray := pp.pmap[namespace]
-
-			if replicaArray == nil {
+			partitions := pp.pmap[namespace]
+			if partitions == nil {
 				// Create new replica array.
-				replicaArray = make([][]*Node, replicaCount)
+				partitions = newPartitions(pp.partitionCount, replicaCount, regime != 0)
+				pp.pmap[namespace] = partitions
+			} else if len(partitions.Replicas) != replicaCount {
+				// Ensure replicaArray is correct size.
+				Logger.Info("Namespace `%s` replication factor changed from `%d` to `%d` ", namespace, len(partitions.Replicas), replicaCount)
 
-				for i := 0; i < replicaCount; i++ {
-					replicaArray[i] = make([]*Node, pp.partitionCount)
-				}
-
-				pp.pmap[namespace] = replicaArray
-			} else if len(replicaArray) != replicaCount {
-				Logger.Info("Namespace `%s` replication factor changed from `%d` to `%d` ", namespace, len(replicaArray), replicaCount)
-
-				// Resize replica array.
-				replicaTarget := make([][]*Node, replicaCount)
-
-				if len(replicaArray) < replicaCount {
-					i := 0
-
-					// Copy existing entries.
-					for ; i < len(replicaArray); i++ {
-						replicaTarget[i] = replicaArray[i]
-					}
-
-					// Create new entries.
-					for ; i < replicaCount; i++ {
-						replicaTarget[i] = make([]*Node, pp.partitionCount)
-					}
-				} else {
-					// Copy existing entries.
-					for i := 0; i < replicaCount; i++ {
-						replicaTarget[i] = replicaArray[i]
-					}
-				}
-
-				replicaArray = replicaTarget
-				pp.pmap[namespace] = replicaArray
+				partitions = clonePartitions(partitions, replicaCount)
+				pp.pmap[namespace] = partitions
 			}
 
 			// Parse partition bitmaps.
@@ -265,7 +265,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node) error {
 					return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Empty partition id for namespace `%s` response: `%s`", namespace, response))
 				}
 
-				if err := pp.decodeBitmap(node, replicaArray[i], begin); err != nil {
+				if err := pp.decodeBitmap(node, partitions, i, regime, begin); err != nil {
 					return err
 				}
 			}
@@ -279,7 +279,9 @@ func (pp *partitionParser) parseReplicasAll(node *Node) error {
 	return nil
 }
 
-func (pp *partitionParser) decodeBitmap(node *Node, nodeArray []*Node, begin int) error {
+func (pp *partitionParser) decodeBitmap(node *Node, partitions *Partitions, index int, regime int, begin int) error {
+	nodeArray := partitions.Replicas[index]
+	regimes := partitions.regimes
 	restoreBuffer, err := base64.StdEncoding.DecodeString(string(pp.buffer[begin:pp.offset]))
 	if err != nil {
 		return err
@@ -290,16 +292,24 @@ func (pp *partitionParser) decodeBitmap(node *Node, nodeArray []*Node, begin int
 
 		if (restoreBuffer[i>>3] & (0x80 >> uint(i&7))) != 0 {
 			// Node owns this partition.
-			if nodeOld != nil && nodeOld != node {
-				// Force previously mapped node to refresh it's partition map on next cluster tend.
-				nodeOld.partitionGeneration.Set(-1)
-			}
+			regimeOld := regimes[i]
 
-			// Use lazy set because there is only one producer thread. In addition,
-			// there is a one second delay due to the cluster tend polling interval.
-			// An extra millisecond for a node change will not make a difference and
-			// overall performance is improved.
-			nodeArray[i] = node
+			if regime == 0 || regime >= regimeOld {
+				if regime > regimeOld {
+					regimes[i] = regime
+				}
+
+				if nodeOld != nil && nodeOld != node {
+					// Force previously mapped node to refresh it's partition map on next cluster tend.
+					nodeOld.partitionGeneration.Set(-1)
+				}
+
+				// Use lazy set because there is only one producer thread. In addition,
+				// there is a one second delay due to the cluster tend polling interval.
+				// An extra millisecond for a node change will not make a difference and
+				// overall performance is improved.
+				nodeArray[i] = node
+			}
 		} else {
 			// Node does not own partition.
 			if node == nodeOld {

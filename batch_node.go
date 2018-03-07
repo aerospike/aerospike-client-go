@@ -48,8 +48,7 @@ func newBatchNodeList(cluster *Cluster, policy *BatchPolicy, keys []*Key) ([]*ba
 		partition := NewPartitionByKey(keys[i])
 
 		// error not required
-		seq := 0
-		node, err := cluster.getReadNode(partition, policy.ReplicaPolicy, &seq)
+		node, err := cluster.getMasterNode(partition)
 		if err != nil {
 			return nil, err
 		}
@@ -86,8 +85,7 @@ func newBatchIndexNodeList(cluster *Cluster, policy *BatchPolicy, records []*Bat
 		partition := NewPartitionByKey(records[i].Key)
 
 		// error not required
-		seq := 0
-		node, err := cluster.getReadNode(partition, policy.ReplicaPolicy, &seq)
+		node, err := cluster.getMasterNode(partition)
 		if err != nil {
 			return nil, err
 		}

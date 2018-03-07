@@ -108,7 +108,17 @@ type BasePolicy struct {
 	// Default to (1.0); Only values greater than 1 are valid.
 	SleepMultiplier float64 //= 1.0;
 
-	// ReplicaPolicy detemines the node to send the read commands containing the key's partition replica type.
+	// SendKey determines to whether send user defined key in addition to hash digest on both reads and writes.
+	// If the key is sent on a write, the key will be stored with the record on
+	// the server.
+	// The default is to not send the user defined key.
+	SendKey bool // = false
+
+	// Force reads to be linearized for server namespaces that support CP mode.
+	// The default is false.
+	LinearizeRead bool
+
+	// ReplicaPolicy determines the node to send the read commands containing the key's partition replica type.
 	// Write commands are not affected by this setting, because all writes are directed
 	// to the node containing the key's master partition.
 	// Batch, scan and query are also not affected by replica algorithms.
@@ -127,6 +137,8 @@ func NewPolicy() *BasePolicy {
 		SleepBetweenRetries: 1 * time.Millisecond,
 		SleepMultiplier:     1.0,
 		ReplicaPolicy:       SEQUENCE,
+		SendKey:             false,
+		LinearizeRead:       false,
 	}
 }
 
