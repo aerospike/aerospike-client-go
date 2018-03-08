@@ -217,7 +217,7 @@ func (cmd *readCommand) GetRecord() *Record {
 }
 
 func (cmd *readCommand) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, true)
 }
 
 func (cmd *readCommand) handleWriteKeyNotFoundError(resultCode ResultCode) error {

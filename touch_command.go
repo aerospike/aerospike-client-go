@@ -74,5 +74,5 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 }
 
 func (cmd *touchCommand) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, false)
 }

@@ -86,5 +86,5 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 }
 
 func (cmd *serverCommand) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, false)
 }

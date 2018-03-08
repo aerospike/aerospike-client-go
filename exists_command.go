@@ -77,5 +77,5 @@ func (cmd *existsCommand) Exists() bool {
 }
 
 func (cmd *existsCommand) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, true)
 }

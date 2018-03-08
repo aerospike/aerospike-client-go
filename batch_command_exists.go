@@ -134,5 +134,5 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 }
 
 func (cmd *batchCommandExists) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, true)
 }

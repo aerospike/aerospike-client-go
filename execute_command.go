@@ -50,5 +50,5 @@ func (cmd *executeCommand) getNode(ifc command) (*Node, error) {
 }
 
 func (cmd *executeCommand) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, false)
 }

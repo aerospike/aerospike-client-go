@@ -66,5 +66,5 @@ func (cmd *batchIndexCommandGet) writeBuffer(ifc command) error {
 }
 
 func (cmd *batchIndexCommandGet) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, true)
 }

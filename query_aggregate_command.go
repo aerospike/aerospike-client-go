@@ -19,7 +19,7 @@ import (
 
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 )
 
 type queryAggregateCommand struct {
@@ -41,7 +41,7 @@ func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statem
 
 func (cmd *queryAggregateCommand) Execute() error {
 	// defer cmd.recordset.signalEnd()
-	err := cmd.execute(cmd)
+	err := cmd.execute(cmd, true)
 	if err != nil {
 		cmd.recordset.sendError(err)
 	}

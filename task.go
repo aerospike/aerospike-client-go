@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"time"
+
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 // Task interface defines methods for asynchronous tasks.
@@ -64,6 +66,9 @@ func (btsk *baseTask) onComplete(ifc Task) chan error {
 				done, err := ifc.IsDone()
 				btsk.retries++
 				if err != nil {
+					if _, ok := err.(AerospikeError); ok && err.(AerospikeError).ResultCode() == TIMEOUT {
+						err.(AerospikeError).MarkInDoubt()
+					}
 					btsk.onCompleteChan <- err
 					return
 				} else if done {

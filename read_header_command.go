@@ -86,5 +86,5 @@ func (cmd *readHeaderCommand) GetRecord() *Record {
 }
 
 func (cmd *readHeaderCommand) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, true)
 }

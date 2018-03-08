@@ -45,7 +45,7 @@ func (cmd *operateCommand) getNode(ifc command) (*Node, error) {
 }
 
 func (cmd *operateCommand) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, !cmd.hasWrite)
 }
 
 func (cmd *operateCommand) handleWriteKeyNotFoundError(resultCode ResultCode) error {

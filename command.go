@@ -94,7 +94,7 @@ type command interface {
 	parseResult(ifc command, conn *Connection) error
 	parseRecordResults(ifc command, receiveSize int) (bool, error)
 
-	execute(ifc command) error
+	execute(ifc command, isRead bool) error
 	// Executes the command
 	Execute() error
 }
@@ -1549,6 +1549,13 @@ func (cmd *baseCommand) end() {
 
 ////////////////////////////////////
 
+func setInDoubt(err error, isRead bool, commandSentCounter int) {
+	// set inDoubt flag
+	if _, ok := err.(AerospikeError); ok {
+		err.(AerospikeError).SetInDoubt(isRead, commandSentCounter)
+	}
+}
+
 // SetCommandBufferPool can be used to customize the command Buffer Pool parameters to calibrate
 // the pool for different workloads
 // This method is deprecated.
@@ -1556,9 +1563,10 @@ func SetCommandBufferPool(poolSize, initBufSize, maxBufferSize int) {
 	panic("There is no need to optimize the buffer pool anymore. Buffers have moved to Connection object. To tweak the initial buffer sizes, use DefaultBufferSize.")
 }
 
-func (cmd *baseCommand) execute(ifc command) error {
+func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	iterations := -1
+	commandSentCounter := 0
 
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
@@ -1575,7 +1583,9 @@ func (cmd *baseCommand) execute(ifc command) error {
 	for {
 		// too many retries
 		if iterations++; (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
-			return NewAerospikeError(TIMEOUT, fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err))
+			err := NewAerospikeError(TIMEOUT, fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err))
+			setInDoubt(err, isRead, commandSentCounter)
+			return err
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -1630,6 +1640,7 @@ func (cmd *baseCommand) execute(ifc command) error {
 			Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
 		}
+		commandSentCounter++
 
 		// Parse results.
 		err = ifc.parseResult(ifc, cmd.conn)
@@ -1658,6 +1669,8 @@ func (cmd *baseCommand) execute(ifc command) error {
 				cmd.conn.Close()
 
 			}
+
+			setInDoubt(err, isRead, commandSentCounter)
 			return err
 		}
 

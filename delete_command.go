@@ -78,5 +78,5 @@ func (cmd *deleteCommand) Existed() bool {
 }
 
 func (cmd *deleteCommand) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, false)
 }

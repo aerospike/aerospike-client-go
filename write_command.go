@@ -86,5 +86,5 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {
 }
 
 func (cmd *writeCommand) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, false)
 }

@@ -254,5 +254,5 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expir
 }
 
 func (cmd *batchCommandGet) Execute() error {
-	return cmd.execute(cmd)
+	return cmd.execute(cmd, true)
 }
