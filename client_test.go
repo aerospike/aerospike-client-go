@@ -147,7 +147,13 @@ var _ = Describe("Aerospike", func() {
 					defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(rec.Expiration).To(Equal(uint32(defaultTTL)))
+					switch defaultTTL {
+					case 0:
+						Expect(rec.Expiration).To(Equal(uint32(math.MaxUint32)))
+					default:
+						Expect(rec.Expiration).To(Equal(uint32(defaultTTL)))
+					}
+
 				})
 
 				It("must return TTLDontExpire if set to TTLDontExpire", func() {
@@ -179,7 +185,13 @@ var _ = Describe("Aerospike", func() {
 
 					rec, err = client.Get(rpolicy, key)
 					Expect(err).ToNot(HaveOccurred())
-					Expect(rec.Expiration).To(BeNumerically("<=", uint32(defaultTTL-3))) // default expiration on server is set to 30d
+
+					switch defaultTTL {
+					case 0:
+						Expect(rec.Expiration).To(Equal(uint32(math.MaxUint32)))
+					default:
+						Expect(rec.Expiration).To(BeNumerically("<=", uint32(defaultTTL-3))) // default expiration on server is set to 30d
+					}
 				})
 			})
 
