@@ -84,9 +84,9 @@ func (pm partitionMap) clone() partitionMap {
 }
 
 // String implements stringer interface for partitionMap
-func (pm partitionMap) merge(partMap partitionMap) {
+func (pm partitionMap) merge(other partitionMap) {
 	// merge partitions; iterate over the new partition and update the old one
-	for ns, partitions := range partMap {
+	for ns, partitions := range other {
 		replicaArray := partitions.Replicas
 		if pm[ns] == nil {
 			pm[ns] = clonePartitions(partitions, len(replicaArray))
@@ -103,6 +103,21 @@ func (pm partitionMap) merge(partMap partitionMap) {
 				}
 			}
 		}
+
+		if len(pm[ns].regimes) < len(partitions.regimes) {
+			// expand regime size array
+			regimes := make([]int, len(partitions.regimes))
+			copy(regimes, pm[ns].regimes)
+			pm[ns].regimes = regimes
+		}
+
+		// merge regimes
+		for i := range partitions.regimes {
+			if pm[ns].regimes[i] < partitions.regimes[i] {
+				pm[ns].regimes[i] = partitions.regimes[i]
+			}
+		}
+
 	}
 }
 
