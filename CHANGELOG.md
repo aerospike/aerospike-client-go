@@ -1,5 +1,28 @@
 # Change History
 
+## March 15 2018: v1.32.0
+
+  Major feature release.
+
+  * **New Features**
+  
+    - Support for *Strong Consistency* mode in Aerospike Server v4. You will need to set the `policy.LinearizeRead` to `true`. Adds `AerospikeError.InDoubt()` method.
+    - Set the resulting `Record.Key` value in Batch Operations to the Original User-Provided Key to preserve the original namespace/set/userValue and avoid memory allocation.
+
+  * **Changes**
+
+    - Does not retry on writes by default, and put a 100ms timeout on all transactions by default.
+    - Changed some warn logs to debug level.
+    - Add missing stats counters to improve statistics reports.
+    - Uses sync.Once instead of sync.Mutex for `Connection.close` method.
+    - Added `DefaultBufferSize` for initial buffer size for connections.
+
+  * **Fixes**
+
+    - Fix the tests for object marshalling to account for monotonic time in Go v1.8+.
+    - Stops the ongoing tends on initial connection errors.
+
+
 ## November 29 2017: v1.31.0
 
   Feature release.
