@@ -111,7 +111,7 @@ Includes All Base Policy attributes, plus:
                            * Default: `0` All nodes.
 - `RecordQueueSize`       – Number of records to place in queue before blocking.
   Records received from multiple server nodes will be placed in a queue. A separate goroutine consumes these records in parallel. If the queue is full, the producer goroutines will block until records are consumed.
-                           * Default: `5000`
+                           * Default: `50`
 
 <!--
 ################################################################################
