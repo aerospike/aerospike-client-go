@@ -542,7 +542,7 @@ func (nd *Node) MigrationInProgress() (bool, error) {
 	}
 
 	// if the migration_progress_send exists and is not `0`, then migration is in progress
-	if migration, exists := values["migrate_progress_send"]; exists && migration != "0" {
+	if migration, exists := values["migrate_tx_partitions_active"]; exists && migration != "0" {
 		return true, nil
 	}
 
