@@ -150,6 +150,15 @@ func (clstr *Cluster) String() string {
 // Maintains the cluster on intervals.
 // All clean up code for cluster is here as well.
 func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
+	Logger.Info("Starting the cluster tend goroutine...")
+
+	defer func() {
+		if r := recover(); r != nil {
+			Logger.Error("Cluster tend goroutine crashed:", r)
+			go clstr.clusterBoss(&clstr.clientPolicy)
+		}
+	}()
+
 	defer clstr.wgTend.Done()
 
 	tendInterval := policy.TendInterval
