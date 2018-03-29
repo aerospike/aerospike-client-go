@@ -165,5 +165,5 @@ func (p *BasePolicy) socketTimeout() (time.Duration, error) {
 			return p.SocketTimeout, nil
 		}
 	}
-	return 0, fmt.Errorf("Ivalid Socket timeout %v and/or total transaction Timeout %v", p.SocketTimeout, p.Timeout)
+	return 0, fmt.Errorf("Invalid Socket timeout %v and/or total transaction Timeout %v", p.SocketTimeout, p.Timeout)
 }

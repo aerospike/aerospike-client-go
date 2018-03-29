@@ -97,7 +97,7 @@ func (q *singleConnectionQueue) Len() int {
 	return cnt
 }
 
-// singleConnectionQueue is a non-blocking FIFO queue.
+// connectionQueue is a non-blocking FIFO queue.
 // If the queue is empty, nil is returned.
 // if the queue is full, offer will return false
 type connectionQueue struct {
