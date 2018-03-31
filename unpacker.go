@@ -286,7 +286,7 @@ func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, error) {
 		if Buffer.Arch64Bits {
 			return int(val), nil
 		}
-		return int64(val), nil
+		return val, nil
 
 	case 0xc4, 0xd9:
 		count := int(upckr.buffer[upckr.offset] & 0xff)
@@ -382,7 +382,7 @@ func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, error) {
 		}
 
 		if theType >= 0xe0 {
-			return int(int(theType) - 0xe0 - 32), nil
+			return int(theType) - 0xe0 - 32, nil
 		}
 	}
 

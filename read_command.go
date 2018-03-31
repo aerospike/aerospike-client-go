@@ -187,7 +187,7 @@ func (cmd *readCommand) parseRecord(
 		name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
 		receiveOffset += 4 + 4 + nameSize
 
-		particleBytesSize := int(opSize - (4 + nameSize))
+		particleBytesSize := opSize - (4 + nameSize)
 		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
 		receiveOffset += particleBytesSize
 

@@ -84,7 +84,7 @@ func parseObject(
 			name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
 			receiveOffset += 4 + 4 + nameSize
 
-			particleBytesSize := int(opSize - (4 + nameSize))
+			particleBytesSize := opSize - (4 + nameSize)
 			value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
 			if err := setObjectField(mappings, iobj, name, value); err != nil {
 				return err
@@ -158,7 +158,7 @@ func setValue(f reflect.Value, value interface{}) error {
 			case uint32:
 				f.SetUint(uint64(v))
 			case uint64:
-				f.SetUint(uint64(v))
+				f.SetUint(v)
 			case uint:
 				f.SetUint(uint64(v))
 			default:
@@ -170,7 +170,7 @@ func setValue(f reflect.Value, value interface{}) error {
 				f.SetFloat(fv)
 			} else {
 				// otherwise it is an old float64<->int64 marshalling type cast which needs to be set as int
-				f.SetFloat(float64(math.Float64frombits(uint64(value.(int)))))
+				f.SetFloat(math.Float64frombits(uint64(value.(int))))
 			}
 		case reflect.String:
 			rv := reflect.ValueOf(value.(string))
@@ -187,7 +187,7 @@ func setValue(f reflect.Value, value interface{}) error {
 		case reflect.Ptr:
 			switch f.Type().Elem().Kind() {
 			case reflect.Int:
-				tempV := int(value.(int))
+				tempV := value.(int)
 				rv := reflect.ValueOf(&tempV)
 				if rv.Type() != f.Type() {
 					rv = rv.Convert(f.Type())
@@ -201,7 +201,7 @@ func setValue(f reflect.Value, value interface{}) error {
 				}
 				f.Set(rv)
 			case reflect.String:
-				tempV := string(value.(string))
+				tempV := value.(string)
 				rv := reflect.ValueOf(&tempV)
 				if rv.Type() != f.Type() {
 					rv = rv.Convert(f.Type())

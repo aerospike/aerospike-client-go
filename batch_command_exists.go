@@ -127,7 +127,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 				cmd.existsArray[offset] = true
 			}
 		} else {
-			return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(key.namespace)+","+Buffer.BytesToHexString(key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.keys[offset].digest[:]))
+			return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+key.namespace+","+Buffer.BytesToHexString(key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.keys[offset].digest[:]))
 		}
 	}
 	return true, nil

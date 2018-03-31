@@ -1502,12 +1502,12 @@ func (cmd *baseCommand) validateHeader(header int64) error {
 		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected version to be 2, but got %v", msgVersion))
 	}
 
-	msgType := uint64((uint64(header) & 0x00FF000000000000)) >> 49
+	msgType := (uint64(header) & 0x00FF000000000000) >> 49
 	if !(msgType == 1 || msgType == 3) {
 		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected type to be 1 or 3, but got %v", msgType))
 	}
 
-	msgSize := int64((header & 0x0000FFFFFFFFFFFF))
+	msgSize := header & 0x0000FFFFFFFFFFFF
 	if msgSize > int64(MaxBufferSize) {
 		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected size to be under 10MiB, but got %v", msgSize))
 	}

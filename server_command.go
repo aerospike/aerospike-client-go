@@ -76,7 +76,7 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 				return false, err
 			}
 
-			particleBytesSize := int((opSize - (4 + nameSize)))
+			particleBytesSize := opSize - (4 + nameSize)
 			if err := cmd.readBytes(particleBytesSize); err != nil {
 				return false, err
 			}

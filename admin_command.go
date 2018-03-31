@@ -563,7 +563,7 @@ func (acmd *adminCommand) readRoleBlocks(conn *Connection) (status int, rlist []
 			if receiveSize > len(acmd.dataBuffer) {
 				acmd.dataBuffer = make([]byte, receiveSize)
 			}
-			if _, err = conn.Read(acmd.dataBuffer, int(receiveSize)); err != nil {
+			if _, err = conn.Read(acmd.dataBuffer, receiveSize); err != nil {
 				return -1, nil, err
 			}
 			status, list, err = acmd.parseRolesFull(receiveSize)

@@ -255,7 +255,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 				}
 				name := string(cmd.dataBuffer[:nameSize])
 
-				particleBytesSize := int((opSize - (4 + nameSize)))
+				particleBytesSize := opSize - (4 + nameSize)
 				if err = cmd.readBytes(particleBytesSize); err != nil {
 					err = newNodeError(cmd.node, err)
 					return false, err

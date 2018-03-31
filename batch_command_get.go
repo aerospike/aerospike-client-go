@@ -194,7 +194,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 					}
 				}
 			} else {
-				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(cmd.key.namespace)+","+Buffer.BytesToHexString(cmd.key.digest[:])+". Expected:"+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
+				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+cmd.key.namespace+","+Buffer.BytesToHexString(cmd.key.digest[:])+". Expected:"+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
 			}
 		} else {
 			if bytes.Equal(cmd.key.digest[:], cmd.keys[offset].digest[:]) {
@@ -213,7 +213,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 					}
 				}
 			} else {
-				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+string(cmd.key.namespace)+","+Buffer.BytesToHexString(cmd.key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
+				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+cmd.key.namespace+","+Buffer.BytesToHexString(cmd.key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
 			}
 		}
 	}
@@ -238,7 +238,7 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expir
 		}
 		name := string(cmd.dataBuffer[:nameSize])
 
-		particleBytesSize := int(opSize - (4 + nameSize))
+		particleBytesSize := opSize - (4 + nameSize)
 		if err := cmd.readBytes(particleBytesSize); err != nil {
 			return nil, err
 		}
