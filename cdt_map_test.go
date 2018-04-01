@@ -332,6 +332,52 @@ var _ = Describe("CDT Map Test", func() {
 			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{"Harry", "Jim", []as.MapPair{{Key: "Charlie", Value: 55}, {Key: "John", Value: 81}}, 55, "Harry", []interface{}{3}, 1, []as.MapPair{{Key: "Jim", Value: 94}}, []interface{}{"John"}, []interface{}{}, []interface{}{1}, 0, 3}}))
 		})
 
+		It("should create a valid CDT Map and then Get via MapReturnType.INVERTED", func() {
+
+			items := map[interface{}]interface{}{
+				"Charlie": 55,
+				"Jim":     98,
+				"John":    76,
+				"Harry":   82,
+			}
+
+			// Write values to empty map.
+			cdtMap, err := client.Operate(wpolicy, key,
+				as.MapPutItemsOp(as.DefaultMapPolicy(), cdtBinName, items),
+			)
+
+			Expect(err).ToNot(HaveOccurred())
+
+			cdtMap, err = client.Get(nil, key)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(cdtMap.Bins)).To(Equal(1))
+
+			cdtMap, err = client.Operate(nil, key,
+				as.MapGetByRankRangeCountOp(cdtBinName, -2, 2, as.MapReturnType.KEY|as.MapReturnType.INVERTED),
+				as.MapGetByRankRangeCountOp(cdtBinName, 0, 2, as.MapReturnType.KEY_VALUE|as.MapReturnType.INVERTED),
+				as.MapGetByValueRangeOp(cdtBinName, 90, 95, as.MapReturnType.RANK|as.MapReturnType.INVERTED),
+				as.MapGetByValueRangeOp(cdtBinName, 90, 95, as.MapReturnType.COUNT|as.MapReturnType.INVERTED),
+				as.MapGetByValueRangeOp(cdtBinName, 90, 95, as.MapReturnType.KEY_VALUE|as.MapReturnType.INVERTED),
+				as.MapGetByValueRangeOp(cdtBinName, 81, 82, as.MapReturnType.KEY|as.MapReturnType.INVERTED),
+				as.MapGetByValueOp(cdtBinName, 77, as.MapReturnType.KEY|as.MapReturnType.INVERTED),
+				as.MapGetByValueOp(cdtBinName, 81, as.MapReturnType.RANK|as.MapReturnType.INVERTED),
+			)
+
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{
+				"Charlie",
+				"John",
+				[]as.MapPair{{Key: "Harry", Value: 82}, {Key: "Jim", Value: 98}},
+				[]interface{}{0, 1, 2, 3},
+				4,
+				[]as.MapPair{{Key: "Charlie", Value: 55}, {Key: "Harry", Value: 82}, {Key: "Jim", Value: 98}, {Key: "John", Value: 76}},
+				[]interface{}{"Charlie", "Harry", "Jim", "John"},
+				[]interface{}{"Charlie", "Harry", "Jim", "John"},
+				[]interface{}{0, 1, 2, 3},
+			}}))
+		})
+
 		It("should create a valid CDT Map and then execute Remove operations", func() {
 
 			items := map[interface{}]interface{}{
