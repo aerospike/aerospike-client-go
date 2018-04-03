@@ -92,7 +92,9 @@ func (pm partitionMap) merge(other partitionMap) {
 			pm[ns] = clonePartitions(partitions, len(replicaArray))
 		} else {
 			for i, nodeArray := range replicaArray {
-				if pm[ns].Replicas[i] == nil {
+				if len(pm[ns].Replicas) <= i {
+					pm[ns].Replicas = append(pm[ns].Replicas, make([]*Node, len(nodeArray)))
+				} else if pm[ns].Replicas[i] == nil {
 					pm[ns].Replicas[i] = make([]*Node, len(nodeArray))
 				}
 
