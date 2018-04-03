@@ -1,5 +1,17 @@
 # Change History
 
+## UNRELEASED
+
+  * **New Features**
+
+    - Adds `INVERTED` flag to the `MapReturnType`. Take a look at INVERTED test in `cdt_map_test.go` to see how to use it.
+
+  * **Improvements**
+
+    - Adds a recover to the tend goroutine to guarantee the client will recover from internal crashes.
+    - Removes unneeded type casts.
+    - Uses the new stat name for migrations check.
+
 ## March 15 2018: v1.32.0
 
   Major feature release.
