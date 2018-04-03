@@ -1,11 +1,12 @@
 language: go
+os:
+- linux
+dist: xenial
 go:
-# - 1.4
-#- 1.5
-#- 1.6
 - 1.7
 - 1.8
 - 1.9
+- 1.10
 - tip
 matrix:
   allow_failures:
@@ -20,7 +21,7 @@ install:
 - go get .
 - if ! go get code.google.com/p/go.tools/cmd/cover; then go get golang.org/x/tools/cmd/cover;
   fi
-- wget -O aerospike-server.tgz http://aerospike.com/download/server/latest/artifact/tgz
+- wget -O aerospike-server.tgz http://www.aerospike.com/download/server/latest/artifact/tgz
 - tar xvzf aerospike-server.tgz
 - cp -f .travis/aerospike.conf ./aerospike-server/share/etc
 - cd aerospike-server
