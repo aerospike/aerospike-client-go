@@ -602,7 +602,7 @@ func (nd *Node) requestInfoWithRetry(n int, name ...string) (res map[string]stri
 			return res, nil
 		}
 
-		Logger.Error("Error occured while fetching info from the server node %s: %s", nd.host.String(), err.Error())
+		Logger.Error("Error occurred while fetching info from the server node %s: %s", nd.host.String(), err.Error())
 		time.Sleep(100 * time.Millisecond)
 	}
 

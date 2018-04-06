@@ -83,7 +83,7 @@ type ClientPolicy struct {
 	RequestProleReplicas bool // false
 
 	// TlsConfig specifies TLS secure connection policy for TLS enabled servers.
-	// For better performance, we suggest prefering the server-side ciphers by
+	// For better performance, we suggest preferring the server-side ciphers by
 	// setting PreferServerCipherSuites = true.
 	TlsConfig *tls.Config //= nil
 

@@ -144,7 +144,7 @@ func structToMap(s reflect.Value, clusterSupportsFloat bool) map[string]interfac
 			continue
 		}
 
-		// skip transiet fields tagged `-`
+		// skip transient fields tagged `-`
 		alias := fieldAlias(typeOfT.Field(i))
 		if alias == "" {
 			continue

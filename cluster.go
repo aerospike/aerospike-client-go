@@ -17,6 +17,7 @@ package aerospike
 import (
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -154,7 +155,7 @@ func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			Logger.Error("Cluster tend goroutine crashed:", r)
+			Logger.Error("Cluster tend goroutine crashed:", debug.Stack())
 			go clstr.clusterBoss(&clstr.clientPolicy)
 		}
 	}()
@@ -245,7 +246,7 @@ func (clstr *Cluster) tend() error {
 		go func(node *Node) {
 			defer wg.Done()
 			if err := node.Refresh(peers); err != nil {
-				Logger.Debug("Error occured while refreshing node: %s", node.String())
+				Logger.Debug("Error occurred while refreshing node: %s", node.String())
 			}
 		}(node)
 	}
