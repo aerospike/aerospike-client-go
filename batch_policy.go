@@ -78,6 +78,7 @@ type BatchPolicy struct {
 // NewBatchPolicy initializes a new BatchPolicy instance with default parameters.
 func NewBatchPolicy() *BatchPolicy {
 	return &BatchPolicy{
+		BasePolicy:          *NewPolicy(),
 		ConcurrentNodes:     1,
 		UseBatchDirect:      false,
 		AllowInline:         true,
