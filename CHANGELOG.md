@@ -4,7 +4,12 @@
 
   * **New Features**
 
+    - Adds `BatchPolicy.AllowPartialResults` flag to allow the batch command return partial records returned from the cluster.
     - Adds `INVERTED` flag to the `MapReturnType`. Take a look at INVERTED test in `cdt_map_test.go` to see how to use it.
+
+  * **Changes**
+
+    - Use the default values for `BasePolicy` in `BatchPolicy` to keep the behavior consistent with the older releases.
 
   * **Improvements**
 
@@ -41,7 +46,7 @@
 
   * **New Features**
   
-    - Support for newer Batch Protocol. Add `BatchGetComplex` for complex batch queries. Old batch API upgraded to automatically support the new protocol under the hood, unless `BatchPolicy.UseBatchDirect` flag is iet to `true`.
+    - Support for newer Batch Protocol. Add `BatchGetComplex` for complex batch queries. Old batch API upgraded to automatically support the new protocol under the hood, unless `BatchPolicy.UseBatchDirect` flag is set to `true`.
 
   * **Changes**
 
