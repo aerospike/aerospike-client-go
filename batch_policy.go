@@ -62,6 +62,13 @@ type BatchPolicy struct {
 	// can process the entire batch before moving onto the next command.
 	AllowInline bool //= true
 
+	// AllowPartialResults determines if the results for some nodes should be returned in case
+	// some nodes encounter an error. The result for the unreceived records will be nil.
+	//
+	// It is only supported for BatchGet and BatchGetHeader methods. BatchGetComplex always returns
+	// partial results by design.
+	AllowPartialResults bool //= false
+
 	// Send set name field to server for every key in the batch for batch index protocol.
 	// This is only necessary when authentication is enabled and security roles are defined
 	// on a per set basis.
@@ -71,9 +78,10 @@ type BatchPolicy struct {
 // NewBatchPolicy initializes a new BatchPolicy instance with default parameters.
 func NewBatchPolicy() *BatchPolicy {
 	return &BatchPolicy{
-		ConcurrentNodes: 1,
-		UseBatchDirect:  false,
-		AllowInline:     true,
-		SendSetName:     false,
+		ConcurrentNodes:     1,
+		UseBatchDirect:      false,
+		AllowInline:         true,
+		AllowPartialResults: false,
+		SendSetName:         false,
 	}
 }

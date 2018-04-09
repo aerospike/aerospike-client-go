@@ -332,14 +332,14 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 
 	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, binNames, records, _INFO1_READ)
 	err := clnt.batchExecute(policy, keys, cmd)
-	if err != nil {
+	if err != nil && !policy.AllowPartialResults {
 		return nil, err
 	}
 
-	return records, nil
+	return records, err
 }
 
-// BatchGetComplex reads multiple record reads multiple records for specified batch keys in one batch call.
+// BatchGetComplex reads multiple record for specified batch keys in one batch call.
 // This method allows different namespaces/bins to be requested for each key in the batch.
 // The returned records are located in the same list.
 // If the BatchRead key field is not found, the corresponding record field will be null.
@@ -349,11 +349,8 @@ func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) e
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	cmd := newBatchIndexCommandGet(nil, policy, records)
-	if err := clnt.batchIndexExecute(policy, records, cmd); err != nil {
-		return err
-	}
 
-	return nil
+	return clnt.batchIndexExecute(policy, records, cmd)
 }
 
 // BatchGetHeader reads multiple record header data for specified keys in one batch request.
@@ -370,11 +367,11 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 
 	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
 	err := clnt.batchExecute(policy, keys, cmd)
-	if err != nil {
+	if err != nil && !policy.AllowPartialResults {
 		return nil, err
 	}
 
-	return records, nil
+	return records, err
 }
 
 //-------------------------------------------------------
