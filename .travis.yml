@@ -1,7 +1,7 @@
 language: go
 os:
 - linux
-dist: xenial
+dist: trusty
 go:
 - 1.7
 - 1.8
