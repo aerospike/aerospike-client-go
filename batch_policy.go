@@ -64,8 +64,10 @@ type BatchPolicy struct {
 
 	// AllowPartialResults determines if the results for some nodes should be returned in case
 	// some nodes encounter an error. The result for the unreceived records will be nil.
+	// The returned records will be safe to use, since only fully received data will be parsed
+	// and set.
 	//
-	// It is only supported for BatchGet and BatchGetHeader methods. BatchGetComplex always returns
+	// This flag is only supported for BatchGet and BatchGetHeader methods. BatchGetComplex always returns
 	// partial results by design.
 	AllowPartialResults bool //= false
 
