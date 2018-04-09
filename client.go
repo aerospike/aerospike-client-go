@@ -339,7 +339,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 	return records, err
 }
 
-// BatchGetComplex reads multiple record for specified batch keys in one batch call.
+// BatchGetComplex reads multiple records for specified batch keys in one batch call.
 // This method allows different namespaces/bins to be requested for each key in the batch.
 // The returned records are located in the same list.
 // If the BatchRead key field is not found, the corresponding record field will be null.
