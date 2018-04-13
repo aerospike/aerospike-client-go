@@ -63,9 +63,34 @@ func (upckr *unpacker) UnpackList() ([]interface{}, error) {
 }
 
 func (upckr *unpacker) unpackList(count int) ([]interface{}, error) {
-	out := make([]interface{}, 0, count)
+	if count == 0 {
+		return make([]interface{}, 0), nil
+	}
 
-	for i := 0; i < count; i++ {
+	mark := upckr.offset
+	size := count
+
+	val, err := upckr.unpackObject(false)
+	if err != nil && err != skipHeaderErr {
+		return nil, err
+	}
+
+	if val == nil {
+		// Determine if null value is because of an extension type.
+		typ := upckr.buffer[mark] & 0xff
+
+		if typ != 0xc0 { // not nil type
+			// Ignore extension type.
+			size--
+		}
+	}
+
+	out := make([]interface{}, 0, count)
+	if size == count {
+		out = append(out, val)
+	}
+
+	for i := 1; i < count; i++ {
 		obj, err := upckr.unpackObject(false)
 		if err != nil {
 			return nil, err
