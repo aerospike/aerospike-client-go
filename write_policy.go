@@ -70,7 +70,7 @@ type WritePolicy struct {
 
 	// DurableDelete leaves a tombstone for the record if the transaction results in a record deletion.
 	// This prevents deleted records from reappearing after node failures.
-	// Valid for Aerospike Server Enterprise Edition 4+ only.
+	// Valid for Aerospike Server Enterprise Edition 3.10+ only.
 	DurableDelete bool
 }
 
