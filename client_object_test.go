@@ -18,6 +18,7 @@ package aerospike_test
 
 import (
 	"math"
+	"strconv"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
@@ -794,6 +795,16 @@ var _ = Describe("Aerospike", func() {
 
 				Expect(resObj.TTL1).NotTo(Equal(uint32(0)))
 				Expect(resObj.TTL1).To(Equal(resObj.TTL2))
+
+				defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))
+				Expect(err).ToNot(HaveOccurred())
+
+				switch defaultTTL {
+				case 0:
+					Expect(resObj.TTL1).To(Equal(uint32(math.MaxUint32)))
+				default:
+					Expect(resObj.TTL1).To(Equal(uint32(defaultTTL)))
+				}
 
 				Expect(resObj.GEN1).To(Equal(uint32(2)))
 				Expect(resObj.GEN2).To(Equal(uint32(2)))
