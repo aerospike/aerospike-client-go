@@ -1,11 +1,12 @@
 # Change History
 
-## UNRELEASED
+## June 11 2018: v1.33.0
 
   * **New Features**
 
     - Adds `BatchPolicy.AllowPartialResults` flag to allow the batch command return partial records returned from the cluster.
     - Adds `INVERTED` flag to the `MapReturnType`. Take a look at INVERTED test in `cdt_map_test.go` to see how to use it.
+    - Adds a lot of new Ordered Map and List operations and brings the client up to date with the latest server API.
 
   * **Changes**
 
@@ -16,6 +17,11 @@
     - Adds a recover to the tend goroutine to guarantee the client will recover from internal crashes.
     - Removes unneeded type casts.
     - Uses the new stat name for migrations check.
+
+  * **Fixes**
+
+    - Fixes TTL in `GetObject` and `BatchGetObject` reflection API.
+    - Handle extension marker in List headers.
 
 ## March 15 2018: v1.32.0
 
