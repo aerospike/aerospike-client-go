@@ -20,7 +20,6 @@ import (
 	"errors"
 	"reflect"
 
-	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -57,7 +56,7 @@ func parseBatchObject(
 		iobj := indirect(rv)
 		mappings := objectMappings.getMapping(iobj.Type())
 
-		if err := setObjectMetaFields(iobj, TTL(expiration), generation); err != nil {
+		if err := setObjectMetaFields(iobj, expiration, generation); err != nil {
 			return err
 		}
 
