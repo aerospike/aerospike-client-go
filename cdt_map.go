@@ -45,6 +45,8 @@ const (
 	_CDT_MAP_GET_BY_INDEX_RANGE       = 104
 	_CDT_MAP_GET_BY_VALUE_INTERVAL    = 105
 	_CDT_MAP_GET_BY_RANK_RANGE        = 106
+	_CDT_MAP_GET_BY_KEY_LIST          = 107
+	_CDT_MAP_GET_BY_VALUE_LIST        = 108
 )
 
 type mapOrderType int
@@ -202,95 +204,6 @@ func newMapCreatePut(command int, attributes mapOrderType, binName string, value
 	}
 }
 
-func newMapCreateOperationEncoder(op *Operation, packer BufferEx) (int, error) {
-	if op.binValue != nil {
-		if params := op.binValue.(ListValue); len(params) > 0 {
-			return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.binValue.(ListValue))
-		}
-	}
-	return packCDTParamsAsArray(packer, int16(*op.opSubType))
-}
-
-func newMapCreateOperationValues2(command int, attributes mapOrderType, binName string, value1 interface{}, value2 interface{}) *Operation {
-	return &Operation{
-		opType:    MAP_MODIFY,
-		opSubType: &command,
-		binName:   binName,
-		binValue:  ListValue([]interface{}{value1, value2, IntegerValue(attributes)}),
-		encoder:   newMapCreateOperationEncoder,
-	}
-}
-
-func newMapCreateOperationValues0(command int, typ OperationType, binName string) *Operation {
-	return &Operation{
-		opType:    typ,
-		opSubType: &command,
-		binName:   binName,
-		// binValue: NewNullValue(),
-		encoder: newMapCreateOperationEncoder,
-	}
-}
-
-func newMapCreateOperationValuesN(command int, typ OperationType, binName string, values []interface{}, returnType mapReturnType) *Operation {
-	return &Operation{
-		opType:    typ,
-		opSubType: &command,
-		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), ListValue(values)}),
-		encoder:   newMapCreateOperationEncoder,
-	}
-}
-
-func newMapCreateOperationValue1(command int, typ OperationType, binName string, value interface{}, returnType mapReturnType) *Operation {
-	return &Operation{
-		opType:    typ,
-		opSubType: &command,
-		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), value}),
-		encoder:   newMapCreateOperationEncoder,
-	}
-}
-
-func newMapCreateOperationIndex(command int, typ OperationType, binName string, index int, returnType mapReturnType) *Operation {
-	return &Operation{
-		opType:    typ,
-		opSubType: &command,
-		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), index}),
-		encoder:   newMapCreateOperationEncoder,
-	}
-}
-
-func newMapCreateOperationIndexCount(command int, typ OperationType, binName string, index int, count int, returnType mapReturnType) *Operation {
-	return &Operation{
-		opType:    typ,
-		opSubType: &command,
-		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), index, count}),
-		encoder:   newMapCreateOperationEncoder,
-	}
-}
-
-func newMapCreateRangeOperation(command int, typ OperationType, binName string, begin interface{}, end interface{}, returnType mapReturnType) *Operation {
-	if end == nil {
-		return &Operation{
-			opType:    typ,
-			opSubType: &command,
-			binName:   binName,
-			binValue:  ListValue([]interface{}{IntegerValue(returnType), begin}),
-			encoder:   newMapCreateOperationEncoder,
-		}
-	}
-
-	return &Operation{
-		opType:    typ,
-		opSubType: &command,
-		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), begin, end}),
-		encoder:   newMapCreateOperationEncoder,
-	}
-}
-
 /////////////////////////
 
 // Unique key map bin operations. Create map operations used by the client operate command.
@@ -349,7 +262,7 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 			opSubType: &policy.itemsCommand,
 			binName:   binName,
 			binValue:  ListValue([]interface{}{MapValue(amap)}),
-			encoder:   newMapCreateOperationEncoder,
+			encoder:   newCDTCreateOperationEncoder,
 		}
 	}
 
@@ -358,7 +271,7 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 		opSubType: &policy.itemsCommand,
 		binName:   binName,
 		binValue:  ListValue([]interface{}{MapValue(amap), IntegerValue(policy.attributes)}),
-		encoder:   newMapCreateOperationEncoder,
+		encoder:   newCDTCreateOperationEncoder,
 	}
 }
 
@@ -369,7 +282,7 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 // The required map policy dictates the type of map to create when it does not exist.
 // The map policy also specifies the mode used when writing items to the map.
 func MapIncrementOp(policy *MapPolicy, binName string, key interface{}, incr interface{}) *Operation {
-	return newMapCreateOperationValues2(_CDT_MAP_INCREMENT, policy.attributes, binName, key, incr)
+	return newCDTCreateOperationValues2(_CDT_MAP_INCREMENT, policy.attributes, binName, key, incr)
 }
 
 // MapDecrementOp creates map decrement operation.
@@ -379,25 +292,25 @@ func MapIncrementOp(policy *MapPolicy, binName string, key interface{}, incr int
 // The required map policy dictates the type of map to create when it does not exist.
 // The map policy also specifies the mode used when writing items to the map.
 func MapDecrementOp(policy *MapPolicy, binName string, key interface{}, decr interface{}) *Operation {
-	return newMapCreateOperationValues2(_CDT_MAP_DECREMENT, policy.attributes, binName, key, decr)
+	return newCDTCreateOperationValues2(_CDT_MAP_DECREMENT, policy.attributes, binName, key, decr)
 }
 
 // MapClearOp creates map clear operation.
 // Server removes all items in map.  Server returns null.
 func MapClearOp(binName string) *Operation {
-	return newMapCreateOperationValues0(_CDT_MAP_CLEAR, MAP_MODIFY, binName)
+	return newCDTCreateOperationValues0(_CDT_MAP_CLEAR, MAP_MODIFY, binName)
 }
 
 // MapRemoveByKeyOp creates map remove operation.
 // Server removes map item identified by key and returns removed data specified by returnType.
 func MapRemoveByKeyOp(binName string, key interface{}, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_REMOVE_BY_KEY, MAP_MODIFY, binName, key, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_REMOVE_BY_KEY, MAP_MODIFY, binName, key, returnType)
 }
 
 // MapRemoveByKeyListOp creates map remove operation.
 // Server removes map items identified by keys and returns removed data specified by returnType.
 func MapRemoveByKeyListOp(binName string, keys []interface{}, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_REMOVE_KEY_LIST, MAP_MODIFY, binName, keys, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_REMOVE_KEY_LIST, MAP_MODIFY, binName, keys, returnType)
 }
 
 // MapRemoveByKeyRangeOp creates map remove operation.
@@ -407,19 +320,19 @@ func MapRemoveByKeyListOp(binName string, keys []interface{}, returnType mapRetu
 //
 // Server returns removed data specified by returnType.
 func MapRemoveByKeyRangeOp(binName string, keyBegin interface{}, keyEnd interface{}, returnType mapReturnType) *Operation {
-	return newMapCreateRangeOperation(_CDT_MAP_REMOVE_BY_KEY_INTERVAL, MAP_MODIFY, binName, keyBegin, keyEnd, returnType)
+	return newCDTCreateRangeOperation(_CDT_MAP_REMOVE_BY_KEY_INTERVAL, MAP_MODIFY, binName, keyBegin, keyEnd, returnType)
 }
 
 // MapRemoveByValueOp creates map remove operation.
 // Server removes map items identified by value and returns removed data specified by returnType.
 func MapRemoveByValueOp(binName string, value interface{}, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_REMOVE_BY_VALUE, MAP_MODIFY, binName, value, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_REMOVE_BY_VALUE, MAP_MODIFY, binName, value, returnType)
 }
 
 // MapRemoveByValueListOp creates map remove operation.
 // Server removes map items identified by values and returns removed data specified by returnType.
 func MapRemoveByValueListOp(binName string, values []interface{}, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValuesN(_CDT_MAP_REMOVE_VALUE_LIST, MAP_MODIFY, binName, values, returnType)
+	return newCDTCreateOperationValuesN(_CDT_MAP_REMOVE_VALUE_LIST, MAP_MODIFY, binName, values, returnType)
 }
 
 // MapRemoveByValueRangeOp creates map remove operation.
@@ -429,57 +342,57 @@ func MapRemoveByValueListOp(binName string, values []interface{}, returnType map
 //
 // Server returns removed data specified by returnType.
 func MapRemoveByValueRangeOp(binName string, valueBegin interface{}, valueEnd interface{}, returnType mapReturnType) *Operation {
-	return newMapCreateRangeOperation(_CDT_MAP_REMOVE_BY_VALUE_INTERVAL, MAP_MODIFY, binName, valueBegin, valueEnd, returnType)
+	return newCDTCreateRangeOperation(_CDT_MAP_REMOVE_BY_VALUE_INTERVAL, MAP_MODIFY, binName, valueBegin, valueEnd, returnType)
 }
 
 // MapRemoveByIndexOp creates map remove operation.
 // Server removes map item identified by index and returns removed data specified by returnType.
 func MapRemoveByIndexOp(binName string, index int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_REMOVE_BY_INDEX, MAP_MODIFY, binName, index, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_REMOVE_BY_INDEX, MAP_MODIFY, binName, index, returnType)
 }
 
 // MapRemoveByIndexRangeOp creates map remove operation.
 // Server removes map items starting at specified index to the end of map and returns removed
 // data specified by returnType.
 func MapRemoveByIndexRangeOp(binName string, index int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_REMOVE_BY_INDEX_RANGE, MAP_MODIFY, binName, index, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_REMOVE_BY_INDEX_RANGE, MAP_MODIFY, binName, index, returnType)
 }
 
 // MapRemoveByIndexRangeCountOp creates map remove operation.
 // Server removes "count" map items starting at specified index and returns removed data specified by returnType.
 func MapRemoveByIndexRangeCountOp(binName string, index int, count int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationIndexCount(_CDT_MAP_REMOVE_BY_INDEX_RANGE, MAP_MODIFY, binName, index, count, returnType)
+	return newCDTCreateOperationIndexCount(_CDT_MAP_REMOVE_BY_INDEX_RANGE, MAP_MODIFY, binName, index, count, returnType)
 }
 
 // MapRemoveByRankOp creates map remove operation.
 // Server removes map item identified by rank and returns removed data specified by returnType.
 func MapRemoveByRankOp(binName string, rank int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_REMOVE_BY_RANK, MAP_MODIFY, binName, rank, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_REMOVE_BY_RANK, MAP_MODIFY, binName, rank, returnType)
 }
 
 // MapRemoveByRankRangeOp creates map remove operation.
 // Server removes map items starting at specified rank to the last ranked item and returns removed
 // data specified by returnType.
 func MapRemoveByRankRangeOp(binName string, rank int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationIndex(_CDT_MAP_REMOVE_BY_RANK_RANGE, MAP_MODIFY, binName, rank, returnType)
+	return newCDTCreateOperationIndex(_CDT_MAP_REMOVE_BY_RANK_RANGE, MAP_MODIFY, binName, rank, returnType)
 }
 
 // MapRemoveByRankRangeCountOp creates map remove operation.
 // Server removes "count" map items starting at specified rank and returns removed data specified by returnType.
 func MapRemoveByRankRangeCountOp(binName string, rank int, count int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationIndexCount(_CDT_MAP_REMOVE_BY_RANK_RANGE, MAP_MODIFY, binName, rank, count, returnType)
+	return newCDTCreateOperationIndexCount(_CDT_MAP_REMOVE_BY_RANK_RANGE, MAP_MODIFY, binName, rank, count, returnType)
 }
 
 // MapSizeOp creates map size operation.
 // Server returns size of map.
 func MapSizeOp(binName string) *Operation {
-	return newMapCreateOperationValues0(_CDT_MAP_SIZE, MAP_READ, binName)
+	return newCDTCreateOperationValues0(_CDT_MAP_SIZE, MAP_READ, binName)
 }
 
 // MapGetByKeyOp creates map get by key operation.
 // Server selects map item identified by key and returns selected data specified by returnType.
 func MapGetByKeyOp(binName string, key interface{}, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_GET_BY_KEY, MAP_READ, binName, key, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_GET_BY_KEY, MAP_READ, binName, key, returnType)
 }
 
 // MapGetByKeyRangeOp creates map get by key range operation.
@@ -489,13 +402,19 @@ func MapGetByKeyOp(binName string, key interface{}, returnType mapReturnType) *O
 //
 // Server returns selected data specified by returnType.
 func MapGetByKeyRangeOp(binName string, keyBegin interface{}, keyEnd interface{}, returnType mapReturnType) *Operation {
-	return newMapCreateRangeOperation(_CDT_MAP_GET_BY_KEY_INTERVAL, MAP_READ, binName, keyBegin, keyEnd, returnType)
+	return newCDTCreateRangeOperation(_CDT_MAP_GET_BY_KEY_INTERVAL, MAP_READ, binName, keyBegin, keyEnd, returnType)
+}
+
+// MapGetByKeyListOp creates a map get by key list operation.
+// Server selects map items identified by keys and returns selected data specified by returnType.
+func MapGetByKeyListOp(binName string, keys []interface{}, returnType mapReturnType) *Operation {
+	return newCDTCreateOperationValue1(_CDT_MAP_GET_BY_KEY_LIST, MAP_READ, binName, keys, returnType)
 }
 
 // MapGetByValueOp creates map get by value operation.
 // Server selects map items identified by value and returns selected data specified by returnType.
 func MapGetByValueOp(binName string, value interface{}, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_GET_BY_VALUE, MAP_READ, binName, value, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_GET_BY_VALUE, MAP_READ, binName, value, returnType)
 }
 
 // MapGetByValueRangeOp creates map get by value range operation.
@@ -505,43 +424,47 @@ func MapGetByValueOp(binName string, value interface{}, returnType mapReturnType
 //
 // Server returns selected data specified by returnType.
 func MapGetByValueRangeOp(binName string, valueBegin interface{}, valueEnd interface{}, returnType mapReturnType) *Operation {
-	return newMapCreateRangeOperation(_CDT_MAP_GET_BY_VALUE_INTERVAL, MAP_READ, binName, valueBegin, valueEnd, returnType)
+	return newCDTCreateRangeOperation(_CDT_MAP_GET_BY_VALUE_INTERVAL, MAP_READ, binName, valueBegin, valueEnd, returnType)
+}
+
+func MapGetByValueListOp(binName string, values []interface{}, returnType mapReturnType) *Operation {
+	return newCDTCreateOperationValue1(_CDT_MAP_GET_BY_VALUE_LIST, MAP_READ, binName, values, returnType)
 }
 
 // MapGetByIndexOp creates map get by index operation.
 // Server selects map item identified by index and returns selected data specified by returnType.
 func MapGetByIndexOp(binName string, index int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_GET_BY_INDEX, MAP_READ, binName, index, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_GET_BY_INDEX, MAP_READ, binName, index, returnType)
 }
 
 // MapGetByIndexRangeOp creates map get by index range operation.
 // Server selects map items starting at specified index to the end of map and returns selected
 // data specified by returnType.
 func MapGetByIndexRangeOp(binName string, index int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_GET_BY_INDEX_RANGE, MAP_READ, binName, index, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_GET_BY_INDEX_RANGE, MAP_READ, binName, index, returnType)
 }
 
 // MapGetByIndexRangeCountOp creates map get by index range operation.
 // Server selects "count" map items starting at specified index and returns selected data specified by returnType.
 func MapGetByIndexRangeCountOp(binName string, index int, count int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationIndexCount(_CDT_MAP_GET_BY_INDEX_RANGE, MAP_READ, binName, index, count, returnType)
+	return newCDTCreateOperationIndexCount(_CDT_MAP_GET_BY_INDEX_RANGE, MAP_READ, binName, index, count, returnType)
 }
 
 // MapGetByRankOp creates map get by rank operation.
 // Server selects map item identified by rank and returns selected data specified by returnType.
 func MapGetByRankOp(binName string, rank int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_GET_BY_RANK, MAP_READ, binName, rank, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_GET_BY_RANK, MAP_READ, binName, rank, returnType)
 }
 
 // MapGetByRankRangeOp creates map get by rank range operation.
 // Server selects map items starting at specified rank to the last ranked item and returns selected
 // data specified by returnType.
 func MapGetByRankRangeOp(binName string, rank int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationValue1(_CDT_MAP_GET_BY_RANK_RANGE, MAP_READ, binName, rank, returnType)
+	return newCDTCreateOperationValue1(_CDT_MAP_GET_BY_RANK_RANGE, MAP_READ, binName, rank, returnType)
 }
 
 // MapGetByRankRangeCountOp creates map get by rank range operation.
 // Server selects "count" map items starting at specified rank and returns selected data specified by returnType.
 func MapGetByRankRangeCountOp(binName string, rank int, count int, returnType mapReturnType) *Operation {
-	return newMapCreateOperationIndexCount(_CDT_MAP_GET_BY_RANK_RANGE, MAP_READ, binName, rank, count, returnType)
+	return newCDTCreateOperationIndexCount(_CDT_MAP_GET_BY_RANK_RANGE, MAP_READ, binName, rank, count, returnType)
 }

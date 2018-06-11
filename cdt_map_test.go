@@ -325,11 +325,13 @@ var _ = Describe("CDT Map Test", func() {
 				as.MapGetByValueOp(cdtBinName, 81, as.MapReturnType.RANK),
 				as.MapGetByKeyOp(cdtBinName, "Charlie", as.MapReturnType.RANK),
 				as.MapGetByKeyOp(cdtBinName, "Charlie", as.MapReturnType.REVERSE_RANK),
+				as.MapGetByKeyListOp(cdtBinName, []interface{}{"Charlie", "Jim"}, as.MapReturnType.KEY),
+				as.MapGetByValueListOp(cdtBinName, []interface{}{55, 94}, as.MapReturnType.KEY),
 			)
 
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{"Harry", "Jim", []as.MapPair{{Key: "Charlie", Value: 55}, {Key: "John", Value: 81}}, 55, "Harry", []interface{}{3}, 1, []as.MapPair{{Key: "Jim", Value: 94}}, []interface{}{"John"}, []interface{}{}, []interface{}{1}, 0, 3}}))
+			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{"Harry", "Jim", []as.MapPair{{Key: "Charlie", Value: 55}, {Key: "John", Value: 81}}, 55, "Harry", []interface{}{3}, 1, []as.MapPair{{Key: "Jim", Value: 94}}, []interface{}{"John"}, []interface{}{}, []interface{}{1}, 0, 3, []interface{}{"Charlie", "Jim"}, []interface{}{"Charlie", "Jim"}}}))
 		})
 
 		It("should create a valid CDT Map and then Get via MapReturnType.INVERTED", func() {

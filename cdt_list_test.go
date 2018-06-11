@@ -120,6 +120,68 @@ var _ = Describe("CDT List Test", func() {
 			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{listSize - 2, listSize - 1, listSize - 0}))
 		})
 
+		It("should Get by value", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListGetByValueOp(cdtBinName, 7, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{7}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByValueListOp(cdtBinName, []interface{}{7, 9}, as.ListReturnTypeIndex))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{6, 8}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByValueRangeOp(cdtBinName, 5, 9, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{5, 6, 7, 8}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByValueRangeOp(cdtBinName, 5, 9, as.ListReturnTypeIndex))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{4, 5, 6, 7}))
+		})
+
+		It("should Get by index", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListGetByIndexOp(cdtBinName, 7, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(8))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByIndexRangeOp(cdtBinName, 7, as.ListReturnTypeIndex))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{7, 8, 9}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByIndexRangeOp(cdtBinName, 7, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{8, 9, 10}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByIndexRangeOp(cdtBinName, 8, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{9, 10}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByIndexRangeCountOp(cdtBinName, 5, 2, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{6, 7}))
+		})
+
+		It("should Get by rank", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListGetByRankOp(cdtBinName, 7, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(8))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByRankRangeOp(cdtBinName, 7, as.ListReturnTypeIndex))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{7, 8, 9}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByRankRangeOp(cdtBinName, 7, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{8, 9, 10}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByRankRangeOp(cdtBinName, 8, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{9, 10}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByRankRangeCountOp(cdtBinName, 5, 2, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{6, 7}))
+		})
+
 		It("should append an element to the tail", func() {
 			cdtListRes, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, math.MaxInt64))
 			Expect(err).ToNot(HaveOccurred())
@@ -160,6 +222,22 @@ var _ = Describe("CDT List Test", func() {
 			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(elems))
 		})
 
+		It("should append a few elements to the tail with policy", func() {
+			elems := []interface{}{math.MaxInt64, math.MaxInt64 - 1, math.MaxInt64 - 2}
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListAppendWithPolicyOp(as.DefaultListPolicy(), cdtBinName, elems...))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(listSize + 3))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListAppendWithPolicyOp(as.DefaultListPolicy(), cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(listSize + 4))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, listSize, 4))
+			Expect(err).ToNot(HaveOccurred())
+			elems = append(elems, 0)
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(elems))
+		})
+
 		It("should prepend an element to the head via ListInsertOp", func() {
 			cdtListRes, err := client.Operate(wpolicy, key, as.ListInsertOp(cdtBinName, 0, math.MaxInt64))
 			Expect(err).ToNot(HaveOccurred())
@@ -168,6 +246,20 @@ var _ = Describe("CDT List Test", func() {
 			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, 0))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(math.MaxInt64))
+		})
+
+		It("should prepend an element to the head via ListInsertWithPolicyOp", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListInsertWithPolicyOp(as.DefaultListPolicy(), cdtBinName, 0, math.MaxInt64))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(listSize + 1))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListInsertWithPolicyOp(as.DefaultListPolicy(), cdtBinName, 0, math.MaxInt64-1, math.MaxInt64-2))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(listSize + 3))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{math.MaxInt64 - 1, math.MaxInt64 - 2, math.MaxInt64, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
 		})
 
 		It("should prepend a few elements to the tail via ListInsertOp", func() {
@@ -274,6 +366,97 @@ var _ = Describe("CDT List Test", func() {
 			}
 		})
 
+		It("should remove elements by value", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListRemoveByValueListOp(cdtBinName, []interface{}{1, 2, 3, 4, 5, 6, 7}, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{1, 2, 3, 4, 5, 6, 7}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{8, 9, 10}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListRemoveByValueOp(cdtBinName, 9, as.ListReturnTypeCount))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(1))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{8, 10}))
+		})
+
+		It("should remove elements by value range", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListRemoveByValueRangeOp(cdtBinName, as.ListReturnTypeValue, 1, 5))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{1, 2, 3, 4}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{5, 6, 7, 8, 9, 10}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListRemoveByValueRangeOp(cdtBinName, as.ListReturnTypeCount, 6, 9))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(3))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{5, 9, 10}))
+		})
+
+		It("should remove elements by index", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListRemoveByIndexOp(cdtBinName, 0, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(1))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{2, 3, 4, 5, 6, 7, 8, 9, 10}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListRemoveByIndexRangeOp(cdtBinName, 5, as.ListReturnTypeCount))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(4))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{2, 3, 4, 5, 6}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListRemoveByIndexRangeCountOp(cdtBinName, 2, 3, as.ListReturnTypeCount))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(3))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{2, 3}))
+		})
+
+		It("should remove elements by rank", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListSortOp(cdtBinName, as.ListSortFlagsDefault))
+			Expect(err).ToNot(HaveOccurred())
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListRemoveByRankOp(cdtBinName, 0, as.ListReturnTypeValue))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(1))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{2, 3, 4, 5, 6, 7, 8, 9, 10}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListRemoveByRankRangeOp(cdtBinName, 5, as.ListReturnTypeCount))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(4))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{2, 3, 4, 5, 6}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListRemoveByRankRangeCountOp(cdtBinName, 2, 3, as.ListReturnTypeCount))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(3))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeOp(cdtBinName, 0, -1))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{2, 3}))
+		})
+
 		It("should increment elements", func() {
 			cdtListRes, err := client.Operate(wpolicy, key, as.ListGetRangeFromOp(cdtBinName, 0))
 			Expect(err).ToNot(HaveOccurred())
@@ -286,6 +469,53 @@ var _ = Describe("CDT List Test", func() {
 			elemRes, err = client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, 0))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(elemRes.Bins[cdtBinName]).To(Equal(11))
+
+			elemRes, err = client.Operate(wpolicy, key, as.ListIncrementByOneOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(elemRes.Bins[cdtBinName]).To(Equal(12))
+
+			elemRes, err = client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(elemRes.Bins[cdtBinName]).To(Equal(12))
+		})
+
+		It("should increment elements with policy", func() {
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListGetRangeFromOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(list))
+
+			elemRes, err := client.Operate(wpolicy, key, as.ListIncrementWithPolicyOp(as.DefaultListPolicy(), cdtBinName, 0, 10))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(elemRes.Bins[cdtBinName]).To(Equal(11))
+
+			elemRes, err = client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(elemRes.Bins[cdtBinName]).To(Equal(11))
+
+			elemRes, err = client.Operate(wpolicy, key, as.ListIncrementByOneWithPolicyOp(as.DefaultListPolicy(), cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(elemRes.Bins[cdtBinName]).To(Equal(12))
+
+			elemRes, err = client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(elemRes.Bins[cdtBinName]).To(Equal(12))
+		})
+
+		It("should sort elements with policy", func() {
+			elemRes, err := client.Operate(wpolicy, key, as.ListIncrementWithPolicyOp(as.DefaultListPolicy(), cdtBinName, 0, 100))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(elemRes.Bins[cdtBinName]).To(Equal(101))
+
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListGetRangeFromOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{101, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListSortOp(cdtBinName, as.ListSortFlagsDefault))
+			Expect(err).ToNot(HaveOccurred())
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeFromOp(cdtBinName, 0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtListRes.Bins[cdtBinName]).To(Equal([]interface{}{2, 3, 4, 5, 6, 7, 8, 9, 10, 101}))
 		})
 
 		It("should set elements", func() {
