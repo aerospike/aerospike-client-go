@@ -14,7 +14,7 @@ BinMap is a type defined as map[string]interface{} to facilitate declaring bin d
 ```go
   bins := BinMap{
     "name"          : "Abu Rayhan Biruni",
-    "contribution"  : "accurately calculated the radious of earth in 11th century",
+    "contribution"  : "accurately calculated the radius of earth in 11th century",
     "citation"      : "https://en.wikipedia.org/wiki/History_of_geodesy#Biruni",
   }
 ```
