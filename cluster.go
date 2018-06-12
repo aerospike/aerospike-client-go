@@ -139,7 +139,12 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	newCluster.wgTend.Add(1)
 	go newCluster.clusterBoss(&newCluster.clientPolicy)
 
-	Logger.Debug("New cluster initialized and ready to be used...")
+	if err == nil {
+		Logger.Debug("New cluster initialized and ready to be used...")
+	} else {
+		Logger.Error("New cluster was not initialized successfully, but the client will keep trying to connect to the database. Error: %s", err.Error())
+	}
+
 	return newCluster, err
 }
 
@@ -478,10 +483,12 @@ func (clstr *Cluster) waitTillStabilized() error {
 
 	select {
 	case <-time.After(clstr.clientPolicy.Timeout):
-		clstr.Close()
+		if clstr.clientPolicy.FailIfNotConnected {
+			clstr.Close()
+		}
 		return errors.New("Connecting to the cluster timed out.")
 	case err := <-doneCh:
-		if err != nil {
+		if err != nil && clstr.clientPolicy.FailIfNotConnected {
 			clstr.Close()
 		}
 		return err
