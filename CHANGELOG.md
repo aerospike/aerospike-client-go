@@ -1,5 +1,24 @@
 # Change History
 
+## Not Released: v1.44.0
+
+  * **New Features**
+
+
+  * **Changes**
+
+    - Removed the LDT code completely.
+
+  * **Improvements**
+
+    - Document how to use AerospikeError type in the code.
+    - Allow Task.OnComplete() to be listened to by multiple goroutines. Thanks to [HArmen](https://github.com/alicebob)
+
+
+  * **Fixes**
+
+    - Fixes an issue where ClientPolicy.FailIfNotConnected flag was not respected.
+
 ## June 11 2018: v1.33.0
 
   * **New Features**
