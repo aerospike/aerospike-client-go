@@ -8,6 +8,7 @@
   * **Changes**
 
     - Removed the LDT code completely.
+    - Adds build tag `app_engine` for compatibility with Google's App Engine. Query Aggregate features are not available in this mode due to lua limitations.
 
   * **Improvements**
 
