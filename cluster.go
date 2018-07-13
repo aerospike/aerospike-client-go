@@ -116,6 +116,10 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 	// setup auth info for cluster
 	if policy.RequiresAuthentication() {
+		if policy.AuthMode == AuthModeExternal && policy.TlsConfig == nil {
+			return nil, errors.New("External Authentication requires TLS configuration to be set, because it sends clear password on the wire.")
+		}
+
 		newCluster.user = policy.User
 		hashedPass, err := hashPassword(policy.Password)
 		if err != nil {

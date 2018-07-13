@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -49,6 +50,9 @@ type nodeValidator struct {
 	name        string
 	aliases     []*Host
 	primaryHost *Host
+
+	sessionToken      []byte
+	SessionExpiration time.Time
 
 	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsReplicas, supportsGeo, supportsPeers bool
 }
@@ -142,9 +146,16 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	}
 	defer conn.Close()
 
-	// need to authenticate
-	if err := conn.Authenticate(cluster.user, cluster.Password()); err != nil {
-		return err
+	if len(cluster.clientPolicy.User) > 0 {
+		// need to authenticate
+		acmd := NewLoginCommand(conn.dataBuffer)
+		err = acmd.Login(&cluster.clientPolicy, conn)
+		if err != nil {
+			return err
+		}
+
+		ndv.sessionToken = acmd.SessionToken
+		ndv.SessionExpiration = acmd.SessionExpiration
 	}
 
 	// check to make sure we have actually connected

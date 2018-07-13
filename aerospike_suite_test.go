@@ -18,6 +18,7 @@ var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP 
 var port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
 var user = flag.String("U", "", "Username.")
 var password = flag.String("P", "", "Password.")
+var authMode = flag.String("A", "internal", "Authentication mode: internal | external")
 var clientPolicy *as.ClientPolicy
 var client *as.Client
 var useReplicas = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
@@ -33,6 +34,15 @@ func initTestVars() {
 	}
 
 	clientPolicy.RequestProleReplicas = *useReplicas
+
+	*authMode = strings.ToLower(strings.TrimSpace(*authMode))
+	if *authMode != "internal" && *authMode != "external" {
+		log.Fatalln("Invalid auth mode: only `internal` and `external` values are accepted.")
+	}
+
+	if *authMode == "external" {
+		clientPolicy.AuthMode = as.AuthModeExternal
+	}
 
 	if client == nil || !client.IsConnected() {
 		client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
