@@ -16,7 +16,11 @@ package aerospike
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"strconv"
+
+	. "github.com/aerospike/aerospike-client-go/types"
 )
 
 type Partitions struct {
@@ -91,6 +95,13 @@ func (pm partitionMap) merge(other partitionMap) {
 		if pm[ns] == nil {
 			pm[ns] = clonePartitions(partitions, len(replicaArray))
 		} else {
+			if len(pm[ns].regimes) < len(partitions.regimes) {
+				// expand regime size array
+				regimes := make([]int, len(partitions.regimes))
+				copy(regimes, pm[ns].regimes)
+				pm[ns].regimes = regimes
+			}
+
 			for i, nodeArray := range replicaArray {
 				if len(pm[ns].Replicas) <= i {
 					pm[ns].Replicas = append(pm[ns].Replicas, make([]*Node, len(nodeArray)))
@@ -98,28 +109,14 @@ func (pm partitionMap) merge(other partitionMap) {
 					pm[ns].Replicas[i] = make([]*Node, len(nodeArray))
 				}
 
+				// merge nodes into the partition map
 				for j, node := range nodeArray {
-					if node != nil {
+					if pm[ns].regimes[i] <= partitions.regimes[i] && node != nil {
 						pm[ns].Replicas[i][j] = node
 					}
 				}
 			}
 		}
-
-		if len(pm[ns].regimes) < len(partitions.regimes) {
-			// expand regime size array
-			regimes := make([]int, len(partitions.regimes))
-			copy(regimes, pm[ns].regimes)
-			pm[ns].regimes = regimes
-		}
-
-		// merge regimes
-		for i := range partitions.regimes {
-			if pm[ns].regimes[i] < partitions.regimes[i] {
-				pm[ns].regimes[i] = partitions.regimes[i]
-			}
-		}
-
 	}
 }
 
@@ -146,4 +143,48 @@ func (pm partitionMap) String() string {
 		}
 	}
 	return res.String()
+}
+
+// naively validates the partition map
+func (pm partitionMap) validate() error {
+	masterNodePartitionNotDefined := map[string][]int{}
+	replicaNodePartitionNotDefined := map[string][]int{}
+	var errList []error
+
+	for nsName, partition := range pm {
+		if len(partition.regimes) != _PARTITIONS {
+			errList = append(errList, fmt.Errorf("Wrong number of regimes for namespace `%s`. Must be %d, but found %d..", nsName, _PARTITIONS, len(partition.regimes)))
+		}
+
+		for replica, partitionNodes := range partition.Replicas {
+			if len(partitionNodes) != _PARTITIONS {
+				errList = append(errList, fmt.Errorf("Wrong number of partitions for namespace `%s`, replica `%d`. Must be %d, but found %d.", nsName, replica, _PARTITIONS, len(partitionNodes)))
+			}
+
+			for pIndex, node := range partitionNodes {
+				if node == nil {
+					if replica == 0 {
+						masterNodePartitionNotDefined[nsName] = append(masterNodePartitionNotDefined[nsName], pIndex)
+					} else {
+						replicaNodePartitionNotDefined[nsName] = append(replicaNodePartitionNotDefined[nsName], pIndex)
+					}
+				}
+			}
+		}
+	}
+
+	if len(errList) > 0 || len(masterNodePartitionNotDefined) > 0 || len(replicaNodePartitionNotDefined) > 0 {
+		for nsName, partitionList := range masterNodePartitionNotDefined {
+			errList = append(errList, fmt.Errorf("Master partition nodes not defined for namespace `%s`: %d out of %d", nsName, len(partitionList), _PARTITIONS))
+		}
+
+		for nsName, partitionList := range replicaNodePartitionNotDefined {
+			errList = append(errList, fmt.Errorf("Replica partition nodes not defined for namespace `%s`: %d out of %d", nsName, len(partitionList), _PARTITIONS))
+		}
+
+		errList = append(errList, errors.New("Partition map errors normally occur when the cluster has partitioned due to network anomaly or node crash, or is not configured properly. Refer to https://www.aerospike.com/docs/operations/configure for more information."))
+		return NewAerospikeError(INVALID_CLUSTER_PARTITION_MAP, mergeErrors(errList).Error())
+	}
+
+	return nil
 }
