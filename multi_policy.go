@@ -28,6 +28,14 @@ type MultiPolicy struct {
 	// Default (0) is to issue requests to all server nodes in parallel.
 	MaxConcurrentNodes int
 
+	// ServerSocketTimeout defines maximum time that the server will before droping an idle socket.
+	// Zero means there is no socket timeout.
+	// Default is 10 seconds.
+	ServerSocketTimeout time.Duration //= 10 seconds
+
+	// FailOnClusterChange determines scan termination if cluster is in fluctuating state.
+	FailOnClusterChange bool
+
 	// Number of records to place in queue before blocking.
 	// Records received from multiple server nodes will be placed in a queue.
 	// A separate goroutine consumes these records in parallel.
@@ -49,8 +57,10 @@ func NewMultiPolicy() *MultiPolicy {
 	return &MultiPolicy{
 		BasePolicy:                 bp,
 		MaxConcurrentNodes:         0,
+		ServerSocketTimeout:        30 * time.Second,
 		RecordQueueSize:            50,
 		IncludeBinData:             true,
 		WaitUntilMigrationsAreOver: false,
+		FailOnClusterChange:        true,
 	}
 }
