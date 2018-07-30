@@ -57,6 +57,7 @@ var keyCount = flag.Int("k", 1000000, "Key/record count or key/record range.")
 
 var user = flag.String("U", "", "User name.")
 var password = flag.String("P", "", "User password.")
+var authMode = flag.String("A", "internal", "Authentication mode: internal | external")
 
 var binDef = flag.String("o", "I", "Bin object specification.\n\tI\t: Read/write integer bin.\n\tB:200\t: Read/write byte array bin of length 200.\n\tS:50\t: Read/write string bin of length 50.")
 var concurrency = flag.Int("c", 32, "Number of goroutines to generate load.")
@@ -123,8 +124,16 @@ func main() {
 
 	printBenchmarkParams()
 
+	*authMode = strings.ToLower(strings.TrimSpace(*authMode))
+	if *authMode != "internal" && *authMode != "external" {
+		log.Fatalln("Invalid auth mode: only `internal` and `external` values are accepted.")
+	}
+
 	clientPolicy := as.NewClientPolicy()
-	// cache lots  connections
+	if *authMode == "external" {
+		clientPolicy.AuthMode = as.AuthModeExternal
+	}
+	// cache lots of connections
 	clientPolicy.ConnectionQueueSize = *connQueueSize
 	clientPolicy.User = *user
 	clientPolicy.Password = *password

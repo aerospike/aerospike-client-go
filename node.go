@@ -32,11 +32,13 @@ const (
 
 // Node represents an Aerospike Database Server Node
 type Node struct {
-	cluster *Cluster
-	name    string
-	host    *Host
-	aliases atomic.Value //[]*Host
-	stats   nodeStats
+	cluster            *Cluster
+	name               string
+	host               *Host
+	aliases            atomic.Value //[]*Host
+	stats              nodeStats
+	_sessionToken      atomic.Value //[]byte
+	_sessionExpiration atomic.Value //time.Time
 
 	// tendConn reserves a connection for tend so that it won't have to
 	// wait in queue for connections, since that will cause starvation
@@ -56,6 +58,7 @@ type Node struct {
 	referenceCount      AtomicInt
 	failures            AtomicInt
 	partitionChanged    AtomicBool
+	performLogin        AtomicBool
 
 	active AtomicBool
 
@@ -90,6 +93,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	}
 
 	newNode.aliases.Store(nv.aliases)
+	newNode._sessionToken.Store(nv.sessionToken)
 
 	// this will reset to zero on first aggregation on the cluster,
 	// therefore will only be counted once.
@@ -160,6 +164,47 @@ func (nd *Node) Refresh(peers *peers) error {
 	peers.refreshCount.IncrementAndGet()
 	nd.referenceCount.IncrementAndGet()
 	atomic.AddInt64(&nd.stats.TendsSuccessful, 1)
+
+	if err := nd.refreshSessionToken(); err != nil {
+		Logger.Error("Error refreshing session token: %s", err.Error())
+	}
+
+	return nil
+}
+
+// refreshSessionToken refreshes the session token if it has been expired
+func (nd *Node) refreshSessionToken() error {
+	// no session token to refresh
+	if len(nd.cluster.clientPolicy.User) == 0 || nd.cluster.clientPolicy.AuthMode != AuthModeExternal {
+		return nil
+	}
+
+	var deadline time.Time
+	deadlineIfc := nd._sessionExpiration.Load()
+	if deadlineIfc != nil {
+		deadline = deadlineIfc.(time.Time)
+	}
+
+	if deadline.IsZero() || time.Now().Before(deadline) {
+		return nil
+	}
+
+	nd.tendConnLock.Lock()
+	defer nd.tendConnLock.Unlock()
+
+	if err := nd.initTendConn(nd.cluster.clientPolicy.LoginTimeout); err != nil {
+		return err
+	}
+
+	command := NewLoginCommand(nd.tendConn.dataBuffer)
+	if err := command.Login(&nd.cluster.clientPolicy, nd.tendConn); err != nil {
+		// Socket not authenticated. Do not put back into pool.
+		nd.tendConn.Close()
+		return err
+	}
+
+	nd._sessionToken.Store(command.SessionToken)
+	nd._sessionExpiration.Store(command.SessionExpiration)
 
 	return nil
 }
@@ -418,7 +463,7 @@ func (nd *Node) getConnectionWithHint(timeout time.Duration, hint byte) (conn *C
 		conn.node = nd
 
 		// need to authenticate
-		if err = conn.Authenticate(nd.cluster.user, nd.cluster.Password()); err != nil {
+		if err = conn.login(nd.sessionToken()); err != nil {
 			atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
 
 			// Socket not authenticated. Do not put back into pool.
@@ -648,4 +693,24 @@ func (nd *Node) requestRawInfo(name ...string) (*info, error) {
 		return nil, err
 	}
 	return response, nil
+}
+
+// sessionToken returns the session token for the node.
+// It will return nil if the session has expired.
+func (nd *Node) sessionToken() []byte {
+	var deadline time.Time
+	deadlineIfc := nd._sessionExpiration.Load()
+	if deadlineIfc != nil {
+		deadline = deadlineIfc.(time.Time)
+	}
+
+	if deadline.IsZero() || time.Now().After(deadline) {
+		return nil
+	}
+
+	st := nd._sessionToken.Load()
+	if st != nil {
+		return st.([]byte)
+	}
+	return nil
 }

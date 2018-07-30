@@ -272,11 +272,19 @@ func (ctn *Connection) Close() {
 }
 
 // Authenticate will send authentication information to the server.
-func (ctn *Connection) Authenticate(user string, password []byte) error {
+// Notice: This method does not support external authentication mechanisms like LDAP.
+// This method is deprecated and will be removed in the future.
+func (ctn *Connection) Authenticate(user string, password string) error {
 	// need to authenticate
 	if user != "" {
-		command := newAdminCommand(ctn.dataBuffer)
-		if err := command.authenticate(ctn, user, password); err != nil {
+
+		hashedPass, err := hashPassword(password)
+		if err != nil {
+			return err
+		}
+
+		command := NewLoginCommand(ctn.dataBuffer)
+		if err := command.authenticateInternal(ctn, user, hashedPass); err != nil {
 			if ctn.node != nil {
 				atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 			}
@@ -285,6 +293,46 @@ func (ctn *Connection) Authenticate(user string, password []byte) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// Login will send authentication information to the server.
+func (ctn *Connection) login(sessionToken []byte) error {
+	// need to authenticate
+	if len(ctn.node.cluster.clientPolicy.User) > 0 {
+		policy := &ctn.node.cluster.clientPolicy
+
+		switch policy.AuthMode {
+		case AuthModeExternal:
+			var err error
+			command := NewLoginCommand(ctn.dataBuffer)
+			if sessionToken == nil {
+				err = command.Login(&ctn.node.cluster.clientPolicy, ctn)
+			} else {
+				err = command.authenticateViaToken(&ctn.node.cluster.clientPolicy, ctn, sessionToken)
+			}
+
+			if err != nil {
+				if ctn.node != nil {
+					atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+				}
+				// Socket not authenticated. Do not put back into pool.
+				ctn.Close()
+				return err
+			}
+
+			if command.SessionToken != nil {
+				ctn.node._sessionToken.Store(command.SessionToken)
+				ctn.node._sessionExpiration.Store(command.SessionExpiration)
+			}
+
+			return nil
+
+		case AuthModeInternal:
+			return ctn.Authenticate(policy.User, policy.Password)
+		}
+	}
+
 	return nil
 }
 

@@ -112,6 +112,24 @@ var _ = Describe("Aerospike", func() {
 			Expect(len(nclient.GetNodes())).To(Equal(nodeCount))
 		})
 
+		It("must connect to the cluster using external authentication protocol", func() {
+			if *authMode != "external" {
+				Skip("Skipping External Authentication connection...")
+			}
+
+			nodeCount := len(client.GetNodes())
+
+			// use the same client for all
+			cpolicy := *clientPolicy
+			cpolicy.Timeout = 10 * time.Second
+			cpolicy.AuthMode = as.AuthModeExternal
+			cpolicy.User = "badwan"
+			cpolicy.Password = "blastoff"
+			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(nclient.GetNodes())).To(Equal(nodeCount))
+		})
+
 	})
 
 	Describe("Data operations on native types", func() {
