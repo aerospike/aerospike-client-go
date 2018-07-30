@@ -17,7 +17,7 @@
   * **Fixes**
 
     - Fixes an issue where ClientPolicy.FailIfNotConnected flag was not respected.
-    - Fix a merging issue for PartitionMap, and add a naive validation for partition maps.
+    - Fixes a merging issue for PartitionMap, and add a naive validation for partition maps. (CLIENT-1027)
 
 ## June 11 2018: v1.33.0
 
