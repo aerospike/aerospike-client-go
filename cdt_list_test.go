@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"fmt"
 	"math"
 
 	. "github.com/onsi/ginkgo"
@@ -574,6 +575,39 @@ var _ = Describe("CDT List Test", func() {
 			cdtListRes, err = client.Operate(wpolicy, key, as.ListSizeOp(cdtBinName))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cdtListRes.Bins[cdtBinName]).To(Equal(0))
+		})
+
+		It("should support ListWriteFlagsPartial & ListWriteFlagsNoFail", func() {
+			client.Delete(nil, key)
+
+			cdtBinName2 := cdtBinName + "2"
+
+			list := []interface{}{0, 4, 5, 9, 9, 11, 15, 0}
+
+			cdtListPolicy1 := as.NewListPolicy(as.ListOrderOrdered, as.ListWriteFlagsAddUnique|as.ListWriteFlagsPartial|as.ListWriteFlagsNoFail)
+			cdtListPolicy2 := as.NewListPolicy(as.ListOrderOrdered, as.ListWriteFlagsAddUnique|as.ListWriteFlagsNoFail)
+			record, err := client.Operate(wpolicy, key,
+				as.ListAppendWithPolicyOp(cdtListPolicy1, cdtBinName, list...),
+				as.ListAppendWithPolicyOp(cdtListPolicy2, cdtBinName2, list...),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			fmt.Println(record.Bins)
+
+			Expect(record.Bins[cdtBinName]).To(Equal(6))
+			Expect(record.Bins[cdtBinName2]).To(Equal(0))
+
+			list = []interface{}{11, 3}
+
+			record, err = client.Operate(wpolicy, key,
+				as.ListAppendWithPolicyOp(cdtListPolicy1, cdtBinName, list...),
+				as.ListAppendWithPolicyOp(cdtListPolicy2, cdtBinName2, list...),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(record.Bins[cdtBinName]).To(Equal(7))
+			Expect(record.Bins[cdtBinName2]).To(Equal(2))
+
 		})
 
 	})

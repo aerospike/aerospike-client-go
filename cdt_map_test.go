@@ -526,6 +526,51 @@ var _ = Describe("CDT Map Test", func() {
 		Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{"p1", []interface{}{"p3", "p2", "p4"}}}))
 	})
 
+	It("should support MapWriteFlagsPartial & MapWriteFlagsNoFail", func() {
+		client.Delete(nil, key)
+
+		cdtBinName2 := cdtBinName + "2"
+		items := map[interface{}]interface{}{
+			0: 17,
+			4: 2,
+			5: 15,
+			9: 10,
+		}
+
+		mapPolicy := as.DefaultMapPolicy()
+
+		// Write values to empty map.
+		cdtMap, err := client.Operate(wpolicy, key,
+			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
+			as.MapPutItemsOp(mapPolicy, cdtBinName2, items),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+
+		cdtMap, err = client.Get(nil, key)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(cdtMap.Bins)).To(Equal(2))
+
+		cdtMapPolicy1 := as.NewMapPolicyWithFlags(as.MapOrder.UNORDERED, as.MapWriteFlagsCreateOnly|as.MapWriteFlagsPartial|as.MapWriteFlagsNoFail)
+		cdtMapPolicy2 := as.NewMapPolicyWithFlags(as.MapOrder.UNORDERED, as.MapWriteFlagsCreateOnly|as.MapWriteFlagsNoFail)
+
+		items = map[interface{}]interface{}{
+			3: 3,
+			5: 15,
+		}
+
+		cdtMap, err = client.Operate(wpolicy, key,
+			as.MapPutItemsOp(cdtMapPolicy1, cdtBinName, items),
+			as.MapPutItemsOp(cdtMapPolicy2, cdtBinName2, items),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(cdtMap.Bins[cdtBinName]).To(Equal(5))
+		Expect(cdtMap.Bins[cdtBinName2]).To(Equal(4))
+
+	})
+
 	It("should handle CDTs in UDFs", func() {
 
 		regTsk, err := client.RegisterUDF(nil, []byte(udfCDTTests), "cdt_tests.lua", as.LUA)
