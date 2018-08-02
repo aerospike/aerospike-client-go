@@ -477,12 +477,12 @@ func (acmd *adminCommand) parseUsers(receiveSize int) (int, []*UserRoles, error)
 }
 
 func (acmd *adminCommand) parseRoles(userRoles *UserRoles) {
-	size := int(acmd.dataBuffer[acmd.dataOffset])
+	size := int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
 	acmd.dataOffset++
 	userRoles.Roles = make([]string, 0, size)
 
 	for i := 0; i < size; i++ {
-		len := int(acmd.dataBuffer[acmd.dataOffset])
+		len := int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
 		acmd.dataOffset++
 		role := string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
 		acmd.dataOffset += len
@@ -613,7 +613,7 @@ func (acmd *adminCommand) parseRolesFull(receiveSize int) (int, []*Role, error) 
 }
 
 func (acmd *adminCommand) parsePrivileges(role *Role) {
-	size := int(acmd.dataBuffer[acmd.dataOffset])
+	size := int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
 	acmd.dataOffset++
 	role.Privileges = make([]Privilege, 0, size)
 
@@ -623,12 +623,12 @@ func (acmd *adminCommand) parsePrivileges(role *Role) {
 		acmd.dataOffset++
 
 		if priv.canScope() {
-			len := int(acmd.dataBuffer[acmd.dataOffset])
+			len := int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
 			acmd.dataOffset++
 			priv.Namespace = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
 			acmd.dataOffset += len
 
-			len = int(acmd.dataBuffer[acmd.dataOffset])
+			len = int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
 			acmd.dataOffset++
 			priv.SetName = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
 			acmd.dataOffset += len
