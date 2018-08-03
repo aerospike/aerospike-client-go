@@ -887,6 +887,10 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		// Estimate scan options size.
 		cmd.dataOffset += (2 + int(_FIELD_HEADER_SIZE))
 		fieldCount++
+
+		// Estimate scan timeout size.
+		cmd.dataOffset += (4 + int(_FIELD_HEADER_SIZE))
+		fieldCount++
 	}
 
 	if len(statement.predExps) > 0 {
@@ -994,8 +998,17 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		cmd.writeFieldHeader(2, SCAN_OPTIONS)
 		priority := byte(policy.Priority)
 		priority <<= 4
+
+		if !write && policy.FailOnClusterChange {
+			priority |= 0x08
+		}
+
 		cmd.WriteByte(priority)
 		cmd.WriteByte(byte(100))
+
+		// Write scan timeout
+		cmd.writeFieldHeader(4, SCAN_TIMEOUT)
+		cmd.WriteInt32(int32(policy.ServerSocketTimeout / time.Millisecond)) // in milliseconds
 	}
 
 	if len(statement.predExps) > 0 {
