@@ -1,5 +1,24 @@
 # Change History
 
+## August 3 2018: v1.35.0
+
+  * **New Features**
+
+    - Support for external authentication (LDAP).
+    - Support Map and List WriteFlags: NoFail and Partial
+
+  * **Changes**
+
+
+  * **Improvements**
+
+    - Adds `QueryPolicy.ServerSocketTimeout` and `QueryPolicy.FailOnClusterChange` for when the queries are automatically converted to scans.
+    - Minor documentation improvements.
+
+  * **Fixes**
+
+    - Fixes minor unsigned length conversions for admin command.
+
 ## July 17 2018: v1.34.0
 
   * **Changes**
