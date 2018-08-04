@@ -372,7 +372,7 @@ func (clstr *Cluster) tend() error {
 			}
 
 			partitionMap.merge(node.partitionMap)
-			fmt.Fprint(partitionsLog, "node: "+node.String()+", partitionMap: ", node.partitionMap.String(), "\n")
+			fmt.Fprint(partitionsLog, "node: ", node.String(), ", Partition Generation: ", node.partitionGeneration.Get(), ", partitionMap: ", node.partitionMap.String(), "\n")
 		}
 	}
 
