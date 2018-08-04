@@ -126,7 +126,9 @@ func (pm partitionMap) String() string {
 	res := bytes.Buffer{}
 	for ns, partitions := range pm {
 		res.WriteString("-----------------------------------------------------------------------\n")
-		res.WriteString("Namespace: " + ns)
+		res.WriteString("Namespace: " + ns + "\n")
+		res.WriteString(fmt.Sprintf("Regimes: %v\n", partitions.regimes))
+		res.WriteString(fmt.Sprintf("CPMode: %v\n", partitions.CPMode))
 		replicaArray := partitions.Replicas
 		for i, nodeArray := range replicaArray {
 			if i == 0 {
