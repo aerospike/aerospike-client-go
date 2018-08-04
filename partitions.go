@@ -113,6 +113,7 @@ func (pm partitionMap) merge(other partitionMap) {
 				for j, node := range nodeArray {
 					if pm[ns].regimes[i] <= partitions.regimes[i] && node != nil {
 						pm[ns].Replicas[i][j] = node
+						pm[ns].regimes[i] = partitions.regimes[i]
 					}
 				}
 			}
@@ -124,24 +125,28 @@ func (pm partitionMap) merge(other partitionMap) {
 func (pm partitionMap) String() string {
 	res := bytes.Buffer{}
 	for ns, partitions := range pm {
+		res.WriteString("-----------------------------------------------------------------------\n")
+		res.WriteString("Namespace: " + ns)
 		replicaArray := partitions.Replicas
 		for i, nodeArray := range replicaArray {
-			for j, node := range nodeArray {
-				res.WriteString(ns)
-				res.WriteString(",")
-				res.WriteString(strconv.Itoa(i))
-				res.WriteString(",")
-				res.WriteString(strconv.Itoa(j))
-				res.WriteString(",")
-				if node != nil {
-					res.WriteString(node.String())
-				} else {
-					res.WriteString("NIL")
-				}
-				res.WriteString("\n")
+			if i == 0 {
+				res.WriteString("\nMASTER:")
+			} else {
+				res.WriteString(fmt.Sprintf("\nReplica %d: ", i))
 			}
+			for partitionId, node := range nodeArray {
+				res.WriteString(strconv.Itoa(partitionId) + "/")
+				if node != nil {
+					res.WriteString(node.host.String())
+					res.WriteString(", ")
+				} else {
+					res.WriteString("nil, ")
+				}
+			}
+			res.WriteString("\n")
 		}
 	}
+	res.WriteString("\n")
 	return res.String()
 }
 

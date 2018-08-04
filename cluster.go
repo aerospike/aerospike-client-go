@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"runtime/debug"
@@ -360,19 +361,31 @@ func (clstr *Cluster) tend() error {
 	clstr.supportsGeo.Set(geoSupport)
 
 	// update all partitions in one go
+	var partitionsLog = new(bytes.Buffer)
+
 	var partitionMap partitionMap
 	for _, node := range clstr.GetNodes() {
 		if node.partitionChanged.Get() {
 			if partitionMap == nil {
 				partitionMap = clstr.getPartitions().clone()
+				fmt.Fprint(partitionsLog, "Current partitionMap:", partitionMap.String())
 			}
 
 			partitionMap.merge(node.partitionMap)
+			fmt.Fprint(partitionsLog, "node: "+node.String()+", partitionMap: ", node.partitionMap.String(), "\n")
 		}
 	}
 
 	if partitionMap != nil {
 		clstr.setPartitions(partitionMap)
+	}
+
+	if err := partitionMap.validate(); err != nil {
+		fmt.Fprint(partitionsLog, "Error validating the cluster partition map after tend:", err.Error())
+		fmt.Fprint(partitionsLog, "Final Partition Map:", partitionMap.String(), "\n")
+		fmt.Fprint(partitionsLog, "--------------------------------------------------------------------------------------------------------------")
+
+		Logger.Debug("%s", partitionsLog.String())
 	}
 
 	// only log if node count is changed
