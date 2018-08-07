@@ -78,7 +78,7 @@ Details about the API are available in the [`docs`](docs) directory.
 <a name="Prerequisites"></a>
 ## Prerequisites
 
-[Go](http://golang.org) version v1.5+ is required.
+[Go](http://golang.org) version v1.7+ is required.
 
 To install the latest stable version of Go, visit
 [http://golang.org/dl/](http://golang.org/dl/)
@@ -96,7 +96,7 @@ Supported operating systems:
 <a name="Installation"></a>
 ## Installation:
 
-1. Install Go 1.5+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
+1. Install Go 1.7+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
 2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go```
   * To update the client library: ```go get -u github.com/aerospike/aerospike-client-go```
 

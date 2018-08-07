@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"runtime/debug"
@@ -273,6 +272,8 @@ func (clstr *Cluster) tend() error {
 		wg.Wait()
 	}
 
+	partitionMap := clstr.getPartitions().clone()
+
 	// find the first host that connects
 	for _, _peer := range peers.peers() {
 		if clstr.peerExists(peers, _peer.nodeName) {
@@ -304,7 +305,7 @@ func (clstr *Cluster) tend() error {
 				// Create new node.
 				node := clstr.createNode(&nv)
 				peers.addNode(nv.name, node)
-				node.refreshPartitions(peers)
+				node.refreshPartitions(peers, partitionMap)
 				break
 			}
 		}(_peer)
@@ -316,7 +317,7 @@ func (clstr *Cluster) tend() error {
 		go func(node *Node) {
 			defer wg.Done()
 			if node.partitionChanged.Get() {
-				node.refreshPartitions(peers)
+				node.refreshPartitions(peers, partitionMap)
 			}
 		}(node)
 	}
@@ -361,31 +362,20 @@ func (clstr *Cluster) tend() error {
 	clstr.supportsGeo.Set(geoSupport)
 
 	// update all partitions in one go
-	var partitionsLog = new(bytes.Buffer)
-
-	var partitionMap partitionMap
+	updatePartitionMap := false
 	for _, node := range clstr.GetNodes() {
 		if node.partitionChanged.Get() {
-			if partitionMap == nil {
-				partitionMap = clstr.getPartitions().clone()
-				fmt.Fprint(partitionsLog, "Current partitionMap:", partitionMap.String())
-			}
-
-			partitionMap.merge(node.partitionMap)
-			fmt.Fprint(partitionsLog, "node: ", node.String(), ", Partition Generation: ", node.partitionGeneration.Get(), ", partitionMap: ", node.partitionMap.String(), "\n")
+			updatePartitionMap = true
+			break
 		}
 	}
 
-	if partitionMap != nil {
+	if updatePartitionMap {
 		clstr.setPartitions(partitionMap)
 	}
 
 	if err := partitionMap.validate(); err != nil {
-		fmt.Fprint(partitionsLog, "Error validating the cluster partition map after tend:", err.Error())
-		fmt.Fprint(partitionsLog, "Final Partition Map:", partitionMap.String(), "\n")
-		fmt.Fprint(partitionsLog, "--------------------------------------------------------------------------------------------------------------")
-
-		Logger.Debug("%s", partitionsLog.String())
+		Logger.Debug("Error validating the cluster partition map after tend: %s", err.Error())
 	}
 
 	// only log if node count is changed
