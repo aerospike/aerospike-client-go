@@ -276,6 +276,8 @@ func (clstr *Cluster) tend() error {
 		wg.Wait()
 	}
 
+	partitionMap := clstr.getPartitions().clone()
+
 	// find the first host that connects
 	for _, _peer := range peers.peers() {
 		if clstr.peerExists(peers, _peer.nodeName) {
@@ -307,7 +309,7 @@ func (clstr *Cluster) tend() error {
 				// Create new node.
 				node := clstr.createNode(&nv)
 				peers.addNode(nv.name, node)
-				node.refreshPartitions(peers)
+				node.refreshPartitions(peers, partitionMap)
 				break
 			}
 		}(_peer)
@@ -319,7 +321,7 @@ func (clstr *Cluster) tend() error {
 		go func(node *Node) {
 			defer wg.Done()
 			if node.partitionChanged.Get() {
-				node.refreshPartitions(peers)
+				node.refreshPartitions(peers, partitionMap)
 			}
 		}(node)
 	}
@@ -364,19 +366,20 @@ func (clstr *Cluster) tend() error {
 	clstr.supportsGeo.Set(geoSupport)
 
 	// update all partitions in one go
-	var partitionMap partitionMap
+	updatePartitionMap := false
 	for _, node := range clstr.GetNodes() {
 		if node.partitionChanged.Get() {
-			if partitionMap == nil {
-				partitionMap = clstr.getPartitions().clone()
-			}
-
-			partitionMap.merge(node.partitionMap)
+			updatePartitionMap = true
+			break
 		}
 	}
 
-	if partitionMap != nil {
+	if updatePartitionMap {
 		clstr.setPartitions(partitionMap)
+	}
+
+	if err := partitionMap.validate(); err != nil {
+		Logger.Debug("Error validating the cluster partition map after tend: %s", err.Error())
 	}
 
 	// only log if node count is changed

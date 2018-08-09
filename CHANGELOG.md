@@ -1,11 +1,12 @@
 # Change History
 
+<<<<<<< HEAD
 ## August 3 2018: v1.35.0
 
   * **New Features**
 
     - Support for external authentication (LDAP).
-    - Support Map and List WriteFlags: NoFail and Partial
+    - Support Map and List WriteFlags: `NoFail` and `Partial`.
 
   * **Changes**
 
@@ -18,6 +19,14 @@
   * **Fixes**
 
     - Fixes minor unsigned length conversions for admin command.
+
+## August 9 2018: v1.34.1
+
+  Hot fix release. We recommend updating to this version asap, especially if you are using the Strong Consistency feature.
+
+  * **Fixes**
+
+    - Fixes an issue where a race condition was preventing the partition table to form correctly. (CLIENT-1028)
 
 ## July 17 2018: v1.34.0
 
@@ -33,7 +42,7 @@
 
   * **Fixes**
 
-    - Fixes an issue where ClientPolicy.FailIfNotConnected flag was not respected.
+    - Fixes an issue where `ClientPolicy.FailIfNotConnected` flag was not respected.
     - Fixes a merging issue for PartitionMap, and add a naive validation for partition maps. (CLIENT-1027)
 
 ## June 11 2018: v1.33.0

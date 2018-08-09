@@ -42,29 +42,36 @@ func newPartitions(partitionCount int, replicaCount int, cpMode bool) *Partition
 	}
 }
 
-// Copy partition map while reserving space for a new replica count.
-func clonePartitions(other *Partitions, replicaCount int) *Partitions {
-	replicas := make([][]*Node, replicaCount)
+func (p *Partitions) setReplicaCount(replicaCount int) {
+	if len(p.Replicas) < replicaCount {
+		i := len(p.Replicas)
 
-	if len(other.Replicas) < replicaCount {
-		// Copy existing entries.
-		i := copy(replicas, other.Replicas)
-
-		// Create new entries.
+		// Extend the size
 		for ; i < replicaCount; i++ {
-			replicas[i] = make([]*Node, len(other.regimes))
+			p.Replicas = append(p.Replicas, make([]*Node, _PARTITIONS))
 		}
 	} else {
-		// Copy existing entries.
-		copy(replicas, other.Replicas)
+		// Reduce the size
+		p.Replicas = p.Replicas[:replicaCount]
+	}
+}
+
+// Copy partition map while reserving space for a new replica count.
+func (p *Partitions) clone() *Partitions {
+	replicas := make([][]*Node, len(p.Replicas))
+
+	for i := range p.Replicas {
+		r := make([]*Node, len(p.Replicas[i]))
+		copy(r, p.Replicas[i])
+		replicas[i] = r
 	}
 
-	regimes := make([]int, len(other.regimes))
-	copy(regimes, other.regimes)
+	regimes := make([]int, len(p.regimes))
+	copy(regimes, p.regimes)
 
 	return &Partitions{
 		Replicas: replicas,
-		CPMode:   other.CPMode,
+		CPMode:   p.CPMode,
 		regimes:  regimes,
 	}
 }
@@ -79,10 +86,10 @@ type partitionMap map[string]*Partitions
 
 // String implements stringer interface for partitionMap
 func (pm partitionMap) clone() partitionMap {
-	// Make shallow copy of map.
+	// Make deep copy of map.
 	pmap := make(partitionMap, len(pm))
 	for ns, _ := range pm {
-		pmap[ns] = clonePartitions(pm[ns], len(pm[ns].Replicas))
+		pmap[ns] = pm[ns].clone()
 	}
 	return pmap
 }
@@ -93,7 +100,7 @@ func (pm partitionMap) merge(other partitionMap) {
 	for ns, partitions := range other {
 		replicaArray := partitions.Replicas
 		if pm[ns] == nil {
-			pm[ns] = clonePartitions(partitions, len(replicaArray))
+			pm[ns] = partitions.clone()
 		} else {
 			if len(pm[ns].regimes) < len(partitions.regimes) {
 				// expand regime size array
@@ -113,6 +120,7 @@ func (pm partitionMap) merge(other partitionMap) {
 				for j, node := range nodeArray {
 					if pm[ns].regimes[i] <= partitions.regimes[i] && node != nil {
 						pm[ns].Replicas[i][j] = node
+						pm[ns].regimes[i] = partitions.regimes[i]
 					}
 				}
 			}
@@ -124,24 +132,30 @@ func (pm partitionMap) merge(other partitionMap) {
 func (pm partitionMap) String() string {
 	res := bytes.Buffer{}
 	for ns, partitions := range pm {
+		res.WriteString("-----------------------------------------------------------------------\n")
+		res.WriteString("Namespace: " + ns + "\n")
+		res.WriteString(fmt.Sprintf("Regimes: %v\n", partitions.regimes))
+		res.WriteString(fmt.Sprintf("CPMode: %v\n", partitions.CPMode))
 		replicaArray := partitions.Replicas
 		for i, nodeArray := range replicaArray {
-			for j, node := range nodeArray {
-				res.WriteString(ns)
-				res.WriteString(",")
-				res.WriteString(strconv.Itoa(i))
-				res.WriteString(",")
-				res.WriteString(strconv.Itoa(j))
-				res.WriteString(",")
-				if node != nil {
-					res.WriteString(node.String())
-				} else {
-					res.WriteString("NIL")
-				}
-				res.WriteString("\n")
+			if i == 0 {
+				res.WriteString("\nMASTER:")
+			} else {
+				res.WriteString(fmt.Sprintf("\nReplica %d: ", i))
 			}
+			for partitionId, node := range nodeArray {
+				res.WriteString(strconv.Itoa(partitionId) + "/")
+				if node != nil {
+					res.WriteString(node.host.String())
+					res.WriteString(", ")
+				} else {
+					res.WriteString("nil, ")
+				}
+			}
+			res.WriteString("\n")
 		}
 	}
+	res.WriteString("\n")
 	return res.String()
 }
 
