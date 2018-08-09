@@ -1,6 +1,14 @@
 # Change History
 
-## July 17 2018: v1.44.0
+## August 9 2018: v1.34.1
+
+  Hot fix release. We recommend updating to this version asap, especially if you are using the Strong Consistency feature.
+
+  * **Fixes**
+
+    - Fixes an issue where a race condition was preventing the partition table to form correctly. (CLIENT-1028)
+
+## July 17 2018: v1.34.0
 
   * **New Features**
 
