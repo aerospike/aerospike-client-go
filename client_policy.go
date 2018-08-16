@@ -118,9 +118,40 @@ func (cp *ClientPolicy) RequiresAuthentication() bool {
 	return (cp.User != "") || (cp.Password != "")
 }
 
-func (cp *ClientPolicy) serviceString() string {
+func (cp *ClientPolicy) servicesString() string {
 	if cp.UseServicesAlternate {
 		return "services-alternate"
 	}
 	return "services"
+}
+
+func (cp *ClientPolicy) serviceString() string {
+	if cp.TlsConfig == nil {
+		if cp.UseServicesAlternate {
+			return "service-clear-alt"
+		}
+		return "service-clear-std"
+	}
+
+	if cp.UseServicesAlternate {
+		return "service-tls-alt"
+	}
+	return "service-tls-std"
+}
+
+func (cp *ClientPolicy) peersString() string {
+	if cp.TlsConfig != nil {
+		if cp.UseServicesAlternate {
+			return "peers-tls-alt"
+		} else {
+			return "peers-tls-std"
+		}
+	}
+
+	if cp.UseServicesAlternate {
+		return "peers-clear-alt"
+	} else {
+		return "peers-clear-std"
+	}
+
 }

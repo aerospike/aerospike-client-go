@@ -136,7 +136,7 @@ func (nd *Node) Refresh(peers *peers) error {
 			return err
 		}
 	} else {
-		commands := []string{"node", "partition-generation", nd.cluster.clientPolicy.serviceString()}
+		commands := []string{"node", "partition-generation", nd.cluster.clientPolicy.servicesString()}
 
 		infoMap, err := nd.RequestInfo(commands...)
 		if err != nil {
@@ -257,7 +257,7 @@ func (nd *Node) verifyPartitionGeneration(infoMap map[string]string) error {
 }
 
 func (nd *Node) addFriends(infoMap map[string]string, peers *peers) error {
-	friendString, exists := infoMap[nd.cluster.clientPolicy.serviceString()]
+	friendString, exists := infoMap[nd.cluster.clientPolicy.servicesString()]
 
 	if !exists || len(friendString) == 0 {
 		nd.peersCount.Set(0)
@@ -278,7 +278,7 @@ func (nd *Node) addFriends(infoMap map[string]string, peers *peers) error {
 		hostName := friendInfo[0]
 		port, _ := strconv.Atoi(friendInfo[1])
 
-		if nd.cluster.clientPolicy.IpMap != nil {
+		if len(nd.cluster.clientPolicy.IpMap) > 0 {
 			if alternativeHost, ok := nd.cluster.clientPolicy.IpMap[hostName]; ok {
 				hostName = alternativeHost
 			}
@@ -369,7 +369,7 @@ func (nd *Node) refreshPartitions(peers *peers, partitions partitionMap) {
 	}
 
 	if parser.generation != nd.partitionGeneration.Get() {
-		Logger.Info("Node %s partition generation %d changed to %d", nd.GetName(), nd.partitionGeneration.Get(), parser.getGeneration())
+		Logger.Info("Node %s partition generation changed from %d to %d", nd.host.String(), nd.partitionGeneration.Get(), parser.getGeneration())
 		nd.partitionChanged.Set(true)
 		nd.partitionGeneration.Set(parser.getGeneration())
 		atomic.AddInt64(&nd.stats.PartitionMapUpdates, 1)

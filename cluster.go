@@ -546,13 +546,9 @@ func (clstr *Cluster) seedNodes() (bool, error) {
 	Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
 	// Add all nodes at once to avoid copying entire array multiple times.
-	var wg sync.WaitGroup
-	wg.Add(len(seedArray))
 	for i, seed := range seedArray {
 		go func(index int, seed *Host) {
-			defer wg.Done()
-
-			nodesToAdd := &nodesToAddT{nodesToAdd: map[string]*Node{}}
+			nodesToAdd := make(nodesToAddT, 128)
 			nv := nodeValidator{}
 			err := nv.seedNodes(clstr, seed, nodesToAdd)
 			if err != nil {
@@ -560,7 +556,7 @@ func (clstr *Cluster) seedNodes() (bool, error) {
 				errChan <- err
 				return
 			}
-			clstr.addNodes(nodesToAdd.nodesToAdd)
+			clstr.addNodes(nodesToAdd)
 			successChan <- struct{}{}
 		}(i, seed)
 	}
@@ -581,7 +577,6 @@ L:
 			return true, nil
 		case <-time.After(clstr.clientPolicy.Timeout):
 			// time is up, no seeds found
-			wg.Wait()
 			break L
 		}
 	}
