@@ -66,7 +66,7 @@ func Benchmark_Get(b *testing.B) {
 		b.Fail()
 	}
 
-	key, _ := NewKey("test", "test", "Aerospike")
+	key, _ := NewKey(*namespace, "test", "Aerospike")
 	// obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
 	// obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1}}
 	client.Delete(nil, key)
@@ -86,7 +86,7 @@ func Benchmark_Put(b *testing.B) {
 		b.Fail()
 	}
 
-	key, _ := NewKey("test", "test", "Aerospike")
+	key, _ := NewKey(*namespace, "test", "Aerospike")
 	writepolicy := NewWritePolicy(0, 0)
 
 	b.N = 100
@@ -103,7 +103,7 @@ func Benchmark_BatchGet(b *testing.B) {
 
 	var keys []*Key
 	for i := 0; i < 10; i++ {
-		key, _ := NewKey("test", "test", i)
+		key, _ := NewKey(*namespace, "test", i)
 		if err := client.PutBins(nil, key, NewBin("b", 1)); err == nil {
 			keys = append(keys, key)
 		}

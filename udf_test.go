@@ -67,7 +67,7 @@ var _ = Describe("UDF/Query tests", func() {
 	initTestVars()
 
 	var err error
-	var ns = "test"
+	var ns = *namespace
 	var set = randString(50)
 	var key *as.Key
 	var wpolicy = as.NewWritePolicy(0, 0)

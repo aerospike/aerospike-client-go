@@ -93,7 +93,7 @@ var _ = Describe("CDT Map Test", func() {
 
 	// connection data
 	var err error
-	var ns = "test"
+	var ns = *namespace
 	var set = randString(50)
 	var key *as.Key
 	var wpolicy = as.NewWritePolicy(0, 0)
@@ -581,7 +581,7 @@ var _ = Describe("CDT Map Test", func() {
 		_, err = client.Execute(nil, key, "cdt_tests", "add", as.NewValue("b"), as.NewValue("k"), as.NewValue(1))
 		Expect(err).ToNot(HaveOccurred())
 
-		sets, err := client.ScanAll(nil, "test", "skill")
+		sets, err := client.ScanAll(nil, ns, "skill")
 		Expect(err).ToNot(HaveOccurred())
 
 		rec, err := client.Get(nil, key)

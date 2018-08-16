@@ -135,7 +135,7 @@ var _ = Describe("Aerospike", func() {
 	Describe("Data operations on native types", func() {
 		// connection data
 		var err error
-		var ns = "test"
+		var ns = *namespace
 		var set = randString(50)
 		var key *as.Key
 		var wpolicy = as.NewWritePolicy(0, 0)
@@ -729,7 +729,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("must Delete to a non-existing key", func() {
+			It("must Delete a non-existing key", func() {
 				var nxkey *as.Key
 				nxkey, err = as.NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
@@ -740,7 +740,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(existed).To(Equal(false))
 			})
 
-			It("must Delete to an existing key", func() {
+			It("must Delete an existing key", func() {
 				var existed bool
 				existed, err = client.Delete(wpolicy, key)
 				Expect(err).ToNot(HaveOccurred())
@@ -761,7 +761,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("must Touch to a non-existing key", func() {
+			It("must Touch a non-existing key", func() {
 				var nxkey *as.Key
 				nxkey, err = as.NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
@@ -770,7 +770,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).To(HaveOccurred())
 			})
 
-			It("must Touch to an existing key", func() {
+			It("must Touch an existing key", func() {
 				rec, err = client.Get(rpolicy, key)
 				Expect(err).ToNot(HaveOccurred())
 				generation := rec.Generation

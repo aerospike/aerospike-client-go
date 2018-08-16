@@ -1,9 +1,11 @@
 package aerospike_test
 
 import (
+	"bytes"
 	"flag"
 	"log"
 	"math/rand"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	as "github.com/aerospike/aerospike-client-go"
+	asl "github.com/aerospike/aerospike-client-go/logger"
 )
 
 var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
@@ -22,6 +25,8 @@ var authMode = flag.String("A", "internal", "Authentication mode: internal | ext
 var clientPolicy *as.ClientPolicy
 var client *as.Client
 var useReplicas = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
+
+var namespace = flag.String("n", "test", "Namespace")
 
 func initTestVars() {
 	rand.Seed(time.Now().UnixNano())
@@ -63,11 +68,6 @@ func TestAerospike(t *testing.T) {
 }
 
 func featureEnabled(feature string) bool {
-	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
-	if err != nil {
-		log.Fatal("Failed to connect to aerospike: err:", err)
-	}
-
 	node := client.GetNodes()[0]
 	infoMap, err := node.RequestInfo("features")
 	if err != nil {
@@ -78,11 +78,6 @@ func featureEnabled(feature string) bool {
 }
 
 func nsInfo(ns string, feature string) string {
-	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
-	if err != nil {
-		log.Fatal("Failed to connect to aerospike: err:", err)
-	}
-
 	node := client.GetNodes()[0]
 	infoMap, err := node.RequestInfo("namespace/" + ns)
 	if err != nil {
@@ -99,4 +94,12 @@ func nsInfo(ns string, feature string) string {
 	}
 
 	return ""
+}
+
+func init() {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", log.LstdFlags|log.Lshortfile)
+	logger.SetOutput(os.Stdout)
+	asl.Logger.SetLogger(logger)
+	asl.Logger.SetLevel(asl.DEBUG)
 }

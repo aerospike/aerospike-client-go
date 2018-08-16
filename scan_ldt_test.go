@@ -31,7 +31,7 @@ var _ = Describe("Scan-LDT operations", func() {
 	initTestVars()
 
 	// connection data
-	var ns = "test"
+	var ns = *namespace
 	var set = randString(50)
 	var wpolicy = as.NewWritePolicy(0, 0)
 	wpolicy.SendKey = true

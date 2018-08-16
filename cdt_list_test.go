@@ -34,7 +34,7 @@ var _ = Describe("CDT List Test", func() {
 	}
 
 	// connection data
-	var ns = "test"
+	var ns = *namespace
 	var set = randString(50)
 	var key *as.Key
 	var wpolicy = as.NewWritePolicy(0, 0)

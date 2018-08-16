@@ -46,7 +46,7 @@ func Benchmark_GetObject(b *testing.B) {
 		b.Fail()
 	}
 
-	key, _ := NewKey("test", "databases", "Aerospike")
+	key, _ := NewKey(*namespace, "databases", "Aerospike")
 
 	obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1, 2, 3, 4, 5, 6}}
 	client.PutObject(nil, key, obj)
@@ -65,7 +65,7 @@ func Benchmark_PutObject(b *testing.B) {
 
 	// obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
 	obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1, 2, 3, 4, 5, 6}}
-	key, _ := NewKey("test", "databases", "Aerospike")
+	key, _ := NewKey(*namespace, "databases", "Aerospike")
 	writepolicy := NewWritePolicy(0, 0)
 
 	b.N = 100

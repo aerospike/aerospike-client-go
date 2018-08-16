@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package aerospike
+package aerospike_test
 
 import (
 	"runtime"
 	"testing"
 	// "time"
 	_ "net/http/pprof"
-	// . "github.com/aerospike/aerospike-client-go"
+
+	. "github.com/aerospike/aerospike-client-go"
 )
 
 var list []Value
@@ -33,7 +34,7 @@ var list []Value
 // 	b.ResetTimer()
 // 	b.SetBytes(0)
 
-// 	key, _ := NewKey("test", set, 1000)
+// 	key, _ := NewKey(*namespace, set, 1000)
 
 // 	for i := 0; i < b.N; i++ {
 // 		command := newOperateCommand(nil, policy, key, ops)
@@ -45,8 +46,6 @@ var list []Value
 // 	}
 // }
 
-var client *Client
-
 func doOperate(set string, ops []*Operation, b *testing.B) {
 	var err error
 
@@ -54,7 +53,7 @@ func doOperate(set string, ops []*Operation, b *testing.B) {
 	b.ResetTimer()
 	b.SetBytes(0)
 
-	key, _ := NewKey("test", set, 1000)
+	key, _ := NewKey(*namespace, set, 1000)
 
 	for i := 0; i < b.N; i++ {
 		_, err = client.Operate(nil, key, ops...)
@@ -105,6 +104,4 @@ func init() {
 		)
 	}
 	list = values
-
-	client, _ = NewClient("ubvm", 3000)
 }

@@ -36,7 +36,7 @@ func init() {
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Aerospike load tests", func() {
 	Describe("Single long random string test", func() {
-		var ns = "test"
+		var ns = *namespace
 		var set = "load"
 		var wpolicy = as.NewWritePolicy(0, 0)
 		var rpolicy = as.NewPolicy()

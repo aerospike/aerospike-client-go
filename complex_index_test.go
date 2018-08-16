@@ -28,7 +28,7 @@ var _ = Describe("Complex Index operations test", func() {
 	Describe("Complex Index Creation", func() {
 		// connection data
 		var err error
-		var ns = "test"
+		var ns = *namespace
 		var set = randString(50)
 		var key *as.Key
 		var wpolicy = as.NewWritePolicy(0, 0)

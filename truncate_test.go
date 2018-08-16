@@ -35,7 +35,7 @@ var _ = Describe("Truncate operations test", func() {
 
 	Context("Truncate", func() {
 		var err error
-		var ns = "test"
+		var ns = *namespace
 		var set = randString(50)
 		var key *Key
 		var rec *Record

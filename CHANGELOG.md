@@ -1,6 +1,5 @@
 # Change History
 
-<<<<<<< HEAD
 ## August 3 2018: v1.35.0
 
   * **New Features**

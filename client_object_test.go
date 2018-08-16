@@ -35,7 +35,7 @@ var _ = Describe("Aerospike", func() {
 	Describe("Data operations on objects", func() {
 		// connection data
 		var err error
-		var ns = "test"
+		var ns = *namespace
 		var set = randString(50)
 		var key *as.Key
 

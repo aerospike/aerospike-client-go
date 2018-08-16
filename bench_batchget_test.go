@@ -15,47 +15,20 @@
 package aerospike_test
 
 import (
-	"flag"
 	"math/rand"
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	_ "net/http/pprof"
 
 	. "github.com/aerospike/aerospike-client-go"
 )
 
-// var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
-// var port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
-// var user = flag.String("U", "", "Username.")
-// var password = flag.String("P", "", "Password.")
-// var clientPolicy *ClientPolicy
-
-var benchClient *Client
-
-func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	rand.Seed(time.Now().UnixNano())
-	flag.Parse()
-
-	clientPolicy = NewClientPolicy()
-	if *user != "" {
-		clientPolicy.User = *user
-		clientPolicy.Password = *password
-	}
-
-	var err error
-	if benchClient, err = NewClientWithPolicy(clientPolicy, *host, *port); err != nil {
-		panic(err)
-	}
-}
-
 func makeDataForGetBench(set string, bins []*Bin) {
 	for i := 0; i < 1000; i++ {
-		key, _ := NewKey("test", set, i)
-		benchClient.PutBins(nil, key, bins...)
+		key, _ := NewKey(*namespace, set, i)
+		client.PutBins(nil, key, bins...)
 	}
 }
 
@@ -63,13 +36,13 @@ func doGet(policy *BatchPolicy, set string, b *testing.B) {
 	var err error
 	var keys []*Key
 	for i := 0; i < 1000; i++ {
-		key, _ := NewKey("test", set, i)
+		key, _ := NewKey(*namespace, set, i)
 		keys = append(keys, key)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = benchClient.BatchGet(policy, keys)
+		_, err = client.BatchGet(policy, keys)
 		if err != nil {
 			panic(err)
 		}

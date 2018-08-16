@@ -30,7 +30,7 @@ var _ = Describe("predexp operations", func() {
 
 	const keyCount = 1000
 
-	var ns = "test"
+	var ns = *namespace
 	var set = "predexp_tests" // The name of the set should be consistent because of predexp_modulo tests, since set name is a part of the digest
 	var wpolicy = as.NewWritePolicy(0, 0)
 

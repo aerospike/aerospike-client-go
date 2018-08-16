@@ -53,13 +53,13 @@ func init() {
 }
 
 func makeDataForGetBench(set string, bins []*Bin) {
-	key, _ := NewKey("test", set, 0)
+	key, _ := NewKey(*namespace, set, 0)
 	benchClient.PutBins(nil, key, bins...)
 }
 
 func doGet(set string, b *testing.B) {
 	var err error
-	key, _ := NewKey("test", set, 0)
+	key, _ := NewKey(*namespace, set, 0)
 	for i := 0; i < b.N; i++ {
 		_, err = benchClient.Get(nil, key)
 		if err != nil {
@@ -172,7 +172,7 @@ func Benchmark_Get_Complex_Map(b *testing.B) {
 
 func doPut(set string, value interface{}, b *testing.B) {
 	var err error
-	// key, _ := NewKey("test", set, 0)
+	// key, _ := NewKey(*namespace, set, 0)
 	for i := 0; i < b.N; i++ {
 		bin := NewBin("b", value)
 		// err = benchClient.PutBins(nil, key, bin)

@@ -34,7 +34,7 @@ var _ = Describe("Index operations test", func() {
 
 	Describe("Index creation", func() {
 		var err error
-		var ns = "test"
+		var ns = *namespace
 		var set = randString(50)
 		var key *as.Key
 		var wpolicy = as.NewWritePolicy(0, 0)
