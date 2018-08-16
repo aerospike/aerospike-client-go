@@ -52,7 +52,7 @@ type MultiPolicy struct {
 // NewMultiPolicy initializes a MultiPolicy instance with default values.
 func NewMultiPolicy() *MultiPolicy {
 	bp := NewPolicy()
-	bp.SocketTimeout = 10 * time.Second
+	bp.SocketTimeout = 30 * time.Second
 
 	return &MultiPolicy{
 		BasePolicy:                 bp,

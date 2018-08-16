@@ -36,8 +36,11 @@ type ScanPolicy struct {
 
 // NewScanPolicy creates a new ScanPolicy instance with default values.
 func NewScanPolicy() *ScanPolicy {
+	mp := NewMultiPolicy()
+	mp.Timeout = 0
+
 	return &ScanPolicy{
-		MultiPolicy:     NewMultiPolicy(),
+		MultiPolicy:     mp,
 		ScanPercent:     100,
 		ConcurrentNodes: true,
 		IncludeLDT:      false,
