@@ -25,12 +25,22 @@ var authMode = flag.String("A", "internal", "Authentication mode: internal | ext
 var clientPolicy *as.ClientPolicy
 var client *as.Client
 var useReplicas = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
+var debug = flag.Bool("debug", false, "Will set the logging level to DEBUG.")
 
 var namespace = flag.String("n", "test", "Namespace")
 
 func initTestVars() {
 	rand.Seed(time.Now().UnixNano())
 	flag.Parse()
+
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", log.LstdFlags|log.Lshortfile)
+	logger.SetOutput(os.Stdout)
+	asl.Logger.SetLogger(logger)
+
+	if *debug {
+		asl.Logger.SetLevel(asl.DEBUG)
+	}
 
 	clientPolicy = as.NewClientPolicy()
 	if *user != "" {
@@ -94,12 +104,4 @@ func nsInfo(ns string, feature string) string {
 	}
 
 	return ""
-}
-
-func init() {
-	var buf bytes.Buffer
-	logger := log.New(&buf, "", log.LstdFlags|log.Lshortfile)
-	logger.SetOutput(os.Stdout)
-	asl.Logger.SetLogger(logger)
-	asl.Logger.SetLevel(asl.DEBUG)
 }
