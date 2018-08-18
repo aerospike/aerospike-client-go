@@ -784,17 +784,17 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(rec.Generation).To(BeNumerically(">", generation))
 
-				// recordset, err := client.ScanAll(nil, key.Namespace(), key.SetName())
-				// Expect(err).ToNot(HaveOccurred())
+				recordset, err := client.ScanAll(nil, key.Namespace(), key.SetName())
+				Expect(err).ToNot(HaveOccurred())
 
-				// // make sure the
-				// for r := range recordset.Results() {
-				// 	Expect(r.Err).ToNot(HaveOccurred())
-				// 	if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
-				// 		Expect(r.Record.Key.Value()).To(Equal(key.Value()))
-				// 		Expect(r.Record.Bins).To(Equal(rec.Bins))
-				// 	}
-				// }
+				// make sure the
+				for r := range recordset.Results() {
+					Expect(r.Err).ToNot(HaveOccurred())
+					if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
+						Expect(r.Record.Key.Value()).To(Equal(key.Value()))
+						Expect(r.Record.Bins).To(Equal(rec.Bins))
+					}
+				}
 			})
 
 		}) // Touch context
@@ -1213,51 +1213,51 @@ var _ = Describe("Aerospike", func() {
 				}
 			})
 
-			// It("must send key on Touch operations", func() {
-			// 	key, err := as.NewKey(ns, set, randString(50))
-			// 	Expect(err).ToNot(HaveOccurred())
+			It("must send key on Touch operations", func() {
+				key, err := as.NewKey(ns, set, randString(50))
+				Expect(err).ToNot(HaveOccurred())
 
-			// 	ops1 := []*as.Operation{
-			// 		as.GetOp(),
-			// 		as.PutOp(bin2),
-			// 	}
+				ops1 := []*as.Operation{
+					as.GetOp(),
+					as.PutOp(bin2),
+				}
 
-			// 	wpolicy := as.NewWritePolicy(0, 0)
-			// 	wpolicy.SendKey = false
-			// 	rec, err = client.Operate(wpolicy, key, ops1...)
-			// 	Expect(err).ToNot(HaveOccurred())
+				wpolicy := as.NewWritePolicy(0, 0)
+				wpolicy.SendKey = false
+				rec, err = client.Operate(wpolicy, key, ops1...)
+				Expect(err).ToNot(HaveOccurred())
 
-			// 	recordset, err := client.ScanAll(nil, key.Namespace(), key.SetName())
-			// 	Expect(err).ToNot(HaveOccurred())
+				recordset, err := client.ScanAll(nil, key.Namespace(), key.SetName())
+				Expect(err).ToNot(HaveOccurred())
 
-			// 	// make sure the key is not saved
-			// 	for r := range recordset.Results() {
-			// 		Expect(r.Err).ToNot(HaveOccurred())
-			// 		if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
-			// 			Expect(r.Record.Key.Value()).To(BeNil())
-			// 		}
-			// 	}
+				// make sure the key is not saved
+				for r := range recordset.Results() {
+					Expect(r.Err).ToNot(HaveOccurred())
+					if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
+						Expect(r.Record.Key.Value()).To(BeNil())
+					}
+				}
 
-			// 	ops2 := []*as.Operation{
-			// 		as.GetOp(),
-			// 		as.TouchOp(),
-			// 	}
-			// 	wpolicy.SendKey = true
-			// 	rec, err = client.Operate(wpolicy, key, ops2...)
-			// 	Expect(err).ToNot(HaveOccurred())
+				ops2 := []*as.Operation{
+					as.GetOp(),
+					as.TouchOp(),
+				}
+				wpolicy.SendKey = true
+				rec, err = client.Operate(wpolicy, key, ops2...)
+				Expect(err).ToNot(HaveOccurred())
 
-			// 	recordset, err = client.ScanAll(nil, key.Namespace(), key.SetName())
-			// 	Expect(err).ToNot(HaveOccurred())
+				recordset, err = client.ScanAll(nil, key.Namespace(), key.SetName())
+				Expect(err).ToNot(HaveOccurred())
 
-			// 	// make sure the
-			// 	for r := range recordset.Results() {
-			// 		Expect(r.Err).ToNot(HaveOccurred())
-			// 		if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
-			// 			Expect(r.Record.Key.Value()).To(Equal(key.Value()))
-			// 			Expect(r.Record.Bins).To(Equal(rec.Bins))
-			// 		}
-			// 	}
-			// })
+				// make sure the
+				for r := range recordset.Results() {
+					Expect(r.Err).ToNot(HaveOccurred())
+					if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
+						Expect(r.Record.Key.Value()).To(Equal(key.Value()))
+						Expect(r.Record.Bins).To(Equal(rec.Bins))
+					}
+				}
+			})
 
 			It("must apply all operations, and result should match expectation", func() {
 				key, err := as.NewKey(ns, set, randString(50))
