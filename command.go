@@ -1586,7 +1586,10 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 	for {
 		// too many retries
 		if iterations++; (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
-			err := NewAerospikeError(TIMEOUT, fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err))
+			if ae, ok := err.(AerospikeError); ok {
+				err = NewAerospikeError(ae.ResultCode(), fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err.Error()))
+			}
+
 			return setInDoubt(err, isRead, commandSentCounter)
 		}
 
