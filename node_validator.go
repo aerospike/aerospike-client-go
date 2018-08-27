@@ -215,7 +215,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 		var hostAddress []*Host
 		peerParser := peerListParser{buf: []byte("[" + peersStr + "]")}
 		if hostAddress, err = peerParser.readHosts(alias.TLSName); err != nil {
-			Logger.Error("Failed to parse `%s` results... err: %s", err.Error())
+			Logger.Error("Failed to parse `%s` results... err: %s", alias.String(), err.Error())
 		}
 
 		if len(hostAddress) > 0 {

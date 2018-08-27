@@ -302,7 +302,7 @@ func (nd *Node) addFriends(infoMap map[string]string, peers *peers) error {
 func (nd *Node) prepareFriend(host *Host, peers *peers) bool {
 	nv := &nodeValidator{}
 	if err := nv.validateNode(nd.cluster, host); err != nil {
-		Logger.Warn("Adding node `%s` failed: ", host, err)
+		Logger.Warn("Adding node `%s` failed: %s", host, err)
 		return false
 	}
 

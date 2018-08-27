@@ -164,7 +164,7 @@ func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			Logger.Error("Cluster tend goroutine crashed:", debug.Stack())
+			Logger.Error("Cluster tend goroutine crashed: %s", debug.Stack())
 			go clstr.clusterBoss(&clstr.clientPolicy)
 		}
 	}()
