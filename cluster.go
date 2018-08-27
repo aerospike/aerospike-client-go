@@ -810,7 +810,6 @@ func (clstr *Cluster) getSequenceNode(partition *Partition, seq *int) (*Node, er
 	}
 
 	if partitions.CPMode {
-		// When master only specified, both AP and CP modes should never get random nodes.
 		return nil, NewAerospikeError(INVALID_NODE_ERROR)
 	}
 
@@ -853,7 +852,6 @@ func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
 	}
 
 	if partitions.CPMode {
-		// When master only specified, both AP and CP modes should never get random nodes.
 		return nil, NewAerospikeError(INVALID_NODE_ERROR)
 	}
 

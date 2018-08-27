@@ -1562,11 +1562,14 @@ func (cmd *baseCommand) end() {
 
 ////////////////////////////////////
 
-func setInDoubt(err error, isRead bool, commandSentCounter int) {
+func setInDoubt(err error, isRead bool, commandSentCounter int) error {
 	// set inDoubt flag
-	if _, ok := err.(AerospikeError); ok {
-		err.(AerospikeError).SetInDoubt(isRead, commandSentCounter)
+	if ae, ok := err.(AerospikeError); ok {
+		ae.SetInDoubt(isRead, commandSentCounter)
+		return ae
 	}
+
+	return err
 }
 
 // SetCommandBufferPool can be used to customize the command Buffer Pool parameters to calibrate
@@ -1596,9 +1599,11 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 	for {
 		// too many retries
 		if iterations++; (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
-			err := NewAerospikeError(TIMEOUT, fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err))
-			setInDoubt(err, isRead, commandSentCounter)
-			return err
+			if ae, ok := err.(AerospikeError); ok {
+				err = NewAerospikeError(ae.ResultCode(), fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err.Error()))
+			}
+
+			return setInDoubt(err, isRead, commandSentCounter)
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -1683,8 +1688,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 
 			}
 
-			setInDoubt(err, isRead, commandSentCounter)
-			return err
+			return setInDoubt(err, isRead, commandSentCounter)
 		}
 
 		// in case it has grown and re-allocated

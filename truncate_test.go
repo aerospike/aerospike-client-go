@@ -38,7 +38,6 @@ var _ = Describe("Truncate operations test", func() {
 		var ns = *namespace
 		var set = randString(50)
 		var key *Key
-		var rec *Record
 		var wpolicy = NewWritePolicy(0, 0)
 		wpolicy.SendKey = true
 
@@ -51,7 +50,7 @@ var _ = Describe("Truncate operations test", func() {
 				key, err = NewKey(ns, set, i)
 				Expect(err).ToNot(HaveOccurred())
 
-				rec, err = client.Operate(wpolicy, key, PutOp(bin1), PutOp(bin2), GetOp())
+				_, err = client.Operate(wpolicy, key, PutOp(bin1), PutOp(bin2), GetOp())
 				Expect(err).ToNot(HaveOccurred())
 			}
 		})
@@ -100,7 +99,7 @@ var _ = Describe("Truncate operations test", func() {
 				key, err = NewKey(ns, set, i)
 				Expect(err).ToNot(HaveOccurred())
 
-				rec, err = client.Operate(wpolicy, key, PutOp(bin1), PutOp(bin2), GetOp())
+				_, err = client.Operate(wpolicy, key, PutOp(bin1), PutOp(bin2), GetOp())
 				Expect(err).ToNot(HaveOccurred())
 			}
 			Expect(countRecords(ns, set)).To(Equal(2 * keyCount))
