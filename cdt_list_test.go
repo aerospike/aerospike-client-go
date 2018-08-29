@@ -592,8 +592,6 @@ var _ = Describe("CDT List Test", func() {
 			)
 			Expect(err).ToNot(HaveOccurred())
 
-			fmt.Println(record.Bins)
-
 			Expect(record.Bins[cdtBinName]).To(Equal(6))
 			Expect(record.Bins[cdtBinName2]).To(Equal(0))
 
