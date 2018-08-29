@@ -44,6 +44,8 @@ type nodeValidator struct {
 	aliases     []*Host
 	primaryHost *Host
 
+	detectLoadBalancer bool
+
 	sessionToken      []byte
 	SessionExpiration time.Time
 
@@ -108,9 +110,14 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) error {
 }
 
 func (ndv *nodeValidator) setAliases(host *Host) error {
+	ndv.detectLoadBalancer = true
+
 	// IP addresses do not need a lookup
 	ip := net.ParseIP(host.Name)
 	if ip != nil {
+		// avoid detecting load balancer on localhost
+		ndv.detectLoadBalancer = !ip.IsLoopback()
+
 		aliases := make([]*Host, 1)
 		aliases[0] = NewHost(host.Name, host.Port)
 		aliases[0].TLSName = host.TLSName
@@ -125,6 +132,11 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 		for idx, addr := range addresses {
 			aliases[idx] = NewHost(addr, host.Port)
 			aliases[idx].TLSName = host.TLSName
+
+			// avoid detecting load balancer on localhost
+			if ip := net.ParseIP(host.Name); ip != nil && ip.IsLoopback() {
+				ndv.detectLoadBalancer = false
+			}
 		}
 		ndv.aliases = aliases
 	}
@@ -171,7 +183,9 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	}
 
 	addressCommand := clientPolicy.serviceString()
-	infoKeys = append(infoKeys, addressCommand)
+	if ndv.detectLoadBalancer {
+		infoKeys = append(infoKeys, addressCommand)
+	}
 
 	infoMap, err := RequestInfo(conn, infoKeys...)
 	if err != nil {
@@ -232,7 +246,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 				}
 			}
 
-			if isLoadBalancer {
+			if isLoadBalancer && ndv.detectLoadBalancer {
 				aliasFound := false
 
 				// take the seed out of the aliases if it is load balancer
