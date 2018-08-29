@@ -15,7 +15,6 @@
 package aerospike_test
 
 import (
-	"fmt"
 	"math"
 
 	. "github.com/onsi/ginkgo"
