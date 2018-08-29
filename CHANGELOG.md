@@ -19,6 +19,20 @@
 
     - Fixes minor unsigned length conversions for admin command.
 
+## August 29 2018: v1.34.2
+
+  Fix release.
+
+  * **Fixes**
+
+    - Use pointer receiver for `AerospikeError.SetInDoubt` and `AerospikeError.MarkInDoubt`.
+    - Remove unused variable in truncate test.
+
+  * **Changes**
+
+    - Add Go 1.11 to Travis' test versions.
+    - Use the last error code in MaxRetries timeout errors for Go 1.11.
+
 ## August 9 2018: v1.34.1
 
   Hot fix release. We recommend updating to this version asap, especially if you are using the Strong Consistency feature.
