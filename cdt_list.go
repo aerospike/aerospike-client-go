@@ -32,37 +32,39 @@ package aerospike
 // out of bounds, the valid part of the range will be returned.
 
 const (
-	_CDT_LIST_SET_TYPE                 = 0
-	_CDT_LIST_APPEND                   = 1
-	_CDT_LIST_APPEND_ITEMS             = 2
-	_CDT_LIST_INSERT                   = 3
-	_CDT_LIST_INSERT_ITEMS             = 4
-	_CDT_LIST_POP                      = 5
-	_CDT_LIST_POP_RANGE                = 6
-	_CDT_LIST_REMOVE                   = 7
-	_CDT_LIST_REMOVE_RANGE             = 8
-	_CDT_LIST_SET                      = 9
-	_CDT_LIST_TRIM                     = 10
-	_CDT_LIST_CLEAR                    = 11
-	_CDT_LIST_INCREMENT                = 12
-	_CDT_LIST_SORT                     = 13
-	_CDT_LIST_SIZE                     = 16
-	_CDT_LIST_GET                      = 17
-	_CDT_LIST_GET_RANGE                = 18
-	_CDT_LIST_GET_BY_INDEX             = 19
-	_CDT_LIST_GET_BY_RANK              = 21
-	_CDT_LIST_GET_BY_VALUE             = 22
-	_CDT_LIST_GET_BY_VALUE_LIST        = 23
-	_CDT_LIST_GET_BY_INDEX_RANGE       = 24
-	_CDT_LIST_GET_BY_VALUE_INTERVAL    = 25
-	_CDT_LIST_GET_BY_RANK_RANGE        = 26
-	_CDT_LIST_REMOVE_BY_INDEX          = 32
-	_CDT_LIST_REMOVE_BY_RANK           = 34
-	_CDT_LIST_REMOVE_BY_VALUE          = 35
-	_CDT_LIST_REMOVE_BY_VALUE_LIST     = 36
-	_CDT_LIST_REMOVE_BY_INDEX_RANGE    = 37
-	_CDT_LIST_REMOVE_BY_VALUE_INTERVAL = 38
-	_CDT_LIST_REMOVE_BY_RANK_RANGE     = 39
+	_CDT_LIST_SET_TYPE                       = 0
+	_CDT_LIST_APPEND                         = 1
+	_CDT_LIST_APPEND_ITEMS                   = 2
+	_CDT_LIST_INSERT                         = 3
+	_CDT_LIST_INSERT_ITEMS                   = 4
+	_CDT_LIST_POP                            = 5
+	_CDT_LIST_POP_RANGE                      = 6
+	_CDT_LIST_REMOVE                         = 7
+	_CDT_LIST_REMOVE_RANGE                   = 8
+	_CDT_LIST_SET                            = 9
+	_CDT_LIST_TRIM                           = 10
+	_CDT_LIST_CLEAR                          = 11
+	_CDT_LIST_INCREMENT                      = 12
+	_CDT_LIST_SORT                           = 13
+	_CDT_LIST_SIZE                           = 16
+	_CDT_LIST_GET                            = 17
+	_CDT_LIST_GET_RANGE                      = 18
+	_CDT_LIST_GET_BY_INDEX                   = 19
+	_CDT_LIST_GET_BY_RANK                    = 21
+	_CDT_LIST_GET_BY_VALUE                   = 22
+	_CDT_LIST_GET_BY_VALUE_LIST              = 23
+	_CDT_LIST_GET_BY_INDEX_RANGE             = 24
+	_CDT_LIST_GET_BY_VALUE_INTERVAL          = 25
+	_CDT_LIST_GET_BY_RANK_RANGE              = 26
+	_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE    = 27
+	_CDT_LIST_REMOVE_BY_INDEX                = 32
+	_CDT_LIST_REMOVE_BY_RANK                 = 34
+	_CDT_LIST_REMOVE_BY_VALUE                = 35
+	_CDT_LIST_REMOVE_BY_VALUE_LIST           = 36
+	_CDT_LIST_REMOVE_BY_INDEX_RANGE          = 37
+	_CDT_LIST_REMOVE_BY_VALUE_INTERVAL       = 38
+	_CDT_LIST_REMOVE_BY_RANK_RANGE           = 39
+	_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE = 40
 )
 
 type ListOrderType int
@@ -330,6 +332,39 @@ func ListRemoveByValueRangeOp(binName string, returnType ListReturnType, valueBe
 	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(valueBegin), NewValue(valueEnd)}, encoder: listGenericOpEncoder}
 }
 
+// ListRemoveByValueRelativeRankRangeOp creates a list remove by value relative to rank range operation.
+// Server removes list items nearest to value and greater by relative rank.
+// Server returns removed data specified by returnType.
+//
+// Examples for ordered list [0,4,5,9,11,15]:
+//
+// (value,rank) = [removed items]
+// (5,0) = [5,9,11,15]
+// (5,1) = [9,11,15]
+// (5,-1) = [4,5,9,11,15]
+// (3,0) = [4,5,9,11,15]
+// (3,3) = [11,15]
+// (3,-3) = [0,4,5,9,11,15]
+func ListRemoveByValueRelativeRankRangeOp(binName string, returnType ListReturnType, value interface{}, rank int) *Operation {
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank)}, encoder: listGenericOpEncoder}
+}
+
+// ListRemoveByValueRelativeRankRangeCountOp creates a list remove by value relative to rank range operation.
+// Server removes list items nearest to value and greater by relative rank with a count limit.
+// Server returns removed data specified by returnType.
+// Examples for ordered list [0,4,5,9,11,15]:
+//
+// (value,rank,count) = [removed items]
+// (5,0,2) = [5,9]
+// (5,1,1) = [9]
+// (5,-1,2) = [4,5]
+// (3,0,1) = [4]
+// (3,3,7) = [11,15]
+// (3,-3,2) = []
+func ListRemoveByValueRelativeRankRangeCountOp(binName string, returnType ListReturnType, value interface{}, rank, count int) *Operation {
+	return &Operation{opType: CDT_MODIFY, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank), IntegerValue(count)}, encoder: listGenericOpEncoder}
+}
+
 // ListRemoveRangeOp creates a list remove range operation.
 // Server removes "count" items starting at specified index from list bin.
 // Server returns number of items removed.
@@ -539,4 +574,38 @@ func ListGetByRankRangeOp(binName string, rank int, returnType ListReturnType) *
 // Server selects "count" list items starting at specified rank and returns selected data specified by returnType.
 func ListGetByRankRangeCountOp(binName string, rank, count int, returnType ListReturnType) *Operation {
 	return &Operation{opType: CDT_READ, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_RANK_RANGE, IntegerValue(returnType), IntegerValue(rank), IntegerValue(count)}, encoder: listGenericOpEncoder}
+}
+
+// ListGetByValueRelativeRankRangeOp creates a list get by value relative to rank range operation.
+// Server selects list items nearest to value and greater by relative rank.
+// Server returns selected data specified by returnType.
+//
+// Examples for ordered list [0,4,5,9,11,15]:
+//
+// (value,rank) = [selected items]
+// (5,0) = [5,9,11,15]
+// (5,1) = [9,11,15]
+// (5,-1) = [4,5,9,11,15]
+// (3,0) = [4,5,9,11,15]
+// (3,3) = [11,15]
+// (3,-3) = [0,4,5,9,11,15]
+func ListGetByValueRelativeRankRangeOp(binName string, value interface{}, rank int, returnType ListReturnType) *Operation {
+	return &Operation{opType: CDT_READ, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank)}, encoder: listGenericOpEncoder}
+}
+
+// ListGetByValueRelativeRankRangeCountOp creates a list get by value relative to rank range operation.
+// Server selects list items nearest to value and greater by relative rank with a count limit.
+// Server returns selected data specified by returnType.
+//
+// Examples for ordered list [0,4,5,9,11,15]:
+//
+// (value,rank,count) = [selected items]
+// (5,0,2) = [5,9]
+// (5,1,1) = [9]
+// (5,-1,2) = [4,5]
+// (3,0,1) = [4]
+// (3,3,7) = [11,15]
+// (3,-3,2) = []
+func ListGetByValueRelativeRankRangeCountOp(binName string, value interface{}, rank, count int, returnType ListReturnType) *Operation {
+	return &Operation{opType: CDT_READ, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank), IntegerValue(count)}, encoder: listGenericOpEncoder}
 }

@@ -84,6 +84,26 @@ func newCDTCreateOperationIndexCount(command int, typ OperationType, binName str
 	}
 }
 
+func newCDTMapCreateOperationRelativeIndex(command int, typ OperationType, binName string, key Value, index int, returnType mapReturnType) *Operation {
+	return &Operation{
+		opType:    typ,
+		opSubType: &command,
+		binName:   binName,
+		binValue:  ListValue([]interface{}{IntegerValue(returnType), key, index}),
+		encoder:   newCDTCreateOperationEncoder,
+	}
+}
+
+func newCDTMapCreateOperationRelativeIndexCount(command int, typ OperationType, binName string, key Value, index int, count int, returnType mapReturnType) *Operation {
+	return &Operation{
+		opType:    typ,
+		opSubType: &command,
+		binName:   binName,
+		binValue:  ListValue([]interface{}{IntegerValue(returnType), key, index, count}),
+		encoder:   newCDTCreateOperationEncoder,
+	}
+}
+
 func newCDTCreateRangeOperation(command int, typ OperationType, binName string, begin interface{}, end interface{}, returnType mapReturnType) *Operation {
 	if end == nil {
 		return &Operation{
