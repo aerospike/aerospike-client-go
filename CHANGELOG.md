@@ -1,22 +1,28 @@
 # Change History
 
-## August 3 2018: v1.35.0
+## August 29 2018: v1.35.0
 
   * **New Features**
 
     - Support for external authentication (LDAP).
     - Support Map and List WriteFlags: `NoFail` and `Partial`.
+    - Support load balancers as seed node.
 
   * **Changes**
 
+    - Change default Scan/Query `ServerSocketTimeout` to 30s.
 
   * **Improvements**
 
     - Adds `QueryPolicy.ServerSocketTimeout` and `QueryPolicy.FailOnClusterChange` for when the queries are automatically converted to scans.
     - Minor documentation improvements.
+    - Synchronize logging at all situations.
+    - Add -debug switch to allow logging at debug level in tests.
+    - Allow the user to define the namespace for tests to run on.
 
   * **Fixes**
 
+    - Fix a few go vet errors for Go 1.11.
     - Fixes minor unsigned length conversions for admin command.
 
 ## August 29 2018: v1.34.2
