@@ -277,12 +277,20 @@ func (ctn *Connection) Close() {
 func (ctn *Connection) Authenticate(user string, password string) error {
 	// need to authenticate
 	if user != "" {
-
 		hashedPass, err := hashPassword(password)
 		if err != nil {
 			return err
 		}
 
+		return ctn.authenticateFast(user, hashedPass)
+	}
+	return nil
+}
+
+// authenticateFast will send authentication information to the server.
+func (ctn *Connection) authenticateFast(user string, hashedPass []byte) error {
+	// need to authenticate
+	if len(user) > 0 {
 		command := NewLoginCommand(ctn.dataBuffer)
 		if err := command.authenticateInternal(ctn, user, hashedPass); err != nil {
 			if ctn.node != nil {
@@ -299,7 +307,7 @@ func (ctn *Connection) Authenticate(user string, password string) error {
 // Login will send authentication information to the server.
 func (ctn *Connection) login(sessionToken []byte) error {
 	// need to authenticate
-	if len(ctn.node.cluster.clientPolicy.User) > 0 {
+	if ctn.node.cluster.clientPolicy.RequiresAuthentication() {
 		policy := &ctn.node.cluster.clientPolicy
 
 		switch policy.AuthMode {
@@ -307,7 +315,7 @@ func (ctn *Connection) login(sessionToken []byte) error {
 			var err error
 			command := NewLoginCommand(ctn.dataBuffer)
 			if sessionToken == nil {
-				err = command.Login(&ctn.node.cluster.clientPolicy, ctn)
+				err = command.login(&ctn.node.cluster.clientPolicy, ctn, ctn.node.cluster.Password())
 			} else {
 				err = command.authenticateViaToken(&ctn.node.cluster.clientPolicy, ctn, sessionToken)
 			}
@@ -329,7 +337,7 @@ func (ctn *Connection) login(sessionToken []byte) error {
 			return nil
 
 		case AuthModeInternal:
-			return ctn.Authenticate(policy.User, policy.Password)
+			return ctn.authenticateFast(policy.User, ctn.node.cluster.Password())
 		}
 	}
 

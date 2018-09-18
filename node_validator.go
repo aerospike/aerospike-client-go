@@ -154,10 +154,10 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	}
 	defer conn.Close()
 
-	if len(clientPolicy.User) > 0 {
+	if clientPolicy.RequiresAuthentication() {
 		// need to authenticate
 		acmd := NewLoginCommand(conn.dataBuffer)
-		err = acmd.Login(&clientPolicy, conn)
+		err = acmd.login(&clientPolicy, conn, cluster.Password())
 		if err != nil {
 			return err
 		}
@@ -259,10 +259,10 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 					}
 					defer hconn.Close()
 
-					if len(clientPolicy.User) > 0 {
+					if clientPolicy.RequiresAuthentication() {
 						// need to authenticate
 						acmd := NewLoginCommand(hconn.dataBuffer)
-						err = acmd.Login(&clientPolicy, hconn)
+						err = acmd.login(&clientPolicy, hconn, cluster.Password())
 						if err != nil {
 							continue
 						}

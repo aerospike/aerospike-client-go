@@ -174,7 +174,7 @@ func (nd *Node) Refresh(peers *peers) error {
 // refreshSessionToken refreshes the session token if it has been expired
 func (nd *Node) refreshSessionToken() error {
 	// no session token to refresh
-	if len(nd.cluster.clientPolicy.User) == 0 || nd.cluster.clientPolicy.AuthMode != AuthModeExternal {
+	if !nd.cluster.clientPolicy.RequiresAuthentication() || nd.cluster.clientPolicy.AuthMode != AuthModeExternal {
 		return nil
 	}
 
@@ -196,7 +196,7 @@ func (nd *Node) refreshSessionToken() error {
 	}
 
 	command := NewLoginCommand(nd.tendConn.dataBuffer)
-	if err := command.Login(&nd.cluster.clientPolicy, nd.tendConn); err != nil {
+	if err := command.login(&nd.cluster.clientPolicy, nd.tendConn, nd.cluster.Password()); err != nil {
 		// Socket not authenticated. Do not put back into pool.
 		nd.tendConn.Close()
 		return err
