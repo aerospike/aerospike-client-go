@@ -1,5 +1,18 @@
 # Change History
 
+## September 18 2018: v1.35.1
+
+  Hot fix release. We recommend updating to this version if you are using authentication.
+
+  * **Fixes**
+
+    - Fixes a regression to avoid hashing passwords per each login, using the cached password.
+
+  * **Changes**
+
+    - Minor code clean up and dead code removal.
+
+
 ## August 29 2018: v1.35.0
 
   * **New Features**
