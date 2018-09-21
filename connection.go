@@ -261,12 +261,14 @@ func (ctn *Connection) Close() {
 			// deregister
 			if ctn.node != nil {
 				ctn.node.connectionCount.DecrementAndGet()
+				atomic.AddInt64(&ctn.node.stats.ConnectionsClosed, 1)
 			}
 
 			if err := ctn.conn.Close(); err != nil {
 				Logger.Warn(err.Error())
 			}
 			ctn.conn = nil
+			ctn.dataBuffer = nil
 		}
 	})
 }

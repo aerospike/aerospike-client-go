@@ -1641,6 +1641,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
 			cmd.conn.Close()
+			cmd.conn = nil
 			return err
 		}
 
@@ -1654,6 +1655,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 			// IO errors are considered temporary anomalies. Retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
 			cmd.conn.Close()
+			cmd.conn = nil
 
 			Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
@@ -1667,6 +1669,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
 				cmd.conn.Close()
+				cmd.conn = nil
 
 				Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 
@@ -1685,7 +1688,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 				cmd.node.PutConnection(cmd.conn)
 			} else {
 				cmd.conn.Close()
-
+				cmd.conn = nil
 			}
 
 			return setInDoubt(err, isRead, commandSentCounter)
