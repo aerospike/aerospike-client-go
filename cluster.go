@@ -276,7 +276,18 @@ func (clstr *Cluster) tend() error {
 		wg.Wait()
 	}
 
-	partitionMap := clstr.getPartitions().clone()
+	var partitionMap partitionMap
+
+	// Use the following function to allocate memory for the partitionMap on demand.
+	// This will prevent the allocation when the cluster is stable, and make tend a bit faster.
+	pmlock := new(sync.Mutex)
+	setPartitionMap := func(l *sync.Mutex) {
+		l.Lock()
+		defer l.Unlock()
+		if partitionMap == nil {
+			partitionMap = clstr.getPartitions().clone()
+		}
+	}
 
 	// find the first host that connects
 	for _, _peer := range peers.peers() {
@@ -309,6 +320,7 @@ func (clstr *Cluster) tend() error {
 				// Create new node.
 				node := clstr.createNode(&nv)
 				peers.addNode(nv.name, node)
+				setPartitionMap(pmlock)
 				node.refreshPartitions(peers, partitionMap)
 				break
 			}
@@ -321,6 +333,7 @@ func (clstr *Cluster) tend() error {
 		go func(node *Node) {
 			defer wg.Done()
 			if node.partitionChanged.Get() {
+				setPartitionMap(pmlock)
 				node.refreshPartitions(peers, partitionMap)
 			}
 		}(node)
@@ -378,7 +391,7 @@ func (clstr *Cluster) tend() error {
 		clstr.setPartitions(partitionMap)
 	}
 
-	if err := partitionMap.validate(); err != nil {
+	if err := clstr.getPartitions().validate(); err != nil {
 		Logger.Debug("Error validating the cluster partition map after tend: %s", err.Error())
 	}
 
