@@ -1669,12 +1669,12 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
 				cmd.conn.Close()
-				cmd.conn = nil
 
 				Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 
 				// retry only for non-streaming commands
 				if !cmd.oneShot {
+					cmd.conn = nil
 					continue
 				}
 			}
