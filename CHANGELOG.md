@@ -1,5 +1,17 @@
 # Change History
 
+## October 2 2018: v1.35.2
+
+  Improvement release.
+
+  * **Improvements**
+
+    - Do not allocate a partition map on each tend unless needed.
+    - Adds `ConnectionsClosed` stat and sets the connection and dataBuffer to nil in a few places to help the GC.
+    - Use a heap data structure for connection pooling instead of a queue.
+      This allows better management of connections after a surge, since it keeps the unused connection in the bottom of the heap to close.
+      It also helps with performance a bit due to better caching of the data structure in CPU.
+
 ## September 18 2018: v1.35.1
 
   Hot fix release. We recommend updating to this version if you are using authentication.
