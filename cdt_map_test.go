@@ -244,10 +244,8 @@ var _ = Describe("CDT Map Test", func() {
 				as.GetOpForBin(otherBinName),
 			)
 
-			cdtMap, err = client.Get(nil, key)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []as.MapPair{{Key: -8734, Value: "str2"}, {Key: 1, Value: "my default"}, {Key: 7, Value: 1}, {Key: 12, Value: "myval"}}, "other_bin": "head...tail"}))
-			// Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: 3, "other_bin": "head...tail"}))
+			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: 3, "other_bin": []interface{}{nil, "head...tail"}})) // there were two operations for bin `other_bin`, so the results come back in an array
 
 			// Should set SendKey == true for a solely read operation without getting PARAMETER_ERROR from the server
 			wpolicy2 := *wpolicy
