@@ -50,6 +50,7 @@ func batchParseObject(
 	generation uint32,
 	expiration uint32,
 ) error {
+	supportsFloat := cmd.node.cluster.supportsFloat.Get()
 	for i := 0; i < opCount; i++ {
 		if err := cmd.readBytes(8); err != nil {
 			err = newNodeError(cmd.node, err)
@@ -78,7 +79,7 @@ func batchParseObject(
 		}
 
 		iobj := indirect(obj)
-		if err := setObjectField(cmd.resObjMappings, iobj, name, value); err != nil {
+		if err := setObjectField(cmd.resObjMappings, iobj, name, value, supportsFloat); err != nil {
 			return err
 		}
 	}
