@@ -247,6 +247,17 @@ var _ = Describe("CDT Map Test", func() {
 			cdtMap, err = client.Get(nil, key)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []as.MapPair{{Key: -8734, Value: "str2"}, {Key: 1, Value: "my default"}, {Key: 7, Value: 1}, {Key: 12, Value: "myval"}}, "other_bin": "head...tail"}))
+			// Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: 3, "other_bin": "head...tail"}))
+
+			// Should set SendKey == true for a solely read operation without getting PARAMETER_ERROR from the server
+			wpolicy2 := *wpolicy
+			wpolicy2.SendKey = true
+			cdtMap, err = client.Operate(&wpolicy2, key,
+				as.MapGetByKeyOp(cdtBinName, 12, as.MapReturnType.VALUE),
+			)
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: "myval"}))
 		})
 
 		It("should create a valid CDT Map and then Switch Policy For Order", func() {

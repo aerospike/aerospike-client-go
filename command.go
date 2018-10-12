@@ -333,7 +333,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		cmd.estimateOperationSizeForOperation(operations[i])
 	}
 
-	ksz, err := cmd.estimateKeySize(key, policy.SendKey && writeAttr != 0)
+	ksz, err := cmd.estimateKeySize(key, policy.SendKey && hasWrite)
 	if err != nil {
 		return hasWrite, err
 	}
@@ -356,7 +356,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	} else {
 		cmd.writeHeader(&policy.BasePolicy, readAttr, writeAttr, fieldCount, len(operations))
 	}
-	cmd.writeKey(key, policy.SendKey && writeAttr != 0)
+	cmd.writeKey(key, policy.SendKey && hasWrite)
 
 	for _, operation := range operations {
 		if err := cmd.writeOperationForOperation(operation); err != nil {
