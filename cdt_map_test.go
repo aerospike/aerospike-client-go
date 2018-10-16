@@ -157,6 +157,30 @@ var _ = Describe("CDT Map Test", func() {
 
 		})
 
+		It("should return the content of an Ordered CDT map correctly", func() {
+			items := map[interface{}]interface{}{
+				"mk1": []interface{}{"v1.0", "v1.1"},
+				"mk2": []interface{}{"v2.0", "v2.1"},
+			}
+
+			rec, err := client.Operate(nil, key,
+				as.MapPutItemsOp(as.NewMapPolicy(as.MapOrder.KEY_VALUE_ORDERED, as.MapWriteMode.UPDATE), "bin", items),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			rec, err = client.Operate(nil, key,
+				as.MapGetByKeyOp("bin", "mk1", as.MapReturnType.VALUE),
+				as.MapGetByKeyOp("bin", "mk2", as.MapReturnType.VALUE),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(rec.Bins).To(Equal(as.BinMap{"bin": []interface{}{[]interface{}{"v1.0", "v1.1"}, []interface{}{"v2.0", "v2.1"}}}))
+
+			rec, err = client.Get(nil, key)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rec.Bins).To(Equal(as.BinMap{"bin": []as.MapPair{as.MapPair{Key: "mk1", Value: []interface{}{"v1.0", "v1.1"}}, as.MapPair{Key: "mk2", Value: []interface{}{"v2.0", "v2.1"}}}}))
+		})
+
 		It("should create a valid CDT Map using MapPutOp", func() {
 			cdtMap, err := client.Operate(wpolicy, key,
 				as.MapPutOp(putMode, cdtBinName, 1, 1),
@@ -340,7 +364,20 @@ var _ = Describe("CDT Map Test", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{"Harry", "Jim", []as.MapPair{{Key: "Charlie", Value: 55}, {Key: "John", Value: 81}}, 55, "Harry", []interface{}{3}, 1, []as.MapPair{{Key: "Jim", Value: 94}}, []interface{}{"John"}, []interface{}{}, []interface{}{1}, 0, 3, []interface{}{"Charlie", "Jim"}, []interface{}{"Charlie", "Jim"}}}))
+			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{
+				[]interface{}{"Harry", "Jim"},
+				[]as.MapPair{{Key: "Charlie", Value: 55}, {Key: "John", Value: 81}},
+				55,
+				"Harry",
+				[]interface{}{3}, 1, []as.MapPair{{Key: "Jim", Value: 94}},
+				[]interface{}{"John"},
+				[]interface{}{},
+				[]interface{}{1},
+				0,
+				3,
+				[]interface{}{"Charlie", "Jim"},
+				[]interface{}{"Charlie", "Jim"},
+			}}))
 		})
 
 		It("should create a valid CDT Map and then Get via MapReturnType.INVERTED", func() {
@@ -377,8 +414,7 @@ var _ = Describe("CDT Map Test", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{
-				"Charlie",
-				"John",
+				[]interface{}{"Charlie", "John"},
 				[]as.MapPair{{Key: "Harry", Value: 82}, {Key: "Jim", Value: 98}},
 				[]interface{}{0, 1, 2, 3},
 				4,
@@ -532,7 +568,7 @@ var _ = Describe("CDT Map Test", func() {
 		)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{"p1", []interface{}{"p3", "p2", "p4"}}}))
+		Expect(cdtMap.Bins).To(Equal(as.BinMap{cdtBinName: []interface{}{[]interface{}{"p1"}, []interface{}{"p3", "p2", "p4"}}}))
 	})
 
 	It("should support MapWriteFlagsPartial & MapWriteFlagsNoFail", func() {
