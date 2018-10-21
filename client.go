@@ -380,8 +380,6 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 // An example would be to add an integer value to an existing record and then
 // read the result, all in one database call.
 //
-// Write operations are always performed first, regardless of operation order
-// relative to read operations.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operation) (*Record, error) {
 	policy = clnt.getUsableWritePolicy(policy)
