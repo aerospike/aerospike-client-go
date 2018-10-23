@@ -32,6 +32,8 @@ func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operatio
 		readCommand: newReadCommand(cluster, &policy.BasePolicy, key, nil),
 		policy:      policy,
 		operations:  operations,
+
+		hasWrite: hasWriteOp(operations),
 	}
 }
 
@@ -41,7 +43,12 @@ func (cmd *operateCommand) writeBuffer(ifc command) (err error) {
 }
 
 func (cmd *operateCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getMasterNode(&cmd.partition)
+	if cmd.hasWrite {
+		return cmd.cluster.getMasterNode(&cmd.partition)
+	}
+
+	// this may be affected by Rackaware
+	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy, &cmd.replicaSequence)
 }
 
 func (cmd *operateCommand) Execute() error {
@@ -53,4 +60,17 @@ func (cmd *operateCommand) handleWriteKeyNotFoundError(resultCode ResultCode) er
 		return NewAerospikeError(resultCode)
 	}
 	return nil
+}
+
+func hasWriteOp(operations []*Operation) bool {
+	for i := range operations {
+		switch operations[i].opType {
+		case MAP_READ, READ, CDT_READ:
+		default:
+			// All other cases are a type of write
+			return true
+		}
+	}
+
+	return false
 }

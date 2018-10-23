@@ -797,10 +797,65 @@ func (clstr *Cluster) getReadNode(partition *Partition, replica ReplicaPolicy, s
 		return clstr.getMasterNode(partition)
 	case MASTER_PROLES:
 		return clstr.getMasterProleNode(partition)
+	case PREFER_RACK:
+		return clstr.getSameRackNode(partition, seq)
 	default:
 		// includes case RANDOM:
 		return clstr.GetRandomNode()
 	}
+}
+
+// getSameRackNode returns either a node on the same rack, or in Replica Sequence
+func (clstr *Cluster) getSameRackNode(partition *Partition, seq *int) (*Node, error) {
+	// RackAware has not been enabled in client policy.
+	if !clstr.clientPolicy.RackAware {
+		return nil, NewAerospikeError(UNSUPPORTED_FEATURE, "ReplicaPolicy is set to PREFER_RACK but ClientPolicy.RackAware is not set.")
+	}
+
+	pmap := clstr.getPartitions()
+	partitions := pmap[partition.Namespace]
+	if partitions == nil {
+		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace", partition.Namespace)
+	}
+
+	// CP mode (Strong Consistency) does not support the RackAware feature.
+	if partitions.CPMode {
+		return nil, NewAerospikeError(UNSUPPORTED_FEATURE, "ReplicaPolicy is set to PREFER_RACK but the cluster is in Strong Consistency Mode.")
+	}
+
+	replicaArray := partitions.Replicas
+
+	var seqNode *Node
+	for range replicaArray {
+		index := *seq % len(replicaArray)
+		node := replicaArray[index][partition.PartitionId]
+		*seq++
+
+		if node != nil {
+			// assign a node to seqNode in case no node was found on the same rack was found
+			if seqNode == nil {
+				seqNode = node
+			}
+
+			// if the node didn't belong to rack for that namespace, continue
+			nodeRack, err := node.Rack(partition.Namespace)
+			if err != nil {
+				continue
+			}
+
+			if node.IsActive() && nodeRack == clstr.clientPolicy.RackId {
+				return node, nil
+			}
+		}
+	}
+
+	// if no nodes were found belonging to the same rack, and no other node was also found
+	// then the partition table replicas are empty for that namespace
+	if seqNode == nil {
+		return nil, NewAerospikeError(INVALID_NODE_ERROR)
+	}
+
+	return seqNode, nil
 }
 
 func (clstr *Cluster) getSequenceNode(partition *Partition, seq *int) (*Node, error) {

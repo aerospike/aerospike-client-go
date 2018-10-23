@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"bufio"
+	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,6 +41,8 @@ type Node struct {
 	stats              nodeStats
 	_sessionToken      atomic.Value //[]byte
 	_sessionExpiration atomic.Value //time.Time
+
+	racks atomic.Value //map[string]int
 
 	// tendConn reserves a connection for tend so that it won't have to
 	// wait in queue for connections, since that will cause starvation
@@ -93,6 +97,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 
 	newNode.aliases.Store(nv.aliases)
 	newNode._sessionToken.Store(nv.sessionToken)
+	newNode.racks.Store(map[string]int{})
 
 	// this will reset to zero on first aggregation on the cluster,
 	// therefore will only be counted once.
@@ -114,8 +119,10 @@ func (nd *Node) Refresh(peers *peers) error {
 
 	nd.referenceCount.Set(0)
 
+	var infoMap map[string]string
+	var err error
 	if peers.usePeers.Get() {
-		infoMap, err := nd.RequestInfo("node", "peers-generation", "partition-generation")
+		infoMap, err = nd.RequestInfo("node", "peers-generation", "partition-generation", "racks:")
 		if err != nil {
 			nd.refreshFailed(err)
 			return err
@@ -136,9 +143,9 @@ func (nd *Node) Refresh(peers *peers) error {
 			return err
 		}
 	} else {
-		commands := []string{"node", "partition-generation", nd.cluster.clientPolicy.servicesString()}
+		commands := []string{"node", "partition-generation", "racks:", nd.cluster.clientPolicy.servicesString()}
 
-		infoMap, err := nd.RequestInfo(commands...)
+		infoMap, err = nd.RequestInfo(commands...)
 		if err != nil {
 			nd.refreshFailed(err)
 			return err
@@ -159,6 +166,17 @@ func (nd *Node) Refresh(peers *peers) error {
 			return err
 		}
 	}
+
+	if err := nd.updateRackInfo(infoMap); err != nil {
+		// Update rack info should fail if the feature is not supported on the server
+		if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == UNSUPPORTED_FEATURE {
+			nd.refreshFailed(err)
+			return err
+		}
+		// Should not fail in other cases
+		Logger.Warn("Updating node rack info failed with error: %s (racks: `%s`)", err, infoMap["racks:"])
+	}
+
 	nd.failures.Set(0)
 	peers.refreshCount.IncrementAndGet()
 	nd.referenceCount.IncrementAndGet()
@@ -204,6 +222,69 @@ func (nd *Node) refreshSessionToken() error {
 
 	nd._sessionToken.Store(command.SessionToken)
 	nd._sessionExpiration.Store(command.SessionExpiration)
+
+	return nil
+}
+
+func (nd *Node) updateRackInfo(infoMap map[string]string) error {
+	if !nd.cluster.clientPolicy.RackAware {
+		return nil
+	}
+
+	// Do not raise an error if the server does not support rackaware
+	if strings.HasPrefix(strings.ToUpper(infoMap["racks:"]), "ERROR") {
+		return NewAerospikeError(UNSUPPORTED_FEATURE, "You have set the ClientPolicy.RackAware = true, but the server does not support this feature.")
+	}
+
+	ss := strings.Split(infoMap["racks:"], ";")
+	racks := map[string]int{}
+	for _, s := range ss {
+		in := bufio.NewReader(strings.NewReader(s))
+		_, err := in.ReadString('=')
+		if err != nil {
+			return err
+		}
+
+		ns, err := in.ReadString(':')
+		if err != nil {
+			return err
+		}
+
+		for {
+			_, err = in.ReadString('_')
+			if err != nil {
+				return err
+			}
+
+			rackStr, err := in.ReadString('=')
+			if err != nil {
+				return err
+			}
+
+			rack, err := strconv.Atoi(rackStr[:len(rackStr)-1])
+			if err != nil {
+				return err
+			}
+
+			nodesList, err := in.ReadString(':')
+			if err != nil && err != io.EOF {
+				return err
+			}
+
+			nodes := strings.Split(strings.Trim(nodesList, ":"), ",")
+			for i := range nodes {
+				if nodes[i] == nd.name {
+					racks[ns[:len(ns)-1]] = rack
+				}
+			}
+
+			if err == io.EOF {
+				break
+			}
+		}
+	}
+
+	nd.racks.Store(racks)
 
 	return nil
 }
@@ -711,4 +792,16 @@ func (nd *Node) sessionToken() []byte {
 		return st.([]byte)
 	}
 	return nil
+}
+
+// Rack returns the rack number for the namespace.
+func (nd *Node) Rack(namespace string) (int, error) {
+	racks := nd.racks.Load().(map[string]int)
+	v, exists := racks[namespace]
+
+	if exists {
+		return v, nil
+	}
+
+	return -1, newAerospikeNodeError(nd, RACK_NOT_DEFINED)
 }
