@@ -1,5 +1,26 @@
 # Change History
 
+## November 1 2018: v1.36.0
+
+  Feature Release.
+
+  * **New Features**
+
+    - Support rackaware feature. You need to set the `ClientPolicy.RackAware = true`, and set the `ClientPolicy.RackId`. All read operations will try to choose a node on the same rack if `Policy.ReplicaPolicy = PREFER_RACK`. This feature is especially useful when the app/cluster are on the cloud and network throughput over different zones are price differently.
+
+  * **Improvements**
+
+    - Update Operate command documentation.
+    - Improve an expectation in a CDT Map test.
+    - Move UDF object test to the proper file.
+    - Support float64 struct fields when the value of the field has been changed inside lua and set to int - will only affect clusters which support float.
+    - Fixes an issue where key value was sent and cause server PARAMETER_ERROR via the operate command if policy.SendKey was set but no write operations were passed.
+    - Updated README example with clarification.
+
+  * **Fixes**
+
+    - Fixes an issue where multiple operation results for a bin would be appended to the first result if it was a list.
+
 ## October 2 2018: v1.35.2
 
   Improvement release.
