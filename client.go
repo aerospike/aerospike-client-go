@@ -936,8 +936,20 @@ func (clnt *Client) DropIndex(
 func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) error {
 	policy = clnt.getUsableWritePolicy(policy)
 
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return err
+	}
+
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
+	if err := node.initTendConn(policy.Timeout); err != nil {
+		return err
+	}
+
 	var strCmd bytes.Buffer
-	_, err := strCmd.WriteString("truncate:namespace=")
+	_, err = strCmd.WriteString("truncate:namespace=")
 	_, err = strCmd.WriteString(namespace)
 
 	if len(set) > 0 {
@@ -947,11 +959,15 @@ func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeL
 	if beforeLastUpdate != nil {
 		_, err = strCmd.WriteString(";lut=")
 		_, err = strCmd.WriteString(strconv.FormatInt(beforeLastUpdate.UnixNano(), 10))
+	} else {
+		if node.supportsLUTNow.Get() {
+			_, err = strCmd.WriteString(";lut=now")
+		}
 	}
 
-	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
+	responseMap, err := RequestInfo(node.tendConn, strCmd.String())
 	if err != nil {
+		node.tendConn.Close()
 		return err
 	}
 
