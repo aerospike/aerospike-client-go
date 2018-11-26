@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -60,12 +59,9 @@ type BasePolicy struct {
 	// If SocketTimeout is not zero and SocketTimeout is reached before an attempt completes,
 	// the Timeout above is checked. If Timeout is not exceeded, the transaction
 	// is retried. If both SocketTimeout and Timeout are non-zero, SocketTimeout must be less
-	// than or equal to Timeout.
+	// than or equal to Timeout, otherwise Timeout will also be used for SocketTimeout.
 	//
-	// If SocketTimeout is zero, there will be no time limit per attempt. If the transaction
-	// fails on a network error, the Timeout still applies.
-	//
-	// Default: 0 (no SocketTimeout for each attempt).
+	// Default: 30s
 	SocketTimeout time.Duration
 
 	// MaxRetries determines the maximum number of retries before aborting the current transaction.
@@ -132,7 +128,7 @@ func NewPolicy() *BasePolicy {
 		Priority:            DEFAULT,
 		ConsistencyLevel:    CONSISTENCY_ONE,
 		Timeout:             0 * time.Millisecond,
-		SocketTimeout:       100 * time.Millisecond,
+		SocketTimeout:       30 * time.Second,
 		MaxRetries:          2,
 		SleepBetweenRetries: 1 * time.Millisecond,
 		SleepMultiplier:     1.0,
@@ -149,21 +145,17 @@ func (p *BasePolicy) GetBasePolicy() *BasePolicy { return p }
 
 // socketTimeout validates and then calculates the timeout to be used for the socket
 // based on Timeout and SocketTimeout values.
-func (p *BasePolicy) socketTimeout() (time.Duration, error) {
-	if p.Timeout == 0 {
-		if p.SocketTimeout > 0 {
-			return p.SocketTimeout, nil
-		}
-		return 0, nil
-	} else if p.Timeout > 0 {
-		if p.SocketTimeout == 0 {
-			return p.Timeout, nil
-		} else if p.SocketTimeout > 0 {
-			if p.SocketTimeout > p.Timeout {
-				return 0, fmt.Errorf("Socket timeout %v is longer than the total transaction Timeout %v", p.SocketTimeout, p.Timeout)
-			}
-			return p.SocketTimeout, nil
+func (p *BasePolicy) socketTimeout() time.Duration {
+	if p.Timeout == 0 && p.SocketTimeout == 0 {
+		return 0
+	} else if p.Timeout > 0 && p.SocketTimeout == 0 {
+		return p.Timeout
+	} else if p.Timeout == 0 && p.SocketTimeout > 0 {
+		return p.SocketTimeout
+	} else if p.Timeout > 0 && p.SocketTimeout > 0 {
+		if p.SocketTimeout < p.Timeout {
+			return p.SocketTimeout
 		}
 	}
-	return 0, fmt.Errorf("Invalid Socket timeout %v and/or total transaction Timeout %v", p.SocketTimeout, p.Timeout)
+	return p.Timeout
 }

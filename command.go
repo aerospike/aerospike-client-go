@@ -1590,10 +1590,9 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 	// set timeout outside the loop
 	deadline := time.Now().Add(policy.Timeout)
 
-	socketTimeout, err := policy.socketTimeout()
-	if err != nil {
-		return err
-	}
+	socketTimeout := policy.socketTimeout()
+
+	var err error
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
