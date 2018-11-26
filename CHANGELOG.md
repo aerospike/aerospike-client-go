@@ -1,5 +1,19 @@
 # Change History
 
+## UNRELEASED: v1.37.0 ()
+
+  * **New Features**
+
+    - Support lut-now parameter for Client.Truncate() in servers that support and require it.
+
+  * **Improvements**
+
+    - Increase default `Policy.SocketTimeout` to 30s. If `SocketTimeout` is longer than `Timeout`, `Timeout` will be used instead silently. This change is done for the client to perform more intutively in cloud environments.
+
+  * **Changes**
+
+    - Update admin message version to 2.
+
 ## November 1 2018: v1.36.0
 
   Feature Release.
