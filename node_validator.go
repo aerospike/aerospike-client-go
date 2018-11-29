@@ -194,12 +194,12 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 
 	nodeName, exists := infoMap["node"]
 	if !exists {
-		return NewAerospikeError(INVALID_NODE_ERROR)
+		return NewAerospikeError(INVALID_NODE_ERROR, "Invalid node alias:"+alias.String())
 	}
 
 	genStr, exists := infoMap["partition-generation"]
 	if !exists {
-		return NewAerospikeError(INVALID_NODE_ERROR)
+		return NewAerospikeError(INVALID_NODE_ERROR, "Invalid partition-generation for node:"+alias.String())
 	}
 
 	gen, err := strconv.Atoi(genStr)

@@ -44,6 +44,8 @@ type partitionParser struct {
 	generation     int
 	length         int
 	offset         int
+
+	regimeError bool
 }
 
 func newPartitionParser(node *Node, partitions partitionMap, partitionCount int, requestProleReplicas bool) (*partitionParser, error) {
@@ -309,6 +311,11 @@ func (pp *partitionParser) decodeBitmap(node *Node, partitions *Partitions, repl
 				}
 
 				partitions.Replicas[replica][partition] = node
+			} else {
+				if !pp.regimeError {
+					Logger.Info("%s regime(%d) < old regime(%d)", node.String(), regime, regimeOld)
+					pp.regimeError = true
+				}
 			}
 		} else {
 			// Node does not own partition.

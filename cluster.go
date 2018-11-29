@@ -815,7 +815,7 @@ func (clstr *Cluster) getSameRackNode(partition *Partition, seq *int) (*Node, er
 	pmap := clstr.getPartitions()
 	partitions := pmap[partition.Namespace]
 	if partitions == nil {
-		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace", partition.Namespace)
+		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace in partition table:", partition.Namespace)
 	}
 
 	// CP mode (Strong Consistency) does not support the RackAware feature.
@@ -852,7 +852,7 @@ func (clstr *Cluster) getSameRackNode(partition *Partition, seq *int) (*Node, er
 	// if no nodes were found belonging to the same rack, and no other node was also found
 	// then the partition table replicas are empty for that namespace
 	if seqNode == nil {
-		return nil, NewAerospikeError(INVALID_NODE_ERROR)
+		return nil, newInvalidNodeError(len(clstr.GetNodes()), partition)
 	}
 
 	return seqNode, nil
@@ -862,7 +862,7 @@ func (clstr *Cluster) getSequenceNode(partition *Partition, seq *int) (*Node, er
 	pmap := clstr.getPartitions()
 	partitions := pmap[partition.Namespace]
 	if partitions == nil {
-		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace", partition.Namespace)
+		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace in partition table:", partition.Namespace)
 	}
 
 	replicaArray := partitions.Replicas
@@ -884,7 +884,7 @@ func (clstr *Cluster) getMasterNode(partition *Partition) (*Node, error) {
 	pmap := clstr.getPartitions()
 	partitions := pmap[partition.Namespace]
 	if partitions == nil {
-		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace", partition.Namespace)
+		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace in partition table:", partition.Namespace)
 	}
 
 	node := partitions.Replicas[0][partition.PartitionId]
@@ -892,15 +892,14 @@ func (clstr *Cluster) getMasterNode(partition *Partition) (*Node, error) {
 		return node, nil
 	}
 
-	// When master only specified, both AP and CP modes should never get random nodes.
-	return nil, NewAerospikeError(INVALID_NODE_ERROR)
+	return nil, newInvalidNodeError(len(clstr.GetNodes()), partition)
 }
 
 func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
 	pmap := clstr.getPartitions()
 	partitions := pmap[partition.Namespace]
 	if partitions == nil {
-		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace", partition.Namespace)
+		return nil, NewAerospikeError(PARTITION_UNAVAILABLE, "Invalid namespace in partition table:", partition.Namespace)
 	}
 
 	replicaArray := partitions.Replicas
@@ -933,7 +932,8 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 			return node, nil
 		}
 	}
-	return nil, NewAerospikeError(INVALID_NODE_ERROR)
+
+	return nil, NewAerospikeError(INVALID_NODE_ERROR, "Cluster is empty.")
 }
 
 // GetNodes returns a list of all nodes in the cluster
@@ -978,7 +978,7 @@ func (clstr *Cluster) GetNodeByName(nodeName string) (*Node, error) {
 	node := clstr.findNodeByName(nodeName)
 
 	if node == nil {
-		return nil, NewAerospikeError(INVALID_NODE_ERROR)
+		return nil, NewAerospikeError(INVALID_NODE_ERROR, "Invalid node name"+nodeName)
 	}
 	return node, nil
 }
