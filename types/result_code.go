@@ -21,6 +21,9 @@ import "fmt"
 type ResultCode int
 
 const (
+	// Requested Rack for node/namespace was not defined in the cluster.
+	RACK_NOT_DEFINED ResultCode = -13
+
 	// Cluster has an invalid partition map, usually due to bad configuration.
 	INVALID_CLUSTER_PARTITION_MAP ResultCode = -12
 
@@ -286,6 +289,15 @@ func KeepConnection(err error) bool {
 // Return result code as a string.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
+	case RACK_NOT_DEFINED:
+		return "Requested Rack for node/namespace was not defined in the cluster."
+
+	case INVALID_CLUSTER_PARTITION_MAP:
+		return "Cluster has an invalid partition map, usually due to bad configuration."
+
+	case SERVER_NOT_AVAILABLE:
+		return "Server is not accepting requests."
+
 	case CLUSTER_NAME_MISMATCH_ERROR:
 		return "Cluster Name does not match the ClientPolicy.ClusterName value"
 

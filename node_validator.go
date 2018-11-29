@@ -44,10 +44,12 @@ type nodeValidator struct {
 	aliases     []*Host
 	primaryHost *Host
 
+	detectLoadBalancer bool
+
 	sessionToken      []byte
 	SessionExpiration time.Time
 
-	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsReplicas, supportsGeo, supportsPeers bool
+	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow bool
 }
 
 func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nodesToAddT) error {
@@ -108,9 +110,14 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) error {
 }
 
 func (ndv *nodeValidator) setAliases(host *Host) error {
+	ndv.detectLoadBalancer = true
+
 	// IP addresses do not need a lookup
 	ip := net.ParseIP(host.Name)
 	if ip != nil {
+		// avoid detecting load balancer on localhost
+		ndv.detectLoadBalancer = !ip.IsLoopback()
+
 		aliases := make([]*Host, 1)
 		aliases[0] = NewHost(host.Name, host.Port)
 		aliases[0].TLSName = host.TLSName
@@ -125,6 +132,11 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 		for idx, addr := range addresses {
 			aliases[idx] = NewHost(addr, host.Port)
 			aliases[idx].TLSName = host.TLSName
+
+			// avoid detecting load balancer on localhost
+			if ip := net.ParseIP(host.Name); ip != nil && ip.IsLoopback() {
+				ndv.detectLoadBalancer = false
+			}
 		}
 		ndv.aliases = aliases
 	}
@@ -142,10 +154,10 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	}
 	defer conn.Close()
 
-	if len(clientPolicy.User) > 0 {
+	if clientPolicy.RequiresAuthentication() {
 		// need to authenticate
 		acmd := NewLoginCommand(conn.dataBuffer)
-		err = acmd.Login(&clientPolicy, conn)
+		err = acmd.login(&clientPolicy, conn, cluster.Password())
 		if err != nil {
 			return err
 		}
@@ -171,7 +183,9 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	}
 
 	addressCommand := clientPolicy.serviceString()
-	infoKeys = append(infoKeys, addressCommand)
+	if ndv.detectLoadBalancer {
+		infoKeys = append(infoKeys, addressCommand)
+	}
 
 	infoMap, err := RequestInfo(conn, infoKeys...)
 	if err != nil {
@@ -232,7 +246,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 				}
 			}
 
-			if isLoadBalancer {
+			if isLoadBalancer && ndv.detectLoadBalancer {
 				aliasFound := false
 
 				// take the seed out of the aliases if it is load balancer
@@ -245,10 +259,10 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 					}
 					defer hconn.Close()
 
-					if len(clientPolicy.User) > 0 {
+					if clientPolicy.RequiresAuthentication() {
 						// need to authenticate
 						acmd := NewLoginCommand(hconn.dataBuffer)
-						err = acmd.Login(&clientPolicy, hconn)
+						err = acmd.login(&clientPolicy, hconn, cluster.Password())
 						if err != nil {
 							continue
 						}
@@ -297,6 +311,8 @@ func (ndv *nodeValidator) setFeatures(features string) {
 			ndv.supportsGeo = true
 		case "peers":
 			ndv.supportsPeers = true
+		case "lut-now":
+			ndv.supportsLUTNow = true
 		}
 	}
 }

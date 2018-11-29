@@ -88,6 +88,20 @@ type ClientPolicy struct {
 	// The default is false (only request master replicas and never prole replicas).
 	RequestProleReplicas bool // false
 
+	// RackAware directs the client to update rack information on intervals.
+	// When this feature is enabled, the client will prefer to use nodes which reside
+	// on the same rack as the client for read transactions. The application should also set the RackId, and
+	// use the ReplicaPolicy.PREFER_RACK for reads.
+	// This feature is in particular useful if the cluster is in the cloud and the cloud provider
+	// is charging for network bandwidth out of the zone. Keep in mind that the node on the same rack
+	// may not be the Master, and as such the data may be stale. This setting is partucularly usable
+	// for clusters that are read heavy.
+	RackAware bool // false
+
+	// RackId defines the Rack the application is on. This will only influence reads if Rackaware is enabled on the client,
+	// and configured on the server.
+	RackId int // 0
+
 	// TlsConfig specifies TLS secure connection policy for TLS enabled servers.
 	// For better performance, we suggest preferring the server-side ciphers by
 	// setting PreferServerCipherSuites = true.

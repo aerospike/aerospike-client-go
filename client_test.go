@@ -130,6 +130,68 @@ var _ = Describe("Aerospike", func() {
 			Expect(len(nclient.GetNodes())).To(Equal(nodeCount))
 		})
 
+		Context("Rackaware", func() {
+
+			It("must connect to the cluster in rackaware mode, and set the RackId = 0, and still get master node for all keys", func() {
+				c, err := as.NewClient(*host, *port)
+				Expect(err).NotTo(HaveOccurred())
+
+				info := info(c, "racks:")
+				if strings.HasPrefix(strings.ToUpper(info), "ERROR") {
+					Skip("Skipping RackAware test since it is not supported on this cluster...")
+				}
+
+				// use the same client for all
+				cpolicy := *clientPolicy
+				cpolicy.Timeout = 10 * time.Second
+				cpolicy.RackAware = true
+
+				for rid := 1; rid <= 20; rid++ {
+					nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+					Expect(err).NotTo(HaveOccurred())
+
+					replicaPolicy := as.PREFER_RACK
+					for i := 0; i < 12; i++ {
+						seq := 0
+						key, _ := as.NewKey(*namespace, "test", 1)
+						partition := as.NewPartitionByKey(key)
+						masterNode, err := nclient.Cluster().GetMasterNode(partition)
+						Expect(err).NotTo(HaveOccurred())
+
+						node, err := nclient.Cluster().GetReadNode(partition, replicaPolicy, &seq)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(node).NotTo(BeNil())
+						Expect(node).To(Equal(masterNode))
+					}
+					nclient.Close()
+				}
+			})
+
+			// It("must connect to the cluster in rackaware mode", func() {
+			// 	// use the same client for all
+			// 	cpolicy := *clientPolicy
+			// 	cpolicy.Timeout = 10 * time.Second
+			// 	cpolicy.RackAware = true
+
+			// 	for rid := 1; rid <= 20; rid++ {
+			// 		cpolicy.RackId = (rid % 2) + 1
+
+			// 		nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+			// 		Expect(err).NotTo(HaveOccurred())
+
+			// 		replicaPolicy := as.PREFER_RACK
+			// 		for i := 0; i < 12; i++ {
+			// 			seq := 0
+			// 			key, _ := as.NewKey(*namespace, "test", 1)
+			// 			partition := as.NewPartitionByKey(key)
+			// 			node, err := nclient.Cluster().GetReadNode(partition, replicaPolicy, &seq)
+			// 			Expect(err).NotTo(HaveOccurred())
+			// 			Expect(node.Rack("test")).To(Equal(cpolicy.RackId))
+			// 		}
+			// 		nclient.Close()
+			// 	}
+			// })
+		})
 	})
 
 	Describe("Data operations on native types", func() {

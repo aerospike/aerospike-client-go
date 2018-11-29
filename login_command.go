@@ -49,6 +49,12 @@ func (lcmd *LoginCommand) Login(policy *ClientPolicy, conn *Connection) error {
 		return err
 	}
 
+	return lcmd.login(policy, conn, hashedPass)
+}
+
+// Login tries to authenticate to the aerospike server. Depending on the server configuration and ClientPolicy,
+// the session information will be returned.
+func (lcmd *LoginCommand) login(policy *ClientPolicy, conn *Connection, hashedPass []byte) error {
 	switch policy.AuthMode {
 	case AuthModeExternal:
 		lcmd.writeHeader(_LOGIN, 3)
@@ -97,9 +103,9 @@ func (lcmd *LoginCommand) Login(policy *ClientPolicy, conn *Connection) error {
 		lcmd.dataBuffer = make([]byte, receiveSize)
 	}
 
-	_, err = conn.Read(lcmd.dataBuffer, receiveSize)
+	_, err := conn.Read(lcmd.dataBuffer, receiveSize)
 	if err != nil {
-		Logger.Warn("parse result error: " + err.Error())
+		Logger.Debug("Error reading data from connection for login command: %s", err.Error())
 		return err
 	}
 

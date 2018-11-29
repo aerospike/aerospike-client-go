@@ -105,3 +105,13 @@ func nsInfo(ns string, feature string) string {
 
 	return ""
 }
+
+func info(client *as.Client, feature string) string {
+	node := client.GetNodes()[0]
+	infoMap, err := node.RequestInfo(feature)
+	if err != nil {
+		log.Fatal("Failed to connect to aerospike: err:", err)
+	}
+
+	return infoMap[feature]
+}

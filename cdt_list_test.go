@@ -15,7 +15,6 @@
 package aerospike_test
 
 import (
-	"fmt"
 	"math"
 
 	. "github.com/onsi/ginkgo"
@@ -591,8 +590,6 @@ var _ = Describe("CDT List Test", func() {
 				as.ListAppendWithPolicyOp(cdtListPolicy2, cdtBinName2, list...),
 			)
 			Expect(err).ToNot(HaveOccurred())
-
-			fmt.Println(record.Bins)
 
 			Expect(record.Bins[cdtBinName]).To(Equal(6))
 			Expect(record.Bins[cdtBinName2]).To(Equal(0))

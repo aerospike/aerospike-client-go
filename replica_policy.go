@@ -43,4 +43,10 @@ const (
 	// This option requires ClientPolicy.RequestProleReplicas to be enabled
 	// in order to function properly.
 	SEQUENCE
+
+	// PREFER_RACK Tries nodes on the same rack first.
+	//
+	// This option requires ClientPolicy.Rackaware to be enabled
+	// in order to function properly.
+	PREFER_RACK
 )

@@ -875,6 +875,54 @@ var _ = Describe("Aerospike", func() {
 
 		}) // ScanObjects context
 
+		Context("UDF Objects operations", func() {
+
+			It("must serialize values to the lua function and deserialize into object, even if it is int", func() {
+
+				type Test struct {
+					Test    float64 `as:"test"`
+					TestLua float64 `as:"testLua"`
+				}
+
+				udfFunc := []byte(`function addValue(rec, val)
+			    local ret = map()
+			    if not aerospike:exists(rec) then
+			        ret['status'] = false
+			        ret['result'] = 'Record does not exist'
+			    else
+			        rec['testLua'] = (rec['testLua'] or 0.0) + val
+			        aerospike:update(rec)
+			        ret['status'] = true
+			    end
+			    return ret
+			end`)
+
+				regTask, err := client.RegisterUDF(nil, udfFunc, "test.lua", as.LUA)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
+
+				adOp := as.AddOp(as.NewBin("test", float64(1)))
+				testLua := float64(0)
+				for i := 1; i <= 100; i++ {
+					_, err := client.Operate(nil, key, adOp)
+					Expect(err).ToNot(HaveOccurred())
+
+					testLua += float64(i) * float64(0.1)
+					_, err = client.Execute(nil, key, "test", "addValue", as.NewValue(float64(i)*float64(0.1)))
+					Expect(err).ToNot(HaveOccurred())
+
+					t := &Test{}
+					err = client.GetObject(nil, key, t)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(t.Test).To(Equal(float64(i)))
+					Expect(t.TestLua).To(Equal(testLua))
+				}
+
+			}) // it
+		})
+
 		Context("ScanObjects operations", func() {
 
 			type InnerStruct struct {

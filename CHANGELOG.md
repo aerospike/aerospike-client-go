@@ -1,23 +1,103 @@
 # Change History
 
-## August 3 2018: v1.35.0
+## UNRELEASED: v1.37.0 ()
+
+  * **New Features**
+
+    - Support lut-now parameter for Client.Truncate() in servers that support and require it.
+
+  * **Improvements**
+
+    - Increase default `Policy.SocketTimeout` to 30s. If `SocketTimeout` is longer than `Timeout`, `Timeout` will be used instead silently. This change is done for the client to perform more intutively in cloud environments.
+
+  * **Changes**
+
+    - Update admin message version to 2.
+
+## November 1 2018: v1.36.0
+
+  Feature Release.
+
+  * **New Features**
+
+    - Support rackaware feature. You need to set the `ClientPolicy.RackAware = true`, and set the `ClientPolicy.RackId`. All read operations will try to choose a node on the same rack if `Policy.ReplicaPolicy = PREFER_RACK`. This feature is especially useful when the app/cluster are on the cloud and network throughput over different zones are price differently.
+
+  * **Improvements**
+
+    - Update Operate command documentation.
+    - Improve an expectation in a CDT Map test.
+    - Move UDF object test to the proper file.
+    - Support float64 struct fields when the value of the field has been changed inside lua and set to int - will only affect clusters which support float.
+    - Fixes an issue where key value was sent and cause server PARAMETER_ERROR via the operate command if policy.SendKey was set but no write operations were passed.
+    - Updated README example with clarification.
+
+  * **Fixes**
+
+    - Fixes an issue where multiple operation results for a bin would be appended to the first result if it was a list.
+
+## October 2 2018: v1.35.2
+
+  Improvement release.
+
+  * **Improvements**
+
+    - Do not allocate a partition map on each tend unless needed.
+    - Adds `ConnectionsClosed` stat and sets the connection and dataBuffer to nil in a few places to help the GC.
+    - Use a heap data structure for connection pooling instead of a queue.
+      This allows better management of connections after a surge, since it keeps the unused connection in the bottom of the heap to close.
+      It also helps with performance a bit due to better caching of the data structure in CPU.
+
+## September 18 2018: v1.35.1
+
+  Hot fix release. We recommend updating to this version if you are using authentication.
+
+  * **Fixes**
+
+    - Fixes a regression to avoid hashing passwords per each login, using the cached password.
+
+  * **Changes**
+
+    - Minor code clean up and dead code removal.
+
+
+## August 29 2018: v1.35.0
 
   * **New Features**
 
     - Support for external authentication (LDAP).
     - Support Map and List WriteFlags: `NoFail` and `Partial`.
+    - Support load balancers as seed node.
 
   * **Changes**
 
+    - Change default Scan/Query `ServerSocketTimeout` to 30s.
 
   * **Improvements**
 
     - Adds `QueryPolicy.ServerSocketTimeout` and `QueryPolicy.FailOnClusterChange` for when the queries are automatically converted to scans.
     - Minor documentation improvements.
+    - Synchronize logging at all situations.
+    - Add -debug switch to allow logging at debug level in tests.
+    - Allow the user to define the namespace for tests to run on.
 
   * **Fixes**
 
+    - Fix a few go vet errors for Go 1.11.
     - Fixes minor unsigned length conversions for admin command.
+
+## August 29 2018: v1.34.2
+
+  Fix release.
+
+  * **Fixes**
+
+    - Use pointer receiver for `AerospikeError.SetInDoubt` and `AerospikeError.MarkInDoubt`.
+    - Remove unused variable in truncate test.
+
+  * **Changes**
+
+    - Add Go 1.11 to Travis' test versions.
+    - Use the last error code in MaxRetries timeout errors for Go 1.11.
 
 ## August 9 2018: v1.34.1
 

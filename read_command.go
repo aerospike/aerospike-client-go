@@ -76,7 +76,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
 	_, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE))
 	if err != nil {
-		Logger.Warn("parse result error: " + err.Error())
+		Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
 		return err
 	}
 
@@ -104,7 +104,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 		}
 		_, err = conn.Read(cmd.dataBuffer, receiveSize)
 		if err != nil {
-			Logger.Warn("parse result error: " + err.Error())
+			Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
 			return err
 		}
 
@@ -119,7 +119,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 		}
 
 		if resultCode == UDF_BAD_RESPONSE {
-			cmd.record, _ = cmd.parseRecord(opCount, fieldCount, generation, expiration)
+			cmd.record, _ = cmd.parseRecord(ifc, opCount, fieldCount, generation, expiration)
 			err := cmd.handleUdfError(resultCode)
 			Logger.Warn("UDF execution error: " + err.Error())
 			return err
@@ -135,7 +135,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 			return nil
 		}
 
-		cmd.record, err = cmd.parseRecord(opCount, fieldCount, generation, expiration)
+		cmd.record, err = cmd.parseRecord(ifc, opCount, fieldCount, generation, expiration)
 		if err != nil {
 			return err
 		}
@@ -156,6 +156,7 @@ func (cmd *readCommand) handleUdfError(resultCode ResultCode) error {
 }
 
 func (cmd *readCommand) parseRecord(
+	ifc command,
 	opCount int,
 	fieldCount int,
 	generation uint32,
@@ -163,6 +164,10 @@ func (cmd *readCommand) parseRecord(
 ) (*Record, error) {
 	var bins BinMap
 	receiveOffset := 0
+
+	type opList []interface{}
+	_, isOperate := ifc.(*operateCommand)
+	var binNamesSet []string
 
 	// There can be fields in the response (setname etc).
 	// But for now, ignore them. Expose them to the API if needed in the future.
@@ -195,17 +200,28 @@ func (cmd *readCommand) parseRecord(
 			bins = make(BinMap, opCount)
 		}
 
-		// for operate list command results
-		if prev, exists := bins[name]; exists {
-			if res, ok := prev.([]interface{}); ok {
-				// List already exists.  Add to it.
-				bins[name] = append(res, value)
+		if isOperate {
+			// for operate list command results
+			if prev, exists := bins[name]; exists {
+				if res, ok := prev.(opList); ok {
+					// List already exists.  Add to it.
+					bins[name] = append(res, value)
+				} else {
+					// Make a list to store all values.
+					bins[name] = opList{prev, value}
+					binNamesSet = append(binNamesSet, name)
+				}
 			} else {
-				// Make a list to store all values.
-				bins[name] = []interface{}{prev, value}
+				bins[name] = value
 			}
 		} else {
 			bins[name] = value
+		}
+	}
+
+	if isOperate {
+		for i := range binNamesSet {
+			bins[binNamesSet[i]] = []interface{}(bins[binNamesSet[i]].(opList))
 		}
 	}
 

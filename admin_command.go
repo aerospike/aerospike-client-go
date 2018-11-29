@@ -55,7 +55,7 @@ const (
 	_PRIVILEGES     byte = 12
 
 	// Misc
-	_MSG_VERSION int64 = 0
+	_MSG_VERSION int64 = 2
 	_MSG_TYPE    int64 = 2
 
 	_HEADER_SIZE      int = 24

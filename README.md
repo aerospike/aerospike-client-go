@@ -61,7 +61,10 @@ func main() {
   rec, err := client.Get(nil, key)
   panicOnError(err)
 
-  fmt.Printf("%#v\n", *rec)
+  // rec may not exist - so a checking is needed.
+  if rec != nil {
+    fmt.Printf("%#v\n", *rec)
+  }
 
   // delete the key, and check if key exists
   existed, err := client.Delete(nil, key)

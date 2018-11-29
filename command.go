@@ -333,7 +333,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		cmd.estimateOperationSizeForOperation(operations[i])
 	}
 
-	ksz, err := cmd.estimateKeySize(key, policy.SendKey && writeAttr != 0)
+	ksz, err := cmd.estimateKeySize(key, policy.SendKey && hasWrite)
 	if err != nil {
 		return hasWrite, err
 	}
@@ -356,7 +356,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	} else {
 		cmd.writeHeader(&policy.BasePolicy, readAttr, writeAttr, fieldCount, len(operations))
 	}
-	cmd.writeKey(key, policy.SendKey && writeAttr != 0)
+	cmd.writeKey(key, policy.SendKey && hasWrite)
 
 	for _, operation := range operations {
 		if err := cmd.writeOperationForOperation(operation); err != nil {
@@ -1590,10 +1590,9 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 	// set timeout outside the loop
 	deadline := time.Now().Add(policy.Timeout)
 
-	socketTimeout, err := policy.socketTimeout()
-	if err != nil {
-		return err
-	}
+	socketTimeout := policy.socketTimeout()
+
+	var err error
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
@@ -1641,6 +1640,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
 			cmd.conn.Close()
+			cmd.conn = nil
 			return err
 		}
 
@@ -1654,6 +1654,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 			// IO errors are considered temporary anomalies. Retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
 			cmd.conn.Close()
+			cmd.conn = nil
 
 			Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
@@ -1672,6 +1673,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 
 				// retry only for non-streaming commands
 				if !cmd.oneShot {
+					cmd.conn = nil
 					continue
 				}
 			}
@@ -1685,7 +1687,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 				cmd.node.PutConnection(cmd.conn)
 			} else {
 				cmd.conn.Close()
-
+				cmd.conn = nil
 			}
 
 			return setInDoubt(err, isRead, commandSentCounter)
