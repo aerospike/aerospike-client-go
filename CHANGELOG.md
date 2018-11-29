@@ -5,6 +5,8 @@
   * **New Features**
 
     - Support lut-now parameter for Client.Truncate() in servers that support and require it.
+    - Added support for CDT Map Relative Ops: `MapGetByKeyRelativeIndexRangeOp`, `MapGetByKeyRelativeIndexRangeCountOp`, `MapGetByValueRelativeRankRangeOp`, `MapGetByValueRelativeRankRangeCountOp`, `MapRemoveByKeyRelativeIndexRangeOp`, `MapRemoveByKeyRelativeIndexRangeCountOp`.
+    - Added support for CDT List Relative Ops: `ListGetByValueRelativeRankRangeOp`, `ListGetByValueRelativeRankRangeCountOp`, `ListRemoveByValueRelativeRankRangeOp`, `ListRemoveByValueRelativeRankRangeCountOp`.
 
   * **Improvements**
 
