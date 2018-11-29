@@ -616,6 +616,97 @@ var _ = Describe("CDT Map Test", func() {
 
 	})
 
+	It("should support Relative MapGet ops", func() {
+		client.Delete(nil, key)
+
+		items := map[interface{}]interface{}{
+			0: 17,
+			4: 2,
+			5: 15,
+			9: 10,
+		}
+
+		mapPolicy := as.DefaultMapPolicy()
+
+		// Write values to empty map.
+		cdtMap, err := client.Operate(wpolicy, key,
+			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+
+		cdtMap, err = client.Get(nil, key)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(cdtMap.Bins)).To(Equal(1))
+
+		cdtMap, err = client.Operate(wpolicy, key,
+			as.MapGetByKeyRelativeIndexRangeOp(cdtBinName, 5, 0, as.MapReturnType.KEY),
+			as.MapGetByKeyRelativeIndexRangeOp(cdtBinName, 5, 1, as.MapReturnType.KEY),
+			as.MapGetByKeyRelativeIndexRangeOp(cdtBinName, 5, -1, as.MapReturnType.KEY),
+			as.MapGetByKeyRelativeIndexRangeOp(cdtBinName, 3, 2, as.MapReturnType.KEY),
+			as.MapGetByKeyRelativeIndexRangeOp(cdtBinName, 3, -2, as.MapReturnType.KEY),
+			as.MapGetByKeyRelativeIndexRangeCountOp(cdtBinName, 5, 0, 1, as.MapReturnType.KEY),
+			as.MapGetByKeyRelativeIndexRangeCountOp(cdtBinName, 5, 1, 2, as.MapReturnType.KEY),
+			as.MapGetByKeyRelativeIndexRangeCountOp(cdtBinName, 5, -1, 1, as.MapReturnType.KEY),
+			as.MapGetByKeyRelativeIndexRangeCountOp(cdtBinName, 3, 2, 1, as.MapReturnType.KEY),
+			as.MapGetByKeyRelativeIndexRangeCountOp(cdtBinName, 3, -2, 2, as.MapReturnType.KEY),
+			as.MapGetByValueRelativeRankRangeOp(cdtBinName, 11, 1, as.MapReturnType.VALUE),
+			as.MapGetByValueRelativeRankRangeOp(cdtBinName, 11, -1, as.MapReturnType.VALUE),
+			as.MapGetByValueRelativeRankRangeCountOp(cdtBinName, 11, 1, 1, as.MapReturnType.VALUE),
+			as.MapGetByValueRelativeRankRangeCountOp(cdtBinName, 11, -1, 1, as.MapReturnType.VALUE),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdtMap.Bins[cdtBinName]).To(Equal([]interface{}{[]interface{}{5, 9}, []interface{}{9}, []interface{}{4, 5, 9}, []interface{}{9}, []interface{}{0, 4, 5, 9}, []interface{}{5}, []interface{}{9}, []interface{}{4}, []interface{}{9}, []interface{}{0}, []interface{}{17}, []interface{}{10, 15, 17}, []interface{}{17}, []interface{}{10}}))
+	})
+
+	It("should support Relative MapRemove ops", func() {
+		client.Delete(nil, key)
+
+		items := map[interface{}]interface{}{
+			0: 17,
+			4: 2,
+			5: 15,
+			9: 10,
+		}
+
+		mapPolicy := as.DefaultMapPolicy()
+
+		// Write values to empty map.
+		cdtMap, err := client.Operate(wpolicy, key,
+			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+
+		cdtMap, err = client.Get(nil, key)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(cdtMap.Bins)).To(Equal(1))
+
+		cdtMap, err = client.Operate(wpolicy, key,
+			as.MapRemoveByKeyRelativeIndexRangeOp(cdtBinName, 5, 0, as.MapReturnType.VALUE),
+			as.MapRemoveByKeyRelativeIndexRangeOp(cdtBinName, 5, 1, as.MapReturnType.VALUE),
+			as.MapRemoveByKeyRelativeIndexRangeCountOp(cdtBinName, 5, -1, 1, as.MapReturnType.VALUE),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdtMap.Bins[cdtBinName]).To(Equal([]interface{}{[]interface{}{15, 10}, []interface{}{}, []interface{}{2}}))
+
+		client.Delete(nil, key)
+		cdtMap, err = client.Operate(wpolicy, key,
+			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
+		)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(cdtMap.Bins)).To(Equal(1))
+
+		cdtMap, err = client.Operate(wpolicy, key,
+			as.MapRemoveByValueRelativeRankRangeOp(cdtBinName, 11, 1, as.MapReturnType.VALUE),
+			as.MapRemoveByValueRelativeRankRangeCountOp(cdtBinName, 11, -1, 1, as.MapReturnType.VALUE),
+		)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdtMap.Bins[cdtBinName]).To(Equal([]interface{}{[]interface{}{17}, []interface{}{10}}))
+	})
+
 	It("should handle CDTs in UDFs", func() {
 
 		regTsk, err := client.RegisterUDF(nil, []byte(udfCDTTests), "cdt_tests.lua", as.LUA)

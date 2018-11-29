@@ -607,6 +607,52 @@ var _ = Describe("CDT List Test", func() {
 
 		})
 
+		It("should support Relative GetList Ops", func() {
+			client.Delete(nil, key)
+
+			list := []interface{}{0, 4, 5, 9, 11, 15}
+
+			cdtListPolicy := as.NewListPolicy(as.ListOrderOrdered, as.ListWriteFlagsDefault)
+			record, err := client.Operate(wpolicy, key,
+				as.ListAppendWithPolicyOp(cdtListPolicy, cdtBinName, list...),
+				as.ListGetByValueRelativeRankRangeOp(cdtBinName, 5, 0, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeOp(cdtBinName, 5, 1, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeOp(cdtBinName, 5, -1, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeOp(cdtBinName, 3, 0, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeOp(cdtBinName, 3, 3, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeOp(cdtBinName, 3, -3, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeCountOp(cdtBinName, 5, 0, 2, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeCountOp(cdtBinName, 5, 1, 1, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeCountOp(cdtBinName, 5, -1, 2, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeCountOp(cdtBinName, 3, 0, 1, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeCountOp(cdtBinName, 3, 3, 7, as.ListReturnTypeValue),
+				as.ListGetByValueRelativeRankRangeCountOp(cdtBinName, 3, -3, 2, as.ListReturnTypeValue),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(record.Bins[cdtBinName]).To(Equal([]interface{}{6, []interface{}{5, 9, 11, 15}, []interface{}{9, 11, 15}, []interface{}{4, 5, 9, 11, 15}, []interface{}{4, 5, 9, 11, 15}, []interface{}{11, 15}, []interface{}{0, 4, 5, 9, 11, 15}, []interface{}{5, 9}, []interface{}{9}, []interface{}{4, 5}, []interface{}{4}, []interface{}{11, 15}, []interface{}{}}))
+		})
+
+		It("should support Relative RemoveList Ops", func() {
+			client.Delete(nil, key)
+
+			list := []interface{}{0, 4, 5, 9, 11, 15}
+
+			cdtListPolicy := as.NewListPolicy(as.ListOrderOrdered, as.ListWriteFlagsDefault)
+			record, err := client.Operate(wpolicy, key,
+				as.ListAppendWithPolicyOp(cdtListPolicy, cdtBinName, list...),
+				as.ListRemoveByValueRelativeRankRangeOp(cdtBinName, as.ListReturnTypeValue, 5, 0),
+				as.ListRemoveByValueRelativeRankRangeOp(cdtBinName, as.ListReturnTypeValue, 5, 1),
+				as.ListRemoveByValueRelativeRankRangeOp(cdtBinName, as.ListReturnTypeValue, 5, -1),
+				as.ListRemoveByValueRelativeRankRangeCountOp(cdtBinName, as.ListReturnTypeValue, 3, -3, 1),
+				as.ListRemoveByValueRelativeRankRangeCountOp(cdtBinName, as.ListReturnTypeValue, 3, -3, 2),
+				as.ListRemoveByValueRelativeRankRangeCountOp(cdtBinName, as.ListReturnTypeValue, 3, -3, 3),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(record.Bins[cdtBinName]).To(Equal([]interface{}{6, []interface{}{5, 9, 11, 15}, []interface{}{}, []interface{}{4}, []interface{}{}, []interface{}{}, []interface{}{0}}))
+		})
+
 	})
 
 }) // describe
