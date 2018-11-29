@@ -877,11 +877,7 @@ func (clstr *Cluster) getSequenceNode(partition *Partition, seq *int) (*Node, er
 		*seq++
 	}
 
-	if partitions.CPMode {
-		return nil, NewAerospikeError(INVALID_NODE_ERROR)
-	}
-
-	return clstr.GetRandomNode()
+	return nil, newInvalidNodeError(len(clstr.GetNodes()), partition)
 }
 
 func (clstr *Cluster) getMasterNode(partition *Partition) (*Node, error) {
@@ -919,11 +915,7 @@ func (clstr *Cluster) getMasterProleNode(partition *Partition) (*Node, error) {
 		}
 	}
 
-	if partitions.CPMode {
-		return nil, NewAerospikeError(INVALID_NODE_ERROR)
-	}
-
-	return clstr.GetRandomNode()
+	return nil, newInvalidNodeError(len(clstr.GetNodes()), partition)
 }
 
 // GetRandomNode returns a random node on the cluster
