@@ -79,10 +79,6 @@ const (
 	// exists.
 	KEY_EXISTS_ERROR ResultCode = 5
 
-	// On create-only (write unique) operations on a bin that already
-	// exists.
-	BIN_EXISTS_ERROR ResultCode = 6
-
 	// Expected cluster ID was not received.
 	CLUSTER_KEY_MISMATCH ResultCode = 7
 
@@ -113,9 +109,6 @@ const (
 
 	// Unsupported Server Feature (e.g. Scan + UDF)
 	UNSUPPORTED_FEATURE ResultCode = 16
-
-	// Specified bin name does not exist in record.
-	BIN_NOT_FOUND ResultCode = 17
 
 	// Device not keeping up with writes.
 	DEVICE_OVERLOAD ResultCode = 18
@@ -346,9 +339,6 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case KEY_EXISTS_ERROR:
 		return "Key already exists"
 
-	case BIN_EXISTS_ERROR:
-		return "Bin already exists"
-
 	case CLUSTER_KEY_MISMATCH:
 		return "Cluster key mismatch"
 
@@ -378,9 +368,6 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case UNSUPPORTED_FEATURE:
 		return "Unsupported Server Feature"
-
-	case BIN_NOT_FOUND:
-		return "Bin not found"
 
 	case DEVICE_OVERLOAD:
 		return "Device overload"
