@@ -919,7 +919,7 @@ var _ = Describe("Aerospike", func() {
 							}
 						}
 
-						bpolicy.UseBatchDirect = useDirect
+						bpolicy.SetBatchDirect(useDirect)
 						bpolicy.AllowInline = useInline
 						exists, err = client.BatchExists(bpolicy, keys)
 						Expect(err).ToNot(HaveOccurred())
@@ -986,7 +986,7 @@ var _ = Describe("Aerospike", func() {
 								ReadAllBins: true,
 							}
 						}
-						bpolicy.UseBatchDirect = useDirect
+						bpolicy.SetBatchDirect(useDirect)
 						bpolicy.AllowInline = useInline
 						err = client.BatchGetComplex(bpolicy, brecords)
 						Expect(err).ToNot(HaveOccurred())
@@ -1069,7 +1069,7 @@ var _ = Describe("Aerospike", func() {
 								ReadAllBins: true,
 							}
 						}
-						bpolicy.UseBatchDirect = useDirect
+						bpolicy.SetBatchDirect(useDirect)
 						bpolicy.AllowInline = useInline
 						err = client.BatchGetComplex(bpolicy, brecords)
 						Expect(err).ToNot(HaveOccurred())
@@ -1090,7 +1090,7 @@ var _ = Describe("Aerospike", func() {
 								BinNames:    []string{"Aerospike", "Redundant"},
 							}
 						}
-						bpolicy.UseBatchDirect = useDirect
+						bpolicy.SetBatchDirect(useDirect)
 						bpolicy.AllowInline = useInline
 						err = client.BatchGetComplex(bpolicy, brecords)
 						Expect(err).ToNot(HaveOccurred())
@@ -1111,7 +1111,7 @@ var _ = Describe("Aerospike", func() {
 								BinNames:    nil,
 							}
 						}
-						bpolicy.UseBatchDirect = useDirect
+						bpolicy.SetBatchDirect(useDirect)
 						bpolicy.AllowInline = useInline
 						err = client.BatchGetComplex(bpolicy, brecords)
 						Expect(err).ToNot(HaveOccurred())
@@ -1196,7 +1196,7 @@ var _ = Describe("Aerospike", func() {
 							}
 						}
 
-						bpolicy.UseBatchDirect = useDirect
+						bpolicy.SetBatchDirect(useDirect)
 						bpolicy.AllowInline = useInline
 						records, err = client.BatchGetHeader(bpolicy, keys)
 						Expect(err).ToNot(HaveOccurred())

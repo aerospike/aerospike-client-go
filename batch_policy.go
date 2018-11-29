@@ -48,7 +48,7 @@ type BatchPolicy struct {
 	// between records being migrated and client partition map update (once per second).
 	//
 	// The new batch index protocol will perform this record proxy when necessary.
-	UseBatchDirect bool // = false
+	useBatchDirect bool // = false
 
 	// Allow batch to be processed immediately in the server's receiving thread when the server
 	// deems it to be appropriate.  If false, the batch will always be processed in separate
@@ -82,7 +82,7 @@ func NewBatchPolicy() *BatchPolicy {
 	return &BatchPolicy{
 		BasePolicy:          *NewPolicy(),
 		ConcurrentNodes:     1,
-		UseBatchDirect:      false,
+		useBatchDirect:      false,
 		AllowInline:         true,
 		AllowPartialResults: false,
 		SendSetName:         false,

@@ -76,7 +76,7 @@ func newBatchCommandGet(
 		binNames:         binNames,
 		records:          records,
 		readAttr:         readAttr,
-		isBatchIndex:     !policy.UseBatchDirect && node != nil && node.supportsBatchIndex.Get(),
+		isBatchIndex:     !policy.useBatchDirect && node != nil && node.supportsBatchIndex.Get(),
 	}
 	res.oneShot = false
 	return res
@@ -87,7 +87,7 @@ func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode, bns *batchNamesp
 	res.node = batch.Node
 	res.batch = batch
 	res.batchNamespace = bns
-	res.isBatchIndex = !cmd.policy.UseBatchDirect && batch.Node.supportsBatchIndex.Get()
+	res.isBatchIndex = !cmd.policy.useBatchDirect && batch.Node.supportsBatchIndex.Get()
 
 	return &res
 }

@@ -58,7 +58,7 @@ func Benchmark_BatchGet_________Int64(b *testing.B) {
 	b.ResetTimer()
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = false
+	policy.SetBatchDirect(false)
 	doGet(policy, set, b)
 }
 
@@ -71,7 +71,7 @@ func Benchmark_BatchGet_________Int64Direct(b *testing.B) {
 	b.ResetTimer()
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = true
+	policy.SetBatchDirect(true)
 	doGet(policy, set, b)
 }
 
@@ -84,7 +84,7 @@ func Benchmark_BatchGet_________Int32(b *testing.B) {
 	b.ResetTimer()
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = false
+	policy.SetBatchDirect(false)
 	doGet(policy, set, b)
 }
 
@@ -97,7 +97,7 @@ func Benchmark_BatchGet_________Int32Direct(b *testing.B) {
 	b.ResetTimer()
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = true
+	policy.SetBatchDirect(true)
 	doGet(policy, set, b)
 }
 
@@ -110,7 +110,7 @@ func Benchmark_BatchGet_String______1(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = false
+	policy.SetBatchDirect(false)
 	doGet(policy, set, b)
 }
 
@@ -123,7 +123,7 @@ func Benchmark_BatchGet_String______1Direct(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = true
+	policy.SetBatchDirect(true)
 	doGet(policy, set, b)
 }
 
@@ -136,7 +136,7 @@ func Benchmark_BatchGet_String_____10(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = false
+	policy.SetBatchDirect(false)
 	doGet(policy, set, b)
 }
 
@@ -149,7 +149,7 @@ func Benchmark_BatchGet_String_____10Direct(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = true
+	policy.SetBatchDirect(true)
 	doGet(policy, set, b)
 }
 
@@ -162,7 +162,7 @@ func Benchmark_BatchGet_String____100(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = false
+	policy.SetBatchDirect(false)
 	doGet(policy, set, b)
 }
 
@@ -175,7 +175,7 @@ func Benchmark_BatchGet_String____100Direct(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = true
+	policy.SetBatchDirect(true)
 	doGet(policy, set, b)
 }
 
@@ -188,7 +188,7 @@ func Benchmark_BatchGet_String___1000(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = false
+	policy.SetBatchDirect(false)
 	doGet(policy, set, b)
 }
 
@@ -201,7 +201,7 @@ func Benchmark_BatchGet_String___1000Direct(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = true
+	policy.SetBatchDirect(true)
 	doGet(policy, set, b)
 }
 
@@ -214,7 +214,7 @@ func Benchmark_BatchGet_String__10000(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = false
+	policy.SetBatchDirect(false)
 	doGet(policy, set, b)
 }
 
@@ -227,7 +227,7 @@ func Benchmark_BatchGet_String__10000Direct(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = true
+	policy.SetBatchDirect(true)
 	doGet(policy, set, b)
 }
 
@@ -240,7 +240,7 @@ func Benchmark_BatchGet_String_100000(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = false
+	policy.SetBatchDirect(false)
 	doGet(policy, set, b)
 }
 
@@ -253,7 +253,7 @@ func Benchmark_BatchGet_String_100000Direct(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = true
+	policy.SetBatchDirect(true)
 	doGet(policy, set, b)
 }
 
@@ -267,7 +267,7 @@ func Benchmark_BatchGet_Complex_Array(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = false
+	policy.SetBatchDirect(false)
 	doGet(policy, set, b)
 }
 
@@ -281,7 +281,7 @@ func Benchmark_BatchGet_Complex_ArrayDirect(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = true
+	policy.SetBatchDirect(true)
 	doGet(policy, set, b)
 }
 
@@ -295,7 +295,7 @@ func Benchmark_BatchGet_Complex_Map(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = false
+	policy.SetBatchDirect(false)
 	doGet(policy, set, b)
 }
 
@@ -309,6 +309,6 @@ func Benchmark_BatchGet_Complex_MapDirect(b *testing.B) {
 	makeDataForGetBench(set, bins)
 
 	policy := NewBatchPolicy()
-	policy.UseBatchDirect = true
+	policy.SetBatchDirect(true)
 	doGet(policy, set, b)
 }
