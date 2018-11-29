@@ -481,6 +481,58 @@ func __PackShortRaw(cmd BufferEx, val int16) (int, error) {
 	return 2, nil
 }
 
+func __PackInfinity(cmd BufferEx) (int, error) {
+	if cmd != nil {
+		size := 0
+		n, err := 1, cmd.WriteByte(byte(0xd4))
+		if err != nil {
+			return n, err
+		}
+		size += n
+
+		n, err = 1, cmd.WriteByte(0xff)
+		if err != nil {
+			return size + n, err
+		}
+		size += n
+
+		n, err = 1, cmd.WriteByte(0x01)
+		if err != nil {
+			return size + n, err
+		}
+		size += n
+
+		return size, nil
+	}
+	return 3, nil
+}
+
+func __PackWildCard(cmd BufferEx) (int, error) {
+	if cmd != nil {
+		size := 0
+		n, err := 1, cmd.WriteByte(byte(0xd4))
+		if err != nil {
+			return n, err
+		}
+		size += n
+
+		n, err = 1, cmd.WriteByte(0xff)
+		if err != nil {
+			return size + n, err
+		}
+		size += n
+
+		n, err = 1, cmd.WriteByte(0x00)
+		if err != nil {
+			return size + n, err
+		}
+		size += n
+
+		return size, nil
+	}
+	return 3, nil
+}
+
 func __PackByte(cmd BufferEx, valType int, val byte) (int, error) {
 	if cmd != nil {
 		size := 0

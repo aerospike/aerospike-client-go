@@ -616,6 +616,67 @@ var _ = Describe("CDT Map Test", func() {
 
 	})
 
+	It("should support Map Infinity ops", func() {
+		client.Delete(nil, key)
+
+		items := map[interface{}]interface{}{
+			0: 17,
+			4: 2,
+			5: 15,
+			9: 10,
+		}
+
+		mapPolicy := as.DefaultMapPolicy()
+
+		// Write values to empty map.
+		cdtMap, err := client.Operate(wpolicy, key,
+			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+
+		cdtMap, err = client.Get(nil, key)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(cdtMap.Bins)).To(Equal(1))
+
+		cdtMap, err = client.Operate(wpolicy, key,
+			as.MapGetByKeyRangeOp(cdtBinName, 5, as.NewInfinityValue(), as.MapReturnType.KEY),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdtMap.Bins[cdtBinName]).To(Equal([]interface{}{5, 9}))
+	})
+
+	It("should support Map WildCard ops", func() {
+		client.Delete(nil, key)
+
+		items := map[interface{}]interface{}{
+			4: []interface{}{"John", 55},
+			5: []interface{}{"Jim", 95},
+			9: []interface{}{"Joe", 80},
+		}
+
+		mapPolicy := as.DefaultMapPolicy()
+
+		// Write values to empty map.
+		cdtMap, err := client.Operate(wpolicy, key,
+			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+
+		cdtMap, err = client.Get(nil, key)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(cdtMap.Bins)).To(Equal(1))
+
+		cdtMap, err = client.Operate(wpolicy, key,
+			as.MapGetByValueOp(cdtBinName, []interface{}{"Joe", as.NewWildCardValue()}, as.MapReturnType.KEY),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdtMap.Bins[cdtBinName]).To(Equal([]interface{}{9}))
+	})
+
 	It("should support Relative MapGet ops", func() {
 		client.Delete(nil, key)
 

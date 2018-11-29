@@ -476,6 +476,82 @@ func (vl NullValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// InfinityValue is an empty value.
+type InfinityValue struct{}
+
+var infinityValue InfinityValue
+
+// NewInfinityValue generates a InfinityValue instance.
+func NewInfinityValue() InfinityValue {
+	return infinityValue
+}
+
+func (vl InfinityValue) estimateSize() (int, error) {
+	return 0, nil
+}
+
+func (vl InfinityValue) write(cmd BufferEx) (int, error) {
+	return 0, nil
+}
+
+func (vl InfinityValue) pack(cmd BufferEx) (int, error) {
+	return __PackInfinity(cmd)
+}
+
+// GetType returns wire protocol value type.
+func (vl InfinityValue) GetType() int {
+	panic("Invalid particle type: INF")
+}
+
+// GetObject returns original value as an interface{}.
+func (vl InfinityValue) GetObject() interface{} {
+	return nil
+}
+
+func (vl InfinityValue) String() string {
+	return "INF"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// InfinityValue is an empty value.
+type WildCardValue struct{}
+
+var wildCardValue WildCardValue
+
+// NewWildCardValue generates a WildCardValue instance.
+func NewWildCardValue() WildCardValue {
+	return wildCardValue
+}
+
+func (vl WildCardValue) estimateSize() (int, error) {
+	return 0, nil
+}
+
+func (vl WildCardValue) write(cmd BufferEx) (int, error) {
+	return 0, nil
+}
+
+func (vl WildCardValue) pack(cmd BufferEx) (int, error) {
+	return __PackWildCard(cmd)
+}
+
+// GetType returns wire protocol value type.
+func (vl WildCardValue) GetType() int {
+	panic("Invalid particle type: WildCard")
+}
+
+// GetObject returns original value as an interface{}.
+func (vl WildCardValue) GetObject() interface{} {
+	return nil
+}
+
+func (vl WildCardValue) String() string {
+	return "*"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 // BytesValue encapsulates an array of bytes.
 type BytesValue []byte
 

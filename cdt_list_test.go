@@ -653,6 +653,39 @@ var _ = Describe("CDT List Test", func() {
 			Expect(record.Bins[cdtBinName]).To(Equal([]interface{}{6, []interface{}{5, 9, 11, 15}, []interface{}{}, []interface{}{4}, []interface{}{}, []interface{}{}, []interface{}{0}}))
 		})
 
+		It("should support List Infinity Ops", func() {
+			client.Delete(nil, key)
+
+			list := []interface{}{0, 4, 5, 9, 11, 15}
+
+			cdtListPolicy := as.NewListPolicy(as.ListOrderOrdered, as.ListWriteFlagsDefault)
+			record, err := client.Operate(wpolicy, key,
+				as.ListAppendWithPolicyOp(cdtListPolicy, cdtBinName, list...),
+				as.ListGetByValueRangeOp(cdtBinName, 10, as.NewInfinityValue(), as.ListReturnTypeValue),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(record.Bins[cdtBinName]).To(Equal([]interface{}{6, []interface{}{11, 15}}))
+		})
+
+		It("should support List WildCard Ops", func() {
+			client.Delete(nil, key)
+
+			list := []interface{}{
+				[]interface{}{"John", 55},
+				[]interface{}{"Jim", 95},
+				[]interface{}{"Joe", 80},
+			}
+
+			cdtListPolicy := as.NewListPolicy(as.ListOrderOrdered, as.ListWriteFlagsDefault)
+			record, err := client.Operate(wpolicy, key,
+				as.ListAppendWithPolicyOp(cdtListPolicy, cdtBinName, list...),
+				as.ListGetByValueOp(cdtBinName, []interface{}{"Jim", as.NewWildCardValue()}, as.ListReturnTypeValue),
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(record.Bins[cdtBinName]).To(Equal([]interface{}{3, []interface{}{[]interface{}{"Jim", 95}}}))
+		})
+
 	})
 
 }) // describe
