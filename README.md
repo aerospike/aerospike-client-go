@@ -154,7 +154,7 @@ See the [`tools/benchmark/README.md`](tools/benchmark/README.md) for details.
 <a name="API-Documentation"></a>
 ## API Documentation
 
-API documentation is available in the [`docs`](docs/README.md) directory.
+A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](http://godoc.org/github.com/aerospike/aerospike-client-go).
 
 ## License
 
