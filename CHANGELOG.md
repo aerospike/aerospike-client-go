@@ -1,20 +1,26 @@
 # Change History
 
-## UNRELEASED: v1.37.0 ()
+## November 30 2018: v1.37.0
 
   * **New Features**
 
     - Support lut-now parameter for Client.Truncate() in servers that support and require it.
     - Added support for CDT Map Relative Ops: `MapGetByKeyRelativeIndexRangeOp`, `MapGetByKeyRelativeIndexRangeCountOp`, `MapGetByValueRelativeRankRangeOp`, `MapGetByValueRelativeRankRangeCountOp`, `MapRemoveByKeyRelativeIndexRangeOp`, `MapRemoveByKeyRelativeIndexRangeCountOp`.
     - Added support for CDT List Relative Ops: `ListGetByValueRelativeRankRangeOp`, `ListGetByValueRelativeRankRangeCountOp`, `ListRemoveByValueRelativeRankRangeOp`, `ListRemoveByValueRelativeRankRangeCountOp`.
+    - Added `INFINITY` and `WILDCARD` values for use in CDT map/list comparators.
 
   * **Improvements**
 
-    - Increase default `Policy.SocketTimeout` to 30s. If `SocketTimeout` is longer than `Timeout`, `Timeout` will be used instead silently. This change is done for the client to perform more intutively in cloud environments.
+    - Increase default `Policy.SocketTimeout` to 30s. If `SocketTimeout` is longer than `Timeout`, `Timeout` will be used instead silently. This change is done for the client to perform more intuitively in cloud environments.
+    - Never return a random node if a node was not found in the partition map.
+    - Return more descriptive error messages on various partition map and other node related errors.
 
   * **Changes**
 
+    - Remove the ability to force old batch direct protocol on the client because the server will be removing support for the old batch direct protocol.
     - Update admin message version to 2.
+    - Remove unused error codes.
+    - Remove Go 1.7 and 1.8 from travis tests due to incompatibility with the test framework.
 
 ## November 1 2018: v1.36.0
 
