@@ -1,6 +1,6 @@
 # Change History
 
-## November 30 2018: v1.37.0
+## December 3 2018: v1.37.0
 
   * **New Features**
 
