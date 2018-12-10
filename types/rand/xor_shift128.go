@@ -16,6 +16,7 @@ package rand
 
 import (
 	"encoding/binary"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -43,11 +44,12 @@ func Int64() int64 {
 
 type Xor128Rand struct {
 	src [2]uint64
+	l   sync.Mutex
 }
 
 func NewXorRand() *Xor128Rand {
 	t := time.Now().UnixNano()
-	return &Xor128Rand{[2]uint64{uint64(t), uint64(t)}}
+	return &Xor128Rand{src: [2]uint64{uint64(t), uint64(t)}}
 }
 
 func (r *Xor128Rand) Int64() int64 {
@@ -55,12 +57,15 @@ func (r *Xor128Rand) Int64() int64 {
 }
 
 func (r *Xor128Rand) Uint64() uint64 {
+	r.l.Lock()
 	s1 := r.src[0]
 	s0 := r.src[1]
 	r.src[0] = s0
 	s1 ^= s1 << 23
 	r.src[1] = (s1 ^ s0 ^ (s1 >> 17) ^ (s0 >> 26))
-	return r.src[1] + s0
+	res := r.src[1] + s0
+	r.l.Unlock()
+	return res
 }
 
 func (r *Xor128Rand) Read(p []byte) (n int, err error) {
