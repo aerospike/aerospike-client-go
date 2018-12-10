@@ -803,7 +803,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 	// Write scan timeout
 	cmd.writeFieldHeader(4, SCAN_TIMEOUT)
-	cmd.WriteInt32(int32(policy.ServerSocketTimeout / time.Millisecond)) // in milliseconds
+	cmd.WriteInt32(int32(policy.SocketTimeout / time.Millisecond)) // in milliseconds
 
 	cmd.writeFieldHeader(8, TRAN_ID)
 	cmd.WriteUint64(taskId)
@@ -1008,7 +1008,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 
 		// Write scan timeout
 		cmd.writeFieldHeader(4, SCAN_TIMEOUT)
-		cmd.WriteInt32(int32(policy.ServerSocketTimeout / time.Millisecond)) // in milliseconds
+		cmd.WriteInt32(int32(policy.SocketTimeout / time.Millisecond)) // in milliseconds
 	}
 
 	if len(statement.predExps) > 0 {
