@@ -408,7 +408,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -454,7 +454,7 @@ func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, 
 func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskId uint64, binNames ...string) error {
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until migrations on node are finished
-		if err := node.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		if err := node.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 			recordset.signalEnd()
 			return err
 		}
@@ -511,7 +511,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	_, err = strCmd.WriteString(";")
 
 	// Send UDF to one node. That node will distribute the UDF to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
@@ -553,7 +553,7 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 	_, err = strCmd.WriteString(";")
 
 	// Send command to one node. That node will distribute it to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
@@ -577,7 +577,7 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 	_, err := strCmd.WriteString("udf-list")
 
 	// Send command to one node. That node will distribute it to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
@@ -682,7 +682,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	}
 
 	// wait until all migrations are finished
-	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 		return nil, err
 	}
 
@@ -721,7 +721,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 	}
 
 	// wait until all migrations are finished
-	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 		return nil, err
 	}
 
@@ -754,7 +754,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -786,7 +786,7 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -865,7 +865,7 @@ func (clnt *Client) CreateComplexIndex(
 	_, err = strCmd.WriteString(";priority=normal")
 
 	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
@@ -906,7 +906,7 @@ func (clnt *Client) DropIndex(
 	_, err = strCmd.WriteString(indexName)
 
 	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
 	if err != nil {
 		return err
 	}
@@ -944,7 +944,7 @@ func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeL
 	node.tendConnLock.Lock()
 	defer node.tendConnLock.Unlock()
 
-	if err := node.initTendConn(policy.Timeout); err != nil {
+	if err := node.initTendConn(policy.TotalTimeout); err != nil {
 		return err
 	}
 

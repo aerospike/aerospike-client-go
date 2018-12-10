@@ -105,7 +105,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -161,7 +161,7 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskId uint64, binNames ...string) error {
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until migrations on node are finished
-		if err := node.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		if err := node.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 			recordset.signalEnd()
 			return err
 		}
@@ -187,7 +187,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -222,7 +222,7 @@ func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement 
 
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 			return nil, err
 		}
 	}

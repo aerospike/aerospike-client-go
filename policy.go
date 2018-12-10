@@ -38,21 +38,21 @@ type BasePolicy struct {
 	// read operation.
 	ConsistencyLevel ConsistencyLevel //= CONSISTENCY_ONE
 
-	// Timeout specifies total transaction timeout.
+	// TotalTimeout specifies total transaction timeout.
 	//
-	// The Timeout is tracked on the client and also sent to the server along
+	// The TotalTimeout is tracked on the client and also sent to the server along
 	// with the transaction in the wire protocol. The client will most likely
 	// timeout first, but the server has the capability to Timeout the transaction.
 	//
-	// If Timeout is not zero and Timeout is reached before the transaction
-	// completes, the transaction will abort with Timeout error.
+	// If TotalTimeout is not zero and TotalTimeout is reached before the transaction
+	// completes, the transaction will abort with TotalTimeout error.
 	//
-	// If Timeout is zero, there will be no time limit and the transaction will retry
+	// If TotalTimeout is zero, there will be no time limit and the transaction will retry
 	// on network timeouts/errors until MaxRetries is exceeded. If MaxRetries is exceeded, the
 	// transaction also aborts with Timeout error.
 	//
 	// Default: 0 (no time limit and rely on MaxRetries).
-	Timeout time.Duration
+	TotalTimeout time.Duration
 
 	// SocketTimeout determines network timeout for each attempt.
 	//
@@ -127,7 +127,7 @@ func NewPolicy() *BasePolicy {
 	return &BasePolicy{
 		Priority:            DEFAULT,
 		ConsistencyLevel:    CONSISTENCY_ONE,
-		Timeout:             0 * time.Millisecond,
+		TotalTimeout:        0 * time.Millisecond,
 		SocketTimeout:       30 * time.Second,
 		MaxRetries:          2,
 		SleepBetweenRetries: 1 * time.Millisecond,
@@ -146,16 +146,16 @@ func (p *BasePolicy) GetBasePolicy() *BasePolicy { return p }
 // socketTimeout validates and then calculates the timeout to be used for the socket
 // based on Timeout and SocketTimeout values.
 func (p *BasePolicy) socketTimeout() time.Duration {
-	if p.Timeout == 0 && p.SocketTimeout == 0 {
+	if p.TotalTimeout == 0 && p.SocketTimeout == 0 {
 		return 0
-	} else if p.Timeout > 0 && p.SocketTimeout == 0 {
-		return p.Timeout
-	} else if p.Timeout == 0 && p.SocketTimeout > 0 {
+	} else if p.TotalTimeout > 0 && p.SocketTimeout == 0 {
+		return p.TotalTimeout
+	} else if p.TotalTimeout == 0 && p.SocketTimeout > 0 {
 		return p.SocketTimeout
-	} else if p.Timeout > 0 && p.SocketTimeout > 0 {
-		if p.SocketTimeout < p.Timeout {
+	} else if p.TotalTimeout > 0 && p.SocketTimeout > 0 {
+		if p.SocketTimeout < p.TotalTimeout {
 			return p.SocketTimeout
 		}
 	}
-	return p.Timeout
+	return p.TotalTimeout
 }

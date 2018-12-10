@@ -1588,7 +1588,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 	interval := policy.SleepBetweenRetries
 
 	// set timeout outside the loop
-	deadline := time.Now().Add(policy.Timeout)
+	deadline := time.Now().Add(policy.TotalTimeout)
 
 	socketTimeout := policy.socketTimeout()
 
@@ -1614,7 +1614,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 		}
 
 		// check for command timeout
-		if policy.Timeout > 0 && time.Now().After(deadline) {
+		if policy.TotalTimeout > 0 && time.Now().After(deadline) {
 			break
 		}
 
@@ -1645,8 +1645,8 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 		}
 
 		// Reset timeout in send buffer (destined for server) and socket.
-		// Buffer.Int32ToBytes(int32(policy.Timeout/time.Millisecond), cmd.dataBuffer, 22)
-		binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(policy.Timeout/time.Millisecond))
+		// Buffer.Int32ToBytes(int32(policy.TotalTimeout/time.Millisecond), cmd.dataBuffer, 22)
+		binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(policy.TotalTimeout/time.Millisecond))
 
 		// Send command.
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])

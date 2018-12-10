@@ -40,7 +40,7 @@ var _ = Describe("Aerospike load tests", func() {
 		var set = "load"
 		var wpolicy = as.NewWritePolicy(0, 0)
 		var rpolicy = as.NewPolicy()
-		rpolicy.Timeout = 200 * time.Millisecond
+		rpolicy.TotalTimeout = 200 * time.Millisecond
 		if *useReplicas {
 			rpolicy.ReplicaPolicy = as.MASTER_PROLES
 		}

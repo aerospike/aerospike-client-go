@@ -54,7 +54,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.Timeout); err != nil {
+		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
 			return nil, err
 		}
 	}
