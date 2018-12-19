@@ -81,9 +81,8 @@ func (cmd *baseMultiCommand) getNode(ifc command) (*Node, error) {
 	return cmd.node, nil
 }
 
-func (cmd *baseMultiCommand) getConnection(timeout time.Duration) (*Connection, error) {
-	cmd.socketTimeout = timeout
-	return cmd.node.getConnectionWithHint(timeout, byte(xrand.Int64()%256))
+func (cmd *baseMultiCommand) getConnection(policy Policy) (*Connection, error) {
+	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().deadline(), policy.GetBasePolicy().socketTimeout(), byte(xrand.Int64()%256))
 }
 
 func (cmd *baseMultiCommand) putConnection(conn *Connection) {
@@ -180,11 +179,6 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 
 	if length > cap(cmd.dataBuffer) {
 		cmd.dataBuffer = make([]byte, length)
-	}
-
-	// enforce socketTimeout on each read
-	if err := cmd.conn.SetTimeout(cmd.socketTimeout); err != nil {
-		return err
 	}
 
 	if n, err := cmd.conn.Read(cmd.dataBuffer[:length], length); err != nil {

@@ -89,7 +89,7 @@ type command interface {
 
 	writeBuffer(ifc command) error
 	getNode(ifc command) (*Node, error)
-	getConnection(timeout time.Duration) (*Connection, error)
+	getConnection(policy Policy) (*Connection, error)
 	putConnection(conn *Connection)
 	parseResult(ifc command, conn *Connection) error
 	parseRecordResults(ifc command, receiveSize int) (bool, error)
@@ -1588,8 +1588,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 	interval := policy.SleepBetweenRetries
 
 	// set timeout outside the loop
-	deadline := time.Now().Add(policy.TotalTimeout)
-
+	deadline := policy.deadline()
 	socketTimeout := policy.socketTimeout()
 
 	var err error
@@ -1625,7 +1624,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 			continue
 		}
 
-		cmd.conn, err = ifc.getConnection(socketTimeout)
+		cmd.conn, err = ifc.getConnection(policy)
 		if err != nil {
 			Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
@@ -1645,8 +1644,13 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 		}
 
 		// Reset timeout in send buffer (destined for server) and socket.
-		// Buffer.Int32ToBytes(int32(policy.TotalTimeout/time.Millisecond), cmd.dataBuffer, 22)
-		binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(policy.TotalTimeout/time.Millisecond))
+		if !deadline.IsZero() {
+			serverTimeout := deadline.Sub(time.Now())
+			if socketTimeout > 0 && serverTimeout > socketTimeout {
+				serverTimeout = socketTimeout
+			}
+			binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond))
+		}
 
 		// Send command.
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])

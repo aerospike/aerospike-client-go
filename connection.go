@@ -37,8 +37,9 @@ const DefaultBufferSize = 64 * 1024 // 64 KiB
 type Connection struct {
 	node *Node
 
-	// timeout
-	timeout time.Duration
+	// timeouts
+	socketTimeout time.Duration
+	deadline      time.Time
 
 	// duration after which connection is considered idle
 	idleTimeout  time.Duration
@@ -98,7 +99,7 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 	newConn.conn = conn
 
 	// set timeout at the last possible moment
-	if err := newConn.SetTimeout(timeout); err != nil {
+	if err := newConn.SetTimeout(time.Now().Add(timeout), timeout); err != nil {
 		newConn.Close()
 		return nil, err
 	}
@@ -150,6 +151,9 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 	length := len(buf)
 	var r int
 	for total < length {
+		if err = ctn.updateDeadline(); err != nil {
+			break
+		}
 		if r, err = ctn.conn.Write(buf[total:]); err != nil {
 			break
 		}
@@ -169,9 +173,10 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 
 // ReadN reads N bytes from connection buffer to the provided Writer.
 func (ctn *Connection) ReadN(buf io.Writer, length int64) (total int64, err error) {
-	// if all bytes are not read, retry until successful
-	// Don't worry about the loop; we've already set the timeout elsewhere
-	total, err = io.CopyN(buf, ctn.conn, length)
+	// Don't worry about the internal loop; we've already set the timeout elsewhere
+	if err = ctn.updateDeadline(); err == nil {
+		total, err = io.CopyN(buf, ctn.conn, length)
+	}
 
 	if err == nil && total == length {
 		return total, nil
@@ -199,6 +204,9 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 	// Don't worry about the loop; we've already set the timeout elsewhere
 	var r int
 	for total < length {
+		if err = ctn.updateDeadline(); err != nil {
+			break
+		}
 		r, err = ctn.conn.Read(buf[total:length])
 		total += r
 		if err != nil {
@@ -230,26 +238,46 @@ func (ctn *Connection) IsConnected() bool {
 	return ctn.conn != nil
 }
 
-// SetTimeout sets connection timeout for both read and write operations.
-func (ctn *Connection) SetTimeout(timeout time.Duration) error {
-	// Set timeout ONLY if there is or has been a timeout set before
-	if timeout > 0 || ctn.timeout != 0 {
-		ctn.timeout = timeout
-
-		// important: remove deadline when not needed; connections are pooled
-		if ctn.conn != nil {
-			var deadline time.Time
-			if timeout > 0 {
-				deadline = time.Now().Add(timeout)
-			}
-			if err := ctn.conn.SetDeadline(deadline); err != nil {
-				if ctn.node != nil {
-					atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
-				}
-				return err
+// updateDeadline sets connection timeout for both read and write operations.
+// this function is called before each read and write operation. If deadline has passed,
+// the function will return a TIMEOUT error.
+func (ctn *Connection) updateDeadline() error {
+	now := time.Now()
+	var socketDeadline time.Time
+	if ctn.deadline.IsZero() {
+		if ctn.socketTimeout > 0 {
+			socketDeadline = now.Add(ctn.socketTimeout)
+		}
+	} else {
+		if now.After(ctn.deadline) {
+			return NewAerospikeError(TIMEOUT)
+		}
+		if ctn.socketTimeout == 0 {
+			socketDeadline = ctn.deadline
+		} else {
+			idleDeadline := now.Add(ctn.socketTimeout)
+			if idleDeadline.After(ctn.deadline) {
+				socketDeadline = ctn.deadline
+			} else {
+				socketDeadline = idleDeadline
 			}
 		}
 	}
+
+	if err := ctn.conn.SetDeadline(socketDeadline); err != nil {
+		if ctn.node != nil {
+			atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+		}
+		return err
+	}
+
+	return nil
+}
+
+// SetTimeout sets connection timeout for both read and write operations.
+func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duration) error {
+	ctn.deadline = deadline
+	ctn.socketTimeout = socketTimeout
 
 	return nil
 }

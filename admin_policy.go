@@ -19,8 +19,8 @@ import "time"
 // AdminPolicy contains attributes used for user administration commands.
 type AdminPolicy struct {
 
-	// User administration command socket timeout in milliseconds.
-	// Default is one second timeout.
+	// User administration command socket timeout.
+	// Default is 5 second timeout.
 	Timeout time.Duration
 }
 
@@ -29,4 +29,21 @@ func NewAdminPolicy() *AdminPolicy {
 	return &AdminPolicy{
 		Timeout: 1 * time.Second,
 	}
+}
+
+func (ap *AdminPolicy) deadline() time.Time {
+	var deadline time.Time
+	if ap != nil && ap.Timeout > 0 {
+		deadline = time.Now().Add(ap.Timeout)
+	}
+
+	return deadline
+}
+
+func (ap *AdminPolicy) timeout() time.Duration {
+	if ap != nil && ap.Timeout > 0 {
+		return ap.Timeout
+	}
+
+	return _DEFAULT_TIMEOUT
 }

@@ -159,3 +159,12 @@ func (p *BasePolicy) socketTimeout() time.Duration {
 	}
 	return p.TotalTimeout
 }
+
+func (p *BasePolicy) deadline() time.Time {
+	var deadline time.Time
+	if p != nil && p.TotalTimeout > 0 {
+		deadline = time.Now().Add(p.TotalTimeout)
+	}
+
+	return deadline
+}

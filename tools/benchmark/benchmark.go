@@ -372,7 +372,7 @@ func runBench_I(client *as.Client, ident int, times int) {
 	var forceReport bool = false
 
 	writepolicy := as.NewWritePolicy(0, 0)
-	writepolicy.Timeout = time.Duration(*timeout) * time.Millisecond
+	writepolicy.TotalTimeout = time.Duration(*timeout) * time.Millisecond
 	writepolicy.MaxRetries = *maxRetries
 
 	defaultBin := getBin(xr)
@@ -479,7 +479,7 @@ func runBench_RU(client *as.Client, ident int, times int) {
 	var forceReport bool = false
 
 	writepolicy := as.NewWritePolicy(0, 0)
-	writepolicy.Timeout = time.Duration(*timeout) * time.Millisecond
+	writepolicy.TotalTimeout = time.Duration(*timeout) * time.Millisecond
 	writepolicy.MaxRetries = *maxRetries
 
 	readpolicy := writepolicy.GetBasePolicy()
@@ -742,14 +742,14 @@ Loop:
 
 					strBuff.WriteString(fmt.Sprintf("\tREAD\t%d\t%3.3f\t%d", rMinLat, float64(rTotalLat)/float64(totalRCount+1), rMaxLat))
 					for i := 0; i <= latCols; i++ {
-						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f%%", rLatList[i], float64(rLatList[i])/float64(totalRCount+1)*100))
+						strBuff.WriteString(fmt.Sprintf("\t|% 6d/%4.2f%%", rLatList[i], float64(rLatList[i])/float64(totalRCount+1)*100))
 					}
 					logger.Println(strBuff.String())
 					strBuff.Reset()
 
 					strBuff.WriteString(fmt.Sprintf("\tWRITE\t%d\t%3.3f\t%d", wMinLat, float64(wTotalLat)/float64(totalWCount+1), wMaxLat))
 					for i := 0; i <= latCols; i++ {
-						strBuff.WriteString(fmt.Sprintf("\t|%7d/%4.2f%%", wLatList[i], float64(wLatList[i])/float64(totalWCount+1)*100))
+						strBuff.WriteString(fmt.Sprintf("\t|% 6d/%4.2f%%", wLatList[i], float64(wLatList[i])/float64(totalWCount+1)*100))
 					}
 					logger.Println(strBuff.String())
 					strBuff.Reset()

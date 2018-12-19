@@ -483,13 +483,13 @@ func (nd *Node) dropIdleConnections() {
 func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err error) {
 	deadline := time.Now().Add(timeout)
 	if timeout == 0 {
-		deadline = time.Now().Add(time.Second)
+		deadline = time.Now().Add(_DEFAULT_TIMEOUT)
 	}
 
 CL:
 	// try to acquire a connection; if the connection pool is empty, retry until
 	// timeout occures. If no timeout is set, will retry indefinitely.
-	conn, err = nd.getConnection(timeout)
+	conn, err = nd.getConnection(deadline, timeout)
 	if err != nil {
 		if err == ErrConnectionPoolEmpty && nd.IsActive() && time.Now().Before(deadline) {
 			// give the scheduler time to breath; affects latency minimally, but throughput drastically
@@ -506,14 +506,14 @@ CL:
 // getConnection gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
 // This method does not include logic to retry in case the connection pool is empty
-func (nd *Node) getConnection(timeout time.Duration) (conn *Connection, err error) {
-	return nd.getConnectionWithHint(timeout, 0)
+func (nd *Node) getConnection(deadline time.Time, timeout time.Duration) (conn *Connection, err error) {
+	return nd.getConnectionWithHint(deadline, timeout, 0)
 }
 
 // getConnectionWithHint gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
 // This method does not include logic to retry in case the connection pool is empty
-func (nd *Node) getConnectionWithHint(timeout time.Duration, hint byte) (conn *Connection, err error) {
+func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration, hint byte) (conn *Connection, err error) {
 	// try to get a valid connection from the connection pool
 	for t := nd.connections.Poll(hint); t != nil; t = nd.connections.Poll(hint) {
 		conn = t //.(*Connection)
@@ -554,7 +554,7 @@ func (nd *Node) getConnectionWithHint(timeout time.Duration, hint byte) (conn *C
 		atomic.AddInt64(&nd.stats.ConnectionsSuccessful, 1)
 	}
 
-	if err = conn.SetTimeout(timeout); err != nil {
+	if err = conn.SetTimeout(deadline, timeout); err != nil {
 		atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
 
 		// Do not put back into pool.
@@ -705,9 +705,14 @@ func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) (err error)
 // initTendConn sets up a connection to be used for info requests.
 // The same connection will be used for tend.
 func (nd *Node) initTendConn(timeout time.Duration) error {
+	var deadline time.Time
+	if timeout > 0 {
+		deadline = time.Now().Add(timeout)
+	}
+
 	if nd.tendConn == nil || !nd.tendConn.IsConnected() {
 		// Tend connection required a long timeout
-		tendConn, err := nd.GetConnection(timeout)
+		tendConn, err := nd.getConnection(deadline, timeout)
 		if err != nil {
 			return err
 		}
@@ -716,7 +721,7 @@ func (nd *Node) initTendConn(timeout time.Duration) error {
 	}
 
 	// Set timeout for tend conn
-	return nd.tendConn.SetTimeout(timeout)
+	return nd.tendConn.SetTimeout(deadline, timeout)
 }
 
 // requestInfoWithRetry gets info values by name from the specified database server node.

@@ -36,7 +36,7 @@ type info struct {
 
 // RequestNodeInfo gets info values by name from the specified database server node.
 func RequestNodeInfo(node *Node, name ...string) (map[string]string, error) {
-	conn, err := node.GetConnection(_DEFAULT_TIMEOUT)
+	conn, err := node.getConnection(time.Now().Add(_DEFAULT_TIMEOUT), _DEFAULT_TIMEOUT)
 	if err != nil {
 		return nil, err
 	}
