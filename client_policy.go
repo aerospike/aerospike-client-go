@@ -81,13 +81,6 @@ type ClientPolicy struct {
 	// "services-alternate" is available with Aerospike Server versions >= 3.7.1.
 	UseServicesAlternate bool // false
 
-	// RequestProleReplicas determines if prole replicas should be requested from each server node in the cluster tend goroutine.
-	// This option is required if there is a need to distribute reads across proles.
-	// If RequestProleReplicas is enabled, all prole partition maps will be cached on the client which results in
-	// extra storage multiplied by the replication factor.
-	// The default is false (only request master replicas and never prole replicas).
-	RequestProleReplicas bool // false
-
 	// RackAware directs the client to update rack information on intervals.
 	// When this feature is enabled, the client will prefer to use nodes which reside
 	// on the same rack as the client for read transactions. The application should also set the RackId, and
@@ -122,7 +115,6 @@ func NewClientPolicy() *ClientPolicy {
 		FailIfNotConnected:          true,
 		TendInterval:                time.Second,
 		LimitConnectionsToQueueSize: true,
-		RequestProleReplicas:        false,
 		IgnoreOtherSubnetAliases:    false,
 	}
 }

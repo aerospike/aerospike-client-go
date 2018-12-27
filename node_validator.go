@@ -49,7 +49,7 @@ type nodeValidator struct {
 	sessionToken      []byte
 	SessionExpiration time.Time
 
-	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow bool
+	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow bool
 }
 
 func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nodesToAddT) error {
@@ -305,8 +305,6 @@ func (ndv *nodeValidator) setFeatures(features string) {
 			ndv.supportsBatchIndex = true
 		case "replicas":
 			ndv.supportsReplicas = true
-		case "replicas-all":
-			ndv.supportsReplicasAll = true
 		case "geo":
 			ndv.supportsGeo = true
 		case "peers":

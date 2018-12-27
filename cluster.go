@@ -63,7 +63,6 @@ type Cluster struct {
 
 	// Aerospike v3.6.0+
 	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo *AtomicBool
-	requestProleReplicas                                                *AtomicBool
 
 	// User name in UTF-8 encoded bytes.
 	user string
@@ -105,11 +104,10 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 		password: NewSyncVal(nil),
 
-		supportsFloat:        NewAtomicBool(false),
-		supportsBatchIndex:   NewAtomicBool(false),
-		supportsReplicasAll:  NewAtomicBool(false),
-		supportsGeo:          NewAtomicBool(false),
-		requestProleReplicas: NewAtomicBool(policy.RequestProleReplicas),
+		supportsFloat:       NewAtomicBool(false),
+		supportsBatchIndex:  NewAtomicBool(false),
+		supportsReplicasAll: NewAtomicBool(false),
+		supportsGeo:         NewAtomicBool(false),
 	}
 
 	newCluster.partitionWriteMap.Store(make(partitionMap))
@@ -237,7 +235,6 @@ func (clstr *Cluster) tend() error {
 
 	floatSupport := true
 	batchIndexSupport := true
-	replicasAllSupport := true
 	geoSupport := true
 
 	for _, node := range nodes {
@@ -366,16 +363,9 @@ func (clstr *Cluster) tend() error {
 		Logger.Warn("Some cluster nodes do not support float type. Disabling native float support in the client library...")
 	}
 
-	// Disable prole requests if some nodes don't support it.
-	if clstr.clientPolicy.RequestProleReplicas && !replicasAllSupport {
-		Logger.Warn("Some nodes don't support 'replicas-all'. Will use 'replicas-master' for all nodes.")
-	}
-
 	// set the cluster supported features
 	clstr.supportsFloat.Set(floatSupport)
 	clstr.supportsBatchIndex.Set(batchIndexSupport)
-	clstr.supportsReplicasAll.Set(replicasAllSupport)
-	clstr.requestProleReplicas.Set(clstr.clientPolicy.RequestProleReplicas && replicasAllSupport)
 	clstr.supportsGeo.Set(geoSupport)
 
 	// update all partitions in one go

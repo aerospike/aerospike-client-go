@@ -29,7 +29,6 @@ import (
 
 const (
 	_PartitionGeneration = "partition-generation"
-	_ReplicasMaster      = "replicas-master"
 	_Replicas            = "replicas"
 	_ReplicasAll         = "replicas-all"
 )
@@ -48,18 +47,17 @@ type partitionParser struct {
 	regimeError bool
 }
 
-func newPartitionParser(node *Node, partitions partitionMap, partitionCount int, requestProleReplicas bool) (*partitionParser, error) {
+func newPartitionParser(node *Node, partitions partitionMap, partitionCount int) (*partitionParser, error) {
 	newPartitionParser := &partitionParser{
 		partitionCount: partitionCount,
 	}
 
 	// Send format 1:  partition-generation\nreplicas\n
 	// Send format 2:  partition-generation\nreplicas-all\n
-	// Send format 3:  partition-generation\nreplicas-master\n
-	command := _ReplicasMaster
+	var command string
 	if node.supportsReplicas.Get() {
 		command = _Replicas
-	} else if requestProleReplicas {
+	} else {
 		command = _ReplicasAll
 	}
 
@@ -84,14 +82,7 @@ func newPartitionParser(node *Node, partitions partitionMap, partitionCount int,
 	partitionMapLock.Lock()
 	defer partitionMapLock.Unlock()
 
-	if node.supportsReplicas.Get() {
-		err = newPartitionParser.parseReplicasAll(node, command)
-	} else if requestProleReplicas {
-		err = newPartitionParser.parseReplicasAll(node, command)
-	} else {
-		err = newPartitionParser.parseReplicasMaster(node)
-	}
-
+	err = newPartitionParser.parseReplicasAll(node, command)
 	if err != nil {
 		return nil, err
 	}
@@ -122,62 +113,6 @@ func (pp *partitionParser) parseGeneration() (int, error) {
 		pp.offset++
 	}
 	return -1, NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Failed to find partition-generation value"))
-}
-
-func (pp *partitionParser) parseReplicasMaster(node *Node) error {
-	// Use low-level info methods and parse byte array directly for maximum performance.
-	// Receive format: replicas-master\t<ns1>:<base 64 encoded bitmap1>;<ns2>:<base 64 encoded bitmap2>...\n
-	if err := pp.expectName(_ReplicasMaster); err != nil {
-		return err
-	}
-
-	begin := pp.offset
-
-	for pp.offset < pp.length {
-		if pp.buffer[pp.offset] == ':' {
-			// Parse namespace.
-			namespace := string(pp.buffer[begin:pp.offset])
-
-			if len(namespace) <= 0 || len(namespace) >= 32 {
-				response := pp.getTruncatedResponse()
-				return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid partition namespace `%s` response: `%s`", namespace, response))
-			}
-			pp.offset++
-			begin = pp.offset
-
-			// Parse partition bitmap.
-			for pp.offset < pp.length {
-				b := pp.buffer[pp.offset]
-
-				if b == ';' || b == '\n' {
-					break
-				}
-				pp.offset++
-			}
-
-			if pp.offset == begin {
-				response := pp.getTruncatedResponse()
-				return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Empty partition id for namespace `%s` response: `%s`", namespace, response))
-			}
-
-			partitions := pp.pmap[namespace]
-			if partitions == nil {
-				// Create new replica array.
-				partitions = newPartitions(pp.partitionCount, 1, false)
-				pp.pmap[namespace] = partitions
-			}
-
-			if err := pp.decodeBitmap(node, partitions, 0, 0, begin); err != nil {
-				return err
-			}
-			pp.offset++
-			begin = pp.offset
-		} else {
-			pp.offset++
-		}
-	}
-
-	return nil
 }
 
 func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {

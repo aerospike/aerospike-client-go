@@ -48,8 +48,6 @@ func initTestVars() {
 		clientPolicy.Password = *password
 	}
 
-	clientPolicy.RequestProleReplicas = *useReplicas
-
 	*authMode = strings.ToLower(strings.TrimSpace(*authMode))
 	if *authMode != "internal" && *authMode != "external" {
 		log.Fatalln("Invalid auth mode: only `internal` and `external` values are accepted.")

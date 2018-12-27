@@ -26,8 +26,7 @@ const (
 	MASTER ReplicaPolicy = iota
 
 	// MASTER_PROLES Distributes reads across nodes containing key's master and replicated partitions
-	// in round-robin fashion.  This option requires ClientPolicy.RequestProleReplicas
-	// to be enabled in order to function properly.
+	// in round-robin fashion.
 	MASTER_PROLES
 
 	// Distribute reads across all nodes in cluster in round-robin fashion.
@@ -39,9 +38,6 @@ const (
 	// If connection fails, all commands try nodes containing replicated partitions.
 	// If socketTimeout is reached, reads also try nodes containing replicated partitions,
 	// but writes remain on master node.
-	//
-	// This option requires ClientPolicy.RequestProleReplicas to be enabled
-	// in order to function properly.
 	SEQUENCE
 
 	// PREFER_RACK Tries nodes on the same rack first.

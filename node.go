@@ -65,7 +65,7 @@ type Node struct {
 
 	active AtomicBool
 
-	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow AtomicBool
+	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow AtomicBool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -87,13 +87,12 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		active:              *NewAtomicBool(true),
 		partitionChanged:    *NewAtomicBool(false),
 
-		supportsFloat:       *NewAtomicBool(nv.supportsFloat),
-		supportsBatchIndex:  *NewAtomicBool(nv.supportsBatchIndex),
-		supportsReplicasAll: *NewAtomicBool(nv.supportsReplicasAll),
-		supportsReplicas:    *NewAtomicBool(nv.supportsReplicas),
-		supportsGeo:         *NewAtomicBool(nv.supportsGeo),
-		supportsPeers:       *NewAtomicBool(nv.supportsPeers),
-		supportsLUTNow:      *NewAtomicBool(nv.supportsLUTNow),
+		supportsFloat:      *NewAtomicBool(nv.supportsFloat),
+		supportsBatchIndex: *NewAtomicBool(nv.supportsBatchIndex),
+		supportsReplicas:   *NewAtomicBool(nv.supportsReplicas),
+		supportsGeo:        *NewAtomicBool(nv.supportsGeo),
+		supportsPeers:      *NewAtomicBool(nv.supportsPeers),
+		supportsLUTNow:     *NewAtomicBool(nv.supportsLUTNow),
 	}
 
 	newNode.aliases.Store(nv.aliases)
@@ -444,7 +443,7 @@ func (nd *Node) refreshPartitions(peers *peers, partitions partitionMap) {
 		return
 	}
 
-	parser, err := newPartitionParser(nd, partitions, _PARTITIONS, nd.cluster.clientPolicy.RequestProleReplicas)
+	parser, err := newPartitionParser(nd, partitions, _PARTITIONS)
 	if err != nil {
 		nd.refreshFailed(err)
 		return
