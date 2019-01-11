@@ -1,6 +1,6 @@
 // +build !go1.8
 
-// Copyright 2013-2017 Aerospike, Inc.
+// Copyright 2013-2019 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,9 +36,9 @@ func cloneTlsConfig(c *tls.Config) *tls.Config {
 		NameToCertificate:        c.NameToCertificate,
 		NextProtos:               c.NextProtos,
 		PreferServerCipherSuites: c.PreferServerCipherSuites,
-		Rand:       c.Rand,
-		RootCAs:    c.RootCAs,
-		ServerName: c.ServerName,
-		Time:       c.Time,
+		Rand:                     c.Rand,
+		RootCAs:                  c.RootCAs,
+		ServerName:               c.ServerName,
+		Time:                     c.Time,
 	}
 }
