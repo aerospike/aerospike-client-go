@@ -949,17 +949,26 @@ func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeL
 	}
 
 	var strCmd bytes.Buffer
-	_, err = strCmd.WriteString("truncate:namespace=")
-	_, err = strCmd.WriteString(namespace)
-
 	if len(set) > 0 {
+		_, err = strCmd.WriteString("truncate:namespace=")
+		_, err = strCmd.WriteString(namespace)
 		_, err = strCmd.WriteString(";set=")
 		_, err = strCmd.WriteString(set)
+	} else {
+		// Servers >= 4.5.1.0 support truncate-namespace.
+		if node.supportsTruncateNamespace.Get() {
+			_, err = strCmd.WriteString("truncate-namespace:namespace=")
+			_, err = strCmd.WriteString(namespace)
+		} else {
+			_, err = strCmd.WriteString("truncate:namespace=")
+			_, err = strCmd.WriteString(namespace)
+		}
 	}
 	if beforeLastUpdate != nil {
 		_, err = strCmd.WriteString(";lut=")
 		_, err = strCmd.WriteString(strconv.FormatInt(beforeLastUpdate.UnixNano(), 10))
 	} else {
+		// Servers >= 4.3.1.4 and <= 4.5.0.1 require lut argument.
 		if node.supportsLUTNow.Get() {
 			_, err = strCmd.WriteString(";lut=now")
 		}

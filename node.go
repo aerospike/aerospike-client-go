@@ -65,7 +65,7 @@ type Node struct {
 
 	active AtomicBool
 
-	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow AtomicBool
+	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow, supportsTruncateNamespace AtomicBool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -87,13 +87,14 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		active:              *NewAtomicBool(true),
 		partitionChanged:    *NewAtomicBool(false),
 
-		supportsFloat:       *NewAtomicBool(nv.supportsFloat),
-		supportsBatchIndex:  *NewAtomicBool(nv.supportsBatchIndex),
-		supportsReplicasAll: *NewAtomicBool(nv.supportsReplicasAll),
-		supportsReplicas:    *NewAtomicBool(nv.supportsReplicas),
-		supportsGeo:         *NewAtomicBool(nv.supportsGeo),
-		supportsPeers:       *NewAtomicBool(nv.supportsPeers),
-		supportsLUTNow:      *NewAtomicBool(nv.supportsLUTNow),
+		supportsFloat:             *NewAtomicBool(nv.supportsFloat),
+		supportsBatchIndex:        *NewAtomicBool(nv.supportsBatchIndex),
+		supportsReplicasAll:       *NewAtomicBool(nv.supportsReplicasAll),
+		supportsReplicas:          *NewAtomicBool(nv.supportsReplicas),
+		supportsGeo:               *NewAtomicBool(nv.supportsGeo),
+		supportsPeers:             *NewAtomicBool(nv.supportsPeers),
+		supportsLUTNow:            *NewAtomicBool(nv.supportsLUTNow),
+		supportsTruncateNamespace: *NewAtomicBool(nv.supportsTruncateNamespace),
 	}
 
 	newNode.aliases.Store(nv.aliases)
