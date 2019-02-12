@@ -31,12 +31,10 @@ type Statement struct {
 	// BinNames detemines bin names (optional)
 	BinNames []string
 
-	// Filters determine query filters (Optional)
-	// Currently, only one filter is allowed by the server on a secondary index lookup.
-	// If multiple filters are necessary, see QueryFilter example for a workaround.
-	// QueryFilter demonstrates how to add additional filters in an user-defined
-	// aggregation function.
-	Filters []*Filter
+	// Filter determines query index filter (Optional).
+	// This filter is applied to the secondary index on query.
+	// Query index filters must reference a bin which has a secondary index defined.
+	Filter *Filter
 
 	packageName  string
 	functionName string
@@ -63,10 +61,10 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 	}
 }
 
-// Addfilter adds a filter to the statement.
+// SetFilter Sets a filter for the statement.
 // Aerospike Server currently only supports using a single filter per statement/query.
-func (stmt *Statement) Addfilter(filter *Filter) error {
-	stmt.Filters = append(stmt.Filters, filter)
+func (stmt *Statement) SetFilter(filter *Filter) error {
+	stmt.Filter = filter
 
 	return nil
 }
@@ -122,7 +120,7 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 
 // IsScan determines is the Statement is a full namespace/set scan or a selective Query.
 func (stmt *Statement) IsScan() bool {
-	return len(stmt.Filters) == 0
+	return stmt.Filter == nil
 }
 
 // Always set the taskId client-side to a non-zero random value

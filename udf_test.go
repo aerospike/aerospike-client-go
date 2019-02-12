@@ -215,7 +215,7 @@ var _ = Describe("UDF/Query tests", func() {
 			Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
 
 			statement := as.NewStatement(ns, set)
-			statement.Addfilter(as.NewRangeFilter(bin1.Name, 0, math.MaxInt16))
+			statement.SetFilter(as.NewRangeFilter(bin1.Name, 0, math.MaxInt16))
 			exTask, err := client.ExecuteUDF(nil, statement, "udfDelete", "deleteRecord")
 			Expect(err).ToNot(HaveOccurred())
 
@@ -261,17 +261,17 @@ var _ = Describe("UDF/Query tests", func() {
 		testMatrix := map[interface{}]interface{}{
 			math.MinInt64: math.MinInt64,
 			// math.MaxInt64:  int64(math.MaxInt64), // TODO: Wrong serialization on server - sign-bit is wrong
-			math.MinInt32:  math.MinInt32, // TODO: Wrong serialization type on server
-			math.MaxUint32: math.MaxUint32,
-			math.MinInt16:  math.MinInt16,
-			math.MaxInt16:  math.MaxInt16,
-			math.MaxUint16: math.MaxUint16,
-			math.MinInt8:   math.MinInt8,
-			math.MaxInt8:   math.MaxInt8,
-			math.MaxUint8:  math.MaxUint8,
-			-1:             -1,
-			0:              0,
-			"":             "",
+			math.MinInt32:               math.MinInt32, // TODO: Wrong serialization type on server
+			math.MaxUint32:              math.MaxUint32,
+			math.MinInt16:               math.MinInt16,
+			math.MaxInt16:               math.MaxInt16,
+			math.MaxUint16:              math.MaxUint16,
+			math.MinInt8:                math.MinInt8,
+			math.MaxInt8:                math.MaxInt8,
+			math.MaxUint8:               math.MaxUint8,
+			-1:                          -1,
+			0:                           0,
+			"":                          "",
 			strings.Repeat("s", 1):      strings.Repeat("s", 1),
 			strings.Repeat("s", 10):     strings.Repeat("s", 10),
 			strings.Repeat("s", 100):    strings.Repeat("s", 100),
@@ -394,8 +394,8 @@ var _ = Describe("UDF/Query tests", func() {
 				math.MaxInt32:         math.MaxInt32,
 				math.MaxUint32:        math.MaxUint32,
 				uint64(math.MaxInt64): uint64(math.MaxInt64),
-				"":          "",
-				"Hello, 世界": "Hello, 世界",
+				"":                    "",
+				"Hello, 世界":           "Hello, 世界",
 			}
 
 			res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(v))

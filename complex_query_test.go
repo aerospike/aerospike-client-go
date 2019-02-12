@@ -82,7 +82,7 @@ var _ = Describe("Query operations on complex types", func() {
 
 	It("must Query a specific element in list and get only relevant records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 1))
+		stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 1))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -100,7 +100,7 @@ var _ = Describe("Query operations on complex types", func() {
 
 	It("must Query a specific non-existig element in list and get no records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 10))
+		stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 10))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -115,7 +115,7 @@ var _ = Describe("Query operations on complex types", func() {
 
 	It("must Query a key in map and get only relevant records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 0))
+		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 0))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -133,7 +133,7 @@ var _ = Describe("Query operations on complex types", func() {
 
 	It("must Query a specific non-existig key in map and get no records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 10))
+		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 10))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -148,7 +148,7 @@ var _ = Describe("Query operations on complex types", func() {
 
 	It("must Query a value in map and get only relevant records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 1))
+		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 1))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -166,7 +166,7 @@ var _ = Describe("Query operations on complex types", func() {
 
 	It("must Query a specific non-existig value in map and get no records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 10))
+		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 10))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 

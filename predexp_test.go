@@ -67,9 +67,9 @@ var _ = Describe("predexp operations", func() {
 			// records w/ 0 TTL can be counted later.
 			//
 			if ii == 333 {
-				<-time.After(5 * time.Millisecond)
+				time.Sleep(500 * time.Millisecond)
 				gaptime = time.Now().UnixNano()
-				<-time.After(5 * time.Millisecond)
+				time.Sleep(500 * time.Millisecond)
 
 				wpolicy = as.NewWritePolicy(0, as.TTLDontExpire)
 			}
@@ -141,7 +141,7 @@ var _ = Describe("predexp operations", func() {
 
 		// This statement doesn't form a predicate expression.
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewRangeFilter("intval", 0, 400))
+		stm.SetFilter(as.NewRangeFilter("intval", 0, 400))
 		stm.SetPredExp(as.NewPredExpIntegerValue(8))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
@@ -153,7 +153,7 @@ var _ = Describe("predexp operations", func() {
 	It("server error with multiple top-level predexp", func() {
 
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewRangeFilter("intval", 0, 400))
+		stm.SetFilter(as.NewRangeFilter("intval", 0, 400))
 		stm.SetPredExp(
 			as.NewPredExpIntegerBin("modval"),
 			as.NewPredExpIntegerValue(8),
@@ -172,7 +172,7 @@ var _ = Describe("predexp operations", func() {
 	It("server error with missing child predexp", func() {
 
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewRangeFilter("intval", 0, 400))
+		stm.SetFilter(as.NewRangeFilter("intval", 0, 400))
 		stm.SetPredExp(
 			as.NewPredExpIntegerValue(8),
 			as.NewPredExpIntegerGreaterEq(),
@@ -187,7 +187,7 @@ var _ = Describe("predexp operations", func() {
 	It("predexp must additionally filter indexed query results", func() {
 
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewRangeFilter("intval", 0, 400))
+		stm.SetFilter(as.NewRangeFilter("intval", 0, 400))
 		stm.SetPredExp(
 			as.NewPredExpIntegerBin("modval"),
 			as.NewPredExpIntegerValue(8),

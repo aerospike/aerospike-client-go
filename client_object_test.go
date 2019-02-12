@@ -1034,7 +1034,7 @@ var _ = Describe("Aerospike", func() {
 
 				retChan := make(chan *InnerStruct, 10)
 				stmt := as.NewStatement(ns, set)
-				stmt.Addfilter(as.NewRangeFilter("inner1", 21, 70))
+				stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
 
 				rs, err := client.QueryObjects(nil, stmt, retChan)
 				Expect(err).ToNot(HaveOccurred())
@@ -1071,7 +1071,7 @@ var _ = Describe("Aerospike", func() {
 
 				retChan := make(chan *InnerStruct, 1)
 				stmt := as.NewStatement(ns, set)
-				stmt.Addfilter(as.NewRangeFilter("inner1", 21, 70))
+				stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
 
 				qpolicy := as.NewQueryPolicy()
 				qpolicy.RecordQueueSize = 1

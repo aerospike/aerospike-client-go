@@ -846,28 +846,23 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
 
-	if len(statement.Filters) > 0 {
-		if len(statement.Filters) > 1 {
-			return NewAerospikeError(PARAMETER_ERROR, "Aerospike server currently supports only one filter.")
-		} else if len(statement.Filters) == 1 {
-			idxType := statement.Filters[0].IndexCollectionType()
+	if statement.Filter != nil {
+		idxType := statement.Filter.IndexCollectionType()
 
-			if idxType != ICT_DEFAULT {
-				cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1
-				fieldCount++
-			}
+		if idxType != ICT_DEFAULT {
+			cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1
+			fieldCount++
 		}
 
 		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
 		filterSize++ // num filters
 
-		for _, filter := range statement.Filters {
-			sz, err := filter.estimateSize()
-			if err != nil {
-				return err
-			}
-			filterSize += sz
+		sz, err := statement.Filter.estimateSize()
+		if err != nil {
+			return err
 		}
+		filterSize += sz
+
 		cmd.dataOffset += filterSize
 		fieldCount++
 
@@ -921,7 +916,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		fieldCount += 4
 	}
 
-	if len(statement.Filters) == 0 {
+	if statement.Filter == nil {
 		if len(statement.BinNames) > 0 {
 			for _, binName := range statement.BinNames {
 				cmd.estimateOperationSizeForBinName(binName)
@@ -934,7 +929,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	}
 
 	operationCount := 0
-	if len(statement.Filters) == 0 && len(statement.BinNames) > 0 {
+	if statement.Filter == nil && len(statement.BinNames) > 0 {
 		operationCount = len(statement.BinNames)
 	}
 
@@ -963,24 +958,20 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	cmd.writeFieldHeader(8, TRAN_ID)
 	cmd.WriteUint64(statement.TaskId)
 
-	if len(statement.Filters) > 0 {
-		if len(statement.Filters) >= 1 {
-			idxType := statement.Filters[0].IndexCollectionType()
+	if statement.Filter != nil {
+		idxType := statement.Filter.IndexCollectionType()
 
-			if idxType != ICT_DEFAULT {
-				cmd.writeFieldHeader(1, INDEX_TYPE)
-				cmd.WriteByte(byte(idxType))
-			}
+		if idxType != ICT_DEFAULT {
+			cmd.writeFieldHeader(1, INDEX_TYPE)
+			cmd.WriteByte(byte(idxType))
 		}
 
 		cmd.writeFieldHeader(filterSize, INDEX_RANGE)
-		cmd.WriteByte(byte(len(statement.Filters)))
+		cmd.WriteByte(byte(1)) // number of filters
 
-		for _, filter := range statement.Filters {
-			_, err := filter.write(cmd)
-			if err != nil {
-				return err
-			}
+		_, err := statement.Filter.write(cmd)
+		if err != nil {
+			return err
 		}
 
 		if len(statement.BinNames) > 0 {
@@ -1035,7 +1026,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	}
 
 	// scan binNames come last
-	if len(statement.Filters) == 0 {
+	if statement.Filter == nil {
 		if len(statement.BinNames) > 0 {
 			for _, binName := range statement.BinNames {
 				cmd.writeOperationForBinName(binName, READ)

@@ -19,7 +19,6 @@ import (
 	"math/rand"
 
 	as "github.com/aerospike/aerospike-client-go"
-	. "github.com/aerospike/aerospike-client-go/types"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -109,36 +108,13 @@ var _ = Describe("Query operations", func() {
 
 	It("must return error if query on non-indexed field", func() {
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewRangeFilter("Non-Existing", 0, math.MaxInt16/2))
+		stm.SetFilter(as.NewRangeFilter("Non-Existing", 0, math.MaxInt16/2))
 
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
 		for res := range recordset.Results() {
 			Expect(res.Err).To(HaveOccurred())
-		}
-	})
-
-	It("must return error if more than one filter passed to the command", func() {
-		defer client.DropIndex(nil, ns, set, indexName)
-
-		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
-		stm.Addfilter(as.NewRangeFilter(bin3.Name, 2, math.MaxInt16/2))
-
-		Expect(len(stm.Filters)).To(Equal(2))
-
-		recordset, err := client.Query(nil, stm)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(recordset.TaskId()).To(Equal(stm.TaskId))
-		Expect(recordset.TaskId()).To(BeNumerically(">", 0))
-
-		for res := range recordset.Results() {
-			Expect(res.Err).To(HaveOccurred())
-			ae, ok := res.Err.(AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(ae.ResultCode()).To(Equal(PARAMETER_ERROR))
 		}
 	})
 
@@ -195,7 +171,7 @@ var _ = Describe("Query operations", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
 
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
+		stm.SetFilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -223,7 +199,7 @@ var _ = Describe("Query operations", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		stm := as.NewStatement(ns, set)
-		stm.Addfilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
+		stm.SetFilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
 		stm.SetAggregateFunction("udfFilter", "filter_by_name", []as.Value{as.NewValue("Aeropsike")}, true)
 
 		recordset, err := client.Query(nil, stm)
@@ -252,7 +228,7 @@ var _ = Describe("Query operations", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		stm := as.NewStatement(ns, set, bin3.Name)
-		stm.Addfilter(as.NewEqualFilter(bin3.Name, bin3.Value))
+		stm.SetFilter(as.NewEqualFilter(bin3.Name, bin3.Value))
 
 		recordset, err := client.Query(nil, stm)
 		Expect(err).ToNot(HaveOccurred())
