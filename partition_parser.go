@@ -317,12 +317,6 @@ func (pp *partitionParser) decodeBitmap(node *Node, partitions *Partitions, repl
 					pp.regimeError = true
 				}
 			}
-		} else {
-			// Node does not own partition.
-			if node == nodeOld {
-				// Must erase previous map.
-				partitions.Replicas[replica][partition] = nil
-			}
 		}
 	}
 
