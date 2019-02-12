@@ -45,12 +45,14 @@ var _ = Describe("Security tests", func() {
 
 		AfterEach(func() {
 			client.DropUser(nil, "test_user")
+			time.Sleep(time.Second)
 		})
 
 		Context("Roles", func() {
 
 			BeforeEach(func() {
 				client.CreateUser(nil, "test_user", "test", []string{"user-admin"})
+				time.Sleep(time.Second)
 			})
 
 			It("Must work with Roles Perfectly", func() {
@@ -65,6 +67,8 @@ var _ = Describe("Security tests", func() {
 				err = client.CreateRole(nil, "role-write-test", []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: ""}})
 				Expect(err).ToNot(HaveOccurred())
 
+				time.Sleep(time.Second)
+
 				// Add privileges to the roles
 				err = client.GrantPrivileges(nil, "role-read-test-test", []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: "bar"}, {Code: as.ReadWriteUDF, Namespace: ns, SetName: "test"}})
 				Expect(err).ToNot(HaveOccurred())
@@ -75,6 +79,8 @@ var _ = Describe("Security tests", func() {
 
 				err = client.CreateRole(nil, "dummy-role", []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}})
 				Expect(err).ToNot(HaveOccurred())
+
+				time.Sleep(time.Second)
 
 				// Drop the dummy role to make sure DropRoles Works
 				err = client.DropRole(nil, "dummy-role")
@@ -113,6 +119,8 @@ var _ = Describe("Security tests", func() {
 				err := client.GrantRoles(nil, "test_user", []string{"user-admin", "sys-admin", "read-write", "read"})
 				Expect(err).ToNot(HaveOccurred())
 
+				time.Sleep(time.Second)
+
 				admin, err := client.QueryUser(nil, "test_user")
 				Expect(err).ToNot(HaveOccurred())
 
@@ -140,6 +148,8 @@ var _ = Describe("Security tests", func() {
 				err := client.CreateUser(nil, "test_user", "test", []string{"user-admin", "read"})
 				Expect(err).ToNot(HaveOccurred())
 
+				time.Sleep(time.Second)
+
 				admin, err := client.QueryUser(nil, "test_user")
 				Expect(err).ToNot(HaveOccurred())
 
@@ -154,6 +164,8 @@ var _ = Describe("Security tests", func() {
 				err := client.CreateUser(nil, "test_user", "test", []string{"user-admin", "read"})
 				Expect(err).ToNot(HaveOccurred())
 
+				time.Sleep(time.Second)
+
 				// connect using the new user
 				client_policy := as.NewClientPolicy()
 				client_policy.User = "test_user"
@@ -165,6 +177,8 @@ var _ = Describe("Security tests", func() {
 				// change current user's password on the fly
 				err = new_client.ChangePassword(nil, "test_user", "test1")
 				Expect(err).ToNot(HaveOccurred())
+
+				time.Sleep(time.Second)
 
 				// exhaust all node connections
 				for _, node := range new_client.GetNodes() {
@@ -195,6 +209,8 @@ var _ = Describe("Security tests", func() {
 					err := client.CreateUser(nil, fmt.Sprintf("test_user%d", i), "test", []string{"read"})
 					Expect(err).ToNot(HaveOccurred())
 				}
+
+				time.Sleep(time.Second)
 
 				// should have the password changed in the cluster, so that a new connection
 				// will be established and used

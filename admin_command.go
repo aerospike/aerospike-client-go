@@ -159,10 +159,6 @@ func (acmd *adminCommand) revokePrivileges(cluster *Cluster, policy *AdminPolicy
 }
 
 func (acmd *adminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user string) (*UserRoles, error) {
-	// TODO: Remove the workaround in the future
-	time.Sleep(time.Millisecond * 10)
-	// defer bufPool.Put(acmd.dataBuffer)
-
 	acmd.writeHeader(_QUERY_USERS, 1)
 	acmd.writeFieldStr(_USER, user)
 	list, err := acmd.readUsers(cluster, policy)
@@ -178,10 +174,6 @@ func (acmd *adminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user 
 }
 
 func (acmd *adminCommand) queryUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, error) {
-	// TODO: Remove the workaround in the future
-	time.Sleep(time.Millisecond * 10)
-	// defer bufPool.Put(acmd.dataBuffer)
-
 	acmd.writeHeader(_QUERY_USERS, 0)
 	list, err := acmd.readUsers(cluster, policy)
 	if err != nil {
@@ -191,10 +183,6 @@ func (acmd *adminCommand) queryUsers(cluster *Cluster, policy *AdminPolicy) ([]*
 }
 
 func (acmd *adminCommand) queryRole(cluster *Cluster, policy *AdminPolicy, roleName string) (*Role, error) {
-	// TODO: Remove the workaround in the future
-	time.Sleep(time.Millisecond * 10)
-	// defer bufPool.Put(acmd.dataBuffer)
-
 	acmd.writeHeader(_QUERY_ROLES, 1)
 	acmd.writeFieldStr(_ROLE, roleName)
 	list, err := acmd.readRoles(cluster, policy)
@@ -210,10 +198,6 @@ func (acmd *adminCommand) queryRole(cluster *Cluster, policy *AdminPolicy, roleN
 }
 
 func (acmd *adminCommand) queryRoles(cluster *Cluster, policy *AdminPolicy) ([]*Role, error) {
-	// TODO: Remove the workaround in the future
-	time.Sleep(time.Millisecond * 10)
-	// defer bufPool.Put(acmd.dataBuffer)
-
 	acmd.writeHeader(_QUERY_ROLES, 0)
 	list, err := acmd.readRoles(cluster, policy)
 	if err != nil {
@@ -315,11 +299,6 @@ func (acmd *adminCommand) writeFieldHeader(id byte, size int) {
 }
 
 func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) error {
-	// TODO: Remove the workaround in the future
-	defer time.Sleep(time.Millisecond * 10)
-
-	// defer bufPool.Put(acmd.dataBuffer)
-
 	acmd.writeSize()
 	node, err := cluster.GetRandomNode()
 	if err != nil {
@@ -330,7 +309,17 @@ func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 		timeout = policy.Timeout
 	}
 
-	conn, err := acmd.getConnection(node, timeout)
+	node.tendConnLock.Lock()
+	defer node.tendConnLock.Unlock()
+
+	if err := node.initTendConn(timeout); err != nil {
+		return err
+	}
+
+	conn := node.tendConn
+	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
+		return err
+	}
 	if err != nil {
 		return err
 	}
@@ -345,22 +334,6 @@ func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 	}
 
 	return nil
-}
-
-func (acmd *adminCommand) getConnection(node *Node, timeout time.Duration) (*Connection, error) {
-	node.tendConnLock.Lock()
-	defer node.tendConnLock.Unlock()
-
-	if err := node.initTendConn(timeout); err != nil {
-		return nil, err
-	}
-
-	conn := node.tendConn
-	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
-		return nil, err
-	}
-
-	return conn, nil
 }
 
 func (acmd *adminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, error) {
