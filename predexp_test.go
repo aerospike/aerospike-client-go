@@ -67,9 +67,9 @@ var _ = Describe("predexp operations", func() {
 			// records w/ 0 TTL can be counted later.
 			//
 			if ii == 333 {
-				<-time.After(5 * time.Millisecond)
+				<-time.After(500 * time.Millisecond)
 				gaptime = time.Now().UnixNano()
-				<-time.After(5 * time.Millisecond)
+				<-time.After(500 * time.Millisecond)
 
 				wpolicy = as.NewWritePolicy(0, as.TTLDontExpire)
 			}
