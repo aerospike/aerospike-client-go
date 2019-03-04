@@ -57,6 +57,12 @@ type ClientPolicy struct {
 	// to the node if there are already `ConnectionQueueSize` active connections.
 	LimitConnectionsToQueueSize bool //= true
 
+	// Number of connections allowed to established at the same time.
+	// This value does not limit the number of connections. It just
+	// puts a threshold on the number of parallel opening connections.
+	// By default, there are no limits.
+	OpeningConnectionThreshold int // 0
+
 	// Throw exception if host connection fails during addHost().
 	FailIfNotConnected bool //= true
 
@@ -87,7 +93,7 @@ type ClientPolicy struct {
 	// use the ReplicaPolicy.PREFER_RACK for reads.
 	// This feature is in particular useful if the cluster is in the cloud and the cloud provider
 	// is charging for network bandwidth out of the zone. Keep in mind that the node on the same rack
-	// may not be the Master, and as such the data may be stale. This setting is partucularly usable
+	// may not be the Master, and as such the data may be stale. This setting is particularly usable
 	// for clusters that are read heavy.
 	RackAware bool // false
 
@@ -112,6 +118,7 @@ func NewClientPolicy() *ClientPolicy {
 		IdleTimeout:                 defaultIdleTimeout,
 		LoginTimeout:                10 * time.Second,
 		ConnectionQueueSize:         256,
+		OpeningConnectionThreshold:  0,
 		FailIfNotConnected:          true,
 		TendInterval:                time.Second,
 		LimitConnectionsToQueueSize: true,

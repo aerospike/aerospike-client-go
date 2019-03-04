@@ -1701,7 +1701,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 	}
 
 	// execution timeout
-	return NewAerospikeError(TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
+	return ErrTimeout
 }
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {

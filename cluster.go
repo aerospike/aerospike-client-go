@@ -52,7 +52,8 @@ type Cluster struct {
 	partitionWriteMap    atomic.Value //partitionMap
 	partitionUpdateMutex sync.Mutex
 
-	clientPolicy ClientPolicy
+	clientPolicy        ClientPolicy
+	connectionThreshold AtomicInt // number of parallel opening connections
 
 	nodeIndex    uint64 // only used via atomic operations
 	replicaIndex uint64 // only used via atomic operations

@@ -524,6 +524,7 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 		conn = nil
 	}
 
+L:
 	if conn == nil {
 		cc := nd.connectionCount.IncrementAndGet()
 
@@ -532,6 +533,24 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 			nd.connectionCount.DecrementAndGet()
 			atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
 			return nil, ErrConnectionPoolEmpty
+		}
+
+		// Check for opening connection threshold
+		if nd.cluster.clientPolicy.OpeningConnectionThreshold > 0 {
+			ct := nd.cluster.connectionThreshold.IncrementAndGet()
+			if ct > nd.cluster.clientPolicy.OpeningConnectionThreshold {
+				nd.cluster.connectionThreshold.DecrementAndGet()
+
+				if time.Now().After(deadline) {
+					atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
+					return nil, ErrTimeout
+				}
+
+				time.Sleep(100 * time.Microsecond)
+				goto L
+			}
+
+			defer nd.cluster.connectionThreshold.DecrementAndGet()
 		}
 
 		atomic.AddInt64(&nd.stats.ConnectionsAttempts, 1)
