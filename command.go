@@ -1597,6 +1597,11 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 
 		// Sleep before trying again, after the first iteration
 		if iterations > 0 && policy.SleepBetweenRetries > 0 {
+			// Do not sleep if you know you'll wake up after the deadline
+			if policy.TotalTimeout > 0 && time.Now().Add(interval).After(deadline) {
+				break
+			}
+
 			time.Sleep(interval)
 			if policy.SleepMultiplier > 1 {
 				interval = time.Duration(float64(interval) * policy.SleepMultiplier)

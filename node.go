@@ -17,6 +17,7 @@ package aerospike
 import (
 	"bufio"
 	"io"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -481,42 +482,96 @@ func (nd *Node) dropIdleConnections() {
 // This method will retry to retrieve a connection in case the connection pool
 // is empty, until timeout is reached.
 func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err error) {
-	deadline := time.Now().Add(timeout)
 	if timeout == 0 {
-		deadline = time.Now().Add(_DEFAULT_TIMEOUT)
+		timeout = _DEFAULT_TIMEOUT
 	}
+	deadline := time.Now().Add(timeout)
 
-CL:
-	// try to acquire a connection; if the connection pool is empty, retry until
-	// timeout occures. If no timeout is set, will retry indefinitely.
-	conn, err = nd.getConnection(deadline, timeout)
-	if err != nil {
-		if err == ErrConnectionPoolEmpty && nd.IsActive() && time.Now().Before(deadline) {
-			// give the scheduler time to breath; affects latency minimally, but throughput drastically
-			time.Sleep(time.Microsecond)
-			goto CL
-		}
-
-		return nil, err
-	}
-
-	return conn, nil
+	return nd.getConnection(deadline, timeout)
 }
 
 // getConnection gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
-// This method does not include logic to retry in case the connection pool is empty
 func (nd *Node) getConnection(deadline time.Time, timeout time.Duration) (conn *Connection, err error) {
 	return nd.getConnectionWithHint(deadline, timeout, 0)
 }
 
+// newConnection will try to open a connection until deadline.
+// if no deadline is defined, it will only try for _DEFAULT_TIMEOUT.
+func (nd *Node) newConnection(deadline time.Time, hint byte) {
+	if deadline.IsZero() {
+		deadline = time.Now().Add(_DEFAULT_TIMEOUT)
+	}
+
+L:
+	// don't loop forever; free the goroutine after the deadline
+	// if there is no deadline, try only once
+	if time.Now().After(deadline) {
+		return
+	}
+
+	// if connection count is limited and enough connections are already created, don't create a new one
+	cc := nd.connectionCount.IncrementAndGet()
+	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
+		nd.connectionCount.DecrementAndGet()
+		atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
+
+		// give scheduler time to get stuff done
+		runtime.Gosched()
+		goto L
+	}
+
+	// Check for opening connection threshold
+	if nd.cluster.clientPolicy.OpeningConnectionThreshold > 0 {
+		ct := nd.cluster.connectionThreshold.IncrementAndGet()
+		if ct > nd.cluster.clientPolicy.OpeningConnectionThreshold {
+			nd.cluster.connectionThreshold.DecrementAndGet()
+
+			// give scheduler time to get stuff done
+			runtime.Gosched()
+			goto L
+		}
+
+		defer nd.cluster.connectionThreshold.DecrementAndGet()
+	}
+
+	atomic.AddInt64(&nd.stats.ConnectionsAttempts, 1)
+	conn, err := NewSecureConnection(&nd.cluster.clientPolicy, nd.host)
+	if err != nil {
+		nd.connectionCount.DecrementAndGet()
+		atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
+		Logger.Error("Error trying to making a connection to the node %s: %s", nd.String(), err.Error())
+
+		goto L
+	}
+	conn.node = nd
+
+	// need to authenticate
+	if err = conn.login(nd.sessionToken()); err != nil {
+		atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
+
+		// Socket not authenticated. Do not put back into pool.
+		conn.Close()
+		Logger.Error("Error trying to making a connection to the node %s: %s", nd.String(), err.Error())
+
+		goto L
+	}
+
+	atomic.AddInt64(&nd.stats.ConnectionsSuccessful, 1)
+
+	nd.putConnectionWithHint(conn, hint)
+}
+
 // getConnectionWithHint gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
-// This method does not include logic to retry in case the connection pool is empty
 func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration, hint byte) (conn *Connection, err error) {
+
+	var socketDeadline time.Time
+	connReqd := false
+
+L:
 	// try to get a valid connection from the connection pool
-	for t := nd.connections.Poll(hint); t != nil; t = nd.connections.Poll(hint) {
-		conn = t //.(*Connection)
+	for conn = nd.connections.Poll(hint); conn != nil; conn = nd.connections.Poll(hint) {
 		if conn.IsConnected() {
 			break
 		}
@@ -524,53 +579,32 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 		conn = nil
 	}
 
-L:
+	// don't loop forever; return the goroutine after deadline.
+	// deadline will always be set when requesting for a connection.
+	if connReqd && time.Now().After(socketDeadline) {
+		atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
+
+		return nil, ErrConnectionPoolEmpty
+	}
+
 	if conn == nil {
-		cc := nd.connectionCount.IncrementAndGet()
+		if !connReqd {
+			go nd.newConnection(deadline, hint)
 
-		// if connection count is limited and enough connections are already created, don't create a new one
-		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
-			nd.connectionCount.DecrementAndGet()
-			atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
-			return nil, ErrConnectionPoolEmpty
-		}
+			// do not request to open a connection more than once.
+			connReqd = true
 
-		// Check for opening connection threshold
-		if nd.cluster.clientPolicy.OpeningConnectionThreshold > 0 {
-			ct := nd.cluster.connectionThreshold.IncrementAndGet()
-			if ct > nd.cluster.clientPolicy.OpeningConnectionThreshold {
-				nd.cluster.connectionThreshold.DecrementAndGet()
-
-				if time.Now().After(deadline) {
-					atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
-					return nil, ErrTimeout
-				}
-
-				time.Sleep(100 * time.Microsecond)
-				goto L
+			// only try to set a deadline once without a penalty on each run.
+			// most call to this function will find a connection in the queue.
+			if timeout > 0 {
+				socketDeadline = time.Now().Add(timeout)
+			} else {
+				socketDeadline = time.Now().Add(_DEFAULT_TIMEOUT)
 			}
-
-			defer nd.cluster.connectionThreshold.DecrementAndGet()
 		}
 
-		atomic.AddInt64(&nd.stats.ConnectionsAttempts, 1)
-		if conn, err = NewSecureConnection(&nd.cluster.clientPolicy, nd.host); err != nil {
-			nd.connectionCount.DecrementAndGet()
-			atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
-			return nil, err
-		}
-		conn.node = nd
-
-		// need to authenticate
-		if err = conn.login(nd.sessionToken()); err != nil {
-			atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
-
-			// Socket not authenticated. Do not put back into pool.
-			conn.Close()
-			return nil, err
-		}
-
-		atomic.AddInt64(&nd.stats.ConnectionsSuccessful, 1)
+		runtime.Gosched()
+		goto L
 	}
 
 	if err = conn.SetTimeout(deadline, timeout); err != nil {
