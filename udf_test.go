@@ -190,6 +190,8 @@ var _ = Describe("UDF/Query tests", func() {
 				err = <-exTask.OnComplete()
 				Expect(err).ToNot(HaveOccurred())
 
+				time.Sleep(3 * time.Second)
+
 				// read all data and make sure it is consistent
 				recordset, err := client.ScanAll(nil, ns, set)
 				Expect(err).ToNot(HaveOccurred())
