@@ -1,5 +1,23 @@
 # Change History
 
+## February 21 2019: v1.38.0
+
+  * **New Features**
+
+    - Support new server `truncate-namespace` command via `Client.Truncate` when `set` is not specified.
+
+  * **Improvements**
+
+    - The client will not clear a partition map entry when a node reports that it no longer owns that partition entry until another node claims ownership.
+    - Adapt UDF test for new server changes. The server will not return an error after `RemoveUDF` if the UDF did not exist.
+    - Improves a few tests and relaxes tolerances in tests to accommodate slower cloud test environments.
+
+  * **Fixes**
+
+    - Fixes a race condition in XOR shift RNG.
+    - Fixes a race condition in the AdminCommand.
+
+
 ## December 3 2018: v1.37.0
 
   * **New Features**

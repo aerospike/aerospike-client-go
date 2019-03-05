@@ -160,10 +160,6 @@ var _ = Describe("UDF/Query tests", func() {
 
 		// wait until UDF is deleted
 		Expect(<-delTask.OnComplete()).NotTo(HaveOccurred())
-
-		_, err = client.RemoveUDF(wpolicy, "udfToBeDropped.lua")
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(Equal("error=file_not_found"))
 	})
 
 	Context("must run the UDF on all records", func() {
