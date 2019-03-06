@@ -396,60 +396,6 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	return nil
 }
 
-func (cmd *baseCommand) setBatchExists(policy *BatchPolicy, keys []*Key, batch *batchNamespace, supportsBatchIndex bool) error {
-	// Estimate buffer size
-	cmd.begin()
-
-	if supportsBatchIndex {
-		byteSize := len(batch.offsets) * int(_DIGEST_SIZE+4)
-
-		cmd.dataOffset += len(batch.namespace) + int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
-		if err := cmd.sizeBuffer(); err != nil {
-			return err
-		}
-
-		cmd.writeHeader(&policy.BasePolicy, _INFO1_READ|_INFO1_NOBINDATA|_INFO1_BATCH, 0, 2, 0)
-		cmd.writeFieldString(batch.namespace, NAMESPACE)
-		cmd.writeFieldHeader(byteSize, BATCH_INDEX)
-
-		offsets := batch.offsets
-		max := len(batch.offsets)
-
-		for i := 0; i < max; i++ {
-			index := offsets[i]
-			binary.BigEndian.PutUint32(cmd.dataBuffer[cmd.dataOffset:cmd.dataOffset+4], uint32(index))
-			cmd.dataOffset += 4
-
-			key := keys[index]
-			copy(cmd.dataBuffer[cmd.dataOffset:], key.digest[:])
-			cmd.dataOffset += len(key.digest)
-		}
-	} else {
-		byteSize := len(batch.offsets) * int(_DIGEST_SIZE)
-
-		cmd.dataOffset += len(batch.namespace) + int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
-		if err := cmd.sizeBuffer(); err != nil {
-			return err
-		}
-
-		cmd.writeHeader(&policy.BasePolicy, _INFO1_READ|_INFO1_NOBINDATA, 0, 2, 0)
-		cmd.writeFieldString(batch.namespace, NAMESPACE)
-		cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
-
-		offsets := batch.offsets
-		max := len(batch.offsets)
-
-		for i := 0; i < max; i++ {
-			key := keys[offsets[i]]
-			copy(cmd.dataBuffer[cmd.dataOffset:], key.digest[:])
-			cmd.dataOffset += len(key.digest)
-		}
-	}
-	cmd.end()
-
-	return nil
-}
-
 func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key, batch *batchNode, binNames []string, readAttr int) error {
 	offsets := batch.offsets
 	max := len(batch.offsets)

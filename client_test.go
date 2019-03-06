@@ -899,39 +899,36 @@ var _ = Describe("Aerospike", func() {
 			BeforeEach(func() {
 			})
 
-			for _, useDirect := range []bool{true, false} {
-				for _, useInline := range []bool{true, false} {
-					It(fmt.Sprintf("must return the result with same ordering UseBatchDirect: %v, AllowInline: %v", useDirect, useInline), func() {
-						var exists []bool
-						keys := []*as.Key{}
+			for _, useInline := range []bool{true, false} {
+				It(fmt.Sprintf("must return the result with same ordering. AllowInline: %v", useInline), func() {
+					var exists []bool
+					keys := []*as.Key{}
 
-						for i := 0; i < keyCount; i++ {
-							key, err := as.NewKey(ns, set, randString(50))
-							Expect(err).ToNot(HaveOccurred())
-							keys = append(keys, key)
-
-							// if key shouldExist == true, put it in the DB
-							if i%2 == 0 {
-								err = client.PutBins(wpolicy, key, bin)
-								Expect(err).ToNot(HaveOccurred())
-
-								// make sure they exists in the DB
-								exists, err := client.Exists(rpolicy, key)
-								Expect(err).ToNot(HaveOccurred())
-								Expect(exists).To(Equal(true))
-							}
-						}
-
-						bpolicy.SetBatchDirect(useDirect)
-						bpolicy.AllowInline = useInline
-						exists, err = client.BatchExists(bpolicy, keys)
+					for i := 0; i < keyCount; i++ {
+						key, err := as.NewKey(ns, set, randString(50))
 						Expect(err).ToNot(HaveOccurred())
-						Expect(len(exists)).To(Equal(len(keys)))
-						for idx, keyExists := range exists {
-							Expect(keyExists).To(Equal(idx%2 == 0))
+						keys = append(keys, key)
+
+						// if key shouldExist == true, put it in the DB
+						if i%2 == 0 {
+							err = client.PutBins(wpolicy, key, bin)
+							Expect(err).ToNot(HaveOccurred())
+
+							// make sure they exists in the DB
+							exists, err := client.Exists(rpolicy, key)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(exists).To(Equal(true))
 						}
-					})
-				}
+					}
+
+					bpolicy.AllowInline = useInline
+					exists, err = client.BatchExists(bpolicy, keys)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(len(exists)).To(Equal(len(keys)))
+					for idx, keyExists := range exists {
+						Expect(keyExists).To(Equal(idx%2 == 0))
+					}
+				})
 			}
 
 		}) // Batch Exists context
@@ -943,194 +940,187 @@ var _ = Describe("Aerospike", func() {
 			BeforeEach(func() {
 			})
 
-			for _, useDirect := range []bool{true, false} {
-				for _, useInline := range []bool{true, false} {
-					It(fmt.Sprintf("must return the records with same ordering as keys UseBatchDirect: %v, AllowInline: %v", useDirect, useInline), func() {
-						binRedundant := as.NewBin("Redundant", "Redundant")
+			for _, useInline := range []bool{true, false} {
+				It(fmt.Sprintf("must return the records with same ordering as keys. AllowInline: %v", useInline), func() {
+					binRedundant := as.NewBin("Redundant", "Redundant")
 
-						var records []*as.Record
-						type existence struct {
-							key         *as.Key
-							shouldExist bool // set randomly and checked against later
-						}
+					var records []*as.Record
+					type existence struct {
+						key         *as.Key
+						shouldExist bool // set randomly and checked against later
+					}
 
-						exList := make([]existence, 0, keyCount)
-						keys := make([]*as.Key, 0, keyCount)
+					exList := make([]existence, 0, keyCount)
+					keys := make([]*as.Key, 0, keyCount)
 
-						for i := 0; i < keyCount; i++ {
-							key, err := as.NewKey(ns, set, randString(50))
+					for i := 0; i < keyCount; i++ {
+						key, err := as.NewKey(ns, set, randString(50))
+						Expect(err).ToNot(HaveOccurred())
+						e := existence{key: key, shouldExist: rand.Intn(100) > 50}
+						exList = append(exList, e)
+						keys = append(keys, key)
+
+						// if key shouldExist == true, put it in the DB
+						if e.shouldExist {
+							err = client.PutBins(wpolicy, key, bin, binRedundant)
 							Expect(err).ToNot(HaveOccurred())
-							e := existence{key: key, shouldExist: rand.Intn(100) > 50}
-							exList = append(exList, e)
-							keys = append(keys, key)
 
-							// if key shouldExist == true, put it in the DB
-							if e.shouldExist {
-								err = client.PutBins(wpolicy, key, bin, binRedundant)
-								Expect(err).ToNot(HaveOccurred())
-
-								// make sure they exists in the DB
-								rec, err := client.Get(rpolicy, key)
-								Expect(err).ToNot(HaveOccurred())
-								Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
-								Expect(rec.Bins[binRedundant.Name]).To(Equal(binRedundant.Value.GetObject()))
-							} else {
-								// make sure they exists in the DB
-								exists, err := client.Exists(rpolicy, key)
-								Expect(err).ToNot(HaveOccurred())
-								Expect(exists).To(Equal(false))
-							}
-						}
-
-						brecords := make([]*as.BatchRead, len(keys))
-						for i := range keys {
-							brecords[i] = &as.BatchRead{
-								Key:         keys[i],
-								ReadAllBins: true,
-							}
-						}
-						bpolicy.SetBatchDirect(useDirect)
-						bpolicy.AllowInline = useInline
-						err = client.BatchGetComplex(bpolicy, brecords)
-						Expect(err).ToNot(HaveOccurred())
-						for idx, rec := range brecords {
-							if exList[idx].shouldExist {
-								Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
-								Expect(rec.Record.Key).To(Equal(keys[idx]))
-							} else {
-								Expect(rec.Record).To(BeNil())
-							}
-						}
-
-						records, err = client.BatchGet(bpolicy, keys)
-						Expect(err).ToNot(HaveOccurred())
-						Expect(len(records)).To(Equal(len(keys)))
-						for idx, rec := range records {
-							if exList[idx].shouldExist {
-								Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
-								Expect(rec.Key).To(Equal(keys[idx]))
-							} else {
-								Expect(rec).To(BeNil())
-							}
-						}
-
-						records, err = client.BatchGet(bpolicy, keys, bin.Name)
-						Expect(err).ToNot(HaveOccurred())
-						Expect(len(records)).To(Equal(len(keys)))
-						for idx, rec := range records {
-							if exList[idx].shouldExist {
-								// only bin1 has been requested
-								Expect(rec.Bins[binRedundant.Name]).To(BeNil())
-								Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
-								Expect(rec.Key).To(Equal(keys[idx]))
-							} else {
-								Expect(rec).To(BeNil())
-							}
-						}
-					})
-
-					It(fmt.Sprintf("must return the records with same ordering as keys via Batch Complex Protocol. UseBatchDirect: %v, AllowInline: %v", useDirect, useInline), func() {
-						binRedundant := as.NewBin("Redundant", "Redundant")
-
-						type existence struct {
-							key         *as.Key
-							shouldExist bool // set randomly and checked against later
-						}
-
-						exList := make([]existence, 0, keyCount)
-						keys := make([]*as.Key, 0, keyCount)
-
-						for i := 0; i < keyCount; i++ {
-							key, err := as.NewKey(ns, set, randString(50))
+							// make sure they exists in the DB
+							rec, err := client.Get(rpolicy, key)
 							Expect(err).ToNot(HaveOccurred())
-							e := existence{key: key, shouldExist: rand.Intn(100) > 50}
-							exList = append(exList, e)
-							keys = append(keys, key)
-
-							// if key shouldExist == true, put it in the DB
-							if e.shouldExist {
-								err = client.PutBins(wpolicy, key, bin, binRedundant)
-								Expect(err).ToNot(HaveOccurred())
-
-								// make sure they exists in the DB
-								rec, err := client.Get(rpolicy, key)
-								Expect(err).ToNot(HaveOccurred())
-								Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
-								Expect(rec.Bins[binRedundant.Name]).To(Equal(binRedundant.Value.GetObject()))
-							} else {
-								// make sure they exists in the DB
-								exists, err := client.Exists(rpolicy, key)
-								Expect(err).ToNot(HaveOccurred())
-								Expect(exists).To(Equal(false))
-							}
+							Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+							Expect(rec.Bins[binRedundant.Name]).To(Equal(binRedundant.Value.GetObject()))
+						} else {
+							// make sure they exists in the DB
+							exists, err := client.Exists(rpolicy, key)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(exists).To(Equal(false))
 						}
+					}
 
-						brecords := make([]*as.BatchRead, len(keys))
-						for i := range keys {
-							brecords[i] = &as.BatchRead{
-								Key:         keys[i],
-								ReadAllBins: true,
-							}
+					brecords := make([]*as.BatchRead, len(keys))
+					for i := range keys {
+						brecords[i] = &as.BatchRead{
+							Key:         keys[i],
+							ReadAllBins: true,
 						}
-						bpolicy.SetBatchDirect(useDirect)
-						bpolicy.AllowInline = useInline
-						err = client.BatchGetComplex(bpolicy, brecords)
+					}
+					bpolicy.AllowInline = useInline
+					err = client.BatchGetComplex(bpolicy, brecords)
+					Expect(err).ToNot(HaveOccurred())
+					for idx, rec := range brecords {
+						if exList[idx].shouldExist {
+							Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+							Expect(rec.Record.Key).To(Equal(keys[idx]))
+						} else {
+							Expect(rec.Record).To(BeNil())
+						}
+					}
+
+					records, err = client.BatchGet(bpolicy, keys)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(len(records)).To(Equal(len(keys)))
+					for idx, rec := range records {
+						if exList[idx].shouldExist {
+							Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+							Expect(rec.Key).To(Equal(keys[idx]))
+						} else {
+							Expect(rec).To(BeNil())
+						}
+					}
+
+					records, err = client.BatchGet(bpolicy, keys, bin.Name)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(len(records)).To(Equal(len(keys)))
+					for idx, rec := range records {
+						if exList[idx].shouldExist {
+							// only bin1 has been requested
+							Expect(rec.Bins[binRedundant.Name]).To(BeNil())
+							Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+							Expect(rec.Key).To(Equal(keys[idx]))
+						} else {
+							Expect(rec).To(BeNil())
+						}
+					}
+				})
+
+				It(fmt.Sprintf("must return the records with same ordering as keys via Batch Complex Protocol. AllowInline: %v", useInline), func() {
+					binRedundant := as.NewBin("Redundant", "Redundant")
+
+					type existence struct {
+						key         *as.Key
+						shouldExist bool // set randomly and checked against later
+					}
+
+					exList := make([]existence, 0, keyCount)
+					keys := make([]*as.Key, 0, keyCount)
+
+					for i := 0; i < keyCount; i++ {
+						key, err := as.NewKey(ns, set, randString(50))
 						Expect(err).ToNot(HaveOccurred())
-						for idx, rec := range brecords {
-							if exList[idx].shouldExist {
-								Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
-								Expect(rec.Record.Key).To(Equal(keys[idx]))
-							} else {
-								Expect(rec.Record).To(BeNil())
-							}
-						}
+						e := existence{key: key, shouldExist: rand.Intn(100) > 50}
+						exList = append(exList, e)
+						keys = append(keys, key)
 
-						brecords = make([]*as.BatchRead, len(keys))
-						for i := range keys {
-							brecords[i] = &as.BatchRead{
-								Key:         keys[i],
-								ReadAllBins: false,
-								BinNames:    []string{"Aerospike", "Redundant"},
-							}
-						}
-						bpolicy.SetBatchDirect(useDirect)
-						bpolicy.AllowInline = useInline
-						err = client.BatchGetComplex(bpolicy, brecords)
-						Expect(err).ToNot(HaveOccurred())
-						for idx, rec := range brecords {
-							if exList[idx].shouldExist {
-								Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
-								Expect(rec.Record.Key).To(Equal(keys[idx]))
-							} else {
-								Expect(rec.Record).To(BeNil())
-							}
-						}
+						// if key shouldExist == true, put it in the DB
+						if e.shouldExist {
+							err = client.PutBins(wpolicy, key, bin, binRedundant)
+							Expect(err).ToNot(HaveOccurred())
 
-						brecords = make([]*as.BatchRead, len(keys))
-						for i := range keys {
-							brecords[i] = &as.BatchRead{
-								Key:         keys[i],
-								ReadAllBins: false,
-								BinNames:    nil,
-							}
+							// make sure they exists in the DB
+							rec, err := client.Get(rpolicy, key)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+							Expect(rec.Bins[binRedundant.Name]).To(Equal(binRedundant.Value.GetObject()))
+						} else {
+							// make sure they exists in the DB
+							exists, err := client.Exists(rpolicy, key)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(exists).To(Equal(false))
 						}
-						bpolicy.SetBatchDirect(useDirect)
-						bpolicy.AllowInline = useInline
-						err = client.BatchGetComplex(bpolicy, brecords)
-						Expect(err).ToNot(HaveOccurred())
-						for idx, rec := range brecords {
-							if exList[idx].shouldExist {
-								Expect(len(rec.Record.Bins)).To(Equal(0))
-								Expect(rec.Record.Key).To(Equal(keys[idx]))
-							} else {
-								Expect(rec.Record).To(BeNil())
-							}
-						}
+					}
 
-					})
-				}
+					brecords := make([]*as.BatchRead, len(keys))
+					for i := range keys {
+						brecords[i] = &as.BatchRead{
+							Key:         keys[i],
+							ReadAllBins: true,
+						}
+					}
+					bpolicy.AllowInline = useInline
+					err = client.BatchGetComplex(bpolicy, brecords)
+					Expect(err).ToNot(HaveOccurred())
+					for idx, rec := range brecords {
+						if exList[idx].shouldExist {
+							Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+							Expect(rec.Record.Key).To(Equal(keys[idx]))
+						} else {
+							Expect(rec.Record).To(BeNil())
+						}
+					}
+
+					brecords = make([]*as.BatchRead, len(keys))
+					for i := range keys {
+						brecords[i] = &as.BatchRead{
+							Key:         keys[i],
+							ReadAllBins: false,
+							BinNames:    []string{"Aerospike", "Redundant"},
+						}
+					}
+					bpolicy.AllowInline = useInline
+					err = client.BatchGetComplex(bpolicy, brecords)
+					Expect(err).ToNot(HaveOccurred())
+					for idx, rec := range brecords {
+						if exList[idx].shouldExist {
+							Expect(rec.Record.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
+							Expect(rec.Record.Key).To(Equal(keys[idx]))
+						} else {
+							Expect(rec.Record).To(BeNil())
+						}
+					}
+
+					brecords = make([]*as.BatchRead, len(keys))
+					for i := range keys {
+						brecords[i] = &as.BatchRead{
+							Key:         keys[i],
+							ReadAllBins: false,
+							BinNames:    nil,
+						}
+					}
+					bpolicy.AllowInline = useInline
+					err = client.BatchGetComplex(bpolicy, brecords)
+					Expect(err).ToNot(HaveOccurred())
+					for idx, rec := range brecords {
+						if exList[idx].shouldExist {
+							Expect(len(rec.Record.Bins)).To(Equal(0))
+							Expect(rec.Record.Key).To(Equal(keys[idx]))
+						} else {
+							Expect(rec.Record).To(BeNil())
+						}
+					}
+
+				})
 			}
-
 		}) // Batch Get context
 
 		Context("GetHeader operations", func() {
@@ -1164,56 +1154,53 @@ var _ = Describe("Aerospike", func() {
 			BeforeEach(func() {
 			})
 
-			for _, useDirect := range []bool{true, false} {
-				for _, useInline := range []bool{true, false} {
-					It(fmt.Sprintf("must return the records with same ordering as keys. UseBatchDirect: %v, AllowInline: %v", useDirect, useInline), func() {
-						var records []*as.Record
-						type existence struct {
-							key         *as.Key
-							shouldExist bool // set randomly and checked against later
-						}
+			for _, useInline := range []bool{true, false} {
+				It(fmt.Sprintf("must return the records with same ordering as keys. AllowInline: %v", useInline), func() {
+					var records []*as.Record
+					type existence struct {
+						key         *as.Key
+						shouldExist bool // set randomly and checked against later
+					}
 
-						exList := []existence{}
-						keys := []*as.Key{}
+					exList := []existence{}
+					keys := []*as.Key{}
 
-						for i := 0; i < keyCount; i++ {
-							key, err := as.NewKey(ns, set, randString(50))
-							Expect(err).ToNot(HaveOccurred())
-							e := existence{key: key, shouldExist: rand.Intn(100) > 50}
-							exList = append(exList, e)
-							keys = append(keys, key)
-
-							// if key shouldExist == true, put it in the DB
-							if e.shouldExist {
-								err = client.PutBins(wpolicy, key, bin)
-								Expect(err).ToNot(HaveOccurred())
-
-								// update generation
-								err = client.Touch(wpolicy, key)
-								Expect(err).ToNot(HaveOccurred())
-
-								// make sure they exists in the DB
-								exists, err := client.Exists(rpolicy, key)
-								Expect(err).ToNot(HaveOccurred())
-								Expect(exists).To(Equal(true))
-							}
-						}
-
-						bpolicy.SetBatchDirect(useDirect)
-						bpolicy.AllowInline = useInline
-						records, err = client.BatchGetHeader(bpolicy, keys)
+					for i := 0; i < keyCount; i++ {
+						key, err := as.NewKey(ns, set, randString(50))
 						Expect(err).ToNot(HaveOccurred())
-						Expect(len(records)).To(Equal(len(keys)))
-						for idx, rec := range records {
-							if exList[idx].shouldExist {
-								Expect(rec.Bins[bin.Name]).To(BeNil())
-								Expect(rec.Generation).To(Equal(uint32(2)))
-							} else {
-								Expect(rec).To(BeNil())
-							}
+						e := existence{key: key, shouldExist: rand.Intn(100) > 50}
+						exList = append(exList, e)
+						keys = append(keys, key)
+
+						// if key shouldExist == true, put it in the DB
+						if e.shouldExist {
+							err = client.PutBins(wpolicy, key, bin)
+							Expect(err).ToNot(HaveOccurred())
+
+							// update generation
+							err = client.Touch(wpolicy, key)
+							Expect(err).ToNot(HaveOccurred())
+
+							// make sure they exists in the DB
+							exists, err := client.Exists(rpolicy, key)
+							Expect(err).ToNot(HaveOccurred())
+							Expect(exists).To(Equal(true))
 						}
-					})
-				}
+					}
+
+					bpolicy.AllowInline = useInline
+					records, err = client.BatchGetHeader(bpolicy, keys)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(len(records)).To(Equal(len(keys)))
+					for idx, rec := range records {
+						if exList[idx].shouldExist {
+							Expect(rec.Bins[bin.Name]).To(BeNil())
+							Expect(rec.Generation).To(Equal(uint32(2)))
+						} else {
+							Expect(rec).To(BeNil())
+						}
+					}
+				})
 			}
 		}) // Batch Get Header context
 

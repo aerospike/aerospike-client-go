@@ -26,7 +26,6 @@ import (
 
 const (
 	_MAX_BUFFER_SIZE = 1024 * 1024 * 10 // 10 MB
-	_CHUNK_SIZE      = 4096
 )
 
 type multiCommand interface {
@@ -89,16 +88,6 @@ func (cmd *baseMultiCommand) putConnection(conn *Connection) {
 	cmd.node.putConnectionWithHint(conn, byte(xrand.Int64()%256))
 }
 
-func (cmd *baseMultiCommand) drainConn(receiveSize int) error {
-	// consume the rest of the input buffer from the socket
-	if cmd.dataOffset < receiveSize && cmd.conn.IsConnected() {
-		if err := cmd.readBytes(receiveSize - cmd.dataOffset); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 	// Read socket into receive buffer one record at a time.  Do not read entire receive size
 	// because the receive buffer would be too big.
@@ -107,6 +96,8 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 	var err error
 
 	for status {
+		cmd.dataBuffer = cmd.conn.dataBuffer
+
 		// Read header.
 		if _, err = cmd.conn.Read(cmd.dataBuffer, 8); err != nil {
 			return err
@@ -121,8 +112,11 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 
 		receiveSize := int(size & 0xFFFFFFFFFFFF)
 		if receiveSize > 0 {
+			if err := cmd.readAllBytes(receiveSize); err != nil {
+				return err
+			}
+
 			status, err = ifc.parseRecordResults(ifc, receiveSize)
-			cmd.drainConn(receiveSize)
 			if err != nil {
 				return err
 			}
@@ -170,6 +164,24 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 	return &Key{namespace: namespace, setName: setName, digest: digest, userKey: userKey}, nil
 }
 
+func (cmd *baseMultiCommand) readAllBytes(length int) error {
+	// Corrupted data streams can result in a huge length.
+	// Do a sanity check here.
+	if length > MaxBufferSize || length < 0 {
+		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
+	}
+
+	if length > cap(cmd.conn.dataBuffer) {
+		cmd.conn.dataBuffer = make([]byte, length)
+	}
+
+	if n, err := cmd.conn.Read(cmd.conn.dataBuffer[:length], length); err != nil {
+		return fmt.Errorf("Requested to read %d bytes, but %d was read. (%v)", length, n, err)
+	}
+
+	return nil
+}
+
 func (cmd *baseMultiCommand) readBytes(length int) error {
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
@@ -177,14 +189,7 @@ func (cmd *baseMultiCommand) readBytes(length int) error {
 		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
 	}
 
-	if length > cap(cmd.dataBuffer) {
-		cmd.dataBuffer = make([]byte, length)
-	}
-
-	if n, err := cmd.conn.Read(cmd.dataBuffer[:length], length); err != nil {
-		return fmt.Errorf("Requested to read %d bytes, but %d was read. (%v)", length, n, err)
-	}
-
+	cmd.dataBuffer = cmd.conn.dataBuffer[cmd.dataOffset:]
 	cmd.dataOffset += length
 	return nil
 }

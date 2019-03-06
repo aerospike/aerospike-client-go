@@ -38,18 +38,6 @@ type BatchPolicy struct {
 	// The downside is extra goroutines will still need to be created (or taken from a goroutine pool).
 	ConcurrentNodes int // = 1
 
-	// Use old batch direct protocol where batch reads are handled by direct low-level batch server
-	// database routines.  The batch direct protocol can be faster when there is a single namespace,
-	// but there is one important drawback.  The batch direct protocol will not proxy to a different
-	// server node when the mapped node has migrated a record to another node (resulting in not
-	// found record).
-	//
-	// This can happen after a node has been added/removed from the cluster and there is a lag
-	// between records being migrated and client partition map update (once per second).
-	//
-	// The new batch index protocol will perform this record proxy when necessary.
-	useBatchDirect bool // = false
-
 	// Allow batch to be processed immediately in the server's receiving thread when the server
 	// deems it to be appropriate.  If false, the batch will always be processed in separate
 	// transaction goroutines.  This field is only relevant for the new batch index protocol.
@@ -82,7 +70,6 @@ func NewBatchPolicy() *BatchPolicy {
 	return &BatchPolicy{
 		BasePolicy:          *NewPolicy(),
 		ConcurrentNodes:     1,
-		useBatchDirect:      false,
 		AllowInline:         true,
 		AllowPartialResults: false,
 		SendSetName:         false,

@@ -43,7 +43,6 @@ type batchCommandGet struct {
 	// pointer to the object that's going to be unmarshalled
 	objects      []*reflect.Value
 	objectsFound []bool
-	isBatchIndex bool
 }
 
 // this method uses reflection.
@@ -76,7 +75,6 @@ func newBatchCommandGet(
 		binNames:         binNames,
 		records:          records,
 		readAttr:         readAttr,
-		isBatchIndex:     !policy.useBatchDirect && node != nil && node.supportsBatchIndex.Get(),
 	}
 	res.oneShot = false
 	return res
@@ -87,7 +85,6 @@ func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode, bns *batchNamesp
 	res.node = batch.Node
 	res.batch = batch
 	res.batchNamespace = bns
-	res.isBatchIndex = !cmd.policy.useBatchDirect && batch.Node.supportsBatchIndex.Get()
 
 	return &res
 }
@@ -97,10 +94,7 @@ func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) error {
-	if cmd.isBatchIndex {
-		return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, cmd.binNames, cmd.readAttr)
-	}
-	return cmd.setBatchRead(cmd.policy, cmd.keys, cmd.batchNamespace, cmd.binNames, cmd.readAttr)
+	return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, cmd.binNames, cmd.readAttr)
 }
 
 // On batch operations the key values are not returned from the server
@@ -177,14 +171,9 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		}
 
 		var offset int
-		if !cmd.isBatchIndex {
-			offset = cmd.batchNamespace.offsets[cmd.index]
-			cmd.index++
-		} else {
-			offset = batchIndex
-		}
+		offset = batchIndex
 
-		if cmd.isBatchIndex && cmd.indexRecords != nil {
+		if cmd.indexRecords != nil {
 			if len(cmd.indexRecords) > 0 {
 				if bytes.Equal(cmd.key.digest[:], cmd.indexRecords[offset].Key.digest[:]) {
 					if resultCode == 0 {
