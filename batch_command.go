@@ -26,7 +26,6 @@ import (
 
 const (
 	_MAX_BUFFER_SIZE = 1024 * 1024 * 10 // 10 MB
-	_CHUNK_SIZE      = 4096
 )
 
 type multiCommand interface {
@@ -88,16 +87,6 @@ func (cmd *baseMultiCommand) getConnection(timeout time.Duration) (*Connection, 
 
 func (cmd *baseMultiCommand) putConnection(conn *Connection) {
 	cmd.node.putConnectionWithHint(conn, byte(xrand.Int64()%256))
-}
-
-func (cmd *baseMultiCommand) drainConn(receiveSize int) error {
-	// consume the rest of the input buffer from the socket
-	if cmd.dataOffset < receiveSize && cmd.conn.IsConnected() {
-		if err := cmd.readBytes(receiveSize - cmd.dataOffset); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
