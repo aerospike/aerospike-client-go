@@ -30,7 +30,6 @@ type batchCommandExists struct {
 	keys           []*Key
 	existsArray    []bool
 	index          int
-	isBatchIndex   bool
 }
 
 func newBatchCommandExists(
@@ -47,7 +46,6 @@ func newBatchCommandExists(
 		policy:           policy,
 		keys:             keys,
 		existsArray:      existsArray,
-		isBatchIndex:     !policy.useBatchDirect && node != nil && node.supportsBatchIndex.Get(),
 	}
 	res.oneShot = false
 	return res
@@ -58,7 +56,6 @@ func (cmd *batchCommandExists) cloneBatchCommand(batch *batchNode, bns *batchNam
 	res.node = batch.Node
 	res.batch = batch
 	res.batchNamespace = bns
-	res.isBatchIndex = !cmd.policy.useBatchDirect && batch.Node.supportsBatchIndex.Get()
 
 	return &res
 }
@@ -68,10 +65,7 @@ func (cmd *batchCommandExists) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommandExists) writeBuffer(ifc command) error {
-	if cmd.isBatchIndex {
-		return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, nil, _INFO1_READ|_INFO1_NOBINDATA)
-	}
-	return cmd.setBatchExists(cmd.policy, cmd.keys, cmd.batchNamespace, false)
+	return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, nil, _INFO1_READ|_INFO1_NOBINDATA)
 }
 
 // Parse all results in the batch.  Add records to shared list.
@@ -114,12 +108,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 		}
 
 		var offset int
-		if cmd.isBatchIndex {
-			offset = batchIndex
-		} else {
-			offset = cmd.batchNamespace.offsets[cmd.index]
-			cmd.index++
-		}
+		offset = batchIndex
 
 		if bytes.Equal(key.digest[:], cmd.keys[offset].digest[:]) {
 			// only set the results to true; as a result, no synchronization is needed

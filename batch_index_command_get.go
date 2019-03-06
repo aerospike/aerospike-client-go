@@ -41,7 +41,6 @@ func newBatchIndexCommandGet(
 			policy:           policy,
 			records:          nil,
 			indexRecords:     records,
-			isBatchIndex:     true,
 		},
 		batch,
 	}
@@ -52,7 +51,6 @@ func (cmd *batchIndexCommandGet) cloneBatchIndexCommand(batch *batchNode) comman
 	res.batch = batch
 	res.node = batch.Node
 	res.batchNamespace = nil
-	res.isBatchIndex = true
 
 	return &res
 }

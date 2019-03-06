@@ -21,7 +21,3 @@ func (clstr *Cluster) GetReadNode(partition *Partition, replica ReplicaPolicy, s
 func (clstr *Cluster) GetMasterNode(partition *Partition) (*Node, error) {
 	return clstr.getMasterNode(partition)
 }
-
-func (p *BatchPolicy) SetBatchDirect(v bool) {
-	p.useBatchDirect = v
-}
