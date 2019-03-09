@@ -31,7 +31,7 @@ import (
 // DefaultBufferSize specifies the initial size of the connection buffer when it is created.
 // If not big enough (as big as the average record), it will be reallocated to size again
 // which will be more expensive.
-const DefaultBufferSize = 64 * 1024 // 64 KiB
+var DefaultBufferSize = 64 * 1024 // 64 KiB
 
 // Connection represents a connection with a timeout.
 type Connection struct {
