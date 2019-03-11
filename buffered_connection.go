@@ -88,10 +88,6 @@ func (bc *bufferedConn) readConn(minLength int) error {
 		toRead = ec
 	}
 
-	if err := bc.conn.SetTimeout(bc.conn.timeout); err != nil {
-		return err
-	}
-
 	n, err := bc.conn.Read(bc.buf()[bc.tail:], toRead)
 	bc.tail += n
 	bc.remaining -= n
