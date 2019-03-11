@@ -1,5 +1,17 @@
 # Change History
 
+## March 11 2019: v1.39.0
+
+  Major improvements Release.
+
+  * **Improvements**
+
+    - Significantly improves `Batch`/`Scan`/`Query`/`UDF`/`QueryAggregate` performance, up to 10x depending on the number of records.
+
+  * **Changes**
+
+    - Removes `BatchPolicy.UseBatchDirect` from the code since it is not supported on the server anymore.
+
 ## February 21 2019: v1.38.0
 
   * **New Features**
