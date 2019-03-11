@@ -48,6 +48,8 @@ type baseMultiCommand struct {
 	resObjType     reflect.Type
 	resObjMappings map[string]string
 	selectCases    []reflect.SelectCase
+
+	bc bufferedConn
 }
 
 var multiObjectParser func(
@@ -96,11 +98,12 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 
 	var err error
 
+	cmd.bc = newBufferedConn(conn, 0)
 	for status {
-		cmd.dataBuffer = cmd.conn.dataBuffer
+		cmd.bc.reset(8)
 
 		// Read header.
-		if _, err = cmd.conn.Read(cmd.dataBuffer, 8); err != nil {
+		if cmd.dataBuffer, err = cmd.bc.read(8); err != nil {
 			return err
 		}
 
@@ -113,18 +116,20 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 
 		receiveSize := int(size & 0xFFFFFFFFFFFF)
 		if receiveSize > 0 {
-			if err := cmd.readAllBytes(receiveSize); err != nil {
-				return err
-			}
+			cmd.bc.reset(receiveSize)
 
 			status, err = ifc.parseRecordResults(ifc, receiveSize)
 			if err != nil {
+				cmd.bc.drainConn()
 				return err
 			}
 		} else {
 			status = false
 		}
 	}
+
+	// if the buffer has been resized, put it back so that it will be reassigned to the connection.
+	cmd.dataBuffer = cmd.bc.buf()
 
 	return nil
 }
@@ -165,38 +170,20 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 	return &Key{namespace: namespace, setName: setName, digest: digest, userKey: userKey}, nil
 }
 
-func (cmd *baseMultiCommand) readAllBytes(length int) error {
+func (cmd *baseMultiCommand) readBytes(length int) (err error) {
+
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
 	if length > MaxBufferSize || length < 0 {
 		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
 	}
 
-	if length > cap(cmd.conn.dataBuffer) {
-		cmd.conn.dataBuffer = make([]byte, length)
-	}
-
-	// enforce socketTimeout on each read
-	if err := cmd.conn.SetTimeout(cmd.socketTimeout); err != nil {
+	cmd.dataBuffer, err = cmd.bc.read(length)
+	if err != nil {
 		return err
 	}
-
-	if n, err := cmd.conn.Read(cmd.conn.dataBuffer[:length], length); err != nil {
-		return fmt.Errorf("Requested to read %d bytes, but %d was read. (%v)", length, n, err)
-	}
-
-	return nil
-}
-
-func (cmd *baseMultiCommand) readBytes(length int) error {
-	// Corrupted data streams can result in a huge length.
-	// Do a sanity check here.
-	if length > MaxBufferSize || length < 0 {
-		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
-	}
-
-	cmd.dataBuffer = cmd.conn.dataBuffer[cmd.dataOffset:]
 	cmd.dataOffset += length
+
 	return nil
 }
 
