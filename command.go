@@ -1259,23 +1259,23 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 		cmd.dataOffset += nameLength
 		_, err = operation.binValue.write(cmd)
 		return err
-	} else {
-		valueLength, err := operation.encoder(operation, nil)
-		if err != nil {
-			return err
-		}
+	}
 
-		cmd.WriteInt32(int32(nameLength + valueLength + 4))
-		cmd.WriteByte((operation.opType.op))
-		cmd.WriteByte((byte(ParticleType.BLOB)))
-		cmd.WriteByte((byte(0)))
-		cmd.WriteByte((byte(nameLength)))
-		cmd.dataOffset += nameLength
-		_, err = operation.encoder(operation, cmd)
-		//mark the operation as used, so that it will be cached the next time it is used
-		operation.used = err == nil
+	valueLength, err := operation.encoder(operation, nil)
+	if err != nil {
 		return err
 	}
+
+	cmd.WriteInt32(int32(nameLength + valueLength + 4))
+	cmd.WriteByte((operation.opType.op))
+	cmd.WriteByte((byte(ParticleType.BLOB)))
+	cmd.WriteByte((byte(0)))
+	cmd.WriteByte((byte(nameLength)))
+	cmd.dataOffset += nameLength
+	_, err = operation.encoder(operation, cmd)
+	//mark the operation as used, so that it will be cached the next time it is used
+	operation.used = err == nil
+	return err
 }
 
 func (cmd *baseCommand) writeOperationForBinName(name string, operation OperationType) {

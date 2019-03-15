@@ -22,7 +22,7 @@ package aerospike
 type ConsistencyLevel int
 
 const (
-	// CONSISTENCY_ONE indicates that only master should be invloved in the read operation.
+	// CONSISTENCY_ONE indicates that only master should be involved in the read operation.
 	CONSISTENCY_ONE = iota
 
 	// CONSISTENCY_ALL indicates that all duplicates should be consulted in

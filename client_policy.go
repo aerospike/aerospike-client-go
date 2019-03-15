@@ -156,15 +156,12 @@ func (cp *ClientPolicy) peersString() string {
 	if cp.TlsConfig != nil {
 		if cp.UseServicesAlternate {
 			return "peers-tls-alt"
-		} else {
-			return "peers-tls-std"
 		}
+		return "peers-tls-std"
 	}
 
 	if cp.UseServicesAlternate {
 		return "peers-clear-alt"
-	} else {
-		return "peers-clear-std"
 	}
-
+	return "peers-clear-std"
 }

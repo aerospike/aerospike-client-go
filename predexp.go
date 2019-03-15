@@ -79,11 +79,11 @@ type PredExp interface {
 type predExpBase struct {
 }
 
-func (self *predExpBase) marshaledSize() int {
+func (e *predExpBase) marshaledSize() int {
 	return 2 + 4 // sizeof(TAG) + sizeof(LEN)
 }
 
-func (self *predExpBase) marshalTL(cmd *baseCommand, tag uint16, len uint32) {
+func (e *predExpBase) marshalTL(cmd *baseCommand, tag uint16, len uint32) {
 	cmd.WriteUint16(tag)
 	cmd.WriteUint32(len)
 }
@@ -105,13 +105,13 @@ func NewPredExpAnd(nexpr uint16) *predExpAnd {
 	return &predExpAnd{nexpr: nexpr}
 }
 
-func (self *predExpAnd) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + 2
+func (e *predExpAnd) marshaledSize() int {
+	return e.predExpBase.marshaledSize() + 2
 }
 
-func (self *predExpAnd) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, _AS_PREDEXP_AND, 2)
-	cmd.WriteUint16(self.nexpr)
+func (e *predExpAnd) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, _AS_PREDEXP_AND, 2)
+	cmd.WriteUint16(e.nexpr)
 	return nil
 }
 
@@ -132,13 +132,13 @@ func NewPredExpOr(nexpr uint16) *predExpOr {
 	return &predExpOr{nexpr: nexpr}
 }
 
-func (self *predExpOr) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + 2
+func (e *predExpOr) marshaledSize() int {
+	return e.predExpBase.marshaledSize() + 2
 }
 
-func (self *predExpOr) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, _AS_PREDEXP_OR, 2)
-	cmd.WriteUint16(self.nexpr)
+func (e *predExpOr) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, _AS_PREDEXP_OR, 2)
+	cmd.WriteUint16(e.nexpr)
 	return nil
 }
 
@@ -158,12 +158,12 @@ func NewPredExpNot() *predExpNot {
 	return &predExpNot{}
 }
 
-func (self *predExpNot) marshaledSize() int {
-	return self.predExpBase.marshaledSize()
+func (e *predExpNot) marshaledSize() int {
+	return e.predExpBase.marshaledSize()
 }
 
-func (self *predExpNot) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, _AS_PREDEXP_NOT, 0)
+func (e *predExpNot) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, _AS_PREDEXP_NOT, 0)
 	return nil
 }
 
@@ -184,13 +184,13 @@ func NewPredExpIntegerValue(val int64) *predExpIntegerValue {
 	return &predExpIntegerValue{val: val}
 }
 
-func (self *predExpIntegerValue) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + 8
+func (e *predExpIntegerValue) marshaledSize() int {
+	return e.predExpBase.marshaledSize() + 8
 }
 
-func (self *predExpIntegerValue) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, _AS_PREDEXP_INTEGER_VALUE, 8)
-	cmd.WriteInt64(self.val)
+func (e *predExpIntegerValue) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, _AS_PREDEXP_INTEGER_VALUE, 8)
+	cmd.WriteInt64(e.val)
 	return nil
 }
 
@@ -211,13 +211,13 @@ func NewPredExpStringValue(val string) *predExpStringValue {
 	return &predExpStringValue{val: val}
 }
 
-func (self *predExpStringValue) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + len(self.val)
+func (e *predExpStringValue) marshaledSize() int {
+	return e.predExpBase.marshaledSize() + len(e.val)
 }
 
-func (self *predExpStringValue) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, _AS_PREDEXP_STRING_VALUE, uint32(len(self.val)))
-	cmd.WriteString(self.val)
+func (e *predExpStringValue) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, _AS_PREDEXP_STRING_VALUE, uint32(len(e.val)))
+	cmd.WriteString(e.val)
 	return nil
 }
 
@@ -238,18 +238,18 @@ func NewPredExpGeoJSONValue(val string) *predExpGeoJSONValue {
 	return &predExpGeoJSONValue{val: val}
 }
 
-func (self *predExpGeoJSONValue) marshaledSize() int {
-	return self.predExpBase.marshaledSize() +
+func (e *predExpGeoJSONValue) marshaledSize() int {
+	return e.predExpBase.marshaledSize() +
 		1 + // flags
 		2 + // ncells
-		len(self.val) // strlen value
+		len(e.val) // strlen value
 }
 
-func (self *predExpGeoJSONValue) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, _AS_PREDEXP_GEOJSON_VALUE, uint32(1+2+len(self.val)))
+func (e *predExpGeoJSONValue) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, _AS_PREDEXP_GEOJSON_VALUE, uint32(1+2+len(e.val)))
 	cmd.WriteByte(uint8(0))
 	cmd.WriteUint16(0)
-	cmd.WriteString(self.val)
+	cmd.WriteString(e.val)
 	return nil
 }
 
@@ -297,13 +297,13 @@ func NewPredExpMapBin(name string) *predExpBin {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_MAP_BIN}
 }
 
-func (self *predExpBin) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + len(self.name)
+func (e *predExpBin) marshaledSize() int {
+	return e.predExpBase.marshaledSize() + len(e.name)
 }
 
-func (self *predExpBin) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, self.tag, uint32(len(self.name)))
-	cmd.WriteString(self.name)
+func (e *predExpBin) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, e.tag, uint32(len(e.name)))
+	cmd.WriteString(e.name)
 	return nil
 }
 
@@ -336,13 +336,13 @@ func NewPredExpGeoJSONVar(name string) *predExpVar {
 	return &predExpVar{name: name, tag: _AS_PREDEXP_GEOJSON_VAR}
 }
 
-func (self *predExpVar) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + len(self.name)
+func (e *predExpVar) marshaledSize() int {
+	return e.predExpBase.marshaledSize() + len(e.name)
 }
 
-func (self *predExpVar) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, self.tag, uint32(len(self.name)))
-	cmd.WriteString(self.name)
+func (e *predExpVar) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, e.tag, uint32(len(e.name)))
+	cmd.WriteString(e.name)
 	return nil
 }
 
@@ -369,12 +369,12 @@ func (e *predExpMD) String() string {
 	}
 }
 
-func (self *predExpMD) marshaledSize() int {
-	return self.predExpBase.marshaledSize()
+func (e *predExpMD) marshaledSize() int {
+	return e.predExpBase.marshaledSize()
 }
 
-func (self *predExpMD) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, self.tag, 0)
+func (e *predExpMD) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, e.tag, 0)
 	return nil
 }
 
@@ -405,13 +405,13 @@ func (e *predExpMDDigestModulo) String() string {
 	return "rec.DigestModulo"
 }
 
-func (self *predExpMDDigestModulo) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + 4
+func (e *predExpMDDigestModulo) marshaledSize() int {
+	return e.predExpBase.marshaledSize() + 4
 }
 
-func (self *predExpMDDigestModulo) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, _AS_PREDEXP_REC_DIGEST_MODULO, 4)
-	cmd.WriteInt32(self.mod)
+func (e *predExpMDDigestModulo) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, _AS_PREDEXP_REC_DIGEST_MODULO, 4)
+	cmd.WriteInt32(e.mod)
 	return nil
 }
 
@@ -464,12 +464,12 @@ func (e *predExpCompare) String() string {
 	}
 }
 
-func (self *predExpCompare) marshaledSize() int {
-	return self.predExpBase.marshaledSize()
+func (e *predExpCompare) marshaledSize() int {
+	return e.predExpBase.marshaledSize()
 }
 
-func (self *predExpCompare) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, self.tag, 0)
+func (e *predExpCompare) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, e.tag, 0)
 	return nil
 }
 
@@ -540,13 +540,13 @@ func NewPredExpStringRegex(cflags uint32) *predExpStringRegex {
 	return &predExpStringRegex{cflags: cflags}
 }
 
-func (self *predExpStringRegex) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + 4
+func (e *predExpStringRegex) marshaledSize() int {
+	return e.predExpBase.marshaledSize() + 4
 }
 
-func (self *predExpStringRegex) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, _AS_PREDEXP_STRING_REGEX, 4)
-	cmd.WriteUint32(self.cflags)
+func (e *predExpStringRegex) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, _AS_PREDEXP_STRING_REGEX, 4)
+	cmd.WriteUint32(e.cflags)
 	return nil
 }
 
@@ -608,12 +608,12 @@ func NewPredExpMapValIterateAnd(name string) *predExpIter {
 	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPVAL_ITERATE_AND}
 }
 
-func (self *predExpIter) marshaledSize() int {
-	return self.predExpBase.marshaledSize() + len(self.name)
+func (e *predExpIter) marshaledSize() int {
+	return e.predExpBase.marshaledSize() + len(e.name)
 }
 
-func (self *predExpIter) marshal(cmd *baseCommand) error {
-	self.marshalTL(cmd, self.tag, uint32(len(self.name)))
-	cmd.WriteString(self.name)
+func (e *predExpIter) marshal(cmd *baseCommand) error {
+	e.marshalTL(cmd, e.tag, uint32(len(e.name)))
+	cmd.WriteString(e.name)
 	return nil
 }

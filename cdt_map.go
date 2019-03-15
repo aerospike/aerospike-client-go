@@ -277,25 +277,25 @@ func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interfac
 			binValue:  ListValue([]interface{}{key, value, IntegerValue(policy.attributes), IntegerValue(policy.flags)}),
 			encoder:   newMapCreatePutEncoder,
 		}
-	} else {
-		if policy.itemCommand == _CDT_MAP_REPLACE {
-			// Replace doesn't allow map attributes because it does not create on non-existing key.
-			return &Operation{
-				opType:    MAP_MODIFY,
-				opSubType: &policy.itemCommand,
-				binName:   binName,
-				binValue:  ListValue([]interface{}{key, value}),
-				encoder:   newMapCreatePutEncoder,
-			}
-		}
+	}
 
+	if policy.itemCommand == _CDT_MAP_REPLACE {
+		// Replace doesn't allow map attributes because it does not create on non-existing key.
 		return &Operation{
 			opType:    MAP_MODIFY,
 			opSubType: &policy.itemCommand,
 			binName:   binName,
-			binValue:  ListValue([]interface{}{key, value, IntegerValue(policy.attributes)}),
+			binValue:  ListValue([]interface{}{key, value}),
 			encoder:   newMapCreatePutEncoder,
 		}
+	}
+
+	return &Operation{
+		opType:    MAP_MODIFY,
+		opSubType: &policy.itemCommand,
+		binName:   binName,
+		binValue:  ListValue([]interface{}{key, value, IntegerValue(policy.attributes)}),
+		encoder:   newMapCreatePutEncoder,
 	}
 }
 
@@ -316,25 +316,25 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 			binValue:  ListValue([]interface{}{amap, IntegerValue(policy.attributes), IntegerValue(policy.flags)}),
 			encoder:   newCDTCreateOperationEncoder,
 		}
-	} else {
-		if policy.itemsCommand == int(_CDT_MAP_REPLACE_ITEMS) {
-			// Replace doesn't allow map attributes because it does not create on non-existing key.
-			return &Operation{
-				opType:    MAP_MODIFY,
-				opSubType: &policy.itemsCommand,
-				binName:   binName,
-				binValue:  ListValue([]interface{}{MapValue(amap)}),
-				encoder:   newCDTCreateOperationEncoder,
-			}
-		}
+	}
 
+	if policy.itemsCommand == int(_CDT_MAP_REPLACE_ITEMS) {
+		// Replace doesn't allow map attributes because it does not create on non-existing key.
 		return &Operation{
 			opType:    MAP_MODIFY,
 			opSubType: &policy.itemsCommand,
 			binName:   binName,
-			binValue:  ListValue([]interface{}{MapValue(amap), IntegerValue(policy.attributes)}),
+			binValue:  ListValue([]interface{}{MapValue(amap)}),
 			encoder:   newCDTCreateOperationEncoder,
 		}
+	}
+
+	return &Operation{
+		opType:    MAP_MODIFY,
+		opSubType: &policy.itemsCommand,
+		binName:   binName,
+		binValue:  ListValue([]interface{}{MapValue(amap), IntegerValue(policy.attributes)}),
+		encoder:   newCDTCreateOperationEncoder,
 	}
 }
 

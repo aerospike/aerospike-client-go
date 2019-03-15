@@ -319,24 +319,24 @@ func __PackAInt64(cmd BufferEx, val int64) (int, error) {
 			return __PackInt(cmd, 0xce, int32(val))
 		}
 		return __PackInt64(cmd, 0xd3, val)
-	} else {
-		if val >= -32 {
-			return __PackAByte(cmd, 0xe0|(byte(val)+32))
-		}
-
-		if val >= math.MinInt8 {
-			return __PackByte(cmd, 0xd0, byte(val))
-		}
-
-		if val >= math.MinInt16 {
-			return __PackShort(cmd, 0xd1, int16(val))
-		}
-
-		if val >= math.MinInt32 {
-			return __PackInt(cmd, 0xd2, int32(val))
-		}
-		return __PackInt64(cmd, 0xd3, val)
 	}
+
+	if val >= -32 {
+		return __PackAByte(cmd, 0xe0|(byte(val)+32))
+	}
+
+	if val >= math.MinInt8 {
+		return __PackByte(cmd, 0xd0, byte(val))
+	}
+
+	if val >= math.MinInt16 {
+		return __PackShort(cmd, 0xd1, int16(val))
+	}
+
+	if val >= math.MinInt32 {
+		return __PackInt(cmd, 0xd2, int32(val))
+	}
+	return __PackInt64(cmd, 0xd3, val)
 }
 
 // PackInt64 packs an int64

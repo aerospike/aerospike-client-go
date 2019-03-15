@@ -73,13 +73,13 @@ func (lgr *logger) SetLevel(level LogPriority) {
 func (lgr *logger) LogAtLevel(level LogPriority, format string, v ...interface{}) {
 	switch level {
 	case DEBUG:
-		lgr.Debug(format, v)
+		lgr.Debug(format, v...)
 	case INFO:
-		lgr.Info(format, v)
+		lgr.Info(format, v...)
 	case WARNING:
-		lgr.Warn(format, v)
+		lgr.Warn(format, v...)
 	case ERR:
-		lgr.Error(format, v)
+		lgr.Error(format, v...)
 	}
 }
 

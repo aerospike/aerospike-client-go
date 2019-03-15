@@ -145,10 +145,10 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 			if errStr, exists := bins["FAILURE"]; exists {
 				err = NewAerospikeError(QUERY_GENERIC, errStr.(string))
 				return false, err
-			} else {
-				err = NewAerospikeError(QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
-				return false, err
 			}
+
+			err = NewAerospikeError(QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
+			return false, err
 		}
 
 		// If the channel is full and it blocks, we don't want this command to
