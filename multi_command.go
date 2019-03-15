@@ -24,10 +24,6 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-const (
-	_MAX_BUFFER_SIZE = 1024 * 1024 * 10 // 10 MB
-)
-
 type multiCommand interface {
 	Stop()
 }

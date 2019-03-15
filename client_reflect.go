@@ -110,9 +110,9 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 	}
 
 	// result recordset
-	taskId := uint64(xornd.Int64())
+	taskID := uint64(xornd.Int64())
 	res := &Recordset{
-		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes), taskId),
+		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes), taskID),
 	}
 
 	// the whole call should be wrapped in a goroutine
@@ -120,7 +120,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 		for _, node := range nodes {
 			go func(node *Node) {
 				// Errors are handled inside the command itself
-				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
+				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskID, binNames...)
 			}(node)
 		}
 	} else {
@@ -128,7 +128,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 		go func() {
 			for _, node := range nodes {
 				// Errors are handled inside the command itself
-				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
+				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskID, binNames...)
 			}
 		}()
 	}
@@ -145,19 +145,19 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	// results channel must be async for performance
-	taskId := uint64(xornd.Int64())
+	taskID := uint64(xornd.Int64())
 	res := &Recordset{
-		objectset: *newObjectset(reflect.ValueOf(objChan), 1, taskId),
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1, taskID),
 	}
 
-	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskId, binNames...)
+	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskID, binNames...)
 	return res, nil
 }
 
 // scanNodeObjects reads all records in specified namespace and set for one node only,
 // and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskId uint64, binNames ...string) error {
+func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, binNames ...string) error {
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until migrations on node are finished
 		if err := node.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
@@ -166,7 +166,7 @@ func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *R
 		}
 	}
 
-	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset, taskId)
+	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset, taskID)
 	return command.Execute()
 }
 

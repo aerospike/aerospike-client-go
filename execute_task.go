@@ -25,7 +25,7 @@ import (
 type ExecuteTask struct {
 	*baseTask
 
-	taskId uint64
+	taskID uint64
 	scan   bool
 }
 
@@ -33,7 +33,7 @@ type ExecuteTask struct {
 func NewExecuteTask(cluster *Cluster, statement *Statement) *ExecuteTask {
 	return &ExecuteTask{
 		baseTask: newTask(cluster),
-		taskId:   statement.TaskId,
+		taskID:   statement.TaskId,
 		scan:     statement.IsScan(),
 	}
 }
@@ -47,7 +47,7 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 		module = "query"
 	}
 
-	command := "jobs:module=" + module + ";cmd=get-job;trid=" + strconv.FormatUint(etsk.taskId, 10)
+	command := "jobs:module=" + module + ";cmd=get-job;trid=" + strconv.FormatUint(etsk.taskID, 10)
 
 	nodes := etsk.cluster.GetNodes()
 

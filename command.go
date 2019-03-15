@@ -676,7 +676,7 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 	return nil
 }
 
-func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskId uint64) error {
+func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskID uint64) error {
 	cmd.begin()
 	fieldCount := 0
 	// predExpsSize := 0
@@ -752,7 +752,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.WriteInt32(int32(policy.SocketTimeout / time.Millisecond)) // in milliseconds
 
 	cmd.writeFieldHeader(8, TRAN_ID)
-	cmd.WriteUint64(taskId)
+	cmd.WriteUint64(taskID)
 
 	if binNames != nil {
 		for i := range binNames {

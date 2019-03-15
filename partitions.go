@@ -109,8 +109,8 @@ func (pm partitionMap) String() string {
 			} else {
 				res.WriteString(fmt.Sprintf("\nReplica %d: ", i))
 			}
-			for partitionId, node := range nodeArray {
-				res.WriteString(strconv.Itoa(partitionId) + "/")
+			for partitionID, node := range nodeArray {
+				res.WriteString(strconv.Itoa(partitionID) + "/")
 				if node != nil {
 					res.WriteString(node.host.String())
 					res.WriteString(", ")

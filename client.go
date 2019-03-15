@@ -414,21 +414,21 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 	}
 
 	// result recordset
-	taskId := uint64(xornd.Int64())
-	res := newRecordset(policy.RecordQueueSize, len(nodes), taskId)
+	taskID := uint64(xornd.Int64())
+	res := newRecordset(policy.RecordQueueSize, len(nodes), taskID)
 
 	// the whole call should be wrapped in a goroutine
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
 			go func(node *Node) {
-				clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...)
+				clnt.scanNode(&policy, node, res, namespace, setName, taskID, binNames...)
 			}(node)
 		}
 	} else {
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...)
+				clnt.scanNode(&policy, node, res, namespace, setName, taskID, binNames...)
 			}
 		}()
 	}
@@ -442,16 +442,16 @@ func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, 
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	// results channel must be async for performance
-	taskId := uint64(xornd.Int64())
-	res := newRecordset(policy.RecordQueueSize, 1, taskId)
+	taskID := uint64(xornd.Int64())
+	res := newRecordset(policy.RecordQueueSize, 1, taskID)
 
-	go clnt.scanNode(&policy, node, res, namespace, setName, taskId, binNames...)
+	go clnt.scanNode(&policy, node, res, namespace, setName, taskID, binNames...)
 	return res, nil
 }
 
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskId uint64, binNames ...string) error {
+func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, binNames ...string) error {
 	if policy.WaitUntilMigrationsAreOver {
 		// wait until migrations on node are finished
 		if err := node.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
@@ -460,7 +460,7 @@ func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordse
 		}
 	}
 
-	command := newScanCommand(node, policy, namespace, setName, binNames, recordset, taskId)
+	command := newScanCommand(node, policy, namespace, setName, binNames, recordset, taskID)
 	return command.Execute()
 }
 

@@ -123,8 +123,8 @@ func (stmt *Statement) IsScan() bool {
 	return stmt.Filter == nil
 }
 
-// Always set the taskId client-side to a non-zero random value
-func (stmt *Statement) setTaskId() {
+// Always set the taskID client-side to a non-zero random value
+func (stmt *Statement) setTaskID() {
 	for stmt.TaskId == 0 {
 		stmt.TaskId = uint64(xornd.Int64())
 	}

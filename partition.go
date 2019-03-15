@@ -47,10 +47,10 @@ func newPartitionByKey(key *Key) Partition {
 }
 
 // NewPartition generates a partition instance.
-func NewPartition(namespace string, partitionId int) *Partition {
+func NewPartition(namespace string, partitionID int) *Partition {
 	return &Partition{
 		Namespace:   namespace,
-		PartitionId: partitionId,
+		PartitionId: partitionID,
 	}
 }
 
