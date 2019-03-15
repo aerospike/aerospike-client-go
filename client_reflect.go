@@ -31,10 +31,9 @@ import (
 func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err error) {
 	policy = clnt.getUsableWritePolicy(policy)
 
-	bins := marshal(obj, clnt.cluster.supportsFloat.Get())
-	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, WRITE)
+	binMap := marshal(obj, clnt.cluster.supportsFloat.Get())
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, WRITE)
 	res := command.Execute()
-	binPool.Put(bins)
 	return res
 }
 
