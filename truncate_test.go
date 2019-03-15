@@ -106,7 +106,7 @@ var _ = Describe("Truncate operations test", func() {
 			err := client.Truncate(nil, ns, set, &t)
 			Expect(err).ToNot(HaveOccurred())
 
-			time.Sleep(1 * time.Second)
+			time.Sleep(3 * time.Second)
 			Expect(countRecords(ns, set)).To(Equal(keyCount))
 		})
 
