@@ -19,6 +19,7 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
+	atomic "github.com/aerospike/aerospike-client-go/types/atomic"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -54,7 +55,16 @@ var _ = Describe("predexp operations", func() {
 
 	var gaptime int64
 
+	insertRecs := atomic.NewAtomicBool(true)
+
 	BeforeEach(func() {
+		if !insertRecs.Get() {
+			return
+		}
+
+		client.DropIndex(nil, ns, set, "intval")
+		client.DropIndex(nil, ns, set, "strval")
+
 		wpolicy = as.NewWritePolicy(0, 24*60*60)
 
 		for ii := 0; ii < keyCount; ii++ {
@@ -121,21 +131,21 @@ var _ = Describe("predexp operations", func() {
 			err = client.Put(wpolicy, key, bins)
 		}
 
-		idxTask, err := client.CreateIndex(
-			wpolicy, ns, set, "intval", "intval", as.NUMERIC)
+		idxTask, err := client.CreateIndex(wpolicy, ns, set, "intval", "intval", as.NUMERIC)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 
-		idxTask, err = client.CreateIndex(
-			wpolicy, ns, set, "strval", "strval", as.STRING)
+		idxTask, err = client.CreateIndex(wpolicy, ns, set, "strval", "strval", as.STRING)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+
+		insertRecs.Set(false)
 	})
 
-	AfterEach(func() {
-		Expect(client.DropIndex(nil, ns, set, "intval")).ToNot(HaveOccurred())
-		Expect(client.DropIndex(nil, ns, set, "strval")).ToNot(HaveOccurred())
-	})
+	// AfterEach(func() {
+	// 	Expect(client.DropIndex(nil, ns, set, "intval")).ToNot(HaveOccurred())
+	// 	Expect(client.DropIndex(nil, ns, set, "strval")).ToNot(HaveOccurred())
+	// })
 
 	It("server error with top level predexp value node", func() {
 

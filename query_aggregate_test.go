@@ -20,6 +20,7 @@ import (
 	"os"
 
 	as "github.com/aerospike/aerospike-client-go"
+	"github.com/aerospike/aerospike-client-go/types/atomic"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -52,15 +53,19 @@ var _ = Describe("Query Aggregate operations", func() {
 
 	const keyCount = 10
 
-	BeforeSuite(func() {
-		err := registerUDF(client, luaPath, "sum_single_bin")
-		Expect(err).ToNot(HaveOccurred())
-
-		err = registerUDF(client, luaPath, "average")
-		Expect(err).ToNot(HaveOccurred())
-	})
+	createUDFs := atomic.NewAtomicBool(true)
 
 	BeforeEach(func() {
+		if createUDFs.Get() {
+			err := registerUDF(client, luaPath, "sum_single_bin")
+			Expect(err).ToNot(HaveOccurred())
+
+			err = registerUDF(client, luaPath, "average")
+			Expect(err).ToNot(HaveOccurred())
+
+			createUDFs.Set(false)
+		}
+
 		set = randString(50)
 		for i := 1; i <= keyCount; i++ {
 			key, err := as.NewKey(ns, set, randString(50))

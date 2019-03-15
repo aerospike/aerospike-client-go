@@ -90,7 +90,6 @@ var _ = Describe("Truncate operations test", func() {
 		})
 
 		It("must truncate only older records", func() {
-			time.Sleep(3 * time.Second)
 			t := time.Now()
 
 			Expect(countRecords(ns, set)).To(Equal(keyCount))
@@ -107,7 +106,7 @@ var _ = Describe("Truncate operations test", func() {
 			err := client.Truncate(nil, ns, set, &t)
 			Expect(err).ToNot(HaveOccurred())
 
-			time.Sleep(3 * time.Second)
+			time.Sleep(1 * time.Second)
 			Expect(countRecords(ns, set)).To(Equal(keyCount))
 		})
 
