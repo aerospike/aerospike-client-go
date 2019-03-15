@@ -47,16 +47,25 @@ func (btsk *baseTask) onComplete(ifc Task) chan error {
 	ch := make(chan error, 1)
 
 	// goroutine will loop every <interval> until IsDone() returns true or error
-	const interval = 1 * time.Second
 	go func() {
 		// always close the channel on return
 		defer close(ch)
+
+		var interval = 100 * time.Millisecond
 
 		for {
 			select {
 			case <-time.After(interval):
 				done, err := ifc.IsDone()
-				btsk.retries.IncrementAndGet()
+				// Every 5 failed retries increase the interval
+				if btsk.retries.IncrementAndGet()%5 == 0 {
+					interval *= 2
+					println(interval)
+
+					if interval > 5*time.Second {
+						interval = 5 * time.Second
+					}
+				}
 				if err != nil {
 					ae, ok := err.(AerospikeError)
 					if ok && ae.ResultCode() == TIMEOUT {
