@@ -14,10 +14,6 @@
 
 package aerospike
 
-import (
-	. "github.com/aerospike/aerospike-client-go/types"
-)
-
 type operateCommand struct {
 	readCommand
 
@@ -53,13 +49,6 @@ func (cmd *operateCommand) getNode(ifc command) (*Node, error) {
 
 func (cmd *operateCommand) Execute() error {
 	return cmd.execute(cmd, !cmd.hasWrite)
-}
-
-func (cmd *operateCommand) handleWriteKeyNotFoundError(resultCode ResultCode) error {
-	if cmd.hasWrite {
-		return NewAerospikeError(resultCode)
-	}
-	return nil
 }
 
 func hasWriteOp(operations []*Operation) bool {

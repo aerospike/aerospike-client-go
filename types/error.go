@@ -71,6 +71,8 @@ func NewAerospikeError(code ResultCode, messages ...string) error {
 	return AerospikeError{error: err, resultCode: code}
 }
 
+var ErrKeyNotFound = NewAerospikeError(KEY_NOT_FOUND_ERROR, "Key not found.")
 var ErrRecordsetClosed = NewAerospikeError(RECORDSET_CLOSED, "Recordset has already been closed.")
 var ErrConnectionPoolEmpty = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE)
 var ErrTimeout = NewAerospikeError(TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
+var ErrUDFBadResponse = NewAerospikeError(UDF_BAD_RESPONSE, "Invalid UDF return value")

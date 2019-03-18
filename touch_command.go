@@ -65,6 +65,10 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	if resultCode != 0 {
+		if resultCode == byte(KEY_NOT_FOUND_ERROR) {
+			return ErrKeyNotFound
+		}
+
 		return NewAerospikeError(ResultCode(resultCode))
 	}
 	if err := cmd.emptySocket(conn); err != nil {

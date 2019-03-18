@@ -24,8 +24,8 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
-	. "github.com/aerospike/aerospike-client-go/types"
-	. "github.com/aerospike/aerospike-client-go/utils/buffer"
+	ast "github.com/aerospike/aerospike-client-go/types"
+	asub "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -78,10 +78,10 @@ var _ = Describe("Aerospike", func() {
 			cpolicy.ClusterName = "haha"
 			cpolicy.Timeout = 10 * time.Second
 			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
-			aerr, ok := err.(AerospikeError)
+			aerr, ok := err.(ast.AerospikeError)
 			Expect(ok).To(BeTrue())
 			Expect(err).To(HaveOccurred())
-			Expect(aerr.ResultCode()).To(Equal(CLUSTER_NAME_MISMATCH_ERROR))
+			Expect(aerr.ResultCode()).To(Equal(ast.CLUSTER_NAME_MISMATCH_ERROR))
 			Expect(nclient).To(BeNil())
 		})
 
@@ -92,10 +92,10 @@ var _ = Describe("Aerospike", func() {
 			cpolicy.Timeout = 10 * time.Second
 			cpolicy.FailIfNotConnected = false
 			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
-			aerr, ok := err.(AerospikeError)
+			aerr, ok := err.(ast.AerospikeError)
 			Expect(ok).To(BeTrue())
 			Expect(err).To(HaveOccurred())
-			Expect(aerr.ResultCode()).To(Equal(CLUSTER_NAME_MISMATCH_ERROR))
+			Expect(aerr.ResultCode()).To(Equal(ast.CLUSTER_NAME_MISMATCH_ERROR))
 			Expect(nclient).NotTo(BeNil())
 			Expect(nclient.IsConnected()).To(BeFalse())
 		})
@@ -442,7 +442,7 @@ var _ = Describe("Aerospike", func() {
 				It("must save a key with MULTIPLE bins; uint of > MaxInt32 will always result in LongValue", func() {
 					bin1 := as.NewBin("Aerospike1", math.MaxInt32)
 					bin2, bin3 := func() (*as.Bin, *as.Bin) {
-						if Arch32Bits {
+						if asub.Arch32Bits {
 							return as.NewBin("Aerospike2", int(math.MinInt32)),
 								as.NewBin("Aerospike3", uint(math.MaxInt32))
 						}
@@ -457,7 +457,7 @@ var _ = Describe("Aerospike", func() {
 					rec, err = client.Get(rpolicy, key)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
-					if Arch64Bits {
+					if asub.Arch64Bits {
 						Expect(rec.Bins[bin2.Name].(int)).To(Equal(bin2.Value.GetObject()))
 						Expect(int64(rec.Bins[bin3.Name].(int))).To(Equal(bin3.Value.GetObject()))
 					} else {
@@ -476,7 +476,7 @@ var _ = Describe("Aerospike", func() {
 					rec, err = client.Get(rpolicy, key)
 					Expect(err).ToNot(HaveOccurred())
 
-					if Arch64Bits {
+					if asub.Arch64Bits {
 						Expect(int64(rec.Bins[bin.Name].(int))).To(Equal(bin.Value.GetObject()))
 					} else {
 						Expect(rec.Bins[bin.Name]).To(Equal(bin.Value.GetObject()))
@@ -832,7 +832,7 @@ var _ = Describe("Aerospike", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				err = client.Touch(wpolicy, nxkey)
-				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(ast.ErrKeyNotFound))
 			})
 
 			It("must Touch an existing key", func() {
@@ -1219,7 +1219,7 @@ var _ = Describe("Aerospike", func() {
 
 				wpolicy := as.NewWritePolicy(0, 0)
 				rec, err = client.Operate(wpolicy, key, as.GetOp())
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).To(Equal(ast.ErrKeyNotFound))
 
 				rec, err = client.Operate(wpolicy, key, as.TouchOp())
 				Expect(err).To(HaveOccurred())

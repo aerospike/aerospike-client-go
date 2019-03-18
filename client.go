@@ -633,27 +633,15 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 		return nil, nil
 	}
 
-	resultMap := record.Bins
-
-	// User defined functions don't have to return a value.
-	if exists, obj := mapContainsKeyPartial(resultMap, "SUCCESS"); exists {
-		return obj, nil
-	}
-
-	if _, obj := mapContainsKeyPartial(resultMap, "FAILURE"); obj != nil {
-		return nil, fmt.Errorf("%v", obj)
-	}
-
-	return nil, NewAerospikeError(UDF_BAD_RESPONSE, "Invalid UDF return value")
-}
-
-func mapContainsKeyPartial(theMap map[string]interface{}, key string) (bool, interface{}) {
-	for k, v := range theMap {
-		if strings.Contains(k, key) {
-			return true, v
+	for k, v := range record.Bins {
+		if strings.Contains(k, "SUCCESS") {
+			return v, nil
+		} else if strings.Contains(k, "FAILURE") {
+			return nil, fmt.Errorf("%v", v)
 		}
 	}
-	return false, nil
+
+	return nil, ErrUDFBadResponse
 }
 
 //----------------------------------------------------------
