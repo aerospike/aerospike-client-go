@@ -58,7 +58,7 @@ func runExample(client *as.Client) {
 
 	t := time.Now()
 	stm := as.NewStatement(*shared.Namespace, *shared.Set)
-	res, err := client.QueryAggregate(nil, stm, filename, filename, "bin1")
+	res, err := client.QueryAggregate(nil, stm, filename, filename, as.StringValue("bin1"))
 	shared.PanicOnError(err)
 
 	for rec := range res.Results() {
