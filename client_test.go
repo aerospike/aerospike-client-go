@@ -51,7 +51,7 @@ var _ = Describe("Aerospike", func() {
 			node, err := client.Cluster().GetRandomNode()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(node).NotTo(BeNil())
-			res, err := node.RequestInfo("cluster-name")
+			res, err := node.RequestInfo(as.NewInfoPolicy(), "cluster-name")
 			Expect(err).ToNot(HaveOccurred())
 			actualClusterName = res["cluster-name"]
 

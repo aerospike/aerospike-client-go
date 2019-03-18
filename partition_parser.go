@@ -61,7 +61,7 @@ func newPartitionParser(node *Node, partitions partitionMap, partitionCount int)
 		command = _ReplicasAll
 	}
 
-	info, err := node.requestRawInfo(_PartitionGeneration, command)
+	info, err := node.requestRawInfo(&node.cluster.infoPolicy, _PartitionGeneration, command)
 	if err != nil {
 		return nil, err
 	}

@@ -46,7 +46,7 @@ func (tski *IndexTask) IsDone() (bool, error) {
 	r := regexp.MustCompile(`\.*load_pct=(\d+)\.*`)
 
 	for _, node := range nodes {
-		responseMap, err := node.requestInfoWithRetry(5, command)
+		responseMap, err := node.requestInfoWithRetry(&tski.cluster.infoPolicy, 5, command)
 		if err != nil {
 			return false, err
 		}

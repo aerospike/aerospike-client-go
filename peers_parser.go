@@ -28,7 +28,7 @@ var aeroerr error = NewAerospikeError(PARSE_ERROR, "Error parsing peers list.")
 func parsePeers(cluster *Cluster, node *Node) (*peerListParser, error) {
 	cmd := cluster.clientPolicy.peersString()
 
-	info, err := node.RequestInfo(cmd)
+	info, err := node.RequestInfo(&cluster.infoPolicy, cmd)
 	if err != nil {
 		return nil, err
 	}

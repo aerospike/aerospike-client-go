@@ -20,19 +20,18 @@ import "time"
 type AdminPolicy struct {
 
 	// User administration command socket timeout.
-	// Default is 5 second timeout.
+	// Default is 2 seconds.
 	Timeout time.Duration
 }
 
 // NewAdminPolicy generates a new AdminPolicy with default values.
 func NewAdminPolicy() *AdminPolicy {
 	return &AdminPolicy{
-		Timeout: 1 * time.Second,
+		Timeout: _DEFAULT_TIMEOUT,
 	}
 }
 
-func (ap *AdminPolicy) deadline() time.Time {
-	var deadline time.Time
+func (ap *AdminPolicy) deadline() (deadline time.Time) {
 	if ap != nil && ap.Timeout > 0 {
 		deadline = time.Now().Add(ap.Timeout)
 	}

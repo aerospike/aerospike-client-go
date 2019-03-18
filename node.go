@@ -124,7 +124,7 @@ func (nd *Node) Refresh(peers *peers) error {
 	var infoMap map[string]string
 	var err error
 	if peers.usePeers.Get() {
-		infoMap, err = nd.RequestInfo("node", "peers-generation", "partition-generation", "racks:")
+		infoMap, err = nd.RequestInfo(&nd.cluster.infoPolicy, "node", "peers-generation", "partition-generation", "racks:")
 		if err != nil {
 			nd.refreshFailed(err)
 			return err
@@ -147,7 +147,7 @@ func (nd *Node) Refresh(peers *peers) error {
 	} else {
 		commands := []string{"node", "partition-generation", "racks:", nd.cluster.clientPolicy.servicesString()}
 
-		infoMap, err = nd.RequestInfo(commands...)
+		infoMap, err = nd.RequestInfo(&nd.cluster.infoPolicy, commands...)
 		if err != nil {
 			nd.refreshFailed(err)
 			return err
@@ -714,7 +714,7 @@ func (nd *Node) Equals(other *Node) bool {
 
 // MigrationInProgress determines if the node is participating in a data migration
 func (nd *Node) MigrationInProgress() (bool, error) {
-	values, err := RequestNodeStats(nd)
+	values, err := nd.RequestStats(&nd.cluster.infoPolicy)
 	if err != nil {
 		return false, err
 	}
@@ -779,9 +779,9 @@ func (nd *Node) initTendConn(timeout time.Duration) error {
 
 // requestInfoWithRetry gets info values by name from the specified database server node.
 // It will try at least N times before returning an error.
-func (nd *Node) requestInfoWithRetry(n int, name ...string) (res map[string]string, err error) {
+func (nd *Node) requestInfoWithRetry(policy *InfoPolicy, n int, name ...string) (res map[string]string, err error) {
 	for i := 0; i < n; i++ {
-		if res, err = nd.requestInfo(10*time.Second, name...); err == nil {
+		if res, err = nd.requestInfo(policy.Timeout, name...); err == nil {
 			return res, nil
 		}
 
@@ -794,8 +794,8 @@ func (nd *Node) requestInfoWithRetry(n int, name ...string) (res map[string]stri
 }
 
 // RequestInfo gets info values by name from the specified database server node.
-func (nd *Node) RequestInfo(name ...string) (map[string]string, error) {
-	return nd.requestInfo(nd.cluster.clientPolicy.Timeout, name...)
+func (nd *Node) RequestInfo(policy *InfoPolicy, name ...string) (map[string]string, error) {
+	return nd.requestInfo(policy.Timeout, name...)
 }
 
 // RequestInfo gets info values by name from the specified database server node.
@@ -817,11 +817,11 @@ func (nd *Node) requestInfo(timeout time.Duration, name ...string) (map[string]s
 
 // requestRawInfo gets info values by name from the specified database server node.
 // It won't parse the results.
-func (nd *Node) requestRawInfo(name ...string) (*info, error) {
+func (nd *Node) requestRawInfo(policy *InfoPolicy, name ...string) (*info, error) {
 	nd.tendConnLock.Lock()
 	defer nd.tendConnLock.Unlock()
 
-	if err := nd.initTendConn(nd.cluster.clientPolicy.Timeout); err != nil {
+	if err := nd.initTendConn(policy.Timeout); err != nil {
 		return nil, err
 	}
 
@@ -831,6 +831,31 @@ func (nd *Node) requestRawInfo(name ...string) (*info, error) {
 		return nil, err
 	}
 	return response, nil
+}
+
+// RequestStats returns statistics for the specified node as a map
+func (node *Node) RequestStats(policy *InfoPolicy) (map[string]string, error) {
+	infoMap, err := node.RequestInfo(policy, "statistics")
+	if err != nil {
+		return nil, err
+	}
+
+	res := map[string]string{}
+
+	v, exists := infoMap["statistics"]
+	if !exists {
+		return res, nil
+	}
+
+	values := strings.Split(v, ";")
+	for i := range values {
+		kv := strings.Split(values[i], "=")
+		if len(kv) > 1 {
+			res[kv[0]] = kv[1]
+		}
+	}
+
+	return res, nil
 }
 
 // sessionToken returns the session token for the node.

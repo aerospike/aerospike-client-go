@@ -53,6 +53,7 @@ type Cluster struct {
 	partitionUpdateMutex sync.Mutex
 
 	clientPolicy        ClientPolicy
+	infoPolicy          InfoPolicy
 	connectionThreshold AtomicInt // number of parallel opening connections
 
 	nodeIndex    uint64 // only used via atomic operations
@@ -95,6 +96,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 	newCluster := &Cluster{
 		clientPolicy: *policy,
+		infoPolicy:   InfoPolicy{Timeout: policy.Timeout},
 		tendChannel:  make(chan struct{}),
 
 		seeds:    NewSyncVal(hosts),

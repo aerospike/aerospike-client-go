@@ -77,7 +77,7 @@ func TestAerospike(t *testing.T) {
 
 func featureEnabled(feature string) bool {
 	node := client.GetNodes()[0]
-	infoMap, err := node.RequestInfo("features")
+	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "features")
 	if err != nil {
 		log.Fatal("Failed to connect to aerospike: err:", err)
 	}
@@ -87,7 +87,7 @@ func featureEnabled(feature string) bool {
 
 func nsInfo(ns string, feature string) string {
 	node := client.GetNodes()[0]
-	infoMap, err := node.RequestInfo("namespace/" + ns)
+	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "namespace/"+ns)
 	if err != nil {
 		log.Fatal("Failed to connect to aerospike: err:", err)
 	}
@@ -106,7 +106,7 @@ func nsInfo(ns string, feature string) string {
 
 func info(client *as.Client, feature string) string {
 	node := client.GetNodes()[0]
-	infoMap, err := node.RequestInfo(feature)
+	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), feature)
 	if err != nil {
 		log.Fatal("Failed to connect to aerospike: err:", err)
 	}
