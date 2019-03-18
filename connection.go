@@ -171,33 +171,6 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 	return total, errToTimeoutErr(err)
 }
 
-// ReadN reads N bytes from connection buffer to the provided Writer.
-func (ctn *Connection) ReadN(buf io.Writer, length int64) (total int64, err error) {
-	// Don't worry about the internal loop; we've already set the timeout elsewhere
-	if err = ctn.updateDeadline(); err == nil {
-		total, err = io.CopyN(buf, ctn.conn, length)
-	}
-
-	if err == nil && total == length {
-		return total, nil
-	} else if err != nil {
-		if ctn.node != nil {
-			atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
-		}
-
-		if shouldClose(err) {
-			ctn.Close()
-		}
-		return total, errToTimeoutErr(err)
-	}
-
-	if ctn.node != nil {
-		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
-	}
-	ctn.Close()
-	return total, NewAerospikeError(SERVER_ERROR)
-}
-
 // Read reads from connection buffer to the provided slice.
 func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 	// if all bytes are not read, retry until successful
