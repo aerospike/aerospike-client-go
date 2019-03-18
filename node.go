@@ -215,7 +215,7 @@ func (nd *Node) refreshSessionToken() error {
 		return err
 	}
 
-	command := NewLoginCommand(nd.tendConn.dataBuffer)
+	command := newLoginCommand(nd.tendConn.dataBuffer)
 	if err := command.login(&nd.cluster.clientPolicy, nd.tendConn, nd.cluster.Password()); err != nil {
 		// Socket not authenticated. Do not put back into pool.
 		nd.tendConn.Close()
@@ -536,7 +536,7 @@ L:
 	}
 
 	atomic.AddInt64(&nd.stats.ConnectionsAttempts, 1)
-	conn, err := NewSecureConnection(&nd.cluster.clientPolicy, nd.host)
+	conn, err := NewConnection(&nd.cluster.clientPolicy, nd.host)
 	if err != nil {
 		nd.connectionCount.DecrementAndGet()
 		atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)

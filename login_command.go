@@ -25,7 +25,7 @@ import (
 
 // Login command authenticates to the server.
 // If the authentication is external, Session Information will be returned.
-type LoginCommand struct {
+type loginCommand struct {
 	adminCommand
 
 	// SessionToken for the current session on the external authentication server.
@@ -35,15 +35,15 @@ type LoginCommand struct {
 	SessionExpiration time.Time
 }
 
-func NewLoginCommand(buf []byte) *LoginCommand {
-	return &LoginCommand{
+func newLoginCommand(buf []byte) *loginCommand {
+	return &loginCommand{
 		adminCommand: *newAdminCommand(buf),
 	}
 }
 
 // Login tries to authenticate to the aerospike server. Depending on the server configuration and ClientPolicy,
 // the session information will be returned.
-func (lcmd *LoginCommand) Login(policy *ClientPolicy, conn *Connection) error {
+func (lcmd *loginCommand) Login(policy *ClientPolicy, conn *Connection) error {
 	hashedPass, err := hashPassword(policy.Password)
 	if err != nil {
 		return err
@@ -54,7 +54,7 @@ func (lcmd *LoginCommand) Login(policy *ClientPolicy, conn *Connection) error {
 
 // Login tries to authenticate to the aerospike server. Depending on the server configuration and ClientPolicy,
 // the session information will be returned.
-func (lcmd *LoginCommand) login(policy *ClientPolicy, conn *Connection, hashedPass []byte) error {
+func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPass []byte) error {
 	switch policy.AuthMode {
 	case AuthModeExternal:
 		lcmd.writeHeader(_LOGIN, 3)
@@ -144,7 +144,7 @@ func (lcmd *LoginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 	return nil
 }
 
-func (lcmd *LoginCommand) authenticateInternal(conn *Connection, user string, passwordHash []byte) error {
+func (lcmd *loginCommand) authenticateInternal(conn *Connection, user string, passwordHash []byte) error {
 	lcmd.dataOffset = 8
 	lcmd.writeHeader(_AUTHENTICATE, 2)
 	lcmd.writeFieldStr(_USER, user)
@@ -167,7 +167,7 @@ func (lcmd *LoginCommand) authenticateInternal(conn *Connection, user string, pa
 	return nil
 }
 
-func (lcmd *LoginCommand) authenticateViaToken(policy *ClientPolicy, conn *Connection, sessionToken []byte) error {
+func (lcmd *loginCommand) authenticateViaToken(policy *ClientPolicy, conn *Connection, sessionToken []byte) error {
 	lcmd.setAuthenticate(policy, sessionToken)
 
 	if _, err := conn.Write(lcmd.dataBuffer[:lcmd.dataOffset]); err != nil {
@@ -186,7 +186,7 @@ func (lcmd *LoginCommand) authenticateViaToken(policy *ClientPolicy, conn *Conne
 	return nil
 }
 
-func (lcmd *LoginCommand) setAuthenticate(policy *ClientPolicy, sessionToken []byte) error {
+func (lcmd *loginCommand) setAuthenticate(policy *ClientPolicy, sessionToken []byte) error {
 	lcmd.writeHeader(_AUTHENTICATE, 2)
 	lcmd.writeFieldStr(_USER, policy.User)
 

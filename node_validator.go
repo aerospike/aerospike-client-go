@@ -148,7 +148,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	clientPolicy := cluster.clientPolicy
 	clientPolicy.Timeout /= time.Duration(2)
 
-	conn, err := NewSecureConnection(&clientPolicy, alias)
+	conn, err := NewConnection(&clientPolicy, alias)
 	if err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 
 	if clientPolicy.RequiresAuthentication() {
 		// need to authenticate
-		acmd := NewLoginCommand(conn.dataBuffer)
+		acmd := newLoginCommand(conn.dataBuffer)
 		err = acmd.login(&clientPolicy, conn, cluster.Password())
 		if err != nil {
 			return err
@@ -253,7 +253,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 				Logger.Info("Host `%s` seems to be a load balancer. It is going to be replace by `%v`", alias.String(), hostAddress[0])
 				// try to connect to the aliases, and coose the first one that connects
 				for _, h := range hostAddress {
-					hconn, err := NewSecureConnection(&clientPolicy, h)
+					hconn, err := NewConnection(&clientPolicy, h)
 					if err != nil {
 						continue
 					}
@@ -261,7 +261,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 
 					if clientPolicy.RequiresAuthentication() {
 						// need to authenticate
-						acmd := NewLoginCommand(hconn.dataBuffer)
+						acmd := newLoginCommand(hconn.dataBuffer)
 						err = acmd.login(&clientPolicy, hconn, cluster.Password())
 						if err != nil {
 							continue

@@ -78,11 +78,11 @@ func shouldClose(err error) bool {
 	return false
 }
 
-// NewConnection creates a connection on the network and returns the pointer
+// newConnection creates a connection on the network and returns the pointer
 // A minimum timeout of 2 seconds will always be applied.
 // If the connection is not established in the specified timeout,
 // an error will be returned
-func NewConnection(address string, timeout time.Duration) (*Connection, error) {
+func newConnection(address string, timeout time.Duration) (*Connection, error) {
 	newConn := &Connection{dataBuffer: make([]byte, DefaultBufferSize)}
 	runtime.SetFinalizer(newConn, connectionFinalizer)
 
@@ -107,13 +107,13 @@ func NewConnection(address string, timeout time.Duration) (*Connection, error) {
 	return newConn, nil
 }
 
-// NewSecureConnection creates a TLS connection on the network and returns the pointer.
+// NewConnection creates a TLS connection on the network and returns the pointer.
 // A minimum timeout of 2 seconds will always be applied.
 // If the connection is not established in the specified timeout,
 // an error will be returned
-func NewSecureConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
+func NewConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
 	address := net.JoinHostPort(host.Name, strconv.Itoa(host.Port))
-	conn, err := NewConnection(address, policy.Timeout)
+	conn, err := newConnection(address, policy.Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,7 @@ func (ctn *Connection) Authenticate(user string, password string) error {
 func (ctn *Connection) authenticateFast(user string, hashedPass []byte) error {
 	// need to authenticate
 	if len(user) > 0 {
-		command := NewLoginCommand(ctn.dataBuffer)
+		command := newLoginCommand(ctn.dataBuffer)
 		if err := command.authenticateInternal(ctn, user, hashedPass); err != nil {
 			if ctn.node != nil {
 				atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
@@ -316,7 +316,7 @@ func (ctn *Connection) login(sessionToken []byte) error {
 		switch policy.AuthMode {
 		case AuthModeExternal:
 			var err error
-			command := NewLoginCommand(ctn.dataBuffer)
+			command := newLoginCommand(ctn.dataBuffer)
 			if sessionToken == nil {
 				err = command.login(&ctn.node.cluster.clientPolicy, ctn, ctn.node.cluster.Password())
 			} else {
