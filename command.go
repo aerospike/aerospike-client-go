@@ -1509,13 +1509,6 @@ func setInDoubt(err error, isRead bool, commandSentCounter int) error {
 	return err
 }
 
-// SetCommandBufferPool can be used to customize the command Buffer Pool parameters to calibrate
-// the pool for different workloads
-// This method is deprecated.
-func SetCommandBufferPool(poolSize, initBufSize, maxBufferSize int) {
-	panic("There is no need to optimize the buffer pool anymore. Buffers have moved to Connection object. To tweak the initial buffer sizes, use DefaultBufferSize.")
-}
-
 func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	iterations := -1
