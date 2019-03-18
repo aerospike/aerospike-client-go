@@ -20,23 +20,23 @@ type operation interface {
 
 // OperationType determines operation type
 type OperationType *struct{ op byte }
-type OperationSubType *int
+type operationSubType *int
 
 // Valid OperationType values that can be used to create custom Operations.
 // The names are self-explanatory.
 var (
-	READ OperationType = &struct{ op byte }{1}
+	_READ OperationType = &struct{ op byte }{1}
 	// READ_HEADER *OperationType = &struct{op:  1 }
 
-	WRITE      OperationType = &struct{ op byte }{2}
-	CDT_READ   OperationType = &struct{ op byte }{3}
-	CDT_MODIFY OperationType = &struct{ op byte }{4}
-	MAP_READ   OperationType = &struct{ op byte }{3}
-	MAP_MODIFY OperationType = &struct{ op byte }{4}
-	ADD        OperationType = &struct{ op byte }{5}
-	APPEND     OperationType = &struct{ op byte }{9}
-	PREPEND    OperationType = &struct{ op byte }{10}
-	TOUCH      OperationType = &struct{ op byte }{11}
+	_WRITE      OperationType = &struct{ op byte }{2}
+	_CDT_READ   OperationType = &struct{ op byte }{3}
+	_CDT_MODIFY OperationType = &struct{ op byte }{4}
+	_MAP_READ   OperationType = &struct{ op byte }{3}
+	_MAP_MODIFY OperationType = &struct{ op byte }{4}
+	_ADD        OperationType = &struct{ op byte }{5}
+	_APPEND     OperationType = &struct{ op byte }{9}
+	_PREPEND    OperationType = &struct{ op byte }{10}
+	_TOUCH      OperationType = &struct{ op byte }{11}
 )
 
 // Operation contains operation definition.
@@ -46,7 +46,7 @@ type Operation struct {
 	// OpType determines type of operation.
 	opType OperationType
 	// used in CDT commands
-	opSubType OperationSubType
+	opSubType operationSubType
 
 	encoder func(*Operation, BufferEx) (int, error)
 
@@ -80,40 +80,40 @@ func (op *Operation) cache() error {
 
 // GetOpForBin creates read bin database operation.
 func GetOpForBin(binName string) *Operation {
-	return &Operation{opType: READ, binName: binName, binValue: NewNullValue()}
+	return &Operation{opType: _READ, binName: binName, binValue: NewNullValue()}
 }
 
 // GetOp creates read all record bins database operation.
 func GetOp() *Operation {
-	return &Operation{opType: READ, binValue: NewNullValue()}
+	return &Operation{opType: _READ, binValue: NewNullValue()}
 }
 
 // GetHeaderOp creates read record header database operation.
 func GetHeaderOp() *Operation {
-	return &Operation{opType: READ, headerOnly: true, binValue: NewNullValue()}
+	return &Operation{opType: _READ, headerOnly: true, binValue: NewNullValue()}
 }
 
 // PutOp creates set database operation.
 func PutOp(bin *Bin) *Operation {
-	return &Operation{opType: WRITE, binName: bin.Name, binValue: bin.Value}
+	return &Operation{opType: _WRITE, binName: bin.Name, binValue: bin.Value}
 }
 
 // AppendOp creates string append database operation.
 func AppendOp(bin *Bin) *Operation {
-	return &Operation{opType: APPEND, binName: bin.Name, binValue: bin.Value}
+	return &Operation{opType: _APPEND, binName: bin.Name, binValue: bin.Value}
 }
 
 // PrependOp creates string prepend database operation.
 func PrependOp(bin *Bin) *Operation {
-	return &Operation{opType: PREPEND, binName: bin.Name, binValue: bin.Value}
+	return &Operation{opType: _PREPEND, binName: bin.Name, binValue: bin.Value}
 }
 
 // AddOp creates integer add database operation.
 func AddOp(bin *Bin) *Operation {
-	return &Operation{opType: ADD, binName: bin.Name, binValue: bin.Value}
+	return &Operation{opType: _ADD, binName: bin.Name, binValue: bin.Value}
 }
 
 // TouchOp creates touch database operation.
 func TouchOp() *Operation {
-	return &Operation{opType: TOUCH, binValue: NewNullValue()}
+	return &Operation{opType: _TOUCH, binValue: NewNullValue()}
 }

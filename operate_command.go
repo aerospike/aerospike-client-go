@@ -65,7 +65,7 @@ func (cmd *operateCommand) handleWriteKeyNotFoundError(resultCode ResultCode) er
 func hasWriteOp(operations []*Operation) bool {
 	for i := range operations {
 		switch operations[i].opType {
-		case MAP_READ, READ, CDT_READ:
+		case _MAP_READ, _READ, _CDT_READ:
 		default:
 			// All other cases are a type of write
 			return true

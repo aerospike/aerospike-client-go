@@ -32,7 +32,7 @@ func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (e
 	policy = clnt.getUsableWritePolicy(policy)
 
 	binMap := marshal(obj, clnt.cluster.supportsFloat.Get())
-	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, WRITE)
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _WRITE)
 	res := command.Execute()
 	return res
 }

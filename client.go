@@ -142,7 +142,7 @@ func (clnt *Client) GetNodeNames() []string {
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Put(policy *WritePolicy, key *Key, binMap BinMap) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, WRITE)
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _WRITE)
 	return command.Execute()
 }
 
@@ -153,7 +153,7 @@ func (clnt *Client) Put(policy *WritePolicy, key *Key, binMap BinMap) error {
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, WRITE)
+	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, _WRITE)
 	return command.Execute()
 }
 
@@ -168,14 +168,14 @@ func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Append(policy *WritePolicy, key *Key, binMap BinMap) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, APPEND)
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _APPEND)
 	return command.Execute()
 }
 
 // AppendBins works the same as Append, but avoids BinMap allocation and iteration.
 func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, APPEND)
+	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, _APPEND)
 	return command.Execute()
 }
 
@@ -186,14 +186,14 @@ func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) erro
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Prepend(policy *WritePolicy, key *Key, binMap BinMap) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, PREPEND)
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _PREPEND)
 	return command.Execute()
 }
 
 // PrependBins works the same as Prepend, but avoids BinMap allocation and iteration.
 func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, PREPEND)
+	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, _PREPEND)
 	return command.Execute()
 }
 
@@ -208,14 +208,14 @@ func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) err
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Add(policy *WritePolicy, key *Key, binMap BinMap) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, ADD)
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _ADD)
 	return command.Execute()
 }
 
 // AddBins works the same as Add, but avoids BinMap allocation and iteration.
 func (clnt *Client) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
-	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, ADD)
+	command := newWriteCommand(clnt.cluster, policy, key, bins, nil, _ADD)
 	return command.Execute()
 }
 

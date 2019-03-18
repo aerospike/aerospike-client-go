@@ -26,7 +26,7 @@ func newCDTCreateOperationEncoder(op *Operation, packer BufferEx) (int, error) {
 
 func newCDTCreateOperationValues2(command int, attributes mapOrderType, binName string, value1 interface{}, value2 interface{}) *Operation {
 	return &Operation{
-		opType:    MAP_MODIFY,
+		opType:    _MAP_MODIFY,
 		opSubType: &command,
 		binName:   binName,
 		binValue:  ListValue([]interface{}{value1, value2, IntegerValue(attributes)}),

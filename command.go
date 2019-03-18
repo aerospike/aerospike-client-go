@@ -196,7 +196,7 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 1)
 	cmd.writeKey(key, policy.SendKey)
-	cmd.writeOperationForOperationType(TOUCH)
+	cmd.writeOperationForOperationType(_TOUCH)
 	cmd.end()
 	return nil
 
@@ -255,7 +255,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 		cmd.writeKey(key, false)
 
 		for i := range binNames {
-			cmd.writeOperationForBinName(binNames[i], READ)
+			cmd.writeOperationForBinName(binNames[i], _READ)
 		}
 		cmd.end()
 	} else {
@@ -280,7 +280,7 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 1)
 
 	cmd.writeKey(key, false)
-	cmd.writeOperationForBinName("", READ)
+	cmd.writeOperationForBinName("", _READ)
 	cmd.end()
 	return nil
 
@@ -303,12 +303,12 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 
 	for i := range operations {
 		switch operations[i].opType {
-		case MAP_READ:
+		case _MAP_READ:
 			// Map operations require RespondPerEachOp to be true.
 			RespondPerEachOp = true
 			// Fall through to read.
 			fallthrough
-		case READ, CDT_READ:
+		case _READ, _CDT_READ:
 			if !operations[i].headerOnly {
 				readAttr |= _INFO1_READ
 
@@ -321,7 +321,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 				readAttr |= _INFO1_READ
 				readHeader = true
 			}
-		case MAP_MODIFY:
+		case _MAP_MODIFY:
 			// Map operations require RespondPerEachOp to be true.
 			RespondPerEachOp = true
 			// Fall through to default.
@@ -492,7 +492,7 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 			}
 
 			for _, binName := range binNames {
-				cmd.writeOperationForBinName(binName, READ)
+				cmd.writeOperationForBinName(binName, _READ)
 			}
 
 			prev = key
@@ -608,7 +608,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 				}
 
 				for _, binName := range binNames {
-					cmd.writeOperationForBinName(binName, READ)
+					cmd.writeOperationForBinName(binName, _READ)
 				}
 			} else {
 				attr := byte(readAttr)
@@ -669,7 +669,7 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 	}
 
 	for _, binName := range binNames {
-		cmd.writeOperationForBinName(binName, READ)
+		cmd.writeOperationForBinName(binName, _READ)
 	}
 	cmd.end()
 
@@ -752,7 +752,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 	if binNames != nil {
 		for i := range binNames {
-			cmd.writeOperationForBinName(binNames[i], READ)
+			cmd.writeOperationForBinName(binNames[i], _READ)
 		}
 	}
 
@@ -971,7 +971,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	if statement.Filter == nil {
 		if len(statement.BinNames) > 0 {
 			for _, binName := range statement.BinNames {
-				cmd.writeOperationForBinName(binName, READ)
+				cmd.writeOperationForBinName(binName, _READ)
 			}
 		}
 	}
