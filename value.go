@@ -457,7 +457,7 @@ func (vl NullValue) write(cmd BufferEx) (int, error) {
 }
 
 func (vl NullValue) pack(cmd BufferEx) (int, error) {
-	return __PackNil(cmd)
+	return packNil(cmd)
 }
 
 // GetType returns wire protocol value type.
@@ -495,7 +495,7 @@ func (vl InfinityValue) write(cmd BufferEx) (int, error) {
 }
 
 func (vl InfinityValue) pack(cmd BufferEx) (int, error) {
-	return __PackInfinity(cmd)
+	return packInfinity(cmd)
 }
 
 // GetType returns wire protocol value type.
@@ -533,7 +533,7 @@ func (vl WildCardValue) write(cmd BufferEx) (int, error) {
 }
 
 func (vl WildCardValue) pack(cmd BufferEx) (int, error) {
-	return __PackWildCard(cmd)
+	return packWildCard(cmd)
 }
 
 // GetType returns wire protocol value type.
@@ -581,7 +581,7 @@ func (vl BytesValue) write(cmd BufferEx) (int, error) {
 }
 
 func (vl BytesValue) pack(cmd BufferEx) (int, error) {
-	return __PackBytes(cmd, vl)
+	return packBytes(cmd, vl)
 }
 
 // GetType returns wire protocol value type.
@@ -618,7 +618,7 @@ func (vl StringValue) write(cmd BufferEx) (int, error) {
 }
 
 func (vl StringValue) pack(cmd BufferEx) (int, error) {
-	return __PackString(cmd, string(vl))
+	return packString(cmd, string(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -655,7 +655,7 @@ func (vl IntegerValue) write(cmd BufferEx) (int, error) {
 }
 
 func (vl IntegerValue) pack(cmd BufferEx) (int, error) {
-	return __PackAInt64(cmd, int64(vl))
+	return packAInt64(cmd, int64(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -692,7 +692,7 @@ func (vl LongValue) write(cmd BufferEx) (int, error) {
 }
 
 func (vl LongValue) pack(cmd BufferEx) (int, error) {
-	return __PackAInt64(cmd, int64(vl))
+	return packAInt64(cmd, int64(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -729,7 +729,7 @@ func (vl FloatValue) write(cmd BufferEx) (int, error) {
 }
 
 func (vl FloatValue) pack(cmd BufferEx) (int, error) {
-	return __PackFloat64(cmd, float64(vl))
+	return packFloat64(cmd, float64(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -778,15 +778,15 @@ func NewValueArray(array []Value) *ValueArray {
 }
 
 func (va ValueArray) estimateSize() (int, error) {
-	return __PackValueArray(nil, va)
+	return packValueArray(nil, va)
 }
 
 func (va ValueArray) write(cmd BufferEx) (int, error) {
-	return __PackValueArray(cmd, va)
+	return packValueArray(cmd, va)
 }
 
 func (va ValueArray) pack(cmd BufferEx) (int, error) {
-	return __PackValueArray(cmd, []Value(va))
+	return packValueArray(cmd, []Value(va))
 }
 
 // GetType returns wire protocol value type.
@@ -816,15 +816,15 @@ func NewListValue(list []interface{}) ListValue {
 }
 
 func (vl ListValue) estimateSize() (int, error) {
-	return __PackIfcList(nil, vl)
+	return packIfcList(nil, vl)
 }
 
 func (vl ListValue) write(cmd BufferEx) (int, error) {
-	return __PackIfcList(cmd, vl)
+	return packIfcList(cmd, vl)
 }
 
 func (vl ListValue) pack(cmd BufferEx) (int, error) {
-	return __PackIfcList(cmd, []interface{}(vl))
+	return packIfcList(cmd, []interface{}(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -860,15 +860,15 @@ func NewListerValue(list ListIter) *ListerValue {
 }
 
 func (vl *ListerValue) estimateSize() (int, error) {
-	return __PackList(nil, vl.list)
+	return packList(nil, vl.list)
 }
 
 func (vl *ListerValue) write(cmd BufferEx) (int, error) {
-	return __PackList(cmd, vl.list)
+	return packList(cmd, vl.list)
 }
 
 func (vl *ListerValue) pack(cmd BufferEx) (int, error) {
-	return __PackList(cmd, vl.list)
+	return packList(cmd, vl.list)
 }
 
 // GetType returns wire protocol value type.
@@ -898,15 +898,15 @@ func NewMapValue(vmap map[interface{}]interface{}) MapValue {
 }
 
 func (vl MapValue) estimateSize() (int, error) {
-	return __PackIfcMap(nil, vl)
+	return packIfcMap(nil, vl)
 }
 
 func (vl MapValue) write(cmd BufferEx) (int, error) {
-	return __PackIfcMap(cmd, vl)
+	return packIfcMap(cmd, vl)
 }
 
 func (vl MapValue) pack(cmd BufferEx) (int, error) {
-	return __PackIfcMap(cmd, vl)
+	return packIfcMap(cmd, vl)
 }
 
 // GetType returns wire protocol value type.
@@ -935,15 +935,15 @@ func NewJsonValue(vmap map[string]interface{}) JsonValue {
 }
 
 func (vl JsonValue) estimateSize() (int, error) {
-	return __PackJsonMap(nil, vl)
+	return packJsonMap(nil, vl)
 }
 
 func (vl JsonValue) write(cmd BufferEx) (int, error) {
-	return __PackJsonMap(cmd, vl)
+	return packJsonMap(cmd, vl)
 }
 
 func (vl JsonValue) pack(cmd BufferEx) (int, error) {
-	return __PackJsonMap(cmd, vl)
+	return packJsonMap(cmd, vl)
 }
 
 // GetType returns wire protocol value type.
@@ -978,15 +978,15 @@ func NewMapperValue(vmap MapIter) *MapperValue {
 }
 
 func (vl *MapperValue) estimateSize() (int, error) {
-	return __PackMap(nil, vl.vmap)
+	return packMap(nil, vl.vmap)
 }
 
 func (vl *MapperValue) write(cmd BufferEx) (int, error) {
-	return __PackMap(cmd, vl.vmap)
+	return packMap(cmd, vl.vmap)
 }
 
 func (vl *MapperValue) pack(cmd BufferEx) (int, error) {
-	return __PackMap(cmd, vl.vmap)
+	return packMap(cmd, vl.vmap)
 }
 
 // GetType returns wire protocol value type.
@@ -1029,7 +1029,7 @@ func (vl GeoJSONValue) write(cmd BufferEx) (int, error) {
 }
 
 func (vl GeoJSONValue) pack(cmd BufferEx) (int, error) {
-	return __PackGeoJson(cmd, string(vl))
+	return packGeoJson(cmd, string(vl))
 }
 
 // GetType returns wire protocol value type.

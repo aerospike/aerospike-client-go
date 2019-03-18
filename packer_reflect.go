@@ -22,10 +22,10 @@ import (
 )
 
 func init() {
-	__packObjectReflect = __concretePackObjectReflect
+	packObjectReflect = concretePackObjectReflect
 }
 
-func __concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
+func concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
 	// check for array and map
 	rv := reflect.ValueOf(obj)
 	switch reflect.TypeOf(obj).Kind() {
@@ -40,7 +40,7 @@ func __concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (in
 			for i := 0; i < l; i++ {
 				arr[i] = rv.Index(i).Interface().(uint8)
 			}
-			return __PackBytes(cmd, arr)
+			return packBytes(cmd, arr)
 		}
 
 		l := rv.Len()
@@ -48,7 +48,7 @@ func __concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (in
 		for i := 0; i < l; i++ {
 			arr[i] = rv.Index(i).Interface()
 		}
-		return __PackIfcList(cmd, arr)
+		return packIfcList(cmd, arr)
 	case reflect.Map:
 		if mapKey {
 			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", obj))
@@ -58,17 +58,17 @@ func __concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (in
 		for _, i := range rv.MapKeys() {
 			amap[i.Interface()] = rv.MapIndex(i).Interface()
 		}
-		return __PackIfcMap(cmd, amap)
+		return packIfcMap(cmd, amap)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return __PackObject(cmd, rv.Int(), false)
+		return packObject(cmd, rv.Int(), false)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return __PackObject(cmd, rv.Uint(), false)
+		return packObject(cmd, rv.Uint(), false)
 	case reflect.Bool:
-		return __PackObject(cmd, rv.Bool(), false)
+		return packObject(cmd, rv.Bool(), false)
 	case reflect.String:
-		return __PackObject(cmd, rv.String(), false)
+		return packObject(cmd, rv.String(), false)
 	case reflect.Float32, reflect.Float64:
-		return __PackObject(cmd, rv.Float(), false)
+		return packObject(cmd, rv.Float(), false)
 	}
 
 	panic(fmt.Sprintf("Type `%#v` not supported to pack.", obj))

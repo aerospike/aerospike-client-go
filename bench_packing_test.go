@@ -115,7 +115,7 @@ type myList []string
 func (cs myList) PackList(buf BufferEx) (int, error) {
 	size := 0
 	for _, elem := range cs {
-		n, err := __PackString(buf, elem)
+		n, err := packString(buf, elem)
 		size += n
 		if err != nil {
 			return size, err

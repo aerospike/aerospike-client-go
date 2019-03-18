@@ -180,14 +180,14 @@ func listGenericOpEncoder(op *Operation, packer BufferEx) (int, error) {
 
 func packCDTParamsAsArray(packer BufferEx, opType int16, params ...Value) (int, error) {
 	size := 0
-	n, err := __PackShortRaw(packer, opType)
+	n, err := packShortRaw(packer, opType)
 	if err != nil {
 		return n, err
 	}
 	size += n
 
 	if len(params) > 0 {
-		if n, err = __PackArrayBegin(packer, len(params)); err != nil {
+		if n, err = packArrayBegin(packer, len(params)); err != nil {
 			return size + n, err
 		}
 		size += n
@@ -208,20 +208,20 @@ func packCDTIfcParamsAsArray(packer BufferEx, opType int16, params ListValue) (i
 
 func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, params ...interface{}) (int, error) {
 	size := 0
-	n, err := __PackShortRaw(packer, opType)
+	n, err := packShortRaw(packer, opType)
 	if err != nil {
 		return n, err
 	}
 	size += n
 
 	if len(params) > 0 {
-		if n, err = __PackArrayBegin(packer, len(params)); err != nil {
+		if n, err = packArrayBegin(packer, len(params)); err != nil {
 			return size + n, err
 		}
 		size += n
 
 		for i := range params {
-			if n, err = __PackObject(packer, params[i], false); err != nil {
+			if n, err = packObject(packer, params[i], false); err != nil {
 				return size + n, err
 			}
 			size += n

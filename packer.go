@@ -26,18 +26,18 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-var __packObjectReflect func(BufferEx, interface{}, bool) (int, error)
+var packObjectReflect func(BufferEx, interface{}, bool) (int, error)
 
-func __PackIfcList(cmd BufferEx, list []interface{}) (int, error) {
+func packIfcList(cmd BufferEx, list []interface{}) (int, error) {
 	size := 0
-	n, err := __PackArrayBegin(cmd, len(list))
+	n, err := packArrayBegin(cmd, len(list))
 	if err != nil {
 		return n, err
 	}
 	size += n
 
 	for i := range list {
-		n, err := __PackObject(cmd, list[i], false)
+		n, err := packObject(cmd, list[i], false)
 		if err != nil {
 			return 0, err
 		}
@@ -49,12 +49,12 @@ func __PackIfcList(cmd BufferEx, list []interface{}) (int, error) {
 
 // PackList packs any slice that implement the ListIter interface
 func PackList(cmd BufferEx, list ListIter) (int, error) {
-	return __PackList(cmd, list)
+	return packList(cmd, list)
 }
 
-func __PackList(cmd BufferEx, list ListIter) (int, error) {
+func packList(cmd BufferEx, list ListIter) (int, error) {
 	size := 0
-	n, err := __PackArrayBegin(cmd, list.Len())
+	n, err := packArrayBegin(cmd, list.Len())
 	if err != nil {
 		return n, err
 	}
@@ -64,9 +64,9 @@ func __PackList(cmd BufferEx, list ListIter) (int, error) {
 	return size + n, err
 }
 
-func __PackValueArray(cmd BufferEx, list ValueArray) (int, error) {
+func packValueArray(cmd BufferEx, list ValueArray) (int, error) {
 	size := 0
-	n, err := __PackArrayBegin(cmd, len(list))
+	n, err := packArrayBegin(cmd, len(list))
 	if err != nil {
 		return n, err
 	}
@@ -83,31 +83,31 @@ func __PackValueArray(cmd BufferEx, list ValueArray) (int, error) {
 	return size, err
 }
 
-func __PackArrayBegin(cmd BufferEx, size int) (int, error) {
+func packArrayBegin(cmd BufferEx, size int) (int, error) {
 	if size < 16 {
-		return __PackAByte(cmd, 0x90|byte(size))
+		return packAByte(cmd, 0x90|byte(size))
 	} else if size <= math.MaxUint16 {
-		return __PackShort(cmd, 0xdc, int16(size))
+		return packShort(cmd, 0xdc, int16(size))
 	} else {
-		return __PackInt(cmd, 0xdd, int32(size))
+		return packInt(cmd, 0xdd, int32(size))
 	}
 }
 
-func __PackIfcMap(cmd BufferEx, theMap map[interface{}]interface{}) (int, error) {
+func packIfcMap(cmd BufferEx, theMap map[interface{}]interface{}) (int, error) {
 	size := 0
-	n, err := __PackMapBegin(cmd, len(theMap))
+	n, err := packMapBegin(cmd, len(theMap))
 	if err != nil {
 		return n, err
 	}
 	size += n
 
 	for k, v := range theMap {
-		n, err := __PackObject(cmd, k, true)
+		n, err := packObject(cmd, k, true)
 		if err != nil {
 			return 0, err
 		}
 		size += n
-		n, err = __PackObject(cmd, v, false)
+		n, err = packObject(cmd, v, false)
 		if err != nil {
 			return 0, err
 		}
@@ -119,24 +119,24 @@ func __PackIfcMap(cmd BufferEx, theMap map[interface{}]interface{}) (int, error)
 
 // PackJson packs json data
 func PackJson(cmd BufferEx, theMap map[string]interface{}) (int, error) {
-	return __PackJsonMap(cmd, theMap)
+	return packJsonMap(cmd, theMap)
 }
 
-func __PackJsonMap(cmd BufferEx, theMap map[string]interface{}) (int, error) {
+func packJsonMap(cmd BufferEx, theMap map[string]interface{}) (int, error) {
 	size := 0
-	n, err := __PackMapBegin(cmd, len(theMap))
+	n, err := packMapBegin(cmd, len(theMap))
 	if err != nil {
 		return n, err
 	}
 	size += n
 
 	for k, v := range theMap {
-		n, err := __PackString(cmd, k)
+		n, err := packString(cmd, k)
 		if err != nil {
 			return 0, err
 		}
 		size += n
-		n, err = __PackObject(cmd, v, false)
+		n, err = packObject(cmd, v, false)
 		if err != nil {
 			return 0, err
 		}
@@ -148,12 +148,12 @@ func __PackJsonMap(cmd BufferEx, theMap map[string]interface{}) (int, error) {
 
 // PackMap packs any map that implements the MapIter interface
 func PackMap(cmd BufferEx, theMap MapIter) (int, error) {
-	return __PackMap(cmd, theMap)
+	return packMap(cmd, theMap)
 }
 
-func __PackMap(cmd BufferEx, theMap MapIter) (int, error) {
+func packMap(cmd BufferEx, theMap MapIter) (int, error) {
 	size := 0
-	n, err := __PackMapBegin(cmd, theMap.Len())
+	n, err := packMapBegin(cmd, theMap.Len())
 	if err != nil {
 		return n, err
 	}
@@ -163,36 +163,36 @@ func __PackMap(cmd BufferEx, theMap MapIter) (int, error) {
 	return size + n, err
 }
 
-func __PackMapBegin(cmd BufferEx, size int) (int, error) {
+func packMapBegin(cmd BufferEx, size int) (int, error) {
 	if size < 16 {
-		return __PackAByte(cmd, 0x80|byte(size))
+		return packAByte(cmd, 0x80|byte(size))
 	} else if size <= math.MaxUint16 {
-		return __PackShort(cmd, 0xde, int16(size))
+		return packShort(cmd, 0xde, int16(size))
 	} else {
-		return __PackInt(cmd, 0xdf, int32(size))
+		return packInt(cmd, 0xdf, int32(size))
 	}
 }
 
 // PackBytes backs a byte array
 func PackBytes(cmd BufferEx, b []byte) (int, error) {
-	return __PackBytes(cmd, b)
+	return packBytes(cmd, b)
 }
 
-func __PackBytes(cmd BufferEx, b []byte) (int, error) {
+func packBytes(cmd BufferEx, b []byte) (int, error) {
 	size := 0
-	n, err := __PackByteArrayBegin(cmd, len(b)+1)
+	n, err := packByteArrayBegin(cmd, len(b)+1)
 	if err != nil {
 		return n, err
 	}
 	size += n
 
-	n, err = __PackAByte(cmd, ParticleType.BLOB)
+	n, err = packAByte(cmd, ParticleType.BLOB)
 	if err != nil {
 		return size + n, err
 	}
 	size += n
 
-	n, err = __PackByteArray(cmd, b)
+	n, err = packByteArray(cmd, b)
 	if err != nil {
 		return size + n, err
 	}
@@ -201,87 +201,87 @@ func __PackBytes(cmd BufferEx, b []byte) (int, error) {
 	return size, nil
 }
 
-func __PackByteArrayBegin(cmd BufferEx, length int) (int, error) {
+func packByteArrayBegin(cmd BufferEx, length int) (int, error) {
 	if length < 32 {
-		return __PackAByte(cmd, 0xa0|byte(length))
+		return packAByte(cmd, 0xa0|byte(length))
 	} else if length < 65536 {
-		return __PackShort(cmd, 0xda, int16(length))
+		return packShort(cmd, 0xda, int16(length))
 	} else {
-		return __PackInt(cmd, 0xdb, int32(length))
+		return packInt(cmd, 0xdb, int32(length))
 	}
 }
 
-func __PackObject(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
+func packObject(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
 	switch v := obj.(type) {
 	case Value:
 		return v.pack(cmd)
 	case []Value:
 		return ValueArray(v).pack(cmd)
 	case string:
-		return __PackString(cmd, v)
+		return packString(cmd, v)
 	case []byte:
-		return __PackBytes(cmd, obj.([]byte))
+		return packBytes(cmd, obj.([]byte))
 	case int8:
-		return __PackAInt(cmd, int(v))
+		return packAInt(cmd, int(v))
 	case uint8:
-		return __PackAInt(cmd, int(v))
+		return packAInt(cmd, int(v))
 	case int16:
-		return __PackAInt(cmd, int(v))
+		return packAInt(cmd, int(v))
 	case uint16:
-		return __PackAInt(cmd, int(v))
+		return packAInt(cmd, int(v))
 	case int32:
-		return __PackAInt(cmd, int(v))
+		return packAInt(cmd, int(v))
 	case uint32:
-		return __PackAInt(cmd, int(v))
+		return packAInt(cmd, int(v))
 	case int:
 		if Buffer.Arch32Bits {
-			return __PackAInt(cmd, v)
+			return packAInt(cmd, v)
 		}
-		return __PackAInt64(cmd, int64(v))
+		return packAInt64(cmd, int64(v))
 	case uint:
 		if Buffer.Arch32Bits {
-			return __PackAInt(cmd, int(v))
+			return packAInt(cmd, int(v))
 		}
-		return __PackAUInt64(cmd, uint64(v))
+		return packAUInt64(cmd, uint64(v))
 	case int64:
-		return __PackAInt64(cmd, v)
+		return packAInt64(cmd, v)
 	case uint64:
-		return __PackAUInt64(cmd, v)
+		return packAUInt64(cmd, v)
 	case time.Time:
-		return __PackAInt64(cmd, v.UnixNano())
+		return packAInt64(cmd, v.UnixNano())
 	case nil:
-		return __PackNil(cmd)
+		return packNil(cmd)
 	case bool:
-		return __PackBool(cmd, v)
+		return packBool(cmd, v)
 	case float32:
-		return __PackFloat32(cmd, v)
+		return packFloat32(cmd, v)
 	case float64:
-		return __PackFloat64(cmd, v)
+		return packFloat64(cmd, v)
 	case struct{}:
 		if mapKey {
 			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
-		return __PackIfcMap(cmd, map[interface{}]interface{}{})
+		return packIfcMap(cmd, map[interface{}]interface{}{})
 	case []interface{}:
 		if mapKey {
 			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
-		return __PackIfcList(cmd, v)
+		return packIfcList(cmd, v)
 	case map[interface{}]interface{}:
 		if mapKey {
 			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
-		return __PackIfcMap(cmd, v)
+		return packIfcMap(cmd, v)
 	case ListIter:
 		if mapKey {
 			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
-		return __PackList(cmd, obj.(ListIter))
+		return packList(cmd, obj.(ListIter))
 	case MapIter:
 		if mapKey {
 			panic(fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
-		return __PackMap(cmd, obj.(MapIter))
+		return packMap(cmd, obj.(MapIter))
 	}
 
 	// try to see if the object is convertible to a concrete value.
@@ -290,73 +290,73 @@ func __PackObject(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
 		return v.pack(cmd)
 	}
 
-	if __packObjectReflect != nil {
-		return __packObjectReflect(cmd, obj, mapKey)
+	if packObjectReflect != nil {
+		return packObjectReflect(cmd, obj, mapKey)
 	}
 
 	panic(fmt.Sprintf("Type `%v (%s)` not supported to pack. ", obj, reflect.TypeOf(obj).String()))
 }
 
-func __PackAUInt64(cmd BufferEx, val uint64) (int, error) {
-	return __PackUInt64(cmd, val)
+func packAUInt64(cmd BufferEx, val uint64) (int, error) {
+	return packUInt64(cmd, val)
 }
 
-func __PackAInt64(cmd BufferEx, val int64) (int, error) {
+func packAInt64(cmd BufferEx, val int64) (int, error) {
 	if val >= 0 {
 		if val < 128 {
-			return __PackAByte(cmd, byte(val))
+			return packAByte(cmd, byte(val))
 		}
 
 		if val <= math.MaxUint8 {
-			return __PackByte(cmd, 0xcc, byte(val))
+			return packByte(cmd, 0xcc, byte(val))
 		}
 
 		if val <= math.MaxUint16 {
-			return __PackShort(cmd, 0xcd, int16(val))
+			return packShort(cmd, 0xcd, int16(val))
 		}
 
 		if val <= math.MaxUint32 {
-			return __PackInt(cmd, 0xce, int32(val))
+			return packInt(cmd, 0xce, int32(val))
 		}
-		return __PackInt64(cmd, 0xd3, val)
+		return packInt64(cmd, 0xd3, val)
 	}
 
 	if val >= -32 {
-		return __PackAByte(cmd, 0xe0|(byte(val)+32))
+		return packAByte(cmd, 0xe0|(byte(val)+32))
 	}
 
 	if val >= math.MinInt8 {
-		return __PackByte(cmd, 0xd0, byte(val))
+		return packByte(cmd, 0xd0, byte(val))
 	}
 
 	if val >= math.MinInt16 {
-		return __PackShort(cmd, 0xd1, int16(val))
+		return packShort(cmd, 0xd1, int16(val))
 	}
 
 	if val >= math.MinInt32 {
-		return __PackInt(cmd, 0xd2, int32(val))
+		return packInt(cmd, 0xd2, int32(val))
 	}
-	return __PackInt64(cmd, 0xd3, val)
+	return packInt64(cmd, 0xd3, val)
 }
 
 // PackInt64 packs an int64
 func PackInt64(cmd BufferEx, val int64) (int, error) {
-	return __PackAInt64(cmd, val)
+	return packAInt64(cmd, val)
 }
 
-func __PackAInt(cmd BufferEx, val int) (int, error) {
-	return __PackAInt64(cmd, int64(val))
+func packAInt(cmd BufferEx, val int) (int, error) {
+	return packAInt64(cmd, int64(val))
 }
 
 // PackString packs a string
 func PackString(cmd BufferEx, val string) (int, error) {
-	return __PackString(cmd, val)
+	return packString(cmd, val)
 }
 
-func __PackString(cmd BufferEx, val string) (int, error) {
+func packString(cmd BufferEx, val string) (int, error) {
 	size := 0
 	slen := len(val) + 1
-	n, err := __PackByteArrayBegin(cmd, slen)
+	n, err := packByteArrayBegin(cmd, slen)
 	if err != nil {
 		return n, err
 	}
@@ -381,10 +381,10 @@ func __PackString(cmd BufferEx, val string) (int, error) {
 	return size, nil
 }
 
-func __PackGeoJson(cmd BufferEx, val string) (int, error) {
+func packGeoJson(cmd BufferEx, val string) (int, error) {
 	size := 0
 	slen := len(val) + 1
-	n, err := __PackByteArrayBegin(cmd, slen)
+	n, err := packByteArrayBegin(cmd, slen)
 	if err != nil {
 		return n, err
 	}
@@ -409,14 +409,14 @@ func __PackGeoJson(cmd BufferEx, val string) (int, error) {
 	return size, nil
 }
 
-func __PackByteArray(cmd BufferEx, src []byte) (int, error) {
+func packByteArray(cmd BufferEx, src []byte) (int, error) {
 	if cmd != nil {
 		return cmd.Write(src)
 	}
 	return len(src), nil
 }
 
-func __PackInt64(cmd BufferEx, valType int, val int64) (int, error) {
+func packInt64(cmd BufferEx, valType int, val int64) (int, error) {
 	if cmd != nil {
 		size, err := 1, cmd.WriteByte(byte(valType))
 		if err != nil {
@@ -431,10 +431,10 @@ func __PackInt64(cmd BufferEx, valType int, val int64) (int, error) {
 
 // PackUInt64 packs a uint64
 func PackUInt64(cmd BufferEx, val uint64) (int, error) {
-	return __PackUInt64(cmd, val)
+	return packUInt64(cmd, val)
 }
 
-func __PackUInt64(cmd BufferEx, val uint64) (int, error) {
+func packUInt64(cmd BufferEx, val uint64) (int, error) {
 	if cmd != nil {
 		size, err := 1, cmd.WriteByte(byte(0xcf))
 		if err != nil {
@@ -447,7 +447,7 @@ func __PackUInt64(cmd BufferEx, val uint64) (int, error) {
 	return 1 + 8, nil
 }
 
-func __PackInt(cmd BufferEx, valType int, val int32) (int, error) {
+func packInt(cmd BufferEx, valType int, val int32) (int, error) {
 	if cmd != nil {
 		size, err := 1, cmd.WriteByte(byte(valType))
 		if err != nil {
@@ -459,7 +459,7 @@ func __PackInt(cmd BufferEx, valType int, val int32) (int, error) {
 	return 1 + 4, nil
 }
 
-func __PackShort(cmd BufferEx, valType int, val int16) (int, error) {
+func packShort(cmd BufferEx, valType int, val int16) (int, error) {
 	if cmd != nil {
 		size, err := 1, cmd.WriteByte(byte(valType))
 		if err != nil {
@@ -474,14 +474,14 @@ func __PackShort(cmd BufferEx, valType int, val int16) (int, error) {
 
 // This method is not compatible with MsgPack specs and is only used by aerospike client<->server
 // for wire transfer only
-func __PackShortRaw(cmd BufferEx, val int16) (int, error) {
+func packShortRaw(cmd BufferEx, val int16) (int, error) {
 	if cmd != nil {
 		return cmd.WriteInt16(val)
 	}
 	return 2, nil
 }
 
-func __PackInfinity(cmd BufferEx) (int, error) {
+func packInfinity(cmd BufferEx) (int, error) {
 	if cmd != nil {
 		size := 0
 		n, err := 1, cmd.WriteByte(byte(0xd4))
@@ -507,7 +507,7 @@ func __PackInfinity(cmd BufferEx) (int, error) {
 	return 3, nil
 }
 
-func __PackWildCard(cmd BufferEx) (int, error) {
+func packWildCard(cmd BufferEx) (int, error) {
 	if cmd != nil {
 		size := 0
 		n, err := 1, cmd.WriteByte(byte(0xd4))
@@ -533,7 +533,7 @@ func __PackWildCard(cmd BufferEx) (int, error) {
 	return 3, nil
 }
 
-func __PackByte(cmd BufferEx, valType int, val byte) (int, error) {
+func packByte(cmd BufferEx, valType int, val byte) (int, error) {
 	if cmd != nil {
 		size := 0
 		n, err := 1, cmd.WriteByte(byte(valType))
@@ -555,10 +555,10 @@ func __PackByte(cmd BufferEx, valType int, val byte) (int, error) {
 
 // Pack nil packs a nil value
 func PackNil(cmd BufferEx) (int, error) {
-	return __PackNil(cmd)
+	return packNil(cmd)
 }
 
-func __PackNil(cmd BufferEx) (int, error) {
+func packNil(cmd BufferEx) (int, error) {
 	if cmd != nil {
 		return 1, cmd.WriteByte(0xc0)
 	}
@@ -567,10 +567,10 @@ func __PackNil(cmd BufferEx) (int, error) {
 
 // Pack bool packs a bool value
 func PackBool(cmd BufferEx, val bool) (int, error) {
-	return __PackBool(cmd, val)
+	return packBool(cmd, val)
 }
 
-func __PackBool(cmd BufferEx, val bool) (int, error) {
+func packBool(cmd BufferEx, val bool) (int, error) {
 	if cmd != nil {
 		if val {
 			return 1, cmd.WriteByte(0xc3)
@@ -582,10 +582,10 @@ func __PackBool(cmd BufferEx, val bool) (int, error) {
 
 // PackFloat32 packs float32 value
 func PackFloat32(cmd BufferEx, val float32) (int, error) {
-	return __PackFloat32(cmd, val)
+	return packFloat32(cmd, val)
 }
 
-func __PackFloat32(cmd BufferEx, val float32) (int, error) {
+func packFloat32(cmd BufferEx, val float32) (int, error) {
 	if cmd != nil {
 		size := 0
 		n, err := 1, cmd.WriteByte(0xca)
@@ -601,10 +601,10 @@ func __PackFloat32(cmd BufferEx, val float32) (int, error) {
 
 // PackFloat64 packs float64 value
 func PackFloat64(cmd BufferEx, val float64) (int, error) {
-	return __PackFloat64(cmd, val)
+	return packFloat64(cmd, val)
 }
 
-func __PackFloat64(cmd BufferEx, val float64) (int, error) {
+func packFloat64(cmd BufferEx, val float64) (int, error) {
 	if cmd != nil {
 		size := 0
 		n, err := 1, cmd.WriteByte(0xcb)
@@ -618,7 +618,7 @@ func __PackFloat64(cmd BufferEx, val float64) (int, error) {
 	return 1 + 8, nil
 }
 
-func __PackAByte(cmd BufferEx, val byte) (int, error) {
+func packAByte(cmd BufferEx, val byte) (int, error) {
 	if cmd != nil {
 		return 1, cmd.WriteByte(val)
 	}

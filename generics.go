@@ -768,7 +768,7 @@ func (tm intInterfaceMap) PackMap(buf BufferEx) (int, error) {
 			return size, err
 		}
 
-		n, err = __PackObject(buf, v, false)
+		n, err = packObject(buf, v, false)
 		size += n
 		if err != nil {
 			return size, err
@@ -1054,7 +1054,7 @@ func (tm int8InterfaceMap) PackMap(buf BufferEx) (int, error) {
 			return size, err
 		}
 
-		n, err = __PackObject(buf, v, false)
+		n, err = packObject(buf, v, false)
 		size += n
 		if err != nil {
 			return size, err
@@ -1340,7 +1340,7 @@ func (tm int16InterfaceMap) PackMap(buf BufferEx) (int, error) {
 			return size, err
 		}
 
-		n, err = __PackObject(buf, v, false)
+		n, err = packObject(buf, v, false)
 		size += n
 		if err != nil {
 			return size, err
@@ -1626,7 +1626,7 @@ func (tm int32InterfaceMap) PackMap(buf BufferEx) (int, error) {
 			return size, err
 		}
 
-		n, err = __PackObject(buf, v, false)
+		n, err = packObject(buf, v, false)
 		size += n
 		if err != nil {
 			return size, err
@@ -1912,7 +1912,7 @@ func (tm int64InterfaceMap) PackMap(buf BufferEx) (int, error) {
 			return size, err
 		}
 
-		n, err = __PackObject(buf, v, false)
+		n, err = packObject(buf, v, false)
 		size += n
 		if err != nil {
 			return size, err
@@ -2198,7 +2198,7 @@ func (tm uint16InterfaceMap) PackMap(buf BufferEx) (int, error) {
 			return size, err
 		}
 
-		n, err = __PackObject(buf, v, false)
+		n, err = packObject(buf, v, false)
 		size += n
 		if err != nil {
 			return size, err
@@ -2484,7 +2484,7 @@ func (tm uint32InterfaceMap) PackMap(buf BufferEx) (int, error) {
 			return size, err
 		}
 
-		n, err = __PackObject(buf, v, false)
+		n, err = packObject(buf, v, false)
 		size += n
 		if err != nil {
 			return size, err
@@ -2770,7 +2770,7 @@ func (tm float32InterfaceMap) PackMap(buf BufferEx) (int, error) {
 			return size, err
 		}
 
-		n, err = __PackObject(buf, v, false)
+		n, err = packObject(buf, v, false)
 		size += n
 		if err != nil {
 			return size, err
@@ -3056,7 +3056,7 @@ func (tm float64InterfaceMap) PackMap(buf BufferEx) (int, error) {
 			return size, err
 		}
 
-		n, err = __PackObject(buf, v, false)
+		n, err = packObject(buf, v, false)
 		size += n
 		if err != nil {
 			return size, err
@@ -3628,7 +3628,7 @@ func (tm uint64InterfaceMap) PackMap(buf BufferEx) (int, error) {
 			return size, err
 		}
 
-		n, err = __PackObject(buf, v, false)
+		n, err = packObject(buf, v, false)
 		size += n
 		if err != nil {
 			return size, err
