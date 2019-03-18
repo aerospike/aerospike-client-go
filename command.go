@@ -740,10 +740,6 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		priority |= 0x08
 	}
 
-	if policy.IncludeLDT {
-		priority |= 0x02
-	}
-
 	cmd.WriteByte(priority)
 	cmd.WriteByte(byte(policy.ScanPercent))
 
