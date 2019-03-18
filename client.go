@@ -406,13 +406,6 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-			return nil, err
-		}
-	}
-
 	// result recordset
 	taskID := uint64(xornd.Int64())
 	res := newRecordset(policy.RecordQueueSize, len(nodes), taskID)
@@ -452,14 +445,6 @@ func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, 
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, binNames ...string) error {
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until migrations on node are finished
-		if err := node.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-			recordset.signalEnd()
-			return err
-		}
-	}
-
 	command := newScanCommand(node, policy, namespace, setName, binNames, recordset, taskID)
 	return command.Execute()
 }
@@ -669,11 +654,6 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteUDF failed because cluster is empty.")
 	}
 
-	// wait until all migrations are finished
-	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-		return nil, err
-	}
-
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
 	errs := []error{}
@@ -708,11 +688,6 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteUDFNode failed because node is nil.")
 	}
 
-	// wait until all migrations are finished
-	if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-		return nil, err
-	}
-
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
 	command := newServerCommand(node, policy, statement)
@@ -740,13 +715,6 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
 	}
 
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-			return nil, err
-		}
-	}
-
 	// results channel must be async for performance
 	recSet := newRecordset(policy.RecordQueueSize, len(nodes), statement.TaskId)
 
@@ -771,13 +739,6 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)
-
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-			return nil, err
-		}
-	}
 
 	// results channel must be async for performance
 	recSet := newRecordset(policy.RecordQueueSize, 1, statement.TaskId)

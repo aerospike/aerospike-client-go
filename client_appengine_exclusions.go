@@ -52,13 +52,6 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "QueryAggregate failed because cluster is empty.")
 	}
 
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-			return nil, err
-		}
-	}
-
 	// results channel must be async for performance
 	recSet := newRecordset(policy.RecordQueueSize, len(nodes), statement.TaskId)
 

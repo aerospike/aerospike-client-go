@@ -102,13 +102,6 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-			return nil, err
-		}
-	}
-
 	// result recordset
 	taskID := uint64(xornd.Int64())
 	res := &Recordset{
@@ -158,14 +151,6 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 // and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, binNames ...string) error {
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until migrations on node are finished
-		if err := node.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-			recordset.signalEnd()
-			return err
-		}
-	}
-
 	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset, taskID)
 	return command.Execute()
 }
@@ -182,13 +167,6 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
-	}
-
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-			return nil, err
-		}
 	}
 
 	// results channel must be async for performance
@@ -218,13 +196,6 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)
-
-	if policy.WaitUntilMigrationsAreOver {
-		// wait until all migrations are finished
-		if err := clnt.cluster.WaitUntillMigrationIsFinished(policy.TotalTimeout); err != nil {
-			return nil, err
-		}
-	}
 
 	// results channel must be async for performance
 	recSet := &Recordset{

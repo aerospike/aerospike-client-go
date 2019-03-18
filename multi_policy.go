@@ -39,9 +39,6 @@ type MultiPolicy struct {
 
 	// Indicates if bin data is retrieved. If false, only record digests are retrieved.
 	IncludeBinData bool //= true;
-
-	// Blocks until on-going migrations are over
-	WaitUntilMigrationsAreOver bool //=false
 }
 
 // NewMultiPolicy initializes a MultiPolicy instance with default values.
@@ -50,11 +47,10 @@ func NewMultiPolicy() *MultiPolicy {
 	bp.SocketTimeout = 30 * time.Second
 
 	return &MultiPolicy{
-		BasePolicy:                 bp,
-		MaxConcurrentNodes:         0,
-		RecordQueueSize:            50,
-		IncludeBinData:             true,
-		WaitUntilMigrationsAreOver: false,
-		FailOnClusterChange:        true,
+		BasePolicy:          bp,
+		MaxConcurrentNodes:  0,
+		RecordQueueSize:     50,
+		IncludeBinData:      true,
+		FailOnClusterChange: true,
 	}
 }
