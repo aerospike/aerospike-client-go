@@ -90,6 +90,7 @@ var _ = Describe("Truncate operations test", func() {
 		})
 
 		It("must truncate only older records", func() {
+			time.Sleep(3 * time.Second)
 			t := time.Now()
 
 			Expect(countRecords(ns, set)).To(Equal(keyCount))
