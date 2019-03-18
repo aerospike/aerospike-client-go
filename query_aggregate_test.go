@@ -85,7 +85,7 @@ var _ = Describe("Query Aggregate operations", func() {
 
 	It("must return the sum of specified bin to the client", func() {
 		stm := as.NewStatement(ns, set)
-		res, err := client.QueryAggregate(nil, stm, "sum_single_bin", "sum_single_bin", "bin1")
+		res, err := client.QueryAggregate(nil, stm, "sum_single_bin", "sum_single_bin", as.StringValue("bin1"))
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(res.TaskId()).To(Equal(stm.TaskId))
@@ -99,7 +99,7 @@ var _ = Describe("Query Aggregate operations", func() {
 
 	It("must return Sum and Count to the client", func() {
 		stm := as.NewStatement(ns, set)
-		res, err := client.QueryAggregate(nil, stm, "average", "average", "bin1")
+		res, err := client.QueryAggregate(nil, stm, "average", "average", as.StringValue("bin1"))
 		Expect(err).ToNot(HaveOccurred())
 
 		for rec := range res.Results() {

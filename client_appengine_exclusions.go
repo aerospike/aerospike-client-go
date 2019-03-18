@@ -42,8 +42,8 @@ func SetLuaPath(lpath string) {
 //
 // This method is only supported by Aerospike 3 servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...interface{}) (*Recordset, error) {
-	statement.SetAggregateFunction(packageName, functionName, ToValueSlice(functionArgs), true)
+func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, error) {
+	statement.SetAggregateFunction(packageName, functionName, functionArgs, true)
 
 	policy = clnt.getUsableQueryPolicy(policy)
 

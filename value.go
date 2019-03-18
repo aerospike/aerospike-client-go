@@ -753,23 +753,6 @@ func (vl FloatValue) String() string {
 // Supported by Aerospike 3 servers only.
 type ValueArray []Value
 
-// ToValueSlice converts a []interface{} to []Value.
-// It will panic if any of array element types are not supported.
-func ToValueSlice(array []interface{}) []Value {
-	// TODO: Do something about this method
-	res := make([]Value, 0, len(array))
-	for i := range array {
-		res = append(res, NewValue(array[i]))
-	}
-	return res
-}
-
-// ToValueArray converts a []interface{} to a ValueArray type.
-// It will panic if any of array element types are not supported.
-func ToValueArray(array []interface{}) *ValueArray {
-	return NewValueArray(ToValueSlice(array))
-}
-
 // NewValueArray generates a ValueArray instance.
 func NewValueArray(array []Value) *ValueArray {
 	// return &ValueArray{*NewListerValue(valueList(array))}
