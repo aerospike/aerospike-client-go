@@ -29,7 +29,6 @@ var aerospikeTag = "as"
 
 const (
 	aerospikeMetaTag = "asm"
-	keyTag           = "key"
 )
 
 // SetAerospikeTag sets the bin tag to the specified tag.

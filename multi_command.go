@@ -24,10 +24,6 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-type multiCommand interface {
-	Stop()
-}
-
 type baseMultiCommand struct {
 	baseCommand
 
