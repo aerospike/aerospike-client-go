@@ -88,7 +88,7 @@ type partitionMap map[string]*Partitions
 func (pm partitionMap) clone() partitionMap {
 	// Make deep copy of map.
 	pmap := make(partitionMap, len(pm))
-	for ns, _ := range pm {
+	for ns := range pm {
 		pmap[ns] = pm[ns].clone()
 	}
 	return pmap
