@@ -6,16 +6,34 @@
 
 An Aerospike library for Go.
 
-This library is compatible with Go 1.7+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested)
+This library is compatible with Go 1.9+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
 
-Please refer to [`CHANGELOG.md`](CHANGELOG.md) if you encounter breaking changes.
+Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](http://godoc.org/github.com/aerospike/aerospike-client-go).
+
+You can refer to the test files for idiomatic use cases.
+
+Please refer to [`CHANGELOG.md`](CHANGELOG.md) for release notes, or if you encounter breaking changes.
+
+## Notice:
+
+We have released the Go Client v2, with some breaking API changes. Most changes are minor, and can be fixed with relative ease.
+
+The only major issue is that the behavior of the client when a key does not exist has changed. 
+
+It used to return no error, but a `nil` `Record.Bins`. Now it returns `ErrKeyNotFound` error.
+
+This is a significant changes, and you should search your code for all instances of `Bins == nil` and adapt the code accordingly.
+
+Please refer to the [`CHANGELOG.md`](CHANGELOG.md) for details.
 
 - [Usage](#Usage)
 - [Prerequisites](#Prerequisites)
 - [Installation](#Installation)
 - [Tweaking Performance](#Performance)
 - [Benchmarks](#Benchmarks)
-- [API Documentaion](#API-Documentation)
+- [API Documentation](#API-Documentation)
+- [Google App Engine](#App-Engine)
+- [Reflection](#Reflection)
 - [Tests](#Tests)
 - [Examples](#Examples)
   - [Tools](#Tools)
@@ -31,9 +49,11 @@ package main
 import (
   "fmt"
 
-  . "github.com/aerospike/aerospike-client-go"
+  aero "github.com/aerospike/aerospike-client-go"
 )
 
+// This is only for this example.
+// Please handle errors properly.
 func panicOnError(err error) {
   if err != nil {
     panic(err)
@@ -42,14 +62,14 @@ func panicOnError(err error) {
 
 func main() {
   // define a client to connect to
-  client, err := NewClient("127.0.0.1", 3000)
+  client, err := aero.NewClient("127.0.0.1", 3000)
   panicOnError(err)
 
-  key, err := NewKey("test", "aerospike", "key")
+  key, err := aero.NewKey("test", "aerospike", "key")
   panicOnError(err)
 
   // define some bins with data
-  bins := BinMap{
+  bins := aero.BinMap{
     "bin1": 42,
     "bin2": "An elephant is a mouse with an operating system",
     "bin3": []interface{}{"Go", 2009},
@@ -62,11 +82,6 @@ func main() {
   // read it back!
   rec, err := client.Get(nil, key)
   panicOnError(err)
-
-  // rec may not exist - so a checking is needed.
-  if rec != nil {
-    fmt.Printf("%#v\n", *rec)
-  }
 
   // delete the key, and check if key exists
   existed, err := client.Delete(nil, key)
@@ -83,7 +98,7 @@ Details about the API are available in the [`docs`](docs) directory.
 <a name="Prerequisites"></a>
 ## Prerequisites
 
-[Go](http://golang.org) version v1.7+ is required.
+[Go](http://golang.org) version v1.9+ is required.
 
 To install the latest stable version of Go, visit
 [http://golang.org/dl/](http://golang.org/dl/)
@@ -101,7 +116,7 @@ Supported operating systems:
 <a name="Installation"></a>
 ## Installation:
 
-1. Install Go 1.7+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
+1. Install Go 1.9+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
 2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go```
   * To update the client library: ```go get -u github.com/aerospike/aerospike-client-go```
 
@@ -143,7 +158,7 @@ A variety of example applications are provided in the [`examples`](examples) dir
 ### Tools
 
 A variety of clones of original tools are provided in the [`tools`](tools) directory.
-They show how to use more advanced features of the library to reimplement the same functionality in a more concise way.
+They show how to use more advanced features of the library to re-implement the same functionality in a more concise way.
 
 <a name="Benchmarks"></a>
 ## Benchmarks
@@ -155,6 +170,18 @@ See the [`tools/benchmark/README.md`](tools/benchmark/README.md) for details.
 ## API Documentation
 
 A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](http://godoc.org/github.com/aerospike/aerospike-client-go).
+
+<a name="App-Engine"></a>
+## Google App Engine
+
+To build the library for App Engine, build it with the build tag `app_engine`. Aggregation functionality is not available in this build.
+
+
+<a name="Reflection"></a>
+## Reflection, and Object API
+
+To make the library both flexible and fast, we had to integrate the reflection API (methods with `[Get/Put/...]Object` names) tightly in the library. In case you wanted to avoid mixing those API in your app inadvertently, you can use the build tag `as_performance` to remove those APIs from the build.
+
 
 ## License
 

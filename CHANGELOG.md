@@ -1,5 +1,41 @@
 # Change History
 
+## March 19 2019: v2.0.0
+  Major release. There are some breaking changes, both syntactically and semantically.
+  Most changes are minor, and can be fixed with relative ease.
+  The only major issue is that the behavior of the client when a key does not exist has changed. 
+  It used to return no error, but `nil` `Record.Bins`. Now it returns `ErrKeyNotFound` error.
+  This is a significant changes, and you should search your code for all instances of `Bins == nil` and adapt the code accordingly.
+  
+  * **Major**:
+    - Optimizes connection creation out of the transaction pipeline and makes it async.
+    - Put a threshold on the number of connections allowed to open simultaneously. Controlled via `ClientPolicy.OpeningConnectionThreshold`.
+    - Do not clear partition map entry when a node reports that it no longer owns that partition entry.
+    - Uses rolling timeout instead of strict timeout for connections.
+    - Remove `ToValueArray` and `ToValueSlice` methods to discourage such suboptimal use. Changes `QueryAggregate` signature to remove the need for those methods.
+    - Remove unnecessary conversion from BinMap to Bins in reflection API to speedup the command an avoid unnecessary memory allocations.
+    - Use shorter intervals with exponential back-off for tasks.
+
+  * **Breaking**:
+    - `Get`/`Put`/`Touch`/`Operate` and `ExecuteUDF` commands will return an `ErrKeyNotFound` error when the key does not exist in the database. The old behavior used to be not to return an error, but have an empty `Record.Bins`.
+    - Renames `Statement.Addfilter` to `Statement.SetFilter`, change the name and type of `Statement.Filters` to `Statement.Filter`.
+    - Remove `ClientPolicy.RequestProleReplicas`. THe client will always request them.
+    - Removes `ScanPolicy.ServerSocketTimeout` and `QueryPolicy.ServerSocketTimeout` in favor of the already existing `Policy.SocketTimeout`.
+    - Renames `Policy.Timeout` to `Policy.TotalTimeout` to make the naming consistent with other clients.
+    - Moves `atomic` package to internal.
+    - Moves `ParticleType` package to internal.
+    - Moves `RequestNodeInfo` and `RequestNodeStats` to methods on Node object, and adds `InfoPolicy` to the relevant API signatures.
+    - Removes `WaitUntilMigrationIsFinished` from `Scan`/`Query` policies.
+    - Changes `NewConnection` method signature, makes `LoginCommand` private.
+    - Makes `OperationType` private.
+    - Remove long deprecated method for pool management.
+    - Removes unused `ReadN` method in `Connection`.
+
+  * **Minor**:
+    - Fixes a race condition in the `AdminCommand`.
+    - Synchronize the `XORShift` to avoid race conditions.
+    - Completely removes deprecated LDT code.
+
 ## March 11 2019: v1.39.0
 
   Major improvements Release.
