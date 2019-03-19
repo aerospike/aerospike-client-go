@@ -19,7 +19,7 @@ package aerospike
 // 	"testing"
 
 // 	"github.com/aerospike/aerospike-client-go/pkg/ripemd160"
-// 	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
+// 	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
 // )
 
 // var str = strings.Repeat("abcd", 128)

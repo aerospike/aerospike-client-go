@@ -22,7 +22,7 @@ import (
 	gm "github.com/onsi/gomega"
 
 	// . "github.com/aerospike/aerospike-client-go"
-	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
+	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
 	. "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 

@@ -19,8 +19,8 @@ import (
 	"reflect"
 	"strconv"
 
+	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
 	. "github.com/aerospike/aerospike-client-go/types"
-	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
