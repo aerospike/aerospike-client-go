@@ -20,7 +20,7 @@ import (
 	"crypto/tls"
 )
 
-func cloneTlsConfig(c *tls.Config) *tls.Config {
+func cloneTLSConfig(c *tls.Config) *tls.Config {
 	// .Clone() method is not available in go versions before 1.8
 	return &tls.Config{
 		Certificates:             c.Certificates,

@@ -20,6 +20,6 @@ import (
 	"crypto/tls"
 )
 
-func cloneTlsConfig(c *tls.Config) *tls.Config {
+func cloneTLSConfig(c *tls.Config) *tls.Config {
 	return c.Clone()
 }
