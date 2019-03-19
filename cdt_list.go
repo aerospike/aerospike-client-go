@@ -67,6 +67,7 @@ const (
 	_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE = 40
 )
 
+// ListOrderType determines the order of returned values in CDT list operations.
 type ListOrderType int
 
 // Map storage order.
@@ -96,10 +97,12 @@ func NewListPolicy(order ListOrderType, flags int) *ListPolicy {
 // DefaultListPolicy is the default list policy and can be customized.
 var defaultListPolicy = NewListPolicy(ListOrderUnordered, ListWriteFlagsDefault)
 
+// DefaultListPolicy returns the default policy for CDT list operations.
 func DefaultListPolicy() *ListPolicy {
 	return defaultListPolicy
 }
 
+// ListReturnType determines the returned values in CDT List operations.
 type ListReturnType int
 
 const (
@@ -148,7 +151,9 @@ const (
 // type ListSortFlags int
 
 const (
-	ListSortFlagsDefault        = 0
+	// ListSortFlagsDefault is the default sort flag for CDT lists.
+	ListSortFlagsDefault = 0
+	// ListSortFlagsDropDuplicates will drop duplicate values in the results of the CDT list operation.
 	ListSortFlagsDropDuplicates = 2
 )
 
