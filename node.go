@@ -24,9 +24,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
-	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
 const (

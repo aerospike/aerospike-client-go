@@ -18,7 +18,7 @@ import (
 	"sync"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
-	. "github.com/aerospike/aerospike-client-go/types/atomic"
+	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 )
 
 type peers struct {

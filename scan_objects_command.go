@@ -16,7 +16,7 @@ package aerospike
 
 import . "github.com/aerospike/aerospike-client-go/types"
 
-// . "github.com/aerospike/aerospike-client-go/types/atomic"
+// . "github.com/aerospike/aerospike-client-go/internal/atomic"
 
 type scanObjectsCommand struct {
 	baseMultiCommand

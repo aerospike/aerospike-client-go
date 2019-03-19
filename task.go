@@ -17,8 +17,8 @@ package aerospike
 import (
 	"time"
 
+	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 	. "github.com/aerospike/aerospike-client-go/types"
-	. "github.com/aerospike/aerospike-client-go/types/atomic"
 )
 
 // Task interface defines methods for asynchronous tasks.

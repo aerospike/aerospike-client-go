@@ -20,7 +20,7 @@ import (
 	"os"
 
 	as "github.com/aerospike/aerospike-client-go"
-	"github.com/aerospike/aerospike-client-go/types/atomic"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
