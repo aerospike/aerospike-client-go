@@ -722,7 +722,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	if binNames != nil {
 		operationCount = len(binNames)
 	}
-	cmd.writeHeader(policy.BasePolicy, readAttr, 0, fieldCount, operationCount)
+	cmd.writeHeader(&policy.BasePolicy, readAttr, 0, fieldCount, operationCount)
 
 	if namespace != nil {
 		cmd.writeFieldString(*namespace, NAMESPACE)
@@ -876,13 +876,13 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	}
 
 	if write {
-		cmd.writeHeader(policy.BasePolicy, _INFO1_READ, _INFO2_WRITE, fieldCount, operationCount)
+		cmd.writeHeader(&policy.BasePolicy, _INFO1_READ, _INFO2_WRITE, fieldCount, operationCount)
 	} else {
 		readAttr := _INFO1_READ | _INFO1_NOBINDATA
 		if policy.IncludeBinData {
 			readAttr = _INFO1_READ
 		}
-		cmd.writeHeader(policy.BasePolicy, readAttr, 0, fieldCount, operationCount)
+		cmd.writeHeader(&policy.BasePolicy, readAttr, 0, fieldCount, operationCount)
 	}
 
 	if statement.Namespace != "" {

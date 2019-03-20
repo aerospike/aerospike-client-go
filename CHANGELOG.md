@@ -30,6 +30,7 @@
     - Makes `OperationType` private.
     - Remove long deprecated method for pool management.
     - Removes unused `ReadN` method in `Connection`.
+    - Embeds Policies as values and not pointers inside `MultiPolicy`, `ScanPolicy`, `QueryPolicy`
 
   * **Minor**:
     - Fixes a race condition in the `AdminCommand`.

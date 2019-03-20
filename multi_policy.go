@@ -19,7 +19,7 @@ import "time"
 // MultiPolicy contains parameters for policy attributes used in
 // query and scan operations.
 type MultiPolicy struct {
-	*BasePolicy
+	BasePolicy
 
 	// Maximum number of concurrent requests to server nodes at any poin int time.
 	// If there are 16 nodes in the cluster and maxConcurrentNodes is 8, then queries
@@ -43,7 +43,7 @@ type MultiPolicy struct {
 
 // NewMultiPolicy initializes a MultiPolicy instance with default values.
 func NewMultiPolicy() *MultiPolicy {
-	bp := NewPolicy()
+	bp := *NewPolicy()
 	bp.SocketTimeout = 30 * time.Second
 
 	return &MultiPolicy{
