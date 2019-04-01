@@ -16,6 +16,7 @@ package aerospike_test
 
 import (
 	"fmt"
+	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
 
@@ -72,6 +73,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 
 		// queries only work on indices
 		client.DropIndex(wpolicy, ns, set, set+binName)
+		time.Sleep(time.Second)
 
 		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
 		Expect(err).ToNot(HaveOccurred())
@@ -129,6 +131,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 
 		// queries only work on indices
 		client.DropIndex(wpolicy, ns, set, set+binName)
+		time.Sleep(time.Second)
 
 		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
 		Expect(err).ToNot(HaveOccurred())
@@ -184,6 +187,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 
 		// queries only work on indices
 		client.DropIndex(wpolicy, ns, set, set+binName)
+		time.Sleep(time.Second)
 
 		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
 		Expect(err).ToNot(HaveOccurred())
