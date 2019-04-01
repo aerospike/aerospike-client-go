@@ -17,6 +17,14 @@ func TTL(secsFromCitrusLeafEpoc uint32) uint32 {
 	case 0: // when set to don't expire, this value is returned
 		return math.MaxUint32
 	default:
-		return uint32(int64(CITRUSLEAF_EPOCH+secsFromCitrusLeafEpoc) - time.Now().Unix())
+		// Record may not have expired on server, but delay or clock differences may
+		// cause it to look expired on client. Floor at 1, not 0, to avoid old
+		// "never expires" interpretation.
+		now := time.Now().Unix()
+		expiration := int64(CITRUSLEAF_EPOCH + secsFromCitrusLeafEpoc)
+		if expiration < 0 || expiration > now {
+			return uint32(expiration - now)
+		}
+		return 1
 	}
 }
