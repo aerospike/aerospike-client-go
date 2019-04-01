@@ -59,7 +59,7 @@ func connectionFinalizer(c *Connection) {
 	c.Close()
 }
 
-func errToTimeoutErr(err error) error {
+func errToTimeoutErr(conn *Connection, err error) error {
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		return NewAerospikeError(TIMEOUT, err.Error())
 	}
@@ -94,7 +94,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, error) {
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
 		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
-		return nil, errToTimeoutErr(err)
+		return nil, errToTimeoutErr(nil, err)
 	}
 	newConn.conn = conn
 
@@ -136,7 +136,7 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
 		if err := sconn.VerifyHostname(host.TLSName); err != nil {
 			sconn.Close()
 			Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
-			return nil, errToTimeoutErr(err)
+			return nil, errToTimeoutErr(nil, err)
 		}
 	}
 
@@ -149,34 +149,39 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 	// make sure all bytes are written
 	// Don't worry about the loop, timeout has been set elsewhere
 	length := len(buf)
-	var r int
 	for total < length {
+		var r int
 		if err = ctn.updateDeadline(); err != nil {
 			break
 		}
-		if r, err = ctn.conn.Write(buf[total:]); err != nil {
+		r, err = ctn.conn.Write(buf[total:])
+		total += r
+		if err != nil {
 			break
 		}
-		total += r
 	}
 
-	if err == nil {
+	// If all bytes are written, ignore any potential error
+	// The error will bubble up on the next network io if it matters.
+	if total == len(buf) {
 		return total, nil
 	}
 
 	if ctn.node != nil {
 		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	}
+
 	ctn.Close()
-	return total, errToTimeoutErr(err)
+
+	return total, errToTimeoutErr(ctn, err)
 }
 
 // Read reads from connection buffer to the provided slice.
 func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 	// if all bytes are not read, retry until successful
 	// Don't worry about the loop; we've already set the timeout elsewhere
-	var r int
 	for total < length {
+		var r int
 		if err = ctn.updateDeadline(); err != nil {
 			break
 		}
@@ -187,23 +192,21 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 		}
 	}
 
-	if err == nil && total == length {
+	if total == length {
+		// If all required bytes are read, ignore any potential error.
+		// The error will bubble up on the next network io if it matters.
 		return total, nil
-	} else if err != nil {
-		if ctn.node != nil {
-			atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
-		}
-		if shouldClose(err) {
-			ctn.Close()
-		}
-		return total, errToTimeoutErr(err)
 	}
 
 	if ctn.node != nil {
 		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	}
-	ctn.Close()
-	return total, NewAerospikeError(SERVER_ERROR)
+
+	if shouldClose(err) {
+		ctn.Close()
+	}
+
+	return total, errToTimeoutErr(ctn, err)
 }
 
 // IsConnected returns true if the connection is not closed yet.
