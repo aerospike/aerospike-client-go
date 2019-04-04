@@ -1577,7 +1577,10 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 		binary.BigEndian.PutUint32(cmd.dataBuffer[22:], 0)
 		if !deadline.IsZero() {
 			serverTimeout := deadline.Sub(time.Now())
-			binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond+time.Millisecond))
+			if serverTimeout < time.Millisecond {
+				serverTimeout = time.Millisecond
+			}
+			binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond))
 		}
 
 		// Send command.

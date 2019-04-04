@@ -231,12 +231,17 @@ func (ctn *Connection) updateDeadline() error {
 		if ctn.socketTimeout == 0 {
 			socketDeadline = ctn.deadline
 		} else {
-			idleDeadline := now.Add(ctn.socketTimeout)
-			if idleDeadline.After(ctn.deadline) {
+			tDeadline := now.Add(ctn.socketTimeout)
+			if tDeadline.After(ctn.deadline) {
 				socketDeadline = ctn.deadline
 			} else {
-				socketDeadline = idleDeadline
+				socketDeadline = tDeadline
 			}
+		}
+
+		// floor to a millisecond to avoid too short timeouts
+		if socketDeadline.Sub(now) < time.Millisecond {
+			socketDeadline = now.Add(time.Millisecond)
 		}
 	}
 
