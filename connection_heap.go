@@ -129,6 +129,7 @@ func (h *singleConnectionHeap) Len() int {
 // If the heap is empty, nil is returned.
 // if the heap is full, offer will return false
 type connectionHeap struct {
+	size  int
 	heaps []singleConnectionHeap
 }
 
@@ -152,6 +153,7 @@ func newConnectionHeap(size int) *connectionHeap {
 	}
 
 	return &connectionHeap{
+		size:  size,
 		heaps: heaps,
 	}
 }
@@ -193,10 +195,15 @@ func (h *connectionHeap) DropIdle() {
 	}
 }
 
+// Cap returns the total capacity of the connectionHeap
+func (h *connectionHeap) Cap() int {
+	return h.size
+}
+
 // Len returns the number of connections in all or a specific sub-heap.
 // If hint is < 0 or invalid, then the total number of connections will be returned.
 func (h *connectionHeap) Len(hint byte) (cnt int) {
-	if hint >= 0 && int(hint) < len(h.heaps) {
+	if int(hint) < len(h.heaps) {
 		cnt = h.heaps[hint].Len()
 	} else {
 		for i := range h.heaps {
