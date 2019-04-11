@@ -71,8 +71,10 @@ func NewAerospikeError(code ResultCode, messages ...string) error {
 	return AerospikeError{error: err, resultCode: code}
 }
 
-var ErrKeyNotFound = NewAerospikeError(KEY_NOT_FOUND_ERROR, "Key not found.")
-var ErrRecordsetClosed = NewAerospikeError(RECORDSET_CLOSED, "Recordset has already been closed.")
-var ErrConnectionPoolEmpty = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE)
+var ErrKeyNotFound = NewAerospikeError(KEY_NOT_FOUND_ERROR)
+var ErrRecordsetClosed = NewAerospikeError(RECORDSET_CLOSED)
+var ErrConnectionPoolEmpty = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Connection pool is empty. this happens either all connection were in-use already, or no connections were available")
+var ErrTooManyConnectionsForNode = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Connection limit reached for this node. This value is controled via ClientPolicy.LimitConnectionsToQueueSize")
+var ErrTooManyOpeningConnections = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Too many connections are trying to open at once. This value is controled via ClientPolicy.OpeningConnectionThreshold")
 var ErrTimeout = NewAerospikeError(TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
 var ErrUDFBadResponse = NewAerospikeError(UDF_BAD_RESPONSE, "Invalid UDF return value")
