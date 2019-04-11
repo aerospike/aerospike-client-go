@@ -16,7 +16,7 @@
   * **Changes**
 
     - Adds a TLS connection example.
-    - Adds Cap method to connectionHeap.
+    - Adds `Cap` method to `connectionHeap`.
 
 ## March 19 2019: v2.0.0
   Major release. There are some breaking changes, both syntactically and semantically.
