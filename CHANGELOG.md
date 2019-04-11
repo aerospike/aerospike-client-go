@@ -1,5 +1,23 @@
 # Change History
 
+## April 11 2019: v2.1.0
+  Minor Feature and Improvements release.
+
+  * **New Features**
+
+    - Adds `WarmUp` method for `Client`, `Cluster` and `Node`. This method will fill the connection queue to ensure maximum and smooth performance on start up.
+
+  * **Improvements**
+
+    - Simplify connection Timeout calculation and floor the min timeout to 1ms.
+    - Simplify resetting server timeout for each iteration.
+    - Adds a few pre-defined errors to avoid allocating them during runtime.
+
+  * **Changes**
+
+    - Adds a TLS connection example.
+    - Adds Cap method to connectionHeap.
+
 ## March 19 2019: v2.0.0
   Major release. There are some breaking changes, both syntactically and semantically.
   Most changes are minor, and can be fixed with relative ease.
