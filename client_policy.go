@@ -51,10 +51,12 @@ type ClientPolicy struct {
 	LoginTimeout time.Duration //= 10 seconds
 
 	// ConnectionQueueCache specifies the size of the Connection Queue cache PER NODE.
+	// Note: One connection per node is reserved for tend operations and is not used for transactions.
 	ConnectionQueueSize int //= 256
 
 	// If set to true, will not create a new connection
 	// to the node if there are already `ConnectionQueueSize` active connections.
+	// Note: One connection per node is reserved for tend operations and is not used for transactions.
 	LimitConnectionsToQueueSize bool //= true
 
 	// Number of connections allowed to established at the same time.

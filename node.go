@@ -17,7 +17,6 @@ package aerospike
 import (
 	"bufio"
 	"io"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,6 +26,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -496,40 +496,38 @@ func (nd *Node) getConnection(deadline time.Time, timeout time.Duration) (conn *
 	return nd.getConnectionWithHint(deadline, timeout, 0)
 }
 
-// newConnection will try to open a connection until deadline.
-// if no deadline is defined, it will only try for _DEFAULT_TIMEOUT.
-func (nd *Node) newConnection(deadline time.Time, hint byte) {
-	if deadline.IsZero() {
-		deadline = time.Now().Add(_DEFAULT_TIMEOUT)
+// connectionLimitReached return true if connection pool is fully serviced.
+func (nd *Node) connectionLimitReached() (res bool) {
+	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize {
+		cc := nd.connectionCount.IncrementAndGet()
+		if cc > nd.cluster.clientPolicy.ConnectionQueueSize {
+			res = true
+		}
+
+		nd.connectionCount.DecrementAndGet()
 	}
 
-L:
-	// don't loop forever; free the goroutine after the deadline
-	// if there is no deadline, try only once
-	if time.Now().After(deadline) {
-		return
-	}
+	return res
+}
 
+// newConnection will make a new connection for the node.
+func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 	// if connection count is limited and enough connections are already created, don't create a new one
 	cc := nd.connectionCount.IncrementAndGet()
 	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
 		nd.connectionCount.DecrementAndGet()
 		atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
 
-		// give scheduler time to get stuff done
-		runtime.Gosched()
-		goto L
+		return nil, ErrTooManyConnectionsForNode
 	}
 
 	// Check for opening connection threshold
-	if nd.cluster.clientPolicy.OpeningConnectionThreshold > 0 {
+	if !overrideThreshold && nd.cluster.clientPolicy.OpeningConnectionThreshold > 0 {
 		ct := nd.cluster.connectionThreshold.IncrementAndGet()
 		if ct > nd.cluster.clientPolicy.OpeningConnectionThreshold {
 			nd.cluster.connectionThreshold.DecrementAndGet()
 
-			// give scheduler time to get stuff done
-			runtime.Gosched()
-			goto L
+			return nil, ErrTooManyOpeningConnections
 		}
 
 		defer nd.cluster.connectionThreshold.DecrementAndGet()
@@ -540,9 +538,7 @@ L:
 	if err != nil {
 		nd.connectionCount.DecrementAndGet()
 		atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
-		Logger.Error("Error trying to making a connection to the node %s: %s", nd.String(), err.Error())
-
-		goto L
+		return nil, err
 	}
 	conn.node = nd
 
@@ -552,12 +548,46 @@ L:
 
 		// Socket not authenticated. Do not put back into pool.
 		conn.Close()
-		Logger.Error("Error trying to making a connection to the node %s: %s", nd.String(), err.Error())
-
-		goto L
+		return nil, err
 	}
 
 	atomic.AddInt64(&nd.stats.ConnectionsSuccessful, 1)
+
+	return conn, nil
+}
+
+// makeConnectionForPool will try to open a connection until deadline.
+// if no deadline is defined, it will only try for _DEFAULT_TIMEOUT.
+func (nd *Node) makeConnectionForPool(deadline time.Time, hint byte) {
+	if deadline.IsZero() {
+		deadline = time.Now().Add(_DEFAULT_TIMEOUT)
+	}
+
+	// don't even try to make a new connection if connection limit is reached
+	if nd.connectionLimitReached() {
+		return
+	}
+
+L:
+	// don't loop forever; free the goroutine after the deadline
+	if time.Now().After(deadline) {
+		return
+	}
+
+	conn, err := nd.newConnection(false)
+	if err != nil {
+		// The following check can help break the loop under heavy load and remove
+		// quite a lot of latency.
+		if err == ErrTooManyConnectionsForNode {
+			// The connection pool is already full. No need for more connections.
+			return
+		}
+
+		Logger.Error("Error trying to making a connection to the node %s: %s", nd.String(), err.Error())
+
+		time.Sleep(time.Millisecond)
+		goto L
+	}
 
 	nd.putConnectionWithHint(conn, hint)
 }
@@ -589,7 +619,7 @@ L:
 
 	if conn == nil {
 		if !connReqd {
-			go nd.newConnection(deadline, hint)
+			go nd.makeConnectionForPool(deadline, hint)
 
 			// do not request to open a connection more than once.
 			connReqd = true
@@ -603,7 +633,7 @@ L:
 			}
 		}
 
-		runtime.Gosched()
+		time.Sleep(time.Millisecond)
 		goto L
 	}
 
@@ -624,11 +654,13 @@ L:
 // PutConnection puts back a connection to the pool.
 // If connection pool is full, the connection will be
 // closed and discarded.
-func (nd *Node) putConnectionWithHint(conn *Connection, hint byte) {
+func (nd *Node) putConnectionWithHint(conn *Connection, hint byte) bool {
 	conn.refresh()
 	if !nd.active.Get() || !nd.connections.Offer(conn, hint) {
 		conn.Close()
+		return false
 	}
+	return true
 }
 
 // PutConnection puts back a connection to the pool.
@@ -888,4 +920,44 @@ func (nd *Node) Rack(namespace string) (int, error) {
 	}
 
 	return -1, newAerospikeNodeError(nd, RACK_NOT_DEFINED)
+}
+
+// WarmUp fills the node's connection pool with connections.
+// This is necessary on startup for high traffic programs.
+// If the count is <= 0, the connection queue will be filled.
+// If the count is more than the size of the pool, the pool will be filled.
+// Note: One connection per node is reserved for tend operations and is not used for transactions.
+func (nd *Node) WarmUp(count int) (int, error) {
+	var g errgroup.Group
+	cnt := NewAtomicInt(0)
+
+	toAlloc := nd.connections.Cap() - nd.connections.Len(255)
+	if count < toAlloc && count > 0 {
+		toAlloc = count
+	}
+
+	for i := 0; i < toAlloc; i++ {
+		g.Go(func() error {
+			conn, err := nd.newConnection(true)
+			if err != nil {
+				if err == ErrTooManyConnectionsForNode {
+					return nil
+				}
+				panic(err)
+				return err
+			}
+
+			conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
+			if nd.putConnectionWithHint(conn, 0) {
+				cnt.IncrementAndGet()
+			} else {
+				conn.Close()
+			}
+
+			return nil
+		})
+	}
+
+	err := g.Wait()
+	return cnt.Get(), err
 }

@@ -66,12 +66,15 @@ var latency = flag.String("L", "", "Latency <columns>,<shift>.\n\tShow transacti
 var throughput = flag.Int64("g", 0, "Throttle transactions per second to a maximum value.\n\tIf tps is zero, do not throttle throughput.")
 var timeout = flag.Int("T", 0, "Read/Write timeout in milliseconds.")
 var maxRetries = flag.Int("maxRetries", 2, "Maximum number of retries before aborting the current transaction.")
-var connQueueSize = flag.Int("queueSize", 4096, "Maximum number of connections to pool.")
+var connQueueSize = flag.Int("queueSize", 128, "Maximum number of connections to pool.")
+var openingConnectionThreshold = flag.Int("openingConnectionThreshold", 64, "Maximum number of connections allowed to open simultaniously.")
+var warmUp = flag.Int("warmUp", 128, "Number of connections to open on start up.")
 
 var randBinData = flag.Bool("R", false, "Use dynamically generated random bin values instead of default static fixed bin values.")
 var useMarshalling = flag.Bool("M", false, "Use marshaling a struct instead of simple key/value operations")
 var debugMode = flag.Bool("d", false, "Run benchmarks in debug mode.")
-var profileMode = flag.Bool("profile", false, "Run benchmarks with profiler active on port 6060.")
+var profileMode = flag.Bool("profile", false, "Run benchmarks with profiler active on port 6060 by default.")
+var profilePort = flag.Int("profilePort", 6060, "Profile port.")
 var showUsage = flag.Bool("u", false, "Show usage information.")
 
 // parsed data
@@ -118,7 +121,7 @@ func main() {
 	if *profileMode {
 		runtime.SetBlockProfileRate(1)
 		go func() {
-			logger.Println(http.ListenAndServe(":6060", nil))
+			logger.Println(http.ListenAndServe(fmt.Sprintf(":%d", *profilePort), nil))
 		}()
 	}
 
@@ -138,10 +141,14 @@ func main() {
 	clientPolicy.User = *user
 	clientPolicy.Password = *password
 	clientPolicy.Timeout = 10 * time.Second
+	clientPolicy.OpeningConnectionThreshold = *openingConnectionThreshold
 	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		logger.Fatal(err)
 	}
+
+	cc, _ := client.WarmUp(*warmUp)
+	logger.Printf("Warm-up conns.\t:%d", cc)
 
 	logger.Println("Nodes Found:", client.GetNodeNames())
 
@@ -189,18 +196,20 @@ func throughputToString() string {
 func printBenchmarkParams() {
 	logger.Printf("hosts:\t\t%s", *host)
 	logger.Printf("port:\t\t%d", *port)
-	logger.Printf("namespace:\t\t%s", *namespace)
+	logger.Printf("namespace:\t%s", *namespace)
 	logger.Printf("set:\t\t%s", *set)
 	logger.Printf("keys/records:\t%d", *keyCount)
 	logger.Printf("object spec:\t%s, size: %d", binDataType, binDataSize)
-	logger.Printf("random bin values\t%v", *randBinData)
+	logger.Printf("random bin values:\t%v", *randBinData)
 	logger.Printf("workload:\t\t%s", workloadToString())
 	logger.Printf("concurrency:\t%d", *concurrency)
-	logger.Printf("max throughput\t%s", throughputToString())
-	logger.Printf("timeout\t\t%v ms", *timeout)
-	logger.Printf("max retries\t\t%d", *maxRetries)
+	logger.Printf("max throughput:\t%s", throughputToString())
+	logger.Printf("timeout:\t\t%v ms", *timeout)
+	logger.Printf("max retries:\t%d", *maxRetries)
 	logger.Printf("debug:\t\t%v", *debugMode)
 	logger.Printf("latency:\t\t%d:%d", latBase, latCols)
+	logger.Printf("conn. pool size:\t%d", *connQueueSize)
+	logger.Printf("conn. threshold:\t%d", *openingConnectionThreshold)
 }
 
 // parses an string of (key:value) type

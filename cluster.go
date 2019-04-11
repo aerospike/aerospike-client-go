@@ -24,6 +24,7 @@ import (
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
+	"golang.org/x/sync/errgroup"
 
 	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -1082,4 +1083,27 @@ func (clstr *Cluster) changePassword(user string, password string, hash []byte) 
 // ClientPolicy returns the client policy that is currently used with the cluster.
 func (clstr *Cluster) ClientPolicy() (res ClientPolicy) {
 	return clstr.clientPolicy
+}
+
+// WarmUp fills the connection pool with connections for all nodes.
+// This is necessary on startup for high traffic programs.
+// If the count is <= 0, the connection queue will be filled.
+// If the count is more than the size of the pool, the pool will be filled.
+// Note: One connection per node is reserved for tend operations and is not used for transactions.
+func (clstr *Cluster) WarmUp(count int) (int, error) {
+	var g errgroup.Group
+	cnt := NewAtomicInt(0)
+	nodes := clstr.GetNodes()
+	for i := range nodes {
+		node := nodes[i]
+		g.Go(func() error {
+			n, err := node.WarmUp(count)
+			cnt.AddAndGet(n)
+
+			return err
+		})
+	}
+
+	err := g.Wait()
+	return cnt.Get(), err
 }

@@ -1113,6 +1113,15 @@ func (clnt *Client) Stats() (map[string]interface{}, error) {
 	return res, nil
 }
 
+// WarmUp fills the connection pool with connections for all nodes.
+// This is necessary on startup for high traffic programs.
+// If the count is <= 0, the connection queue will be filled.
+// If the count is more than the size of the pool, the pool will be filled.
+// Note: One connection per node is reserved for tend operations and is not used for transactions.
+func (clnt *Client) WarmUp(count int) (int, error) {
+	return clnt.cluster.WarmUp(count)
+}
+
 //-------------------------------------------------------
 // Internal Methods
 //-------------------------------------------------------
