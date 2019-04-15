@@ -124,7 +124,12 @@ func (nd *Node) Refresh(peers *peers) error {
 	var infoMap map[string]string
 	var err error
 	if peers.usePeers.Get() {
-		infoMap, err = nd.RequestInfo(&nd.cluster.infoPolicy, "node", "peers-generation", "partition-generation", "racks:")
+		commands := []string{"node", "peers-generation", "partition-generation"}
+		if nd.cluster.clientPolicy.RackAware {
+			commands = append(commands, "racks:")
+		}
+
+		infoMap, err = nd.RequestInfo(&nd.cluster.infoPolicy, commands...)
 		if err != nil {
 			nd.refreshFailed(err)
 			return err
@@ -145,7 +150,10 @@ func (nd *Node) Refresh(peers *peers) error {
 			return err
 		}
 	} else {
-		commands := []string{"node", "partition-generation", "racks:", nd.cluster.clientPolicy.servicesString()}
+		commands := []string{"node", "partition-generation", nd.cluster.clientPolicy.servicesString()}
+		if nd.cluster.clientPolicy.RackAware {
+			commands = append(commands, "racks:")
+		}
 
 		infoMap, err = nd.RequestInfo(&nd.cluster.infoPolicy, commands...)
 		if err != nil {
