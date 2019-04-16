@@ -1,5 +1,13 @@
 # Change History
 
+## April 16 2019: v2.1.1
+  Minor Improvements release.
+
+  * **Improvements**
+
+    - Tend won't send `rack:` command to the nodes if `ClientPolicy.RackAware` is not set. PR #259, thanks to [Dmitry Maksimov](https://github.com/kolo)
+    - Adds a new GeoJson example.
+
 ## April 11 2019: v2.1.0
   Minor Feature and Improvements release.
 
