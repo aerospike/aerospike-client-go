@@ -82,6 +82,10 @@ func batchParseObject(
 		if err := setObjectField(cmd.resObjMappings, iobj, name, value, supportsFloat); err != nil {
 			return err
 		}
+
+		if err := setObjectMetaFields(obj, expiration, generation); err != nil {
+			return err
+		}
 	}
 
 	return nil

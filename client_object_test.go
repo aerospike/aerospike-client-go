@@ -68,6 +68,9 @@ var _ = Describe("Aerospike", func() {
 		}
 
 		type testObject struct {
+			TTL uint32 `asm:"ttl"`
+			Gen uint32 `asm:"gen"`
+
 			Nil  interface{}
 			NilP *int
 
@@ -193,6 +196,9 @@ var _ = Describe("Aerospike", func() {
 		}
 
 		type testObjectTagged struct {
+			TTL uint32 `asm:"ttl"`
+			Gen uint32 `asm:"gen"`
+
 			Nil  interface{} `as:"nil"`
 			NilP *int        `as:"nilp"`
 
@@ -625,6 +631,11 @@ var _ = Describe("Aerospike", func() {
 
 				resObj := &testObject{}
 				err = client.GetObject(nil, key, resObj)
+
+				// set the Gen and TTL
+				testObj.TTL = resObj.TTL
+				testObj.Gen = resObj.Gen
+
 				Expect(err).ToNot(HaveOccurred())
 				Expect(resObj).To(Equal(testObj))
 				Expect(resObj.AnonymP).NotTo(BeNil())
@@ -643,6 +654,11 @@ var _ = Describe("Aerospike", func() {
 				Expect(len(found)).To(Equal(1))
 				Expect(found[0]).To(BeTrue())
 				Expect(err).ToNot(HaveOccurred())
+
+				// set the Gen and TTL
+				testObj.TTL = resObj.TTL
+				testObj.Gen = resObj.Gen
+
 				Expect(resObj).To(Equal(testObj))
 				Expect(resObj.AnonymP).NotTo(BeNil())
 			})
@@ -655,6 +671,11 @@ var _ = Describe("Aerospike", func() {
 
 				resObj := &testObjectTagged{}
 				err = client.GetObject(nil, key, resObj)
+
+				// set the Gen and TTL
+				testObj.TTL = resObj.TTL
+				testObj.Gen = resObj.Gen
+
 				Expect(err).ToNot(HaveOccurred())
 				Expect(resObj).To(Equal(testObj))
 				Expect(resObj.AnonymP).NotTo(BeNil())
@@ -825,6 +846,7 @@ var _ = Describe("Aerospike", func() {
 				resObjects = nil
 				objects = nil
 
+				wpolicy := as.NewWritePolicy(0, 500)
 				for i := 0; i < 100; i++ {
 					key, err = as.NewKey(ns, set, randString(50))
 					Expect(err).ToNot(HaveOccurred())
@@ -839,7 +861,7 @@ var _ = Describe("Aerospike", func() {
 
 					testObj := makeTestObjectTagged()
 					objects = append(objects, testObj)
-					err := client.PutObject(nil, key, testObj)
+					err := client.PutObject(wpolicy, key, testObj)
 					Expect(err).ToNot(HaveOccurred())
 				}
 
@@ -868,6 +890,13 @@ var _ = Describe("Aerospike", func() {
 					} else {
 						Expect(found[i]).To(BeTrue())
 						resObj := resObjects[i].(*testObjectTagged)
+
+						Expect(resObj.TTL).To(BeNumerically("<=", 500))
+						Expect(resObj.Gen).To(BeNumerically(">", 0))
+
+						objects[i].TTL = resObj.TTL
+						objects[i].Gen = resObj.Gen
+
 						Expect(resObj).To(Equal(objects[i]))
 					}
 				}
@@ -926,19 +955,22 @@ var _ = Describe("Aerospike", func() {
 		Context("ScanObjects operations", func() {
 
 			type InnerStruct struct {
-				PersistNot      int `as:"-"`
-				PersistAsInner1 int `as:"inner1"`
+				PersistNot      int    `as:"-"`
+				PersistAsInner1 int    `as:"inner1"`
+				Gen             uint32 `asm:"gen"`
+				TTL             uint32 `asm:"ttl"`
 			}
 
 			BeforeEach(func() {
 				set = randString(50)
 
+				wp := as.NewWritePolicy(0, 500)
 				for i := 1; i < 100; i++ {
 					key, err = as.NewKey(ns, set, randString(50))
 					Expect(err).ToNot(HaveOccurred())
 
 					testObj := InnerStruct{PersistAsInner1: i}
-					err := client.PutObject(nil, key, &testObj)
+					err := client.PutObject(wp, key, &testObj)
 					Expect(err).ToNot(HaveOccurred())
 				}
 
@@ -957,8 +989,12 @@ var _ = Describe("Aerospike", func() {
 				for resObj := range retChan {
 					Expect(resObj.PersistAsInner1).To(BeNumerically(">", 0))
 					Expect(resObj.PersistNot).To(Equal(0))
+					Expect(resObj.Gen).To(BeNumerically(">", 0))
+					Expect(resObj.TTL).To(BeNumerically("<=", 500))
 
 					testObj.PersistAsInner1 = resObj.PersistAsInner1
+					testObj.Gen = resObj.Gen
+					testObj.TTL = resObj.TTL
 					Expect(resObj).To(Equal(testObj))
 					cnt++
 				}
@@ -975,19 +1011,22 @@ var _ = Describe("Aerospike", func() {
 		Context("QueryObjects operations", func() {
 
 			type InnerStruct struct {
-				PersistNot      int `as:"-"`
-				PersistAsInner1 int `as:"inner1"`
+				PersistNot      int    `as:"-"`
+				PersistAsInner1 int    `as:"inner1"`
+				Gen             uint32 `asm:"gen"`
+				TTL             uint32 `asm:"ttl"`
 			}
 
 			BeforeEach(func() {
 				set = randString(50)
 
+				wp := as.NewWritePolicy(5, 500)
 				for i := 1; i < 100; i++ {
 					key, err = as.NewKey(ns, set, randString(50))
 					Expect(err).ToNot(HaveOccurred())
 
 					testObj := InnerStruct{PersistAsInner1: i}
-					err := client.PutObject(nil, key, &testObj)
+					err := client.PutObject(wp, key, &testObj)
 					Expect(err).ToNot(HaveOccurred())
 				}
 
@@ -1007,8 +1046,12 @@ var _ = Describe("Aerospike", func() {
 				for resObj := range retChan {
 					Expect(resObj.PersistAsInner1).To(BeNumerically(">", 0))
 					Expect(resObj.PersistNot).To(Equal(0))
+					Expect(resObj.Gen).To(BeNumerically(">", 0))
+					Expect(resObj.TTL).To(BeNumerically("<=", 500))
 
 					testObj.PersistAsInner1 = resObj.PersistAsInner1
+					testObj.Gen = resObj.Gen
+					testObj.TTL = resObj.TTL
 					Expect(resObj).To(Equal(testObj))
 					cnt++
 				}
@@ -1044,8 +1087,12 @@ var _ = Describe("Aerospike", func() {
 					Expect(resObj.PersistAsInner1).To(BeNumerically(">=", 21))
 					Expect(resObj.PersistAsInner1).To(BeNumerically("<=", 70))
 					Expect(resObj.PersistNot).To(Equal(0))
+					Expect(resObj.Gen).To(BeNumerically(">", 0))
+					Expect(resObj.TTL).To(BeNumerically("<=", 500))
 
 					testObj.PersistAsInner1 = resObj.PersistAsInner1
+					testObj.Gen = resObj.Gen
+					testObj.TTL = resObj.TTL
 					Expect(resObj).To(Equal(testObj))
 					cnt++
 				}
@@ -1084,8 +1131,12 @@ var _ = Describe("Aerospike", func() {
 					Expect(resObj.PersistAsInner1).To(BeNumerically(">=", 21))
 					Expect(resObj.PersistAsInner1).To(BeNumerically("<=", 70))
 					Expect(resObj.PersistNot).To(Equal(0))
+					Expect(resObj.Gen).To(BeNumerically(">", 0))
+					Expect(resObj.TTL).To(BeNumerically("<=", 500))
 
 					testObj.PersistAsInner1 = resObj.PersistAsInner1
+					testObj.Gen = resObj.Gen
+					testObj.TTL = resObj.TTL
 					Expect(resObj).To(Equal(testObj))
 					cnt++
 

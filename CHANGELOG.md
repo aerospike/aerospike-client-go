@@ -1,7 +1,11 @@
 # Change History
 
-## April 16 2019: v2.1.1
-  Minor Improvements release.
+## April 25 2019: v2.1.1
+  Minor Fixes and improvements release.
+
+  * **Fixes**
+
+    - Fixes an issue where meta tags were ignored in reflection API for `ScanAllObjects`/`QueryObjects`/`BatchGetObjects`. Resolves #260.
 
   * **Improvements**
 

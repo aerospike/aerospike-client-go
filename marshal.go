@@ -28,7 +28,9 @@ import (
 var aerospikeTag = "as"
 
 const (
-	aerospikeMetaTag = "asm"
+	aerospikeMetaTag    = "asm"
+	aerospikeMetaTagGen = "gen"
+	aerospikeMetaTagTTL = "ttl"
 )
 
 // SetAerospikeTag sets the bin tag to the specified tag.
@@ -284,9 +286,9 @@ func cacheObjectTags(objType reflect.Type) {
 			}
 		}
 
-		if tagM == "ttl" {
+		if tagM == aerospikeMetaTagTTL {
 			ttl = append(ttl, f.Name)
-		} else if tagM == "gen" {
+		} else if tagM == aerospikeMetaTagGen {
 			gen = append(gen, f.Name)
 		} else if tagM != "" {
 			panic(fmt.Sprintf("Invalid metadata tag `%s` on struct attribute: %s.%s", tagM, objType.Name(), f.Name))
