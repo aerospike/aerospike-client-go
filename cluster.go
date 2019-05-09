@@ -37,11 +37,11 @@ type Cluster struct {
 	seeds *SyncVal //[]*Host
 
 	// All aliases for all nodes in cluster.
-	// Only accessed within cluster tend thread.
+	// Only accessed within cluster tend goroutine.
 	aliases *SyncVal //map[Host]*Node
 
 	// Map of active nodes in cluster.
-	// Only accessed within cluster tend thread.
+	// Only accessed within cluster tend goroutine.
 	nodesMap *SyncVal //map[string]*Node
 
 	// Active nodes in cluster.
@@ -50,8 +50,7 @@ type Cluster struct {
 	statsLock sync.Mutex
 
 	// Hints for best node for a partition
-	partitionWriteMap    atomic.Value //partitionMap
-	partitionUpdateMutex sync.Mutex
+	partitionWriteMap atomic.Value //partitionMap
 
 	clientPolicy        ClientPolicy
 	infoPolicy          InfoPolicy
@@ -825,7 +824,7 @@ func (clstr *Cluster) getSameRackNode(partition *Partition, seq *int) (*Node, er
 		node := replicaArray[index][partition.PartitionId]
 		*seq++
 
-		if node != nil {
+		if node != nil && node.IsActive() {
 			// assign a node to seqNode in case no node was found on the same rack was found
 			if seqNode == nil {
 				seqNode = node
@@ -864,11 +863,11 @@ func (clstr *Cluster) getSequenceNode(partition *Partition, seq *int) (*Node, er
 	if replicaArray != nil {
 		index := *seq % len(replicaArray)
 		node := replicaArray[index][partition.PartitionId]
+		*seq++
 
 		if node != nil && node.IsActive() {
 			return node, nil
 		}
-		*seq++
 	}
 
 	return nil, newInvalidNodeError(len(clstr.GetNodes()), partition)
