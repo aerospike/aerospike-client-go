@@ -60,7 +60,6 @@ func (btsk *baseTask) onComplete(ifc Task) chan error {
 				// Every 5 failed retries increase the interval
 				if btsk.retries.IncrementAndGet()%5 == 0 {
 					interval *= 2
-					println(interval)
 
 					if interval > 5*time.Second {
 						interval = 5 * time.Second

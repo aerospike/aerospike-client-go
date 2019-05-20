@@ -59,10 +59,14 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 		response := responseMap[command]
 
 		if strings.HasPrefix(response, "ERROR:2") {
-			// Task not found. This could mean task already completed or
-			// task not started yet.  We are going to have to assume that
-			// the task already completed...
-			continue
+			if etsk.retries.Get() > 20 {
+				// Task not found. This could mean task already completed or
+				// task not started yet.  We are going to have to assume that
+				// the task already completed...
+				continue
+			}
+			// Task not found, and number of retries are not enough; assume task is not started yet.
+			return false, nil
 		}
 
 		if strings.HasPrefix(response, "ERROR:") {

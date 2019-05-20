@@ -212,6 +212,12 @@ var _ = Describe("UDF/Query tests", func() {
 			// wait until UDF is created
 			Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
 
+			// a new record that is not in the range
+			key, err = as.NewKey(ns, set, randString(50))
+			Expect(err).ToNot(HaveOccurred())
+			err = client.PutBins(wpolicy, key, as.NewBin(bin1.Name, math.MaxInt16+1))
+			Expect(err).ToNot(HaveOccurred())
+
 			statement := as.NewStatement(ns, set)
 			statement.SetFilter(as.NewRangeFilter(bin1.Name, 0, math.MaxInt16))
 			exTask, err := client.ExecuteUDF(nil, statement, "udfDelete", "deleteRecord")
@@ -219,12 +225,6 @@ var _ = Describe("UDF/Query tests", func() {
 
 			// wait until UDF is run on all records
 			Expect(<-exTask.OnComplete()).ToNot(HaveOccurred())
-
-			// a new record that is not in the range
-			key, err = as.NewKey(ns, set, randString(50))
-			Expect(err).ToNot(HaveOccurred())
-			err = client.PutBins(wpolicy, key, as.NewBin(bin1.Name, math.MaxInt16+1))
-			Expect(err).ToNot(HaveOccurred())
 
 			// read all data and make sure it is consistent
 			recordset, err := client.ScanAll(nil, ns, set)

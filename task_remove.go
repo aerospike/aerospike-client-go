@@ -39,6 +39,7 @@ func (tskr *RemoveTask) IsDone() (bool, error) {
 	nodes := tskr.cluster.GetNodes()
 	done := false
 
+	find := "filename=" + tskr.packageName
 	for _, node := range nodes {
 		responseMap, err := node.requestInfoWithRetry(&tskr.cluster.infoPolicy, 5, command)
 		if err != nil {
@@ -46,7 +47,6 @@ func (tskr *RemoveTask) IsDone() (bool, error) {
 		}
 
 		for _, response := range responseMap {
-			find := "filename=" + tskr.packageName
 			index := strings.Index(response, find)
 
 			if index >= 0 {
