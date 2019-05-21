@@ -561,6 +561,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 	}
 
 	atomic.AddInt64(&nd.stats.ConnectionsSuccessful, 1)
+	conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
 
 	return conn, nil
 }
@@ -654,7 +655,6 @@ L:
 		return nil, err
 	}
 
-	conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
 	conn.refresh()
 
 	return conn, nil
