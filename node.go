@@ -534,6 +534,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 		ct := nd.cluster.connectionThreshold.IncrementAndGet()
 		if ct > nd.cluster.clientPolicy.OpeningConnectionThreshold {
 			nd.cluster.connectionThreshold.DecrementAndGet()
+			nd.connectionCount.DecrementAndGet()
 
 			return nil, ErrTooManyOpeningConnections
 		}
