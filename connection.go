@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	"crypto/tls"
-	"io"
 	"net"
 	"runtime"
 	"strconv"
@@ -61,21 +60,9 @@ func connectionFinalizer(c *Connection) {
 
 func errToTimeoutErr(conn *Connection, err error) error {
 	if err, ok := err.(net.Error); ok && err.Timeout() {
-		return NewAerospikeError(TIMEOUT, err.Error())
+		return ErrTimeout
 	}
 	return err
-}
-
-func shouldClose(err error) bool {
-	if err == io.EOF {
-		return true
-	}
-
-	if err, ok := err.(net.Error); ok && err.Timeout() {
-		return true
-	}
-
-	return false
 }
 
 // newConnection creates a connection on the network and returns the pointer
@@ -202,9 +189,7 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	}
 
-	if shouldClose(err) {
-		ctn.Close()
-	}
+	ctn.Close()
 
 	return total, errToTimeoutErr(ctn, err)
 }
@@ -362,7 +347,7 @@ func (ctn *Connection) setIdleTimeout(timeout time.Duration) {
 
 // isIdle returns true if the connection has reached the idle deadline.
 func (ctn *Connection) isIdle() bool {
-	return ctn.idleTimeout > 0 && !time.Now().Before(ctn.idleDeadline)
+	return ctn.idleTimeout > 0 && time.Now().After(ctn.idleDeadline)
 }
 
 // refresh extends the idle deadline of the connection.
