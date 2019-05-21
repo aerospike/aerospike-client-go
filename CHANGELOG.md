@@ -1,5 +1,18 @@
 # Change History
 
+## May 21 2019: v2.2.0
+  Minor Fixes and improvements release.
+
+  * **Fixes**
+
+    - Fixes an issue where an empty connection pool would cause a lock contention that would in turn lead to high CPU load.
+    - Fixes an issue where in some circumstances connection pool would be depleted of connections.
+    - Fixes an issue where the replica node would not be selected in case of master-node failure in `Policy.ReplicaPolicy.SEQUENCE` for reads.
+
+  * **Improvements**
+
+    - Transactions will not count a lack of connection in the node's connection pool as an iteration anymore.
+
 ## April 25 2019: v2.1.1
   Minor Fixes and improvements release.
 
