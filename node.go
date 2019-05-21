@@ -498,7 +498,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 
 	for time.Now().Before(deadline) {
 		conn, err = nd.getConnection(deadline, timeout)
-		if err == nil || conn != nil {
+		if err == nil && conn != nil {
 			return conn, nil
 		}
 
@@ -575,7 +575,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 func (nd *Node) makeConnectionForPool(hint byte) {
 	conn, err := nd.newConnection(false)
 	if err != nil {
-		Logger.Debug("Error trying to making a connection to the node %s: %s", nd.String(), err.Error())
+		Logger.Debug("Error trying to make a connection to the node %s: %s", nd.String(), err.Error())
 		return
 	}
 

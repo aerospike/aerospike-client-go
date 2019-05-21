@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"time"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -1518,6 +1519,8 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 
 	var err error
 
+	shouldSleep := false
+
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
 		// too many retries
@@ -1530,7 +1533,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 		}
 
 		// Sleep before trying again, after the first iteration
-		if iterations > 0 && policy.SleepBetweenRetries > 0 {
+		if policy.SleepBetweenRetries > 0 && shouldSleep {
 			// Do not sleep if you know you'll wake up after the deadline
 			if policy.TotalTimeout > 0 && time.Now().Add(interval).After(deadline) {
 				break
@@ -1541,6 +1544,8 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 				interval = time.Duration(float64(interval) * policy.SleepMultiplier)
 			}
 		}
+
+		shouldSleep = true
 
 		// check for command timeout
 		if policy.TotalTimeout > 0 && time.Now().After(deadline) {
@@ -1556,6 +1561,11 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 
 		cmd.conn, err = ifc.getConnection(policy)
 		if err != nil {
+			if err == ErrConnectionPoolEmpty {
+				// if the connection pool is empty, we still haven't tried
+				// the transaction to increase the iteration count.
+				iterations--
+			}
 			Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
 		}
@@ -1599,7 +1609,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 		// Parse results.
 		err = ifc.parseResult(ifc, cmd.conn)
 		if err != nil {
-			if err == io.EOF {
+			if _, ok := err.(net.Error); err == ErrTimeout || err == io.EOF || ok {
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
 				cmd.conn.Close()
