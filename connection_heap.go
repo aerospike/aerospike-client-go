@@ -200,15 +200,16 @@ func (h *connectionHeap) Cap() int {
 	return h.size
 }
 
-// Len returns the number of connections in all or a specific sub-heap.
-// If hint is < 0 or invalid, then the total number of connections will be returned.
+// Len returns the number of connections in a specific sub-heap.
 func (h *connectionHeap) Len(hint byte) (cnt int) {
-	if int(hint) < len(h.heaps) {
-		cnt = h.heaps[hint].Len()
-	} else {
-		for i := range h.heaps {
-			cnt += h.heaps[i].Len()
-		}
+	return h.heaps[hint].Len()
+}
+
+// LenAll returns the number of connections in all sub-heaps.
+func (h *connectionHeap) LenAll() int {
+	cnt := 0
+	for i := range h.heaps {
+		cnt += h.heaps[i].Len()
 	}
 
 	return cnt

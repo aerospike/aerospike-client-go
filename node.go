@@ -23,10 +23,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -490,12 +491,25 @@ func (nd *Node) dropIdleConnections() {
 // This method will retry to retrieve a connection in case the connection pool
 // is empty, until timeout is reached.
 func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err error) {
-	if timeout == 0 {
+	if timeout <= 0 {
 		timeout = _DEFAULT_TIMEOUT
 	}
 	deadline := time.Now().Add(timeout)
 
-	return nd.getConnection(deadline, timeout)
+	for time.Now().Before(deadline) {
+		conn, err = nd.getConnection(deadline, timeout)
+		if err == nil || conn != nil {
+			return conn, nil
+		}
+
+		if err == ErrServerNotAvailable {
+			return nil, err
+		}
+
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	return nil, err
 }
 
 // getConnection gets a connection to the node.
@@ -504,22 +518,12 @@ func (nd *Node) getConnection(deadline time.Time, timeout time.Duration) (conn *
 	return nd.getConnectionWithHint(deadline, timeout, 0)
 }
 
-// connectionLimitReached return true if connection pool is fully serviced.
-func (nd *Node) connectionLimitReached() (res bool) {
-	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize {
-		cc := nd.connectionCount.IncrementAndGet()
-		if cc > nd.cluster.clientPolicy.ConnectionQueueSize {
-			res = true
-		}
-
-		nd.connectionCount.DecrementAndGet()
-	}
-
-	return res
-}
-
 // newConnection will make a new connection for the node.
 func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
+	if !nd.active.Get() {
+		return nil, ErrServerNotAvailable
+	}
+
 	// if connection count is limited and enough connections are already created, don't create a new one
 	cc := nd.connectionCount.IncrementAndGet()
 	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
@@ -568,35 +572,11 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 
 // makeConnectionForPool will try to open a connection until deadline.
 // if no deadline is defined, it will only try for _DEFAULT_TIMEOUT.
-func (nd *Node) makeConnectionForPool(deadline time.Time, hint byte) {
-	if deadline.IsZero() {
-		deadline = time.Now().Add(_DEFAULT_TIMEOUT)
-	}
-
-	// don't even try to make a new connection if connection limit is reached
-	if nd.connectionLimitReached() {
-		return
-	}
-
-L:
-	// don't loop forever; free the goroutine after the deadline
-	if time.Now().After(deadline) {
-		return
-	}
-
+func (nd *Node) makeConnectionForPool(hint byte) {
 	conn, err := nd.newConnection(false)
 	if err != nil {
-		// The following check can help break the loop under heavy load and remove
-		// quite a lot of latency.
-		if err == ErrTooManyConnectionsForNode {
-			// The connection pool is already full. No need for more connections.
-			return
-		}
-
-		Logger.Error("Error trying to making a connection to the node %s: %s", nd.String(), err.Error())
-
-		time.Sleep(time.Millisecond)
-		goto L
+		Logger.Debug("Error trying to making a connection to the node %s: %s", nd.String(), err.Error())
+		return
 	}
 
 	nd.putConnectionWithHint(conn, hint)
@@ -605,11 +585,10 @@ L:
 // getConnectionWithHint gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
 func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration, hint byte) (conn *Connection, err error) {
+	if !nd.active.Get() {
+		return nil, ErrServerNotAvailable
+	}
 
-	var socketDeadline time.Time
-	connReqd := false
-
-L:
 	// try to get a valid connection from the connection pool
 	for conn = nd.connections.Poll(hint); conn != nil; conn = nd.connections.Poll(hint) {
 		if conn.IsConnected() {
@@ -619,32 +598,9 @@ L:
 		conn = nil
 	}
 
-	// don't loop forever; return the goroutine after deadline.
-	// deadline will always be set when requesting for a connection.
-	if connReqd && time.Now().After(socketDeadline) {
-		atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
-
-		return nil, ErrConnectionPoolEmpty
-	}
-
 	if conn == nil {
-		if !connReqd {
-			go nd.makeConnectionForPool(deadline, hint)
-
-			// do not request to open a connection more than once.
-			connReqd = true
-
-			// only try to set a deadline once without a penalty on each run.
-			// most call to this function will find a connection in the queue.
-			if timeout > 0 {
-				socketDeadline = time.Now().Add(timeout)
-			} else {
-				socketDeadline = time.Now().Add(_DEFAULT_TIMEOUT)
-			}
-		}
-
-		time.Sleep(time.Millisecond)
-		goto L
+		go nd.makeConnectionForPool(hint)
+		return nil, ErrConnectionPoolEmpty
 	}
 
 	if err = conn.SetTimeout(deadline, timeout); err != nil {
@@ -724,8 +680,10 @@ func (nd *Node) addAlias(aliasToAdd *Host) {
 
 // Close marks node as inactive and closes all of its pooled connections.
 func (nd *Node) Close() {
-	nd.active.Set(false)
-	atomic.AddInt64(&nd.stats.NodeRemoved, 1)
+	if nd.active.Get() {
+		nd.active.Set(false)
+		atomic.AddInt64(&nd.stats.NodeRemoved, 1)
+	}
 	nd.closeConnections()
 }
 
@@ -736,7 +694,6 @@ func (nd *Node) String() string {
 
 func (nd *Node) closeConnections() {
 	for conn := nd.connections.Poll(0); conn != nil; conn = nd.connections.Poll(0) {
-		// conn.(*Connection).Close()
 		conn.Close()
 	}
 
@@ -806,7 +763,7 @@ func (nd *Node) initTendConn(timeout time.Duration) error {
 
 	if nd.tendConn == nil || !nd.tendConn.IsConnected() {
 		// Tend connection required a long timeout
-		tendConn, err := nd.getConnection(deadline, timeout)
+		tendConn, err := nd.GetConnection(time.Second)
 		if err != nil {
 			return err
 		}
@@ -940,7 +897,7 @@ func (nd *Node) WarmUp(count int) (int, error) {
 	var g errgroup.Group
 	cnt := NewAtomicInt(0)
 
-	toAlloc := nd.connections.Cap() - nd.connections.Len(255)
+	toAlloc := nd.connections.Cap() - nd.connections.LenAll()
 	if count < toAlloc && count > 0 {
 		toAlloc = count
 	}
@@ -952,11 +909,9 @@ func (nd *Node) WarmUp(count int) (int, error) {
 				if err == ErrTooManyConnectionsForNode {
 					return nil
 				}
-				panic(err)
 				return err
 			}
 
-			conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
 			if nd.putConnectionWithHint(conn, 0) {
 				cnt.IncrementAndGet()
 			} else {
