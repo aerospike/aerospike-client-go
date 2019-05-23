@@ -825,7 +825,7 @@ func (clstr *Cluster) getSameRackNode(partition *Partition, seq *int) (*Node, er
 		*seq++
 
 		if node != nil && node.IsActive() {
-			// assign a node to seqNode in case no node was found on the same rack was found
+			// assign a node to seqNode in case no node was found on the same rack
 			if seqNode == nil {
 				seqNode = node
 			}
