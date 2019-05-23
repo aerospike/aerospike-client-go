@@ -820,7 +820,7 @@ func (clnt *Client) CreateComplexIndex(
 	}
 
 	response := responseMap[strCmd.String()]
-	if strings.ToUpper(response) == "OK" {
+	if strings.EqualFold(response, "OK") {
 		// Return task that could optionally be polled for completion.
 		return NewIndexTask(clnt.cluster, namespace, indexName), nil
 	}
@@ -862,7 +862,7 @@ func (clnt *Client) DropIndex(
 
 	response := responseMap[strCmd.String()]
 
-	if strings.ToUpper(response) == "OK" {
+	if strings.EqualFold(response, "OK") {
 		// Return task that could optionally be polled for completion.
 		task := NewDropIndexTask(clnt.cluster, namespace, indexName)
 		return <-task.OnComplete()
@@ -930,7 +930,7 @@ func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeL
 	}
 
 	response := responseMap[strCmd.String()]
-	if strings.ToUpper(response) == "OK" {
+	if strings.EqualFold(response, "OK") {
 		return nil
 	}
 
