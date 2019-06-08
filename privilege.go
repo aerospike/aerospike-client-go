@@ -62,6 +62,10 @@ func (p *Privilege) code() int {
 	// User can read and write data through user defined functions.
 	case ReadWriteUDF:
 		return 12
+
+	// User can read and write data through user defined functions.
+	case Write:
+		return 13
 	}
 
 	panic("invalid role: " + p.Code)
@@ -85,7 +89,7 @@ func privilegeFrom(code uint8) privilegeCode {
 	case 2:
 		return DataAdmin
 
-	// User can read data only.
+	// User can read data.
 	case 10:
 		return Read
 
@@ -96,6 +100,10 @@ func privilegeFrom(code uint8) privilegeCode {
 	// User can read and write data through user defined functions.
 	case 12:
 		return ReadWriteUDF
+
+	// User can only write data.
+	case 13:
+		return Write
 	}
 
 	panic(fmt.Sprintf("invalid privilege code: %v", code))
