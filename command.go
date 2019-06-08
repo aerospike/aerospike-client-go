@@ -1523,8 +1523,10 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
+		iterations++
+
 		// too many retries
-		if iterations++; (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
+		if (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
 			if ae, ok := err.(AerospikeError); ok {
 				err = NewAerospikeError(ae.ResultCode(), fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err.Error()))
 			}
