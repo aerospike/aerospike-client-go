@@ -1,5 +1,12 @@
 # Change History
 
+## August 13 2019: v2.2.1
+  Minor improvement release.
+
+  * **Improvements**
+
+    - Supports the `Write` role in server v4.6.0.2+
+
 ## May 21 2019: v2.2.0
   Minor Fixes and improvements release.
 
