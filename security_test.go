@@ -61,10 +61,10 @@ var _ = Describe("Security tests", func() {
 				defer client.DropRole(nil, "dummy-role")
 
 				// Add a user defined Role
-				err := client.CreateRole(nil, "role-read-test-test", []as.Privilege{{Code: as.Read, Namespace: ns, SetName: "test"}})
+				err := client.CreateRole(nil, "role-read-test-test", []as.Privilege{{Code: as.Read, Namespace: ns, SetName: "test"}}, []string{getOutboundIP().String()})
 				Expect(err).ToNot(HaveOccurred())
 
-				err = client.CreateRole(nil, "role-write-test", []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: ""}})
+				err = client.CreateRole(nil, "role-write-test", []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: ""}}, []string{getOutboundIP().String()})
 				Expect(err).ToNot(HaveOccurred())
 
 				time.Sleep(time.Second)
@@ -80,7 +80,7 @@ var _ = Describe("Security tests", func() {
 				err = client.RevokePrivileges(nil, "role-read-test-test", []as.Privilege{{Code: as.ReadWriteUDF, Namespace: ns, SetName: "test"}})
 				Expect(err).ToNot(HaveOccurred())
 
-				err = client.CreateRole(nil, "dummy-role", []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}})
+				err = client.CreateRole(nil, "dummy-role", []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}, []string{getOutboundIP().String()})
 				Expect(err).ToNot(HaveOccurred())
 
 				time.Sleep(time.Second)

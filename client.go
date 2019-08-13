@@ -1042,11 +1042,11 @@ func (clnt *Client) QueryRoles(policy *AdminPolicy) ([]*Role, error) {
 }
 
 // CreateRole creates a user-defined role.
-func (clnt *Client) CreateRole(policy *AdminPolicy, roleName string, privileges []Privilege) error {
+func (clnt *Client) CreateRole(policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string) error {
 	policy = clnt.getUsableAdminPolicy(policy)
 
 	command := newAdminCommand(nil)
-	return command.createRole(clnt.cluster, policy, roleName, privileges)
+	return command.createRole(clnt.cluster, policy, roleName, privileges, whitelist)
 }
 
 // DropRole removes a user-defined role.
@@ -1071,6 +1071,14 @@ func (clnt *Client) RevokePrivileges(policy *AdminPolicy, roleName string, privi
 
 	command := newAdminCommand(nil)
 	return command.revokePrivileges(clnt.cluster, policy, roleName, privileges)
+}
+
+// SetWhitelist sets IP address whitelist for a role. If whitelist is nil or empty, it removes existing whitelist from role.
+func (clnt *Client) SetWhitelist(policy *AdminPolicy, roleName string, whitelist []string) error {
+	policy = clnt.getUsableAdminPolicy(policy)
+
+	command := newAdminCommand(nil)
+	return command.setWhitelist(clnt.cluster, policy, roleName, whitelist)
 }
 
 // Cluster exposes the cluster object to the user

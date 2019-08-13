@@ -20,6 +20,7 @@ type Role struct {
 	Name string
 
 	Privileges []Privilege
+	Whitelist  []string
 }
 
 // Pre-defined user roles.
