@@ -62,9 +62,6 @@ const (
 	_HEADER_REMAINING int = 16
 	_RESULT_CODE      int = 9
 	_QUERY_END        int = 50
-
-	// Result Codes
-	_INVALID_COMMAND int = 54
 )
 
 type adminCommand struct {
