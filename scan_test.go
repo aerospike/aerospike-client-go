@@ -137,6 +137,19 @@ var _ = Describe("Scan operations", func() {
 		Expect(len(keys)).To(Equal(0))
 	})
 
+	It("must Scan and get all records back from all nodes concurrently with policy.RecordsPerSecond set", func() {
+		Expect(len(keys)).To(Equal(keyCount))
+
+		policy := as.NewScanPolicy()
+		policy.RecordsPerSecond = keyCount - 100
+		recordset, err := client.ScanAll(policy, ns, set)
+		Expect(err).ToNot(HaveOccurred())
+
+		checkResults(recordset, 0, false)
+
+		Expect(len(keys)).To(Equal(0))
+	})
+
 	It("must Scan and get all records back from all nodes concurrently without the Bin Data", func() {
 		Expect(len(keys)).To(Equal(keyCount))
 

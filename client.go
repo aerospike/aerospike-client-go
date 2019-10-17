@@ -630,8 +630,51 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 }
 
 //----------------------------------------------------------
-// Query/Execute UDF (Supported by Aerospike 3 servers only)
+// Query/Execute (Supported by Aerospike 3 servers only)
 //----------------------------------------------------------
+
+// QueryExecute applies operations on records that match the statement filter.
+// Records are not returned to the client.
+// This asynchronous server call will return before the command is complete.
+// The user can optionally wait for command completion by using the returned
+// ExecuteTask instance.
+//
+// This method is only supported by Aerospike 3 servers.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) QueryExecute(policy *QueryPolicy,
+	writePolicy *WritePolicy,
+	statement *Statement,
+	ops ...*Operation,
+) (*ExecuteTask, error) {
+
+	if len(ops) == 0 {
+		return nil, ErrNoOperationsSpecified
+	}
+
+	if len(statement.BinNames) > 0 {
+		return nil, ErrNoBinNamesAlloedInQueryExecute
+	}
+
+	policy = clnt.getUsableQueryPolicy(policy)
+	writePolicy = clnt.getUsableWritePolicy(writePolicy)
+
+	nodes := clnt.cluster.GetNodes()
+	if len(nodes) == 0 {
+		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteOperations failed because cluster is empty.")
+	}
+
+	statement.prepare(false)
+
+	errs := []error{}
+	for i := range nodes {
+		command := newServerCommand(nodes[i], policy, writePolicy, statement, ops)
+		if err := command.Execute(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return NewExecuteTask(clnt.cluster, statement), mergeErrors(errs)
+}
 
 // ExecuteUDF applies user defined function on records that match the statement filter.
 // Records are not returned to the client.
@@ -658,7 +701,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 
 	errs := []error{}
 	for i := range nodes {
-		command := newServerCommand(nodes[i], policy, statement)
+		command := newServerCommand(nodes[i], policy, nil, statement, nil)
 		if err := command.Execute(); err != nil {
 			errs = append(errs, err)
 		}
@@ -690,7 +733,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
-	command := newServerCommand(node, policy, statement)
+	command := newServerCommand(node, policy, nil, statement, nil)
 	err := command.Execute()
 
 	return NewExecuteTask(clnt.cluster, statement), err

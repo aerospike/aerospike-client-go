@@ -33,7 +33,7 @@ type queryAggregateCommand struct {
 
 func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryAggregateCommand {
 	cmd := &queryAggregateCommand{
-		queryCommand: *newQueryCommand(node, policy, statement, recordset),
+		queryCommand: *newQueryCommand(node, policy, nil, statement, nil, recordset),
 	}
 
 	cmd.terminationErrorType = QUERY_TERMINATED

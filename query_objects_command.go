@@ -22,7 +22,7 @@ type queryObjectsCommand struct {
 
 func newQueryObjectsCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryObjectsCommand {
 	cmd := &queryObjectsCommand{
-		queryCommand: *newQueryCommand(node, policy, statement, recordset),
+		queryCommand: *newQueryCommand(node, policy, nil, statement, nil, recordset),
 	}
 
 	cmd.terminationErrorType = QUERY_TERMINATED

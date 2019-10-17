@@ -692,6 +692,11 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		fieldCount++
 	}
 
+	if policy.RecordsPerSecond > 0 {
+		cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
 	// Estimate scan options size.
 	cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
@@ -733,6 +738,10 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		cmd.writeFieldString(*setName, TABLE)
 	}
 
+	if policy.RecordsPerSecond > 0 {
+		cmd.writeFieldInt32(int32(policy.RecordsPerSecond), RECORDS_PER_SECOND)
+	}
+
 	cmd.writeFieldHeader(2, SCAN_OPTIONS)
 	priority := byte(policy.Priority)
 	priority <<= 4
@@ -762,11 +771,16 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
-func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, write bool) (err error) {
+func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, operations []*Operation, write bool) (err error) {
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
 	predExpsSize := 0
+
+	recordsPerSecond := 0
+	if !write {
+		recordsPerSecond = policy.RecordsPerSecond
+	}
 
 	cmd.begin()
 
@@ -829,6 +843,12 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		// Estimate scan timeout size.
 		cmd.dataOffset += (4 + int(_FIELD_HEADER_SIZE))
 		fieldCount++
+
+		// Estimate records per second size.
+		if recordsPerSecond > 0 {
+			cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
 	}
 
 	if len(statement.predExps) > 0 {
@@ -859,11 +879,14 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		fieldCount += 4
 	}
 
-	if statement.Filter == nil {
-		if len(statement.BinNames) > 0 {
-			for _, binName := range statement.BinNames {
-				cmd.estimateOperationSizeForBinName(binName)
-			}
+	// Operations (used in query execute) and bin names (used in scan/query) are mutually exclusive.
+	if len(operations) > 0 {
+		for _, op := range operations {
+			cmd.estimateOperationSizeForOperation(op)
+		}
+	} else if len(statement.BinNames) > 0 && statement.Filter == nil {
+		for _, binName := range statement.BinNames {
+			cmd.estimateOperationSizeForBinName(binName)
 		}
 	}
 
@@ -872,12 +895,14 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 	}
 
 	operationCount := 0
-	if statement.Filter == nil && len(statement.BinNames) > 0 {
+	if len(operations) > 0 {
+		operationCount = len(operations)
+	} else if statement.Filter == nil && len(statement.BinNames) > 0 {
 		operationCount = len(statement.BinNames)
 	}
 
 	if write {
-		cmd.writeHeader(&policy.BasePolicy, _INFO1_READ, _INFO2_WRITE, fieldCount, operationCount)
+		cmd.writeHeaderWithPolicy(wpolicy, 0, _INFO2_WRITE, fieldCount, operationCount)
 	} else {
 		readAttr := _INFO1_READ | _INFO1_NOBINDATA
 		if policy.IncludeBinData {
@@ -943,6 +968,11 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		// Write scan timeout
 		cmd.writeFieldHeader(4, SCAN_TIMEOUT)
 		cmd.WriteInt32(int32(policy.SocketTimeout / time.Millisecond)) // in milliseconds
+
+		// Write records per second.
+		if recordsPerSecond > 0 {
+			cmd.writeFieldInt32(int32(recordsPerSecond), RECORDS_PER_SECOND)
+		}
 	}
 
 	if len(statement.predExps) > 0 {
@@ -968,12 +998,14 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, statement *Statement, writ
 		cmd.writeUdfArgs(functionArgs)
 	}
 
-	// scan binNames come last
-	if statement.Filter == nil {
-		if len(statement.BinNames) > 0 {
-			for _, binName := range statement.BinNames {
-				cmd.writeOperationForBinName(binName, _READ)
-			}
+	if len(operations) > 0 {
+		for _, op := range operations {
+			cmd.writeOperationForOperation(op)
+		}
+	} else if len(statement.BinNames) > 0 && statement.Filter == nil {
+		// scan binNames come last
+		for _, binName := range statement.BinNames {
+			cmd.writeOperationForBinName(binName, _READ)
 		}
 	}
 
@@ -1341,6 +1373,16 @@ func (cmd *baseCommand) writeUdfArgs(value *ValueArray) error {
 	cmd.writeFieldHeader(0, UDF_ARGLIST)
 	return nil
 
+}
+
+func (cmd *baseCommand) writeFieldInt32(val int32, ftype FieldType) {
+	cmd.writeFieldHeader(4, ftype)
+	cmd.WriteInt32(val)
+}
+
+func (cmd *baseCommand) writeFieldInt64(val int64, ftype FieldType) {
+	cmd.writeFieldHeader(8, ftype)
+	cmd.WriteInt64(val)
 }
 
 func (cmd *baseCommand) writeFieldString(str string, ftype FieldType) {

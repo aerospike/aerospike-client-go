@@ -55,8 +55,10 @@ var _ = Describe("Query operations", func() {
 	bin3 := as.NewBin("Aerospike3", rand.Intn(math.MaxInt16))
 	bin4 := as.NewBin("Aerospike4", "constValue")
 	bin5 := as.NewBin("Aerospike5", -1)
+	bin6 := as.NewBin("Aerospike6", 1)
 	var keys map[string]*as.Key
 	var indexName string
+	var indexName2 string
 
 	// read all records from the channel and make sure all of them are returned
 	var checkResults = func(recordset *as.Recordset, cancelCnt int) {
@@ -93,13 +95,21 @@ var _ = Describe("Query operations", func() {
 
 			keys[string(key.Digest())] = key
 			bin3 = as.NewBin("Aerospike3", rand.Intn(math.MaxInt16))
-			err = client.PutBins(wpolicy, key, bin1, bin2, bin3, bin4, bin5)
+			err = client.PutBins(wpolicy, key, bin1, bin2, bin3, bin4, bin5, bin6)
 			Expect(err).ToNot(HaveOccurred())
 		}
 
 		// queries only work on indices
 		indexName = set + bin3.Name
 		idxTask, err := client.CreateIndex(wpolicy, ns, set, indexName, bin3.Name, as.NUMERIC)
+		Expect(err).ToNot(HaveOccurred())
+
+		// wait until index is created
+		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+
+		// queries only work on indices
+		indexName2 = set + bin6.Name
+		idxTask, err = client.CreateIndex(wpolicy, ns, set, indexName2, bin6.Name, as.NUMERIC)
 		Expect(err).ToNot(HaveOccurred())
 
 		// wait until index is created
@@ -120,6 +130,7 @@ var _ = Describe("Query operations", func() {
 
 	It("must Query a range and get all records back", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
+		defer client.DropIndex(nil, ns, set, indexName2)
 
 		stm := as.NewStatement(ns, set)
 		recordset, err := client.Query(nil, stm)
@@ -130,8 +141,25 @@ var _ = Describe("Query operations", func() {
 		Expect(len(keys)).To(Equal(0))
 	})
 
+	It("must Query a range and get all records back with policy.RecordsPerSecond set", func() {
+		defer client.DropIndex(nil, ns, set, indexName)
+		defer client.DropIndex(nil, ns, set, indexName2)
+
+		stm := as.NewStatement(ns, set)
+
+		policy := as.NewQueryPolicy()
+		policy.RecordsPerSecond = keyCount - 100
+		recordset, err := client.Query(policy, stm)
+		Expect(err).ToNot(HaveOccurred())
+
+		checkResults(recordset, 0)
+
+		Expect(len(keys)).To(Equal(0))
+	})
+
 	It("must Query a range and get all records back without the Bin Data", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
+		defer client.DropIndex(nil, ns, set, indexName2)
 
 		stm := as.NewStatement(ns, set)
 		qp := as.NewQueryPolicy()
@@ -157,6 +185,7 @@ var _ = Describe("Query operations", func() {
 
 	It("must Cancel Query abruptly", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
+		defer client.DropIndex(nil, ns, set, indexName2)
 
 		stm := as.NewStatement(ns, set)
 		recordset, err := client.Query(nil, stm)
@@ -169,6 +198,7 @@ var _ = Describe("Query operations", func() {
 
 	It("must Query a specific range and get only relevant records back", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
+		defer client.DropIndex(nil, ns, set, indexName2)
 
 		stm := as.NewStatement(ns, set)
 		stm.SetFilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
@@ -190,6 +220,7 @@ var _ = Describe("Query operations", func() {
 
 	It("must Query a specific range by applying a udf filter and get only relevant records back", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
+		defer client.DropIndex(nil, ns, set, indexName2)
 
 		regTask, err := client.RegisterUDF(nil, []byte(udfFilter), "udfFilter.lua", as.LUA)
 		Expect(err).ToNot(HaveOccurred())
@@ -218,6 +249,7 @@ var _ = Describe("Query operations", func() {
 
 	It("must Query specific equality filters and get only relevant records back", func() {
 		defer client.DropIndex(nil, ns, set, indexName)
+		defer client.DropIndex(nil, ns, set, indexName2)
 
 		// save a record with requested value
 		key, err := as.NewKey(ns, set, randString(50))
@@ -245,6 +277,67 @@ var _ = Describe("Query operations", func() {
 		// there should be at least one result
 		Expect(len(recs)).To(BeNumerically(">", 0))
 		Expect(recs).To(ContainElement(bin3.Value.GetObject()))
+	})
+
+	It("must Query specific equality filters and apply operations on the records", func() {
+		defer client.DropIndex(nil, ns, set, indexName)
+		defer client.DropIndex(nil, ns, set, indexName2)
+
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewEqualFilter(bin6.Name, 1))
+
+		bin7 := as.NewBin("Aerospike7", 42)
+		tsk, err := client.QueryExecute(nil, nil, stm, as.PutOp(bin7))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(<-tsk.OnComplete()).To(BeNil())
+
+		// read records back
+		stmRes := as.NewStatement(ns, set)
+		recordset, err := client.Query(nil, stmRes)
+		Expect(err).ToNot(HaveOccurred())
+
+		recs := []interface{}{}
+		// consume recordset and check errors
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			rec := res.Record
+			Expect(rec).ToNot(BeNil())
+			recs = append(recs, rec.Bins[bin3.Name])
+			Expect(rec.Bins[bin7.Name]).To(Equal(bin7.Value.GetObject().(int)))
+		}
+
+		// there should be at least one result
+		Expect(len(recs)).To(Equal(keyCount))
+	})
+
+	It("must Query specific equality filters and apply operations on the records without filters", func() {
+		defer client.DropIndex(nil, ns, set, indexName)
+		defer client.DropIndex(nil, ns, set, indexName2)
+
+		stm := as.NewStatement(ns, set)
+
+		bin7 := as.NewBin("Aerospike7", 42)
+		tsk, err := client.QueryExecute(nil, nil, stm, as.PutOp(bin7))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(<-tsk.OnComplete()).To(BeNil())
+
+		// read records back
+		stmRes := as.NewStatement(ns, set)
+		recordset, err := client.Query(nil, stmRes)
+		Expect(err).ToNot(HaveOccurred())
+
+		recs := []interface{}{}
+		// consume recordset and check errors
+		for res := range recordset.Results() {
+			Expect(res.Err).ToNot(HaveOccurred())
+			rec := res.Record
+			Expect(rec).ToNot(BeNil())
+			recs = append(recs, rec.Bins[bin3.Name])
+			Expect(rec.Bins[bin7.Name]).To(Equal(bin7.Value.GetObject().(int)))
+		}
+
+		// there should be at least one result
+		Expect(len(recs)).To(Equal(keyCount))
 	})
 
 })

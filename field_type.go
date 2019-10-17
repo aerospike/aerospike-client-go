@@ -33,6 +33,7 @@ const (
 	TRAN_ID              FieldType = 7 // user supplied transaction id, which is simply passed back
 	SCAN_OPTIONS         FieldType = 8
 	SCAN_TIMEOUT         FieldType = 9
+	RECORDS_PER_SECOND   FieldType = 10
 	INDEX_NAME           FieldType = 21
 	INDEX_RANGE          FieldType = 22
 	INDEX_FILTER         FieldType = 23

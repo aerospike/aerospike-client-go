@@ -79,3 +79,5 @@ var ErrTooManyConnectionsForNode = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO
 var ErrTooManyOpeningConnections = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Too many connections are trying to open at once. This value is controled via ClientPolicy.OpeningConnectionThreshold")
 var ErrTimeout = NewAerospikeError(TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
 var ErrUDFBadResponse = NewAerospikeError(UDF_BAD_RESPONSE, "Invalid UDF return value")
+var ErrNoOperationsSpecified = NewAerospikeError(INVALID_COMMAND, "No operations were passed to QueryExecute")
+var ErrNoBinNamesAlloedInQueryExecute = NewAerospikeError(INVALID_COMMAND, "Statement.BinNames must be empty for QueryExecute")
