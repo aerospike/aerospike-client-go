@@ -1,5 +1,15 @@
 # Change History
 
+## October 17 2019: v2.3.0
+  Major feature release.
+
+  * **New Features**
+
+    - Adds support for mixed security modes in cluster to enable rolling upgrade with security changes.
+    - Adds support for delete record operation `DeleteOp()` in `Client.Operate()`.
+    - Adds support for write operations in background scan/query.
+    - Adds support for `Scan/QueryPolicy.RecordsPerSecond` field to limit throughput.
+
 ## August 13 2019: v2.2.1
   Minor improvement release.
 
