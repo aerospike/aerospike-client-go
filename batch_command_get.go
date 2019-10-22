@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	"bytes"
 	"reflect"
 
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -175,34 +174,26 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 
 		if cmd.indexRecords != nil {
 			if len(cmd.indexRecords) > 0 {
-				if bytes.Equal(cmd.key.digest[:], cmd.indexRecords[offset].Key.digest[:]) {
-					if resultCode == 0 {
-						if cmd.indexRecords[offset].Record, err = cmd.parseRecord(cmd.indexRecords[offset].Key, opCount, generation, expiration); err != nil {
-							return false, err
-						}
+				if resultCode == 0 {
+					if cmd.indexRecords[offset].Record, err = cmd.parseRecord(cmd.indexRecords[offset].Key, opCount, generation, expiration); err != nil {
+						return false, err
 					}
 				}
-			} else {
-				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+cmd.key.namespace+","+Buffer.BytesToHexString(cmd.key.digest[:])+". Expected:"+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
 			}
 		} else {
-			if bytes.Equal(cmd.key.digest[:], cmd.keys[offset].digest[:]) {
-				if resultCode == 0 {
-					if cmd.objects == nil {
-						if cmd.records[offset], err = cmd.parseRecord(cmd.keys[offset], opCount, generation, expiration); err != nil {
-							return false, err
-						}
-					} else if batchObjectParser != nil {
-						// mark it as found
-						cmd.objectsFound[offset] = true
-						if err := batchObjectParser(cmd, offset, opCount, fieldCount, generation, expiration); err != nil {
-							return false, err
+			if resultCode == 0 {
+				if cmd.objects == nil {
+					if cmd.records[offset], err = cmd.parseRecord(cmd.keys[offset], opCount, generation, expiration); err != nil {
+						return false, err
+					}
+				} else if batchObjectParser != nil {
+					// mark it as found
+					cmd.objectsFound[offset] = true
+					if err := batchObjectParser(cmd, offset, opCount, fieldCount, generation, expiration); err != nil {
+						return false, err
 
-						}
 					}
 				}
-			} else {
-				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+cmd.key.namespace+","+Buffer.BytesToHexString(cmd.key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
 			}
 		}
 	}
