@@ -50,6 +50,8 @@ type Operation struct {
 	opType OperationType
 	// used in CDT commands
 	opSubType operationSubType
+	// CDT context for nested types
+	ctx []*CDTContext
 
 	encoder func(*Operation, BufferEx) (int, error)
 

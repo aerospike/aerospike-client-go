@@ -768,6 +768,76 @@ var _ = Describe("CDT Map Test", func() {
 		Expect(cdtMap.Bins[cdtBinName]).To(Equal([]interface{}{[]interface{}{17}, []interface{}{10}}))
 	})
 
+	It("should support Nested Map ops", func() {
+		client.Delete(nil, key)
+
+		m := map[interface{}]interface{}{
+			"key1": map[interface{}]interface{}{
+				"key11": 9, "key12": 4,
+			},
+			"key2": map[interface{}]interface{}{
+				"key21": 3, "key22": 5,
+			},
+		}
+
+		err := client.Put(wpolicy, key, as.BinMap{cdtBinName: m})
+		Expect(err).ToNot(HaveOccurred())
+
+		record, err := client.Operate(wpolicy, key, as.GetOpForBin(cdtBinName))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(record.Bins[cdtBinName]).To(Equal(m))
+
+		record, err = client.Operate(wpolicy, key, as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, as.StringValue("key21"), as.IntegerValue(11), as.CtxMapKey(as.StringValue("key2"))), as.GetOpForBin(cdtBinName))
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(record.Bins[cdtBinName]).To(Equal([]interface{}{
+			2,
+			map[interface{}]interface{}{
+				"key1": map[interface{}]interface{}{
+					"key11": 9, "key12": 4,
+				},
+				"key2": map[interface{}]interface{}{
+					"key21": 11, "key22": 5,
+				},
+			},
+		}))
+	})
+
+	It("should support Double Nested Map ops", func() {
+		client.Delete(nil, key)
+
+		m := map[interface{}]interface{}{
+			"key1": map[interface{}]interface{}{
+				"key11": map[interface{}]interface{}{"key111": 1}, "key12": map[interface{}]interface{}{"key121": 5},
+			},
+			"key2": map[interface{}]interface{}{
+				"key21": map[interface{}]interface{}{"key211": 7},
+			},
+		}
+
+		err := client.Put(wpolicy, key, as.BinMap{cdtBinName: m})
+		Expect(err).ToNot(HaveOccurred())
+
+		record, err := client.Operate(wpolicy, key, as.GetOpForBin(cdtBinName))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(record.Bins[cdtBinName]).To(Equal(m))
+
+		record, err = client.Operate(wpolicy, key, as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, as.StringValue("key121"), as.IntegerValue(11), as.CtxMapKey(as.StringValue("key1")), as.CtxMapRank(-1)), as.GetOpForBin(cdtBinName))
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(record.Bins[cdtBinName]).To(Equal([]interface{}{
+			1,
+			map[interface{}]interface{}{
+				"key1": map[interface{}]interface{}{
+					"key11": map[interface{}]interface{}{"key111": 1}, "key12": map[interface{}]interface{}{"key121": 11},
+				},
+				"key2": map[interface{}]interface{}{
+					"key21": map[interface{}]interface{}{"key211": 7},
+				},
+			},
+		}))
+	})
+
 	It("should handle CDTs in UDFs", func() {
 
 		regTsk, err := client.RegisterUDF(nil, []byte(udfCDTTests), "cdt_tests.lua", as.LUA)

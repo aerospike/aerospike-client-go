@@ -686,6 +686,75 @@ var _ = Describe("CDT List Test", func() {
 			Expect(record.Bins[cdtBinName]).To(Equal([]interface{}{3, []interface{}{[]interface{}{"Jim", 95}}}))
 		})
 
+		It("should support Nested List Ops", func() {
+			client.Delete(nil, key)
+
+			list := []interface{}{
+				[]interface{}{7, 9, 5},
+				[]interface{}{1, 2, 3},
+				[]interface{}{6, 5, 4, 1},
+			}
+
+			err := client.Put(wpolicy, key, as.BinMap{cdtBinName: list})
+			Expect(err).ToNot(HaveOccurred())
+
+			record, err := client.Operate(wpolicy, key, as.GetOpForBin(cdtBinName))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(record.Bins[cdtBinName]).To(Equal(list))
+
+			record, err = client.Operate(wpolicy, key, as.ListAppendWithPolicyContextOp(as.DefaultListPolicy(), cdtBinName, []*as.CDTContext{as.CtxListIndex(-1)}, 11), as.GetOpForBin(cdtBinName))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(record.Bins[cdtBinName]).To(Equal([]interface{}{
+				5,
+				[]interface{}{
+					[]interface{}{7, 9, 5},
+					[]interface{}{1, 2, 3},
+					[]interface{}{6, 5, 4, 1, 11},
+				},
+			}))
+		})
+
+		It("should support Nested List Map Ops", func() {
+			client.Delete(nil, key)
+
+			m := map[interface{}]interface{}{
+				"key1": []interface{}{
+					[]interface{}{7, 9, 5},
+					[]interface{}{13},
+				},
+				"key2": []interface{}{
+					[]interface{}{9},
+					[]interface{}{2, 4},
+					[]interface{}{6, 1, 9},
+				},
+			}
+
+			err := client.Put(wpolicy, key, as.BinMap{cdtBinName: m})
+			Expect(err).ToNot(HaveOccurred())
+
+			record, err := client.Operate(wpolicy, key, as.GetOpForBin(cdtBinName))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(record.Bins[cdtBinName]).To(Equal(m))
+
+			record, err = client.Operate(wpolicy, key, as.ListAppendWithPolicyContextOp(as.DefaultListPolicy(), cdtBinName, []*as.CDTContext{as.CtxMapKey(as.StringValue("key2")), as.CtxListRank(0)}, 11), as.GetOpForBin(cdtBinName))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(record.Bins[cdtBinName]).To(Equal([]interface{}{
+				3,
+				map[interface{}]interface{}{
+					"key1": []interface{}{
+						[]interface{}{7, 9, 5},
+						[]interface{}{13},
+					},
+					"key2": []interface{}{
+						[]interface{}{9},
+						[]interface{}{2, 4, 11},
+						[]interface{}{6, 1, 9},
+					},
+				}}))
+		})
+
 	})
 
 }) // describe
