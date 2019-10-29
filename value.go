@@ -749,6 +749,39 @@ func (vl FloatValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// _BoolValue encapsulates a bool value.
+// This method is only used in bitwise CDT operations internally.
+type _BoolValue bool
+
+func (vb _BoolValue) estimateSize() (int, error) {
+	return PackBool(nil, bool(vb))
+}
+
+func (vb _BoolValue) write(cmd BufferEx) (int, error) {
+	panic("Unreachable")
+}
+
+func (vb _BoolValue) pack(cmd BufferEx) (int, error) {
+	return PackBool(cmd, bool(vb))
+}
+
+// GetType returns wire protocol value type.
+func (vb _BoolValue) GetType() int {
+	panic("Unreachable")
+}
+
+// GetObject returns original value as an interface{}.
+func (vb _BoolValue) GetObject() interface{} {
+	return bool(vb)
+}
+
+// String implements Stringer interface.
+func (vb _BoolValue) String() string {
+	return (fmt.Sprintf("%v", bool(vb)))
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 // ValueArray encapsulates an array of Value.
 // Supported by Aerospike 3 servers only.
 type ValueArray []Value

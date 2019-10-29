@@ -67,7 +67,7 @@ type Node struct {
 
 	active AtomicBool
 
-	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow, supportsTruncateNamespace AtomicBool
+	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow, supportsTruncateNamespace, supportsBitwiseOps AtomicBool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -96,6 +96,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		supportsPeers:             *NewAtomicBool(nv.supportsPeers),
 		supportsLUTNow:            *NewAtomicBool(nv.supportsLUTNow),
 		supportsTruncateNamespace: *NewAtomicBool(nv.supportsTruncateNamespace),
+		supportsBitwiseOps:        *NewAtomicBool(nv.supportsBitwiseOps),
 	}
 
 	newNode.aliases.Store(nv.aliases)
