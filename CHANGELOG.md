@@ -1,5 +1,13 @@
 # Change History
 
+## October 29 2019: v2.4.0
+  Major feature release.
+
+  * **New Features**
+
+    - Adds support for bitwise operations.
+    - Adds support for nested CDTs.
+
 ## October 17 2019: v2.3.0
   Major feature release.
 
