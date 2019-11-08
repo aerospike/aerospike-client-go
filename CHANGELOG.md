@@ -1,5 +1,12 @@
 # Change History
 
+## November 8 2019: v2.5.0
+  Major feature release.
+
+  * **New Features**
+
+    - Adds support for predicate expressions in all transactions. See `Policy.Predexp`.
+
 ## October 29 2019: v2.4.0
   Major feature release.
 
