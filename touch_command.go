@@ -67,6 +67,8 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 	if resultCode != 0 {
 		if resultCode == byte(KEY_NOT_FOUND_ERROR) {
 			return ErrKeyNotFound
+		} else if ResultCode(resultCode) == FILTERED_OUT {
+			return ErrFilteredOut
 		}
 
 		return NewAerospikeError(ResultCode(resultCode))

@@ -121,6 +121,12 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 		return err
 	}
 
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
+
 	if binMap == nil {
 		for i := range bins {
 			if err := cmd.estimateOperationSizeForBin(bins[i]); err != nil {
@@ -146,6 +152,12 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 	}
 
 	cmd.writeKey(key, policy.SendKey)
+
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return err
+		}
+	}
 
 	if binMap == nil {
 		for i := range bins {
@@ -173,11 +185,23 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
 	if err != nil {
 		return err
 	}
+
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
+
 	if err := cmd.sizeBuffer(); err != nil {
 		return err
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE|_INFO2_DELETE, fieldCount, 0)
 	cmd.writeKey(key, false)
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return err
+		}
+	}
 	cmd.end()
 	return nil
 
@@ -191,12 +215,23 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 		return err
 	}
 
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
+
 	cmd.estimateOperationSize()
 	if err := cmd.sizeBuffer(); err != nil {
 		return err
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 1)
 	cmd.writeKey(key, policy.SendKey)
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return err
+		}
+	}
 	cmd.writeOperationForOperationType(_TOUCH)
 	cmd.end()
 	return nil
@@ -210,11 +245,23 @@ func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) error {
 	if err != nil {
 		return err
 	}
+
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
+
 	if err := cmd.sizeBuffer(); err != nil {
 		return err
 	}
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
 	cmd.writeKey(key, false)
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return err
+		}
+	}
 	cmd.end()
 	return nil
 
@@ -227,11 +274,21 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) error {
 	if err != nil {
 		return err
 	}
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
 	if err := cmd.sizeBuffer(); err != nil {
 		return err
 	}
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
 	cmd.writeKey(key, false)
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return err
+		}
+	}
 	cmd.end()
 	return nil
 
@@ -246,6 +303,12 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 			return err
 		}
 
+		predSize := 0
+		if len(policy.PredExp) > 0 {
+			predSize = cmd.estimatePredExpSize(policy.PredExp)
+			fieldCount++
+		}
+
 		for i := range binNames {
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
@@ -254,6 +317,10 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 		}
 		cmd.writeHeader(policy, _INFO1_READ, 0, fieldCount, len(binNames))
 		cmd.writeKey(key, false)
+
+		if len(policy.PredExp) > 0 {
+			cmd.writePredExp(policy.PredExp, predSize)
+		}
 
 		for i := range binNames {
 			cmd.writeOperationForBinName(binNames[i], _READ)
@@ -273,6 +340,13 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 	if err != nil {
 		return err
 	}
+
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
+
 	cmd.estimateOperationSizeForBinName("")
 	if err := cmd.sizeBuffer(); err != nil {
 		return err
@@ -281,6 +355,11 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 1)
 
 	cmd.writeKey(key, false)
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return err
+		}
+	}
 	cmd.writeOperationForBinName("", _READ)
 	cmd.end()
 	return nil
@@ -344,6 +423,12 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	}
 	fieldCount += ksz
 
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
+
 	if err := cmd.sizeBuffer(); err != nil {
 		return hasWrite, err
 	}
@@ -363,6 +448,12 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	}
 	cmd.writeKey(key, policy.SendKey && hasWrite)
 
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return hasWrite, err
+		}
+	}
+
 	for _, operation := range operations {
 		if err := cmd.writeOperationForOperation(operation); err != nil {
 			return hasWrite, err
@@ -381,6 +472,12 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 		return err
 	}
 
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
+
 	fc, err := cmd.estimateUdfSize(packageName, functionName, args)
 	if err != nil {
 		return err
@@ -393,6 +490,11 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 0)
 	cmd.writeKey(key, policy.SendKey)
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return err
+		}
+	}
 	cmd.writeFieldString(packageName, UDF_PACKAGE_NAME)
 	cmd.writeFieldString(functionName, UDF_FUNCTION)
 	cmd.writeUdfArgs(args)
@@ -404,9 +506,9 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key, batch *batchNode, binNames []string, readAttr int) error {
 	offsets := batch.offsets
 	max := len(batch.offsets)
-	fieldCount := 1
+	fieldCountRow := 1
 	if policy.SendSetName {
-		fieldCount = 2
+		fieldCountRow = 2
 	}
 
 	binNameSize := 0
@@ -417,6 +519,12 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 
 	// Estimate buffer size
 	cmd.begin()
+	fieldCount := 1
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
 
 	cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 5
 
@@ -454,7 +562,13 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 		readAttr |= _INFO1_GET_ALL
 	}
 
-	cmd.writeHeader(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 1, 0)
+	cmd.writeHeader(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
+
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return err
+		}
+	}
 
 	// Write real field size.
 	fieldSizeOffset := cmd.dataOffset
@@ -488,7 +602,7 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 			// Write full header, namespace and bin names.
 			cmd.WriteByte(0) // do not repeat
 			cmd.WriteByte(byte(readAttr))
-			cmd.WriteUint16(uint16(fieldCount))
+			cmd.WriteUint16(uint16(fieldCountRow))
 			cmd.WriteUint16(uint16(operationCount))
 			cmd.writeFieldString(key.namespace, NAMESPACE)
 
@@ -513,13 +627,19 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchRead, batch *batchNode) error {
 	offsets := batch.offsets
 	max := len(batch.offsets)
-	fieldCount := 1
+	fieldCountRow := 1
 	if policy.SendSetName {
-		fieldCount = 2
+		fieldCountRow = 2
 	}
 
 	// Estimate buffer size
 	cmd.begin()
+	fieldCount := 1
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
 
 	cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 5
 
@@ -564,8 +684,14 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 		readAttr |= _INFO1_CONSISTENCY_ALL
 	}
 
-	cmd.writeHeader(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 1, 0)
-	cmd.writeHeader(&policy.BasePolicy, _INFO1_READ|_INFO1_BATCH, 0, 1, 0)
+	cmd.writeHeader(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
+	// cmd.writeHeader(&policy.BasePolicy, _INFO1_READ|_INFO1_BATCH, 0, 1, 0)
+
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return err
+		}
+	}
 
 	// Write real field size.
 	fieldSizeOffset := cmd.dataOffset
@@ -604,7 +730,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 			cmd.WriteByte(0) // do not repeat
 			if len(binNames) > 0 {
 				cmd.WriteByte(byte(readAttr))
-				cmd.WriteUint16(uint16(fieldCount))
+				cmd.WriteUint16(uint16(fieldCountRow))
 				cmd.WriteUint16(uint16(len(binNames)))
 				cmd.writeFieldString(key.namespace, NAMESPACE)
 
@@ -624,7 +750,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 				}
 				cmd.WriteByte(attr)
 
-				cmd.WriteUint16(uint16(fieldCount))
+				cmd.WriteUint16(uint16(fieldCountRow))
 				cmd.WriteUint16(0)
 				cmd.writeFieldString(key.namespace, NAMESPACE)
 
@@ -643,48 +769,15 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 	return nil
 }
 
-func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *batchNamespace, binNames []string, readAttr int) error {
-	// Estimate buffer size
-	cmd.begin()
-	byteSize := len(batch.offsets) * int(_DIGEST_SIZE)
-
-	cmd.dataOffset += len(batch.namespace) +
-		int(_FIELD_HEADER_SIZE) + byteSize + int(_FIELD_HEADER_SIZE)
-
-	for _, binName := range binNames {
-		cmd.estimateOperationSizeForBinName(binName)
-	}
-
-	if err := cmd.sizeBuffer(); err != nil {
-		return err
-	}
-
-	operationCount := len(binNames)
-	cmd.writeHeader(&policy.BasePolicy, readAttr, 0, 2, operationCount)
-	cmd.writeFieldString(batch.namespace, NAMESPACE)
-	cmd.writeFieldHeader(byteSize, DIGEST_RIPE_ARRAY)
-
-	offsets := batch.offsets
-	max := len(batch.offsets)
-
-	for i := 0; i < max; i++ {
-		key := keys[offsets[i]]
-		copy(cmd.dataBuffer[cmd.dataOffset:], key.digest[:])
-		cmd.dataOffset += len(key.digest)
-	}
-
-	for _, binName := range binNames {
-		cmd.writeOperationForBinName(binName, _READ)
-	}
-	cmd.end()
-
-	return nil
-}
-
 func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskID uint64) error {
 	cmd.begin()
 	fieldCount := 0
-	// predExpsSize := 0
+
+	predSize := 0
+	if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
+		fieldCount++
+	}
 
 	if namespace != nil {
 		cmd.dataOffset += len(*namespace) + int(_FIELD_HEADER_SIZE)
@@ -742,6 +835,12 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		cmd.writeFieldString(*setName, TABLE)
 	}
 
+	if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+			return err
+		}
+	}
+
 	if policy.RecordsPerSecond > 0 {
 		cmd.writeFieldInt32(int32(policy.RecordsPerSecond), RECORDS_PER_SECOND)
 	}
@@ -779,7 +878,8 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
-	predExpsSize := 0
+	predSize := 0
+	predExp := statement.predExps
 
 	recordsPerSecond := 0
 	if !write {
@@ -855,12 +955,12 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		}
 	}
 
-	if len(statement.predExps) > 0 {
-		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
-		for _, predexp := range statement.predExps {
-			predExpsSize += predexp.marshaledSize()
-		}
-		cmd.dataOffset += predExpsSize
+	if len(policy.PredExp) > 0 && len(predExp) == 0 {
+		predExp = policy.PredExp
+	}
+
+	if len(predExp) > 0 {
+		predSize = cmd.estimatePredExpSize(predExp)
 		fieldCount++
 	}
 
@@ -979,12 +1079,9 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		}
 	}
 
-	if len(statement.predExps) > 0 {
-		cmd.writeFieldHeader(predExpsSize, PREDEXP)
-		for _, predexp := range statement.predExps {
-			if err := predexp.marshal(cmd); err != nil {
-				return err
-			}
+	if len(predExp) > 0 {
+		if err := cmd.writePredExp(predExp, predSize); err != nil {
+			return err
 		}
 	}
 
@@ -1110,6 +1207,15 @@ func (cmd *baseCommand) estimateOperationSizeForBinName(binName string) {
 
 func (cmd *baseCommand) estimateOperationSize() {
 	cmd.dataOffset += int(_OPERATION_HEADER_SIZE)
+}
+
+func (cmd *baseCommand) estimatePredExpSize(predExp []PredExp) int {
+	sz := 0
+	for _, predexp := range predExp {
+		sz += predexp.marshaledSize()
+	}
+	cmd.dataOffset += sz + int(_FIELD_HEADER_SIZE)
+	return sz
 }
 
 // Generic header write.
@@ -1327,6 +1433,16 @@ func (cmd *baseCommand) writeOperationForOperationType(operation OperationType) 
 	cmd.WriteByte(0)
 	cmd.WriteByte(0)
 	cmd.WriteByte(0)
+}
+
+func (cmd *baseCommand) writePredExp(predExp []PredExp, predSize int) error {
+	cmd.writeFieldHeader(predSize, PREDEXP)
+	for i := range predExp {
+		if err := predExp[i].marshal(cmd); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // TODO: Remove this method and move it to the appropriate VALUE method

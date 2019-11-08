@@ -81,3 +81,4 @@ var ErrTimeout = NewAerospikeError(TIMEOUT, "command execution timed out on clie
 var ErrUDFBadResponse = NewAerospikeError(UDF_BAD_RESPONSE, "Invalid UDF return value")
 var ErrNoOperationsSpecified = NewAerospikeError(INVALID_COMMAND, "No operations were passed to QueryExecute")
 var ErrNoBinNamesAlloedInQueryExecute = NewAerospikeError(INVALID_COMMAND, "Statement.BinNames must be empty for QueryExecute")
+var ErrFilteredOut = NewAerospikeError(FILTERED_OUT)

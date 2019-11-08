@@ -274,11 +274,16 @@ func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, error
 
 	// pass nil to make sure it will be cloned and prepared
 	cmd := newBatchCommandExists(nil, nil, nil, policy, keys, existsArray)
-	if err := clnt.batchExecute(policy, keys, cmd); err != nil {
+	err, filteredOut := clnt.batchExecute(policy, keys, cmd)
+	if err != nil {
 		return nil, err
 	}
 
-	return existsArray, nil
+	if filteredOut > 0 {
+		err = ErrFilteredOut
+	}
+
+	return existsArray, err
 }
 
 //-------------------------------------------------------
@@ -329,9 +334,17 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 	records := make([]*Record, len(keys))
 
 	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, binNames, records, _INFO1_READ)
-	err := clnt.batchExecute(policy, keys, cmd)
+	err, filteredOut := clnt.batchExecute(policy, keys, cmd)
 	if err != nil && !policy.AllowPartialResults {
 		return nil, err
+	}
+
+	if filteredOut > 0 {
+		if err == nil {
+			err = ErrFilteredOut
+		} else {
+			mergeErrors([]error{err, ErrFilteredOut})
+		}
 	}
 
 	return records, err
@@ -348,7 +361,20 @@ func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) e
 
 	cmd := newBatchIndexCommandGet(nil, policy, records)
 
-	return clnt.batchIndexExecute(policy, records, cmd)
+	err, filteredOut := clnt.batchIndexExecute(policy, records, cmd)
+	if err != nil && !policy.AllowPartialResults {
+		return err
+	}
+
+	if filteredOut > 0 {
+		if err == nil {
+			err = ErrFilteredOut
+		} else {
+			mergeErrors([]error{err, ErrFilteredOut})
+		}
+	}
+
+	return err
 }
 
 // BatchGetHeader reads multiple record header data for specified keys in one batch request.
@@ -364,9 +390,17 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 	records := make([]*Record, len(keys))
 
 	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
-	err := clnt.batchExecute(policy, keys, cmd)
+	err, filteredOut := clnt.batchExecute(policy, keys, cmd)
 	if err != nil && !policy.AllowPartialResults {
 		return nil, err
+	}
+
+	if filteredOut > 0 {
+		if err == nil {
+			err = ErrFilteredOut
+		} else {
+			mergeErrors([]error{err, ErrFilteredOut})
+		}
 	}
 
 	return records, err
@@ -1193,13 +1227,14 @@ func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[
 
 // batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
 // and waits for their return
-func (clnt *Client) batchExecute(policy *BatchPolicy, keys []*Key, cmd batcher) error {
+func (clnt *Client) batchExecute(policy *BatchPolicy, keys []*Key, cmd batcher) (error, int) {
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
 	if err != nil {
-		return err
+		return err, 0
 	}
 
 	var wg sync.WaitGroup
+	filteredOut := 0
 
 	// Use a goroutine per namespace per node
 	errs := []error{}
@@ -1219,27 +1254,30 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, keys []*Key, cmd batcher) 
 			newCmd := cmd.cloneBatchCommand(batchNode, bns)
 			go func(cmd command) {
 				defer wg.Done()
-				if err := cmd.Execute(); err != nil {
-					errm.Lock()
+				err := cmd.Execute()
+				errm.Lock()
+				if err != nil {
 					errs = append(errs, err)
-					errm.Unlock()
 				}
+				filteredOut += cmd.(batcher).filteredOut()
+				errm.Unlock()
 			}(newCmd)
 		}
 	}
 
 	wg.Wait()
-	return mergeErrors(errs)
+	return mergeErrors(errs), filteredOut
 }
 
 // batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
 // and waits for their return
-func (clnt *Client) batchIndexExecute(policy *BatchPolicy, records []*BatchRead, cmd batchIndexer) error {
+func (clnt *Client) batchIndexExecute(policy *BatchPolicy, records []*BatchRead, cmd batchIndexer) (error, int) {
 	batchNodes, err := newBatchIndexNodeList(clnt.cluster, policy, records)
 	if err != nil {
-		return err
+		return err, 0
 	}
 
+	filteredOut := 0
 	var wg sync.WaitGroup
 
 	// Use a goroutine per namespace per node
@@ -1252,16 +1290,18 @@ func (clnt *Client) batchIndexExecute(policy *BatchPolicy, records []*BatchRead,
 		newCmd := cmd.cloneBatchIndexCommand(batchNode)
 		go func(cmd command) {
 			defer wg.Done()
-			if err := cmd.Execute(); err != nil {
-				errm.Lock()
+			err := cmd.Execute()
+			errm.Lock()
+			if err != nil {
 				errs = append(errs, err)
-				errm.Unlock()
 			}
+			filteredOut += cmd.(batcher).filteredOut()
+			errm.Unlock()
 		}(newCmd)
 	}
 
 	wg.Wait()
-	return mergeErrors(errs)
+	return mergeErrors(errs), filteredOut
 }
 
 func (clnt *Client) getUsablePolicy(policy *BasePolicy) *BasePolicy {

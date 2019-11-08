@@ -83,11 +83,16 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 	cmd.objects = objectsVal
 	cmd.objectsFound = objectsFound
 
-	if err = clnt.batchExecute(policy, keys, cmd); err != nil {
+	err, filteredOut := clnt.batchExecute(policy, keys, cmd)
+	if err != nil {
 		return nil, err
 	}
 
-	return objectsFound, nil
+	if filteredOut > 0 {
+		err = ErrFilteredOut
+	}
+
+	return objectsFound, err
 }
 
 // ScanAllObjects reads all records in specified namespace and set from all nodes.

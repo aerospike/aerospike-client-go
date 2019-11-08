@@ -71,6 +71,8 @@ func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {
 	} else {
 		if ResultCode(resultCode) == KEY_NOT_FOUND_ERROR {
 			cmd.record = nil
+		} else if ResultCode(resultCode) == FILTERED_OUT {
+			return ErrFilteredOut
 		} else {
 			return NewAerospikeError(ResultCode(resultCode))
 		}

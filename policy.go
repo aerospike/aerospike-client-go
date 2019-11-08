@@ -29,6 +29,12 @@ type Policy interface {
 type BasePolicy struct {
 	Policy
 
+	// PredExps is the optional predicate expression filter in postfix notation. If the predicate
+	// expression exists and evaluates to false, the transaction is ignored.
+	//
+	// Default: nil
+	PredExp []PredExp
+
 	// Priority of request relative to other transactions.
 	// Currently, only used for scans.
 	Priority Priority //= Priority.DEFAULT;

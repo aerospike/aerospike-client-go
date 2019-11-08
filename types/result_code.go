@@ -145,6 +145,9 @@ const (
 	// The operation cannot be applied to the current bin value on the server.
 	OP_NOT_APPLICABLE ResultCode = 26
 
+	// The transaction was not performed because the predexp was false.
+	FILTERED_OUT ResultCode = 27
+
 	// There are no more records left for query.
 	QUERY_END ResultCode = 50
 
@@ -201,9 +204,6 @@ const (
 
 	// A user defined function returned an error code.
 	UDF_BAD_RESPONSE ResultCode = 100
-
-	// The requested item in a large collection was not found.
-	LARGE_ITEM_NOT_FOUND ResultCode = 125
 
 	// Batch functionality has been disabled.
 	BATCH_DISABLED ResultCode = 150
@@ -415,6 +415,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case OP_NOT_APPLICABLE:
 		return "Operation not applicable"
 
+	case FILTERED_OUT:
+		return "Transaction filtered out by predexp"
+
 	case QUERY_END:
 		return "Query end"
 
@@ -471,9 +474,6 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case UDF_BAD_RESPONSE:
 		return "UDF returned error"
-
-	case LARGE_ITEM_NOT_FOUND:
-		return "Large collection item not found"
 
 	case BATCH_DISABLED:
 		return "Batch functionality has been disabled"

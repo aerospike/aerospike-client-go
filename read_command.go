@@ -107,12 +107,12 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	if resultCode != 0 {
 		if resultCode == KEY_NOT_FOUND_ERROR {
 			return ErrKeyNotFound
-		}
-
-		if resultCode == UDF_BAD_RESPONSE {
+		} else if resultCode == FILTERED_OUT {
+			return ErrFilteredOut
+		} else if resultCode == UDF_BAD_RESPONSE {
 			cmd.record, _ = cmd.parseRecord(ifc, opCount, fieldCount, generation, expiration)
 			err := cmd.handleUdfError(resultCode)
-			Logger.Warn("UDF execution error: " + err.Error())
+			Logger.Debug("UDF execution error: " + err.Error())
 			return err
 		}
 

@@ -30,6 +30,7 @@ type batchCommandExists struct {
 	keys           []*Key
 	existsArray    []bool
 	index          int
+	filteredOutCnt int
 }
 
 func newBatchCommandExists(
@@ -50,6 +51,8 @@ func newBatchCommandExists(
 	res.oneShot = false
 	return res
 }
+
+func (cmd *batchCommandExists) filteredOut() int { return cmd.filteredOutCnt }
 
 func (cmd *batchCommandExists) cloneBatchCommand(batch *batchNode, bns *batchNamespace) command {
 	res := *cmd
@@ -84,7 +87,11 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 		// The only valid server return codes are "ok" and "not found".
 		// If other return codes are received, then abort the batch.
 		if resultCode != 0 && resultCode != KEY_NOT_FOUND_ERROR {
-			return false, NewAerospikeError(resultCode)
+			if resultCode == FILTERED_OUT {
+				cmd.filteredOutCnt++
+			} else {
+				return false, NewAerospikeError(resultCode)
+			}
 		}
 
 		info3 := cmd.dataBuffer[3]

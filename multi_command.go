@@ -189,7 +189,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		if resultCode != 0 {
-			if resultCode == KEY_NOT_FOUND_ERROR {
+			if resultCode == KEY_NOT_FOUND_ERROR || resultCode == FILTERED_OUT {
 				return false, nil
 			}
 			err := NewAerospikeError(resultCode)

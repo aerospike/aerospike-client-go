@@ -23,6 +23,7 @@ import (
 
 type batcher interface {
 	cloneBatchCommand(batch *batchNode, bns *batchNamespace) command
+	filteredOut() int
 }
 
 type batchCommandGet struct {
@@ -38,6 +39,7 @@ type batchCommandGet struct {
 	readAttr       int
 	index          int
 	key            Key
+	filteredOutCnt int
 
 	// pointer to the object that's going to be unmarshalled
 	objects      []*reflect.Value
@@ -77,6 +79,10 @@ func newBatchCommandGet(
 	}
 	res.oneShot = false
 	return res
+}
+
+func (cmd *batchCommandGet) filteredOut() int {
+	return cmd.filteredOutCnt
 }
 
 func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode, bns *batchNamespace) command {
@@ -146,10 +152,14 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		}
 		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
 
-		// The only valid server return codes are "ok" and "not found".
+		// The only valid server return codes are "ok" and "not found" and "filtered out".
 		// If other return codes are received, then abort the batch.
 		if resultCode != 0 && resultCode != KEY_NOT_FOUND_ERROR {
-			return false, NewAerospikeError(resultCode)
+			if resultCode == FILTERED_OUT {
+				cmd.filteredOutCnt++
+			} else {
+				return false, NewAerospikeError(resultCode)
+			}
 		}
 
 		info3 := int(cmd.dataBuffer[3])
