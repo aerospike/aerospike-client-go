@@ -62,7 +62,7 @@ type AerospikeBlob interface {
 }
 
 // tryConcreteValue will return an aerospike value.
-// If the encoder does not exists, it will not try to use reflection.
+// If the encoder does not exist, it will not try to use reflection.
 func tryConcreteValue(v interface{}) Value {
 	switch val := v.(type) {
 	case Value:
@@ -117,7 +117,7 @@ func tryConcreteValue(v interface{}) Value {
 		The following cases will try to avoid using reflection by matching against the
 		internal generic types.
 		If you have custom type aliases in your code, you can use the same aerospike types to cast your type into,
-		to avoid hitting the generics.
+		to avoid hitting the reflection.
 	*/
 	case []string:
 		return NewListerValue(stringSlice(val))
