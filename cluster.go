@@ -17,6 +17,7 @@ package aerospike
 import (
 	"errors"
 	"fmt"
+	"net"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -534,6 +535,25 @@ func (clstr *Cluster) getPartitions() partitionMap {
 	return clstr.partitionWriteMap.Load().(partitionMap)
 }
 
+// discoverSeeds will lookup the seed hosts and convert seed hosts
+// to IP addresses.
+func discoverSeedIPs(seeds []*Host) (res []*Host) {
+	for _, seed := range seeds {
+		addresses, err := net.LookupHost(seed.Name)
+		if err != nil {
+			continue
+		}
+
+		for i := range addresses {
+			h := *seed
+			h.Name = addresses[i]
+			res = append(res, &h)
+		}
+	}
+
+	return res
+}
+
 // Adds seeds to the cluster
 func (clstr *Cluster) seedNodes() (bool, error) {
 	// Must copy array reference for copy on write semantics to work.
@@ -544,7 +564,9 @@ func (clstr *Cluster) seedNodes() (bool, error) {
 
 		return seeds_copy, nil
 	})
-	seedArray := seedArrayIfc.([]*Host)
+
+	// discover seed IPs from DNS or Load Balancers
+	seedArray := discoverSeedIPs(seedArrayIfc.([]*Host))
 
 	successChan := make(chan struct{}, len(seedArray))
 	errChan := make(chan error, len(seedArray))

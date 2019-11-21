@@ -85,6 +85,16 @@ func featureEnabled(feature string) bool {
 	return strings.Contains(infoMap["features"], feature)
 }
 
+func isEnterpriseEdition() bool {
+	node := client.GetNodes()[0]
+	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "edition")
+	if err != nil {
+		log.Fatal("Failed to connect to aerospike: err:", err)
+	}
+
+	return strings.Contains(infoMap["edition"], "Enterprise")
+}
+
 func nsInfo(ns string, feature string) string {
 	node := client.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "namespace/"+ns)

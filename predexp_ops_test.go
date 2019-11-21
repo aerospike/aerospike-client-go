@@ -118,6 +118,12 @@ end
 `
 
 var _ = Describe("PredExp in Transactions Test", func() {
+
+	if !isEnterpriseEdition() {
+		By("Predexp Tests for All transactions are not supported in the Community Edition.")
+		return
+	}
+
 	initTestVars()
 
 	var udfReg sync.Once
