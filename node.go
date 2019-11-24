@@ -600,6 +600,10 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 	}
 
 	if conn == nil {
+		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.Get() >= nd.cluster.clientPolicy.ConnectionQueueSize {
+			return nil, ErrConnectionPoolEmptyAndAllConnectionsInUse
+		}
+
 		go nd.makeConnectionForPool(hint)
 		return nil, ErrConnectionPoolEmpty
 	}
