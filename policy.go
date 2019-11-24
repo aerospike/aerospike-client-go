@@ -120,6 +120,11 @@ type BasePolicy struct {
 	// The default is false.
 	LinearizeRead bool
 
+	// When max connections are occupied in pool
+	// setting WaitForConnectionToBeRealeased will wait Timeout time to grab the connection from pool
+	// Otherwise it will exit fast without retries
+	WaitForConnectionsToBeRealeased bool
+
 	// ReplicaPolicy determines the node to send the read commands containing the key's partition replica type.
 	// Write commands are not affected by this setting, because all writes are directed
 	// to the node containing the key's master partition.

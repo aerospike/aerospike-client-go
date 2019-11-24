@@ -1723,7 +1723,7 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 
 		cmd.conn, err = ifc.getConnection(policy)
 		if err != nil {
-			if err == ErrConnectionPoolEmptyAndAllConnectionsInUse && policy.WaitForConnectionToBeRealeased {
+			if err == ErrConnectionPoolEmptyAndAllConnectionsInUse && policy.WaitForConnectionsToBeRealeased {
 				iterations--
 			}
 
