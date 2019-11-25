@@ -18,6 +18,7 @@ import (
 	"math"
 	"math/rand"
 	"strings"
+	"sync"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
@@ -163,82 +164,89 @@ var _ = Describe("UDF/Query tests", func() {
 
 	Context("must run the UDF on all records", func() {
 
-		BeforeEach(func() {
-			set = randString(50)
-			for i := 0; i < keyCount; i++ {
+		for _, failOnClusterChange := range []bool{false, true} {
+			var scanPolicy = as.NewScanPolicy()
+			scanPolicy.FailOnClusterChange = failOnClusterChange
+
+			var queryPolicy = as.NewQueryPolicy()
+			queryPolicy.FailOnClusterChange = failOnClusterChange
+
+			BeforeEach(func() {
+				set = randString(50)
+				for i := 0; i < keyCount; i++ {
+					key, err = as.NewKey(ns, set, randString(50))
+					Expect(err).ToNot(HaveOccurred())
+
+					err = client.PutBins(wpolicy, key, bin1, bin2)
+					Expect(err).ToNot(HaveOccurred())
+				}
+			})
+
+			It("must run a UDF on all records", func() {
+				// run the UDF 3 times consecutively
+				for i := 1; i <= 3; i++ {
+					statement := as.NewStatement(ns, set)
+					exTask, err := client.ExecuteUDF(queryPolicy, statement, "udf1", "testFunc1", as.NewValue(i*2))
+					Expect(err).ToNot(HaveOccurred())
+
+					// wait until UDF is run on all records
+					err = <-exTask.OnComplete()
+					Expect(err).ToNot(HaveOccurred())
+
+					time.Sleep(3 * time.Second)
+
+					// read all data and make sure it is consistent
+					recordset, err := client.ScanAll(scanPolicy, ns, set)
+					Expect(err).ToNot(HaveOccurred())
+
+					for fullRec := range recordset.Results() {
+						Expect(fullRec.Err).ToNot(HaveOccurred())
+						Expect(fullRec.Record.Bins[bin2.Name]).To(Equal(bin1.Value.GetObject().(int) / (i * 2)))
+					}
+				}
+			})
+
+			It("must run a DeleteUDF on a range of records", func() {
+				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC)
+				Expect(err).ToNot(HaveOccurred())
+				defer client.DropIndex(nil, ns, set, set+bin1.Name)
+
+				Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+
+				regTask, err := client.RegisterUDF(wpolicy, []byte(udfDelete), "udfDelete.lua", as.LUA)
+				Expect(err).ToNot(HaveOccurred())
+
+				// wait until UDF is created
+				Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
+
+				// a new record that is not in the range
 				key, err = as.NewKey(ns, set, randString(50))
 				Expect(err).ToNot(HaveOccurred())
-
-				err = client.PutBins(wpolicy, key, bin1, bin2)
+				err = client.PutBins(wpolicy, key, as.NewBin(bin1.Name, math.MaxInt16+1))
 				Expect(err).ToNot(HaveOccurred())
-			}
-		})
 
-		It("must run a UDF on all records", func() {
-			// run the UDF 3 times consecutively
-			for i := 1; i <= 3; i++ {
 				statement := as.NewStatement(ns, set)
-				exTask, err := client.ExecuteUDF(nil, statement, "udf1", "testFunc1", as.NewValue(i*2))
+				statement.SetFilter(as.NewRangeFilter(bin1.Name, 0, math.MaxInt16))
+				exTask, err := client.ExecuteUDF(queryPolicy, statement, "udfDelete", "deleteRecord")
 				Expect(err).ToNot(HaveOccurred())
 
 				// wait until UDF is run on all records
-				err = <-exTask.OnComplete()
-				Expect(err).ToNot(HaveOccurred())
-
-				time.Sleep(3 * time.Second)
+				Expect(<-exTask.OnComplete()).ToNot(HaveOccurred())
 
 				// read all data and make sure it is consistent
-				recordset, err := client.ScanAll(nil, ns, set)
+				recordset, err := client.ScanAll(scanPolicy, ns, set)
 				Expect(err).ToNot(HaveOccurred())
 
+				i := 0
 				for fullRec := range recordset.Results() {
 					Expect(fullRec.Err).ToNot(HaveOccurred())
-					Expect(fullRec.Record.Bins[bin2.Name]).To(Equal(bin1.Value.GetObject().(int) / (i * 2)))
+					i++
+					// only one record should be returned
+					Expect(fullRec.Record.Bins[bin1.Name]).To(Equal(math.MaxInt16 + 1))
 				}
-			}
-		})
-
-		It("must run a DeleteUDF on a range of records", func() {
-			idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC)
-			Expect(err).ToNot(HaveOccurred())
-			defer client.DropIndex(nil, ns, set, set+bin1.Name)
-
-			Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
-
-			regTask, err := client.RegisterUDF(wpolicy, []byte(udfDelete), "udfDelete.lua", as.LUA)
-			Expect(err).ToNot(HaveOccurred())
-
-			// wait until UDF is created
-			Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
-
-			// a new record that is not in the range
-			key, err = as.NewKey(ns, set, randString(50))
-			Expect(err).ToNot(HaveOccurred())
-			err = client.PutBins(wpolicy, key, as.NewBin(bin1.Name, math.MaxInt16+1))
-			Expect(err).ToNot(HaveOccurred())
-
-			statement := as.NewStatement(ns, set)
-			statement.SetFilter(as.NewRangeFilter(bin1.Name, 0, math.MaxInt16))
-			exTask, err := client.ExecuteUDF(nil, statement, "udfDelete", "deleteRecord")
-			Expect(err).ToNot(HaveOccurred())
-
-			// wait until UDF is run on all records
-			Expect(<-exTask.OnComplete()).ToNot(HaveOccurred())
-
-			// read all data and make sure it is consistent
-			recordset, err := client.ScanAll(nil, ns, set)
-			Expect(err).ToNot(HaveOccurred())
-
-			i := 0
-			for fullRec := range recordset.Results() {
-				Expect(fullRec.Err).ToNot(HaveOccurred())
-				i++
-				// only one record should be returned
-				Expect(fullRec.Record.Bins[bin1.Name]).To(Equal(math.MaxInt16 + 1))
-			}
-			Expect(i).To(Equal(1))
-		})
-
+				Expect(i).To(Equal(1))
+			})
+		}
 	}) // context
 
 	Context("must serialize parameters and return values sensibly", func() {

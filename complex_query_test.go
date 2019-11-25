@@ -15,6 +15,8 @@
 package aerospike_test
 
 import (
+	"fmt"
+
 	as "github.com/aerospike/aerospike-client-go"
 
 	. "github.com/onsi/ginkgo"
@@ -23,7 +25,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Query operations on complex types", func() {
-	initTestVars()
 
 	// connection data
 	var ns = *namespace
@@ -80,103 +81,107 @@ var _ = Describe("Query operations on complex types", func() {
 		Expect(client.DropIndex(nil, ns, set, set+bin2.Name+"values")).ToNot(HaveOccurred())
 	})
 
-	It("must Query a specific element in list and get only relevant records back", func() {
-		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 1))
-		recordset, err := client.Query(nil, stm)
-		Expect(err).ToNot(HaveOccurred())
+	for _, failOnClusterChange := range []bool{false, true} {
+		var queryPolicy = as.NewQueryPolicy()
+		queryPolicy.FailOnClusterChange = failOnClusterChange
 
-		cnt := 0
-		for res := range recordset.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
-			rec := res.Record
-			cnt++
-			_, exists := keys[string(rec.Key.Digest())]
-			Expect(exists).To(Equal(true))
-		}
+		It(fmt.Sprintf("must Query a specific element in list and get only relevant records back. FailOnClusterChange: %v", failOnClusterChange), func() {
+			stm := as.NewStatement(ns, set)
+			stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 1))
+			recordset, err := client.Query(queryPolicy, stm)
+			Expect(err).ToNot(HaveOccurred())
 
-		Expect(cnt).To(BeNumerically("==", keyCount))
-	})
+			cnt := 0
+			for res := range recordset.Results() {
+				Expect(res.Err).ToNot(HaveOccurred())
+				rec := res.Record
+				cnt++
+				_, exists := keys[string(rec.Key.Digest())]
+				Expect(exists).To(Equal(true))
+			}
 
-	It("must Query a specific non-existig element in list and get no records back", func() {
-		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 10))
-		recordset, err := client.Query(nil, stm)
-		Expect(err).ToNot(HaveOccurred())
+			Expect(cnt).To(BeNumerically("==", keyCount))
+		})
 
-		cnt := 0
-		for res := range recordset.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
-			cnt++
-		}
+		It(fmt.Sprintf("must Query a specific non-existig element in list and get no records back. FailOnClusterChange: %v", failOnClusterChange), func() {
+			stm := as.NewStatement(ns, set)
+			stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 10))
+			recordset, err := client.Query(queryPolicy, stm)
+			Expect(err).ToNot(HaveOccurred())
 
-		Expect(cnt).To(BeNumerically("==", 0))
-	})
+			cnt := 0
+			for res := range recordset.Results() {
+				Expect(res.Err).ToNot(HaveOccurred())
+				cnt++
+			}
 
-	It("must Query a key in map and get only relevant records back", func() {
-		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 0))
-		recordset, err := client.Query(nil, stm)
-		Expect(err).ToNot(HaveOccurred())
+			Expect(cnt).To(BeNumerically("==", 0))
+		})
 
-		cnt := 0
-		for res := range recordset.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
-			rec := res.Record
-			cnt++
-			_, exists := keys[string(rec.Key.Digest())]
-			Expect(exists).To(Equal(true))
-		}
+		It(fmt.Sprintf("must Query a key in map and get only relevant records back. FailOnClusterChange: %v", failOnClusterChange), func() {
+			stm := as.NewStatement(ns, set)
+			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 0))
+			recordset, err := client.Query(queryPolicy, stm)
+			Expect(err).ToNot(HaveOccurred())
 
-		Expect(cnt).To(BeNumerically("==", keyCount))
-	})
+			cnt := 0
+			for res := range recordset.Results() {
+				Expect(res.Err).ToNot(HaveOccurred())
+				rec := res.Record
+				cnt++
+				_, exists := keys[string(rec.Key.Digest())]
+				Expect(exists).To(Equal(true))
+			}
 
-	It("must Query a specific non-existig key in map and get no records back", func() {
-		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 10))
-		recordset, err := client.Query(nil, stm)
-		Expect(err).ToNot(HaveOccurred())
+			Expect(cnt).To(BeNumerically("==", keyCount))
+		})
 
-		cnt := 0
-		for res := range recordset.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
-			cnt++
-		}
+		It(fmt.Sprintf("must Query a specific non-existig key in map and get no records back. FailOnClusterChange: %v", failOnClusterChange), func() {
+			stm := as.NewStatement(ns, set)
+			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 10))
+			recordset, err := client.Query(queryPolicy, stm)
+			Expect(err).ToNot(HaveOccurred())
 
-		Expect(cnt).To(BeNumerically("==", 0))
-	})
+			cnt := 0
+			for res := range recordset.Results() {
+				Expect(res.Err).ToNot(HaveOccurred())
+				cnt++
+			}
 
-	It("must Query a value in map and get only relevant records back", func() {
-		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 1))
-		recordset, err := client.Query(nil, stm)
-		Expect(err).ToNot(HaveOccurred())
+			Expect(cnt).To(BeNumerically("==", 0))
+		})
 
-		cnt := 0
-		for res := range recordset.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
-			rec := res.Record
-			cnt++
-			_, exists := keys[string(rec.Key.Digest())]
-			Expect(exists).To(Equal(true))
-		}
+		It(fmt.Sprintf("must Query a value in map and get only relevant records back. FailOnClusterChange: %v", failOnClusterChange), func() {
+			stm := as.NewStatement(ns, set)
+			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 1))
+			recordset, err := client.Query(queryPolicy, stm)
+			Expect(err).ToNot(HaveOccurred())
 
-		Expect(cnt).To(BeNumerically("==", keyCount))
-	})
+			cnt := 0
+			for res := range recordset.Results() {
+				Expect(res.Err).ToNot(HaveOccurred())
+				rec := res.Record
+				cnt++
+				_, exists := keys[string(rec.Key.Digest())]
+				Expect(exists).To(Equal(true))
+			}
 
-	It("must Query a specific non-existig value in map and get no records back", func() {
-		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 10))
-		recordset, err := client.Query(nil, stm)
-		Expect(err).ToNot(HaveOccurred())
+			Expect(cnt).To(BeNumerically("==", keyCount))
+		})
 
-		cnt := 0
-		for res := range recordset.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
-			cnt++
-		}
+		It(fmt.Sprintf("must Query a specific non-existig value in map and get no records back. FailOnClusterChange: %v", failOnClusterChange), func() {
+			stm := as.NewStatement(ns, set)
+			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 10))
+			recordset, err := client.Query(queryPolicy, stm)
+			Expect(err).ToNot(HaveOccurred())
 
-		Expect(cnt).To(BeNumerically("==", 0))
-	})
+			cnt := 0
+			for res := range recordset.Results() {
+				Expect(res.Err).ToNot(HaveOccurred())
+				cnt++
+			}
 
+			Expect(cnt).To(BeNumerically("==", 0))
+		})
+	}
 })

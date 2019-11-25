@@ -31,7 +31,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Truncate operations test", func() {
-	initTestVars()
 
 	Context("Truncate", func() {
 		var err error
@@ -46,6 +45,10 @@ var _ = Describe("Truncate operations test", func() {
 		bin2 := NewBin("Aerospike2", randString(100))
 
 		BeforeEach(func() {
+			err := client.Truncate(nil, ns, set, nil)
+			Expect(err).ToNot(HaveOccurred())
+
+			time.Sleep(time.Second)
 			for i := 0; i < keyCount; i++ {
 				key, err = NewKey(ns, set, i)
 				Expect(err).ToNot(HaveOccurred())

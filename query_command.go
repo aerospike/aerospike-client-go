@@ -23,9 +23,9 @@ type queryCommand struct {
 	operations  []*Operation
 }
 
-func newQueryCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, operations []*Operation, recordset *Recordset) *queryCommand {
+func newQueryCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, operations []*Operation, recordset *Recordset, clusterKey int64, first bool) *queryCommand {
 	return &queryCommand{
-		baseMultiCommand: *newMultiCommand(node, recordset),
+		baseMultiCommand: *newCorrectMultiCommand(node, recordset, statement.Namespace, clusterKey, first),
 		policy:           policy,
 		writePolicy:      writePolicy,
 		statement:        statement,

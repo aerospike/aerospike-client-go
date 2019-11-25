@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	xornd "github.com/aerospike/aerospike-client-go/types/rand"
@@ -440,22 +441,34 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
-	// result recordset
+	clusterKey := int64(0)
+	if policy.FailOnClusterChange {
+		var err error
+		clusterKey, err = queryValidateBegin(nodes[0], namespace)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	first := NewAtomicBool(true)
+
 	taskID := uint64(xornd.Int64())
+
+	// result recordset
 	res := newRecordset(policy.RecordQueueSize, len(nodes), taskID)
 
 	// the whole call should be wrapped in a goroutine
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
-			go func(node *Node) {
-				clnt.scanNode(&policy, node, res, namespace, setName, taskID, binNames...)
-			}(node)
+			go func(node *Node, first bool) {
+				clnt.scanNode(&policy, node, res, namespace, setName, taskID, clusterKey, first, binNames...)
+			}(node, first.CompareAndToggle(true))
 		}
 	} else {
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				clnt.scanNode(&policy, node, res, namespace, setName, taskID, binNames...)
+				clnt.scanNode(&policy, node, res, namespace, setName, taskID, clusterKey, first.CompareAndToggle(true), binNames...)
 			}
 		}()
 	}
@@ -468,18 +481,27 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
+	clusterKey := int64(0)
+	if policy.FailOnClusterChange {
+		var err error
+		clusterKey, err = queryValidateBegin(node, namespace)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// results channel must be async for performance
 	taskID := uint64(xornd.Int64())
 	res := newRecordset(policy.RecordQueueSize, 1, taskID)
 
-	go clnt.scanNode(&policy, node, res, namespace, setName, taskID, binNames...)
+	go clnt.scanNode(&policy, node, res, namespace, setName, taskID, clusterKey, true, binNames...)
 	return res, nil
 }
 
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, binNames ...string) error {
-	command := newScanCommand(node, policy, namespace, setName, binNames, recordset, taskID)
+func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, clusterKey int64, first bool, binNames ...string) error {
+	command := newScanCommand(node, policy, namespace, setName, binNames, recordset, taskID, clusterKey, first)
 	return command.Execute()
 }
 
@@ -792,6 +814,17 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
 	}
 
+	clusterKey := int64(0)
+	if policy.FailOnClusterChange {
+		var err error
+		clusterKey, err = queryValidateBegin(nodes[0], statement.Namespace)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	first := NewAtomicBool(true)
+
 	// results channel must be async for performance
 	recSet := newRecordset(policy.RecordQueueSize, len(nodes), statement.TaskId)
 
@@ -799,7 +832,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 	for _, node := range nodes {
 		// copy policies to avoid race conditions
 		newPolicy := *policy
-		command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
+		command := newQueryRecordCommand(node, &newPolicy, statement, recSet, clusterKey, first.CompareAndToggle(true))
 		go func() {
 			command.Execute()
 		}()
@@ -820,9 +853,18 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 	// results channel must be async for performance
 	recSet := newRecordset(policy.RecordQueueSize, 1, statement.TaskId)
 
+	clusterKey := int64(0)
+	if policy.FailOnClusterChange {
+		var err error
+		clusterKey, err = queryValidateBegin(node, statement.Namespace)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// copy policies to avoid race conditions
 	newPolicy := *policy
-	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
+	command := newQueryRecordCommand(node, &newPolicy, statement, recSet, clusterKey, true)
 	go func() {
 		command.Execute()
 	}()

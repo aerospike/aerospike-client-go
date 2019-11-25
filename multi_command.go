@@ -27,6 +27,10 @@ import (
 type baseMultiCommand struct {
 	baseCommand
 
+	namespace  string
+	clusterKey int64
+	first      bool
+
 	terminationError ResultCode
 
 	recordset *Recordset
@@ -62,6 +66,24 @@ func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 			oneShot: true,
 		},
 		recordset: recordset,
+	}
+
+	if prepareReflectionData != nil {
+		prepareReflectionData(cmd)
+	}
+	return cmd
+}
+
+func newCorrectMultiCommand(node *Node, recordset *Recordset, namespace string, clusterKey int64, first bool) *baseMultiCommand {
+	cmd := &baseMultiCommand{
+		baseCommand: baseCommand{
+			node:    node,
+			oneShot: true,
+		},
+		namespace:  namespace,
+		clusterKey: clusterKey,
+		first:      first,
+		recordset:  recordset,
 	}
 
 	if prepareReflectionData != nil {
@@ -282,4 +304,29 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 	}
 
 	return true, nil
+}
+
+func (cmd *baseMultiCommand) execute(ifc command, isRead bool) error {
+
+	/***************************************************************************
+	IMPORTANT: 	No need to send the error here to the recordset.Error channel.
+				It is being sent from the downstream command from the result
+				returned from the function.
+	****************************************************************************/
+
+	if cmd.clusterKey != 0 {
+		if !cmd.first {
+			if err := queryValidate(cmd.node, cmd.namespace, cmd.clusterKey); err != nil {
+				return err
+			}
+		}
+
+		if err := cmd.baseCommand.execute(ifc, isRead); err != nil {
+			return err
+		}
+
+		return queryValidate(cmd.node, cmd.namespace, cmd.clusterKey)
+	}
+
+	return cmd.baseCommand.execute(ifc, isRead)
 }

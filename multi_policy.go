@@ -57,6 +57,6 @@ func NewMultiPolicy() *MultiPolicy {
 		RecordsPerSecond:    0,
 		RecordQueueSize:     50,
 		IncludeBinData:      true,
-		FailOnClusterChange: true,
+		FailOnClusterChange: false,
 	}
 }

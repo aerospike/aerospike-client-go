@@ -36,9 +36,11 @@ func newScanObjectsCommand(
 	binNames []string,
 	recordset *Recordset,
 	taskID uint64,
+	clusterKey int64,
+	first bool,
 ) *scanObjectsCommand {
 	cmd := &scanObjectsCommand{
-		baseMultiCommand: *newMultiCommand(node, recordset),
+		baseMultiCommand: *newCorrectMultiCommand(node, recordset, namespace, clusterKey, first),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,

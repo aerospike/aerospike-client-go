@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sync"
 
+	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 	lualib "github.com/aerospike/aerospike-client-go/internal/lua"
 	. "github.com/aerospike/aerospike-client-go/types"
 	lua "github.com/yuin/gopher-lua"
@@ -52,6 +53,16 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "QueryAggregate failed because cluster is empty.")
 	}
 
+	clusterKey := int64(0)
+	if policy.FailOnClusterChange {
+		var err error
+		clusterKey, err = queryValidateBegin(nodes[0], statement.Namespace)
+		if err != nil {
+			return nil, err
+		}
+	}
+	first := NewAtomicBool(true)
+
 	// results channel must be async for performance
 	recSet := newRecordset(policy.RecordQueueSize, len(nodes), statement.TaskId)
 
@@ -75,7 +86,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 	for _, node := range nodes {
 		// copy policies to avoid race conditions
 		newPolicy := *policy
-		command := newQueryAggregateCommand(node, &newPolicy, statement, recSet)
+		command := newQueryAggregateCommand(node, &newPolicy, statement, recSet, clusterKey, first.CompareAndToggle(true))
 		command.luaInstance = luaInstance
 		command.inputChan = inputChan
 
