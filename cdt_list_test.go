@@ -25,12 +25,6 @@ import (
 )
 
 var _ = Describe("CDT List Test", func() {
-	initTestVars()
-
-	if !featureEnabled("cdt-list") {
-		By("CDT List Tests will not run since feature is not supported by the server.")
-		return
-	}
 
 	// connection data
 	var ns = *namespace
@@ -41,6 +35,12 @@ var _ = Describe("CDT List Test", func() {
 	var list []interface{}
 
 	BeforeEach(func() {
+
+		if !featureEnabled("cdt-list") {
+			Skip("CDT List Tests will not run since feature is not supported by the server.")
+			return
+		}
+
 		key, err = as.NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 

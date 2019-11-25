@@ -25,12 +25,6 @@ import (
 )
 
 var _ = Describe("CDT Bitwise Test", func() {
-	initTestVars()
-
-	if !featureEnabled("blob-bits") {
-		By("CDT Bitwise Tests will not run since feature is not supported by the server.")
-		return
-	}
 
 	// connection data
 	var ns = *namespace
@@ -150,6 +144,11 @@ var _ = Describe("CDT Bitwise Test", func() {
 	}
 
 	BeforeEach(func() {
+		if !featureEnabled("blob-bits") {
+			Skip("CDT Bitwise Tests will not run since feature is not supported by the server.")
+			return
+		}
+
 		key, err = as.NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 

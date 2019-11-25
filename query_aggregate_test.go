@@ -38,7 +38,6 @@ func registerUDF(client *as.Client, path, filename string) error {
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Query Aggregate operations", func() {
-	initTestVars()
 
 	// connection data
 	var ns = *namespace

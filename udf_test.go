@@ -64,7 +64,6 @@ end
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("UDF/Query tests", func() {
-	initTestVars()
 
 	var err error
 	var ns = *namespace
@@ -244,17 +243,23 @@ var _ = Describe("UDF/Query tests", func() {
 
 	Context("must serialize parameters and return values sensibly", func() {
 
-		regTask, err := client.RegisterUDF(wpolicy, []byte(udfEcho), "udfEcho.lua", as.LUA)
-		if err != nil {
-			panic(err)
-		}
-		// wait until UDF is created
-		<-regTask.OnComplete()
-		// a new record that is not in the range
-		key, err = as.NewKey(ns, set, randString(50))
-		if err != nil {
-			panic(err)
-		}
+		var udfReg sync.Once
+
+		BeforeEach(func() {
+			udfReg.Do(func() {
+				regTask, err := client.RegisterUDF(wpolicy, []byte(udfEcho), "udfEcho.lua", as.LUA)
+				if err != nil {
+					panic(err)
+				}
+				// wait until UDF is created
+				<-regTask.OnComplete()
+				// a new record that is not in the range
+				key, err = as.NewKey(ns, set, randString(50))
+				if err != nil {
+					panic(err)
+				}
+			})
+		})
 
 		testMatrix := map[interface{}]interface{}{
 			math.MinInt64: math.MinInt64,

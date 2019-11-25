@@ -15,53 +15,26 @@
 package aerospike_test
 
 import (
-	"flag"
 	"math/rand"
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	_ "net/http/pprof"
 
 	. "github.com/aerospike/aerospike-client-go"
 )
 
-var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
-var port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
-var user = flag.String("U", "", "Username.")
-var password = flag.String("P", "", "Password.")
-var clientPolicy *ClientPolicy
-
-var benchClient *Client
-
-func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	rand.Seed(time.Now().UnixNano())
-	flag.Parse()
-
-	clientPolicy = NewClientPolicy()
-	if *user != "" {
-		clientPolicy.User = *user
-		clientPolicy.Password = *password
-	}
-
-	var err error
-	if benchClient, err = NewClientWithPolicy(clientPolicy, *host, *port); err != nil {
-		panic(err)
-	}
-}
-
 func makeDataForGetBench(set string, bins []*Bin) {
 	key, _ := NewKey(*namespace, set, 0)
-	benchClient.PutBins(nil, key, bins...)
+	client.PutBins(nil, key, bins...)
 }
 
 func doGet(set string, b *testing.B) {
 	var err error
 	key, _ := NewKey(*namespace, set, 0)
 	for i := 0; i < b.N; i++ {
-		_, err = benchClient.Get(nil, key)
+		_, err = client.Get(nil, key)
 		if err != nil {
 			panic(err)
 		}
@@ -175,7 +148,7 @@ func doPut(set string, value interface{}, b *testing.B) {
 	// key, _ := NewKey(*namespace, set, 0)
 	for i := 0; i < b.N; i++ {
 		bin := NewBin("b", value)
-		// err = benchClient.PutBins(nil, key, bin)
+		// err = client.PutBins(nil, key, bin)
 		if err != nil || bin == nil {
 			panic(err)
 		}

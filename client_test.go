@@ -33,7 +33,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Aerospike", func() {
-	initTestVars()
 
 	var actualClusterName string
 

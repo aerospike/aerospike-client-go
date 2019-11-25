@@ -84,12 +84,6 @@ end
 `
 
 var _ = Describe("CDT Map Test", func() {
-	initTestVars()
-
-	if !featureEnabled("cdt-map") {
-		By("CDT Map Tests will not run since feature is not supported by the server.")
-		return
-	}
 
 	// connection data
 	var err error
@@ -104,6 +98,12 @@ var _ = Describe("CDT Map Test", func() {
 	addMode := as.NewMapPolicy(as.MapOrder.UNORDERED, as.MapWriteMode.CREATE_ONLY)
 
 	BeforeEach(func() {
+
+		if !featureEnabled("cdt-map") {
+			Skip("CDT Map Tests will not run since feature is not supported by the server.")
+			return
+		}
+
 		key, err = as.NewKey(ns, set, randString(50))
 		Expect(err).ToNot(HaveOccurred())
 

@@ -23,7 +23,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Complex Index operations test", func() {
-	initTestVars()
 
 	Describe("Complex Index Creation", func() {
 		// connection data

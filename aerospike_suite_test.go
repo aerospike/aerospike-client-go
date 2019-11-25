@@ -30,9 +30,6 @@ var debug = flag.Bool("debug", false, "Will set the logging level to DEBUG.")
 var namespace = flag.String("n", "test", "Namespace")
 
 func initTestVars() {
-	rand.Seed(time.Now().UnixNano())
-	flag.Parse()
-
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", log.LstdFlags|log.Lshortfile)
 	logger.SetOutput(os.Stdout)
@@ -57,20 +54,24 @@ func initTestVars() {
 		clientPolicy.AuthMode = as.AuthModeExternal
 	}
 
-	if client == nil || !client.IsConnected() {
-		client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
-		if err != nil {
-			log.Fatal(err.Error())
-		}
+	client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 
-		// set default policies
-		if *useReplicas {
-			client.DefaultPolicy.ReplicaPolicy = as.MASTER_PROLES
-		}
+	// set default policies
+	if *useReplicas {
+		client.DefaultPolicy.ReplicaPolicy = as.MASTER_PROLES
 	}
 }
 
 func TestAerospike(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	flag.Parse()
+
+	// setup the client object
+	initTestVars()
+
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Aerospike Client Library Suite")
 }

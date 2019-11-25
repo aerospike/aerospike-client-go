@@ -30,7 +30,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Index operations test", func() {
-	initTestVars()
 
 	Describe("Index creation", func() {
 		var err error
