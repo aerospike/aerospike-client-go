@@ -1,5 +1,16 @@
 # Change History
 
+## November 25 2019: v2.6.0
+  Minor feature release.
+
+  * **New Features**
+
+    - Supports correct Query/Scans via `Scan/QueryPolicy.FailOnClusterChange`
+
+  * **Fixes**
+
+    - Fixes an issue where the client using multiple seeds via DNS or Load Balancer would fail to connect if more than one of them were unreachable.
+
 ## November 8 2019: v2.5.0
   Major feature release.
 
