@@ -1723,6 +1723,10 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 
 		cmd.conn, err = ifc.getConnection(policy)
 		if err != nil {
+			if policy.WaitForConnectionsToBeRealeased && err == ErrConnectionPoolEmptyAndAllConnectionsInUse {
+				iterations--
+			}
+
 			if err == ErrConnectionPoolEmpty {
 				// if the connection pool is empty, we still haven't tried
 				// the transaction to increase the iteration count.

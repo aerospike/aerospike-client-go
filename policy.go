@@ -120,6 +120,15 @@ type BasePolicy struct {
 	// The default is false.
 	LinearizeRead bool
 
+	// WaitForConnectionsFromPool determines if a command that tries to get a
+	// connection from the connection pool will wait and retry in case the pool is
+	// empty until a connection becomes available (or the TotalTimeout is reached).
+	// If set to true an error will be return immediately.
+	// If set to false getting a connection will be retried.
+	// This only applies if LimitConnectionsToQueueSize is set to true and the number of open connections to a node has reached ConnectionQueueSize.
+	// The default is true
+	WaitForConnectionsFromPool bool
+
 	// ReplicaPolicy determines the node to send the read commands containing the key's partition replica type.
 	// Write commands are not affected by this setting, because all writes are directed
 	// to the node containing the key's master partition.
@@ -131,16 +140,17 @@ type BasePolicy struct {
 // NewPolicy generates a new BasePolicy instance with default values.
 func NewPolicy() *BasePolicy {
 	return &BasePolicy{
-		Priority:            DEFAULT,
-		ConsistencyLevel:    CONSISTENCY_ONE,
-		TotalTimeout:        0 * time.Millisecond,
-		SocketTimeout:       30 * time.Second,
-		MaxRetries:          2,
-		SleepBetweenRetries: 1 * time.Millisecond,
-		SleepMultiplier:     1.0,
-		ReplicaPolicy:       SEQUENCE,
-		SendKey:             false,
-		LinearizeRead:       false,
+		Priority:                   DEFAULT,
+		ConsistencyLevel:           CONSISTENCY_ONE,
+		TotalTimeout:               0 * time.Millisecond,
+		SocketTimeout:              30 * time.Second,
+		MaxRetries:                 2,
+		SleepBetweenRetries:        1 * time.Millisecond,
+		SleepMultiplier:            1.0,
+		ReplicaPolicy:              SEQUENCE,
+		SendKey:                    false,
+		LinearizeRead:              false,
+		WaitForConnectionsFromPool: true,
 	}
 }
 
