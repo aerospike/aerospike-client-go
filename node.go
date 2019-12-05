@@ -558,7 +558,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 	conn.node = nd
 
 	// need to authenticate
-	if err = conn.login(nd.sessionToken()); err != nil {
+	if err = conn.login(&nd.cluster.clientPolicy, nd.cluster.Password(), nd.sessionToken()); err != nil {
 		atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
 
 		// Socket not authenticated. Do not put back into pool.
