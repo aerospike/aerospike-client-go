@@ -812,7 +812,7 @@ func (va ValueArray) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (va ValueArray) GetObject() interface{} {
-	return va
+	return []Value(va)
 }
 
 // String implements Stringer interface.
@@ -850,7 +850,7 @@ func (vl ListValue) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (vl ListValue) GetObject() interface{} {
-	return vl
+	return []interface{}(vl)
 }
 
 // String implements Stringer interface.
@@ -932,7 +932,7 @@ func (vl MapValue) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (vl MapValue) GetObject() interface{} {
-	return vl
+	return map[interface{}]interface{}(vl)
 }
 
 func (vl MapValue) String() string {
@@ -969,7 +969,7 @@ func (vl JsonValue) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (vl JsonValue) GetObject() interface{} {
-	return vl
+	return map[string]interface{}(vl)
 }
 
 func (vl JsonValue) String() string {
