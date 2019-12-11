@@ -906,10 +906,9 @@ var _ = Describe("Aerospike", func() {
 
 		Context("UDF Objects operations", func() {
 			It("must store and get values of types which implement Value interface using udf", func() {
-				udfFunc := []byte(`function setValue(rec, val) 
-				  local res = map()
-				  res['value'] = val
-				  return res
+				udfFunc := []byte(`function setValue(rec, val)
+				  rec['value'] = val
+				  return rec
 				end`)
 
 				regTask, err := client.RegisterUDF(nil, udfFunc, "test_set.lua", as.LUA)
