@@ -954,7 +954,13 @@ var _ = Describe("Aerospike", func() {
 
 					rec, err := client.Get(nil, key, "value")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(rec.Bins["value"]).To(Equal(data.out))
+
+					if data.out == nil {
+						Expect(rec.Bins["value"]).To(BeNil())
+					} else {
+						Expect(rec.Bins["value"]).To(Equal(data.out))
+					}
+
 				}
 			}) // #272 issue
 
