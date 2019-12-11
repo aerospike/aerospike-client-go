@@ -925,7 +925,7 @@ var _ = Describe("Aerospike", func() {
 					f = 3.14
 					valArray = []as.Value{as.NewValue(i), as.NewValue(str)}
 					list = []interface{}{i, str}
-					m = map[interface{}]interface{}{i: i, str: str}
+					m = map[interface{}]interface{}{"int": i, "string": str}
 					json = map[string]interface{}{"int": i, "string": str}
 				)
 
@@ -940,10 +940,10 @@ var _ = Describe("Aerospike", func() {
 					{in:  as.NewStringValue(str), out: str},
 					{in:  as.NewIntegerValue(i), out: i},
 					{in:  as.NewFloatValue(f), out: f},
-					{in:  as.NewValueArray(valArray), out: valArray},
+					{in:  as.NewValueArray(valArray), out: list},
 					{in:  as.NewListValue(list), out: list},
 					{in:  as.NewMapValue(m), out: m},
-					{in:  as.NewJsonValue(json), out: json},
+					{in:  as.NewJsonValue(json), out: m},
 				}
 
 				for i, data := range cases {
