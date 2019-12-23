@@ -161,8 +161,10 @@ const (
 // type ListSortFlags int
 
 const (
-	// ListSortFlagsDefault is the default sort flag for CDT lists.
+	// ListSortFlagsDefault is the default sort flag for CDT lists, and sort in Ascending order.
 	ListSortFlagsDefault = 0
+	// ListSortFlagsDescending will sort the contents of the list in descending order.
+	ListSortFlagsDescending = 1
 	// ListSortFlagsDropDuplicates will drop duplicate values in the results of the CDT list operation.
 	ListSortFlagsDropDuplicates = 2
 )
