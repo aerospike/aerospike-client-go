@@ -1154,7 +1154,7 @@ var _ = Describe("Aerospike", func() {
 			})
 
 			for _, useInline := range []bool{true, false} {
-				It(fmt.Sprintf("must return the records with same ordering as keys. AllowInline: %v", useInline), func() {
+				It(fmt.Sprintf("must return the record headers with same ordering as keys. AllowInline: %v", useInline), func() {
 					var records []*as.Record
 					type existence struct {
 						key         *as.Key

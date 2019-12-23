@@ -67,11 +67,36 @@ func (cmd *readCommand) getNode(ifc command) (*Node, error) {
 }
 
 func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
-	// Read header.
-	_, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE))
+	// Read proto and check if compressed
+	_, err := conn.Read(cmd.dataBuffer, 8)
 	if err != nil {
 		Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
 		return err
+	}
+
+	if compressedSize := cmd.compressedSize(); compressedSize > 0 {
+		// Read compressed size
+		_, err = conn.Read(cmd.dataBuffer, 8)
+		if err != nil {
+			Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
+			return err
+		}
+
+		cmd.conn.initInflater(true, compressedSize)
+
+		// Read header.
+		_, err = conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE))
+		if err != nil {
+			Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
+			return err
+		}
+	} else {
+		// Read header.
+		_, err = conn.Read(cmd.dataBuffer[8:], int(_MSG_TOTAL_HEADER_SIZE)-8)
+		if err != nil {
+			Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
+			return err
+		}
 	}
 
 	// A number of these are commented out because we just don't care enough to read
@@ -93,7 +118,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 
 	// Read remaining message bytes.
 	if receiveSize > 0 {
-		if err = cmd.sizeBufferSz(receiveSize); err != nil {
+		if err = cmd.sizeBufferSz(receiveSize, false); err != nil {
 			return err
 		}
 		_, err = conn.Read(cmd.dataBuffer, receiveSize)

@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"bytes"
+	"compress/zlib"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -27,7 +29,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go/types"
 
 	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
-	// Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 const (
@@ -44,6 +46,9 @@ const (
 
 	// Involve all replicas in read operation.
 	_INFO1_CONSISTENCY_ALL = (1 << 6)
+
+	// Tell server to compress its response.
+	_INFO1_COMPRESS_RESPONSE = (1 << 7)
 
 	// Create or update record
 	_INFO2_WRITE int = (1 << 0)
@@ -80,8 +85,10 @@ const (
 	_OPERATION_HEADER_SIZE     uint8 = 8
 	_MSG_REMAINING_HEADER_SIZE uint8 = 22
 	_DIGEST_SIZE               uint8 = 20
+	_COMPRESS_THRESHOLD        int   = 128
 	_CL_MSG_VERSION            int64 = 2
 	_AS_MSG_TYPE               int64 = 3
+	_AS_MSG_TYPE_COMPRESSED    int64 = 4
 )
 
 // command interface describes all commands available
@@ -105,12 +112,23 @@ type baseCommand struct {
 	node *Node
 	conn *Connection
 
-	dataBuffer []byte
-	dataOffset int
+	// dataBufferCompress is not a second buffer; it is just a pointer to
+	// the beginning of the dataBuffer.
+	// To avoid allocating multiple buffers before compression, the dataBuffer
+	// will be referencing to a padded buffer. After the command is written to
+	// the buffer, this padding will be used to compress the command in-place,
+	// and then the compressed proto header will be written.
+	dataBufferCompress []byte
+	dataBuffer         []byte
+	dataOffset         int
 
 	// oneShot determines if streaming commands like query, scan or queryAggregate
 	// are not retried if they error out mid-parsing
 	oneShot bool
+
+	// will determine if the buffer will be compressed
+	// before being sent to the server
+	compressed bool
 }
 
 // Writes the command for write operations
@@ -141,7 +159,7 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 		}
 	}
 
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 
@@ -174,6 +192,7 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 	}
 
 	cmd.end()
+	cmd.markCompressed(policy)
 
 	return nil
 }
@@ -192,7 +211,7 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
 		fieldCount++
 	}
 
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE|_INFO2_DELETE, fieldCount, 0)
@@ -203,6 +222,8 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
 		}
 	}
 	cmd.end()
+	cmd.markCompressed(policy)
+
 	return nil
 
 }
@@ -222,7 +243,7 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 	}
 
 	cmd.estimateOperationSize()
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(false); err != nil {
 		return err
 	}
 	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 1)
@@ -252,7 +273,7 @@ func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) error {
 		fieldCount++
 	}
 
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(false); err != nil {
 		return err
 	}
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
@@ -279,7 +300,7 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) error {
 		predSize = cmd.estimatePredExpSize(policy.PredExp)
 		fieldCount++
 	}
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(false); err != nil {
 		return err
 	}
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
@@ -312,7 +333,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 		for i := range binNames {
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
-		if err = cmd.sizeBuffer(); err != nil {
+		if err = cmd.sizeBuffer(false); err != nil {
 			return nil
 		}
 		cmd.writeHeader(policy, _INFO1_READ, 0, fieldCount, len(binNames))
@@ -348,7 +369,7 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 	}
 
 	cmd.estimateOperationSizeForBinName("")
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 
@@ -429,7 +450,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		fieldCount++
 	}
 
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return hasWrite, err
 	}
 
@@ -461,6 +482,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	}
 
 	cmd.end()
+	cmd.markCompressed(policy)
 
 	return hasWrite, nil
 }
@@ -484,7 +506,7 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	}
 	fieldCount += fc
 
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 
@@ -499,6 +521,7 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	cmd.writeFieldString(functionName, UDF_FUNCTION)
 	cmd.writeUdfArgs(args)
 	cmd.end()
+	cmd.markCompressed(policy)
 
 	return nil
 }
@@ -550,7 +573,7 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 		}
 	}
 
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 
@@ -620,6 +643,7 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 
 	cmd.WriteUint32At(uint32(cmd.dataOffset)-uint32(_MSG_TOTAL_HEADER_SIZE)-4, fieldSizeOffset)
 	cmd.end()
+	cmd.markCompressed(policy)
 
 	return nil
 }
@@ -675,7 +699,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 		}
 	}
 
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 
@@ -765,6 +789,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 
 	cmd.WriteUint32At(uint32(cmd.dataOffset)-uint32(_MSG_TOTAL_HEADER_SIZE)-4, fieldSizeOffset)
 	cmd.end()
+	cmd.markCompressed(policy)
 
 	return nil
 }
@@ -812,7 +837,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		}
 	}
 
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(false); err != nil {
 		return err
 	}
 	readAttr := _INFO1_READ
@@ -994,7 +1019,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		}
 	}
 
-	if err := cmd.sizeBuffer(); err != nil {
+	if err := cmd.sizeBuffer(false); err != nil {
 		return err
 	}
 
@@ -1229,6 +1254,10 @@ func (cmd *baseCommand) writeHeader(policy *BasePolicy, readAttr int, writeAttr 
 		readAttr |= _INFO1_CONSISTENCY_ALL
 	}
 
+	if policy.UseCompression {
+		readAttr |= _INFO1_COMPRESS_RESPONSE
+	}
+
 	// Write all header data except total size which must be written last.
 	cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
 	cmd.dataBuffer[9] = byte(readAttr)
@@ -1286,6 +1315,10 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 
 	if policy.DurableDelete {
 		writeAttr |= _INFO2_DURABLE_DELETE
+	}
+
+	if policy.UseCompression {
+		readAttr |= _INFO1_COMPRESS_RESPONSE
 	}
 
 	// Write all header data except total size which must be written last.
@@ -1601,8 +1634,8 @@ func (cmd *baseCommand) begin() {
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
 }
 
-func (cmd *baseCommand) sizeBuffer() error {
-	return cmd.sizeBufferSz(cmd.dataOffset)
+func (cmd *baseCommand) sizeBuffer(compress bool) error {
+	return cmd.sizeBufferSz(cmd.dataOffset, compress)
 }
 
 func (cmd *baseCommand) validateHeader(header int64) error {
@@ -1612,8 +1645,8 @@ func (cmd *baseCommand) validateHeader(header int64) error {
 	}
 
 	msgType := (uint64(header) & 0x00FF000000000000) >> 49
-	if !(msgType == 1 || msgType == 3) {
-		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected type to be 1 or 3, but got %v", msgType))
+	if !(msgType == 1 || msgType == 3 || msgType == 4) {
+		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected type to be 1, 3 or 4, but got %v", msgType))
 	}
 
 	msgSize := header & 0x0000FFFFFFFFFFFF
@@ -1628,10 +1661,21 @@ var (
 	// MaxBufferSize protects against allocating massive memory blocks
 	// for buffers. Tweak this number if you are returning a lot of
 	// LDT elements in your queries.
-	MaxBufferSize = 1024 * 1024 * 10 // 10 MB
+	MaxBufferSize = 1024 * 1024 * 120 // 120 MB
 )
 
-func (cmd *baseCommand) sizeBufferSz(size int) error {
+const (
+	msgHeaderPad  = 16
+	zlibHeaderPad = 2
+)
+
+func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) error {
+
+	if willCompress {
+		// adds zlib and proto pads to the size of the buffer
+		size += msgHeaderPad + zlibHeaderPad
+	}
+
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
 	if size > MaxBufferSize || size < 0 {
@@ -1647,13 +1691,86 @@ func (cmd *baseCommand) sizeBufferSz(size int) error {
 		cmd.dataBuffer = make([]byte, size)
 	}
 
+	// The trick here to keep a ref to the buffer, and set the buffer itself
+	// to a padded version of the original:
+	// | Proto Header | Original Compressed Size | compressed message |
+	// |    8 Bytes   |          8 Bytes         |                    |
+	if willCompress {
+		cmd.dataBufferCompress = cmd.dataBuffer
+		cmd.dataBuffer = cmd.dataBufferCompress[msgHeaderPad+zlibHeaderPad:]
+	}
+
 	return nil
 }
 
 func (cmd *baseCommand) end() {
-	var size = int64(cmd.dataOffset-8) | (_CL_MSG_VERSION << 56) | (_AS_MSG_TYPE << 48)
-	// Buffer.Int64ToBytes(size, cmd.dataBuffer, 0)
-	binary.BigEndian.PutUint64(cmd.dataBuffer[0:], uint64(size))
+	var proto = int64(cmd.dataOffset-8) | (_CL_MSG_VERSION << 56) | (_AS_MSG_TYPE << 48)
+	binary.BigEndian.PutUint64(cmd.dataBuffer[0:], uint64(proto))
+}
+
+func (cmd *baseCommand) markCompressed(policy Policy) {
+	cmd.compressed = policy.compress()
+}
+
+func (cmd *baseCommand) compress() error {
+	if cmd.compressed && cmd.dataOffset > _COMPRESS_THRESHOLD {
+		b := bytes.NewBuffer(cmd.dataBufferCompress[msgHeaderPad:])
+		b.Reset()
+		w := zlib.NewWriter(b)
+
+		// There seems to be a bug either in Go's zlib or in zlibc
+		// which messes up a single write block of bigger than 64KB to
+		// the deflater.
+		// Things work in multiple writes of 64KB though, so this is
+		// how we're going to do it.
+		i := 0
+		const step = 64 * 1024
+		for i+step < cmd.dataOffset {
+			n, err := w.Write(cmd.dataBuffer[i : i+step])
+			i += n
+			if err != nil {
+				return err
+			}
+		}
+
+		if i < cmd.dataOffset {
+			_, err := w.Write(cmd.dataBuffer[i:cmd.dataOffset])
+			if err != nil {
+				return err
+			}
+		}
+
+		// flush
+		w.Close()
+
+		compressedSz := b.Len()
+
+		// Use compressed buffer if compression completed within original buffer size.
+		var proto = int64(compressedSz+8) | (_CL_MSG_VERSION << 56) | (_AS_MSG_TYPE_COMPRESSED << 48)
+		binary.BigEndian.PutUint64(cmd.dataBufferCompress[0:], uint64(proto))
+		binary.BigEndian.PutUint64(cmd.dataBufferCompress[8:], uint64(cmd.dataOffset))
+
+		cmd.dataBuffer = cmd.dataBufferCompress
+		cmd.dataOffset = compressedSz + 16
+		cmd.dataBufferCompress = nil
+	}
+
+	return nil
+}
+
+// isCompressed returns the length of the compressed buffer.
+// If the buffer is not compressed, the result will be -1
+func (cmd *baseCommand) compressedSize() int {
+	proto := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+	size := proto & 0xFFFFFFFFFFFF
+
+	msgType := (proto >> 48) & 0xff
+
+	if msgType != _AS_MSG_TYPE_COMPRESSED {
+		return -1
+	}
+
+	return int(size)
 }
 
 ////////////////////////////////////
@@ -1755,6 +1872,11 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 			binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond))
 		}
 
+		// now that the deadline has been set in the buffer, compress the contents
+		if err = cmd.compress(); err != nil {
+			return NewAerospikeError(SERIALIZE_ERROR, err.Error())
+		}
+
 		// Send command.
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 		if err != nil {
@@ -1801,7 +1923,11 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 		}
 
 		// in case it has grown and re-allocated
-		cmd.conn.dataBuffer = cmd.dataBuffer
+		if len(cmd.dataBufferCompress) > len(cmd.dataBuffer) {
+			cmd.conn.dataBuffer = cmd.dataBufferCompress
+		} else {
+			cmd.conn.dataBuffer = cmd.dataBuffer
+		}
 
 		// Put connection back in pool.
 		// cmd.node.PutConnection(cmd.conn)

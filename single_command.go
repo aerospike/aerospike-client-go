@@ -52,7 +52,7 @@ func (cmd *singleCommand) emptySocket(conn *Connection) error {
 
 	// Read remaining message bytes.
 	if receiveSize > 0 {
-		if err := cmd.sizeBufferSz(receiveSize); err != nil {
+		if err := cmd.sizeBufferSz(receiveSize, false); err != nil {
 			return err
 		}
 		if _, err := conn.Read(cmd.dataBuffer, receiveSize); err != nil {

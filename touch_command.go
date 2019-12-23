@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -51,10 +52,44 @@ func (cmd *touchCommand) getNode(ifc command) (*Node, error) {
 
 func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 	// Read header.
-	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
+	_, err := conn.Read(cmd.dataBuffer, 8)
+	if err != nil {
 		return err
 	}
 
+	if compressedSize := cmd.compressedSize(); compressedSize > 0 {
+		// Read compressed size
+		_, err = conn.Read(cmd.dataBuffer, compressedSize)
+		if err != nil {
+			Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
+			return err
+		}
+
+		// Read compressed size
+		_, err = conn.Read(cmd.dataBuffer, 8)
+		if err != nil {
+			Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
+			return err
+		}
+
+		cmd.conn.initInflater(true, compressedSize)
+
+		// Read header.
+		_, err = conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE))
+		if err != nil {
+			Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
+			return err
+		}
+	} else {
+		// Read header.
+		_, err = conn.Read(cmd.dataBuffer[8:], int(_MSG_TOTAL_HEADER_SIZE)-8)
+		if err != nil {
+			Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
+			return err
+		}
+	}
+
+	// Read header.
 	header := Buffer.BytesToInt64(cmd.dataBuffer, 0)
 
 	// Validate header to make sure we are at the beginning of a message

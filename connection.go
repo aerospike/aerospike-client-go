@@ -15,7 +15,9 @@
 package aerospike
 
 import (
+	"compress/zlib"
 	"crypto/tls"
+	"io"
 	"net"
 	"runtime"
 	"strconv"
@@ -49,6 +51,12 @@ type Connection struct {
 
 	// to avoid having a buffer pool and contention
 	dataBuffer []byte
+
+	compressed bool
+	inflator   io.ReadCloser
+	// inflator may consume more bytes than required.
+	// LimitReader is used to avoid that problem.
+	limitReader *io.LimitedReader
 
 	closer sync.Once
 }
@@ -84,6 +92,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, error) {
 		return nil, errToTimeoutErr(nil, err)
 	}
 	newConn.conn = conn
+	newConn.limitReader = &io.LimitedReader{conn, 0}
 
 	// set timeout at the last possible moment
 	if err := newConn.SetTimeout(time.Now().Add(timeout), timeout); err != nil {
@@ -172,7 +181,17 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 		if err = ctn.updateDeadline(); err != nil {
 			break
 		}
-		r, err = ctn.conn.Read(buf[total:length])
+
+		if !ctn.compressed {
+			r, err = ctn.conn.Read(buf[total:length])
+		} else {
+			r, err = ctn.inflator.Read(buf[total:length])
+			if err == io.EOF && total+r == length {
+				ctn.compressed = false
+				ctn.inflator.Close()
+				err = nil
+			}
+		}
 		total += r
 		if err != nil {
 			break
@@ -367,4 +386,24 @@ func (ctn *Connection) isIdle() bool {
 // refresh extends the idle deadline of the connection.
 func (ctn *Connection) refresh() {
 	ctn.idleDeadline = time.Now().Add(ctn.idleTimeout)
+	if ctn.inflator != nil {
+		ctn.inflator.Close()
+	}
+	ctn.compressed = false
+	ctn.inflator = nil
+}
+
+// initInflater sets up the zlib inflator to read compressed data from the connection
+func (ctn *Connection) initInflater(enabled bool, length int) error {
+	ctn.compressed = enabled
+	ctn.inflator = nil
+	if ctn.compressed {
+		ctn.limitReader.N = int64(length)
+		r, err := zlib.NewReader(ctn.limitReader)
+		if err != nil {
+			return err
+		}
+		ctn.inflator = r
+	}
+	return nil
 }

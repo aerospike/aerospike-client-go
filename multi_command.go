@@ -113,6 +113,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 
 	cmd.bc = newBufferedConn(conn, 0)
 	for status {
+		cmd.conn.initInflater(false, 0)
 		cmd.bc.reset(8)
 
 		// Read header.
@@ -120,14 +121,33 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 			return err
 		}
 
-		size := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+		proto := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+		receiveSize := int(proto & 0xFFFFFFFFFFFF)
+		if receiveSize <= 0 {
+			continue
+		}
+
+		if compressedSize := cmd.compressedSize(); compressedSize > 0 {
+			cmd.bc.reset(8)
+			// Read header.
+			if cmd.dataBuffer, err = cmd.bc.read(8); err != nil {
+				return err
+			}
+
+			receiveSize = int(Buffer.BytesToInt64(cmd.dataBuffer, 0)) - 8
+			cmd.conn.initInflater(true, compressedSize-8)
+
+			// waste the first 8 bytes
+			cmd.bc.reset(8)
+			cmd.readBytes(8)
+		}
 
 		// Validate header to make sure we are at the beginning of a message
-		if err := cmd.validateHeader(size); err != nil {
+		proto = Buffer.BytesToInt64(cmd.dataBuffer, 0)
+		if err := cmd.validateHeader(proto); err != nil {
 			return err
 		}
 
-		receiveSize := int(size & 0xFFFFFFFFFFFF)
 		if receiveSize > 0 {
 			cmd.bc.reset(receiveSize)
 
