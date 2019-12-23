@@ -1,5 +1,18 @@
 # Change History
 
+## December 24 2019: v2.7.0
+
+  Minor feature and fix release.
+
+  * **New Features**
+
+    - Adds support for client/server wire transport compression.
+    - Adds support for descending CDT list order.
+
+  * **Fixes**
+
+    - Fixes an issue where unpacking `Value` objects would cause an infinite loop. PR #273, thanks to [small-egg](https://github.com/small-egg)
+
 ## November 25 2019: v2.6.0
   Minor feature release.
 
