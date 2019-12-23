@@ -905,6 +905,65 @@ var _ = Describe("Aerospike", func() {
 		}) // ScanObjects context
 
 		Context("UDF Objects operations", func() {
+			It("must store and get values of types which implement Value interface using udf", func() {
+				udfFunc := []byte(`function setValue(rec, val)
+					rec['value'] = val
+					aerospike:update(rec)
+				
+					return rec
+				end`)
+
+				regTask, err := client.RegisterUDF(nil, udfFunc, "test_set.lua", as.LUA)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
+
+				var (
+					bytes = []byte("bytes")
+					str = "string"
+					i = 10
+					f = 3.14
+					valArray = []as.Value{as.NewValue(i), as.NewValue(str)}
+					list = []interface{}{i, str}
+					m = map[interface{}]interface{}{"int": i, "string": str}
+					json = map[string]interface{}{"int": i, "string": str}
+				)
+
+				cases := []struct{
+					in as.Value
+					out interface{}
+				}{
+					{in:  as.NewNullValue(), out: nil},
+					{in:  as.NewInfinityValue(), out: nil},
+					{in:  as.NewWildCardValue(), out: nil},
+					{in:  as.NewBytesValue(bytes), out: bytes},
+					{in:  as.NewStringValue(str), out: str},
+					{in:  as.NewIntegerValue(i), out: i},
+					{in:  as.NewFloatValue(f), out: f},
+					{in:  as.NewValueArray(valArray), out: list},
+					{in:  as.NewListValue(list), out: list},
+					{in:  as.NewMapValue(m), out: m},
+					{in:  as.NewJsonValue(json), out: m},
+				}
+
+				for i, data := range cases {
+					err = client.PutBins(nil, key, as.NewBin("test", i))
+					Expect(err).ToNot(HaveOccurred())
+
+					_, err = client.Execute(nil, key, "test_set", "setValue", data.in)
+					Expect(err).ToNot(HaveOccurred())
+
+					rec, err := client.Get(nil, key, "value")
+					Expect(err).ToNot(HaveOccurred())
+
+					if data.out == nil {
+						Expect(rec.Bins["value"]).To(BeNil())
+					} else {
+						Expect(rec.Bins["value"]).To(Equal(data.out))
+					}
+
+				}
+			}) // #272 issue
 
 			It("must serialize values to the lua function and deserialize into object, even if it is int", func() {
 
