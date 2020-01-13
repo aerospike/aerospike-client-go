@@ -27,6 +27,10 @@ import (
 type baseMultiCommand struct {
 	baseCommand
 
+	namespace  string
+	clusterKey int64
+	first      bool
+
 	terminationError ResultCode
 
 	recordset *Recordset
@@ -70,6 +74,24 @@ func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	return cmd
 }
 
+func newCorrectMultiCommand(node *Node, recordset *Recordset, namespace string, clusterKey int64, first bool) *baseMultiCommand {
+	cmd := &baseMultiCommand{
+		baseCommand: baseCommand{
+			node:    node,
+			oneShot: true,
+		},
+		namespace:  namespace,
+		clusterKey: clusterKey,
+		first:      first,
+		recordset:  recordset,
+	}
+
+	if prepareReflectionData != nil {
+		prepareReflectionData(cmd)
+	}
+	return cmd
+}
+
 func (cmd *baseMultiCommand) getNode(ifc command) (*Node, error) {
 	return cmd.node, nil
 }
@@ -91,6 +113,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 
 	cmd.bc = newBufferedConn(conn, 0)
 	for status {
+		cmd.conn.initInflater(false, 0)
 		cmd.bc.reset(8)
 
 		// Read header.
@@ -98,14 +121,33 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 			return err
 		}
 
-		size := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+		proto := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+		receiveSize := int(proto & 0xFFFFFFFFFFFF)
+		if receiveSize <= 0 {
+			continue
+		}
+
+		if compressedSize := cmd.compressedSize(); compressedSize > 0 {
+			cmd.bc.reset(8)
+			// Read header.
+			if cmd.dataBuffer, err = cmd.bc.read(8); err != nil {
+				return err
+			}
+
+			receiveSize = int(Buffer.BytesToInt64(cmd.dataBuffer, 0)) - 8
+			cmd.conn.initInflater(true, compressedSize-8)
+
+			// waste the first 8 bytes
+			cmd.bc.reset(8)
+			cmd.readBytes(8)
+		}
 
 		// Validate header to make sure we are at the beginning of a message
-		if err := cmd.validateHeader(size); err != nil {
+		proto = Buffer.BytesToInt64(cmd.dataBuffer, 0)
+		if err := cmd.validateHeader(proto); err != nil {
 			return err
 		}
 
-		receiveSize := int(size & 0xFFFFFFFFFFFF)
 		if receiveSize > 0 {
 			cmd.bc.reset(receiveSize)
 
@@ -189,7 +231,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		if resultCode != 0 {
-			if resultCode == KEY_NOT_FOUND_ERROR {
+			if resultCode == KEY_NOT_FOUND_ERROR || resultCode == FILTERED_OUT {
 				return false, nil
 			}
 			err := NewAerospikeError(resultCode)
@@ -282,4 +324,29 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 	}
 
 	return true, nil
+}
+
+func (cmd *baseMultiCommand) execute(ifc command, isRead bool) error {
+
+	/***************************************************************************
+	IMPORTANT: 	No need to send the error here to the recordset.Error channel.
+				It is being sent from the downstream command from the result
+				returned from the function.
+	****************************************************************************/
+
+	if cmd.clusterKey != 0 {
+		if !cmd.first {
+			if err := queryValidate(cmd.node, cmd.namespace, cmd.clusterKey); err != nil {
+				return err
+			}
+		}
+
+		if err := cmd.baseCommand.execute(ifc, isRead); err != nil {
+			return err
+		}
+
+		return queryValidate(cmd.node, cmd.namespace, cmd.clusterKey)
+	}
+
+	return cmd.baseCommand.execute(ifc, isRead)
 }

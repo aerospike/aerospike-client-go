@@ -87,10 +87,16 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 
 	result := lcmd.dataBuffer[_RESULT_CODE] & 0xFF
 	if result != 0 {
-		if int(result) == _INVALID_COMMAND {
+		if int(result) == int(INVALID_COMMAND) {
 			// New login not supported.  Try old authentication.
 			return lcmd.authenticateInternal(conn, policy.User, hashedPass)
 		}
+
+		if int(result) == int(SECURITY_NOT_ENABLED) {
+			// Server does not require login.
+			return nil
+		}
+
 		return NewAerospikeError(ResultCode(result))
 	}
 
@@ -160,7 +166,7 @@ func (lcmd *loginCommand) authenticateInternal(conn *Connection, user string, pa
 	}
 
 	result := lcmd.dataBuffer[_RESULT_CODE] & 0xFF
-	if result != 0 {
+	if result != 0 && int(result) != int(SECURITY_NOT_ENABLED) {
 		return NewAerospikeError(ResultCode(result), "Authentication failed")
 	}
 
@@ -179,7 +185,7 @@ func (lcmd *loginCommand) authenticateViaToken(policy *ClientPolicy, conn *Conne
 	}
 
 	result := lcmd.dataBuffer[_RESULT_CODE] & 0xFF
-	if result != 0 {
+	if result != 0 && int(result) != int(SECURITY_NOT_ENABLED) {
 		return NewAerospikeError(ResultCode(result), "Authentication failed")
 	}
 

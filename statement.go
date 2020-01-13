@@ -129,3 +129,9 @@ func (stmt *Statement) setTaskID() {
 		stmt.TaskId = uint64(xornd.Int64())
 	}
 }
+
+// Always set the taskID client-side to a non-zero random value
+func (stmt *Statement) prepare(returnData bool) {
+	stmt.returnData = returnData
+	stmt.setTaskID()
+}

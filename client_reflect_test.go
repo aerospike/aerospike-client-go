@@ -29,7 +29,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Aerospike", func() {
-	initTestVars()
 
 	Describe("Data operations on complex types with reflection", func() {
 		// connection data

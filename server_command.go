@@ -26,9 +26,9 @@ type serverCommand struct {
 	queryCommand
 }
 
-func newServerCommand(node *Node, policy *QueryPolicy, statement *Statement) *serverCommand {
+func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, operations []*Operation) *serverCommand {
 	return &serverCommand{
-		queryCommand: *newQueryCommand(node, policy, statement, nil),
+		queryCommand: *newQueryCommand(node, policy, writePolicy, statement, operations, nil, 0, false),
 	}
 }
 

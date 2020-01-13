@@ -14,18 +14,18 @@
 
 package aerospike
 
-import . "github.com/aerospike/aerospike-client-go/types"
+// BitResizeFlags specifies the bitwise operation flags for resize.
 
-type queryRecordCommand struct {
-	queryCommand
-}
+const (
+	// BitResizeFlagsDefault specifies the defalt flag.
+	BitResizeFlagsDefault = 0
 
-func newQueryRecordCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset, clusterKey int64, first bool) *queryRecordCommand {
-	cmd := &queryRecordCommand{
-		queryCommand: *newQueryCommand(node, policy, nil, statement, nil, recordset, clusterKey, first),
-	}
+	// BitResizeFlagsFromFront Adds/removes bytes from the beginning instead of the end.
+	BitResizeFlagsFromFront = 1
 
-	cmd.terminationErrorType = QUERY_TERMINATED
+	// BitResizeFlagsGrowOnly will only allow the byte[] size to increase.
+	BitResizeFlagsGrowOnly = 2
 
-	return cmd
-}
+	// BitResizeFlagsShrinkOnly will only allow the byte[] size to decrease.
+	BitResizeFlagsShrinkOnly = 4
+)

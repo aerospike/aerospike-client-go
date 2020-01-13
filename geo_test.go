@@ -26,12 +26,13 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Geo Spacial Tests", func() {
-	initTestVars()
 
-	if !featureEnabled("geo") {
-		By("Geo Tests will not run since feature is not supported by the server.")
-		return
-	}
+	BeforeEach(func() {
+		if !featureEnabled("geo") {
+			Skip("Geo Tests will not run since feature is not supported by the server.")
+			return
+		}
+	})
 
 	// connection data
 	var ns = *namespace

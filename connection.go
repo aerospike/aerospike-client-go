@@ -15,7 +15,9 @@
 package aerospike
 
 import (
+	"compress/zlib"
 	"crypto/tls"
+	"io"
 	"net"
 	"runtime"
 	"strconv"
@@ -49,6 +51,12 @@ type Connection struct {
 
 	// to avoid having a buffer pool and contention
 	dataBuffer []byte
+
+	compressed bool
+	inflator   io.ReadCloser
+	// inflator may consume more bytes than required.
+	// LimitReader is used to avoid that problem.
+	limitReader *io.LimitedReader
 
 	closer sync.Once
 }
@@ -84,6 +92,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, error) {
 		return nil, errToTimeoutErr(nil, err)
 	}
 	newConn.conn = conn
+	newConn.limitReader = &io.LimitedReader{conn, 0}
 
 	// set timeout at the last possible moment
 	if err := newConn.SetTimeout(time.Now().Add(timeout), timeout); err != nil {
@@ -172,7 +181,17 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 		if err = ctn.updateDeadline(); err != nil {
 			break
 		}
-		r, err = ctn.conn.Read(buf[total:length])
+
+		if !ctn.compressed {
+			r, err = ctn.conn.Read(buf[total:length])
+		} else {
+			r, err = ctn.inflator.Read(buf[total:length])
+			if err == io.EOF && total+r == length {
+				ctn.compressed = false
+				ctn.inflator.Close()
+				err = nil
+			}
+		}
 		total += r
 		if err != nil {
 			break
@@ -301,19 +320,17 @@ func (ctn *Connection) authenticateFast(user string, hashedPass []byte) error {
 }
 
 // Login will send authentication information to the server.
-func (ctn *Connection) login(sessionToken []byte) error {
+func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessionToken []byte) error {
 	// need to authenticate
-	if ctn.node.cluster.clientPolicy.RequiresAuthentication() {
-		policy := &ctn.node.cluster.clientPolicy
-
+	if policy.RequiresAuthentication() {
 		switch policy.AuthMode {
 		case AuthModeExternal:
 			var err error
 			command := newLoginCommand(ctn.dataBuffer)
 			if sessionToken == nil {
-				err = command.login(&ctn.node.cluster.clientPolicy, ctn, ctn.node.cluster.Password())
+				err = command.login(policy, ctn, hashedPassword)
 			} else {
-				err = command.authenticateViaToken(&ctn.node.cluster.clientPolicy, ctn, sessionToken)
+				err = command.authenticateViaToken(policy, ctn, sessionToken)
 			}
 
 			if err != nil {
@@ -325,7 +342,7 @@ func (ctn *Connection) login(sessionToken []byte) error {
 				return err
 			}
 
-			if command.SessionToken != nil {
+			if ctn.node != nil && command.SessionToken != nil {
 				ctn.node._sessionToken.Store(command.SessionToken)
 				ctn.node._sessionExpiration.Store(command.SessionExpiration)
 			}
@@ -333,11 +350,27 @@ func (ctn *Connection) login(sessionToken []byte) error {
 			return nil
 
 		case AuthModeInternal:
-			return ctn.authenticateFast(policy.User, ctn.node.cluster.Password())
+			return ctn.authenticateFast(policy.User, hashedPassword)
 		}
 	}
 
 	return nil
+}
+
+// Login will send authentication information to the server.
+// This function is provided for using the connection in conjuction with external libraries.
+// The password will be hashed everytime, which is a slow operation.
+func (ctn *Connection) Login(policy *ClientPolicy) error {
+	if !policy.RequiresAuthentication() {
+		return nil
+	}
+
+	hashedPassword, err := hashPassword(policy.Password)
+	if err != nil {
+		return err
+	}
+
+	return ctn.login(policy, hashedPassword, nil)
 }
 
 // setIdleTimeout sets the idle timeout for the connection.
@@ -353,4 +386,24 @@ func (ctn *Connection) isIdle() bool {
 // refresh extends the idle deadline of the connection.
 func (ctn *Connection) refresh() {
 	ctn.idleDeadline = time.Now().Add(ctn.idleTimeout)
+	if ctn.inflator != nil {
+		ctn.inflator.Close()
+	}
+	ctn.compressed = false
+	ctn.inflator = nil
+}
+
+// initInflater sets up the zlib inflator to read compressed data from the connection
+func (ctn *Connection) initInflater(enabled bool, length int) error {
+	ctn.compressed = enabled
+	ctn.inflator = nil
+	if ctn.compressed {
+		ctn.limitReader.N = int64(length)
+		r, err := zlib.NewReader(ctn.limitReader)
+		if err != nil {
+			return err
+		}
+		ctn.inflator = r
+	}
+	return nil
 }

@@ -29,7 +29,6 @@ const RANDOM_OPS_RUNS = 1000
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Aerospike", func() {
-	initTestVars()
 
 	Describe("Random Data Operations", func() {
 		// connection data

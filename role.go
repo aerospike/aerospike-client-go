@@ -42,4 +42,7 @@ const (
 
 	// Read allows read transactions with the database.
 	Read privilegeCode = "read"
+
+	// Write allows write transactions with the database.
+	Write privilegeCode = "write"
 )

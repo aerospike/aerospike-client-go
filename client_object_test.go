@@ -17,6 +17,7 @@
 package aerospike_test
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"time"
@@ -30,7 +31,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Aerospike", func() {
-	initTestVars()
 
 	Describe("Data operations on objects", func() {
 		// connection data
@@ -905,6 +905,65 @@ var _ = Describe("Aerospike", func() {
 		}) // ScanObjects context
 
 		Context("UDF Objects operations", func() {
+			It("must store and get values of types which implement Value interface using udf", func() {
+				udfFunc := []byte(`function setValue(rec, val)
+					rec['value'] = val
+					aerospike:update(rec)
+				
+					return rec
+				end`)
+
+				regTask, err := client.RegisterUDF(nil, udfFunc, "test_set.lua", as.LUA)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
+
+				var (
+					bytes = []byte("bytes")
+					str = "string"
+					i = 10
+					f = 3.14
+					valArray = []as.Value{as.NewValue(i), as.NewValue(str)}
+					list = []interface{}{i, str}
+					m = map[interface{}]interface{}{"int": i, "string": str}
+					json = map[string]interface{}{"int": i, "string": str}
+				)
+
+				cases := []struct{
+					in as.Value
+					out interface{}
+				}{
+					{in:  as.NewNullValue(), out: nil},
+					{in:  as.NewInfinityValue(), out: nil},
+					{in:  as.NewWildCardValue(), out: nil},
+					{in:  as.NewBytesValue(bytes), out: bytes},
+					{in:  as.NewStringValue(str), out: str},
+					{in:  as.NewIntegerValue(i), out: i},
+					{in:  as.NewFloatValue(f), out: f},
+					{in:  as.NewValueArray(valArray), out: list},
+					{in:  as.NewListValue(list), out: list},
+					{in:  as.NewMapValue(m), out: m},
+					{in:  as.NewJsonValue(json), out: m},
+				}
+
+				for i, data := range cases {
+					err = client.PutBins(nil, key, as.NewBin("test", i))
+					Expect(err).ToNot(HaveOccurred())
+
+					_, err = client.Execute(nil, key, "test_set", "setValue", data.in)
+					Expect(err).ToNot(HaveOccurred())
+
+					rec, err := client.Get(nil, key, "value")
+					Expect(err).ToNot(HaveOccurred())
+
+					if data.out == nil {
+						Expect(rec.Bins["value"]).To(BeNil())
+					} else {
+						Expect(rec.Bins["value"]).To(Equal(data.out))
+					}
+
+				}
+			}) // #272 issue
 
 			It("must serialize values to the lua function and deserialize into object, even if it is int", func() {
 
@@ -952,208 +1011,215 @@ var _ = Describe("Aerospike", func() {
 			}) // it
 		})
 
-		Context("ScanObjects operations", func() {
+		for _, failOnClusterChange := range []bool{false, true} {
+			var scanPolicy = as.NewScanPolicy()
+			scanPolicy.FailOnClusterChange = failOnClusterChange
 
-			type InnerStruct struct {
-				PersistNot      int    `as:"-"`
-				PersistAsInner1 int    `as:"inner1"`
-				Gen             uint32 `asm:"gen"`
-				TTL             uint32 `asm:"ttl"`
-			}
+			var queryPolicy = as.NewQueryPolicy()
+			queryPolicy.FailOnClusterChange = failOnClusterChange
 
-			BeforeEach(func() {
-				set = randString(50)
+			Context("ScanObjects operations", func() {
 
-				wp := as.NewWritePolicy(0, 500)
-				for i := 1; i < 100; i++ {
-					key, err = as.NewKey(ns, set, randString(50))
-					Expect(err).ToNot(HaveOccurred())
-
-					testObj := InnerStruct{PersistAsInner1: i}
-					err := client.PutObject(wp, key, &testObj)
-					Expect(err).ToNot(HaveOccurred())
+				type InnerStruct struct {
+					PersistNot      int    `as:"-"`
+					PersistAsInner1 int    `as:"inner1"`
+					Gen             uint32 `asm:"gen"`
+					TTL             uint32 `asm:"ttl"`
 				}
 
-			})
+				BeforeEach(func() {
+					set = randString(50)
 
-			It("must scan all objects with the most complex structure possible", func() {
+					wp := as.NewWritePolicy(0, 500)
+					for i := 1; i < 100; i++ {
+						key, err = as.NewKey(ns, set, randString(50))
+						Expect(err).ToNot(HaveOccurred())
 
-				testObj := &InnerStruct{}
-
-				retChan := make(chan *InnerStruct, 10)
-
-				rs, err := client.ScanAllObjects(nil, retChan, ns, set)
-				Expect(err).ToNot(HaveOccurred())
-
-				cnt := 0
-				for resObj := range retChan {
-					Expect(resObj.PersistAsInner1).To(BeNumerically(">", 0))
-					Expect(resObj.PersistNot).To(Equal(0))
-					Expect(resObj.Gen).To(BeNumerically(">", 0))
-					Expect(resObj.TTL).To(BeNumerically("<=", 500))
-
-					testObj.PersistAsInner1 = resObj.PersistAsInner1
-					testObj.Gen = resObj.Gen
-					testObj.TTL = resObj.TTL
-					Expect(resObj).To(Equal(testObj))
-					cnt++
-				}
-
-				for e := range rs.Errors {
-					Expect(e).ToNot(HaveOccurred())
-				}
-
-				Expect(cnt).To(Equal(99))
-			})
-
-		}) // ScanObjects context
-
-		Context("QueryObjects operations", func() {
-
-			type InnerStruct struct {
-				PersistNot      int    `as:"-"`
-				PersistAsInner1 int    `as:"inner1"`
-				Gen             uint32 `asm:"gen"`
-				TTL             uint32 `asm:"ttl"`
-			}
-
-			BeforeEach(func() {
-				set = randString(50)
-
-				wp := as.NewWritePolicy(5, 500)
-				for i := 1; i < 100; i++ {
-					key, err = as.NewKey(ns, set, randString(50))
-					Expect(err).ToNot(HaveOccurred())
-
-					testObj := InnerStruct{PersistAsInner1: i}
-					err := client.PutObject(wp, key, &testObj)
-					Expect(err).ToNot(HaveOccurred())
-				}
-
-			})
-
-			It("must scan all objects with the most complex structure possible", func() {
-
-				testObj := &InnerStruct{}
-
-				retChan := make(chan *InnerStruct, 10)
-				stmt := as.NewStatement(ns, set)
-
-				rs, err := client.QueryObjects(nil, stmt, retChan)
-				Expect(err).ToNot(HaveOccurred())
-
-				cnt := 0
-				for resObj := range retChan {
-					Expect(resObj.PersistAsInner1).To(BeNumerically(">", 0))
-					Expect(resObj.PersistNot).To(Equal(0))
-					Expect(resObj.Gen).To(BeNumerically(">", 0))
-					Expect(resObj.TTL).To(BeNumerically("<=", 500))
-
-					testObj.PersistAsInner1 = resObj.PersistAsInner1
-					testObj.Gen = resObj.Gen
-					testObj.TTL = resObj.TTL
-					Expect(resObj).To(Equal(testObj))
-					cnt++
-				}
-
-				for e := range rs.Errors {
-					Expect(e).ToNot(HaveOccurred())
-				}
-
-				Expect(cnt).To(Equal(99))
-			})
-
-			It("must query only relevant objects with the most complex structure possible", func() {
-
-				// first create an index
-				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
-				Expect(err).ToNot(HaveOccurred())
-				defer client.DropIndex(nil, ns, set, set+"inner1")
-
-				// wait until index is created
-				<-idxTask.OnComplete()
-
-				testObj := &InnerStruct{}
-
-				retChan := make(chan *InnerStruct, 10)
-				stmt := as.NewStatement(ns, set)
-				stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
-
-				rs, err := client.QueryObjects(nil, stmt, retChan)
-				Expect(err).ToNot(HaveOccurred())
-
-				cnt := 0
-				for resObj := range retChan {
-					Expect(resObj.PersistAsInner1).To(BeNumerically(">=", 21))
-					Expect(resObj.PersistAsInner1).To(BeNumerically("<=", 70))
-					Expect(resObj.PersistNot).To(Equal(0))
-					Expect(resObj.Gen).To(BeNumerically(">", 0))
-					Expect(resObj.TTL).To(BeNumerically("<=", 500))
-
-					testObj.PersistAsInner1 = resObj.PersistAsInner1
-					testObj.Gen = resObj.Gen
-					testObj.TTL = resObj.TTL
-					Expect(resObj).To(Equal(testObj))
-					cnt++
-				}
-
-				for e := range rs.Errors {
-					Expect(e).ToNot(HaveOccurred())
-				}
-
-				Expect(cnt).To(Equal(50))
-			})
-
-			It("must query only relevant objects, and close and return", func() {
-
-				// first create an index
-				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
-				Expect(err).ToNot(HaveOccurred())
-				defer client.DropIndex(nil, ns, set, set+"inner1")
-
-				// wait until index is created
-				<-idxTask.OnComplete()
-
-				testObj := &InnerStruct{}
-
-				retChan := make(chan *InnerStruct, 1)
-				stmt := as.NewStatement(ns, set)
-				stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
-
-				qpolicy := as.NewQueryPolicy()
-				qpolicy.RecordQueueSize = 1
-
-				rs, err := client.QueryObjects(nil, stmt, retChan)
-				Expect(err).ToNot(HaveOccurred())
-
-				cnt := 0
-				for resObj := range retChan {
-					Expect(resObj.PersistAsInner1).To(BeNumerically(">=", 21))
-					Expect(resObj.PersistAsInner1).To(BeNumerically("<=", 70))
-					Expect(resObj.PersistNot).To(Equal(0))
-					Expect(resObj.Gen).To(BeNumerically(">", 0))
-					Expect(resObj.TTL).To(BeNumerically("<=", 500))
-
-					testObj.PersistAsInner1 = resObj.PersistAsInner1
-					testObj.Gen = resObj.Gen
-					testObj.TTL = resObj.TTL
-					Expect(resObj).To(Equal(testObj))
-					cnt++
-
-					if cnt >= 10 {
-						rs.Close()
-						Eventually(rs.Errors).Should(BeClosed())
+						testObj := InnerStruct{PersistAsInner1: i}
+						err := client.PutObject(wp, key, &testObj)
+						Expect(err).ToNot(HaveOccurred())
 					}
+
+				})
+
+				It(fmt.Sprintf("must scan all objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
+
+					testObj := &InnerStruct{}
+
+					retChan := make(chan *InnerStruct, 10)
+
+					rs, err := client.ScanAllObjects(scanPolicy, retChan, ns, set)
+					Expect(err).ToNot(HaveOccurred())
+
+					cnt := 0
+					for resObj := range retChan {
+						Expect(resObj.PersistAsInner1).To(BeNumerically(">", 0))
+						Expect(resObj.PersistNot).To(Equal(0))
+						Expect(resObj.Gen).To(BeNumerically(">", 0))
+						Expect(resObj.TTL).To(BeNumerically("<=", 500))
+
+						testObj.PersistAsInner1 = resObj.PersistAsInner1
+						testObj.Gen = resObj.Gen
+						testObj.TTL = resObj.TTL
+						Expect(resObj).To(Equal(testObj))
+						cnt++
+					}
+
+					for e := range rs.Errors {
+						Expect(e).ToNot(HaveOccurred())
+					}
+
+					Expect(cnt).To(Equal(99))
+				})
+
+			}) // ScanObjects context
+
+			Context("QueryObjects operations", func() {
+
+				type InnerStruct struct {
+					PersistNot      int    `as:"-"`
+					PersistAsInner1 int    `as:"inner1"`
+					Gen             uint32 `asm:"gen"`
+					TTL             uint32 `asm:"ttl"`
 				}
 
-				for e := range rs.Errors {
-					Expect(e).ToNot(HaveOccurred())
-				}
+				BeforeEach(func() {
+					set = randString(50)
 
-				Expect(cnt).To(BeNumerically("<=", 11))
-			})
+					wp := as.NewWritePolicy(5, 500)
+					for i := 1; i < 100; i++ {
+						key, err = as.NewKey(ns, set, randString(50))
+						Expect(err).ToNot(HaveOccurred())
 
-		}) // QueryObject context
+						testObj := InnerStruct{PersistAsInner1: i}
+						err := client.PutObject(wp, key, &testObj)
+						Expect(err).ToNot(HaveOccurred())
+					}
 
+				})
+
+				It(fmt.Sprintf("must scan all objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
+
+					testObj := &InnerStruct{}
+
+					retChan := make(chan *InnerStruct, 10)
+					stmt := as.NewStatement(ns, set)
+
+					rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
+					Expect(err).ToNot(HaveOccurred())
+
+					cnt := 0
+					for resObj := range retChan {
+						Expect(resObj.PersistAsInner1).To(BeNumerically(">", 0))
+						Expect(resObj.PersistNot).To(Equal(0))
+						Expect(resObj.Gen).To(BeNumerically(">", 0))
+						Expect(resObj.TTL).To(BeNumerically("<=", 500))
+
+						testObj.PersistAsInner1 = resObj.PersistAsInner1
+						testObj.Gen = resObj.Gen
+						testObj.TTL = resObj.TTL
+						Expect(resObj).To(Equal(testObj))
+						cnt++
+					}
+
+					for e := range rs.Errors {
+						Expect(e).ToNot(HaveOccurred())
+					}
+
+					Expect(cnt).To(Equal(99))
+				})
+
+				It(fmt.Sprintf("must query only relevant objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
+
+					// first create an index
+					idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
+					Expect(err).ToNot(HaveOccurred())
+					defer client.DropIndex(nil, ns, set, set+"inner1")
+
+					// wait until index is created
+					<-idxTask.OnComplete()
+
+					testObj := &InnerStruct{}
+
+					retChan := make(chan *InnerStruct, 10)
+					stmt := as.NewStatement(ns, set)
+					stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
+
+					rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
+					Expect(err).ToNot(HaveOccurred())
+
+					cnt := 0
+					for resObj := range retChan {
+						Expect(resObj.PersistAsInner1).To(BeNumerically(">=", 21))
+						Expect(resObj.PersistAsInner1).To(BeNumerically("<=", 70))
+						Expect(resObj.PersistNot).To(Equal(0))
+						Expect(resObj.Gen).To(BeNumerically(">", 0))
+						Expect(resObj.TTL).To(BeNumerically("<=", 500))
+
+						testObj.PersistAsInner1 = resObj.PersistAsInner1
+						testObj.Gen = resObj.Gen
+						testObj.TTL = resObj.TTL
+						Expect(resObj).To(Equal(testObj))
+						cnt++
+					}
+
+					for e := range rs.Errors {
+						Expect(e).ToNot(HaveOccurred())
+					}
+
+					Expect(cnt).To(Equal(50))
+				})
+
+				It(fmt.Sprintf("must query only relevant objects, and close and return. FailOnClusterChange: %v", failOnClusterChange), func() {
+
+					// first create an index
+					idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
+					Expect(err).ToNot(HaveOccurred())
+					defer client.DropIndex(nil, ns, set, set+"inner1")
+
+					// wait until index is created
+					<-idxTask.OnComplete()
+
+					testObj := &InnerStruct{}
+
+					retChan := make(chan *InnerStruct, 1)
+					stmt := as.NewStatement(ns, set)
+					stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
+
+					qpolicy := as.NewQueryPolicy()
+					qpolicy.RecordQueueSize = 1
+
+					rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
+					Expect(err).ToNot(HaveOccurred())
+
+					cnt := 0
+					for resObj := range retChan {
+						Expect(resObj.PersistAsInner1).To(BeNumerically(">=", 21))
+						Expect(resObj.PersistAsInner1).To(BeNumerically("<=", 70))
+						Expect(resObj.PersistNot).To(Equal(0))
+						Expect(resObj.Gen).To(BeNumerically(">", 0))
+						Expect(resObj.TTL).To(BeNumerically("<=", 500))
+
+						testObj.PersistAsInner1 = resObj.PersistAsInner1
+						testObj.Gen = resObj.Gen
+						testObj.TTL = resObj.TTL
+						Expect(resObj).To(Equal(testObj))
+						cnt++
+
+						if cnt >= 10 {
+							rs.Close()
+							Eventually(rs.Errors).Should(BeClosed())
+						}
+					}
+
+					for e := range rs.Errors {
+						Expect(e).ToNot(HaveOccurred())
+					}
+
+					Expect(cnt).To(BeNumerically("<=", 11))
+				})
+
+			}) // QueryObject context
+		}
 	})
 })

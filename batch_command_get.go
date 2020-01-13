@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	"bytes"
 	"reflect"
 
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -24,6 +23,7 @@ import (
 
 type batcher interface {
 	cloneBatchCommand(batch *batchNode, bns *batchNamespace) command
+	filteredOut() int
 }
 
 type batchCommandGet struct {
@@ -39,6 +39,7 @@ type batchCommandGet struct {
 	readAttr       int
 	index          int
 	key            Key
+	filteredOutCnt int
 
 	// pointer to the object that's going to be unmarshalled
 	objects      []*reflect.Value
@@ -78,6 +79,10 @@ func newBatchCommandGet(
 	}
 	res.oneShot = false
 	return res
+}
+
+func (cmd *batchCommandGet) filteredOut() int {
+	return cmd.filteredOutCnt
 }
 
 func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode, bns *batchNamespace) command {
@@ -147,10 +152,14 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		}
 		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
 
-		// The only valid server return codes are "ok" and "not found".
+		// The only valid server return codes are "ok" and "not found" and "filtered out".
 		// If other return codes are received, then abort the batch.
 		if resultCode != 0 && resultCode != KEY_NOT_FOUND_ERROR {
-			return false, NewAerospikeError(resultCode)
+			if resultCode == FILTERED_OUT {
+				cmd.filteredOutCnt++
+			} else {
+				return false, NewAerospikeError(resultCode)
+			}
 		}
 
 		info3 := int(cmd.dataBuffer[3])
@@ -175,34 +184,26 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 
 		if cmd.indexRecords != nil {
 			if len(cmd.indexRecords) > 0 {
-				if bytes.Equal(cmd.key.digest[:], cmd.indexRecords[offset].Key.digest[:]) {
-					if resultCode == 0 {
-						if cmd.indexRecords[offset].Record, err = cmd.parseRecord(cmd.indexRecords[offset].Key, opCount, generation, expiration); err != nil {
-							return false, err
-						}
+				if resultCode == 0 {
+					if cmd.indexRecords[offset].Record, err = cmd.parseRecord(cmd.indexRecords[offset].Key, opCount, generation, expiration); err != nil {
+						return false, err
 					}
 				}
-			} else {
-				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+cmd.key.namespace+","+Buffer.BytesToHexString(cmd.key.digest[:])+". Expected:"+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
 			}
 		} else {
-			if bytes.Equal(cmd.key.digest[:], cmd.keys[offset].digest[:]) {
-				if resultCode == 0 {
-					if cmd.objects == nil {
-						if cmd.records[offset], err = cmd.parseRecord(cmd.keys[offset], opCount, generation, expiration); err != nil {
-							return false, err
-						}
-					} else if batchObjectParser != nil {
-						// mark it as found
-						cmd.objectsFound[offset] = true
-						if err := batchObjectParser(cmd, offset, opCount, fieldCount, generation, expiration); err != nil {
-							return false, err
+			if resultCode == 0 {
+				if cmd.objects == nil {
+					if cmd.records[offset], err = cmd.parseRecord(cmd.keys[offset], opCount, generation, expiration); err != nil {
+						return false, err
+					}
+				} else if batchObjectParser != nil {
+					// mark it as found
+					cmd.objectsFound[offset] = true
+					if err := batchObjectParser(cmd, offset, opCount, fieldCount, generation, expiration); err != nil {
+						return false, err
 
-						}
 					}
 				}
-			} else {
-				return false, NewAerospikeError(PARSE_ERROR, "Unexpected batch key returned: "+cmd.key.namespace+","+Buffer.BytesToHexString(cmd.key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.indexRecords[offset].Key.digest[:]))
 			}
 		}
 	}

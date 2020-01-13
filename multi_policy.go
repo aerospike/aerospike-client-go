@@ -31,6 +31,11 @@ type MultiPolicy struct {
 	// FailOnClusterChange determines scan termination if cluster is in fluctuating state.
 	FailOnClusterChange bool
 
+	// RecordsPerSecond limits returned records per second (rps) rate for each server.
+	// Will not apply rps limit if recordsPerSecond is zero (default).
+	// Currently only applicable to a query without a defined filter.
+	RecordsPerSecond int
+
 	// Number of records to place in queue before blocking.
 	// Records received from multiple server nodes will be placed in a queue.
 	// A separate goroutine consumes these records in parallel.
@@ -49,8 +54,9 @@ func NewMultiPolicy() *MultiPolicy {
 	return &MultiPolicy{
 		BasePolicy:          bp,
 		MaxConcurrentNodes:  0,
+		RecordsPerSecond:    0,
 		RecordQueueSize:     50,
 		IncludeBinData:      true,
-		FailOnClusterChange: true,
+		FailOnClusterChange: false,
 	}
 }

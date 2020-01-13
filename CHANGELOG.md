@@ -1,5 +1,61 @@
 # Change History
 
+## December 24 2019: v2.7.0
+
+  Minor feature and fix release.
+
+  * **New Features**
+
+    - Adds support for client/server wire transport compression.
+    - Adds support for descending CDT list order.
+
+  * **Fixes**
+
+    - Fixes an issue where unpacking `Value` objects would cause an infinite loop. PR #273, thanks to [small-egg](https://github.com/small-egg)
+
+## November 25 2019: v2.6.0
+  Minor feature release.
+
+  * **New Features**
+
+    - Supports correct Query/Scans via `Scan/QueryPolicy.FailOnClusterChange`
+
+  * **Fixes**
+
+    - Fixes an issue where the client using multiple seeds via DNS or Load Balancer would fail to connect if more than one of them were unreachable.
+
+## November 8 2019: v2.5.0
+  Major feature release.
+
+  * **New Features**
+
+    - Adds support for predicate expressions in all transactions. See `Policy.Predexp`.
+
+## October 29 2019: v2.4.0
+  Major feature release.
+
+  * **New Features**
+
+    - Adds support for bitwise operations.
+    - Adds support for nested CDTs.
+
+## October 17 2019: v2.3.0
+  Major feature release.
+
+  * **New Features**
+
+    - Adds support for mixed security modes in cluster to enable rolling upgrade with security changes.
+    - Adds support for delete record operation `DeleteOp()` in `Client.Operate()`.
+    - Adds support for write operations in background scan/query.
+    - Adds support for `Scan/QueryPolicy.RecordsPerSecond` field to limit throughput.
+
+## August 13 2019: v2.2.1
+  Minor improvement release.
+
+  * **Improvements**
+
+    - Supports the `Write` role in server v4.6.0.2+
+
 ## May 21 2019: v2.2.0
   Minor Fixes and improvements release.
 

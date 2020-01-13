@@ -25,7 +25,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Aerospike Node Tests", func() {
-	initTestVars()
 
 	Describe("Node Connection Pool", func() {
 		// connection data

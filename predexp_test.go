@@ -27,7 +27,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("predexp operations", func() {
-	initTestVars()
 
 	const keyCount = 1000
 

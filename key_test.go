@@ -27,7 +27,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Key Test", func() {
-	initTestVars()
 
 	Context("Digests should be the same", func() {
 

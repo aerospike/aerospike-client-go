@@ -29,8 +29,6 @@ import (
 func init() {
 	// load test require actual parallelism
 	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	initTestVars()
 }
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters

@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"fmt"
+
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
@@ -45,10 +47,26 @@ func (ne *NodeError) Node() *Node { return ne.node }
 // Err returns the error
 func (ne *NodeError) Err() error { return ne.error }
 
+// Err returns the error
+func (ne *NodeError) Error() string {
+	return fmt.Sprintf("Node %s: %s", ne.node.String(), ne.error.Error())
+}
+
 func newInvalidNodeError(clusterSize int, partition *Partition) error {
 	// important to check for clusterSize first, since partition may be nil sometimes
 	if clusterSize == 0 {
 		return NewAerospikeError(INVALID_NODE_ERROR, "Cluster is empty.")
 	}
 	return NewAerospikeError(INVALID_NODE_ERROR, "Node not found for partition "+partition.String()+" in partition table.")
+}
+
+// BatchError is a type to encapsulate the node that the error occurred in.
+type BatchError struct {
+	Errors map[*Node]error
+}
+
+func newBatchError() *BatchError {
+	return &BatchError{
+		Errors: make(map[*Node]error, 4),
+	}
 }

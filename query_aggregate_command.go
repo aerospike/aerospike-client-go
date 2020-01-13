@@ -31,9 +31,9 @@ type queryAggregateCommand struct {
 	inputChan   chan interface{}
 }
 
-func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryAggregateCommand {
+func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset, clusterKey int64, first bool) *queryAggregateCommand {
 	cmd := &queryAggregateCommand{
-		queryCommand: *newQueryCommand(node, policy, statement, recordset),
+		queryCommand: *newQueryCommand(node, policy, nil, statement, nil, recordset, clusterKey, first),
 	}
 
 	cmd.terminationErrorType = QUERY_TERMINATED

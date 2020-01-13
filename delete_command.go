@@ -65,10 +65,20 @@ func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) error {
 
 	resultCode := cmd.dataBuffer[13] & 0xFF
 
-	if resultCode != 0 && ResultCode(resultCode) != KEY_NOT_FOUND_ERROR {
+	switch ResultCode(resultCode) {
+	case 0:
+		cmd.existed = true
+	case KEY_NOT_FOUND_ERROR:
+		cmd.existed = false
+	case FILTERED_OUT:
+		if err := cmd.emptySocket(conn); err != nil {
+			return err
+		}
+		cmd.existed = true
+		return ErrFilteredOut
+	default:
 		return NewAerospikeError(ResultCode(resultCode))
 	}
-	cmd.existed = resultCode == 0
 
 	return cmd.emptySocket(conn)
 }

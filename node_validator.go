@@ -49,7 +49,7 @@ type nodeValidator struct {
 	sessionToken      []byte
 	SessionExpiration time.Time
 
-	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow, supportsTruncateNamespace bool
+	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow, supportsTruncateNamespace, supportsClusterStable, supportsBitwiseOps bool
 }
 
 func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nodesToAddT) error {
@@ -146,7 +146,7 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 
 func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 	clientPolicy := cluster.clientPolicy
-	clientPolicy.Timeout /= time.Duration(2)
+	clientPolicy.Timeout /= 2
 
 	conn, err := NewConnection(&clientPolicy, alias)
 	if err != nil {
@@ -313,6 +313,10 @@ func (ndv *nodeValidator) setFeatures(features string) {
 			ndv.supportsLUTNow = true
 		case "truncate-namespace":
 			ndv.supportsTruncateNamespace = true
+		case "blob-bits":
+			ndv.supportsBitwiseOps = true
+		case "cluster-stable":
+			ndv.supportsClusterStable = true
 		}
 	}
 }

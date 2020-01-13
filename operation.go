@@ -37,6 +37,9 @@ var (
 	_APPEND     OperationType = &struct{ op byte }{9}
 	_PREPEND    OperationType = &struct{ op byte }{10}
 	_TOUCH      OperationType = &struct{ op byte }{11}
+	_BIT_READ   OperationType = &struct{ op byte }{12}
+	_BIT_MODIFY OperationType = &struct{ op byte }{13}
+	_DELETE     OperationType = &struct{ op byte }{14}
 )
 
 // Operation contains operation definition.
@@ -47,6 +50,8 @@ type Operation struct {
 	opType OperationType
 	// used in CDT commands
 	opSubType operationSubType
+	// CDT context for nested types
+	ctx []*CDTContext
 
 	encoder func(*Operation, BufferEx) (int, error)
 
@@ -113,7 +118,12 @@ func AddOp(bin *Bin) *Operation {
 	return &Operation{opType: _ADD, binName: bin.Name, binValue: bin.Value}
 }
 
-// TouchOp creates touch database operation.
+// TouchOp creates touch record database operation.
 func TouchOp() *Operation {
 	return &Operation{opType: _TOUCH, binValue: NewNullValue()}
+}
+
+// DeteleOp creates delete record database operation.
+func DeleteOp() *Operation {
+	return &Operation{opType: _DELETE, binValue: NewNullValue()}
 }

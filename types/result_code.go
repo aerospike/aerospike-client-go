@@ -79,6 +79,9 @@ const (
 	// exists.
 	KEY_EXISTS_ERROR ResultCode = 5
 
+	// Bin already exists on a create-only operation.
+	BIN_EXISTS_ERROR ResultCode = 6
+
 	// Expected cluster ID was not received.
 	CLUSTER_KEY_MISMATCH ResultCode = 7
 
@@ -110,6 +113,9 @@ const (
 	// Unsupported Server Feature (e.g. Scan + UDF)
 	UNSUPPORTED_FEATURE ResultCode = 16
 
+	// Bin not found on update-only operation.
+	BIN_NOT_FOUND ResultCode = 17
+
 	// Device not keeping up with writes.
 	DEVICE_OVERLOAD ResultCode = 18
 
@@ -131,6 +137,16 @@ const (
 
 	// Element Already Exists in CDT
 	FAIL_ELEMENT_EXISTS ResultCode = 24
+
+	// Attempt to use an Enterprise feature on a Community server or a server
+	// without the applicable feature key.
+	ENTERPRISE_ONLY ResultCode = 25
+
+	// The operation cannot be applied to the current bin value on the server.
+	OP_NOT_APPLICABLE ResultCode = 26
+
+	// The transaction was not performed because the predexp was false.
+	FILTERED_OUT ResultCode = 27
 
 	// There are no more records left for query.
 	QUERY_END ResultCode = 50
@@ -197,9 +213,6 @@ const (
 
 	// A user defined function returned an error code.
 	UDF_BAD_RESPONSE ResultCode = 100
-
-	// The requested item in a large collection was not found.
-	LARGE_ITEM_NOT_FOUND ResultCode = 125
 
 	// Batch functionality has been disabled.
 	BATCH_DISABLED ResultCode = 150
@@ -348,6 +361,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case KEY_EXISTS_ERROR:
 		return "Key already exists"
 
+	case BIN_EXISTS_ERROR:
+		return "Bin already exists"
+
 	case CLUSTER_KEY_MISMATCH:
 		return "Cluster key mismatch"
 
@@ -378,6 +394,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case UNSUPPORTED_FEATURE:
 		return "Unsupported Server Feature"
 
+	case BIN_NOT_FOUND:
+		return "Bin not found"
+
 	case DEVICE_OVERLOAD:
 		return "Device overload"
 
@@ -398,6 +417,15 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case FAIL_ELEMENT_EXISTS:
 		return "Element exists"
+
+	case ENTERPRISE_ONLY:
+		return "Enterprise only"
+
+	case OP_NOT_APPLICABLE:
+		return "Operation not applicable"
+
+	case FILTERED_OUT:
+		return "Transaction filtered out by predexp"
 
 	case QUERY_END:
 		return "Query end"
@@ -464,9 +492,6 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case UDF_BAD_RESPONSE:
 		return "UDF returned error"
-
-	case LARGE_ITEM_NOT_FOUND:
-		return "Large collection item not found"
 
 	case BATCH_DISABLED:
 		return "Batch functionality has been disabled"

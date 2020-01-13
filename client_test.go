@@ -33,7 +33,6 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = Describe("Aerospike", func() {
-	initTestVars()
 
 	var actualClusterName string
 
@@ -1155,7 +1154,7 @@ var _ = Describe("Aerospike", func() {
 			})
 
 			for _, useInline := range []bool{true, false} {
-				It(fmt.Sprintf("must return the records with same ordering as keys. AllowInline: %v", useInline), func() {
+				It(fmt.Sprintf("must return the record headers with same ordering as keys. AllowInline: %v", useInline), func() {
 					var records []*as.Record
 					type existence struct {
 						key         *as.Key
@@ -1377,6 +1376,31 @@ var _ = Describe("Aerospike", func() {
 
 				Expect(rec.Generation).To(Equal(uint32(4)))
 				Expect(len(rec.Bins)).To(Equal(2))
+
+				// GetOp should override GetHeaderOp
+				ops6 := []*as.Operation{
+					as.GetHeaderOp(),
+					as.DeleteOp(),
+					as.PutOp(bin1),
+				}
+
+				rec, err = client.Operate(nil, key, ops6...)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rec.Generation).To(Equal(uint32(5)))
+				Expect(len(rec.Bins)).To(Equal(0))
+
+				// GetOp should override GetHeaderOp
+				ops7 := []*as.Operation{
+					as.GetOp(),
+					as.TouchOp(),
+				}
+
+				rec, err = client.Operate(nil, key, ops7...)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(rec.Generation).To(Equal(uint32(6)))
+				Expect(len(rec.Bins)).To(Equal(1))
 			})
 
 			It("must re-apply the same operations, and result should match expectation", func() {

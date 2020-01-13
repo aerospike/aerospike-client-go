@@ -62,7 +62,7 @@ type AerospikeBlob interface {
 }
 
 // tryConcreteValue will return an aerospike value.
-// If the encoder does not exists, it will not try to use reflection.
+// If the encoder does not exist, it will not try to use reflection.
 func tryConcreteValue(v interface{}) Value {
 	switch val := v.(type) {
 	case Value:
@@ -117,7 +117,7 @@ func tryConcreteValue(v interface{}) Value {
 		The following cases will try to avoid using reflection by matching against the
 		internal generic types.
 		If you have custom type aliases in your code, you can use the same aerospike types to cast your type into,
-		to avoid hitting the generics.
+		to avoid hitting the reflection.
 	*/
 	case []string:
 		return NewListerValue(stringSlice(val))
@@ -749,6 +749,39 @@ func (vl FloatValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// _BoolValue encapsulates a bool value.
+// This method is only used in bitwise CDT operations internally.
+type _BoolValue bool
+
+func (vb _BoolValue) estimateSize() (int, error) {
+	return PackBool(nil, bool(vb))
+}
+
+func (vb _BoolValue) write(cmd BufferEx) (int, error) {
+	panic("Unreachable")
+}
+
+func (vb _BoolValue) pack(cmd BufferEx) (int, error) {
+	return PackBool(cmd, bool(vb))
+}
+
+// GetType returns wire protocol value type.
+func (vb _BoolValue) GetType() int {
+	panic("Unreachable")
+}
+
+// GetObject returns original value as an interface{}.
+func (vb _BoolValue) GetObject() interface{} {
+	return bool(vb)
+}
+
+// String implements Stringer interface.
+func (vb _BoolValue) String() string {
+	return (fmt.Sprintf("%v", bool(vb)))
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 // ValueArray encapsulates an array of Value.
 // Supported by Aerospike 3 servers only.
 type ValueArray []Value
@@ -779,7 +812,7 @@ func (va ValueArray) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (va ValueArray) GetObject() interface{} {
-	return va
+	return []Value(va)
 }
 
 // String implements Stringer interface.
@@ -817,7 +850,7 @@ func (vl ListValue) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (vl ListValue) GetObject() interface{} {
-	return vl
+	return []interface{}(vl)
 }
 
 // String implements Stringer interface.
@@ -899,7 +932,7 @@ func (vl MapValue) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (vl MapValue) GetObject() interface{} {
-	return vl
+	return map[interface{}]interface{}(vl)
 }
 
 func (vl MapValue) String() string {
@@ -936,7 +969,7 @@ func (vl JsonValue) GetType() int {
 
 // GetObject returns original value as an interface{}.
 func (vl JsonValue) GetObject() interface{} {
-	return vl
+	return map[string]interface{}(vl)
 }
 
 func (vl JsonValue) String() string {

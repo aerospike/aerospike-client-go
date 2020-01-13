@@ -22,12 +22,20 @@ import (
 type Policy interface {
 	// Retrieves BasePolicy
 	GetBasePolicy() *BasePolicy
+
+	compress() bool
 }
 
 // BasePolicy encapsulates parameters for transaction policy attributes
 // used in all database operation calls.
 type BasePolicy struct {
 	Policy
+
+	// PredExps is the optional predicate expression filter in postfix notation. If the predicate
+	// expression exists and evaluates to false, the transaction is ignored.
+	//
+	// Default: nil
+	PredExp []PredExp
 
 	// Priority of request relative to other transactions.
 	// Currently, only used for scans.
@@ -110,6 +118,17 @@ type BasePolicy struct {
 	// The default is to not send the user defined key.
 	SendKey bool // = false
 
+	// UseCompression tells the server to compress its response using zlib.
+	// Use zlib compression on write or batch read commands when the command buffer size is greater
+	// than 128 bytes. In addition, it directs the server to compress its response on read commands.
+	// The server response compression threshold is also 128 bytes.
+	//
+	// This option will increase CPU and memory usage (for extra compressed buffers), but
+	// decrease the size of data sent over the network.
+	//
+	// Default: false
+	UseCompression bool // = false
+
 	// Force reads to be linearized for server namespaces that support CP mode.
 	// The default is false.
 	LinearizeRead bool
@@ -135,6 +154,7 @@ func NewPolicy() *BasePolicy {
 		ReplicaPolicy:       SEQUENCE,
 		SendKey:             false,
 		LinearizeRead:       false,
+		UseCompression:      false,
 	}
 }
 
@@ -167,4 +187,8 @@ func (p *BasePolicy) deadline() time.Time {
 	}
 
 	return deadline
+}
+
+func (p *BasePolicy) compress() bool {
+	return p.UseCompression
 }

@@ -14,18 +14,15 @@
 
 package aerospike
 
-import . "github.com/aerospike/aerospike-client-go/types"
-
-type queryRecordCommand struct {
-	queryCommand
+// BitPolicy determines the Bit operation policy.
+type BitPolicy struct {
+	flags int
 }
 
-func newQueryRecordCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset, clusterKey int64, first bool) *queryRecordCommand {
-	cmd := &queryRecordCommand{
-		queryCommand: *newQueryCommand(node, policy, nil, statement, nil, recordset, clusterKey, first),
-	}
+func DefaultBitPolicy() *BitPolicy {
+	return &BitPolicy{BitWriteFlagsDefault}
+}
 
-	cmd.terminationErrorType = QUERY_TERMINATED
-
-	return cmd
+func NewBitPolicy(flags int) *BitPolicy {
+	return &BitPolicy{flags}
 }
