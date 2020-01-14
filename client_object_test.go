@@ -1,6 +1,6 @@
 // +build !as_performance
 
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -919,31 +919,31 @@ var _ = Describe("Aerospike", func() {
 				Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
 
 				var (
-					bytes = []byte("bytes")
-					str = "string"
-					i = 10
-					f = 3.14
+					bytes    = []byte("bytes")
+					str      = "string"
+					i        = 10
+					f        = 3.14
 					valArray = []as.Value{as.NewValue(i), as.NewValue(str)}
-					list = []interface{}{i, str}
-					m = map[interface{}]interface{}{"int": i, "string": str}
-					json = map[string]interface{}{"int": i, "string": str}
+					list     = []interface{}{i, str}
+					m        = map[interface{}]interface{}{"int": i, "string": str}
+					json     = map[string]interface{}{"int": i, "string": str}
 				)
 
-				cases := []struct{
-					in as.Value
+				cases := []struct {
+					in  as.Value
 					out interface{}
 				}{
-					{in:  as.NewNullValue(), out: nil},
-					{in:  as.NewInfinityValue(), out: nil},
-					{in:  as.NewWildCardValue(), out: nil},
-					{in:  as.NewBytesValue(bytes), out: bytes},
-					{in:  as.NewStringValue(str), out: str},
-					{in:  as.NewIntegerValue(i), out: i},
-					{in:  as.NewFloatValue(f), out: f},
-					{in:  as.NewValueArray(valArray), out: list},
-					{in:  as.NewListValue(list), out: list},
-					{in:  as.NewMapValue(m), out: m},
-					{in:  as.NewJsonValue(json), out: m},
+					{in: as.NewNullValue(), out: nil},
+					{in: as.NewInfinityValue(), out: nil},
+					{in: as.NewWildCardValue(), out: nil},
+					{in: as.NewBytesValue(bytes), out: bytes},
+					{in: as.NewStringValue(str), out: str},
+					{in: as.NewIntegerValue(i), out: i},
+					{in: as.NewFloatValue(f), out: f},
+					{in: as.NewValueArray(valArray), out: list},
+					{in: as.NewListValue(list), out: list},
+					{in: as.NewMapValue(m), out: m},
+					{in: as.NewJsonValue(json), out: m},
 				}
 
 				for i, data := range cases {
