@@ -1365,9 +1365,6 @@ func (cmd *baseCommand) writeKey(key *Key, sendKey bool) {
 func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) error {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], bin.Name)
 
-	// check for float support
-	cmd.checkServerCompatibility(bin.Value)
-
 	valueLength, err := bin.Value.estimateSize()
 	if err != nil {
 		return err
@@ -1388,9 +1385,6 @@ func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interf
 
 	v := NewValue(val)
 
-	// check for float support
-	cmd.checkServerCompatibility(v)
-
 	valueLength, err := v.estimateSize()
 	if err != nil {
 		return err
@@ -1408,9 +1402,6 @@ func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interf
 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.binName)
-
-	// check for float support
-	cmd.checkServerCompatibility(operation.binValue)
 
 	if operation.used {
 		// cahce will set the used flag to false again
@@ -1478,28 +1469,7 @@ func (cmd *baseCommand) writePredExp(predExp []PredExp, predSize int) error {
 	return nil
 }
 
-// TODO: Remove this method and move it to the appropriate VALUE method
-func (cmd *baseCommand) checkServerCompatibility(val Value) {
-	if val == nil {
-		return
-	}
-
-	// check for float support
-	switch val.GetType() {
-	case ParticleType.FLOAT:
-		if !cmd.node.supportsFloat.Get() {
-			panic("This cluster node doesn't support double precision floating-point values.")
-		}
-	case ParticleType.GEOJSON:
-		if !cmd.node.supportsGeo.Get() {
-			panic("This cluster node doesn't support geo-spatial features.")
-		}
-	}
-}
-
 func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) error {
-	// check for float support
-	cmd.checkServerCompatibility(value)
 
 	vlen, err := value.estimateSize()
 	if err != nil {
