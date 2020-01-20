@@ -1,6 +1,6 @@
 # Change History
 
-## January 20 2019: v2.7.1
+## January 20 2020: v2.7.1
 
   Minor fix release.
 
