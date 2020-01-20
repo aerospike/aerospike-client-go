@@ -1,5 +1,13 @@
 # Change History
 
+## January 20 2020: v2.7.1
+
+  Minor fix release.
+
+  * **Fixes**
+
+    - Fixes an issue where an error was not checked after a read in `multi_command.go` and would cause a panic.
+
 ## December 24 2019: v2.7.0
 
   Minor feature and fix release.
