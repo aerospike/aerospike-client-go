@@ -137,9 +137,11 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 			receiveSize = int(Buffer.BytesToInt64(cmd.dataBuffer, 0)) - 8
 			cmd.conn.initInflater(true, compressedSize-8)
 
-			// waste the first 8 bytes
+			// read the first 8 bytes
 			cmd.bc.reset(8)
-			cmd.readBytes(8)
+			if err := cmd.readBytes(8); err != nil {
+				return err
+			}
 		}
 
 		// Validate header to make sure we are at the beginning of a message
