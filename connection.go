@@ -53,8 +53,8 @@ type Connection struct {
 	dataBuffer []byte
 
 	compressed bool
-	inflator   io.ReadCloser
-	// inflator may consume more bytes than required.
+	inflater   io.ReadCloser
+	// inflater may consume more bytes than required.
 	// LimitReader is used to avoid that problem.
 	limitReader *io.LimitedReader
 
@@ -185,10 +185,10 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 		if !ctn.compressed {
 			r, err = ctn.conn.Read(buf[total:length])
 		} else {
-			r, err = ctn.inflator.Read(buf[total:length])
+			r, err = ctn.inflater.Read(buf[total:length])
 			if err == io.EOF && total+r == length {
 				ctn.compressed = false
-				ctn.inflator.Close()
+				ctn.inflater.Close()
 				err = nil
 			}
 		}
@@ -386,24 +386,24 @@ func (ctn *Connection) isIdle() bool {
 // refresh extends the idle deadline of the connection.
 func (ctn *Connection) refresh() {
 	ctn.idleDeadline = time.Now().Add(ctn.idleTimeout)
-	if ctn.inflator != nil {
-		ctn.inflator.Close()
+	if ctn.inflater != nil {
+		ctn.inflater.Close()
 	}
 	ctn.compressed = false
-	ctn.inflator = nil
+	ctn.inflater = nil
 }
 
-// initInflater sets up the zlib inflator to read compressed data from the connection
+// initInflater sets up the zlib inflater to read compressed data from the connection
 func (ctn *Connection) initInflater(enabled bool, length int) error {
 	ctn.compressed = enabled
-	ctn.inflator = nil
+	ctn.inflater = nil
 	if ctn.compressed {
 		ctn.limitReader.N = int64(length)
 		r, err := zlib.NewReader(ctn.limitReader)
 		if err != nil {
 			return err
 		}
-		ctn.inflator = r
+		ctn.inflater = r
 	}
 	return nil
 }

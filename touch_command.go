@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"fmt"
+
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -72,7 +74,9 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 			return err
 		}
 
-		cmd.conn.initInflater(true, compressedSize)
+		if err := cmd.conn.initInflater(true, compressedSize); err != nil {
+			return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
+		}
 
 		// Read header.
 		_, err = conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE))
