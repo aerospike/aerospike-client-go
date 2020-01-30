@@ -96,6 +96,15 @@ func isEnterpriseEdition() bool {
 	return strings.Contains(infoMap["edition"], "Enterprise")
 }
 
+func securityEnabled() bool {
+	if !isEnterpriseEdition() {
+		return false
+	}
+
+	_, err := client.QueryRoles(nil)
+	return err == nil
+}
+
 func nsInfo(ns string, feature string) string {
 	node := client.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "namespace/"+ns)
