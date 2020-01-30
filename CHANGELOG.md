@@ -1,12 +1,20 @@
 # Change History
 
+## January 30 2020: v2.7.2
+
+  Minor fix release.
+
+  * **Fixes**
+
+    - Resolves an issue where an invalid/malformed compressed header could cause a panic by reporting wrong compressed data size. Resolves #280.
+
 ## January 20 2020: v2.7.1
 
   Minor fix release.
 
   * **Fixes**
 
-    - Fixes an issue where an error was not checked after a read in `multi_command.go` and would cause a panic.
+    - Fixes an issue where an error was not checked after a read in `multi_command.go` and would cause a panic. Resolves #280.
 
 ## December 24 2019: v2.7.0
 
