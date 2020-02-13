@@ -23,7 +23,6 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
-	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -45,7 +44,6 @@ var _ = Describe("Aerospike", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		// type SomeBool bool TODO: FIXIT
 		type SomeBool bool
 		type SomeByte byte
 		type SomeInt int
@@ -623,6 +621,43 @@ var _ = Describe("Aerospike", func() {
 
 		Context("PutObject operations", func() {
 
+			It("must respect `,omitempty` option", func() {
+				type T struct {
+					Name        string `as:"   name "`
+					Description string `as:" desc    ,omitempty"`
+					Age         int    `as:"     ,omitempty"`
+				}
+
+				t := &T{
+					Name:        "Ada Lovelace",
+					Description: "Was doing it before it was cool",
+					Age:         31,
+				}
+
+				key, _ := as.NewKey(ns, set, randString(50))
+				err = client.PutObject(nil, key, t)
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err := client.Get(nil, key)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rec.Bins).To(Equal(as.BinMap{"name": t.Name, "desc": t.Description, "Age": 31}))
+
+				key, _ = as.NewKey(ns, set, randString(50))
+
+				t = &T{
+					Name:        "",
+					Description: "",
+					Age:         0,
+				}
+
+				err = client.PutObject(nil, key, t)
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err = client.Get(nil, key)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rec.Bins).To(Equal(as.BinMap{"name": t.Name}))
+			})
+
 			It("must save an object with the most complex structure possible", func() {
 
 				testObj := makeTestObject()
@@ -919,31 +954,31 @@ var _ = Describe("Aerospike", func() {
 				Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
 
 				var (
-					bytes = []byte("bytes")
-					str = "string"
-					i = 10
-					f = 3.14
+					bytes    = []byte("bytes")
+					str      = "string"
+					i        = 10
+					f        = 3.14
 					valArray = []as.Value{as.NewValue(i), as.NewValue(str)}
-					list = []interface{}{i, str}
-					m = map[interface{}]interface{}{"int": i, "string": str}
-					json = map[string]interface{}{"int": i, "string": str}
+					list     = []interface{}{i, str}
+					m        = map[interface{}]interface{}{"int": i, "string": str}
+					json     = map[string]interface{}{"int": i, "string": str}
 				)
 
-				cases := []struct{
-					in as.Value
+				cases := []struct {
+					in  as.Value
 					out interface{}
 				}{
-					{in:  as.NewNullValue(), out: nil},
-					{in:  as.NewInfinityValue(), out: nil},
-					{in:  as.NewWildCardValue(), out: nil},
-					{in:  as.NewBytesValue(bytes), out: bytes},
-					{in:  as.NewStringValue(str), out: str},
-					{in:  as.NewIntegerValue(i), out: i},
-					{in:  as.NewFloatValue(f), out: f},
-					{in:  as.NewValueArray(valArray), out: list},
-					{in:  as.NewListValue(list), out: list},
-					{in:  as.NewMapValue(m), out: m},
-					{in:  as.NewJsonValue(json), out: m},
+					{in: as.NewNullValue(), out: nil},
+					{in: as.NewInfinityValue(), out: nil},
+					{in: as.NewWildCardValue(), out: nil},
+					{in: as.NewBytesValue(bytes), out: bytes},
+					{in: as.NewStringValue(str), out: str},
+					{in: as.NewIntegerValue(i), out: i},
+					{in: as.NewFloatValue(f), out: f},
+					{in: as.NewValueArray(valArray), out: list},
+					{in: as.NewListValue(list), out: list},
+					{in: as.NewMapValue(m), out: m},
+					{in: as.NewJsonValue(json), out: m},
 				}
 
 				for i, data := range cases {

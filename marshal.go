@@ -33,6 +33,27 @@ const (
 	aerospikeMetaTagTTL = "ttl"
 )
 
+// This method is copied verbatim from https://golang.org/src/encoding/json/encode.go
+// to ensure compatibility with the json package.
+func isEmptyValue(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+		return v.Len() == 0
+	case reflect.Bool:
+		return !v.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return v.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return v.Uint() == 0
+	case reflect.Float32, reflect.Float64:
+		return v.Float() == 0
+	case reflect.Interface, reflect.Ptr:
+		return v.IsNil()
+	}
+
+	return false
+}
+
 // SetAerospikeTag sets the bin tag to the specified tag.
 // This will be useful for when a user wants to use the same tag name for two different concerns.
 // For example, one will be able to use the same tag name for both json and aerospike bin name.
@@ -50,15 +71,17 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 	}
 
 	switch f.Kind() {
-	case reflect.Uint64:
+	case reflect.Int, reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8:
+		return IntegerValue(f.Int())
+	case reflect.Uint64, reflect.Uint, reflect.Uint8, reflect.Uint32, reflect.Uint16:
 		return int64(f.Uint())
 	case reflect.Float64, reflect.Float32:
 		// support floats through integer encoding if
 		// server doesn't support floats
 		if clusterSupportsFloat {
-			return f.Float()
+			return FloatValue(f.Float())
 		}
-		return int(math.Float64bits(f.Float()))
+		return IntegerValue(math.Float64bits(f.Float()))
 
 	case reflect.Struct:
 		if f.Type().PkgPath() == "time" && f.Type().Name() == "Time" {
@@ -67,9 +90,9 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 		return structToMap(f, clusterSupportsFloat)
 	case reflect.Bool:
 		if f.Bool() {
-			return int64(1)
+			return IntegerValue(1)
 		}
-		return int64(0)
+		return IntegerValue(0)
 	case reflect.Map:
 		if f.IsNil() {
 			return nil
@@ -97,7 +120,7 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 		return newSlice
 	case reflect.Interface:
 		if f.IsNil() {
-			return nil
+			return nullValue
 		}
 		return f.Interface()
 	default:
@@ -110,11 +133,22 @@ func fieldIsMetadata(f reflect.StructField) bool {
 	return strings.Trim(meta, " ") != ""
 }
 
-func fieldAlias(f reflect.StructField) string {
-	alias := f.Tag.Get(aerospikeTag)
-	if alias != "" {
-		alias = strings.Trim(alias, " ")
+func fieldIsOmitOnEmpty(f reflect.StructField) bool {
+	tag := f.Tag.Get(aerospikeTag)
+	return strings.Contains(tag, ",omitempty")
+}
 
+func stripOptions(tag string) string {
+	i := strings.Index(tag, ",")
+	if i < 0 {
+		return tag
+	}
+	return string(tag[:i])
+}
+
+func fieldAlias(f reflect.StructField) string {
+	alias := strings.Trim(stripOptions(f.Tag.Get(aerospikeTag)), " ")
+	if alias != "" {
 		// if tag is -, the field should not be persisted
 		if alias == "-" {
 			return ""
@@ -133,19 +167,26 @@ func structToMap(s reflect.Value, clusterSupportsFloat bool) BinMap {
 	numFields := s.NumField()
 
 	var binMap BinMap
+	var fld reflect.StructField
 	for i := 0; i < numFields; i++ {
+		fld = typeOfT.Field(i)
+
 		// skip unexported fields
-		if typeOfT.Field(i).PkgPath != "" {
+		if fld.PkgPath != "" {
 			continue
 		}
 
-		if fieldIsMetadata(typeOfT.Field(i)) {
+		if fieldIsMetadata(fld) {
 			continue
 		}
 
 		// skip transient fields tagged `-`
-		alias := fieldAlias(typeOfT.Field(i))
+		alias := fieldAlias(fld)
 		if alias == "" {
+			continue
+		}
+
+		if fieldIsOmitOnEmpty(fld) && isEmptyValue(s.Field(i)) {
 			continue
 		}
 
@@ -270,7 +311,7 @@ func cacheObjectTags(objType reflect.Type) {
 			continue
 		}
 
-		tag := strings.Trim(f.Tag.Get(aerospikeTag), " ")
+		tag := strings.Trim(stripOptions(f.Tag.Get(aerospikeTag)), " ")
 		tagM := strings.Trim(f.Tag.Get(aerospikeMetaTag), " ")
 
 		if tag != "" && tagM != "" {
