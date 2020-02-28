@@ -1,5 +1,13 @@
 # Change History
 
+## February 28 2020: v2.8.0
+
+  Minor feature release.
+
+  * **New Features**
+
+    - Allows `,omitempty` tag to be used in struct tags. It behaves the same as the stdlib json. Note that there should be no whitespace between the comma and the rest of the tag.
+
 ## January 30 2020: v2.7.2
 
   Minor fix release.
