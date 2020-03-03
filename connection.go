@@ -289,12 +289,14 @@ func (ctn *Connection) Close() {
 				Logger.Warn(err.Error())
 			}
 			ctn.conn = nil
-			ctn.dataBuffer = nil
 
 			// put the data buffer back in the pool in case it gets used again
-			if len(ctn.dataBuffer) <= MaxBufferSize {
+			if len(ctn.dataBuffer) >= DefaultBufferSize && len(ctn.dataBuffer) <= MaxBufferSize {
 				bufPool.Put(ctn.dataBuffer)
 			}
+
+			ctn.dataBuffer = nil
+			ctn.node = nil
 		}
 	})
 }

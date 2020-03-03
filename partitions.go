@@ -84,6 +84,24 @@ func (p *Partitions) clone() *Partitions {
 
 type partitionMap map[string]*Partitions
 
+// cleanup removes all the references stored in the lists
+// to help the GC identify the unused pointers.
+func (pm partitionMap) cleanup() {
+	for ns, partitions := range pm {
+		for i := range partitions.Replicas {
+			for j := range partitions.Replicas[i] {
+				partitions.Replicas[i][j] = nil
+			}
+			partitions.Replicas[i] = nil
+		}
+
+		partitions.Replicas = nil
+		partitions.regimes = nil
+
+		delete(pm, ns)
+	}
+}
+
 // String implements stringer interface for partitionMap
 func (pm partitionMap) clone() partitionMap {
 	// Make deep copy of map.

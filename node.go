@@ -687,6 +687,8 @@ func (nd *Node) Close() {
 		atomic.AddInt64(&nd.stats.NodeRemoved, 1)
 	}
 	nd.closeConnections()
+	nd.connections.cleanup()
+	nd.cluster = nil
 }
 
 // String implements stringer interface
