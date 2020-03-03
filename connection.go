@@ -34,6 +34,14 @@ import (
 // which will be more expensive.
 var DefaultBufferSize = 64 * 1024 // 64 KiB
 
+// bufPool reuses the data buffers to remove pressure from
+// the allocator and the GC during connection churns.
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, DefaultBufferSize)
+	},
+}
+
 // Connection represents a connection with a timeout.
 type Connection struct {
 	node *Node
@@ -78,7 +86,7 @@ func errToTimeoutErr(conn *Connection, err error) error {
 // If the connection is not established in the specified timeout,
 // an error will be returned
 func newConnection(address string, timeout time.Duration) (*Connection, error) {
-	newConn := &Connection{dataBuffer: make([]byte, DefaultBufferSize)}
+	newConn := &Connection{dataBuffer: bufPool.Get().([]byte)}
 	runtime.SetFinalizer(newConn, connectionFinalizer)
 
 	// don't wait indefinitely
@@ -282,6 +290,11 @@ func (ctn *Connection) Close() {
 			}
 			ctn.conn = nil
 			ctn.dataBuffer = nil
+
+			// put the data buffer back in the pool in case it gets used again
+			if len(ctn.dataBuffer) <= MaxBufferSize {
+				bufPool.Put(ctn.dataBuffer)
+			}
 		}
 	})
 }
