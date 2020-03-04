@@ -688,7 +688,6 @@ func (nd *Node) Close() {
 	}
 	nd.closeConnections()
 	nd.connections.cleanup()
-	nd.cluster = nil
 }
 
 // String implements stringer interface

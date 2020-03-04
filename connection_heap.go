@@ -54,7 +54,12 @@ func (h *singleConnectionHeap) cleanup() {
 
 		h.data[i] = nil
 	}
+
+	// make sure offer and poll both fail
 	h.data = nil
+	h.full = true
+	h.head = 0
+	h.tail = 0
 }
 
 // Offer adds an item to the heap unless the heap is full.
@@ -79,6 +84,12 @@ func (h *singleConnectionHeap) Offer(conn *Connection) bool {
 // If the heap is empty, nil will be returned.
 func (h *singleConnectionHeap) Poll() (res *Connection) {
 	h.mutex.Lock()
+
+	// the heap has been cleaned up
+	if h.data == nil {
+		return nil
+	}
+
 	// if heap is not empty
 	if (h.tail != h.head) || h.full {
 		res = h.data[h.head]
@@ -153,7 +164,6 @@ func (h *connectionHeap) cleanup() {
 	for i := range h.heaps {
 		h.heaps[i].cleanup()
 	}
-	h.heaps = nil
 }
 
 func newConnectionHeap(size int) *connectionHeap {

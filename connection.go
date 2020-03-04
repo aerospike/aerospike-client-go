@@ -96,7 +96,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, error) {
 
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
-		Logger.Error("Connection to address `" + address + "` failed to establish with error: " + err.Error())
+		Logger.Debug("Connection to address `" + address + "` failed to establish with error: " + err.Error())
 		return nil, errToTimeoutErr(nil, err)
 	}
 	newConn.conn = conn
