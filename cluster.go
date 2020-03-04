@@ -1021,9 +1021,6 @@ func (clstr *Cluster) Close() {
 		// remove node references from the partition table
 		// to allow GC to work its magic. Leaks otherwise.
 		clstr.getPartitions().cleanup()
-		clstr.nodes.Set(nil)
-		clstr.aliases.Set(nil)
-		clstr.nodesMap.Set(nil)
 	}
 }
 
