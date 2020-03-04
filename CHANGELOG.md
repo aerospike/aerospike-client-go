@@ -1,5 +1,17 @@
 # Change History
 
+## March 4 2020: v2.8.1
+
+  Minor fix and improvements.
+
+  * **Improvements**
+
+    - Uses a `sync.Pool` to preserve the connection buffers on close to remove pressure from the allocator and the GC during connection churns.
+
+  * **Fixes**
+
+    - Cleanup the data structure cross refs on Cluster.Close to help GC free the objects.
+
 ## February 28 2020: v2.8.0
 
   Minor feature release.
