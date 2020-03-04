@@ -35,18 +35,18 @@ import (
 // them.
 type Cluster struct {
 	// Initial host nodes specified by user.
-	seeds *SyncVal //[]*Host
+	seeds SyncVal //[]*Host
 
 	// All aliases for all nodes in cluster.
 	// Only accessed within cluster tend goroutine.
-	aliases *SyncVal //map[Host]*Node
+	aliases SyncVal //map[Host]*Node
 
 	// Map of active nodes in cluster.
 	// Only accessed within cluster tend goroutine.
-	nodesMap *SyncVal //map[string]*Node
+	nodesMap SyncVal //map[string]*Node
 
 	// Active nodes in cluster.
-	nodes     *SyncVal              //[]*Node
+	nodes     SyncVal               //[]*Node
 	stats     map[string]*nodeStats //host => stats
 	statsLock sync.Mutex
 
@@ -71,7 +71,7 @@ type Cluster struct {
 	user string
 
 	// Password in hashed format in bytes.
-	password *SyncVal // []byte
+	password SyncVal // []byte
 }
 
 // NewCluster generates a Cluster instance.
@@ -100,13 +100,13 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		infoPolicy:   InfoPolicy{Timeout: policy.Timeout},
 		tendChannel:  make(chan struct{}),
 
-		seeds:    NewSyncVal(hosts),
-		aliases:  NewSyncVal(make(map[Host]*Node)),
-		nodesMap: NewSyncVal(make(map[string]*Node)),
-		nodes:    NewSyncVal([]*Node{}),
+		seeds:    *NewSyncVal(hosts),
+		aliases:  *NewSyncVal(make(map[Host]*Node)),
+		nodesMap: *NewSyncVal(make(map[string]*Node)),
+		nodes:    *NewSyncVal([]*Node{}),
 		stats:    map[string]*nodeStats{},
 
-		password: NewSyncVal(nil),
+		password: *NewSyncVal(nil),
 
 		supportsFloat:       NewAtomicBool(false),
 		supportsBatchIndex:  NewAtomicBool(false),
@@ -127,7 +127,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		if err != nil {
 			return nil, err
 		}
-		newCluster.password = NewSyncVal(hashedPass)
+		newCluster.password = *NewSyncVal(hashedPass)
 	}
 
 	// try to seed connections for first use
@@ -156,7 +156,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 // String implements the stringer interface
 func (clstr *Cluster) String() string {
-	return fmt.Sprintf("%v", clstr.nodes)
+	return fmt.Sprintf("%v", clstr.GetNodes())
 }
 
 // Maintains the cluster on intervals.
@@ -1017,6 +1017,10 @@ func (clstr *Cluster) Close() {
 
 		// wait until tend is over
 		clstr.wgTend.Wait()
+
+		// remove node references from the partition table
+		// to allow GC to work its magic. Leaks otherwise.
+		clstr.getPartitions().cleanup()
 	}
 }
 

@@ -34,9 +34,8 @@ var _ = Describe("Security tests", func() {
 	var err error
 
 	BeforeEach(func() {
-		if !isEnterpriseEdition() {
+		if !securityEnabled() {
 			Skip("Security Tests are not supported in the Community Edition.")
-			return
 		}
 
 		client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)

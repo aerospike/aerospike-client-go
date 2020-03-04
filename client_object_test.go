@@ -23,7 +23,6 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
-	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -45,7 +44,6 @@ var _ = Describe("Aerospike", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		// type SomeBool bool TODO: FIXIT
 		type SomeBool bool
 		type SomeByte byte
 		type SomeInt int
@@ -622,6 +620,43 @@ var _ = Describe("Aerospike", func() {
 		}
 
 		Context("PutObject operations", func() {
+
+			It("must respect `,omitempty` option", func() {
+				type T struct {
+					Name        string `as:"   name "`
+					Description string `as:" desc    ,omitempty"`
+					Age         int    `as:"     ,omitempty"`
+				}
+
+				t := &T{
+					Name:        "Ada Lovelace",
+					Description: "Was doing it before it was cool",
+					Age:         31,
+				}
+
+				key, _ := as.NewKey(ns, set, randString(50))
+				err = client.PutObject(nil, key, t)
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err := client.Get(nil, key)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rec.Bins).To(Equal(as.BinMap{"name": t.Name, "desc": t.Description, "Age": 31}))
+
+				key, _ = as.NewKey(ns, set, randString(50))
+
+				t = &T{
+					Name:        "",
+					Description: "",
+					Age:         0,
+				}
+
+				err = client.PutObject(nil, key, t)
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err = client.Get(nil, key)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rec.Bins).To(Equal(as.BinMap{"name": t.Name}))
+			})
 
 			It("must save an object with the most complex structure possible", func() {
 

@@ -113,7 +113,9 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 
 	cmd.bc = newBufferedConn(conn, 0)
 	for status {
-		cmd.conn.initInflater(false, 0)
+		if err := cmd.conn.initInflater(false, 0); err != nil {
+			return NewAerospikeError(PARSE_ERROR, "Error setting up zlib inflater:", err.Error())
+		}
 		cmd.bc.reset(8)
 
 		// Read header.
@@ -135,11 +137,15 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 			}
 
 			receiveSize = int(Buffer.BytesToInt64(cmd.dataBuffer, 0)) - 8
-			cmd.conn.initInflater(true, compressedSize-8)
+			if err := cmd.conn.initInflater(true, compressedSize-8); err != nil {
+				return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize-8, err.Error()))
+			}
 
-			// waste the first 8 bytes
+			// read the first 8 bytes
 			cmd.bc.reset(8)
-			cmd.readBytes(8)
+			if cmd.dataBuffer, err = cmd.bc.read(8); err != nil {
+				return err
+			}
 		}
 
 		// Validate header to make sure we are at the beginning of a message

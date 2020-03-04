@@ -31,7 +31,6 @@ var (
 	set       string = "demo"
 )
 
-// fuck yeah
 func main() {
 
 	var err error

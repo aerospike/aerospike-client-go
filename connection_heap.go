@@ -43,6 +43,20 @@ func newSingleConnectionHeap(size int) *singleConnectionHeap {
 	}
 }
 
+func (h *singleConnectionHeap) cleanup() {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	for i := range h.data {
+		if h.data[i] != nil {
+			h.data[i].Close()
+		}
+
+		h.data[i] = nil
+	}
+	h.data = nil
+}
+
 // Offer adds an item to the heap unless the heap is full.
 // In case the heap is full, the item will not be added to the heap
 // and false will be returned
@@ -131,6 +145,15 @@ func (h *singleConnectionHeap) Len() int {
 type connectionHeap struct {
 	size  int
 	heaps []singleConnectionHeap
+}
+
+// Close cleans up all the data and removes all the references from
+// active objects to ensure GC cleans up everything.
+func (h *connectionHeap) cleanup() {
+	for i := range h.heaps {
+		h.heaps[i].cleanup()
+	}
+	h.heaps = nil
 }
 
 func newConnectionHeap(size int) *connectionHeap {

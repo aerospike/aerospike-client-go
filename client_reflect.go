@@ -29,6 +29,23 @@ import (
 // The policy specifies the transaction timeout, record expiration and how the transaction is
 // handled when the record already exists.
 // If the policy is nil, the default relevant policy will be used.
+// A struct can be tagged to influence the way the object is put in the database:
+//
+// type Person struct {
+//		TTL uint32 `asm:"ttl"`
+//		RecGen uint32 `asm:"gen"`
+//		Name string `as:"name"`
+// 		Address string `as:"desc,omitempty"`
+// 		Age uint8 `as:",omitempty"`
+// 		Password string `as:"-"`
+// }
+//
+// Tag `as:` denotes Aerospike fields. The first value will be the alias for the field.
+// `,omitempty` (without any spaces between the comma and the word) will act like the
+// json package, and will not send the value of the field to the database if the value is zero value.
+// Tag `asm:` denotes Aerospike Meta fields, and includes ttl and generation values.
+// If a tag is marked with `-`, it will not be sent to the database at all.
+// Note: Tag `as` can be replaced with any other user-defined tag via the function `SetAerospikeTag`.
 func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err error) {
 	policy = clnt.getUsableWritePolicy(policy)
 
