@@ -1,5 +1,13 @@
 # Change History
 
+## March 4 2020: v2.8.2
+
+  Hotfix.
+
+  * **Fixes**
+
+    - Fixes a race condition introduced in the last release.
+
 ## March 4 2020: v2.8.1
 
   Minor fix and improvements.
