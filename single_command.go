@@ -23,15 +23,15 @@ type singleCommand struct {
 
 	cluster   *Cluster
 	key       *Key
-	partition Partition
+	partition *Partition
 }
 
-func newSingleCommand(cluster *Cluster, key *Key) singleCommand {
+func newSingleCommand(cluster *Cluster, key *Key, partition *Partition) singleCommand {
 	return singleCommand{
 		baseCommand: baseCommand{},
 		cluster:     cluster,
 		key:         key,
-		partition:   newPartitionByKey(key),
+		partition:   partition,
 	}
 }
 

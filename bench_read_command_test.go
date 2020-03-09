@@ -26,7 +26,6 @@ import (
 )
 
 func doGet(set string, value interface{}, b *testing.B) {
-	var err error
 	policy := NewPolicy()
 
 	dataBuffer := make([]byte, 1024*1024)
@@ -35,7 +34,10 @@ func doGet(set string, value interface{}, b *testing.B) {
 	key, _ := NewKey("test", set, 1000)
 
 	for i := 0; i < b.N; i++ {
-		command := newReadCommand(nil, policy, key, binNames)
+		command, err := newReadCommand(nil, policy, key, binNames, nil)
+		if err != nil {
+			panic(err)
+		}
 		command.baseCommand.dataBuffer = dataBuffer
 		err = command.writeBuffer(&command)
 		if err != nil {

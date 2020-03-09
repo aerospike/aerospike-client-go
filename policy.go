@@ -23,6 +23,7 @@ type Policy interface {
 	// Retrieves BasePolicy
 	GetBasePolicy() *BasePolicy
 
+	// determines if the command should be compressed
 	compress() bool
 }
 
@@ -41,10 +42,11 @@ type BasePolicy struct {
 	// Currently, only used for scans.
 	Priority Priority //= Priority.DEFAULT;
 
-	// How replicas should be consulted in a read operation to provide the desired
-	// consistency guarantee. Default to allowing one replica to be used in the
-	// read operation.
-	ConsistencyLevel ConsistencyLevel //= CONSISTENCY_ONE
+	// ReadModeAP indicates read policy for AP (availability) namespaces.
+	ReadModeAP ReadModeAP //= ONE
+
+	// ReadModeSC indicates read policy for SC (strong consistency) namespaces.
+	ReadModeSC ReadModeSC //= SESSION;
 
 	// TotalTimeout specifies total transaction timeout.
 	//
@@ -129,14 +131,10 @@ type BasePolicy struct {
 	// Default: false
 	UseCompression bool // = false
 
-	// Force reads to be linearized for server namespaces that support CP mode.
-	// The default is false.
-	LinearizeRead bool
-
 	// ReplicaPolicy determines the node to send the read commands containing the key's partition replica type.
 	// Write commands are not affected by this setting, because all writes are directed
 	// to the node containing the key's master partition.
-	// Batch, scan and query are also not affected by replica algorithms.
+	// Scan and query are also not affected by replica algorithms.
 	// Default to sending read commands to the node containing the key's master partition.
 	ReplicaPolicy ReplicaPolicy
 }
@@ -145,7 +143,8 @@ type BasePolicy struct {
 func NewPolicy() *BasePolicy {
 	return &BasePolicy{
 		Priority:            DEFAULT,
-		ConsistencyLevel:    CONSISTENCY_ONE,
+		ReadModeAP:          ReadModeAPOne,
+		ReadModeSC:          ReadModeSCSession,
 		TotalTimeout:        0 * time.Millisecond,
 		SocketTimeout:       30 * time.Second,
 		MaxRetries:          2,
@@ -153,7 +152,6 @@ func NewPolicy() *BasePolicy {
 		SleepMultiplier:     1.0,
 		ReplicaPolicy:       SEQUENCE,
 		SendKey:             false,
-		LinearizeRead:       false,
 		UseCompression:      false,
 	}
 }

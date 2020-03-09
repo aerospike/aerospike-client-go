@@ -45,7 +45,7 @@ const (
 	_INFO1_NOBINDATA int = (1 << 5)
 
 	// Involve all replicas in read operation.
-	_INFO1_CONSISTENCY_ALL = (1 << 6)
+	_INFO1_READ_MODE_AP_ALL = (1 << 6)
 
 	// Tell server to compress its response.
 	_INFO1_COMPRESS_RESPONSE = (1 << 7)
@@ -77,8 +77,23 @@ const (
 	_INFO3_CREATE_OR_REPLACE int = (1 << 4)
 	// Completely replace existing record only.
 	_INFO3_REPLACE_ONLY int = (1 << 5)
-	// Linearize read when in CP mode.
-	_INFO3_LINEARIZE_READ int = (1 << 6)
+	// See Below
+	_INFO3_SC_READ_TYPE int = (1 << 6)
+	// See Below
+	_INFO3_SC_READ_RELAX int = (1 << 7)
+
+	// Interpret SC_READ bits in info3.
+	//
+	// RELAX   TYPE
+	//	                strict
+	//	                ------
+	//   0      0     sequential (default)
+	//   0      1     linearize
+	//
+	//	                relaxed
+	//	                -------
+	//   1      0     allow replica
+	//   1      1     allow unavailable
 
 	_MSG_TOTAL_HEADER_SIZE     uint8 = 30
 	_FIELD_HEADER_SIZE         uint8 = 5
@@ -101,8 +116,11 @@ type command interface {
 	putConnection(conn *Connection)
 	parseResult(ifc command, conn *Connection) error
 	parseRecordResults(ifc command, receiveSize int) (bool, error)
+	prepareRetry(ifc command, isTimeout bool) bool
 
 	execute(ifc command, isRead bool) error
+	executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) error
+
 	// Executes the command
 	Execute() error
 }
@@ -577,8 +595,8 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 		return err
 	}
 
-	if policy.ConsistencyLevel == CONSISTENCY_ALL {
-		readAttr |= _INFO1_CONSISTENCY_ALL
+	if policy.ReadModeAP == ReadModeAPAll {
+		readAttr |= _INFO1_READ_MODE_AP_ALL
 	}
 
 	if len(binNames) == 0 {
@@ -704,8 +722,8 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 	}
 
 	readAttr := _INFO1_READ
-	if policy.ConsistencyLevel == CONSISTENCY_ALL {
-		readAttr |= _INFO1_CONSISTENCY_ALL
+	if policy.ReadModeAP == ReadModeAPAll {
+		readAttr |= _INFO1_READ_MODE_AP_ALL
 	}
 
 	cmd.writeHeader(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
@@ -1246,12 +1264,19 @@ func (cmd *baseCommand) estimatePredExpSize(predExp []PredExp) int {
 // Generic header write.
 func (cmd *baseCommand) writeHeader(policy *BasePolicy, readAttr int, writeAttr int, fieldCount int, operationCount int) {
 	infoAttr := 0
-	if policy.LinearizeRead {
-		infoAttr |= _INFO3_LINEARIZE_READ
+
+	switch policy.ReadModeSC {
+	case ReadModeSCSession:
+	case ReadModeSCLinearize:
+		infoAttr |= _INFO3_SC_READ_TYPE
+	case ReadModeSCAllowReplica:
+		infoAttr |= _INFO3_SC_READ_RELAX
+	case ReadModeSCAllowUnavailable:
+		infoAttr |= _INFO3_SC_READ_TYPE | _INFO3_SC_READ_RELAX
 	}
 
-	if policy.ConsistencyLevel == CONSISTENCY_ALL {
-		readAttr |= _INFO1_CONSISTENCY_ALL
+	if policy.ReadModeAP == ReadModeAPAll {
+		readAttr |= _INFO1_READ_MODE_AP_ALL
 	}
 
 	if policy.UseCompression {
@@ -1305,16 +1330,22 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 		infoAttr |= _INFO3_COMMIT_MASTER
 	}
 
-	if policy.LinearizeRead {
-		infoAttr |= _INFO3_LINEARIZE_READ
-	}
-
-	if policy.ConsistencyLevel == CONSISTENCY_ALL {
-		readAttr |= _INFO1_CONSISTENCY_ALL
-	}
-
 	if policy.DurableDelete {
 		writeAttr |= _INFO2_DURABLE_DELETE
+	}
+
+	switch policy.ReadModeSC {
+	case ReadModeSCSession:
+	case ReadModeSCLinearize:
+		infoAttr |= _INFO3_SC_READ_TYPE
+	case ReadModeSCAllowReplica:
+		infoAttr |= _INFO3_SC_READ_RELAX
+	case ReadModeSCAllowUnavailable:
+		infoAttr |= _INFO3_SC_READ_TYPE | _INFO3_SC_READ_RELAX
+	}
+
+	if policy.ReadModeAP == ReadModeAPAll {
+		readAttr |= _INFO1_READ_MODE_AP_ALL
 	}
 
 	if policy.UseCompression {
@@ -1470,7 +1501,6 @@ func (cmd *baseCommand) writePredExp(predExp []PredExp, predSize int) error {
 }
 
 func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) error {
-
 	vlen, err := value.estimateSize()
 	if err != nil {
 		return err
@@ -1757,22 +1787,37 @@ func setInDoubt(err error, isRead bool, commandSentCounter int) error {
 
 func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
-	iterations := -1
-	commandSentCounter := 0
+	deadline := policy.deadline()
 
+	return cmd.executeAt(ifc, policy, isRead, deadline, -1, 0)
+}
+
+func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) (err error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
-	// set timeout outside the loop
-	deadline := policy.deadline()
-
-	var err error
-
 	shouldSleep := false
+	isClientTimeout := false
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
 		iterations++
+
+		if shouldSleep {
+			aerr, ok := err.(AerospikeError)
+			if !ifc.prepareRetry(ifc, isClientTimeout || (ok && aerr.ResultCode() != SERVER_NOT_AVAILABLE)) {
+				if bc, ok := ifc.(batcher); ok {
+					// Batch may be retried in separate commands.
+					if retry, err := bc.retryBatch(bc, cmd.node.cluster, deadline, iterations, commandSentCounter); retry {
+						// Batch was retried in separate commands. Complete this command.
+						return err
+					}
+				}
+			}
+		}
+
+		// NOTE: This is important to be after the prepareRetry block above
+		isClientTimeout = false
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
@@ -1806,12 +1851,16 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 		// set command node, so when you return a record it has the node
 		cmd.node, err = ifc.getNode(ifc)
 		if cmd.node == nil || !cmd.node.IsActive() || err != nil {
+			isClientTimeout = true
+
 			// Node is currently inactive. Retry.
 			continue
 		}
 
 		cmd.conn, err = ifc.getConnection(policy)
 		if err != nil {
+			isClientTimeout = true
+
 			if err == ErrConnectionPoolEmpty {
 				// if the connection pool is empty, we still haven't tried
 				// the transaction to increase the iteration count.
@@ -1852,6 +1901,8 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 		// Send command.
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 		if err != nil {
+			isClientTimeout = true
+
 			// IO errors are considered temporary anomalies. Retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
 			cmd.conn.Close()
@@ -1866,6 +1917,13 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) error {
 		err = ifc.parseResult(ifc, cmd.conn)
 		if err != nil {
 			if _, ok := err.(net.Error); err == ErrTimeout || err == io.EOF || ok {
+				isClientTimeout = true
+				if err != ErrTimeout {
+					if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == TIMEOUT {
+						isClientTimeout = false
+					}
+				}
+
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
 				cmd.conn.Close()

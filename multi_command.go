@@ -96,6 +96,10 @@ func (cmd *baseMultiCommand) getNode(ifc command) (*Node, error) {
 	return cmd.node, nil
 }
 
+func (cmd *baseMultiCommand) prepareRetry(ifc command, isTimeout bool) bool {
+	return false
+}
+
 func (cmd *baseMultiCommand) getConnection(policy Policy) (*Connection, error) {
 	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().deadline(), policy.GetBasePolicy().socketTimeout(), byte(xrand.Int64()%256))
 }

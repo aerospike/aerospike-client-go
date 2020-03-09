@@ -23,14 +23,33 @@ type operateCommand struct {
 	hasWrite bool
 }
 
-func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) operateCommand {
+func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) (operateCommand, error) {
+	hasWrite := hasWriteOp(operations)
+
+	var partition *Partition
+	var err error
+	if hasWrite {
+		partition, err = PartitionForWrite(cluster, &policy.BasePolicy, key)
+	} else {
+		partition, err = PartitionForRead(cluster, &policy.BasePolicy, key)
+	}
+
+	if err != nil {
+		return operateCommand{}, err
+	}
+
+	readCommand, err := newReadCommand(cluster, &policy.BasePolicy, key, nil, partition)
+	if err != nil {
+		return operateCommand{}, err
+	}
+
 	return operateCommand{
-		readCommand: newReadCommand(cluster, &policy.BasePolicy, key, nil),
+		readCommand: readCommand,
 		policy:      policy,
 		operations:  operations,
 
-		hasWrite: hasWriteOp(operations),
-	}
+		hasWrite: hasWrite,
+	}, nil
 }
 
 func (cmd *operateCommand) writeBuffer(ifc command) (err error) {
@@ -40,11 +59,20 @@ func (cmd *operateCommand) writeBuffer(ifc command) (err error) {
 
 func (cmd *operateCommand) getNode(ifc command) (*Node, error) {
 	if cmd.hasWrite {
-		return cmd.cluster.getMasterNode(&cmd.partition)
+		return cmd.partition.GetNodeWrite(cmd.cluster)
 	}
 
 	// this may be affected by Rackaware
-	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy, &cmd.replicaSequence)
+	return cmd.partition.GetNodeRead(cmd.cluster)
+}
+
+func (cmd *operateCommand) prepareRetry(ifc command, isTimeout bool) bool {
+	if cmd.hasWrite {
+		cmd.partition.PrepareRetryWrite(isTimeout)
+	} else {
+		cmd.partition.PrepareRetryRead(isTimeout)
+	}
+	return true
 }
 
 func (cmd *operateCommand) Execute() error {

@@ -891,6 +891,18 @@ func (nd *Node) Rack(namespace string) (int, error) {
 	return -1, newAerospikeNodeError(nd, RACK_NOT_DEFINED)
 }
 
+// Rack returns the rack number for the namespace.
+func (nd *Node) hasRack(namespace string, rack int) bool {
+	racks := nd.racks.Load().(map[string]int)
+	v, exists := racks[namespace]
+
+	if !exists {
+		return false
+	}
+
+	return v == rack
+}
+
 // WarmUp fills the node's connection pool with connections.
 // This is necessary on startup for high traffic programs.
 // If the count is <= 0, the connection queue will be filled.

@@ -17,15 +17,16 @@
 
 package aerospike
 
-// ConsistencyLevel indicates how duplicates should be consulted in a read operation.
+// ReadModeAP is the read policy in AP (availability) mode namespaces.
+// It indicates how duplicates should be consulted in a read operation.
 // Only makes a difference during migrations and only applicable in AP mode.
-type ConsistencyLevel int
+type ReadModeAP int
 
 const (
-	// CONSISTENCY_ONE indicates that only master should be involved in the read operation.
-	CONSISTENCY_ONE = iota
+	// ONE indicates that a single node should be involved in the read operation.
+	ReadModeAPOne ReadModeAP = iota
 
-	// CONSISTENCY_ALL indicates that all duplicates should be consulted in
+	// ALL indicates that all duplicates should be consulted in
 	// the read operation.
-	CONSISTENCY_ALL
+	ReadModeAPAll
 )

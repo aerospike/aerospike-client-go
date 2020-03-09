@@ -365,7 +365,7 @@ func randBytes(size int, xr *XorRand) []byte {
 }
 
 func incOnError(op, timeout *int, err error) {
-	if ae, ok := err.(ast.AerospikeError); ok && ae.ResultCode() == ast.TIMEOUT {
+	if ae, ok := err.(ast.AerospikeError); ok && (ae.ResultCode() == ast.TIMEOUT || err == ast.ErrConnectionPoolEmpty || err == ast.ErrTooManyConnectionsForNode || err == ast.ErrTooManyOpeningConnections) {
 		*timeout++
 	} else {
 		*op++
