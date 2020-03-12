@@ -158,18 +158,19 @@ func fieldAlias(f reflect.StructField) string {
 	return f.Name
 }
 
-func structToMap(s reflect.Value, clusterSupportsFloat bool) BinMap {
-	if !s.IsValid() {
-		return nil
-	}
-
-	typeOfT := s.Type()
-	numFields := s.NumField()
-
-	var binMap BinMap
+func setBinMap(s reflect.Value, clusterSupportsFloat bool, typeOfT reflect.Type, binMap BinMap, index []int) {
+	numFields := typeOfT.NumField()
 	var fld reflect.StructField
+
 	for i := 0; i < numFields; i++ {
 		fld = typeOfT.Field(i)
+
+		fldIndex := append(index, fld.Index...)
+
+		if fld.Anonymous && fld.Type.Kind() == reflect.Struct {
+			setBinMap(s, clusterSupportsFloat, fld.Type, binMap, fldIndex)
+			continue
+		}
 
 		// skip unexported fields
 		if fld.PkgPath != "" {
@@ -186,18 +187,24 @@ func structToMap(s reflect.Value, clusterSupportsFloat bool) BinMap {
 			continue
 		}
 
-		if fieldIsOmitOnEmpty(fld) && isEmptyValue(s.Field(i)) {
+		if fieldIsOmitOnEmpty(fld) && isEmptyValue(s.FieldByIndex(fldIndex)) {
 			continue
 		}
 
-		binValue := valueToInterface(s.Field(i), clusterSupportsFloat)
-
-		if binMap == nil {
-			binMap = make(BinMap, numFields)
-		}
+		binValue := valueToInterface(s.FieldByIndex(fldIndex), clusterSupportsFloat)
 
 		binMap[alias] = binValue
 	}
+}
+
+func structToMap(s reflect.Value, clusterSupportsFloat bool) BinMap {
+	if !s.IsValid() {
+		return nil
+	}
+
+	var binMap BinMap = make(BinMap, s.NumField())
+
+	setBinMap(s, clusterSupportsFloat, s.Type(), binMap, nil)
 
 	return binMap
 }
@@ -297,15 +304,16 @@ var objectMappings = &syncMap{
 	objectGen:      map[reflect.Type][]string{},
 }
 
-func cacheObjectTags(objType reflect.Type) {
-	mapping := map[string]string{}
-	fields := []string{}
-	ttl := []string{}
-	gen := []string{}
-
+func fillMapping(objType reflect.Type, mapping map[string]string, fields, ttl, gen []string) ([]string, []string, []string) {
 	numFields := objType.NumField()
 	for i := 0; i < numFields; i++ {
 		f := objType.Field(i)
+
+		if f.Anonymous && f.Type.Kind() == reflect.Struct {
+			fields, ttl, gen = fillMapping(f.Type, mapping, fields, ttl, gen)
+			continue
+		}
+
 		// skip unexported fields
 		if f.PkgPath != "" {
 			continue
@@ -335,6 +343,11 @@ func cacheObjectTags(objType reflect.Type) {
 			panic(fmt.Sprintf("Invalid metadata tag `%s` on struct attribute: %s.%s", tagM, objType.Name(), f.Name))
 		}
 	}
+	return fields, ttl, gen
+}
 
+func cacheObjectTags(objType reflect.Type) {
+	mapping := map[string]string{}
+	fields, ttl, gen := fillMapping(objType, mapping, []string{}, []string{}, []string{})
 	objectMappings.setMapping(objType, mapping, fields, ttl, gen)
 }

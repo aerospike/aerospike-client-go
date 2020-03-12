@@ -320,26 +320,10 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 						if f.IsNil() {
 							newObjPtr = reflect.New(f.Type().Elem())
 						}
-						theStruct := newObjPtr.Elem().Type()
-						numFields := newObjPtr.Elem().NumField()
-						for i := 0; i < numFields; i++ {
-							// skip unexported fields
-							fld := theStruct.Field(i)
-							if fld.PkgPath != "" {
-								continue
-							}
 
-							alias := fld.Name
-							tag := strings.Trim(fld.Tag.Get(aerospikeTag), " ")
-							if tag != "" {
-								alias = tag
-							}
-
-							if valMap[alias] != nil {
-								if err := setValue(reflect.Indirect(newObjPtr).FieldByName(fld.Name), valMap[alias], supportsFloat); err != nil {
-									return err
-								}
-							}
+						theStruct := newObjPtr.Elem()
+						if err := setStructValue(theStruct, valMap, supportsFloat, theStruct.Type(), nil); err != nil {
+							return err
 						}
 
 						// set the field
@@ -423,26 +407,8 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 
 			valMap := value.(map[interface{}]interface{})
 			// iteraste over struct fields and recursively fill them up
-			typeOfT := f.Type()
-			numFields := f.NumField()
-			for i := 0; i < numFields; i++ {
-				fld := typeOfT.Field(i)
-				// skip unexported fields
-				if fld.PkgPath != "" {
-					continue
-				}
-
-				alias := fld.Name
-				tag := strings.Trim(fld.Tag.Get(aerospikeTag), " ")
-				if tag != "" {
-					alias = tag
-				}
-
-				if valMap[alias] != nil {
-					if err := setValue(f.FieldByName(fld.Name), valMap[alias], supportsFloat); err != nil {
-						return err
-					}
-				}
+			if err := setStructValue(f, valMap, supportsFloat, f.Type(), nil); err != nil {
+				return err
 			}
 
 			// set the field
@@ -450,5 +416,36 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 		}
 	}
 
+	return nil
+}
+
+func setStructValue(f reflect.Value, valMap map[interface{}]interface{}, supportsFloat bool, typeOfT reflect.Type, index []int) (err error) {
+	numFields := typeOfT.NumField()
+	for i := 0; i < numFields; i++ {
+		fld := typeOfT.Field(i)
+		fldIndex := append(index, fld.Index...)
+		if fld.Anonymous && fld.Type.Kind() == reflect.Struct {
+			if err := setStructValue(f, valMap, supportsFloat, fld.Type, fldIndex); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if fld.PkgPath != "" {
+			continue
+		}
+
+		alias := fld.Name
+		tag := strings.Trim(fld.Tag.Get(aerospikeTag), " ")
+		if tag != "" {
+			alias = tag
+		}
+
+		if valMap[alias] != nil {
+			if err := setValue(f.FieldByIndex(fldIndex), valMap[alias], supportsFloat); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
