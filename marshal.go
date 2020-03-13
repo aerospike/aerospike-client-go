@@ -161,7 +161,6 @@ func fieldAlias(f reflect.StructField) string {
 func setBinMap(s reflect.Value, clusterSupportsFloat bool, typeOfT reflect.Type, binMap BinMap, index []int) {
 	numFields := typeOfT.NumField()
 	var fld reflect.StructField
-
 	for i := 0; i < numFields; i++ {
 		fld = typeOfT.Field(i)
 
@@ -187,11 +186,12 @@ func setBinMap(s reflect.Value, clusterSupportsFloat bool, typeOfT reflect.Type,
 			continue
 		}
 
-		if fieldIsOmitOnEmpty(fld) && isEmptyValue(s.FieldByIndex(fldIndex)) {
+		value := s.FieldByIndex(fldIndex)
+		if fieldIsOmitOnEmpty(fld) && isEmptyValue(value) {
 			continue
 		}
 
-		binValue := valueToInterface(s.FieldByIndex(fldIndex), clusterSupportsFloat)
+		binValue := valueToInterface(value, clusterSupportsFloat)
 
 		if _, ok := binMap[alias]; ok {
 			panic(fmt.Sprintf("ambiguous fields with the same name or alias: %s", alias))
@@ -353,6 +353,6 @@ func fillMapping(objType reflect.Type, mapping map[string][]int, fields []string
 
 func cacheObjectTags(objType reflect.Type) {
 	mapping := map[string][]int{}
-	fields, ttl, gen := fillMapping(objType, mapping, []string{}, [][]int{}, [][]int{}, nil)
+	fields, ttl, gen := fillMapping(objType, mapping, []string{}, nil, nil, nil)
 	objectMappings.setMapping(objType, mapping, fields, ttl, gen)
 }
