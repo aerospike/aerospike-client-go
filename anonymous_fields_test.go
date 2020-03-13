@@ -32,19 +32,25 @@ var _ = Describe("Aerospike", func() {
 		var set = randString(50)
 
 		type anonymousStructA struct {
-			A int `as:"a"`
+			A   int    `as:"a"`
+			TTL uint32 `asm:"ttl"`
+			GEN uint32 `asm:"gen"`
 		}
 
 		type anonymousStructB struct {
-			B string `as:"b"`
+			B   string `as:"b"`
+			TTL uint32 `asm:"ttl"`
+			GEN uint32 `asm:"gen"`
 		}
 
 		type anonymousStructABC struct {
 			anonymousStructA
 			anonymousStructB
-			A bool    `as:"ace"`
-			B int     `as:"bce"`
-			C float64 `as:"c"`
+			A          bool    `as:"ace"`
+			B          int     `as:"bce"`
+			C          float64 `as:"c"`
+			TTL1, TTL2 uint32  `asm:"ttl"`
+			GEN1, GEN2 uint32  `asm:"gen"`
 		}
 
 		type anonymousStructABCD struct {
@@ -81,10 +87,9 @@ var _ = Describe("Aerospike", func() {
 				err = client.PutObject(nil, key, expected)
 				Expect(err).ToNot(HaveOccurred())
 
-				var actual testStruct
-				err = client.GetObject(nil, key, &actual)
+				actual := &testStruct{}
+				err = client.GetObject(nil, key, actual)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(actual).To(Equal(*expected))
 
 				rec, err := client.Get(nil, key)
 				Expect(err).ToNot(HaveOccurred())
@@ -105,6 +110,17 @@ var _ = Describe("Aerospike", func() {
 					"bce": 20,
 					"c":   3.14159,
 				}))
+
+				Expect(actual.TTL1).NotTo(Equal(uint32(0)))
+				Expect(actual.TTL1).To(Equal(actual.TTL2))
+				Expect(actual.TTL1).To(Equal(actual.anonymousStructA.TTL))
+				Expect(actual.TTL1).To(Equal(actual.anonymousStructB.TTL))
+
+				Expect(actual.GEN1).To(Equal(uint32(1)))
+				Expect(actual.GEN2).To(Equal(uint32(1)))
+				Expect(actual.anonymousStructA.GEN).To(Equal(uint32(1)))
+				Expect(actual.anonymousStructB.GEN).To(Equal(uint32(1)))
+
 			})
 		})
 	})

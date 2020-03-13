@@ -105,7 +105,7 @@ func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) error {
 
 	if ttlMap != nil {
 		for i := range ttlMap {
-			f := iobj.FieldByName(ttlMap[i])
+			f := iobj.FieldByIndex(ttlMap[i])
 			if err := setValue(f, ttl, true); err != nil {
 				return err
 			}
@@ -114,7 +114,7 @@ func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) error {
 
 	if genMap != nil {
 		for i := range genMap {
-			f := iobj.FieldByName(genMap[i])
+			f := iobj.FieldByIndex(genMap[i])
 			if err := setValue(f, gen, true); err != nil {
 				return err
 			}

@@ -217,12 +217,12 @@ func marshal(v interface{}, clusterSupportsFloat bool) BinMap {
 type syncMap struct {
 	objectMappings map[reflect.Type]map[string][]int
 	objectFields   map[reflect.Type][]string
-	objectTTLs     map[reflect.Type][]string
-	objectGen      map[reflect.Type][]string
+	objectTTLs     map[reflect.Type][][]int
+	objectGen      map[reflect.Type][][]int
 	mutex          sync.RWMutex
 }
 
-func (sm *syncMap) setMapping(objType reflect.Type, mapping map[string][]int, fields, ttl, gen []string) {
+func (sm *syncMap) setMapping(objType reflect.Type, mapping map[string][]int, fields []string, ttl, gen [][]int) {
 	sm.mutex.Lock()
 	sm.objectMappings[objType] = mapping
 	sm.objectFields[objType] = fields
@@ -266,7 +266,7 @@ func (sm *syncMap) getMapping(objType reflect.Type) map[string][]int {
 	return mapping
 }
 
-func (sm *syncMap) getMetaMappings(objType reflect.Type) (ttl, gen []string) {
+func (sm *syncMap) getMetaMappings(objType reflect.Type) (ttl, gen [][]int) {
 	objType = indirectT(objType)
 	if _, exists := sm.mappingExists(objType); !exists {
 		cacheObjectTags(objType)
@@ -300,11 +300,11 @@ func (sm *syncMap) getFields(objType reflect.Type) []string {
 var objectMappings = &syncMap{
 	objectMappings: map[reflect.Type]map[string][]int{},
 	objectFields:   map[reflect.Type][]string{},
-	objectTTLs:     map[reflect.Type][]string{},
-	objectGen:      map[reflect.Type][]string{},
+	objectTTLs:     map[reflect.Type][][]int{},
+	objectGen:      map[reflect.Type][][]int{},
 }
 
-func fillMapping(objType reflect.Type, mapping map[string][]int, fields, ttl, gen []string, index []int) ([]string, []string, []string) {
+func fillMapping(objType reflect.Type, mapping map[string][]int, fields []string, ttl, gen [][]int, index []int) ([]string, [][]int, [][]int) {
 	numFields := objType.NumField()
 	for i := 0; i < numFields; i++ {
 		f := objType.Field(i)
@@ -337,9 +337,9 @@ func fillMapping(objType reflect.Type, mapping map[string][]int, fields, ttl, ge
 		}
 
 		if tagM == aerospikeMetaTagTTL {
-			ttl = append(ttl, f.Name)
+			ttl = append(ttl, fIndex)
 		} else if tagM == aerospikeMetaTagGen {
-			gen = append(gen, f.Name)
+			gen = append(gen, fIndex)
 		} else if tagM != "" {
 			panic(fmt.Sprintf("Invalid metadata tag `%s` on struct attribute: %s.%s", tagM, objType.Name(), f.Name))
 		}
@@ -349,6 +349,6 @@ func fillMapping(objType reflect.Type, mapping map[string][]int, fields, ttl, ge
 
 func cacheObjectTags(objType reflect.Type) {
 	mapping := map[string][]int{}
-	fields, ttl, gen := fillMapping(objType, mapping, []string{}, []string{}, []string{}, nil)
+	fields, ttl, gen := fillMapping(objType, mapping, []string{}, [][]int{}, [][]int{}, nil)
 	objectMappings.setMapping(objType, mapping, fields, ttl, gen)
 }
