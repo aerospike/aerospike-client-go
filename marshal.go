@@ -193,6 +193,9 @@ func setBinMap(s reflect.Value, clusterSupportsFloat bool, typeOfT reflect.Type,
 
 		binValue := valueToInterface(s.FieldByIndex(fldIndex), clusterSupportsFloat)
 
+		if _, ok := binMap[alias]; ok {
+			panic(fmt.Sprintf("ambiguous fields with the same name or alias: %s", alias))
+		}
 		binMap[alias] = binValue
 	}
 }
@@ -327,13 +330,14 @@ func fillMapping(objType reflect.Type, mapping map[string][]int, fields []string
 		}
 
 		if tag != "-" && tagM == "" {
-			if tag != "" {
-				mapping[tag] = fIndex
-				fields = append(fields, tag)
-			} else {
-				mapping[f.Name] = fIndex
-				fields = append(fields, f.Name)
+			if tag == "" {
+				tag = f.Name
 			}
+			if _, ok := mapping[tag]; ok {
+				panic(fmt.Sprintf("ambiguous fields with the same name or alias: %s", tag))
+			}
+			mapping[tag] = fIndex
+			fields = append(fields, tag)
 		}
 
 		if tagM == aerospikeMetaTagTTL {
