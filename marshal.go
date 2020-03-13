@@ -215,14 +215,14 @@ func marshal(v interface{}, clusterSupportsFloat bool) BinMap {
 }
 
 type syncMap struct {
-	objectMappings map[reflect.Type]map[string]string
+	objectMappings map[reflect.Type]map[string][]int
 	objectFields   map[reflect.Type][]string
 	objectTTLs     map[reflect.Type][]string
 	objectGen      map[reflect.Type][]string
 	mutex          sync.RWMutex
 }
 
-func (sm *syncMap) setMapping(objType reflect.Type, mapping map[string]string, fields, ttl, gen []string) {
+func (sm *syncMap) setMapping(objType reflect.Type, mapping map[string][]int, fields, ttl, gen []string) {
 	sm.mutex.Lock()
 	sm.objectMappings[objType] = mapping
 	sm.objectFields[objType] = fields
@@ -248,14 +248,14 @@ func indirectT(objType reflect.Type) reflect.Type {
 	return objType
 }
 
-func (sm *syncMap) mappingExists(objType reflect.Type) (map[string]string, bool) {
+func (sm *syncMap) mappingExists(objType reflect.Type) (map[string][]int, bool) {
 	sm.mutex.RLock()
 	mapping, exists := sm.objectMappings[objType]
 	sm.mutex.RUnlock()
 	return mapping, exists
 }
 
-func (sm *syncMap) getMapping(objType reflect.Type) map[string]string {
+func (sm *syncMap) getMapping(objType reflect.Type) map[string][]int {
 	objType = indirectT(objType)
 	mapping, exists := sm.mappingExists(objType)
 	if !exists {
@@ -298,19 +298,19 @@ func (sm *syncMap) getFields(objType reflect.Type) []string {
 }
 
 var objectMappings = &syncMap{
-	objectMappings: map[reflect.Type]map[string]string{},
+	objectMappings: map[reflect.Type]map[string][]int{},
 	objectFields:   map[reflect.Type][]string{},
 	objectTTLs:     map[reflect.Type][]string{},
 	objectGen:      map[reflect.Type][]string{},
 }
 
-func fillMapping(objType reflect.Type, mapping map[string]string, fields, ttl, gen []string) ([]string, []string, []string) {
+func fillMapping(objType reflect.Type, mapping map[string][]int, fields, ttl, gen []string, index []int) ([]string, []string, []string) {
 	numFields := objType.NumField()
 	for i := 0; i < numFields; i++ {
 		f := objType.Field(i)
-
+		fIndex := append(index, f.Index...)
 		if f.Anonymous && f.Type.Kind() == reflect.Struct {
-			fields, ttl, gen = fillMapping(f.Type, mapping, fields, ttl, gen)
+			fields, ttl, gen = fillMapping(f.Type, mapping, fields, ttl, gen, fIndex)
 			continue
 		}
 
@@ -328,9 +328,10 @@ func fillMapping(objType reflect.Type, mapping map[string]string, fields, ttl, g
 
 		if tag != "-" && tagM == "" {
 			if tag != "" {
-				mapping[tag] = f.Name
+				mapping[tag] = fIndex
 				fields = append(fields, tag)
 			} else {
+				mapping[f.Name] = fIndex
 				fields = append(fields, f.Name)
 			}
 		}
@@ -347,7 +348,7 @@ func fillMapping(objType reflect.Type, mapping map[string]string, fields, ttl, g
 }
 
 func cacheObjectTags(objType reflect.Type) {
-	mapping := map[string]string{}
-	fields, ttl, gen := fillMapping(objType, mapping, []string{}, []string{}, []string{})
+	mapping := map[string][]int{}
+	fields, ttl, gen := fillMapping(objType, mapping, []string{}, []string{}, []string{}, nil)
 	objectMappings.setMapping(objType, mapping, fields, ttl, gen)
 }

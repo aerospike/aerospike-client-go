@@ -42,6 +42,8 @@ var _ = Describe("Aerospike", func() {
 		type anonymousStructABC struct {
 			anonymousStructA
 			anonymousStructB
+			A bool    `as:"ace"`
+			B int     `as:"bce"`
 			C float64 `as:"c"`
 		}
 
@@ -57,12 +59,16 @@ var _ = Describe("Aerospike", func() {
 
 		makeTestObject := func() *testStruct {
 			obj := &testStruct{}
-			obj.A = 10
-			obj.B = "Hello"
+			obj.A = true
+			obj.B = 20
+			obj.anonymousStructA.A = 10
+			obj.anonymousStructB.B = "Hello"
 			obj.C = 3.14159
 			obj.ABC = &anonymousStructABC{}
-			obj.ABC.A = 20
-			obj.ABC.B = "World"
+			obj.ABC.A = false
+			obj.ABC.B = 42
+			obj.ABC.anonymousStructA.A = 28
+			obj.ABC.anonymousStructB.B = "World!"
 			obj.ABC.C = 2.17828
 			obj.D = true
 			return obj
@@ -79,6 +85,26 @@ var _ = Describe("Aerospike", func() {
 				err = client.GetObject(nil, key, &actual)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(actual).To(Equal(*expected))
+
+				rec, err := client.Get(nil, key)
+				Expect(err).ToNot(HaveOccurred())
+				// make sure the returned BinMap here reflects what you
+				// expect the final marshalled object should be.
+				Expect(rec.Bins).To(Equal(as.BinMap{
+					"ABC": map[interface{}]interface{}{
+						"b":   "World!",
+						"ace": 0,
+						"bce": 42,
+						"c":   2.17828,
+						"a":   28,
+					},
+					"d":   1,
+					"a":   10,
+					"b":   "Hello",
+					"ace": 1,
+					"bce": 20,
+					"c":   3.14159,
+				}))
 			})
 		})
 	})

@@ -124,15 +124,18 @@ func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) error {
 	return nil
 }
 
-func setObjectField(mappings map[string]string, obj reflect.Value, fieldName string, value interface{}, supportsFloat bool) error {
+func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName string, value interface{}, supportsFloat bool) error {
 	if value == nil {
 		return nil
 	}
 
-	if name, exists := mappings[fieldName]; exists {
-		fieldName = name
+	var f reflect.Value
+
+	if index, exists := mappings[fieldName]; exists {
+		f = obj.FieldByIndex(index)
+	} else {
+		f = obj.FieldByName(fieldName)
 	}
-	f := obj.FieldByName(fieldName)
 	return setValue(f, value, supportsFloat)
 }
 
