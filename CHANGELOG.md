@@ -1,5 +1,13 @@
 # Change History
 
+## March 14 2020: v2.9.0
+
+  Minor feature release.
+
+  * **New Features**
+
+    - Supports use of anonymous structs in reflection API. PR #287, thanks to [小马哥](https://github.com/andot)
+
 ## March 4 2020: v2.8.2
 
   Hotfix.
