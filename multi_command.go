@@ -42,7 +42,7 @@ type baseMultiCommand struct {
 	socketTimeout time.Duration
 
 	resObjType     reflect.Type
-	resObjMappings map[string]string
+	resObjMappings map[string][]int
 	selectCases    []reflect.SelectCase
 
 	bc bufferedConn

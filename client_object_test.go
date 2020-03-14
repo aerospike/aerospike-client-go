@@ -306,7 +306,7 @@ var _ = Describe("Aerospike", func() {
 			NestedObjSlice []SomeStruct  `as:"nestedobjslice"`
 			EmpNstdObjSlic []SomeStruct  `as:"empnstdobj"`
 			NstdObjPSlice  []*testObject `as:"nstdobjpslice"`
-			EmpNstdObjPSlc []*testObject `as:"empnstdobj"`
+			EmpNstdObjPSlc []*testObject `as:"empnstdobjp"`
 
 			// std lib type  `as:"// std lib"`
 			Tm  time.Time  `as:"tm  time."`

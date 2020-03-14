@@ -158,18 +158,18 @@ func fieldAlias(f reflect.StructField) string {
 	return f.Name
 }
 
-func structToMap(s reflect.Value, clusterSupportsFloat bool) BinMap {
-	if !s.IsValid() {
-		return nil
-	}
-
-	typeOfT := s.Type()
-	numFields := s.NumField()
-
-	var binMap BinMap
+func setBinMap(s reflect.Value, clusterSupportsFloat bool, typeOfT reflect.Type, binMap BinMap, index []int) {
+	numFields := typeOfT.NumField()
 	var fld reflect.StructField
 	for i := 0; i < numFields; i++ {
 		fld = typeOfT.Field(i)
+
+		fldIndex := append(index, fld.Index...)
+
+		if fld.Anonymous && fld.Type.Kind() == reflect.Struct {
+			setBinMap(s, clusterSupportsFloat, fld.Type, binMap, fldIndex)
+			continue
+		}
 
 		// skip unexported fields
 		if fld.PkgPath != "" {
@@ -186,18 +186,28 @@ func structToMap(s reflect.Value, clusterSupportsFloat bool) BinMap {
 			continue
 		}
 
-		if fieldIsOmitOnEmpty(fld) && isEmptyValue(s.Field(i)) {
+		value := s.FieldByIndex(fldIndex)
+		if fieldIsOmitOnEmpty(fld) && isEmptyValue(value) {
 			continue
 		}
 
-		binValue := valueToInterface(s.Field(i), clusterSupportsFloat)
+		binValue := valueToInterface(value, clusterSupportsFloat)
 
-		if binMap == nil {
-			binMap = make(BinMap, numFields)
+		if _, ok := binMap[alias]; ok {
+			panic(fmt.Sprintf("ambiguous fields with the same name or alias: %s", alias))
 		}
-
 		binMap[alias] = binValue
 	}
+}
+
+func structToMap(s reflect.Value, clusterSupportsFloat bool) BinMap {
+	if !s.IsValid() {
+		return nil
+	}
+
+	var binMap BinMap = make(BinMap, s.NumField())
+
+	setBinMap(s, clusterSupportsFloat, s.Type(), binMap, nil)
 
 	return binMap
 }
@@ -208,14 +218,14 @@ func marshal(v interface{}, clusterSupportsFloat bool) BinMap {
 }
 
 type syncMap struct {
-	objectMappings map[reflect.Type]map[string]string
+	objectMappings map[reflect.Type]map[string][]int
 	objectFields   map[reflect.Type][]string
-	objectTTLs     map[reflect.Type][]string
-	objectGen      map[reflect.Type][]string
+	objectTTLs     map[reflect.Type][][]int
+	objectGen      map[reflect.Type][][]int
 	mutex          sync.RWMutex
 }
 
-func (sm *syncMap) setMapping(objType reflect.Type, mapping map[string]string, fields, ttl, gen []string) {
+func (sm *syncMap) setMapping(objType reflect.Type, mapping map[string][]int, fields []string, ttl, gen [][]int) {
 	sm.mutex.Lock()
 	sm.objectMappings[objType] = mapping
 	sm.objectFields[objType] = fields
@@ -241,14 +251,14 @@ func indirectT(objType reflect.Type) reflect.Type {
 	return objType
 }
 
-func (sm *syncMap) mappingExists(objType reflect.Type) (map[string]string, bool) {
+func (sm *syncMap) mappingExists(objType reflect.Type) (map[string][]int, bool) {
 	sm.mutex.RLock()
 	mapping, exists := sm.objectMappings[objType]
 	sm.mutex.RUnlock()
 	return mapping, exists
 }
 
-func (sm *syncMap) getMapping(objType reflect.Type) map[string]string {
+func (sm *syncMap) getMapping(objType reflect.Type) map[string][]int {
 	objType = indirectT(objType)
 	mapping, exists := sm.mappingExists(objType)
 	if !exists {
@@ -259,7 +269,7 @@ func (sm *syncMap) getMapping(objType reflect.Type) map[string]string {
 	return mapping
 }
 
-func (sm *syncMap) getMetaMappings(objType reflect.Type) (ttl, gen []string) {
+func (sm *syncMap) getMetaMappings(objType reflect.Type) (ttl, gen [][]int) {
 	objType = indirectT(objType)
 	if _, exists := sm.mappingExists(objType); !exists {
 		cacheObjectTags(objType)
@@ -291,21 +301,22 @@ func (sm *syncMap) getFields(objType reflect.Type) []string {
 }
 
 var objectMappings = &syncMap{
-	objectMappings: map[reflect.Type]map[string]string{},
+	objectMappings: map[reflect.Type]map[string][]int{},
 	objectFields:   map[reflect.Type][]string{},
-	objectTTLs:     map[reflect.Type][]string{},
-	objectGen:      map[reflect.Type][]string{},
+	objectTTLs:     map[reflect.Type][][]int{},
+	objectGen:      map[reflect.Type][][]int{},
 }
 
-func cacheObjectTags(objType reflect.Type) {
-	mapping := map[string]string{}
-	fields := []string{}
-	ttl := []string{}
-	gen := []string{}
-
+func fillMapping(objType reflect.Type, mapping map[string][]int, fields []string, ttl, gen [][]int, index []int) ([]string, [][]int, [][]int) {
 	numFields := objType.NumField()
 	for i := 0; i < numFields; i++ {
 		f := objType.Field(i)
+		fIndex := append(index, f.Index...)
+		if f.Anonymous && f.Type.Kind() == reflect.Struct {
+			fields, ttl, gen = fillMapping(f.Type, mapping, fields, ttl, gen, fIndex)
+			continue
+		}
+
 		// skip unexported fields
 		if f.PkgPath != "" {
 			continue
@@ -319,22 +330,29 @@ func cacheObjectTags(objType reflect.Type) {
 		}
 
 		if tag != "-" && tagM == "" {
-			if tag != "" {
-				mapping[tag] = f.Name
-				fields = append(fields, tag)
-			} else {
-				fields = append(fields, f.Name)
+			if tag == "" {
+				tag = f.Name
 			}
+			if _, ok := mapping[tag]; ok {
+				panic(fmt.Sprintf("ambiguous fields with the same name or alias: %s", tag))
+			}
+			mapping[tag] = fIndex
+			fields = append(fields, tag)
 		}
 
 		if tagM == aerospikeMetaTagTTL {
-			ttl = append(ttl, f.Name)
+			ttl = append(ttl, fIndex)
 		} else if tagM == aerospikeMetaTagGen {
-			gen = append(gen, f.Name)
+			gen = append(gen, fIndex)
 		} else if tagM != "" {
 			panic(fmt.Sprintf("Invalid metadata tag `%s` on struct attribute: %s.%s", tagM, objType.Name(), f.Name))
 		}
 	}
+	return fields, ttl, gen
+}
 
+func cacheObjectTags(objType reflect.Type) {
+	mapping := map[string][]int{}
+	fields, ttl, gen := fillMapping(objType, mapping, []string{}, nil, nil, nil)
 	objectMappings.setMapping(objType, mapping, fields, ttl, gen)
 }
