@@ -18,6 +18,7 @@ package aerospike_test
 
 import (
 	"math"
+	"math/rand"
 	"strings"
 
 	as "github.com/aerospike/aerospike-client-go"
@@ -276,5 +277,26 @@ var _ = Describe("Aerospike", func() {
 
 		}) // put context
 
+		Context("Add operations", func() {
+			val := rand.Intn(math.MaxInt16)
+			bin := as.NewBin("Aerospike", val)
+
+			BeforeEach(func() {
+				err = client.PutBins(wpolicy, key, bin)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("must Add to a SINGLE bin using an object", func() {
+				addBin := as.NewBin(bin.Name, rand.Intn(math.MaxInt16))
+				err = client.AddObject(wpolicy, key, struct {
+					Aerospike int `as:"Aerospike"`
+				}{val})
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err = client.Get(rpolicy, key)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rec.Bins[bin.Name]).To(Equal(addBin.Value.GetObject().(int) + bin.Value.GetObject().(int)))
+			})
+		}) // add context
 	})
 })

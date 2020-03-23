@@ -55,6 +55,18 @@ func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (e
 	return res
 }
 
+// AddObject adds numerical bin values to existing record bin values.
+// The policy specifies the transaction timeout, record expiration and how the transaction is
+// handled when the record already exists.
+// This call only works for numerical values.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) AddObject(policy *WritePolicy, key *Key, obj interface{}) error {
+	policy = clnt.getUsableWritePolicy(policy)
+	binMap := marshal(obj, clnt.cluster.supportsFloat.Get())
+	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _ADD)
+	return command.Execute()
+}
+
 // GetObject reads a record for specified key and puts the result into the provided object.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
