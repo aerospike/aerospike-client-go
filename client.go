@@ -202,10 +202,10 @@ func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) err
 // Arithmetic Operations
 //-------------------------------------------------------
 
-// Add adds integer bin values to existing record bin values.
+// Add adds numerical bin values to existing record bin values.
 // The policy specifies the transaction timeout, record expiration and how the transaction is
 // handled when the record already exists.
-// This call only works for integer values.
+// This call only works for numerical values.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Add(policy *WritePolicy, key *Key, binMap BinMap) error {
 	policy = clnt.getUsableWritePolicy(policy)
