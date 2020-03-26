@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"crypto/tls"
+	"net"
 	"time"
 )
 
@@ -110,6 +111,10 @@ type ClientPolicy struct {
 
 	// IgnoreOtherSubnetAliases helps to ignore aliases that are outside main subnet
 	IgnoreOtherSubnetAliases bool //= false
+
+	// DialFunc specifies a custom dial function for creating tcp connections,
+	// otherwise net.DialTimeout is used. it overrides Timeout.
+	DialFunc func(net, addr string) (net.Conn, error)
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.

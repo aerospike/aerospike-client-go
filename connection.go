@@ -85,7 +85,7 @@ func errToTimeoutErr(conn *Connection, err error) error {
 // A minimum timeout of 2 seconds will always be applied.
 // If the connection is not established in the specified timeout,
 // an error will be returned
-func newConnection(address string, timeout time.Duration) (*Connection, error) {
+func newConnection(address string, timeout time.Duration, dialFunc func(net, addr string) (net.Conn, error)) (*Connection, error) {
 	newConn := &Connection{dataBuffer: bufPool.Get().([]byte)}
 	runtime.SetFinalizer(newConn, connectionFinalizer)
 
@@ -94,7 +94,13 @@ func newConnection(address string, timeout time.Duration) (*Connection, error) {
 		timeout = 5 * time.Second
 	}
 
-	conn, err := net.DialTimeout("tcp", address, timeout)
+	var conn net.Conn
+	var err error
+	if dialFunc == nil {
+		conn, err = net.DialTimeout("tcp", address, timeout)
+	} else {
+		conn, err = dialFunc("tcp", address)
+	}
 	if err != nil {
 		Logger.Debug("Connection to address `" + address + "` failed to establish with error: " + err.Error())
 		return nil, errToTimeoutErr(nil, err)
@@ -117,7 +123,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, error) {
 // an error will be returned
 func NewConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
 	address := net.JoinHostPort(host.Name, strconv.Itoa(host.Port))
-	conn, err := newConnection(address, policy.Timeout)
+	conn, err := newConnection(address, policy.Timeout, policy.DialFunc)
 	if err != nil {
 		return nil, err
 	}
