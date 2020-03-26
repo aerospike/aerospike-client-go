@@ -1,3 +1,17 @@
+// Copyright 2013-2020 Aerospike, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package aerospike_test
 
 import (
@@ -17,17 +31,19 @@ import (
 	asl "github.com/aerospike/aerospike-client-go/logger"
 )
 
-var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
-var port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
-var user = flag.String("U", "", "Username.")
-var password = flag.String("P", "", "Password.")
-var authMode = flag.String("A", "internal", "Authentication mode: internal | external")
-var clientPolicy *as.ClientPolicy
-var client *as.Client
-var useReplicas = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
-var debug = flag.Bool("debug", false, "Will set the logging level to DEBUG.")
+var (
+	host        = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
+	port        = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
+	user        = flag.String("U", "", "Username.")
+	password    = flag.String("P", "", "Password.")
+	authMode    = flag.String("A", "internal", "Authentication mode: internal | external")
+	useReplicas = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
+	debug       = flag.Bool("debug", false, "Will set the logging level to DEBUG.")
+	namespace   = flag.String("n", "test", "Namespace")
 
-var namespace = flag.String("n", "test", "Namespace")
+	clientPolicy *as.ClientPolicy
+	client       *as.Client
+)
 
 func initTestVars() {
 	var buf bytes.Buffer
