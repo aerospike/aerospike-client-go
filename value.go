@@ -860,7 +860,7 @@ func (vl ListValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// ListValue encapsulates any arbitrary array.
+// ListerValue encapsulates any arbitrary array.
 // Supported by Aerospike 3 servers only.
 type ListerValue struct {
 	list ListIter
