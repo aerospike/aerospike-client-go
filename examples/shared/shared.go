@@ -25,6 +25,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
 )
@@ -34,6 +35,10 @@ var Policy = as.NewPolicy()
 
 var Host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
 var Port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
+
+var User = flag.String("U", "", "Aerospike username.")
+var Password = flag.String("P", "", "Aerospike password.")
+
 var Namespace = flag.String("n", "test", "Aerospike namespace.")
 var Set = flag.String("s", "testset", "Aerospike set name.")
 var showUsage = flag.Bool("u", false, "Show usage information.")
@@ -58,6 +63,8 @@ func PanicOnError(err error) {
 func printParams() {
 	log.Printf("hosts:\t\t%s", *Host)
 	log.Printf("port:\t\t%d", *Port)
+	log.Printf("user:\t\t%s", *User)
+	log.Printf("password:\t\t%s", "*")
 	log.Printf("namespace:\t\t%s", *Namespace)
 	log.Printf("set:\t\t%s", *Set)
 }
@@ -94,8 +101,13 @@ func init() {
 
 	printParams()
 
+	cp := as.NewClientPolicy()
+	cp.User = *User
+	cp.Password = *Password
+	cp.Timeout = 3 * time.Second
+
 	var err error
-	Client, err = as.NewClient(*Host, *Port)
+	Client, err = as.NewClientWithPolicy(cp, *Host, *Port)
 	if err != nil {
 		PanicOnError(err)
 	}
