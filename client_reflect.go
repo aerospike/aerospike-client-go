@@ -78,8 +78,12 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	// check the size of  key and objects
-	if (len(keys) != len(objects)) || (len(keys) == 0) {
-		return nil, errors.New("Wrong Number of arguments to BatchGetObject. Number of keys and objects do not match.")
+	if len(keys) != len(objects) {
+		return nil, errors.New("wrong number of arguments to BatchGetObjects: number of keys and objects do not match")
+	}
+
+	if len(keys) == 0 {
+		return nil, errors.New("wrong number of arguments to BatchGetObjects: keys are empty")
 	}
 
 	binSet := map[string]struct{}{}
