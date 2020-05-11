@@ -206,7 +206,7 @@ func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *R
 // The query executor puts records on the channel from separate goroutines.
 // The caller can concurrently pop objects.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)
@@ -250,7 +250,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 // QueryNodeObjects executes a query on a specific node and marshals the records into the given channel.
 // The caller can concurrently pop records off the channel.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)

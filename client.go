@@ -506,7 +506,7 @@ func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordse
 }
 
 //---------------------------------------------------------------
-// User defined functions (Supported by Aerospike 3 servers only)
+// User defined functions (Supported by Aerospike 3+ servers only)
 //---------------------------------------------------------------
 
 // RegisterUDFFromFile reads a file from file system and registers
@@ -515,7 +515,7 @@ func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordse
 // The user can optionally wait for command completion by using the returned
 // RegisterTask instance.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) RegisterUDFFromFile(policy *WritePolicy, clientPath string, serverPath string, language Language) (*RegisterTask, error) {
 	policy = clnt.getUsableWritePolicy(policy)
@@ -532,7 +532,7 @@ func (clnt *Client) RegisterUDFFromFile(policy *WritePolicy, clientPath string, 
 // The user can optionally wait for command completion by using the returned
 // RegisterTask instance.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath string, language Language) (*RegisterTask, error) {
 	policy = clnt.getUsableWritePolicy(policy)
@@ -582,7 +582,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 // The user can optionally wait for command completion by using the returned
 // RemoveTask instance.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask, error) {
 	policy = clnt.getUsableWritePolicy(policy)
@@ -607,7 +607,7 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 }
 
 // ListUDF lists all packages containing user defined functions in the server.
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 	policy = clnt.getUsablePolicy(policy)
@@ -659,7 +659,7 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 //
 // udf file = <server udf dir>/<package name>.lua
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (interface{}, error) {
 	policy = clnt.getUsableWritePolicy(policy)
@@ -686,7 +686,7 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 }
 
 //----------------------------------------------------------
-// Query/Execute (Supported by Aerospike 3 servers only)
+// Query/Execute (Supported by Aerospike 3+ servers only)
 //----------------------------------------------------------
 
 // QueryExecute applies operations on records that match the statement filter.
@@ -695,7 +695,7 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 // The user can optionally wait for command completion by using the returned
 // ExecuteTask instance.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryExecute(policy *QueryPolicy,
 	writePolicy *WritePolicy,
@@ -738,7 +738,7 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 // The user can optionally wait for command completion by using the returned
 // ExecuteTask instance.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	statement *Statement,
@@ -772,7 +772,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 // The user can optionally wait for command completion by using the returned
 // ExecuteTask instance.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 	node *Node,
@@ -796,7 +796,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 }
 
 //--------------------------------------------------------
-// Query functions (Supported by Aerospike 3 servers only)
+// Query functions (Supported by Aerospike 3+ servers only)
 //--------------------------------------------------------
 
 // Query executes a query and returns a Recordset.
@@ -804,7 +804,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 // The caller can concurrently pop records off the channel through the
 // Recordset.Records channel.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)
@@ -845,7 +845,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 // The caller can concurrently pop records off the channel through the
 // record channel.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)
@@ -876,7 +876,7 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 // This asynchronous server call will return before the command is complete.
 // The user can optionally wait for command completion by using the returned
 // IndexTask instance.
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) CreateIndex(
 	policy *WritePolicy,
@@ -895,7 +895,7 @@ func (clnt *Client) CreateIndex(
 // This asynchronous server call will return before the command is complete.
 // The user can optionally wait for command completion by using the returned
 // IndexTask instance.
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) CreateComplexIndex(
 	policy *WritePolicy,
@@ -953,7 +953,7 @@ func (clnt *Client) CreateComplexIndex(
 }
 
 // DropIndex deletes a secondary index. It will block until index is dropped on all nodes.
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) DropIndex(
 	policy *WritePolicy,

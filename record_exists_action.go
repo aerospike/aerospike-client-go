@@ -31,13 +31,13 @@ const (
 	// REPLACE means: Create or replace record.
 	// Delete existing bins not referenced by write command bins.
 	// Supported by Aerospike 2 server versions >= 2.7.5 and
-	// Aerospike 3 server versions >= 3.1.6.
+	// Aerospike 3 server versions >= 3.1.6 and later.
 	REPLACE
 
 	// REPLACE_ONLY means: Replace record only. Fail if record does not exist.
 	// Delete existing bins not referenced by write command bins.
 	// Supported by Aerospike 2 server versions >= 2.7.5 and
-	// Aerospike 3 server versions >= 3.1.6.
+	// Aerospike 3 server versions >= 3.1.6 and later.
 	REPLACE_ONLY
 
 	// CREATE_ONLY means: Create only. Fail if record exists.

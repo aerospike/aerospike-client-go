@@ -783,7 +783,7 @@ func (vb _BoolValue) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 
 // ValueArray encapsulates an array of Value.
-// Supported by Aerospike 3 servers only.
+// Supported by Aerospike 3+ servers only.
 type ValueArray []Value
 
 // NewValueArray generates a ValueArray instance.
@@ -823,7 +823,7 @@ func (va ValueArray) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 
 // ListValue encapsulates any arbitrary array.
-// Supported by Aerospike 3 servers only.
+// Supported by Aerospike 3+ servers only.
 type ListValue []interface{}
 
 // NewListValue generates a ListValue instance.
@@ -861,7 +861,7 @@ func (vl ListValue) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 
 // ListerValue encapsulates any arbitrary array.
-// Supported by Aerospike 3 servers only.
+// Supported by Aerospike 3+ servers only.
 type ListerValue struct {
 	list ListIter
 }
@@ -905,7 +905,7 @@ func (vl *ListerValue) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 
 // MapValue encapsulates an arbitrary map.
-// Supported by Aerospike 3 servers only.
+// Supported by Aerospike 3+ servers only.
 type MapValue map[interface{}]interface{}
 
 // NewMapValue generates a MapValue instance.
@@ -942,7 +942,7 @@ func (vl MapValue) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 
 // JsonValue encapsulates a Json map.
-// Supported by Aerospike 3 servers only.
+// Supported by Aerospike 3+ servers only.
 type JsonValue map[string]interface{}
 
 // NewMapValue generates a JsonValue instance.
@@ -979,7 +979,7 @@ func (vl JsonValue) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 
 // MapperValue encapsulates an arbitrary map which implements a MapIter interface.
-// Supported by Aerospike 3 servers only.
+// Supported by Aerospike 3+ servers only.
 type MapperValue struct {
 	vmap MapIter
 }
@@ -1022,7 +1022,7 @@ func (vl *MapperValue) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 
 // GeoJSONValue encapsulates a 2D Geo point.
-// Supported by Aerospike 3.6.1 servers only.
+// Supported by Aerospike 3.6.1 servers and later only.
 type GeoJSONValue string
 
 // NewMapValue generates a GeoJSONValue instance.

@@ -27,7 +27,7 @@ import (
 )
 
 //--------------------------------------------------------
-// Query Aggregate functions (Supported by Aerospike 3 servers only)
+// Query Aggregate functions (Supported by Aerospike 3+ servers only)
 //--------------------------------------------------------
 
 // SetLuaPath sets the Lua interpreter path to files
@@ -41,7 +41,7 @@ func SetLuaPath(lpath string) {
 // The caller can concurrently pop records off the channel through the
 // Recordset.Records channel.
 //
-// This method is only supported by Aerospike 3 servers.
+// This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, error) {
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, true)
