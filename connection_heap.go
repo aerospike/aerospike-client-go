@@ -154,8 +154,9 @@ func (h *singleConnectionHeap) Len() int {
 // If the heap is empty, nil is returned.
 // if the heap is full, offer will return false
 type connectionHeap struct {
-	size  int
-	heaps []singleConnectionHeap
+	maxSize int
+	minSize int
+	heaps   []singleConnectionHeap
 }
 
 // Close cleans up all the data and removes all the references from
@@ -166,14 +167,18 @@ func (h *connectionHeap) cleanup() {
 	}
 }
 
-func newConnectionHeap(size int) *connectionHeap {
+func newConnectionHeap(minSize, maxSize int) *connectionHeap {
+	if minSize > maxSize {
+		panic("minSize is bigger than maxSize for connection heap")
+	}
+
 	heapCount := runtime.NumCPU()
-	if heapCount > size {
-		heapCount = size
+	if heapCount > maxSize {
+		heapCount = maxSize
 	}
 
 	// will be >= 1
-	perHeapSize := size / heapCount
+	perHeapSize := maxSize / heapCount
 
 	heaps := make([]singleConnectionHeap, heapCount)
 	for i := range heaps {
@@ -181,13 +186,14 @@ func newConnectionHeap(size int) *connectionHeap {
 	}
 
 	// add a heap for the remainder
-	if (perHeapSize*heapCount)-size > 0 {
-		heaps = append(heaps, *newSingleConnectionHeap(size - heapCount*perHeapSize))
+	if (perHeapSize*heapCount)-maxSize > 0 {
+		heaps = append(heaps, *newSingleConnectionHeap(maxSize - heapCount*perHeapSize))
 	}
 
 	return &connectionHeap{
-		size:  size,
-		heaps: heaps,
+		maxSize: maxSize,
+		minSize: minSize,
+		heaps:   heaps,
 	}
 }
 
@@ -221,16 +227,30 @@ func (h *connectionHeap) Poll(hint byte) (res *Connection) {
 }
 
 // DropIdle closes all idle connections.
+// It will only drop connections if there are
+// at least ClientPolicy.MinConnectionPerNode available
 func (h *connectionHeap) DropIdle() {
+	// decide how many conns are allowed to drop
+	// in minSize is 0, up to all connection can
+	// be closed if idle
+	excessCount := h.LenAll() - h.minSize
+	if excessCount <= 0 {
+		return
+	}
+
 	for i := 0; i < len(h.heaps); i++ {
 		for h.heaps[i].DropIdleTail() {
+			excessCount--
+			if excessCount == 0 {
+				return
+			}
 		}
 	}
 }
 
 // Cap returns the total capacity of the connectionHeap
 func (h *connectionHeap) Cap() int {
-	return h.size
+	return h.maxSize
 }
 
 // Len returns the number of connections in a specific sub-heap.

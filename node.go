@@ -80,7 +80,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).
-		connections:         *newConnectionHeap(cluster.clientPolicy.ConnectionQueueSize),
+		connections:         *newConnectionHeap(cluster.clientPolicy.MinConnectionsPerNode, cluster.clientPolicy.ConnectionQueueSize),
 		connectionCount:     *NewAtomicInt(0),
 		peersGeneration:     *NewAtomicInt(-1),
 		partitionGeneration: *NewAtomicInt(-2),
@@ -197,6 +197,10 @@ func (nd *Node) Refresh(peers *peers) error {
 
 	if err := nd.refreshSessionToken(); err != nil {
 		Logger.Error("Error refreshing session token: %s", err.Error())
+	}
+
+	if _, err := nd.fillMinConns(); err != nil {
+		Logger.Error("Error filling up the connection queue to the minimum required")
 	}
 
 	return nil
@@ -900,7 +904,7 @@ func (nd *Node) WarmUp(count int) (int, error) {
 	var g errgroup.Group
 	cnt := NewAtomicInt(0)
 
-	toAlloc := nd.connections.Cap() - nd.connections.LenAll()
+	toAlloc := nd.connections.Cap() - nd.connectionCount.Get()
 	if count < toAlloc && count > 0 {
 		toAlloc = count
 	}
@@ -927,4 +931,16 @@ func (nd *Node) WarmUp(count int) (int, error) {
 
 	err := g.Wait()
 	return cnt.Get(), err
+}
+
+// fillMinCounts will fill the connection pool to the minimum required
+// by the ClientPolicy.MinConnectionsPerNode
+func (nd *Node) fillMinConns() (int, error) {
+	if nd.cluster.clientPolicy.MinConnectionsPerNode > 0 {
+		toFill := nd.cluster.clientPolicy.MinConnectionsPerNode - nd.connectionCount.Get()
+		if toFill > 0 {
+			return nd.WarmUp(toFill)
+		}
+	}
+	return 0, nil
 }

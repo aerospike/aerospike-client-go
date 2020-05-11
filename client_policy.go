@@ -54,6 +54,20 @@ type ClientPolicy struct {
 	// Note: One connection per node is reserved for tend operations and is not used for transactions.
 	ConnectionQueueSize int //= 256
 
+	// MinConnectionsPerNode specifies the minimum number of synchronous connections allowed per server node.
+	// Preallocate min connections on client node creation.
+	// The client will periodically allocate new connections if count falls below min connections.
+	//
+	// Server proto-fd-idle-ms may also need to be increased substantially if min connections are defined.
+	// The proto-fd-idle-ms default directs the server to close connections that are idle for 60 seconds
+	// which can defeat the purpose of keeping connections in reserve for a future burst of activity.
+	//
+	// If server proto-fd-idle-ms is changed, client ClientPolicy.IdleTimeout should also be
+	// changed to be a few seconds less than proto-fd-idle-ms.
+	//
+	// Default: 0
+	MinConnectionsPerNode int
+
 	// If set to true, will not create a new connection
 	// to the node if there are already `ConnectionQueueSize` active connections.
 	// Note: One connection per node is reserved for tend operations and is not used for transactions.

@@ -21,3 +21,9 @@ func (clstr *Cluster) GetReadNode(partition *Partition, replica ReplicaPolicy, s
 func (clstr *Cluster) GetMasterNode(partition *Partition) (*Node, error) {
 	return clstr.getMasterNode(partition)
 }
+
+// fillMinCounts will fill the connection pool to the minimum required
+// by the ClientPolicy.MinConnectionsPerNode
+func (nd *Node) ConnsCount() int {
+	return nd.connectionCount.Get()
+}

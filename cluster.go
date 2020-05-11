@@ -76,6 +76,11 @@ type Cluster struct {
 
 // NewCluster generates a Cluster instance.
 func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
+	// Validate the policy params
+	if policy.MinConnectionsPerNode > policy.ConnectionQueueSize {
+		panic("minimum number of connections specified in the ClientPolicy is bigger than total connection pool size")
+	}
+
 	// Default TLS names when TLS enabled.
 	newHosts := make([]*Host, 0, len(hosts))
 	if policy.TlsConfig != nil && !policy.TlsConfig.InsecureSkipVerify {

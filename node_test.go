@@ -221,6 +221,28 @@ var _ = Describe("Aerospike Node Tests", func() {
 				}
 			})
 
+			It("must maintain a minimum number of connections per client policy even if idle", func() {
+				clientPolicy := as.NewClientPolicy()
+				clientPolicy.IdleTimeout = 2000 * time.Millisecond
+				clientPolicy.MinConnectionsPerNode = 5
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
+
+				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
+				Expect(err).ToNot(HaveOccurred())
+				defer client.Close()
+
+				client.WarmUp(10)
+
+				node := client.GetNodes()[0]
+
+				Expect(node.ConnsCount()).To(BeNumerically(">=", 10))
+
+				// sleep again until all connections are all idle
+				<-time.After(2 * clientPolicy.IdleTimeout)
+				Expect(node.ConnsCount()).To(Equal(clientPolicy.MinConnectionsPerNode + 1)) // min + 1 reserved for tend
+			})
+
 			It("must delay the connection from becoming idle if it is put back in the queue", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
