@@ -1,5 +1,17 @@
 # Change History
 
+## May 12 2020: v2.10.0
+
+  Minor feature release.
+
+  * **New Features**
+
+    - Adds `ClientPolicy.MinConnectionsPerNode`.
+
+  * **Improvements**
+
+    - Returns distinct error when empty slice is passed to BatchGetObjects. PR #297, thanks to [Mohamed Osama](https://github.com/oss92)
+
 ## March 14 2020: v2.9.0
 
   Minor feature release.
