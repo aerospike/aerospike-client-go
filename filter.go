@@ -115,14 +115,14 @@ func (fltr *Filter) IndexCollectionType() IndexCollectionType {
 	return fltr.idxType
 }
 
-func (fltr *Filter) estimateSize() (int, error) {
+func (fltr *Filter) EstimateSize() (int, error) {
 	// bin name size(1) + particle type size(1) + begin particle size(4) + end particle size(4) = 10
-	szBegin, err := fltr.begin.estimateSize()
+	szBegin, err := fltr.begin.EstimateSize()
 	if err != nil {
 		return szBegin, err
 	}
 
-	szEnd, err := fltr.end.estimateSize()
+	szEnd, err := fltr.end.EstimateSize()
 	if err != nil {
 		return szEnd, err
 	}
@@ -155,7 +155,7 @@ func (fltr *Filter) write(cmd *baseCommand) (int, error) {
 	size++
 
 	// Write filter begin.
-	esz, err := fltr.begin.estimateSize()
+	esz, err := fltr.begin.EstimateSize()
 	if err != nil {
 		return size, err
 	}
@@ -173,7 +173,7 @@ func (fltr *Filter) write(cmd *baseCommand) (int, error) {
 	size += n
 
 	// Write filter end.
-	esz, err = fltr.end.estimateSize()
+	esz, err = fltr.end.EstimateSize()
 	if err != nil {
 		return size, err
 	}

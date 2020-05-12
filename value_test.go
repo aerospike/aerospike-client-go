@@ -37,7 +37,7 @@ func (b *testBLOB) EncodeBlob() ([]byte, error) {
 func isValidIntegerValue(i int, v Value) bool {
 	gm.Expect(reflect.TypeOf(v)).To(gm.Equal(reflect.TypeOf(NewIntegerValue(0))))
 	gm.Expect(v.GetObject()).To(gm.Equal(i))
-	gm.Expect(v.estimateSize()).To(gm.Equal(int(SizeOfInt)))
+	gm.Expect(v.EstimateSize()).To(gm.Equal(int(SizeOfInt)))
 	gm.Expect(v.GetType()).To(gm.Equal(ParticleType.INTEGER))
 
 	return true
@@ -46,7 +46,7 @@ func isValidIntegerValue(i int, v Value) bool {
 func isValidLongValue(i int64, v Value) bool {
 	gm.Expect(reflect.TypeOf(v)).To(gm.Equal(reflect.TypeOf(NewLongValue(0))))
 	gm.Expect(v.GetObject().(int64)).To(gm.Equal(i))
-	gm.Expect(v.estimateSize()).To(gm.Equal(int(SizeOfInt64)))
+	gm.Expect(v.EstimateSize()).To(gm.Equal(int(SizeOfInt64)))
 	gm.Expect(v.GetType()).To(gm.Equal(ParticleType.INTEGER))
 
 	return true
@@ -55,7 +55,7 @@ func isValidLongValue(i int64, v Value) bool {
 func isValidFloatValue(i float64, v Value) bool {
 	gm.Expect(reflect.TypeOf(v)).To(gm.Equal(reflect.TypeOf(NewFloatValue(0))))
 	gm.Expect(v.GetObject().(float64)).To(gm.Equal(i))
-	gm.Expect(v.estimateSize()).To(gm.Equal(8))
+	gm.Expect(v.EstimateSize()).To(gm.Equal(8))
 	gm.Expect(v.GetType()).To(gm.Equal(ParticleType.FLOAT))
 
 	return true
@@ -68,7 +68,7 @@ var _ = Describe("Value Test", func() {
 			v := NewValue(nil)
 
 			gm.Expect(v.GetObject()).To(gm.BeNil())
-			gm.Expect(v.estimateSize()).To(gm.Equal(0))
+			gm.Expect(v.EstimateSize()).To(gm.Equal(0))
 			gm.Expect(v.GetType()).To(gm.Equal(ParticleType.NULL))
 		})
 	})
@@ -79,7 +79,7 @@ var _ = Describe("Value Test", func() {
 			v := NewValue(str)
 
 			gm.Expect(v.GetObject()).To(gm.Equal(str))
-			gm.Expect(v.estimateSize()).To(gm.Equal(len(str)))
+			gm.Expect(v.EstimateSize()).To(gm.Equal(len(str)))
 			gm.Expect(v.GetType()).To(gm.Equal(ParticleType.STRING))
 		})
 
@@ -88,7 +88,7 @@ var _ = Describe("Value Test", func() {
 			v := NewValue(str)
 
 			gm.Expect(v.GetObject()).To(gm.Equal(str))
-			gm.Expect(v.estimateSize()).To(gm.Equal(len(str)))
+			gm.Expect(v.EstimateSize()).To(gm.Equal(len(str)))
 			gm.Expect(v.GetType()).To(gm.Equal(ParticleType.STRING))
 		})
 	})

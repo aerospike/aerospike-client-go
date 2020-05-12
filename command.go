@@ -943,7 +943,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
 		filterSize++ // num filters
 
-		sz, err := statement.Filter.estimateSize()
+		sz, err := statement.Filter.EstimateSize()
 		if err != nil {
 			return err
 		}
@@ -998,7 +998,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		fasz := 0
 		if len(statement.functionArgs) > 0 {
 			functionArgs = NewValueArray(statement.functionArgs)
-			fasz, err = functionArgs.estimateSize()
+			fasz, err = functionArgs.EstimateSize()
 			if err != nil {
 				return err
 			}
@@ -1158,7 +1158,7 @@ func (cmd *baseCommand) estimateKeySize(key *Key, sendKey bool) (int, error) {
 
 	if sendKey {
 		// field header size + key size
-		sz, err := key.userKey.estimateSize()
+		sz, err := key.userKey.EstimateSize()
 		if err != nil {
 			return sz, err
 		}
@@ -1173,7 +1173,7 @@ func (cmd *baseCommand) estimateUdfSize(packageName string, functionName string,
 	cmd.dataOffset += len(packageName) + int(_FIELD_HEADER_SIZE)
 	cmd.dataOffset += len(functionName) + int(_FIELD_HEADER_SIZE)
 
-	sz, err := args.estimateSize()
+	sz, err := args.EstimateSize()
 	if err != nil {
 		return 0, err
 	}
@@ -1186,7 +1186,7 @@ func (cmd *baseCommand) estimateUdfSize(packageName string, functionName string,
 
 func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) error {
 	cmd.dataOffset += len(bin.Name) + int(_OPERATION_HEADER_SIZE)
-	sz, err := bin.Value.estimateSize()
+	sz, err := bin.Value.EstimateSize()
 	if err != nil {
 		return err
 	}
@@ -1196,7 +1196,7 @@ func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) error {
 
 func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, value interface{}) error {
 	cmd.dataOffset += len(name) + int(_OPERATION_HEADER_SIZE)
-	sz, err := NewValue(value).estimateSize()
+	sz, err := NewValue(value).EstimateSize()
 	if err != nil {
 		return err
 	}
@@ -1210,7 +1210,7 @@ func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) 
 
 	if operation.encoder == nil {
 		if operation.binValue != nil {
-			sz, err := operation.binValue.estimateSize()
+			sz, err := operation.binValue.EstimateSize()
 			if err != nil {
 				return err
 			}
@@ -1368,7 +1368,7 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 	// check for float support
 	cmd.checkServerCompatibility(bin.Value)
 
-	valueLength, err := bin.Value.estimateSize()
+	valueLength, err := bin.Value.EstimateSize()
 	if err != nil {
 		return err
 	}
@@ -1391,7 +1391,7 @@ func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interf
 	// check for float support
 	cmd.checkServerCompatibility(v)
 
-	valueLength, err := v.estimateSize()
+	valueLength, err := v.EstimateSize()
 	if err != nil {
 		return err
 	}
@@ -1418,7 +1418,7 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
 	}
 
 	if operation.encoder == nil {
-		valueLength, err := operation.binValue.estimateSize()
+		valueLength, err := operation.binValue.EstimateSize()
 		if err != nil {
 			return err
 		}
@@ -1501,7 +1501,7 @@ func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) error {
 	// check for float support
 	cmd.checkServerCompatibility(value)
 
-	vlen, err := value.estimateSize()
+	vlen, err := value.EstimateSize()
 	if err != nil {
 		return err
 	}
@@ -1514,7 +1514,7 @@ func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) error {
 
 func (cmd *baseCommand) writeUdfArgs(value *ValueArray) error {
 	if value != nil {
-		vlen, err := value.estimateSize()
+		vlen, err := value.EstimateSize()
 		if err != nil {
 			return err
 		}
