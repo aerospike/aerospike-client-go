@@ -1,5 +1,18 @@
 # Change History
 
+## May 27 2020: v2.11.0
+
+  Major feature release.
+
+  * **New Features**
+
+    - Adds HyperLogLog support.
+
+  * **Improvements**
+
+    - Exports `estimateSize` on `Value` Datastructure. PR #299, thanks to [Sainadh Devireddy](https://github.com/sainadh-d)
+    - Adds more detail regarding `ClientPolicy.IdleTimeout` in the documentation, and changes the default value to 55 seconds.
+
 ## May 12 2020: v2.10.0
 
   Minor feature release.
