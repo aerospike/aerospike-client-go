@@ -40,6 +40,8 @@ var (
 	_BIT_READ   OperationType = &struct{ op byte }{12}
 	_BIT_MODIFY OperationType = &struct{ op byte }{13}
 	_DELETE     OperationType = &struct{ op byte }{14}
+	_HLL_READ   OperationType = &struct{ op byte }{15}
+	_HLL_MODIFY OperationType = &struct{ op byte }{16}
 )
 
 // Operation contains operation definition.

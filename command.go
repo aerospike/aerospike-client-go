@@ -406,6 +406,8 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 		switch operations[i].opType {
 		case _BIT_READ:
 			fallthrough
+		case _HLL_READ:
+			fallthrough
 		case _MAP_READ:
 			// Map operations require RespondPerEachOp to be true.
 			RespondPerEachOp = true
@@ -425,6 +427,8 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 				readHeader = true
 			}
 		case _BIT_MODIFY:
+			fallthrough
+		case _HLL_MODIFY:
 			fallthrough
 		case _MAP_MODIFY:
 			// Map operations require RespondPerEachOp to be true.

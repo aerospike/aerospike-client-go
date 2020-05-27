@@ -12,31 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package particleType
+package aerospike
 
-const (
-	// Server particle types. Unsupported types are commented out.
-	NULL    = 0
-	INTEGER = 1
-	FLOAT   = 2
-	STRING  = 3
-	BLOB    = 4
-	// TIMESTAMP       = 5
-	DIGEST = 6
-	// JBLOB  = 7
-	// CSHARP_BLOB     = 8
-	// PYTHON_BLOB     = 9
-	// RUBY_BLOB       = 10
-	// PHP_BLOB        = 11
-	// ERLANG_BLOB     = 12
-	// SEGMENT_POINTER = 13
-	// RTA_LIST        = 14
-	// RTA_DICT        = 15
-	// RTA_APPEND_DICT = 16
-	// RTA_APPEND_LIST = 17
-	HLL     = 18
-	MAP     = 19
-	LIST    = 20
-	LDT     = 21
-	GEOJSON = 23
-)
+// HLLPolicy determines the HyperLogLog operation policy.
+type HLLPolicy struct {
+	flags int
+}
+
+// DefaultHLLPolicy uses the default policy when performing HLL operations.
+func DefaultHLLPolicy() *HLLPolicy {
+	return &HLLPolicy{HLLWriteFlagsDefault}
+}
+
+// NewHLLPolicy uses specified HLLWriteFlags when performing HLL operations.
+func NewHLLPolicy(flags int) *HLLPolicy {
+	return &HLLPolicy{flags}
+}

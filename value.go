@@ -1063,6 +1063,43 @@ func (vl GeoJSONValue) String() string {
 	return string(vl)
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+// HLLValue encapsulates a HyperLogLog value.
+type HLLValue []byte
+
+// NewHLLValue generates a ByteValue instance.
+func NewHLLValue(bytes []byte) HLLValue {
+	return HLLValue(bytes)
+}
+
+func (vl HLLValue) estimateSize() (int, error) {
+	return len(vl), nil
+}
+
+func (vl HLLValue) write(cmd BufferEx) (int, error) {
+	return cmd.Write(vl)
+}
+
+func (vl HLLValue) pack(cmd BufferEx) (int, error) {
+	return packBytes(cmd, vl)
+}
+
+// GetType returns wire protocol value type.
+func (vl HLLValue) GetType() int {
+	return ParticleType.HLL
+}
+
+// GetObject returns original value as an interface{}.
+func (vl HLLValue) GetObject() interface{} {
+	return []byte(vl)
+}
+
+// String implements Stringer interface.
+func (vl HLLValue) String() string {
+	return Buffer.BytesToHexString([]byte(vl))
+}
+
 //////////////////////////////////////////////////////////////////////////////
 
 func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}, error) {
@@ -1091,6 +1128,11 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 		ncells := int(Buffer.BytesToInt16(buf, offset+1))
 		headerSize := 1 + 2 + (ncells * 8)
 		return string(buf[offset+headerSize : offset+length]), nil
+
+	case ParticleType.HLL:
+		newObj := make([]byte, length)
+		copy(newObj, buf[offset:offset+length])
+		return newObj, nil
 
 	case ParticleType.BLOB:
 		newObj := make([]byte, length)
