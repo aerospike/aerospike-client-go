@@ -19,8 +19,6 @@ import (
 	"time"
 )
 
-const defaultIdleTimeout = 14 * time.Second
-
 // ClientPolicy encapsulates parameters for client policy command.
 type ClientPolicy struct {
 	// AuthMode specifies authentication mode used when user/password is defined. It is set to AuthModeInternal by default.
@@ -45,7 +43,18 @@ type ClientPolicy struct {
 	// Connection idle timeout. Every time a connection is used, its idle
 	// deadline will be extended by this duration. When this deadline is reached,
 	// the connection will be closed and discarded from the connection pool.
-	IdleTimeout time.Duration //= 14 seconds
+	// The value is limited to 24 hours (86400s).
+	//
+	// It's important to set this value to a few seconds less than the server's proto-fd-idle-ms
+	// (default 60000 milliseconds or 1 minute), so the client does not attempt to use a socket
+	// that has already been reaped by the server.
+	//
+	// Connection pools are now implemented by a LIFO stack. Connections at the tail of the
+	// stack will always be the least used. These connections are checked for IdleTimeout
+	// on every tend (usually 1 second).
+	//
+	// Default: 55 seconds
+	IdleTimeout time.Duration //= 55 seconds
 
 	// LoginTimeout specifies the timeout for login operation for external authentication such as LDAP.
 	LoginTimeout time.Duration //= 10 seconds
@@ -131,7 +140,7 @@ func NewClientPolicy() *ClientPolicy {
 	return &ClientPolicy{
 		AuthMode:                    AuthModeInternal,
 		Timeout:                     30 * time.Second,
-		IdleTimeout:                 defaultIdleTimeout,
+		IdleTimeout:                 55 * time.Second,
 		LoginTimeout:                10 * time.Second,
 		ConnectionQueueSize:         256,
 		OpeningConnectionThreshold:  0,
