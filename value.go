@@ -1073,7 +1073,7 @@ func NewHLLValue(bytes []byte) HLLValue {
 	return HLLValue(bytes)
 }
 
-func (vl HLLValue) estimateSize() (int, error) {
+func (vl HLLValue) EstimateSize() (int, error) {
 	return len(vl), nil
 }
 

@@ -255,7 +255,7 @@ func packHLLIfcVarParamsAsArray(packer BufferEx, opType int16, params ...interfa
 // Supported by Aerospike 3+ servers only.
 type _HLLValueArray []HLLValue
 
-func (va _HLLValueArray) estimateSize() (int, error) {
+func (va _HLLValueArray) EstimateSize() (int, error) {
 	return packHLLValueArray(nil, va)
 }
 

@@ -703,12 +703,8 @@ var _ = Describe("HyperLogLog Test", func() {
 	})
 
 	absoluteSimilarityError := func(index_bits, minhash_bits int, expected_similarity float64) float64 {
-		min_err_index := 1 / math.Sqrt(float64(int64(1<<index_bits)))
+		min_err_index := 1 / math.Sqrt(float64(int64(1<<uint(index_bits))))
 		min_err_minhash := 6 * math.Pow(math.E, float64(minhash_bits*-1)) / expected_similarity
-
-		// printDebug("min_err_index " + min_err_index + " min_err_minhash " + min_err_minhash +
-		// 		" index_bits " + index_bits + " minhash_bits " + minhash_bits + " expected_similarity "
-		// 		+ expected_similarity);
 
 		return math.Max(min_err_index, min_err_minhash)
 	}
@@ -720,12 +716,6 @@ var _ = Describe("HyperLogLog Test", func() {
 		if minhash_bits != 0 {
 			sim_err_6sigma = 6 * absoluteSimilarityError(index_bits, minhash_bits, float64(expected_similarity))
 		}
-
-		// msg = msg + " - err " + sim_err_6sigma + " index_bits " + index_bits + " minhash_bits " + minhash_bits +
-		// 		"\n\t- similarity " + similarity + " expected_similarity " + expected_similarity +
-		// 		"\n\t- intersect_count " + intersect_count + " expected_intersect_count " + expected_intersect_count;
-
-		// printDebug(msg);
 
 		if minhash_bits == 0 {
 			return
@@ -808,6 +798,97 @@ var _ = Describe("HyperLogLog Test", func() {
 
 				expectSimilarityOp(overlap, common, vals, index_bits, minhash_bits)
 			}
+		}
+	})
+
+	It("Empty Similarity should work", func() {
+		for _, desc := range legalDescriptions {
+			nIndexBits := desc[0]
+			nMinhashBits := desc[1]
+
+			record := expectSuccess(key,
+				as.DeleteOp(),
+				as.HLLInitOp(as.DefaultHLLPolicy(), binName, nIndexBits, nMinhashBits),
+				as.GetOpForBin(binName))
+
+			resultList := record.Bins[binName].([]interface{})
+			var hlls []as.HLLValue
+
+			hlls = append(hlls, as.HLLValue(resultList[1].([]byte)))
+
+			record = expectSuccess(key,
+				as.HLLGetSimilarityOp(binName, hlls),
+				as.HLLGetIntersectCountOp(binName, hlls))
+
+			resultList = record.Bins[binName].([]interface{})
+
+			sim := resultList[0].(float64)
+			intersectCount := resultList[1].(int)
+
+			Expect(0).To(Equal(intersectCount))
+			Expect(math.IsNaN(sim)).To(BeTrue())
+		}
+	})
+
+	It("Intersect should work", func() {
+		otherBinName := binName + "other"
+
+		for _, desc := range legalDescriptions {
+			indexBits := desc[0]
+			minhashBits := desc[1]
+
+			if minhashBits != 0 {
+				break
+			}
+
+			record := expectSuccess(key,
+				as.DeleteOp(),
+				as.HLLAddOp(as.DefaultHLLPolicy(), binName, entries, indexBits, minhashBits),
+				as.GetOpForBin(binName),
+				as.HLLAddOp(as.DefaultHLLPolicy(), otherBinName, entries, indexBits, 4),
+				as.GetOpForBin(otherBinName))
+
+			var hlls []as.HLLValue
+			var hmhs []as.HLLValue
+			resultList := record.Bins[binName].([]interface{})
+
+			hlls = append(hlls, as.HLLValue(resultList[1].([]byte)))
+			hlls = append(hlls, hlls[0])
+
+			resultList = record.Bins[otherBinName].([]interface{})
+			hmhs = append(hmhs, as.HLLValue(resultList[1].([]byte)))
+			hmhs = append(hmhs, hmhs[0])
+
+			record = expectSuccess(key,
+				as.HLLGetIntersectCountOp(binName, hlls),
+				as.HLLGetSimilarityOp(binName, hlls))
+			resultList = record.Bins[binName].([]interface{})
+
+			intersectCount := resultList[0].(int)
+
+			Expect(float64(intersectCount) < 1.8*float64(len(entries))).To(BeTrue())
+
+			hlls = append(hlls, hlls[0])
+
+			expectErrors(key, types.PARAMETER_ERROR,
+				as.HLLGetIntersectCountOp(binName, hlls))
+			expectErrors(key, types.PARAMETER_ERROR,
+				as.HLLGetSimilarityOp(binName, hlls))
+
+			record = expectSuccess(key,
+				as.HLLGetIntersectCountOp(binName, hmhs),
+				as.HLLGetSimilarityOp(binName, hmhs))
+			resultList = record.Bins[binName].([]interface{})
+			intersectCount = resultList[0].(int)
+
+			Expect(float64(intersectCount) < 1.8*float64(len(entries))).To(BeTrue())
+
+			hmhs = append(hmhs, hmhs[0])
+
+			expectErrors(key, types.OP_NOT_APPLICABLE,
+				as.HLLGetIntersectCountOp(binName, hmhs))
+			expectErrors(key, types.OP_NOT_APPLICABLE,
+				as.HLLGetSimilarityOp(binName, hmhs))
 		}
 	})
 
