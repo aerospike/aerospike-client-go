@@ -36,7 +36,7 @@ type MapPair struct{ Key, Value interface{} }
 type Value interface {
 
 	// Calculate number of vl.bytes necessary to serialize the value in the wire protocol.
-	estimateSize() (int, error)
+	EstimateSize() (int, error)
 
 	// Serialize the value in the wire protocol.
 	write(cmd BufferEx) (int, error)
@@ -448,7 +448,7 @@ func NewNullValue() NullValue {
 	return nullValue
 }
 
-func (vl NullValue) estimateSize() (int, error) {
+func (vl NullValue) EstimateSize() (int, error) {
 	return 0, nil
 }
 
@@ -486,7 +486,7 @@ func NewInfinityValue() InfinityValue {
 	return infinityValue
 }
 
-func (vl InfinityValue) estimateSize() (int, error) {
+func (vl InfinityValue) EstimateSize() (int, error) {
 	return 0, nil
 }
 
@@ -524,7 +524,7 @@ func NewWildCardValue() WildCardValue {
 	return wildCardValue
 }
 
-func (vl WildCardValue) estimateSize() (int, error) {
+func (vl WildCardValue) EstimateSize() (int, error) {
 	return 0, nil
 }
 
@@ -572,7 +572,7 @@ func NewBlobValue(object AerospikeBlob) BytesValue {
 	return NewBytesValue(buf)
 }
 
-func (vl BytesValue) estimateSize() (int, error) {
+func (vl BytesValue) EstimateSize() (int, error) {
 	return len(vl), nil
 }
 
@@ -609,7 +609,7 @@ func NewStringValue(value string) StringValue {
 	return StringValue(value)
 }
 
-func (vl StringValue) estimateSize() (int, error) {
+func (vl StringValue) EstimateSize() (int, error) {
 	return len(vl), nil
 }
 
@@ -646,7 +646,7 @@ func NewIntegerValue(value int) IntegerValue {
 	return IntegerValue(value)
 }
 
-func (vl IntegerValue) estimateSize() (int, error) {
+func (vl IntegerValue) EstimateSize() (int, error) {
 	return 8, nil
 }
 
@@ -683,7 +683,7 @@ func NewLongValue(value int64) LongValue {
 	return LongValue(value)
 }
 
-func (vl LongValue) estimateSize() (int, error) {
+func (vl LongValue) EstimateSize() (int, error) {
 	return 8, nil
 }
 
@@ -720,7 +720,7 @@ func NewFloatValue(value float64) FloatValue {
 	return FloatValue(value)
 }
 
-func (vl FloatValue) estimateSize() (int, error) {
+func (vl FloatValue) EstimateSize() (int, error) {
 	return 8, nil
 }
 
@@ -753,7 +753,7 @@ func (vl FloatValue) String() string {
 // This method is only used in bitwise CDT operations internally.
 type _BoolValue bool
 
-func (vb _BoolValue) estimateSize() (int, error) {
+func (vb _BoolValue) EstimateSize() (int, error) {
 	return PackBool(nil, bool(vb))
 }
 
@@ -793,7 +793,7 @@ func NewValueArray(array []Value) *ValueArray {
 	return &res
 }
 
-func (va ValueArray) estimateSize() (int, error) {
+func (va ValueArray) EstimateSize() (int, error) {
 	return packValueArray(nil, va)
 }
 
@@ -831,7 +831,7 @@ func NewListValue(list []interface{}) ListValue {
 	return ListValue(list)
 }
 
-func (vl ListValue) estimateSize() (int, error) {
+func (vl ListValue) EstimateSize() (int, error) {
 	return packIfcList(nil, vl)
 }
 
@@ -875,7 +875,7 @@ func NewListerValue(list ListIter) *ListerValue {
 	return res
 }
 
-func (vl *ListerValue) estimateSize() (int, error) {
+func (vl *ListerValue) EstimateSize() (int, error) {
 	return packList(nil, vl.list)
 }
 
@@ -913,7 +913,7 @@ func NewMapValue(vmap map[interface{}]interface{}) MapValue {
 	return MapValue(vmap)
 }
 
-func (vl MapValue) estimateSize() (int, error) {
+func (vl MapValue) EstimateSize() (int, error) {
 	return packIfcMap(nil, vl)
 }
 
@@ -950,7 +950,7 @@ func NewJsonValue(vmap map[string]interface{}) JsonValue {
 	return JsonValue(vmap)
 }
 
-func (vl JsonValue) estimateSize() (int, error) {
+func (vl JsonValue) EstimateSize() (int, error) {
 	return packJsonMap(nil, vl)
 }
 
@@ -993,7 +993,7 @@ func NewMapperValue(vmap MapIter) *MapperValue {
 	return res
 }
 
-func (vl *MapperValue) estimateSize() (int, error) {
+func (vl *MapperValue) EstimateSize() (int, error) {
 	return packMap(nil, vl.vmap)
 }
 
@@ -1031,7 +1031,7 @@ func NewGeoJSONValue(value string) GeoJSONValue {
 	return res
 }
 
-func (vl GeoJSONValue) estimateSize() (int, error) {
+func (vl GeoJSONValue) EstimateSize() (int, error) {
 	// flags + ncells + jsonstr
 	return 1 + 2 + len(string(vl)), nil
 }
