@@ -30,7 +30,7 @@ func newCDTCreateOperationValues2(command int, attributes mapOrderType, binName 
 		opSubType: &command,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{value1, value2, IntegerValue(attributes)}),
+		binValue:  ListValue([]interface{}{value1, value2, IntegerValue(attributes.attr)}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }

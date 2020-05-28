@@ -93,7 +93,10 @@ const (
 	_CDT_MAP_GET_BY_VALUE_REL_RANK_RANGE    = 110
 )
 
-type mapOrderType int
+type mapOrderType struct {
+	attr int
+	flag int
+}
 
 // Map storage order.
 var MapOrder = struct {
@@ -105,7 +108,7 @@ var MapOrder = struct {
 
 	// Order map by key, then value.
 	KEY_VALUE_ORDERED mapOrderType // 3
-}{0, 1, 3}
+}{mapOrderType{0, 0x40}, mapOrderType{1, 0x80}, mapOrderType{3, 0xc0}}
 
 type mapReturnType int
 
@@ -255,7 +258,7 @@ func newMapSetPolicy(binName string, attributes mapOrderType, ctx []*CDTContext)
 	return &Operation{
 		opType:   _MAP_MODIFY,
 		binName:  binName,
-		binValue: IntegerValue(attributes),
+		binValue: IntegerValue(attributes.attr),
 		ctx:      ctx,
 		encoder:  newMapSetPolicyEncoder,
 	}
@@ -266,6 +269,23 @@ func newMapCreatePutEncoder(op *Operation, packer BufferEx) (int, error) {
 }
 
 /////////////////////////
+
+// MapCreateOp creates a map create operation.
+// Server creates map at given context level.
+func MapCreateOp(binName string, order mapOrderType, ctx []*CDTContext) *Operation {
+	// If context not defined, the set order for top-level bin map.
+	if len(ctx) == 0 {
+		return MapSetPolicyOp(NewMapPolicyWithFlags(order, 0), binName)
+	}
+
+	return &Operation{
+		opType:   _MAP_MODIFY,
+		binName:  binName,
+		binValue: ListValue([]interface{}{_CDT_MAP_SET_TYPE, order.flag, IntegerValue(order.attr)}),
+		ctx:      ctx,
+		encoder:  cdtCreateOpEncoder,
+	}
+}
 
 // Unique key map bin operations. Create map operations used by the client operate command.
 // The default unique key map is unordered.
@@ -316,7 +336,7 @@ func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interfac
 			opSubType: &ops,
 			ctx:       ctx,
 			binName:   binName,
-			binValue:  ListValue([]interface{}{key, value, IntegerValue(policy.attributes), IntegerValue(policy.flags)}),
+			binValue:  ListValue([]interface{}{key, value, IntegerValue(policy.attributes.attr), IntegerValue(policy.flags)}),
 			encoder:   newMapCreatePutEncoder,
 		}
 	}
@@ -338,7 +358,7 @@ func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interfac
 		opSubType: &policy.itemCommand,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{key, value, IntegerValue(policy.attributes)}),
+		binValue:  ListValue([]interface{}{key, value, IntegerValue(policy.attributes.attr)}),
 		encoder:   newMapCreatePutEncoder,
 	}
 }
@@ -358,7 +378,7 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 			opSubType: &ops,
 			ctx:       ctx,
 			binName:   binName,
-			binValue:  ListValue([]interface{}{amap, IntegerValue(policy.attributes), IntegerValue(policy.flags)}),
+			binValue:  ListValue([]interface{}{amap, IntegerValue(policy.attributes.attr), IntegerValue(policy.flags)}),
 			encoder:   newCDTCreateOperationEncoder,
 		}
 	}
@@ -380,7 +400,7 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 		opSubType: &policy.itemsCommand,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{MapValue(amap), IntegerValue(policy.attributes)}),
+		binValue:  ListValue([]interface{}{MapValue(amap), IntegerValue(policy.attributes.attr)}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }

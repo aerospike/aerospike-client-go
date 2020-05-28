@@ -880,4 +880,41 @@ var _ = Describe("CDT Map Test", func() {
 		}
 	})
 
+	It("should handle Map Create Context", func() {
+		// Key key = new Key(args.namespace, args.set, "opmkey22");
+		client.Delete(nil, key)
+
+		m1 := map[string]int{"key11": 9, "key12": 4}
+		m2 := map[string]int{"key21": 3, "key22": 5}
+		inputMap := map[string]interface{}{"key1": m1, "key2": m2}
+
+		// Create maps.
+		err := client.Put(nil, key, as.BinMap{cdtBinName: inputMap})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Set map value to 11 for map key "key21" inside of map key "key2"
+		// and retrieve all maps.
+		record, err := client.Operate(nil, key,
+			as.MapCreateOp(cdtBinName, as.MapOrder.KEY_ORDERED, []*as.CDTContext{as.CtxMapKey(as.StringValue("key3"))}),
+			as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, "key31", 99, as.CtxMapKey(as.StringValue("key3"))),
+			as.GetOpForBin(cdtBinName),
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+
+		results := record.Bins[cdtBinName].([]interface{})
+
+		count := results[1]
+		Expect(count).To(Equal(1))
+
+		m := results[2].(map[interface{}]interface{})
+		Expect(len(m)).To(Equal(3))
+
+		mp := m["key3"].([]as.MapPair)
+
+		Expect(len(mp)).To(Equal(1))
+		Expect(mp[0].Key).To(Equal("key31"))
+		Expect(mp[0].Value).To(Equal(99))
+	})
+
 }) // describe

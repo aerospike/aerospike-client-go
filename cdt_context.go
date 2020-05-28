@@ -37,6 +37,11 @@ func CtxListIndex(index int) *CDTContext {
 	return &CDTContext{0x10, IntegerValue(index)}
 }
 
+// CtxListIndexCreate list with given type at index offset, given an order and pad.
+func CtxListIndexCreate(index int, order ListOrderType, pad bool) *CDTContext {
+	return &CDTContext{0x10 | cdtListOrderFlag(order, pad), IntegerValue(index)}
+}
+
 // CtxListRank defines Lookup list by rank.
 // 0 = smallest value
 // N = Nth smallest value
@@ -73,6 +78,11 @@ func CtxMapRank(rank int) *CDTContext {
 // CtxMapKey defines Lookup map by key.
 func CtxMapKey(key Value) *CDTContext {
 	return &CDTContext{0x22, key}
+}
+
+// Create map with given type at map key.
+func CtxMapKeyCreate(key Value, order mapOrderType) *CDTContext {
+	return &CDTContext{0x22 | order.flag, key}
 }
 
 // CtxMapValue defines Lookup map by value.

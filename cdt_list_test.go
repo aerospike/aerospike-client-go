@@ -755,6 +755,42 @@ var _ = Describe("CDT List Test", func() {
 				}}))
 		})
 
+		It("should support Create List Ops", func() {
+			client.Delete(nil, key)
+
+			l1 := []as.Value{as.IntegerValue(7), as.IntegerValue(9), as.IntegerValue(5)}
+			l2 := []as.Value{as.IntegerValue(1), as.IntegerValue(2), as.IntegerValue(3)}
+			l3 := []as.Value{as.IntegerValue(6), as.IntegerValue(5), as.IntegerValue(4), as.IntegerValue(1)}
+			inputList := []interface{}{as.ValueArray(l1), as.ValueArray(l2), as.ValueArray(l3)}
+
+			// Create list.
+			record, err := client.Operate(nil, key,
+				as.ListAppendWithPolicyOp(as.NewListPolicy(as.ListOrderOrdered, 0), cdtBinName, inputList...),
+				as.GetOpForBin(cdtBinName),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Append value to new list created after the original 3 lists.
+			record, err = client.Operate(nil, key,
+				as.ListAppendWithPolicyContextOp(as.NewListPolicy(as.ListOrderOrdered, 0), cdtBinName, []*as.CDTContext{as.CtxListIndexCreate(3, as.ListOrderOrdered, false)}, as.IntegerValue(2)),
+				as.GetOpForBin(cdtBinName),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			results := record.Bins[cdtBinName].([]interface{})
+
+			count := results[0]
+			Expect(count).To(Equal(1))
+
+			list := results[1].([]interface{})
+			Expect(len(list)).To(Equal(4))
+
+			// Test last nested list.
+			list = list[1].([]interface{})
+			Expect(len(list)).To(Equal(1))
+			Expect(list[0]).To(Equal(2))
+		})
+
 	})
 
 }) // describe

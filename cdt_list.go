@@ -333,6 +333,105 @@ func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext
 	return size, nil
 }
 
+func cdtCreateOpEncoder(op *Operation, packer BufferEx) (int, error) {
+	args := op.binValue.(ListValue)
+	if len(args) > 2 {
+		return packCDTCreate(packer, int16(args[0].(int)), op.ctx, args[1].(int), args[2:]...)
+	}
+	return packCDTCreate(packer, int16(args[0].(int)), op.ctx, args[1].(int))
+}
+
+func packCDTCreate(packer BufferEx, opType int16, ctx []*CDTContext, flag int, params ...interface{}) (int, error) {
+	size := 0
+	n := 0
+	var err error
+	if n, err = packArrayBegin(packer, 3); err != nil {
+		return size + n, err
+	}
+	size += n
+
+	if n, err = packAInt64(packer, 0xff); err != nil {
+		return size + n, err
+	}
+	size += n
+
+	if n, err = packArrayBegin(packer, len(ctx)*2); err != nil {
+		return size + n, err
+	}
+	size += n
+
+	var c *CDTContext
+	last := len(ctx) - 1
+
+	for i := 0; i < last; i++ {
+		c = ctx[i]
+		if n, err = packAInt64(packer, int64(c.id)); err != nil {
+			return size + n, err
+		}
+		size += n
+
+		if n, err = c.value.pack(packer); err != nil {
+			return size + n, err
+		}
+		size += n
+	}
+
+	c = ctx[last]
+	if n, err = packAInt64(packer, int64(c.id|flag)); err != nil {
+		return size + n, err
+	}
+	size += n
+
+	if n, err = c.value.pack(packer); err != nil {
+		return size + n, err
+	}
+	size += n
+
+	if n, err = packArrayBegin(packer, len(params)+1); err != nil {
+		return size + n, err
+	}
+	size += n
+
+	if n, err = packAInt(packer, int(opType)); err != nil {
+		return size + n, err
+	}
+	size += n
+
+	if len(params) > 0 {
+		for i := range params {
+			if n, err = packObject(packer, params[i], false); err != nil {
+				return size + n, err
+			}
+			size += n
+		}
+	}
+
+	return size, nil
+}
+
+func cdtListOrderFlag(order ListOrderType, pad bool) int {
+	if order == 1 {
+		return 0xc0
+	}
+
+	if pad {
+		return 0x80
+	}
+	return 0x40
+}
+
+// ListCreateOp creates list create operation.
+// Server creates list at given context level. The context is allowed to be beyond list
+// boundaries only if pad is set to true.  In that case, nil list entries will be inserted to
+// satisfy the context position.
+func ListCreateOp(binName string, listOrder ListOrderType, pad bool, ctx ...*CDTContext) *Operation {
+	// If context not defined, the set order for top-level bin list.
+	if len(ctx) == 0 {
+		return ListSetOrderOp(binName, listOrder)
+	}
+	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET_TYPE, cdtListOrderFlag(listOrder, pad), IntegerValue(listOrder)}, encoder: cdtCreateOpEncoder}
+}
+
 // ListSetOrderOp creates a set list order operation.
 // Server sets list order.  Server returns null.
 func ListSetOrderOp(binName string, listOrder ListOrderType, ctx ...*CDTContext) *Operation {
