@@ -1,5 +1,13 @@
 # Change History
 
+## May 28 2020: v2.12.0
+
+  Minor feature release.
+
+  * **New Features**
+
+    - Adds `MapCreateOp` and `ListCreateOp` in `Context` for CDTs.
+
 ## May 27 2020: v2.11.0
 
   Major feature release.
