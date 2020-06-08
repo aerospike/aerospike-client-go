@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -187,6 +187,9 @@ const (
 	// Security credential is invalid.
 	INVALID_CREDENTIAL ResultCode = 65
 
+	// Login session expired.
+	EXPIRED_SESSION ResultCode = 66
+
 	// Role name is invalid.
 	INVALID_ROLE ResultCode = 70
 
@@ -196,11 +199,17 @@ const (
 	// Privilege is invalid.
 	INVALID_PRIVILEGE ResultCode = 72
 
+	// Invalid IP address whiltelist
+	INVALID_WHITELIST = 73
+
 	// User must be authentication before performing database operations.
 	NOT_AUTHENTICATED ResultCode = 80
 
 	// User does not posses the required role to perform the database operation.
 	ROLE_VIOLATION ResultCode = 81
+
+	// Command not allowed because sender IP address not whitelisted.
+	NOT_WHITELISTED = 82
 
 	// A user defined function returned an error code.
 	UDF_BAD_RESPONSE ResultCode = 100
@@ -457,6 +466,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case INVALID_CREDENTIAL:
 		return "Invalid credential"
 
+	case EXPIRED_SESSION:
+		return "Login session expired"
+
 	case INVALID_ROLE:
 		return "Invalid role"
 
@@ -466,11 +478,17 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case INVALID_PRIVILEGE:
 		return "Invalid privilege"
 
+	case INVALID_WHITELIST:
+		return "Invalid whitelist"
+
 	case NOT_AUTHENTICATED:
 		return "Not authenticated"
 
 	case ROLE_VIOLATION:
 		return "Role violation"
+
+	case NOT_WHITELISTED:
+		return "Command not whitelisted"
 
 	case UDF_BAD_RESPONSE:
 		return "UDF returned error"

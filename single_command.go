@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,15 +23,15 @@ type singleCommand struct {
 
 	cluster   *Cluster
 	key       *Key
-	partition Partition
+	partition *Partition
 }
 
-func newSingleCommand(cluster *Cluster, key *Key) singleCommand {
+func newSingleCommand(cluster *Cluster, key *Key, partition *Partition) singleCommand {
 	return singleCommand{
 		baseCommand: baseCommand{},
 		cluster:     cluster,
 		key:         key,
-		partition:   newPartitionByKey(key),
+		partition:   partition,
 	}
 }
 

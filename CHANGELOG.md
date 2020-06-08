@@ -1,5 +1,16 @@
 # Change History
 
+## June 8 2020: v3.0.0
+
+  Major feature release. There are a few minor breaking API changes. See `ClientPolicy`.
+
+  Note: There has been significant changes to clustering code. We recommend extensive testing before using in production.
+
+  * **New Features**
+
+    - Adds support for Relaxed Strong Consistency mode.
+    - Adds support for whitelists in Roles.
+
 ## May 28 2020: v2.12.0
 
   Minor feature release.

@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,12 +47,20 @@ var objectParser func(
 	expiration uint32,
 ) error
 
-func newReadCommand(cluster *Cluster, policy *BasePolicy, key *Key, binNames []string) readCommand {
+func newReadCommand(cluster *Cluster, policy *BasePolicy, key *Key, binNames []string, partition *Partition) (readCommand, error) {
+	var err error
+	if partition == nil {
+		partition, err = PartitionForRead(cluster, policy, key)
+		if err != nil {
+			return readCommand{}, err
+		}
+	}
+
 	return readCommand{
-		singleCommand: newSingleCommand(cluster, key),
+		singleCommand: newSingleCommand(cluster, key, partition),
 		binNames:      binNames,
 		policy:        policy,
-	}
+	}, nil
 }
 
 func (cmd *readCommand) getPolicy(ifc command) Policy {
@@ -64,7 +72,12 @@ func (cmd *readCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *readCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy, &cmd.replicaSequence)
+	return cmd.partition.GetNodeRead(cmd.cluster)
+}
+
+func (cmd *readCommand) prepareRetry(ifc command, isTimeout bool) bool {
+	cmd.partition.PrepareRetryRead(isTimeout)
+	return true
 }
 
 func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {

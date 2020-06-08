@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,13 +31,18 @@ type touchCommand struct {
 	policy *WritePolicy
 }
 
-func newTouchCommand(cluster *Cluster, policy *WritePolicy, key *Key) *touchCommand {
-	newTouchCmd := &touchCommand{
-		singleCommand: newSingleCommand(cluster, key),
+func newTouchCommand(cluster *Cluster, policy *WritePolicy, key *Key) (touchCommand, error) {
+	partition, err := PartitionForWrite(cluster, &policy.BasePolicy, key)
+	if err != nil {
+		return touchCommand{}, err
+	}
+
+	newTouchCmd := touchCommand{
+		singleCommand: newSingleCommand(cluster, key, partition),
 		policy:        policy,
 	}
 
-	return newTouchCmd
+	return newTouchCmd, nil
 }
 
 func (cmd *touchCommand) getPolicy(ifc command) Policy {
@@ -49,7 +54,12 @@ func (cmd *touchCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *touchCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getMasterNode(&cmd.partition)
+	return cmd.partition.GetNodeWrite(cmd.cluster)
+}
+
+func (cmd *touchCommand) prepareRetry(ifc command, isTimeout bool) bool {
+	cmd.partition.PrepareRetryWrite(isTimeout)
+	return true
 }
 
 func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {

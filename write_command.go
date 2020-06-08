@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,17 +36,22 @@ func newWriteCommand(cluster *Cluster,
 	key *Key,
 	bins []*Bin,
 	binMap BinMap,
-	operation OperationType) *writeCommand {
+	operation OperationType) (writeCommand, error) {
 
-	newWriteCmd := &writeCommand{
-		singleCommand: newSingleCommand(cluster, key),
+	partition, err := PartitionForWrite(cluster, &policy.BasePolicy, key)
+	if err != nil {
+		return writeCommand{}, err
+	}
+
+	newWriteCmd := writeCommand{
+		singleCommand: newSingleCommand(cluster, key, partition),
 		policy:        policy,
 		bins:          bins,
 		binMap:        binMap,
 		operation:     operation,
 	}
 
-	return newWriteCmd
+	return newWriteCmd, nil
 }
 
 func (cmd *writeCommand) getPolicy(ifc command) Policy {
@@ -58,7 +63,12 @@ func (cmd *writeCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *writeCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getMasterNode(&cmd.partition)
+	return cmd.partition.GetNodeWrite(cmd.cluster)
+}
+
+func (cmd *writeCommand) prepareRetry(ifc command, isTimeout bool) bool {
+	cmd.partition.PrepareRetryWrite(isTimeout)
+	return true
 }
 
 func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {

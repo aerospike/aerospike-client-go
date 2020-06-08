@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,25 +21,16 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
-type batcher interface {
-	cloneBatchCommand(batch *batchNode, bns *batchNamespace) command
-	filteredOut() int
-}
-
 type batchCommandGet struct {
-	baseMultiCommand
+	batchCommand
 
-	batchNamespace *batchNamespace
-	batch          *batchNode
-	policy         *BatchPolicy
-	keys           []*Key
-	binNames       []string
-	records        []*Record
-	indexRecords   []*BatchRead
-	readAttr       int
-	index          int
-	key            Key
-	filteredOutCnt int
+	keys         []*Key
+	binNames     []string
+	records      []*Record
+	indexRecords []*BatchRead
+	readAttr     int
+	index        int
+	key          Key
 
 	// pointer to the object that's going to be unmarshalled
 	objects      []*reflect.Value
@@ -59,7 +50,6 @@ var batchObjectParser func(
 
 func newBatchCommandGet(
 	node *Node,
-	batchNamespace *batchNamespace,
 	batch *batchNode,
 	policy *BatchPolicy,
 	keys []*Key,
@@ -68,34 +58,26 @@ func newBatchCommandGet(
 	readAttr int,
 ) *batchCommandGet {
 	res := &batchCommandGet{
-		baseMultiCommand: *newMultiCommand(node, nil),
-		batchNamespace:   batchNamespace,
-		batch:            batch,
-		policy:           policy,
-		keys:             keys,
-		binNames:         binNames,
-		records:          records,
-		readAttr:         readAttr,
+		batchCommand: batchCommand{
+			baseMultiCommand: *newMultiCommand(node, nil),
+			policy:           policy,
+			batch:            batch,
+		},
+		keys:     keys,
+		binNames: binNames,
+		records:  records,
+		readAttr: readAttr,
 	}
 	res.oneShot = false
 	return res
 }
 
-func (cmd *batchCommandGet) filteredOut() int {
-	return cmd.filteredOutCnt
-}
-
-func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode, bns *batchNamespace) command {
+func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode) batcher {
 	res := *cmd
 	res.node = batch.Node
 	res.batch = batch
-	res.batchNamespace = bns
 
 	return &res
-}
-
-func (cmd *batchCommandGet) getPolicy(ifc command) Policy {
-	return cmd.policy
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) error {
@@ -245,4 +227,8 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expir
 
 func (cmd *batchCommandGet) Execute() error {
 	return cmd.execute(cmd, true)
+}
+
+func (cmd *batchCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, error) {
+	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
 }

@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Portions may be licensed to Aerospike, Inc. under one or more contributor
 // license agreements.
@@ -20,6 +20,7 @@ type Role struct {
 	Name string
 
 	Privileges []Privilege
+	Whitelist  []string
 }
 
 // Pre-defined user roles.

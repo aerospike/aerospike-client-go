@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -152,15 +152,17 @@ var _ = Describe("Aerospike", func() {
 					nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
 					Expect(err).NotTo(HaveOccurred())
 
-					replicaPolicy := as.PREFER_RACK
+					wpolicy := as.NewWritePolicy(0, 0)
+					wpolicy.ReplicaPolicy = as.PREFER_RACK
 					for i := 0; i < 12; i++ {
-						seq := 0
 						key, _ := as.NewKey(*namespace, "test", 1)
-						partition := as.NewPartitionByKey(key)
-						masterNode, err := nclient.Cluster().GetMasterNode(partition)
+						partition, err := as.PartitionForWrite(nclient.Cluster(), wpolicy.GetBasePolicy(), key)
+						Expect(err).NotTo(HaveOccurred())
+						masterNode, err := partition.GetMasterNode(nclient.Cluster())
 						Expect(err).NotTo(HaveOccurred())
 
-						node, err := nclient.Cluster().GetReadNode(partition, replicaPolicy, &seq)
+						// node, err := nclient.Cluster().GetReadNode(partition, replicaPolicy, &seq)
+						node, err := partition.GetNodeRead(nclient.Cluster())
 						Expect(err).NotTo(HaveOccurred())
 						Expect(node).NotTo(BeNil())
 						Expect(node).To(Equal(masterNode))
@@ -175,18 +177,22 @@ var _ = Describe("Aerospike", func() {
 			// 	cpolicy.Timeout = 10 * time.Second
 			// 	cpolicy.RackAware = true
 
+			// 	rpolicy := as.NewPolicy()
+			// 	rpolicy.ReplicaPolicy = as.PREFER_RACK
+
 			// 	for rid := 1; rid <= 20; rid++ {
 			// 		cpolicy.RackId = (rid % 2) + 1
 
 			// 		nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
 			// 		Expect(err).NotTo(HaveOccurred())
 
-			// 		replicaPolicy := as.PREFER_RACK
 			// 		for i := 0; i < 12; i++ {
-			// 			seq := 0
+			// 			println(i)
 			// 			key, _ := as.NewKey(*namespace, "test", 1)
-			// 			partition := as.NewPartitionByKey(key)
-			// 			node, err := nclient.Cluster().GetReadNode(partition, replicaPolicy, &seq)
+			// 			partition, err := as.PartitionForRead(nclient.Cluster(), rpolicy.GetBasePolicy(), key)
+			// 			Expect(err).NotTo(HaveOccurred())
+
+			// 			node, err := partition.GetNodeRead(nclient.Cluster())
 			// 			Expect(err).NotTo(HaveOccurred())
 			// 			Expect(node.Rack("test")).To(Equal(cpolicy.RackId))
 			// 		}

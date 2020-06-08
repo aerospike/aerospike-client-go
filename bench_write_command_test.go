@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import (
 )
 
 func doPut(set string, value interface{}, b *testing.B) {
-	var err error
 	policy := NewWritePolicy(0, 0)
 
 	dataBuffer := make([]byte, 1024*1024)
@@ -35,9 +34,12 @@ func doPut(set string, value interface{}, b *testing.B) {
 	key, _ := NewKey("test", set, 1000)
 
 	for i := 0; i < b.N; i++ {
-		command := newWriteCommand(nil, policy, key, bins, nil, _WRITE)
+		command, err := newWriteCommand(nil, policy, key, bins, nil, _WRITE)
+		if err != nil {
+			panic(err)
+		}
 		command.baseCommand.dataBuffer = dataBuffer
-		err = command.writeBuffer(command)
+		err = command.writeBuffer(&command)
 		if err != nil {
 			panic(err)
 		}

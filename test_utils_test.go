@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,9 @@
 package aerospike_test
 
 import (
+	"log"
 	"math/rand"
+	"net"
 	"reflect"
 
 	. "github.com/onsi/gomega"
@@ -121,4 +123,16 @@ func mapsEqual(ia, ib interface{}) {
 
 	Expect(len(a)).To(Equal(len(b)))
 	Expect(a).To(BeEquivalentTo(b))
+}
+
+func getOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
 }

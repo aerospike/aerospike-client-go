@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,13 +28,18 @@ type readHeaderCommand struct {
 	replicaSequence int
 }
 
-func newReadHeaderCommand(cluster *Cluster, policy *BasePolicy, key *Key) *readHeaderCommand {
-	newReadHeaderCmd := &readHeaderCommand{
-		singleCommand: newSingleCommand(cluster, key),
+func newReadHeaderCommand(cluster *Cluster, policy *BasePolicy, key *Key) (readHeaderCommand, error) {
+	partition, err := PartitionForRead(cluster, policy, key)
+	if err != nil {
+		return readHeaderCommand{}, err
+	}
+
+	newReadHeaderCmd := readHeaderCommand{
+		singleCommand: newSingleCommand(cluster, key, partition),
 		policy:        policy,
 	}
 
-	return newReadHeaderCmd
+	return newReadHeaderCmd, nil
 }
 
 func (cmd *readHeaderCommand) getPolicy(ifc command) Policy {
@@ -46,7 +51,12 @@ func (cmd *readHeaderCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *readHeaderCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getReadNode(&cmd.partition, cmd.policy.ReplicaPolicy, &cmd.replicaSequence)
+	return cmd.partition.GetNodeRead(cmd.cluster)
+}
+
+func (cmd *readHeaderCommand) prepareRetry(ifc command, isTimeout bool) bool {
+	cmd.partition.PrepareRetryRead(isTimeout)
+	return true
 }
 
 func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {

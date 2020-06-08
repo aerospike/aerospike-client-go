@@ -1,6 +1,6 @@
 // +build !as_performance
 
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,11 @@ func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (e
 	policy = clnt.getUsableWritePolicy(policy)
 
 	binMap := marshal(obj, clnt.cluster.supportsFloat.Get())
-	command := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _WRITE)
+	command, err := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _WRITE)
+	if err != nil {
+		return err
+	}
+
 	res := command.Execute()
 	return res
 }
@@ -64,7 +68,11 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 	rval := reflect.ValueOf(obj)
 	binNames := objectMappings.getFields(rval.Type())
 
-	command := newReadCommand(clnt.cluster, policy, key, binNames)
+	command, err := newReadCommand(clnt.cluster, policy, key, binNames, nil)
+	if err != nil {
+		return err
+	}
+
 	command.object = &rval
 	return command.Execute()
 }
@@ -101,11 +109,16 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 	}
 
 	objectsFound := make([]bool, len(keys))
-	cmd := newBatchCommandGet(nil, nil, nil, policy, keys, binNames, nil, _INFO1_READ)
+	cmd := newBatchCommandGet(nil, nil, policy, keys, binNames, nil, _INFO1_READ)
 	cmd.objects = objectsVal
 	cmd.objectsFound = objectsFound
 
-	err, filteredOut := clnt.batchExecute(policy, keys, cmd)
+	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
+	if err != nil {
+		return nil, err
+	}
+
+	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil {
 		return nil, err
 	}

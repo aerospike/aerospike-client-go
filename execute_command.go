@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,14 +31,24 @@ func newExecuteCommand(
 	packageName string,
 	functionName string,
 	args *ValueArray,
-) executeCommand {
+) (executeCommand, error) {
+	partition, err := PartitionForWrite(cluster, &policy.BasePolicy, key)
+	if err != nil {
+		return executeCommand{}, err
+	}
+
+	readCommand, err := newReadCommand(cluster, &policy.BasePolicy, key, nil, partition)
+	if err != nil {
+		return executeCommand{}, err
+	}
+
 	return executeCommand{
-		readCommand:  newReadCommand(cluster, &policy.BasePolicy, key, nil),
+		readCommand:  readCommand,
 		policy:       policy,
 		packageName:  packageName,
 		functionName: functionName,
 		args:         args,
-	}
+	}, nil
 }
 
 func (cmd *executeCommand) writeBuffer(ifc command) error {
@@ -46,7 +56,12 @@ func (cmd *executeCommand) writeBuffer(ifc command) error {
 }
 
 func (cmd *executeCommand) getNode(ifc command) (*Node, error) {
-	return cmd.cluster.getMasterNode(&cmd.partition)
+	return cmd.partition.GetNodeWrite(cmd.cluster)
+}
+
+func (cmd *executeCommand) prepareRetry(ifc command, isTimeout bool) bool {
+	cmd.partition.PrepareRetryWrite(isTimeout)
+	return true
 }
 
 func (cmd *executeCommand) Execute() error {

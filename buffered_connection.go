@@ -17,6 +17,7 @@ package aerospike
 import (
 	"fmt"
 
+	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 )
 
@@ -93,7 +94,8 @@ func (bc *bufferedConn) readConn(minLength int) error {
 	bc.remaining -= n
 
 	if err != nil {
-		return fmt.Errorf("Requested to read %d bytes, but %d was read. (%v)", minLength, n, err)
+		Logger.Debug("Requested to read %d bytes, but %d was read. (%v)", minLength, n, err)
+		return err
 	}
 
 	return nil

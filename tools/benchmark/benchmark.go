@@ -1,4 +1,4 @@
-// Copyright 2013-2016 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -365,7 +365,7 @@ func randBytes(size int, xr *XorRand) []byte {
 }
 
 func incOnError(op, timeout *int, err error) {
-	if ae, ok := err.(ast.AerospikeError); ok && ae.ResultCode() == ast.TIMEOUT {
+	if ae, ok := err.(ast.AerospikeError); ok && (ae.ResultCode() == ast.TIMEOUT || err == ast.ErrConnectionPoolEmpty || err == ast.ErrTooManyConnectionsForNode || err == ast.ErrTooManyOpeningConnections) {
 		*timeout++
 	} else {
 		*op++

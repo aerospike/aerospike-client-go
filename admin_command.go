@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use acmd file except in compliance with the License.
@@ -39,6 +39,7 @@ const (
 	_DROP_ROLE         byte = 11
 	_GRANT_PRIVILEGES  byte = 12
 	_REVOKE_PRIVILEGES byte = 13
+	_SET_WHITELIST     byte = 14
 	_QUERY_ROLES       byte = 16
 	_LOGIN             byte = 20
 
@@ -53,6 +54,7 @@ const (
 	_ROLES          byte = 10
 	_ROLE           byte = 11
 	_PRIVILEGES     byte = 12
+	_WHITELIST      byte = 13
 
 	// Misc
 	_MSG_VERSION int64 = 2
@@ -122,12 +124,27 @@ func (acmd *adminCommand) revokeRoles(cluster *Cluster, policy *AdminPolicy, use
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) createRole(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege) error {
-	acmd.writeHeader(_CREATE_ROLE, 2)
-	acmd.writeFieldStr(_ROLE, roleName)
-	if err := acmd.writePrivileges(privileges); err != nil {
-		return err
+func (acmd *adminCommand) createRole(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string) error {
+	fieldcount := 1
+	if len(privileges) > 1 {
+		fieldcount++
 	}
+	if len(whitelist) > 1 {
+		fieldcount++
+	}
+	acmd.writeHeader(_CREATE_ROLE, fieldcount)
+	acmd.writeFieldStr(_ROLE, roleName)
+
+	if len(privileges) > 0 {
+		if err := acmd.writePrivileges(privileges); err != nil {
+			return err
+		}
+	}
+
+	if len(whitelist) > 0 {
+		acmd.writeWhitelist(whitelist)
+	}
+
 	return acmd.executeCommand(cluster, policy)
 }
 
@@ -151,6 +168,19 @@ func (acmd *adminCommand) revokePrivileges(cluster *Cluster, policy *AdminPolicy
 	acmd.writeFieldStr(_ROLE, roleName)
 	if err := acmd.writePrivileges(privileges); err != nil {
 		return err
+	}
+	return acmd.executeCommand(cluster, policy)
+}
+
+func (acmd *adminCommand) setWhitelist(cluster *Cluster, policy *AdminPolicy, roleName string, whitelist []string) error {
+	fieldCount := 1
+	if len(whitelist) > 0 {
+		fieldCount++
+	}
+	acmd.writeHeader(_REVOKE_PRIVILEGES, fieldCount)
+	acmd.writeFieldStr(_ROLE, roleName)
+	if len(whitelist) > 0 {
+		acmd.writeWhitelist(whitelist)
 	}
 	return acmd.executeCommand(cluster, policy)
 }
@@ -257,6 +287,26 @@ func (acmd *adminCommand) writePrivileges(privileges []Privilege) error {
 	acmd.dataOffset = offset
 
 	return nil
+}
+
+func (acmd *adminCommand) writeWhitelist(whitelist []string) {
+	offset := acmd.dataOffset + int(_FIELD_HEADER_SIZE)
+
+	comma := false
+	for _, address := range whitelist {
+		if comma {
+			acmd.dataBuffer[acmd.dataOffset] = ','
+			acmd.dataOffset++
+		} else {
+			comma = true
+		}
+
+		offset += copy(acmd.dataBuffer[offset:], address)
+	}
+
+	size := offset - acmd.dataOffset - int(_FIELD_HEADER_SIZE)
+	acmd.writeFieldHeader(_WHITELIST, size)
+	acmd.dataOffset = offset
 }
 func (acmd *adminCommand) writeSize() {
 	// Write total size of message which is the current offset.
@@ -565,6 +615,8 @@ func (acmd *adminCommand) parseRolesFull(receiveSize int) (int, []*Role, error) 
 				acmd.dataOffset += len
 			} else if id == _PRIVILEGES {
 				acmd.parsePrivileges(role)
+			} else if id == _WHITELIST {
+				acmd.parseWhitelist(len)
 			} else {
 				acmd.dataOffset += len
 			}
@@ -605,4 +657,32 @@ func (acmd *adminCommand) parsePrivileges(role *Role) {
 		}
 		role.Privileges = append(role.Privileges, priv)
 	}
+}
+
+func (acmd *adminCommand) parseWhitelist(length int) []string {
+	list := []string{}
+	begin := acmd.dataOffset
+	max := begin + length
+
+	for acmd.dataOffset < max {
+		if acmd.dataBuffer[acmd.dataOffset] == ',' {
+			l := acmd.dataOffset - begin
+			if l > 0 {
+				s := string(acmd.dataBuffer[begin : begin+l])
+				list = append(list, s)
+			}
+			acmd.dataOffset++
+			begin = acmd.dataOffset
+		} else {
+			acmd.dataOffset++
+		}
+	}
+
+	l := acmd.dataOffset - begin
+	if l > 0 {
+		s := string(acmd.dataBuffer[begin : begin+l])
+		list = append(list, s)
+	}
+
+	return list
 }

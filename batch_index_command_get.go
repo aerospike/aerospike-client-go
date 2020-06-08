@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,14 +14,8 @@
 
 package aerospike
 
-type batchIndexer interface {
-	cloneBatchIndexCommand(batch *batchNode) command
-}
-
 type batchIndexCommandGet struct {
 	batchCommandGet
-
-	batch *batchNode
 }
 
 func newBatchIndexCommandGet(
@@ -36,27 +30,23 @@ func newBatchIndexCommandGet(
 
 	return &batchIndexCommandGet{
 		batchCommandGet{
-			baseMultiCommand: *newMultiCommand(node, nil),
-			batchNamespace:   nil,
-			policy:           policy,
-			records:          nil,
-			indexRecords:     records,
+			batchCommand: batchCommand{
+				baseMultiCommand: *newMultiCommand(node, nil),
+				policy:           policy,
+				batch:            batch,
+			},
+			records:      nil,
+			indexRecords: records,
 		},
-		batch,
 	}
 }
 
-func (cmd *batchIndexCommandGet) cloneBatchIndexCommand(batch *batchNode) command {
+func (cmd *batchIndexCommandGet) cloneBatchCommand(batch *batchNode) batcher {
 	res := *cmd
 	res.batch = batch
 	res.node = batch.Node
-	res.batchNamespace = nil
 
 	return &res
-}
-
-func (cmd *batchIndexCommandGet) getPolicy(ifc command) Policy {
-	return cmd.policy
 }
 
 func (cmd *batchIndexCommandGet) writeBuffer(ifc command) error {
@@ -65,4 +55,8 @@ func (cmd *batchIndexCommandGet) writeBuffer(ifc command) error {
 
 func (cmd *batchIndexCommandGet) Execute() error {
 	return cmd.execute(cmd, true)
+}
+
+func (cmd *batchIndexCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, error) {
+	return newBatchNodeListRecords(cluster, cmd.policy, cmd.indexRecords, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
 }

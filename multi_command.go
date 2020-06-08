@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -94,6 +94,10 @@ func newCorrectMultiCommand(node *Node, recordset *Recordset, namespace string, 
 
 func (cmd *baseMultiCommand) getNode(ifc command) (*Node, error) {
 	return cmd.node, nil
+}
+
+func (cmd *baseMultiCommand) prepareRetry(ifc command, isTimeout bool) bool {
+	return false
 }
 
 func (cmd *baseMultiCommand) getConnection(policy Policy) (*Connection, error) {

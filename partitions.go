@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 
 type Partitions struct {
 	Replicas [][]*Node
-	CPMode   bool
+	SCMode   bool
 	regimes  []int
 }
 
@@ -37,7 +37,7 @@ func newPartitions(partitionCount int, replicaCount int, cpMode bool) *Partition
 
 	return &Partitions{
 		Replicas: replicas,
-		CPMode:   cpMode,
+		SCMode:   cpMode,
 		regimes:  make([]int, partitionCount),
 	}
 }
@@ -71,7 +71,7 @@ func (p *Partitions) clone() *Partitions {
 
 	return &Partitions{
 		Replicas: replicas,
-		CPMode:   p.CPMode,
+		SCMode:   p.SCMode,
 		regimes:  regimes,
 	}
 }
@@ -119,7 +119,7 @@ func (pm partitionMap) String() string {
 		res.WriteString("-----------------------------------------------------------------------\n")
 		res.WriteString("Namespace: " + ns + "\n")
 		res.WriteString(fmt.Sprintf("Regimes: %v\n", partitions.regimes))
-		res.WriteString(fmt.Sprintf("CPMode: %v\n", partitions.CPMode))
+		res.WriteString(fmt.Sprintf("SCMode: %v\n", partitions.SCMode))
 		replicaArray := partitions.Replicas
 		for i, nodeArray := range replicaArray {
 			if i == 0 {

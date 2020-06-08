@@ -1,4 +1,4 @@
-// Copyright 2013-2019 Aerospike, Inc.
+// Copyright 2013-2020 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,12 +14,16 @@
 
 package aerospike
 
-func (clstr *Cluster) GetReadNode(partition *Partition, replica ReplicaPolicy, seq *int) (*Node, error) {
-	return clstr.getReadNode(partition, replica, seq)
+func (clstr *Cluster) GetMasterNode(partition *Partition) (*Node, error) {
+	return partition.getMasterNode(clstr)
 }
 
-func (clstr *Cluster) GetMasterNode(partition *Partition) (*Node, error) {
-	return clstr.getMasterNode(partition)
+func (ptn *Partition) GetMasterNode(cluster *Cluster) (*Node, error) {
+	return ptn.getMasterNode(cluster)
+}
+
+func (ptn *Partition) GetMasterProlesNode(cluster *Cluster) (*Node, error) {
+	return ptn.getMasterProlesNode(cluster)
 }
 
 // fillMinCounts will fill the connection pool to the minimum required
