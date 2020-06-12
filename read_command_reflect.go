@@ -439,7 +439,7 @@ func setStructValue(f reflect.Value, valMap map[interface{}]interface{}, support
 		}
 
 		alias := fld.Name
-		tag := strings.Trim(fld.Tag.Get(aerospikeTag), " ")
+		tag := strings.Trim(stripOptions(fld.Tag.Get(aerospikeTag)), " ")
 		if tag != "" {
 			alias = tag
 		}

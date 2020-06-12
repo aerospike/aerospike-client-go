@@ -622,10 +622,17 @@ var _ = Describe("Aerospike", func() {
 		Context("PutObject operations", func() {
 
 			It("must respect `,omitempty` option", func() {
+				type Inner struct {
+					V1 int    `as:"   v1,ommitempty "`
+					V2 string `as:"   v2,ommitempty    "`
+				}
+
 				type T struct {
 					Name        string `as:"   name "`
 					Description string `as:" desc    ,omitempty"`
 					Age         int    `as:"     ,omitempty"`
+
+					InnerVal Inner `as:"inner,omitempty"`
 				}
 
 				t := &T{
@@ -640,7 +647,7 @@ var _ = Describe("Aerospike", func() {
 
 				rec, err := client.Get(nil, key)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(rec.Bins).To(Equal(as.BinMap{"name": t.Name, "desc": t.Description, "Age": 31}))
+				Expect(rec.Bins).To(Equal(as.BinMap{"name": t.Name, "desc": t.Description, "Age": 31, "inner": map[interface{}]interface{}{"v1": 0, "v2": ""}}))
 
 				key, _ = as.NewKey(ns, set, randString(50))
 
@@ -655,7 +662,7 @@ var _ = Describe("Aerospike", func() {
 
 				rec, err = client.Get(nil, key)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(rec.Bins).To(Equal(as.BinMap{"name": t.Name}))
+				Expect(rec.Bins).To(Equal(as.BinMap{"name": t.Name, "inner": map[interface{}]interface{}{"v1": 0, "v2": ""}}))
 			})
 
 			It("must save an object with the most complex structure possible", func() {
