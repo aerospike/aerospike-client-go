@@ -343,7 +343,7 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 					f.Set(reflect.MakeSlice(reflect.SliceOf(f.Type().Elem()), theArray.Len(), theArray.Len()))
 				} else if f.Len() < theArray.Len() {
 					count := theArray.Len() - f.Len()
-					f = reflect.AppendSlice(f, reflect.MakeSlice(reflect.SliceOf(f.Type().Elem()), count, count))
+					f.Set(reflect.AppendSlice(f, reflect.MakeSlice(reflect.SliceOf(f.Type().Elem()), count, count)))
 				}
 			}
 
