@@ -1,5 +1,13 @@
 # Change History
 
+## June 17 2020: v3.0.1
+
+  Minor bug fix release.
+
+  * **Fixes**
+
+    - Fixes caching of embedded structs with options in alias. Resolves issue #301.
+
 ## June 8 2020: v3.0.0
 
   Major feature release. There are a few minor breaking API changes. See `ClientPolicy`.
