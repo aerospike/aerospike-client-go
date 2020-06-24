@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -1977,5 +1976,5 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 }
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
-	panic(errors.New("Abstract method. Should not end up here"))
+	panic("Abstract method. Should not end up here")
 }

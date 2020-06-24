@@ -1,5 +1,13 @@
 # Change History
 
+## June 24 2020: v3.0.2
+
+  Minor improvement release.
+
+  * **Improvements**
+
+    - Converts a few panics to errors in wire protocol encoding/decoding. Resolves issue #304.
+
 ## June 17 2020: v3.0.1
 
   Minor bug fix release.
