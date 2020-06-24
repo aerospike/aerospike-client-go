@@ -4,6 +4,10 @@
 
   Minor improvement release.
 
+  * **Fixes**
+
+    - Fixes an issue where if a slice was pre-assigned on a struct, the data would not be allocated to it in reflection API. PR #302, thanks to [gdm85](https://github.com/gdm85)
+
   * **Improvements**
 
     - Converts a few panics to errors in wire protocol encoding/decoding. Resolves issue #304.
