@@ -819,6 +819,46 @@ var _ = Describe("Aerospike", func() {
 
 			})
 
+			It("must put and get pre-assigned lists and maps", func() {
+
+				type MyObject struct {
+					List []string
+					Map  map[int]string
+				}
+
+				var t, o1, o2 MyObject
+				o1.List = nil // the default is nil anyways
+				o1.Map = nil  // the default is nil anyways
+
+				o2.List = []string{"Should be overwritten"}
+				o2.Map = map[int]string{666: "Nope"}
+
+				t = MyObject{
+					List: []string{"Apple", "Orange"},
+					Map:  map[int]string{1: "Apple", 2: "Orange"},
+				}
+
+				err := client.PutObject(nil, key, &t)
+				Expect(err).ToNot(HaveOccurred())
+
+				rec, err := client.Get(nil, key)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rec.Bins).To(Equal(as.BinMap{
+					"Map":  map[interface{}]interface{}{1: "Apple", 2: "Orange"},
+					"List": []interface{}{"Apple", "Orange"},
+				}))
+
+				err = client.GetObject(nil, key, &o1)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = client.GetObject(nil, key, &o2)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(o1).To(Equal(o2))
+				Expect(t).To(Equal(o1))
+				Expect(t).To(Equal(o2))
+			})
+
 		}) // PutObject context
 
 		Context("Metadata operations", func() {
