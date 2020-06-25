@@ -515,6 +515,11 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 		time.Sleep(5 * time.Millisecond)
 	}
 
+	// in case the block didn't run at all
+	if err == nil {
+		err = ErrConnectionPoolEmpty
+	}
+
 	return nil, err
 }
 

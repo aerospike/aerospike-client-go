@@ -7,6 +7,7 @@
   * **Fixes**
 
     - Fixes an issue where if a slice was pre-assigned on a struct, the data would not be allocated to it in reflection API. PR #302, thanks to [gdm85](https://github.com/gdm85)
+    - Fixes an issue where `Node.GetConnection()` could in some circumstances return no connection without an `error`.
 
   * **Improvements**
 
