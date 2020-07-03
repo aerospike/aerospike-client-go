@@ -1,5 +1,13 @@
 # Change History
 
+## July 3 2020: v3.0.3
+
+  Minor fix release.
+
+  * **Fixes**
+
+    - Resolves an issue where batch retry could return some nil records in some situations.
+
 ## June 24 2020: v3.0.2
 
   Minor improvement release.
