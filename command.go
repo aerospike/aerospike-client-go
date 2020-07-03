@@ -1806,22 +1806,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 	for {
 		iterations++
 
-		if shouldSleep {
-			aerr, ok := err.(AerospikeError)
-			if !ifc.prepareRetry(ifc, isClientTimeout || (ok && aerr.ResultCode() != SERVER_NOT_AVAILABLE)) {
-				if bc, ok := ifc.(batcher); ok {
-					// Batch may be retried in separate commands.
-					if retry, err := bc.retryBatch(bc, cmd.node.cluster, deadline, iterations, commandSentCounter); retry {
-						// Batch was retried in separate commands. Complete this command.
-						return err
-					}
-				}
-			}
-		}
-
-		// NOTE: This is important to be after the prepareRetry block above
-		isClientTimeout = false
-
 		// too many retries
 		if (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
 			if ae, ok := err.(AerospikeError); ok {
@@ -1843,6 +1827,22 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 				interval = time.Duration(float64(interval) * policy.SleepMultiplier)
 			}
 		}
+
+		if shouldSleep {
+			aerr, ok := err.(AerospikeError)
+			if !ifc.prepareRetry(ifc, isClientTimeout || (ok && aerr.ResultCode() != SERVER_NOT_AVAILABLE)) {
+				if bc, ok := ifc.(batcher); ok {
+					// Batch may be retried in separate commands.
+					if retry, err := bc.retryBatch(bc, cmd.node.cluster, deadline, iterations, commandSentCounter); retry {
+						// Batch was retried in separate commands. Complete this command.
+						return err
+					}
+				}
+			}
+		}
+
+		// NOTE: This is important to be after the prepareRetry block above
+		isClientTimeout = false
 
 		shouldSleep = true
 

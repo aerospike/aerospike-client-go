@@ -3,7 +3,8 @@
 *.coverprofile*
 tools/benchmark/benchmark
 tools/asinfo/asinfo
-tools/debug/
+debug/
 tmp/
 .DS_Store
 TODO
+PLAN.todo
