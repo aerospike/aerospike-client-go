@@ -295,8 +295,8 @@ func (acmd *adminCommand) writeWhitelist(whitelist []string) {
 	comma := false
 	for _, address := range whitelist {
 		if comma {
-			acmd.dataBuffer[acmd.dataOffset] = ','
-			acmd.dataOffset++
+			acmd.dataBuffer[offset] = ','
+			offset++
 		} else {
 			comma = true
 		}
@@ -308,6 +308,7 @@ func (acmd *adminCommand) writeWhitelist(whitelist []string) {
 	acmd.writeFieldHeader(_WHITELIST, size)
 	acmd.dataOffset = offset
 }
+
 func (acmd *adminCommand) writeSize() {
 	// Write total size of message which is the current offset.
 	var size = int64(acmd.dataOffset-8) | (_MSG_VERSION << 56) | (_MSG_TYPE << 48)

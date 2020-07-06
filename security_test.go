@@ -105,8 +105,27 @@ var _ = Describe("Security tests", func() {
 			Expect(roles).To(ContainElement(&as.Role{Name: "data-admin", Privileges: []as.Privilege{{Code: as.DataAdmin, Namespace: "", SetName: ""}}}))
 
 			// Our test Roles
-			Expect(roles).To(ContainElement(&as.Role{Name: "role-read-test-test", Privileges: []as.Privilege{{Code: as.Read, Namespace: ns, SetName: "test"}, {Code: as.ReadWrite, Namespace: ns, SetName: "bar"}}}))
-			Expect(roles).To(ContainElement(&as.Role{Name: "role-write-test", Privileges: []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: ""}}}))
+			Expect(roles).To(ContainElement(&as.Role{Name: "role-read-test-test", Privileges: []as.Privilege{{Code: as.Read, Namespace: ns, SetName: "test"}, {Code: as.ReadWrite, Namespace: ns, SetName: "bar"}}, Whitelist: []string{getOutboundIP().String()}}))
+			Expect(roles).To(ContainElement(&as.Role{Name: "role-write-test", Privileges: []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: ""}}, Whitelist: []string{getOutboundIP().String()}}))
+		})
+
+		It("Must set and query Whitelist for Roles Perfectly", func() {
+			defer client.DropRole(nil, "whitelist-test")
+
+			err = client.CreateRole(nil, "whitelist-test", []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}, []string{})
+			Expect(err).ToNot(HaveOccurred())
+
+			time.Sleep(time.Second)
+
+			err = client.SetWhitelist(nil, "whitelist-test", []string{getOutboundIP().String()})
+			Expect(err).ToNot(HaveOccurred())
+
+			time.Sleep(time.Second)
+
+			role, err := client.QueryRole(nil, "whitelist-test")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(role).To(Equal(&as.Role{Name: "whitelist-test", Privileges: []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}, Whitelist: []string{getOutboundIP().String()}}))
 		})
 
 		It("Must query User Roles Perfectly", func() {
