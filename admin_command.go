@@ -177,7 +177,7 @@ func (acmd *adminCommand) setWhitelist(cluster *Cluster, policy *AdminPolicy, ro
 	if len(whitelist) > 0 {
 		fieldCount++
 	}
-	acmd.writeHeader(_REVOKE_PRIVILEGES, fieldCount)
+	acmd.writeHeader(_SET_WHITELIST, fieldCount)
 	acmd.writeFieldStr(_ROLE, roleName)
 	if len(whitelist) > 0 {
 		acmd.writeWhitelist(whitelist)
@@ -616,7 +616,7 @@ func (acmd *adminCommand) parseRolesFull(receiveSize int) (int, []*Role, error) 
 			} else if id == _PRIVILEGES {
 				acmd.parsePrivileges(role)
 			} else if id == _WHITELIST {
-				acmd.parseWhitelist(len)
+				role.Whitelist = acmd.parseWhitelist(len)
 			} else {
 				acmd.dataOffset += len
 			}
