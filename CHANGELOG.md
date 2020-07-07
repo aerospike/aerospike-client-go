@@ -1,5 +1,14 @@
 # Change History
 
+## July 7 2020: v3.0.4
+
+  Minor fix release.
+
+  * **Fixes**
+
+    - Fixes `Client.SetWhitelist` API.
+    - Fixes an issue where `Whilelist` was not set during `QueryRole`.
+
 ## July 3 2020: v3.0.3
 
   Minor fix release.
@@ -15,7 +24,7 @@
   * **Fixes**
 
     - Fixes an issue where if a slice was pre-assigned on a struct, the data would not be allocated to it in reflection API. PR #302, thanks to [gdm85](https://github.com/gdm85)
-    - Fixes an issue where `Node.GetConnection()` could in some circumstances return no connection without an `error`.
+    - Fixes an issue where `Node.GetConnection()` could in rare circumstances return no connection without an `error`. This would potentially cause a panic in VERY slow production servers.
 
   * **Improvements**
 
