@@ -407,7 +407,7 @@ func ResultCodeToString(resultCode ResultCode) string {
 		return "Namespace not found"
 
 	case BIN_NAME_TOO_LONG:
-		return "Bin name length greater than 14 characters, or maximum number of unique bin names are exceeded"
+		return "Bin name length greater than 15 characters, or maximum number of unique bin names are exceeded"
 
 	case FAIL_FORBIDDEN:
 		return "Operation not allowed at this time"
