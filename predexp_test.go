@@ -86,8 +86,8 @@ var _ = Describe("predexp operations", func() {
 			key, err := as.NewKey(ns, set, ii)
 			Expect(err).ToNot(HaveOccurred())
 
-			lng := -122.0 + (0.1 * float64(ii))
-			lat := 37.5 + (0.1 * float64(ii))
+			lng := -122.0 + (0.01 * float64(ii))
+			lat := 37.5 + (0.01 * float64(ii))
 			pointstr := fmt.Sprintf(
 				"{ \"type\": \"Point\", \"coordinates\": [%f, %f] }",
 				lng, lat)
@@ -128,6 +128,7 @@ var _ = Describe("predexp operations", func() {
 				"ballast": ballast,
 			}
 			err = client.Put(wpolicy, key, bins)
+			Expect(err).ToNot(HaveOccurred())
 		}
 
 		idxTask, err := client.CreateIndex(wpolicy, ns, set, "intval", "intval", as.NUMERIC)
@@ -336,11 +337,8 @@ var _ = Describe("predexp operations", func() {
 			cnt++
 		}
 
-		// Correct answer is 6.  See:
-		// aerospike-client-c/src/test/aerospike_geo/query_geospatial.c:
-		// predexp_points_within_region
-
-		Expect(cnt).To(BeNumerically("==", 6))
+		// Correct answer is 59.
+		Expect(cnt).To(BeNumerically("==", 59))
 	})
 
 	It("predexp geo RCP query must work", func() {
