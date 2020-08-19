@@ -2,13 +2,13 @@
 
 [![Aerospike Client Go](https://goreportcard.com/badge/github.com/aerospike/aerospike-client-go)](https://goreportcard.com/report/github.com/aerospike/aerospike-client-go)
 [![Build Status](https://travis-ci.org/aerospike/aerospike-client-go.svg?branch=master)](https://travis-ci.org/aerospike/aerospike-client-go)
-[![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](http://godoc.org/github.com/aerospike/aerospike-client-go)
+[![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go)
 
 An Aerospike library for Go.
 
 This library is compatible with Go 1.9+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
 
-Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](http://godoc.org/github.com/aerospike/aerospike-client-go).
+Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go).
 
 You can refer to the test files for idiomatic use cases.
 
@@ -169,7 +169,7 @@ See the [`tools/benchmark/README.md`](tools/benchmark/README.md) for details.
 <a name="API-Documentation"></a>
 ## API Documentation
 
-A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](http://godoc.org/github.com/aerospike/aerospike-client-go).
+A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go).
 
 <a name="App-Engine"></a>
 ## Google App Engine

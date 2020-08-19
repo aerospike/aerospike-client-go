@@ -373,7 +373,7 @@ func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessio
 }
 
 // Login will send authentication information to the server.
-// This function is provided for using the connection in conjuction with external libraries.
+// This function is provided for using the connection in conjunction with external libraries.
 // The password will be hashed everytime, which is a slow operation.
 func (ctn *Connection) Login(policy *ClientPolicy) error {
 	if !policy.RequiresAuthentication() {
