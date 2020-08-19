@@ -1,5 +1,15 @@
 # Change History
 
+## August 19 2020: v3.0.5
+
+  Minor fix release.
+
+  * **Fixes**
+
+    - Corrects the maximum bin name size in error message.
+    - Fixes geo coordinates in predexp tests due to more strict server validation.
+    - Fixes misspelled words and doc links. PR #311, thanks to [Abhay](https://github.com/pnutmath)
+
 ## July 7 2020: v3.0.4
 
   Minor fix release.
