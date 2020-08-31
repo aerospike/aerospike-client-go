@@ -87,11 +87,8 @@ Includes All Base Policy attributes, plus:
                            the expected generation would be 0
                            * Default: `0`
 - `Expiration`             – Record expiration. Also known as ttl (time to live). Seconds record will live before being removed by the server.
-                           Expiration values:
-                           * -1: Never expire for Aerospike 2 server versions >= 2.7.2 and Aerospike 3 server versions >= 3.1.4. Do not use -1 for older servers.
-                           * 0: Default to namespace configuration variable "default-ttl" on the server.
-                           * > 0: Actual expiration in seconds.
-                           * Default: `0`
+                           For values, see [Expiration Values](policies.md#expiration).
+                           * Default: `Expiration.TTLServerDefault`
 
 
 <!--
@@ -165,10 +162,6 @@ Writes a record, ONLY if generations are equal.
 
 Writes a record, ONLY if local generation is greater-than remote generation.
 
-#### DUPLICATE
-
-Writes a record creating a duplicate, ONLY if the generation collides.
-
 <!--
 ################################################################################
 exists
@@ -230,3 +223,28 @@ priority
 
 #### HIGH
   Run the database operation at the highest priority.
+
+<!--
+################################################################################
+expiration
+################################################################################
+-->
+<a name="expiration"></a>
+
+### Expiration Values
+
+#### TTLServerDefault
+  Default to namespace configuration variable "default-ttl" on the server.
+
+#### TTLDontExpire
+  Never expire.
+
+  Supported by Aerospike 2 server versions >= 2.7.2 and Aerospike 3+ server.
+
+#### TTLDontUpdate
+  Do not change ttl when record is written.
+
+  Supported by Aerospike server versions >= 3.10.1.
+
+####  > 0
+  Actual expiration in seconds.
