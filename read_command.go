@@ -132,6 +132,10 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 28))
 	receiveSize := int((sz & 0xFFFFFFFFFFFF) - int64(headerLength))
 
+	if receiveSize > MaxBufferSize {
+		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Receive size %d is bigger than the max buffer size %d for key `%s`", receiveSize, MaxBufferSize, cmd.key.String()))
+	}
+
 	// Read remaining message bytes.
 	if receiveSize > 0 {
 		if err = cmd.sizeBufferSz(receiveSize, false); err != nil {
@@ -224,9 +228,19 @@ func (cmd *readCommand) parseRecord(
 		name := string(cmd.dataBuffer[receiveOffset+8 : receiveOffset+8+nameSize])
 		receiveOffset += 4 + 4 + nameSize
 
+		if receiveOffset > MaxBufferSize || receiveOffset > len(cmd.dataBuffer) {
+			estr := fmt.Sprintf("Receive offset %d is bigger than the max buffer size %d for key `%s`", receiveOffset, MaxBufferSize, cmd.key.String())
+			return nil, NewAerospikeError(PARSE_ERROR, estr)
+		}
+
 		particleBytesSize := opSize - (4 + nameSize)
 		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
 		receiveOffset += particleBytesSize
+
+		if receiveOffset > MaxBufferSize || receiveOffset > len(cmd.dataBuffer) {
+			estr := fmt.Sprintf("Receive offset %d is bigger than the max buffer size %d for key `%s`", receiveOffset, MaxBufferSize, cmd.key.String())
+			return nil, NewAerospikeError(PARSE_ERROR, estr)
+		}
 
 		if bins == nil {
 			bins = make(BinMap, opCount)
