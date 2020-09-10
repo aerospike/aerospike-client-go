@@ -63,7 +63,6 @@ type Node struct {
 	referenceCount      AtomicInt
 	failures            AtomicInt
 	partitionChanged    AtomicBool
-	performLogin        AtomicBool
 
 	active AtomicBool
 
@@ -768,18 +767,25 @@ func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) (err error)
 // initTendConn sets up a connection to be used for info requests.
 // The same connection will be used for tend.
 func (nd *Node) initTendConn(timeout time.Duration) error {
-	var deadline time.Time
-	if timeout > 0 {
-		deadline = time.Now().Add(timeout)
+	if timeout <= 0 {
+		timeout = _DEFAULT_TIMEOUT
 	}
+	deadline := time.Now().Add(timeout)
 
 	if nd.tendConn == nil || !nd.tendConn.IsConnected() {
-		// Tend connection required a long timeout
-		tendConn, err := nd.GetConnection(time.Second)
+		var tendConn *Connection
+		var err error
+		if nd.connectionCount.Get() == 0 {
+			// if there are no connections in the pool, create a new connection synchronously.
+			// this will make sure the initial tend will get a connection without multiple retries.
+			tendConn, err = nd.newConnection(true)
+		} else {
+			tendConn, err = nd.GetConnection(timeout)
+		}
+
 		if err != nil {
 			return err
 		}
-
 		nd.tendConn = tendConn
 	}
 

@@ -1,5 +1,13 @@
 # Change History
 
+## September 10 2020: v3.1.0
+
+  Minor fix release.
+
+  * **Fixes**
+
+    - Fixes an issue where initial tend was not adhering to the `ClientPolicy.Timeout`
+
 ## August 19 2020: v3.0.5
 
   Minor fix release.
