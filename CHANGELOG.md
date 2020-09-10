@@ -6,7 +6,7 @@
 
   * **Fixes**
 
-    - Fixes an issue where initial tend was not adhering to the `ClientPolicy.Timeout`
+    - Fixes an issue where initial tend was not adhering to the `ClientPolicy.Timeout`. (CLIENT-1344)
 
 ## August 19 2020: v3.0.5
 
