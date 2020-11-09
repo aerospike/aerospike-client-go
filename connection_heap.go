@@ -67,16 +67,15 @@ func (h *singleConnectionHeap) cleanup() {
 // and false will be returned
 func (h *singleConnectionHeap) Offer(conn *Connection) bool {
 	h.mutex.Lock()
+	defer h.mutex.Unlock()
 	// make sure heap is not full
 	if h.full {
-		h.mutex.Unlock()
 		return false
 	}
 
 	h.head = (h.head + 1) % h.size
 	h.full = (h.head == h.tail)
 	h.data[h.head] = conn
-	h.mutex.Unlock()
 	return true
 }
 
@@ -84,7 +83,7 @@ func (h *singleConnectionHeap) Offer(conn *Connection) bool {
 // If the heap is empty, nil will be returned.
 func (h *singleConnectionHeap) Poll() (res *Connection) {
 	h.mutex.Lock()
-
+	defer h.mutex.Unlock()
 	// the heap has been cleaned up
 	if h.data == nil {
 		return nil
@@ -102,8 +101,6 @@ func (h *singleConnectionHeap) Poll() (res *Connection) {
 			h.head--
 		}
 	}
-
-	h.mutex.Unlock()
 	return res
 }
 
@@ -136,6 +133,7 @@ func (h *singleConnectionHeap) DropIdleTail() bool {
 func (h *singleConnectionHeap) Len() int {
 	cnt := 0
 	h.mutex.Lock()
+	defer h.mutex.Unlock()
 
 	if !h.full {
 		if h.head >= h.tail {
@@ -146,7 +144,6 @@ func (h *singleConnectionHeap) Len() int {
 	} else {
 		cnt = int(h.size)
 	}
-	h.mutex.Unlock()
 	return cnt
 }
 
