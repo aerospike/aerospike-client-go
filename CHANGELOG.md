@@ -9,6 +9,10 @@
     - Handle cleanup cases in `Offer` and `DropIdleTail` for `singleConnectionHeap`. (Github #318)
     - Unlock the mutex in `singleConnectionHeap.Poll` if called after cleanup. (Github #323) thanks to [linchuan4028](https://github.com/linchuan4028)
 
+  * **Changes**
+
+    - Removes support for versions prior to Go v1.12 due to incompatibility in the testing library we use. Go v1.9+ should still work, though they will not be tested in our tests.
+
 ## September 10 2020: v3.1.0
 
   Minor fix release.
