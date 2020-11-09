@@ -1,5 +1,14 @@
 # Change History
 
+## November 9 2020: v3.1.1
+
+  Hotfix release. We recommend upgrading to this version, or cherry-picking the changeset to your vendored version if possible.
+
+  * **Fixes**
+
+    - Handle cleanup cases in `Offer` and `DropIdleTail` for `singleConnectionHeap`. (Github #318)
+    - Unlock the mutex in `singleConnectionHeap.Poll` if called after cleanup. (Github #323) thanks to [linchuan4028](https://github.com/linchuan4028)
+
 ## September 10 2020: v3.1.0
 
   Minor fix release.
