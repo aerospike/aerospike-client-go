@@ -86,7 +86,8 @@ func (h *singleConnectionHeap) Poll() (res *Connection) {
 	h.mutex.Lock()
 
 	// the heap has been cleaned up
-	if h.data == nil {
+	if len(h.data) == 0 {
+		h.mutex.Unlock()
 		return nil
 	}
 
