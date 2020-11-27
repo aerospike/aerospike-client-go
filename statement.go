@@ -103,6 +103,8 @@ func (stmt *Statement) SetFilter(filter *Filter) error {
 //   NewPredExpLastUpdate(),
 //   NewPredExpIntegerGreater(),
 // );
+// NOTE: This feature is deprecated on Aerospike servers and will be removed in the future.
+// It has been replaced by FilterExpressions.
 func (stmt *Statement) SetPredExp(predexp ...PredExp) error {
 	stmt.predExps = predexp
 	return nil

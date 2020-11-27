@@ -382,6 +382,28 @@ func packString(cmd BufferEx, val string) (int, error) {
 	return size, nil
 }
 
+func packRawString(cmd BufferEx, val string) (int, error) {
+	size := 0
+	slen := len(val)
+	n, err := packByteArrayBegin(cmd, slen)
+	if err != nil {
+		return n, err
+	}
+	size += n
+
+	if cmd != nil {
+		n, err = cmd.WriteString(val)
+		if err != nil {
+			return size + n, err
+		}
+		size += n
+	} else {
+		size += len(val)
+	}
+
+	return size, nil
+}
+
 func packGeoJson(cmd BufferEx, val string) (int, error) {
 	size := 0
 	slen := len(val) + 1

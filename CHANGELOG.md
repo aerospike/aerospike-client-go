@@ -1,5 +1,23 @@
 # Change History
 
+## November 27 2020: v4.0.0
+
+  Major feature release. Deprecates `PredExp` filters and replaces them with the far more capable Expressions.
+
+  * **New Features**:
+
+    - [CLIENT-1361] Replace predicate filters with new Aerospike Expressions.
+
+  * **Fixes**
+
+    - Allows unmarshalling of bool fields to sub objects in reflection API. (Github #325)
+    - Fixes an issue where BatchIndexGet commands were not retried in some circumstances.
+
+  * **Incompatible changes**:
+
+    - Changes the `BitResizeFlagsXXX` enum types to  `BitResizeFlags` type. This should not affect any code if the enums were used.
+    - Changes the `ListSortFlagsXXX` enum types to`ListSortFlags` are now typed. This should not affect any code if the enums were used.
+
 ## November 9 2020: v3.1.1
 
   Hotfix release. We recommend upgrading to this version, or cherry-picking the changeset to your vendored version if possible.

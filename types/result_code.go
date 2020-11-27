@@ -145,7 +145,7 @@ const (
 	// The operation cannot be applied to the current bin value on the server.
 	OP_NOT_APPLICABLE ResultCode = 26
 
-	// The transaction was not performed because the predexp was false.
+	// The transaction was not performed because the filter was false.
 	FILTERED_OUT ResultCode = 27
 
 	// There are no more records left for query.
@@ -425,7 +425,7 @@ func ResultCodeToString(resultCode ResultCode) string {
 		return "Operation not applicable"
 
 	case FILTERED_OUT:
-		return "Transaction filtered out by predexp"
+		return "Transaction filtered out"
 
 	case QUERY_END:
 		return "Query end"
