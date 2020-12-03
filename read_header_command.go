@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"context"
+
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -97,6 +99,6 @@ func (cmd *readHeaderCommand) GetRecord() *Record {
 	return cmd.record
 }
 
-func (cmd *readHeaderCommand) Execute() error {
-	return cmd.execute(cmd, true)
+func (cmd *readHeaderCommand) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, true)
 }

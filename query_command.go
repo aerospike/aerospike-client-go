@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "context"
+
 type queryCommand struct {
 	baseMultiCommand
 
@@ -46,9 +48,9 @@ func (cmd *queryCommand) parseResult(ifc command, conn *Connection) error {
 }
 
 // Execute will run the query.
-func (cmd *queryCommand) Execute() error {
+func (cmd *queryCommand) Execute(ctx context.Context) error {
 	defer cmd.recordset.signalEnd()
-	err := cmd.execute(cmd, true)
+	err := cmd.execute(ctx, cmd, true)
 	if err != nil {
 		cmd.recordset.sendError(err)
 	}

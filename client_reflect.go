@@ -17,6 +17,7 @@
 package aerospike
 
 import (
+	"context"
 	"errors"
 	"reflect"
 
@@ -46,7 +47,7 @@ import (
 // Tag `asm:` denotes Aerospike Meta fields, and includes ttl and generation values.
 // If a tag is marked with `-`, it will not be sent to the database at all.
 // Note: Tag `as` can be replaced with any other user-defined tag via the function `SetAerospikeTag`.
-func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err error) {
+func (clnt *Client) PutObject(ctx context.Context, policy *WritePolicy, key *Key, obj interface{}) (err error) {
 	policy = clnt.getUsableWritePolicy(policy)
 
 	binMap := marshal(obj, clnt.cluster.supportsFloat.Get())
@@ -55,14 +56,14 @@ func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (e
 		return err
 	}
 
-	res := command.Execute()
+	res := command.Execute(ctx)
 	return res
 }
 
 // GetObject reads a record for specified key and puts the result into the provided object.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) error {
+func (clnt *Client) GetObject(ctx context.Context, policy *BasePolicy, key *Key, obj interface{}) error {
 	policy = clnt.getUsablePolicy(policy)
 
 	rval := reflect.ValueOf(obj)
@@ -74,7 +75,7 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 	}
 
 	command.object = &rval
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 // BatchGetObject reads multiple record headers and bins for specified keys in one batch request.
@@ -82,7 +83,7 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 // If a key is not found, the positional object will not change, and the positional found boolean will be false.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err error) {
+func (clnt *Client) BatchGetObjects(ctx context.Context, policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err error) {
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	// check the size of  key and objects
@@ -118,7 +119,7 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 		return nil, err
 	}
 
-	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
+	err, filteredOut := clnt.batchExecute(ctx, policy, batchNodes, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 // If the policy's concurrentNodes is specified, each server node will be read in
 // parallel. Otherwise, server nodes are read sequentially.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
+func (clnt *Client) ScanAllObjects(ctx context.Context, apolicy *ScanPolicy, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
@@ -164,7 +165,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 		for _, node := range nodes {
 			go func(node *Node, first bool) {
 				// Errors are handled inside the command itself
-				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskID, clusterKey, first, binNames...)
+				clnt.scanNodeObjects(ctx, &policy, node, res, namespace, setName, taskID, clusterKey, first, binNames...)
 			}(node, first.CompareAndToggle(true))
 		}
 	} else {
@@ -172,7 +173,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 		go func() {
 			for _, node := range nodes {
 				// Errors are handled inside the command itself
-				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskID, clusterKey, first.CompareAndToggle(true), binNames...)
+				clnt.scanNodeObjects(ctx, &policy, node, res, namespace, setName, taskID, clusterKey, first.CompareAndToggle(true), binNames...)
 			}
 		}()
 	}
@@ -185,7 +186,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 // If the policy is nil, the default relevant policy will be used.
 // The resulting records will be marshalled into the objChan.
 // objChan will be closed after all the records are read.
-func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
+func (clnt *Client) ScanNodeObjects(ctx context.Context, apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	clusterKey := int64(0)
@@ -203,16 +204,16 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 		objectset: *newObjectset(reflect.ValueOf(objChan), 1, taskID),
 	}
 
-	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskID, clusterKey, true, binNames...)
+	go clnt.scanNodeObjects(ctx, &policy, node, res, namespace, setName, taskID, clusterKey, true, binNames...)
 	return res, nil
 }
 
 // scanNodeObjects reads all records in specified namespace and set for one node only,
 // and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, clusterKey int64, first bool, binNames ...string) error {
+func (clnt *Client) scanNodeObjects(ctx context.Context, policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, clusterKey int64, first bool, binNames ...string) error {
 	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset, taskID, clusterKey, first)
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 // QueryNodeObjects executes a query on all nodes in the cluster and marshals the records into the given channel.
@@ -221,7 +222,7 @@ func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *R
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, error) {
+func (clnt *Client) QueryObjects(ctx context.Context, policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	nodes := clnt.cluster.GetNodes()
@@ -253,7 +254,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 		command := newQueryObjectsCommand(node, &newPolicy, statement, recSet, clusterKey, first.CompareAndToggle(true))
 		go func() {
 			// Do not send the error to the channel; it is already handled in the Execute method
-			command.Execute()
+			command.Execute(ctx)
 		}()
 	}
 
@@ -265,7 +266,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, error) {
+func (clnt *Client) QueryNodeObjects(ctx context.Context, policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	// results channel must be async for performance
@@ -286,7 +287,7 @@ func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement 
 	newPolicy := *policy
 	command := newQueryRecordCommand(node, &newPolicy, statement, recSet, clusterKey, true)
 	go func() {
-		command.Execute()
+		command.Execute(ctx)
 	}()
 
 	return recSet, nil

@@ -1,5 +1,21 @@
 # Change History
 
+## December 3, 2020: v4.1.0
+
+  Minor feature release. Adding context to the Execute command to be able to capture opencensus metrics.
+
+  * **New Features**:
+
+    - Updated all Execute commands to take in a context. 
+    - Updated Execute to record latency of executed statement.
+    - Updated Query and PutBins to be automatically add method name to the measurement.
+    - Added instanceName to client stuct which can be set by using client.SetInstance(name sting)
+    - Instance name will be added to the context only if it is set.
+
+  * **Incompatible changes**: 
+    - Any calls that use the Execute command will now need to supply a context.
+  
+
 ## November 27 2020: v4.0.0
 
   Major feature release. Deprecates `PredExp` filters and replaces them with the far more capable Expressions.

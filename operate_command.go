@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "context"
+
 type operateCommand struct {
 	readCommand
 
@@ -75,8 +77,8 @@ func (cmd *operateCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
-func (cmd *operateCommand) Execute() error {
-	return cmd.execute(cmd, !cmd.hasWrite)
+func (cmd *operateCommand) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, !cmd.hasWrite)
 }
 
 func hasWriteOp(operations []*Operation) bool {

@@ -17,6 +17,7 @@ package aerospike
 import (
 	"bytes"
 	"compress/zlib"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ import (
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 
+	"github.com/aerospike/aerospike-client-go/internal/metrics/metrics"
 	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -117,11 +119,11 @@ type command interface {
 	parseRecordResults(ifc command, receiveSize int) (bool, error)
 	prepareRetry(ifc command, isTimeout bool) bool
 
-	execute(ifc command, isRead bool) error
-	executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) error
+	execute(ctx context.Context, ifc command, isRead bool) error
+	executeAt(ctx context.Context, ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) error
 
 	// Executes the command
-	Execute() error
+	Execute(ctx context.Context) error
 }
 
 // Holds data buffer for the command
@@ -1962,19 +1964,25 @@ func setInDoubt(err error, isRead bool, commandSentCounter int) error {
 	return err
 }
 
-func (cmd *baseCommand) execute(ifc command, isRead bool) error {
+func (cmd *baseCommand) execute(ctx context.Context, ifc command, isRead bool) error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	deadline := policy.deadline()
 
-	return cmd.executeAt(ifc, policy, isRead, deadline, -1, 0)
+	return cmd.executeAt(ctx, ifc, policy, isRead, deadline, -1, 0)
 }
 
-func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) (err error) {
+func (cmd *baseCommand) executeAt(ctx context.Context, ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) (err error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
 	shouldSleep := false
 	isClientTimeout := false
+
+	// Record the latency of call and report any errors by passing err.
+	recordFunc := metrics.RecordCall(ctx)
+	defer func() {
+		recordFunc(err)
+	}()
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
@@ -2007,7 +2015,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			if !ifc.prepareRetry(ifc, isClientTimeout || (ok && aerr.ResultCode() != SERVER_NOT_AVAILABLE)) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
-					if retry, err := bc.retryBatch(bc, cmd.node.cluster, deadline, iterations, commandSentCounter); retry {
+					if retry, err := bc.retryBatch(ctx, bc, cmd.node.cluster, deadline, iterations, commandSentCounter); retry {
 						// Batch was retried in separate commands. Complete this command.
 						return err
 					}

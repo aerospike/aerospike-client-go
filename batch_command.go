@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"context"
 	"time"
 )
 
@@ -24,7 +25,7 @@ type batcher interface {
 	cloneBatchCommand(batch *batchNode) batcher
 	filteredOut() int
 
-	retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration, commandSentCounter int) (bool, error)
+	retryBatch(ctx context.Context, ifc batcher, cluster *Cluster, deadline time.Time, iteration, commandSentCounter int) (bool, error)
 	generateBatchNodes(*Cluster) ([]*batchNode, error)
 	setSequence(int, int)
 }
@@ -54,7 +55,7 @@ func (cmd *batchCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return false
 }
 
-func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration, commandSentCounter int) (bool, error) {
+func (cmd *batchCommand) retryBatch(ctx context.Context, ifc batcher, cluster *Cluster, deadline time.Time, iteration, commandSentCounter int) (bool, error) {
 	// Retry requires keys for this node to be split among other nodes.
 	// This is both recursive and exponential.
 	batchNodes, err := ifc.generateBatchNodes(cluster)
@@ -72,7 +73,7 @@ func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time
 	for _, batchNode := range batchNodes {
 		command := ifc.cloneBatchCommand(batchNode)
 		command.setSequence(cmd.sequenceAP, cmd.sequenceSC)
-		if err := command.executeAt(command, cmd.policy.GetBasePolicy(), true, deadline, iteration, commandSentCounter); err != nil {
+		if err := command.executeAt(ctx, command, cmd.policy.GetBasePolicy(), true, deadline, iteration, commandSentCounter); err != nil {
 			if !cmd.policy.AllowPartialResults {
 				return false, err
 			}
@@ -91,8 +92,8 @@ func (cmd *batchCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *batchCommand) Execute() error {
-	return cmd.execute(cmd, true)
+func (cmd *batchCommand) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, true)
 }
 
 func (cmd *batchCommand) filteredOut() int {

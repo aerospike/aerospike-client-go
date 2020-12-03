@@ -14,7 +14,11 @@
 
 package aerospike
 
-import . "github.com/aerospike/aerospike-client-go/types"
+import (
+	"context"
+
+	. "github.com/aerospike/aerospike-client-go/types"
+)
 
 type queryObjectsCommand struct {
 	queryCommand
@@ -30,9 +34,9 @@ func newQueryObjectsCommand(node *Node, policy *QueryPolicy, statement *Statemen
 	return cmd
 }
 
-func (cmd *queryObjectsCommand) Execute() error {
+func (cmd *queryObjectsCommand) Execute(ctx context.Context) error {
 	defer cmd.recordset.signalEnd()
-	err := cmd.execute(cmd, true)
+	err := cmd.execute(ctx, cmd, true)
 	if err != nil {
 		cmd.recordset.sendError(err)
 	}

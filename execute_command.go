@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "context"
+
 type executeCommand struct {
 	readCommand
 
@@ -64,6 +66,6 @@ func (cmd *executeCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
-func (cmd *executeCommand) Execute() error {
-	return cmd.execute(cmd, false)
+func (cmd *executeCommand) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, false)
 }

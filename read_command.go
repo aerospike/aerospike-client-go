@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
@@ -264,6 +265,6 @@ func (cmd *readCommand) GetRecord() *Record {
 	return cmd.record
 }
 
-func (cmd *readCommand) Execute() error {
-	return cmd.execute(cmd, true)
+func (cmd *readCommand) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, true)
 }

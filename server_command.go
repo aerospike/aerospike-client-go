@@ -18,6 +18,8 @@ import (
 	// "fmt"
 
 	// . "github.com/aerospike/aerospike-client-go/logger"
+	"context"
+
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -85,6 +87,6 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 	return true, nil
 }
 
-func (cmd *serverCommand) Execute() error {
-	return cmd.execute(cmd, false)
+func (cmd *serverCommand) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, false)
 }

@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"context"
 	"reflect"
 
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -225,8 +226,8 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expir
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
-func (cmd *batchCommandGet) Execute() error {
-	return cmd.execute(cmd, true)
+func (cmd *batchCommandGet) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, true)
 }
 
 func (cmd *batchCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, error) {

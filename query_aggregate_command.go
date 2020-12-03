@@ -17,6 +17,7 @@
 package aerospike
 
 import (
+	"context"
 	"fmt"
 
 	. "github.com/aerospike/aerospike-client-go/types"
@@ -41,9 +42,9 @@ func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statem
 	return cmd
 }
 
-func (cmd *queryAggregateCommand) Execute() error {
+func (cmd *queryAggregateCommand) Execute(ctx context.Context) error {
 	// defer cmd.recordset.signalEnd()
-	err := cmd.execute(cmd, true)
+	err := cmd.execute(ctx, cmd, true)
 	if err != nil {
 		cmd.recordset.sendError(err)
 	}

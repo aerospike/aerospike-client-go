@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"bytes"
+	"context"
 
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -119,8 +120,8 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 	return true, nil
 }
 
-func (cmd *batchCommandExists) Execute() error {
-	return cmd.execute(cmd, true)
+func (cmd *batchCommandExists) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, true)
 }
 
 func (cmd *batchCommandExists) generateBatchNodes(cluster *Cluster) ([]*batchNode, error) {

@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"time"
@@ -336,7 +337,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 	return true, nil
 }
 
-func (cmd *baseMultiCommand) execute(ifc command, isRead bool) error {
+func (cmd *baseMultiCommand) execute(ctx context.Context, ifc command, isRead bool) error {
 
 	/***************************************************************************
 	IMPORTANT: 	No need to send the error here to the recordset.Error channel.
@@ -351,12 +352,12 @@ func (cmd *baseMultiCommand) execute(ifc command, isRead bool) error {
 			}
 		}
 
-		if err := cmd.baseCommand.execute(ifc, isRead); err != nil {
+		if err := cmd.baseCommand.execute(ctx, ifc, isRead); err != nil {
 			return err
 		}
 
 		return queryValidate(cmd.node, cmd.namespace, cmd.clusterKey)
 	}
 
-	return cmd.baseCommand.execute(ifc, isRead)
+	return cmd.baseCommand.execute(ctx, ifc, isRead)
 }

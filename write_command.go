@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"context"
+
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -101,6 +103,6 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {
 	return nil
 }
 
-func (cmd *writeCommand) Execute() error {
-	return cmd.execute(cmd, false)
+func (cmd *writeCommand) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, false)
 }

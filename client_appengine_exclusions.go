@@ -17,6 +17,7 @@
 package aerospike
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -43,7 +44,7 @@ func SetLuaPath(lpath string) {
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, error) {
+func (clnt *Client) QueryAggregate(ctx context.Context, policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, error) {
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, true)
 
 	policy = clnt.getUsableQueryPolicy(policy)
@@ -92,7 +93,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 
 		go func() {
 			defer wg.Done()
-			command.Execute()
+			command.Execute(ctx)
 		}()
 	}
 

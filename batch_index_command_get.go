@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "context"
+
 type batchIndexCommandGet struct {
 	batchCommandGet
 }
@@ -55,8 +57,8 @@ func (cmd *batchIndexCommandGet) writeBuffer(ifc command) error {
 	return cmd.setBatchIndexRead(cmd.policy, cmd.indexRecords, cmd.batch)
 }
 
-func (cmd *batchIndexCommandGet) Execute() error {
-	return cmd.execute(cmd, true)
+func (cmd *batchIndexCommandGet) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, true)
 }
 
 func (cmd *batchIndexCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, error) {

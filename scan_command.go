@@ -14,7 +14,11 @@
 
 package aerospike
 
-import . "github.com/aerospike/aerospike-client-go/types"
+import (
+	"context"
+
+	. "github.com/aerospike/aerospike-client-go/types"
+)
 
 type scanCommand struct {
 	baseMultiCommand
@@ -63,9 +67,9 @@ func (cmd *scanCommand) parseResult(ifc command, conn *Connection) error {
 	return cmd.baseMultiCommand.parseResult(cmd, conn)
 }
 
-func (cmd *scanCommand) Execute() error {
+func (cmd *scanCommand) Execute(ctx context.Context) error {
 	defer cmd.recordset.signalEnd()
-	err := cmd.execute(cmd, true)
+	err := cmd.execute(ctx, cmd, true)
 	if err != nil {
 		cmd.recordset.sendError(err)
 	}

@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"context"
 	"fmt"
 
 	. "github.com/aerospike/aerospike-client-go/logger"
@@ -128,6 +129,6 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 	return nil
 }
 
-func (cmd *touchCommand) Execute() error {
-	return cmd.execute(cmd, false)
+func (cmd *touchCommand) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, false)
 }

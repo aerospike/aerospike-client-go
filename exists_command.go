@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"context"
+
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -97,6 +99,6 @@ func (cmd *existsCommand) Exists() bool {
 	return cmd.exists
 }
 
-func (cmd *existsCommand) Execute() error {
-	return cmd.execute(cmd, true)
+func (cmd *existsCommand) Execute(ctx context.Context) error {
+	return cmd.execute(ctx, cmd, true)
 }

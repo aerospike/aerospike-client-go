@@ -31,6 +31,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	. "github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/internal/metrics/metrics"
 	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	xornd "github.com/aerospike/aerospike-client-go/types/rand"
@@ -40,6 +41,9 @@ import (
 // All database operations are available against this object.
 type Client struct {
 	cluster *Cluster
+
+	// InstanceName is used to record the name of the instance in the collected metrics.
+	instanceName string
 
 	// DefaultPolicy is used for all read commands without a specific policy.
 	DefaultPolicy *BasePolicy
@@ -106,6 +110,11 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 
 }
 
+// SetInstance sets the name of the client in the instance that multiple clusters are used.
+func (clnt *Client) SetInstance(name string) {
+	clnt.instanceName = name
+}
+
 //-------------------------------------------------------
 // Cluster Connection Management
 //-------------------------------------------------------
@@ -144,14 +153,14 @@ func (clnt *Client) GetNodeNames() []string {
 // The policy specifies the transaction timeout, record expiration and how the transaction is
 // handled when the record already exists.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) Put(policy *WritePolicy, key *Key, binMap BinMap) error {
+func (clnt *Client) Put(ctx context.Context, policy *WritePolicy, key *Key, binMap BinMap) error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _WRITE)
 	if err != nil {
 		return err
 	}
 
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 // PutBins writes record bin(s) to the server.
@@ -159,14 +168,18 @@ func (clnt *Client) Put(policy *WritePolicy, key *Key, binMap BinMap) error {
 // handled when the record already exists.
 // This method avoids using the BinMap allocation and iteration and is lighter on GC.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
+func (clnt *Client) PutBins(ctx context.Context, policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newWriteCommand(clnt.cluster, policy, key, bins, nil, _WRITE)
 	if err != nil {
 		return err
 	}
-
-	return command.Execute()
+	// Add the method to the context to be recorded.
+	ctx = metrics.WithMethod(ctx, "PutBins")
+	if clnt.instanceName != "" {
+		ctx = metrics.WithInstanceName(ctx, clnt.instanceName)
+	}
+	return command.Execute(ctx)
 }
 
 //-------------------------------------------------------
@@ -178,25 +191,25 @@ func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 // handled when the record already exists.
 // This call only works for string and []byte values.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) Append(policy *WritePolicy, key *Key, binMap BinMap) error {
+func (clnt *Client) Append(ctx context.Context, policy *WritePolicy, key *Key, binMap BinMap) error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _APPEND)
 	if err != nil {
 		return err
 	}
 
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 // AppendBins works the same as Append, but avoids BinMap allocation and iteration.
-func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
+func (clnt *Client) AppendBins(ctx context.Context, policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newWriteCommand(clnt.cluster, policy, key, bins, nil, _APPEND)
 	if err != nil {
 		return err
 	}
 
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 // Prepend prepends bin value's string to existing record bin values.
@@ -204,25 +217,25 @@ func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) erro
 // handled when the record already exists.
 // This call works only for string and []byte values.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) Prepend(policy *WritePolicy, key *Key, binMap BinMap) error {
+func (clnt *Client) Prepend(ctx context.Context, policy *WritePolicy, key *Key, binMap BinMap) error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _PREPEND)
 	if err != nil {
 		return err
 	}
 
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 // PrependBins works the same as Prepend, but avoids BinMap allocation and iteration.
-func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
+func (clnt *Client) PrependBins(ctx context.Context, policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newWriteCommand(clnt.cluster, policy, key, bins, nil, _PREPEND)
 	if err != nil {
 		return err
 	}
 
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 //-------------------------------------------------------
@@ -234,25 +247,25 @@ func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) err
 // handled when the record already exists.
 // This call only works for integer values.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) Add(policy *WritePolicy, key *Key, binMap BinMap) error {
+func (clnt *Client) Add(ctx context.Context, policy *WritePolicy, key *Key, binMap BinMap) error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _ADD)
 	if err != nil {
 		return err
 	}
 
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 // AddBins works the same as Add, but avoids BinMap allocation and iteration.
-func (clnt *Client) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
+func (clnt *Client) AddBins(ctx context.Context, policy *WritePolicy, key *Key, bins ...*Bin) error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newWriteCommand(clnt.cluster, policy, key, bins, nil, _ADD)
 	if err != nil {
 		return err
 	}
 
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 //-------------------------------------------------------
@@ -262,14 +275,14 @@ func (clnt *Client) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) error {
 // Delete deletes a record for specified key.
 // The policy specifies the transaction timeout.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) Delete(policy *WritePolicy, key *Key) (bool, error) {
+func (clnt *Client) Delete(ctx context.Context, policy *WritePolicy, key *Key) (bool, error) {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newDeleteCommand(clnt.cluster, policy, key)
 	if err != nil {
 		return false, err
 	}
 
-	err = command.Execute()
+	err = command.Execute(ctx)
 	return command.Existed(), err
 }
 
@@ -281,14 +294,14 @@ func (clnt *Client) Delete(policy *WritePolicy, key *Key) (bool, error) {
 // If the record exists, the record's TTL will be reset to the
 // policy's expiration.
 // If the record doesn't exist, it will return an error.
-func (clnt *Client) Touch(policy *WritePolicy, key *Key) error {
+func (clnt *Client) Touch(ctx context.Context, policy *WritePolicy, key *Key) error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newTouchCommand(clnt.cluster, policy, key)
 	if err != nil {
 		return err
 	}
 
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 //-------------------------------------------------------
@@ -298,14 +311,14 @@ func (clnt *Client) Touch(policy *WritePolicy, key *Key) error {
 // Exists determine if a record key exists.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) Exists(policy *BasePolicy, key *Key) (bool, error) {
+func (clnt *Client) Exists(ctx context.Context, policy *BasePolicy, key *Key) (bool, error) {
 	policy = clnt.getUsablePolicy(policy)
 	command, err := newExistsCommand(clnt.cluster, policy, key)
 	if err != nil {
 		return false, err
 	}
 
-	err = command.Execute()
+	err = command.Execute(ctx)
 	return command.Exists(), err
 }
 
@@ -313,7 +326,7 @@ func (clnt *Client) Exists(policy *BasePolicy, key *Key) (bool, error) {
 // The returned boolean array is in positional order with the original key array order.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, error) {
+func (clnt *Client) BatchExists(ctx context.Context, policy *BatchPolicy, keys []*Key) ([]bool, error) {
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
@@ -327,7 +340,7 @@ func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, error
 
 	// pass nil to make sure it will be cloned and prepared
 	cmd := newBatchCommandExists(nil, nil, policy, keys, existsArray)
-	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
+	err, filteredOut := clnt.batchExecute(ctx, policy, batchNodes, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -346,7 +359,7 @@ func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, error
 // Get reads a record header and bins for specified key.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) Get(policy *BasePolicy, key *Key, binNames ...string) (*Record, error) {
+func (clnt *Client) Get(ctx context.Context, policy *BasePolicy, key *Key, binNames ...string) (*Record, error) {
 	policy = clnt.getUsablePolicy(policy)
 
 	command, err := newReadCommand(clnt.cluster, policy, key, binNames, nil)
@@ -354,7 +367,7 @@ func (clnt *Client) Get(policy *BasePolicy, key *Key, binNames ...string) (*Reco
 		return nil, err
 	}
 
-	if err := command.Execute(); err != nil {
+	if err := command.Execute(ctx); err != nil {
 		return nil, err
 	}
 	return command.GetRecord(), nil
@@ -364,7 +377,7 @@ func (clnt *Client) Get(policy *BasePolicy, key *Key, binNames ...string) (*Reco
 // Bins are not read.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
+func (clnt *Client) GetHeader(ctx context.Context, policy *BasePolicy, key *Key) (*Record, error) {
 	policy = clnt.getUsablePolicy(policy)
 
 	command, err := newReadHeaderCommand(clnt.cluster, policy, key)
@@ -372,7 +385,7 @@ func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
 		return nil, err
 	}
 
-	if err := command.Execute(); err != nil {
+	if err := command.Execute(ctx); err != nil {
 		return nil, err
 	}
 	return command.GetRecord(), nil
@@ -387,7 +400,7 @@ func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, error) {
 // If a key is not found, the positional record will be nil.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...string) ([]*Record, error) {
+func (clnt *Client) BatchGet(ctx context.Context, policy *BatchPolicy, keys []*Key, binNames ...string) ([]*Record, error) {
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
@@ -400,7 +413,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 	}
 
 	cmd := newBatchCommandGet(nil, nil, policy, keys, binNames, records, _INFO1_READ)
-	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
+	err, filteredOut := clnt.batchExecute(ctx, policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
 		return nil, err
 	}
@@ -422,7 +435,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 // If the BatchRead key field is not found, the corresponding record field will be null.
 // The policy can be used to specify timeouts and maximum concurrent threads.
 // This method requires Aerospike Server version >= 3.6.0.
-func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) error {
+func (clnt *Client) BatchGetComplex(ctx context.Context, policy *BatchPolicy, records []*BatchRead) error {
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	cmd := newBatchIndexCommandGet(nil, policy, records)
@@ -432,7 +445,7 @@ func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) e
 		return err
 	}
 
-	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
+	err, filteredOut := clnt.batchExecute(ctx, policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
 		return err
 	}
@@ -453,7 +466,7 @@ func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) e
 // If a key is not found, the positional record will be nil.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record, error) {
+func (clnt *Client) BatchGetHeader(ctx context.Context, policy *BatchPolicy, keys []*Key) ([]*Record, error) {
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	// same array can be used without synchronization;
@@ -466,7 +479,7 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 	}
 
 	cmd := newBatchCommandGet(nil, nil, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
-	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
+	err, filteredOut := clnt.batchExecute(ctx, policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
 		return nil, err
 	}
@@ -491,14 +504,14 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 // read the result, all in one database call.
 //
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operation) (*Record, error) {
+func (clnt *Client) Operate(ctx context.Context, policy *WritePolicy, key *Key, operations ...*Operation) (*Record, error) {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newOperateCommand(clnt.cluster, policy, key, operations)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := command.Execute(); err != nil {
+	if err := command.Execute(ctx); err != nil {
 		return nil, err
 	}
 	return command.GetRecord(), nil
@@ -512,7 +525,7 @@ func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operat
 // If the policy's concurrentNodes is specified, each server node will be read in
 // parallel. Otherwise, server nodes are read sequentially.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName string, binNames ...string) (*Recordset, error) {
+func (clnt *Client) ScanAll(ctx context.Context, apolicy *ScanPolicy, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
@@ -540,14 +553,14 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 	if policy.ConcurrentNodes {
 		for _, node := range nodes {
 			go func(node *Node, first bool) {
-				clnt.scanNode(&policy, node, res, namespace, setName, taskID, clusterKey, first, binNames...)
+				clnt.scanNode(ctx, &policy, node, res, namespace, setName, taskID, clusterKey, first, binNames...)
 			}(node, first.CompareAndToggle(true))
 		}
 	} else {
 		// scan nodes one by one
 		go func() {
 			for _, node := range nodes {
-				clnt.scanNode(&policy, node, res, namespace, setName, taskID, clusterKey, first.CompareAndToggle(true), binNames...)
+				clnt.scanNode(ctx, &policy, node, res, namespace, setName, taskID, clusterKey, first.CompareAndToggle(true), binNames...)
 			}
 		}()
 	}
@@ -557,7 +570,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, error) {
+func (clnt *Client) ScanNode(ctx context.Context, apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	clusterKey := int64(0)
@@ -573,15 +586,15 @@ func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, 
 	taskID := uint64(xornd.Int64())
 	res := newRecordset(policy.RecordQueueSize, 1, taskID)
 
-	go clnt.scanNode(&policy, node, res, namespace, setName, taskID, clusterKey, true, binNames...)
+	go clnt.scanNode(ctx, &policy, node, res, namespace, setName, taskID, clusterKey, true, binNames...)
 	return res, nil
 }
 
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, clusterKey int64, first bool, binNames ...string) error {
+func (clnt *Client) scanNode(ctx context.Context, policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, clusterKey int64, first bool, binNames ...string) error {
 	command := newScanCommand(node, policy, namespace, setName, binNames, recordset, taskID, clusterKey, first)
-	return command.Execute()
+	return command.Execute(ctx)
 }
 
 //---------------------------------------------------------------
@@ -740,14 +753,14 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (interface{}, error) {
+func (clnt *Client) Execute(ctx context.Context, policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (interface{}, error) {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newExecuteCommand(clnt.cluster, policy, key, packageName, functionName, NewValueArray(args))
 	if err != nil {
 		return nil, err
 	}
 
-	if err := command.Execute(); err != nil {
+	if err := command.Execute(ctx); err != nil {
 		return nil, err
 	}
 
@@ -780,7 +793,7 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryExecute(policy *QueryPolicy,
+func (clnt *Client) QueryExecute(ctx context.Context, policy *QueryPolicy,
 	writePolicy *WritePolicy,
 	statement *Statement,
 	ops ...*Operation,
@@ -807,7 +820,7 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 	errs := []error{}
 	for i := range nodes {
 		command := newServerCommand(nodes[i], policy, writePolicy, statement, ops)
-		if err := command.Execute(); err != nil {
+		if err := command.Execute(ctx); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -823,7 +836,8 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
+func (clnt *Client) ExecuteUDF(ctx context.Context,
+	policy *QueryPolicy,
 	statement *Statement,
 	packageName string,
 	functionName string,
@@ -841,7 +855,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	errs := []error{}
 	for i := range nodes {
 		command := newServerCommand(nodes[i], policy, nil, statement, nil)
-		if err := command.Execute(); err != nil {
+		if err := command.Execute(ctx); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -857,7 +871,8 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
+func (clnt *Client) ExecuteUDFNode(ctx context.Context,
+	policy *QueryPolicy,
 	node *Node,
 	statement *Statement,
 	packageName string,
@@ -873,7 +888,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
 	command := newServerCommand(node, policy, nil, statement, nil)
-	err := command.Execute()
+	err := command.Execute(ctx)
 
 	return NewExecuteTask(clnt.cluster, statement), err
 }
@@ -889,9 +904,13 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset, error) {
+func (clnt *Client) Query(ctx context.Context, policy *QueryPolicy, statement *Statement) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)
-
+	// Add method and instance name to context for metrics.
+	ctx = metrics.WithMethod(ctx, "Query")
+	if clnt.instanceName != "" {
+		ctx = metrics.WithInstanceName(ctx, clnt.instanceName)
+	}
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
@@ -917,7 +936,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		newPolicy := *policy
 		command := newQueryRecordCommand(node, &newPolicy, statement, recSet, clusterKey, first.CompareAndToggle(true))
 		go func() {
-			command.Execute()
+			command.Execute(ctx)
 		}()
 	}
 
@@ -930,7 +949,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, error) {
+func (clnt *Client) QueryNode(ctx context.Context, policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	// results channel must be async for performance
@@ -949,7 +968,7 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 	newPolicy := *policy
 	command := newQueryRecordCommand(node, &newPolicy, statement, recSet, clusterKey, true)
 	go func() {
-		command.Execute()
+		command.Execute(ctx)
 	}()
 
 	return recSet, nil
@@ -1360,7 +1379,7 @@ func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[
 
 // batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
 // and waits for their return
-func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, cmd batcher) (error, int) {
+func (clnt *Client) batchExecute(ctx context.Context, policy *BatchPolicy, batchNodes []*batchNode, cmd batcher) (error, int) {
 	var wg sync.WaitGroup
 	filteredOut := 0
 
@@ -1374,7 +1393,7 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, c
 			newCmd := cmd.cloneBatchCommand(batchNode)
 			go func(cmd command) {
 				defer wg.Done()
-				err := cmd.Execute()
+				err := cmd.Execute(ctx)
 				errm.Lock()
 				if err != nil {
 					errs = append(errs, err)
@@ -1401,7 +1420,7 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, c
 			go func(cmd command) {
 				defer sem.Release(1)
 				defer wg.Done()
-				err := cmd.Execute()
+				err := cmd.Execute(ctx)
 				errm.Lock()
 				if err != nil {
 					errs = append(errs, err)
