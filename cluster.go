@@ -391,7 +391,7 @@ func (clstr *Cluster) tend() error {
 	}
 
 	if err := clstr.getPartitions().validate(); err != nil {
-		Logger.Debug("Error validating the cluster partition map after tend: %s", err.Error())
+		Logger.Error("Error validating the cluster partition map after tend: %s", err.Error())
 	}
 
 	// only log if node count is changed
