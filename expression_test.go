@@ -499,6 +499,10 @@ var _ = Describe("Expression Operations", func() {
 		var _ = Context("Record Ops", func() {
 
 			It("ExpDeviceSize must work", func() {
+				if len(nsInfo(ns, "device_total_bytes")) > 0 {
+					Skip("Skipping ExpDeviceSize test since the namespace is persisted and the test works only for Memory-Only namespaces.")
+				}
+
 				// dev size 0 because in-memory
 				rs := runQuery(
 					as.ExpLessEq(as.ExpDeviceSize(), as.ExpIntVal(0)),
