@@ -100,7 +100,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, error) {
 		return nil, errToTimeoutErr(nil, err)
 	}
 	newConn.conn = conn
-	newConn.limitReader = &io.LimitedReader{conn, 0}
+	newConn.limitReader = &io.LimitedReader{R: conn, N: 0}
 
 	// set timeout at the last possible moment
 	if err := newConn.SetTimeout(time.Now().Add(timeout), timeout); err != nil {
