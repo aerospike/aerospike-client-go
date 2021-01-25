@@ -8,6 +8,8 @@
 
     - [CLIENT-1410] Adds `Client.SetXDRFilter()`.
 
+  * **Changes**
+    - Pack byte array header with string header codes when using msgpack to be consistent with server.
 
 ## November 27 2020: v4.0.0
 
