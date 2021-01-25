@@ -499,13 +499,27 @@ var _ = Describe("Expression Operations", func() {
 		var _ = Context("Record Ops", func() {
 
 			It("ExpDeviceSize must work", func() {
+				// storage-engine could be memory for which deviceSize() returns zero.
+				// This just tests that the expression was sent correctly
+				// because all device sizes are effectively allowed.
+				rs := runQuery(
+					as.ExpGreaterEq(as.ExpDeviceSize(), as.ExpIntVal(0)),
+					set,
+				)
+				count := countResults(rs)
+				Expect(count).To(Equal(100))
+			})
+
+			It("ExpMemorySize must work", func() {
 				if len(nsInfo(ns, "device_total_bytes")) > 0 {
 					Skip("Skipping ExpDeviceSize test since the namespace is persisted and the test works only for Memory-Only namespaces.")
 				}
 
-				// dev size 0 because in-memory
+				// storage-engine could be disk/device for which memorySize() returns zero.
+				// This just tests that the expression was sent correctly
+				// because all device sizes are effectively allowed.
 				rs := runQuery(
-					as.ExpLessEq(as.ExpDeviceSize(), as.ExpIntVal(0)),
+					as.ExpGreaterEq(as.ExpMemorySize(), as.ExpIntVal(0)),
 					set,
 				)
 				count := countResults(rs)

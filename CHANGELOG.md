@@ -7,6 +7,7 @@
   * **New Features**:
 
     - [CLIENT-1410] Adds `Client.SetXDRFilter()`.
+    - [CLIENT-1433] Adds `ExpMemorySize()` to expression filters.
 
   * **Changes**
     - Pack byte array header with string header codes when using msgpack to be consistent with server.

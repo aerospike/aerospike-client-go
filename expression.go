@@ -74,6 +74,7 @@ var (
 	expOpSET_NAME      expOp = 70
 	expOpKEY_EXISTS    expOp = 71
 	expOpIS_TOMBSTONE  expOp = 72
+	expOpMEMORY_SIZE   expOp = 73
 	expOpKEY           expOp = 80
 	expOpBIN           expOp = 81
 	expOpBIN_TYPE      expOp = 82
@@ -559,6 +560,13 @@ func ExpSetName() *FilterExpression {
 // If server storage-engine is memory, then zero is returned.
 func ExpDeviceSize() *FilterExpression {
 	return newFilterExpression(&expOpDEVICE_SIZE, nil, nil, nil, nil, nil)
+}
+
+// ExpMemorySize creates expression that returns record size in memory. If server storage-engine is
+// not memory nor data-in-memory, then zero is returned. This expression usually evaluates
+// quickly because record meta data is cached in memory.
+func ExpMemorySize() *FilterExpression {
+	return newFilterExpression(&expOpMEMORY_SIZE, nil, nil, nil, nil, nil)
 }
 
 // ExpLastUpdate creates a function that returns record last update time expressed as 64 bit integer
