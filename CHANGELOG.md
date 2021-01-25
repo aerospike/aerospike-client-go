@@ -11,6 +11,7 @@
 
   * **Changes**
     - Pack byte array header with string header codes when using msgpack to be consistent with server.
+    - Adds `ResultCode.LOST_CONFLICT`
 
 ## November 27 2020: v4.0.0
 

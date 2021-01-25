@@ -148,6 +148,9 @@ const (
 	// The transaction was not performed because the filter was false.
 	FILTERED_OUT ResultCode = 27
 
+	// Write command loses conflict to XDR.
+	LOST_CONFLICT = 28
+
 	// There are no more records left for query.
 	QUERY_END ResultCode = 50
 
@@ -426,6 +429,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case FILTERED_OUT:
 		return "Transaction filtered out"
+
+	case LOST_CONFLICT:
+		return "Write command loses conflict to XDR."
 
 	case QUERY_END:
 		return "Query end"
