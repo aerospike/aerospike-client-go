@@ -126,6 +126,8 @@ type command interface {
 
 // Holds data buffer for the command
 type baseCommand struct {
+	buffer
+
 	node *Node
 	conn *Connection
 
@@ -136,9 +138,6 @@ type baseCommand struct {
 	// the buffer, this padding will be used to compress the command in-place,
 	// and then the compressed proto header will be written.
 	dataBufferCompress []byte
-	dataBuffer         []byte
-	dataOffset         int
-
 	// oneShot determines if streaming commands like query, scan or queryAggregate
 	// are not retried if they error out mid-parsing
 	oneShot bool

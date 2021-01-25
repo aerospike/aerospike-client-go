@@ -627,12 +627,12 @@ var _ = Describe("Aerospike", func() {
 								float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 								float32(math.MaxFloat32):  float32(math.MaxFloat32),
 								float64(math.MaxFloat64):  float64(math.MaxFloat64),
-								"true":                    true,
-								"false":                   false,
-								"string":                  map[interface{}]interface{}{nil: "string", "string": 19},                // map to complex array
-								nil:                       []interface{}{18, 41},                                                   // array to complex map
-								"GeoJSON":                 as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
-								"intList":                 intList,
+								"true":    true,
+								"false":   false,
+								"string":  map[interface{}]interface{}{nil: "string", "string": 19},                // map to complex array
+								nil:       []interface{}{18, 41},                                                   // array to complex map
+								"GeoJSON": as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
+								"intList": intList,
 							},
 						})
 
@@ -1478,4 +1478,29 @@ var _ = Describe("Aerospike", func() {
 		}) // GetHeader context
 
 	})
+
+	Describe("Commands Test", func() {
+
+		It("must successfully send SetXDRFilter command", func() {
+			xp := as.ExpEq(
+				as.ExpIntBin("bin"),
+				as.ExpIntVal(85),
+			)
+
+			err := client.SetXDRFilter(nil, "test", "test", xp)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("must reject invalid Expression for SetXDRFilter command", func() {
+			xp := as.ExpEq(
+				as.ExpIntBin("bin"),
+				as.ExpStringVal("some string"),
+			)
+
+			err := client.SetXDRFilter(nil, "test", "test", xp)
+			Expect(err).To(HaveOccurred())
+		})
+
+	}) // Describe
+
 })

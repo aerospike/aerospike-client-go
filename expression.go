@@ -14,6 +14,8 @@
 package aerospike
 
 import (
+	"encoding/base64"
+
 	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
 )
 
@@ -400,6 +402,21 @@ func (fe *FilterExpression) pack(buf BufferEx) (int, error) {
 		return fe.packCommand(fe.cmd, buf)
 	}
 	return fe.packValue(buf)
+}
+
+func (fe *FilterExpression) base64() (string, error) {
+	sz, err := fe.pack(nil)
+	if err != nil {
+		return "", err
+	}
+
+	input := newBuffer(sz)
+	_, err = fe.pack(input)
+	if err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(input.dataBuffer[:input.dataOffset]), nil
 }
 
 // ExpKey creates a record key expression of specified type.

@@ -1,5 +1,14 @@
 # Change History
 
+## January 25 2021: v4.1.0
+
+  Major feature release.
+
+  * **New Features**:
+
+    - [CLIENT-1410] Adds `Client.SetXDRFilter()`.
+
+
 ## November 27 2020: v4.0.0
 
   Major feature release. Deprecates `PredExp` filters and replaces them with the far more capable Expressions.
