@@ -67,6 +67,8 @@ var throughput = flag.Int64("g", 0, "Throttle transactions per second to a maxim
 var timeout = flag.Int("T", 0, "Read/Write timeout in milliseconds.")
 var maxRetries = flag.Int("maxRetries", 2, "Maximum number of retries before aborting the current transaction.")
 var connQueueSize = flag.Int("queueSize", 128, "Maximum number of connections to pool.")
+var maxErrorRate = flag.Int("maxErrorRate", 50, "Maximum Error Rate for the Circuit-Breaker to trigger.")
+var errorRateWindow = flag.Int("errorRateWindow", 1, "Error Rate Window for the Circuit-Breaker to trigger.")
 var openingConnectionThreshold = flag.Int("openingConnectionThreshold", 64, "Maximum number of connections allowed to open simultaneously.")
 var warmUp = flag.Int("warmUp", 128, "Number of connections to open on start up.")
 
@@ -138,6 +140,8 @@ func main() {
 	}
 	// cache lots of connections
 	clientPolicy.ConnectionQueueSize = *connQueueSize
+	clientPolicy.MaxErrorRate = *maxErrorRate
+	clientPolicy.ErrorRateWindow = *errorRateWindow
 	clientPolicy.User = *user
 	clientPolicy.Password = *password
 	clientPolicy.Timeout = 10 * time.Second
