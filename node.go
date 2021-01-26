@@ -64,6 +64,7 @@ type Node struct {
 	failures            AtomicInt
 	partitionChanged    AtomicBool
 	errorCount          AtomicInt
+	rebalanceGeneration AtomicInt
 
 	active AtomicBool
 
@@ -89,6 +90,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		active:              *NewAtomicBool(true),
 		partitionChanged:    *NewAtomicBool(false),
 		errorCount:          *NewAtomicInt(0),
+		rebalanceGeneration: *NewAtomicInt(-1),
 
 		supportsFloat:             *NewAtomicBool(nv.supportsFloat),
 		supportsBatchIndex:        *NewAtomicBool(nv.supportsBatchIndex),
@@ -476,6 +478,13 @@ func (nd *Node) refreshPartitions(peers *peers, partitions partitionMap) {
 }
 
 func (nd *Node) refreshFailed(e error) {
+	nd.peersGeneration.Set(-1)
+	nd.partitionGeneration.Set(-1)
+
+	if nd.cluster.clientPolicy.RackAware {
+		nd.rebalanceGeneration.Set(-1)
+	}
+
 	nd.failures.IncrementAndGet()
 	atomic.AddInt64(&nd.stats.TendsFailed, 1)
 
