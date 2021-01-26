@@ -1481,30 +1481,41 @@ var _ = Describe("Aerospike", func() {
 
 	Describe("Commands Test", func() {
 
-		It("must successfully send SetXDRFilter command", func() {
-			xp := as.ExpEq(
-				as.ExpIntBin("bin"),
-				as.ExpIntVal(85),
-			)
+		Context("XDR Filter", func() {
 
-			err := client.SetXDRFilter(nil, "test", "test", xp)
-			Expect(err).ToNot(HaveOccurred())
-		})
+			BeforeEach(func() {
+				if !isEnterpriseEdition() {
+					Skip("XDR Filter Tests are not supported in the Community Edition.")
+					return
+				}
+			})
 
-		It("must reject invalid Expression for SetXDRFilter command", func() {
-			xp := as.ExpEq(
-				as.ExpIntBin("bin"),
-				as.ExpStringVal("some string"),
-			)
+			It("must successfully send SetXDRFilter command", func() {
+				xp := as.ExpEq(
+					as.ExpIntBin("bin"),
+					as.ExpIntVal(85),
+				)
 
-			err := client.SetXDRFilter(nil, "test", "test", xp)
-			Expect(err).To(HaveOccurred())
-		})
+				err := client.SetXDRFilter(nil, "test", "test", xp)
+				Expect(err).ToNot(HaveOccurred())
+			})
 
-		It("must remove the server XDR filter using SetXDRFilter command", func() {
-			err := client.SetXDRFilter(nil, "test", "test", nil)
-			Expect(err).ToNot(HaveOccurred())
-		})
+			It("must reject invalid Expression for SetXDRFilter command", func() {
+				xp := as.ExpEq(
+					as.ExpIntBin("bin"),
+					as.ExpStringVal("some string"),
+				)
+
+				err := client.SetXDRFilter(nil, "test", "test", xp)
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("must remove the server XDR filter using SetXDRFilter command", func() {
+				err := client.SetXDRFilter(nil, "test", "test", nil)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+		}) // Context
 
 	}) // Describe
 
