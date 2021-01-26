@@ -172,6 +172,7 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 	}
 
 	if ctn.node != nil {
+		ctn.node.incrErrorCount()
 		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	}
 
@@ -213,6 +214,7 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 	}
 
 	if ctn.node != nil {
+		ctn.node.incrErrorCount()
 		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	}
 
