@@ -1501,6 +1501,11 @@ var _ = Describe("Aerospike", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
+		It("must remove the server XDR filter using SetXDRFilter command", func() {
+			err := client.SetXDRFilter(nil, "test", "test", nil)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 	}) // Describe
 
 })

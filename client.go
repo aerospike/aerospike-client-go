@@ -882,15 +882,21 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 
 // SetXDRFilter sets XDR filter for given datacenter name and namespace. The expression filter indicates
 // which records XDR should ship to the datacenter.
+// Pass nil as filter to remove the currentl filter on the server.
 func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespace string, filter *FilterExpression) error {
 	policy = clnt.getUsableInfoPolicy(policy)
 
-	b64, err := filter.base64()
-	if err != nil {
-		return NewAerospikeError(SERIALIZE_ERROR, "FilterExpression could not be serialized to Base64")
-	}
+	var strCmd string
+	if filter == nil {
+		strCmd = "xdr-set-filter:dc=" + datacenter + ";namespace=" + namespace + ";exp=null"
+	} else {
+		b64, err := filter.base64()
+		if err != nil {
+			return NewAerospikeError(SERIALIZE_ERROR, "FilterExpression could not be serialized to Base64")
+		}
 
-	strCmd := "xdr-set-filter:dc=" + datacenter + ";namespace=" + namespace + ";exp=" + b64
+		strCmd = "xdr-set-filter:dc=" + datacenter + ";namespace=" + namespace + ";exp=" + b64
+	}
 
 	// Send command to one node. That node will distribute it to other nodes.
 	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd)
