@@ -6,8 +6,13 @@
 
   * **New Features**:
 
+    - [CLIENT-1417] Adds Circuit-Breaker. Rejects command when assigned node's error rate exceeds `ClientPolicy.MaxErrorRate` over `ClientPolicy.ErrorRateWindow`.
     - [CLIENT-1410] Adds `Client.SetXDRFilter()`.
     - [CLIENT-1433] Adds `ExpMemorySize()` to expression filters.
+
+  * **Improvements**
+
+    - [CLIENT-1434] Reset peers, partition and rebalance generations on node tend errors.
 
   * **Changes**
     - Pack byte array header with string header codes when using msgpack to be consistent with server.
