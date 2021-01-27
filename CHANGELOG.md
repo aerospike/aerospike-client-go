@@ -13,10 +13,18 @@
   * **Improvements**
 
     - [CLIENT-1434] Reset peers, partition and rebalance generations on node tend errors.
+    - Use named fields in `LimitedReader` initialization.
+    - Skip `device_total_bytes` tests in Expressions for memory-only namespaces
+    - Change unexported field check in marshaller in anticipation of go 1.16 changes
 
   * **Changes**
     - Pack byte array header with string header codes when using msgpack to be consistent with server.
     - Adds `ResultCode.LOST_CONFLICT`
+    - Change log level from Debug to Error for partition validation failures
+
+  * **Fixes**
+
+    - Fix remainder calculation in `ConnectionHeap`.
 
 ## November 27 2020: v4.0.0
 
