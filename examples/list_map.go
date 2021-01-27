@@ -242,12 +242,12 @@ func testListOperate(client *as.Client) {
 		as.ListAppendWithPolicyOp(listPolicy, "listbin1", "string4"))
 	shared.PanicOnError(err)
 
-	record, err := client.Get(shared.Policy, key, bin.Name)
-	shared.PanicOnError(err)
-
 	// add (ignore) duplicate value in the list
 	_, err = client.Operate(writePolicy, key,
 		as.ListAppendWithPolicyOp(listPolicy, "listbin1", "string4"))
+	shared.PanicOnError(err)
+
+	record, err := client.Get(shared.Policy, key, bin.Name)
 	shared.PanicOnError(err)
 
 	receivedList := record.Bins[bin.Name].([]interface{})
