@@ -424,7 +424,9 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 				return err
 			}
 		} else if len(policy.PredExp) > 0 {
-			cmd.writePredExp(policy.PredExp, predSize)
+			if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
+				return err
+			}
 		}
 
 		for i := range binNames {
@@ -535,7 +537,9 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 			writeAttr = _INFO2_WRITE
 			hasWrite = true
 		}
-		cmd.estimateOperationSizeForOperation(operations[i])
+		if err := cmd.estimateOperationSizeForOperation(operations[i]); err != nil {
+			return hasWrite, err
+		}
 	}
 
 	ksz, err := cmd.estimateKeySize(key, policy.SendKey && hasWrite)
@@ -643,7 +647,9 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	}
 	cmd.writeFieldString(packageName, UDF_PACKAGE_NAME)
 	cmd.writeFieldString(functionName, UDF_FUNCTION)
-	cmd.writeUdfArgs(args)
+	if err := cmd.writeUdfArgs(args); err != nil {
+		return err
+	}
 	cmd.end()
 	cmd.markCompressed(policy)
 
