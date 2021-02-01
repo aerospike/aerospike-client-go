@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,15 +28,15 @@ func main() {
 	client, err := NewClient("127.0.0.1", 3000)
 	panicOnError(err)
 
-	for i:=0; i<5; i++ {
+	for i := 0; i < 5; i++ {
 		key, err := NewKey(namespace, setName, i) // user key can be of any supported type
 		panicOnError(err)
 
 		// define some bins
 		bins := BinMap{
-			"valueBin": 42, // you can pass any supported type as bin value
+			"valueBin":   42, // you can pass any supported type as bin value
 			"versionBin": i,
-			"id": i,
+			"id":         i,
 		}
 
 		// write the bins
@@ -45,19 +45,16 @@ func main() {
 		panicOnError(err)
 	}
 
-
 	readRecord(client, 2)
-
 
 	// want to update to this
 	value := int64(123)
 	version := int64(3)
 
 	bins := BinMap{
-		"valueBin": value,
+		"valueBin":   value,
 		"versionBin": version,
 	}
-
 
 	// set a predicate expression to only apply if version < 3
 	// leave the RecordExistsAction at the default value UPDATE - if record isn't found, a new one is created
@@ -67,7 +64,6 @@ func main() {
 		NewPredExpIntegerValue(version),
 		NewPredExpIntegerLess(),
 	}
-
 
 	// this should update the record
 	key, err := NewKey(namespace, setName, 2)
@@ -89,15 +85,13 @@ func main() {
 	err = client.Put(writePolicy, key, bins)
 	fmt.Printf("Put key 5: %s\n", err)
 
-
 	readRecord(client, 2)
 	readRecord(client, 3)
 	readRecord(client, 4)
 	readRecord(client, 5)
 
-
 	// clean up
-	for i:=0; i<6; i++ {
+	for i := 0; i < 6; i++ {
 		deleteRecord(client, i)
 	}
 }
