@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.package aerospike
+
 package aerospike
 
 const expListMODULE int64 = 0
@@ -134,13 +135,13 @@ func ExpListClear(bin *FilterExpression, ctx ...*CDTContext) *FilterExpression {
 
 // ExpListSort creates an expression that sorts list according to sortFlags.
 func ExpListSort(
-	sort_flags ListSortFlags,
+	sortFlags ListSortFlags,
 	bin *FilterExpression,
 	ctx ...*CDTContext,
 ) *FilterExpression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_SORT),
-		IntegerValue(sort_flags),
+		IntegerValue(sortFlags),
 		cdtContextList(ctx),
 	}
 	return cdtListAddWrite(bin, args, ctx...)
@@ -180,8 +181,8 @@ func ExpListRemoveByValueList(
 // If valueBegin is null, the range is less than valueEnd. If valueEnd is null, the range is
 // greater than equal to valueBegin.
 func ExpListRemoveByValueRange(
-	value_begin *FilterExpression,
-	value_end *FilterExpression,
+	valueBegin *FilterExpression,
+	valueEnd *FilterExpression,
 	bin *FilterExpression,
 	ctx ...*CDTContext,
 ) *FilterExpression {
@@ -190,13 +191,13 @@ func ExpListRemoveByValueRange(
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE_INTERVAL),
 		IntegerValue(ListReturnTypeNone),
 	}
-	if value_begin != nil {
-		args = append(args, value_begin)
+	if valueBegin != nil {
+		args = append(args, valueBegin)
 	} else {
 		args = append(args, nullValue)
 	}
-	if value_end != nil {
-		args = append(args, value_end)
+	if valueEnd != nil {
+		args = append(args, valueEnd)
 	}
 	return cdtListAddWrite(bin, args, ctx...)
 }
@@ -379,8 +380,8 @@ func ExpListGetByValue(
 // specified by returnType.
 func ExpListGetByValueRange(
 	returnType ListReturnType,
-	value_begin *FilterExpression,
-	value_end *FilterExpression,
+	valueBegin *FilterExpression,
+	valueEnd *FilterExpression,
 	bin *FilterExpression,
 	ctx ...*CDTContext,
 ) *FilterExpression {
@@ -389,13 +390,13 @@ func ExpListGetByValueRange(
 		IntegerValue(_CDT_LIST_GET_BY_VALUE_INTERVAL),
 		IntegerValue(returnType),
 	}
-	if value_begin != nil {
-		args = append(args, value_begin)
+	if valueBegin != nil {
+		args = append(args, valueBegin)
 	} else {
 		args = append(args, nullValue)
 	}
-	if value_end != nil {
-		args = append(args, value_end)
+	if valueEnd != nil {
+		args = append(args, valueEnd)
 	}
 	return cdtListAddRead(bin, expListGetValueType(returnType), args)
 }

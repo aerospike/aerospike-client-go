@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.package aerospike
+
 package aerospike
 
 import (
@@ -421,10 +422,10 @@ func (fe *FilterExpression) base64() (string, error) {
 }
 
 // ExpKey creates a record key expression of specified type.
-func ExpKey(exp_type ExpType) *FilterExpression {
+func ExpKey(expType ExpType) *FilterExpression {
 	return newFilterExpression(
 		&expOpKEY,
-		IntegerValue(int64(exp_type)),
+		IntegerValue(int64(expType)),
 		nil,
 		nil,
 		nil,
