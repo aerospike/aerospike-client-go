@@ -1484,8 +1484,8 @@ var _ = Describe("Aerospike", func() {
 		Context("XDR Filter", func() {
 
 			BeforeEach(func() {
-				if !isEnterpriseEdition() {
-					Skip("XDR Filter Tests are not supported in the Community Edition.")
+				if !xdrEnabled() {
+					Skip("XDR Filter Tests are not supported in the Community Edition, or when the server is not configured for XDR")
 					return
 				}
 			})

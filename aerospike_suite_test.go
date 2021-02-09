@@ -34,6 +34,7 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 	asl "github.com/aerospike/aerospike-client-go/logger"
+	ast "github.com/aerospike/aerospike-client-go/types"
 )
 
 var (
@@ -138,6 +139,11 @@ func securityEnabled() bool {
 	return err == nil
 }
 
+func xdrEnabled() bool {
+	res := info(client, "get-config:context=xdr")
+	return len(res) > 0 && !strings.HasPrefix(res, "ERROR")
+}
+
 func nsInfo(ns string, feature string) string {
 	node := client.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "namespace/"+ns)
@@ -161,7 +167,11 @@ func info(client *as.Client, feature string) string {
 	node := client.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), feature)
 	if err != nil {
-		log.Fatal("Failed to connect to aerospike: err:", err)
+		if ae, ok := err.(ast.AerospikeError); ok {
+			return ae.Error()
+		} else {
+			log.Fatal("Failed to connect to aerospike: err:", err)
+		}
 	}
 
 	return infoMap[feature]
