@@ -44,7 +44,10 @@ type BasePolicy struct {
 	FilterExpression *FilterExpression
 
 	// Priority of request relative to other transactions.
-	// Currently, only used for scans.
+	// Only used for scans on server versions < 4.9.
+	//
+	// Priority is obsolete and will eventually be removed.
+	// Use ScanPolicy.RecordsPerSecond instead of priority.
 	Priority Priority //= Priority.DEFAULT;
 
 	// ReadModeAP indicates read policy for AP (availability) namespaces.

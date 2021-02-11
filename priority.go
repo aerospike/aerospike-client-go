@@ -16,6 +16,8 @@ package aerospike
 
 // Priority of operations on database server.
 // Currently, this only affects Scan operations.
+// This type is obsolete and will eventually be removed.
+// Only used for server versions < 4.9.
 type Priority int
 
 const (

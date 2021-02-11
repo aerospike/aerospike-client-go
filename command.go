@@ -1040,11 +1040,15 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	}
 
 	cmd.writeFieldHeader(2, SCAN_OPTIONS)
-	priority := byte(policy.Priority)
-	priority <<= 4
 
-	if policy.FailOnClusterChange {
-		priority |= 0x08
+	priority := byte(0)
+	if nodePartitions == nil {
+		priority := byte(policy.Priority)
+		priority <<= 4
+
+		if policy.FailOnClusterChange {
+			priority |= 0x08
+		}
 	}
 
 	cmd.WriteByte(priority)
@@ -1262,11 +1266,14 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	} else {
 		// Calling query with no filters is more efficiently handled by a primary index scan.
 		cmd.writeFieldHeader(2, SCAN_OPTIONS)
-		priority := byte(policy.Priority)
-		priority <<= 4
+		priority := byte(0)
+		if nodePartitions == nil {
+			priority := byte(policy.Priority)
+			priority <<= 4
 
-		if !write && policy.FailOnClusterChange {
-			priority |= 0x08
+			if !write && policy.FailOnClusterChange {
+				priority |= 0x08
+			}
 		}
 
 		cmd.WriteByte(priority)

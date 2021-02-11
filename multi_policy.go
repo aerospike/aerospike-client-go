@@ -29,6 +29,7 @@ type MultiPolicy struct {
 	MaxConcurrentNodes int
 
 	// FailOnClusterChange determines scan termination if cluster is in fluctuating state.
+	// Only used for server versions < 4.9.
 	FailOnClusterChange bool
 
 	// RecordsPerSecond limits returned records per second (rps) rate for each server.

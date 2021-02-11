@@ -41,11 +41,10 @@ var setMap = make(map[string]Metrics)
 func runExample(client *as.Client) {
 	log.Println("Scan series: namespace=", *shared.Namespace, " set=", *shared.Set)
 
-	// Use low scan priority.  This will take more time, but it will reduce
+	// Limit scan to recordsPerSecond.  This will take more time, but it will reduce
 	// the load on the server.
 	policy := as.NewScanPolicy()
-	policy.MaxRetries = 1
-	policy.Priority = as.LOW
+	policy.recordsPerSecond = 5000
 
 	nodeList := client.GetNodes()
 	begin := time.Now()
