@@ -24,6 +24,7 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 	shared "github.com/aerospike/aerospike-client-go/examples/shared"
+	ast "github.com/aerospike/aerospike-client-go/types"
 )
 
 func main() {
@@ -73,7 +74,9 @@ func expireExample(client *as.Client) {
 	log.Printf("Sleeping for 3 seconds ...")
 	time.Sleep(3 * time.Second)
 	record, err = client.Get(shared.Policy, key, bin.Name)
-	shared.PanicOnError(err)
+	if ae, ok := err.(ast.AerospikeError); !ok || ae.ResultCode() != ast.KEY_NOT_FOUND_ERROR {
+		shared.PanicOnError(err)
+	}
 	if record == nil {
 		log.Printf("Expiry of record successful. Record not found.")
 	} else {
