@@ -44,7 +44,7 @@ func runExample(client *as.Client) {
 	// Limit scan to recordsPerSecond.  This will take more time, but it will reduce
 	// the load on the server.
 	policy := as.NewScanPolicy()
-	policy.recordsPerSecond = 5000
+	policy.RecordsPerSecond = 5000
 
 	nodeList := client.GetNodes()
 	begin := time.Now()
