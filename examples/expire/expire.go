@@ -37,7 +37,7 @@ func main() {
  * Write and twice read an expiration record.
  */
 func expireExample(client *as.Client) {
-	key, _ := as.NewKey(*shared.Namespace, *shared.Set, "expirekey ")
+	key, _ := as.NewKey(*shared.Namespace, *shared.Set, "expirekey")
 	bin := as.NewBin("expirebin", "expirevalue")
 
 	log.Printf("Put: namespace=%s set=%s key=%s bin=%s value=%s expiration=2",
