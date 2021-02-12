@@ -1,6 +1,6 @@
 // +build !app_engine
 
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statem
 }
 
 func (cmd *queryAggregateCommand) Execute() error {
-	// defer cmd.recordset.signalEnd()
+	cmd.policy.MaxRetries = 0
 	err := cmd.execute(cmd, true)
 	if err != nil {
 		cmd.recordset.sendError(err)

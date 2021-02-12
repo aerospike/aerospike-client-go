@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ type scanCommand struct {
 	namespace string
 	setName   string
 	binNames  []string
-	taskID    uint64
 }
 
 func newScanCommand(
@@ -33,17 +32,15 @@ func newScanCommand(
 	setName string,
 	binNames []string,
 	recordset *Recordset,
-	taskID uint64,
 	clusterKey int64,
 	first bool,
 ) *scanCommand {
 	cmd := &scanCommand{
-		baseMultiCommand: *newCorrectMultiCommand(node, recordset, namespace, clusterKey, first),
+		baseMultiCommand: *newStreamingMultiCommand(node, recordset, namespace, clusterKey, first),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,
 		binNames:         binNames,
-		taskID:           taskID,
 	}
 
 	cmd.terminationErrorType = SCAN_TERMINATED
@@ -56,7 +53,7 @@ func (cmd *scanCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *scanCommand) writeBuffer(ifc command) error {
-	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames, cmd.taskID)
+	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames, cmd.recordset.taskID, cmd.nodePartitions)
 }
 
 func (cmd *scanCommand) parseResult(ifc command, conn *Connection) error {
@@ -64,7 +61,6 @@ func (cmd *scanCommand) parseResult(ifc command, conn *Connection) error {
 }
 
 func (cmd *scanCommand) Execute() error {
-	defer cmd.recordset.signalEnd()
 	err := cmd.execute(cmd, true)
 	if err != nil {
 		cmd.recordset.sendError(err)

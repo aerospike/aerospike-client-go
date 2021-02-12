@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -156,4 +156,11 @@ func (ky *Key) computeDigest() error {
 	// the following line does not allocate on he heap anymore.
 	ky.keyWriter.hash.Sum(ky.digest[:])
 	return nil
+}
+
+// PartitionId returns the partition that the key belongs to.
+func (ky *Key) PartitionId() int {
+	// CAN'T USE MOD directly - mod will give negative numbers.
+	// First AND makes positive and negative correctly, then mod.
+	return int(Buffer.LittleBytesToInt32(ky.digest[:], 0)&0xFFFF) & (_PARTITIONS - 1)
 }

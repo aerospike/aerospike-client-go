@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1484,8 +1484,8 @@ var _ = Describe("Aerospike", func() {
 		Context("XDR Filter", func() {
 
 			BeforeEach(func() {
-				if !isEnterpriseEdition() {
-					Skip("XDR Filter Tests are not supported in the Community Edition.")
+				if !xdrEnabled() {
+					Skip("XDR Filter Tests are not supported in the Community Edition, or when the server is not configured for XDR")
 					return
 				}
 			})

@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ import (
 	"sync/atomic"
 
 	. "github.com/aerospike/aerospike-client-go/types"
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 // Partition encapsulates partition information.
@@ -35,13 +34,11 @@ type Partition struct {
 // NewPartition returns a partition representation
 func NewPartition(partitions *Partitions, key *Key, replica ReplicaPolicy, linearize bool) *Partition {
 	return &Partition{
-		partitions: partitions,
-		Namespace:  key.Namespace(),
-		replica:    replica,
-		linearize:  linearize,
-		// CAN'T USE MOD directly - mod will give negative numbers.
-		// First AND makes positive and negative correctly, then mod.
-		PartitionId: int(Buffer.LittleBytesToInt32(key.digest[:], 0)&0xFFFF) & (_PARTITIONS - 1),
+		partitions:  partitions,
+		Namespace:   key.Namespace(),
+		replica:     replica,
+		linearize:   linearize,
+		PartitionId: key.PartitionId(),
 	}
 }
 

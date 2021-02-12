@@ -1,6 +1,6 @@
 // +build !as_performance
 
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import (
 
 	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 	. "github.com/aerospike/aerospike-client-go/types"
-	xornd "github.com/aerospike/aerospike-client-go/types/rand"
 )
 
 // PutObject writes record bin(s) to the server.
@@ -154,9 +153,8 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 	first := NewAtomicBool(true)
 
 	// result recordset
-	taskID := uint64(xornd.Int64())
 	res := &Recordset{
-		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes), taskID),
+		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes)),
 	}
 
 	// the whole call should be wrapped in a goroutine
@@ -164,7 +162,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 		for _, node := range nodes {
 			go func(node *Node, first bool) {
 				// Errors are handled inside the command itself
-				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskID, clusterKey, first, binNames...)
+				clnt.scanNodeObjects(&policy, node, res, namespace, setName, clusterKey, first, binNames...)
 			}(node, first.CompareAndToggle(true))
 		}
 	} else {
@@ -172,7 +170,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 		go func() {
 			for _, node := range nodes {
 				// Errors are handled inside the command itself
-				clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskID, clusterKey, first.CompareAndToggle(true), binNames...)
+				clnt.scanNodeObjects(&policy, node, res, namespace, setName, clusterKey, first.CompareAndToggle(true), binNames...)
 			}
 		}()
 	}
@@ -198,20 +196,19 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 	}
 
 	// results channel must be async for performance
-	taskID := uint64(xornd.Int64())
 	res := &Recordset{
-		objectset: *newObjectset(reflect.ValueOf(objChan), 1, taskID),
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
 	}
 
-	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, taskID, clusterKey, true, binNames...)
+	go clnt.scanNodeObjects(&policy, node, res, namespace, setName, clusterKey, true, binNames...)
 	return res, nil
 }
 
 // scanNodeObjects reads all records in specified namespace and set for one node only,
 // and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, taskID uint64, clusterKey int64, first bool, binNames ...string) error {
-	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset, taskID, clusterKey, first)
+func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, clusterKey int64, first bool, binNames ...string) error {
+	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset, clusterKey, first)
 	return command.Execute()
 }
 
@@ -242,7 +239,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 
 	// results channel must be async for performance
 	recSet := &Recordset{
-		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes), statement.TaskId),
+		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes)),
 	}
 
 	// the whole call sho
@@ -270,7 +267,7 @@ func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement 
 
 	// results channel must be async for performance
 	recSet := &Recordset{
-		objectset: *newObjectset(reflect.ValueOf(objChan), 1, statement.TaskId),
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
 	}
 
 	clusterKey := int64(0)

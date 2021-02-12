@@ -8,3 +8,13 @@ tmp/
 .DS_Store
 TODO
 PLAN.todo
+.go_metalinter
+.go_style
+.golangci.yml
+.travis/read-write-udf.ldif
+.travis/people.ldif
+.travis/modify.ldif
+.travis/badwan.ldif
+.travis/access.ldif
+tools/
+cmd/

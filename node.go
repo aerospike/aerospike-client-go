@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -68,7 +68,9 @@ type Node struct {
 
 	active AtomicBool
 
-	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow, supportsTruncateNamespace, supportsClusterStable, supportsBitwiseOps AtomicBool
+	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPeers,
+	supportsLUTNow, supportsTruncateNamespace, supportsClusterStable, supportsBitwiseOps,
+	supportsPartitionScans AtomicBool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -101,6 +103,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		supportsTruncateNamespace: *NewAtomicBool(nv.supportsTruncateNamespace),
 		supportsClusterStable:     *NewAtomicBool(nv.supportsClusterStable),
 		supportsBitwiseOps:        *NewAtomicBool(nv.supportsBitwiseOps),
+		supportsPartitionScans:    *NewAtomicBool(nv.supportsPartitionScans),
 	}
 
 	newNode.aliases.Store(nv.aliases)

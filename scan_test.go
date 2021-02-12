@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"math/rand"
@@ -91,14 +92,85 @@ var _ = Describe("Scan operations", func() {
 		var scanPolicy = as.NewScanPolicy()
 		scanPolicy.FailOnClusterChange = failOnClusterChange
 
+		It("must Scan and get all records back from all partitions concurrently", func() {
+			Expect(len(keys)).To(Equal(keyCount))
+
+			pf := as.NewPartitionFilterByRange(0, 4096)
+			recordset, err := client.ScanPartitions(nil, pf, ns, set)
+			Expect(err).ToNot(HaveOccurred())
+
+			checkResults(recordset, 0, false)
+
+			Expect(len(keys)).To(Equal(0))
+		})
+
+		It(fmt.Sprintf("must Scan and get all partition records back for a specified key. channelFailOnClusterChange: %v", failOnClusterChange), func() {
+			Expect(len(keys)).To(Equal(keyCount))
+
+			counter := 0
+
+			var rkey *as.Key
+			for _, k := range keys {
+				rkey = k
+
+				pf := as.NewPartitionFilterByKey(rkey)
+				recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
+				Expect(err).ToNot(HaveOccurred())
+
+				for res := range recordset.Results() {
+					Expect(res.Err).NotTo(HaveOccurred())
+					Expect(res.Record.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(res.Record.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+
+					// the key itself should not be returned
+					Expect(bytes.Equal(rkey.Digest(), res.Record.Key.Digest())).To(BeFalse())
+
+					delete(keys, string(res.Record.Key.Digest()))
+
+					counter++
+				}
+
+			}
+			Expect(len(keys)).To(BeNumerically(">", 0))
+			Expect(counter).To(BeNumerically(">", 0))
+			Expect(counter).To(BeNumerically("<", keyCount))
+		})
+
+		It(fmt.Sprintf("must Scan and get all partition records back for a specified partition range. channelFailOnClusterChange: %v", failOnClusterChange), func() {
+			Expect(len(keys)).To(Equal(keyCount))
+
+			pbegin := 1000
+			for i := 1; i < 10; i++ {
+				counter := 0
+
+				pf := as.NewPartitionFilterByRange(pbegin, rand.Intn(i*191)+1)
+				recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
+				Expect(err).ToNot(HaveOccurred())
+
+				for res := range recordset.Results() {
+					Expect(res.Err).NotTo(HaveOccurred())
+					Expect(res.Record.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(res.Record.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+
+					delete(keys, string(res.Record.Key.Digest()))
+
+					counter++
+
+					Expect(counter).To(BeNumerically(">", 0))
+					Expect(counter).To(BeNumerically("<", keyCount))
+				}
+			}
+			Expect(len(keys)).To(BeNumerically(">", 0))
+		})
+
 		It(fmt.Sprintf("must Scan and get all records back for a specified node using Results() channel: FailOnClusterChange: %v", failOnClusterChange), func() {
 			Expect(len(keys)).To(Equal(keyCount))
 
+			counter := 0
 			for _, node := range client.GetNodes() {
 				recordset, err := client.ScanNode(scanPolicy, node, ns, set)
 				Expect(err).ToNot(HaveOccurred())
 
-				counter := 0
 				for res := range recordset.Results() {
 					Expect(res.Err).NotTo(HaveOccurred())
 					key, exists := keys[string(res.Record.Key.Digest())]
@@ -115,6 +187,7 @@ var _ = Describe("Scan operations", func() {
 			}
 
 			Expect(len(keys)).To(Equal(0))
+			Expect(counter).To(Equal(keyCount))
 		})
 
 		It(fmt.Sprintf("must Scan and get all records back for a specified node: FailOnClusterChange: %v", failOnClusterChange), func() {

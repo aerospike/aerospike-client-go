@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@ package aerospike
 
 // Priority of operations on database server.
 // Currently, this only affects Scan operations.
+// This type is obsolete and will eventually be removed.
+// Only used for server versions < 4.9.
 type Priority int
 
 const (

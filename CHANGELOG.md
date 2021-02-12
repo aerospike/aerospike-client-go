@@ -1,5 +1,33 @@
 # Change History
 
+## February 12 2021: v4.2.0
+
+  Major feature and improvements release.
+
+  * **New Features**:
+
+    - [CLIENT-1192] Adds Support for partition scans. Queries which lack a `Statement.Filter` will be automatically converted to partition scans. If the cluster supports partition scans, all Scans and Queries will use the new protocol to allow retrying in case of some errors.
+    - [CLIENT-1237] Adds Support for `MultiPolicy.MaxRecords` in scans and queries without `Statement.Filter`.
+    - Adds `NewHosts` convenience function. (Github #320) thanks to [Yegor Myskin](https://github.com/un000)
+
+  * **Improvements**
+
+    - Adds a few missing error checks.
+    - Moves examples files to dedicated folders to avoid `multiple main function` errors for new users.
+    - Some documentation clean up. (Github #314) thanks to [Shin Uozumi](https://github.com/sinozu)
+    - Fix typo in example `NewKey()`. (Github #331) thanks to [Patrick Kuca](https://github.com/pkuca)
+    - Adds an example to list operations (using operate and list policy).
+    - Runs the XDR tests only when XDR is configured on the server.
+    - Add TLS config to test params.
+    - Mark `NewPredExpXXX` return value as the PredExp interface instead of concrete type. It will now group them under the `PredExp` interface in the docs.
+
+  * **Changes**
+    - Only use `Policy.Priority` and `MultiPolicy.FailOnClusterChange` on server versions < 4.9. `Priority` is now deprecated and replaced with `MultiPolicy.RecordPerSecond`.
+    - `Statement.TaskID` is deprecated and will be removed in the next major version.
+    - `ScanPolicy.ConcurrentNodes` is deprecated and will be removed in the next major version.
+
+… versions < 4.9
+
 ## January 25 2021: v4.1.0
 
   Major feature release.
@@ -9,6 +37,10 @@
     - [CLIENT-1417] Adds Circuit-Breaker. Rejects command when assigned node's error rate exceeds `ClientPolicy.MaxErrorRate` over `ClientPolicy.ErrorRateWindow`.
     - [CLIENT-1410] Adds `Client.SetXDRFilter()`.
     - [CLIENT-1433] Adds `ExpMemorySize()` to expression filters.
+
+  * **Fixes**
+
+    - Fixes an issue where remainder miscalculation would cause the connection pool to be smaller than it should have been. (Github #332) thanks to [ShawnZhang](https://github.com/xqzhang2015)
 
   * **Improvements**
 

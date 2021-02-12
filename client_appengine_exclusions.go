@@ -1,6 +1,6 @@
 // +build !app_engine
 
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,11 +17,15 @@
 package aerospike
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
+	"golang.org/x/sync/semaphore"
+
 	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 	lualib "github.com/aerospike/aerospike-client-go/internal/lua"
+	. "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -64,7 +68,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 	first := NewAtomicBool(true)
 
 	// results channel must be async for performance
-	recSet := newRecordset(policy.RecordQueueSize, len(nodes), statement.TaskId)
+	recSet := newRecordset(policy.RecordQueueSize, len(nodes))
 
 	// get a lua instance
 	luaInstance := lualib.LuaPool.Get().(*lua.LState)
@@ -83,6 +87,13 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 	// results channel must be async for performance
 	var wg sync.WaitGroup
 	wg.Add(len(nodes))
+	// results channel must be async for performance
+	maxConcurrentNodes := policy.MaxConcurrentNodes
+	if maxConcurrentNodes <= 0 {
+		maxConcurrentNodes = len(nodes)
+	}
+	sem := semaphore.NewWeighted(int64(maxConcurrentNodes))
+	ctx := context.Background()
 	for _, node := range nodes {
 		// copy policies to avoid race conditions
 		newPolicy := *policy
@@ -90,7 +101,11 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 		command.luaInstance = luaInstance
 		command.inputChan = inputChan
 
+		if err := sem.Acquire(ctx, 1); err != nil {
+			Logger.Error("Constraint Semaphore failed for QueryAggregate: %s", err.Error())
+		}
 		go func() {
+			defer sem.Release(1)
 			defer wg.Done()
 			command.Execute()
 		}()

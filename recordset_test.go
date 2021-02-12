@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 var _ = Describe("Recordset test", func() {
 
 	It("must avoid panic on sendError", func() {
-		rs := newRecordset(100, 1, 1)
+		rs := newRecordset(100, 1)
 
 		rs.sendError(errors.New("Error"))
 		rs.wgGoroutines.Done()

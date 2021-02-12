@@ -1,6 +1,6 @@
 // +build !app_engine
 
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ var _ = Describe("Query Aggregate operations", func() {
 		res, err := client.QueryAggregate(nil, stm, "sum_single_bin", "sum_single_bin", as.StringValue("bin1"))
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(res.TaskId()).To(Equal(stm.TaskId))
+		// Expect(res.TaskId()).To(Equal(stm.TaskId))
 		Expect(res.TaskId()).To(BeNumerically(">", 0))
 
 		for rec := range res.Results() {
