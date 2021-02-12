@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 )
@@ -45,4 +46,24 @@ func (h *Host) String() string {
 // Implements stringer interface
 func (h *Host) equals(other *Host) bool {
 	return h.Name == other.Name && h.Port == other.Port
+}
+
+// NewHosts initializes new host instances by a passed slice of addresses.
+func NewHosts(addresses []string) ([]*Host, error) {
+	aerospikeHosts := make([]*Host, 0, len(addresses))
+	for _, address := range addresses {
+		hostStr, portStr, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing address %s: %s", address, err)
+		}
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return nil, fmt.Errorf("error converting port %s: %s", address, err)
+		}
+
+		host := NewHost(hostStr, port)
+		aerospikeHosts = append(aerospikeHosts, host)
+	}
+
+	return aerospikeHosts, nil
 }
