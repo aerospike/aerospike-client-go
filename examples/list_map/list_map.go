@@ -31,6 +31,7 @@ func main() {
 	testMapStrings(shared.Client)
 	testMapComplex(shared.Client)
 	testListMapCombined(shared.Client)
+	testListOperate(shared.Client)
 
 	log.Println("Example finished successfully.")
 }
@@ -217,6 +218,46 @@ func testListMapCombined(client *as.Client) {
 	validate(5, receivedInner2[1])
 
 	log.Printf("Read/Write Array/Map successful")
+}
+
+/**
+ * Write/Read a single item into a list using the operate command
+ */
+func testListOperate(client *as.Client) {
+	log.Printf("Read/Write List operate")
+	key, _ := as.NewKey(*shared.Namespace, *shared.Set, "listkey1")
+	client.Delete(shared.WritePolicy, key)
+
+	alist := []string{"string1", "string2", "string3"}
+
+	// Create a list as a bin
+	bin := as.NewBin("listbin1", alist)
+	client.PutBins(shared.WritePolicy, key, bin)
+
+	writePolicy := as.NewWritePolicy(0, 0)
+	listPolicy := as.NewListPolicy(as.ListOrderUnordered, as.ListWriteFlagsAddUnique|as.ListWriteFlagsNoFail)
+
+	// add a unique item to the list as an operate command
+	_, err := client.Operate(writePolicy, key,
+		as.ListAppendWithPolicyOp(listPolicy, "listbin1", "string4"))
+	shared.PanicOnError(err)
+
+	// add (ignore) duplicate value in the list
+	_, err = client.Operate(writePolicy, key,
+		as.ListAppendWithPolicyOp(listPolicy, "listbin1", "string4"))
+	shared.PanicOnError(err)
+
+	record, err := client.Get(shared.Policy, key, bin.Name)
+	shared.PanicOnError(err)
+
+	receivedList := record.Bins[bin.Name].([]interface{})
+	validateSize(4, len(receivedList))
+	validate("string1", receivedList[0])
+	validate("string2", receivedList[1])
+	validate("string3", receivedList[2])
+	validate("string4", receivedList[3])
+
+	log.Printf("Read/Write list operate successful")
 }
 
 func validateSize(expected, received int) {
