@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ type queryCommand struct {
 
 func newQueryCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, operations []*Operation, recordset *Recordset, clusterKey int64, first bool) *queryCommand {
 	return &queryCommand{
-		baseMultiCommand: *newCorrectMultiCommand(node, recordset, statement.Namespace, clusterKey, first),
+		baseMultiCommand: *newStreamingMultiCommand(node, recordset, statement.Namespace, clusterKey, first),
 		policy:           policy,
 		writePolicy:      writePolicy,
 		statement:        statement,
@@ -38,7 +38,7 @@ func (cmd *queryCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
-	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.operations, cmd.writePolicy != nil)
+	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.recordset.TaskId(), cmd.operations, cmd.writePolicy != nil, nil)
 }
 
 func (cmd *queryCommand) parseResult(ifc command, conn *Connection) error {
@@ -47,7 +47,6 @@ func (cmd *queryCommand) parseResult(ifc command, conn *Connection) error {
 
 // Execute will run the query.
 func (cmd *queryCommand) Execute() error {
-	defer cmd.recordset.signalEnd()
 	err := cmd.execute(cmd, true)
 	if err != nil {
 		cmd.recordset.sendError(err)

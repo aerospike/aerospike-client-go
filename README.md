@@ -39,7 +39,7 @@ Please refer to the [`CHANGELOG.md`](CHANGELOG.md) for details.
   - [Tools](#Tools)
 
 
-## Usage:
+## Usage
 
 The following is a very simple example of CRUD operations in an Aerospike database.
 
@@ -114,7 +114,7 @@ Supported operating systems:
 - Windows (untested)
 
 <a name="Installation"></a>
-## Installation:
+## Installation
 
 1. Install Go 1.9+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
 2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go```

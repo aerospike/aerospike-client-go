@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,9 @@ const (
 	SCAN_OPTIONS         FieldType = 8
 	SCAN_TIMEOUT         FieldType = 9
 	RECORDS_PER_SECOND   FieldType = 10
+	PID_ARRAY            FieldType = 11
+	DIGEST_ARRAY         FieldType = 12
+	SCAN_MAX_RECORDS     FieldType = 13
 	INDEX_NAME           FieldType = 21
 	INDEX_RANGE          FieldType = 22
 	INDEX_FILTER         FieldType = 23

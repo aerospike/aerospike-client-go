@@ -1,5 +1,26 @@
 # Change History
 
+## February 12 2021: v4.2.0
+
+  Major feature and improvements release.
+
+  * **New Features**:
+
+    - [CLIENT-1192] Adds Support for partition scans. Queries which lack a `Statement.Filter` will be automatically converted to partition scans. If the cluster supports partition scans, all Scans and Queries will use the new protocol to allow retrying in case of some errors.
+    - [CLIENT-1237] Adds Support for `MultiPolicy.MaxRecords` in scans and queries without `Statement.Filter`.
+
+  * **Improvements**
+
+    - Adds a few missing error checks.
+    - Moves examples files to dedicated folders to avoid `multiple main function` errors for new users.
+
+  * **Changes**
+    - Only use `Policy.Priority` and `MultiPolicy.FailOnClusterChange` on server versions < 4.9. `Priority` is now deprecated and replaced with `MultiPolicy.RecordPerSecond`.
+    - `Statement.TaskID` is deprecated and will be removed in the next major version.
+    - `ScanPolicy.ConcurrentNodes` is deprecated and will be removed in the next major version.
+
+… versions < 4.9
+
 ## January 25 2021: v4.1.0
 
   Major feature release.

@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"time"
 
@@ -69,6 +68,8 @@ const (
 	_INFO3_LAST int = (1 << 0)
 	// Commit to master only before declaring success.
 	_INFO3_COMMIT_MASTER int = (1 << 1)
+	// Partition is complete response in scan.
+	_INFO3_PARTITION_DONE int = (1 << 2)
 	// Update only. Merge bins.
 	_INFO3_UPDATE_ONLY int = (1 << 3)
 
@@ -950,9 +951,18 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 	return nil
 }
 
-func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskID uint64) error {
+func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskID uint64, nodePartitions *nodePartitions) error {
 	cmd.begin()
 	fieldCount := 0
+	partsFullSize := 0
+	partsPartialSize := 0
+	maxRecords := int64(0)
+
+	if nodePartitions != nil {
+		partsFullSize = len(nodePartitions.partsFull) * 2
+		partsPartialSize = len(nodePartitions.partsPartial) * 20
+		maxRecords = nodePartitions.recordMax
+	}
 
 	predSize := 0
 	if policy.FilterExpression != nil {
@@ -979,14 +989,32 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		fieldCount++
 	}
 
+	if partsFullSize > 0 {
+		cmd.dataOffset += partsFullSize + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	if partsPartialSize > 0 {
+		cmd.dataOffset += partsPartialSize + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	if maxRecords > 0 {
+		cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
 	if policy.RecordsPerSecond > 0 {
 		cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	// Estimate scan options size.
-	cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
-	fieldCount++
+	// Only set scan options for server versions < 4.9.
+	if nodePartitions == nil {
+		// Estimate scan options size.
+		cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
 
 	// Estimate scan timeout size.
 	cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
@@ -1025,6 +1053,26 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		cmd.writeFieldString(*setName, TABLE)
 	}
 
+	if partsFullSize > 0 {
+		cmd.writeFieldHeader(partsFullSize, PID_ARRAY)
+
+		for _, part := range nodePartitions.partsFull {
+			if _, err := cmd.WriteInt16LittleEndian(uint16(part.id)); err != nil {
+				return err
+			}
+		}
+	}
+
+	if partsPartialSize > 0 {
+		cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
+
+		for _, part := range nodePartitions.partsPartial {
+			if _, err := cmd.Write(part.digest[:]); err != nil {
+				return err
+			}
+		}
+	}
+
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
 			return err
@@ -1035,20 +1083,28 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		}
 	}
 
+	if maxRecords > 0 {
+		cmd.writeFieldInt64(maxRecords, SCAN_MAX_RECORDS)
+	}
+
 	if policy.RecordsPerSecond > 0 {
 		cmd.writeFieldInt32(int32(policy.RecordsPerSecond), RECORDS_PER_SECOND)
 	}
 
-	cmd.writeFieldHeader(2, SCAN_OPTIONS)
-	priority := byte(policy.Priority)
-	priority <<= 4
+	// Only set scan options for server versions < 4.9.
+	if nodePartitions == nil {
+		cmd.writeFieldHeader(2, SCAN_OPTIONS)
 
-	if policy.FailOnClusterChange {
-		priority |= 0x08
+		priority := byte(policy.Priority)
+		priority <<= 4
+
+		if policy.FailOnClusterChange {
+			priority |= 0x08
+		}
+
+		cmd.WriteByte(priority)
+		cmd.WriteByte(byte(policy.ScanPercent))
 	}
-
-	cmd.WriteByte(priority)
-	cmd.WriteByte(byte(policy.ScanPercent))
 
 	// Write scan timeout
 	cmd.writeFieldHeader(4, SCAN_TIMEOUT)
@@ -1068,12 +1124,15 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
-func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, operations []*Operation, write bool) (err error) {
+func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, write bool, nodePartitions *nodePartitions) (err error) {
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
 	predSize := 0
 	predExp := statement.predExps
+	partsFullSize := 0
+	partsPartialSize := 0
+	maxRecords := int64(0)
 
 	recordsPerSecond := 0
 	if !write {
@@ -1135,8 +1194,35 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	} else {
 		// Calling query with no filters is more efficiently handled by a primary index scan.
 		// Estimate scan options size.
-		cmd.dataOffset += (2 + int(_FIELD_HEADER_SIZE))
-		fieldCount++
+
+		if nodePartitions != nil {
+			partsFullSize = len(nodePartitions.partsFull) * 2
+			partsPartialSize = len(nodePartitions.partsPartial) * 20
+			maxRecords = nodePartitions.recordMax
+		}
+
+		if partsFullSize > 0 {
+			cmd.dataOffset += partsFullSize + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
+
+		if partsPartialSize > 0 {
+			cmd.dataOffset += partsPartialSize + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
+
+		// Estimate max records size;
+		if maxRecords > 0 {
+			cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
+
+		// Only set scan options for server versions < 4.9.
+		if nodePartitions == nil {
+			// Estimate scan options size.
+			cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
 
 		// Estimate scan timeout size.
 		cmd.dataOffset += (4 + int(_FIELD_HEADER_SIZE))
@@ -1231,7 +1317,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	}
 
 	cmd.writeFieldHeader(8, TRAN_ID)
-	cmd.WriteUint64(statement.TaskId)
+	cmd.WriteUint64(taskID)
 
 	if statement.Filter != nil {
 		idxType := statement.Filter.IndexCollectionType()
@@ -1261,16 +1347,44 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		}
 	} else {
 		// Calling query with no filters is more efficiently handled by a primary index scan.
-		cmd.writeFieldHeader(2, SCAN_OPTIONS)
-		priority := byte(policy.Priority)
-		priority <<= 4
 
-		if !write && policy.FailOnClusterChange {
-			priority |= 0x08
+		if partsFullSize > 0 {
+			cmd.writeFieldHeader(partsFullSize, PID_ARRAY)
+
+			for _, part := range nodePartitions.partsFull {
+				if _, err := cmd.WriteInt16LittleEndian(uint16(part.id)); err != nil {
+					return err
+				}
+			}
 		}
 
-		cmd.WriteByte(priority)
-		cmd.WriteByte(byte(100))
+		if partsPartialSize > 0 {
+			cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
+
+			for _, part := range nodePartitions.partsPartial {
+				if _, err := cmd.Write(part.digest[:]); err != nil {
+					return err
+				}
+			}
+		}
+
+		if maxRecords > 0 {
+			cmd.writeFieldInt64(maxRecords, SCAN_MAX_RECORDS)
+		}
+
+		if nodePartitions == nil {
+			cmd.writeFieldHeader(2, SCAN_OPTIONS)
+
+			priority := byte(policy.Priority)
+			priority <<= 4
+
+			if !write && policy.FailOnClusterChange {
+				priority |= 0x08
+			}
+
+			cmd.WriteByte(priority)
+			cmd.WriteByte(byte(100))
+		}
 
 		// Write scan timeout
 		cmd.writeFieldHeader(4, SCAN_TIMEOUT)
@@ -1736,80 +1850,6 @@ func (cmd *baseCommand) writeFieldBytes(bytes []byte, ftype FieldType) {
 func (cmd *baseCommand) writeFieldHeader(size int, ftype FieldType) {
 	cmd.WriteInt32(int32(size + 1))
 	cmd.WriteByte((byte(ftype)))
-}
-
-// Int64ToBytes converts an int64 into slice of Bytes.
-func (cmd *baseCommand) WriteInt64(num int64) (int, error) {
-	return cmd.WriteUint64(uint64(num))
-}
-
-// Uint64ToBytes converts an uint64 into slice of Bytes.
-func (cmd *baseCommand) WriteUint64(num uint64) (int, error) {
-	binary.BigEndian.PutUint64(cmd.dataBuffer[cmd.dataOffset:cmd.dataOffset+8], num)
-	cmd.dataOffset += 8
-	return 8, nil
-}
-
-// Int32ToBytes converts an int32 to a byte slice of size 4
-func (cmd *baseCommand) WriteInt32(num int32) (int, error) {
-	return cmd.WriteUint32(uint32(num))
-}
-
-// Uint32ToBytes converts an uint32 to a byte slice of size 4
-func (cmd *baseCommand) WriteUint32(num uint32) (int, error) {
-	binary.BigEndian.PutUint32(cmd.dataBuffer[cmd.dataOffset:cmd.dataOffset+4], num)
-	cmd.dataOffset += 4
-	return 4, nil
-}
-
-// Uint32ToBytes converts an uint32 to a byte slice of size 4
-func (cmd *baseCommand) WriteUint32At(num uint32, index int) (int, error) {
-	binary.BigEndian.PutUint32(cmd.dataBuffer[index:index+4], num)
-	return 4, nil
-}
-
-// Int16ToBytes converts an int16 to slice of bytes
-func (cmd *baseCommand) WriteInt16(num int16) (int, error) {
-	return cmd.WriteUint16(uint16(num))
-}
-
-// Int16ToBytes converts an int16 to slice of bytes
-func (cmd *baseCommand) WriteUint16(num uint16) (int, error) {
-	binary.BigEndian.PutUint16(cmd.dataBuffer[cmd.dataOffset:cmd.dataOffset+2], num)
-	cmd.dataOffset += 2
-	return 2, nil
-}
-
-func (cmd *baseCommand) WriteFloat32(float float32) (int, error) {
-	bits := math.Float32bits(float)
-	binary.BigEndian.PutUint32(cmd.dataBuffer[cmd.dataOffset:cmd.dataOffset+4], bits)
-	cmd.dataOffset += 4
-	return 4, nil
-}
-
-func (cmd *baseCommand) WriteFloat64(float float64) (int, error) {
-	bits := math.Float64bits(float)
-	binary.BigEndian.PutUint64(cmd.dataBuffer[cmd.dataOffset:cmd.dataOffset+8], bits)
-	cmd.dataOffset += 8
-	return 8, nil
-}
-
-func (cmd *baseCommand) WriteByte(b byte) error {
-	cmd.dataBuffer[cmd.dataOffset] = b
-	cmd.dataOffset++
-	return nil
-}
-
-func (cmd *baseCommand) WriteString(s string) (int, error) {
-	copy(cmd.dataBuffer[cmd.dataOffset:cmd.dataOffset+len(s)], s)
-	cmd.dataOffset += len(s)
-	return len(s), nil
-}
-
-func (cmd *baseCommand) Write(b []byte) (int, error) {
-	copy(cmd.dataBuffer[cmd.dataOffset:cmd.dataOffset+len(b)], b)
-	cmd.dataOffset += len(b)
-	return len(b), nil
 }
 
 func (cmd *baseCommand) begin() {

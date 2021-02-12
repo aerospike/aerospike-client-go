@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ func newBatchIndexCommandGet(
 			indexRecords: records,
 		},
 	}
-	res.oneShot = false
 	return res
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,6 +80,12 @@ func (buf *buffer) WriteUint32At(num uint32, index int) (int, error) {
 // Int16ToBytes converts an int16 to slice of bytes
 func (buf *buffer) WriteInt16(num int16) (int, error) {
 	return buf.WriteUint16(uint16(num))
+}
+
+func (buf *buffer) WriteInt16LittleEndian(num uint16) (int, error) {
+	binary.LittleEndian.PutUint16(buf.dataBuffer[buf.dataOffset:buf.dataOffset+2], num)
+	buf.dataOffset += 2
+	return 2, nil
 }
 
 // Int16ToBytes converts an int16 to slice of bytes

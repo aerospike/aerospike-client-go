@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ type Cluster struct {
 	tendCount   int
 
 	// Aerospike v3.6.0+
-	supportsFloat, supportsBatchIndex, supportsReplicasAll, supportsGeo *AtomicBool
+	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPartitionScans *AtomicBool
 
 	// User name in UTF-8 encoded bytes.
 	user string
@@ -114,10 +114,11 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 
 		password: *NewSyncVal(nil),
 
-		supportsFloat:       NewAtomicBool(false),
-		supportsBatchIndex:  NewAtomicBool(false),
-		supportsReplicasAll: NewAtomicBool(false),
-		supportsGeo:         NewAtomicBool(false),
+		supportsFloat:          NewAtomicBool(false),
+		supportsBatchIndex:     NewAtomicBool(false),
+		supportsReplicas:       NewAtomicBool(false),
+		supportsGeo:            NewAtomicBool(false),
+		supportsPartitionScans: NewAtomicBool(false),
 	}
 
 	newCluster.partitionWriteMap.Store(make(partitionMap))
@@ -242,10 +243,6 @@ func (clstr *Cluster) tend() error {
 	}
 
 	peers := newPeers(len(nodes)+16, 16)
-
-	floatSupport := true
-	batchIndexSupport := true
-	geoSupport := true
 
 	for _, node := range nodes {
 		// Clear node reference counts.
@@ -372,14 +369,30 @@ func (clstr *Cluster) tend() error {
 	// add to the number of successful tends
 	clstr.tendCount++
 
-	if !floatSupport {
-		Logger.Warn("Some cluster nodes do not support float type. Disabling native float support in the client library...")
+	// set the cluster supported features
+	floatSupport := true
+	batchIndexSupport := true
+	geoSupport := true
+	supportsReplicas := true
+	supportsPartitionScans := true
+
+	for _, node := range clstr.GetNodes() {
+		floatSupport = floatSupport && node.supportsFloat.Get()
+		batchIndexSupport = batchIndexSupport && node.supportsBatchIndex.Get()
+		geoSupport = geoSupport && node.supportsGeo.Get()
+		supportsReplicas = supportsReplicas && node.supportsReplicas.Get()
+		supportsPartitionScans = supportsPartitionScans && node.supportsPartitionScans.Get()
 	}
 
-	// set the cluster supported features
 	clstr.supportsFloat.Set(floatSupport)
 	clstr.supportsBatchIndex.Set(batchIndexSupport)
 	clstr.supportsGeo.Set(geoSupport)
+	clstr.supportsReplicas.Set(supportsReplicas)
+	clstr.supportsPartitionScans.Set(supportsPartitionScans)
+
+	if !floatSupport {
+		Logger.Warn("Some cluster nodes do not support float type. Disabling native float support in the client library...")
+	}
 
 	// update all partitions in one go
 	updatePartitionMap := false

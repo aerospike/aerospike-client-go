@@ -1,4 +1,4 @@
-// Copyright 2013-2020 Aerospike, Inc.
+// Copyright 2014-2021 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,18 @@ type MultiPolicy struct {
 	MaxConcurrentNodes int
 
 	// FailOnClusterChange determines scan termination if cluster is in fluctuating state.
+	// Only used for server versions < 4.9.
 	FailOnClusterChange bool
+
+	// MaxRecords approximates the number of records to return to the client. This number is divided by the
+	// number of nodes involved in the query. The actual number of records returned
+	// may be less than MaxRecords if node record counts are small and unbalanced across
+	// nodes.
+	//
+	// This field is supported on server versions >= 4.9.
+	//
+	// Default: 0 (do not limit record count)
+	MaxRecords int64
 
 	// RecordsPerSecond limits returned records per second (rps) rate for each server.
 	// Will not apply rps limit if recordsPerSecond is zero (default).
@@ -47,9 +58,23 @@ type MultiPolicy struct {
 }
 
 // NewMultiPolicy initializes a MultiPolicy instance with default values.
+//
+// Set MaxRetries for non-aggregation queries with a nil filter on
+// server versions >= 4.9. All other queries are not retried.
+//
+// The latest servers support retries on individual data partitions.
+// This feature is useful when a cluster is migrating and partition(s)
+// are missed or incomplete on the first query (with nil filter) attempt.
+//
+// If the first query attempt misses 2 of 4096 partitions, then only
+// those 2 partitions are retried in the next query attempt from the
+// last key digest received for each respective partition. A higher
+// default MaxRetries is used because it's wasteful to invalidate
+// all query results because a single partition was missed.
 func NewMultiPolicy() *MultiPolicy {
 	bp := *NewPolicy()
 	bp.SocketTimeout = 30 * time.Second
+	bp.MaxRetries = 5
 
 	return &MultiPolicy{
 		BasePolicy:          bp,

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 Aerospike, Inc.
+ * Copyright 2014-2021 Aerospike, Inc.
  *
  * Portions may be licensed to Aerospike, Inc. under one or more contributor
  * license agreements.
@@ -41,11 +41,10 @@ var setMap = make(map[string]Metrics)
 func runExample(client *as.Client) {
 	log.Println("Scan series: namespace=", *shared.Namespace, " set=", *shared.Set)
 
-	// Use low scan priority.  This will take more time, but it will reduce
+	// Limit scan to recordsPerSecond.  This will take more time, but it will reduce
 	// the load on the server.
 	policy := as.NewScanPolicy()
-	policy.MaxRetries = 1
-	policy.Priority = as.LOW
+	policy.RecordsPerSecond = 5000
 
 	nodeList := client.GetNodes()
 	begin := time.Now()
