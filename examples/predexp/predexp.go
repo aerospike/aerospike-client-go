@@ -15,34 +15,33 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
+	shared "github.com/aerospike/aerospike-client-go/examples/shared"
 )
 
-var namespace = "test"
-var setName = "aerospike"
-
 func main() {
-	// define a client to connect to
-	client, err := NewClient("127.0.0.1", 3000)
-	panicOnError(err)
+	runExample(shared.Client)
+	log.Println("Example finished successfully.")
+}
 
+func runExample(client *as.Client) {
 	for i := 0; i < 5; i++ {
-		key, err := NewKey(namespace, setName, i) // user key can be of any supported type
-		panicOnError(err)
+		key, err := as.NewKey(*shared.Namespace, *shared.Set, i) // user key can be of any supported type
+		shared.PanicOnError(err)
 
 		// define some bins
-		bins := BinMap{
+		bins := as.BinMap{
 			"valueBin":   42, // you can pass any supported type as bin value
 			"versionBin": i,
 			"id":         i,
 		}
 
 		// write the bins
-		writePolicy := NewWritePolicy(0, 0)
+		writePolicy := as.NewWritePolicy(0, 0)
 		err = client.Put(writePolicy, key, bins)
-		panicOnError(err)
+		shared.PanicOnError(err)
 	}
 
 	readRecord(client, 2)
@@ -51,39 +50,39 @@ func main() {
 	value := int64(123)
 	version := int64(3)
 
-	bins := BinMap{
+	bins := as.BinMap{
 		"valueBin":   value,
 		"versionBin": version,
 	}
 
 	// set a predicate expression to only apply if version < 3
 	// leave the RecordExistsAction at the default value UPDATE - if record isn't found, a new one is created
-	writePolicy := NewWritePolicy(0, 0)
-	writePolicy.PredExp = []PredExp{
-		NewPredExpIntegerBin("versionBin"),
-		NewPredExpIntegerValue(version),
-		NewPredExpIntegerLess(),
+	writePolicy := as.NewWritePolicy(0, 0)
+	writePolicy.PredExp = []as.PredExp{
+		as.NewPredExpIntegerBin("versionBin"),
+		as.NewPredExpIntegerValue(version),
+		as.NewPredExpIntegerLess(),
 	}
 
 	// this should update the record
-	key, err := NewKey(namespace, setName, 2)
+	key, err := as.NewKey(*shared.Namespace, *shared.Set, 2)
 	err = client.Put(writePolicy, key, bins)
-	fmt.Printf("Put key 2: %s\n", err)
+	log.Printf("Put key 2: %s\n", err)
 
 	// version is not less than desired value; no effect
-	key, err = NewKey(namespace, setName, 3)
+	key, err = as.NewKey(*shared.Namespace, *shared.Set, 3)
 	err = client.Put(writePolicy, key, bins)
-	fmt.Printf("Put key 3: %s\n", err)
+	log.Printf("Put key 3: %s\n", err)
 
 	// version is not less than desired value; no effect
-	key, err = NewKey(namespace, setName, 4)
+	key, err = as.NewKey(*shared.Namespace, *shared.Set, 4)
 	err = client.Put(writePolicy, key, bins)
-	fmt.Printf("Put key 4: %s\n", err)
+	log.Printf("Put key 4: %s\n", err)
 
 	// key does not exist; new record added
-	key, err = NewKey(namespace, setName, 5)
+	key, err = as.NewKey(*shared.Namespace, *shared.Set, 5)
 	err = client.Put(writePolicy, key, bins)
-	fmt.Printf("Put key 5: %s\n", err)
+	log.Printf("Put key 5: %s\n", err)
 
 	readRecord(client, 2)
 	readRecord(client, 3)
@@ -96,27 +95,21 @@ func main() {
 	}
 }
 
-func readRecord(client *Client, id int) {
+func readRecord(client *as.Client, id int) {
 	// read one record
-	readPolicy := NewPolicy()
-	key, err := NewKey(namespace, setName, id)
+	readPolicy := as.NewPolicy()
+	key, err := as.NewKey(*shared.Namespace, *shared.Set, id)
 	rec, err := client.Get(readPolicy, key)
-	panicOnError(err)
+	shared.PanicOnError(err)
 
-	fmt.Printf("%#v\n", *rec)
+	log.Printf("%#v\n", *rec)
 }
 
-func deleteRecord(client *Client, id int) {
+func deleteRecord(client *as.Client, id int) {
 	// read one record
-	writePolicy := NewWritePolicy(0, 0)
-	key, err := NewKey(namespace, setName, id)
+	writePolicy := as.NewWritePolicy(0, 0)
+	key, err := as.NewKey(*shared.Namespace, *shared.Set, id)
 	existed, err := client.Delete(writePolicy, key)
-	panicOnError(err)
-	fmt.Printf("did key exist before delete: %#v\n", existed)
-}
-
-func panicOnError(err error) {
-	if err != nil {
-		panic(err)
-	}
+	shared.PanicOnError(err)
+	log.Printf("did key exist before delete: %#v\n", existed)
 }
