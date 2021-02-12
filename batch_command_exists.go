@@ -45,7 +45,6 @@ func newBatchCommandExists(
 		keys:        keys,
 		existsArray: existsArray,
 	}
-	res.oneShot = false
 	return res
 }
 

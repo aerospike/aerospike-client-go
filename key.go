@@ -157,3 +157,10 @@ func (ky *Key) computeDigest() error {
 	ky.keyWriter.hash.Sum(ky.digest[:])
 	return nil
 }
+
+// PartitionId returns the partition that the key belongs to.
+func (ky *Key) PartitionId() int {
+	// CAN'T USE MOD directly - mod will give negative numbers.
+	// First AND makes positive and negative correctly, then mod.
+	return int(Buffer.LittleBytesToInt32(ky.digest[:], 0)&0xFFFF) & (_PARTITIONS - 1)
+}

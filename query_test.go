@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"math/rand"
@@ -116,9 +117,107 @@ var _ = Describe("Query operations", func() {
 		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
 	})
 
+	AfterEach(func() {
+		indexName = set + bin3.Name
+		Expect(client.DropIndex(nil, ns, set, indexName)).ToNot(HaveOccurred())
+
+		indexName = set + bin6.Name
+		Expect(client.DropIndex(nil, ns, set, indexName)).ToNot(HaveOccurred())
+	})
+
 	for _, failOnClusterChange := range []bool{false, true} {
 		var queryPolicy = as.NewQueryPolicy()
 		queryPolicy.FailOnClusterChange = failOnClusterChange
+
+		It(fmt.Sprintf("must Query and get all records back for a specified node using Results() channelFailOnClusterChange: %v", failOnClusterChange), func() {
+			Expect(len(keys)).To(Equal(keyCount))
+
+			stm := as.NewStatement(ns, set)
+
+			counter := 0
+			for _, node := range client.GetNodes() {
+				recordset, err := client.QueryNode(queryPolicy, node, stm)
+				Expect(err).ToNot(HaveOccurred())
+
+				for res := range recordset.Results() {
+					Expect(res.Err).NotTo(HaveOccurred())
+					key, exists := keys[string(res.Record.Key.Digest())]
+
+					Expect(exists).To(Equal(true))
+					Expect(key.Value().GetObject()).To(Equal(res.Record.Key.Value().GetObject()))
+					Expect(res.Record.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(res.Record.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+
+					delete(keys, string(res.Record.Key.Digest()))
+
+					counter++
+				}
+			}
+
+			Expect(len(keys)).To(Equal(0))
+			Expect(counter).To(Equal(keyCount))
+		})
+
+		It(fmt.Sprintf("must Query and get all partition records back for a specified key. channelFailOnClusterChange: %v", failOnClusterChange), func() {
+			Expect(len(keys)).To(Equal(keyCount))
+
+			counter := 0
+
+			var rkey *as.Key
+			for _, k := range keys {
+				rkey = k
+
+				pf := as.NewPartitionFilterByKey(rkey)
+				stm := as.NewStatement(ns, set)
+				recordset, err := client.QueryPartitions(queryPolicy, stm, pf)
+				Expect(err).ToNot(HaveOccurred())
+
+				for res := range recordset.Results() {
+					Expect(res.Err).NotTo(HaveOccurred())
+					Expect(res.Record.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(res.Record.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+
+					// the key itself should not be returned
+					Expect(bytes.Equal(rkey.Digest(), res.Record.Key.Digest())).To(BeFalse())
+
+					delete(keys, string(res.Record.Key.Digest()))
+
+					counter++
+				}
+
+			}
+			Expect(len(keys)).To(BeNumerically(">", 0))
+			Expect(counter).To(BeNumerically(">", 0))
+			Expect(counter).To(BeNumerically("<", keyCount))
+		})
+
+		It(fmt.Sprintf("must Query and get all partition records back for a specified partition range. channelFailOnClusterChange: %v", failOnClusterChange), func() {
+			Expect(len(keys)).To(Equal(keyCount))
+
+			pbegin := 1000
+			for i := 1; i < 10; i++ {
+				counter := 0
+
+				pf := as.NewPartitionFilterByRange(pbegin, rand.Intn(i*191)+1)
+				stm := as.NewStatement(ns, set)
+				recordset, err := client.QueryPartitions(queryPolicy, stm, pf)
+				Expect(err).ToNot(HaveOccurred())
+
+				for res := range recordset.Results() {
+					Expect(res.Err).NotTo(HaveOccurred())
+					Expect(res.Record.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
+					Expect(res.Record.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+
+					delete(keys, string(res.Record.Key.Digest()))
+
+					counter++
+
+					Expect(counter).To(BeNumerically(">", 0))
+					Expect(counter).To(BeNumerically("<", keyCount))
+				}
+			}
+			Expect(len(keys)).To(BeNumerically(">", 0))
+		})
 
 		It(fmt.Sprintf("must return error if query on non-indexed field. FailOnClusterChange: %v", failOnClusterChange), func() {
 			stm := as.NewStatement(ns, set)

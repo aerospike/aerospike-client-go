@@ -15,9 +15,6 @@
 package aerospike
 
 import (
-	// "fmt"
-
-	// . "github.com/aerospike/aerospike-client-go/logger"
 	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -26,10 +23,14 @@ type serverCommand struct {
 	queryCommand
 }
 
-func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, operations []*Operation) *serverCommand {
+func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, taskId uint64, operations []*Operation) *serverCommand {
 	return &serverCommand{
 		queryCommand: *newQueryCommand(node, policy, writePolicy, statement, operations, nil, 0, false),
 	}
+}
+
+func (cmd *serverCommand) writeBuffer(ifc command) (err error) {
+	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.statement.TaskId, cmd.operations, cmd.writePolicy != nil, nil)
 }
 
 func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {

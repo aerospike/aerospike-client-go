@@ -14,6 +14,12 @@
 
 package aerospike
 
+import (
+	"fmt"
+
+	. "github.com/aerospike/aerospike-client-go/types"
+)
+
 // ScanPolicy encapsulates parameters used in scan operations.
 type ScanPolicy struct {
 	MultiPolicy
@@ -24,10 +30,25 @@ type ScanPolicy struct {
 	ScanPercent int //= 100;
 
 	// ConcurrentNodes determines how to issue scan requests (in parallel or sequentially).
+	// The value of MultiPolicy.MaxConcurrentNodes will determine how many nodes will be
+	// called in parallel.
+	// This value is deprected and will be removed in the future.
 	ConcurrentNodes bool //= true;
 }
 
 // NewScanPolicy creates a new ScanPolicy instance with default values.
+// Set MaxRetries for scans on server versions >= 4.9. All other
+// scans are not retried.
+//
+// The latest servers support retries on individual data partitions.
+// This feature is useful when a cluster is migrating and partition(s)
+// are missed or incomplete on the first scan attempt.
+//
+// If the first scan attempt misses 2 of 4096 partitions, then only
+// those 2 partitions are retried in the next scan attempt from the
+// last key digest received for each respective partition.  A higher
+// default MaxRetries is used because it's wasteful to invalidate
+// all scan results because a single partition was missed.
 func NewScanPolicy() *ScanPolicy {
 	mp := *NewMultiPolicy()
 	mp.TotalTimeout = 0
@@ -36,5 +57,12 @@ func NewScanPolicy() *ScanPolicy {
 		MultiPolicy:     mp,
 		ScanPercent:     100,
 		ConcurrentNodes: true,
+	}
+}
+
+// Verify policies fields are within range.
+func (sp *ScanPolicy) validate() {
+	if sp.ScanPercent <= 0 || sp.ScanPercent > 100 {
+		panic(NewAerospikeError(PARAMETER_ERROR, fmt.Sprintf("Invalid scan percent: %d", sp.ScanPercent)))
 	}
 }

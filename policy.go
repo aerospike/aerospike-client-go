@@ -95,7 +95,12 @@ type BasePolicy struct {
 	//
 	// Default for read: 2 (initial attempt + 2 retries = 3 attempts)
 	//
-	// Default for write/query/scan: 0 (no retries)
+	// Default for write: 0 (no retries)
+	//
+	// Default for partition scan or query with nil filter: 5
+	// (6 attempts. See ScanPolicy comments.)
+	//
+	// No default for legacy scan/query. No retries are allowed for these commands.
 	MaxRetries int //= 2;
 
 	// SleepBetweenRtries determines the duration to sleep between retries.  Enter zero to skip sleep.
@@ -128,12 +133,10 @@ type BasePolicy struct {
 	// The default is to not send the user defined key.
 	SendKey bool // = false
 
-	// UseCompression tells the server to compress its response using zlib.
-	// Use zlib compression on write or batch read commands when the command buffer size is greater
-	// than 128 bytes. In addition, it directs the server to compress its response on read commands.
-	// The server response compression threshold is also 128 bytes. Works with server EE v4.8.0.1+.
+	// UseCompression uses zlib compression on command buffers sent to the server and responses received
+	// from the server when the buffer size is greater than 128 bytes.
 	//
-	// This option will increase CPU and memory usage (for extra compressed buffers), but
+	// This option will increase cpu and memory usage (for extra compressed buffers),but
 	// decrease the size of data sent over the network.
 	//
 	// Default: false

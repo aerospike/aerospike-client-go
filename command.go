@@ -20,7 +20,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"time"
 
@@ -69,6 +68,8 @@ const (
 	_INFO3_LAST int = (1 << 0)
 	// Commit to master only before declaring success.
 	_INFO3_COMMIT_MASTER int = (1 << 1)
+	// Partition is complete response in scan.
+	_INFO3_PARTITION_DONE int = (1 << 2)
 	// Update only. Merge bins.
 	_INFO3_UPDATE_ONLY int = (1 << 3)
 
@@ -950,9 +951,16 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 	return nil
 }
 
-func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskID uint64) error {
+func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskID uint64, nodePartitions *nodePartitions) error {
 	cmd.begin()
 	fieldCount := 0
+	partsFullSize := 0
+	partsPartialSize := 0
+
+	if nodePartitions != nil {
+		partsFullSize = len(nodePartitions.partsFull) * 2
+		partsPartialSize = len(nodePartitions.partsPartial) * 20
+	}
 
 	predSize := 0
 	if policy.FilterExpression != nil {
@@ -976,6 +984,16 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 	if setName != nil {
 		cmd.dataOffset += len(*setName) + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	if partsFullSize > 0 {
+		cmd.dataOffset += partsFullSize + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	if partsPartialSize > 0 {
+		cmd.dataOffset += partsPartialSize + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
@@ -1025,6 +1043,26 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		cmd.writeFieldString(*setName, TABLE)
 	}
 
+	if partsFullSize > 0 {
+		cmd.writeFieldHeader(partsFullSize, PID_ARRAY)
+
+		for _, part := range nodePartitions.partsFull {
+			if _, err := cmd.WriteInt16LittleEndian(uint16(part.id)); err != nil {
+				return err
+			}
+		}
+	}
+
+	if partsPartialSize > 0 {
+		cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
+
+		for _, part := range nodePartitions.partsPartial {
+			if _, err := cmd.Write(part.digest[:]); err != nil {
+				return err
+			}
+		}
+	}
+
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
 			return err
@@ -1072,12 +1110,14 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
-func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, operations []*Operation, write bool) (err error) {
+func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, write bool, nodePartitions *nodePartitions) (err error) {
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
 	predSize := 0
 	predExp := statement.predExps
+	partsFullSize := 0
+	partsPartialSize := 0
 
 	recordsPerSecond := 0
 	if !write {
@@ -1139,6 +1179,22 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	} else {
 		// Calling query with no filters is more efficiently handled by a primary index scan.
 		// Estimate scan options size.
+
+		if nodePartitions != nil {
+			partsFullSize = len(nodePartitions.partsFull) * 2
+			partsPartialSize = len(nodePartitions.partsPartial) * 20
+		}
+
+		if partsFullSize > 0 {
+			cmd.dataOffset += partsFullSize + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
+
+		if partsPartialSize > 0 {
+			cmd.dataOffset += partsPartialSize + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
+
 		cmd.dataOffset += (2 + int(_FIELD_HEADER_SIZE))
 		fieldCount++
 
@@ -1235,7 +1291,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	}
 
 	cmd.writeFieldHeader(8, TRAN_ID)
-	cmd.WriteUint64(statement.TaskId)
+	cmd.WriteUint64(taskID)
 
 	if statement.Filter != nil {
 		idxType := statement.Filter.IndexCollectionType()
@@ -1265,6 +1321,27 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		}
 	} else {
 		// Calling query with no filters is more efficiently handled by a primary index scan.
+
+		if partsFullSize > 0 {
+			cmd.writeFieldHeader(partsFullSize, PID_ARRAY)
+
+			for _, part := range nodePartitions.partsFull {
+				if _, err := cmd.WriteInt16LittleEndian(uint16(part.id)); err != nil {
+					return err
+				}
+			}
+		}
+
+		if partsPartialSize > 0 {
+			cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
+
+			for _, part := range nodePartitions.partsPartial {
+				if _, err := cmd.Write(part.digest[:]); err != nil {
+					return err
+				}
+			}
+		}
+
 		cmd.writeFieldHeader(2, SCAN_OPTIONS)
 		priority := byte(0)
 		if nodePartitions == nil {

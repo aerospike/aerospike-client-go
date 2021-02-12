@@ -82,6 +82,12 @@ func (buf *buffer) WriteInt16(num int16) (int, error) {
 	return buf.WriteUint16(uint16(num))
 }
 
+func (buf *buffer) WriteInt16LittleEndian(num uint16) (int, error) {
+	binary.LittleEndian.PutUint16(buf.dataBuffer[buf.dataOffset:buf.dataOffset+2], num)
+	buf.dataOffset += 2
+	return 2, nil
+}
+
 // Int16ToBytes converts an int16 to slice of bytes
 func (buf *buffer) WriteUint16(num uint16) (int, error) {
 	binary.BigEndian.PutUint16(buf.dataBuffer[buf.dataOffset:buf.dataOffset+2], num)

@@ -39,7 +39,6 @@ func newBatchIndexCommandGet(
 			indexRecords: records,
 		},
 	}
-	res.oneShot = false
 	return res
 }
 

@@ -21,6 +21,9 @@ import "fmt"
 type ResultCode int
 
 const (
+	// Max retries limit reached.
+	MAX_RETRIES_EXCEEDED ResultCode = -16
+
 	// Max errors limit reached.
 	MAX_ERROR_RATE ResultCode = -15
 
@@ -310,6 +313,10 @@ func KeepConnection(err error) bool {
 // Return result code as a string.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
+
+	case MAX_RETRIES_EXCEEDED:
+		return "Max retries exceeded"
+
 	case MAX_ERROR_RATE:
 		return "Max errors limit reached for node"
 

@@ -22,6 +22,7 @@ import (
 
 	. "github.com/aerospike/aerospike-client-go/internal/atomic"
 	. "github.com/aerospike/aerospike-client-go/types"
+	xornd "github.com/aerospike/aerospike-client-go/types/rand"
 )
 
 type Result struct {
@@ -60,7 +61,16 @@ type objectset struct {
 
 // TaskId returns the transactionId/jobId sent to the server for this recordset.
 func (os *objectset) TaskId() uint64 {
+	os.chanLock.Lock()
+	defer os.chanLock.Unlock()
 	return os.taskID
+}
+
+// Always set the taskID client-side to a non-zero random value
+func (os *objectset) resetTaskID() {
+	os.chanLock.Lock()
+	defer os.chanLock.Unlock()
+	os.taskID = uint64(xornd.Int64())
 }
 
 // Recordset encapsulates the result of Scan and Query commands.
@@ -79,7 +89,7 @@ func recordsetFinalizer(rs *Recordset) {
 }
 
 // newObjectset generates a new RecordSet instance.
-func newObjectset(objChan reflect.Value, goroutines int, taskID uint64) *objectset {
+func newObjectset(objChan reflect.Value, goroutines int) *objectset {
 
 	if objChan.Kind() != reflect.Chan ||
 		objChan.Type().Elem().Kind() != reflect.Ptr ||
@@ -94,20 +104,19 @@ func newObjectset(objChan reflect.Value, goroutines int, taskID uint64) *objects
 		closed:     NewAtomicBool(false),
 		goroutines: NewAtomicInt(goroutines),
 		cancelled:  make(chan struct{}),
-		taskID:     taskID,
 	}
 	rs.wgGoroutines.Add(goroutines)
-
+	rs.resetTaskID()
 	return rs
 }
 
 // newRecordset generates a new RecordSet instance.
-func newRecordset(recSize, goroutines int, taskID uint64) *Recordset {
+func newRecordset(recSize, goroutines int) *Recordset {
 	var nilChan chan *struct{}
 
 	rs := &Recordset{
 		Records:   make(chan *Record, recSize),
-		objectset: *newObjectset(reflect.ValueOf(nilChan), goroutines, taskID),
+		objectset: *newObjectset(reflect.ValueOf(nilChan), goroutines),
 	}
 
 	runtime.SetFinalizer(rs, recordsetFinalizer)

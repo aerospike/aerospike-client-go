@@ -68,7 +68,6 @@ func newBatchCommandGet(
 		records:  records,
 		readAttr: readAttr,
 	}
-	res.oneShot = false
 	return res
 }
 

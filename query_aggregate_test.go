@@ -87,7 +87,7 @@ var _ = Describe("Query Aggregate operations", func() {
 		res, err := client.QueryAggregate(nil, stm, "sum_single_bin", "sum_single_bin", as.StringValue("bin1"))
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(res.TaskId()).To(Equal(stm.TaskId))
+		// Expect(res.TaskId()).To(Equal(stm.TaskId))
 		Expect(res.TaskId()).To(BeNumerically(">", 0))
 
 		for rec := range res.Results() {

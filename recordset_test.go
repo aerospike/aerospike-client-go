@@ -25,7 +25,7 @@ import (
 var _ = Describe("Recordset test", func() {
 
 	It("must avoid panic on sendError", func() {
-		rs := newRecordset(100, 1, 1)
+		rs := newRecordset(100, 1)
 
 		rs.sendError(errors.New("Error"))
 		rs.wgGoroutines.Done()

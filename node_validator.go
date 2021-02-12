@@ -49,7 +49,9 @@ type nodeValidator struct {
 	sessionToken      []byte
 	SessionExpiration time.Time
 
-	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPeers, supportsLUTNow, supportsTruncateNamespace, supportsClusterStable, supportsBitwiseOps bool
+	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo,
+	supportsPeers, supportsLUTNow, supportsTruncateNamespace, supportsClusterStable,
+	supportsBitwiseOps, supportsPartitionScans bool
 }
 
 func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nodesToAddT) error {
@@ -317,6 +319,8 @@ func (ndv *nodeValidator) setFeatures(features string) {
 			ndv.supportsBitwiseOps = true
 		case "cluster-stable":
 			ndv.supportsClusterStable = true
+		case "pscans":
+			ndv.supportsPartitionScans = true
 		}
 	}
 }

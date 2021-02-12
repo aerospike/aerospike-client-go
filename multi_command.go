@@ -31,9 +31,11 @@ type baseMultiCommand struct {
 	clusterKey int64
 	first      bool
 
-	terminationError ResultCode
-
 	recordset *Recordset
+
+	// Used in correct Scans/Queries
+	tracker        *partitionTracker
+	nodePartitions *nodePartitions
 
 	terminationErrorType ResultCode
 
@@ -62,8 +64,7 @@ var prepareReflectionData func(cmd *baseMultiCommand)
 func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	cmd := &baseMultiCommand{
 		baseCommand: baseCommand{
-			node:    node,
-			oneShot: true,
+			node: node,
 		},
 		recordset: recordset,
 	}
@@ -74,7 +75,7 @@ func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	return cmd
 }
 
-func newCorrectMultiCommand(node *Node, recordset *Recordset, namespace string, clusterKey int64, first bool) *baseMultiCommand {
+func newStreamingMultiCommand(node *Node, recordset *Recordset, namespace string, clusterKey int64, first bool) *baseMultiCommand {
 	cmd := &baseMultiCommand{
 		baseCommand: baseCommand{
 			node:    node,
@@ -84,6 +85,21 @@ func newCorrectMultiCommand(node *Node, recordset *Recordset, namespace string, 
 		clusterKey: clusterKey,
 		first:      first,
 		recordset:  recordset,
+	}
+
+	if prepareReflectionData != nil {
+		prepareReflectionData(cmd)
+	}
+	return cmd
+}
+
+func newCorrectStreamingMultiCommand(recordset *Recordset, namespace string) *baseMultiCommand {
+	cmd := &baseMultiCommand{
+		baseCommand: baseCommand{
+			oneShot: true,
+		},
+		namespace: namespace,
+		recordset: recordset,
 	}
 
 	if prepareReflectionData != nil {
@@ -267,6 +283,12 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			return false, err
 		}
 
+		// Partition is done, don't go further
+		if (info3 & _INFO3_PARTITION_DONE) != 0 {
+			cmd.tracker.partitionDone(cmd.nodePartitions, int(generation))
+			return true, nil
+		}
+
 		// if there is a recordset, process the record traditionally
 		// otherwise, it is supposed to be a record channel
 		if cmd.selectCases == nil {
@@ -312,7 +334,15 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			// send back the result on the async channel
 			case cmd.recordset.Records <- newRecord(cmd.node, key, bins, generation, expiration):
 			case <-cmd.recordset.cancelled:
-				return false, NewAerospikeError(cmd.terminationErrorType)
+				switch cmd.terminationErrorType {
+				case SCAN_TERMINATED:
+					return false, ErrScanTerminated
+				case QUERY_TERMINATED:
+					return false, ErrQueryTerminated
+				default:
+					panic(cmd.terminationErrorType)
+					return false, NewAerospikeError(cmd.terminationErrorType)
+				}
 			}
 		} else if multiObjectParser != nil {
 			obj := reflect.New(cmd.resObjType)
@@ -330,6 +360,10 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			case 1: // cancel channel is closed
 				return false, NewAerospikeError(cmd.terminationErrorType)
 			}
+		}
+
+		if cmd.tracker != nil {
+			cmd.tracker.setDigest(key)
 		}
 	}
 

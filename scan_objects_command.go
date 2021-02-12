@@ -35,17 +35,15 @@ func newScanObjectsCommand(
 	setName string,
 	binNames []string,
 	recordset *Recordset,
-	taskID uint64,
 	clusterKey int64,
 	first bool,
 ) *scanObjectsCommand {
 	cmd := &scanObjectsCommand{
-		baseMultiCommand: *newCorrectMultiCommand(node, recordset, namespace, clusterKey, first),
+		baseMultiCommand: *newStreamingMultiCommand(node, recordset, namespace, clusterKey, first),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,
 		binNames:         binNames,
-		taskID:           taskID,
 	}
 
 	cmd.terminationErrorType = SCAN_TERMINATED
@@ -58,7 +56,7 @@ func (cmd *scanObjectsCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *scanObjectsCommand) writeBuffer(ifc command) error {
-	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames, cmd.taskID)
+	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames, cmd.taskID, nil)
 }
 
 func (cmd *scanObjectsCommand) parseResult(ifc command, conn *Connection) error {

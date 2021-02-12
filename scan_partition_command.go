@@ -14,56 +14,56 @@
 
 package aerospike
 
-import . "github.com/aerospike/aerospike-client-go/types"
+import (
+	. "github.com/aerospike/aerospike-client-go/types"
+)
 
-type scanCommand struct {
-	baseMultiCommand
+type scanPartitionCommand scanCommand
 
-	policy    *ScanPolicy
-	namespace string
-	setName   string
-	binNames  []string
-}
-
-func newScanCommand(
-	node *Node,
+func newScanPartitionCommand(
 	policy *ScanPolicy,
+	tracker *partitionTracker,
+	nodePartitions *nodePartitions,
 	namespace string,
 	setName string,
 	binNames []string,
 	recordset *Recordset,
-	clusterKey int64,
-	first bool,
-) *scanCommand {
-	cmd := &scanCommand{
-		baseMultiCommand: *newStreamingMultiCommand(node, recordset, namespace, clusterKey, first),
+) *scanPartitionCommand {
+	cmd := &scanPartitionCommand{
+		baseMultiCommand: *newCorrectStreamingMultiCommand(recordset, namespace),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,
 		binNames:         binNames,
 	}
-
 	cmd.terminationErrorType = SCAN_TERMINATED
+	cmd.tracker = tracker
+	cmd.nodePartitions = nodePartitions
+	cmd.node = nodePartitions.node
 
 	return cmd
 }
 
-func (cmd *scanCommand) getPolicy(ifc command) Policy {
+func (cmd *scanPartitionCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *scanCommand) writeBuffer(ifc command) error {
+func (cmd *scanPartitionCommand) writeBuffer(ifc command) error {
 	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames, cmd.recordset.taskID, cmd.nodePartitions)
 }
 
-func (cmd *scanCommand) parseResult(ifc command, conn *Connection) error {
-	return cmd.baseMultiCommand.parseResult(cmd, conn)
+func (cmd *scanPartitionCommand) shouldRetry(e error) bool {
+	return cmd.tracker != nil && cmd.tracker.shouldRetry(e)
 }
 
-func (cmd *scanCommand) Execute() error {
+func (cmd *scanPartitionCommand) Execute() error {
 	err := cmd.execute(cmd, true)
 	if err != nil {
-		cmd.recordset.sendError(err)
+		// signal to the executor that no retries should be attempted
+		// don't send error unless no retries are planned
+		if !cmd.shouldRetry(err) {
+			cmd.recordset.sendError(err)
+		}
 	}
 	return err
 }

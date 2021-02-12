@@ -34,6 +34,8 @@ const (
 	SCAN_OPTIONS         FieldType = 8
 	SCAN_TIMEOUT         FieldType = 9
 	RECORDS_PER_SECOND   FieldType = 10
+	PID_ARRAY            FieldType = 11
+	DIGEST_ARRAY         FieldType = 12
 	INDEX_NAME           FieldType = 21
 	INDEX_RANGE          FieldType = 22
 	INDEX_FILTER         FieldType = 23

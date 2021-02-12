@@ -26,36 +26,50 @@ const (
 )
 
 // random number generator pool
-var pool = make([]*Xor128Rand, poolSize)
-var pos uint64
+var (
+	pool    = make([]*Xor128Rand, poolSize)
+	pos     uint64
+	rndInit = &Xor128Rand{src: [2]uint64{uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano())}}
+)
 
 func init() {
 	for i := range pool {
 		pool[i] = NewXorRand()
-		// to guarantee a different number on less accurate system clocks
-		time.Sleep(time.Microsecond + 31*time.Nanosecond)
 	}
 }
 
+// Int64 returns a random int64 number. It can be negative.
+// This function uses a pool and is lockless.
 func Int64() int64 {
 	apos := int(atomic.AddUint64(&pos, 1) % poolSize)
 	return pool[apos].Int64()
 }
 
+// Uint64 returns a random uint64 number.
+// This function uses a pool and is lockless.
+func Uint64() uint64 {
+	apos := int(atomic.AddUint64(&pos, 1) % poolSize)
+	return pool[apos].Uint64()
+}
+
+// Xor128Rand is a random number generator
 type Xor128Rand struct {
 	src [2]uint64
 	l   sync.Mutex
 }
 
+// NewXorRand creates a XOR Shift random number generator.
 func NewXorRand() *Xor128Rand {
-	t := time.Now().UnixNano()
+	t := time.Now().UnixNano() + rndInit.Int64()
 	return &Xor128Rand{src: [2]uint64{uint64(t), uint64(t)}}
 }
 
+// Int64 returns a random int64 number. It can be negative.
 func (r *Xor128Rand) Int64() int64 {
 	return int64(r.Uint64())
 }
 
+// Uint64 returns a random uint64 number.
 func (r *Xor128Rand) Uint64() uint64 {
 	r.l.Lock()
 	s1 := r.src[0]
@@ -68,6 +82,8 @@ func (r *Xor128Rand) Uint64() uint64 {
 	return res
 }
 
+// Read will fill the argument slice with random bytes.
+// Implements the Reader interface.
 func (r *Xor128Rand) Read(p []byte) (n int, err error) {
 	l := len(p) / 8
 	for i := 0; i < l; i += 8 {

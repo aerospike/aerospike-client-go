@@ -44,6 +44,7 @@ type Statement struct {
 	predExps []PredExp
 
 	// TaskId determines query task id. (Optional)
+	// This value is not used anymore and will be removed later.
 	TaskId uint64
 
 	// determines if the query should return data
@@ -57,7 +58,7 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 		SetName:    set,
 		BinNames:   binNames,
 		returnData: true,
-		TaskId:     uint64(xornd.Int64()),
+		TaskId:     xornd.Uint64(),
 	}
 }
 
@@ -126,14 +127,6 @@ func (stmt *Statement) IsScan() bool {
 }
 
 // Always set the taskID client-side to a non-zero random value
-func (stmt *Statement) setTaskID() {
-	for stmt.TaskId == 0 {
-		stmt.TaskId = uint64(xornd.Int64())
-	}
-}
-
-// Always set the taskID client-side to a non-zero random value
 func (stmt *Statement) prepare(returnData bool) {
 	stmt.returnData = returnData
-	stmt.setTaskID()
 }
