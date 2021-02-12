@@ -49,7 +49,7 @@ func (h *Host) equals(other *Host) bool {
 }
 
 // NewHosts initializes new host instances by a passed slice of addresses.
-func NewHosts(addresses []string) ([]*Host, error) {
+func NewHosts(addresses ...string) ([]*Host, error) {
 	aerospikeHosts := make([]*Host, 0, len(addresses))
 	for _, address := range addresses {
 		hostStr, portStr, err := net.SplitHostPort(address)
