@@ -529,9 +529,9 @@ func (clnt *Client) ScanPartitions(apolicy *ScanPolicy, partitionFilter *Partiti
 
 	var tracker *partitionTracker
 	if partitionFilter == nil {
-		tracker = newPartitionTrackerForNodes(&policy.BasePolicy, nodes)
+		tracker = newPartitionTrackerForNodes(&policy.MultiPolicy, nodes)
 	} else {
-		tracker = newPartitionTracker(&policy.BasePolicy, partitionFilter, nodes)
+		tracker = newPartitionTracker(&policy.MultiPolicy, partitionFilter, nodes)
 	}
 
 	// result recordset
@@ -605,7 +605,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 func (clnt *Client) scanNodePartitions(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
-	tracker := newPartitionTrackerForNode(&policy.BasePolicy, node)
+	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
 
 	// result recordset
 	res := newRecordset(policy.RecordQueueSize, 1)
@@ -1018,9 +1018,9 @@ func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, p
 	var tracker *partitionTracker
 
 	if partitionFilter == nil {
-		tracker = newPartitionTrackerForNodes(&policy.BasePolicy, nodes)
+		tracker = newPartitionTrackerForNodes(&policy.MultiPolicy, nodes)
 	} else {
-		tracker = newPartitionTracker(&policy.BasePolicy, partitionFilter, nodes)
+		tracker = newPartitionTracker(&policy.MultiPolicy, partitionFilter, nodes)
 	}
 
 	// result recordset
@@ -1117,7 +1117,7 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 func (clnt *Client) queryNodePartitions(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 
-	tracker := newPartitionTrackerForNode(&policy.BasePolicy, node)
+	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
 
 	// result recordset
 	res := newRecordset(policy.RecordQueueSize, 1)

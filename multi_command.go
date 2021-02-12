@@ -363,7 +363,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		}
 
 		if cmd.tracker != nil {
-			cmd.tracker.setDigest(key)
+			cmd.tracker.setDigest(cmd.nodePartitions, key)
 		}
 	}
 

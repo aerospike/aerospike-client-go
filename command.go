@@ -956,10 +956,12 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	fieldCount := 0
 	partsFullSize := 0
 	partsPartialSize := 0
+	maxRecords := int64(0)
 
 	if nodePartitions != nil {
 		partsFullSize = len(nodePartitions.partsFull) * 2
 		partsPartialSize = len(nodePartitions.partsPartial) * 20
+		maxRecords = nodePartitions.recordMax
 	}
 
 	predSize := 0
@@ -997,14 +999,22 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		fieldCount++
 	}
 
+	if maxRecords > 0 {
+		cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
 	if policy.RecordsPerSecond > 0 {
 		cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
 
-	// Estimate scan options size.
-	cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
-	fieldCount++
+	// Only set scan options for server versions < 4.9.
+	if nodePartitions == nil {
+		// Estimate scan options size.
+		cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
 
 	// Estimate scan timeout size.
 	cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
@@ -1073,24 +1083,28 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		}
 	}
 
+	if maxRecords > 0 {
+		cmd.writeFieldInt64(maxRecords, SCAN_MAX_RECORDS)
+	}
+
 	if policy.RecordsPerSecond > 0 {
 		cmd.writeFieldInt32(int32(policy.RecordsPerSecond), RECORDS_PER_SECOND)
 	}
 
-	cmd.writeFieldHeader(2, SCAN_OPTIONS)
-
-	priority := byte(0)
+	// Only set scan options for server versions < 4.9.
 	if nodePartitions == nil {
+		cmd.writeFieldHeader(2, SCAN_OPTIONS)
+
 		priority := byte(policy.Priority)
 		priority <<= 4
 
 		if policy.FailOnClusterChange {
 			priority |= 0x08
 		}
-	}
 
-	cmd.WriteByte(priority)
-	cmd.WriteByte(byte(policy.ScanPercent))
+		cmd.WriteByte(priority)
+		cmd.WriteByte(byte(policy.ScanPercent))
+	}
 
 	// Write scan timeout
 	cmd.writeFieldHeader(4, SCAN_TIMEOUT)
@@ -1118,6 +1132,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	predExp := statement.predExps
 	partsFullSize := 0
 	partsPartialSize := 0
+	maxRecords := int64(0)
 
 	recordsPerSecond := 0
 	if !write {
@@ -1183,6 +1198,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		if nodePartitions != nil {
 			partsFullSize = len(nodePartitions.partsFull) * 2
 			partsPartialSize = len(nodePartitions.partsPartial) * 20
+			maxRecords = nodePartitions.recordMax
 		}
 
 		if partsFullSize > 0 {
@@ -1195,8 +1211,18 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			fieldCount++
 		}
 
-		cmd.dataOffset += (2 + int(_FIELD_HEADER_SIZE))
-		fieldCount++
+		// Estimate max records size;
+		if maxRecords > 0 {
+			cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
+
+		// Only set scan options for server versions < 4.9.
+		if nodePartitions == nil {
+			// Estimate scan options size.
+			cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
+			fieldCount++
+		}
 
 		// Estimate scan timeout size.
 		cmd.dataOffset += (4 + int(_FIELD_HEADER_SIZE))
@@ -1342,19 +1368,23 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			}
 		}
 
-		cmd.writeFieldHeader(2, SCAN_OPTIONS)
-		priority := byte(0)
+		if maxRecords > 0 {
+			cmd.writeFieldInt64(maxRecords, SCAN_MAX_RECORDS)
+		}
+
 		if nodePartitions == nil {
+			cmd.writeFieldHeader(2, SCAN_OPTIONS)
+
 			priority := byte(policy.Priority)
 			priority <<= 4
 
 			if !write && policy.FailOnClusterChange {
 				priority |= 0x08
 			}
-		}
 
-		cmd.WriteByte(priority)
-		cmd.WriteByte(byte(100))
+			cmd.WriteByte(priority)
+			cmd.WriteByte(byte(100))
+		}
 
 		// Write scan timeout
 		cmd.writeFieldHeader(4, SCAN_TIMEOUT)

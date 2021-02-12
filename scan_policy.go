@@ -26,6 +26,10 @@ type ScanPolicy struct {
 
 	// ScanPercent determines percent of data to scan.
 	// Valid integer range is 1 to 100.
+	//
+	// This field is supported on server versions < 4.9.
+	// For server versions >= 4.9, use MultiPolicy.MaxRecords.
+	//
 	// Default is 100.
 	ScanPercent int //= 100;
 

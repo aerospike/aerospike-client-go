@@ -32,6 +32,16 @@ type MultiPolicy struct {
 	// Only used for server versions < 4.9.
 	FailOnClusterChange bool
 
+	// MaxRecords approximates the number of records to return to the client. This number is divided by the
+	// number of nodes involved in the query. The actual number of records returned
+	// may be less than MaxRecords if node record counts are small and unbalanced across
+	// nodes.
+	//
+	// This field is supported on server versions >= 4.9.
+	//
+	// Default: 0 (do not limit record count)
+	MaxRecords int64
+
 	// RecordsPerSecond limits returned records per second (rps) rate for each server.
 	// Will not apply rps limit if recordsPerSecond is zero (default).
 	// Currently only applicable to a query without a defined filter.
