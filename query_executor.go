@@ -80,7 +80,6 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 		}
 	}
 
-	return nil
 }
 
 // QueryNode reads all records in specified namespace and set for one node only.
