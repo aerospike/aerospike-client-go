@@ -91,7 +91,6 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 		}
 	}
 
-	return nil
 }
 
 // ScanNode reads all records in specified namespace and set for one node only.
