@@ -340,7 +340,6 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 				case QUERY_TERMINATED:
 					return false, ErrQueryTerminated
 				default:
-					panic(cmd.terminationErrorType)
 					return false, NewAerospikeError(cmd.terminationErrorType)
 				}
 			}
