@@ -14,9 +14,7 @@
 
 package aerospike
 
-import (
-	. "github.com/aerospike/aerospike-client-go/types"
-)
+import "github.com/aerospike/aerospike-client-go/types"
 
 type queryPartitionCommand queryCommand
 
@@ -34,7 +32,7 @@ func newQueryPartitionCommand(
 		statement:        statement,
 		operations:       nil,
 	}
-	cmd.terminationErrorType = SCAN_TERMINATED
+	cmd.terminationErrorType = types.SCAN_TERMINATED
 	cmd.tracker = tracker
 	cmd.nodePartitions = nodePartitions
 	cmd.node = nodePartitions.node

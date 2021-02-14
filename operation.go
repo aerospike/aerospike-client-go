@@ -14,10 +14,6 @@
 
 package aerospike
 
-type operation interface {
-	write(cmd BufferEx) (int, error)
-}
-
 // OperationType determines operation type
 type OperationType *struct{ op byte }
 type operationSubType *int

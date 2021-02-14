@@ -20,10 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	// "time"
-
 	_ "net/http/pprof"
-	// . "github.com/aerospike/aerospike-client-go"
 )
 
 func doPut(set string, value interface{}, b *testing.B) {

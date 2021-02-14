@@ -15,21 +15,20 @@
 package main
 
 import (
-	// "fmt"
-
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 )
 
+// Person is a custom data type to be converted to a blob
 type Person struct {
 	name string
 }
 
-// Define The AerospikeBlob interface
+// EncodeBlob defines The AerospikeBlob interface
 func (p Person) EncodeBlob() ([]byte, error) {
 	return append([]byte(p.name)), nil
 }
 
-// Decoder is optional, and should be used manually
+// DecodeBlob is optional, and should be used manually
 func (p *Person) DecodeBlob(buf []byte) error {
 	p.name = string(buf)
 	return nil
@@ -37,27 +36,27 @@ func (p *Person) DecodeBlob(buf []byte) error {
 
 func main() {
 	// define a client to connect to
-	client, err := NewClient("127.0.0.1", 3000)
+	client, err := as.NewClient("127.0.0.1", 3000)
 	panicOnError(err)
 
 	namespace := "test"
 	setName := "people"
-	key, err := NewKey(namespace, setName, "key") // user key can be of any supported type
+	key, err := as.NewKey(namespace, setName, "key") // user key can be of any supported type
 	panicOnError(err)
 
 	// define some bins
-	bins := BinMap{
+	bins := as.BinMap{
 		"bin1": Person{name: "Albert Einstein"},
 		"bin2": &Person{name: "Richard Feynman"},
 	}
 
 	// write the bins
-	writePolicy := NewWritePolicy(0, 0)
+	writePolicy := as.NewWritePolicy(0, 0)
 	err = client.Put(writePolicy, key, bins)
 	panicOnError(err)
 
 	// read it back!
-	readPolicy := NewPolicy()
+	readPolicy := as.NewPolicy()
 	rec, err := client.Get(readPolicy, key)
 	panicOnError(err)
 

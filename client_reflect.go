@@ -20,8 +20,8 @@ import (
 	"errors"
 	"reflect"
 
-	. "github.com/aerospike/aerospike-client-go/internal/atomic"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 // PutObject writes record bin(s) to the server.
@@ -30,14 +30,14 @@ import (
 // If the policy is nil, the default relevant policy will be used.
 // A struct can be tagged to influence the way the object is put in the database:
 //
-// type Person struct {
+//  type Person struct {
 //		TTL uint32 `asm:"ttl"`
 //		RecGen uint32 `asm:"gen"`
 //		Name string `as:"name"`
-// 		Address string `as:"desc,omitempty"`
-// 		Age uint8 `as:",omitempty"`
-// 		Password string `as:"-"`
-// }
+//  		Address string `as:"desc,omitempty"`
+//  		Age uint8 `as:",omitempty"`
+//  		Password string `as:"-"`
+//  }
 //
 // Tag `as:` denotes Aerospike fields. The first value will be the alias for the field.
 // `,omitempty` (without any spaces between the comma and the word) will act like the
@@ -76,7 +76,7 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 	return command.Execute()
 }
 
-// BatchGetObject reads multiple record headers and bins for specified keys in one batch request.
+// BatchGetObjects reads multiple record headers and bins for specified keys in one batch request.
 // The returned objects are in positional order with the original key array order.
 // If a key is not found, the positional object will not change, and the positional found boolean will be false.
 // The policy can be used to specify timeouts.
@@ -117,13 +117,13 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 		return nil, err
 	}
 
-	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
+	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil {
 		return nil, err
 	}
 
 	if filteredOut > 0 {
-		err = ErrFilteredOut
+		err = types.ErrFilteredOut
 	}
 
 	return objectsFound, err
@@ -138,7 +138,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
 	clusterKey := int64(0)
@@ -150,7 +150,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 		}
 	}
 
-	first := NewAtomicBool(true)
+	first := atomic.NewBool(true)
 
 	// result recordset
 	res := &Recordset{
@@ -223,7 +223,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
 	}
 
 	clusterKey := int64(0)
@@ -235,7 +235,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 		}
 	}
 
-	first := NewAtomicBool(true)
+	first := atomic.NewBool(true)
 
 	// results channel must be async for performance
 	recSet := &Recordset{

@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	// citrusleaf epoc: Jan 01 2010 00:00:00 GMT
+	// CITRUSLEAF_EPOCH defines the citrusleaf epoc: Jan 01 2010 00:00:00 GMT
 	CITRUSLEAF_EPOCH = 1262304000
 )
 

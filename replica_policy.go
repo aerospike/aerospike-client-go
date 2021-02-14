@@ -29,7 +29,7 @@ const (
 	// in round-robin fashion.
 	MASTER_PROLES
 
-	// Distribute reads across all nodes in cluster in round-robin fashion.
+	// RANDOM Distribute reads across all nodes in cluster in round-robin fashion.
 	// This option is useful when the replication factor equals the number
 	// of nodes in the cluster and the overhead of requesting proles is not desired.
 	RANDOM

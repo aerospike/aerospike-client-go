@@ -19,99 +19,95 @@ import (
 	"math/rand"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
-	// . "github.com/aerospike/aerospike-client-go/logger"
-	// . "github.com/aerospike/aerospike-client-go/types"
+	as "github.com/aerospike/aerospike-client-go"
 
-	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Truncate operations test", func() {
+var _ = gg.Describe("Truncate operations test", func() {
 
-	Context("Truncate", func() {
+	gg.Context("Truncate", func() {
 		var err error
 		var ns = *namespace
 		var set = randString(50)
-		var key *Key
-		var wpolicy = NewWritePolicy(0, 0)
+		var key *as.Key
+		var wpolicy = as.NewWritePolicy(0, 0)
 		wpolicy.SendKey = true
 
 		const keyCount = 1000
-		bin1 := NewBin("Aerospike1", rand.Intn(math.MaxInt16))
-		bin2 := NewBin("Aerospike2", randString(100))
+		bin1 := as.NewBin("Aerospike1", rand.Intn(math.MaxInt16))
+		bin2 := as.NewBin("Aerospike2", randString(100))
 
-		BeforeEach(func() {
+		gg.BeforeEach(func() {
 			err := client.Truncate(nil, ns, set, nil)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			time.Sleep(time.Second)
 			for i := 0; i < keyCount; i++ {
-				key, err = NewKey(ns, set, i)
-				Expect(err).ToNot(HaveOccurred())
+				key, err = as.NewKey(ns, set, i)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				_, err = client.Operate(wpolicy, key, PutOp(bin1), PutOp(bin2), GetOp())
-				Expect(err).ToNot(HaveOccurred())
+				_, err = client.Operate(wpolicy, key, as.PutOp(bin1), as.PutOp(bin2), as.GetOp())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			}
 		})
 
 		var countRecords = func(namespace, setName string) int {
-			stmt := NewStatement(namespace, setName)
+			stmt := as.NewStatement(namespace, setName)
 			res, err := client.Query(nil, stmt)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
 			for rec := range res.Results() {
-				Expect(rec.Err).ToNot(HaveOccurred())
+				gm.Expect(rec.Err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
 			return cnt
 		}
 
-		It("must truncate only the current set", func() {
-			Expect(countRecords(ns, set)).To(Equal(keyCount))
+		gg.It("must truncate only the current set", func() {
+			gm.Expect(countRecords(ns, set)).To(gm.Equal(keyCount))
 
 			err := client.Truncate(nil, ns, set, nil)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			time.Sleep(time.Second)
-			Expect(countRecords(ns, set)).To(Equal(0))
+			gm.Expect(countRecords(ns, set)).To(gm.Equal(0))
 		})
 
-		It("must truncate the whole namespace", func() {
-			Expect(countRecords(ns, "")).ToNot(Equal(0))
+		gg.It("must truncate the whole namespace", func() {
+			gm.Expect(countRecords(ns, "")).ToNot(gm.Equal(0))
 
 			err := client.Truncate(nil, ns, "", nil)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			time.Sleep(time.Second)
-			Expect(countRecords(ns, "")).To(Equal(0))
+			gm.Expect(countRecords(ns, "")).To(gm.Equal(0))
 		})
 
-		It("must truncate only older records", func() {
+		gg.It("must truncate only older records", func() {
 			time.Sleep(3 * time.Second)
 			t := time.Now()
 
-			Expect(countRecords(ns, set)).To(Equal(keyCount))
+			gm.Expect(countRecords(ns, set)).To(gm.Equal(keyCount))
 
 			for i := keyCount; i < 2*keyCount; i++ {
-				key, err = NewKey(ns, set, i)
-				Expect(err).ToNot(HaveOccurred())
+				key, err = as.NewKey(ns, set, i)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				_, err = client.Operate(wpolicy, key, PutOp(bin1), PutOp(bin2), GetOp())
-				Expect(err).ToNot(HaveOccurred())
+				_, err = client.Operate(wpolicy, key, as.PutOp(bin1), as.PutOp(bin2), as.GetOp())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			}
-			Expect(countRecords(ns, set)).To(Equal(2 * keyCount))
+			gm.Expect(countRecords(ns, set)).To(gm.Equal(2 * keyCount))
 
 			err := client.Truncate(nil, ns, set, &t)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			time.Sleep(3 * time.Second)
-			Expect(countRecords(ns, set)).To(Equal(keyCount))
+			gm.Expect(countRecords(ns, set)).To(gm.Equal(keyCount))
 		})
 
 	})

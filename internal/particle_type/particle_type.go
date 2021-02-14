@@ -14,29 +14,19 @@
 
 package particleType
 
+// Server particle types. Unsupported types are commented out.
 const (
-	// Server particle types. Unsupported types are commented out.
+	//revive:disable
 	NULL    = 0
 	INTEGER = 1
 	FLOAT   = 2
 	STRING  = 3
 	BLOB    = 4
-	// TIMESTAMP       = 5
-	DIGEST = 6
-	// JBLOB  = 7
-	// CSHARP_BLOB     = 8
-	// PYTHON_BLOB     = 9
-	// RUBY_BLOB       = 10
-	// PHP_BLOB        = 11
-	// ERLANG_BLOB     = 12
-	// SEGMENT_POINTER = 13
-	// RTA_LIST        = 14
-	// RTA_DICT        = 15
-	// RTA_APPEND_DICT = 16
-	// RTA_APPEND_LIST = 17
+	DIGEST  = 6
 	HLL     = 18
 	MAP     = 19
 	LIST    = 20
 	LDT     = 21
 	GEOJSON = 23
+	//revive:enable
 )

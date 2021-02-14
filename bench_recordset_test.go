@@ -17,11 +17,12 @@ package aerospike_test
 import (
 	"runtime"
 	"testing"
+
 	// "time"
 	_ "net/http/pprof"
 
-	. "github.com/aerospike/aerospike-client-go"
-	_ "github.com/influxdata/influxdb/client"
+	as "github.com/aerospike/aerospike-client-go"
+	// _ "github.com/influxdata/influxdb/client"
 )
 
 func doScan(b *testing.B) {
@@ -29,8 +30,9 @@ func doScan(b *testing.B) {
 	b.ResetTimer()
 	b.SetBytes(0)
 
-	policy := NewScanPolicy()
+	policy := as.NewScanPolicy()
 
+	n := 0
 	for i := 0; i < 10; i++ {
 		results, err := client.ScanAll(policy, *namespace, "test")
 		if err != nil {
@@ -53,8 +55,8 @@ func doQuery(b *testing.B) {
 
 	n := 0
 	//queries to aerospike
-	policy := NewQueryPolicy()
-	stmt := NewStatement(*namespace, "test")
+	policy := as.NewQueryPolicy()
+	stmt := as.NewStatement(*namespace, "test")
 
 	b.ResetTimer()
 	b.SetBytes(0)

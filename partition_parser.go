@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"sync"
 
-	. "github.com/aerospike/aerospike-client-go/logger"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 const (
@@ -69,7 +69,7 @@ func newPartitionParser(node *Node, partitions partitionMap, partitionCount int)
 	newPartitionParser.buffer = info.msg.Data
 	newPartitionParser.length = len(info.msg.Data)
 	if newPartitionParser.length == 0 {
-		return nil, NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Partition info is empty"))
+		return nil, types.NewAerospikeError(types.PARSE_ERROR, "Partition info is empty")
 	}
 
 	newPartitionParser.generation, err = newPartitionParser.parseGeneration()
@@ -94,10 +94,6 @@ func (pp *partitionParser) getGeneration() int {
 	return pp.generation
 }
 
-func (pp *partitionParser) getPartitionMap() partitionMap {
-	return pp.pmap
-}
-
 func (pp *partitionParser) parseGeneration() (int, error) {
 	if err := pp.expectName(_PartitionGeneration); err != nil {
 		return -1, err
@@ -112,7 +108,7 @@ func (pp *partitionParser) parseGeneration() (int, error) {
 		}
 		pp.offset++
 	}
-	return -1, NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Failed to find partition-generation value"))
+	return -1, types.NewAerospikeError(types.PARSE_ERROR, "Failed to find partition-generation value")
 }
 
 func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
@@ -134,7 +130,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 
 			if len(namespace) <= 0 || len(namespace) >= 32 {
 				response := pp.getTruncatedResponse()
-				return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid partition namespace `%s` response: `%s`", namespace, response))
+				return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid partition namespace `%s` response: `%s`", namespace, response))
 			}
 			pp.offset++
 			begin = pp.offset
@@ -182,7 +178,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 				pp.pmap[namespace] = partitions
 			} else if len(partitions.Replicas) != replicaCount {
 				// Ensure replicaArray is correct size.
-				Logger.Info("Namespace `%s` replication factor changed from `%d` to `%d` ", namespace, len(partitions.Replicas), replicaCount)
+				logger.Logger.Info("Namespace `%s` replication factor changed from `%d` to `%d` ", namespace, len(partitions.Replicas), replicaCount)
 
 				partitions.setReplicaCount(replicaCount) //= clonePartitions(partitions, replicaCount)
 				pp.pmap[namespace] = partitions
@@ -205,7 +201,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 
 				if pp.offset == begin {
 					response := pp.getTruncatedResponse()
-					return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Empty partition id for namespace `%s` response: `%s`", namespace, response))
+					return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Empty partition id for namespace `%s` response: `%s`", namespace, response))
 				}
 
 				if err := pp.decodeBitmap(node, partitions, i, regime, begin); err != nil {
@@ -248,7 +244,7 @@ func (pp *partitionParser) decodeBitmap(node *Node, partitions *Partitions, repl
 				partitions.Replicas[replica][partition] = node
 			} else {
 				if !pp.regimeError {
-					Logger.Info("%s regime(%d) < old regime(%d)", node.String(), regime, regimeOld)
+					logger.Logger.Info("%s regime(%d) < old regime(%d)", node.String(), regime, regimeOld)
 					pp.regimeError = true
 				}
 			}
@@ -273,7 +269,7 @@ func (pp *partitionParser) expectName(name string) error {
 		pp.offset++
 	}
 
-	return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Failed to find `%s`", name))
+	return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Failed to find `%s`", name))
 }
 
 func (pp *partitionParser) getTruncatedResponse() string {

@@ -2,6 +2,7 @@ package atomic
 
 import "sync"
 
+// SyncVal allows synchronized access to a value
 type SyncVal struct {
 	val  interface{}
 	lock sync.RWMutex

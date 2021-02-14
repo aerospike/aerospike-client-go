@@ -15,7 +15,8 @@
 package aerospike
 
 import (
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
+
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -24,8 +25,6 @@ type readHeaderCommand struct {
 
 	policy *BasePolicy
 	record *Record
-
-	replicaSequence int
 }
 
 func newReadHeaderCommand(cluster *Cluster, policy *BasePolicy, key *Key) (readHeaderCommand, error) {
@@ -76,21 +75,18 @@ func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {
 
 	if resultCode == 0 {
 		generation := Buffer.BytesToUint32(cmd.dataBuffer, 14)
-		expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 18))
+		expiration := types.TTL(Buffer.BytesToUint32(cmd.dataBuffer, 18))
 		cmd.record = newRecord(cmd.node, cmd.key, nil, generation, expiration)
 	} else {
-		if ResultCode(resultCode) == KEY_NOT_FOUND_ERROR {
+		if types.ResultCode(resultCode) == types.KEY_NOT_FOUND_ERROR {
 			cmd.record = nil
-		} else if ResultCode(resultCode) == FILTERED_OUT {
-			return ErrFilteredOut
+		} else if types.ResultCode(resultCode) == types.FILTERED_OUT {
+			return types.ErrFilteredOut
 		} else {
-			return NewAerospikeError(ResultCode(resultCode))
+			return types.NewAerospikeError(types.ResultCode(resultCode))
 		}
 	}
-	if err := cmd.emptySocket(conn); err != nil {
-		return err
-	}
-	return nil
+	return cmd.emptySocket(conn)
 }
 
 func (cmd *readHeaderCommand) GetRecord() *Record {

@@ -19,9 +19,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aerospike/aerospike-client-go/logger"
 	"golang.org/x/sync/semaphore"
-
-	. "github.com/aerospike/aerospike-client-go/logger"
 )
 
 func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker, namespace string, setName string, rs *Recordset, binNames ...string) error {
@@ -51,13 +50,13 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 
 			for _, nodePartition := range list {
 				if err := sem.Acquire(ctx, 1); err != nil {
-					Logger.Error("Constraint Semaphore failed for Scan: %s", err.Error())
+					logger.Logger.Error("Constraint Semaphore failed for Scan: %s", err.Error())
 				}
 				go func(nodePartition *nodePartitions) {
 					defer sem.Release(1)
 					defer wg.Done()
 					if err := clnt.scanNodePartition(policy, rs, tracker, nodePartition, namespace, setName, binNames...); err != nil {
-						Logger.Debug("Error while Executing scan for node %s: %s", nodePartition.node.String(), err.Error())
+						logger.Logger.Debug("Error while Executing scan for node %s: %s", nodePartition.node.String(), err.Error())
 					}
 				}(nodePartition)
 			}
@@ -68,7 +67,7 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 				defer wg.Done()
 				for _, nodePartition := range list {
 					if err := clnt.scanNodePartition(policy, rs, tracker, nodePartition, namespace, setName, binNames...); err != nil {
-						Logger.Debug("Error while Executing scan for node %s: %s", nodePartition.node.String(), err.Error())
+						logger.Logger.Debug("Error while Executing scan for node %s: %s", nodePartition.node.String(), err.Error())
 					}
 				}
 			}()

@@ -115,6 +115,7 @@ func (fltr *Filter) IndexCollectionType() IndexCollectionType {
 	return fltr.idxType
 }
 
+// EstimateSize will estimate the size of the filter for wire protocol
 func (fltr *Filter) EstimateSize() (int, error) {
 	// bin name size(1) + particle type size(1) + begin particle size(4) + end particle size(4) = 10
 	szBegin, err := fltr.begin.EstimateSize()
@@ -134,10 +135,7 @@ func (fltr *Filter) write(cmd *baseCommand) (int, error) {
 	size := 0
 
 	// Write name length
-	err := cmd.WriteByte(byte(len(fltr.name)))
-	if err != nil {
-		return 0, err
-	}
+	cmd.WriteByte(byte(len(fltr.name)))
 	size++
 
 	// Write Name
@@ -148,10 +146,7 @@ func (fltr *Filter) write(cmd *baseCommand) (int, error) {
 	size += n
 
 	// Write particle type.
-	err = cmd.WriteByte(byte(fltr.valueParticleType))
-	if err != nil {
-		return size, err
-	}
+	cmd.WriteByte(byte(fltr.valueParticleType))
 	size++
 
 	// Write filter begin.
@@ -160,10 +155,7 @@ func (fltr *Filter) write(cmd *baseCommand) (int, error) {
 		return size, err
 	}
 
-	n, err = cmd.WriteInt32(int32(esz))
-	if err != nil {
-		return size + n, err
-	}
+	n = cmd.WriteInt32(int32(esz))
 	size += n
 
 	n, err = fltr.begin.write(cmd)
@@ -178,10 +170,7 @@ func (fltr *Filter) write(cmd *baseCommand) (int, error) {
 		return size, err
 	}
 
-	n, err = cmd.WriteInt32(int32(esz))
-	if err != nil {
-		return size + n, err
-	}
+	n = cmd.WriteInt32(int32(esz))
 	size += n
 
 	n, err = fltr.end.write(cmd)

@@ -23,10 +23,10 @@ package aerospike
 type ReadModeAP int
 
 const (
-	// ONE indicates that a single node should be involved in the read operation.
+	// ReadModeAPOne indicates that a single node should be involved in the read operation.
 	ReadModeAPOne ReadModeAP = iota
 
-	// ALL indicates that all duplicates should be consulted in
+	// ReadModeAPAll indicates that all duplicates should be consulted in
 	// the read operation.
 	ReadModeAPAll
 )

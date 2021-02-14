@@ -18,12 +18,12 @@ import (
 	as "github.com/aerospike/aerospike-client-go"
 	"github.com/aerospike/aerospike-client-go/internal/atomic"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Expression Filters - HLL", func() {
+var _ = gg.Describe("Expression Filters - HLL", func() {
 
 	const keyCount = 100
 
@@ -32,9 +32,9 @@ var _ = Describe("Expression Filters - HLL", func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
 	var qpolicy = as.NewQueryPolicy()
 
-	insertRecs := atomic.NewAtomicBool(true)
+	insertRecs := atomic.NewBool(true)
 
-	BeforeEach(func() {
+	gg.BeforeEach(func() {
 		if !insertRecs.Get() {
 			return
 		}
@@ -44,7 +44,7 @@ var _ = Describe("Expression Filters - HLL", func() {
 			bin := as.BinMap{"bin": ii, "lbin": []interface{}{ii, "a"}}
 			client.Delete(wpolicy, key)
 			err := client.Put(nil, key, bin)
-			Expect(err).NotTo(HaveOccurred())
+			gm.Expect(err).NotTo(gm.HaveOccurred())
 
 			data := []as.Value{as.NewValue("asd"), as.NewValue(ii)}
 			data2 := []as.Value{as.NewValue("asd"), as.NewValue(ii), as.NewValue(ii + 1)}
@@ -67,7 +67,7 @@ var _ = Describe("Expression Filters - HLL", func() {
 			}
 
 			_, err = client.Operate(nil, key, ops...)
-			Expect(err).NotTo(HaveOccurred())
+			gm.Expect(err).NotTo(gm.HaveOccurred())
 		}
 
 		insertRecs.Set(false)
@@ -77,7 +77,7 @@ var _ = Describe("Expression Filters - HLL", func() {
 		qpolicy.FilterExpression = filter
 		stmt := as.NewStatement(ns, set_name)
 		rs, err := client.Query(qpolicy, stmt)
-		Expect(err).NotTo(HaveOccurred())
+		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 		return rs
 	}
@@ -86,14 +86,14 @@ var _ = Describe("Expression Filters - HLL", func() {
 		count := 0
 
 		for res := range rs.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 			count += 1
 		}
 
 		return count
 	}
 
-	It("ExpHLLGetCount should work", func() {
+	gg.It("ExpHLLGetCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpHLLGetCount(
@@ -110,10 +110,10 @@ var _ = Describe("Expression Filters - HLL", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(99))
+		gm.Expect(count).To(gm.Equal(99))
 	})
 
-	It("ExpHLLMayContain should work", func() {
+	gg.It("ExpHLLMayContain should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpHLLMayContain(
@@ -125,10 +125,10 @@ var _ = Describe("Expression Filters - HLL", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ExpListGetByIndex should work", func() {
+	gg.It("ExpListGetByIndex should work", func() {
 		rs := runQuery(
 			as.ExpLess(
 				as.ExpListGetByIndex(
@@ -142,10 +142,10 @@ var _ = Describe("Expression Filters - HLL", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpHLLGetUnion should work", func() {
+	gg.It("ExpHLLGetUnion should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpHLLGetCount(
@@ -159,10 +159,10 @@ var _ = Describe("Expression Filters - HLL", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(98))
+		gm.Expect(count).To(gm.Equal(98))
 	})
 
-	It("ExpHLLGetUnionCount should work", func() {
+	gg.It("ExpHLLGetUnionCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpHLLGetUnionCount(
@@ -174,10 +174,10 @@ var _ = Describe("Expression Filters - HLL", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(98))
+		gm.Expect(count).To(gm.Equal(98))
 	})
 
-	It("ExpHLLGetIntersectCount should work", func() {
+	gg.It("ExpHLLGetIntersectCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpHLLGetIntersectCount(
@@ -189,10 +189,10 @@ var _ = Describe("Expression Filters - HLL", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(99))
+		gm.Expect(count).To(gm.Equal(99))
 	})
 
-	It("ExpHLLGetSimilarity should work", func() {
+	gg.It("ExpHLLGetSimilarity should work", func() {
 		rs := runQuery(
 			as.ExpGreater(
 				as.ExpHLLGetSimilarity(
@@ -204,6 +204,6 @@ var _ = Describe("Expression Filters - HLL", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(99))
+		gm.Expect(count).To(gm.Equal(99))
 	})
 })

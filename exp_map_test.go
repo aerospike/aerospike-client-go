@@ -18,12 +18,12 @@ import (
 	as "github.com/aerospike/aerospike-client-go"
 	"github.com/aerospike/aerospike-client-go/internal/atomic"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Expression Filters - Maps", func() {
+var _ = gg.Describe("Expression Filters - Maps", func() {
 
 	const keyCount = 100
 
@@ -32,9 +32,9 @@ var _ = Describe("Expression Filters - Maps", func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
 	var qpolicy = as.NewQueryPolicy()
 
-	insertRecs := atomic.NewAtomicBool(true)
+	insertRecs := atomic.NewBool(true)
 
-	BeforeEach(func() {
+	gg.BeforeEach(func() {
 		if !insertRecs.Get() {
 			return
 		}
@@ -54,7 +54,7 @@ var _ = Describe("Expression Filters - Maps", func() {
 		qpolicy.FilterExpression = filter
 		stmt := as.NewStatement(ns, set_name)
 		rs, err := client.Query(qpolicy, stmt)
-		Expect(err).NotTo(HaveOccurred())
+		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 		return rs
 	}
@@ -63,14 +63,14 @@ var _ = Describe("Expression Filters - Maps", func() {
 		count := 0
 
 		for res := range rs.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 			count += 1
 		}
 
 		return count
 	}
 
-	It("ExpMapGetByKey should work", func() {
+	gg.It("ExpMapGetByKey should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByKey(
@@ -89,10 +89,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByKeyList should work", func() {
+	gg.It("ExpMapGetByKeyList should work", func() {
 		amap := map[interface{}]interface{}{
 			"test4": 333,
 			"test5": 444,
@@ -113,10 +113,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByValue should work", func() {
+	gg.It("ExpMapGetByValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByValue(
@@ -134,10 +134,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ExpMapClear should work", func() {
+	gg.It("ExpMapClear should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -148,10 +148,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByValueList should work", func() {
+	gg.It("ExpMapGetByValueList should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByValueList(
@@ -164,10 +164,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ExpMapGetByValueRelativeRankRange should work", func() {
+	gg.It("ExpMapGetByValueRelativeRankRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByValueRelativeRankRange(
@@ -181,10 +181,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(99))
+		gm.Expect(count).To(gm.Equal(99))
 	})
 
-	It("ExpMapGetByValueRelativeRankRangeCount should work", func() {
+	gg.It("ExpMapGetByValueRelativeRankRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByValueRelativeRankRangeCount(
@@ -199,10 +199,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByValueRelativeRankRangeCount should work", func() {
+	gg.It("ExpMapGetByValueRelativeRankRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByValueRelativeRankRangeCount(
@@ -217,10 +217,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByValueRelativeRankRangeCount should work", func() {
+	gg.It("ExpMapGetByValueRelativeRankRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByValueRelativeRankRangeCount(
@@ -235,10 +235,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByValueRelativeRankRangeCount should work", func() {
+	gg.It("ExpMapGetByValueRelativeRankRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByValueRelativeRankRangeCount(
@@ -253,10 +253,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByIndex should work", func() {
+	gg.It("ExpMapGetByIndex should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByIndex(
@@ -270,10 +270,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ExpMapGetByIndexRange should work", func() {
+	gg.It("ExpMapGetByIndexRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByIndexRange(
@@ -286,10 +286,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByIndexRangeCount should work", func() {
+	gg.It("ExpMapGetByIndexRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByIndexRangeCount(
@@ -303,10 +303,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ExpMapGetByRank should work", func() {
+	gg.It("ExpMapGetByRank should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByRank(
@@ -320,10 +320,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ExpMapGetByRankRange should work", func() {
+	gg.It("ExpMapGetByRankRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByRankRange(
@@ -336,10 +336,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByRankRangeCount should work", func() {
+	gg.It("ExpMapGetByRankRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByRankRangeCount(
@@ -353,10 +353,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ExpMapGetByValueRange should work", func() {
+	gg.It("ExpMapGetByValueRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByValueRange(
@@ -370,10 +370,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(18))
+		gm.Expect(count).To(gm.Equal(18))
 	})
 
-	It("ExpMapGetByKeyRange should work", func() {
+	gg.It("ExpMapGetByKeyRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByKeyRange(
@@ -387,10 +387,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByKeyRelativeIndexRange should work", func() {
+	gg.It("ExpMapGetByKeyRelativeIndexRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByKeyRelativeIndexRange(
@@ -404,10 +404,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapGetByKeyRelativeIndexRangeCount should work", func() {
+	gg.It("ExpMapGetByKeyRelativeIndexRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapGetByKeyRelativeIndexRangeCount(
@@ -422,10 +422,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByKey should work", func() {
+	gg.It("ExpMapRemoveByKey should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -439,10 +439,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByKeyList should work", func() {
+	gg.It("ExpMapRemoveByKeyList should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -456,10 +456,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByKeyRange should work", func() {
+	gg.It("ExpMapRemoveByKeyRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -474,10 +474,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByKeyRelativeIndexRange should work", func() {
+	gg.It("ExpMapRemoveByKeyRelativeIndexRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -492,10 +492,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByKeyRelativeIndexRangeCount should work", func() {
+	gg.It("ExpMapRemoveByKeyRelativeIndexRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -511,10 +511,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByValue should work", func() {
+	gg.It("ExpMapRemoveByValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -528,10 +528,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ExpMapRemoveByValueList should work", func() {
+	gg.It("ExpMapRemoveByValueList should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -545,10 +545,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ExpMapRemoveByValueRange should work", func() {
+	gg.It("ExpMapRemoveByValueRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -563,10 +563,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(10))
+		gm.Expect(count).To(gm.Equal(10))
 	})
 
-	It("ExpMapRemoveByIndex should work", func() {
+	gg.It("ExpMapRemoveByIndex should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -580,10 +580,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByIndexRange should work", func() {
+	gg.It("ExpMapRemoveByIndexRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -597,10 +597,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByIndexRangeCount should work", func() {
+	gg.It("ExpMapRemoveByIndexRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -615,10 +615,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByRank should work", func() {
+	gg.It("ExpMapRemoveByRank should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -632,10 +632,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByRankRange should work", func() {
+	gg.It("ExpMapRemoveByRankRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -649,10 +649,10 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpMapRemoveByRankRangeCount should work", func() {
+	gg.It("ExpMapRemoveByRankRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpMapSize(
@@ -667,6 +667,6 @@ var _ = Describe("Expression Filters - Maps", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 })

@@ -17,8 +17,9 @@ package aerospike
 import (
 	"fmt"
 
-	. "github.com/aerospike/aerospike-client-go/logger"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
+
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -73,32 +74,32 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 		// Read compressed size
 		_, err = conn.Read(cmd.dataBuffer, compressedSize)
 		if err != nil {
-			Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
+			logger.Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
 			return err
 		}
 
 		// Read compressed size
 		_, err = conn.Read(cmd.dataBuffer, 8)
 		if err != nil {
-			Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
+			logger.Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
 			return err
 		}
 
-		if err := cmd.conn.initInflater(true, compressedSize); err != nil {
-			return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
+		if err = cmd.conn.initInflater(true, compressedSize); err != nil {
+			return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
 		}
 
 		// Read header.
 		_, err = conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE))
 		if err != nil {
-			Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
+			logger.Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
 			return err
 		}
 	} else {
 		// Read header.
 		_, err = conn.Read(cmd.dataBuffer[8:], int(_MSG_TOTAL_HEADER_SIZE)-8)
 		if err != nil {
-			Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
+			logger.Logger.Debug("Connection error reading data for TouchCommand: %s", err.Error())
 			return err
 		}
 	}
@@ -114,18 +115,15 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	if resultCode != 0 {
-		if resultCode == byte(KEY_NOT_FOUND_ERROR) {
-			return ErrKeyNotFound
-		} else if ResultCode(resultCode) == FILTERED_OUT {
-			return ErrFilteredOut
+		if resultCode == byte(types.KEY_NOT_FOUND_ERROR) {
+			return types.ErrKeyNotFound
+		} else if types.ResultCode(resultCode) == types.FILTERED_OUT {
+			return types.ErrFilteredOut
 		}
 
-		return NewAerospikeError(ResultCode(resultCode))
+		return types.NewAerospikeError(types.ResultCode(resultCode))
 	}
-	if err := cmd.emptySocket(conn); err != nil {
-		return err
-	}
-	return nil
+	return cmd.emptySocket(conn)
 }
 
 func (cmd *touchCommand) Execute() error {

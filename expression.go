@@ -27,6 +27,7 @@ type ExpressionArgument interface {
 	pack(BufferEx) (int, error)
 }
 
+// ExpType defines the expression's data type.
 type ExpType uint
 
 var (
@@ -83,7 +84,7 @@ var (
 	expOpCALL          expOp = 127
 )
 
-const MODIFY = 0x40
+const _MODIFY = 0x40
 
 // ExpRegexFlags is used to change the Regex Mode in Expression Filters.
 type ExpRegexFlags int
@@ -105,7 +106,7 @@ const (
 	ExpRegexFlagNEWLINE ExpRegexFlags = 8
 )
 
-// Filter expression, which can be applied to most commands, to control which records are
+// FilterExpression which can be applied to most commands, to control which records are
 // affected by the command. Filter expression are created using the functions in the
 // [expressions](crate::expressions) module and its submodules.
 type FilterExpression struct {
@@ -238,7 +239,7 @@ func (fe *FilterExpression) packCommand(cmd *expOp, buf BufferEx) (int, error) {
 				// First match to estimate the Size and write the Context
 				switch v := arg.(type) {
 				case Value, *FilterExpression:
-					argLen += 1
+					argLen++
 				case cdtContextList:
 					if len(v) > 0 {
 						sz, err = packArrayBegin(buf, 3)
@@ -280,7 +281,7 @@ func (fe *FilterExpression) packCommand(cmd *expOp, buf BufferEx) (int, error) {
 			for _, arg := range args {
 				switch val := arg.(type) {
 				case Value:
-					sz, err := val.pack(buf)
+					sz, err = val.pack(buf)
 					if err != nil {
 						return size, err
 					}

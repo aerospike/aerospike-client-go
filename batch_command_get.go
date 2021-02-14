@@ -17,7 +17,7 @@ package aerospike
 import (
 	"reflect"
 
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -29,7 +29,6 @@ type batchCommandGet struct {
 	records      []*Record
 	indexRecords []*BatchRead
 	readAttr     int
-	index        int
 	key          Key
 
 	// pointer to the object that's going to be unmarshalled
@@ -131,15 +130,15 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
 			return false, err
 		}
-		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
+		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		// The only valid server return codes are "ok" and "not found" and "filtered out".
 		// If other return codes are received, then abort the batch.
-		if resultCode != 0 && resultCode != KEY_NOT_FOUND_ERROR {
-			if resultCode == FILTERED_OUT {
+		if resultCode != 0 && resultCode != types.KEY_NOT_FOUND_ERROR {
+			if resultCode == types.FILTERED_OUT {
 				cmd.filteredOutCnt++
 			} else {
-				return false, NewAerospikeError(resultCode)
+				return false, types.NewAerospikeError(resultCode)
 			}
 		}
 
@@ -151,7 +150,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		}
 
 		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
-		expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
+		expiration := types.TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
 		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
@@ -160,13 +159,10 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 			return false, err
 		}
 
-		var offset int
-		offset = batchIndex
-
 		if cmd.indexRecords != nil {
 			if len(cmd.indexRecords) > 0 {
 				if resultCode == 0 {
-					if cmd.indexRecords[offset].Record, err = cmd.parseRecord(cmd.indexRecords[offset].Key, opCount, generation, expiration); err != nil {
+					if cmd.indexRecords[batchIndex].Record, err = cmd.parseRecord(cmd.indexRecords[batchIndex].Key, opCount, generation, expiration); err != nil {
 						return false, err
 					}
 				}
@@ -174,13 +170,13 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		} else {
 			if resultCode == 0 {
 				if cmd.objects == nil {
-					if cmd.records[offset], err = cmd.parseRecord(cmd.keys[offset], opCount, generation, expiration); err != nil {
+					if cmd.records[batchIndex], err = cmd.parseRecord(cmd.keys[batchIndex], opCount, generation, expiration); err != nil {
 						return false, err
 					}
 				} else if batchObjectParser != nil {
 					// mark it as found
-					cmd.objectsFound[offset] = true
-					if err := batchObjectParser(cmd, offset, opCount, fieldCount, generation, expiration); err != nil {
+					cmd.objectsFound[batchIndex] = true
+					if err := batchObjectParser(cmd, batchIndex, opCount, fieldCount, generation, expiration); err != nil {
 						return false, err
 
 					}

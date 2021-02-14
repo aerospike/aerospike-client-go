@@ -18,14 +18,14 @@ import (
 	"math"
 	"strconv"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 
 	as "github.com/aerospike/aerospike-client-go"
 	"github.com/aerospike/aerospike-client-go/types"
 )
 
-var _ = Describe("HyperLogLog Test", func() {
+var _ = gg.Describe("HyperLogLog Test", func() {
 
 	// connection data
 	var ns = *namespace
@@ -49,7 +49,7 @@ var _ = Describe("HyperLogLog Test", func() {
 	var legalDescriptions [][]int
 	var illegalDescriptions [][]int
 
-	BeforeEach(func() {
+	gg.BeforeEach(func() {
 
 		for i := 0; i < nEntries; i++ {
 			entries = append(entries, as.StringValue("key "+strconv.Itoa(i)))
@@ -128,17 +128,17 @@ var _ = Describe("HyperLogLog Test", func() {
 
 	expectErrors := func(key *as.Key, eresult types.ResultCode, ops ...*as.Operation) {
 		_, err := client.Operate(nil, key, ops...)
-		Expect(err).To(HaveOccurred())
+		gm.Expect(err).To(gm.HaveOccurred())
 
 		aerr, ok := err.(types.AerospikeError)
-		Expect(ok).To(BeTrue())
-		Expect(aerr.ResultCode()).To(Equal(eresult))
+		gm.Expect(ok).To(gm.BeTrue())
+		gm.Expect(aerr.ResultCode()).To(gm.Equal(eresult))
 	}
 
 	expectSuccess := func(key *as.Key, ops ...*as.Operation) *as.Record {
 		record, err := client.Operate(nil, key, ops...)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(record).NotTo(BeNil())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(record).NotTo(gm.BeNil())
 		return record
 	}
 
@@ -153,8 +153,8 @@ var _ = Describe("HyperLogLog Test", func() {
 	}
 
 	expectDescription := func(description []interface{}, index_bits, minhash_bits int) {
-		Expect(index_bits).To(Equal(description[0]))
-		Expect(minhash_bits).To(Equal(description[1]))
+		gm.Expect(index_bits).To(gm.Equal(description[0]))
+		gm.Expect(minhash_bits).To(gm.Equal(description[1]))
 	}
 
 	expectInit := func(index_bits, minhash_bits int, should_pass bool) {
@@ -178,13 +178,13 @@ var _ = Describe("HyperLogLog Test", func() {
 		description := result_list[3].([]interface{})
 
 		expectDescription(description, index_bits, minhash_bits)
-		Expect(0).To(Equal(count))
-		Expect(0).To(Equal(count1))
+		gm.Expect(0).To(gm.Equal(count))
+		gm.Expect(0).To(gm.Equal(count1))
 	}
 
-	It("Init should work", func() {
+	gg.It("Init should work", func() {
 		_, err := client.Delete(nil, key)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		for _, desc := range legalDescriptions {
 			expectInit(desc[0], desc[1], true)
@@ -195,7 +195,7 @@ var _ = Describe("HyperLogLog Test", func() {
 		}
 	})
 
-	It("HLL Flags should work", func() {
+	gg.It("HLL Flags should work", func() {
 		index_bits := 4
 
 		// Keep record around win binName is removed.
@@ -240,7 +240,7 @@ var _ = Describe("HyperLogLog Test", func() {
 			as.HLLInitOp(f, binName, index_bits, -1))
 	})
 
-	It("Bad Init should NOT work", func() {
+	gg.It("Bad Init should NOT work", func() {
 		p := as.DefaultHLLPolicy()
 
 		expectSuccess(key, as.DeleteOp(), as.HLLInitOp(p, binName, maxIndexBits, 0))
@@ -255,7 +255,7 @@ var _ = Describe("HyperLogLog Test", func() {
 	expectHLLCount := func(index_bits int, hll_count, expected int) {
 		count_err_6sigma := relativeCountError(index_bits) * 6
 
-		Expect(isWithinRelativeError(expected, hll_count, count_err_6sigma)).To(BeTrue())
+		gm.Expect(isWithinRelativeError(expected, hll_count, count_err_6sigma)).To(gm.BeTrue())
 	}
 
 	expectAddInit := func(index_bits, minhash_bits int) {
@@ -284,17 +284,17 @@ var _ = Describe("HyperLogLog Test", func() {
 
 		expectDescription(description, index_bits, minhash_bits)
 		expectHLLCount(index_bits, count, len(entries))
-		Expect(count).To(Equal(count1))
-		Expect(n_added).To(Equal(0))
+		gm.Expect(count).To(gm.Equal(count1))
+		gm.Expect(n_added).To(gm.Equal(0))
 	}
 
-	It("Add Init should work", func() {
+	gg.It("Add Init should work", func() {
 		for _, desc := range legalDescriptions {
 			expectAddInit(desc[0], desc[1])
 		}
 	})
 
-	It("Add Flags should work", func() {
+	gg.It("Add Flags should work", func() {
 		index_bits := 4
 
 		// Keep record around win binName is removed.
@@ -335,8 +335,8 @@ var _ = Describe("HyperLogLog Test", func() {
 
 		for ix := minIndexBits; ix <= index_bits; ix++ {
 			if !checkBits(index_bits, 0) || !checkBits(ix, 0) {
-				// Expected valid inputs
-				Expect(true).To(BeFalse())
+				// gm.Expected valid inputs
+				gm.Expect(true).To(gm.BeFalse())
 			}
 
 			recorda := expectSuccess(key,
@@ -353,7 +353,7 @@ var _ = Describe("HyperLogLog Test", func() {
 
 			expectDescription(descriptiona, index_bits, 0)
 			expectHLLCount(index_bits, counta, len(vals0))
-			Expect(counta).To(Equal(counta1))
+			gm.Expect(counta).To(gm.Equal(counta1))
 
 			recordb := expectSuccess(key,
 				as.HLLFoldOp(binName, ix),
@@ -369,14 +369,14 @@ var _ = Describe("HyperLogLog Test", func() {
 			countb1 := resultb_list[4].(int)
 			descriptionb := resultb_list[5].([]interface{})
 
-			Expect(0).To(Equal(n_added0))
+			gm.Expect(0).To(gm.Equal(n_added0))
 			expectDescription(descriptionb, ix, 0)
 			expectHLLCount(ix, countb, len(vals0))
 			expectHLLCount(ix, countb1, len(vals0)+len(vals1))
 		}
 	}
 
-	It("Fold should work", func() {
+	gg.It("Fold should work", func() {
 		var vals0 []as.Value
 		var vals1 []as.Value
 
@@ -393,7 +393,7 @@ var _ = Describe("HyperLogLog Test", func() {
 		}
 	})
 
-	It("Fold Exists should work", func() {
+	gg.It("Fold Exists should work", func() {
 		index_bits := 10
 		fold_down := 4
 		fold_up := 16
@@ -463,7 +463,7 @@ var _ = Describe("HyperLogLog Test", func() {
 			result_list := record.Bins[binName].([]interface{})
 			hll := as.HLLValue(result_list[0].([]byte))
 
-			Expect(hll).NotTo(BeNil())
+			gm.Expect(hll).NotTo(gm.BeNil())
 			hlls = append(hlls, hll)
 		}
 
@@ -488,7 +488,7 @@ var _ = Describe("HyperLogLog Test", func() {
 		union_count2 := union_result_list[4].(int)
 
 		expectHLLCount(index_bits, union_count, union_expected)
-		Expect(union_count).To(Equal(union_count2))
+		gm.Expect(union_count).To(gm.Equal(union_count2))
 
 		for i := 0; i < len(keys); i++ {
 			sub_vals := vals[i]
@@ -499,13 +499,13 @@ var _ = Describe("HyperLogLog Test", func() {
 			n_added := result_list[0].(int)
 			count := result_list[1].(int)
 
-			Expect(0).To(Equal(n_added))
-			Expect(union_count).To(Equal(count))
+			gm.Expect(0).To(gm.Equal(n_added))
+			gm.Expect(union_count).To(gm.Equal(count))
 			expectHLLCount(index_bits, count, union_expected)
 		}
 	}
 
-	It("Set Union should work", func() {
+	gg.It("Set Union should work", func() {
 		var vals [][]as.Value
 
 		for i := 0; i < len(keys); i++ {
@@ -526,7 +526,7 @@ var _ = Describe("HyperLogLog Test", func() {
 		}
 	})
 
-	It("Set Union Flags should work", func() {
+	gg.It("Set Union Flags should work", func() {
 		index_bits := 6
 		low_n_bits := 4
 		high_n_bits := 8
@@ -583,7 +583,7 @@ var _ = Describe("HyperLogLog Test", func() {
 		expectSuccess(key, as.HLLSetUnionOp(f, binName, hlls))
 	})
 
-	It("Refresh Count should work", func() {
+	gg.It("Refresh Count should work", func() {
 		index_bits := 6
 
 		// Keep record around win binName is removed.
@@ -605,7 +605,7 @@ var _ = Describe("HyperLogLog Test", func() {
 			as.HLLRefreshCountOp(binName))
 	})
 
-	It("Get Count should work", func() {
+	gg.It("Get Count should work", func() {
 		index_bits := 6
 
 		// Keep record around win binName is removed.
@@ -622,10 +622,10 @@ var _ = Describe("HyperLogLog Test", func() {
 		// Does not exist.
 		expectSuccess(key, as.PutOp(as.NewBin(binName, nil)))
 		record = expectSuccess(key, as.HLLGetCountOp(binName))
-		Expect(record.Bins[binName]).To(BeNil())
+		gm.Expect(record.Bins[binName]).To(gm.BeNil())
 	})
 
-	It("Get Union should work", func() {
+	gg.It("Get Union should work", func() {
 		index_bits := 14
 		expected_union_count := 0
 		var vals [][]as.Value
@@ -671,10 +671,10 @@ var _ = Describe("HyperLogLog Test", func() {
 		result_list = record.Bins[binName].([]interface{})
 		union_count_2 := result_list[1].(int)
 
-		Expect(union_count).To(Equal(union_count_2))
+		gm.Expect(union_count).To(gm.Equal(union_count_2))
 	})
 
-	It("Put should work", func() {
+	gg.It("Put should work", func() {
 		for _, desc := range legalDescriptions {
 			index_bits := desc[0]
 			minhash_bits := desc[1]
@@ -683,7 +683,7 @@ var _ = Describe("HyperLogLog Test", func() {
 				as.DeleteOp(), as.HLLInitOp(as.DefaultHLLPolicy(), binName, index_bits, minhash_bits))
 
 			record, err := client.Get(nil, key)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			hll := as.HLLValue(record.Bins[binName].([]byte))
 
 			client.Delete(nil, key)
@@ -697,7 +697,7 @@ var _ = Describe("HyperLogLog Test", func() {
 			count := result_list[0].(int)
 			description := result_list[1].([]interface{})
 
-			Expect(count).To(Equal(0))
+			gm.Expect(count).To(gm.Equal(0))
 			expectDescription(description, index_bits, minhash_bits)
 		}
 	})
@@ -721,8 +721,8 @@ var _ = Describe("HyperLogLog Test", func() {
 			return
 		}
 
-		Expect(sim_err_6sigma > math.Abs(expected_similarity-similarity)).To(BeTrue())
-		Expect(isWithinRelativeError(expected_intersect_count, intersect_count, sim_err_6sigma)).To(BeTrue())
+		gm.Expect(sim_err_6sigma > math.Abs(expected_similarity-similarity)).To(gm.BeTrue())
+		gm.Expect(isWithinRelativeError(expected_intersect_count, intersect_count, sim_err_6sigma)).To(gm.BeTrue())
 	}
 
 	expectSimilarityOp := func(overlap float64, common []as.Value, vals [][]as.Value, index_bits,
@@ -764,7 +764,7 @@ var _ = Describe("HyperLogLog Test", func() {
 			expected_intersect_count)
 	}
 
-	It("Similarity should work", func() {
+	gg.It("Similarity should work", func() {
 		overlaps := []float64{0.0001, 0.001, 0.01, 0.1, 0.5}
 
 		for _, overlap := range overlaps {
@@ -801,7 +801,7 @@ var _ = Describe("HyperLogLog Test", func() {
 		}
 	})
 
-	It("Empty Similarity should work", func() {
+	gg.It("Empty Similarity should work", func() {
 		for _, desc := range legalDescriptions {
 			nIndexBits := desc[0]
 			nMinhashBits := desc[1]
@@ -825,12 +825,12 @@ var _ = Describe("HyperLogLog Test", func() {
 			sim := resultList[0].(float64)
 			intersectCount := resultList[1].(int)
 
-			Expect(0).To(Equal(intersectCount))
-			Expect(math.IsNaN(sim)).To(BeTrue())
+			gm.Expect(0).To(gm.Equal(intersectCount))
+			gm.Expect(math.IsNaN(sim)).To(gm.BeTrue())
 		}
 	})
 
-	It("Intersect should work", func() {
+	gg.It("Intersect should work", func() {
 		otherBinName := binName + "other"
 
 		for _, desc := range legalDescriptions {
@@ -866,7 +866,7 @@ var _ = Describe("HyperLogLog Test", func() {
 
 			intersectCount := resultList[0].(int)
 
-			Expect(float64(intersectCount) < 1.8*float64(len(entries))).To(BeTrue())
+			gm.Expect(float64(intersectCount) < 1.8*float64(len(entries))).To(gm.BeTrue())
 
 			hlls = append(hlls, hlls[0])
 
@@ -881,7 +881,7 @@ var _ = Describe("HyperLogLog Test", func() {
 			resultList = record.Bins[binName].([]interface{})
 			intersectCount = resultList[0].(int)
 
-			Expect(float64(intersectCount) < 1.8*float64(len(entries))).To(BeTrue())
+			gm.Expect(float64(intersectCount) < 1.8*float64(len(entries))).To(gm.BeTrue())
 
 			hmhs = append(hmhs, hmhs[0])
 

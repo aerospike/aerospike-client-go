@@ -75,7 +75,7 @@ func HLLAddOp(policy *HLLPolicy, binName string, list []Value, indexBitCount, mi
 	}
 }
 
-// Create HLL set union operation.
+// HLLSetUnionOp creates HLL set union operation.
 // Server sets union of specified HLL objects with HLL bin.
 // Server does not return a value.
 //
@@ -91,7 +91,7 @@ func HLLSetUnionOp(policy *HLLPolicy, binName string, list []HLLValue) *Operatio
 	}
 }
 
-// Create HLL refresh operation.
+// HLLRefreshCountOp creates HLL refresh operation.
 // Server updates the cached count (if stale) and returns the count.
 //
 // binName			name of bin
@@ -104,7 +104,7 @@ func HLLRefreshCountOp(binName string) *Operation {
 	}
 }
 
-// Create HLL fold operation.
+// HLLFoldOp creates HLL fold operation.
 // Servers folds indexBitCount to the specified value.
 // This can only be applied when minHashBitCount on the HLL bin is 0.
 // Server does not return a value.
@@ -121,7 +121,7 @@ func HLLFoldOp(binName string, indexBitCount int) *Operation {
 
 }
 
-// Create HLL getCount operation.
+// HLLGetCountOp creates HLL getCount operation.
 // Server returns estimated number of elements in the HLL bin.
 //
 // binName			name of bin
@@ -135,7 +135,7 @@ func HLLGetCountOp(binName string) *Operation {
 
 }
 
-// Create HLL getUnion operation.
+// HLLGetUnionOp creates HLL getUnion operation.
 // Server returns an HLL object that is the union of all specified HLL objects in the list
 // with the HLL bin.
 //
@@ -151,7 +151,7 @@ func HLLGetUnionOp(binName string, list []HLLValue) *Operation {
 
 }
 
-// Create HLL getUnionCount operation.
+// HLLGetUnionCountOp creates HLL getUnionCount operation.
 // Server returns estimated number of elements that would be contained by the union of these
 // HLL objects.
 //
@@ -166,7 +166,7 @@ func HLLGetUnionCountOp(binName string, list []HLLValue) *Operation {
 	}
 }
 
-// Create HLL getIntersectCount operation.
+// HLLGetIntersectCountOp creates HLL getIntersectCount operation.
 // Server returns estimated number of elements that would be contained by the intersection of
 // these HLL objects.
 //
@@ -181,7 +181,7 @@ func HLLGetIntersectCountOp(binName string, list []HLLValue) *Operation {
 	}
 }
 
-// Create HLL getSimilarity operation.
+// HLLGetSimilarityOp creates HLL getSimilarity operation.
 // Server returns estimated similarity of these HLL objects. Return type is a double.
 //
 // binName			name of bin
@@ -195,7 +195,7 @@ func HLLGetSimilarityOp(binName string, list []HLLValue) *Operation {
 	}
 }
 
-// Create HLL describe operation.
+// HLLDescribeOp creates HLL describe operation.
 // Server returns indexBitCount and minHashBitCount used to create HLL bin in a list of longs.
 // The list size is 2.
 //
@@ -290,7 +290,7 @@ func packHLLValueArray(cmd BufferEx, list _HLLValueArray) (int, error) {
 	size += n
 
 	for i := range list {
-		n, err := list[i].pack(cmd)
+		n, err = list[i].pack(cmd)
 		if err != nil {
 			return 0, err
 		}

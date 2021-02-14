@@ -17,27 +17,27 @@ package aerospike_test
 import (
 	as "github.com/aerospike/aerospike-client-go"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Aerospike", func() {
+var _ = gg.Describe("Aerospike", func() {
 
-	Describe("Host", func() {
+	gg.Describe("Host", func() {
 
-		It("must handle multiple valid host strings", func() {
+		gg.It("must handle multiple valid host strings", func() {
 			// use the same client for all
 			hosts, err := as.NewHosts("host1:4000", "host2:3000", "127.0.0.1:1200", "[2001:0db8:85a3:0000:0000:8a2e:0370]:7334")
-			Expect(err).ToNot(HaveOccurred())
-			Expect(hosts).To(Equal([]*as.Host{as.NewHost("host1", 4000), as.NewHost("host2", 3000), as.NewHost("127.0.0.1", 1200), as.NewHost("2001:0db8:85a3:0000:0000:8a2e:0370", 7334)}))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(hosts).To(gm.Equal([]*as.Host{as.NewHost("host1", 4000), as.NewHost("host2", 3000), as.NewHost("127.0.0.1", 1200), as.NewHost("2001:0db8:85a3:0000:0000:8a2e:0370", 7334)}))
 		})
 
-		It("must error on invalid host strings", func() {
+		gg.It("must error on invalid host strings", func() {
 			// use the same client for all
 			hosts, err := as.NewHosts("host1:4000", "host2://+3000")
-			Expect(err).To(HaveOccurred())
-			Expect(hosts).To(BeNil())
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(hosts).To(gm.BeNil())
 		})
 	})
 })

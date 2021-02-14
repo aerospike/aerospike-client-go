@@ -17,14 +17,14 @@ package aerospike
 import (
 	"errors"
 
-	. "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Recordset test", func() {
+var _ = gg.Describe("Recordset test", func() {
 
-	It("must avoid panic on sendError", func() {
+	gg.It("must avoid panic on sendError", func() {
 		rs := newRecordset(100, 1)
 
 		rs.sendError(errors.New("Error"))
@@ -33,7 +33,7 @@ var _ = Describe("Recordset test", func() {
 		rs.sendError(errors.New("Error"))
 
 		gm.Expect(<-rs.Errors).NotTo(gm.BeNil())
-		// Expect(<-rs.Errors).To(BeNil())
+		// gm.Expect(<-rs.Errors).To(gm.BeNil())
 	})
 
 })

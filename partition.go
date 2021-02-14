@@ -18,12 +18,14 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 // Partition encapsulates partition information.
 type Partition struct {
-	Namespace   string
+	// Namespace of the partition
+	Namespace string
+	// PartitionId of the partition
 	PartitionId int
 	partitions  *Partitions
 	replica     ReplicaPolicy
@@ -270,5 +272,5 @@ func newInvalidNamespaceError(ns string, mapSize int) error {
 	if mapSize != 0 {
 		s = "Namespace not found in partition map: " + ns
 	}
-	return NewAerospikeError(INVALID_NAMESPACE, s)
+	return types.NewAerospikeError(types.INVALID_NAMESPACE, s)
 }

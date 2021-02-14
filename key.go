@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"fmt"
 
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -127,7 +127,7 @@ func NewKeyWithDigest(namespace string, setName string, key interface{}, digest 
 // SetDigest sets a custom hash
 func (ky *Key) SetDigest(digest []byte) error {
 	if len(digest) != 20 {
-		return NewAerospikeError(PARAMETER_ERROR, "Invalid digest: Digest is required to be exactly 20 bytes.")
+		return types.NewAerospikeError(types.PARAMETER_ERROR, "Invalid digest: Digest is required to be exactly 20 bytes.")
 	}
 	copy(ky.digest[:], digest)
 	return nil

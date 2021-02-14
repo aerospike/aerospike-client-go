@@ -110,8 +110,5 @@ func privilegeFrom(code uint8) privilegeCode {
 }
 
 func (p *Privilege) canScope() bool {
-	if p.code() >= 10 {
-		return true
-	}
-	return false
+	return p.code() >= 10
 }

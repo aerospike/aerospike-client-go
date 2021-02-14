@@ -18,12 +18,11 @@ import (
 	"math"
 	"reflect"
 
-	. "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 
-	// . "github.com/aerospike/aerospike-client-go"
 	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
-	. "github.com/aerospike/aerospike-client-go/utils/buffer"
+	"github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 type testBLOB struct {
@@ -37,7 +36,7 @@ func (b *testBLOB) EncodeBlob() ([]byte, error) {
 func isValidIntegerValue(i int, v Value) bool {
 	gm.Expect(reflect.TypeOf(v)).To(gm.Equal(reflect.TypeOf(NewIntegerValue(0))))
 	gm.Expect(v.GetObject()).To(gm.Equal(i))
-	gm.Expect(v.EstimateSize()).To(gm.Equal(int(SizeOfInt)))
+	gm.Expect(v.EstimateSize()).To(gm.Equal(int(buffer.SizeOfInt)))
 	gm.Expect(v.GetType()).To(gm.Equal(ParticleType.INTEGER))
 
 	return true
@@ -46,7 +45,7 @@ func isValidIntegerValue(i int, v Value) bool {
 func isValidLongValue(i int64, v Value) bool {
 	gm.Expect(reflect.TypeOf(v)).To(gm.Equal(reflect.TypeOf(NewLongValue(0))))
 	gm.Expect(v.GetObject().(int64)).To(gm.Equal(i))
-	gm.Expect(v.EstimateSize()).To(gm.Equal(int(SizeOfInt64)))
+	gm.Expect(v.EstimateSize()).To(gm.Equal(int(buffer.SizeOfInt64)))
 	gm.Expect(v.GetType()).To(gm.Equal(ParticleType.INTEGER))
 
 	return true
@@ -61,10 +60,10 @@ func isValidFloatValue(i float64, v Value) bool {
 	return true
 }
 
-var _ = Describe("Value Test", func() {
+var _ = gg.Describe("Value Test", func() {
 
-	Context("NullValue", func() {
-		It("should create a valid NullValue", func() {
+	gg.Context("NullValue", func() {
+		gg.It("should create a valid NullValue", func() {
 			v := NewValue(nil)
 
 			gm.Expect(v.GetObject()).To(gm.BeNil())
@@ -73,8 +72,8 @@ var _ = Describe("Value Test", func() {
 		})
 	})
 
-	Context("StringValues", func() {
-		It("should create a valid string value", func() {
+	gg.Context("StringValues", func() {
+		gg.It("should create a valid string value", func() {
 			str := "string value"
 			v := NewValue(str)
 
@@ -83,7 +82,7 @@ var _ = Describe("Value Test", func() {
 			gm.Expect(v.GetType()).To(gm.Equal(ParticleType.STRING))
 		})
 
-		It("should create a valid empty string value", func() {
+		gg.It("should create a valid empty string value", func() {
 			str := ""
 			v := NewValue(str)
 
@@ -93,9 +92,9 @@ var _ = Describe("Value Test", func() {
 		})
 	})
 
-	Context("Blob Values", func() {
+	gg.Context("Blob Values", func() {
 
-		It("should create a BytesValue on valid types, and encode", func() {
+		gg.It("should create a BytesValue on valid types, and encode", func() {
 			person := &testBLOB{name: "SomeDude"}
 
 			bval := NewValue(person)
@@ -105,9 +104,9 @@ var _ = Describe("Value Test", func() {
 		})
 	})
 
-	Context("Numeric Values", func() {
+	gg.Context("Numeric Values", func() {
 
-		It("should create a valid IntegerValue on boundries of int8", func() {
+		gg.It("should create a valid IntegerValue on boundries of int8", func() {
 			i := int8(math.MinInt8)
 			v := NewValue(i)
 			isValidIntegerValue(int(i), v)
@@ -117,7 +116,7 @@ var _ = Describe("Value Test", func() {
 			isValidIntegerValue(int(i), v)
 		})
 
-		It("should create a valid IntegerValue on boundries of uint8", func() {
+		gg.It("should create a valid IntegerValue on boundries of uint8", func() {
 			i := uint8(0)
 			v := NewValue(i)
 			isValidIntegerValue(int(i), v)
@@ -127,7 +126,7 @@ var _ = Describe("Value Test", func() {
 			isValidIntegerValue(int(i), v)
 		})
 
-		It("should create a valid IntegerValue on boundries of int16", func() {
+		gg.It("should create a valid IntegerValue on boundries of int16", func() {
 			i := int16(math.MinInt16)
 			v := NewValue(i)
 			isValidIntegerValue(int(i), v)
@@ -137,7 +136,7 @@ var _ = Describe("Value Test", func() {
 			isValidIntegerValue(int(i), v)
 		})
 
-		It("should create a valid IntegerValue on boundries of uint16", func() {
+		gg.It("should create a valid IntegerValue on boundries of uint16", func() {
 			i := uint16(0)
 			v := NewValue(i)
 			isValidIntegerValue(int(i), v)
@@ -147,7 +146,7 @@ var _ = Describe("Value Test", func() {
 			isValidIntegerValue(int(i), v)
 		})
 
-		It("should create a valid IntegerValue on boundries of int32", func() {
+		gg.It("should create a valid IntegerValue on boundries of int32", func() {
 			i := int32(math.MinInt32)
 			v := NewValue(i)
 			isValidIntegerValue(int(i), v)
@@ -157,8 +156,8 @@ var _ = Describe("Value Test", func() {
 			isValidIntegerValue(int(i), v)
 		})
 
-		It("should create a valid IntegerValue on boundries of native int on 32 bit machines", func() {
-			if Arch32Bits {
+		gg.It("should create a valid IntegerValue on boundries of native int on 32 bit machines", func() {
+			if buffer.Arch32Bits {
 				i := math.MinInt32
 				v := NewValue(i)
 				isValidIntegerValue(i, v)
@@ -169,8 +168,8 @@ var _ = Describe("Value Test", func() {
 			}
 		})
 
-		It("should create a valid LongValue after boundries of int32 is passed on 32 bit machines", func() {
-			if Arch32Bits {
+		gg.It("should create a valid LongValue after boundries of int32 is passed on 32 bit machines", func() {
+			if buffer.Arch32Bits {
 				i := math.MinInt32 - 1
 				v := NewValue(i)
 				isValidLongValue(int64(i), v)
@@ -181,8 +180,8 @@ var _ = Describe("Value Test", func() {
 			}
 		})
 
-		It("should create a valid IntegerValue on boundries of native int on 64 bit machines", func() {
-			if Arch64Bits {
+		gg.It("should create a valid IntegerValue on boundries of native int on 64 bit machines", func() {
+			if buffer.Arch64Bits {
 				i := math.MinInt64
 				v := NewValue(i)
 				isValidIntegerValue(i, v)
@@ -193,7 +192,7 @@ var _ = Describe("Value Test", func() {
 			}
 		})
 
-		It("should create a valid LongValue on boundries of int64", func() {
+		gg.It("should create a valid LongValue on boundries of int64", func() {
 			i := int64(math.MinInt64)
 			v := NewValue(i)
 			isValidLongValue(i, v)
@@ -203,7 +202,7 @@ var _ = Describe("Value Test", func() {
 			isValidLongValue(i, v)
 		})
 
-		It("should create a valid FloatValue on boundries of float64", func() {
+		gg.It("should create a valid FloatValue on boundries of float64", func() {
 			i := float64(-math.MaxFloat64)
 			v := NewValue(i)
 			isValidFloatValue(i, v)

@@ -18,232 +18,232 @@ package aerospike
 // 	"math"
 // 	"strings"
 
-// 	. "github.com/onsi/ginkgo"
-// 	. "github.com/onsi/gomega"
+// 	gg "github.com/onsi/ginkgo"
+// 	gm "github.com/onsi/gomega"
 // )
 
 // func testPackingFor(v interface{}) interface{} {
 // 	packer := newPacker()
 
 // 	err := packer.PackObject(v)
-// 	Expect(err).ToNot(HaveOccurred())
+// 	gm.Expect(err).ToNot(gm.HaveOccurred())
 
 // 	unpacker := newUnpacker(packer.buffer.Bytes(), 0, len(packer.buffer.Bytes()))
 // 	unpackedValue, err := unpacker.unpackObject(false)
-// 	Expect(err).ToNot(HaveOccurred())
+// 	gm.Expect(err).ToNot(gm.HaveOccurred())
 
 // 	return unpackedValue
 // }
 
-// var _ = Describe("Packing Test", func() {
+// var _ = gg.Describe("Packing Test", func() {
 
-// 	Context("Simple Value Types", func() {
+// 	gg.Context("Simple Value Types", func() {
 
-// 		It("should pack and unpack nil values", func() {
-// 			Expect(testPackingFor(nil)).To(BeNil())
+// 		gg.It("should pack and unpack nil values", func() {
+// 			gm.Expect(testPackingFor(nil)).To(gm.BeNil())
 // 		})
 
-// 		It("should pack and unpack -32 < int8 < 32 values", func() {
+// 		gg.It("should pack and unpack -32 < int8 < 32 values", func() {
 // 			v := int8(31)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 
 // 			v = int8(-32)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 // 		})
 
-// 		It("should pack and unpack int8 values", func() {
+// 		gg.It("should pack and unpack int8 values", func() {
 // 			v := int8(math.MaxInt8)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 
 // 			v = int8(math.MinInt8)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 // 		})
 
-// 		It("should pack and unpack uint8 values", func() {
+// 		gg.It("should pack and unpack uint8 values", func() {
 // 			v := uint8(math.MaxUint8)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 // 		})
 
-// 		It("should pack and unpack int16 values", func() {
+// 		gg.It("should pack and unpack int16 values", func() {
 // 			v := int16(math.MaxInt16)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 
 // 			v = int16(math.MinInt16)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 // 		})
 
-// 		It("should pack and unpack uint16 values", func() {
+// 		gg.It("should pack and unpack uint16 values", func() {
 // 			v := uint16(math.MaxUint16)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 // 		})
 
-// 		It("should pack and unpack int32 values", func() {
+// 		gg.It("should pack and unpack int32 values", func() {
 // 			v := int32(math.MaxInt32)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 
 // 			v = int32(math.MinInt32)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 // 		})
 
-// 		It("should pack and unpack uint32 values", func() {
+// 		gg.It("should pack and unpack uint32 values", func() {
 // 			v := uint32(math.MaxUint32)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 // 		})
 
-// 		It("should pack and unpack int64 values", func() {
+// 		gg.It("should pack and unpack int64 values", func() {
 // 			v := int64(math.MaxInt64)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 
 // 			v = int64(math.MinInt64)
-// 			Expect(testPackingFor(v)).To(Equal(int(v)))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(int(v)))
 // 		})
 
-// 		It("should pack and unpack uint64 values", func() {
+// 		gg.It("should pack and unpack uint64 values", func() {
 // 			v := uint64(math.MaxUint64)
-// 			Expect(testPackingFor(v)).To(Equal(v))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(v))
 // 		})
 
-// 		It("should pack and unpack string values", func() {
+// 		gg.It("should pack and unpack string values", func() {
 // 			v := "string123456789\n"
-// 			Expect(testPackingFor(v)).To(Equal(v))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(v))
 // 		})
 
-// 		It("should pack and unpack string values of size 32911 for sign bit check", func() {
+// 		gg.It("should pack and unpack string values of size 32911 for sign bit check", func() {
 // 			v := strings.Repeat("s", 32911)
-// 			Expect(testPackingFor(v)).To(Equal(v))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(v))
 // 		})
 
-// 		It("should pack and unpack boolean: true values", func() {
+// 		gg.It("should pack and unpack boolean: true values", func() {
 // 			v := true
-// 			Expect(testPackingFor(v)).To(Equal(v))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(v))
 // 		})
 
-// 		It("should pack and unpack boolean: false values", func() {
+// 		gg.It("should pack and unpack boolean: false values", func() {
 // 			v := false
-// 			Expect(testPackingFor(v)).To(Equal(v))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(v))
 // 		})
 
-// 		It("should pack and unpack float32 values", func() {
+// 		gg.It("should pack and unpack float32 values", func() {
 // 			v := float32(math.MaxFloat32)
-// 			Expect(testPackingFor(v)).To(Equal(v))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(v))
 
 // 			v = float32(-math.MaxFloat32)
-// 			Expect(testPackingFor(v)).To(Equal(v))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(v))
 // 		})
 
-// 		It("should pack and unpack float64 values", func() {
+// 		gg.It("should pack and unpack float64 values", func() {
 // 			v := float64(math.MaxFloat64)
-// 			Expect(testPackingFor(v)).To(Equal(v))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(v))
 
 // 			v = float64(-math.MaxFloat64)
-// 			Expect(testPackingFor(v)).To(Equal(v))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(v))
 // 		})
 // 	})
 
-// 	Context("Array Value Types", func() {
+// 	gg.Context("Array Value Types", func() {
 
-// 		It("should pack and unpack empty array of int8", func() {
+// 		gg.It("should pack and unpack empty array of int8", func() {
 // 			v := []int8{}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
 // 		})
 
-// 		It("should pack and unpack an array of int8", func() {
+// 		gg.It("should pack and unpack an array of int8", func() {
 // 			v := []int8{1, 2, 3}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
 // 		})
 
-// 		It("should pack and unpack empty array of uint8", func() {
+// 		gg.It("should pack and unpack empty array of uint8", func() {
 // 			// Note: An array of uint8 ends up as being a ByteArrayValue
 // 			v := []uint8{}
-// 			Expect(testPackingFor(v)).To(Equal([]byte{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]byte{}))
 // 		})
 
-// 		It("should pack and unpack an array of uint8", func() {
+// 		gg.It("should pack and unpack an array of uint8", func() {
 // 			// Note: An array of uint8 ends up as being a ByteArrayValue
 // 			v := []uint8{1, 2, 3}
-// 			Expect(testPackingFor(v)).To(Equal([]byte{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]byte{1, 2, 3}))
 // 		})
 
-// 		It("should pack and unpack empty array of int16", func() {
+// 		gg.It("should pack and unpack empty array of int16", func() {
 // 			v := []int16{}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
 // 		})
 
-// 		It("should pack and unpack an array of int16", func() {
+// 		gg.It("should pack and unpack an array of int16", func() {
 // 			v := []int16{1, 2, 3}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
 // 		})
 
-// 		It("should pack and unpack empty array of uint16", func() {
+// 		gg.It("should pack and unpack empty array of uint16", func() {
 // 			v := []uint16{}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
 // 		})
 
-// 		It("should pack and unpack an array of uint16", func() {
+// 		gg.It("should pack and unpack an array of uint16", func() {
 // 			v := []uint16{1, 2, 3}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
 // 		})
 
-// 		It("should pack and unpack empty array of int32", func() {
+// 		gg.It("should pack and unpack empty array of int32", func() {
 // 			v := []int32{}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
 // 		})
 
-// 		It("should pack and unpack an array of int32", func() {
+// 		gg.It("should pack and unpack an array of int32", func() {
 // 			v := []int32{1, 2, 3}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
 // 		})
 
-// 		It("should pack and unpack empty array of uint32", func() {
+// 		gg.It("should pack and unpack empty array of uint32", func() {
 // 			v := []uint32{}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
 // 		})
 
-// 		It("should pack and unpack an array of uint32", func() {
+// 		gg.It("should pack and unpack an array of uint32", func() {
 // 			v := []uint32{1, 2, 3}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
 // 		})
 
-// 		It("should pack and unpack empty array of int64", func() {
+// 		gg.It("should pack and unpack empty array of int64", func() {
 // 			v := []int64{}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
 // 		})
 
-// 		It("should pack and unpack an array of int64", func() {
+// 		gg.It("should pack and unpack an array of int64", func() {
 // 			v := []int64{1, 2, 3}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
 // 		})
 
-// 		It("should pack and unpack empty array of uint64", func() {
+// 		gg.It("should pack and unpack empty array of uint64", func() {
 // 			v := []uint64{}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
 // 		})
 
-// 		It("should pack and unpack an array of uint64", func() {
+// 		gg.It("should pack and unpack an array of uint64", func() {
 // 			v := []uint64{1, 2, 3}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{uint64(1), uint64(2), uint64(3)}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{uint64(1), uint64(2), uint64(3)}))
 // 		})
 
-// 		It("should pack and unpack empty array of string", func() {
+// 		gg.It("should pack and unpack empty array of string", func() {
 // 			v := []string{}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
 // 		})
 
-// 		It("should pack and unpack an array of string", func() {
+// 		gg.It("should pack and unpack an array of string", func() {
 // 			v := []string{"this", "is", "an", "array", "of", "strings", strings.Repeat("s", 32911)}
-// 			Expect(testPackingFor(v)).To(Equal([]interface{}{"this", "is", "an", "array", "of", "strings", strings.Repeat("s", 32911)}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{"this", "is", "an", "array", "of", "strings", strings.Repeat("s", 32911)}))
 // 		})
 
 // 	})
 
-// 	Context("Map Value Types", func() {
+// 	gg.Context("Map Value Types", func() {
 
-// 		It("should pack and unpack empty map", func() {
+// 		gg.It("should pack and unpack empty map", func() {
 // 			v := map[interface{}]interface{}{}
-// 			Expect(testPackingFor(v)).To(Equal(map[interface{}]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(map[interface{}]interface{}{}))
 // 		})
 
-// 		It("should pack and unpack a complex map", func() {
+// 		gg.It("should pack and unpack a complex map", func() {
 // 			v := map[interface{}]interface{}{
 // 				"uint8":      uint8(math.MaxUint8),
 // 				"int8":       int8(math.MaxInt8),
@@ -298,10 +298,10 @@ package aerospike
 // 				"false":      false,
 // 			}
 
-// 			Expect(testPackingFor(v)).To(Equal(vRes))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(vRes))
 // 		})
 
-// 		It("should pack and unpack map with varying key types", func() {
+// 		gg.It("should pack and unpack map with varying key types", func() {
 // 			// Test Values
 // 			vUint8 := map[uint8]interface{}{
 // 				uint8(math.MaxUint8): "v",
@@ -347,7 +347,7 @@ package aerospike
 // 				"string key": "v",
 // 			}
 
-// 			// Expected Values
+// 			// gm.Expected Values
 // 			retUint8 := map[interface{}]interface{}{
 // 				int(math.MaxUint8): "v",
 // 			}
@@ -392,17 +392,17 @@ package aerospike
 // 				"string key": "v",
 // 			}
 
-// 			Expect(testPackingFor(vUint8)).To(Equal(retUint8))
-// 			Expect(testPackingFor(vInt8)).To(Equal(retInt8))
-// 			Expect(testPackingFor(vUint16)).To(Equal(retUint16))
-// 			Expect(testPackingFor(vInt16)).To(Equal(retInt16))
-// 			Expect(testPackingFor(vUint32)).To(Equal(retUint32))
-// 			Expect(testPackingFor(vInt32)).To(Equal(retInt32))
-// 			Expect(testPackingFor(vUint64)).To(Equal(retUint64))
-// 			Expect(testPackingFor(vInt64)).To(Equal(retInt64))
-// 			Expect(testPackingFor(vFloat32)).To(Equal(retFloat32))
-// 			Expect(testPackingFor(vFloat64)).To(Equal(retFloat64))
-// 			Expect(testPackingFor(vStr)).To(Equal(retStr))
+// 			gm.Expect(testPackingFor(vUint8)).To(gm.Equal(retUint8))
+// 			gm.Expect(testPackingFor(vInt8)).To(gm.Equal(retInt8))
+// 			gm.Expect(testPackingFor(vUint16)).To(gm.Equal(retUint16))
+// 			gm.Expect(testPackingFor(vInt16)).To(gm.Equal(retInt16))
+// 			gm.Expect(testPackingFor(vUint32)).To(gm.Equal(retUint32))
+// 			gm.Expect(testPackingFor(vInt32)).To(gm.Equal(retInt32))
+// 			gm.Expect(testPackingFor(vUint64)).To(gm.Equal(retUint64))
+// 			gm.Expect(testPackingFor(vInt64)).To(gm.Equal(retInt64))
+// 			gm.Expect(testPackingFor(vFloat32)).To(gm.Equal(retFloat32))
+// 			gm.Expect(testPackingFor(vFloat64)).To(gm.Equal(retFloat64))
+// 			gm.Expect(testPackingFor(vStr)).To(gm.Equal(retStr))
 // 		})
 // 	})
 // })

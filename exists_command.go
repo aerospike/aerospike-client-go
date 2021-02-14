@@ -15,7 +15,8 @@
 package aerospike
 
 import (
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
+
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -27,8 +28,6 @@ type existsCommand struct {
 
 	policy *BasePolicy
 	exists bool
-
-	replicaSequence int
 }
 
 func newExistsCommand(cluster *Cluster, policy *BasePolicy, key *Key) (*existsCommand, error) {
@@ -75,19 +74,19 @@ func (cmd *existsCommand) parseResult(ifc command, conn *Connection) error {
 
 	resultCode := cmd.dataBuffer[13] & 0xFF
 
-	switch ResultCode(resultCode) {
+	switch types.ResultCode(resultCode) {
 	case 0:
 		cmd.exists = true
-	case KEY_NOT_FOUND_ERROR:
+	case types.KEY_NOT_FOUND_ERROR:
 		cmd.exists = false
-	case FILTERED_OUT:
+	case types.FILTERED_OUT:
 		if err := cmd.emptySocket(conn); err != nil {
 			return err
 		}
 		cmd.exists = true
-		return ErrFilteredOut
+		return types.ErrFilteredOut
 	default:
-		return NewAerospikeError(ResultCode(resultCode))
+		return types.NewAerospikeError(types.ResultCode(resultCode))
 	}
 
 	return cmd.emptySocket(conn)

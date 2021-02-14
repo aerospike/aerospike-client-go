@@ -18,3 +18,5 @@ PLAN.todo
 .travis/access.ldif
 tools/
 cmd/
+.revive.toml
+Makefile

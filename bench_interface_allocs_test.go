@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -33,7 +34,7 @@ func (s *S) size() int {
 //////////////////////////////////
 type I int
 
-func (i *I) size() int {
+func (i I) size() int {
 	return 8
 }
 
@@ -61,7 +62,7 @@ var n int
 
 func Benchmark_EstimateSizeStringGeneric(b *testing.B) {
 	value := S(strings.Repeat("s", 16))
-	// runtime.GC()
+	runtime.GC()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		n += estimateSize(&value)
@@ -70,7 +71,7 @@ func Benchmark_EstimateSizeStringGeneric(b *testing.B) {
 
 func Benchmark_EstimateSizeStringSpecialized(b *testing.B) {
 	value := S(strings.Repeat("s", 16))
-	// runtime.GC()
+	runtime.GC()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		n += estimateSizeStr(value)
@@ -79,7 +80,7 @@ func Benchmark_EstimateSizeStringSpecialized(b *testing.B) {
 
 func Benchmark_EstimateSizeStringPtr(b *testing.B) {
 	value := strings.Repeat("s", 16)
-	// runtime.GC()
+	runtime.GC()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		n += estimateSizePtr(&value)
@@ -87,9 +88,8 @@ func Benchmark_EstimateSizeStringPtr(b *testing.B) {
 }
 
 func Benchmark_EstimateSizeIntGeneric(b *testing.B) {
-	// tt := TT{}
-	value := S(16)
-	// runtime.GC()
+	value := I(16)
+	runtime.GC()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		n += estimateSize(value)
@@ -98,7 +98,7 @@ func Benchmark_EstimateSizeIntGeneric(b *testing.B) {
 
 func Benchmark_EstimateSizeIntSpecialized(b *testing.B) {
 	value := I(16)
-	// runtime.GC()
+	runtime.GC()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		n += estimateSizeInt(value)

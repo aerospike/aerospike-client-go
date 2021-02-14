@@ -17,13 +17,13 @@
 package lua_test
 
 import (
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
 	"testing"
+
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 func TestLua(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Lua Libs Test")
+	gm.RegisterFailHandler(gg.Fail)
+	gg.RunSpecs(t, "Lua Libs Test")
 }

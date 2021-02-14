@@ -95,8 +95,7 @@ type ListPolicy struct {
 	flags      int
 }
 
-// Create unique key map with specified order when map does not exist.
-// Use specified write mode when writing map items.
+// NewListPolicy creates a policy with directives when creating a list and writing list items.
 func NewListPolicy(order ListOrderType, flags int) *ListPolicy {
 	return &ListPolicy{
 		attributes: order,
@@ -116,39 +115,39 @@ func DefaultListPolicy() *ListPolicy {
 type ListReturnType int
 
 const (
-	// Do not return a result.
+	// ListReturnTypeNone will not return a result.
 	ListReturnTypeNone ListReturnType = 0
 
-	// Return index offset order.
+	// ListReturnTypeIndex will return index offset order.
 	// 0 = first key
 	// N = Nth key
 	// -1 = last key
 	ListReturnTypeIndex ListReturnType = 1
 
-	// Return reverse index offset order.
+	// ListReturnTypeReverseIndex will return reverse index offset order.
 	// 0 = last key
 	// -1 = first key
 	ListReturnTypeReverseIndex ListReturnType = 2
 
-	// Return value order.
+	// ListReturnTypeRank will return value order.
 	// 0 = smallest value
 	// N = Nth smallest value
 	// -1 = largest value
 	ListReturnTypeRank ListReturnType = 3
 
-	// Return reserve value order.
+	// ListReturnTypeReverseRank will return reserve value order.
 	// 0 = largest value
 	// N = Nth largest value
 	// -1 = smallest value
 	ListReturnTypeReverseRank ListReturnType = 4
 
-	// Return count of items selected.
+	// ListReturnTypeCount will return count of items selected.
 	ListReturnTypeCount ListReturnType = 5
 
-	// Return value for single key read and value list for range read.
+	// ListReturnTypeValue will return value for single key read and value list for range read.
 	ListReturnTypeValue ListReturnType = 7
 
-	// Invert meaning of list command and return values.  For example:
+	// ListReturnTypeInverted will invert meaning of list command and return values.  For example:
 	// ListOperation.getByIndexRange(binName, index, count, ListReturnType.INDEX | ListReturnType.INVERTED)
 	// With the INVERTED flag enabled, the items outside of the specified index range will be returned.
 	// The meaning of the list command can also be inverted.  For example:
@@ -307,7 +306,7 @@ func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext
 		}
 		size += n
 	} else {
-		n, err := packShortRaw(packer, opType)
+		n, err = packShortRaw(packer, opType)
 		if err != nil {
 			return n, err
 		}
@@ -564,13 +563,13 @@ func ListRemoveByValueRangeOp(binName string, returnType ListReturnType, valueBe
 //
 // Examples for ordered list [0,4,5,9,11,15]:
 //
-// (value,rank) = [removed items]
-// (5,0) = [5,9,11,15]
-// (5,1) = [9,11,15]
-// (5,-1) = [4,5,9,11,15]
-// (3,0) = [4,5,9,11,15]
-// (3,3) = [11,15]
-// (3,-3) = [0,4,5,9,11,15]
+//  (value,rank) = [removed items]
+//  (5,0) = [5,9,11,15]
+//  (5,1) = [9,11,15]
+//  (5,-1) = [4,5,9,11,15]
+//  (3,0) = [4,5,9,11,15]
+//  (3,3) = [11,15]
+//  (3,-3) = [0,4,5,9,11,15]
 func ListRemoveByValueRelativeRankRangeOp(binName string, returnType ListReturnType, value interface{}, rank int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank)}, encoder: listGenericOpEncoder}
 }
@@ -580,13 +579,13 @@ func ListRemoveByValueRelativeRankRangeOp(binName string, returnType ListReturnT
 // Server returns removed data specified by returnType.
 // Examples for ordered list [0,4,5,9,11,15]:
 //
-// (value,rank,count) = [removed items]
-// (5,0,2) = [5,9]
-// (5,1,1) = [9]
-// (5,-1,2) = [4,5]
-// (3,0,1) = [4]
-// (3,3,7) = [11,15]
-// (3,-3,2) = []
+//  (value,rank,count) = [removed items]
+//  (5,0,2) = [5,9]
+//  (5,1,1) = [9]
+//  (5,-1,2) = [4,5]
+//  (3,0,1) = [4]
+//  (3,3,7) = [11,15]
+//  (3,-3,2) = []
 func ListRemoveByValueRelativeRankRangeCountOp(binName string, returnType ListReturnType, value interface{}, rank, count int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank), IntegerValue(count)}, encoder: listGenericOpEncoder}
 }
@@ -645,7 +644,7 @@ func ListIncrementOp(binName string, index int, value interface{}, ctx ...*CDTCo
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_INCREMENT, IntegerValue(index), NewValue(value)}, encoder: listGenericOpEncoder}
 }
 
-// ListIncrementOp creates list increment operation with policy.
+// ListIncrementByOneOp creates list increment operation with policy.
 // Server increments list[index] by 1.
 // Server returns list[index] after incrementing.
 func ListIncrementByOneOp(binName string, index int, ctx ...*CDTContext) *Operation {
@@ -659,10 +658,9 @@ func ListIncrementByOneWithPolicyOp(policy *ListPolicy, binName string, index in
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_INCREMENT, IntegerValue(index), IntegerValue(1), IntegerValue(policy.attributes), IntegerValue(policy.flags)}, encoder: listGenericOpEncoder}
 }
 
-// ListInsertWithPolicyOp creates a list insert operation.
-// Server inserts value to specified index of list bin.
-// Server returns list size on bin name.
-// It will panic is no values have been passed.
+// ListIncrementWithPolicyOp creates a list increment operation.
+// Server increments list[index] by value.
+// Server returns list[index] after incrementing.
 func ListIncrementWithPolicyOp(policy *ListPolicy, binName string, index int, value interface{}, ctx ...*CDTContext) *Operation {
 	val := NewValue(value)
 	switch val.(type) {
@@ -808,13 +806,13 @@ func ListGetByRankRangeCountOp(binName string, rank, count int, returnType ListR
 //
 // Examples for ordered list [0,4,5,9,11,15]:
 //
-// (value,rank) = [selected items]
-// (5,0) = [5,9,11,15]
-// (5,1) = [9,11,15]
-// (5,-1) = [4,5,9,11,15]
-// (3,0) = [4,5,9,11,15]
-// (3,3) = [11,15]
-// (3,-3) = [0,4,5,9,11,15]
+//  (value,rank) = [selected items]
+//  (5,0) = [5,9,11,15]
+//  (5,1) = [9,11,15]
+//  (5,-1) = [4,5,9,11,15]
+//  (3,0) = [4,5,9,11,15]
+//  (3,3) = [11,15]
+//  (3,-3) = [0,4,5,9,11,15]
 func ListGetByValueRelativeRankRangeOp(binName string, value interface{}, rank int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank)}, encoder: listGenericOpEncoder}
 }
@@ -825,13 +823,13 @@ func ListGetByValueRelativeRankRangeOp(binName string, value interface{}, rank i
 //
 // Examples for ordered list [0,4,5,9,11,15]:
 //
-// (value,rank,count) = [selected items]
-// (5,0,2) = [5,9]
-// (5,1,1) = [9]
-// (5,-1,2) = [4,5]
-// (3,0,1) = [4]
-// (3,3,7) = [11,15]
-// (3,-3,2) = []
+//  (value,rank,count) = [selected items]
+//  (5,0,2) = [5,9]
+//  (5,1,1) = [9]
+//  (5,-1,2) = [4,5]
+//  (3,0,1) = [4]
+//  (3,3,7) = [11,15]
+//  (3,-3,2) = []
 func ListGetByValueRelativeRankRangeCountOp(binName string, value interface{}, rank, count int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank), IntegerValue(count)}, encoder: listGenericOpEncoder}
 }

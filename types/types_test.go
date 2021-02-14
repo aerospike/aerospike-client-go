@@ -17,11 +17,11 @@ package types_test
 import (
 	"testing"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 func TestTypes(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Aerospike Client Library Types Suite")
+	gm.RegisterFailHandler(gg.Fail)
+	gg.RunSpecs(t, "Aerospike Client Library Types Suite")
 }

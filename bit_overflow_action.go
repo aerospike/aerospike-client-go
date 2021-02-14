@@ -25,7 +25,7 @@ const (
 	// Example: MAXINT + 1 = MAXINT
 	BitOverflowActionSaturate BitOverflowAction = 2
 
-	// BitOverflowActionFail specifies that in add/subtract overflows/underflows, wrap the value.
+	// BitOverflowActionWrap specifies that in add/subtract overflows/underflows, wrap the value.
 	// Example: MAXINT + 1 = -1
 	BitOverflowActionWrap BitOverflowAction = 4
 )

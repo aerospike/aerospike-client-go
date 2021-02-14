@@ -19,16 +19,16 @@ import (
 	"sync"
 )
 
-// AtomicArray implement a fixed width array with atomic semantics
-type AtomicArray struct {
+// Array implement a fixed width array with atomic semantics
+type Array struct {
 	items  []interface{}
 	length int
 	mutex  sync.RWMutex
 }
 
-// NewAtomicArray generates a new AtomicArray instance.
-func NewAtomicArray(length int) *AtomicArray {
-	return &AtomicArray{
+// NewArray generates a new Array instance.
+func NewArray(length int) *Array {
+	return &Array{
 		length: length,
 		items:  make([]interface{}, length),
 	}
@@ -36,7 +36,7 @@ func NewAtomicArray(length int) *AtomicArray {
 
 // Get atomically retrieves an element from the Array.
 // If idx is out of range, it will return nil
-func (aa *AtomicArray) Get(idx int) interface{} {
+func (aa *Array) Get(idx int) interface{} {
 	// do not lock if not needed
 	if idx < 0 || idx >= aa.length {
 		return nil
@@ -50,7 +50,7 @@ func (aa *AtomicArray) Get(idx int) interface{} {
 
 // Set atomically sets an element in the Array.
 // If idx is out of range, it will return an error
-func (aa *AtomicArray) Set(idx int, node interface{}) error {
+func (aa *Array) Set(idx int, node interface{}) error {
 	// do not lock if not needed
 	if idx < 0 || idx >= aa.length {
 		return fmt.Errorf("index %d is larger than array size (%d)", idx, aa.length)
@@ -63,7 +63,7 @@ func (aa *AtomicArray) Set(idx int, node interface{}) error {
 }
 
 // Length returns the array size.
-func (aa *AtomicArray) Length() int {
+func (aa *Array) Length() int {
 	aa.mutex.RLock()
 	res := aa.length
 	aa.mutex.RUnlock()

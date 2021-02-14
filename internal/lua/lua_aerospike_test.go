@@ -17,15 +17,15 @@
 package lua_test
 
 import (
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 
-	. "github.com/aerospike/aerospike-client-go/internal/lua"
+	ilua "github.com/aerospike/aerospike-client-go/internal/lua"
 )
 
-var _ = Describe("Lua Aerospike API Test", func() {
+var _ = gg.Describe("Lua Aerospike API Test", func() {
 
 	// code vs result
 	testMatrix := map[string]interface{}{
@@ -42,12 +42,12 @@ var _ = Describe("Lua Aerospike API Test", func() {
 		"debug('Debug %d', 4)":      nil,
 	}
 
-	It("must run all code blocks", func() {
-		instance := LuaPool.Get().(*lua.LState)
+	gg.It("must run all code blocks", func() {
+		instance := ilua.LuaPool.Get().(*lua.LState)
 		defer instance.Close()
 		for source := range testMatrix {
 			err := instance.DoString(source)
-			Expect(err).NotTo(HaveOccurred())
+			gm.Expect(err).NotTo(gm.HaveOccurred())
 		}
 
 	})

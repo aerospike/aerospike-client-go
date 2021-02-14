@@ -38,13 +38,13 @@ func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operatio
 		return operateCommand{}, err
 	}
 
-	readCommand, err := newReadCommand(cluster, &policy.BasePolicy, key, nil, partition)
+	rdCommand, err := newReadCommand(cluster, &policy.BasePolicy, key, nil, partition)
 	if err != nil {
 		return operateCommand{}, err
 	}
 
 	return operateCommand{
-		readCommand: readCommand,
+		readCommand: rdCommand,
 		policy:      policy,
 		operations:  operations,
 

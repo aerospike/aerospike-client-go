@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strconv"
 
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 func queryValidateBegin(node *Node, namespace string) (int64, error) {
@@ -39,7 +39,7 @@ func queryValidateBegin(node *Node, namespace string) (int64, error) {
 	}
 
 	// Yes, even scans return QUERY_ABORTED.
-	return -1, newAerospikeNodeError(node, QUERY_ABORTED, "Cluster is in migration:", result[cmd])
+	return -1, newAerospikeNodeError(node, types.QUERY_ABORTED, "Cluster is in migration:", result[cmd])
 }
 
 func queryValidate(node *Node, namespace string, expectedKey int64) error {
@@ -54,7 +54,7 @@ func queryValidate(node *Node, namespace string, expectedKey int64) error {
 	}
 
 	if clusterKey != expectedKey {
-		return newAerospikeNodeError(node, QUERY_ABORTED, fmt.Sprintf("Cluster is in migration: %d != %d", expectedKey, clusterKey))
+		return newAerospikeNodeError(node, types.QUERY_ABORTED, fmt.Sprintf("Cluster is in migration: %d != %d", expectedKey, clusterKey))
 	}
 
 	return nil

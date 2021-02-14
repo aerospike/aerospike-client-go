@@ -19,10 +19,11 @@ package lua
 import (
 	"fmt"
 
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 )
 
-type LuaMap struct {
+// Map is used internally for the Lua instance
+type Map struct {
 	m map[interface{}]interface{}
 }
 
@@ -75,7 +76,7 @@ func registerLuaMapType(L *lua.LState) {
 // Constructor
 func luaMapCreate(L *lua.LState) int {
 	if L.GetTop() == 1 {
-		luaMap := &LuaMap{m: map[interface{}]interface{}{}}
+		luaMap := &Map{m: map[interface{}]interface{}{}}
 		ud := L.NewUserData()
 		ud.Value = luaMap
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaMapTypeName))
@@ -84,7 +85,7 @@ func luaMapCreate(L *lua.LState) int {
 	} else if L.GetTop() == 2 {
 		L.CheckTable(1)
 		sz := L.CheckInt(2)
-		luaMap := &LuaMap{m: make(map[interface{}]interface{}, sz)}
+		luaMap := &Map{m: make(map[interface{}]interface{}, sz)}
 		ud := L.NewUserData()
 		ud.Value = luaMap
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaMapTypeName))
@@ -97,7 +98,7 @@ func luaMapCreate(L *lua.LState) int {
 
 func newLuaMap(L *lua.LState) int {
 	if L.GetTop() == 1 {
-		luaMap := &LuaMap{m: make(map[interface{}]interface{}, 4)}
+		luaMap := &Map{m: make(map[interface{}]interface{}, 4)}
 		ud := L.NewUserData()
 		ud.Value = luaMap
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaMapTypeName))
@@ -109,7 +110,7 @@ func newLuaMap(L *lua.LState) int {
 		m := make(map[interface{}]interface{}, t.Len())
 		t.ForEach(func(k, v lua.LValue) { m[LValueToInterface(k)] = LValueToInterface(v) })
 
-		luaMap := &LuaMap{m: m}
+		luaMap := &Map{m: m}
 		ud := L.NewUserData()
 		ud.Value = luaMap
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaMapTypeName))
@@ -121,9 +122,9 @@ func newLuaMap(L *lua.LState) int {
 }
 
 // Checks whether the first lua argument is a *LUserData with *LuaMap and returns this *LuaMap.
-func checkLuaMap(L *lua.LState, arg int) *LuaMap {
+func checkLuaMap(L *lua.LState, arg int) *Map {
 	ud := L.CheckUserData(arg)
-	if v, ok := ud.Value.(*LuaMap); ok {
+	if v, ok := ud.Value.(*Map); ok {
 		return v
 	}
 	L.ArgError(1, "luaMap expected")
@@ -149,7 +150,7 @@ func luaMapClone(L *lua.LState) int {
 		return 0
 	}
 
-	newMap := &LuaMap{m: make(map[interface{}]interface{}, len(p.m))}
+	newMap := &Map{m: make(map[interface{}]interface{}, len(p.m))}
 	for k, v := range p.m {
 		newMap.m[k] = v
 	}
@@ -171,7 +172,7 @@ func luaMapMerge(L *lua.LState) int {
 	if L.GetTop() == 2 {
 		sp := checkLuaMap(L, 2)
 
-		newMap := &LuaMap{m: make(map[interface{}]interface{}, len(p.m)+len(sp.m))}
+		newMap := &Map{m: make(map[interface{}]interface{}, len(p.m)+len(sp.m))}
 		for k, v := range p.m {
 			newMap.m[k] = v
 		}
@@ -188,7 +189,7 @@ func luaMapMerge(L *lua.LState) int {
 		sp := checkLuaMap(L, 2)
 		fn := L.CheckFunction(3)
 
-		newMap := &LuaMap{m: make(map[interface{}]interface{}, len(p.m)+len(sp.m))}
+		newMap := &Map{m: make(map[interface{}]interface{}, len(p.m)+len(sp.m))}
 		for k, v := range p.m {
 			if v2, exists := sp.m[k]; exists {
 				L.CallByParam(lua.P{Fn: fn, NRet: 1, Protect: true, Handler: nil}, NewValue(L, v), NewValue(L, v2))
@@ -225,7 +226,7 @@ func luaMapDiff(L *lua.LState) int {
 
 	sp := checkLuaMap(L, 2)
 
-	newMap := &LuaMap{m: make(map[interface{}]interface{}, len(p.m)+len(sp.m))}
+	newMap := &Map{m: make(map[interface{}]interface{}, len(p.m)+len(sp.m))}
 
 	for k, v := range p.m {
 		if _, exists := sp.m[k]; !exists {
@@ -268,7 +269,7 @@ func luaMapSize(L *lua.LState) int {
 }
 
 func luaMapIndex(L *lua.LState) int {
-	ref := checkMap(L, 1)
+	ref := checkMap(L)
 	key := LValueToInterface(L.CheckAny(2))
 
 	v := ref.m[key]
@@ -281,7 +282,7 @@ func luaMapIndex(L *lua.LState) int {
 }
 
 func luaMapNewIndex(L *lua.LState) int {
-	ref := checkMap(L, 1)
+	ref := checkMap(L)
 	key := LValueToInterface(L.CheckAny(2))
 	value := LValueToInterface(L.CheckAny(3))
 
@@ -290,13 +291,13 @@ func luaMapNewIndex(L *lua.LState) int {
 }
 
 func luaMapLen(L *lua.LState) int {
-	ref := checkMap(L, 1)
+	ref := checkMap(L)
 	L.Push(lua.LNumber(len(ref.m)))
 	return 1
 }
 
 func luaMapPairs(L *lua.LState) int {
-	ref := checkMap(L, 1)
+	ref := checkMap(L)
 
 	// make an iterator
 	iter := make(chan *struct{ k, v interface{} })
@@ -323,7 +324,7 @@ func luaMapPairs(L *lua.LState) int {
 }
 
 func luaMapKeys(L *lua.LState) int {
-	ref := checkMap(L, 1)
+	ref := checkMap(L)
 
 	// make an iterator
 	iter := make(chan interface{})
@@ -349,7 +350,7 @@ func luaMapKeys(L *lua.LState) int {
 }
 
 func luaMapValues(L *lua.LState) int {
-	ref := checkMap(L, 1)
+	ref := checkMap(L)
 
 	// make an iterator
 	iter := make(chan interface{})
@@ -375,15 +376,15 @@ func luaMapValues(L *lua.LState) int {
 }
 
 func luaMapEq(L *lua.LState) int {
-	map1 := checkMap(L, 1)
-	map2 := checkMap(L, 2)
+	map1 := checkMap(L)
+	map2 := checkMap(L)
 	L.Push(lua.LBool(map1 == map2))
 	return 1
 }
 
-func checkMap(L *lua.LState, idx int) *LuaMap {
+func checkMap(L *lua.LState) *Map {
 	ud := L.CheckUserData(1)
-	if v, ok := ud.Value.(*LuaMap); ok {
+	if v, ok := ud.Value.(*Map); ok {
 		return v
 	}
 	L.ArgError(1, "luaMap expected")

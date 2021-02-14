@@ -22,8 +22,8 @@ import (
 	as "github.com/aerospike/aerospike-client-go"
 	"github.com/aerospike/aerospike-client-go/internal/atomic"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 func registerUDF(client *as.Client, path, filename string) error {
@@ -37,7 +37,11 @@ func registerUDF(client *as.Client, path, filename string) error {
 }
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Query Aggregate operations", func() {
+var _ = gg.Describe("Query Aggregate operations", func() {
+
+	var sumAll = func(upTo int) float64 {
+		return float64((1 + upTo) * upTo / 2.0)
+	}
 
 	// connection data
 	var ns = *namespace
@@ -50,17 +54,17 @@ var _ = Describe("Query Aggregate operations", func() {
 	luaPath += "/test/resources/"
 	as.SetLuaPath(luaPath)
 
-	const keyCount = 10
+	const keyCount = 1000
 
-	createUDFs := atomic.NewAtomicBool(true)
+	createUDFs := atomic.NewBool(true)
 
-	BeforeEach(func() {
+	gg.BeforeEach(func() {
 		if createUDFs.Get() {
 			err := registerUDF(client, luaPath, "sum_single_bin")
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			err = registerUDF(client, luaPath, "average")
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			createUDFs.Set(false)
 		}
@@ -68,7 +72,7 @@ var _ = Describe("Query Aggregate operations", func() {
 		set = randString(50)
 		for i := 1; i <= keyCount; i++ {
 			key, err := as.NewKey(ns, set, randString(50))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			bin1 := as.NewBin("bin1", i)
 			client.PutBins(nil, key, bin1)
@@ -76,34 +80,34 @@ var _ = Describe("Query Aggregate operations", func() {
 
 		// // queries only work on indices
 		// idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin3.Name, bin3.Name, NUMERIC)
-		// Expect(err).ToNot(HaveOccurred())
+		// gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// wait until index is created
-		// Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+		// gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
 	})
 
-	It("must return the sum of specified bin to the client", func() {
+	gg.It("must return the sum of specified bin to the client", func() {
 		stm := as.NewStatement(ns, set)
 		res, err := client.QueryAggregate(nil, stm, "sum_single_bin", "sum_single_bin", as.StringValue("bin1"))
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		// Expect(res.TaskId()).To(Equal(stm.TaskId))
-		Expect(res.TaskId()).To(BeNumerically(">", 0))
+		// gm.Expect(res.TaskId()).To(gm.Equal(stm.TaskId))
+		gm.Expect(res.TaskId()).To(gm.BeNumerically(">", 0))
 
 		for rec := range res.Results() {
-			Expect(rec.Err).ToNot(HaveOccurred())
-			Expect(rec.Record.Bins["SUCCESS"]).To(Equal(float64(55)))
+			gm.Expect(rec.Err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Record.Bins["SUCCESS"]).To(gm.Equal(sumAll(keyCount)))
 		}
 	})
 
-	It("must return Sum and Count to the client", func() {
+	gg.It("must return Sum and Count to the client", func() {
 		stm := as.NewStatement(ns, set)
 		res, err := client.QueryAggregate(nil, stm, "average", "average", as.StringValue("bin1"))
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		for rec := range res.Results() {
-			Expect(rec.Err).ToNot(HaveOccurred())
-			Expect(rec.Record.Bins["SUCCESS"]).To(Equal(map[interface{}]interface{}{"sum": float64(55), "count": float64(10)}))
+			gm.Expect(rec.Err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Record.Bins["SUCCESS"]).To(gm.Equal(map[interface{}]interface{}{"sum": sumAll(keyCount), "count": float64(keyCount)}))
 		}
 	})
 })

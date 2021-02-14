@@ -19,10 +19,11 @@ package lua
 import (
 	"fmt"
 
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 )
 
-type LuaList struct {
+// List is the list data type to be used with a Lua instance
+type List struct {
 	l []interface{}
 }
 
@@ -74,7 +75,7 @@ func registerLuaListType(L *lua.LState) {
 // Constructor
 func createLuaList(L *lua.LState) int {
 	if L.GetTop() == 0 {
-		luaList := &LuaList{l: []interface{}{}}
+		luaList := &List{l: []interface{}{}}
 		ud := L.NewUserData()
 		ud.Value = luaList
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -84,7 +85,7 @@ func createLuaList(L *lua.LState) int {
 		cp := L.CheckInt(1)
 		l := make([]interface{}, 0, cp)
 
-		luaList := &LuaList{l: l}
+		luaList := &List{l: l}
 		ud := L.NewUserData()
 		ud.Value = luaList
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -98,7 +99,7 @@ func createLuaList(L *lua.LState) int {
 // Constructor
 func newLuaList(L *lua.LState) int {
 	if L.GetTop() == 1 {
-		luaList := &LuaList{l: []interface{}{}}
+		luaList := &List{l: []interface{}{}}
 		ud := L.NewUserData()
 		ud.Value = luaList
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -111,7 +112,7 @@ func newLuaList(L *lua.LState) int {
 			l[i-1] = LValueToInterface(t.RawGetInt(i))
 		}
 
-		luaList := &LuaList{l: l}
+		luaList := &List{l: l}
 		ud := L.NewUserData()
 		ud.Value = luaList
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -123,9 +124,9 @@ func newLuaList(L *lua.LState) int {
 }
 
 // Checks whether the first lua argument is a *LUserData with *LuaList and returns this *LuaList.
-func checkLuaList(L *lua.LState, arg int) *LuaList {
+func checkLuaList(L *lua.LState, arg int) *List {
 	ud := L.CheckUserData(arg)
-	if v, ok := ud.Value.(*LuaList); ok {
+	if v, ok := ud.Value.(*List); ok {
 		return v
 	}
 	L.ArgError(1, "luaList expected")
@@ -237,7 +238,7 @@ func luaListTake(L *lua.LState) int {
 		items = p.l[:count]
 	}
 
-	luaList := &LuaList{l: items}
+	luaList := &List{l: items}
 	ud := L.NewUserData()
 	ud.Value = luaList
 	L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -260,7 +261,7 @@ func luaListDrop(L *lua.LState) int {
 		items = []interface{}{}
 	}
 
-	luaList := &LuaList{l: items}
+	luaList := &List{l: items}
 	ud := L.NewUserData()
 	ud.Value = luaList
 	L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -301,7 +302,7 @@ func luaListClone(L *lua.LState) int {
 		return 0
 	}
 
-	newList := &LuaList{l: make([]interface{}, len(p.l))}
+	newList := &List{l: make([]interface{}, len(p.l))}
 	copy(newList.l, p.l)
 
 	ud := L.NewUserData()
@@ -321,7 +322,7 @@ func luaListMerge(L *lua.LState) int {
 
 	sp := checkLuaList(L, 2)
 
-	newList := &LuaList{l: make([]interface{}, 0, len(p.l)+len(sp.l))}
+	newList := &List{l: make([]interface{}, 0, len(p.l)+len(sp.l))}
 	newList.l = append(newList.l, p.l...)
 	newList.l = append(newList.l, sp.l...)
 

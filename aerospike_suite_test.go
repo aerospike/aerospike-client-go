@@ -29,12 +29,12 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
 	as "github.com/aerospike/aerospike-client-go"
 	asl "github.com/aerospike/aerospike-client-go/logger"
 	ast "github.com/aerospike/aerospike-client-go/types"
+
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 var (
@@ -99,15 +99,20 @@ func initTestVars() {
 	}
 }
 
-func TestAerospike(t *testing.T) {
+func TestMain(m *testing.M) {
 	rand.Seed(time.Now().UnixNano())
 	flag.Parse()
 
 	// setup the client object
 	initTestVars()
+	os.Exit(m.Run())
+}
 
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Aerospike Client Library Suite")
+func TestAerospike(t *testing.T) {
+	// TestMain will be called here, no need to do more
+
+	gm.RegisterFailHandler(gg.Fail)
+	gg.RunSpecs(t, "Aerospike Client Library Suite")
 }
 
 func featureEnabled(feature string) bool {

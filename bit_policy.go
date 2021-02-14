@@ -19,10 +19,12 @@ type BitPolicy struct {
 	flags int
 }
 
+// DefaultBitPolicy will return the default BitPolicy
 func DefaultBitPolicy() *BitPolicy {
 	return &BitPolicy{BitWriteFlagsDefault}
 }
 
+// NewBitPolicy will return a BitPolicy will provided flags.
 func NewBitPolicy(flags int) *BitPolicy {
 	return &BitPolicy{flags}
 }

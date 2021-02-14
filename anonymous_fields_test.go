@@ -19,13 +19,13 @@ package aerospike_test
 import (
 	as "github.com/aerospike/aerospike-client-go"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
-var _ = Describe("Aerospike", func() {
+var _ = gg.Describe("Aerospike", func() {
 
-	Describe("PutObject and GetObject with anonymous fields", func() {
+	gg.Describe("PutObject and GetObject with anonymous fields", func() {
 		// connection data
 		var err error
 		var ns = *namespace
@@ -80,22 +80,22 @@ var _ = Describe("Aerospike", func() {
 			return obj
 		}
 
-		Context("PutObject & GetObject operations", func() {
-			It("must save an object with anonymous fields", func() {
+		gg.Context("PutObject & GetObject operations", func() {
+			gg.It("must save an object with anonymous fields", func() {
 				key, _ := as.NewKey(ns, set, randString(50))
 				expected := makeTestObject()
 				err = client.PutObject(nil, key, expected)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				actual := &testStruct{}
 				err = client.GetObject(nil, key, actual)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				rec, err := client.Get(nil, key)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				// make sure the returned BinMap here reflects what you
 				// expect the final marshalled object should be.
-				Expect(rec.Bins).To(Equal(as.BinMap{
+				gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{
 					"ABC": map[interface{}]interface{}{
 						"b":   "World!",
 						"ace": 0,
@@ -111,15 +111,15 @@ var _ = Describe("Aerospike", func() {
 					"c":   3.14159,
 				}))
 
-				Expect(actual.TTL1).NotTo(Equal(uint32(0)))
-				Expect(actual.TTL1).To(Equal(actual.TTL2))
-				Expect(actual.TTL1).To(Equal(actual.anonymousStructA.TTL))
-				Expect(actual.TTL1).To(Equal(actual.anonymousStructB.TTL))
+				gm.Expect(actual.TTL1).NotTo(gm.Equal(uint32(0)))
+				gm.Expect(actual.TTL1).To(gm.Equal(actual.TTL2))
+				gm.Expect(actual.TTL1).To(gm.Equal(actual.anonymousStructA.TTL))
+				gm.Expect(actual.TTL1).To(gm.Equal(actual.anonymousStructB.TTL))
 
-				Expect(actual.GEN1).To(Equal(uint32(1)))
-				Expect(actual.GEN2).To(Equal(uint32(1)))
-				Expect(actual.anonymousStructA.GEN).To(Equal(uint32(1)))
-				Expect(actual.anonymousStructB.GEN).To(Equal(uint32(1)))
+				gm.Expect(actual.GEN1).To(gm.Equal(uint32(1)))
+				gm.Expect(actual.GEN2).To(gm.Equal(uint32(1)))
+				gm.Expect(actual.anonymousStructA.GEN).To(gm.Equal(uint32(1)))
+				gm.Expect(actual.anonymousStructB.GEN).To(gm.Equal(uint32(1)))
 
 			})
 		})

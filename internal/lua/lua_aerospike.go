@@ -18,12 +18,8 @@ package lua
 
 import (
 	"github.com/aerospike/aerospike-client-go/logger"
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 )
-
-type LuaAerospike struct {
-	s chan interface{}
-}
 
 const luaLuaAerospikeTypeName = "LuaAerospike"
 

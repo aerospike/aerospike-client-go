@@ -17,14 +17,14 @@ package aerospike
 const hllMODULE int64 = 2
 
 var (
-	HllExpOpADD            = 1
-	HllExpOpCOUNT          = 50
-	HllExpOpUNION          = 51
-	HllExpOpUNIONCOUNT     = 52
-	HllExpOpINTERSECTCOUNT = 53
-	HllExpOpSIMILARITY     = 54
-	HllExpOpDESCRIBE       = 55
-	HllExpOpMAYCONTAIN     = 56
+	_HllExpOpADD            = 1
+	_HllExpOpCOUNT          = 50
+	_HllExpOpUNION          = 51
+	_HllExpOpUNIONCOUNT     = 52
+	_HllExpOpINTERSECTCOUNT = 53
+	_HllExpOpSIMILARITY     = 54
+	_HllExpOpDESCRIBE       = 55
+	_HllExpOpMAYCONTAIN     = 56
 )
 
 // ExpHLLAdd creates an expression that adds list values to a HLL set and returns HLL set.
@@ -38,10 +38,10 @@ func ExpHLLAdd(policy *HLLPolicy, list *FilterExpression, bin *FilterExpression)
 func ExpHLLAddWithIndex(
 	policy *HLLPolicy,
 	list *FilterExpression,
-	index_bit_count *FilterExpression,
+	indexBitCount *FilterExpression,
 	bin *FilterExpression,
 ) *FilterExpression {
-	return ExpHLLAddWithIndexAndMinHash(policy, list, index_bit_count, ExpIntVal(-1), bin)
+	return ExpHLLAddWithIndexAndMinHash(policy, list, indexBitCount, ExpIntVal(-1), bin)
 }
 
 // ExpHLLAddWithIndexAndMinHash creates an expression that adds values to a HLL set and returns HLL set. If HLL bin does not
@@ -49,17 +49,17 @@ func ExpHLLAddWithIndex(
 func ExpHLLAddWithIndexAndMinHash(
 	policy *HLLPolicy,
 	list *FilterExpression,
-	index_bit_count *FilterExpression,
-	min_hash_count *FilterExpression,
+	indexBitCount *FilterExpression,
+	minHashCount *FilterExpression,
 	bin *FilterExpression,
 ) *FilterExpression {
 	return expHLLAddWrite(
 		bin,
 		[]ExpressionArgument{
-			IntegerValue(HllExpOpADD),
+			IntegerValue(_HllExpOpADD),
 			list,
-			index_bit_count,
-			min_hash_count,
+			indexBitCount,
+			minHashCount,
 			IntegerValue(policy.flags),
 		},
 	)
@@ -71,7 +71,7 @@ func ExpHLLGetCount(bin *FilterExpression) *FilterExpression {
 		bin,
 		ExpTypeINT,
 		[]ExpressionArgument{
-			IntegerValue(HllExpOpCOUNT),
+			IntegerValue(_HllExpOpCOUNT),
 		},
 	)
 }
@@ -83,7 +83,7 @@ func ExpHLLGetUnion(list *FilterExpression, bin *FilterExpression) *FilterExpres
 		bin,
 		ExpTypeHLL,
 		[]ExpressionArgument{
-			IntegerValue(HllExpOpUNION),
+			IntegerValue(_HllExpOpUNION),
 			list,
 		},
 	)
@@ -96,7 +96,7 @@ func ExpHLLGetUnionCount(list *FilterExpression, bin *FilterExpression) *FilterE
 		bin,
 		ExpTypeINT,
 		[]ExpressionArgument{
-			IntegerValue(HllExpOpUNIONCOUNT),
+			IntegerValue(_HllExpOpUNIONCOUNT),
 			list,
 		},
 	)
@@ -109,7 +109,7 @@ func ExpHLLGetIntersectCount(list *FilterExpression, bin *FilterExpression) *Fil
 		bin,
 		ExpTypeINT,
 		[]ExpressionArgument{
-			IntegerValue(HllExpOpINTERSECTCOUNT),
+			IntegerValue(_HllExpOpINTERSECTCOUNT),
 			list,
 		},
 	)
@@ -121,7 +121,7 @@ func ExpHLLGetSimilarity(list *FilterExpression, bin *FilterExpression) *FilterE
 		bin,
 		ExpTypeFLOAT,
 		[]ExpressionArgument{
-			IntegerValue(HllExpOpSIMILARITY),
+			IntegerValue(_HllExpOpSIMILARITY),
 			list,
 		},
 	)
@@ -134,7 +134,7 @@ func ExpHLLDescribe(bin *FilterExpression) *FilterExpression {
 		bin,
 		ExpTypeLIST,
 		[]ExpressionArgument{
-			IntegerValue(HllExpOpDESCRIBE),
+			IntegerValue(_HllExpOpDESCRIBE),
 		},
 	)
 }
@@ -145,7 +145,7 @@ func ExpHLLMayContain(list *FilterExpression, bin *FilterExpression) *FilterExpr
 		bin,
 		ExpTypeINT,
 		[]ExpressionArgument{
-			IntegerValue(HllExpOpMAYCONTAIN),
+			IntegerValue(_HllExpOpMAYCONTAIN),
 			list,
 		},
 	)
@@ -153,7 +153,7 @@ func ExpHLLMayContain(list *FilterExpression, bin *FilterExpression) *FilterExpr
 
 func expHLLAddRead(
 	bin *FilterExpression,
-	return_type ExpType,
+	returnType ExpType,
 	arguments []ExpressionArgument,
 ) *FilterExpression {
 	flags := hllMODULE
@@ -162,14 +162,14 @@ func expHLLAddRead(
 		val:       nil,
 		bin:       bin,
 		flags:     &flags,
-		module:    &return_type,
+		module:    &returnType,
 		exps:      nil,
 		arguments: arguments,
 	}
 }
 
 func expHLLAddWrite(bin *FilterExpression, arguments []ExpressionArgument) *FilterExpression {
-	flags := hllMODULE | MODIFY
+	flags := hllMODULE | _MODIFY
 	return &FilterExpression{
 		cmd:       &expOpCALL,
 		val:       nil,

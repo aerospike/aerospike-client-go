@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go/logger"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 type nodesToAddT map[string]*Node
@@ -63,7 +63,7 @@ func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nod
 	var resultErr error
 	for _, alias := range ndv.aliases {
 		if resultErr = ndv.validateAlias(cluster, alias); resultErr != nil {
-			Logger.Debug("Alias %s failed: %s", alias, resultErr)
+			logger.Logger.Debug("Alias %s failed: %s", alias, resultErr)
 			continue
 		}
 
@@ -82,15 +82,14 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) error {
 		masterHostname := clusterNodes[0].host.Name
 		ip, ipnet, err := net.ParseCIDR(masterHostname + "/24")
 		if err != nil {
-			Logger.Error(err.Error())
-			return NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Failed parsing hostname...")
+			logger.Logger.Error(err.Error())
+			return types.NewAerospikeError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "Failed parsing hostname...")
 		}
 
 		stop := ip.Mask(ipnet.Mask)
 		stop[3] += 255
-		if bytes.Compare(net.ParseIP(host.Name).To4(), ip.Mask(ipnet.Mask).To4()) >= 0 && bytes.Compare(net.ParseIP(host.Name).To4(), stop.To4()) < 0 {
-		} else {
-			return NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Ignored hostname from other subnet...")
+		if bytes.Compare(net.ParseIP(host.Name).To4(), ip.Mask(ipnet.Mask).To4()) >= 0 && bytes.Compare(net.ParseIP(host.Name).To4(), stop.To4()) >= 0 {
+			return types.NewAerospikeError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "Ignored hostname from other subnet...")
 		}
 	}
 
@@ -102,7 +101,7 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) error {
 	for _, alias := range ndv.aliases {
 		if err := ndv.validateAlias(cluster, alias); err != nil {
 			resultErr = err
-			Logger.Debug("Aliases %s failed: %s", alias, err)
+			logger.Logger.Debug("Aliases %s failed: %s", alias, err)
 			continue
 		}
 		return nil
@@ -127,7 +126,7 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 	} else {
 		addresses, err := net.LookupHost(host.Name)
 		if err != nil {
-			Logger.Error("Host lookup failed with error: %s", err.Error())
+			logger.Logger.Error("Host lookup failed with error: %s", err.Error())
 			return err
 		}
 		aliases := make([]*Host, len(addresses))
@@ -142,7 +141,7 @@ func (ndv *nodeValidator) setAliases(host *Host) error {
 		}
 		ndv.aliases = aliases
 	}
-	Logger.Debug("Node Validator has %d nodes and they are: %v", len(ndv.aliases), ndv.aliases)
+	logger.Logger.Debug("Node Validator has %d nodes and they are: %v", len(ndv.aliases), ndv.aliases)
 	return nil
 }
 
@@ -174,7 +173,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 		return err
 	}
 	if _, exists := info["ERROR:80:not authenticated"]; exists {
-		return NewAerospikeError(NOT_AUTHENTICATED)
+		return types.NewAerospikeError(types.NOT_AUTHENTICATED)
 	}
 
 	hasClusterName := len(clientPolicy.ClusterName) > 0
@@ -196,28 +195,28 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 
 	nodeName, exists := infoMap["node"]
 	if !exists {
-		return NewAerospikeError(INVALID_NODE_ERROR, "Invalid node alias:"+alias.String())
+		return types.NewAerospikeError(types.INVALID_NODE_ERROR, "Invalid node alias:"+alias.String())
 	}
 
 	genStr, exists := infoMap["partition-generation"]
 	if !exists {
-		return NewAerospikeError(INVALID_NODE_ERROR, "Invalid partition-generation for node:"+alias.String())
+		return types.NewAerospikeError(types.INVALID_NODE_ERROR, "Invalid partition-generation for node:"+alias.String())
 	}
 
 	gen, err := strconv.Atoi(genStr)
 	if err != nil {
-		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid partition-generation for Node %s (%s), value: %s", nodeName, alias.String(), genStr))
+		return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid partition-generation for Node %s (%s), value: %s", nodeName, alias.String(), genStr))
 	}
 
 	if gen == -1 {
-		return NewAerospikeError(INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is not yet fully initialized", nodeName, alias.String()))
+		return types.NewAerospikeError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is not yet fully initialized", nodeName, alias.String()))
 	}
 
 	if hasClusterName {
 		id := infoMap["cluster-name"]
 
 		if len(id) == 0 || id != clientPolicy.ClusterName {
-			return NewAerospikeError(CLUSTER_NAME_MISMATCH_ERROR, fmt.Sprintf("Node %s (%s) expected cluster name `%s` but received `%s`", nodeName, alias.String(), clientPolicy.ClusterName, id))
+			return types.NewAerospikeError(types.CLUSTER_NAME_MISMATCH_ERROR, fmt.Sprintf("Node %s (%s) expected cluster name `%s` but received `%s`", nodeName, alias.String(), clientPolicy.ClusterName, id))
 		}
 	}
 
@@ -231,7 +230,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 		var hostAddress []*Host
 		peerParser := peerListParser{buf: []byte("[" + peersStr + "]")}
 		if hostAddress, err = peerParser.readHosts(alias.TLSName); err != nil {
-			Logger.Error("Failed to parse `%s` results... err: %s", alias.String(), err.Error())
+			logger.Logger.Error("Failed to parse `%s` results... err: %s", alias.String(), err.Error())
 		}
 
 		if len(hostAddress) > 0 {
@@ -252,7 +251,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 				aliasFound := false
 
 				// take the seed out of the aliases if it is load balancer
-				Logger.Info("Host `%s` seems to be a load balancer. It is going to be replace by `%v`", alias.String(), hostAddress[0])
+				logger.Logger.Info("Host `%s` seems to be a load balancer. It is going to be replace by `%v`", alias.String(), hostAddress[0])
 				// try to connect to the aliases, and coose the first one that connects
 				for _, h := range hostAddress {
 					hconn, err := NewConnection(&clientPolicy, h)
@@ -285,7 +284,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 				// because the server access-address is not configured.  Log warning and continue
 				// with original seed.
 				if !aliasFound {
-					Logger.Info("Inaccessible address `%s` as cluster seed. access-address is probably not configured on server.", alias.String())
+					logger.Logger.Info("Inaccessible address `%s` as cluster seed. access-address is probably not configured on server.", alias.String())
 				}
 			}
 		}

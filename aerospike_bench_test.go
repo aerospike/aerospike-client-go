@@ -17,13 +17,13 @@ package aerospike_test
 import (
 	"runtime"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	"testing"
 )
 
-var r *Record
-var rs []*Record
+var r *as.Record
+var rs []*as.Record
 var err error
 
 type OBJECT struct {
@@ -33,7 +33,7 @@ type OBJECT struct {
 	Blob []int64
 }
 
-func benchGet(times int, client *Client, key *Key) {
+func benchGet(times int, client *as.Client, key *as.Key) {
 	for i := 0; i < times; i++ {
 		if r, err = client.Get(nil, key); err != nil {
 			panic(err)
@@ -41,7 +41,7 @@ func benchGet(times int, client *Client, key *Key) {
 	}
 }
 
-func benchBatchGet(times int, client *Client, keys []*Key) {
+func benchBatchGet(times int, client *as.Client, keys []*as.Key) {
 	for i := 0; i < times; i++ {
 		if rs, err = client.BatchGet(nil, keys); err != nil {
 			panic(err)
@@ -49,10 +49,10 @@ func benchBatchGet(times int, client *Client, keys []*Key) {
 	}
 }
 
-func benchPut(times int, client *Client, key *Key, wp *WritePolicy) {
-	dbName := NewBin("dbname", "CouchDB")
-	price := NewBin("price", 0)
-	keywords := NewBin("keywords", []string{"concurrent", "fast"})
+func benchPut(times int, client *as.Client, key *as.Key, wp *as.WritePolicy) {
+	dbName := as.NewBin("dbname", "CouchDB")
+	price := as.NewBin("price", 0)
+	keywords := as.NewBin("keywords", []string{"concurrent", "fast"})
 	for i := 0; i < times; i++ {
 		if err = client.PutBins(wp, key, dbName, price, keywords); err != nil {
 			panic(err)
@@ -61,17 +61,17 @@ func benchPut(times int, client *Client, key *Key, wp *WritePolicy) {
 }
 
 func Benchmark_Get(b *testing.B) {
-	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
+	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		b.Fail()
 	}
 
-	key, _ := NewKey(*namespace, "test", "Aerospike")
+	key, _ := as.NewKey(*namespace, "test", "Aerospike")
 	// obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
 	// obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1}}
 	client.Delete(nil, key)
-	client.PutBins(nil, key, NewBin("b", []interface{}{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, "a", "b"}))
-	// client.PutBins(nil, key, NewBin("b", 1))
+	client.PutBins(nil, key, as.NewBin("b", []interface{}{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, "a", "b"}))
+	// client.PutBins(nil, key, as.NewBin("b", 1))
 	// client.PutObject(nil, key, &obj)
 
 	b.N = 100
@@ -81,13 +81,13 @@ func Benchmark_Get(b *testing.B) {
 }
 
 func Benchmark_Put(b *testing.B) {
-	client, err := NewClient(*host, *port)
+	client, err := as.NewClient(*host, *port)
 	if err != nil {
 		b.Fail()
 	}
 
-	key, _ := NewKey(*namespace, "test", "Aerospike")
-	writepolicy := NewWritePolicy(0, 0)
+	key, _ := as.NewKey(*namespace, "test", "Aerospike")
+	writepolicy := as.NewWritePolicy(0, 0)
 
 	b.N = 100
 	runtime.GC()
@@ -96,15 +96,15 @@ func Benchmark_Put(b *testing.B) {
 }
 
 func Benchmark_BatchGet(b *testing.B) {
-	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
+	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		b.Fail()
 	}
 
-	var keys []*Key
+	var keys []*as.Key
 	for i := 0; i < 10; i++ {
-		key, _ := NewKey(*namespace, "test", i)
-		if err := client.PutBins(nil, key, NewBin("b", 1)); err == nil {
+		key, _ := as.NewKey(*namespace, "test", i)
+		if err := client.PutBins(nil, key, as.NewBin("b", 1)); err == nil {
 			keys = append(keys, key)
 		}
 	}

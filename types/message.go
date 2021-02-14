@@ -23,12 +23,16 @@ import (
 type messageType uint8
 
 const (
-	MSG_HEADER_SIZE = 8 //sizeof(MessageHeader)
+	// MSG_HEADER_SIZE is a message's header size
+	MSG_HEADER_SIZE = 8
 
-	MSG_INFO    messageType = 1
-	MSG_MESSAGE             = 3
+	// MSG_INFO defines an info message
+	MSG_INFO messageType = 1
+	// MSG_MESSAGE defines an info message
+	MSG_MESSAGE = 3
 )
 
+// MessageHeader is the message's header
 type MessageHeader struct {
 	Version uint8
 	Type    uint8
@@ -40,6 +44,7 @@ func (msg *MessageHeader) Length() int64 {
 	return msgLenFromBytes(msg.DataLen)
 }
 
+// Message encapsulates a message sent or received from the Aerospike server
 type Message struct {
 	MessageHeader
 
@@ -73,13 +78,17 @@ func (msg *Message) Resize(newSize int64) error {
 }
 
 // Serialize returns a byte slice containing the message.
-func (msg *Message) Serialize() []byte {
+func (msg *Message) Serialize() ([]byte, error) {
 	msg.DataLen = msgLenToBytes(int64(len(msg.Data)))
 	buf := bytes.NewBuffer([]byte{})
-	binary.Write(buf, binary.BigEndian, msg.MessageHeader)
-	binary.Write(buf, binary.BigEndian, msg.Data[:])
+	if err := binary.Write(buf, binary.BigEndian, msg.MessageHeader); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(buf, binary.BigEndian, msg.Data[:]); err != nil {
+		return nil, err
+	}
 
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
 func msgLenFromBytes(buf [6]byte) int64 {

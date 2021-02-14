@@ -21,16 +21,16 @@ type IndexCollectionType int
 
 const (
 
-	// Normal scalar index.
+	// ICT_DEFAULT is the Normal scalar index.
 	ICT_DEFAULT IndexCollectionType = iota
 
-	// LIST is Index list elements.
+	// ICT_LIST is Index list elements.
 	ICT_LIST
 
-	// MAPKEYS is Index map keys.
+	// ICT_MAPKEYS is Index map keys.
 	ICT_MAPKEYS
 
-	// MAPVALUES is Index map values.
+	// ICT_MAPVALUES is Index map values.
 	ICT_MAPVALUES
 )
 

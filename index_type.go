@@ -24,6 +24,6 @@ const (
 	// STRING specifies an index on string values.
 	STRING IndexType = "STRING"
 
-	// 2-dimensional spherical geospatial index.
+	// GEO2DSPHERE specifies 2-dimensional spherical geospatial index.
 	GEO2DSPHERE IndexType = "GEO2DSPHERE"
 )

@@ -20,13 +20,10 @@ import (
 	"strings"
 	"testing"
 
-	// "time"
-
 	_ "net/http/pprof"
-	// . "github.com/aerospike/aerospike-client-go"
 )
 
-func doGet(set string, value interface{}, b *testing.B) {
+func doReadCommandWriteBuffer(set string, value interface{}, b *testing.B) {
 	policy := NewPolicy()
 
 	dataBuffer := make([]byte, 1024*1024)
@@ -53,7 +50,7 @@ func Benchmark_ReadCommand_________Int64(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }
 
 func Benchmark_ReadCommand_________Int32(b *testing.B) {
@@ -62,7 +59,7 @@ func Benchmark_ReadCommand_________Int32(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }
 
 func Benchmark_ReadCommand_String______1(b *testing.B) {
@@ -71,7 +68,7 @@ func Benchmark_ReadCommand_String______1(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }
 
 func Benchmark_ReadCommand_String_____10(b *testing.B) {
@@ -80,7 +77,7 @@ func Benchmark_ReadCommand_String_____10(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }
 
 func Benchmark_ReadCommand_String____100(b *testing.B) {
@@ -89,7 +86,7 @@ func Benchmark_ReadCommand_String____100(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }
 
 func Benchmark_ReadCommand_String___1000(b *testing.B) {
@@ -98,7 +95,7 @@ func Benchmark_ReadCommand_String___1000(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }
 
 func Benchmark_ReadCommand_String__10000(b *testing.B) {
@@ -107,7 +104,7 @@ func Benchmark_ReadCommand_String__10000(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }
 
 func Benchmark_ReadCommand_String_100000(b *testing.B) {
@@ -116,7 +113,7 @@ func Benchmark_ReadCommand_String_100000(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }
 
 func Benchmark_ReadCommand_Complex_Array(b *testing.B) {
@@ -125,7 +122,7 @@ func Benchmark_ReadCommand_Complex_Array(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }
 
 func Benchmark_ReadCommand_Complex_Map(b *testing.B) {
@@ -140,7 +137,7 @@ func Benchmark_ReadCommand_Complex_Map(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }
 
 func Benchmark_ReadCommand_JSON_Map(b *testing.B) {
@@ -160,5 +157,5 @@ func Benchmark_ReadCommand_JSON_Map(b *testing.B) {
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
-	doGet(set, value, b)
+	doReadCommandWriteBuffer(set, value, b)
 }

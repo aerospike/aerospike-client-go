@@ -19,7 +19,8 @@ package aerospike
 import (
 	"fmt"
 
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
+
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -36,7 +37,7 @@ func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statem
 		queryCommand: *newQueryCommand(node, policy, nil, statement, nil, recordset, clusterKey, first),
 	}
 
-	cmd.terminationErrorType = QUERY_TERMINATED
+	cmd.terminationErrorType = types.QUERY_TERMINATED
 
 	return cmd
 }
@@ -59,10 +60,10 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 			err = newNodeError(cmd.node, err)
 			return false, err
 		}
-		resultCode := ResultCode(cmd.dataBuffer[5] & 0xFF)
+		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		if resultCode != 0 {
-			if resultCode == KEY_NOT_FOUND_ERROR {
+			if resultCode == types.KEY_NOT_FOUND_ERROR {
 				// consume the rest of the input buffer from the socket
 				if cmd.dataOffset < receiveSize {
 					if err := cmd.readBytes(receiveSize - cmd.dataOffset); err != nil {
@@ -72,7 +73,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 				}
 				return false, nil
 			}
-			err := NewAerospikeError(resultCode)
+			err := types.NewAerospikeError(resultCode)
 			err = newNodeError(cmd.node, err)
 			return false, err
 		}
@@ -95,8 +96,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 			return false, err
 		}
 
-		_, err := cmd.parseKey(fieldCount)
-		if err != nil {
+		if _, err := cmd.parseKey(fieldCount); err != nil {
 			err = newNodeError(cmd.node, err)
 			return false, err
 		}
@@ -124,7 +124,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 			name := string(cmd.dataBuffer[:nameSize])
 
 			particleBytesSize := opSize - (4 + nameSize)
-			if err = cmd.readBytes(particleBytesSize); err != nil {
+			if err := cmd.readBytes(particleBytesSize); err != nil {
 				err = newNodeError(cmd.node, err)
 				return false, err
 			}
@@ -143,12 +143,10 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		recs, exists := bins["SUCCESS"]
 		if !exists {
 			if errStr, exists := bins["FAILURE"]; exists {
-				err = NewAerospikeError(QUERY_GENERIC, errStr.(string))
-				return false, err
+				return false, types.NewAerospikeError(types.QUERY_GENERIC, errStr.(string))
 			}
 
-			err = NewAerospikeError(QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
-			return false, err
+			return false, types.NewAerospikeError(types.QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
 		}
 
 		// If the channel is full and it blocks, we don't want this command to
@@ -157,7 +155,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		// send back the result on the async channel
 		case cmd.inputChan <- recs:
 		case <-cmd.recordset.cancelled:
-			return false, NewAerospikeError(QUERY_TERMINATED)
+			return false, types.NewAerospikeError(types.QUERY_TERMINATED)
 		}
 	}
 

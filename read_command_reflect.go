@@ -43,11 +43,11 @@ func parseObject(
 
 	// There can be fields in the response (setname etc).
 	// But for now, ignore them. Expose them to the API if needed in the future.
-	// Logger.Debug("field count: %d, databuffer: %v", fieldCount, cmd.dataBuffer)
+	//logger.Logger.Debug("field count: %d, databuffer: %v", fieldCount, cmd.dataBuffer)
 	if fieldCount > 0 {
 		// Just skip over all the fields
 		for i := 0; i < fieldCount; i++ {
-			// Logger.Debug("%d", receiveOffset)
+			//logger.Logger.Debug("%d", receiveOffset)
 			fieldSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
 			receiveOffset += (4 + fieldSize)
 		}
@@ -104,21 +104,17 @@ func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) error {
 
 	ttlMap, genMap := objectMappings.getMetaMappings(iobj.Type())
 
-	if ttlMap != nil {
-		for i := range ttlMap {
-			f := iobj.FieldByIndex(ttlMap[i])
-			if err := setValue(f, ttl, true); err != nil {
-				return err
-			}
+	for i := range ttlMap {
+		f := iobj.FieldByIndex(ttlMap[i])
+		if err := setValue(f, ttl, true); err != nil {
+			return err
 		}
 	}
 
-	if genMap != nil {
-		for i := range genMap {
-			f := iobj.FieldByIndex(genMap[i])
-			if err := setValue(f, gen, true); err != nil {
-				return err
-			}
+	for i := range genMap {
+		f := iobj.FieldByIndex(genMap[i])
+		if err := setValue(f, gen, true); err != nil {
+			return err
 		}
 	}
 
@@ -332,23 +328,22 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 					tm := time.Unix(0, int64(value.(int)))
 					f.Set(reflect.ValueOf(&tm))
 					break
-				} else {
-					valMap := value.(map[interface{}]interface{})
-					// iteraste over struct fields and recursively fill them up
-					if valMap != nil {
-						newObjPtr := f
-						if f.IsNil() {
-							newObjPtr = reflect.New(f.Type().Elem())
-						}
-
-						theStruct := newObjPtr.Elem()
-						if err := setStructValue(theStruct, valMap, supportsFloat, theStruct.Type(), nil); err != nil {
-							return err
-						}
-
-						// set the field
-						f.Set(newObjPtr)
+				}
+				valMap := value.(map[interface{}]interface{})
+				// iteraste over struct fields and recursively fill them up
+				if valMap != nil {
+					newObjPtr := f
+					if f.IsNil() {
+						newObjPtr = reflect.New(f.Type().Elem())
 					}
+
+					theStruct := newObjPtr.Elem()
+					if err := setStructValue(theStruct, valMap, supportsFloat, theStruct.Type(), nil); err != nil {
+						return err
+					}
+
+					// set the field
+					f.Set(newObjPtr)
 				}
 			} // switch ptr
 		case reflect.Slice, reflect.Array:

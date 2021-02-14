@@ -17,7 +17,7 @@ package aerospike
 import (
 	"fmt"
 
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 // ScanPolicy encapsulates parameters used in scan operations.
@@ -67,6 +67,6 @@ func NewScanPolicy() *ScanPolicy {
 // Verify policies fields are within range.
 func (sp *ScanPolicy) validate() {
 	if sp.ScanPercent <= 0 || sp.ScanPercent > 100 {
-		panic(NewAerospikeError(PARAMETER_ERROR, fmt.Sprintf("Invalid scan percent: %d", sp.ScanPercent)))
+		panic(types.NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid scan percent: %d", sp.ScanPercent)))
 	}
 }

@@ -18,12 +18,12 @@ import (
 	as "github.com/aerospike/aerospike-client-go"
 	"github.com/aerospike/aerospike-client-go/internal/atomic"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Expression Filters - Lists", func() {
+var _ = gg.Describe("Expression Filters - Lists", func() {
 
 	const keyCount = 100
 
@@ -32,9 +32,9 @@ var _ = Describe("Expression Filters - Lists", func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
 	var qpolicy = as.NewQueryPolicy()
 
-	insertRecs := atomic.NewAtomicBool(true)
+	insertRecs := atomic.NewBool(true)
 
-	BeforeEach(func() {
+	gg.BeforeEach(func() {
 		if !insertRecs.Get() {
 			return
 		}
@@ -54,7 +54,7 @@ var _ = Describe("Expression Filters - Lists", func() {
 		qpolicy.FilterExpression = filter
 		stmt := as.NewStatement(ns, set_name)
 		rs, err := client.Query(qpolicy, stmt)
-		Expect(err).NotTo(HaveOccurred())
+		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 		return rs
 	}
@@ -63,14 +63,14 @@ var _ = Describe("Expression Filters - Lists", func() {
 		count := 0
 
 		for res := range rs.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 			count += 1
 		}
 
 		return count
 	}
 
-	It("ExpListAppend should work", func() {
+	gg.It("ExpListAppend should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -85,10 +85,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpListAppendItems should work", func() {
+	gg.It("ExpListAppendItems should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -103,10 +103,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpListClear should work", func() {
+	gg.It("ExpListClear should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -117,10 +117,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ListReturnTypeCount should work", func() {
+	gg.It("ListReturnTypeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByValue(
@@ -138,10 +138,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ListReturnTypeCount should work", func() {
+	gg.It("ListReturnTypeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByValueList(
@@ -154,10 +154,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(2))
+		gm.Expect(count).To(gm.Equal(2))
 	})
 
-	It("ExpListInsertItems should work", func() {
+	gg.It("ExpListInsertItems should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -173,10 +173,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ListReturnTypeValue should work", func() {
+	gg.It("ListReturnTypeValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByIndex(
@@ -195,10 +195,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ListReturnTypeValue should work", func() {
+	gg.It("ListReturnTypeValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByIndex(
@@ -217,10 +217,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ListReturnTypeValue should work", func() {
+	gg.It("ListReturnTypeValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByIndexRangeCount(
@@ -234,10 +234,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ListReturnTypeValue should work", func() {
+	gg.It("ListReturnTypeValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByIndexRange(
@@ -250,10 +250,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ListReturnTypeValue should work", func() {
+	gg.It("ListReturnTypeValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByRank(
@@ -267,10 +267,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ListReturnTypeValue should work", func() {
+	gg.It("ListReturnTypeValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByRankRange(
@@ -283,10 +283,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ListReturnTypeValue should work", func() {
+	gg.It("ListReturnTypeValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByRankRangeCount(
@@ -300,10 +300,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(1))
+		gm.Expect(count).To(gm.Equal(1))
 	})
 
-	It("ListReturnTypeValue should work", func() {
+	gg.It("ListReturnTypeValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByValueRange(
@@ -317,10 +317,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(98))
+		gm.Expect(count).To(gm.Equal(98))
 	})
 
-	It("ListReturnTypeCount should work", func() {
+	gg.It("ListReturnTypeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByValueRelativeRankRange(
@@ -334,10 +334,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(98))
+		gm.Expect(count).To(gm.Equal(98))
 	})
 
-	It("ListReturnTypeValue should work", func() {
+	gg.It("ListReturnTypeValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListGetByValueRelativeRankRangeCount(
@@ -352,10 +352,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(99))
+		gm.Expect(count).To(gm.Equal(99))
 	})
 
-	It("ExpListRemoveByValue should work", func() {
+	gg.It("ExpListRemoveByValue should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -369,10 +369,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(99))
+		gm.Expect(count).To(gm.Equal(99))
 	})
 
-	It("ExpListRemoveByValueList should work", func() {
+	gg.It("ExpListRemoveByValueList should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -386,10 +386,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(98))
+		gm.Expect(count).To(gm.Equal(98))
 	})
 
-	It("ExpListRemoveByValueRange should work", func() {
+	gg.It("ExpListRemoveByValueRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -404,10 +404,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(98))
+		gm.Expect(count).To(gm.Equal(98))
 	})
 
-	It("ExpListRemoveByValueRelativeRankRange should work", func() {
+	gg.It("ExpListRemoveByValueRelativeRankRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -422,10 +422,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(97))
+		gm.Expect(count).To(gm.Equal(97))
 	})
 
-	It("ExpListRemoveByValueRelativeRankRangeCount should work", func() {
+	gg.It("ExpListRemoveByValueRelativeRankRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -441,10 +441,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpListRemoveByIndex should work", func() {
+	gg.It("ExpListRemoveByIndex should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -458,10 +458,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpListRemoveByIndexRange should work", func() {
+	gg.It("ExpListRemoveByIndexRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -475,10 +475,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpListRemoveByIndexRangeCount should work", func() {
+	gg.It("ExpListRemoveByIndexRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -493,10 +493,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpListRemoveByIndexRangeCount should work", func() {
+	gg.It("ExpListRemoveByIndexRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -511,10 +511,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpListRemoveByRank should work", func() {
+	gg.It("ExpListRemoveByRank should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -528,10 +528,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpListRemoveByRankRange should work", func() {
+	gg.It("ExpListRemoveByRankRange should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -545,10 +545,10 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 
-	It("ExpListRemoveByRankRangeCount should work", func() {
+	gg.It("ExpListRemoveByRankRangeCount should work", func() {
 		rs := runQuery(
 			as.ExpEq(
 				as.ExpListSize(
@@ -563,6 +563,6 @@ var _ = Describe("Expression Filters - Lists", func() {
 			set,
 		)
 		count := countResults(rs)
-		Expect(count).To(Equal(100))
+		gm.Expect(count).To(gm.Equal(100))
 	})
 })

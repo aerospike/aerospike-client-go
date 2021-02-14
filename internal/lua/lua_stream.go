@@ -19,10 +19,11 @@ package lua
 import (
 	"fmt"
 
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 )
 
-type LuaStream struct {
+// Stream is the data type used as a stream by the lua instances
+type Stream struct {
 	s chan interface{}
 }
 
@@ -35,7 +36,7 @@ func registerLuaStreamType(L *lua.LState) {
 	L.SetGlobal("stream", mt)
 
 	// static attributes
-	L.SetField(mt, "__call", L.NewFunction(newLuaStream))
+	L.SetField(mt, "__call", L.NewFunction(newStream))
 	L.SetField(mt, "read", L.NewFunction(luaStreamRead))
 	L.SetField(mt, "write", L.NewFunction(luaStreamWrite))
 	L.SetField(mt, "readable", L.NewFunction(luaStreamReadable))
@@ -49,17 +50,17 @@ func registerLuaStreamType(L *lua.LState) {
 	L.SetMetatable(mt, mt)
 }
 
-// NewLuaStream creates a LuaStream
-func NewLuaStream(L *lua.LState, stream chan interface{}) *lua.LUserData {
-	luaStream := &LuaStream{s: stream}
+// NewStream creates a LuaStream
+func NewStream(L *lua.LState, stream chan interface{}) *lua.LUserData {
+	luaStream := &Stream{s: stream}
 	ud := L.NewUserData()
 	ud.Value = luaStream
 	L.SetMetatable(ud, L.GetTypeMetatable(luaLuaStreamTypeName))
 	return ud
 }
 
-func newLuaStream(L *lua.LState) int {
-	luaStream := &LuaStream{s: make(chan interface{}, 64)}
+func newStream(L *lua.LState) int {
+	luaStream := &Stream{s: make(chan interface{}, 64)}
 	ud := L.NewUserData()
 	ud.Value = luaStream
 	L.SetMetatable(ud, L.GetTypeMetatable(luaLuaStreamTypeName))
@@ -68,9 +69,9 @@ func newLuaStream(L *lua.LState) int {
 }
 
 // Checks whether the first lua argument is a *LUserData with *LuaStream and returns this *LuaStream.
-func checkLuaStream(L *lua.LState, arg int) *LuaStream {
-	ud := L.CheckUserData(arg)
-	if v, ok := ud.Value.(*LuaStream); ok {
+func checkLuaStream(L *lua.LState) *Stream {
+	ud := L.CheckUserData(1)
+	if v, ok := ud.Value.(*Stream); ok {
 		return v
 	}
 	L.ArgError(1, "luaSteam expected")
@@ -78,7 +79,7 @@ func checkLuaStream(L *lua.LState, arg int) *LuaStream {
 }
 
 func luaStreamToString(L *lua.LState) int {
-	p := checkLuaStream(L, 1)
+	p := checkLuaStream(L)
 	if L.GetTop() != 1 {
 		L.ArgError(1, "No arguments expected for tostring method")
 		return 0
@@ -88,7 +89,7 @@ func luaStreamToString(L *lua.LState) int {
 }
 
 func luaStreamRead(L *lua.LState) int {
-	p := checkLuaStream(L, 1)
+	p := checkLuaStream(L)
 	if L.GetTop() != 1 {
 		L.ArgError(1, "No arguments expected for stream:read method")
 		return 0
@@ -99,7 +100,7 @@ func luaStreamRead(L *lua.LState) int {
 }
 
 func luaStreamWrite(L *lua.LState) int {
-	p := checkLuaStream(L, 1)
+	p := checkLuaStream(L)
 	if L.GetTop() != 2 {
 		L.ArgError(1, "Only one argument expected for stream:write method")
 		return 0
@@ -110,7 +111,7 @@ func luaStreamWrite(L *lua.LState) int {
 }
 
 func luaStreamReadable(L *lua.LState) int {
-	checkLuaStream(L, 1)
+	checkLuaStream(L)
 	if L.GetTop() != 1 {
 		L.ArgError(1, "No arguments expected for readable method")
 		return 0
@@ -120,7 +121,7 @@ func luaStreamReadable(L *lua.LState) int {
 }
 
 func luaStreamWriteable(L *lua.LState) int {
-	checkLuaStream(L, 1)
+	checkLuaStream(L)
 	if L.GetTop() != 1 {
 		L.ArgError(1, "No arguments expected for writeable method")
 		return 0

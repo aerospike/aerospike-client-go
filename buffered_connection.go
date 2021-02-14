@@ -17,8 +17,8 @@ package aerospike
 import (
 	"fmt"
 
-	. "github.com/aerospike/aerospike-client-go/logger"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 type bufferedConn struct {
@@ -79,7 +79,7 @@ func (bc *bufferedConn) readConn(minLength int) error {
 	// Corrupted data streams can result in a huge minLength.
 	// Do a sanity check here.
 	if minLength > MaxBufferSize || minLength <= 0 || minLength > bc.remaining {
-		return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", minLength))
+		return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", minLength))
 	}
 
 	bc.shiftContentToHead(minLength)
@@ -94,7 +94,7 @@ func (bc *bufferedConn) readConn(minLength int) error {
 	bc.remaining -= n
 
 	if err != nil {
-		Logger.Debug("Requested to read %d bytes, but %d was read. (%v)", minLength, n, err)
+		logger.Logger.Debug("Requested to read %d bytes, but %d was read. (%v)", minLength, n, err)
 		return err
 	}
 

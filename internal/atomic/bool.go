@@ -16,29 +16,29 @@ package atomic
 
 import "sync/atomic"
 
-//AtomicBool implements a synchronized boolean value
-type AtomicBool struct {
+// Bool implements a synchronized boolean value
+type Bool struct {
 	val int32
 }
 
-// NewAtomicBool generates a new AtomicBoolean instance.
-func NewAtomicBool(value bool) *AtomicBool {
+// NewBool generates a new Boolean instance.
+func NewBool(value bool) *Bool {
 	var i int32
 	if value {
 		i = 1
 	}
-	return &AtomicBool{
+	return &Bool{
 		val: i,
 	}
 }
 
 // Get atomically retrieves the boolean value.
-func (ab *AtomicBool) Get() bool {
+func (ab *Bool) Get() bool {
 	return atomic.LoadInt32(&(ab.val)) != 0
 }
 
 // Set atomically sets the boolean value.
-func (ab *AtomicBool) Set(newVal bool) {
+func (ab *Bool) Set(newVal bool) {
 	var i int32
 	if newVal {
 		i = 1
@@ -47,7 +47,7 @@ func (ab *AtomicBool) Set(newVal bool) {
 }
 
 // Or atomically applies OR operation to the boolean value.
-func (ab *AtomicBool) Or(newVal bool) bool {
+func (ab *Bool) Or(newVal bool) bool {
 	if !newVal {
 		return ab.Get()
 	}
@@ -56,7 +56,7 @@ func (ab *AtomicBool) Or(newVal bool) bool {
 }
 
 //CompareAndToggle atomically sets the boolean value if the current value is equal to updated value.
-func (ab *AtomicBool) CompareAndToggle(expect bool) bool {
+func (ab *Bool) CompareAndToggle(expect bool) bool {
 	updated := 1
 	if expect {
 		updated = 0

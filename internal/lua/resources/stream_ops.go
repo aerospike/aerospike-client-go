@@ -2,6 +2,7 @@
 
 package luaLib
 
+// LibStreamOps is the source code for the stream library in the lua instance
 const LibStreamOps = `
 -- Lua Interface for Aerospike Record Stream Support
 --

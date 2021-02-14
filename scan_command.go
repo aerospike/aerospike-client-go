@@ -14,7 +14,7 @@
 
 package aerospike
 
-import . "github.com/aerospike/aerospike-client-go/types"
+import "github.com/aerospike/aerospike-client-go/types"
 
 type scanCommand struct {
 	baseMultiCommand
@@ -43,7 +43,7 @@ func newScanCommand(
 		binNames:         binNames,
 	}
 
-	cmd.terminationErrorType = SCAN_TERMINATED
+	cmd.terminationErrorType = types.SCAN_TERMINATED
 
 	return cmd
 }

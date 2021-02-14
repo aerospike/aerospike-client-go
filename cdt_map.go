@@ -24,36 +24,36 @@ package aerospike
 //
 // Index examples:
 //
-// Index 0: First item in map.
-// Index 4: Fifth item in map.
-// Index -1: Last item in map.
-// Index -3: Third to last item in map.
-// Index 1 Count 2: Second and third items in map.
-// Index -3 Count 3: Last three items in map.
-// Index -5 Count 4: Range between fifth to last item to second to last item inclusive.
+//  Index 0: First item in map.
+//  Index 4: Fifth item in map.
+//  Index -1: Last item in map.
+//  Index -3: Third to last item in map.
+//  Index 1 Count 2: Second and third items in map.
+//  Index -3 Count 3: Last three items in map.
+//  Index -5 Count 4: Range between fifth to last item to second to last item inclusive.
 //
 //
 // Rank examples:
 //
-// Rank 0: Item with lowest value rank in map.
-// Rank 4: Fifth lowest ranked item in map.
-// Rank -1: Item with highest ranked value in map.
-// Rank -3: Item with third highest ranked value in map.
-// Rank 1 Count 2: Second and third lowest ranked items in map.
-// Rank -3 Count 3: Top three ranked items in map.
+//  Rank 0: Item with lowest value rank in map.
+//  Rank 4: Fifth lowest ranked item in map.
+//  Rank -1: Item with highest ranked value in map.
+//  Rank -3: Item with third highest ranked value in map.
+//  Rank 1 Count 2: Second and third lowest ranked items in map.
+//  Rank -3 Count 3: Top three ranked items in map.
 //
 //
 // Nested CDT operations are supported by optional CTX context arguments.  Examples:
 //
-// bin = {key1:{key11:9,key12:4}, key2:{key21:3,key22:5}}
-// Set map value to 11 for map key "key21" inside of map key "key2".
-// MapOperation.put(MapPolicy.Default, "bin", StringValue("key21"), IntegerValue(11), CtxMapKey(StringValue("key2")))
-// bin result = {key1:{key11:9,key12:4},key2:{key21:11,key22:5}}
+//  bin = {key1:{key11:9,key12:4}, key2:{key21:3,key22:5}}
+//  Set map value to 11 for map key "key21" inside of map key "key2".
+//  MapOperation.put(MapPolicy.Default, "bin", StringValue("key21"), IntegerValue(11), CtxMapKey(StringValue("key2")))
+//  bin result = {key1:{key11:9,key12:4},key2:{key21:11,key22:5}}
 //
-// bin : {key1:{key11:{key111:1},key12:{key121:5}}, key2:{key21:{"key211":7}}}
-// Set map value to 11 in map key "key121" for highest ranked map ("key12") inside of map key "key1".
-// MapPutOp(DefaultMapPolicy(), "bin", StringValue("key121"), IntegerValue(11), CtxMapKey(StringValue("key1")), CtxMapRank(-1))
-// bin result = {key1:{key11:{key111:1},key12:{key121:11}}, key2:{key21:{"key211":7}}}
+//  bin : {key1:{key11:{key111:1},key12:{key121:5}}, key2:{key21:{"key211":7}}}
+//  Set map value to 11 in map key "key121" for highest ranked map ("key12") inside of map key "key1".
+//  MapPutOp(DefaultMapPolicy(), "bin", StringValue("key121"), IntegerValue(11), CtxMapKey(StringValue("key1")), CtxMapRank(-1))
+//  bin result = {key1:{key11:{key111:1},key12:{key121:11}}, key2:{key21:{"key211":7}}}
 
 const (
 	cdtMapOpTypeSetType                   = 64
@@ -98,7 +98,7 @@ type mapOrderType struct {
 	flag int
 }
 
-// Map storage order.
+// MapOrder defines map storage order.
 var MapOrder = struct {
 	// Map is not ordered. This is the default.
 	UNORDERED mapOrderType // 0
@@ -112,54 +112,55 @@ var MapOrder = struct {
 
 type mapReturnType int
 
-// Map return type. Type of data to return when selecting or removing items from the map.
+// MapReturnType defines the map return type.
+// Type of data to return when selecting or removing items from the map.
 var MapReturnType = struct {
-	// Do not return a result.
+	// NONE will will not return a result.
 	NONE mapReturnType
 
-	// Return key index order.
+	// INDEX will return key index order.
 	//
 	// 0 = first key
 	// N = Nth key
 	// -1 = last key
 	INDEX mapReturnType
 
-	// Return reverse key order.
+	// REVERSE_INDEX will return reverse key order.
 	//
 	// 0 = last key
 	// -1 = first key
 	REVERSE_INDEX mapReturnType
 
-	// Return value order.
+	// RANK will return value order.
 	//
 	// 0 = smallest value
 	// N = Nth smallest value
 	// -1 = largest value
 	RANK mapReturnType
 
-	// Return reserve value order.
+	// REVERSE_RANK will return reserve value order.
 	//
 	// 0 = largest value
 	// N = Nth largest value
 	// -1 = smallest value
 	REVERSE_RANK mapReturnType
 
-	// Return count of items selected.
+	// COUNT will return count of items selected.
 	COUNT mapReturnType
 
-	// Return key for single key read and key list for range read.
+	// KEY will return key for single key read and key list for range read.
 	KEY mapReturnType
 
-	// Return value for single key read and value list for range read.
+	// VALUE will return value for single key read and value list for range read.
 	VALUE mapReturnType
 
-	// Return key/value items. The possible return types are:
+	// KEY_VALUE will return key/value items. The possible return types are:
 	//
 	// map[interface{}]interface{} : Returned for unordered maps
 	// []MapPair : Returned for range results where range order needs to be preserved.
 	KEY_VALUE mapReturnType
 
-	// Invert meaning of map command and return values.  For example:
+	// INVERTED will invert meaning of map command and return values.  For example:
 	// MapRemoveByKeyRange(binName, keyBegin, keyEnd, MapReturnType.KEY | MapReturnType.INVERTED)
 	// With the INVERTED flag enabled, the keys outside of the specified key range will be removed and returned.
 	INVERTED mapReturnType
@@ -286,32 +287,6 @@ func MapCreateOp(binName string, order mapOrderType, ctx []*CDTContext) *Operati
 		encoder:  cdtCreateOpEncoder,
 	}
 }
-
-// Unique key map bin operations. Create map operations used by the client operate command.
-// The default unique key map is unordered.
-//
-// All maps maintain an index and a rank.  The index is the item offset from the start of the map,
-// for both unordered and ordered maps.  The rank is the sorted index of the value component.
-// Map supports negative indexing for index and rank.
-//
-// Index examples:
-//
-// Index 0: First item in map.
-// Index 4: Fifth item in map.
-// Index -1: Last item in map.
-// Index -3: Third to last item in map.
-// Index 1 Count 2: Second and third items in map.
-// Index -3 Count 3: Last three items in map.
-// Index -5 Count 4: Range between fifth to last item to second to last item inclusive.
-//
-// Rank examples:
-//
-// Rank 0: Item with lowest value rank in map.
-// Rank 4: Fifth lowest ranked item in map.
-// Rank -1: Item with highest ranked value in map.
-// Rank -3: Item with third highest ranked value in map.
-// Rank 1 Count 2: Second and third lowest ranked items in map.
-// Rank -3 Count 3: Top three ranked items in map.
 
 // MapSetPolicyOp creates set map policy operation.
 // Server sets map policy attributes.  Server returns null.
@@ -481,22 +456,22 @@ func MapRemoveByValueRangeOp(binName string, valueBegin interface{}, valueEnd in
 //
 // Examples for map [{4=2},{9=10},{5=15},{0=17}]:
 //
-// (value,rank) = [removed items]
-// (11,1) = [{0=17}]
-// (11,-1) = [{9=10},{5=15},{0=17}]
+//  (value,rank) = [removed items]
+//  (11,1) = [{0=17}]
+//  (11,-1) = [{9=10},{5=15},{0=17}]
 func MapRemoveByValueRelativeRankRangeOp(binName string, value interface{}, rank int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateRangeOperation(cdtMapOpTypeRemoveByValueRelRankRange, _MAP_MODIFY, binName, ctx, value, rank, returnType)
 }
 
 // MapRemoveByValueRelativeRankRangeCountOp creates a map remove by value relative to rank range operation.
 // Server removes map items nearest to value and greater by relative rank with a count limit.
-// Server returns removed data specified by returnType (See {@link MapReturnType}).
+// Server returns removed data specified by returnType (See MapReturnType).
 //
 // Examples for map [{4=2},{9=10},{5=15},{0=17}]:
 //
-// (value,rank,count) = [removed items]
-// (11,1,1) = [{0=17}]
-// (11,-1,1) = [{9=10}]
+//  (value,rank,count) = [removed items]
+//  (11,1,1) = [{0=17}]
+//  (11,-1,1) = [{9=10}]
 func MapRemoveByValueRelativeRankRangeCountOp(binName string, value interface{}, rank, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeRemoveByValueRelRankRange, _MAP_MODIFY, binName, ctx, NewValue(value), rank, count, returnType)
 }
@@ -545,28 +520,28 @@ func MapRemoveByRankRangeCountOp(binName string, rank int, count int, returnType
 //
 // Examples for map [{0=17},{4=2},{5=15},{9=10}]:
 //
-// (value,index) = [removed items]
-// (5,0) = [{5=15},{9=10}]
-// (5,1) = [{9=10}]
-// (5,-1) = [{4=2},{5=15},{9=10}]
-// (3,2) = [{9=10}]
-// (3,-2) = [{0=17},{4=2},{5=15},{9=10}]
+//  (value,index) = [removed items]
+//  (5,0) = [{5=15},{9=10}]
+//  (5,1) = [{9=10}]
+//  (5,-1) = [{4=2},{5=15},{9=10}]
+//  (3,2) = [{9=10}]
+//  (3,-2) = [{0=17},{4=2},{5=15},{9=10}]
 func MapRemoveByKeyRelativeIndexRangeOp(binName string, key interface{}, index int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndex(cdtMapOpTypeRemoveByKeyRelIndexRange, _MAP_MODIFY, binName, ctx, NewValue(key), index, returnType)
 }
 
-// Create map remove by key relative to index range operation.
+// MapRemoveByKeyRelativeIndexRangeCountOp creates map remove by key relative to index range operation.
 // Server removes map items nearest to key and greater by index with a count limit.
 // Server returns removed data specified by returnType.
 //
 // Examples for map [{0=17},{4=2},{5=15},{9=10}]:
 //
-// (value,index,count) = [removed items]
-// (5,0,1) = [{5=15}]
-// (5,1,2) = [{9=10}]
-// (5,-1,1) = [{4=2}]
-// (3,2,1) = [{9=10}]
-// (3,-2,2) = [{0=17}]
+//  (value,index,count) = [removed items]
+//  (5,0,1) = [{5=15}]
+//  (5,1,2) = [{9=10}]
+//  (5,-1,1) = [{4=2}]
+//  (3,2,1) = [{9=10}]
+//  (3,-2,2) = [{0=17}]
 func MapRemoveByKeyRelativeIndexRangeCountOp(binName string, key interface{}, index, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeRemoveByKeyRelIndexRange, _MAP_MODIFY, binName, ctx, NewValue(key), index, count, returnType)
 }
@@ -599,28 +574,27 @@ func MapGetByKeyRangeOp(binName string, keyBegin interface{}, keyEnd interface{}
 //
 // Examples for ordered map [{0=17},{4=2},{5=15},{9=10}]:
 //
-// (value,index) = [selected items]
-// (5,0) = [{5=15},{9=10}]
-// (5,1) = [{9=10}]
-// (5,-1) = [{4=2},{5=15},{9=10}]
-// (3,2) = [{9=10}]
-// (3,-2) = [{0=17},{4=2},{5=15},{9=10}]
+//  (value,index) = [selected items]
+//  (5,0) = [{5=15},{9=10}]
+//  (5,1) = [{9=10}]
+//  (5,-1) = [{4=2},{5=15},{9=10}]
+//  (3,2) = [{9=10}]
+//  (3,-2) = [{0=17},{4=2},{5=15},{9=10}]
 func MapGetByKeyRelativeIndexRangeOp(binName string, key interface{}, index int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndex(cdtMapOpTypeGetByKeyRelIndexRange, _MAP_READ, binName, ctx, NewValue(key), index, returnType)
 }
 
 // MapGetByKeyRelativeIndexRangeCountOp creates a map get by key relative to index range operation.
 // Server selects map items nearest to key and greater by index with a count limit.
-// Server returns selected data specified by returnType (See {@link MapReturnType}).
-// <p>
+// Server returns selected data specified by returnType (See MapReturnType).
+//
 // Examples for ordered map [{0=17},{4=2},{5=15},{9=10}]:
-// <ul>
-// <li>(value,index,count) = [selected items]</li>
-// <li>(5,0,1) = [{5=15}]</li>
-// <li>(5,1,2) = [{9=10}]</li>
-// <li>(5,-1,1) = [{4=2}]</li>
-// <li>(3,2,1) = [{9=10}]</li>
-// <li>(3,-2,2) = [{0=17}]</li>
+//  (value,index,count) = [selected items]
+//  (5,0,1) = [{5=15}]
+//  (5,1,2) = [{9=10}]
+//  (5,-1,1) = [{4=2}]
+//  (3,2,1) = [{9=10}]
+//  (3,-2,2) = [{0=17}]
 func MapGetByKeyRelativeIndexRangeCountOp(binName string, key interface{}, index, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeGetByKeyRelIndexRange, _MAP_READ, binName, ctx, NewValue(key), index, count, returnType)
 }
@@ -653,9 +627,9 @@ func MapGetByValueRangeOp(binName string, valueBegin interface{}, valueEnd inter
 //
 // Examples for map [{4=2},{9=10},{5=15},{0=17}]:
 //
-// (value,rank) = [selected items]
-// (11,1) = [{0=17}]
-// (11,-1) = [{9=10},{5=15},{0=17}]
+//  (value,rank) = [selected items]
+//  (11,1) = [{0=17}]
+//  (11,-1) = [{9=10},{5=15},{0=17}]
 func MapGetByValueRelativeRankRangeOp(binName string, value interface{}, rank int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndex(cdtMapOpTypeGetByValueRelRankRange, _MAP_READ, binName, ctx, NewValue(value), rank, returnType)
 }
@@ -666,13 +640,15 @@ func MapGetByValueRelativeRankRangeOp(binName string, value interface{}, rank in
 //
 // Examples for map [{4=2},{9=10},{5=15},{0=17}]:
 //
-// (value,rank,count) = [selected items]
-// (11,1,1) = [{0=17}]
-// (11,-1,1) = [{9=10}]
+//  (value,rank,count) = [selected items]
+//  (11,1,1) = [{0=17}]
+//  (11,-1,1) = [{9=10}]
 func MapGetByValueRelativeRankRangeCountOp(binName string, value interface{}, rank, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeGetByValueRelRankRange, _MAP_READ, binName, ctx, NewValue(value), rank, count, returnType)
 }
 
+// MapGetByValueListOp creates map get by value list operation.
+// Server selects map items identified by values and returns selected data specified by returnType.
 func MapGetByValueListOp(binName string, values []interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByValueList, _MAP_READ, binName, ctx, values, returnType)
 }

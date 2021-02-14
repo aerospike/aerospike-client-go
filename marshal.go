@@ -205,7 +205,7 @@ func structToMap(s reflect.Value, clusterSupportsFloat bool) BinMap {
 		return nil
 	}
 
-	var binMap BinMap = make(BinMap, s.NumField())
+	binMap := make(BinMap, s.NumField())
 
 	setBinMap(s, clusterSupportsFloat, s.Type(), binMap, nil)
 

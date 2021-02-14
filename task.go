@@ -17,8 +17,8 @@ package aerospike
 import (
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go/internal/atomic"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 // Task interface defines methods for asynchronous tasks.
@@ -31,7 +31,7 @@ type Task interface {
 
 // baseTask is used to poll for server task completion.
 type baseTask struct {
-	retries AtomicInt
+	retries atomic.Int
 	cluster *Cluster
 }
 
@@ -54,29 +54,28 @@ func (btsk *baseTask) onComplete(ifc Task) chan error {
 		var interval = 100 * time.Millisecond
 
 		for {
-			select {
-			case <-time.After(interval):
-				done, err := ifc.IsDone()
-				// Every 5 failed retries increase the interval
-				if btsk.retries.IncrementAndGet()%5 == 0 {
-					interval *= 2
+			time.Sleep(interval)
 
-					if interval > 5*time.Second {
-						interval = 5 * time.Second
-					}
+			done, err := ifc.IsDone()
+			// Every 5 failed retries increase the interval
+			if btsk.retries.IncrementAndGet()%5 == 0 {
+				interval *= 2
+
+				if interval > 5*time.Second {
+					interval = 5 * time.Second
 				}
-				if err != nil {
-					ae, ok := err.(AerospikeError)
-					if ok && ae.ResultCode() == TIMEOUT {
-						ae.MarkInDoubt()
-					}
-					ch <- ae
-					return
-				} else if done {
-					ch <- nil
-					return
+			}
+			if err != nil {
+				ae, ok := err.(types.AerospikeError)
+				if ok && ae.ResultCode() == types.TIMEOUT {
+					ae.MarkInDoubt()
 				}
-			} // select
+				ch <- ae
+				return
+			} else if done {
+				ch <- nil
+				return
+			}
 		} // for
 	}()
 

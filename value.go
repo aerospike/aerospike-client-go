@@ -20,14 +20,15 @@ import (
 	"strconv"
 
 	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
+
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 // this function will be set in value_slow file if included
 var newValueReflect func(interface{}) Value
 
-// Map pair is used when the client returns sorted maps from the server
+// MapPair is used when the client returns sorted maps from the server
 // Since the default map in Go is a hash map, we will use a slice
 // to return the results in server order
 type MapPair struct{ Key, Value interface{} }
@@ -54,12 +55,17 @@ type Value interface {
 	String() string
 }
 
+//revive:disable
+
+// AerospikeBlob interface allows the user to write a conversion function from their value to []bytes.
 type AerospikeBlob interface {
 	// EncodeBlob returns a byte slice representing the encoding of the
 	// receiver for transmission to a Decoder, usually of the same
 	// concrete type.
 	EncodeBlob() ([]byte, error)
 }
+
+//revive:enable
 
 // tryConcreteValue will return an aerospike value.
 // If the encoder does not exist, it will not try to use reflection.
@@ -435,7 +441,7 @@ func NewValue(v interface{}) Value {
 	}
 
 	// panic for anything that is not supported.
-	panic(NewAerospikeError(TYPE_NOT_SUPPORTED, fmt.Sprintf("Value type '%v' (%s) not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)", v, reflect.TypeOf(v).String())))
+	panic(types.NewAerospikeError(types.TYPE_NOT_SUPPORTED, fmt.Sprintf("Value type '%v' (%s) not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)", v, reflect.TypeOf(v).String())))
 }
 
 // NullValue is an empty value.
@@ -448,6 +454,7 @@ func NewNullValue() NullValue {
 	return nullValue
 }
 
+// EstimateSize returns the size of the NullValue in wire protocol.
 func (vl NullValue) EstimateSize() (int, error) {
 	return 0, nil
 }
@@ -486,6 +493,7 @@ func NewInfinityValue() InfinityValue {
 	return infinityValue
 }
 
+// EstimateSize returns the size of the InfinityValue in wire protocol.
 func (vl InfinityValue) EstimateSize() (int, error) {
 	return 0, nil
 }
@@ -514,7 +522,7 @@ func (vl InfinityValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// InfinityValue is an empty value.
+// WildCardValue is an empty value.
 type WildCardValue struct{}
 
 var wildCardValue WildCardValue
@@ -524,6 +532,7 @@ func NewWildCardValue() WildCardValue {
 	return wildCardValue
 }
 
+// EstimateSize returns the size of the WildCardValue in wire protocol.
 func (vl WildCardValue) EstimateSize() (int, error) {
 	return 0, nil
 }
@@ -572,6 +581,7 @@ func NewBlobValue(object AerospikeBlob) BytesValue {
 	return NewBytesValue(buf)
 }
 
+// EstimateSize returns the size of the BytesValue in wire protocol.
 func (vl BytesValue) EstimateSize() (int, error) {
 	return len(vl), nil
 }
@@ -609,6 +619,7 @@ func NewStringValue(value string) StringValue {
 	return StringValue(value)
 }
 
+// EstimateSize returns the size of the StringValue in wire protocol.
 func (vl StringValue) EstimateSize() (int, error) {
 	return len(vl), nil
 }
@@ -646,12 +657,14 @@ func NewIntegerValue(value int) IntegerValue {
 	return IntegerValue(value)
 }
 
+// EstimateSize returns the size of the IntegerValue in wire protocol.
 func (vl IntegerValue) EstimateSize() (int, error) {
 	return 8, nil
 }
 
 func (vl IntegerValue) write(cmd BufferEx) (int, error) {
-	return cmd.WriteInt64(int64(vl))
+	n := cmd.WriteInt64(int64(vl))
+	return n, nil
 }
 
 func (vl IntegerValue) pack(cmd BufferEx) (int, error) {
@@ -683,12 +696,14 @@ func NewLongValue(value int64) LongValue {
 	return LongValue(value)
 }
 
+// EstimateSize returns the size of the LongValue in wire protocol.
 func (vl LongValue) EstimateSize() (int, error) {
 	return 8, nil
 }
 
 func (vl LongValue) write(cmd BufferEx) (int, error) {
-	return cmd.WriteInt64(int64(vl))
+	n := cmd.WriteInt64(int64(vl))
+	return n, nil
 }
 
 func (vl LongValue) pack(cmd BufferEx) (int, error) {
@@ -720,12 +735,14 @@ func NewFloatValue(value float64) FloatValue {
 	return FloatValue(value)
 }
 
+// EstimateSize returns the size of the FloatValue in wire protocol.
 func (vl FloatValue) EstimateSize() (int, error) {
 	return 8, nil
 }
 
 func (vl FloatValue) write(cmd BufferEx) (int, error) {
-	return cmd.WriteFloat64(float64(vl))
+	n := cmd.WriteFloat64(float64(vl))
+	return n, nil
 }
 
 func (vl FloatValue) pack(cmd BufferEx) (int, error) {
@@ -753,6 +770,7 @@ func (vl FloatValue) String() string {
 // This method is only used in bitwise CDT operations internally.
 type _BoolValue bool
 
+// EstimateSize returns the size of the _BoolValue in wire protocol.
 func (vb _BoolValue) EstimateSize() (int, error) {
 	return PackBool(nil, bool(vb))
 }
@@ -793,6 +811,7 @@ func NewValueArray(array []Value) *ValueArray {
 	return &res
 }
 
+// EstimateSize returns the size of the ValueArray in wire protocol.
 func (va ValueArray) EstimateSize() (int, error) {
 	return packValueArray(nil, va)
 }
@@ -831,6 +850,7 @@ func NewListValue(list []interface{}) ListValue {
 	return ListValue(list)
 }
 
+// EstimateSize returns the size of the ListValue in wire protocol.
 func (vl ListValue) EstimateSize() (int, error) {
 	return packIfcList(nil, vl)
 }
@@ -866,7 +886,7 @@ type ListerValue struct {
 	list ListIter
 }
 
-// NewListValue generates a ListValue instance.
+// NewListerValue generates a NewListerValue instance.
 func NewListerValue(list ListIter) *ListerValue {
 	res := &ListerValue{
 		list: list,
@@ -875,6 +895,7 @@ func NewListerValue(list ListIter) *ListerValue {
 	return res
 }
 
+// EstimateSize returns the size of the ListerValue in wire protocol.
 func (vl *ListerValue) EstimateSize() (int, error) {
 	return packList(nil, vl.list)
 }
@@ -913,6 +934,7 @@ func NewMapValue(vmap map[interface{}]interface{}) MapValue {
 	return MapValue(vmap)
 }
 
+// EstimateSize returns the size of the MapValue in wire protocol.
 func (vl MapValue) EstimateSize() (int, error) {
 	return packIfcMap(nil, vl)
 }
@@ -945,11 +967,12 @@ func (vl MapValue) String() string {
 // Supported by Aerospike 3+ servers only.
 type JsonValue map[string]interface{}
 
-// NewMapValue generates a JsonValue instance.
+// NewJsonValue generates a JsonValue instance.
 func NewJsonValue(vmap map[string]interface{}) JsonValue {
 	return JsonValue(vmap)
 }
 
+// EstimateSize returns the size of the JsonValue in wire protocol.
 func (vl JsonValue) EstimateSize() (int, error) {
 	return packJsonMap(nil, vl)
 }
@@ -984,7 +1007,7 @@ type MapperValue struct {
 	vmap MapIter
 }
 
-// NewMapValue generates a MapperValue instance.
+// NewMapperValue generates a MapperValue instance.
 func NewMapperValue(vmap MapIter) *MapperValue {
 	res := &MapperValue{
 		vmap: vmap,
@@ -993,6 +1016,7 @@ func NewMapperValue(vmap MapIter) *MapperValue {
 	return res
 }
 
+// EstimateSize returns the size of the MapperValue in wire protocol.
 func (vl *MapperValue) EstimateSize() (int, error) {
 	return packMap(nil, vl.vmap)
 }
@@ -1025,12 +1049,13 @@ func (vl *MapperValue) String() string {
 // Supported by Aerospike 3.6.1 servers and later only.
 type GeoJSONValue string
 
-// NewMapValue generates a GeoJSONValue instance.
+// NewGeoJSONValue generates a GeoJSONValue instance.
 func NewGeoJSONValue(value string) GeoJSONValue {
 	res := GeoJSONValue(value)
 	return res
 }
 
+// EstimateSize returns the size of the GeoJSONValue in wire protocol.
 func (vl GeoJSONValue) EstimateSize() (int, error) {
 	// flags + ncells + jsonstr
 	return 1 + 2 + len(string(vl)), nil
@@ -1073,6 +1098,7 @@ func NewHLLValue(bytes []byte) HLLValue {
 	return HLLValue(bytes)
 }
 
+// EstimateSize returns the size of the HLLValue in wire protocol.
 func (vl HLLValue) EstimateSize() (int, error) {
 	return len(vl), nil
 }
@@ -1159,12 +1185,12 @@ func bytesToKeyValue(pType int, buf []byte, offset int, len int) (Value, error) 
 		return NewFloatValue(Buffer.BytesToFloat64(buf, offset)), nil
 
 	case ParticleType.BLOB:
-		bytes := make([]byte, len, len)
+		bytes := make([]byte, len)
 		copy(bytes, buf[offset:offset+len])
 		return NewBytesValue(bytes), nil
 
 	default:
-		return nil, NewAerospikeError(PARSE_ERROR, fmt.Sprintf("ParticleType %d not recognized. Please file a github issue.", pType))
+		return nil, types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("ParticleType %d not recognized. Please file a github issue.", pType))
 	}
 }
 

@@ -20,7 +20,7 @@ import (
 	"net"
 	"reflect"
 
-	. "github.com/onsi/gomega"
+	gm "github.com/onsi/gomega"
 )
 
 type testBLOB struct {
@@ -98,8 +98,8 @@ func arraysEqual(ia, ib interface{}) {
 	a := sliceToIfcSlice(ia)
 	b := sliceToIfcSlice(ib)
 
-	Expect(len(a)).To(Equal(len(b)))
-	// Expect(a).To(BeEquivalentTo(b))
+	gm.Expect(len(a)).To(gm.Equal(len(b)))
+	// gm.Expect(a).To(gm.BeEquivalentTo(b))
 
 	for i := range a {
 		switch reflect.ValueOf(a[i]).Kind() {
@@ -109,9 +109,9 @@ func arraysEqual(ia, ib interface{}) {
 			arraysEqual(a[i], b[i])
 		default:
 			if a[i] != nil {
-				Expect(a[i]).To(BeEquivalentTo(b[i]))
+				gm.Expect(a[i]).To(gm.BeEquivalentTo(b[i]))
 			} else {
-				Expect(b[i]).To(BeNil())
+				gm.Expect(b[i]).To(gm.BeNil())
 			}
 		}
 	}
@@ -121,8 +121,8 @@ func mapsEqual(ia, ib interface{}) {
 	a := mapToIfcMap(ia)
 	b := mapToIfcMap(ib)
 
-	Expect(len(a)).To(Equal(len(b)))
-	Expect(a).To(BeEquivalentTo(b))
+	gm.Expect(len(a)).To(gm.Equal(len(b)))
+	gm.Expect(a).To(gm.BeEquivalentTo(b))
 }
 
 func getOutboundIP() net.IP {

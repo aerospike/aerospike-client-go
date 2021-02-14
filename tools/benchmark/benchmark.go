@@ -36,6 +36,7 @@ import (
 	ast "github.com/aerospike/aerospike-client-go/types"
 )
 
+// TStats is a thread's statistics values
 type TStats struct {
 	Exit       bool
 	W, R       int // write and read counts
@@ -382,7 +383,7 @@ func runBench_I(client *as.Client, ident int, times int) {
 	xr := NewXorRand()
 
 	var err error
-	var forceReport bool = false
+	var forceReport bool
 
 	writepolicy := as.NewWritePolicy(0, 0)
 	writepolicy.TotalTimeout = time.Duration(*timeout) * time.Millisecond
@@ -489,7 +490,7 @@ func runBench_RU(client *as.Client, ident int, times int) {
 	// var r *as.Record
 
 	var err error
-	var forceReport bool = false
+	var forceReport bool
 
 	writepolicy := as.NewWritePolicy(0, 0)
 	writepolicy.TotalTimeout = time.Duration(*timeout) * time.Millisecond
@@ -791,18 +792,22 @@ Loop:
 	countReportChan <- &TStats{}
 }
 
+// XorRand is a XOR Shift random number generator
 type XorRand struct {
 	src [2]uint64
 }
 
+// NewXorRand creates a random number generator
 func NewXorRand() *XorRand {
 	return &XorRand{[2]uint64{uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano())}}
 }
 
+// Int64 returns a random int64 value
 func (r *XorRand) Int64() int64 {
 	return int64(r.Uint64())
 }
 
+// Uint64 returns a random uint64 value
 func (r *XorRand) Uint64() uint64 {
 	s1 := r.src[0]
 	s0 := r.src[1]
@@ -812,6 +817,7 @@ func (r *XorRand) Uint64() uint64 {
 	return r.src[1] + s0
 }
 
+// Read fills p with random bytes
 func (r *XorRand) Read(p []byte) (n int, err error) {
 	l := len(p) / 8
 	for i := 0; i < l; i += 8 {

@@ -71,6 +71,8 @@ func NewAerospikeError(code ResultCode, messages ...string) error {
 	return AerospikeError{error: err, resultCode: code}
 }
 
+//revive:disable
+
 var (
 	ErrServerNotAvailable             = NewAerospikeError(SERVER_NOT_AVAILABLE)
 	ErrKeyNotFound                    = NewAerospikeError(KEY_NOT_FOUND_ERROR)
@@ -87,3 +89,5 @@ var (
 	ErrScanTerminated                 = NewAerospikeError(SCAN_TERMINATED)
 	ErrQueryTerminated                = NewAerospikeError(QUERY_TERMINATED)
 )
+
+//revive:enable

@@ -48,7 +48,7 @@ func newRecord(node *Node, key *Key, bins BinMap, generation, expiration uint32)
 
 	// always assign a map of length zero if Bins is nil
 	if r.Bins == nil {
-		r.Bins = make(BinMap, 0)
+		r.Bins = make(BinMap)
 	}
 
 	return r

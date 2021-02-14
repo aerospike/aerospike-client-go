@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go/logger"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 
 // Access server's info monitoring protocol.
 type info struct {
-	msg *Message
+	msg *types.Message
 }
 
 // Send multiple commands to server and store results.
@@ -42,7 +42,7 @@ func newInfo(conn *Connection, commands ...string) (*info, error) {
 		commandStr += "\n"
 	}
 	newInfo := &info{
-		msg: NewMessage(MSG_INFO, []byte(commandStr)),
+		msg: types.NewMessage(types.MSG_INFO, []byte(commandStr)),
 	}
 
 	if err := newInfo.sendCommand(conn); err != nil {
@@ -64,27 +64,32 @@ func RequestInfo(conn *Connection, names ...string) (map[string]string, error) {
 // Issue request and set results buffer. This method is used internally.
 // The static request methods should be used instead.
 func (nfo *info) sendCommand(conn *Connection) error {
-	// Write.
-	if _, err := conn.Write(nfo.msg.Serialize()); err != nil {
-		Logger.Debug("Failed to send command.")
+	b, err := nfo.msg.Serialize()
+	if err != nil {
+		return err
+	}
+
+	// Write
+	if _, err = conn.Write(b); err != nil {
+		logger.Logger.Debug("Failed to send command.")
 		return err
 	}
 
 	// Read - reuse input buffer.
-	header := bytes.NewBuffer(make([]byte, MSG_HEADER_SIZE))
-	if _, err := conn.Read(header.Bytes(), MSG_HEADER_SIZE); err != nil {
+	header := bytes.NewBuffer(make([]byte, types.MSG_HEADER_SIZE))
+	if _, err = conn.Read(header.Bytes(), types.MSG_HEADER_SIZE); err != nil {
 		return err
 	}
-	if err := binary.Read(header, binary.BigEndian, &nfo.msg.MessageHeader); err != nil {
-		Logger.Debug("Failed to read command response.")
+	if err = binary.Read(header, binary.BigEndian, &nfo.msg.MessageHeader); err != nil {
+		logger.Logger.Debug("Failed to read command response.")
 		return err
 	}
 
-	// Logger.Debug("Header Response: %v %v %v %v", t.Type, t.Version, t.Length(), t.DataLen)
-	if err := nfo.msg.Resize(nfo.msg.Length()); err != nil {
+	//logger.Logger.Debug("Header Response: %v %v %v %v", t.Type, t.Version, t.Length(), t.DataLen)
+	if err = nfo.msg.Resize(nfo.msg.Length()); err != nil {
 		return err
 	}
-	_, err := conn.Read(nfo.msg.Data, len(nfo.msg.Data))
+	_, err = conn.Read(nfo.msg.Data, len(nfo.msg.Data))
 	return err
 }
 
@@ -102,7 +107,7 @@ func (nfo *info) parseMultiResponse() (map[string]string, error) {
 		case 2:
 			responses[KeyValArr[0]] = KeyValArr[1]
 		default:
-			Logger.Error("Requested info buffer does not adhere to the protocol: %s", data)
+			logger.Logger.Error("Requested info buffer does not adhere to the protocol: %s", data)
 		}
 	}
 

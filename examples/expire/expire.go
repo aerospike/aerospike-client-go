@@ -134,7 +134,7 @@ func noExpireExample(client *as.Client) {
 
 	if record == nil {
 		log.Fatalf("Record expired and should NOT have.")
-	} else {
-		log.Printf("Found Record (correctly) after default TTL.")
 	}
+	log.Printf("Found Record (correctly) after default TTL.")
+
 }

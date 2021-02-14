@@ -18,7 +18,7 @@ import (
 	"log"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 )
 
 func main() {
@@ -26,19 +26,21 @@ func main() {
 	log.SetFlags(0)
 
 	// connect to the host
-	cp := NewClientPolicy()
+	cp := as.NewClientPolicy()
 	cp.Timeout = 10 * time.Second
-	if conn, err := NewConnection(cp, NewHost("localhost", 3000)); err != nil {
+	conn, err := as.NewConnection(cp, as.NewHost("localhost", 3000))
+	if err != nil {
 		log.Fatalln(err.Error())
-	} else {
-		if infoMap, err := RequestInfo(conn, ""); err != nil {
-			log.Fatalln(err.Error())
-		} else {
-			cnt := 1
-			for k, v := range infoMap {
-				log.Printf("%d :  %s\n     %s\n\n", cnt, k, v)
-				cnt++
-			}
-		}
+	}
+
+	infoMap, err := as.RequestInfo(conn, "")
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	cnt := 1
+	for k, v := range infoMap {
+		log.Printf("%d :  %s\n     %s\n\n", cnt, k, v)
+		cnt++
 	}
 }

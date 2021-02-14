@@ -15,7 +15,7 @@
 
 package aerospike
 
-// Partition filter used in scan/query.
+// PartitionFilter is used in scan/queries.
 type PartitionFilter struct {
 	begin  int
 	count  int

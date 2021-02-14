@@ -18,15 +18,14 @@ import (
 	"fmt"
 
 	as "github.com/aerospike/aerospike-client-go"
-	atomic "github.com/aerospike/aerospike-client-go/internal/atomic"
-	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Expression Operations", func() {
+var _ = gg.Describe("Expression Operations", func() {
 
 	var ns = *namespace
 	var set = randString(50)
@@ -34,15 +33,15 @@ var _ = Describe("Expression Operations", func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
 	var qpolicy = as.NewQueryPolicy()
 
-	var _ = Context("Generic", func() {
+	var _ = gg.Context("Generic", func() {
 
 		var set = "expression_tests" // The name of the set should be consistent because of predexp_modulo tests, since set name is a part of the digest
 
 		const keyCount = 1000
 
-		insertRecs := atomic.NewAtomicBool(true)
+		insertRecs := atomic.NewBool(true)
 
-		BeforeEach(func() {
+		gg.BeforeEach(func() {
 			if !insertRecs.Get() {
 				return
 			}
@@ -81,7 +80,7 @@ var _ = Describe("Expression Operations", func() {
 				//
 
 				key, err := as.NewKey(ns, set, ii)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				lng := -122.0 + (0.01 * float64(ii))
 				lat := 37.5 + (0.01 * float64(ii))
@@ -125,39 +124,39 @@ var _ = Describe("Expression Operations", func() {
 					"ballast": ballast,
 				}
 				err = client.Put(wpolicy, key, bins)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			}
 
 			idxTask, err := client.CreateIndex(wpolicy, ns, set, "intval", "intval", as.NUMERIC)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 			idxTask, err = client.CreateIndex(wpolicy, ns, set, "strval", "strval", as.STRING)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 			insertRecs.Set(false)
 		})
 
-		// AfterEach(func() {
-		// 	Expect(client.DropIndex(nil, ns, set, "intval")).ToNot(HaveOccurred())
-		// 	Expect(client.DropIndex(nil, ns, set, "strval")).ToNot(HaveOccurred())
+		// gg.AfterEach(func() {
+		// 	gm.Expect(client.DropIndex(nil, ns, set, "intval")).ToNot(gm.HaveOccurred())
+		// 	gm.Expect(client.DropIndex(nil, ns, set, "strval")).ToNot(gm.HaveOccurred())
 		// })
 
-		It("server error with top level expression value node", func() {
+		gg.It("server error with top level expression value node", func() {
 			// This statement doesn't form a predicate expression.
 			stm := as.NewStatement(ns, set)
 			stm.SetFilter(as.NewRangeFilter("intval", 0, 400))
 
 			qpolicy.FilterExpression = as.ExpIntVal(8)
 			recordset, err := client.Query(qpolicy, stm)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			for res := range recordset.Results() {
-				Expect(res.Err).To(HaveOccurred())
+				gm.Expect(res.Err).To(gm.HaveOccurred())
 			}
 		})
 
-		It("expression filters should be prioritized over predexp", func() {
+		gg.It("expression filters should be prioritized over predexp", func() {
 			// This statement doesn't form a predicate expression.
 			stm := as.NewStatement(ns, set)
 			stm.SetFilter(as.NewRangeFilter("intval", 0, 400))
@@ -166,57 +165,57 @@ var _ = Describe("Expression Operations", func() {
 			qpolicy.FilterExpression = as.ExpGreaterEq(as.ExpIntBin("modval"), as.ExpIntVal(8))
 
 			recordset, err := client.Query(qpolicy, stm)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			// The query clause selects [0, 1, ... 400, 401] The predexp
 			// only takes mod 8 and 9, should be 2 pre decade or 80 total.
 
 			cnt := 0
 			for res := range recordset.Results() {
-				Expect(res.Err).ToNot(HaveOccurred())
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
-			Expect(cnt).To(BeNumerically("==", 80))
+			gm.Expect(cnt).To(gm.BeNumerically("==", 80))
 		})
 
-		It("expression must additionally filter indexed query results", func() {
+		gg.It("expression must additionally filter indexed query results", func() {
 
 			stm := as.NewStatement(ns, set)
 			stm.SetFilter(as.NewRangeFilter("intval", 0, 400))
 			qpolicy.FilterExpression = as.ExpGreaterEq(as.ExpIntBin("modval"), as.ExpIntVal(8))
 			recordset, err := client.Query(qpolicy, stm)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			// The query clause selects [0, 1, ... 400, 401] The predexp
 			// only takes mod 8 and 9, should be 2 pre decade or 80 total.
 
 			cnt := 0
 			for res := range recordset.Results() {
-				Expect(res.Err).ToNot(HaveOccurred())
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
-			Expect(cnt).To(BeNumerically("==", 80))
+			gm.Expect(cnt).To(gm.BeNumerically("==", 80))
 		})
 
-		It("expression must work with implied scan", func() {
+		gg.It("expression must work with implied scan", func() {
 
 			stm := as.NewStatement(ns, set)
 			qpolicy.FilterExpression = as.ExpEq(as.ExpStringBin("strval"), as.ExpStringVal("0x0001"))
 			recordset, err := client.Query(qpolicy, stm)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
 			for res := range recordset.Results() {
-				Expect(res.Err).ToNot(HaveOccurred())
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
-			Expect(cnt).To(BeNumerically("==", 1))
+			gm.Expect(cnt).To(gm.BeNumerically("==", 1))
 		})
 
-		It("expression and or and not must all work", func() {
+		gg.It("expression and or and not must all work", func() {
 
 			stm := as.NewStatement(ns, set)
 			qpolicy.FilterExpression = as.ExpOr(
@@ -230,15 +229,15 @@ var _ = Describe("Expression Operations", func() {
 			)
 
 			recordset, err := client.Query(qpolicy, stm)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
 			for res := range recordset.Results() {
-				Expect(res.Err).ToNot(HaveOccurred())
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
-			Expect(cnt).To(BeNumerically("==", 203))
+			gm.Expect(cnt).To(gm.BeNumerically("==", 203))
 		})
 	})
 
@@ -246,7 +245,7 @@ var _ = Describe("Expression Operations", func() {
 		qpolicy.FilterExpression = filter
 		stmt := as.NewStatement(ns, set_name)
 		rs, err := client.Query(qpolicy, stmt)
-		Expect(err).NotTo(HaveOccurred())
+		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 		return rs
 	}
@@ -255,22 +254,22 @@ var _ = Describe("Expression Operations", func() {
 		count := 0
 
 		for res := range rs.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 			count += 1
 		}
 
 		return count
 	}
 
-	var _ = Describe("Expressions", func() {
+	var _ = gg.Describe("Expressions", func() {
 		const keyCount = 100
 		set = randString(50)
 
-		insertRecs := atomic.NewAtomicBool(true)
+		insertRecs := atomic.NewBool(true)
 
 		// wpolicy.Expiration = as.TTLDontExpire
 
-		BeforeEach(func() {
+		gg.BeforeEach(func() {
 			if !insertRecs.Get() {
 				return
 			}
@@ -293,9 +292,9 @@ var _ = Describe("Expression Operations", func() {
 			insertRecs.Set(false)
 		})
 
-		var _ = Context("Data Types", func() {
+		var _ = gg.Context("Data Types", func() {
 
-			It("ExpIntBin must work", func() {
+			gg.It("ExpIntBin must work", func() {
 				// INT
 				rs := runQuery(
 					as.ExpEq(
@@ -305,11 +304,11 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(1))
+				gm.Expect(count).To(gm.Equal(1))
 
 			})
 
-			It("ExpStringBin must work", func() {
+			gg.It("ExpStringBin must work", func() {
 				// STRING
 				rs := runQuery(
 					as.ExpEq(
@@ -319,11 +318,11 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(1))
+				gm.Expect(count).To(gm.Equal(1))
 
 			})
 
-			It("ExpFloatBin must work", func() {
+			gg.It("ExpFloatBin must work", func() {
 				rs := runQuery(
 					as.ExpEq(
 						as.ExpFloatBin("bin3"),
@@ -332,11 +331,11 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(1))
+				gm.Expect(count).To(gm.Equal(1))
 
 			})
 
-			It("ExpBlobBin must work", func() {
+			gg.It("ExpBlobBin must work", func() {
 				rs := runQuery(
 					as.ExpEq(
 						as.ExpBlobBin("bin4"),
@@ -345,26 +344,26 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(1))
+				gm.Expect(count).To(gm.Equal(1))
 
 			})
 
-			It("ExpBinType must work", func() {
+			gg.It("ExpBinType must work", func() {
 				rs := runQuery(
 					as.ExpNotEq(
 						as.ExpBinType("bin"),
-						as.ExpIntVal(ParticleType.NULL),
+						as.ExpIntVal(0),
 					),
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 		})
 
-		var _ = Context("Logical Ops", func() {
+		var _ = gg.Context("Logical Ops", func() {
 			// AND
-			It("ExpAnd must work", func() {
+			gg.It("ExpAnd must work", func() {
 				rs := runQuery(
 					as.ExpAnd(
 						as.ExpEq(
@@ -379,10 +378,10 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(1))
+				gm.Expect(count).To(gm.Equal(1))
 			})
 			// OR
-			It("ExpOr must work", func() {
+			gg.It("ExpOr must work", func() {
 				rs := runQuery(
 					as.ExpOr(
 						as.ExpEq(
@@ -397,10 +396,10 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(2))
+				gm.Expect(count).To(gm.Equal(2))
 			})
 			// NOT
-			It("ExpNot must work", func() {
+			gg.It("ExpNot must work", func() {
 				rs := runQuery(
 					as.ExpNot(as.ExpEq(
 						as.ExpIntBin("bin"),
@@ -409,14 +408,14 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(99))
+				gm.Expect(count).To(gm.Equal(99))
 			})
 
 		})
 
-		var _ = Context("Comparisons", func() {
+		var _ = gg.Context("Comparisons", func() {
 
-			It("ExpEq must work", func() {
+			gg.It("ExpEq must work", func() {
 				// EQ
 				rs := runQuery(
 					as.ExpEq(
@@ -426,10 +425,10 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(1))
+				gm.Expect(count).To(gm.Equal(1))
 			})
 
-			It("ExpNotEq must work", func() {
+			gg.It("ExpNotEq must work", func() {
 				// NE
 				rs := runQuery(
 					as.ExpNotEq(
@@ -439,10 +438,10 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(99))
+				gm.Expect(count).To(gm.Equal(99))
 			})
 
-			It("ExpLess must work", func() {
+			gg.It("ExpLess must work", func() {
 				// LT
 				rs := runQuery(
 					as.ExpLess(
@@ -452,10 +451,10 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 
-			It("ExpLessEq must work", func() {
+			gg.It("ExpLessEq must work", func() {
 				// LE
 				rs := runQuery(
 					as.ExpLessEq(
@@ -465,10 +464,10 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 
-			It("ExpGreater must work", func() {
+			gg.It("ExpGreater must work", func() {
 				// GT
 				rs := runQuery(
 					as.ExpGreater(
@@ -478,10 +477,10 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(98))
+				gm.Expect(count).To(gm.Equal(98))
 			})
 
-			It("ExpGreaterEq must work", func() {
+			gg.It("ExpGreaterEq must work", func() {
 				// GE
 				rs := runQuery(
 					as.ExpGreaterEq(
@@ -491,14 +490,14 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(99))
+				gm.Expect(count).To(gm.Equal(99))
 			})
 
-		}) // Context
+		}) // gg.Context
 
-		var _ = Context("Record Ops", func() {
+		var _ = gg.Context("Record Ops", func() {
 
-			It("ExpDeviceSize must work", func() {
+			gg.It("ExpDeviceSize must work", func() {
 				// storage-engine could be memory for which deviceSize() returns zero.
 				// This just tests that the expression was sent correctly
 				// because all device sizes are effectively allowed.
@@ -507,12 +506,12 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 
-			It("ExpMemorySize must work", func() {
+			gg.It("ExpMemorySize must work", func() {
 				if len(nsInfo(ns, "device_total_bytes")) > 0 {
-					Skip("Skipping ExpDeviceSize test since the namespace is persisted and the test works only for Memory-Only namespaces.")
+					gg.Skip("gg.Skipping ExpDeviceSize test since the namespace is persisted and the test works only for Memory-Only namespaces.")
 				}
 
 				// storage-engine could be disk/device for which memorySize() returns zero.
@@ -523,56 +522,56 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 
-			It("ExpLastUpdate must work", func() {
+			gg.It("ExpLastUpdate must work", func() {
 				rs := runQuery(
 					as.ExpGreater(as.ExpLastUpdate(), as.ExpIntVal(15000)),
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 
-			It("ExpSinceUpdate must work", func() {
+			gg.It("ExpSinceUpdate must work", func() {
 				rs := runQuery(
 					as.ExpGreater(as.ExpSinceUpdate(), as.ExpIntVal(150)),
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 
-			// It("ExpVoidTime must work", func() {
+			// gg.It("ExpVoidTime must work", func() {
 			// 	// Records dont expire
 			// 	rs := runQuery(
 			// 		as.ExpLessEq(as.ExpVoidTime(), as.ExpIntVal(0)),
 			// 		set,
 			// 	)
 			// 	count := countResults(rs)
-			// 	Expect(count).To(Equal(100))
+			// 	gm.Expect(count).To(gm.Equal(100))
 			// })
 
-			// It("ExpTTL must work", func() {
+			// gg.It("ExpTTL must work", func() {
 			// 	rs := runQuery(
 			// 		as.ExpLessEq(as.ExpTTL(), as.ExpIntVal(0)),
 			// 		set,
 			// 	)
 			// 	count := countResults(rs)
-			// 	Expect(count).To(Equal(100))
+			// 	gm.Expect(count).To(gm.Equal(100))
 			// })
 
-			It("ExpIsTombstone must work", func() {
+			gg.It("ExpIsTombstone must work", func() {
 				rs := runQuery(
 					as.ExpNot(as.ExpIsTombstone()),
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 
-			It("ExpSetName must work", func() {
+			gg.It("ExpSetName must work", func() {
 				rs := runQuery(
 					as.ExpEq(
 						as.ExpSetName(),
@@ -581,51 +580,51 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 
-			It("ExpBinExists must work", func() {
+			gg.It("ExpBinExists must work", func() {
 				rs := runQuery(as.ExpBinExists("bin4"), set)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 
-			It("ExpDigestModulo must work", func() {
+			gg.It("ExpDigestModulo must work", func() {
 				rs := runQuery(
 					as.ExpEq(as.ExpDigestModulo(3), as.ExpIntVal(1)),
 					set,
 				)
 				count := countResults(rs)
-				Expect(count > 0 && count < 100).To(BeTrue())
+				gm.Expect(count > 0 && count < 100).To(gm.BeTrue())
 			})
 
-			It("ExpKey must work", func() {
+			gg.It("ExpKey must work", func() {
 				rs := runQuery(
 					as.ExpEq(as.ExpKey(as.ExpTypeINT), as.ExpIntVal(50)),
 					set,
 				)
 				count := countResults(rs)
 				// 0 because key is not saved
-				Expect(count).To(Equal(0))
+				gm.Expect(count).To(gm.Equal(0))
 			})
 
-			It("ExpKeyExists must work", func() {
+			gg.It("ExpKeyExists must work", func() {
 				rs := runQuery(as.ExpKeyExists(), set)
 				count := countResults(rs)
 				// 0 because key is not saved
-				Expect(count).To(Equal(0))
+				gm.Expect(count).To(gm.Equal(0))
 			})
 
-			It("ExpEq Nil test must work", func() {
+			gg.It("ExpEq Nil test must work", func() {
 				rs := runQuery(
 					as.ExpEq(as.ExpNilValue(), as.ExpNilValue()),
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(100))
+				gm.Expect(count).To(gm.Equal(100))
 			})
 
-			It("ExpRegexCompare must work", func() {
+			gg.It("ExpRegexCompare must work", func() {
 				rs := runQuery(
 					as.ExpRegexCompare(
 						"[1-5]",
@@ -635,18 +634,18 @@ var _ = Describe("Expression Operations", func() {
 					set,
 				)
 				count := countResults(rs)
-				Expect(count).To(Equal(75))
+				gm.Expect(count).To(gm.Equal(75))
 			})
 		})
 
-		var _ = Context("Commands", func() {
+		var _ = gg.Context("Commands", func() {
 
 			rpolicy := as.NewPolicy()
 			wpolicy := as.NewWritePolicy(0, 0)
 			spolicy := as.NewScanPolicy()
 			bpolicy := as.NewBatchPolicy()
 
-			BeforeEach(func() {
+			gg.BeforeEach(func() {
 				for i := 0; i < keyCount; i++ {
 					key, _ := as.NewKey(ns, set, i)
 					ibin := as.BinMap{"bin": i}
@@ -656,7 +655,7 @@ var _ = Describe("Expression Operations", func() {
 				}
 			})
 
-			It("Delete must work", func() {
+			gg.It("Delete must work", func() {
 				// DELETE
 				key, _ := as.NewKey(ns, set, 15)
 				wpolicy.FilterExpression = as.ExpEq(
@@ -664,18 +663,18 @@ var _ = Describe("Expression Operations", func() {
 					as.ExpIntVal(16),
 				)
 				_, err := client.Delete(wpolicy, key)
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				wpolicy.FilterExpression = as.ExpEq(
 					as.ExpIntBin("bin"),
 					as.ExpIntVal(15),
 				)
 				_, err = client.Delete(wpolicy, key)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			})
 
-			It("Put must work", func() {
+			gg.It("Put must work", func() {
 				// PUT
 				key, _ := as.NewKey(ns, set, 25)
 				wpolicy.FilterExpression = as.ExpEq(
@@ -683,18 +682,18 @@ var _ = Describe("Expression Operations", func() {
 					as.ExpIntVal(15),
 				)
 				err := client.PutBins(wpolicy, key, as.NewBin("bin", 26))
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				wpolicy.FilterExpression = as.ExpEq(
 					as.ExpIntBin("bin"),
 					as.ExpIntVal(25),
 				)
 				err = client.PutBins(wpolicy, key, as.NewBin("bin", 26))
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			})
 
-			It("Get must work", func() {
+			gg.It("Get must work", func() {
 				// GET
 				key, _ := as.NewKey(ns, set, 35)
 				rpolicy.FilterExpression = as.ExpEq(
@@ -702,18 +701,18 @@ var _ = Describe("Expression Operations", func() {
 					as.ExpIntVal(15),
 				)
 				_, err := client.Get(rpolicy, key)
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				rpolicy.FilterExpression = as.ExpEq(
 					as.ExpIntBin("bin"),
 					as.ExpIntVal(35),
 				)
 				_, err = client.Get(rpolicy, key)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			})
 
-			It("Exists must work", func() {
+			gg.It("Exists must work", func() {
 				// EXISTS
 				key, _ := as.NewKey(ns, set, 45)
 				rpolicy.FilterExpression = as.ExpEq(
@@ -721,18 +720,18 @@ var _ = Describe("Expression Operations", func() {
 					as.ExpIntVal(15),
 				)
 				_, err := client.Exists(rpolicy, key)
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				rpolicy.FilterExpression = as.ExpEq(
 					as.ExpIntBin("bin"),
 					as.ExpIntVal(45),
 				)
 				_, err = client.Exists(rpolicy, key)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			})
 
-			It("Add must work", func() {
+			gg.It("Add must work", func() {
 				// APPEND
 				key, _ := as.NewKey(ns, set, 55)
 				wpolicy.FilterExpression = as.ExpEq(
@@ -740,18 +739,18 @@ var _ = Describe("Expression Operations", func() {
 					as.ExpIntVal(15),
 				)
 				err := client.AddBins(wpolicy, key, as.NewBin("test55", "test"))
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				wpolicy.FilterExpression = as.ExpEq(
 					as.ExpIntBin("bin"),
 					as.ExpIntVal(55),
 				)
 				err = client.AddBins(wpolicy, key, as.NewBin("test55", "test"))
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			})
 
-			It("Prepend must work", func() {
+			gg.It("Prepend must work", func() {
 				// PREPEND
 				key, _ := as.NewKey(ns, set, 55)
 				wpolicy.FilterExpression = as.ExpEq(
@@ -759,18 +758,18 @@ var _ = Describe("Expression Operations", func() {
 					as.ExpIntVal(15),
 				)
 				err := client.PrependBins(wpolicy, key, as.NewBin("test55", "test"))
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				wpolicy.FilterExpression = as.ExpEq(
 					as.ExpIntBin("bin"),
 					as.ExpIntVal(55),
 				)
 				err = client.PrependBins(wpolicy, key, as.NewBin("test55", "test"))
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			})
 
-			It("Touch must work", func() {
+			gg.It("Touch must work", func() {
 				// TOUCH
 				key, _ := as.NewKey(ns, set, 65)
 				wpolicy.FilterExpression = as.ExpEq(
@@ -778,17 +777,17 @@ var _ = Describe("Expression Operations", func() {
 					as.ExpIntVal(15),
 				)
 				err := client.Touch(wpolicy, key)
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				wpolicy.FilterExpression = as.ExpEq(
 					as.ExpIntBin("bin"),
 					as.ExpIntVal(65),
 				)
 				err = client.Touch(wpolicy, key)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			})
 
-			It("Scan must work", func() {
+			gg.It("Scan must work", func() {
 				// SCAN
 				spolicy.FilterExpression = as.ExpEq(
 					as.ExpIntBin("bin"),
@@ -796,17 +795,17 @@ var _ = Describe("Expression Operations", func() {
 				)
 
 				rs, err := client.ScanAll(spolicy, ns, set)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				count := 0
 				for res := range rs.Results() {
-					Expect(res.Err).ToNot(HaveOccurred())
+					gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 					count += 1
 				}
-				Expect(count).To(Equal(1))
+				gm.Expect(count).To(gm.Equal(1))
 			})
 
-			It("Operate must work", func() {
+			gg.It("Operate must work", func() {
 				// OPERATE
 				bin := as.NewBin("test85", 85)
 
@@ -816,7 +815,7 @@ var _ = Describe("Expression Operations", func() {
 					as.ExpIntVal(15),
 				)
 				_, err := client.Operate(wpolicy, key, as.AddOp(bin))
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				key, _ = as.NewKey(ns, set, 85)
 				wpolicy.FilterExpression = as.ExpEq(
@@ -824,10 +823,10 @@ var _ = Describe("Expression Operations", func() {
 					as.ExpIntVal(85),
 				)
 				_, err = client.Operate(wpolicy, key, as.AddOp(bin))
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			})
 
-			It("Batch must work", func() {
+			gg.It("Batch must work", func() {
 				// BATCH GET
 				keys := []*as.Key{}
 				for i := 85; i < 90; i++ {
@@ -840,7 +839,7 @@ var _ = Describe("Expression Operations", func() {
 				)
 				results, err := client.BatchGet(bpolicy, keys)
 				// all keys other than one are filtered out, so error is returned
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				count := 0
 				for _, result := range results {
@@ -848,7 +847,7 @@ var _ = Describe("Expression Operations", func() {
 						count++
 					}
 				}
-				Expect(count).To(Equal(1))
+				gm.Expect(count).To(gm.Equal(1))
 			})
 		})
 

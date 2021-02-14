@@ -54,7 +54,7 @@ func (bp *BufferPool) Get() (res []byte) {
 		res = bp.pool[bp.pos]
 		bp.pos--
 	} else {
-		res = make([]byte, bp.initBufSize, bp.initBufSize)
+		res = make([]byte, bp.initBufSize)
 	}
 
 	bp.mutex.Unlock()

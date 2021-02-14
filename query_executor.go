@@ -19,9 +19,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aerospike/aerospike-client-go/logger"
 	"golang.org/x/sync/semaphore"
-
-	. "github.com/aerospike/aerospike-client-go/logger"
 )
 
 func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, rs *Recordset) error {
@@ -50,14 +49,14 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 		sem := semaphore.NewWeighted(int64(maxConcurrentNodes))
 		ctx := context.Background()
 		for _, nodePartition := range list {
-			if err := sem.Acquire(ctx, 1); err != nil {
-				Logger.Error("Constraint Semaphore failed for Query: %s", err.Error())
+			if err = sem.Acquire(ctx, 1); err != nil {
+				logger.Logger.Error("Constraint Semaphore failed for Query: %s", err.Error())
 			}
 			go func(nodePartition *nodePartitions) {
 				defer sem.Release(1)
 				defer wg.Done()
 				if err := clnt.queryNodePartition(policy, rs, tracker, nodePartition, statement); err != nil {
-					Logger.Debug("Error while Executing query for node %s: %s", nodePartition.node.String(), err.Error())
+					logger.Logger.Debug("Error while Executing query for node %s: %s", nodePartition.node.String(), err.Error())
 				}
 			}(nodePartition)
 		}

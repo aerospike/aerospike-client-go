@@ -21,14 +21,14 @@ import (
 	"os"
 	"strconv"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 )
 
 var (
-	host      string = "127.0.0.1"
-	port      int    = 3000
-	namespace string = "test"
-	set       string = "demo"
+	host      = "127.0.0.1"
+	port      = 3000
+	namespace = "test"
+	set       = "demo"
 )
 
 func main() {
@@ -51,19 +51,19 @@ func main() {
 		printError("Missing argument(s)")
 	}
 
-	client, err := NewClient(host, port)
+	client, err := as.NewClient(host, port)
 	panicOnError(err)
 
-	var key *Key = nil
-	var rec BinMap
+	var key *as.Key
+	var rec as.BinMap
 
 	skey := flag.Arg(0)
 	ikey, err := strconv.ParseInt(skey, 10, 64)
 	if err == nil {
-		key, err = NewKey(namespace, set, ikey)
+		key, err = as.NewKey(namespace, set, ikey)
 		panicOnError(err)
 	} else {
-		key, err = NewKey(namespace, set, skey)
+		key, err = as.NewKey(namespace, set, skey)
 		panicOnError(err)
 	}
 
@@ -83,7 +83,7 @@ func main() {
 		}
 	}
 
-	policy := NewWritePolicy(0, 0)
+	policy := as.NewWritePolicy(0, 0)
 	err = client.Put(policy, key, rec)
 	panicOnError(err)
 	if rec != nil {

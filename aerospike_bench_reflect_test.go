@@ -19,12 +19,12 @@ package aerospike_test
 import (
 	"runtime"
 
-	. "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go"
 
 	"testing"
 )
 
-func benchGetObj(times int, client *Client, key *Key, obj interface{}) {
+func benchGetObj(times int, client *as.Client, key *as.Key, obj interface{}) {
 	for i := 0; i < times; i++ {
 		if err = client.GetObject(nil, key, obj); err != nil {
 			panic(err)
@@ -32,7 +32,7 @@ func benchGetObj(times int, client *Client, key *Key, obj interface{}) {
 	}
 }
 
-func benchPutObj(times int, client *Client, key *Key, wp *WritePolicy, obj interface{}) {
+func benchPutObj(times int, client *as.Client, key *as.Key, wp *as.WritePolicy, obj interface{}) {
 	for i := 0; i < times; i++ {
 		if err = client.PutObject(wp, key, obj); err != nil {
 			panic(err)
@@ -41,12 +41,12 @@ func benchPutObj(times int, client *Client, key *Key, wp *WritePolicy, obj inter
 }
 
 func Benchmark_GetObject(b *testing.B) {
-	client, err := NewClientWithPolicy(clientPolicy, *host, *port)
+	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		b.Fail()
 	}
 
-	key, _ := NewKey(*namespace, "databases", "Aerospike")
+	key, _ := as.NewKey(*namespace, "databases", "Aerospike")
 
 	obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1, 2, 3, 4, 5, 6}}
 	client.PutObject(nil, key, obj)
@@ -58,15 +58,15 @@ func Benchmark_GetObject(b *testing.B) {
 }
 
 func Benchmark_PutObject(b *testing.B) {
-	client, err := NewClient(*host, *port)
+	client, err := as.NewClient(*host, *port)
 	if err != nil {
 		b.Fail()
 	}
 
 	// obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
 	obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1, 2, 3, 4, 5, 6}}
-	key, _ := NewKey(*namespace, "databases", "Aerospike")
-	writepolicy := NewWritePolicy(0, 0)
+	key, _ := as.NewKey(*namespace, "databases", "Aerospike")
+	writepolicy := as.NewWritePolicy(0, 0)
 
 	b.N = 100
 	runtime.GC()

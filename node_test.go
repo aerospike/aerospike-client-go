@@ -19,44 +19,44 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Aerospike Node Tests", func() {
+var _ = gg.Describe("Aerospike Node Tests", func() {
 
-	Describe("Node Connection Pool", func() {
+	gg.Describe("Node Connection Pool", func() {
 		// connection data
 		var err error
 		var client *as.Client
 
-		BeforeEach(func() {
+		gg.BeforeEach(func() {
 			// use the same client for all
 			client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
-		Context("When Authentication is Used", func() {
+		gg.Context("When Authentication is Used", func() {
 
 			if *user != "" {
 
-				It("must return error if it fails to authenticate", func() {
+				gg.It("must return error if it fails to authenticate", func() {
 					clientPolicy := as.NewClientPolicy()
 					clientPolicy.User = "non_existent_user"
 					clientPolicy.Password = "non_existent_user"
 
 					client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
-					Expect(err).To(HaveOccurred())
+					gm.Expect(err).To(gm.HaveOccurred())
 				})
 
 			}
 
 		})
 
-		Context("When No Connection Count Limit Is Set", func() {
+		gg.Context("When No Connection Count Limit Is Set", func() {
 
-			It("must return a new connection on every poll", func() {
+			gg.It("must return a new connection on every poll", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.LimitConnectionsToQueueSize = false
 				clientPolicy.ConnectionQueueSize = 4
@@ -64,16 +64,16 @@ var _ = Describe("Aerospike Node Tests", func() {
 				clientPolicy.Password = *password
 
 				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
 				node := client.GetNodes()[0]
 
 				for i := 0; i < 20; i++ {
 					c, err := node.GetConnection(0)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(c).NotTo(BeNil())
-					Expect(c.IsConnected()).To(BeTrue())
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+					gm.Expect(c).NotTo(gm.BeNil())
+					gm.Expect(c.IsConnected()).To(gm.BeTrue())
 
 					node.InvalidateConnection(c)
 				}
@@ -82,9 +82,9 @@ var _ = Describe("Aerospike Node Tests", func() {
 
 		})
 
-		Context("When A Connection Count Limit Is Set", func() {
+		gg.Context("When A Connection Count Limit Is Set", func() {
 
-			It("must return an error when maximum number of connections are polled", func() {
+			gg.It("must return an error when maximum number of connections are polled", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.LimitConnectionsToQueueSize = true
 				clientPolicy.ConnectionQueueSize = 4
@@ -92,7 +92,7 @@ var _ = Describe("Aerospike Node Tests", func() {
 				clientPolicy.Password = *password
 
 				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
 				node := client.GetNodes()[0]
@@ -102,9 +102,9 @@ var _ = Describe("Aerospike Node Tests", func() {
 				// 4-1 is because we reserve a connection for tend
 				for i := 0; i < 4-1; i++ {
 					c, err := node.GetConnection(0)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(c).NotTo(BeNil())
-					Expect(c.IsConnected()).To(BeTrue())
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+					gm.Expect(c).NotTo(gm.BeNil())
+					gm.Expect(c.IsConnected()).To(gm.BeTrue())
 
 					// don't call invalidate here; we are testing node's connection queue behaviour
 					// if there are connections which are not invalidated.
@@ -117,20 +117,20 @@ var _ = Describe("Aerospike Node Tests", func() {
 				// 4-1 is because we reserve a connection for tend
 				for i := 0; i < 4-1; i++ {
 					_, err := node.GetConnection(0)
-					Expect(err).To(HaveOccurred())
+					gm.Expect(err).To(gm.HaveOccurred())
 				}
 
 				// prevent the optimizer optimizing the cList and it's contents out, since that would trigger the connection finzalizer
 				for _, c := range cList {
-					Expect(c.IsConnected()).To(BeTrue())
+					gm.Expect(c.IsConnected()).To(gm.BeTrue())
 				}
 			})
 
 		})
 
-		Context("When Idle Timeout Is Used", func() {
+		gg.Context("When Idle Timeout Is Used", func() {
 
-			It("must reuse connections before they become idle", func() {
+			gg.It("must reuse connections before they become idle", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
 				// clientPolicy.TendInterval = time.Hour
@@ -138,7 +138,7 @@ var _ = Describe("Aerospike Node Tests", func() {
 				clientPolicy.Password = *password
 
 				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
 				node := client.GetNodes()[0]
@@ -146,11 +146,11 @@ var _ = Describe("Aerospike Node Tests", func() {
 				// get a few connections at once
 				var conns []*as.Connection
 				for i := 0; i < 4; i++ {
-					// By(fmt.Sprintf("Retrieving conns i=%d", i))
+					// gg.By(fmt.Sprintf("Retrieving conns i=%d", i))
 					c, err := node.GetConnection(0)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(c).NotTo(BeNil())
-					Expect(c.IsConnected()).To(BeTrue())
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+					gm.Expect(c).NotTo(gm.BeNil())
+					gm.Expect(c.IsConnected()).To(gm.BeTrue())
 
 					conns = append(conns, c)
 				}
@@ -166,17 +166,17 @@ var _ = Describe("Aerospike Node Tests", func() {
 
 				// make sure the same connections are all retrieved again
 				checkCount := 0
-				for estimatedDeadline.Sub(time.Now()) > deadlineThreshold {
+				for time.Until(estimatedDeadline) > deadlineThreshold {
 					checkCount++
-					// By(fmt.Sprintf("Retrieving conns2 checkCount=%d", checkCount))
+					// gg.By(fmt.Sprintf("Retrieving conns2 checkCount=%d", checkCount))
 					var conns2 []*as.Connection
 					for i := 0; i < len(conns); i++ {
 						c, err := node.GetConnection(0)
-						Expect(err).NotTo(HaveOccurred())
-						Expect(c).NotTo(BeNil())
-						Expect(c.IsConnected()).To(BeTrue())
-						Expect(conns).To(ContainElement(c))
-						Expect(conns2).NotTo(ContainElement(c))
+						gm.Expect(err).NotTo(gm.HaveOccurred())
+						gm.Expect(c).NotTo(gm.BeNil())
+						gm.Expect(c.IsConnected()).To(gm.BeTrue())
+						gm.Expect(conns).To(gm.ContainElement(c))
+						gm.Expect(conns2).NotTo(gm.ContainElement(c))
 
 						conns2 = append(conns2, c)
 					}
@@ -190,7 +190,7 @@ var _ = Describe("Aerospike Node Tests", func() {
 				}
 
 				// we should be called lots of times
-				Expect(checkCount).To(BeNumerically(">", 500))
+				gm.Expect(checkCount).To(gm.BeNumerically(">", 500))
 
 				// sleep again until all connections are all idle
 				<-time.After(2 * clientPolicy.IdleTimeout)
@@ -198,21 +198,21 @@ var _ = Describe("Aerospike Node Tests", func() {
 				// get connections again, making sure they are all new
 				var conns3 []*as.Connection
 				for i := 0; i < len(conns); i++ {
-					// By(fmt.Sprintf("Retrieving conns3 i=%d", i))
+					// gg.By(fmt.Sprintf("Retrieving conns3 i=%d", i))
 					c, err := node.GetConnection(0)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(c).NotTo(BeNil())
-					Expect(c.IsConnected()).To(BeTrue())
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+					gm.Expect(c).NotTo(gm.BeNil())
+					gm.Expect(c.IsConnected()).To(gm.BeTrue())
 
-					Expect(conns).NotTo(ContainElement(c))
-					Expect(conns3).NotTo(ContainElement(c))
+					gm.Expect(conns).NotTo(gm.ContainElement(c))
+					gm.Expect(conns3).NotTo(gm.ContainElement(c))
 
 					conns3 = append(conns3, c)
 				}
 
 				// refresh and return them to the pool
 				for _, c := range conns {
-					Expect(c.IsConnected()).To(BeFalse())
+					gm.Expect(c.IsConnected()).To(gm.BeFalse())
 				}
 
 				// don't forget to close connections
@@ -221,7 +221,7 @@ var _ = Describe("Aerospike Node Tests", func() {
 				}
 			})
 
-			It("must maintain a minimum number of connections per client policy even if idle", func() {
+			gg.It("must maintain a minimum number of connections per client policy even if idle", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.IdleTimeout = 2000 * time.Millisecond
 				clientPolicy.MinConnectionsPerNode = 5
@@ -229,51 +229,51 @@ var _ = Describe("Aerospike Node Tests", func() {
 				clientPolicy.Password = *password
 
 				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
 				client.WarmUp(10)
 
 				node := client.GetNodes()[0]
 
-				Expect(node.ConnsCount()).To(BeNumerically(">=", 10))
+				gm.Expect(node.ConnsCount()).To(gm.BeNumerically(">=", 10))
 
 				// sleep again until all connections are all idle
 				<-time.After(2 * clientPolicy.IdleTimeout)
-				Expect(node.ConnsCount()).To(Equal(clientPolicy.MinConnectionsPerNode + 1)) // min + 1 reserved for tend
+				gm.Expect(node.ConnsCount()).To(gm.Equal(clientPolicy.MinConnectionsPerNode + 1)) // min + 1 reserved for tend
 			})
 
-			It("must delay the connection from becoming idle if it is put back in the queue", func() {
+			gg.It("must delay the connection from becoming idle if it is put back in the queue", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
 				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
 				node := client.GetNodes()[0]
 
 				deadlineThreshold := clientPolicy.IdleTimeout / 10
 
-				// By("Retrieving c")
+				// gg.By("Retrieving c")
 				c, err := node.GetConnection(0)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(c).NotTo(BeNil())
-				Expect(c.IsConnected()).To(BeTrue())
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				gm.Expect(c).NotTo(gm.BeNil())
+				gm.Expect(c.IsConnected()).To(gm.BeTrue())
 				node.PutConnection(c)
 
 				// continuously refresh the connection just before it goes idle
 				for i := 0; i < 5; i++ {
 					time.Sleep(clientPolicy.IdleTimeout - deadlineThreshold)
-					// By(fmt.Sprintf("Retrieving c2 i=%d", i))
+					// gg.By(fmt.Sprintf("Retrieving c2 i=%d", i))
 
 					c2, err := node.GetConnection(0)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(c2).NotTo(BeNil())
-					Expect(c2).To(Equal(c))
-					Expect(c2.IsConnected()).To(BeTrue())
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+					gm.Expect(c2).NotTo(gm.BeNil())
+					gm.Expect(c2).To(gm.Equal(c))
+					gm.Expect(c2.IsConnected()).To(gm.BeTrue())
 
 					node.PutConnection(c2)
 				}
@@ -283,14 +283,14 @@ var _ = Describe("Aerospike Node Tests", func() {
 
 				// we should get a new connection
 				c3, err := node.GetConnection(0)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(c3).NotTo(BeNil())
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				gm.Expect(c3).NotTo(gm.BeNil())
 				defer node.InvalidateConnection(c3)
-				Expect(c3).ToNot(Equal(c))
-				Expect(c3.IsConnected()).To(BeTrue())
+				gm.Expect(c3).ToNot(gm.Equal(c))
+				gm.Expect(c3.IsConnected()).To(gm.BeTrue())
 
 				// the original connection should be closed
-				Expect(c.IsConnected()).To(BeFalse())
+				gm.Expect(c.IsConnected()).To(gm.BeFalse())
 			})
 
 		})

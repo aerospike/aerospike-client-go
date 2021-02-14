@@ -113,9 +113,9 @@ var _ ListIter = myList([]string{})
 // supports old generic slices
 type myList []string
 
-func (cs myList) PackList(buf BufferEx) (int, error) {
+func (m myList) PackList(buf BufferEx) (int, error) {
 	size := 0
-	for _, elem := range cs {
+	for _, elem := range m {
 		n, err := packString(buf, elem)
 		size += n
 		if err != nil {
@@ -168,59 +168,58 @@ type benchBuffer struct {
 }
 
 // Int64ToBytes converts an int64 into slice of Bytes.
-func (bb *benchBuffer) WriteInt64(num int64) (int, error) {
+func (bb *benchBuffer) WriteInt64(num int64) int {
 	return bb.WriteUint64(uint64(num))
 }
 
 // Uint64ToBytes converts an uint64 into slice of Bytes.
-func (bb *benchBuffer) WriteUint64(num uint64) (int, error) {
+func (bb *benchBuffer) WriteUint64(num uint64) int {
 	binary.BigEndian.PutUint64(bb.dataBuffer[bb.dataOffset:bb.dataOffset+8], num)
 	bb.dataOffset += 8
-	return 8, nil
+	return 8
 }
 
 // Int32ToBytes converts an int32 to a byte slice of size 4
-func (bb *benchBuffer) WriteInt32(num int32) (int, error) {
+func (bb *benchBuffer) WriteInt32(num int32) int {
 	return bb.WriteUint32(uint32(num))
 }
 
 // Uint32ToBytes converts an uint32 to a byte slice of size 4
-func (bb *benchBuffer) WriteUint32(num uint32) (int, error) {
+func (bb *benchBuffer) WriteUint32(num uint32) int {
 	binary.BigEndian.PutUint32(bb.dataBuffer[bb.dataOffset:bb.dataOffset+4], num)
 	bb.dataOffset += 4
-	return 4, nil
+	return 4
 }
 
 // Int16ToBytes converts an int16 to slice of bytes
-func (bb *benchBuffer) WriteInt16(num int16) (int, error) {
+func (bb *benchBuffer) WriteInt16(num int16) int {
 	return bb.WriteUint16(uint16(num))
 }
 
 // Int16ToBytes converts an int16 to slice of bytes
-func (bb *benchBuffer) WriteUint16(num uint16) (int, error) {
+func (bb *benchBuffer) WriteUint16(num uint16) int {
 	binary.BigEndian.PutUint16(bb.dataBuffer[bb.dataOffset:bb.dataOffset+2], num)
 	bb.dataOffset += 2
-	return 2, nil
+	return 2
 }
 
-func (bb *benchBuffer) WriteFloat32(float float32) (int, error) {
+func (bb *benchBuffer) WriteFloat32(float float32) int {
 	bits := math.Float32bits(float)
 	binary.BigEndian.PutUint32(bb.dataBuffer[bb.dataOffset:bb.dataOffset+4], bits)
 	bb.dataOffset += 4
-	return 4, nil
+	return 4
 }
 
-func (bb *benchBuffer) WriteFloat64(float float64) (int, error) {
+func (bb *benchBuffer) WriteFloat64(float float64) int {
 	bits := math.Float64bits(float)
 	binary.BigEndian.PutUint64(bb.dataBuffer[bb.dataOffset:bb.dataOffset+8], bits)
 	bb.dataOffset += 8
-	return 8, nil
+	return 8
 }
 
-func (bb *benchBuffer) WriteByte(b byte) error {
+func (bb *benchBuffer) WriteByte(b byte) {
 	bb.dataBuffer[bb.dataOffset] = b
 	bb.dataOffset++
-	return nil
 }
 
 func (bb *benchBuffer) WriteString(s string) (int, error) {

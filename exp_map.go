@@ -24,7 +24,7 @@ func ExpMapPut(
 	bin *FilterExpression,
 	ctx ...*CDTContext,
 ) *FilterExpression {
-	args := []ExpressionArgument{}
+	var args []ExpressionArgument
 	op := mapWriteOp(policy, false)
 	if op == cdtMapOpTypeReplace {
 		args = []ExpressionArgument{
@@ -52,7 +52,7 @@ func ExpMapPutItems(
 	bin *FilterExpression,
 	ctx ...*CDTContext,
 ) *FilterExpression {
-	var args = []ExpressionArgument{}
+	var args []ExpressionArgument
 	var op = mapWriteOp(policy, true)
 	if op == cdtMapOpTypeReplace {
 		args = []ExpressionArgument{
@@ -783,7 +783,7 @@ func expMapAddWrite(
 		returnType = ExpTypeLIST
 	}
 
-	flags := expMapMODULE | MODIFY
+	flags := expMapMODULE | _MODIFY
 	return &FilterExpression{
 		cmd:       &expOpCALL,
 		val:       nil,
@@ -814,20 +814,17 @@ func mapWriteOp(policy *MapPolicy, multi bool) int {
 	case MapWriteFlagsDefault:
 		if multi {
 			return cdtMapOpTypePutItems
-		} else {
-			return cdtMapOpTypePut
 		}
+		return cdtMapOpTypePut
 	case MapWriteFlagsUpdateOnly:
 		if multi {
 			return cdtMapOpTypeReplaceItems
-		} else {
-			return cdtMapOpTypeReplace
 		}
+		return cdtMapOpTypeReplace
 	case MapWriteFlagsCreateOnly:
 		if multi {
 			return cdtMapOpTypeAddItems
-		} else {
-			return cdtMapOpTypeAdd
 		}
+		return cdtMapOpTypeAdd
 	}
 }

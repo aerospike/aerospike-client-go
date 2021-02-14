@@ -19,19 +19,16 @@ import (
 	"math/rand"
 
 	as "github.com/aerospike/aerospike-client-go"
-	// . "github.com/aerospike/aerospike-client-go/logger"
 	ast "github.com/aerospike/aerospike-client-go/types"
 
-	// . "github.com/aerospike/aerospike-client-go/utils/buffer"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Index operations test", func() {
+var _ = gg.Describe("Index operations test", func() {
 
-	Describe("Index creation", func() {
+	gg.Describe("Index creation", func() {
 		var err error
 		var ns = *namespace
 		var set = randString(50)
@@ -42,21 +39,21 @@ var _ = Describe("Index operations test", func() {
 		bin1 := as.NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 		bin2 := as.NewBin("Aerospike2", randString(100))
 
-		BeforeEach(func() {
+		gg.BeforeEach(func() {
 			for i := 0; i < keyCount; i++ {
 				key, err = as.NewKey(ns, set, randString(50))
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				err = client.PutBins(wpolicy, key, bin1, bin2)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			}
 		})
 
-		Context("Create non-existing index", func() {
+		gg.Context("Create non-existing index", func() {
 
-			It("must create an Index", func() {
+			gg.It("must create an Index", func() {
 				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.DropIndex(wpolicy, ns, set, set+bin1.Name)
 
 				// wait until index is created
@@ -64,44 +61,44 @@ var _ = Describe("Index operations test", func() {
 
 				// no duplicate index is allowed
 				_, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
-				Expect(err).To(HaveOccurred())
-				Expect(err.(ast.AerospikeError).ResultCode()).To(Equal(ast.INDEX_FOUND))
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.(ast.AerospikeError).ResultCode()).To(gm.Equal(ast.INDEX_FOUND))
 			})
 
-			It("must drop an Index", func() {
+			gg.It("must drop an Index", func() {
 				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				// wait until index is created
 				<-idxTask.OnComplete()
 
 				err = client.DropIndex(wpolicy, ns, set, set+bin1.Name)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				err = client.DropIndex(wpolicy, ns, set, set+bin1.Name)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			})
 
-			It("must drop an Index, and recreate it again to verify", func() {
+			gg.It("must drop an Index, and recreate it again to verify", func() {
 				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				// wait until index is created
-				Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+				gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 				// dropping second time is not expected to raise any errors
 				err = client.DropIndex(wpolicy, ns, set, set+bin1.Name)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				// create the index again; should not encounter any errors
 				idxTask, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				// wait until index is created
-				Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+				gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 				err = client.DropIndex(wpolicy, ns, set, set+bin1.Name)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			})
 
 		})

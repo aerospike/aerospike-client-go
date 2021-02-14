@@ -15,12 +15,12 @@
 package types
 
 import (
-	. "github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
 )
 
 // Pool implements a general purpose fixed-size pool.
 type Pool struct {
-	pool *AtomicQueue
+	pool *atomic.Queue
 
 	// New will create a new object
 	New func(params ...interface{}) interface{}
@@ -36,7 +36,7 @@ type Pool struct {
 // NewPool creates a new fixed size pool.
 func NewPool(poolSize int) *Pool {
 	return &Pool{
-		pool: NewAtomicQueue(poolSize),
+		pool: atomic.NewQueue(poolSize),
 	}
 }
 

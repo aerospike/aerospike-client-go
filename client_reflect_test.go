@@ -23,14 +23,14 @@ import (
 	as "github.com/aerospike/aerospike-client-go"
 	ast "github.com/aerospike/aerospike-client-go/types"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Aerospike", func() {
+var _ = gg.Describe("Aerospike", func() {
 
-	Describe("Data operations on complex types with reflection", func() {
+	gg.Describe("Data operations on complex types with reflection", func() {
 		// connection data
 		var err error
 		var ns = *namespace
@@ -44,23 +44,23 @@ var _ = Describe("Aerospike", func() {
 			rpolicy.ReplicaPolicy = as.MASTER_PROLES
 		}
 
-		BeforeEach(func() {
+		gg.BeforeEach(func() {
 			key, err = as.NewKey(ns, set, randString(50))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
-		Context("Put operations", func() {
+		gg.Context("Put operations", func() {
 
-			Context("Bins with complex types", func() {
+			gg.Context("Bins with complex types", func() {
 
-				Context("Bins with LIST type", func() {
+				gg.Context("Bins with LIST type", func() {
 
-					It("must return error for Get for a nonexisting key", func() {
+					gg.It("must return error for Get for a nonexisting key", func() {
 						rec, err = client.Get(rpolicy, key)
-						Expect(err).To(Equal(ast.ErrKeyNotFound))
+						gm.Expect(err).To(gm.Equal(ast.ErrKeyNotFound))
 					})
 
-					It("must save a key with Array Types", func() {
+					gg.It("must save a key with Array Types", func() {
 						bin1 := as.NewBin("Aerospike1", []int8{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
 						bin2 := as.NewBin("Aerospike2", []int16{math.MinInt16, 0, 1, 2, 3, math.MaxInt16})
 						bin3 := as.NewBin("Aerospike3", []int32{math.MinInt32, 0, 1, 2, 3, math.MaxInt32})
@@ -97,19 +97,19 @@ var _ = Describe("Aerospike", func() {
 								float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 								float32(math.MaxFloat32):  float32(math.MaxFloat32),
 								float64(math.MaxFloat64):  float64(math.MaxFloat64),
-								"true":    true,
-								"false":   false,
-								"string":  map[interface{}]interface{}{nil: "string", "string": 19},                // map to complex array
-								nil:       []int{18, 41},                                                           // array to complex map
-								"GeoJSON": as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
+								"true":                    true,
+								"false":                   false,
+								"string":                  map[interface{}]interface{}{nil: "string", "string": 19},                // map to complex array
+								nil:                       []int{18, 41},                                                           // array to complex map
+								"GeoJSON":                 as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 							},
 						})
 
 						err = client.PutBins(wpolicy, key, bin1, bin2, bin3, bin4, bin5, bin6, bin7, bin8, bin9, bin10)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						rec, err = client.Get(rpolicy, key)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						arraysEqual(rec.Bins[bin1.Name], bin1.Value.GetObject())
 						arraysEqual(rec.Bins[bin2.Name], bin2.Value.GetObject())
@@ -125,9 +125,9 @@ var _ = Describe("Aerospike", func() {
 
 				}) // context list
 
-				Context("Bins with MAP type", func() {
+				gg.Context("Bins with MAP type", func() {
 
-					It("must save a key with Array Types", func() {
+					gg.It("must save a key with Array Types", func() {
 						// complex type, consisting different maps
 						bin1 := as.NewBin("Aerospike1", map[int32]string{
 							0:                    "",
@@ -154,10 +154,10 @@ var _ = Describe("Aerospike", func() {
 						})
 
 						err = client.PutBins(wpolicy, key, bin1, bin2)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						rec, err = client.Get(rpolicy, key)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						mapsEqual(rec.Bins[bin1.Name], bin1.Value.GetObject())
 						mapsEqual(rec.Bins[bin2.Name], bin2.Value.GetObject())
@@ -165,9 +165,9 @@ var _ = Describe("Aerospike", func() {
 
 				}) // context map
 
-				Context("Bins with LIST type", func() {
+				gg.Context("Bins with LIST type", func() {
 
-					It("must save a key with Array Types", func() {
+					gg.It("must save a key with Array Types", func() {
 						bin1 := as.NewBin("Aerospike1", []interface{}{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
 						bin2 := as.NewBin("Aerospike2", []interface{}{math.MinInt16, 0, 1, 2, 3, math.MaxInt16})
 						bin3 := as.NewBin("Aerospike3", []interface{}{math.MinInt32, 0, 1, 2, 3, math.MaxInt32})
@@ -204,19 +204,19 @@ var _ = Describe("Aerospike", func() {
 								float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 								float32(math.MaxFloat32):  float32(math.MaxFloat32),
 								float64(math.MaxFloat64):  float64(math.MaxFloat64),
-								"true":    true,
-								"false":   false,
-								"string":  map[interface{}]interface{}{nil: "string", "string": 19},                // map to complex array
-								nil:       []interface{}{18, 41},                                                   // array to complex map
-								"GeoJSON": as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
+								"true":                    true,
+								"false":                   false,
+								"string":                  map[interface{}]interface{}{nil: "string", "string": 19},                // map to complex array
+								nil:                       []interface{}{18, 41},                                                   // array to complex map
+								"GeoJSON":                 as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 							},
 						})
 
 						err = client.PutBins(wpolicy, key, bin1, bin2, bin3, bin4, bin5, bin6, bin7, bin8, bin9, bin10)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						rec, err = client.Get(rpolicy, key)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						arraysEqual(rec.Bins[bin1.Name], bin1.Value.GetObject())
 						arraysEqual(rec.Bins[bin2.Name], bin2.Value.GetObject())
@@ -232,9 +232,9 @@ var _ = Describe("Aerospike", func() {
 
 				}) // context list
 
-				Context("Bins with MAP type", func() {
+				gg.Context("Bins with MAP type", func() {
 
-					It("must save a key with Array Types", func() {
+					gg.It("must save a key with Array Types", func() {
 						// complex type, consisting different maps
 						bin1 := as.NewBin("Aerospike1", map[int32]string{
 							0:                    "",
@@ -261,10 +261,10 @@ var _ = Describe("Aerospike", func() {
 						})
 
 						err = client.PutBins(wpolicy, key, bin1, bin2)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						rec, err = client.Get(rpolicy, key)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						mapsEqual(rec.Bins[bin1.Name], bin1.Value.GetObject())
 						mapsEqual(rec.Bins[bin2.Name], bin2.Value.GetObject())

@@ -19,96 +19,105 @@ import (
 	"math"
 
 	"github.com/aerospike/aerospike-client-go/pkg/ripemd160"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 type keyWriter struct {
 	buffer [8]byte
-	offset int
 	hash   ripemd160.Digest
 }
 
-// Int64ToBytes converts an int64 into slice of Bytes.
-func (vb *keyWriter) WriteInt64(num int64) (int, error) {
+// WriteInt64 writes a int64 to the key
+func (vb *keyWriter) WriteInt64(num int64) int {
 	return vb.WriteUint64(uint64(num))
 }
 
-// Uint64ToBytes converts an uint64 into slice of Bytes.
-func (vb *keyWriter) WriteUint64(num uint64) (int, error) {
+// WriteUint64 writes a uint64 to the key
+func (vb *keyWriter) WriteUint64(num uint64) int {
 	binary.BigEndian.PutUint64(vb.buffer[:8], num)
 	vb.hash.Write(vb.buffer[:8])
-	return 8, nil
+	return 8
 }
 
-// Int32ToBytes converts an int32 to a byte slice of size 4
-func (vb *keyWriter) WriteInt32(num int32) (int, error) {
+// WriteInt32 writes a int32 to the key
+func (vb *keyWriter) WriteInt32(num int32) int {
 	return vb.WriteUint32(uint32(num))
 }
 
-// Uint32ToBytes converts an uint32 to a byte slice of size 4
-func (vb *keyWriter) WriteUint32(num uint32) (int, error) {
+// WriteUint32 writes a uint32 to the key
+func (vb *keyWriter) WriteUint32(num uint32) int {
 	binary.BigEndian.PutUint32(vb.buffer[:4], num)
 	vb.hash.Write(vb.buffer[:4])
-	return 4, nil
+	return 4
 }
 
-// Int16ToBytes converts an int16 to slice of bytes
-func (vb *keyWriter) WriteInt16(num int16) (int, error) {
+// WriteInt16 writes a int16 to the key
+func (vb *keyWriter) WriteInt16(num int16) int {
 	return vb.WriteUint16(uint16(num))
 }
 
-// UInt16ToBytes converts an iuint16 to slice of bytes
-func (vb *keyWriter) WriteUint16(num uint16) (int, error) {
+// WriteUint16 writes a uint16 to the key
+func (vb *keyWriter) WriteUint16(num uint16) int {
 	binary.BigEndian.PutUint16(vb.buffer[:2], num)
 	vb.hash.Write(vb.buffer[:2])
-	return 2, nil
+	return 2
 }
 
-func (vb *keyWriter) WriteFloat32(float float32) (int, error) {
+// WriteFloat32 writes a float32 to the key
+func (vb *keyWriter) WriteFloat32(float float32) int {
 	bits := math.Float32bits(float)
 	binary.BigEndian.PutUint32(vb.buffer[:4], bits)
 	vb.hash.Write(vb.buffer[:4])
-	return 4, nil
+	return 4
 }
 
-func (vb *keyWriter) WriteFloat64(float float64) (int, error) {
+// WriteFloat64 writes a float64 to the key
+func (vb *keyWriter) WriteFloat64(float float64) int {
 	bits := math.Float64bits(float)
 	binary.BigEndian.PutUint64(vb.buffer[:8], bits)
 	vb.hash.Write(vb.buffer[:8])
-	return 8, nil
+	return 8
 }
 
-func (vb *keyWriter) WriteByte(b byte) error {
-	_, err := vb.hash.Write([]byte{b})
-	return err
+// WriteByte writes a byte to the key
+func (vb *keyWriter) WriteByte(b byte) {
+	vb.hash.Write([]byte{b})
 }
 
+// WriteString writes a string to the key
 func (vb *keyWriter) WriteString(s string) (int, error) {
 	// To avoid allocating memory, write the strings in small chunks
 	l := len(s)
 	const size = 128
 	b := [size]byte{}
 	cnt := 0
+	sz := 0
 	for i := 0; i < l; i++ {
 		b[cnt] = s[i]
 		cnt++
 
 		if cnt == size {
-			vb.Write(b[:])
+			n, err := vb.Write(b[:])
+			if err != nil {
+				return sz + n, err
+			}
+			sz += n
 			cnt = 0
 		}
 	}
 
 	if cnt > 0 {
-		vb.Write(b[:cnt])
+		n, err := vb.Write(b[:cnt])
+		if err != nil {
+			return sz + n, err
+		}
 	}
 
 	return len(s), nil
 }
 
 func (vb *keyWriter) Write(b []byte) (int, error) {
-	vb.hash.Write(b)
-	return len(b), nil
+	return vb.hash.Write(b)
 }
 
 func (vb *keyWriter) writeKey(val Value) error {
@@ -126,24 +135,24 @@ func (vb *keyWriter) writeKey(val Value) error {
 		vb.WriteString(string(v))
 		return nil
 	case ListValue:
-		v.pack(vb)
-		return nil
+		_, err := v.pack(vb)
+		return err
 	case *ListValue:
-		v.pack(vb)
-		return nil
+		_, err := v.pack(vb)
+		return err
 	case *ListerValue:
-		v.pack(vb)
-		return nil
+		_, err := v.pack(vb)
+		return err
 	case ValueArray:
-		v.pack(vb)
-		return nil
+		_, err := v.pack(vb)
+		return err
 	case *ValueArray:
-		v.pack(vb)
-		return nil
+		_, err := v.pack(vb)
+		return err
 	case BytesValue:
 		vb.Write(v)
 		return nil
 	}
 
-	return NewAerospikeError(PARAMETER_ERROR, "Key Generation Error. Value not supported: "+val.String())
+	return types.NewAerospikeError(types.PARAMETER_ERROR, "Key Generation Error. Value not supported: "+val.String())
 }

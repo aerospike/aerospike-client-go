@@ -19,9 +19,8 @@ import (
 	"fmt"
 	"time"
 
-	// . "github.com/aerospike/aerospike-client-go/logger"
 	"github.com/aerospike/aerospike-client-go/pkg/bcrypt"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -263,7 +262,7 @@ func (acmd *adminCommand) writePrivileges(privileges []Privilege) error {
 		if privilege.canScope() {
 
 			if len(privilege.SetName) > 0 && len(privilege.Namespace) == 0 {
-				return NewAerospikeError(INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
+				return types.NewAerospikeError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
 			}
 
 			acmd.dataBuffer[offset] = byte(len(privilege.Namespace))
@@ -277,7 +276,7 @@ func (acmd *adminCommand) writePrivileges(privileges []Privilege) error {
 			offset += len(privilege.SetName)
 		} else {
 			if len(privilege.Namespace) > 0 || len(privilege.SetName) > 0 {
-				return NewAerospikeError(INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
+				return types.NewAerospikeError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
 			}
 		}
 	}
@@ -360,25 +359,22 @@ func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 	node.tendConnLock.Lock()
 	defer node.tendConnLock.Unlock()
 
-	if err := node.initTendConn(timeout); err != nil {
+	if err = node.initTendConn(timeout); err != nil {
 		return err
 	}
 
 	conn := node.tendConn
-	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
-		return err
-	}
-	if err != nil {
+	if _, err = conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
 		return err
 	}
 
-	if _, err := conn.Read(acmd.dataBuffer, _HEADER_SIZE); err != nil {
+	if _, err = conn.Read(acmd.dataBuffer, _HEADER_SIZE); err != nil {
 		return err
 	}
 
 	result := acmd.dataBuffer[_RESULT_CODE]
 	if result != 0 {
-		return NewAerospikeError(ResultCode(result))
+		return types.NewAerospikeError(types.ResultCode(result))
 	}
 
 	return nil
@@ -398,12 +394,12 @@ func (acmd *adminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*U
 	node.tendConnLock.Lock()
 	defer node.tendConnLock.Unlock()
 
-	if err := node.initTendConn(timeout); err != nil {
+	if err = node.initTendConn(timeout); err != nil {
 		return nil, err
 	}
 
 	conn := node.tendConn
-	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
+	if _, err = conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
 		return nil, err
 	}
 
@@ -413,7 +409,7 @@ func (acmd *adminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*U
 	}
 
 	if status > 0 {
-		return nil, NewAerospikeError(ResultCode(status))
+		return nil, types.NewAerospikeError(types.ResultCode(status))
 	}
 	return list, nil
 }
@@ -468,19 +464,19 @@ func (acmd *adminCommand) parseUsers(receiveSize int) (int, []*UserRoles, error)
 		acmd.dataOffset += _HEADER_REMAINING
 
 		for i := 0; i < fieldCount; i++ {
-			len := int(Buffer.BytesToInt32(acmd.dataBuffer, acmd.dataOffset))
+			flen := int(Buffer.BytesToInt32(acmd.dataBuffer, acmd.dataOffset))
 			acmd.dataOffset += 4
 			id := acmd.dataBuffer[acmd.dataOffset]
 			acmd.dataOffset++
-			len--
+			flen--
 
 			if id == _USER {
-				userRoles.User = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
-				acmd.dataOffset += len
+				userRoles.User = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+flen])
+				acmd.dataOffset += flen
 			} else if id == _ROLES {
 				acmd.parseRoles(userRoles)
 			} else {
-				acmd.dataOffset += len
+				acmd.dataOffset += flen
 			}
 		}
 
@@ -535,12 +531,12 @@ func (acmd *adminCommand) readRoles(cluster *Cluster, policy *AdminPolicy) ([]*R
 	node.tendConnLock.Lock()
 	defer node.tendConnLock.Unlock()
 
-	if err := node.initTendConn(timeout); err != nil {
+	if err = node.initTendConn(timeout); err != nil {
 		return nil, err
 	}
 
 	conn := node.tendConn
-	if _, err := conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
+	if _, err = conn.Write(acmd.dataBuffer[:acmd.dataOffset]); err != nil {
 		return nil, err
 	}
 
@@ -550,7 +546,7 @@ func (acmd *adminCommand) readRoles(cluster *Cluster, policy *AdminPolicy) ([]*R
 	}
 
 	if status > 0 {
-		return nil, NewAerospikeError(ResultCode(status))
+		return nil, types.NewAerospikeError(types.ResultCode(status))
 	}
 	return list, nil
 }

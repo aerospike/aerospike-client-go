@@ -21,16 +21,16 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 const RANDOM_OPS_RUNS = 1000
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Aerospike", func() {
+var _ = gg.Describe("Aerospike", func() {
 
-	Describe("Random Data Operations", func() {
+	gg.Describe("Random Data Operations", func() {
 		// connection data
 		var err error
 		var ns = *namespace
@@ -44,11 +44,11 @@ var _ = Describe("Aerospike", func() {
 			rpolicy.ReplicaPolicy = as.MASTER_PROLES
 		}
 
-		Context("Put/Get operations", func() {
+		gg.Context("Put/Get operations", func() {
 
-			It("must create, update and read keys consistently", func() {
+			gg.It("must create, update and read keys consistently", func() {
 				key, err = as.NewKey(ns, set, randString(50))
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				bin1 := as.NewBin("Aerospike1", 0)
 				bin2 := as.NewBin("Aerospike2", "a") // to avoid deletion of key
@@ -61,33 +61,33 @@ var _ = Describe("Aerospike", func() {
 
 						//reset
 						err = client.PutBins(wpolicy, key, bin1, bin2)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						// update
 						err = client.PutBins(wpolicy, key, as.NewBin("Aerospike1", i), as.NewBin("Aerospike2", strings.Repeat("a", i)))
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 					}
 
 					rec, err = client.Get(rpolicy, key)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(rec.Bins[bin1.Name]).To(Equal(i))
-					Expect(rec.Bins[bin2.Name]).To(Equal(strings.Repeat("a", i)))
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(i))
+					gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(strings.Repeat("a", i)))
 				}
 			})
 
 		}) // context put/get operations
 
-		Context("Parallel Put/Get/Delete operations", func() {
+		gg.Context("Parallel Put/Get/Delete operations", func() {
 
-			It("must save, read, delete keys consistently", func() {
+			gg.It("must save, read, delete keys consistently", func() {
 
 				errChan := make(chan error, 100)
 
 				func_delete := func(keys ...*as.Key) {
-					defer GinkgoRecover()
+					defer gg.GinkgoRecover()
 					for _, key := range keys {
 						existed, err := client.Delete(wpolicy, key)
-						Expect(existed).To(BeTrue())
+						gm.Expect(existed).To(gm.BeTrue())
 						errChan <- err
 					}
 				}
@@ -99,10 +99,10 @@ var _ = Describe("Aerospike", func() {
 						i++
 
 						key, err = as.NewKey(ns, set, randString(50))
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						err = client.PutBins(wpolicy, key, as.NewBin("Aerospike1", i), as.NewBin("Aerospike2", strings.Repeat("a", i)))
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						go func_delete(key)
 					}
@@ -114,10 +114,10 @@ var _ = Describe("Aerospike", func() {
 					for i := 0; i < iters; i++ {
 						select {
 						case err := <-errChan:
-							Expect(err).ToNot(HaveOccurred())
+							gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						case <-timeout:
-							Expect(timeout).To(BeNil())
+							gm.Expect(timeout).To(gm.BeNil())
 						}
 					} // for i < iters
 

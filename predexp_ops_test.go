@@ -17,8 +17,8 @@ package aerospike_test
 import (
 	"sync"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 
 	as "github.com/aerospike/aerospike-client-go"
 	ast "github.com/aerospike/aerospike-client-go/types"
@@ -117,11 +117,11 @@ end
 -- end
 `
 
-var _ = Describe("PredExp in Transactions Test", func() {
+var _ = gg.Describe("PredExp in Transactions Test", func() {
 
-	BeforeEach(func() {
+	gg.BeforeEach(func() {
 		if !isEnterpriseEdition() {
-			Skip("Predexp Tests for All transactions are not supported in the Community Edition.")
+			gg.Skip("Predexp Tests for All transactions are not supported in the Community Edition.")
 			return
 		}
 	})
@@ -131,10 +131,10 @@ var _ = Describe("PredExp in Transactions Test", func() {
 	var registerUDF = func() {
 		udfReg.Do(func() {
 			regTask, err := client.RegisterUDF(nil, []byte(udfPredexpBody), "udf1.lua", as.LUA)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			// wait until UDF is created
-			Expect(<-regTask.OnComplete()).NotTo(HaveOccurred())
+			gm.Expect(<-regTask.OnComplete()).NotTo(gm.HaveOccurred())
 		})
 	}
 
@@ -162,16 +162,16 @@ var _ = Describe("PredExp in Transactions Test", func() {
 	binA2 = as.NewBin(binAName, 2)
 	binA3 = as.NewBin(binAName, 3)
 
-	Describe("PredExp in Transactions Test", func() {
+	gg.Describe("PredExp in Transactions Test", func() {
 
-		AfterEach(func() {
+		gg.AfterEach(func() {
 			_, err := client.Delete(nil, keyA)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			_, err = client.Delete(nil, keyB)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
-		BeforeEach(func() {
+		gg.BeforeEach(func() {
 			predAEq1WPolicy = as.NewWritePolicy(0, 0)
 			predAEq1BPolicy = as.NewBatchPolicy()
 			predAEq1RPolicy = as.NewPolicy()
@@ -195,225 +195,225 @@ var _ = Describe("PredExp in Transactions Test", func() {
 			}
 
 			_, err := client.Delete(nil, keyA)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			_, err = client.Delete(nil, keyB)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			err = client.PutBins(nil, keyA, binA1)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			err = client.PutBins(nil, keyB, binA2)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
-		It("should work for Put", func() {
+		gg.It("should work for Put", func() {
 			err := client.PutBins(predAEq1WPolicy, keyA, binA3)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			r, err := client.Get(nil, keyA)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			Expect(r.Bins[binA3.Name]).To(Equal(binA3.Value.GetObject()))
+			gm.Expect(r.Bins[binA3.Name]).To(gm.Equal(binA3.Value.GetObject()))
 
 			client.PutBins(predAEq1WPolicy, keyB, binA3)
 			r, err = client.Get(nil, keyB)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			Expect(r.Bins[binA2.Name]).To(Equal(binA2.Value.GetObject()))
+			gm.Expect(r.Bins[binA2.Name]).To(gm.Equal(binA2.Value.GetObject()))
 		})
 
-		It("should work for Put Except...", func() {
+		gg.It("should work for Put Except...", func() {
 			err := client.PutBins(predAEq1WPolicy, keyA, binA3)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			err = client.PutBins(predAEq1WPolicy, keyB, binA3)
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
-		It("should work for Get", func() {
+		gg.It("should work for Get", func() {
 			r, err := client.Get(predAEq1RPolicy, keyA)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(r.Bins[binA1.Name]).To(Equal(binA1.Value.GetObject()))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(r.Bins[binA1.Name]).To(gm.Equal(binA1.Value.GetObject()))
 
 			r, err = client.Get(predAEq1RPolicy, keyB)
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
-			Expect(r).To(BeNil())
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(r).To(gm.BeNil())
 		})
 
-		It("should work for Get Except...", func() {
+		gg.It("should work for Get Except...", func() {
 			_, err := client.Get(predAEq1RPolicy, keyA)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			_, err = client.Get(predAEq1RPolicy, keyB)
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
-		It("should work for BatchGet", func() {
+		gg.It("should work for BatchGet", func() {
 			keys := []*as.Key{keyA, keyB}
 
 			records, err := client.BatchGet(predAEq1BPolicy, keys)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal(ast.ErrFilteredOut.Error()))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Error()).To(gm.Equal(ast.ErrFilteredOut.Error()))
 
-			Expect(records[0].Bins[binA1.Name]).To(Equal(binA1.Value.GetObject()))
-			Expect(records[1]).To(BeNil())
+			gm.Expect(records[0].Bins[binA1.Name]).To(gm.Equal(binA1.Value.GetObject()))
+			gm.Expect(records[1]).To(gm.BeNil())
 		})
 
-		It("should work for Delete", func() {
+		gg.It("should work for Delete", func() {
 			existed, err := client.Delete(predAEq1WPolicy, keyA)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(existed).To(BeTrue())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(existed).To(gm.BeTrue())
 
 			_, err = client.Get(nil, keyA)
-			Expect(err).To(Equal(ast.ErrKeyNotFound))
+			gm.Expect(err).To(gm.Equal(ast.ErrKeyNotFound))
 
 			_, err = client.Delete(predAEq1WPolicy, keyB)
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 
 			r, err = client.Get(nil, keyB)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(r.Bins[binA2.Name]).To(Equal(binA2.Value.GetObject()))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(r.Bins[binA2.Name]).To(gm.Equal(binA2.Value.GetObject()))
 		})
 
-		It("should work for Delete Except...", func() {
+		gg.It("should work for Delete Except...", func() {
 			_, err := client.Delete(predAEq1WPolicy, keyA)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			_, err = client.Delete(predAEq1WPolicy, keyB)
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
-		It("should work for Durable Delete", func() {
+		gg.It("should work for Durable Delete", func() {
 			predAEq1WPolicy.DurableDelete = true
 
 			_, err := client.Delete(predAEq1WPolicy, keyA)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			r, err := client.Get(nil, keyA)
-			Expect(err).To(Equal(ast.ErrKeyNotFound))
-			Expect(r).To(BeNil())
+			gm.Expect(err).To(gm.Equal(ast.ErrKeyNotFound))
+			gm.Expect(r).To(gm.BeNil())
 
 			_, err = client.Delete(predAEq1WPolicy, keyB)
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 
 			r, err = client.Get(nil, keyB)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(r.Bins[binA2.Name]).To(Equal(binA2.Value.GetObject()))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(r.Bins[binA2.Name]).To(gm.Equal(binA2.Value.GetObject()))
 		})
 
-		It("should work for Durable Delete Except...", func() {
+		gg.It("should work for Durable Delete Except...", func() {
 			predAEq1WPolicy.DurableDelete = true
 
 			_, err := client.Delete(predAEq1WPolicy, keyA)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			_, err = client.Delete(predAEq1WPolicy, keyB)
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
-		It("should work for Operate Read", func() {
+		gg.It("should work for Operate Read", func() {
 			r, err := client.Operate(predAEq1WPolicy, keyA, as.GetOpForBin(binAName))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			Expect(r.Bins[binA1.Name]).To(Equal(binA1.Value.GetObject()))
+			gm.Expect(r.Bins[binA1.Name]).To(gm.Equal(binA1.Value.GetObject()))
 
 			r, err = client.Operate(predAEq1WPolicy, keyB, as.GetOpForBin(binAName))
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
-			Expect(r).To(BeNil())
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(r).To(gm.BeNil())
 		})
 
-		It("should work for Operate Read Except...", func() {
+		gg.It("should work for Operate Read Except...", func() {
 			_, err := client.Operate(predAEq1WPolicy, keyA, as.GetOpForBin(binAName))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			_, err = client.Operate(predAEq1WPolicy, keyB, as.GetOpForBin(binAName))
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
-		It("should work for Operate Write", func() {
+		gg.It("should work for Operate Write", func() {
 			r, err := client.Operate(predAEq1WPolicy, keyA, as.PutOp(binA3), as.GetOpForBin(binAName))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			Expect(r.Bins[binA3.Name]).To(Equal(binA3.Value.GetObject()))
+			gm.Expect(r.Bins[binA3.Name]).To(gm.Equal(binA3.Value.GetObject()))
 
 			r, err = client.Operate(predAEq1WPolicy, keyB, as.PutOp(binA3), as.GetOpForBin(binAName))
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
-			Expect(r).To(BeNil())
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(r).To(gm.BeNil())
 		})
 
-		It("should work for Operate Write Except...", func() {
+		gg.It("should work for Operate Write Except...", func() {
 			_, err := client.Operate(predAEq1WPolicy, keyA, as.PutOp(binA3), as.GetOpForBin(binAName))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			_, err = client.Operate(predAEq1WPolicy, keyB, as.PutOp(binA3), as.GetOpForBin(binAName))
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
-		It("should work for UDF", func() {
+		gg.It("should work for UDF", func() {
 			registerUDF()
 
 			_, err := client.Execute(predAEq1WPolicy, keyA, "record_example", "writeBin", as.StringValue(binA3.Name), binA3.Value)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			r, err := client.Get(nil, keyA)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			Expect(r.Bins[binA3.Name]).To(Equal(binA3.Value.GetObject()))
+			gm.Expect(r.Bins[binA3.Name]).To(gm.Equal(binA3.Value.GetObject()))
 
 			_, err = client.Execute(predAEq1WPolicy, keyB, "record_example", "writeBin", as.StringValue(binA3.Name), binA3.Value)
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 
 			r, err = client.Get(nil, keyB)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(r.Bins[binA2.Name]).To(Equal(binA2.Value.GetObject()))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(r.Bins[binA2.Name]).To(gm.Equal(binA2.Value.GetObject()))
 		})
 
-		It("should work for UDF Except...", func() {
+		gg.It("should work for UDF Except...", func() {
 			registerUDF()
 
 			_, err := client.Execute(predAEq1WPolicy, keyA, "record_example", "writeBin", as.StringValue(binA3.Name), binA3.Value)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			_, err = client.Execute(predAEq1WPolicy, keyB, "record_example", "writeBin", as.StringValue(binA3.Name), binA3.Value)
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(ast.AerospikeError)
-			Expect(ok).To(BeTrue())
-			Expect(aerr.ResultCode()).To(Equal(ast.FILTERED_OUT))
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
 	})

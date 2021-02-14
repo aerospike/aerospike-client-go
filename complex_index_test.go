@@ -17,14 +17,14 @@ package aerospike_test
 import (
 	as "github.com/aerospike/aerospike-client-go"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Complex Index operations test", func() {
+var _ = gg.Describe("Complex Index operations test", func() {
 
-	Describe("Complex Index Creation", func() {
+	gg.Describe("Complex Index Creation", func() {
 		// connection data
 		var err error
 		var ns = *namespace
@@ -40,21 +40,21 @@ var _ = Describe("Complex Index operations test", func() {
 		bin1 := as.NewBin("Aerospike1", valueList)
 		bin2 := as.NewBin("Aerospike2", valueMap)
 
-		BeforeEach(func() {
+		gg.BeforeEach(func() {
 			for i := 0; i < keyCount; i++ {
 				key, err = as.NewKey(ns, set, randString(50))
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				err = client.PutBins(wpolicy, key, bin1, bin2)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			}
 		})
 
-		Context("Create non-existing complex index", func() {
+		gg.Context("Create non-existing complex index", func() {
 
-			It("must create a complex Index for Lists", func() {
+			gg.It("must create a complex Index for Lists", func() {
 				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING, as.ICT_LIST)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.DropIndex(wpolicy, ns, set, set+bin1.Name)
 
 				// wait until index is created
@@ -62,12 +62,12 @@ var _ = Describe("Complex Index operations test", func() {
 
 				// no duplicate index is allowed
 				_, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 			})
 
-			It("must create a complex Index for Map Keys", func() {
+			gg.It("must create a complex Index for Map Keys", func() {
 				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin2.Name, as.STRING, as.ICT_MAPKEYS)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.DropIndex(wpolicy, ns, set, set+bin2.Name+"keys")
 
 				// wait until index is created
@@ -75,12 +75,12 @@ var _ = Describe("Complex Index operations test", func() {
 
 				// no duplicate index is allowed
 				_, err = client.CreateIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin1.Name, as.STRING)
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 			})
 
-			It("must create a complex Index for Map Values", func() {
+			gg.It("must create a complex Index for Map Values", func() {
 				idxTask, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"values", bin2.Name, as.STRING, as.ICT_MAPVALUES)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.DropIndex(wpolicy, ns, set, set+bin2.Name+"values")
 
 				// wait until index is created
@@ -88,7 +88,7 @@ var _ = Describe("Complex Index operations test", func() {
 
 				// no duplicate index is allowed
 				_, err = client.CreateIndex(wpolicy, ns, set, set+bin2.Name+"values", bin1.Name, as.STRING)
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 			})
 
 		})

@@ -2,6 +2,7 @@
 
 package luaLib
 
+// LibAerospike is the source code for the Aerospike library in the lua instance
 const LibAerospike = `
 
 -- The Lua Interface to Aerospike

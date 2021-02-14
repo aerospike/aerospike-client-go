@@ -17,25 +17,25 @@ package atomic_test
 import (
 	"runtime"
 
-	. "github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
-var _ = Describe("Atomic Bool", func() {
+var _ = gg.Describe("Atomic Bool", func() {
 	// atomic tests require actual parallelism
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	var ab *AtomicBool
+	var ab *atomic.Bool
 
-	BeforeEach(func() {
-		ab = NewAtomicBool(true)
+	gg.BeforeEach(func() {
+		ab = atomic.NewBool(true)
 	})
 
-	It("must CompareAndToggle correctly", func() {
-		Expect(ab.CompareAndToggle(true)).To(BeTrue())
-		Expect(ab.CompareAndToggle(true)).To(BeFalse())
+	gg.It("must CompareAndToggle correctly", func() {
+		gm.Expect(ab.CompareAndToggle(true)).To(gm.BeTrue())
+		gm.Expect(ab.CompareAndToggle(true)).To(gm.BeFalse())
 	})
 
 })

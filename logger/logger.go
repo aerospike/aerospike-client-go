@@ -18,17 +18,21 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 )
 
 // LogPriority specifies the logging level for the client
 type LogPriority int
 
 const (
+	// DEBUG log level
 	DEBUG LogPriority = iota - 1
+	// INFO log level
 	INFO
+	// WARNING log level
 	WARNING
+	// ERR log level
 	ERR
+	// OFF log level
 	OFF LogPriority = 999
 )
 
@@ -40,7 +44,6 @@ type logger struct {
 	Logger genericLogger
 
 	level LogPriority
-	mutex sync.RWMutex
 }
 
 // Logger is the default logger instance
@@ -54,22 +57,20 @@ func newLogger() *logger {
 }
 
 // SetLogger sets the *log.Logger object where log messages should be sent to.
+// This method is not goroutine-safe, and is not designed to be accessed
+// from multiple goroutines.
 func (lgr *logger) SetLogger(l genericLogger) {
-	lgr.mutex.Lock()
-	defer lgr.mutex.Unlock()
-
 	lgr.Logger = l
 }
 
 // SetLevel sets logging level. Default is ERR.
+// This method is not goroutine-safe, and is not designed to be accessed
+// from multiple goroutines.
 func (lgr *logger) SetLevel(level LogPriority) {
-	lgr.mutex.Lock()
-	defer lgr.mutex.Unlock()
-
 	lgr.level = level
 }
 
-// Error logs a message if log level allows to do so.
+// LogAtLevel will logs a message at the level requested.
 func (lgr *logger) LogAtLevel(level LogPriority, format string, v ...interface{}) {
 	switch level {
 	case DEBUG:
@@ -80,14 +81,12 @@ func (lgr *logger) LogAtLevel(level LogPriority, format string, v ...interface{}
 		lgr.Warn(format, v...)
 	case ERR:
 		lgr.Error(format, v...)
+	case OFF:
 	}
 }
 
 // Debug logs a message if log level allows to do so.
 func (lgr *logger) Debug(format string, v ...interface{}) {
-	lgr.mutex.RLock()
-	defer lgr.mutex.RUnlock()
-
 	if lgr.level <= DEBUG {
 		if l, ok := lgr.Logger.(*log.Logger); ok {
 			l.Output(2, fmt.Sprintf(format, v...))
@@ -99,9 +98,6 @@ func (lgr *logger) Debug(format string, v ...interface{}) {
 
 // Info logs a message if log level allows to do so.
 func (lgr *logger) Info(format string, v ...interface{}) {
-	lgr.mutex.RLock()
-	defer lgr.mutex.RUnlock()
-
 	if lgr.level <= INFO {
 		if l, ok := lgr.Logger.(*log.Logger); ok {
 			l.Output(2, fmt.Sprintf(format, v...))
@@ -113,9 +109,6 @@ func (lgr *logger) Info(format string, v ...interface{}) {
 
 // Warn logs a message if log level allows to do so.
 func (lgr *logger) Warn(format string, v ...interface{}) {
-	lgr.mutex.RLock()
-	defer lgr.mutex.RUnlock()
-
 	if lgr.level <= WARNING {
 		if l, ok := lgr.Logger.(*log.Logger); ok {
 			l.Output(2, fmt.Sprintf(format, v...))
@@ -127,9 +120,6 @@ func (lgr *logger) Warn(format string, v ...interface{}) {
 
 // Error logs a message if log level allows to do so.
 func (lgr *logger) Error(format string, v ...interface{}) {
-	lgr.mutex.RLock()
-	defer lgr.mutex.RUnlock()
-
 	if lgr.level <= ERR {
 		if l, ok := lgr.Logger.(*log.Logger); ok {
 			l.Output(2, fmt.Sprintf(format, v...))

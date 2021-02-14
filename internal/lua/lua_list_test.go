@@ -17,15 +17,15 @@
 package lua_test
 
 import (
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 
-	. "github.com/aerospike/aerospike-client-go/internal/lua"
+	ilua "github.com/aerospike/aerospike-client-go/internal/lua"
 )
 
-var _ = Describe("Lua List API Test", func() {
+var _ = gg.Describe("Lua List API Test", func() {
 
 	// code vs result
 	testMatrix := map[string]interface{}{
@@ -92,29 +92,29 @@ var _ = Describe("Lua List API Test", func() {
 		"l = list{1,2}\n list.remove(l, 3)",
 	}
 
-	It("must run all code blocks", func() {
-		instance := LuaPool.Get().(*lua.LState)
+	gg.It("must run all code blocks", func() {
+		instance := ilua.LuaPool.Get().(*lua.LState)
 		defer instance.Close()
 		for source, expected := range testMatrix {
 
 			err := instance.DoString(source)
-			Expect(err).NotTo(HaveOccurred())
+			gm.Expect(err).NotTo(gm.HaveOccurred())
 
-			By(source)
-			Expect(LValueToInterface(instance.CheckAny(-1))).To(Equal(expected))
+			gg.By(source)
+			gm.Expect(ilua.LValueToInterface(instance.CheckAny(-1))).To(gm.Equal(expected))
 			instance.Pop(1) // remove received value
 		}
 
 	})
 
-	It("must fail all code blocks", func() {
-		instance := LuaPool.Get().(*lua.LState)
+	gg.It("must fail all code blocks", func() {
+		instance := ilua.LuaPool.Get().(*lua.LState)
 		defer instance.Close()
 		for _, source := range errMatrix {
-			By(source)
+			gg.By(source)
 
 			err := instance.DoString(source)
-			Expect(err).To(HaveOccurred())
+			gm.Expect(err).To(gm.HaveOccurred())
 
 		}
 

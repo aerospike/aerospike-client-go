@@ -21,7 +21,9 @@ import (
 )
 
 const (
+	// SizeOfInt32 defines the size of int32
 	SizeOfInt32 = uintptr(4)
+	// SizeOfInt64 defines the size of int64
 	SizeOfInt64 = uintptr(8)
 
 	uint64sz = int(8)
@@ -32,9 +34,13 @@ const (
 	float64sz = int(8)
 )
 
+// SizeOfInt defines the size of native int
 var SizeOfInt uintptr
 
+// Arch64Bits defines if the system is 64 bits
 var Arch64Bits bool
+
+// Arch32Bits defines if the system is 32 bits
 var Arch32Bits bool
 
 func init() {
@@ -79,6 +85,7 @@ func BytesToInt64(buf []byte, offset int) int64 {
 	return r
 }
 
+// VarBytesToInt64 will convert a 8, 4 or 2 byte slice into an int64
 func VarBytesToInt64(buf []byte, offset int, len int) int64 {
 	if len == 8 {
 		return BytesToInt64(buf, offset)
@@ -111,26 +118,19 @@ func BytesToInt16(buf []byte, offset int) int16 {
 	return int16(binary.BigEndian.Uint16(buf[offset : offset+uint16sz]))
 }
 
+// BytesToUint16 converts a byte slice to a uint16
 func BytesToUint16(buf []byte, offset int) uint16 {
 	return binary.BigEndian.Uint16(buf[offset : offset+uint16sz])
 }
 
+// BytesToFloat32 converts a byte slice to a float32
 func BytesToFloat32(buf []byte, offset int) float32 {
 	bits := binary.BigEndian.Uint32(buf[offset : offset+float32sz])
 	return math.Float32frombits(bits)
 }
 
+// BytesToFloat64 converts a byte slice to a float64
 func BytesToFloat64(buf []byte, offset int) float64 {
 	bits := binary.BigEndian.Uint64(buf[offset : offset+float64sz])
 	return math.Float64frombits(bits)
-}
-
-func GetUnsigned(b byte) int {
-	r := b
-
-	if r < 0 {
-		r = r & 0x7f
-		r = r | 0x80
-	}
-	return int(r)
 }

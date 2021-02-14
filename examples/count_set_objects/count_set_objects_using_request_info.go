@@ -92,7 +92,7 @@ N:
 				if replFactor == -1 {
 					replFactor = rf
 				} else if replFactor != rf {
-					return -1, fmt.Errorf("Inconsistent replication factor for namespace %s in cluster.", ns)
+					return -1, fmt.Errorf("Inconsistent replication factor for namespace %s in cluster", ns)
 				}
 
 				continue N

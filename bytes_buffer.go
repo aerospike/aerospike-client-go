@@ -21,107 +21,106 @@ import (
 
 // BufferEx is a specialized buffer interface for aerospike client.
 type BufferEx interface {
-	WriteInt64(num int64) (int, error)
-	WriteUint64(num uint64) (int, error)
-	WriteInt32(num int32) (int, error)
-	WriteUint32(num uint32) (int, error)
-	WriteInt16(num int16) (int, error)
-	WriteUint16(num uint16) (int, error)
-	WriteFloat32(float float32) (int, error)
-	WriteFloat64(float float64) (int, error)
-	WriteByte(b byte) error
+	WriteInt64(num int64) int
+	WriteUint64(num uint64) int
+	WriteInt32(num int32) int
+	WriteUint32(num uint32) int
+	WriteInt16(num int16) int
+	WriteUint16(num uint16) int
+	WriteFloat32(float float32) int
+	WriteFloat64(float float64) int
+	WriteByte(b byte)
 	WriteString(s string) (int, error)
 	Write(b []byte) (int, error)
 }
 
-var _ BufferEx = &buffer{}
+var _ BufferEx = &bufferEx{}
 
-type buffer struct {
+type bufferEx struct {
 	dataBuffer []byte
 	dataOffset int
 }
 
-func newBuffer(sz int) *buffer {
-	return &buffer{
+func newBuffer(sz int) *bufferEx {
+	return &bufferEx{
 		dataBuffer: make([]byte, sz),
 	}
 }
 
 // Int64ToBytes converts an int64 into slice of Bytes.
-func (buf *buffer) WriteInt64(num int64) (int, error) {
+func (buf *bufferEx) WriteInt64(num int64) int {
 	return buf.WriteUint64(uint64(num))
 }
 
 // Uint64ToBytes converts an uint64 into slice of Bytes.
-func (buf *buffer) WriteUint64(num uint64) (int, error) {
+func (buf *bufferEx) WriteUint64(num uint64) int {
 	binary.BigEndian.PutUint64(buf.dataBuffer[buf.dataOffset:buf.dataOffset+8], num)
 	buf.dataOffset += 8
-	return 8, nil
+	return 8
 }
 
 // Int32ToBytes converts an int32 to a byte slice of size 4
-func (buf *buffer) WriteInt32(num int32) (int, error) {
+func (buf *bufferEx) WriteInt32(num int32) int {
 	return buf.WriteUint32(uint32(num))
 }
 
 // Uint32ToBytes converts an uint32 to a byte slice of size 4
-func (buf *buffer) WriteUint32(num uint32) (int, error) {
+func (buf *bufferEx) WriteUint32(num uint32) int {
 	binary.BigEndian.PutUint32(buf.dataBuffer[buf.dataOffset:buf.dataOffset+4], num)
 	buf.dataOffset += 4
-	return 4, nil
+	return 4
 }
 
 // Uint32ToBytes converts an uint32 to a byte slice of size 4
-func (buf *buffer) WriteUint32At(num uint32, index int) (int, error) {
+func (buf *bufferEx) WriteUint32At(num uint32, index int) int {
 	binary.BigEndian.PutUint32(buf.dataBuffer[index:index+4], num)
-	return 4, nil
+	return 4
 }
 
 // Int16ToBytes converts an int16 to slice of bytes
-func (buf *buffer) WriteInt16(num int16) (int, error) {
+func (buf *bufferEx) WriteInt16(num int16) int {
 	return buf.WriteUint16(uint16(num))
 }
 
-func (buf *buffer) WriteInt16LittleEndian(num uint16) (int, error) {
+func (buf *bufferEx) WriteInt16LittleEndian(num uint16) int {
 	binary.LittleEndian.PutUint16(buf.dataBuffer[buf.dataOffset:buf.dataOffset+2], num)
 	buf.dataOffset += 2
-	return 2, nil
+	return 2
 }
 
 // Int16ToBytes converts an int16 to slice of bytes
-func (buf *buffer) WriteUint16(num uint16) (int, error) {
+func (buf *bufferEx) WriteUint16(num uint16) int {
 	binary.BigEndian.PutUint16(buf.dataBuffer[buf.dataOffset:buf.dataOffset+2], num)
 	buf.dataOffset += 2
-	return 2, nil
+	return 2
 }
 
-func (buf *buffer) WriteFloat32(float float32) (int, error) {
+func (buf *bufferEx) WriteFloat32(float float32) int {
 	bits := math.Float32bits(float)
 	binary.BigEndian.PutUint32(buf.dataBuffer[buf.dataOffset:buf.dataOffset+4], bits)
 	buf.dataOffset += 4
-	return 4, nil
+	return 4
 }
 
-func (buf *buffer) WriteFloat64(float float64) (int, error) {
+func (buf *bufferEx) WriteFloat64(float float64) int {
 	bits := math.Float64bits(float)
 	binary.BigEndian.PutUint64(buf.dataBuffer[buf.dataOffset:buf.dataOffset+8], bits)
 	buf.dataOffset += 8
-	return 8, nil
+	return 8
 }
 
-func (buf *buffer) WriteByte(b byte) error {
+func (buf *bufferEx) WriteByte(b byte) {
 	buf.dataBuffer[buf.dataOffset] = b
 	buf.dataOffset++
-	return nil
 }
 
-func (buf *buffer) WriteString(s string) (int, error) {
+func (buf *bufferEx) WriteString(s string) (int, error) {
 	copy(buf.dataBuffer[buf.dataOffset:buf.dataOffset+len(s)], s)
 	buf.dataOffset += len(s)
 	return len(s), nil
 }
 
-func (buf *buffer) Write(b []byte) (int, error) {
+func (buf *bufferEx) Write(b []byte) (int, error) {
 	copy(buf.dataBuffer[buf.dataOffset:buf.dataOffset+len(b)], b)
 	buf.dataOffset += len(b)
 	return len(b), nil

@@ -20,16 +20,16 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Geo Spacial Tests", func() {
+var _ = gg.Describe("Geo Spacial Tests", func() {
 
-	BeforeEach(func() {
+	gg.BeforeEach(func() {
 		if !featureEnabled("geo") {
-			Skip("Geo Tests will not run since feature is not supported by the server.")
+			gg.Skip("Geo Tests will not run since feature is not supported by the server.")
 			return
 		}
 	})
@@ -44,7 +44,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 
 	var binName = "GeoBin"
 
-	It("must Query a specific Region Containing a Point and get only relevant records back", func() {
+	gg.It("must Query a specific Region Containing a Point and get only relevant records back", func() {
 
 		regions := []string{
 			`{
@@ -69,7 +69,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 			key, _ := as.NewKey(ns, set, i)
 			bin := as.NewBin(binName, as.NewGeoJSONValue(ptsb))
 			err := client.PutBins(wpolicy, key, bin)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		}
 
 		// queries only work on indices
@@ -77,10 +77,10 @@ var _ = Describe("Geo Spacial Tests", func() {
 		time.Sleep(time.Second)
 
 		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// wait until index is created
-		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+		gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 		defer client.DropIndex(wpolicy, ns, set, set+binName)
 
@@ -97,21 +97,21 @@ var _ = Describe("Geo Spacial Tests", func() {
 			stm := as.NewStatement(ns, set)
 			stm.SetFilter(as.NewGeoWithinRegionFilter(binName, rgnsb))
 			recordset, err := client.Query(nil, stm)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			count := 0
 			for res := range recordset.Results() {
-				Expect(res.Err).ToNot(HaveOccurred())
-				Expect(regions).To(ContainElement(res.Record.Bins[binName].(string)))
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				gm.Expect(regions).To(gm.ContainElement(res.Record.Bins[binName].(string)))
 				count++
 			}
 
 			// 1 region should be found
-			Expect(count).To(Equal(1))
+			gm.Expect(count).To(gm.Equal(1))
 		}
 	})
 
-	It("must Query a specific Point in Region and get only relevant records back", func() {
+	gg.It("must Query a specific Point in Region and get only relevant records back", func() {
 		points := []string{}
 		for i := 0; i < size; i++ {
 			lng := -122.0 + (0.1 * float64(i))
@@ -127,7 +127,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 			key, _ := as.NewKey(ns, set, i)
 			bin := as.NewBin(binName, as.NewGeoJSONValue(ptsb))
 			err := client.PutBins(wpolicy, key, bin)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		}
 
 		// queries only work on indices
@@ -135,10 +135,10 @@ var _ = Describe("Geo Spacial Tests", func() {
 		time.Sleep(time.Second)
 
 		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// wait until index is created
-		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+		gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 		defer client.DropIndex(wpolicy, ns, set, set+binName)
 
@@ -154,20 +154,20 @@ var _ = Describe("Geo Spacial Tests", func() {
 		stm := as.NewStatement(ns, set)
 		stm.SetFilter(as.NewGeoRegionsContainingPointFilter(binName, rgnsb))
 		recordset, err := client.Query(nil, stm)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		count := 0
 		for res := range recordset.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
-			Expect(points).To(ContainElement(res.Record.Bins[binName].(string)))
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			gm.Expect(points).To(gm.ContainElement(res.Record.Bins[binName].(string)))
 			count++
 		}
 
 		// 6 points should be found
-		Expect(count).To(Equal(6))
+		gm.Expect(count).To(gm.Equal(6))
 	})
 
-	It("must Query specific Points in Region denoted by a point and radius and get only relevant records back", func() {
+	gg.It("must Query specific Points in Region denoted by a point and radius and get only relevant records back", func() {
 		points := []string{}
 		for i := 0; i < size; i++ {
 			lng := -122.0 + (0.1 * float64(i))
@@ -183,7 +183,7 @@ var _ = Describe("Geo Spacial Tests", func() {
 			key, _ := as.NewKey(ns, set, i)
 			bin := as.NewBin(binName, as.NewGeoJSONValue(ptsb))
 			err := client.PutBins(wpolicy, key, bin)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		}
 
 		// queries only work on indices
@@ -191,10 +191,10 @@ var _ = Describe("Geo Spacial Tests", func() {
 		time.Sleep(time.Second)
 
 		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// wait until index is created
-		Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+		gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 		defer client.DropIndex(wpolicy, ns, set, set+binName)
 
@@ -205,17 +205,17 @@ var _ = Describe("Geo Spacial Tests", func() {
 		stm := as.NewStatement(ns, set)
 		stm.SetFilter(as.NewGeoWithinRadiusFilter(binName, lon, lat, radius))
 		recordset, err := client.Query(nil, stm)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		count := 0
 		for res := range recordset.Results() {
-			Expect(res.Err).ToNot(HaveOccurred())
-			Expect(points).To(ContainElement(res.Record.Bins[binName].(string)))
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			gm.Expect(points).To(gm.ContainElement(res.Record.Bins[binName].(string)))
 			count++
 		}
 
 		// 6 points should be found
-		Expect(count).To(Equal(4))
+		gm.Expect(count).To(gm.Equal(4))
 	})
 
 })

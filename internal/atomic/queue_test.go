@@ -17,41 +17,41 @@ package atomic_test
 import (
 	"runtime"
 
-	. "github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 type testStruct struct{ i int }
 
-var _ = Describe("Atomic Queue", func() {
+var _ = gg.Describe("Atomic Queue", func() {
 	// atomic tests require actual parallelism
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	var qcap int
-	var q *AtomicQueue
+	var q *atomic.Queue
 	var elem interface{}
 
-	BeforeEach(func() {
+	gg.BeforeEach(func() {
 		qcap = 10
-		q = NewAtomicQueue(qcap)
+		q = atomic.NewQueue(qcap)
 	})
 
-	It("must Offer() more elements than queue's capacity, and still not block", func() {
+	gg.It("must Offer() more elements than queue's capacity, and still not block", func() {
 		for i := 0; i < 2*qcap; i++ {
 			q.Offer(&testStruct{})
 		}
 	})
 
-	It("must Poll() more elements than queue's capacity, and still not block", func() {
+	gg.It("must Poll() more elements than queue's capacity, and still not block", func() {
 		for i := 0; i < 2*qcap; i++ {
 			elem = q.Poll()
 		}
-		Expect(elem).To(BeNil())
+		gm.Expect(elem).To(gm.BeNil())
 	})
 
-	It("must Offer() more elements than queue's capacity, and Poll() as many as capacity", func() {
+	gg.It("must Offer() more elements than queue's capacity, and Poll() as many as capacity", func() {
 		// test for many iterations
 		for j := 0; j < 10; j++ {
 			for i := 0; i < 2*qcap; i++ {
@@ -61,9 +61,9 @@ var _ = Describe("Atomic Queue", func() {
 			for i := 0; i < 2*qcap; i++ {
 				obj := q.Poll()
 				if i < qcap {
-					Expect(obj.(*testStruct).i).To(Equal(i))
+					gm.Expect(obj.(*testStruct).i).To(gm.Equal(i))
 				} else {
-					Expect(obj).To(BeNil())
+					gm.Expect(obj).To(gm.BeNil())
 				}
 			}
 		}

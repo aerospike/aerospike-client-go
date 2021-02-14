@@ -31,6 +31,7 @@ func main() {
 	log.Println("Example finished successfully.")
 }
 
+// Metrics is a custom data type
 type Metrics struct {
 	count int
 	total int

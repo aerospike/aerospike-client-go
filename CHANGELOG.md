@@ -1,10 +1,17 @@
 # Change History
 
-## February 16 2021: v4.3.0
+## February 15 2021: v4.3.0
+  Minor fix and major clean up release. While there aren't many user facing changes, the quality of the code has been markedly improved. 
+  This release puts us on a good footing for the next few bigger releases.
+
+  * **Fixes**
+
+    - Fixes an issue where if errors and filtered records happened at the msame time in Batch requests, no error would be returned to the user.
 
   * **Improvements**
 
-    - Fixes copy/paste naming errors in the documentation. Shame on me! Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
+    - Fixes code samples in documentation, typos, etc.
+    - Fixes copy/paste naming errors in the documentation. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
     - Removes a few unreachable lines from the code. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
 
 ## February 12 2021: v4.2.0

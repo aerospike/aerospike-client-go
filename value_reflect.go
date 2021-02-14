@@ -24,6 +24,7 @@ func init() {
 	newValueReflect = concreteNewValueReflect
 }
 
+// if the returned value is nil, the caller will panic
 func concreteNewValueReflect(v interface{}) Value {
 	// check for array and map
 	rv := reflect.ValueOf(v)

@@ -21,267 +21,268 @@ import "fmt"
 type ResultCode int
 
 const (
-	// Max retries limit reached.
+	// MAX_RETRIES_EXCEEDED defines max retries limit reached.
 	MAX_RETRIES_EXCEEDED ResultCode = -16
 
-	// Max errors limit reached.
+	// MAX_ERROR_RATE defines max errors limit reached.
 	MAX_ERROR_RATE ResultCode = -15
 
-	// Requested Rack for node/namespace was not defined in the cluster.
+	// RACK_NOT_DEFINED defines requested Rack for node/namespace was not defined in the cluster.
 	RACK_NOT_DEFINED ResultCode = -13
 
-	// Cluster has an invalid partition map, usually due to bad configuration.
+	// INVALID_CLUSTER_PARTITION_MAP defines cluster has an invalid partition map, usually due to bad configuration.
 	INVALID_CLUSTER_PARTITION_MAP ResultCode = -12
 
-	// Server is not accepting requests.
+	// SERVER_NOT_AVAILABLE defines server is not accepting requests.
 	SERVER_NOT_AVAILABLE ResultCode = -11
 
-	// Cluster Name does not match the ClientPolicy.ClusterName value.
+	// CLUSTER_NAME_MISMATCH_ERROR defines cluster Name does not match the ClientPolicy.ClusterName value.
 	CLUSTER_NAME_MISMATCH_ERROR ResultCode = -10
 
-	// Recordset has already been closed or cancelled
+	// RECORDSET_CLOSED defines recordset has already been closed or cancelled
 	RECORDSET_CLOSED ResultCode = -9
 
-	// There were no connections available to the node in the pool, and the pool was limited
+	// NO_AVAILABLE_CONNECTIONS_TO_NODE defines there were no connections available to the node in the pool, and the pool was limited
 	NO_AVAILABLE_CONNECTIONS_TO_NODE ResultCode = -8
 
-	// Data type is not supported by aerospike server.
+	// TYPE_NOT_SUPPORTED defines data type is not supported by aerospike server.
 	TYPE_NOT_SUPPORTED ResultCode = -7
 
-	// Info Command was rejected by the server.
+	// COMMAND_REJECTED defines info Command was rejected by the server.
 	COMMAND_REJECTED ResultCode = -6
 
-	// Query was terminated by user.
+	// QUERY_TERMINATED defines query was terminated by user.
 	QUERY_TERMINATED ResultCode = -5
 
-	// Scan was terminated by user.
+	// SCAN_TERMINATED defines scan was terminated by user.
 	SCAN_TERMINATED ResultCode = -4
 
-	// Chosen node is not currently active.
+	// INVALID_NODE_ERROR defines chosen node is not currently active.
 	INVALID_NODE_ERROR ResultCode = -3
 
-	// Client parse error.
+	// PARSE_ERROR defines client parse error.
 	PARSE_ERROR ResultCode = -2
 
-	// Client serialization error.
+	// SERIALIZE_ERROR defines client serialization error.
 	SERIALIZE_ERROR ResultCode = -1
 
-	// Operation was successful.
+	// OK defines operation was successful.
 	OK ResultCode = 0
 
-	// Unknown server failure.
+	// SERVER_ERROR defines unknown server failure.
 	SERVER_ERROR ResultCode = 1
 
-	// On retrieving, touching or replacing a record that doesn't exist.
+	// KEY_NOT_FOUND_ERROR defines on retrieving, touching or replacing a record that doesn't exist.
 	KEY_NOT_FOUND_ERROR ResultCode = 2
 
-	// On modifying a record with unexpected generation.
+	// GENERATION_ERROR defines on modifying a record with unexpected generation.
 	GENERATION_ERROR ResultCode = 3
 
-	// Bad parameter(s) were passed in database operation call.
+	// PARAMETER_ERROR defines bad parameter(s) were passed in database operation call.
 	PARAMETER_ERROR ResultCode = 4
 
-	// On create-only (write unique) operations on a record that already
+	// KEY_EXISTS_ERROR defines on create-only (write unique) operations on a record that already
 	// exists.
 	KEY_EXISTS_ERROR ResultCode = 5
 
-	// Bin already exists on a create-only operation.
+	// BIN_EXISTS_ERROR defines bin already exists on a create-only operation.
 	BIN_EXISTS_ERROR ResultCode = 6
 
-	// Expected cluster ID was not received.
+	// CLUSTER_KEY_MISMATCH defines expected cluster ID was not received.
 	CLUSTER_KEY_MISMATCH ResultCode = 7
 
-	// Server has run out of memory.
+	// SERVER_MEM_ERROR defines server has run out of memory.
 	SERVER_MEM_ERROR ResultCode = 8
 
-	// Client or server has timed out.
+	// TIMEOUT defines client or server has timed out.
 	TIMEOUT ResultCode = 9
 
-	// Operation not allowed in current configuration.
+	// ALWAYS_FORBIDDEN defines operation not allowed in current configuration.
 	ALWAYS_FORBIDDEN ResultCode = 10
 
-	// Partition is unavailable.
+	// PARTITION_UNAVAILABLE defines partition is unavailable.
 	PARTITION_UNAVAILABLE ResultCode = 11
 
-	// Operation is not supported with configured bin type (single-bin or
+	// BIN_TYPE_ERROR defines operation is not supported with configured bin type (single-bin or
 	// multi-bin).
 	BIN_TYPE_ERROR ResultCode = 12
 
-	// Record size exceeds limit.
+	// RECORD_TOO_BIG defines record size exceeds limit.
 	RECORD_TOO_BIG ResultCode = 13
 
-	// Too many concurrent operations on the same record.
+	// KEY_BUSY defines too many concurrent operations on the same record.
 	KEY_BUSY ResultCode = 14
 
-	// Scan aborted by server.
+	// SCAN_ABORT defines scan aborted by server.
 	SCAN_ABORT ResultCode = 15
 
-	// Unsupported Server Feature (e.g. Scan + UDF)
+	// UNSUPPORTED_FEATURE defines unsupported Server Feature (e.g. Scan + UDF)
 	UNSUPPORTED_FEATURE ResultCode = 16
 
-	// Bin not found on update-only operation.
+	// BIN_NOT_FOUND defines bin not found on update-only operation.
 	BIN_NOT_FOUND ResultCode = 17
 
-	// Device not keeping up with writes.
+	// DEVICE_OVERLOAD defines device not keeping up with writes.
 	DEVICE_OVERLOAD ResultCode = 18
 
-	// Key type mismatch.
+	// KEY_MISMATCH defines key type mismatch.
 	KEY_MISMATCH ResultCode = 19
 
-	// Invalid namespace.
+	// INVALID_NAMESPACE defines invalid namespace.
 	INVALID_NAMESPACE ResultCode = 20
 
-	// Bin name length greater than 14 characters,
+	// BIN_NAME_TOO_LONG defines bin name length greater than 14 characters,
 	// or maximum number of unique bin names are exceeded.
 	BIN_NAME_TOO_LONG ResultCode = 21
 
-	// Operation not allowed at this time.
+	// FAIL_FORBIDDEN defines operation not allowed at this time.
 	FAIL_FORBIDDEN ResultCode = 22
 
-	// Element Not Found in CDT
+	// FAIL_ELEMENT_NOT_FOUND defines element Not Found in CDT
 	FAIL_ELEMENT_NOT_FOUND ResultCode = 23
 
-	// Element Already Exists in CDT
+	// FAIL_ELEMENT_EXISTS defines element Already Exists in CDT
 	FAIL_ELEMENT_EXISTS ResultCode = 24
 
-	// Attempt to use an Enterprise feature on a Community server or a server
+	// ENTERPRISE_ONLY defines attempt to use an Enterprise feature on a Community server or a server
 	// without the applicable feature key.
 	ENTERPRISE_ONLY ResultCode = 25
 
-	// The operation cannot be applied to the current bin value on the server.
+	// OP_NOT_APPLICABLE defines the operation cannot be applied to the current bin value on the server.
 	OP_NOT_APPLICABLE ResultCode = 26
 
-	// The transaction was not performed because the filter was false.
+	// FILTERED_OUT defines the transaction was not performed because the filter was false.
 	FILTERED_OUT ResultCode = 27
 
-	// Write command loses conflict to XDR.
+	// LOST_CONFLICT defines write command loses conflict to XDR.
 	LOST_CONFLICT = 28
 
-	// There are no more records left for query.
+	// QUERY_END defines there are no more records left for query.
 	QUERY_END ResultCode = 50
 
-	// Security type not supported by connected server.
+	// SECURITY_NOT_SUPPORTED defines security type not supported by connected server.
 	SECURITY_NOT_SUPPORTED ResultCode = 51
 
-	// Administration command is invalid.
+	// SECURITY_NOT_ENABLED defines administration command is invalid.
 	SECURITY_NOT_ENABLED ResultCode = 52
 
-	// Administration field is invalid.
+	// SECURITY_SCHEME_NOT_SUPPORTED defines administration field is invalid.
 	SECURITY_SCHEME_NOT_SUPPORTED ResultCode = 53
 
-	// Administration command is invalid.
+	// INVALID_COMMAND defines administration command is invalid.
 	INVALID_COMMAND ResultCode = 54
 
-	// Administration field is invalid.
+	// INVALID_FIELD defines administration field is invalid.
 	INVALID_FIELD ResultCode = 55
 
-	// Security protocol not followed.
+	// ILLEGAL_STATE defines security protocol not followed.
 	ILLEGAL_STATE ResultCode = 56
 
-	// User name is invalid.
+	// INVALID_USER defines user name is invalid.
 	INVALID_USER ResultCode = 60
 
-	// User was previously created.
+	// USER_ALREADY_EXISTS defines user was previously created.
 	USER_ALREADY_EXISTS ResultCode = 61
 
-	// Password is invalid.
+	// INVALID_PASSWORD defines password is invalid.
 	INVALID_PASSWORD ResultCode = 62
 
-	// Security credential is invalid.
+	// EXPIRED_PASSWORD defines security credential is invalid.
 	EXPIRED_PASSWORD ResultCode = 63
 
-	// Forbidden password (e.g. recently used)
+	// FORBIDDEN_PASSWORD defines forbidden password (e.g. recently used)
 	FORBIDDEN_PASSWORD ResultCode = 64
 
-	// Security credential is invalid.
+	// INVALID_CREDENTIAL defines security credential is invalid.
 	INVALID_CREDENTIAL ResultCode = 65
 
-	// Login session expired.
+	// EXPIRED_SESSION defines login session expired.
 	EXPIRED_SESSION ResultCode = 66
 
-	// Role name is invalid.
+	// INVALID_ROLE defines role name is invalid.
 	INVALID_ROLE ResultCode = 70
 
-	// Role already exists.
+	// ROLE_ALREADY_EXISTS defines role already exists.
 	ROLE_ALREADY_EXISTS ResultCode = 71
 
-	// Privilege is invalid.
+	// INVALID_PRIVILEGE defines privilege is invalid.
 	INVALID_PRIVILEGE ResultCode = 72
 
-	// Invalid IP address whiltelist
+	// INVALID_WHITELIST defines invalid IP address whiltelist
 	INVALID_WHITELIST = 73
 
-	// User must be authentication before performing database operations.
+	// NOT_AUTHENTICATED defines user must be authentication before performing database operations.
 	NOT_AUTHENTICATED ResultCode = 80
 
-	// User does not posses the required role to perform the database operation.
+	// ROLE_VIOLATION defines user does not posses the required role to perform the database operation.
 	ROLE_VIOLATION ResultCode = 81
 
-	// Command not allowed because sender IP address not whitelisted.
+	// NOT_WHITELISTED defines command not allowed because sender IP address not whitelisted.
 	NOT_WHITELISTED = 82
 
-	// A user defined function returned an error code.
+	// UDF_BAD_RESPONSE defines a user defined function returned an error code.
 	UDF_BAD_RESPONSE ResultCode = 100
 
-	// Batch functionality has been disabled.
+	// BATCH_DISABLED defines batch functionality has been disabled.
 	BATCH_DISABLED ResultCode = 150
 
-	// Batch max requests have been exceeded.
+	// BATCH_MAX_REQUESTS_EXCEEDED defines batch max requests have been exceeded.
 	BATCH_MAX_REQUESTS_EXCEEDED ResultCode = 151
 
-	// All batch queues are full.
+	// BATCH_QUEUES_FULL defines all batch queues are full.
 	BATCH_QUEUES_FULL ResultCode = 152
 
-	// Invalid GeoJSON on insert/update
+	// GEO_INVALID_GEOJSON defines invalid GeoJSON on insert/update
 	GEO_INVALID_GEOJSON ResultCode = 160
 
-	// Secondary index already exists.
+	// INDEX_FOUND defines secondary index already exists.
 	INDEX_FOUND ResultCode = 200
 
-	// Requested secondary index does not exist.
+	// INDEX_NOTFOUND defines requested secondary index does not exist.
 	INDEX_NOTFOUND ResultCode = 201
 
-	// Secondary index memory space exceeded.
+	// INDEX_OOM defines secondary index memory space exceeded.
 	INDEX_OOM ResultCode = 202
 
-	// Secondary index not available.
+	// INDEX_NOTREADABLE defines secondary index not available.
 	INDEX_NOTREADABLE ResultCode = 203
 
-	// Generic secondary index error.
+	// INDEX_GENERIC defines generic secondary index error.
 	INDEX_GENERIC ResultCode = 204
 
-	// Index name maximum length exceeded.
+	// INDEX_NAME_MAXLEN defines index name maximum length exceeded.
 	INDEX_NAME_MAXLEN ResultCode = 205
 
-	// Maximum number of indexes exceeded.
+	// INDEX_MAXCOUNT defines maximum number of indexes exceeded.
 	INDEX_MAXCOUNT ResultCode = 206
 
-	// Secondary index query aborted.
+	// QUERY_ABORTED defines secondary index query aborted.
 	QUERY_ABORTED ResultCode = 210
 
-	// Secondary index queue full.
+	// QUERY_QUEUEFULL defines secondary index queue full.
 	QUERY_QUEUEFULL ResultCode = 211
 
-	// Secondary index query timed out on server.
+	// QUERY_TIMEOUT defines secondary index query timed out on server.
 	QUERY_TIMEOUT ResultCode = 212
 
-	// Generic query error.
+	// QUERY_GENERIC defines generic query error.
 	QUERY_GENERIC ResultCode = 213
 
-	// Query NetIO error on server
+	// QUERY_NETIO_ERR defines query NetIO error on server
 	QUERY_NETIO_ERR ResultCode = 214
 
-	// Duplicate TaskId sent for the statement
+	// QUERY_DUPLICATE defines duplicate TaskId sent for the statement
 	QUERY_DUPLICATE ResultCode = 215
 
-	// UDF does not exist.
+	// AEROSPIKE_ERR_UDF_NOT_FOUND defines uDF does not exist.
 	AEROSPIKE_ERR_UDF_NOT_FOUND ResultCode = 1301
 
-	// LUA file does not exist.
+	// AEROSPIKE_ERR_LUA_FILE_NOT_FOUND defines lUA file does not exist.
 	AEROSPIKE_ERR_LUA_FILE_NOT_FOUND ResultCode = 1302
 )
 
-// Should connection be put back into pool.
+// KeepConnection decides if a connection should be kept
+// based on the error type.
 func KeepConnection(err error) bool {
 	// if error is not an AerospikeError, Throw the connection away conservatively
 	ae, ok := err.(AerospikeError)
@@ -310,7 +311,7 @@ func KeepConnection(err error) bool {
 	}
 }
 
-// Return result code as a string.
+// ResultCodeToString returns a human readable errors message based on the result code.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
 

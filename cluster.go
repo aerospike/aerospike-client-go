@@ -24,29 +24,29 @@ import (
 	"sync/atomic"
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go/logger"
 	"golang.org/x/sync/errgroup"
 
-	. "github.com/aerospike/aerospike-client-go/internal/atomic"
-	. "github.com/aerospike/aerospike-client-go/types"
+	iatomic "github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
 type Cluster struct {
 	// Initial host nodes specified by user.
-	seeds SyncVal //[]*Host
+	seeds iatomic.SyncVal //[]*Host
 
 	// All aliases for all nodes in cluster.
 	// Only accessed within cluster tend goroutine.
-	aliases SyncVal //map[Host]*Node
+	aliases iatomic.SyncVal //map[Host]*Node
 
 	// Map of active nodes in cluster.
 	// Only accessed within cluster tend goroutine.
-	nodesMap SyncVal //map[string]*Node
+	nodesMap iatomic.SyncVal //map[string]*Node
 
 	// Active nodes in cluster.
-	nodes     SyncVal               //[]*Node
+	nodes     iatomic.SyncVal       //[]*Node
 	stats     map[string]*nodeStats //host => stats
 	statsLock sync.Mutex
 
@@ -55,24 +55,24 @@ type Cluster struct {
 
 	clientPolicy        ClientPolicy
 	infoPolicy          InfoPolicy
-	connectionThreshold AtomicInt // number of parallel opening connections
+	connectionThreshold iatomic.Int // number of parallel opening connections
 
 	nodeIndex    uint64 // only used via atomic operations
 	replicaIndex uint64 // only used via atomic operations
 
 	wgTend      sync.WaitGroup
 	tendChannel chan struct{}
-	closed      AtomicBool
+	closed      iatomic.Bool
 	tendCount   int
 
 	// Aerospike v3.6.0+
-	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPartitionScans *AtomicBool
+	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPartitionScans *iatomic.Bool
 
 	// User name in UTF-8 encoded bytes.
 	user string
 
 	// Password in hashed format in bytes.
-	password SyncVal // []byte
+	password iatomic.SyncVal // []byte
 }
 
 // NewCluster generates a Cluster instance.
@@ -106,19 +106,19 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		infoPolicy:   InfoPolicy{Timeout: policy.Timeout},
 		tendChannel:  make(chan struct{}),
 
-		seeds:    *NewSyncVal(hosts),
-		aliases:  *NewSyncVal(make(map[Host]*Node)),
-		nodesMap: *NewSyncVal(make(map[string]*Node)),
-		nodes:    *NewSyncVal([]*Node{}),
+		seeds:    *iatomic.NewSyncVal(hosts),
+		aliases:  *iatomic.NewSyncVal(make(map[Host]*Node)),
+		nodesMap: *iatomic.NewSyncVal(make(map[string]*Node)),
+		nodes:    *iatomic.NewSyncVal([]*Node{}),
 		stats:    map[string]*nodeStats{},
 
-		password: *NewSyncVal(nil),
+		password: *iatomic.NewSyncVal(nil),
 
-		supportsFloat:          NewAtomicBool(false),
-		supportsBatchIndex:     NewAtomicBool(false),
-		supportsReplicas:       NewAtomicBool(false),
-		supportsGeo:            NewAtomicBool(false),
-		supportsPartitionScans: NewAtomicBool(false),
+		supportsFloat:          iatomic.NewBool(false),
+		supportsBatchIndex:     iatomic.NewBool(false),
+		supportsReplicas:       iatomic.NewBool(false),
+		supportsGeo:            iatomic.NewBool(false),
+		supportsPartitionScans: iatomic.NewBool(false),
 	}
 
 	newCluster.partitionWriteMap.Store(make(partitionMap))
@@ -134,7 +134,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		if err != nil {
 			return nil, err
 		}
-		newCluster.password = *NewSyncVal(hashedPass)
+		newCluster.password = *iatomic.NewSyncVal(hashedPass)
 	}
 
 	// try to seed connections for first use
@@ -153,9 +153,9 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	go newCluster.clusterBoss(&newCluster.clientPolicy)
 
 	if err == nil {
-		Logger.Debug("New cluster initialized and ready to be used...")
+		logger.Logger.Debug("New cluster initialized and ready to be used...")
 	} else {
-		Logger.Error("New cluster was not initialized successfully, but the client will keep trying to connect to the database. Error: %s", err.Error())
+		logger.Logger.Error("New cluster was not initialized successfully, but the client will keep trying to connect to the database. Error: %s", err.Error())
 	}
 
 	return newCluster, err
@@ -169,11 +169,11 @@ func (clstr *Cluster) String() string {
 // Maintains the cluster on intervals.
 // All clean up code for cluster is here as well.
 func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
-	Logger.Info("Starting the cluster tend goroutine...")
+	logger.Logger.Info("Starting the cluster tend goroutine...")
 
 	defer func() {
 		if r := recover(); r != nil {
-			Logger.Error("Cluster tend goroutine crashed: %s", debug.Stack())
+			logger.Logger.Error("Cluster tend goroutine crashed: %s", debug.Stack())
 			go clstr.clusterBoss(&clstr.clientPolicy)
 		}
 	}()
@@ -190,18 +190,18 @@ Loop:
 		select {
 		case <-clstr.tendChannel:
 			// tend channel closed
-			Logger.Debug("Tend channel closed. Shutting down the cluster...")
+			logger.Logger.Debug("Tend channel closed. Shutting down the cluster...")
 			break Loop
 		case <-time.After(tendInterval):
 			tm := time.Now()
 			if err := clstr.tend(); err != nil {
-				Logger.Warn(err.Error())
+				logger.Logger.Warn(err.Error())
 			}
 
 			// Tending took longer than requested tend interval.
 			// Tending is too slow for the cluster, and may be falling behind scheule.
 			if tendDuration := time.Since(tm); tendDuration > clstr.clientPolicy.TendInterval {
-				Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clstr.clientPolicy.TendInterval)
+				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clstr.clientPolicy.TendInterval)
 			}
 		}
 	}
@@ -233,7 +233,7 @@ func (clstr *Cluster) tend() error {
 	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
 	if len(nodes) == 0 {
-		Logger.Info("No connections available; seeding...")
+		logger.Logger.Info("No connections available; seeding...")
 		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
 			return err
 		}
@@ -259,7 +259,7 @@ func (clstr *Cluster) tend() error {
 		go func(node *Node) {
 			defer wg.Done()
 			if err := node.Refresh(peers); err != nil {
-				Logger.Debug("Error occurred while refreshing node: %s", node.String())
+				logger.Logger.Debug("Error occurred while refreshing node: %s", node.String())
 			}
 		}(node)
 	}
@@ -280,7 +280,7 @@ func (clstr *Cluster) tend() error {
 		wg.Wait()
 	}
 
-	var partitionMap partitionMap
+	var partMap partitionMap
 
 	// Use the following function to allocate memory for the partitionMap on demand.
 	// This will prevent the allocation when the cluster is stable, and make tend a bit faster.
@@ -288,8 +288,8 @@ func (clstr *Cluster) tend() error {
 	setPartitionMap := func(l *sync.Mutex) {
 		l.Lock()
 		defer l.Unlock()
-		if partitionMap == nil {
-			partitionMap = clstr.getPartitions().clone()
+		if partMap == nil {
+			partMap = clstr.getPartitions().clone()
 		}
 	}
 
@@ -307,13 +307,13 @@ func (clstr *Cluster) tend() error {
 				// attempt connection to the host
 				nv := nodeValidator{}
 				if err := nv.validateNode(clstr, host); err != nil {
-					Logger.Warn("Add node `%s` failed: `%s`", host, err)
+					logger.Logger.Warn("Add node `%s` failed: `%s`", host, err)
 					continue
 				}
 
 				// Must look for new node name in the unlikely event that node names do not agree.
 				if __peer.nodeName != nv.name {
-					Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", __peer.nodeName, nv.name, host)
+					logger.Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", __peer.nodeName, nv.name, host)
 				}
 
 				if clstr.peerExists(peers, nv.name) {
@@ -325,7 +325,7 @@ func (clstr *Cluster) tend() error {
 				node := clstr.createNode(&nv)
 				peers.addNode(nv.name, node)
 				setPartitionMap(pmlock)
-				node.refreshPartitions(peers, partitionMap)
+				node.refreshPartitions(peers, partMap)
 				break
 			}
 		}(_peer)
@@ -338,7 +338,7 @@ func (clstr *Cluster) tend() error {
 			defer wg.Done()
 			if node.partitionChanged.Get() {
 				setPartitionMap(pmlock)
-				node.refreshPartitions(peers, partitionMap)
+				node.refreshPartitions(peers, partMap)
 			}
 		}(node)
 	}
@@ -353,7 +353,7 @@ func (clstr *Cluster) tend() error {
 		// Remove nodes in a batch.
 		if len(removeList) > 0 {
 			for _, n := range removeList {
-				Logger.Debug("The following nodes will be removed: %s", n)
+				logger.Logger.Debug("The following nodes will be removed: %s", n)
 			}
 			clstr.removeNodes(removeList)
 		}
@@ -391,7 +391,7 @@ func (clstr *Cluster) tend() error {
 	clstr.supportsPartitionScans.Set(supportsPartitionScans)
 
 	if !floatSupport {
-		Logger.Warn("Some cluster nodes do not support float type. Disabling native float support in the client library...")
+		logger.Logger.Warn("Some cluster nodes do not support float type. Disabling native float support in the client library...")
 	}
 
 	// update all partitions in one go
@@ -404,16 +404,16 @@ func (clstr *Cluster) tend() error {
 	}
 
 	if updatePartitionMap {
-		clstr.setPartitions(partitionMap)
+		clstr.setPartitions(partMap)
 	}
 
 	if err := clstr.getPartitions().validate(); err != nil {
-		Logger.Error("Error validating the cluster partition map after tend: %s", err.Error())
+		logger.Logger.Error("Error validating the cluster partition map after tend: %s", err.Error())
 	}
 
 	// only log if node count is changed
 	if nodeCountBeforeTend != len(clstr.GetNodes()) {
-		Logger.Info("Tend finished. Live node count changes from %d to %d", nodeCountBeforeTend, len(clstr.GetNodes()))
+		logger.Logger.Info("Tend finished. Live node count changes from %d to %d", nodeCountBeforeTend, len(clstr.GetNodes()))
 	}
 
 	clstr.aggregateNodestats(clstr.GetNodes())
@@ -501,14 +501,14 @@ func (clstr *Cluster) waitTillStabilized() error {
 		var err error
 		for {
 			if err = clstr.tend(); err != nil {
-				if aerr, ok := err.(AerospikeError); ok {
+				if aerr, ok := err.(types.AerospikeError); ok {
 					switch aerr.ResultCode() {
-					case NOT_AUTHENTICATED, CLUSTER_NAME_MISMATCH_ERROR:
+					case types.NOT_AUTHENTICATED, types.CLUSTER_NAME_MISMATCH_ERROR:
 						doneCh <- err
 						return
 					}
 				}
-				Logger.Warn(err.Error())
+				logger.Logger.Warn(err.Error())
 			}
 
 			// // if there are no errors in connecting to the cluster, then validate the partition table
@@ -554,7 +554,7 @@ func (clstr *Cluster) findAlias(alias *Host) *Node {
 
 func (clstr *Cluster) setPartitions(partMap partitionMap) {
 	if err := partMap.validate(); err != nil {
-		Logger.Error("Partition map error: %s.", err.Error())
+		logger.Logger.Error("Partition map error: %s.", err.Error())
 	}
 
 	clstr.partitionWriteMap.Store(partMap)
@@ -600,7 +600,7 @@ func (clstr *Cluster) seedNodes() (bool, error) {
 	successChan := make(chan struct{}, len(seedArray))
 	errChan := make(chan error, len(seedArray))
 
-	Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
+	logger.Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
 	// Add all nodes at once to avoid copying entire array multiple times.
 	for i, seed := range seedArray {
@@ -609,7 +609,7 @@ func (clstr *Cluster) seedNodes() (bool, error) {
 			nv := nodeValidator{}
 			err := nv.seedNodes(clstr, seed, nodesToAdd)
 			if err != nil {
-				Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
+				logger.Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
 				errChan <- err
 				return
 			}
@@ -641,11 +641,11 @@ L:
 	var errStrs []string
 	for _, err := range errorList {
 		if err != nil {
-			if aerr, ok := err.(AerospikeError); ok {
+			if aerr, ok := err.(types.AerospikeError); ok {
 				switch aerr.ResultCode() {
-				case NOT_AUTHENTICATED:
-					return false, NewAerospikeError(NOT_AUTHENTICATED)
-				case CLUSTER_NAME_MISMATCH_ERROR:
+				case types.NOT_AUTHENTICATED:
+					return false, types.NewAerospikeError(types.NOT_AUTHENTICATED)
+				case types.CLUSTER_NAME_MISMATCH_ERROR:
 					return false, aerr
 				}
 			}
@@ -653,7 +653,7 @@ L:
 		}
 	}
 
-	return false, NewAerospikeError(INVALID_NODE_ERROR, "Failed to connect to hosts:"+strings.Join(errStrs, "\n"))
+	return false, types.NewAerospikeError(types.INVALID_NODE_ERROR, "Failed to connect to hosts:"+strings.Join(errStrs, "\n"))
 }
 
 func (clstr *Cluster) createNode(nv *nodeValidator) *Node {
@@ -675,16 +675,6 @@ func (clstr *Cluster) addAlias(host *Host, node *Node) {
 		clstr.aliases.Update(func(val interface{}) (interface{}, error) {
 			aliases := val.(map[Host]*Node)
 			aliases[*host] = node
-			return aliases, nil
-		})
-	}
-}
-
-func (clstr *Cluster) removeAlias(alias *Host) {
-	if alias != nil {
-		clstr.aliases.Update(func(val interface{}) (interface{}, error) {
-			aliases := val.(map[Host]*Node)
-			delete(aliases, *alias)
 			return aliases, nil
 		})
 	}
@@ -733,9 +723,9 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 }
 
 func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
-	partitionMap := clstr.getPartitions()
+	partMap := clstr.getPartitions()
 
-	for _, partitions := range partitionMap {
+	for _, partitions := range partMap {
 		for _, nodeArray := range partitions.Replicas {
 			for _, node := range nodeArray {
 				// Use reference equality for performance.
@@ -753,7 +743,7 @@ func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
 		nodes := val.([]*Node)
 		for _, node := range nodesToAdd {
 			if node != nil && !clstr.findNodeName(nodes, node.name) {
-				Logger.Debug("Adding node %s (%s) to the cluster.", node.name, node.host.String())
+				logger.Logger.Debug("Adding node %s (%s) to the cluster.", node.name, node.host.String())
 				nodes = append(nodes, node)
 			}
 		}
@@ -844,12 +834,12 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 		node := nodeArray[index]
 
 		if node != nil && node.IsActive() {
-			// Logger.Debug("Node `%s` is active. index=%d", node, index)
+			//logger.Logger.Debug("Node `%s` is active. index=%d", node, index)
 			return node, nil
 		}
 	}
 
-	return nil, NewAerospikeError(INVALID_NODE_ERROR, "Cluster is empty.")
+	return nil, types.NewAerospikeError(types.INVALID_NODE_ERROR, "Cluster is empty.")
 }
 
 // GetNodes returns a list of all nodes in the cluster
@@ -894,7 +884,7 @@ func (clstr *Cluster) GetNodeByName(nodeName string) (*Node, error) {
 	node := clstr.findNodeByName(nodeName)
 
 	if node == nil {
-		return nil, NewAerospikeError(INVALID_NODE_ERROR, "Invalid node name"+nodeName)
+		return nil, types.NewAerospikeError(types.INVALID_NODE_ERROR, "Invalid node name"+nodeName)
 	}
 	return node, nil
 }
@@ -954,7 +944,7 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 	for {
 		select {
 		case <-dealine:
-			return false, NewAerospikeError(TIMEOUT)
+			return false, types.NewAerospikeError(types.TIMEOUT)
 		case <-done:
 			return res, err
 		}
@@ -963,7 +953,7 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 
 // WaitUntillMigrationIsFinished will block until all
 // migration operations in the cluster all finished.
-func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err error) {
+func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) error {
 	if timeout <= 0 {
 		timeout = _NO_TIMEOUT
 	}
@@ -983,8 +973,8 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) (err 
 	dealine := time.After(timeout)
 	select {
 	case <-dealine:
-		return NewAerospikeError(TIMEOUT)
-	case err = <-done:
+		return types.NewAerospikeError(types.TIMEOUT)
+	case err := <-done:
 		return err
 	}
 }
@@ -1018,7 +1008,7 @@ func (clstr *Cluster) ClientPolicy() (res ClientPolicy) {
 // Note: One connection per node is reserved for tend operations and is not used for transactions.
 func (clstr *Cluster) WarmUp(count int) (int, error) {
 	var g errgroup.Group
-	cnt := NewAtomicInt(0)
+	cnt := iatomic.NewInt(0)
 	nodes := clstr.GetNodes()
 	for i := range nodes {
 		node := nodes[i]

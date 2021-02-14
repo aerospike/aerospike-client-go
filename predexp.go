@@ -70,10 +70,11 @@ const (
 
 // ----------------
 
+// PredExp represents a predicate expression
 type PredExp interface {
 	String() string
 	marshaledSize() int
-	marshal(*baseCommand) error
+	marshal(*baseCommand)
 }
 
 type predExpBase struct {
@@ -109,10 +110,9 @@ func (e *predExpAnd) marshaledSize() int {
 	return e.predExpBase.marshaledSize() + 2
 }
 
-func (e *predExpAnd) marshal(cmd *baseCommand) error {
+func (e *predExpAnd) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, _AS_PREDEXP_AND, 2)
 	cmd.WriteUint16(e.nexpr)
-	return nil
 }
 
 // ---------------- predExpOr
@@ -136,10 +136,9 @@ func (e *predExpOr) marshaledSize() int {
 	return e.predExpBase.marshaledSize() + 2
 }
 
-func (e *predExpOr) marshal(cmd *baseCommand) error {
+func (e *predExpOr) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, _AS_PREDEXP_OR, 2)
 	cmd.WriteUint16(e.nexpr)
-	return nil
 }
 
 // ---------------- predExpNot
@@ -162,9 +161,8 @@ func (e *predExpNot) marshaledSize() int {
 	return e.predExpBase.marshaledSize()
 }
 
-func (e *predExpNot) marshal(cmd *baseCommand) error {
+func (e *predExpNot) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, _AS_PREDEXP_NOT, 0)
-	return nil
 }
 
 // ---------------- predExpIntegerValue
@@ -188,10 +186,9 @@ func (e *predExpIntegerValue) marshaledSize() int {
 	return e.predExpBase.marshaledSize() + 8
 }
 
-func (e *predExpIntegerValue) marshal(cmd *baseCommand) error {
+func (e *predExpIntegerValue) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, _AS_PREDEXP_INTEGER_VALUE, 8)
 	cmd.WriteInt64(e.val)
-	return nil
 }
 
 // ---------------- predExpStringValue
@@ -215,10 +212,9 @@ func (e *predExpStringValue) marshaledSize() int {
 	return e.predExpBase.marshaledSize() + len(e.val)
 }
 
-func (e *predExpStringValue) marshal(cmd *baseCommand) error {
+func (e *predExpStringValue) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, _AS_PREDEXP_STRING_VALUE, uint32(len(e.val)))
 	cmd.WriteString(e.val)
-	return nil
 }
 
 // ---------------- predExpGeoJSONValue
@@ -245,12 +241,11 @@ func (e *predExpGeoJSONValue) marshaledSize() int {
 		len(e.val) // strlen value
 }
 
-func (e *predExpGeoJSONValue) marshal(cmd *baseCommand) error {
+func (e *predExpGeoJSONValue) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, _AS_PREDEXP_GEOJSON_VALUE, uint32(1+2+len(e.val)))
 	cmd.WriteByte(uint8(0))
 	cmd.WriteUint16(0)
 	cmd.WriteString(e.val)
-	return nil
 }
 
 // ---------------- predExp???Bin
@@ -301,10 +296,9 @@ func (e *predExpBin) marshaledSize() int {
 	return e.predExpBase.marshaledSize() + len(e.name)
 }
 
-func (e *predExpBin) marshal(cmd *baseCommand) error {
+func (e *predExpBin) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, e.tag, uint32(len(e.name)))
 	cmd.WriteString(e.name)
-	return nil
 }
 
 // ---------------- predExp???Var
@@ -340,10 +334,9 @@ func (e *predExpVar) marshaledSize() int {
 	return e.predExpBase.marshaledSize() + len(e.name)
 }
 
-func (e *predExpVar) marshal(cmd *baseCommand) error {
+func (e *predExpVar) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, e.tag, uint32(len(e.name)))
 	cmd.WriteString(e.name)
-	return nil
 }
 
 // ---------------- predExpMD (RecDeviceSize, RecLastUpdate, RecVoidTime)
@@ -373,9 +366,8 @@ func (e *predExpMD) marshaledSize() int {
 	return e.predExpBase.marshaledSize()
 }
 
-func (e *predExpMD) marshal(cmd *baseCommand) error {
+func (e *predExpMD) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, e.tag, 0)
-	return nil
 }
 
 // NewPredExpRecDeviceSize creates record size on disk predicate
@@ -409,10 +401,9 @@ func (e *predExpMDDigestModulo) marshaledSize() int {
 	return e.predExpBase.marshaledSize() + 4
 }
 
-func (e *predExpMDDigestModulo) marshal(cmd *baseCommand) error {
+func (e *predExpMDDigestModulo) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, _AS_PREDEXP_REC_DIGEST_MODULO, 4)
 	cmd.WriteInt32(e.mod)
-	return nil
 }
 
 // NewPredExpRecDigestModulo creates a digest modulo record metadata value predicate expression.
@@ -422,11 +413,11 @@ func (e *predExpMDDigestModulo) marshal(cmd *baseCommand) error {
 //
 // For example, the following sequence of predicate expressions
 // selects records that have digest(key) % 3 == 1):
-// stmt.SetPredExp(
-// 		NewPredExpRecDigestModulo(3),
-// 		NewPredExpIntegerValue(1),
-// 		NewPredExpIntegerEqual(),
-// )
+//  stmt.SetPredExp(
+//  	NewPredExpRecDigestModulo(3),
+//  	NewPredExpIntegerValue(1),
+//  	NewPredExpIntegerEqual(),
+//  )
 func NewPredExpRecDigestModulo(mod int32) PredExp {
 	return &predExpMDDigestModulo{mod: mod}
 }
@@ -468,9 +459,8 @@ func (e *predExpCompare) marshaledSize() int {
 	return e.predExpBase.marshaledSize()
 }
 
-func (e *predExpCompare) marshal(cmd *baseCommand) error {
+func (e *predExpCompare) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, e.tag, 0)
-	return nil
 }
 
 // NewPredExpIntegerEqual creates Equal predicate for integer values
@@ -544,10 +534,9 @@ func (e *predExpStringRegex) marshaledSize() int {
 	return e.predExpBase.marshaledSize() + 4
 }
 
-func (e *predExpStringRegex) marshal(cmd *baseCommand) error {
+func (e *predExpStringRegex) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, _AS_PREDEXP_STRING_REGEX, 4)
 	cmd.WriteUint32(e.cflags)
-	return nil
 }
 
 // ---------------- predExp???Iterate???
@@ -612,8 +601,7 @@ func (e *predExpIter) marshaledSize() int {
 	return e.predExpBase.marshaledSize() + len(e.name)
 }
 
-func (e *predExpIter) marshal(cmd *baseCommand) error {
+func (e *predExpIter) marshal(cmd *baseCommand) {
 	e.marshalTL(cmd, e.tag, uint32(len(e.name)))
 	cmd.WriteString(e.name)
-	return nil
 }

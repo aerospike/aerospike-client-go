@@ -17,17 +17,16 @@ package aerospike
 import (
 	"sync"
 
-	// . "github.com/aerospike/aerospike-client-go/logger"
-	. "github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
 )
 
 type peers struct {
 	_peers       map[string]*peer
 	_hosts       map[Host]struct{}
 	_nodes       map[string]*Node
-	refreshCount AtomicInt
-	usePeers     AtomicBool
-	genChanged   AtomicBool
+	refreshCount atomic.Int
+	usePeers     atomic.Bool
+	genChanged   atomic.Bool
 
 	mutex sync.RWMutex
 }
@@ -37,8 +36,8 @@ func newPeers(peerCapacity int, addCapacity int) *peers {
 		_peers:     make(map[string]*peer, peerCapacity),
 		_hosts:     make(map[Host]struct{}, addCapacity),
 		_nodes:     make(map[string]*Node, addCapacity),
-		usePeers:   *NewAtomicBool(true),
-		genChanged: *NewAtomicBool(true),
+		usePeers:   *atomic.NewBool(true),
+		genChanged: *atomic.NewBool(true),
 	}
 }
 

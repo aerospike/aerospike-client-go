@@ -83,7 +83,7 @@ type ClientPolicy struct {
 	// the exception will never be thrown.
 	//
 	// The counted error types are any error that causes the connection to close (socket errors
-	// and client timeouts) and ResultCode.DEVICE_OVERLOAD.
+	// and client timeouts) and types.ResultCode.DEVICE_OVERLOAD.
 	//
 	// Default: 0
 	MaxErrorRate int

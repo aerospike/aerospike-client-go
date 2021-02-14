@@ -14,6 +14,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
+
 package main
 
 import (
@@ -28,8 +29,8 @@ import (
 	as "github.com/aerospike/aerospike-client-go"
 )
 
-var Host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
-var Port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
+var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
+var port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
 var showUsage = flag.Bool("u", false, "Show usage information.")
 
 var tlsName = flag.String("tlsName", "", "Aerospike server TLS name")
@@ -41,8 +42,8 @@ var clientCertFile = flag.String("clientCertFile", "", "Client Cert File")
 var clientKeyFile = flag.String("clientKeyFile", "", "Client Key File")
 
 func printParams() {
-	log.Printf("hosts:\t\t%s", *Host)
-	log.Printf("port:\t\t%d", *Port)
+	log.Printf("hosts:\t\t%s", *host)
+	log.Printf("port:\t\t%d", *port)
 }
 
 func main() {
@@ -73,7 +74,7 @@ func main() {
 		clientPolicy.TlsConfig = tlsConfig
 	}
 
-	client, err := as.NewClientWithPolicy(clientPolicy, *Host, *Port)
+	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		log.Fatalln("Failed to connect to the server cluster: ", err)
 	}

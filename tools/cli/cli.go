@@ -18,12 +18,11 @@ import (
 	"flag"
 	"log"
 	"os"
-	"strings"
-	// "time"
 	"runtime"
+	"strings"
 
-	. "github.com/aerospike/aerospike-client-go"
-	. "github.com/aerospike/aerospike-client-go/logger"
+	as "github.com/aerospike/aerospike-client-go"
+	asl "github.com/aerospike/aerospike-client-go/logger"
 )
 
 // flag information
@@ -55,14 +54,14 @@ func main() {
 	readFlags()
 
 	// connect to server
-	client, err := NewClient(*host, *port)
+	client, err := as.NewClient(*host, *port)
 	quitOnError(err)
 
-	theKey, err := NewKey(*namespace, *set, *key)
+	theKey, err := as.NewKey(*namespace, *set, *key)
 	quitOnError(err)
 	switch *operand {
 	case "get":
-		policy := NewPolicy()
+		policy := as.NewPolicy()
 		rec, err := client.Get(policy, theKey, *binName)
 		quitOnError(err)
 
@@ -72,8 +71,8 @@ func main() {
 			log.Println("Record not found.")
 		}
 	case "set":
-		policy := NewWritePolicy(0, uint32(*recordTTL))
-		err = client.Put(policy, theKey, BinMap{*binName: *value})
+		policy := as.NewWritePolicy(0, uint32(*recordTTL))
+		err = client.Put(policy, theKey, as.BinMap{*binName: *value})
 		quitOnError(err)
 	case "delete":
 		existed, err := client.Delete(nil, theKey)
@@ -95,7 +94,7 @@ func readFlags() {
 	}
 
 	if *verbose {
-		Logger.SetLevel(INFO)
+		asl.Logger.SetLevel(asl.INFO)
 	}
 
 	*operand = strings.ToLower(*operand)

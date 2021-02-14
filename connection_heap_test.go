@@ -15,73 +15,73 @@
 package aerospike
 
 import (
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Connection Heap tests", func() {
+var _ = gg.Describe("Connection Heap tests", func() {
 
 	conn := new(Connection)
 
-	Context("singleConnectionHeap", func() {
+	gg.Context("singleConnectionHeap", func() {
 
-		It("Must add until full", func() {
+		gg.It("Must add until full", func() {
 			h := newSingleConnectionHeap(10)
 			for i := 0; i < 10; i++ {
-				Expect(h.Len()).To(Equal(i))
-				Expect(h.head).To(Equal(uint32(i)))
-				Expect(h.tail).To(Equal(uint32(0)))
-				Expect(h.Offer(conn)).To(BeTrue())
-				Expect(h.Len()).To(Equal(i + 1))
-				Expect(h.head).To(Equal(uint32(i+1) % 10))
-				Expect(h.tail).To(Equal(uint32(0)))
+				gm.Expect(h.Len()).To(gm.Equal(i))
+				gm.Expect(h.head).To(gm.Equal(uint32(i)))
+				gm.Expect(h.tail).To(gm.Equal(uint32(0)))
+				gm.Expect(h.Offer(conn)).To(gm.BeTrue())
+				gm.Expect(h.Len()).To(gm.Equal(i + 1))
+				gm.Expect(h.head).To(gm.Equal(uint32(i+1) % 10))
+				gm.Expect(h.tail).To(gm.Equal(uint32(0)))
 			}
 
-			Expect(h.Offer(conn)).To(BeFalse())
-			Expect(h.Offer(conn)).To(BeFalse())
-			Expect(h.Len()).To(Equal(10))
-			Expect(h.full).To(BeTrue())
-			Expect(h.head).To(Equal(h.tail))
+			gm.Expect(h.Offer(conn)).To(gm.BeFalse())
+			gm.Expect(h.Offer(conn)).To(gm.BeFalse())
+			gm.Expect(h.Len()).To(gm.Equal(10))
+			gm.Expect(h.full).To(gm.BeTrue())
+			gm.Expect(h.head).To(gm.Equal(h.tail))
 		})
 
-		It("Must add until full, then Poll successfully", func() {
+		gg.It("Must add until full, then Poll successfully", func() {
 			h := newSingleConnectionHeap(10)
 			for i := 0; i < 10; i++ {
-				Expect(h.Offer(conn)).To(BeTrue())
+				gm.Expect(h.Offer(conn)).To(gm.BeTrue())
 			}
 
 			for i := 0; i < 10; i++ {
-				Expect(h.Len()).To(Equal(10 - i))
-				Expect(h.head).To(Equal(uint32(10-i) % 10))
-				Expect(h.tail).To(Equal(uint32(0)))
-				Expect(h.Poll()).NotTo(BeNil())
-				Expect(h.full).To(BeFalse())
-				Expect(h.Len()).To(Equal(10 - i - 1))
-				Expect(h.head).To(Equal(uint32(10 - i - 1)))
-				Expect(h.tail).To(Equal(uint32(0)))
+				gm.Expect(h.Len()).To(gm.Equal(10 - i))
+				gm.Expect(h.head).To(gm.Equal(uint32(10-i) % 10))
+				gm.Expect(h.tail).To(gm.Equal(uint32(0)))
+				gm.Expect(h.Poll()).NotTo(gm.BeNil())
+				gm.Expect(h.full).To(gm.BeFalse())
+				gm.Expect(h.Len()).To(gm.Equal(10 - i - 1))
+				gm.Expect(h.head).To(gm.Equal(uint32(10 - i - 1)))
+				gm.Expect(h.tail).To(gm.Equal(uint32(0)))
 			}
 
-			Expect(h.Poll()).To(BeNil())
-			Expect(h.Poll()).To(BeNil())
-			Expect(h.Len()).To(Equal(0))
-			Expect(h.full).To(BeFalse())
-			Expect(h.head).To(Equal(h.tail))
+			gm.Expect(h.Poll()).To(gm.BeNil())
+			gm.Expect(h.Poll()).To(gm.BeNil())
+			gm.Expect(h.Len()).To(gm.Equal(0))
+			gm.Expect(h.full).To(gm.BeFalse())
+			gm.Expect(h.head).To(gm.Equal(h.tail))
 		})
 
-		It("Must add then Poll successfully", func() {
+		gg.It("Must add then Poll successfully", func() {
 			h := newSingleConnectionHeap(10)
-			Expect(h.Offer(conn)).To(BeTrue())
-			Expect(h.Len()).To(Equal(1))
-			Expect(h.head).To(Equal(uint32(1)))
-			Expect(h.full).To(BeFalse())
+			gm.Expect(h.Offer(conn)).To(gm.BeTrue())
+			gm.Expect(h.Len()).To(gm.Equal(1))
+			gm.Expect(h.head).To(gm.Equal(uint32(1)))
+			gm.Expect(h.full).To(gm.BeFalse())
 
-			Expect(h.Poll()).NotTo(BeNil())
-			Expect(h.Poll()).To(BeNil())
-			Expect(h.Len()).To(Equal(0))
-			Expect(h.full).To(BeFalse())
-			Expect(h.head).To(Equal(uint32(0)))
-			Expect(h.head).To(Equal(h.tail))
+			gm.Expect(h.Poll()).NotTo(gm.BeNil())
+			gm.Expect(h.Poll()).To(gm.BeNil())
+			gm.Expect(h.Len()).To(gm.Equal(0))
+			gm.Expect(h.full).To(gm.BeFalse())
+			gm.Expect(h.head).To(gm.Equal(uint32(0)))
+			gm.Expect(h.head).To(gm.Equal(h.tail))
 
 		})
 

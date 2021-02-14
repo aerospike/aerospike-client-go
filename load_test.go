@@ -22,8 +22,8 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 func init() {
@@ -32,8 +32,8 @@ func init() {
 }
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Aerospike load tests", func() {
-	Describe("Single long random string test", func() {
+var _ = gg.Describe("Aerospike load tests", func() {
+	gg.Describe("Single long random string test", func() {
 		var ns = *namespace
 		var set = "load"
 		var wpolicy = as.NewWritePolicy(0, 0)
@@ -46,9 +46,9 @@ var _ = Describe("Aerospike load tests", func() {
 		bname1 := randString(14)
 		bname2 := randString(14)
 
-		Context("Concurrent Load", func() {
+		gg.Context("Concurrent Load", func() {
 
-			It("must save and then retrieve an INT and STRING bin with random key", func() {
+			gg.It("must save and then retrieve an INT and STRING bin with random key", func() {
 				const Concurrency = 10
 				const IterationPerWorker = 10
 
@@ -57,21 +57,21 @@ var _ = Describe("Aerospike load tests", func() {
 
 				for j := 0; j < Concurrency; j++ {
 					go func() {
-						defer GinkgoRecover()
+						defer gg.GinkgoRecover()
 						defer wg.Done()
 						for i := 0; i < IterationPerWorker; i++ {
 							key, err := as.NewKey(ns, set, randString(50))
-							Expect(err).ToNot(HaveOccurred())
+							gm.Expect(err).ToNot(gm.HaveOccurred())
 
 							bin1 := as.NewBin(bname1, randString(10))
 							bin2 := as.NewBin(bname2, rand.Int())
 							err = client.PutBins(wpolicy, key, bin1, bin2)
-							Expect(err).ToNot(HaveOccurred())
+							gm.Expect(err).ToNot(gm.HaveOccurred())
 
 							rec, err := client.Get(rpolicy, key)
-							Expect(err).ToNot(HaveOccurred())
-							Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
-							Expect(rec.Bins[bin2.Name]).To(Equal(bin2.Value.GetObject()))
+							gm.Expect(err).ToNot(gm.HaveOccurred())
+							gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+							gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 						}
 					}()
 				}

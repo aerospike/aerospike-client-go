@@ -24,24 +24,24 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("Aerospike", func() {
+var _ = gg.Describe("Aerospike", func() {
 
-	Describe("Data operations on objects", func() {
+	gg.Describe("Data operations on objects", func() {
 		// connection data
 		var err error
 		var ns = *namespace
 		var set = randString(50)
 		var key *as.Key
 
-		BeforeEach(func() {
+		gg.BeforeEach(func() {
 
 			key, err = as.NewKey(ns, set, randString(50))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
 		type SomeBool bool
@@ -619,9 +619,9 @@ var _ = Describe("Aerospike", func() {
 			}
 		}
 
-		Context("PutObject operations", func() {
+		gg.Context("PutObject operations", func() {
 
-			It("must respect `,omitempty` option", func() {
+			gg.It("must respect `,omitempty` option", func() {
 				type Inner struct {
 					V1 int    `as:"   v1,ommitempty "`
 					V2 string `as:"   v2,ommitempty    "`
@@ -643,11 +643,11 @@ var _ = Describe("Aerospike", func() {
 
 				key, _ := as.NewKey(ns, set, randString(50))
 				err = client.PutObject(nil, key, t)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				rec, err := client.Get(nil, key)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(rec.Bins).To(Equal(as.BinMap{"name": t.Name, "desc": t.Description, "Age": 31, "inner": map[interface{}]interface{}{"v1": 0, "v2": ""}}))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{"name": t.Name, "desc": t.Description, "Age": 31, "inner": map[interface{}]interface{}{"v1": 0, "v2": ""}}))
 
 				key, _ = as.NewKey(ns, set, randString(50))
 
@@ -658,18 +658,18 @@ var _ = Describe("Aerospike", func() {
 				}
 
 				err = client.PutObject(nil, key, t)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				rec, err = client.Get(nil, key)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(rec.Bins).To(Equal(as.BinMap{"name": t.Name, "inner": map[interface{}]interface{}{"v1": 0, "v2": ""}}))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{"name": t.Name, "inner": map[interface{}]interface{}{"v1": 0, "v2": ""}}))
 			})
 
-			It("must save an object with the most complex structure possible", func() {
+			gg.It("must save an object with the most complex structure possible", func() {
 
 				testObj := makeTestObject()
 				err := client.PutObject(nil, key, &testObj)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				resObj := &testObject{}
 				err = client.GetObject(nil, key, resObj)
@@ -678,38 +678,38 @@ var _ = Describe("Aerospike", func() {
 				testObj.TTL = resObj.TTL
 				testObj.Gen = resObj.Gen
 
-				Expect(err).ToNot(HaveOccurred())
-				Expect(resObj).To(Equal(testObj))
-				Expect(resObj.AnonymP).NotTo(BeNil())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(resObj).To(gm.Equal(testObj))
+				gm.Expect(resObj.AnonymP).NotTo(gm.BeNil())
 
 				// should not panic if read back to an object with none of the bins
 				T := struct {
 					NonExisting int `as:"nonexisting"`
 				}{-1}
 				err = client.GetObject(nil, key, &T)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(T.NonExisting).To(Equal(-1))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(T.NonExisting).To(gm.Equal(-1))
 
 				// get the same object via BatchGetObject
 				resObj = &testObject{}
 				found, err := client.BatchGetObjects(nil, []*as.Key{key}, []interface{}{resObj})
-				Expect(len(found)).To(Equal(1))
-				Expect(found[0]).To(BeTrue())
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(len(found)).To(gm.Equal(1))
+				gm.Expect(found[0]).To(gm.BeTrue())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				// set the Gen and TTL
 				testObj.TTL = resObj.TTL
 				testObj.Gen = resObj.Gen
 
-				Expect(resObj).To(Equal(testObj))
-				Expect(resObj.AnonymP).NotTo(BeNil())
+				gm.Expect(resObj).To(gm.Equal(testObj))
+				gm.Expect(resObj.AnonymP).NotTo(gm.BeNil())
 			})
 
-			It("must save a tagged object with the most complex structure possible", func() {
+			gg.It("must save a tagged object with the most complex structure possible", func() {
 
 				testObj := makeTestObjectTagged()
 				err := client.PutObject(nil, key, &testObj)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				resObj := &testObjectTagged{}
 				err = client.GetObject(nil, key, resObj)
@@ -718,12 +718,12 @@ var _ = Describe("Aerospike", func() {
 				testObj.TTL = resObj.TTL
 				testObj.Gen = resObj.Gen
 
-				Expect(err).ToNot(HaveOccurred())
-				Expect(resObj).To(Equal(testObj))
-				Expect(resObj.AnonymP).NotTo(BeNil())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(resObj).To(gm.Equal(testObj))
+				gm.Expect(resObj.AnonymP).NotTo(gm.BeNil())
 			})
 
-			It("must save an object and read it back respecting the tags", func() {
+			gg.It("must save an object and read it back respecting the tags", func() {
 
 				type InnerStruct struct {
 					Strings         []string `as:"b"`
@@ -742,22 +742,22 @@ var _ = Describe("Aerospike", func() {
 
 				testObj := TaggedStruct{Strings: []string{"a", "b", "c"}, DontPersist: 1, PersistAsFld1: 2, Bytes: []byte{1, 2, 3, 4}, IStruct: InnerStruct{Strings: []string{"d", "e", "f", "g"}, PersistNot: 10, PersistAsInner1: 11}}
 				err := client.PutObject(nil, key, &testObj)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				resObj := &TaggedStruct{}
 				err = client.GetObject(nil, key, resObj)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				Expect(resObj.DontPersist).To(Equal(0))
-				Expect(resObj.PersistAsFld1).To(Equal(2))
-				Expect(resObj.IStruct.PersistNot).To(Equal(0))
-				Expect(resObj.IStruct.PersistAsInner1).To(Equal(11))
+				gm.Expect(resObj.DontPersist).To(gm.Equal(0))
+				gm.Expect(resObj.PersistAsFld1).To(gm.Equal(2))
+				gm.Expect(resObj.IStruct.PersistNot).To(gm.Equal(0))
+				gm.Expect(resObj.IStruct.PersistAsInner1).To(gm.Equal(11))
 
 				// get the bins and check for bin names
 				rec, err := client.Get(nil, key)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				Expect(rec.Bins).To(Equal(
+				gm.Expect(rec.Bins).To(gm.Equal(
 					as.BinMap{
 						"b":        []interface{}{"a", "b", "c"},
 						"fld1":     2,
@@ -768,17 +768,17 @@ var _ = Describe("Aerospike", func() {
 						},
 					}))
 
-				Expect(len(rec.Bins)).To(Equal(4))
-				Expect(rec.Bins["DontPersist"]).To(BeNil())
-				Expect(rec.Bins["fld1"]).To(Equal(2))
+				gm.Expect(len(rec.Bins)).To(gm.Equal(4))
+				gm.Expect(rec.Bins["DontPersist"]).To(gm.BeNil())
+				gm.Expect(rec.Bins["fld1"]).To(gm.Equal(2))
 				innerStruct := rec.Bins["istruct"].(map[interface{}]interface{})
-				Expect(len(innerStruct)).To(Equal(2))
-				Expect(innerStruct["PersistNot"]).To(BeNil())
-				Expect(innerStruct["inner1"]).To(Equal(11))
+				gm.Expect(len(innerStruct)).To(gm.Equal(2))
+				gm.Expect(innerStruct["PersistNot"]).To(gm.BeNil())
+				gm.Expect(innerStruct["inner1"]).To(gm.Equal(11))
 
 			})
 
-			It("must save an object *pointer* and read it back respecting the tags", func() {
+			gg.It("must save an object *pointer* and read it back respecting the tags", func() {
 
 				type InnerStruct struct {
 					PersistNot      int `as:"-"`
@@ -794,32 +794,32 @@ var _ = Describe("Aerospike", func() {
 
 				testObj := &TaggedStruct{DontPersist: 1, PersistAsFld1: 2, IStruct: &InnerStruct{PersistNot: 10, PersistAsInner1: 11}}
 				err := client.PutObject(nil, key, &testObj)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				resObj := &TaggedStruct{IStruct: &InnerStruct{}}
 				err = client.GetObject(nil, key, resObj)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				Expect(resObj.DontPersist).To(Equal(0))
-				Expect(resObj.PersistAsFld1).To(Equal(2))
-				Expect(resObj.IStruct.PersistNot).To(Equal(0))
-				Expect(resObj.IStruct.PersistAsInner1).To(Equal(11))
+				gm.Expect(resObj.DontPersist).To(gm.Equal(0))
+				gm.Expect(resObj.PersistAsFld1).To(gm.Equal(2))
+				gm.Expect(resObj.IStruct.PersistNot).To(gm.Equal(0))
+				gm.Expect(resObj.IStruct.PersistAsInner1).To(gm.Equal(11))
 
 				// get the bins and check for bin names
 				rec, err := client.Get(nil, key)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				Expect(len(rec.Bins)).To(Equal(2))
-				Expect(rec.Bins["DontPersist"]).To(BeNil())
-				Expect(rec.Bins["fld1"]).To(Equal(2))
+				gm.Expect(len(rec.Bins)).To(gm.Equal(2))
+				gm.Expect(rec.Bins["DontPersist"]).To(gm.BeNil())
+				gm.Expect(rec.Bins["fld1"]).To(gm.Equal(2))
 				innerStruct := rec.Bins["IStruct"].(map[interface{}]interface{})
-				Expect(len(innerStruct)).To(Equal(1))
-				Expect(innerStruct["PersistNot"]).To(BeNil())
-				Expect(innerStruct["inner1"]).To(Equal(11))
+				gm.Expect(len(innerStruct)).To(gm.Equal(1))
+				gm.Expect(innerStruct["PersistNot"]).To(gm.BeNil())
+				gm.Expect(innerStruct["inner1"]).To(gm.Equal(11))
 
 			})
 
-			It("must put and get pre-assigned lists and maps", func() {
+			gg.It("must put and get pre-assigned lists and maps", func() {
 
 				type MyObject struct {
 					List []string
@@ -839,31 +839,31 @@ var _ = Describe("Aerospike", func() {
 				}
 
 				err := client.PutObject(nil, key, &t)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				rec, err := client.Get(nil, key)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(rec.Bins).To(Equal(as.BinMap{
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{
 					"Map":  map[interface{}]interface{}{1: "Apple", 2: "Orange"},
 					"List": []interface{}{"Apple", "Orange"},
 				}))
 
 				err = client.GetObject(nil, key, &o1)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				err = client.GetObject(nil, key, &o2)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				Expect(o1).To(Equal(o2))
-				Expect(t).To(Equal(o1))
-				Expect(t).To(Equal(o2))
+				gm.Expect(o1).To(gm.Equal(o2))
+				gm.Expect(t).To(gm.Equal(o1))
+				gm.Expect(t).To(gm.Equal(o2))
 			})
 
 		}) // PutObject context
 
-		Context("Metadata operations", func() {
+		gg.Context("Metadata operations", func() {
 
-			It("must save an object and read its metadata back", func() {
+			gg.It("must save an object and read its metadata back", func() {
 
 				type objMeta struct {
 					TTL1, TTL2 uint32 `asm:"ttl"`
@@ -873,55 +873,55 @@ var _ = Describe("Aerospike", func() {
 
 				testObj := objMeta{Val: 1}
 				err := client.PutObject(nil, key, &testObj)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				rec, err := client.Get(nil, key)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(rec.Bins).To(Equal(as.BinMap{"val": 1}))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{"val": 1}))
 
 				resObj := &objMeta{}
 				err = client.GetObject(nil, key, resObj)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				Expect(resObj.TTL1).NotTo(Equal(uint32(0)))
-				Expect(resObj.TTL1).To(Equal(resObj.TTL2))
+				gm.Expect(resObj.TTL1).NotTo(gm.Equal(uint32(0)))
+				gm.Expect(resObj.TTL1).To(gm.Equal(resObj.TTL2))
 
-				Expect(resObj.GEN1).To(Equal(uint32(1)))
-				Expect(resObj.GEN2).To(Equal(uint32(1)))
+				gm.Expect(resObj.GEN1).To(gm.Equal(uint32(1)))
+				gm.Expect(resObj.GEN2).To(gm.Equal(uint32(1)))
 
 				// put it again to check the generation
 				err = client.PutObject(nil, key, &testObj)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				err = client.GetObject(nil, key, resObj)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				Expect(resObj.TTL1).NotTo(Equal(uint32(0)))
-				Expect(resObj.TTL1).To(Equal(resObj.TTL2))
+				gm.Expect(resObj.TTL1).NotTo(gm.Equal(uint32(0)))
+				gm.Expect(resObj.TTL1).To(gm.Equal(resObj.TTL2))
 
 				defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				switch defaultTTL {
 				case 0:
-					Expect(resObj.TTL1).To(Equal(uint32(math.MaxUint32)))
+					gm.Expect(resObj.TTL1).To(gm.Equal(uint32(math.MaxUint32)))
 				default:
-					Expect(resObj.TTL1).To(Equal(uint32(defaultTTL)))
+					gm.Expect(resObj.TTL1).To(gm.Equal(uint32(defaultTTL)))
 				}
 
-				Expect(resObj.GEN1).To(Equal(uint32(2)))
-				Expect(resObj.GEN2).To(Equal(uint32(2)))
+				gm.Expect(resObj.GEN1).To(gm.Equal(uint32(2)))
+				gm.Expect(resObj.GEN2).To(gm.Equal(uint32(2)))
 			})
 
 		}) // PutObject context
 
-		Context("BatchGetObjects operations", func() {
+		gg.Context("BatchGetObjects operations", func() {
 
 			var keys []*as.Key
 			var resObjects []interface{}
 			var objects []*testObjectTagged
 
-			BeforeEach(func() {
+			gg.BeforeEach(func() {
 				set = randString(50)
 
 				keys = nil
@@ -931,7 +931,7 @@ var _ = Describe("Aerospike", func() {
 				wpolicy := as.NewWritePolicy(0, 500)
 				for i := 0; i < 100; i++ {
 					key, err = as.NewKey(ns, set, randString(50))
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 					keys = append(keys, key)
 					resObjects = append(resObjects, new(testObjectTagged))
 
@@ -944,50 +944,50 @@ var _ = Describe("Aerospike", func() {
 					testObj := makeTestObjectTagged()
 					objects = append(objects, testObj)
 					err := client.PutObject(wpolicy, key, testObj)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 				}
 
 			})
 
-			It("must return error on invalid input", func() {
+			gg.It("must return error on invalid input", func() {
 				_, err := client.BatchGetObjects(nil, nil, resObjects)
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				_, err = client.BatchGetObjects(nil, nil, nil)
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 
 				_, err = client.BatchGetObjects(nil, []*as.Key{}, []interface{}{})
-				Expect(err).To(HaveOccurred())
+				gm.Expect(err).To(gm.HaveOccurred())
 			})
 
-			It("must get all objects with the most complex structure possible", func() {
+			gg.It("must get all objects with the most complex structure possible", func() {
 				found, err := client.BatchGetObjects(nil, keys, resObjects)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				for i := range resObjects {
 					if i%2 == 0 {
-						Expect(found[i]).To(BeFalse())
+						gm.Expect(found[i]).To(gm.BeFalse())
 						resObj := resObjects[i].(*testObjectTagged)
-						Expect(*resObj).To(BeZero())
+						gm.Expect(*resObj).To(gm.BeZero())
 					} else {
-						Expect(found[i]).To(BeTrue())
+						gm.Expect(found[i]).To(gm.BeTrue())
 						resObj := resObjects[i].(*testObjectTagged)
 
-						Expect(resObj.TTL).To(BeNumerically("<=", 500))
-						Expect(resObj.Gen).To(BeNumerically(">", 0))
+						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
 
 						objects[i].TTL = resObj.TTL
 						objects[i].Gen = resObj.Gen
 
-						Expect(resObj).To(Equal(objects[i]))
+						gm.Expect(resObj).To(gm.Equal(objects[i]))
 					}
 				}
 			})
 
 		}) // ScanObjects context
 
-		Context("UDF Objects operations", func() {
-			It("must store and get values of types which implement Value interface using udf", func() {
+		gg.Context("UDF Objects operations", func() {
+			gg.It("must store and get values of types which implement Value interface using udf", func() {
 				udfFunc := []byte(`function setValue(rec, val)
 					rec['value'] = val
 					aerospike:update(rec)
@@ -996,9 +996,9 @@ var _ = Describe("Aerospike", func() {
 				end`)
 
 				regTask, err := client.RegisterUDF(nil, udfFunc, "test_set.lua", as.LUA)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
+				gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 				var (
 					bytes    = []byte("bytes")
@@ -1030,24 +1030,24 @@ var _ = Describe("Aerospike", func() {
 
 				for i, data := range cases {
 					err = client.PutBins(nil, key, as.NewBin("test", i))
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					_, err = client.Execute(nil, key, "test_set", "setValue", data.in)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					rec, err := client.Get(nil, key, "value")
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					if data.out == nil {
-						Expect(rec.Bins["value"]).To(BeNil())
+						gm.Expect(rec.Bins["value"]).To(gm.BeNil())
 					} else {
-						Expect(rec.Bins["value"]).To(Equal(data.out))
+						gm.Expect(rec.Bins["value"]).To(gm.Equal(data.out))
 					}
 
 				}
 			}) // #272 issue
 
-			It("must serialize values to the lua function and deserialize into object, even if it is int", func() {
+			gg.It("must serialize values to the lua function and deserialize into object, even if it is int", func() {
 
 				type Test struct {
 					Test    float64 `as:"test"`
@@ -1068,26 +1068,26 @@ var _ = Describe("Aerospike", func() {
 			end`)
 
 				regTask, err := client.RegisterUDF(nil, udfFunc, "test.lua", as.LUA)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
+				gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 				adOp := as.AddOp(as.NewBin("test", float64(1)))
 				testLua := float64(0)
 				for i := 1; i <= 100; i++ {
 					_, err := client.Operate(nil, key, adOp)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					testLua += float64(i) * float64(0.1)
 					_, err = client.Execute(nil, key, "test", "addValue", as.NewValue(float64(i)*float64(0.1)))
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					t := &Test{}
 					err = client.GetObject(nil, key, t)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
-					Expect(t.Test).To(Equal(float64(i)))
-					Expect(t.TestLua).To(Equal(testLua))
+					gm.Expect(t.Test).To(gm.Equal(float64(i)))
+					gm.Expect(t.TestLua).To(gm.Equal(testLua))
 				}
 
 			}) // it
@@ -1100,7 +1100,7 @@ var _ = Describe("Aerospike", func() {
 			var queryPolicy = as.NewQueryPolicy()
 			queryPolicy.FailOnClusterChange = failOnClusterChange
 
-			Context("ScanObjects operations", func() {
+			gg.Context("ScanObjects operations", func() {
 
 				type InnerStruct struct {
 					PersistNot      int    `as:"-"`
@@ -1109,54 +1109,54 @@ var _ = Describe("Aerospike", func() {
 					TTL             uint32 `asm:"ttl"`
 				}
 
-				BeforeEach(func() {
+				gg.BeforeEach(func() {
 					set = randString(50)
 
 					wp := as.NewWritePolicy(0, 500)
 					for i := 1; i < 100; i++ {
 						key, err = as.NewKey(ns, set, randString(50))
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						testObj := InnerStruct{PersistAsInner1: i}
 						err := client.PutObject(wp, key, &testObj)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 					}
 
 				})
 
-				It(fmt.Sprintf("must scan all objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
+				gg.It(fmt.Sprintf("must scan all objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
 
 					testObj := &InnerStruct{}
 
 					retChan := make(chan *InnerStruct, 10)
 
 					rs, err := client.ScanAllObjects(scanPolicy, retChan, ns, set)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					cnt := 0
 					for resObj := range retChan {
-						Expect(resObj.PersistAsInner1).To(BeNumerically(">", 0))
-						Expect(resObj.PersistNot).To(Equal(0))
-						Expect(resObj.Gen).To(BeNumerically(">", 0))
-						Expect(resObj.TTL).To(BeNumerically("<=", 500))
+						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">", 0))
+						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
+						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
+						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
 						testObj.Gen = resObj.Gen
 						testObj.TTL = resObj.TTL
-						Expect(resObj).To(Equal(testObj))
+						gm.Expect(resObj).To(gm.Equal(testObj))
 						cnt++
 					}
 
 					for e := range rs.Errors {
-						Expect(e).ToNot(HaveOccurred())
+						gm.Expect(e).ToNot(gm.HaveOccurred())
 					}
 
-					Expect(cnt).To(Equal(99))
+					gm.Expect(cnt).To(gm.Equal(99))
 				})
 
 			}) // ScanObjects context
 
-			Context("QueryObjects operations", func() {
+			gg.Context("QueryObjects operations", func() {
 
 				type InnerStruct struct {
 					PersistNot      int    `as:"-"`
@@ -1165,22 +1165,22 @@ var _ = Describe("Aerospike", func() {
 					TTL             uint32 `asm:"ttl"`
 				}
 
-				BeforeEach(func() {
+				gg.BeforeEach(func() {
 					set = randString(50)
 
 					wp := as.NewWritePolicy(5, 500)
 					for i := 1; i < 100; i++ {
 						key, err = as.NewKey(ns, set, randString(50))
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						testObj := InnerStruct{PersistAsInner1: i}
 						err := client.PutObject(wp, key, &testObj)
-						Expect(err).ToNot(HaveOccurred())
+						gm.Expect(err).ToNot(gm.HaveOccurred())
 					}
 
 				})
 
-				It(fmt.Sprintf("must scan all objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
+				gg.It(fmt.Sprintf("must scan all objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
 
 					testObj := &InnerStruct{}
 
@@ -1188,34 +1188,34 @@ var _ = Describe("Aerospike", func() {
 					stmt := as.NewStatement(ns, set)
 
 					rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					cnt := 0
 					for resObj := range retChan {
-						Expect(resObj.PersistAsInner1).To(BeNumerically(">", 0))
-						Expect(resObj.PersistNot).To(Equal(0))
-						Expect(resObj.Gen).To(BeNumerically(">", 0))
-						Expect(resObj.TTL).To(BeNumerically("<=", 500))
+						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">", 0))
+						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
+						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
+						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
 						testObj.Gen = resObj.Gen
 						testObj.TTL = resObj.TTL
-						Expect(resObj).To(Equal(testObj))
+						gm.Expect(resObj).To(gm.Equal(testObj))
 						cnt++
 					}
 
 					for e := range rs.Errors {
-						Expect(e).ToNot(HaveOccurred())
+						gm.Expect(e).ToNot(gm.HaveOccurred())
 					}
 
-					Expect(cnt).To(Equal(99))
+					gm.Expect(cnt).To(gm.Equal(99))
 				})
 
-				It(fmt.Sprintf("must query only relevant objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
+				gg.It(fmt.Sprintf("must query only relevant objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
 
 					// first create an index
 					idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 					defer client.DropIndex(nil, ns, set, set+"inner1")
 
 					// wait until index is created
@@ -1228,35 +1228,35 @@ var _ = Describe("Aerospike", func() {
 					stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
 
 					rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					cnt := 0
 					for resObj := range retChan {
-						Expect(resObj.PersistAsInner1).To(BeNumerically(">=", 21))
-						Expect(resObj.PersistAsInner1).To(BeNumerically("<=", 70))
-						Expect(resObj.PersistNot).To(Equal(0))
-						Expect(resObj.Gen).To(BeNumerically(">", 0))
-						Expect(resObj.TTL).To(BeNumerically("<=", 500))
+						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">=", 21))
+						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically("<=", 70))
+						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
+						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
+						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
 						testObj.Gen = resObj.Gen
 						testObj.TTL = resObj.TTL
-						Expect(resObj).To(Equal(testObj))
+						gm.Expect(resObj).To(gm.Equal(testObj))
 						cnt++
 					}
 
 					for e := range rs.Errors {
-						Expect(e).ToNot(HaveOccurred())
+						gm.Expect(e).ToNot(gm.HaveOccurred())
 					}
 
-					Expect(cnt).To(Equal(50))
+					gm.Expect(cnt).To(gm.Equal(50))
 				})
 
-				It(fmt.Sprintf("must query only relevant objects, and close and return. FailOnClusterChange: %v", failOnClusterChange), func() {
+				gg.It(fmt.Sprintf("must query only relevant objects, and close and return. FailOnClusterChange: %v", failOnClusterChange), func() {
 
 					// first create an index
 					idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 					defer client.DropIndex(nil, ns, set, set+"inner1")
 
 					// wait until index is created
@@ -1272,33 +1272,33 @@ var _ = Describe("Aerospike", func() {
 					qpolicy.RecordQueueSize = 1
 
 					rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					cnt := 0
 					for resObj := range retChan {
-						Expect(resObj.PersistAsInner1).To(BeNumerically(">=", 21))
-						Expect(resObj.PersistAsInner1).To(BeNumerically("<=", 70))
-						Expect(resObj.PersistNot).To(Equal(0))
-						Expect(resObj.Gen).To(BeNumerically(">", 0))
-						Expect(resObj.TTL).To(BeNumerically("<=", 500))
+						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">=", 21))
+						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically("<=", 70))
+						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
+						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
+						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
 						testObj.Gen = resObj.Gen
 						testObj.TTL = resObj.TTL
-						Expect(resObj).To(Equal(testObj))
+						gm.Expect(resObj).To(gm.Equal(testObj))
 						cnt++
 
 						if cnt >= 10 {
 							rs.Close()
-							Eventually(rs.Errors).Should(BeClosed())
+							gm.Eventually(rs.Errors).Should(gm.BeClosed())
 						}
 					}
 
 					for e := range rs.Errors {
-						Expect(e).ToNot(HaveOccurred())
+						gm.Expect(e).ToNot(gm.HaveOccurred())
 					}
 
-					Expect(cnt).To(BeNumerically("<=", 11))
+					gm.Expect(cnt).To(gm.BeNumerically("<=", 11))
 				})
 
 			}) // QueryObject context

@@ -14,7 +14,7 @@
 
 package aerospike
 
-import . "github.com/aerospike/aerospike-client-go/types"
+import "github.com/aerospike/aerospike-client-go/types"
 
 type queryObjectsCommand struct {
 	queryCommand
@@ -25,7 +25,7 @@ func newQueryObjectsCommand(node *Node, policy *QueryPolicy, statement *Statemen
 		queryCommand: *newQueryCommand(node, policy, nil, statement, nil, recordset, clusterKey, first),
 	}
 
-	cmd.terminationErrorType = QUERY_TERMINATED
+	cmd.terminationErrorType = types.QUERY_TERMINATED
 
 	return cmd
 }

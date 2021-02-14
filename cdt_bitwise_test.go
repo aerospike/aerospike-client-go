@@ -17,14 +17,14 @@ package aerospike_test
 import (
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 
 	as "github.com/aerospike/aerospike-client-go"
 	ast "github.com/aerospike/aerospike-client-go/types"
 )
 
-var _ = Describe("CDT Bitwise Test", func() {
+var _ = gg.Describe("CDT Bitwise Test", func() {
 
 	// connection data
 	var ns = *namespace
@@ -34,7 +34,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 	var cdtBinName string
 
 	var assertEquals = func(e string, v1, v2 interface{}) {
-		Expect(v1).To(Equal(v2), e)
+		gm.Expect(v1).To(gm.Equal(v2), e)
 	}
 
 	var assertBitModifyRegion = func(bin_sz, offset, set_sz int, expected []byte, isInsert bool, ops ...*as.Operation) {
@@ -47,7 +47,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 		}
 
 		err := client.PutBins(nil, key, as.NewBin(cdtBinName, initial))
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		int_sz := 64
 
@@ -72,7 +72,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 		full_ops[len(full_ops)-1] = as.BitGetOp(cdtBinName, offset, set_sz)
 
 		record, err := client.Operate(nil, key, full_ops...)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		result_list := record.Bins[cdtBinName].([]interface{})
 		lscan1_result := result_list[len(result_list)-7].(int)
@@ -104,19 +104,19 @@ var _ = Describe("CDT Bitwise Test", func() {
 	var assertBitReadOperation = func(initial []byte, expected []int64, ops ...*as.Operation) {
 		client.Delete(nil, key)
 		err := client.PutBins(nil, key, as.NewBin(cdtBinName, initial))
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		rec, err := client.Operate(wpolicy, key, ops...)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		Expect(rec.Bins[cdtBinName]).To(BeAssignableToTypeOf([]interface{}{}))
+		gm.Expect(rec.Bins[cdtBinName]).To(gm.BeAssignableToTypeOf([]interface{}{}))
 		binResults := rec.Bins[cdtBinName].([]interface{})
 		results := make([]int64, len(binResults))
 		for i := range binResults {
 			results[i] = int64(binResults[i].(int))
 		}
 
-		Expect(results).To(Equal(expected))
+		gm.Expect(results).To(gm.Equal(expected))
 	}
 
 	var assertBitModifyOperations = func(initial, expected []byte, ops ...*as.Operation) {
@@ -124,55 +124,55 @@ var _ = Describe("CDT Bitwise Test", func() {
 
 		if initial != nil {
 			err := client.PutBins(wpolicy, key, as.NewBin(cdtBinName, initial))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		}
 
 		_, err := client.Operate(nil, key, ops...)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		rec, err := client.Get(nil, key)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		Expect(rec.Bins[cdtBinName]).To(Equal(expected))
+		gm.Expect(rec.Bins[cdtBinName]).To(gm.Equal(expected))
 	}
 
 	var assertThrows = func(code ast.ResultCode, ops ...*as.Operation) {
 		_, err := client.Operate(nil, key, ops...)
-		Expect(err).To(HaveOccurred())
-		Expect(err).To(BeAssignableToTypeOf(ast.AerospikeError{}))
-		Expect(err.(ast.AerospikeError).ResultCode()).To(Equal(code))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err).To(gm.BeAssignableToTypeOf(ast.AerospikeError{}))
+		gm.Expect(err.(ast.AerospikeError).ResultCode()).To(gm.Equal(code))
 	}
 
-	BeforeEach(func() {
+	gg.BeforeEach(func() {
 		if !featureEnabled("blob-bits") {
-			Skip("CDT Bitwise Tests will not run since feature is not supported by the server.")
+			gg.Skip("CDT Bitwise Tests will not run since feature is not supported by the server.")
 			return
 		}
 
 		key, err = as.NewKey(ns, set, randString(50))
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		cdtBinName = randString(10)
 	})
 
-	Describe("CDT BitWise Operations", func() {
+	gg.Describe("CDT BitWise Operations", func() {
 
 		// const listSize = 10
 
 		// // make a fresh list before each operation
-		// BeforeEach(func() {
+		// gg.BeforeEach(func() {
 		// 	list = []interface{}{}
 
 		// 	for i := 1; i <= listSize; i++ {
 		// 		list = append(list, i)
 
 		// 		sz, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, i))
-		// 		Expect(err).ToNot(HaveOccurred())
-		// 		Expect(sz.Bins[cdtBinName]).To(Equal(i))
+		// 		gm.Expect(err).ToNot(gm.HaveOccurred())
+		// 		gm.Expect(sz.Bins[cdtBinName]).To(gm.Equal(i))
 		// 	}
 		// })
 
-		It("should Set a Bin", func() {
+		gg.It("should Set a Bin", func() {
 
 			bit0 := []byte{0x80}
 			putMode := as.DefaultBitPolicy()
@@ -201,7 +201,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 				as.BitSetOp(addMode, cdtBinName, 1, 1, bit0))
 		})
 
-		It("should Set a Bin's bits", func() {
+		gg.It("should Set a Bin's bits", func() {
 
 			putMode := as.DefaultBitPolicy()
 			bit0 := []byte{0x80}
@@ -217,7 +217,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 					0x11, 0x22, 0x33,
 					0x08,
 					0x08, 0x91, 0x1B,
-					0X01, 0x12, 0x23,
+					0x01, 0x12, 0x23,
 					0x11, 0x22, 0x11,
 					0xc1},
 				as.BitSetOp(putMode, cdtBinName, 1, 1, bit0),
@@ -233,7 +233,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should LSHIFT bits", func() {
+		gg.It("should LSHIFT bits", func() {
 
 			putMode := as.DefaultBitPolicy()
 
@@ -261,7 +261,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should RSHIFT bits", func() {
+		gg.It("should RSHIFT bits", func() {
 
 			putMode := as.DefaultBitPolicy()
 
@@ -283,7 +283,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should OR bits", func() {
+		gg.It("should OR bits", func() {
 
 			bits1 := []byte{0x11, 0x22, 0x33}
 			putMode := as.DefaultBitPolicy()
@@ -302,7 +302,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should XOR bits", func() {
+		gg.It("should XOR bits", func() {
 
 			bits1 := []byte{0x11, 0x22, 0x33}
 			putMode := as.DefaultBitPolicy()
@@ -321,7 +321,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should AND bits", func() {
+		gg.It("should AND bits", func() {
 
 			bits1 := []byte{0x11, 0x22, 0x33}
 			putMode := as.DefaultBitPolicy()
@@ -339,7 +339,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should NOT bits", func() {
+		gg.It("should NOT bits", func() {
 
 			putMode := as.DefaultBitPolicy()
 
@@ -355,7 +355,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should ADD bits", func() {
+		gg.It("should ADD bits", func() {
 
 			putMode := as.DefaultBitPolicy()
 
@@ -411,7 +411,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 
 			err := client.PutBins(nil, key, as.NewBin(cdtBinName, initial))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			assertThrows(26,
 				as.BitAddOp(putMode, cdtBinName, 0, 8, 0xFF, false, as.BitOverflowActionFail),
@@ -429,7 +429,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should SUB bits", func() {
+		gg.It("should SUB bits", func() {
 
 			putMode := as.DefaultBitPolicy()
 
@@ -487,7 +487,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 
 			err := client.PutBins(nil, key, as.NewBin(cdtBinName, initial))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			assertThrows(26,
 				as.BitSubtractOp(putMode, cdtBinName, 0, 8, 1, false, as.BitOverflowActionFail),
@@ -504,7 +504,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should SetInt bits", func() {
+		gg.It("should SetInt bits", func() {
 
 			putMode := as.DefaultBitPolicy()
 
@@ -539,13 +539,13 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should Get bits", func() {
+		gg.It("should Get bits", func() {
 
 			client.Delete(nil, key)
 
 			bytes := []byte{0xC1, 0xAA, 0xAA}
 			err := client.PutBins(nil, key, as.NewBin(cdtBinName, bytes))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			record, err := client.Operate(nil, key,
 				as.BitGetOp(cdtBinName, 0, 1),
@@ -557,8 +557,8 @@ var _ = Describe("CDT Bitwise Test", func() {
 				as.BitGetOp(cdtBinName, 9, 15),
 				as.BitGetOp(cdtBinName, 9, 14),
 			)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(record).NotTo(BeNil())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record).NotTo(gm.BeNil())
 
 			expected := [][]byte{
 				[]byte{0x80},
@@ -581,10 +581,10 @@ var _ = Describe("CDT Bitwise Test", func() {
 				results[i] = result_list[i].([]byte)
 			}
 
-			Expect(expected).To(Equal(results))
+			gm.Expect(expected).To(gm.Equal(results))
 		})
 
-		It("should Count bits", func() {
+		gg.It("should Count bits", func() {
 
 			assertBitReadOperation(
 				[]byte{0xC1, 0xAA, 0xAB},
@@ -600,7 +600,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should LSCAN bits", func() {
+		gg.It("should LSCAN bits", func() {
 
 			assertBitReadOperation(
 				[]byte{0xFF, 0xFF, 0xFF,
@@ -631,7 +631,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should RSCAN bits", func() {
+		gg.It("should RSCAN bits", func() {
 
 			assertBitReadOperation(
 				[]byte{0xFF, 0xFF, 0xFF, 0xFF,
@@ -662,7 +662,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should GetInt bits", func() {
+		gg.It("should GetInt bits", func() {
 
 			assertBitReadOperation(
 				[]byte{0x0F, 0x0F, 0x00},
@@ -700,7 +700,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			)
 		})
 
-		It("should BitSetEx bits", func() {
+		gg.It("should BitSetEx bits", func() {
 
 			policy := as.DefaultBitPolicy()
 			bin_sz := 15
@@ -715,7 +715,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			}
 		})
 
-		It("should LSHIFTEX bits", func() {
+		gg.It("should LSHIFTEX bits", func() {
 
 			policy := as.DefaultBitPolicy()
 			bin_sz := 15
@@ -749,7 +749,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			}
 		})
 
-		It("should RSHIFT Ex bits", func() {
+		gg.It("should RSHIFTEX bits", func() {
 
 			policy := as.DefaultBitPolicy()
 			partial_policy := as.NewBitPolicy(as.BitWriteFlagsPartial)
@@ -799,7 +799,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			}
 		})
 
-		It("should AND Ex bits", func() {
+		gg.It("should AND Ex bits", func() {
 
 			policy := as.DefaultBitPolicy()
 			bin_sz := 15
@@ -816,7 +816,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			}
 		})
 
-		It("should NOT Ex bits", func() {
+		gg.It("should NOT Ex bits", func() {
 
 			policy := as.DefaultBitPolicy()
 			bin_sz := 15
@@ -832,7 +832,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			}
 		})
 
-		It("should INSERT Ex bits", func() {
+		gg.It("should INSERT Ex bits", func() {
 
 			policy := as.DefaultBitPolicy()
 			bin_sz := 15
@@ -847,7 +847,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			}
 		})
 
-		It("should ADD Ex bits", func() {
+		gg.It("should ADD Ex bits", func() {
 
 			policy := as.DefaultBitPolicy()
 			bin_sz := 15
@@ -864,7 +864,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			}
 		})
 
-		It("should SUB Ex bits", func() {
+		gg.It("should SUB Ex bits", func() {
 
 			policy := as.DefaultBitPolicy()
 			bin_sz := 15
@@ -882,7 +882,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 			}
 		})
 
-		It("should LSHIFT bits", func() {
+		gg.It("should LSHIFT bits", func() {
 
 			policy := as.DefaultBitPolicy()
 			initial := []byte{}
@@ -890,7 +890,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 
 			client.Delete(nil, key)
 			err := client.PutBins(nil, key, as.NewBin(cdtBinName, initial))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			assertThrows(26,
 				as.BitSetOp(policy, cdtBinName, 0, 1, buf))
@@ -928,7 +928,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 				as.BitGetIntOp(cdtBinName, 0, 1, false))
 		})
 
-		It("should Resize bits", func() {
+		gg.It("should Resize bits", func() {
 
 			client.Delete(nil, key)
 
@@ -948,7 +948,7 @@ var _ = Describe("CDT Bitwise Test", func() {
 				as.BitResizeOp(noFail, cdtBinName, 0, as.BitResizeFlagsGrowOnly),
 				as.BitResizeOp(policy, cdtBinName, 0, as.BitResizeFlagsShrinkOnly),
 			)
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			//System.out.println("Record: " + record);
 
@@ -959,11 +959,11 @@ var _ = Describe("CDT Bitwise Test", func() {
 			get3 := result_list[7].([]byte)
 			get4 := result_list[9].([]byte)
 
-			Expect([]byte{0x00}).To(Equal(get0))
-			Expect([]byte{0x00}).To(Equal(get1))
-			Expect([]byte{0x00}).To(Equal(get2))
-			Expect([]byte{0x00}).To(Equal(get3))
-			Expect([]byte{0x00}).To(Equal(get4))
+			gm.Expect([]byte{0x00}).To(gm.Equal(get0))
+			gm.Expect([]byte{0x00}).To(gm.Equal(get1))
+			gm.Expect([]byte{0x00}).To(gm.Equal(get2))
+			gm.Expect([]byte{0x00}).To(gm.Equal(get3))
+			gm.Expect([]byte{0x00}).To(gm.Equal(get4))
 		})
 	})
 

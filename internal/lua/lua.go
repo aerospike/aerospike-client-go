@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 )
 
 // NewValue creates a value from interface{} in the interpreter
@@ -65,14 +65,14 @@ func NewValue(L *lua.LState, value interface{}) lua.LValue {
 	case bool:
 		return lua.LBool(v)
 	case map[interface{}]interface{}:
-		luaMap := &LuaMap{m: v}
+		luaMap := &Map{m: v}
 		ud := L.NewUserData()
 		ud.Value = luaMap
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaMapTypeName))
 		return ud
 
 	case []interface{}:
-		luaList := &LuaList{l: v}
+		luaList := &List{l: v}
 		ud := L.NewUserData()
 		ud.Value = luaList
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -127,9 +127,9 @@ func LValueToInterface(val lua.LValue) interface{} {
 	case lua.LTUserData:
 		ud := val.(*lua.LUserData).Value
 		switch v := ud.(type) {
-		case *LuaMap:
+		case *Map:
 			return v.m
-		case *LuaList:
+		case *List:
 			return v.l
 		default:
 			return v

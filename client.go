@@ -30,9 +30,9 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	. "github.com/aerospike/aerospike-client-go/internal/atomic"
-	. "github.com/aerospike/aerospike-client-go/logger"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 // Client encapsulates an Aerospike cluster.
@@ -85,11 +85,8 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 
 	cluster, err := NewCluster(policy, hosts)
 	if err != nil && policy.FailIfNotConnected {
-		if aerr, ok := err.(AerospikeError); ok {
-			Logger.Debug("Failed to connect to host(s): %v; error: %s", hosts, err)
-			return nil, aerr
-		}
-		return nil, fmt.Errorf("Failed to connect to host(s): %v; error: %s", hosts, err)
+		logger.Logger.Debug("Failed to connect to host(s): %v; error: %s", hosts, err)
+		return nil, err
 	}
 
 	client := &Client{
@@ -328,13 +325,13 @@ func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, error
 
 	// pass nil to make sure it will be cloned and prepared
 	cmd := newBatchCommandExists(nil, nil, policy, keys, existsArray)
-	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
+	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil {
 		return nil, err
 	}
 
 	if filteredOut > 0 {
-		err = ErrFilteredOut
+		err = types.ErrFilteredOut
 	}
 
 	return existsArray, err
@@ -401,16 +398,16 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 	}
 
 	cmd := newBatchCommandGet(nil, nil, policy, keys, binNames, records, _INFO1_READ)
-	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
+	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
 		return nil, err
 	}
 
 	if filteredOut > 0 {
 		if err == nil {
-			err = ErrFilteredOut
+			err = types.ErrFilteredOut
 		} else {
-			mergeErrors([]error{err, ErrFilteredOut})
+			err = mergeErrors([]error{err, types.ErrFilteredOut})
 		}
 	}
 
@@ -433,16 +430,16 @@ func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) e
 		return err
 	}
 
-	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
+	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
 		return err
 	}
 
 	if filteredOut > 0 {
 		if err == nil {
-			err = ErrFilteredOut
+			err = types.ErrFilteredOut
 		} else {
-			mergeErrors([]error{err, ErrFilteredOut})
+			err = mergeErrors([]error{err, types.ErrFilteredOut})
 		}
 	}
 
@@ -467,16 +464,16 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 	}
 
 	cmd := newBatchCommandGet(nil, nil, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
-	err, filteredOut := clnt.batchExecute(policy, batchNodes, cmd)
+	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
 		return nil, err
 	}
 
 	if filteredOut > 0 {
 		if err == nil {
-			err = ErrFilteredOut
+			err = types.ErrFilteredOut
 		} else {
-			mergeErrors([]error{err, ErrFilteredOut})
+			err = mergeErrors([]error{err, types.ErrFilteredOut})
 		}
 	}
 
@@ -517,14 +514,14 @@ func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operat
 // This method is only supported by Aerospike 4.9+ servers.
 func (clnt *Client) ScanPartitions(apolicy *ScanPolicy, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	if !clnt.cluster.supportsPartitionScans.Get() {
-		return nil, ErrPartitionScanQueryNotSupported
+		return nil, types.ErrPartitionScanQueryNotSupported
 	}
 
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
 	var tracker *partitionTracker
@@ -554,7 +551,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
 	clusterKey := int64(0)
@@ -566,7 +563,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 		}
 	}
 
-	first := NewAtomicBool(true)
+	first := atomic.NewBool(true)
 
 	// result recordset
 	res := newRecordset(policy.RecordQueueSize, len(nodes))
@@ -581,7 +578,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 		ctx := context.Background()
 		for _, node := range nodes {
 			if err := sem.Acquire(ctx, 1); err != nil {
-				Logger.Error("Constraint Semaphore failed for Scan: %s", err.Error())
+				logger.Logger.Error("Constraint Semaphore failed for Scan: %s", err.Error())
 			}
 			go func(node *Node, first bool) {
 				defer sem.Release(1)
@@ -683,15 +680,15 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	var strCmd bytes.Buffer
 	// errors are to remove errcheck warnings
 	// they will always be nil as stated in golang docs
-	_, err := strCmd.WriteString("udf-put:filename=")
-	_, err = strCmd.WriteString(serverPath)
-	_, err = strCmd.WriteString(";content=")
-	_, err = strCmd.WriteString(content)
-	_, err = strCmd.WriteString(";content-len=")
-	_, err = strCmd.WriteString(strconv.Itoa(len(content)))
-	_, err = strCmd.WriteString(";udf-type=")
-	_, err = strCmd.WriteString(string(language))
-	_, err = strCmd.WriteString(";")
+	strCmd.WriteString("udf-put:filename=")
+	strCmd.WriteString(serverPath)
+	strCmd.WriteString(";content=")
+	strCmd.WriteString(content)
+	strCmd.WriteString(";content-len=")
+	strCmd.WriteString(strconv.Itoa(len(content)))
+	strCmd.WriteString(";udf-type=")
+	strCmd.WriteString(string(language))
+	strCmd.WriteString(";")
 
 	// Send UDF to one node. That node will distribute the UDF to other nodes.
 	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
@@ -713,7 +710,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 
 	if _, exists := res["error"]; exists {
 		msg, _ := base64.StdEncoding.DecodeString(res["message"])
-		return nil, NewAerospikeError(COMMAND_REJECTED, fmt.Sprintf("Registration failed: %s\nFile: %s\nLine: %s\nMessage: %s",
+		return nil, types.NewAerospikeError(types.COMMAND_REJECTED, fmt.Sprintf("Registration failed: %s\nFile: %s\nLine: %s\nMessage: %s",
 			res["error"], res["file"], res["line"], msg))
 	}
 	return NewRegisterTask(clnt.cluster, serverPath), nil
@@ -731,9 +728,9 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 	var strCmd bytes.Buffer
 	// errors are to remove errcheck warnings
 	// they will always be nil as stated in golang docs
-	_, err := strCmd.WriteString("udf-remove:filename=")
-	_, err = strCmd.WriteString(udfName)
-	_, err = strCmd.WriteString(";")
+	strCmd.WriteString("udf-remove:filename=")
+	strCmd.WriteString(udfName)
+	strCmd.WriteString(";")
 
 	// Send command to one node. That node will distribute it to other nodes.
 	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
@@ -745,7 +742,7 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 	if response == "ok" {
 		return NewRemoveTask(clnt.cluster, udfName), nil
 	}
-	return nil, NewAerospikeError(SERVER_ERROR, response)
+	return nil, types.NewAerospikeError(types.SERVER_ERROR, response)
 }
 
 // ListUDF lists all packages containing user defined functions in the server.
@@ -757,7 +754,7 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, error) {
 	var strCmd bytes.Buffer
 	// errors are to remove errcheck warnings
 	// they will always be nil as stated in golang docs
-	_, err := strCmd.WriteString("udf-list")
+	strCmd.WriteString("udf-list")
 
 	// Send command to one node. That node will distribute it to other nodes.
 	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
@@ -828,7 +825,7 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 		}
 	}
 
-	return nil, ErrUDFBadResponse
+	return nil, types.ErrUDFBadResponse
 }
 
 //----------------------------------------------------------
@@ -850,11 +847,11 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 ) (*ExecuteTask, error) {
 
 	if len(ops) == 0 {
-		return nil, ErrNoOperationsSpecified
+		return nil, types.ErrNoOperationsSpecified
 	}
 
 	if len(statement.BinNames) > 0 {
-		return nil, ErrNoBinNamesAlloedInQueryExecute
+		return nil, types.ErrNoBinNamesAlloedInQueryExecute
 	}
 
 	policy = clnt.getUsableQueryPolicy(policy)
@@ -862,7 +859,7 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteOperations failed because cluster is empty.")
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "ExecuteOperations failed because cluster is empty.")
 	}
 
 	statement.prepare(false)
@@ -896,7 +893,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteUDF failed because cluster is empty.")
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "ExecuteUDF failed because cluster is empty.")
 	}
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
@@ -930,7 +927,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	if node == nil {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "ExecuteUDFNode failed because node is nil.")
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "ExecuteUDFNode failed because node is nil.")
 	}
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
@@ -953,7 +950,7 @@ func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespac
 	} else {
 		b64, err := filter.base64()
 		if err != nil {
-			return NewAerospikeError(SERIALIZE_ERROR, "FilterExpression could not be serialized to Base64")
+			return types.NewAerospikeError(types.SERIALIZE_ERROR, "FilterExpression could not be serialized to Base64")
 		}
 
 		strCmd = "xdr-set-filter:dc=" + datacenter + ";namespace=" + namespace + ";exp=" + b64
@@ -971,22 +968,22 @@ func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespac
 	}
 
 	code := parseIndexErrorCode(response)
-	return NewAerospikeError(code, response)
+	return types.NewAerospikeError(code, response)
 }
 
-func parseIndexErrorCode(response string) ResultCode {
-	var code ResultCode = 0
+func parseIndexErrorCode(response string) types.ResultCode {
+	var code = types.OK
 
 	list := strings.Split(response, ":")
 	if len(list) >= 2 && list[0] == "FAIL" {
 		i, err := strconv.ParseInt(list[1], 10, 64)
 		if err == nil {
-			code = ResultCode(i)
+			code = types.ResultCode(i)
 		}
 	}
 
 	if code == 0 {
-		code = SERVER_ERROR
+		code = types.SERVER_ERROR
 	}
 
 	return code
@@ -1005,14 +1002,14 @@ func parseIndexErrorCode(response string) ResultCode {
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, partitionFilter *PartitionFilter) (*Recordset, error) {
 	if statement.Filter != nil || !clnt.cluster.supportsPartitionScans.Get() {
-		return nil, ErrPartitionScanQueryNotSupported
+		return nil, types.ErrPartitionScanQueryNotSupported
 	}
 
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
 	}
 
 	var tracker *partitionTracker
@@ -1046,7 +1043,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
 	}
 
 	clusterKey := int64(0)
@@ -1058,7 +1055,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		}
 	}
 
-	first := NewAtomicBool(true)
+	first := atomic.NewBool(true)
 
 	// results channel must be async for performance
 	recSet := newRecordset(policy.RecordQueueSize, len(nodes))
@@ -1072,7 +1069,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 	ctx := context.Background()
 	for _, node := range nodes {
 		if err := sem.Acquire(ctx, 1); err != nil {
-			Logger.Error("Constraint Semaphore failed for Query: %s", err.Error())
+			logger.Logger.Error("Constraint Semaphore failed for Query: %s", err.Error())
 		}
 		go func(node *Node, first bool) {
 			defer sem.Release(1)
@@ -1137,7 +1134,7 @@ func (clnt *Client) queryNode(node *Node, policy *QueryPolicy, statement *Statem
 
 	// copy policies to avoid race conditions
 	newPolicy := *policy
-	command := newQueryRecordCommand(node, &newPolicy, statement, recordset, clusterKey, true)
+	command := newQueryRecordCommand(node, &newPolicy, statement, recordset, clusterKey, first)
 	return command.Execute()
 }
 
@@ -1182,28 +1179,28 @@ func (clnt *Client) CreateComplexIndex(
 	policy = clnt.getUsableWritePolicy(policy)
 
 	var strCmd bytes.Buffer
-	_, err := strCmd.WriteString("sindex-create:ns=")
-	_, err = strCmd.WriteString(namespace)
+	strCmd.WriteString("sindex-create:ns=")
+	strCmd.WriteString(namespace)
 
 	if len(setName) > 0 {
-		_, err = strCmd.WriteString(";set=")
-		_, err = strCmd.WriteString(setName)
+		strCmd.WriteString(";set=")
+		strCmd.WriteString(setName)
 	}
 
-	_, err = strCmd.WriteString(";indexname=")
-	_, err = strCmd.WriteString(indexName)
-	_, err = strCmd.WriteString(";numbins=1")
+	strCmd.WriteString(";indexname=")
+	strCmd.WriteString(indexName)
+	strCmd.WriteString(";numbins=1")
 
 	if indexCollectionType != ICT_DEFAULT {
-		_, err = strCmd.WriteString(";indextype=")
-		_, err = strCmd.WriteString(ictToString(indexCollectionType))
+		strCmd.WriteString(";indextype=")
+		strCmd.WriteString(ictToString(indexCollectionType))
 	}
 
-	_, err = strCmd.WriteString(";indexdata=")
-	_, err = strCmd.WriteString(binName)
-	_, err = strCmd.WriteString(",")
-	_, err = strCmd.WriteString(string(indexType))
-	_, err = strCmd.WriteString(";priority=normal")
+	strCmd.WriteString(";indexdata=")
+	strCmd.WriteString(binName)
+	strCmd.WriteString(",")
+	strCmd.WriteString(string(indexType))
+	strCmd.WriteString(";priority=normal")
 
 	// Send index command to one node. That node will distribute the command to other nodes.
 	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
@@ -1219,10 +1216,10 @@ func (clnt *Client) CreateComplexIndex(
 
 	if strings.HasPrefix(response, "FAIL:200") {
 		// Index has already been created.  Do not need to poll for completion.
-		return nil, NewAerospikeError(INDEX_FOUND)
+		return nil, types.NewAerospikeError(types.INDEX_FOUND)
 	}
 
-	return nil, NewAerospikeError(INDEX_GENERIC, "Create index failed: "+response)
+	return nil, types.NewAerospikeError(types.INDEX_GENERIC, "Create index failed: "+response)
 }
 
 // DropIndex deletes a secondary index. It will block until index is dropped on all nodes.
@@ -1236,15 +1233,15 @@ func (clnt *Client) DropIndex(
 ) error {
 	policy = clnt.getUsableWritePolicy(policy)
 	var strCmd bytes.Buffer
-	_, err := strCmd.WriteString("sindex-delete:ns=")
-	_, err = strCmd.WriteString(namespace)
+	strCmd.WriteString("sindex-delete:ns=")
+	strCmd.WriteString(namespace)
 
 	if len(setName) > 0 {
-		_, err = strCmd.WriteString(";set=")
-		_, err = strCmd.WriteString(setName)
+		strCmd.WriteString(";set=")
+		strCmd.WriteString(setName)
 	}
-	_, err = strCmd.WriteString(";indexname=")
-	_, err = strCmd.WriteString(indexName)
+	strCmd.WriteString(";indexname=")
+	strCmd.WriteString(indexName)
 
 	// Send index command to one node. That node will distribute the command to other nodes.
 	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
@@ -1265,7 +1262,7 @@ func (clnt *Client) DropIndex(
 		return nil
 	}
 
-	return NewAerospikeError(INDEX_GENERIC, "Drop index failed: "+response)
+	return types.NewAerospikeError(types.INDEX_GENERIC, "Drop index failed: "+response)
 }
 
 // Truncate removes records in specified namespace/set efficiently.  This method is many orders of magnitude
@@ -1285,33 +1282,33 @@ func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeL
 	node.tendConnLock.Lock()
 	defer node.tendConnLock.Unlock()
 
-	if err := node.initTendConn(policy.TotalTimeout); err != nil {
+	if err = node.initTendConn(policy.TotalTimeout); err != nil {
 		return err
 	}
 
 	var strCmd bytes.Buffer
 	if len(set) > 0 {
-		_, err = strCmd.WriteString("truncate:namespace=")
-		_, err = strCmd.WriteString(namespace)
-		_, err = strCmd.WriteString(";set=")
-		_, err = strCmd.WriteString(set)
+		strCmd.WriteString("truncate:namespace=")
+		strCmd.WriteString(namespace)
+		strCmd.WriteString(";set=")
+		strCmd.WriteString(set)
 	} else {
 		// Servers >= 4.5.1.0 support truncate-namespace.
 		if node.supportsTruncateNamespace.Get() {
-			_, err = strCmd.WriteString("truncate-namespace:namespace=")
-			_, err = strCmd.WriteString(namespace)
+			strCmd.WriteString("truncate-namespace:namespace=")
+			strCmd.WriteString(namespace)
 		} else {
-			_, err = strCmd.WriteString("truncate:namespace=")
-			_, err = strCmd.WriteString(namespace)
+			strCmd.WriteString("truncate:namespace=")
+			strCmd.WriteString(namespace)
 		}
 	}
 	if beforeLastUpdate != nil {
-		_, err = strCmd.WriteString(";lut=")
-		_, err = strCmd.WriteString(strconv.FormatInt(beforeLastUpdate.UnixNano(), 10))
+		strCmd.WriteString(";lut=")
+		strCmd.WriteString(strconv.FormatInt(beforeLastUpdate.UnixNano(), 10))
 	} else {
 		// Servers >= 4.3.1.4 and <= 4.5.0.1 require lut argument.
 		if node.supportsLUTNow.Get() {
-			_, err = strCmd.WriteString(";lut=now")
+			strCmd.WriteString(";lut=now")
 		}
 	}
 
@@ -1326,7 +1323,7 @@ func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeL
 		return nil
 	}
 
-	return NewAerospikeError(SERVER_ERROR, "Truncate failed: "+response)
+	return types.NewAerospikeError(types.SERVER_ERROR, "Truncate failed: "+response)
 }
 
 //-------------------------------------------------------
@@ -1359,7 +1356,7 @@ func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password st
 	policy = clnt.getUsableAdminPolicy(policy)
 
 	if clnt.cluster.user == "" {
-		return NewAerospikeError(INVALID_USER)
+		return types.NewAerospikeError(types.INVALID_USER)
 	}
 
 	hash, err := hashPassword(password)
@@ -1539,7 +1536,7 @@ func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[
 	node.tendConnLock.Lock()
 	defer node.tendConnLock.Unlock()
 
-	if err := node.initTendConn(timeout); err != nil {
+	if err = node.initTendConn(timeout); err != nil {
 		return nil, err
 	}
 
@@ -1554,7 +1551,7 @@ func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[
 
 // batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
 // and waits for their return
-func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, cmd batcher) (error, int) {
+func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, cmd batcher) (int, error) {
 	var wg sync.WaitGroup
 	filteredOut := 0
 
@@ -1583,7 +1580,7 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, c
 
 		for _, batchNode := range batchNodes {
 			if err := sem.Acquire(ctx, 1); err != nil {
-				Logger.Error("Constraint Semaphore failed for Batch: %s", err.Error())
+				logger.Logger.Error("Constraint Semaphore failed for Batch: %s", err.Error())
 			}
 
 			newCmd := cmd.cloneBatchCommand(batchNode)
@@ -1602,7 +1599,7 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, c
 	}
 
 	wg.Wait()
-	return mergeErrors(errs), filteredOut
+	return filteredOut, mergeErrors(errs)
 }
 
 //-------------------------------------------------------
@@ -1697,10 +1694,10 @@ func mergeErrors(errs []error) error {
 
 	var msg bytes.Buffer
 	for _, err := range errs {
-		if _, err := msg.WriteString(err.Error()); err != nil {
+		if _, err = msg.WriteString(err.Error()); err != nil {
 			return err
 		}
-		if _, err := msg.WriteString("\n"); err != nil {
+		if _, err = msg.WriteString("\n"); err != nil {
 			return err
 		}
 	}

@@ -17,9 +17,11 @@ package aerospike
 import (
 	"time"
 
-	. "github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
+
 	// "github.com/aerospike/aerospike-client-go/pkg/bcrypt"
-	. "github.com/aerospike/aerospike-client-go/types"
+
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -66,7 +68,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 		lcmd.writeFieldStr(_USER, policy.User)
 		lcmd.writeFieldBytes(_CREDENTIAL, hashedPass)
 	default:
-		return NewAerospikeError(ResultCode(INVALID_COMMAND), "Invalid ClientPolicy.AuthMode.")
+		return types.NewAerospikeError(types.ResultCode(types.INVALID_COMMAND), "Invalid ClientPolicy.AuthMode.")
 	}
 
 	lcmd.writeSize()
@@ -87,17 +89,17 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 
 	result := lcmd.dataBuffer[_RESULT_CODE] & 0xFF
 	if result != 0 {
-		if int(result) == int(INVALID_COMMAND) {
+		if int(result) == int(types.INVALID_COMMAND) {
 			// New login not supported.  Try old authentication.
 			return lcmd.authenticateInternal(conn, policy.User, hashedPass)
 		}
 
-		if int(result) == int(SECURITY_NOT_ENABLED) {
+		if int(result) == int(types.SECURITY_NOT_ENABLED) {
 			// Server does not require login.
 			return nil
 		}
 
-		return NewAerospikeError(ResultCode(result))
+		return types.NewAerospikeError(types.ResultCode(result))
 	}
 
 	// Read session token.
@@ -106,7 +108,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 	fieldCount := int(lcmd.dataBuffer[11] & 0xFF)
 
 	if receiveSize <= 0 || receiveSize > len(lcmd.dataBuffer) || fieldCount <= 0 {
-		return NewAerospikeError(ResultCode(result), "Node failed to retrieve session token")
+		return types.NewAerospikeError(types.ResultCode(result), "Node failed to retrieve session token")
 	}
 
 	if len(lcmd.dataBuffer) < receiveSize {
@@ -115,7 +117,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 
 	_, err := conn.Read(lcmd.dataBuffer, receiveSize)
 	if err != nil {
-		Logger.Debug("Error reading data from connection for login command: %s", err.Error())
+		logger.Logger.Debug("Error reading data from connection for login command: %s", err.Error())
 		return err
 	}
 
@@ -137,7 +139,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 			if seconds > 0 {
 				lcmd.SessionExpiration = time.Now().Add(time.Duration(seconds) * time.Second)
 			} else {
-				Logger.Warn("Invalid session TTL: %d", seconds)
+				logger.Logger.Warn("Invalid session TTL: %d", seconds)
 			}
 		}
 
@@ -145,7 +147,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 	}
 
 	if lcmd.SessionToken == nil {
-		return NewAerospikeError(ResultCode(result), "Node failed to retrieve session token")
+		return types.NewAerospikeError(types.ResultCode(result), "Node failed to retrieve session token")
 	}
 	return nil
 }
@@ -166,8 +168,8 @@ func (lcmd *loginCommand) authenticateInternal(conn *Connection, user string, pa
 	}
 
 	result := lcmd.dataBuffer[_RESULT_CODE] & 0xFF
-	if result != 0 && int(result) != int(SECURITY_NOT_ENABLED) {
-		return NewAerospikeError(ResultCode(result), "Authentication failed")
+	if result != 0 && int(result) != int(types.SECURITY_NOT_ENABLED) {
+		return types.NewAerospikeError(types.ResultCode(result), "Authentication failed")
 	}
 
 	return nil
@@ -185,8 +187,8 @@ func (lcmd *loginCommand) authenticateViaToken(policy *ClientPolicy, conn *Conne
 	}
 
 	result := lcmd.dataBuffer[_RESULT_CODE] & 0xFF
-	if result != 0 && int(result) != int(SECURITY_NOT_ENABLED) {
-		return NewAerospikeError(ResultCode(result), "Authentication failed")
+	if result != 0 && int(result) != int(types.SECURITY_NOT_ENABLED) {
+		return types.NewAerospikeError(types.ResultCode(result), "Authentication failed")
 	}
 
 	return nil

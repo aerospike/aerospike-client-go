@@ -119,7 +119,7 @@ func CtxMapKey(key Value) *CDTContext {
 	return &CDTContext{ctxTypeMapKey, key}
 }
 
-// Create map with given type at map key.
+// CtxMapKeyCreate creates map with given type at map key.
 func CtxMapKeyCreate(key Value, order mapOrderType) *CDTContext {
 	return &CDTContext{ctxTypeMapKey | order.flag, key}
 }

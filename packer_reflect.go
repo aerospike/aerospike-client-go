@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 func init() {
@@ -33,7 +33,7 @@ func concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (int,
 	switch reflect.TypeOf(obj).Kind() {
 	case reflect.Array, reflect.Slice:
 		if mapKey && reflect.TypeOf(obj).Kind() == reflect.Slice {
-			return 0, NewAerospikeError(SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", obj))
+			return 0, types.NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", obj))
 		}
 		// pack bounded array of bytes differently
 		if reflect.TypeOf(obj).Kind() == reflect.Array && reflect.TypeOf(obj).Elem().Kind() == reflect.Uint8 {
@@ -53,7 +53,7 @@ func concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (int,
 		return packIfcList(cmd, arr)
 	case reflect.Map:
 		if mapKey {
-			return 0, NewAerospikeError(SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", obj))
+			return 0, types.NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", obj))
 		}
 		l := rv.Len()
 		amap := make(map[interface{}]interface{}, l)
@@ -73,5 +73,5 @@ func concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (int,
 		return packObject(cmd, rv.Float(), false)
 	}
 
-	return 0, NewAerospikeError(SERIALIZE_ERROR, fmt.Sprintf("Type `%#v` not supported to pack.", obj))
+	return 0, types.NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Type `%#v` not supported to pack.", obj))
 }

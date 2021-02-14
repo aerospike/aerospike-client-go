@@ -20,11 +20,13 @@ import (
 	"runtime"
 	"sync"
 
-	. "github.com/aerospike/aerospike-client-go/internal/atomic"
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/types"
+
 	xornd "github.com/aerospike/aerospike-client-go/types/rand"
 )
 
+// Result is the value returned by Recordset's Results() function.
 type Result struct {
 	Record *Record
 	Err    error
@@ -49,9 +51,9 @@ type objectset struct {
 	Errors chan error
 
 	wgGoroutines sync.WaitGroup
-	goroutines   *AtomicInt
+	goroutines   *atomic.Int
 
-	closed, active *AtomicBool
+	closed, active *atomic.Bool
 	cancelled      chan struct{}
 
 	chanLock sync.Mutex
@@ -100,9 +102,9 @@ func newObjectset(objChan reflect.Value, goroutines int) *objectset {
 	rs := &objectset{
 		objChan:    objChan,
 		Errors:     make(chan error, goroutines),
-		active:     NewAtomicBool(true),
-		closed:     NewAtomicBool(false),
-		goroutines: NewAtomicInt(goroutines),
+		active:     atomic.NewBool(true),
+		closed:     atomic.NewBool(false),
+		goroutines: atomic.NewInt(goroutines),
 		cancelled:  make(chan struct{}),
 	}
 	rs.wgGoroutines.Add(goroutines)
@@ -137,7 +139,7 @@ L:
 	select {
 	case record, ok = <-rcs.Records:
 		if !ok {
-			err = ErrRecordsetClosed
+			err = types.ErrRecordsetClosed
 		}
 	case err = <-rcs.Errors:
 		if err == nil {
@@ -191,7 +193,7 @@ func (rcs *Recordset) Results() <-chan *Result {
 		defer close(res)
 		for {
 			record, err := rcs.Read()
-			if err == ErrRecordsetClosed {
+			if err == types.ErrRecordsetClosed {
 				return
 			}
 
@@ -213,7 +215,7 @@ func (rcs *Recordset) Results() <-chan *Result {
 func (rcs *Recordset) Close() error {
 	// do it only once
 	if !rcs.closed.CompareAndToggle(false) {
-		return ErrRecordsetClosed
+		return types.ErrRecordsetClosed
 	}
 
 	// mark the recordset as inactive

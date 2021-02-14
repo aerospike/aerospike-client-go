@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"reflect"
 
-	. "github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
 
-	. "github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -82,35 +82,31 @@ func (cmd *readCommand) prepareRetry(ifc command, isTimeout bool) bool {
 
 func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	// Read proto and check if compressed
-	_, err := conn.Read(cmd.dataBuffer, 8)
-	if err != nil {
-		Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
+	if _, err := conn.Read(cmd.dataBuffer, 8); err != nil {
+		logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
 		return err
 	}
 
 	if compressedSize := cmd.compressedSize(); compressedSize > 0 {
 		// Read compressed size
-		_, err = conn.Read(cmd.dataBuffer, 8)
-		if err != nil {
-			Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
+		if _, err := conn.Read(cmd.dataBuffer, 8); err != nil {
+			logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
 			return err
 		}
 
 		if err := cmd.conn.initInflater(true, compressedSize); err != nil {
-			return NewAerospikeError(PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
+			return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
 		}
 
 		// Read header.
-		_, err = conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE))
-		if err != nil {
-			Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
+		if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
+			logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
 			return err
 		}
 	} else {
 		// Read header.
-		_, err = conn.Read(cmd.dataBuffer[8:], int(_MSG_TOTAL_HEADER_SIZE)-8)
-		if err != nil {
-			Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
+		if _, err := conn.Read(cmd.dataBuffer[8:], int(_MSG_TOTAL_HEADER_SIZE)-8); err != nil {
+			logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
 			return err
 		}
 	}
@@ -125,39 +121,38 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	}
 
 	headerLength := int(cmd.dataBuffer[8])
-	resultCode := ResultCode(cmd.dataBuffer[13] & 0xFF)
+	resultCode := types.ResultCode(cmd.dataBuffer[13] & 0xFF)
 	generation := Buffer.BytesToUint32(cmd.dataBuffer, 14)
-	expiration := TTL(Buffer.BytesToUint32(cmd.dataBuffer, 18))
+	expiration := types.TTL(Buffer.BytesToUint32(cmd.dataBuffer, 18))
 	fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 26)) // almost certainly 0
 	opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 28))
 	receiveSize := int((sz & 0xFFFFFFFFFFFF) - int64(headerLength))
 
 	// Read remaining message bytes.
 	if receiveSize > 0 {
-		if err = cmd.sizeBufferSz(receiveSize, false); err != nil {
+		if err := cmd.sizeBufferSz(receiveSize, false); err != nil {
 			return err
 		}
-		_, err = conn.Read(cmd.dataBuffer, receiveSize)
-		if err != nil {
-			Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
+		if _, err := conn.Read(cmd.dataBuffer, receiveSize); err != nil {
+			logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
 			return err
 		}
 
 	}
 
 	if resultCode != 0 {
-		if resultCode == KEY_NOT_FOUND_ERROR {
-			return ErrKeyNotFound
-		} else if resultCode == FILTERED_OUT {
-			return ErrFilteredOut
-		} else if resultCode == UDF_BAD_RESPONSE {
+		if resultCode == types.KEY_NOT_FOUND_ERROR {
+			return types.ErrKeyNotFound
+		} else if resultCode == types.FILTERED_OUT {
+			return types.ErrFilteredOut
+		} else if resultCode == types.UDF_BAD_RESPONSE {
 			cmd.record, _ = cmd.parseRecord(ifc, opCount, fieldCount, generation, expiration)
 			err := cmd.handleUdfError(resultCode)
-			Logger.Debug("UDF execution error: " + err.Error())
+			logger.Logger.Debug("UDF execution error: " + err.Error())
 			return err
 		}
 
-		return NewAerospikeError(resultCode)
+		return types.NewAerospikeError(resultCode)
 	}
 
 	if cmd.object == nil {
@@ -167,6 +162,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 			return nil
 		}
 
+		var err error
 		cmd.record, err = cmd.parseRecord(ifc, opCount, fieldCount, generation, expiration)
 		if err != nil {
 			return err
@@ -180,11 +176,11 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	return nil
 }
 
-func (cmd *readCommand) handleUdfError(resultCode ResultCode) error {
+func (cmd *readCommand) handleUdfError(resultCode types.ResultCode) error {
 	if ret, exists := cmd.record.Bins["FAILURE"]; exists {
-		return NewAerospikeError(resultCode, ret.(string))
+		return types.NewAerospikeError(resultCode, ret.(string))
 	}
-	return NewAerospikeError(resultCode)
+	return types.NewAerospikeError(resultCode)
 }
 
 func (cmd *readCommand) parseRecord(
@@ -203,11 +199,11 @@ func (cmd *readCommand) parseRecord(
 
 	// There can be fields in the response (setname etc).
 	// But for now, ignore them. Expose them to the API if needed in the future.
-	// Logger.Debug("field count: %d, databuffer: %v", fieldCount, cmd.dataBuffer)
+	//logger.Logger.Debug("field count: %d, databuffer: %v", fieldCount, cmd.dataBuffer)
 	if fieldCount > 0 {
 		// Just skip over all the fields
 		for i := 0; i < fieldCount; i++ {
-			// Logger.Debug("%d", receiveOffset)
+			//logger.Logger.Debug("%d", receiveOffset)
 			fieldSize := int(Buffer.BytesToUint32(cmd.dataBuffer, receiveOffset))
 			receiveOffset += (4 + fieldSize)
 		}

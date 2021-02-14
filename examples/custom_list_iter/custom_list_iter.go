@@ -31,12 +31,15 @@ var (
 	cll = SliceListInt64(ll)
 )
 
+// SliceInt64 is a custom data type
 type SliceInt64 []int64
 
+// Len implements the ListIter interface
 func (sli SliceInt64) Len() int {
 	return len(sli)
 }
 
+// PackList implements the ListIter interface
 func (sli SliceInt64) PackList(buf as.BufferEx) (int, error) {
 	size := 0
 	for _, elem := range sli {
@@ -49,12 +52,15 @@ func (sli SliceInt64) PackList(buf as.BufferEx) (int, error) {
 	return size, nil
 }
 
+// SliceListInt64 is a custom data type
 type SliceListInt64 [][]int64
 
+// Len returns the length of the array
 func (sli SliceListInt64) Len() int {
 	return len(sli)
 }
 
+// PackList implements the ListIter interface
 func (sli SliceListInt64) PackList(buf as.BufferEx) (int, error) {
 	size := 0
 	for _, l := range sli {

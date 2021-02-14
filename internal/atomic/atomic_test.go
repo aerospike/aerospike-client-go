@@ -15,13 +15,13 @@
 package atomic_test
 
 import (
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
 	"testing"
+
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 func TestAerospike(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Atomic Types Suite")
+	gm.RegisterFailHandler(gg.Fail)
+	gg.RunSpecs(t, "Atomic Types Suite")
 }

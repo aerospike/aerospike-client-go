@@ -15,7 +15,8 @@
 package aerospike
 
 import (
-	. "github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/types"
+
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -87,18 +88,15 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {
 	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	if resultCode != 0 {
-		if resultCode == byte(KEY_NOT_FOUND_ERROR) {
-			return ErrKeyNotFound
-		} else if ResultCode(resultCode) == FILTERED_OUT {
-			return ErrFilteredOut
+		if resultCode == byte(types.KEY_NOT_FOUND_ERROR) {
+			return types.ErrKeyNotFound
+		} else if types.ResultCode(resultCode) == types.FILTERED_OUT {
+			return types.ErrFilteredOut
 		}
 
-		return NewAerospikeError(ResultCode(resultCode))
+		return types.NewAerospikeError(types.ResultCode(resultCode))
 	}
-	if err := cmd.emptySocket(conn); err != nil {
-		return err
-	}
-	return nil
+	return cmd.emptySocket(conn)
 }
 
 func (cmd *writeCommand) Execute() error {

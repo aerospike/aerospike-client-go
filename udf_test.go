@@ -23,8 +23,8 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo"
+	gm "github.com/onsi/gomega"
 )
 
 const udfBody = `function testFunc1(rec, div)
@@ -64,7 +64,7 @@ end
 `
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = Describe("UDF/Query tests", func() {
+var _ = gg.Describe("UDF/Query tests", func() {
 
 	var err error
 	var ns = *namespace
@@ -76,93 +76,93 @@ var _ = Describe("UDF/Query tests", func() {
 	bin1 := as.NewBin("bin1", rand.Intn(math.MaxInt16))
 	bin2 := as.NewBin("bin2", 1)
 
-	It("must Register a UDF", func() {
+	gg.It("must Register a UDF", func() {
 		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udf1.lua", as.LUA)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// wait until UDF is created
-		Expect(<-regTask.OnComplete()).NotTo(HaveOccurred())
+		gm.Expect(<-regTask.OnComplete()).NotTo(gm.HaveOccurred())
 	})
 
-	It("must run a UDF on a single record", func() {
+	gg.It("must run a UDF on a single record", func() {
 		key, err = as.NewKey(ns, set, randString(50))
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 		err = client.PutBins(wpolicy, key, bin1, bin2)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		wpolicy := as.NewWritePolicy(0, 1000)
 		res, err := client.Execute(wpolicy, key, "udf1", "testFunc1", as.NewValue(2))
-		Expect(err).ToNot(HaveOccurred())
-		Expect(res).To(Equal(map[interface{}]interface{}{"status": "OK"}))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(res).To(gm.Equal(map[interface{}]interface{}{"status": "OK"}))
 
 		time.Sleep(3 * time.Second)
 
 		// read all data and make sure it is consistent
 		rec, err := client.Get(nil, key)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(rec.Expiration).To(BeNumerically("<=", 997))
-		Expect(rec.Expiration).To(BeNumerically(">", 900)) // give a bit of leeway for slow testing VMs
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(rec.Expiration).To(gm.BeNumerically("<=", 997))
+		gm.Expect(rec.Expiration).To(gm.BeNumerically(">", 900)) // give a bit of leeway for slow testing VMs
 
-		Expect(rec.Bins[bin1.Name]).To(Equal(bin1.Value.GetObject()))
-		Expect(rec.Bins[bin2.Name]).To(Equal(bin1.Value.GetObject().(int) / 2))
+		gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+		gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin1.Value.GetObject().(int) / 2))
 	})
 
-	It("must run a UDF to create single record and persist the original key value", func() {
+	gg.It("must run a UDF to create single record and persist the original key value", func() {
 		regTask, err := client.RegisterUDF(wpolicy, []byte(udfCreateWithSendKey), "sendKey.lua", as.LUA)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// wait until UDF is created
-		Expect(<-regTask.OnComplete()).NotTo(HaveOccurred())
+		gm.Expect(<-regTask.OnComplete()).NotTo(gm.HaveOccurred())
 
 		tSet := randString(50)
 		key, err := as.NewKey(ns, tSet, -1)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// make sure the record doesn't exist yet
 		_, err = client.Delete(nil, key)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		exists, err := client.Exists(nil, key)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(exists).To(BeFalse())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(exists).To(gm.BeFalse())
 
 		wp := as.NewWritePolicy(0, 0)
 		wp.SendKey = true
 		_, err = client.Execute(wp, key, "sendKey", "createRecWithSendKey")
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// read all data and make sure it is consistent
 		exists, err = client.Exists(nil, key)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(exists).To(BeTrue())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(exists).To(gm.BeTrue())
 
 		res, err := client.Execute(nil, key, "sendKey", "getRecordKeyValue")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(res).To(Equal(-1))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(res).To(gm.Equal(-1))
 	})
 
-	It("must list all udfs on the server", func() {
+	gg.It("must list all udfs on the server", func() {
 		udfList, err := client.ListUDF(nil)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(len(udfList)).To(BeNumerically(">", 0))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(len(udfList)).To(gm.BeNumerically(">", 0))
 	})
 
-	It("must drop a udf on the server", func() {
+	gg.It("must drop a udf on the server", func() {
 		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udfToBeDropped.lua", as.LUA)
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// wait until UDF is created
 		err = <-regTask.OnComplete()
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		delTask, err := client.RemoveUDF(wpolicy, "udfToBeDropped.lua")
-		Expect(err).ToNot(HaveOccurred())
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// wait until UDF is deleted
-		Expect(<-delTask.OnComplete()).NotTo(HaveOccurred())
+		gm.Expect(<-delTask.OnComplete()).NotTo(gm.HaveOccurred())
 	})
 
-	Context("must run the UDF on all records", func() {
+	gg.Context("must run the UDF on all records", func() {
 
 		for _, failOnClusterChange := range []bool{false, true} {
 			var scanPolicy = as.NewScanPolicy()
@@ -171,89 +171,89 @@ var _ = Describe("UDF/Query tests", func() {
 			var queryPolicy = as.NewQueryPolicy()
 			queryPolicy.FailOnClusterChange = failOnClusterChange
 
-			BeforeEach(func() {
+			gg.BeforeEach(func() {
 				set = randString(50)
 				for i := 0; i < keyCount; i++ {
 					key, err = as.NewKey(ns, set, randString(50))
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					err = client.PutBins(wpolicy, key, bin1, bin2)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 				}
 			})
 
-			It("must run a UDF on all records", func() {
+			gg.It("must run a UDF on all records", func() {
 				// run the UDF 3 times consecutively
 				for i := 1; i <= 3; i++ {
 					statement := as.NewStatement(ns, set)
 					exTask, err := client.ExecuteUDF(queryPolicy, statement, "udf1", "testFunc1", as.NewValue(i*2))
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					// wait until UDF is run on all records
 					err = <-exTask.OnComplete()
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					time.Sleep(3 * time.Second)
 
 					// read all data and make sure it is consistent
 					recordset, err := client.ScanAll(scanPolicy, ns, set)
-					Expect(err).ToNot(HaveOccurred())
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					for fullRec := range recordset.Results() {
-						Expect(fullRec.Err).ToNot(HaveOccurred())
-						Expect(fullRec.Record.Bins[bin2.Name]).To(Equal(bin1.Value.GetObject().(int) / (i * 2)))
+						gm.Expect(fullRec.Err).ToNot(gm.HaveOccurred())
+						gm.Expect(fullRec.Record.Bins[bin2.Name]).To(gm.Equal(bin1.Value.GetObject().(int) / (i * 2)))
 					}
 				}
 			})
 
-			It("must run a DeleteUDF on a range of records", func() {
+			gg.It("must run a DeleteUDF on a range of records", func() {
 				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.DropIndex(nil, ns, set, set+bin1.Name)
 
-				Expect(<-idxTask.OnComplete()).ToNot(HaveOccurred())
+				gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 				regTask, err := client.RegisterUDF(wpolicy, []byte(udfDelete), "udfDelete.lua", as.LUA)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				// wait until UDF is created
-				Expect(<-regTask.OnComplete()).ToNot(HaveOccurred())
+				gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 				// a new record that is not in the range
 				key, err = as.NewKey(ns, set, randString(50))
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				err = client.PutBins(wpolicy, key, as.NewBin(bin1.Name, math.MaxInt16+1))
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				statement := as.NewStatement(ns, set)
 				statement.SetFilter(as.NewRangeFilter(bin1.Name, 0, math.MaxInt16))
 				exTask, err := client.ExecuteUDF(queryPolicy, statement, "udfDelete", "deleteRecord")
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				// wait until UDF is run on all records
-				Expect(<-exTask.OnComplete()).ToNot(HaveOccurred())
+				gm.Expect(<-exTask.OnComplete()).ToNot(gm.HaveOccurred())
 
 				// read all data and make sure it is consistent
 				recordset, err := client.ScanAll(scanPolicy, ns, set)
-				Expect(err).ToNot(HaveOccurred())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				i := 0
 				for fullRec := range recordset.Results() {
-					Expect(fullRec.Err).ToNot(HaveOccurred())
+					gm.Expect(fullRec.Err).ToNot(gm.HaveOccurred())
 					i++
 					// only one record should be returned
-					Expect(fullRec.Record.Bins[bin1.Name]).To(Equal(math.MaxInt16 + 1))
+					gm.Expect(fullRec.Record.Bins[bin1.Name]).To(gm.Equal(math.MaxInt16 + 1))
 				}
-				Expect(i).To(Equal(1))
+				gm.Expect(i).To(gm.Equal(1))
 			})
 		}
 	}) // context
 
-	Context("must serialize parameters and return values sensibly", func() {
+	gg.Context("must serialize parameters and return values sensibly", func() {
 
 		var udfReg sync.Once
 
-		BeforeEach(func() {
+		gg.BeforeEach(func() {
 			udfReg.Do(func() {
 				regTask, err := client.RegisterUDF(wpolicy, []byte(udfEcho), "udfEcho.lua", as.LUA)
 				if err != nil {
@@ -272,17 +272,17 @@ var _ = Describe("UDF/Query tests", func() {
 		testMatrix := map[interface{}]interface{}{
 			math.MinInt64: math.MinInt64,
 			// math.MaxInt64:  int64(math.MaxInt64), // TODO: Wrong serialization on server - sign-bit is wrong
-			math.MinInt32:  math.MinInt32, // TODO: Wrong serialization type on server
-			math.MaxUint32: math.MaxUint32,
-			math.MinInt16:  math.MinInt16,
-			math.MaxInt16:  math.MaxInt16,
-			math.MaxUint16: math.MaxUint16,
-			math.MinInt8:   math.MinInt8,
-			math.MaxInt8:   math.MaxInt8,
-			math.MaxUint8:  math.MaxUint8,
-			-1:             -1,
-			0:              0,
-			"":             "",
+			math.MinInt32:               math.MinInt32, // TODO: Wrong serialization type on server
+			math.MaxUint32:              math.MaxUint32,
+			math.MinInt16:               math.MinInt16,
+			math.MaxInt16:               math.MaxInt16,
+			math.MaxUint16:              math.MaxUint16,
+			math.MinInt8:                math.MinInt8,
+			math.MaxInt8:                math.MaxInt8,
+			math.MaxUint8:               math.MaxUint8,
+			-1:                          -1,
+			0:                           0,
+			"":                          "",
 			strings.Repeat("s", 1):      strings.Repeat("s", 1),
 			strings.Repeat("s", 10):     strings.Repeat("s", 10),
 			strings.Repeat("s", 100):    strings.Repeat("s", 100),
@@ -293,25 +293,25 @@ var _ = Describe("UDF/Query tests", func() {
 			"Hello, 世界":                 "Hello, 世界",
 		}
 
-		It("must serialize nil values to echo function and get the same value back", func() {
+		gg.It("must serialize nil values to echo function and get the same value back", func() {
 
 			res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(nil))
-			Expect(err).ToNot(HaveOccurred())
-			Expect(res.(map[interface{}]interface{})["val"]).To(BeNil())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(res.(map[interface{}]interface{})["val"]).To(gm.BeNil())
 
 		}) // it
 
-		It("must serialize values to echo function and get the same value back", func() {
+		gg.It("must serialize values to echo function and get the same value back", func() {
 
 			for k, v := range testMatrix {
 				res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(k))
-				Expect(err).ToNot(HaveOccurred())
-				Expect(res.(map[interface{}]interface{})["val"]).To(Equal(v))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(res.(map[interface{}]interface{})["val"]).To(gm.Equal(v))
 			}
 
 		}) // it
 
-		It("must serialize list values to echo function and get the same value back", func() {
+		gg.It("must serialize list values to echo function and get the same value back", func() {
 
 			v := []interface{}{
 				nil,
@@ -362,12 +362,12 @@ var _ = Describe("UDF/Query tests", func() {
 			// 	fmt.Printf("%v => %T\n", vExpected[i], vExpected[i])
 			// }
 
-			Expect(err).ToNot(HaveOccurred())
-			Expect(res.(map[interface{}]interface{})["val"]).To(Equal(vExpected))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(res.(map[interface{}]interface{})["val"]).To(gm.Equal(vExpected))
 
 		}) // it
 
-		It("must serialize map values to echo function and get the same value back", func() {
+		gg.It("must serialize map values to echo function and get the same value back", func() {
 
 			v := map[interface{}]interface{}{
 				nil:            nil,
@@ -405,12 +405,12 @@ var _ = Describe("UDF/Query tests", func() {
 				math.MaxInt32:         math.MaxInt32,
 				math.MaxUint32:        math.MaxUint32,
 				uint64(math.MaxInt64): uint64(math.MaxInt64),
-				"":          "",
-				"Hello, 世界": "Hello, 世界",
+				"":                    "",
+				"Hello, 世界":           "Hello, 世界",
 			}
 
 			res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(v))
-			Expect(err).ToNot(HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			resMap := res.(map[interface{}]interface{})["val"].(map[interface{}]interface{})
 			// for k := range resMap {
@@ -418,7 +418,7 @@ var _ = Describe("UDF/Query tests", func() {
 			// 	fmt.Printf("%v => %T\n", vExpected[k], vExpected[k])
 			// }
 
-			Expect(resMap).To(Equal(vExpected))
+			gm.Expect(resMap).To(gm.Equal(vExpected))
 
 		}) // it
 
