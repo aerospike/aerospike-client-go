@@ -125,7 +125,7 @@ func TouchOp() *Operation {
 	return &Operation{opType: _TOUCH, binValue: NewNullValue()}
 }
 
-// DeteleOp creates delete record database operation.
+// DeleteOp creates delete record database operation.
 func DeleteOp() *Operation {
 	return &Operation{opType: _DELETE, binValue: NewNullValue()}
 }

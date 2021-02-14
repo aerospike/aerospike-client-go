@@ -178,7 +178,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 	return res, nil
 }
 
-// scanNodeObjects reads all records in specified namespace and set for one node only,
+// ScanNodeObjects reads all records in specified namespace and set for one node only,
 // and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
 // The resulting records will be marshalled into the objChan.
@@ -212,7 +212,7 @@ func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *R
 	return command.Execute()
 }
 
-// QueryNodeObjects executes a query on all nodes in the cluster and marshals the records into the given channel.
+// QueryObjects executes a query on all nodes in the cluster and marshals the records into the given channel.
 // The query executor puts records on the channel from separate goroutines.
 // The caller can concurrently pop objects.
 //

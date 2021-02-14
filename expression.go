@@ -636,27 +636,27 @@ func ExpGeoCompare(left *FilterExpression, right *FilterExpression) *FilterExpre
 	)
 }
 
-// createss 64 bit integer value
+// ExpIntVal creates a 64 bit integer value
 func ExpIntVal(val int64) *FilterExpression {
 	return newFilterExpression(nil, IntegerValue(val), nil, nil, nil, nil)
 }
 
-// createss a Boolean value
+// ExpBoolVal creates a Boolean value
 func ExpBoolVal(val bool) *FilterExpression {
 	return newFilterExpression(nil, _BoolValue(val), nil, nil, nil, nil)
 }
 
-// createss String bin value
+// ExpStringVal creates a String bin value
 func ExpStringVal(val string) *FilterExpression {
 	return newFilterExpression(nil, StringValue(val), nil, nil, nil, nil)
 }
 
-// createss 64 bit float bin value
+// ExpFloatVal creates a 64 bit float bin value
 func ExpFloatVal(val float64) *FilterExpression {
 	return newFilterExpression(nil, FloatValue(val), nil, nil, nil, nil)
 }
 
-// createss Blob bin value
+// ExpBlobVal creates a Blob bin value
 func ExpBlobVal(val []byte) *FilterExpression {
 	return newFilterExpression(nil, BytesValue(val), nil, nil, nil, nil)
 }
@@ -707,7 +707,7 @@ func ExpGeoVal(val string) *FilterExpression {
 	return newFilterExpression(nil, GeoJSONValue(val), nil, nil, nil, nil)
 }
 
-// ExpNil creates a a Nil Value
+// ExpNilValue creates a a Nil Value
 func ExpNilValue() *FilterExpression {
 	return newFilterExpression(nil, nullValue, nil, nil, nil, nil)
 }

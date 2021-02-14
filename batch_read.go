@@ -51,7 +51,7 @@ func NewBatchRead(key *Key, binNames []string) *BatchRead {
 	return res
 }
 
-// NewBatchRead defines a key to retrieve the record headers only in a batch operation.
+// NewBatchReadHeader defines a key to retrieve the record headers only in a batch operation.
 func NewBatchReadHeader(key *Key) *BatchRead {
 	return &BatchRead{
 		Key:         key,

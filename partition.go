@@ -177,7 +177,7 @@ func (ptn *Partition) PrepareRetryRead(isClientTimeout bool) {
 	}
 }
 
-// PrepareRetryRead increases sequence number before write retries
+// PrepareRetryWrite increases sequence number before write retries
 func (ptn *Partition) PrepareRetryWrite(isClientTimeout bool) {
 	if !isClientTimeout {
 		ptn.sequence++

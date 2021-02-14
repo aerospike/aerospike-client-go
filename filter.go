@@ -110,7 +110,7 @@ func newFilter(name string, indexCollectionType IndexCollectionType, valuePartic
 	}
 }
 
-// IndexType return filter's index type.
+// IndexCollectionType returns filter's index type.
 func (fltr *Filter) IndexCollectionType() IndexCollectionType {
 	return fltr.idxType
 }

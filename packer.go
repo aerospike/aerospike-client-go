@@ -582,7 +582,7 @@ func packByte(cmd BufferEx, valType int, val byte) (int, error) {
 	return 1 + 1, nil
 }
 
-// Pack nil packs a nil value
+// PackNil packs a nil value
 func PackNil(cmd BufferEx) (int, error) {
 	return packNil(cmd)
 }
@@ -594,7 +594,7 @@ func packNil(cmd BufferEx) (int, error) {
 	return 1, nil
 }
 
-// Pack bool packs a bool value
+// PackBool packs a bool value
 func PackBool(cmd BufferEx, val bool) (int, error) {
 	return packBool(cmd, val)
 }

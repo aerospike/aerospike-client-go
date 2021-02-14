@@ -272,27 +272,27 @@ func NewPredExpUnknownBin(name string) PredExp {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_UNKNOWN_BIN}
 }
 
-// NewPredExpUnknownBin creates a Bin predicate expression which its type is integer.
+// NewPredExpIntegerBin creates a Bin predicate expression which its type is integer.
 func NewPredExpIntegerBin(name string) PredExp {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_INTEGER_BIN}
 }
 
-// NewPredExpUnknownBin creates a Bin predicate expression which its type is String.
+// NewPredExpStringBin creates a Bin predicate expression which its type is String.
 func NewPredExpStringBin(name string) PredExp {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_STRING_BIN}
 }
 
-// NewPredExpUnknownBin creates a Bin predicate expression which its type is GeoJSON.
+// NewPredExpGeoJSONBin creates a Bin predicate expression which its type is GeoJSON.
 func NewPredExpGeoJSONBin(name string) PredExp {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_GEOJSON_BIN}
 }
 
-// NewPredExpUnknownBin creates a Bin predicate expression which its type is List.
+// NewPredExpListBin creates a Bin predicate expression which its type is List.
 func NewPredExpListBin(name string) PredExp {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_LIST_BIN}
 }
 
-// NewPredExpUnknownBin creates a Bin predicate expression which its type is Map.
+// NewPredExpMapBin creates a Bin predicate expression which its type is Map.
 func NewPredExpMapBin(name string) PredExp {
 	return &predExpBin{name: name, tag: _AS_PREDEXP_MAP_BIN}
 }
@@ -603,7 +603,7 @@ func NewPredExpMapKeyIterateAnd(name string) PredExp {
 	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPKEY_ITERATE_AND}
 }
 
-// NewPredExpMapKeyIterateAnd creates an And iterator predicate on map values
+// NewPredExpMapValIterateAnd creates an And iterator predicate on map values
 func NewPredExpMapValIterateAnd(name string) PredExp {
 	return &predExpIter{name: name, tag: _AS_PREDEXP_MAPVAL_ITERATE_AND}
 }
