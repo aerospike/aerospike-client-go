@@ -27,7 +27,7 @@ import (
 // this function will be set in value_slow file if included
 var newValueReflect func(interface{}) Value
 
-// Map pair is used when the client returns sorted maps from the server
+// MapPair is used when the client returns sorted maps from the server
 // Since the default map in Go is a hash map, we will use a slice
 // to return the results in server order
 type MapPair struct{ Key, Value interface{} }
@@ -448,6 +448,7 @@ func NewNullValue() NullValue {
 	return nullValue
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl NullValue) EstimateSize() (int, error) {
 	return 0, nil
 }
@@ -486,6 +487,7 @@ func NewInfinityValue() InfinityValue {
 	return infinityValue
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl InfinityValue) EstimateSize() (int, error) {
 	return 0, nil
 }
@@ -514,7 +516,7 @@ func (vl InfinityValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// InfinityValue is an empty value.
+// WildCardValue is an empty value.
 type WildCardValue struct{}
 
 var wildCardValue WildCardValue
@@ -524,6 +526,7 @@ func NewWildCardValue() WildCardValue {
 	return wildCardValue
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl WildCardValue) EstimateSize() (int, error) {
 	return 0, nil
 }
@@ -572,6 +575,7 @@ func NewBlobValue(object AerospikeBlob) BytesValue {
 	return NewBytesValue(buf)
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl BytesValue) EstimateSize() (int, error) {
 	return len(vl), nil
 }
@@ -609,6 +613,7 @@ func NewStringValue(value string) StringValue {
 	return StringValue(value)
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl StringValue) EstimateSize() (int, error) {
 	return len(vl), nil
 }
@@ -646,6 +651,7 @@ func NewIntegerValue(value int) IntegerValue {
 	return IntegerValue(value)
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl IntegerValue) EstimateSize() (int, error) {
 	return 8, nil
 }
@@ -683,6 +689,7 @@ func NewLongValue(value int64) LongValue {
 	return LongValue(value)
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl LongValue) EstimateSize() (int, error) {
 	return 8, nil
 }
@@ -720,6 +727,7 @@ func NewFloatValue(value float64) FloatValue {
 	return FloatValue(value)
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl FloatValue) EstimateSize() (int, error) {
 	return 8, nil
 }
@@ -753,6 +761,7 @@ func (vl FloatValue) String() string {
 // This method is only used in bitwise CDT operations internally.
 type _BoolValue bool
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vb _BoolValue) EstimateSize() (int, error) {
 	return PackBool(nil, bool(vb))
 }
@@ -793,6 +802,7 @@ func NewValueArray(array []Value) *ValueArray {
 	return &res
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (va ValueArray) EstimateSize() (int, error) {
 	return packValueArray(nil, va)
 }
@@ -831,6 +841,7 @@ func NewListValue(list []interface{}) ListValue {
 	return ListValue(list)
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl ListValue) EstimateSize() (int, error) {
 	return packIfcList(nil, vl)
 }
@@ -866,7 +877,7 @@ type ListerValue struct {
 	list ListIter
 }
 
-// NewListValue generates a ListValue instance.
+// NewListerValue generates a ListValue instance.
 func NewListerValue(list ListIter) *ListerValue {
 	res := &ListerValue{
 		list: list,
@@ -875,6 +886,7 @@ func NewListerValue(list ListIter) *ListerValue {
 	return res
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl *ListerValue) EstimateSize() (int, error) {
 	return packList(nil, vl.list)
 }
@@ -913,6 +925,7 @@ func NewMapValue(vmap map[interface{}]interface{}) MapValue {
 	return MapValue(vmap)
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl MapValue) EstimateSize() (int, error) {
 	return packIfcMap(nil, vl)
 }
@@ -945,11 +958,12 @@ func (vl MapValue) String() string {
 // Supported by Aerospike 3+ servers only.
 type JsonValue map[string]interface{}
 
-// NewMapValue generates a JsonValue instance.
+// NewJsonValue generates a JsonValue instance.
 func NewJsonValue(vmap map[string]interface{}) JsonValue {
 	return JsonValue(vmap)
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl JsonValue) EstimateSize() (int, error) {
 	return packJsonMap(nil, vl)
 }
@@ -984,7 +998,7 @@ type MapperValue struct {
 	vmap MapIter
 }
 
-// NewMapValue generates a MapperValue instance.
+// NewMapperValue generates a MapperValue instance.
 func NewMapperValue(vmap MapIter) *MapperValue {
 	res := &MapperValue{
 		vmap: vmap,
@@ -993,6 +1007,7 @@ func NewMapperValue(vmap MapIter) *MapperValue {
 	return res
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl *MapperValue) EstimateSize() (int, error) {
 	return packMap(nil, vl.vmap)
 }
@@ -1025,12 +1040,13 @@ func (vl *MapperValue) String() string {
 // Supported by Aerospike 3.6.1 servers and later only.
 type GeoJSONValue string
 
-// NewMapValue generates a GeoJSONValue instance.
+// NewGeoJSONValue generates a GeoJSONValue instance.
 func NewGeoJSONValue(value string) GeoJSONValue {
 	res := GeoJSONValue(value)
 	return res
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl GeoJSONValue) EstimateSize() (int, error) {
 	// flags + ncells + jsonstr
 	return 1 + 2 + len(string(vl)), nil
@@ -1073,6 +1089,7 @@ func NewHLLValue(bytes []byte) HLLValue {
 	return HLLValue(bytes)
 }
 
+// EstimateSize returns number of bytes necessary to serialize the value in the wire protocol.
 func (vl HLLValue) EstimateSize() (int, error) {
 	return len(vl), nil
 }
