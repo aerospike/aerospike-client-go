@@ -95,7 +95,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 		}
 
 		if err := cmd.conn.initInflater(true, compressedSize); err != nil {
-			return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
+			return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
 		}
 
 		// Read header.
@@ -142,9 +142,9 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 
 	if resultCode != 0 {
 		if resultCode == types.KEY_NOT_FOUND_ERROR {
-			return types.ErrKeyNotFound
+			return ErrKeyNotFound
 		} else if resultCode == types.FILTERED_OUT {
-			return types.ErrFilteredOut
+			return ErrFilteredOut
 		} else if resultCode == types.UDF_BAD_RESPONSE {
 			cmd.record, _ = cmd.parseRecord(ifc, opCount, fieldCount, generation, expiration)
 			err := cmd.handleUdfError(resultCode)
@@ -152,7 +152,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 			return err
 		}
 
-		return types.NewAerospikeError(resultCode)
+		return NewAerospikeError(resultCode)
 	}
 
 	if cmd.object == nil {
@@ -178,9 +178,9 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 
 func (cmd *readCommand) handleUdfError(resultCode types.ResultCode) error {
 	if ret, exists := cmd.record.Bins["FAILURE"]; exists {
-		return types.NewAerospikeError(resultCode, ret.(string))
+		return NewAerospikeError(resultCode, ret.(string))
 	}
-	return types.NewAerospikeError(resultCode)
+	return NewAerospikeError(resultCode)
 }
 
 func (cmd *readCommand) parseRecord(

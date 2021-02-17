@@ -21,7 +21,6 @@ import (
 	gm "github.com/onsi/gomega"
 
 	as "github.com/aerospike/aerospike-client-go"
-	ast "github.com/aerospike/aerospike-client-go/types"
 )
 
 var _ = gg.Describe("CDT List Test", func() {
@@ -49,7 +48,7 @@ var _ = gg.Describe("CDT List Test", func() {
 
 	gg.It("should create a valid CDT List", func() {
 		cdtList, err := client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, 0))
-		gm.Expect(err).To(gm.Equal(ast.ErrKeyNotFound))
+		gm.Expect(err).To(gm.Equal(as.ErrKeyNotFound))
 		gm.Expect(cdtList).To(gm.BeNil())
 
 		list := []interface{}{}

@@ -78,7 +78,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			if resultCode == types.FILTERED_OUT {
 				cmd.filteredOutCnt++
 			} else {
-				return false, types.NewAerospikeError(resultCode)
+				return false, NewAerospikeError(resultCode)
 			}
 		}
 
@@ -94,7 +94,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
 		if opCount > 0 {
-			return false, types.NewAerospikeError(types.PARSE_ERROR, "Received bins that were not requested!")
+			return false, NewAerospikeError(types.PARSE_ERROR, "Received bins that were not requested!")
 		}
 
 		key, err := cmd.parseKey(fieldCount)
@@ -108,7 +108,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 				cmd.existsArray[batchIndex] = true
 			}
 		} else {
-			return false, types.NewAerospikeError(types.PARSE_ERROR, "Unexpected batch key returned: "+key.namespace+","+Buffer.BytesToHexString(key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.keys[batchIndex].digest[:]))
+			return false, NewAerospikeError(types.PARSE_ERROR, "Unexpected batch key returned: "+key.namespace+","+Buffer.BytesToHexString(key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.keys[batchIndex].digest[:]))
 		}
 	}
 	return true, nil

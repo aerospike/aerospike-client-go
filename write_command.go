@@ -89,12 +89,12 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {
 
 	if resultCode != 0 {
 		if resultCode == byte(types.KEY_NOT_FOUND_ERROR) {
-			return types.ErrKeyNotFound
+			return ErrKeyNotFound
 		} else if types.ResultCode(resultCode) == types.FILTERED_OUT {
-			return types.ErrFilteredOut
+			return ErrFilteredOut
 		}
 
-		return types.NewAerospikeError(types.ResultCode(resultCode))
+		return NewAerospikeError(types.ResultCode(resultCode))
 	}
 	return cmd.emptySocket(conn)
 }

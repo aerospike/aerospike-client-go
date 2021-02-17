@@ -66,7 +66,7 @@ func (btsk *baseTask) onComplete(ifc Task) chan error {
 				}
 			}
 			if err != nil {
-				ae, ok := err.(types.AerospikeError)
+				ae, ok := err.(AerospikeError)
 				if ok && ae.ResultCode() == types.TIMEOUT {
 					ae.MarkInDoubt()
 				}

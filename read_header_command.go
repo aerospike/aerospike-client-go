@@ -81,9 +81,9 @@ func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {
 		if types.ResultCode(resultCode) == types.KEY_NOT_FOUND_ERROR {
 			cmd.record = nil
 		} else if types.ResultCode(resultCode) == types.FILTERED_OUT {
-			return types.ErrFilteredOut
+			return ErrFilteredOut
 		} else {
-			return types.NewAerospikeError(types.ResultCode(resultCode))
+			return NewAerospikeError(types.ResultCode(resultCode))
 		}
 	}
 	return cmd.emptySocket(conn)

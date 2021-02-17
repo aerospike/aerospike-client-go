@@ -22,7 +22,7 @@ import (
 	gm "github.com/onsi/gomega"
 
 	as "github.com/aerospike/aerospike-client-go"
-	"github.com/aerospike/aerospike-client-go/types"
+	ast "github.com/aerospike/aerospike-client-go/types"
 )
 
 var _ = gg.Describe("HyperLogLog Test", func() {
@@ -126,11 +126,11 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		}
 	})
 
-	expectErrors := func(key *as.Key, eresult types.ResultCode, ops ...*as.Operation) {
+	expectErrors := func(key *as.Key, eresult ast.ResultCode, ops ...*as.Operation) {
 		_, err := client.Operate(nil, key, ops...)
 		gm.Expect(err).To(gm.HaveOccurred())
 
-		aerr, ok := err.(types.AerospikeError)
+		aerr, ok := err.(as.AerospikeError)
 		gm.Expect(ok).To(gm.BeTrue())
 		gm.Expect(aerr.ResultCode()).To(gm.Equal(eresult))
 	}
@@ -167,7 +167,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		}
 
 		if !should_pass {
-			expectErrors(key, types.PARAMETER_ERROR, ops...)
+			expectErrors(key, ast.PARAMETER_ERROR, ops...)
 			return
 		}
 
@@ -207,7 +207,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		c := as.NewHLLPolicy(as.HLLWriteFlagsCreateOnly)
 
 		expectSuccess(key, as.HLLInitOp(c, binName, index_bits, -1))
-		expectErrors(key, types.BIN_EXISTS_ERROR,
+		expectErrors(key, ast.BIN_EXISTS_ERROR,
 			as.HLLInitOp(c, binName, index_bits, -1))
 
 		// update_only
@@ -215,7 +215,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 		expectSuccess(key, as.HLLInitOp(u, binName, index_bits, -1))
 		expectSuccess(key, as.PutOp(as.NewBin(binName, nil)))
-		expectErrors(key, types.BIN_NOT_FOUND,
+		expectErrors(key, ast.BIN_NOT_FOUND,
 			as.HLLInitOp(u, binName, index_bits, -1))
 
 		// create_only no_fail
@@ -236,7 +236,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 		f := as.NewHLLPolicy(as.HLLWriteFlagsAllowFold)
 
-		expectErrors(key, types.PARAMETER_ERROR,
+		expectErrors(key, ast.PARAMETER_ERROR,
 			as.HLLInitOp(f, binName, index_bits, -1))
 	})
 
@@ -244,7 +244,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		p := as.DefaultHLLPolicy()
 
 		expectSuccess(key, as.DeleteOp(), as.HLLInitOp(p, binName, maxIndexBits, 0))
-		expectErrors(key, types.OP_NOT_APPLICABLE,
+		expectErrors(key, ast.OP_NOT_APPLICABLE,
 			as.HLLInitOp(p, binName, -1, maxMinhashBits))
 	})
 
@@ -271,7 +271,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		}
 
 		if !checkBits(index_bits, minhash_bits) {
-			expectErrors(key, types.PARAMETER_ERROR, ops...)
+			expectErrors(key, ast.PARAMETER_ERROR, ops...)
 			return
 		}
 
@@ -306,13 +306,13 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		c := as.NewHLLPolicy(as.HLLWriteFlagsCreateOnly)
 
 		expectSuccess(key, as.HLLAddOp(c, binName, entries, index_bits, -1))
-		expectErrors(key, types.BIN_EXISTS_ERROR,
+		expectErrors(key, ast.BIN_EXISTS_ERROR,
 			as.HLLAddOp(c, binName, entries, index_bits, -1))
 
 		// update_only
 		u := as.NewHLLPolicy(as.HLLWriteFlagsUpdateOnly)
 
-		expectErrors(key, types.PARAMETER_ERROR,
+		expectErrors(key, ast.PARAMETER_ERROR,
 			as.HLLAddOp(u, binName, entries, index_bits, -1))
 
 		// create_only no_fail
@@ -326,7 +326,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 		f := as.NewHLLPolicy(as.HLLWriteFlagsAllowFold)
 
-		expectErrors(key, types.PARAMETER_ERROR,
+		expectErrors(key, ast.PARAMETER_ERROR,
 			as.HLLAddOp(f, binName, entries, index_bits, -1))
 	})
 
@@ -406,13 +406,13 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 		// Exists.
 		expectSuccess(key, as.HLLFoldOp(binName, fold_down))
-		expectErrors(key, types.OP_NOT_APPLICABLE,
+		expectErrors(key, ast.OP_NOT_APPLICABLE,
 			as.HLLFoldOp(binName, fold_up))
 
 		// Does not exist.
 		expectSuccess(key, as.PutOp(as.NewBin(binName, nil)))
 
-		expectErrors(key, types.BIN_NOT_FOUND,
+		expectErrors(key, ast.BIN_NOT_FOUND,
 			as.HLLFoldOp(binName, fold_down))
 	})
 
@@ -478,7 +478,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		}
 
 		if folded && !allow_folding {
-			expectErrors(key, types.OP_NOT_APPLICABLE, ops...)
+			expectErrors(key, ast.OP_NOT_APPLICABLE, ops...)
 			return
 		}
 
@@ -547,7 +547,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		c := as.NewHLLPolicy(as.HLLWriteFlagsCreateOnly)
 
 		expectSuccess(key, as.HLLSetUnionOp(c, binName, hlls))
-		expectErrors(key, types.BIN_EXISTS_ERROR,
+		expectErrors(key, ast.BIN_EXISTS_ERROR,
 			as.HLLSetUnionOp(c, binName, hlls))
 
 		// update_only
@@ -555,7 +555,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 		expectSuccess(key, as.HLLSetUnionOp(u, binName, hlls))
 		expectSuccess(key, as.PutOp(as.NewBin(binName, nil)))
-		expectErrors(key, types.BIN_NOT_FOUND,
+		expectErrors(key, ast.BIN_NOT_FOUND,
 			as.HLLSetUnionOp(u, binName, hlls))
 
 		// create_only no_fail
@@ -601,7 +601,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 		// Does not exist.
 		expectSuccess(key, as.PutOp(as.NewBin(binName, nil)))
-		expectErrors(key, types.BIN_NOT_FOUND,
+		expectErrors(key, ast.BIN_NOT_FOUND,
 			as.HLLRefreshCountOp(binName))
 	})
 
@@ -870,9 +870,9 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 			hlls = append(hlls, hlls[0])
 
-			expectErrors(key, types.PARAMETER_ERROR,
+			expectErrors(key, ast.PARAMETER_ERROR,
 				as.HLLGetIntersectCountOp(binName, hlls))
-			expectErrors(key, types.PARAMETER_ERROR,
+			expectErrors(key, ast.PARAMETER_ERROR,
 				as.HLLGetSimilarityOp(binName, hlls))
 
 			record = expectSuccess(key,
@@ -885,9 +885,9 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 			hmhs = append(hmhs, hmhs[0])
 
-			expectErrors(key, types.OP_NOT_APPLICABLE,
+			expectErrors(key, ast.OP_NOT_APPLICABLE,
 				as.HLLGetIntersectCountOp(binName, hmhs))
-			expectErrors(key, types.OP_NOT_APPLICABLE,
+			expectErrors(key, ast.OP_NOT_APPLICABLE,
 				as.HLLGetSimilarityOp(binName, hmhs))
 		}
 	})

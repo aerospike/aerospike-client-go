@@ -441,7 +441,7 @@ func NewValue(v interface{}) Value {
 	}
 
 	// panic for anything that is not supported.
-	panic(types.NewAerospikeError(types.TYPE_NOT_SUPPORTED, fmt.Sprintf("Value type '%v' (%s) not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)", v, reflect.TypeOf(v).String())))
+	panic(NewAerospikeError(types.TYPE_NOT_SUPPORTED, fmt.Sprintf("Value type '%v' (%s) not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)", v, reflect.TypeOf(v).String())))
 }
 
 // NullValue is an empty value.
@@ -1190,7 +1190,7 @@ func bytesToKeyValue(pType int, buf []byte, offset int, len int) (Value, error) 
 		return NewBytesValue(bytes), nil
 
 	default:
-		return nil, types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("ParticleType %d not recognized. Please file a github issue.", pType))
+		return nil, NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("ParticleType %d not recognized. Please file a github issue.", pType))
 	}
 }
 

@@ -71,7 +71,7 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 
 		if strings.HasPrefix(response, "ERROR:") {
 			// Mark done and quit immediately.
-			return false, types.NewAerospikeError(types.UDF_BAD_RESPONSE, response)
+			return false, NewAerospikeError(types.UDF_BAD_RESPONSE, response)
 		}
 
 		find := "status="

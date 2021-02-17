@@ -154,5 +154,5 @@ func (vb *keyWriter) writeKey(val Value) error {
 		return nil
 	}
 
-	return types.NewAerospikeError(types.PARAMETER_ERROR, "Key Generation Error. Value not supported: "+val.String())
+	return NewAerospikeError(types.PARAMETER_ERROR, "Key Generation Error. Value not supported: "+val.String())
 }

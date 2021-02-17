@@ -23,7 +23,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/types"
 )
 
-var aeroerr = types.NewAerospikeError(types.PARSE_ERROR, "Error parsing peers list.")
+var aeroerr = NewAerospikeError(types.PARSE_ERROR, "Error parsing peers list.")
 
 func parsePeers(cluster *Cluster, node *Node) (*peerListParser, error) {
 	cmd := cluster.clientPolicy.peersString()
@@ -35,7 +35,7 @@ func parsePeers(cluster *Cluster, node *Node) (*peerListParser, error) {
 
 	peersStr, exists := info[cmd]
 	if !exists {
-		return nil, types.NewAerospikeError(types.PARSE_ERROR, "Info Command response was empty.")
+		return nil, NewAerospikeError(types.PARSE_ERROR, "Info Command response was empty.")
 	}
 
 	p := peerListParser{buf: []byte(peersStr)}

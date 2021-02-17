@@ -233,7 +233,7 @@ func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (interface{}, error)
 		val = NewGeoJSONValue(string(upckr.buffer[upckr.offset : upckr.offset+count]))
 
 	default:
-		return nil, types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error while unpacking BLOB. Type-header with code `%d` not recognized.", theType))
+		return nil, NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error while unpacking BLOB. Type-header with code `%d` not recognized.", theType))
 	}
 	upckr.offset += count
 
@@ -412,5 +412,5 @@ func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, error) {
 		}
 	}
 
-	return nil, types.NewAerospikeError(types.SERIALIZE_ERROR)
+	return nil, NewAerospikeError(types.SERIALIZE_ERROR)
 }

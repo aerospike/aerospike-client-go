@@ -138,7 +138,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 			if resultCode == types.FILTERED_OUT {
 				cmd.filteredOutCnt++
 			} else {
-				return false, types.NewAerospikeError(resultCode)
+				return false, NewAerospikeError(resultCode)
 			}
 		}
 

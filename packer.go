@@ -256,27 +256,27 @@ func packObject(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
 		return packFloat64(cmd, v)
 	case struct{}:
 		if mapKey {
-			return 0, types.NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
+			return 0, NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
 		return packIfcMap(cmd, map[interface{}]interface{}{})
 	case []interface{}:
 		if mapKey {
-			return 0, types.NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
+			return 0, NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
 		return packIfcList(cmd, v)
 	case map[interface{}]interface{}:
 		if mapKey {
-			return 0, types.NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
+			return 0, NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
 		return packIfcMap(cmd, v)
 	case ListIter:
 		if mapKey {
-			return 0, types.NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
+			return 0, NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
 		return packList(cmd, obj.(ListIter))
 	case MapIter:
 		if mapKey {
-			return 0, types.NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
+			return 0, NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
 		return packMap(cmd, obj.(MapIter))
 	}
@@ -291,7 +291,7 @@ func packObject(cmd BufferEx, obj interface{}, mapKey bool) (int, error) {
 		return packObjectReflect(cmd, obj, mapKey)
 	}
 
-	return 0, types.NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Type `%v (%s)` not supported to pack. ", obj, reflect.TypeOf(obj).String()))
+	return 0, NewAerospikeError(types.SERIALIZE_ERROR, fmt.Sprintf("Type `%v (%s)` not supported to pack. ", obj, reflect.TypeOf(obj).String()))
 }
 
 func packAUInt64(cmd BufferEx, val uint64) (int, error) {

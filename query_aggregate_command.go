@@ -73,7 +73,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 				}
 				return false, nil
 			}
-			err := types.NewAerospikeError(resultCode)
+			err := NewAerospikeError(resultCode)
 			err = newNodeError(cmd.node, err)
 			return false, err
 		}
@@ -143,10 +143,10 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		recs, exists := bins["SUCCESS"]
 		if !exists {
 			if errStr, exists := bins["FAILURE"]; exists {
-				return false, types.NewAerospikeError(types.QUERY_GENERIC, errStr.(string))
+				return false, NewAerospikeError(types.QUERY_GENERIC, errStr.(string))
 			}
 
-			return false, types.NewAerospikeError(types.QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
+			return false, NewAerospikeError(types.QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
 		}
 
 		// If the channel is full and it blocks, we don't want this command to
@@ -155,7 +155,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		// send back the result on the async channel
 		case cmd.inputChan <- recs:
 		case <-cmd.recordset.cancelled:
-			return false, types.NewAerospikeError(types.QUERY_TERMINATED)
+			return false, NewAerospikeError(types.QUERY_TERMINATED)
 		}
 	}
 

@@ -31,7 +31,6 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 	asl "github.com/aerospike/aerospike-client-go/logger"
-	ast "github.com/aerospike/aerospike-client-go/types"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
@@ -172,7 +171,7 @@ func info(client *as.Client, feature string) string {
 	node := client.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), feature)
 	if err != nil {
-		if ae, ok := err.(ast.AerospikeError); ok {
+		if ae, ok := err.(as.AerospikeError); ok {
 			return ae.Error()
 		} else {
 			log.Fatal("Failed to connect to aerospike: err:", err)

@@ -272,5 +272,5 @@ func newInvalidNamespaceError(ns string, mapSize int) error {
 	if mapSize != 0 {
 		s = "Namespace not found in partition map: " + ns
 	}
-	return types.NewAerospikeError(types.INVALID_NAMESPACE, s)
+	return NewAerospikeError(types.INVALID_NAMESPACE, s)
 }

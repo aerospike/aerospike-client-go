@@ -123,7 +123,7 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 	}
 
 	if filteredOut > 0 {
-		err = types.ErrFilteredOut
+		err = ErrFilteredOut
 	}
 
 	return objectsFound, err
@@ -138,7 +138,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
 	clusterKey := int64(0)
@@ -223,7 +223,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
 	}
 
 	clusterKey := int64(0)

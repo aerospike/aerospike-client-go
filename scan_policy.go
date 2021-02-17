@@ -67,6 +67,6 @@ func NewScanPolicy() *ScanPolicy {
 // Verify policies fields are within range.
 func (sp *ScanPolicy) validate() {
 	if sp.ScanPercent <= 0 || sp.ScanPercent > 100 {
-		panic(types.NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid scan percent: %d", sp.ScanPercent)))
+		panic(NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid scan percent: %d", sp.ScanPercent)))
 	}
 }

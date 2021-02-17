@@ -76,7 +76,7 @@ func connectionFinalizer(c *Connection) {
 
 func errToTimeoutErr(conn *Connection, err error) error {
 	if err, ok := err.(net.Error); ok && err.Timeout() {
-		return types.ErrTimeout
+		return ErrTimeout
 	}
 	return err
 }
@@ -243,7 +243,7 @@ func (ctn *Connection) updateDeadline() error {
 		}
 	} else {
 		if now.After(ctn.deadline) {
-			return types.NewAerospikeError(types.TIMEOUT)
+			return NewAerospikeError(types.TIMEOUT)
 		}
 		if ctn.socketTimeout == 0 {
 			socketDeadline = ctn.deadline
@@ -426,4 +426,34 @@ func (ctn *Connection) initInflater(enabled bool, length int) error {
 		ctn.inflater = r
 	}
 	return nil
+}
+
+// KeepConnection decides if a connection should be kept
+// based on the error type.
+func KeepConnection(err error) bool {
+	// if error is not an AerospikeError, Throw the connection away conservatively
+	ae, ok := err.(AerospikeError)
+	if !ok {
+		return false
+	}
+
+	switch ae.resultCode {
+	case 0, // Zero Value
+		types.QUERY_TERMINATED,
+		types.SCAN_TERMINATED,
+		types.PARSE_ERROR,
+		types.SERIALIZE_ERROR,
+		types.SERVER_NOT_AVAILABLE,
+		types.SCAN_ABORT,
+		types.QUERY_ABORTED,
+
+		types.INVALID_NODE_ERROR,
+		types.SERVER_MEM_ERROR,
+		types.TIMEOUT,
+		types.INDEX_OOM,
+		types.QUERY_TIMEOUT:
+		return false
+	default:
+		return true
+	}
 }

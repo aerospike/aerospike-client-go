@@ -331,7 +331,7 @@ func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, error
 	}
 
 	if filteredOut > 0 {
-		err = types.ErrFilteredOut
+		err = ErrFilteredOut
 	}
 
 	return existsArray, err
@@ -405,9 +405,9 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 
 	if filteredOut > 0 {
 		if err == nil {
-			err = types.ErrFilteredOut
+			err = ErrFilteredOut
 		} else {
-			err = mergeErrors([]error{err, types.ErrFilteredOut})
+			err = mergeErrors([]error{err, ErrFilteredOut})
 		}
 	}
 
@@ -437,9 +437,9 @@ func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) e
 
 	if filteredOut > 0 {
 		if err == nil {
-			err = types.ErrFilteredOut
+			err = ErrFilteredOut
 		} else {
-			err = mergeErrors([]error{err, types.ErrFilteredOut})
+			err = mergeErrors([]error{err, ErrFilteredOut})
 		}
 	}
 
@@ -471,9 +471,9 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 
 	if filteredOut > 0 {
 		if err == nil {
-			err = types.ErrFilteredOut
+			err = ErrFilteredOut
 		} else {
-			err = mergeErrors([]error{err, types.ErrFilteredOut})
+			err = mergeErrors([]error{err, ErrFilteredOut})
 		}
 	}
 
@@ -514,14 +514,14 @@ func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operat
 // This method is only supported by Aerospike 4.9+ servers.
 func (clnt *Client) ScanPartitions(apolicy *ScanPolicy, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, error) {
 	if !clnt.cluster.supportsPartitionScans.Get() {
-		return nil, types.ErrPartitionScanQueryNotSupported
+		return nil, ErrPartitionScanQueryNotSupported
 	}
 
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
 	var tracker *partitionTracker
@@ -551,7 +551,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
 	}
 
 	clusterKey := int64(0)
@@ -710,7 +710,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 
 	if _, exists := res["error"]; exists {
 		msg, _ := base64.StdEncoding.DecodeString(res["message"])
-		return nil, types.NewAerospikeError(types.COMMAND_REJECTED, fmt.Sprintf("Registration failed: %s\nFile: %s\nLine: %s\nMessage: %s",
+		return nil, NewAerospikeError(types.COMMAND_REJECTED, fmt.Sprintf("Registration failed: %s\nFile: %s\nLine: %s\nMessage: %s",
 			res["error"], res["file"], res["line"], msg))
 	}
 	return NewRegisterTask(clnt.cluster, serverPath), nil
@@ -742,7 +742,7 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 	if response == "ok" {
 		return NewRemoveTask(clnt.cluster, udfName), nil
 	}
-	return nil, types.NewAerospikeError(types.SERVER_ERROR, response)
+	return nil, NewAerospikeError(types.SERVER_ERROR, response)
 }
 
 // ListUDF lists all packages containing user defined functions in the server.
@@ -825,7 +825,7 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 		}
 	}
 
-	return nil, types.ErrUDFBadResponse
+	return nil, ErrUDFBadResponse
 }
 
 //----------------------------------------------------------
@@ -847,11 +847,11 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 ) (*ExecuteTask, error) {
 
 	if len(ops) == 0 {
-		return nil, types.ErrNoOperationsSpecified
+		return nil, ErrNoOperationsSpecified
 	}
 
 	if len(statement.BinNames) > 0 {
-		return nil, types.ErrNoBinNamesAlloedInQueryExecute
+		return nil, ErrNoBinNamesAlloedInQueryExecute
 	}
 
 	policy = clnt.getUsableQueryPolicy(policy)
@@ -859,7 +859,7 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "ExecuteOperations failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "ExecuteOperations failed because cluster is empty.")
 	}
 
 	statement.prepare(false)
@@ -893,7 +893,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "ExecuteUDF failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "ExecuteUDF failed because cluster is empty.")
 	}
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
@@ -927,7 +927,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	if node == nil {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "ExecuteUDFNode failed because node is nil.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "ExecuteUDFNode failed because node is nil.")
 	}
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
@@ -950,7 +950,7 @@ func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespac
 	} else {
 		b64, err := filter.base64()
 		if err != nil {
-			return types.NewAerospikeError(types.SERIALIZE_ERROR, "FilterExpression could not be serialized to Base64")
+			return NewAerospikeError(types.SERIALIZE_ERROR, "FilterExpression could not be serialized to Base64")
 		}
 
 		strCmd = "xdr-set-filter:dc=" + datacenter + ";namespace=" + namespace + ";exp=" + b64
@@ -968,7 +968,7 @@ func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespac
 	}
 
 	code := parseIndexErrorCode(response)
-	return types.NewAerospikeError(code, response)
+	return NewAerospikeError(code, response)
 }
 
 func parseIndexErrorCode(response string) types.ResultCode {
@@ -1002,14 +1002,14 @@ func parseIndexErrorCode(response string) types.ResultCode {
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, partitionFilter *PartitionFilter) (*Recordset, error) {
 	if statement.Filter != nil || !clnt.cluster.supportsPartitionScans.Get() {
-		return nil, types.ErrPartitionScanQueryNotSupported
+		return nil, ErrPartitionScanQueryNotSupported
 	}
 
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
 	}
 
 	var tracker *partitionTracker
@@ -1043,7 +1043,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
 	}
 
 	clusterKey := int64(0)
@@ -1216,10 +1216,10 @@ func (clnt *Client) CreateComplexIndex(
 
 	if strings.HasPrefix(response, "FAIL:200") {
 		// Index has already been created.  Do not need to poll for completion.
-		return nil, types.NewAerospikeError(types.INDEX_FOUND)
+		return nil, NewAerospikeError(types.INDEX_FOUND)
 	}
 
-	return nil, types.NewAerospikeError(types.INDEX_GENERIC, "Create index failed: "+response)
+	return nil, NewAerospikeError(types.INDEX_GENERIC, "Create index failed: "+response)
 }
 
 // DropIndex deletes a secondary index. It will block until index is dropped on all nodes.
@@ -1262,7 +1262,7 @@ func (clnt *Client) DropIndex(
 		return nil
 	}
 
-	return types.NewAerospikeError(types.INDEX_GENERIC, "Drop index failed: "+response)
+	return NewAerospikeError(types.INDEX_GENERIC, "Drop index failed: "+response)
 }
 
 // Truncate removes records in specified namespace/set efficiently.  This method is many orders of magnitude
@@ -1323,7 +1323,7 @@ func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeL
 		return nil
 	}
 
-	return types.NewAerospikeError(types.SERVER_ERROR, "Truncate failed: "+response)
+	return NewAerospikeError(types.SERVER_ERROR, "Truncate failed: "+response)
 }
 
 //-------------------------------------------------------
@@ -1356,7 +1356,7 @@ func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password st
 	policy = clnt.getUsableAdminPolicy(policy)
 
 	if clnt.cluster.user == "" {
-		return types.NewAerospikeError(types.INVALID_USER)
+		return NewAerospikeError(types.INVALID_USER)
 	}
 
 	hash, err := hashPassword(password)

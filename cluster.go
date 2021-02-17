@@ -501,7 +501,7 @@ func (clstr *Cluster) waitTillStabilized() error {
 		var err error
 		for {
 			if err = clstr.tend(); err != nil {
-				if aerr, ok := err.(types.AerospikeError); ok {
+				if aerr, ok := err.(AerospikeError); ok {
 					switch aerr.ResultCode() {
 					case types.NOT_AUTHENTICATED, types.CLUSTER_NAME_MISMATCH_ERROR:
 						doneCh <- err
@@ -641,10 +641,10 @@ L:
 	var errStrs []string
 	for _, err := range errorList {
 		if err != nil {
-			if aerr, ok := err.(types.AerospikeError); ok {
+			if aerr, ok := err.(AerospikeError); ok {
 				switch aerr.ResultCode() {
 				case types.NOT_AUTHENTICATED:
-					return false, types.NewAerospikeError(types.NOT_AUTHENTICATED)
+					return false, NewAerospikeError(types.NOT_AUTHENTICATED)
 				case types.CLUSTER_NAME_MISMATCH_ERROR:
 					return false, aerr
 				}
@@ -653,7 +653,7 @@ L:
 		}
 	}
 
-	return false, types.NewAerospikeError(types.INVALID_NODE_ERROR, "Failed to connect to hosts:"+strings.Join(errStrs, "\n"))
+	return false, NewAerospikeError(types.INVALID_NODE_ERROR, "Failed to connect to hosts:"+strings.Join(errStrs, "\n"))
 }
 
 func (clstr *Cluster) createNode(nv *nodeValidator) *Node {
@@ -839,7 +839,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 		}
 	}
 
-	return nil, types.NewAerospikeError(types.INVALID_NODE_ERROR, "Cluster is empty.")
+	return nil, NewAerospikeError(types.INVALID_NODE_ERROR, "Cluster is empty.")
 }
 
 // GetNodes returns a list of all nodes in the cluster
@@ -884,7 +884,7 @@ func (clstr *Cluster) GetNodeByName(nodeName string) (*Node, error) {
 	node := clstr.findNodeByName(nodeName)
 
 	if node == nil {
-		return nil, types.NewAerospikeError(types.INVALID_NODE_ERROR, "Invalid node name"+nodeName)
+		return nil, NewAerospikeError(types.INVALID_NODE_ERROR, "Invalid node name"+nodeName)
 	}
 	return node, nil
 }
@@ -944,7 +944,7 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 	for {
 		select {
 		case <-dealine:
-			return false, types.NewAerospikeError(types.TIMEOUT)
+			return false, NewAerospikeError(types.TIMEOUT)
 		case <-done:
 			return res, err
 		}
@@ -973,7 +973,7 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) error
 	dealine := time.After(timeout)
 	select {
 	case <-dealine:
-		return types.NewAerospikeError(types.TIMEOUT)
+		return NewAerospikeError(types.TIMEOUT)
 	case err := <-done:
 		return err
 	}

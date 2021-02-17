@@ -182,7 +182,7 @@ func (pm partitionMap) validate() error {
 		}
 
 		errList = append(errList, errors.New("Partition map errors normally occur when the cluster has partitioned due to network anomaly or node crash, or is not configured properly. Refer to https://www.aerospike.com/docs/operations/configure for more information."))
-		return types.NewAerospikeError(types.INVALID_CLUSTER_PARTITION_MAP, mergeErrors(errList).Error())
+		return NewAerospikeError(types.INVALID_CLUSTER_PARTITION_MAP, mergeErrors(errList).Error())
 	}
 
 	return nil

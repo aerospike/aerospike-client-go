@@ -83,13 +83,13 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) error {
 		ip, ipnet, err := net.ParseCIDR(masterHostname + "/24")
 		if err != nil {
 			logger.Logger.Error(err.Error())
-			return types.NewAerospikeError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "Failed parsing hostname...")
+			return NewAerospikeError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "Failed parsing hostname...")
 		}
 
 		stop := ip.Mask(ipnet.Mask)
 		stop[3] += 255
 		if bytes.Compare(net.ParseIP(host.Name).To4(), ip.Mask(ipnet.Mask).To4()) >= 0 && bytes.Compare(net.ParseIP(host.Name).To4(), stop.To4()) >= 0 {
-			return types.NewAerospikeError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "Ignored hostname from other subnet...")
+			return NewAerospikeError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "Ignored hostname from other subnet...")
 		}
 	}
 
@@ -173,7 +173,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 		return err
 	}
 	if _, exists := info["ERROR:80:not authenticated"]; exists {
-		return types.NewAerospikeError(types.NOT_AUTHENTICATED)
+		return NewAerospikeError(types.NOT_AUTHENTICATED)
 	}
 
 	hasClusterName := len(clientPolicy.ClusterName) > 0
@@ -195,28 +195,28 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) error {
 
 	nodeName, exists := infoMap["node"]
 	if !exists {
-		return types.NewAerospikeError(types.INVALID_NODE_ERROR, "Invalid node alias:"+alias.String())
+		return NewAerospikeError(types.INVALID_NODE_ERROR, "Invalid node alias:"+alias.String())
 	}
 
 	genStr, exists := infoMap["partition-generation"]
 	if !exists {
-		return types.NewAerospikeError(types.INVALID_NODE_ERROR, "Invalid partition-generation for node:"+alias.String())
+		return NewAerospikeError(types.INVALID_NODE_ERROR, "Invalid partition-generation for node:"+alias.String())
 	}
 
 	gen, err := strconv.Atoi(genStr)
 	if err != nil {
-		return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid partition-generation for Node %s (%s), value: %s", nodeName, alias.String(), genStr))
+		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid partition-generation for Node %s (%s), value: %s", nodeName, alias.String(), genStr))
 	}
 
 	if gen == -1 {
-		return types.NewAerospikeError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is not yet fully initialized", nodeName, alias.String()))
+		return NewAerospikeError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is not yet fully initialized", nodeName, alias.String()))
 	}
 
 	if hasClusterName {
 		id := infoMap["cluster-name"]
 
 		if len(id) == 0 || id != clientPolicy.ClusterName {
-			return types.NewAerospikeError(types.CLUSTER_NAME_MISMATCH_ERROR, fmt.Sprintf("Node %s (%s) expected cluster name `%s` but received `%s`", nodeName, alias.String(), clientPolicy.ClusterName, id))
+			return NewAerospikeError(types.CLUSTER_NAME_MISMATCH_ERROR, fmt.Sprintf("Node %s (%s) expected cluster name `%s` but received `%s`", nodeName, alias.String(), clientPolicy.ClusterName, id))
 		}
 	}
 

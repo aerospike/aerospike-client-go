@@ -262,7 +262,7 @@ func (acmd *adminCommand) writePrivileges(privileges []Privilege) error {
 		if privilege.canScope() {
 
 			if len(privilege.SetName) > 0 && len(privilege.Namespace) == 0 {
-				return types.NewAerospikeError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
+				return NewAerospikeError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
 			}
 
 			acmd.dataBuffer[offset] = byte(len(privilege.Namespace))
@@ -276,7 +276,7 @@ func (acmd *adminCommand) writePrivileges(privileges []Privilege) error {
 			offset += len(privilege.SetName)
 		} else {
 			if len(privilege.Namespace) > 0 || len(privilege.SetName) > 0 {
-				return types.NewAerospikeError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
+				return NewAerospikeError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
 			}
 		}
 	}
@@ -374,7 +374,7 @@ func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 
 	result := acmd.dataBuffer[_RESULT_CODE]
 	if result != 0 {
-		return types.NewAerospikeError(types.ResultCode(result))
+		return NewAerospikeError(types.ResultCode(result))
 	}
 
 	return nil
@@ -409,7 +409,7 @@ func (acmd *adminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*U
 	}
 
 	if status > 0 {
-		return nil, types.NewAerospikeError(types.ResultCode(status))
+		return nil, NewAerospikeError(types.ResultCode(status))
 	}
 	return list, nil
 }
@@ -546,7 +546,7 @@ func (acmd *adminCommand) readRoles(cluster *Cluster, policy *AdminPolicy) ([]*R
 	}
 
 	if status > 0 {
-		return nil, types.NewAerospikeError(types.ResultCode(status))
+		return nil, NewAerospikeError(types.ResultCode(status))
 	}
 	return list, nil
 }

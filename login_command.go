@@ -68,7 +68,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 		lcmd.writeFieldStr(_USER, policy.User)
 		lcmd.writeFieldBytes(_CREDENTIAL, hashedPass)
 	default:
-		return types.NewAerospikeError(types.ResultCode(types.INVALID_COMMAND), "Invalid ClientPolicy.AuthMode.")
+		return NewAerospikeError(types.ResultCode(types.INVALID_COMMAND), "Invalid ClientPolicy.AuthMode.")
 	}
 
 	lcmd.writeSize()
@@ -99,7 +99,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 			return nil
 		}
 
-		return types.NewAerospikeError(types.ResultCode(result))
+		return NewAerospikeError(types.ResultCode(result))
 	}
 
 	// Read session token.
@@ -108,7 +108,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 	fieldCount := int(lcmd.dataBuffer[11] & 0xFF)
 
 	if receiveSize <= 0 || receiveSize > len(lcmd.dataBuffer) || fieldCount <= 0 {
-		return types.NewAerospikeError(types.ResultCode(result), "Node failed to retrieve session token")
+		return NewAerospikeError(types.ResultCode(result), "Node failed to retrieve session token")
 	}
 
 	if len(lcmd.dataBuffer) < receiveSize {
@@ -147,7 +147,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 	}
 
 	if lcmd.SessionToken == nil {
-		return types.NewAerospikeError(types.ResultCode(result), "Node failed to retrieve session token")
+		return NewAerospikeError(types.ResultCode(result), "Node failed to retrieve session token")
 	}
 	return nil
 }
@@ -169,7 +169,7 @@ func (lcmd *loginCommand) authenticateInternal(conn *Connection, user string, pa
 
 	result := lcmd.dataBuffer[_RESULT_CODE] & 0xFF
 	if result != 0 && int(result) != int(types.SECURITY_NOT_ENABLED) {
-		return types.NewAerospikeError(types.ResultCode(result), "Authentication failed")
+		return NewAerospikeError(types.ResultCode(result), "Authentication failed")
 	}
 
 	return nil
@@ -188,7 +188,7 @@ func (lcmd *loginCommand) authenticateViaToken(policy *ClientPolicy, conn *Conne
 
 	result := lcmd.dataBuffer[_RESULT_CODE] & 0xFF
 	if result != 0 && int(result) != int(types.SECURITY_NOT_ENABLED) {
-		return types.NewAerospikeError(types.ResultCode(result), "Authentication failed")
+		return NewAerospikeError(types.ResultCode(result), "Authentication failed")
 	}
 
 	return nil

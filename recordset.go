@@ -21,7 +21,6 @@ import (
 	"sync"
 
 	"github.com/aerospike/aerospike-client-go/internal/atomic"
-	"github.com/aerospike/aerospike-client-go/types"
 
 	xornd "github.com/aerospike/aerospike-client-go/types/rand"
 )
@@ -139,7 +138,7 @@ L:
 	select {
 	case record, ok = <-rcs.Records:
 		if !ok {
-			err = types.ErrRecordsetClosed
+			err = ErrRecordsetClosed
 		}
 	case err = <-rcs.Errors:
 		if err == nil {
@@ -193,7 +192,7 @@ func (rcs *Recordset) Results() <-chan *Result {
 		defer close(res)
 		for {
 			record, err := rcs.Read()
-			if err == types.ErrRecordsetClosed {
+			if err == ErrRecordsetClosed {
 				return
 			}
 
@@ -215,7 +214,7 @@ func (rcs *Recordset) Results() <-chan *Result {
 func (rcs *Recordset) Close() error {
 	// do it only once
 	if !rcs.closed.CompareAndToggle(false) {
-		return types.ErrRecordsetClosed
+		return ErrRecordsetClosed
 	}
 
 	// mark the recordset as inactive

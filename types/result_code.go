@@ -281,36 +281,6 @@ const (
 	AEROSPIKE_ERR_LUA_FILE_NOT_FOUND ResultCode = 1302
 )
 
-// KeepConnection decides if a connection should be kept
-// based on the error type.
-func KeepConnection(err error) bool {
-	// if error is not an AerospikeError, Throw the connection away conservatively
-	ae, ok := err.(AerospikeError)
-	if !ok {
-		return false
-	}
-
-	switch ae.resultCode {
-	case 0, // Zero Value
-		QUERY_TERMINATED,
-		SCAN_TERMINATED,
-		PARSE_ERROR,
-		SERIALIZE_ERROR,
-		SERVER_NOT_AVAILABLE,
-		SCAN_ABORT,
-		QUERY_ABORTED,
-
-		INVALID_NODE_ERROR,
-		SERVER_MEM_ERROR,
-		TIMEOUT,
-		INDEX_OOM,
-		QUERY_TIMEOUT:
-		return false
-	default:
-		return true
-	}
-}
-
 // ResultCodeToString returns a human readable errors message based on the result code.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {

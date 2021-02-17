@@ -77,7 +77,7 @@ var _ = gg.Describe("Aerospike", func() {
 			cpolicy.ClusterName = "haha"
 			cpolicy.Timeout = 10 * time.Second
 			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.CLUSTER_NAME_MISMATCH_ERROR))
@@ -91,7 +91,7 @@ var _ = gg.Describe("Aerospike", func() {
 			cpolicy.Timeout = 10 * time.Second
 			cpolicy.FailIfNotConnected = false
 			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.CLUSTER_NAME_MISMATCH_ERROR))
@@ -837,7 +837,7 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				err = client.Touch(wpolicy, nxkey)
-				gm.Expect(err).To(gm.Equal(ast.ErrKeyNotFound))
+				gm.Expect(err).To(gm.Equal(as.ErrKeyNotFound))
 			})
 
 			gg.It("must Touch an existing key", func() {
@@ -1224,7 +1224,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 				wpolicy := as.NewWritePolicy(0, 0)
 				rec, err = client.Operate(wpolicy, key, as.GetOp())
-				gm.Expect(err).To(gm.Equal(ast.ErrKeyNotFound))
+				gm.Expect(err).To(gm.Equal(as.ErrKeyNotFound))
 
 				rec, err = client.Operate(wpolicy, key, as.TouchOp())
 				gm.Expect(err).To(gm.HaveOccurred())

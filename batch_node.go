@@ -27,7 +27,7 @@ func newBatchNodeList(cluster *Cluster, policy *BatchPolicy, keys []*Key) ([]*ba
 	nodes := cluster.GetNodes()
 
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
 	}
 
 	// Create initial key capacity for each node as average + 25%.
@@ -64,7 +64,7 @@ func newBatchNodeListKeys(cluster *Cluster, policy *BatchPolicy, keys []*Key, se
 	nodes := cluster.GetNodes()
 
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
 	}
 
 	// Create initial key capacity for each node as average + 25%.
@@ -101,7 +101,7 @@ func newBatchNodeListRecords(cluster *Cluster, policy *BatchPolicy, records []*B
 	nodes := cluster.GetNodes()
 
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
 	}
 
 	// Create initial key capacity for each node as average + 25%.
@@ -138,7 +138,7 @@ func newBatchIndexNodeList(cluster *Cluster, policy *BatchPolicy, records []*Bat
 	nodes := cluster.GetNodes()
 
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
 	}
 
 	// Create initial key capacity for each node as average + 25%.

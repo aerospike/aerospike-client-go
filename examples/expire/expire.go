@@ -74,7 +74,7 @@ func expireExample(client *as.Client) {
 	log.Printf("Sleeping for 3 seconds ...")
 	time.Sleep(3 * time.Second)
 	record, err = client.Get(shared.Policy, key, bin.Name)
-	if ae, ok := err.(ast.AerospikeError); !ok || ae.ResultCode() != ast.KEY_NOT_FOUND_ERROR {
+	if ae, ok := err.(as.AerospikeError); !ok || ae.ResultCode() != ast.KEY_NOT_FOUND_ERROR {
 		shared.PanicOnError(err)
 	}
 	if record == nil {

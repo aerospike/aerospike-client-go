@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	as "github.com/aerospike/aerospike-client-go"
-	ast "github.com/aerospike/aerospike-client-go/types"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
@@ -57,7 +56,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 					gg.It("must return error for Get for a nonexisting key", func() {
 						rec, err = client.Get(rpolicy, key)
-						gm.Expect(err).To(gm.Equal(ast.ErrKeyNotFound))
+						gm.Expect(err).To(gm.Equal(as.ErrKeyNotFound))
 					})
 
 					gg.It("must save a key with Array Types", func() {

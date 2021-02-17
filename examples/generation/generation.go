@@ -90,7 +90,7 @@ func runExample(client *as.Client) {
 
 	err = client.PutBins(writePolicy, key, bin)
 	if err != nil {
-		if ae, ok := err.(ast.AerospikeError); ok && ae.ResultCode() != ast.GENERATION_ERROR {
+		if ae, ok := err.(as.AerospikeError); ok && ae.ResultCode() != ast.GENERATION_ERROR {
 			shared.PanicOnError(errors.New("Should have received generation error instead of success"))
 		}
 		log.Printf("Success: Generation error returned as expected.")

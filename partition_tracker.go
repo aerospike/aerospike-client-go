@@ -74,16 +74,16 @@ func newPartitionTracker(policy *MultiPolicy, filter *PartitionFilter, nodes []*
 	// cluster partitions may change on the server and PartitionFilter will never have access
 	// to Cluster instance.  Use fixed number of partitions for now.
 	if !(filter.begin >= 0 && filter.begin < _PARTITIONS) {
-		panic(types.NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition begin %d . Valid range: 0-%d", filter.begin,
+		panic(NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition begin %d . Valid range: 0-%d", filter.begin,
 			(_PARTITIONS-1))))
 	}
 
 	if filter.count <= 0 {
-		panic(types.NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition count %d", filter.count)))
+		panic(NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition count %d", filter.count)))
 	}
 
 	if filter.begin+filter.count > _PARTITIONS {
-		panic(types.NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition range (%d,%d)", filter.begin, filter.begin+filter.count)))
+		panic(NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition range (%d,%d)", filter.begin, filter.begin+filter.count)))
 	}
 
 	pt := &partitionTracker{
@@ -136,7 +136,7 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 	partitions := pMap[namespace]
 
 	if partitions == nil {
-		return nil, types.NewAerospikeError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Map for namespace `%s` in Partition Scan", namespace))
+		return nil, NewAerospikeError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Map for namespace `%s` in Partition Scan", namespace))
 	}
 
 	master := partitions.Replicas[0]
@@ -146,7 +146,7 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 			node := master[part.id]
 
 			if node == nil {
-				return nil, types.NewAerospikeError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Id %d for namespace `%s` in Partition Scan", part.id, namespace))
+				return nil, NewAerospikeError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Id %d for namespace `%s` in Partition Scan", part.id, namespace))
 			}
 
 			// Use node name to check for single node equality because
@@ -233,7 +233,7 @@ func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, error) {
 
 	// Check if limits have been reached.
 	if pt.iteration > policy.MaxRetries {
-		return false, types.NewAerospikeError(types.MAX_RETRIES_EXCEEDED, fmt.Sprintf("Max retries exceeded: %d", policy.MaxRetries))
+		return false, NewAerospikeError(types.MAX_RETRIES_EXCEEDED, fmt.Sprintf("Max retries exceeded: %d", policy.MaxRetries))
 	}
 
 	if policy.TotalTimeout > 0 {
@@ -241,7 +241,7 @@ func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, error) {
 		remaining := time.Until(pt.deadline) - pt.sleepBetweenRetries
 
 		if remaining <= 0 {
-			return false, types.ErrTimeout
+			return false, ErrTimeout
 		}
 
 		if remaining < pt.totalTimeout {
@@ -276,7 +276,7 @@ func (pt *partitionTracker) shouldRetry(e error) bool {
 		return true
 	}
 
-	ae, ok := e.(types.AerospikeError)
+	ae, ok := e.(AerospikeError)
 	if !ok {
 		return false
 	}

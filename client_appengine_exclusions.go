@@ -54,7 +54,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "QueryAggregate failed because cluster is empty.")
+		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "QueryAggregate failed because cluster is empty.")
 	}
 
 	clusterKey := int64(0)

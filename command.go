@@ -500,7 +500,7 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 // Implements different command operations
 func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) (bool, error) {
 	if len(operations) == 0 {
-		return false, types.NewAerospikeError(types.PARAMETER_ERROR, "No operations were passed.")
+		return false, NewAerospikeError(types.PARAMETER_ERROR, "No operations were passed.")
 	}
 
 	cmd.begin()
@@ -1884,17 +1884,17 @@ func (cmd *baseCommand) sizeBuffer(compress bool) error {
 func (cmd *baseCommand) validateHeader(header int64) error {
 	msgVersion := (uint64(header) & 0xFF00000000000000) >> 56
 	if msgVersion != 2 {
-		return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected version to be 2, but got %v", msgVersion))
+		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected version to be 2, but got %v", msgVersion))
 	}
 
 	msgType := (uint64(header) & 0x00FF000000000000) >> 49
 	if !(msgType == 1 || msgType == 3 || msgType == 4) {
-		return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected type to be 1, 3 or 4, but got %v", msgType))
+		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected type to be 1, 3 or 4, but got %v", msgType))
 	}
 
 	msgSize := header & 0x0000FFFFFFFFFFFF
 	if msgSize > int64(MaxBufferSize) {
-		return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected size to be under 10MiB, but got %v", msgSize))
+		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected size to be under 10MiB, but got %v", msgSize))
 	}
 
 	return nil
@@ -1922,7 +1922,7 @@ func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) error {
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
 	if size > MaxBufferSize || size < 0 {
-		return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid size for buffer: %d", size))
+		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid size for buffer: %d", size))
 	}
 
 	if size <= len(cmd.dataBuffer) {
@@ -2023,7 +2023,7 @@ func (cmd *baseCommand) compressedSize() int {
 
 func setInDoubt(err error, isRead bool, commandSentCounter int) error {
 	// set inDoubt flag
-	if ae, ok := err.(types.AerospikeError); ok {
+	if ae, ok := err.(AerospikeError); ok {
 		ae.SetInDoubt(isRead, commandSentCounter)
 		return ae
 	}
@@ -2051,8 +2051,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
-			if ae, ok := err.(types.AerospikeError); ok {
-				err = types.NewAerospikeError(ae.ResultCode(), fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err.Error()))
+			if ae, ok := err.(AerospikeError); ok {
+				err = NewAerospikeError(ae.ResultCode(), fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err.Error()))
 			}
 
 			return setInDoubt(err, isRead, commandSentCounter)
@@ -2072,7 +2072,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		}
 
 		if notFirstIteration {
-			aerr, ok := err.(types.AerospikeError)
+			aerr, ok := err.(AerospikeError)
 			if !ifc.prepareRetry(ifc, isClientTimeout || (ok && aerr.ResultCode() != types.SERVER_NOT_AVAILABLE)) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
@@ -2115,7 +2115,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		if err != nil {
 			isClientTimeout = true
 
-			if err == types.ErrConnectionPoolEmpty {
+			if err == ErrConnectionPoolEmpty {
 				// if the connection pool is empty, we still haven't tried
 				// the transaction to increase the iteration count.
 				iterations--
@@ -2149,7 +2149,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// now that the deadline has been set in the buffer, compress the contents
 		if err = cmd.compress(); err != nil {
-			return types.NewAerospikeError(types.SERIALIZE_ERROR, err.Error())
+			return NewAerospikeError(types.SERIALIZE_ERROR, err.Error())
 		}
 
 		// Send command.
@@ -2175,8 +2175,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		err = ifc.parseResult(ifc, cmd.conn)
 		if err != nil {
 			if networkError(err) {
-				isClientTimeout = (err == types.ErrTimeout)
-				if err != types.ErrTimeout {
+				isClientTimeout = (err == ErrTimeout)
+				if err != ErrTimeout {
 					if deviceOverloadError(err) {
 						cmd.node.incrErrorCount()
 					}
@@ -2199,7 +2199,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			// cancelling/closing the batch/multi commands will return an error, which will
 			// close the connection to throw away its data and signal the server about the
 			// situation. We will not put back the connection in the buffer.
-			if cmd.conn.IsConnected() && types.KeepConnection(err) {
+			if cmd.conn.IsConnected() && KeepConnection(err) {
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
@@ -2227,7 +2227,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 	}
 
 	// execution timeout
-	return types.ErrTimeout
+	return ErrTimeout
 }
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
@@ -2236,10 +2236,10 @@ func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 
 func networkError(err error) bool {
 	_, ok := err.(net.Error)
-	return err == types.ErrTimeout || err == io.EOF || ok
+	return err == ErrTimeout || err == io.EOF || ok
 }
 
 func deviceOverloadError(err error) bool {
-	aerr, ok := err.(types.AerospikeError)
+	aerr, ok := err.(AerospikeError)
 	return ok && aerr.ResultCode() == types.DEVICE_OVERLOAD
 }

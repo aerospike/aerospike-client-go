@@ -227,7 +227,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			err = client.PutBins(predAEq1WPolicy, keyB, binA3)
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
@@ -239,7 +239,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			r, err = client.Get(predAEq1RPolicy, keyB)
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 			gm.Expect(r).To(gm.BeNil())
@@ -251,7 +251,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			_, err = client.Get(predAEq1RPolicy, keyB)
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
@@ -261,7 +261,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			records, err := client.BatchGet(predAEq1BPolicy, keys)
 			gm.Expect(err).To(gm.HaveOccurred())
-			gm.Expect(err.Error()).To(gm.Equal(ast.ErrFilteredOut.Error()))
+			gm.Expect(err.Error()).To(gm.Equal(as.ErrFilteredOut.Error()))
 
 			gm.Expect(records[0].Bins[binA1.Name]).To(gm.Equal(binA1.Value.GetObject()))
 			gm.Expect(records[1]).To(gm.BeNil())
@@ -273,11 +273,11 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(existed).To(gm.BeTrue())
 
 			_, err = client.Get(nil, keyA)
-			gm.Expect(err).To(gm.Equal(ast.ErrKeyNotFound))
+			gm.Expect(err).To(gm.Equal(as.ErrKeyNotFound))
 
 			_, err = client.Delete(predAEq1WPolicy, keyB)
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 
@@ -292,7 +292,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			_, err = client.Delete(predAEq1WPolicy, keyB)
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
@@ -304,12 +304,12 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			r, err := client.Get(nil, keyA)
-			gm.Expect(err).To(gm.Equal(ast.ErrKeyNotFound))
+			gm.Expect(err).To(gm.Equal(as.ErrKeyNotFound))
 			gm.Expect(r).To(gm.BeNil())
 
 			_, err = client.Delete(predAEq1WPolicy, keyB)
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 
@@ -326,7 +326,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			_, err = client.Delete(predAEq1WPolicy, keyB)
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
@@ -339,7 +339,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			r, err = client.Operate(predAEq1WPolicy, keyB, as.GetOpForBin(binAName))
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 			gm.Expect(r).To(gm.BeNil())
@@ -351,7 +351,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			_, err = client.Operate(predAEq1WPolicy, keyB, as.GetOpForBin(binAName))
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
@@ -364,7 +364,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			r, err = client.Operate(predAEq1WPolicy, keyB, as.PutOp(binA3), as.GetOpForBin(binAName))
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 			gm.Expect(r).To(gm.BeNil())
@@ -376,7 +376,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			_, err = client.Operate(predAEq1WPolicy, keyB, as.PutOp(binA3), as.GetOpForBin(binAName))
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})
@@ -394,7 +394,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			_, err = client.Execute(predAEq1WPolicy, keyB, "record_example", "writeBin", as.StringValue(binA3.Name), binA3.Value)
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 
@@ -411,7 +411,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			_, err = client.Execute(predAEq1WPolicy, keyB, "record_example", "writeBin", as.StringValue(binA3.Name), binA3.Value)
 			gm.Expect(err).To(gm.HaveOccurred())
-			aerr, ok := err.(ast.AerospikeError)
+			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
 		})

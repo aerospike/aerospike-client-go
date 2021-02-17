@@ -79,7 +79,7 @@ func (bc *bufferedConn) readConn(minLength int) error {
 	// Corrupted data streams can result in a huge minLength.
 	// Do a sanity check here.
 	if minLength > MaxBufferSize || minLength <= 0 || minLength > bc.remaining {
-		return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", minLength))
+		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", minLength))
 	}
 
 	bc.shiftContentToHead(minLength)

@@ -98,7 +98,7 @@ var _ = gg.Describe("Query operations", func() {
 	) {
 		idxTask, err := client.CreateIndex(policy, namespace, setName, indexName, binName, indexType)
 		if err != nil {
-			if ae, ok := err.(ast.AerospikeError); ok && ae.ResultCode() != ast.INDEX_FOUND {
+			if ae, ok := err.(as.AerospikeError); ok && ae.ResultCode() != ast.INDEX_FOUND {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 			}
 			return // index already exists

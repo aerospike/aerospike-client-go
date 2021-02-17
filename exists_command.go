@@ -84,9 +84,9 @@ func (cmd *existsCommand) parseResult(ifc command, conn *Connection) error {
 			return err
 		}
 		cmd.exists = true
-		return types.ErrFilteredOut
+		return ErrFilteredOut
 	default:
-		return types.NewAerospikeError(types.ResultCode(resultCode))
+		return NewAerospikeError(types.ResultCode(resultCode))
 	}
 
 	return cmd.emptySocket(conn)

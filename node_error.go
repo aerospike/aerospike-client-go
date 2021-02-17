@@ -36,7 +36,7 @@ func newNodeError(node *Node, err error) *NodeError {
 
 func newAerospikeNodeError(node *Node, code types.ResultCode, messages ...string) *NodeError {
 	return &NodeError{
-		error: types.NewAerospikeError(code, messages...),
+		error: NewAerospikeError(code, messages...),
 		node:  node,
 	}
 }
@@ -55,9 +55,9 @@ func (ne *NodeError) Error() string {
 func newInvalidNodeError(clusterSize int, partition *Partition) error {
 	// important to check for clusterSize first, since partition may be nil sometimes
 	if clusterSize == 0 {
-		return types.NewAerospikeError(types.INVALID_NODE_ERROR, "Cluster is empty.")
+		return NewAerospikeError(types.INVALID_NODE_ERROR, "Cluster is empty.")
 	}
-	return types.NewAerospikeError(types.INVALID_NODE_ERROR, "Node not found for partition "+partition.String()+" in partition table.")
+	return NewAerospikeError(types.INVALID_NODE_ERROR, "Node not found for partition "+partition.String()+" in partition table.")
 }
 
 // BatchError is a type to encapsulate the node that the error occurred in.

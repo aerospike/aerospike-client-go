@@ -187,7 +187,7 @@ func (nd *Node) Refresh(peers *peers) error {
 
 	if err = nd.updateRackInfo(infoMap); err != nil {
 		// Update rack info should fail if the feature is not supported on the server
-		if aerr, ok := err.(types.AerospikeError); ok && aerr.ResultCode() == types.UNSUPPORTED_FEATURE {
+		if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == types.UNSUPPORTED_FEATURE {
 			nd.refreshFailed(err)
 			return err
 		}
@@ -255,7 +255,7 @@ func (nd *Node) updateRackInfo(infoMap map[string]string) error {
 
 	// Do not raise an error if the server does not support rackaware
 	if strings.HasPrefix(strings.ToUpper(infoMap["racks:"]), "ERROR") {
-		return types.NewAerospikeError(types.UNSUPPORTED_FEATURE, "You have set the ClientPolicy.RackAware = true, but the server does not support this feature.")
+		return NewAerospikeError(types.UNSUPPORTED_FEATURE, "You have set the ClientPolicy.RackAware = true, but the server does not support this feature.")
 	}
 
 	ss := strings.Split(infoMap["racks:"], ";")
@@ -315,13 +315,13 @@ func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 	infoName, exists := infoMap["node"]
 
 	if !exists || len(infoName) == 0 {
-		return types.NewAerospikeError(types.INVALID_NODE_ERROR, "Node name is empty")
+		return NewAerospikeError(types.INVALID_NODE_ERROR, "Node name is empty")
 	}
 
 	if !(nd.name == infoName) {
 		// Set node to inactive immediately.
 		nd.active.Set(false)
-		return types.NewAerospikeError(types.INVALID_NODE_ERROR, "Node name has changed. Old="+nd.name+" New="+infoName)
+		return NewAerospikeError(types.INVALID_NODE_ERROR, "Node name has changed. Old="+nd.name+" New="+infoName)
 	}
 	return nil
 }
@@ -329,12 +329,12 @@ func (nd *Node) verifyNodeName(infoMap map[string]string) error {
 func (nd *Node) verifyPeersGeneration(infoMap map[string]string, peers *peers) error {
 	genString := infoMap["peers-generation"]
 	if len(genString) == 0 {
-		return types.NewAerospikeError(types.PARSE_ERROR, "peers-generation is empty")
+		return NewAerospikeError(types.PARSE_ERROR, "peers-generation is empty")
 	}
 
 	gen, err := strconv.Atoi(genString)
 	if err != nil {
-		return types.NewAerospikeError(types.PARSE_ERROR, "peers-generation is not a number: "+genString)
+		return NewAerospikeError(types.PARSE_ERROR, "peers-generation is not a number: "+genString)
 	}
 
 	peers.genChanged.Or(nd.peersGeneration.Get() != gen)
@@ -345,12 +345,12 @@ func (nd *Node) verifyPartitionGeneration(infoMap map[string]string) error {
 	genString := infoMap["partition-generation"]
 
 	if len(genString) == 0 {
-		return types.NewAerospikeError(types.PARSE_ERROR, "partition-generation is empty")
+		return NewAerospikeError(types.PARSE_ERROR, "partition-generation is empty")
 	}
 
 	gen, err := strconv.Atoi(genString)
 	if err != nil {
-		return types.NewAerospikeError(types.PARSE_ERROR, "partition-generation is not a number:"+genString)
+		return NewAerospikeError(types.PARSE_ERROR, "partition-generation is not a number:"+genString)
 	}
 
 	if nd.partitionGeneration.Get() != gen {
@@ -520,7 +520,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 			return conn, nil
 		}
 
-		if err == types.ErrServerNotAvailable {
+		if err == ErrServerNotAvailable {
 			return nil, err
 		}
 
@@ -529,7 +529,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err erro
 
 	// in case the block didn't run at all
 	if err == nil {
-		err = types.ErrConnectionPoolEmpty
+		err = ErrConnectionPoolEmpty
 	}
 
 	return nil, err
@@ -544,7 +544,7 @@ func (nd *Node) getConnection(deadline time.Time, timeout time.Duration) (conn *
 // newConnection will make a new connection for the node.
 func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 	if !nd.active.Get() {
-		return nil, types.ErrServerNotAvailable
+		return nil, ErrServerNotAvailable
 	}
 
 	// if connection count is limited and enough connections are already created, don't create a new one
@@ -553,7 +553,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 		nd.connectionCount.DecrementAndGet()
 		atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
 
-		return nil, types.ErrTooManyConnectionsForNode
+		return nil, ErrTooManyConnectionsForNode
 	}
 
 	// Check for opening connection threshold
@@ -563,7 +563,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 			nd.cluster.connectionThreshold.DecrementAndGet()
 			nd.connectionCount.DecrementAndGet()
 
-			return nil, types.ErrTooManyOpeningConnections
+			return nil, ErrTooManyOpeningConnections
 		}
 
 		defer nd.cluster.connectionThreshold.DecrementAndGet()
@@ -614,7 +614,7 @@ func (nd *Node) makeConnectionForPool(hint byte) {
 // If no pooled connection is available, a new connection will be created.
 func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration, hint byte) (conn *Connection, err error) {
 	if !nd.active.Get() {
-		return nil, types.ErrServerNotAvailable
+		return nil, ErrServerNotAvailable
 	}
 
 	// try to get a valid connection from the connection pool
@@ -628,7 +628,7 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 
 	if conn == nil {
 		go nd.makeConnectionForPool(hint)
-		return nil, types.ErrConnectionPoolEmpty
+		return nil, ErrConnectionPoolEmpty
 	}
 
 	if err = conn.SetTimeout(deadline, timeout); err != nil {
@@ -776,7 +776,7 @@ func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) error {
 	dealine := time.After(timeout)
 	select {
 	case <-dealine:
-		return types.NewAerospikeError(types.TIMEOUT)
+		return NewAerospikeError(types.TIMEOUT)
 	case err := <-done:
 		return err
 	}
@@ -954,7 +954,7 @@ func (nd *Node) WarmUp(count int) (int, error) {
 		g.Go(func() error {
 			conn, err := nd.newConnection(true)
 			if err != nil {
-				if err == types.ErrTooManyConnectionsForNode {
+				if err == ErrTooManyConnectionsForNode {
 					return nil
 				}
 				return err
@@ -1007,7 +1007,7 @@ func (nd *Node) errorCountWithinLimit() bool {
 // returns error if errorCount has gone above the threshold set in the policy
 func (nd *Node) validateErrorCount() error {
 	if !nd.errorCountWithinLimit() {
-		return types.NewAerospikeError(types.MAX_ERROR_RATE)
+		return NewAerospikeError(types.MAX_ERROR_RATE)
 	}
 	return nil
 }

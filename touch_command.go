@@ -86,7 +86,7 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 		}
 
 		if err = cmd.conn.initInflater(true, compressedSize); err != nil {
-			return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
+			return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
 		}
 
 		// Read header.
@@ -116,12 +116,12 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 
 	if resultCode != 0 {
 		if resultCode == byte(types.KEY_NOT_FOUND_ERROR) {
-			return types.ErrKeyNotFound
+			return ErrKeyNotFound
 		} else if types.ResultCode(resultCode) == types.FILTERED_OUT {
-			return types.ErrFilteredOut
+			return ErrFilteredOut
 		}
 
-		return types.NewAerospikeError(types.ResultCode(resultCode))
+		return NewAerospikeError(types.ResultCode(resultCode))
 	}
 	return cmd.emptySocket(conn)
 }

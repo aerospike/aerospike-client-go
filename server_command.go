@@ -49,7 +49,7 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 			if resultCode == types.KEY_NOT_FOUND_ERROR {
 				return false, nil
 			}
-			return false, types.NewAerospikeError(resultCode)
+			return false, NewAerospikeError(resultCode)
 		}
 
 		info3 := int(cmd.dataBuffer[3])

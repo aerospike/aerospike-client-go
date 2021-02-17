@@ -129,7 +129,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 	cmd.bc = newBufferedConn(conn, 0)
 	for status {
 		if err = cmd.conn.initInflater(false, 0); err != nil {
-			return types.NewAerospikeError(types.PARSE_ERROR, "Error setting up zlib inflater:", err.Error())
+			return NewAerospikeError(types.PARSE_ERROR, "Error setting up zlib inflater:", err.Error())
 		}
 		cmd.bc.reset(8)
 
@@ -153,7 +153,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 
 			receiveSize = int(Buffer.BytesToInt64(cmd.dataBuffer, 0)) - 8
 			if err = cmd.conn.initInflater(true, compressedSize-8); err != nil {
-				return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize-8, err.Error()))
+				return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize-8, err.Error()))
 			}
 
 			// read the first 8 bytes
@@ -228,7 +228,7 @@ func (cmd *baseMultiCommand) readBytes(length int) (err error) {
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
 	if length > MaxBufferSize || length < 0 {
-		return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
+		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
 	}
 
 	cmd.dataBuffer, err = cmd.bc.read(length)
@@ -255,7 +255,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			if resultCode == types.KEY_NOT_FOUND_ERROR || resultCode == types.FILTERED_OUT {
 				return false, nil
 			}
-			err := types.NewAerospikeError(resultCode)
+			err := NewAerospikeError(resultCode)
 			err = newNodeError(cmd.node, err)
 			return false, err
 		}
@@ -327,11 +327,11 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			case <-cmd.recordset.cancelled:
 				switch cmd.terminationErrorType {
 				case types.SCAN_TERMINATED:
-					return false, types.ErrScanTerminated
+					return false, ErrScanTerminated
 				case types.QUERY_TERMINATED:
-					return false, types.ErrQueryTerminated
+					return false, ErrQueryTerminated
 				default:
-					return false, types.NewAerospikeError(cmd.terminationErrorType)
+					return false, NewAerospikeError(cmd.terminationErrorType)
 				}
 			}
 		} else if multiObjectParser != nil {
@@ -348,7 +348,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			switch chosen {
 			case 0: // object sent
 			case 1: // cancel channel is closed
-				return false, types.NewAerospikeError(cmd.terminationErrorType)
+				return false, NewAerospikeError(cmd.terminationErrorType)
 			}
 		}
 

@@ -69,7 +69,7 @@ func newPartitionParser(node *Node, partitions partitionMap, partitionCount int)
 	newPartitionParser.buffer = info.msg.Data
 	newPartitionParser.length = len(info.msg.Data)
 	if newPartitionParser.length == 0 {
-		return nil, types.NewAerospikeError(types.PARSE_ERROR, "Partition info is empty")
+		return nil, NewAerospikeError(types.PARSE_ERROR, "Partition info is empty")
 	}
 
 	newPartitionParser.generation, err = newPartitionParser.parseGeneration()
@@ -108,7 +108,7 @@ func (pp *partitionParser) parseGeneration() (int, error) {
 		}
 		pp.offset++
 	}
-	return -1, types.NewAerospikeError(types.PARSE_ERROR, "Failed to find partition-generation value")
+	return -1, NewAerospikeError(types.PARSE_ERROR, "Failed to find partition-generation value")
 }
 
 func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
@@ -130,7 +130,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 
 			if len(namespace) <= 0 || len(namespace) >= 32 {
 				response := pp.getTruncatedResponse()
-				return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid partition namespace `%s` response: `%s`", namespace, response))
+				return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid partition namespace `%s` response: `%s`", namespace, response))
 			}
 			pp.offset++
 			begin = pp.offset
@@ -201,7 +201,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 
 				if pp.offset == begin {
 					response := pp.getTruncatedResponse()
-					return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Empty partition id for namespace `%s` response: `%s`", namespace, response))
+					return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Empty partition id for namespace `%s` response: `%s`", namespace, response))
 				}
 
 				if err := pp.decodeBitmap(node, partitions, i, regime, begin); err != nil {
@@ -269,7 +269,7 @@ func (pp *partitionParser) expectName(name string) error {
 		pp.offset++
 	}
 
-	return types.NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Failed to find `%s`", name))
+	return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Failed to find `%s`", name))
 }
 
 func (pp *partitionParser) getTruncatedResponse() string {
