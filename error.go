@@ -28,32 +28,18 @@ import (
 type AerospikeError struct {
 	error
 
-	resultCode types.ResultCode
-	inDoubt    bool
-}
-
-// ResultCode returns the ResultCode from AerospikeError object.
-func (ase AerospikeError) ResultCode() types.ResultCode {
-	return ase.resultCode
-}
-
-// InDoubt determines if a write transaction may have completed or not.
-func (ase AerospikeError) InDoubt() bool {
-	return ase.inDoubt
+	Node       *Node
+	ResultCode types.ResultCode
+	InDoubt    bool
 }
 
 // SetInDoubt sets whether it is possible that the write transaction may have completed
 // even though this error was generated.  This may be the case when a
 // client error occurs (like timeout) after the command was sent to the server.
 func (ase *AerospikeError) SetInDoubt(isRead bool, commandSentCounter int) {
-	if !isRead && (commandSentCounter > 1 || (commandSentCounter == 1 && (ase.resultCode == types.TIMEOUT || ase.resultCode <= 0))) {
-		ase.inDoubt = true
+	if !isRead && (commandSentCounter > 1 || (commandSentCounter == 1 && (ase.ResultCode == types.TIMEOUT || ase.ResultCode <= 0))) {
+		ase.InDoubt = true
 	}
-}
-
-// MarkInDoubt marks an error as in doubt.
-func (ase *AerospikeError) MarkInDoubt() {
-	ase.inDoubt = true
 }
 
 // NewAerospikeError generates a new AerospikeError instance.
@@ -61,7 +47,7 @@ func (ase *AerospikeError) MarkInDoubt() {
 // error message automatically.
 // To be able to check for error type, you could use the following:
 //   if aerr, ok := err.(AerospikeError); ok {
-//       errCode := aerr.ResultCode()
+//       errCode := aerr.ResultCode
 //       errMessage := aerr.Error()
 //   }
 func NewAerospikeError(code types.ResultCode, messages ...string) error {
@@ -70,7 +56,7 @@ func NewAerospikeError(code types.ResultCode, messages ...string) error {
 	}
 
 	err := errors.New(strings.Join(messages, " "))
-	return AerospikeError{error: err, resultCode: code}
+	return AerospikeError{error: err, ResultCode: code}
 }
 
 //revive:disable

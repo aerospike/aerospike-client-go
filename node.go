@@ -187,7 +187,7 @@ func (nd *Node) Refresh(peers *peers) error {
 
 	if err = nd.updateRackInfo(infoMap); err != nil {
 		// Update rack info should fail if the feature is not supported on the server
-		if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode() == types.UNSUPPORTED_FEATURE {
+		if aerr, ok := err.(AerospikeError); ok && aerr.ResultCode == types.UNSUPPORTED_FEATURE {
 			nd.refreshFailed(err)
 			return err
 		}

@@ -437,7 +437,7 @@ func KeepConnection(err error) bool {
 		return false
 	}
 
-	switch ae.resultCode {
+	switch ae.ResultCode {
 	case 0, // Zero Value
 		types.QUERY_TERMINATED,
 		types.SCAN_TERMINATED,

@@ -502,7 +502,7 @@ func (clstr *Cluster) waitTillStabilized() error {
 		for {
 			if err = clstr.tend(); err != nil {
 				if aerr, ok := err.(AerospikeError); ok {
-					switch aerr.ResultCode() {
+					switch aerr.ResultCode {
 					case types.NOT_AUTHENTICATED, types.CLUSTER_NAME_MISMATCH_ERROR:
 						doneCh <- err
 						return
@@ -642,7 +642,7 @@ L:
 	for _, err := range errorList {
 		if err != nil {
 			if aerr, ok := err.(AerospikeError); ok {
-				switch aerr.ResultCode() {
+				switch aerr.ResultCode {
 				case types.NOT_AUTHENTICATED:
 					return false, NewAerospikeError(types.NOT_AUTHENTICATED)
 				case types.CLUSTER_NAME_MISMATCH_ERROR:

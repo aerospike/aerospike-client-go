@@ -2052,7 +2052,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		// too many retries
 		if (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
 			if ae, ok := err.(AerospikeError); ok {
-				err = NewAerospikeError(ae.ResultCode(), fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err.Error()))
+				err = NewAerospikeError(ae.ResultCode, fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err.Error()))
 			}
 
 			return setInDoubt(err, isRead, commandSentCounter)
@@ -2073,7 +2073,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		if notFirstIteration {
 			aerr, ok := err.(AerospikeError)
-			if !ifc.prepareRetry(ifc, isClientTimeout || (ok && aerr.ResultCode() != types.SERVER_NOT_AVAILABLE)) {
+			if !ifc.prepareRetry(ifc, isClientTimeout || (ok && aerr.ResultCode != types.SERVER_NOT_AVAILABLE)) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
 					if retry, err := bc.retryBatch(bc, cmd.node.cluster, deadline, iterations, commandSentCounter); retry {
@@ -2241,5 +2241,5 @@ func networkError(err error) bool {
 
 func deviceOverloadError(err error) bool {
 	aerr, ok := err.(AerospikeError)
-	return ok && aerr.ResultCode() == types.DEVICE_OVERLOAD
+	return ok && aerr.ResultCode == types.DEVICE_OVERLOAD
 }

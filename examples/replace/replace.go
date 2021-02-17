@@ -89,7 +89,7 @@ func runReplaceOnlyExample(client *as.Client) {
 	wpolicy := as.NewWritePolicy(0, 0)
 	wpolicy.RecordExistsAction = as.REPLACE_ONLY
 	err = client.PutBins(wpolicy, key, bin)
-	if ae, ok := err.(as.AerospikeError); ok && ae.ResultCode() == ast.KEY_NOT_FOUND_ERROR {
+	if ae, ok := err.(as.AerospikeError); ok && ae.ResultCode == ast.KEY_NOT_FOUND_ERROR {
 		log.Printf("Success. `Not found` error returned as expected.")
 	} else {
 		log.Fatalln("Failure. This command should have resulted in an error.")

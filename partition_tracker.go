@@ -262,8 +262,8 @@ func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, error) {
 }
 
 func (pt *partitionTracker) shouldRetry(e error) bool {
-	if ae, ok := e.(*NodeError); ok {
-		e = ae.Err()
+	if ae, ok := e.(AerospikeError); ok {
+		e = ae.error
 	}
 
 	if e == io.EOF {
@@ -281,7 +281,7 @@ func (pt *partitionTracker) shouldRetry(e error) bool {
 		return false
 	}
 
-	switch ae.ResultCode() {
+	switch ae.ResultCode {
 	case types.SERVER_NOT_AVAILABLE, types.PARTITION_UNAVAILABLE, types.TIMEOUT:
 		return true
 

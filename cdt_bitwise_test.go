@@ -140,7 +140,7 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 		_, err := client.Operate(nil, key, ops...)
 		gm.Expect(err).To(gm.HaveOccurred())
 		gm.Expect(err).To(gm.BeAssignableToTypeOf(as.AerospikeError{}))
-		gm.Expect(err.(as.AerospikeError).ResultCode()).To(gm.Equal(code))
+		gm.Expect(err.(as.AerospikeError).ResultCode).To(gm.Equal(code))
 	}
 
 	gg.BeforeEach(func() {

@@ -229,7 +229,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
 		gg.It("should work for Get", func() {
@@ -241,7 +241,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 			gm.Expect(r).To(gm.BeNil())
 		})
 
@@ -253,7 +253,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
 		gg.It("should work for BatchGet", func() {
@@ -279,7 +279,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 
 			r, err = client.Get(nil, keyB)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -294,7 +294,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
 		gg.It("should work for Durable Delete", func() {
@@ -311,7 +311,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 
 			r, err = client.Get(nil, keyB)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -328,7 +328,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
 		gg.It("should work for Operate Read", func() {
@@ -341,7 +341,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 			gm.Expect(r).To(gm.BeNil())
 		})
 
@@ -353,7 +353,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
 		gg.It("should work for Operate Write", func() {
@@ -366,7 +366,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 			gm.Expect(r).To(gm.BeNil())
 		})
 
@@ -378,7 +378,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
 		gg.It("should work for UDF", func() {
@@ -396,7 +396,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 
 			r, err = client.Get(nil, keyB)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -413,7 +413,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			gm.Expect(err).To(gm.HaveOccurred())
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 		})
 
 	})

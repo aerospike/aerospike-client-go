@@ -80,7 +80,7 @@ var _ = gg.Describe("Aerospike", func() {
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(err).To(gm.HaveOccurred())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.CLUSTER_NAME_MISMATCH_ERROR))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.CLUSTER_NAME_MISMATCH_ERROR))
 			gm.Expect(nclient).To(gm.BeNil())
 		})
 
@@ -94,7 +94,7 @@ var _ = gg.Describe("Aerospike", func() {
 			aerr, ok := err.(as.AerospikeError)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(err).To(gm.HaveOccurred())
-			gm.Expect(aerr.ResultCode()).To(gm.Equal(ast.CLUSTER_NAME_MISMATCH_ERROR))
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.CLUSTER_NAME_MISMATCH_ERROR))
 			gm.Expect(nclient).NotTo(gm.BeNil())
 			gm.Expect(nclient.IsConnected()).To(gm.BeFalse())
 		})
