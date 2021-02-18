@@ -16,66 +16,321 @@ package aerospike
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/aerospike/aerospike-client-go/types"
 )
 
-// AerospikeError implements error interface for aerospike specific errors.
+var _ error = errors.New("Must match the interface")
+
+// Error is the internal error interface for the Aerospike client's errors.
+// All the public API return this error type. This interface is compatible
+// with error interface, including errors.Is and errors.As.
+type Error interface {
+	error
+
+	// Matches will return true is the ResultCode of the error or
+	// any of the errors wrapped down the chain has any of the
+	// provided codes.
+	Matches(rcs ...types.ResultCode) bool
+	// Unwrap returns the error inside
+	Unwrap() error
+
+	// wrapInside(e error) *AerospikeError
+	iter(int) Error
+	setInDoubt(bool, int) Error
+	setNode(*Node) Error
+	markInDoubt() Error
+}
+
+// AerospikeError implements Error interface for aerospike specific errors.
 // All errors returning from the library are of this type.
 // Errors resulting from Go's stdlib are not translated to this type, unless
 // they are a net.Timeout error.
+// To be able to check for error type, you could use the idiomatic
+// errors.Is and errors.As patterns:
+//   if errors.Is(err, as.ErrTimeout) {
+//       ...
+//   }
+// or
+//   if errors.Is(err, &as.AerospikeError{ResultCode: as.PARAMETER_ERROR}) {
+//       ...
+//   }
+// or
+//   if err.Matches(as.TIMEOUT, as.NETWORK_ERROR, as.PARAMETER_ERROR) {
+//       ...
+//   }
+// or
+//   ae := &as.AerospikeError{}
+//   if errors.As(err, ae) {
+//       println(ae.ResultCode)
+//   }
 type AerospikeError struct {
-	error
+	wrapped error
 
-	Node       *Node
+	// error message
+	msg string
+
+	// Node where the error occurred
+	Node *Node
+	// ResultCode determines the type of error
 	ResultCode types.ResultCode
-	InDoubt    bool
+	// InDoubt determines if the command was sent to the server, but
+	// there is doubt if the server received and executed the command
+	// and changed the data. Only applies to commands that change data
+	InDoubt bool
+	// Iteration determies on which retry the error occurred
+	Iteration int
+}
+
+var _ error = &AerospikeError{}
+var _ Error = &AerospikeError{}
+
+// newError generates a new AerospikeError instance.
+// If no message is provided, the result code will be translated into the default
+// error message automatically.
+func newError(code types.ResultCode, messages ...string) Error {
+	if len(messages) == 0 {
+		messages = []string{types.ResultCodeToString(code)}
+	}
+
+	return &AerospikeError{msg: strings.Join(messages, " "), ResultCode: code}
+}
+
+func newErrorAndWrap(e error, code types.ResultCode, messages ...string) Error {
+	ne := newError(code, messages...)
+	ne.(*AerospikeError).wrapped = e
+	return ne
+}
+
+func newTimeoutError(e error, messages ...string) Error {
+	ne := newError(types.TIMEOUT, messages...)
+	ne.(*AerospikeError).wrapped = e
+	return ne
+}
+
+func newCommonError(e error, messages ...string) Error {
+	ne := newError(types.COMMON_ERROR, messages...)
+	ne.(*AerospikeError).wrapped = e
+	return ne
 }
 
 // SetInDoubt sets whether it is possible that the write transaction may have completed
 // even though this error was generated.  This may be the case when a
 // client error occurs (like timeout) after the command was sent to the server.
-func (ase *AerospikeError) SetInDoubt(isRead bool, commandSentCounter int) {
+func (ase *AerospikeError) setInDoubt(isRead bool, commandSentCounter int) Error {
 	if !isRead && (commandSentCounter > 1 || (commandSentCounter == 1 && (ase.ResultCode == types.TIMEOUT || ase.ResultCode <= 0))) {
 		ase.InDoubt = true
 	}
+	return ase
 }
 
-// NewAerospikeError generates a new AerospikeError instance.
-// If no message is provided, the result code will be translated into the default
-// error message automatically.
-// To be able to check for error type, you could use the following:
-//   if aerr, ok := err.(AerospikeError); ok {
-//       errCode := aerr.ResultCode
-//       errMessage := aerr.Error()
-//   }
-func NewAerospikeError(code types.ResultCode, messages ...string) error {
+func (ase *AerospikeError) setNode(node *Node) Error {
+	ase.Node = node
+	return ase
+}
+
+func (ase *AerospikeError) markInDoubt() Error {
+	ase.InDoubt = true
+	return ase
+}
+
+// Error implements the error interface
+func (ase *AerospikeError) Error() string {
+	const cErr = "ResultCode: %s, Iteration: %d, InDoubt: %t, Node: %s: %s"
+	const cErrNL = cErr + "\n%s"
+	if ase.wrapped != nil {
+		return fmt.Sprintf(cErrNL, ase.ResultCode.String(), ase.Iteration, ase.InDoubt, ase.Node, ase.msg, ase.wrapped.Error())
+	}
+	return fmt.Sprintf(cErr, ase.ResultCode.String(), ase.Iteration, ase.InDoubt, ase.Node, ase.msg)
+}
+
+// chain wraps an error inside a new error. The new error cannot be nil.
+// if the old error is nil, the new error will be returned.
+func (ase *AerospikeError) iter(i int) Error {
+	if ase == nil {
+		return nil
+	}
+	ase.Iteration = i
+	return ase
+}
+
+// Matches returns true if the error or any of its wrapped errors contains
+// any of the passed results codes.
+// For convenience, it will return false if the error is nil.
+// TODO: find a better name
+func (ase *AerospikeError) Matches(rcs ...types.ResultCode) bool {
+	// don't panic on nil error, and don't go ahead
+	// if no result codes are provided
+	if ase == nil || len(rcs) == 0 {
+		return false
+	}
+
+	for i := range rcs {
+		if ase.ResultCode == rcs[i] {
+			return true
+		}
+	}
+
+	ae := &AerospikeError{}
+	if ase.wrapped != nil && errors.As(ase.wrapped, &ae) {
+		return ae.Matches(rcs...)
+	}
+
+	return false
+}
+
+// As implements the interface for errors.As function.
+func (ase *AerospikeError) As(target interface{}) bool {
+	ae, ok := target.(*AerospikeError)
+	if !ok {
+		return false
+	}
+
+	ae.wrapped = ase.wrapped
+	ae.msg = ase.msg
+	ae.ResultCode = ase.ResultCode
+	ae.InDoubt = ase.InDoubt
+	ae.Node = ase.Node
+	return true
+}
+
+// Is compares an error with the AerospikeError.
+// If the error is not of type *AerospikeError, it will return false.
+// Otherwise, it will compare ResultCode and Node (if it exists), and
+// will return a result accordingly.
+func (ase *AerospikeError) Is(e error) bool {
+	if ase == nil || e == nil {
+		return false
+	}
+
+	var target *AerospikeError
+
+	switch t := e.(type) {
+	case *AerospikeError:
+		target = t
+	case *constAerospikeError:
+		target = &t.AerospikeError
+	default:
+		return false
+	}
+
+	return (ase.ResultCode == target.ResultCode) &&
+		(ase.Node == target.Node || target.Node == nil)
+}
+
+func (ase *AerospikeError) Unwrap() error {
+	return ase.wrapped
+}
+
+/*
+	Node Error
+*/
+
+func newNodeError(node *Node, err error) Error {
+	return &AerospikeError{
+		wrapped: err,
+		Node:    node,
+	}
+}
+
+func newCustomNodeError(node *Node, code types.ResultCode, messages ...string) Error {
+	ne := newError(code, messages...)
+	ne.(*AerospikeError).Node = node
+	return ne
+}
+
+func newWrapNetworkError(err error, messages ...string) Error {
+	panic(err)
+	ne := newError(types.NETWORK_ERROR, messages...)
+	ne.(*AerospikeError).wrapped = err
+	return ne
+}
+
+func newInvalidNodeError(clusterSize int, partition *Partition) Error {
+	// important to check for clusterSize first, since partition may be nil sometimes
+	if clusterSize == 0 {
+		return ErrClusterIsEmpty.err()
+	}
+	return newError(types.INVALID_NODE_ERROR, "Node not found for partition "+partition.String()+" in partition table.")
+}
+
+/*
+	constAerospikeError
+*/
+
+var _ Error = newError(0)
+
+// constAerospikeError makes sure that constant errors are not chained and invalidated.
+// By having a new type, the compiler will enforce the constants.
+type constAerospikeError struct {
+	AerospikeError
+}
+
+func newConstError(code types.ResultCode, messages ...string) *constAerospikeError {
 	if len(messages) == 0 {
 		messages = []string{types.ResultCodeToString(code)}
 	}
 
-	err := errors.New(strings.Join(messages, " "))
-	return AerospikeError{error: err, ResultCode: code}
+	return &constAerospikeError{AerospikeError{msg: strings.Join(messages, " "), ResultCode: code}}
+}
+
+func (ase *constAerospikeError) err() Error {
+	v := ase.AerospikeError
+	return &v
 }
 
 //revive:disable
 
 var (
-	ErrServerNotAvailable             = NewAerospikeError(types.SERVER_NOT_AVAILABLE)
-	ErrKeyNotFound                    = NewAerospikeError(types.KEY_NOT_FOUND_ERROR)
-	ErrRecordsetClosed                = NewAerospikeError(types.RECORDSET_CLOSED)
-	ErrConnectionPoolEmpty            = NewAerospikeError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "Connection pool is empty. This happens when either all connection are in-use already, or no connections were available")
-	ErrTooManyConnectionsForNode      = NewAerospikeError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "Connection limit reached for this node. This value is controlled via ClientPolicy.LimitConnectionsToQueueSize")
-	ErrTooManyOpeningConnections      = NewAerospikeError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "Too many connections are trying to open at once. This value is controlled via ClientPolicy.OpeningConnectionThreshold")
-	ErrTimeout                        = NewAerospikeError(types.TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
-	ErrUDFBadResponse                 = NewAerospikeError(types.UDF_BAD_RESPONSE, "Invalid UDF return value")
-	ErrNoOperationsSpecified          = NewAerospikeError(types.INVALID_COMMAND, "No operations were passed to QueryExecute")
-	ErrNoBinNamesAlloedInQueryExecute = NewAerospikeError(types.INVALID_COMMAND, "Statement.BinNames must be empty for QueryExecute")
-	ErrFilteredOut                    = NewAerospikeError(types.FILTERED_OUT)
-	ErrPartitionScanQueryNotSupported = NewAerospikeError(types.PARAMETER_ERROR, "Partition Scans/Queries are not supported by all nodes in this cluster")
-	ErrScanTerminated                 = NewAerospikeError(types.SCAN_TERMINATED)
-	ErrQueryTerminated                = NewAerospikeError(types.QUERY_TERMINATED)
+	ErrServerNotAvailable              = newConstError(types.SERVER_NOT_AVAILABLE)
+	ErrKeyNotFound                     = newConstError(types.KEY_NOT_FOUND_ERROR)
+	ErrRecordsetClosed                 = newConstError(types.RECORDSET_CLOSED)
+	ErrConnectionPoolEmpty             = newConstError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "connection pool is empty. This happens when either all connection are in-use already, or no connections were available")
+	ErrTooManyConnectionsForNode       = newConstError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "connection limit reached for this node. This value is controlled via ClientPolicy.LimitConnectionsToQueueSize")
+	ErrTooManyOpeningConnections       = newConstError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "too many connections are trying to open at once. This value is controlled via ClientPolicy.OpeningConnectionThreshold")
+	ErrTimeout                         = newConstError(types.TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
+	ErrNetTimeout                      = newConstError(types.TIMEOUT, "network timeout")
+	ErrUDFBadResponse                  = newConstError(types.UDF_BAD_RESPONSE, "invalid UDF return value")
+	ErrNoOperationsSpecified           = newConstError(types.INVALID_COMMAND, "no operations were passed to QueryExecute")
+	ErrNoBinNamesAllowedInQueryExecute = newConstError(types.INVALID_COMMAND, "`Statement.BinNames` must be empty for QueryExecute")
+	ErrFilteredOut                     = newConstError(types.FILTERED_OUT)
+	ErrPartitionScanQueryNotSupported  = newConstError(types.PARAMETER_ERROR, "partition Scans/Queries are not supported by all nodes in this cluster")
+	ErrScanTerminated                  = newConstError(types.SCAN_TERMINATED)
+	ErrQueryTerminated                 = newConstError(types.QUERY_TERMINATED)
+	ErrClusterIsEmpty                  = newConstError(types.INVALID_NODE_ERROR, "cluster is empty")
+	ErrInvalidUser                     = newConstError(types.INVALID_USER)
+	ErrNotAuthenticated                = newConstError(types.NOT_AUTHENTICATED)
+	ErrNetwork                         = newConstError(types.NOT_AUTHENTICATED)
+	ErrInvalidObjectType               = newConstError(types.SERIALIZE_ERROR, "invalid type for result object. It should be of type struct pointer or addressable")
+	ErrMaxRetriesExceeded              = newConstError(types.MAX_RETRIES_EXCEEDED, "command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`.")
+	ErrInvalidParam                    = newConstError(types.PARAMETER_ERROR)
+	ErrLuaPoolEmpty                    = newConstError(types.COMMON_ERROR, "Error fetching a lua instance from pool")
 )
 
 //revive:enable
+
+// chainErrors wraps an error inside a new error. The new (outer) error cannot be nil.
+// if the old error is nil, the new error will be returned.
+func chainErrors(outer Error, inner error) Error {
+	if inner == nil && outer == nil {
+		return nil
+	}
+
+	var ae *AerospikeError
+	switch outer.(type) {
+	case *constAerospikeError:
+		t := outer.(*constAerospikeError).AerospikeError
+		ae = &t
+	case *AerospikeError:
+		ae = outer.(*AerospikeError)
+	}
+
+	if inner == nil {
+		return ae
+	}
+
+	ae.wrapped = inner
+	return ae
+}

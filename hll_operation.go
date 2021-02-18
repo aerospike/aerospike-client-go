@@ -210,7 +210,7 @@ func HLLDescribeOp(binName string) *Operation {
 }
 
 // hllEncoder is used to encode the HLL operations to wire protocol
-func newHLLEncoder(op *Operation, packer BufferEx) (int, error) {
+func newHLLEncoder(op *Operation, packer BufferEx) (int, Error) {
 	params := op.binValue.(ListValue)
 	opType := params[0].(int)
 	if len(op.binValue.(ListValue)) > 1 {
@@ -219,11 +219,11 @@ func newHLLEncoder(op *Operation, packer BufferEx) (int, error) {
 	return packHLLIfcParamsAsArray(packer, int16(opType), nil)
 }
 
-func packHLLIfcParamsAsArray(packer BufferEx, opType int16, params ListValue) (int, error) {
+func packHLLIfcParamsAsArray(packer BufferEx, opType int16, params ListValue) (int, Error) {
 	return packHLLIfcVarParamsAsArray(packer, opType, []interface{}(params)...)
 }
 
-func packHLLIfcVarParamsAsArray(packer BufferEx, opType int16, params ...interface{}) (int, error) {
+func packHLLIfcVarParamsAsArray(packer BufferEx, opType int16, params ...interface{}) (int, Error) {
 	size := 0
 	n, err := packArrayBegin(packer, len(params)+1)
 	if err != nil {
@@ -254,15 +254,15 @@ func packHLLIfcVarParamsAsArray(packer BufferEx, opType int16, params ...interfa
 // Supported by Aerospike 3+ servers only.
 type _HLLValueArray []HLLValue
 
-func (va _HLLValueArray) EstimateSize() (int, error) {
+func (va _HLLValueArray) EstimateSize() (int, Error) {
 	return packHLLValueArray(nil, va)
 }
 
-func (va _HLLValueArray) write(cmd BufferEx) (int, error) {
+func (va _HLLValueArray) write(cmd BufferEx) (int, Error) {
 	return packHLLValueArray(cmd, va)
 }
 
-func (va _HLLValueArray) pack(cmd BufferEx) (int, error) {
+func (va _HLLValueArray) pack(cmd BufferEx) (int, Error) {
 	return packHLLValueArray(cmd, va)
 }
 
@@ -281,7 +281,7 @@ func (va _HLLValueArray) String() string {
 	return fmt.Sprintf("%v", []HLLValue(va))
 }
 
-func packHLLValueArray(cmd BufferEx, list _HLLValueArray) (int, error) {
+func packHLLValueArray(cmd BufferEx, list _HLLValueArray) (int, Error) {
 	size := 0
 	n, err := packArrayBegin(cmd, len(list))
 	if err != nil {

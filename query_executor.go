@@ -23,14 +23,13 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, rs *Recordset) error {
+func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, rs *Recordset) Error {
 	defer rs.signalEnd()
 
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
 	for {
-		rs.resetTaskID()
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), statement.Namespace)
 		if err != nil {
 			return err
@@ -49,8 +48,8 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 		sem := semaphore.NewWeighted(int64(maxConcurrentNodes))
 		ctx := context.Background()
 		for _, nodePartition := range list {
-			if err = sem.Acquire(ctx, 1); err != nil {
-				logger.Logger.Error("Constraint Semaphore failed for Query: %s", err.Error())
+			if serr := sem.Acquire(ctx, 1); err != nil {
+				logger.Logger.Error("Constraint Semaphore failed for Query: %s", serr.Error())
 			}
 			go func(nodePartition *nodePartitions) {
 				defer sem.Release(1)
@@ -77,13 +76,15 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 				interval = time.Duration(float64(interval) * policy.SleepMultiplier)
 			}
 		}
+
+		rs.resetTaskID()
 	}
 
 }
 
 // QueryNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) queryNodePartition(policy *QueryPolicy, recordset *Recordset, tracker *partitionTracker, nodePartition *nodePartitions, statement *Statement) error {
+func (clnt *Client) queryNodePartition(policy *QueryPolicy, recordset *Recordset, tracker *partitionTracker, nodePartition *nodePartitions, statement *Statement) Error {
 	command := newQueryPartitionCommand(policy, tracker, nodePartition, statement, recordset)
 	return command.Execute()
 }

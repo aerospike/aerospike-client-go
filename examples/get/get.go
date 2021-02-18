@@ -75,7 +75,7 @@ func main() {
 	}
 }
 
-func panicOnError(err error) {
+func panicOnError(err Error) {
 	if err != nil {
 		panic(err)
 	}

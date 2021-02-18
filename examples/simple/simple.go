@@ -91,7 +91,7 @@ func main() {
 	fmt.Printf("key exists: %#v\n", exists)
 }
 
-func panicOnError(err error) {
+func panicOnError(err Error) {
 	if err != nil {
 		panic(err)
 	}

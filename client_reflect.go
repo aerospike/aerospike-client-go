@@ -17,7 +17,6 @@
 package aerospike
 
 import (
-	"errors"
 	"reflect"
 
 	"github.com/aerospike/aerospike-client-go/internal/atomic"
@@ -45,7 +44,7 @@ import (
 // Tag `asm:` denotes Aerospike Meta fields, and includes ttl and generation values.
 // If a tag is marked with `-`, it will not be sent to the database at all.
 // Note: Tag `as` can be replaced with any other user-defined tag via the function `SetAerospikeTag`.
-func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err error) {
+func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err Error) {
 	policy = clnt.getUsableWritePolicy(policy)
 
 	binMap := marshal(obj, clnt.cluster.supportsFloat.Get())
@@ -61,7 +60,7 @@ func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (e
 // GetObject reads a record for specified key and puts the result into the provided object.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) error {
+func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) Error {
 	policy = clnt.getUsablePolicy(policy)
 
 	rval := reflect.ValueOf(obj)
@@ -81,16 +80,16 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 // If a key is not found, the positional object will not change, and the positional found boolean will be false.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err error) {
+func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err Error) {
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	// check the size of  key and objects
 	if len(keys) != len(objects) {
-		return nil, errors.New("wrong number of arguments to BatchGetObjects: number of keys and objects do not match")
+		return nil, newError(types.PARAMETER_ERROR, "wrong number of arguments to BatchGetObjects: number of keys and objects do not match")
 	}
 
 	if len(keys) == 0 {
-		return nil, errors.New("wrong number of arguments to BatchGetObjects: keys are empty")
+		return nil, newError(types.PARAMETER_ERROR, "wrong number of arguments to BatchGetObjects: keys are empty")
 	}
 
 	binSet := map[string]struct{}{}
@@ -123,7 +122,7 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 	}
 
 	if filteredOut > 0 {
-		err = ErrFilteredOut
+		err = chainErrors(ErrFilteredOut, err)
 	}
 
 	return objectsFound, err
@@ -133,17 +132,17 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 // If the policy's concurrentNodes is specified, each server node will be read in
 // parallel. Otherwise, server nodes are read sequentially.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
+func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
+		return nil, ErrClusterIsEmpty.err()
 	}
 
 	clusterKey := int64(0)
 	if policy.FailOnClusterChange {
-		var err error
+		var err Error
 		clusterKey, err = queryValidateBegin(nodes[0], namespace)
 		if err != nil {
 			return nil, err
@@ -183,12 +182,12 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 // If the policy is nil, the default relevant policy will be used.
 // The resulting records will be marshalled into the objChan.
 // objChan will be closed after all the records are read.
-func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
+func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	clusterKey := int64(0)
 	if policy.FailOnClusterChange {
-		var err error
+		var err Error
 		clusterKey, err = queryValidateBegin(node, namespace)
 		if err != nil {
 			return nil, err
@@ -207,7 +206,7 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 // scanNodeObjects reads all records in specified namespace and set for one node only,
 // and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, clusterKey int64, first bool, binNames ...string) error {
+func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, clusterKey int64, first bool, binNames ...string) Error {
 	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset, clusterKey, first)
 	return command.Execute()
 }
@@ -218,17 +217,17 @@ func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *R
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, error) {
+func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+		return nil, ErrClusterIsEmpty.err()
 	}
 
 	clusterKey := int64(0)
 	if policy.FailOnClusterChange {
-		var err error
+		var err Error
 		clusterKey, err = queryValidateBegin(nodes[0], statement.Namespace)
 		if err != nil {
 			return nil, err
@@ -262,7 +261,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, error) {
+func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	// results channel must be async for performance
@@ -272,7 +271,7 @@ func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement 
 
 	clusterKey := int64(0)
 	if policy.FailOnClusterChange {
-		var err error
+		var err Error
 		clusterKey, err = queryValidateBegin(node, statement.Namespace)
 		if err != nil {
 			return nil, err

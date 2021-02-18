@@ -18,9 +18,8 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
+	"errors"
 	"fmt"
-	"io"
-	"net"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/logger"
@@ -110,19 +109,19 @@ const (
 type command interface {
 	getPolicy(ifc command) Policy
 
-	writeBuffer(ifc command) error
-	getNode(ifc command) (*Node, error)
-	getConnection(policy Policy) (*Connection, error)
+	writeBuffer(ifc command) Error
+	getNode(ifc command) (*Node, Error)
+	getConnection(policy Policy) (*Connection, Error)
 	putConnection(conn *Connection)
-	parseResult(ifc command, conn *Connection) error
-	parseRecordResults(ifc command, receiveSize int) (bool, error)
+	parseResult(ifc command, conn *Connection) Error
+	parseRecordResults(ifc command, receiveSize int) (bool, Error)
 	prepareRetry(ifc command, isTimeout bool) bool
 
-	execute(ifc command, isRead bool) error
-	executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) error
+	execute(ifc command, isRead bool) Error
+	executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) Error
 
 	// Executes the command
-	Execute() error
+	Execute() Error
 }
 
 // Holds data buffer for the command
@@ -149,7 +148,7 @@ type baseCommand struct {
 }
 
 // Writes the command for write operations
-func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, key *Key, bins []*Bin, binMap BinMap) error {
+func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, key *Key, bins []*Bin, binMap BinMap) Error {
 	cmd.begin()
 	fieldCount, err := cmd.estimateKeySize(key, policy.SendKey)
 	if err != nil {
@@ -229,7 +228,7 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 }
 
 // Writes the command for delete operations
-func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
+func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) Error {
 	cmd.begin()
 	fieldCount, err := cmd.estimateKeySize(key, false)
 	if err != nil {
@@ -274,7 +273,7 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) error {
 }
 
 // Writes the command for touch operations
-func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
+func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) Error {
 	cmd.begin()
 	fieldCount, err := cmd.estimateKeySize(key, policy.SendKey)
 	if err != nil {
@@ -319,7 +318,7 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) error {
 }
 
 // Writes the command for exist operations
-func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) error {
+func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) Error {
 	cmd.begin()
 	fieldCount, err := cmd.estimateKeySize(key, false)
 	if err != nil {
@@ -362,7 +361,7 @@ func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) error {
 }
 
 // Writes the command for get operations (all bins)
-func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) error {
+func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) Error {
 	cmd.begin()
 	fieldCount, err := cmd.estimateKeySize(key, false)
 	if err != nil {
@@ -403,7 +402,7 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) error {
 }
 
 // Writes the command for get operations (specified bins)
-func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string) error {
+func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string) Error {
 	if len(binNames) > 0 {
 		cmd.begin()
 		fieldCount, err := cmd.estimateKeySize(key, false)
@@ -451,7 +450,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 }
 
 // Writes the command for getting metadata operations
-func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
+func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) Error {
 	cmd.begin()
 	fieldCount, err := cmd.estimateKeySize(key, false)
 	if err != nil {
@@ -498,9 +497,9 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) error {
 }
 
 // Implements different command operations
-func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) (bool, error) {
+func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*Operation) (bool, Error) {
 	if len(operations) == 0 {
-		return false, NewAerospikeError(types.PARAMETER_ERROR, "No operations were passed.")
+		return false, newError(types.PARAMETER_ERROR, "No operations were passed.")
 	}
 
 	cmd.begin()
@@ -617,7 +616,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 	return hasWrite, nil
 }
 
-func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string, functionName string, args *ValueArray) error {
+func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string, functionName string, args *ValueArray) Error {
 	cmd.begin()
 	fieldCount, err := cmd.estimateKeySize(key, policy.SendKey)
 	if err != nil {
@@ -672,7 +671,7 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	return nil
 }
 
-func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key, batch *batchNode, binNames []string, readAttr int) error {
+func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key, batch *batchNode, binNames []string, readAttr int) Error {
 	offsets := batch.offsets
 	max := len(batch.offsets)
 	fieldCountRow := 1
@@ -691,7 +690,7 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 	fieldCount := 1
 	predSize := 0
 	if policy.FilterExpression != nil {
-		var err error
+		var err Error
 		predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
 		if err != nil {
 			return err
@@ -775,7 +774,7 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 
 		key := keys[index]
 		if _, err := cmd.Write(key.digest[:]); err != nil {
-			return err
+			return newCommonError(err)
 		}
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
 		if prev != nil && prev.namespace == key.namespace &&
@@ -809,7 +808,7 @@ func (cmd *baseCommand) setBatchIndexReadCompat(policy *BatchPolicy, keys []*Key
 	return nil
 }
 
-func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchRead, batch *batchNode) error {
+func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchRead, batch *batchNode) Error {
 	offsets := batch.offsets
 	max := len(batch.offsets)
 	fieldCountRow := 1
@@ -822,7 +821,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 	fieldCount := 1
 	predSize := 0
 	if policy.FilterExpression != nil {
-		var err error
+		var err Error
 		predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
 		if err != nil {
 			return err
@@ -915,7 +914,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 		key := record.Key
 		binNames := record.BinNames
 		if _, err := cmd.Write(key.digest[:]); err != nil {
-			return err
+			return newCommonError(err)
 		}
 
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
@@ -969,7 +968,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 	return nil
 }
 
-func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskID uint64, nodePartitions *nodePartitions) error {
+func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskID uint64, nodePartitions *nodePartitions) Error {
 	cmd.begin()
 	fieldCount := 0
 	partsFullSize := 0
@@ -984,7 +983,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 	predSize := 0
 	if policy.FilterExpression != nil {
-		var err error
+		var err Error
 		predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
 		if err != nil {
 			return err
@@ -1082,7 +1081,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 		for _, part := range nodePartitions.partsPartial {
 			if _, err := cmd.Write(part.digest[:]); err != nil {
-				return err
+				return newCommonError(err)
 			}
 		}
 	}
@@ -1136,7 +1135,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
-func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, write bool, nodePartitions *nodePartitions) error {
+func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, write bool, nodePartitions *nodePartitions) Error {
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
@@ -1252,7 +1251,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	}
 
 	if policy.FilterExpression != nil {
-		var err error
+		var err Error
 		predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
 		if err != nil {
 			return err
@@ -1377,7 +1376,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 
 			for _, part := range nodePartitions.partsPartial {
 				if _, err := cmd.Write(part.digest[:]); err != nil {
-					return err
+					return newCommonError(err)
 				}
 			}
 		}
@@ -1454,7 +1453,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	return nil
 }
 
-func (cmd *baseCommand) estimateKeySize(key *Key, sendKey bool) (int, error) {
+func (cmd *baseCommand) estimateKeySize(key *Key, sendKey bool) (int, Error) {
 	fieldCount := 0
 
 	if key.namespace != "" {
@@ -1483,7 +1482,7 @@ func (cmd *baseCommand) estimateKeySize(key *Key, sendKey bool) (int, error) {
 	return fieldCount, nil
 }
 
-func (cmd *baseCommand) estimateUdfSize(packageName string, functionName string, args *ValueArray) (int, error) {
+func (cmd *baseCommand) estimateUdfSize(packageName string, functionName string, args *ValueArray) (int, Error) {
 	cmd.dataOffset += len(packageName) + int(_FIELD_HEADER_SIZE)
 	cmd.dataOffset += len(functionName) + int(_FIELD_HEADER_SIZE)
 
@@ -1498,7 +1497,7 @@ func (cmd *baseCommand) estimateUdfSize(packageName string, functionName string,
 	return 3, nil
 }
 
-func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) error {
+func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) Error {
 	cmd.dataOffset += len(bin.Name) + int(_OPERATION_HEADER_SIZE)
 	sz, err := bin.Value.EstimateSize()
 	if err != nil {
@@ -1508,7 +1507,7 @@ func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) error {
 	return nil
 }
 
-func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, value interface{}) error {
+func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, value interface{}) Error {
 	cmd.dataOffset += len(name) + int(_OPERATION_HEADER_SIZE)
 	sz, err := NewValue(value).EstimateSize()
 	if err != nil {
@@ -1518,7 +1517,7 @@ func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, val
 	return nil
 }
 
-func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) error {
+func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation) Error {
 	binLen := len(operation.binName)
 	cmd.dataOffset += binLen + int(_OPERATION_HEADER_SIZE)
 
@@ -1557,7 +1556,7 @@ func (cmd *baseCommand) estimatePredExpSize(predExp []PredExp) int {
 	return sz
 }
 
-func (cmd *baseCommand) estimateExpressionSize(exp *FilterExpression) (int, error) {
+func (cmd *baseCommand) estimateExpressionSize(exp *FilterExpression) (int, Error) {
 	size, err := exp.pack(nil)
 	if err != nil {
 		return size, err
@@ -1682,7 +1681,7 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
 }
 
-func (cmd *baseCommand) writeKey(key *Key, sendKey bool) error {
+func (cmd *baseCommand) writeKey(key *Key, sendKey bool) Error {
 	// Write key into buffer.
 	if key.namespace != "" {
 		cmd.writeFieldString(key.namespace, NAMESPACE)
@@ -1703,7 +1702,7 @@ func (cmd *baseCommand) writeKey(key *Key, sendKey bool) error {
 	return nil
 }
 
-func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) error {
+func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) Error {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], bin.Name)
 
 	valueLength, err := bin.Value.EstimateSize()
@@ -1721,7 +1720,7 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 	return err
 }
 
-func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interface{}, operation OperationType) error {
+func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interface{}, operation OperationType) Error {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], name)
 
 	v := NewValue(val)
@@ -1741,7 +1740,7 @@ func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interf
 	return err
 }
 
-func (cmd *baseCommand) writeOperationForOperation(operation *Operation) error {
+func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.binName)
 
 	if operation.used {
@@ -1802,7 +1801,7 @@ func (cmd *baseCommand) writeOperationForOperationType(operation OperationType) 
 	cmd.WriteByte(0)
 }
 
-func (cmd *baseCommand) writePredExp(predExp []PredExp, predSize int) error {
+func (cmd *baseCommand) writePredExp(predExp []PredExp, predSize int) Error {
 	cmd.writeFieldHeader(predSize, FILTER_EXP)
 	for i := range predExp {
 		predExp[i].marshal(cmd)
@@ -1810,7 +1809,7 @@ func (cmd *baseCommand) writePredExp(predExp []PredExp, predSize int) error {
 	return nil
 }
 
-func (cmd *baseCommand) writeFilterExpression(exp *FilterExpression, expSize int) error {
+func (cmd *baseCommand) writeFilterExpression(exp *FilterExpression, expSize int) Error {
 	cmd.writeFieldHeader(expSize, FILTER_EXP)
 	if _, err := exp.pack(cmd); err != nil {
 		return err
@@ -1818,7 +1817,7 @@ func (cmd *baseCommand) writeFilterExpression(exp *FilterExpression, expSize int
 	return nil
 }
 
-func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) error {
+func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) Error {
 	vlen, err := value.EstimateSize()
 	if err != nil {
 		return err
@@ -1830,7 +1829,7 @@ func (cmd *baseCommand) writeFieldValue(value Value, ftype FieldType) error {
 	return err
 }
 
-func (cmd *baseCommand) writeUdfArgs(value *ValueArray) error {
+func (cmd *baseCommand) writeUdfArgs(value *ValueArray) Error {
 	if value != nil {
 		vlen, err := value.EstimateSize()
 		if err != nil {
@@ -1877,24 +1876,24 @@ func (cmd *baseCommand) begin() {
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
 }
 
-func (cmd *baseCommand) sizeBuffer(compress bool) error {
+func (cmd *baseCommand) sizeBuffer(compress bool) Error {
 	return cmd.sizeBufferSz(cmd.dataOffset, compress)
 }
 
-func (cmd *baseCommand) validateHeader(header int64) error {
+func (cmd *baseCommand) validateHeader(header int64) Error {
 	msgVersion := (uint64(header) & 0xFF00000000000000) >> 56
 	if msgVersion != 2 {
-		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected version to be 2, but got %v", msgVersion))
+		return newCustomNodeError(cmd.node, types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected version to be 2, but got %v", msgVersion))
 	}
 
 	msgType := (uint64(header) & 0x00FF000000000000) >> 49
 	if !(msgType == 1 || msgType == 3 || msgType == 4) {
-		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected type to be 1, 3 or 4, but got %v", msgType))
+		return newCustomNodeError(cmd.node, types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected type to be 1, 3 or 4, but got %v", msgType))
 	}
 
 	msgSize := header & 0x0000FFFFFFFFFFFF
 	if msgSize > int64(MaxBufferSize) {
-		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected size to be under 10MiB, but got %v", msgSize))
+		return newCustomNodeError(cmd.node, types.PARSE_ERROR, fmt.Sprintf("Invalid Message Header: Expected size to be under 10MiB, but got %v", msgSize))
 	}
 
 	return nil
@@ -1912,7 +1911,7 @@ const (
 	zlibHeaderPad = 2
 )
 
-func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) error {
+func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) Error {
 
 	if willCompress {
 		// adds zlib and proto pads to the size of the buffer
@@ -1922,7 +1921,7 @@ func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) error {
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
 	if size > MaxBufferSize || size < 0 {
-		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid size for buffer: %d", size))
+		return newCustomNodeError(cmd.node, types.PARSE_ERROR, fmt.Sprintf("Invalid size for buffer: %d", size))
 	}
 
 	if size <= len(cmd.dataBuffer) {
@@ -1957,7 +1956,7 @@ func (cmd *baseCommand) markCompressed(policy Policy) {
 	cmd.compressed = policy.compress()
 }
 
-func (cmd *baseCommand) compress() error {
+func (cmd *baseCommand) compress() Error {
 	if cmd.compressed && cmd.dataOffset > _COMPRESS_THRESHOLD {
 		b := bytes.NewBuffer(cmd.dataBufferCompress[msgHeaderPad:])
 		b.Reset()
@@ -1974,19 +1973,19 @@ func (cmd *baseCommand) compress() error {
 			n, err := w.Write(cmd.dataBuffer[i : i+step])
 			i += n
 			if err != nil {
-				return err
+				return newErrorAndWrap(err, types.SERIALIZE_ERROR)
 			}
 		}
 
 		if i < cmd.dataOffset {
 			if _, err := w.Write(cmd.dataBuffer[i:cmd.dataOffset]); err != nil {
-				return err
+				return newErrorAndWrap(err, types.SERIALIZE_ERROR)
 			}
 		}
 
 		// flush
 		if err := w.Close(); err != nil {
-			return err
+			return newErrorAndWrap(err, types.SERIALIZE_ERROR)
 		}
 
 		compressedSz := b.Len()
@@ -2021,29 +2020,22 @@ func (cmd *baseCommand) compressedSize() int {
 
 ////////////////////////////////////
 
-func setInDoubt(err error, isRead bool, commandSentCounter int) error {
-	// set inDoubt flag
-	if ae, ok := err.(AerospikeError); ok {
-		ae.SetInDoubt(isRead, commandSentCounter)
-		return ae
-	}
-
-	return err
-}
-
-func (cmd *baseCommand) execute(ifc command, isRead bool) error {
+func (cmd *baseCommand) execute(ifc command, isRead bool) Error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	deadline := policy.deadline()
 
 	return cmd.executeAt(ifc, policy, isRead, deadline, -1, 0)
 }
 
-func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) (err error) {
+// TODO: Manage the error chianing properly
+func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) (errChain Error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
 	notFirstIteration := false
 	isClientTimeout := false
+
+	var err Error
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
@@ -2051,11 +2043,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
-			if ae, ok := err.(AerospikeError); ok {
-				err = NewAerospikeError(ae.ResultCode, fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err.Error()))
-			}
-
-			return setInDoubt(err, isRead, commandSentCounter)
+			println(policy.MaxRetries)
+			panic("WGAT?")
+			return chainErrors(ErrMaxRetriesExceeded, errChain).iter(iterations).setInDoubt(isRead, commandSentCounter)
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -2072,13 +2062,12 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		}
 
 		if notFirstIteration {
-			aerr, ok := err.(AerospikeError)
-			if !ifc.prepareRetry(ifc, isClientTimeout || (ok && aerr.ResultCode != types.SERVER_NOT_AVAILABLE)) {
+			if !ifc.prepareRetry(ifc, isClientTimeout || err.Matches(types.SERVER_NOT_AVAILABLE)) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
 					if retry, err := bc.retryBatch(bc, cmd.node.cluster, deadline, iterations, commandSentCounter); retry {
 						// Batch was retried in separate subcommands. Complete this command.
-						return err
+						return chainErrors(err, errChain)
 					}
 				}
 			}
@@ -2099,6 +2088,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		if cmd.node == nil || !cmd.node.IsActive() || err != nil {
 			isClientTimeout = true
 
+			// chain the errors
+			errChain = chainErrors(err, errChain).iter(iterations)
+
 			// Node is currently inactive. Retry.
 			continue
 		}
@@ -2106,6 +2098,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		// check if node has encountered too many errors
 		if err = cmd.node.validateErrorCount(); err != nil {
 			isClientTimeout = false
+
+			// chain the errors
+			errChain = chainErrors(err, errChain).iter(iterations)
 
 			// Max error rate achieved, try again per policy
 			continue
@@ -2115,7 +2110,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		if err != nil {
 			isClientTimeout = true
 
-			if err == ErrConnectionPoolEmpty {
+			// chain the errors
+			errChain = chainErrors(err, errChain).iter(iterations)
+
+			if errors.Is(err, ErrConnectionPoolEmpty) {
 				// if the connection pool is empty, we still haven't tried
 				// the transaction to increase the iteration count.
 				iterations--
@@ -2130,6 +2128,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
 		if err != nil {
+			// chain the errors
+			errChain = chainErrors(err, errChain).iter(iterations)
+
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
 			cmd.conn.Close()
@@ -2149,12 +2150,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// now that the deadline has been set in the buffer, compress the contents
 		if err = cmd.compress(); err != nil {
-			return NewAerospikeError(types.SERIALIZE_ERROR, err.Error())
+			return chainErrors(err, errChain).iter(iterations)
 		}
 
 		// Send command.
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 		if err != nil {
+			// chain the errors
+			errChain = chainErrors(err, errChain).iter(iterations)
+
 			isClientTimeout = true
 			if deviceOverloadError(err) {
 				isClientTimeout = false
@@ -2174,9 +2178,13 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		// Parse results.
 		err = ifc.parseResult(ifc, cmd.conn)
 		if err != nil {
+			// chain the errors
+			errChain = chainErrors(err, errChain).iter(iterations)
+
 			if networkError(err) {
-				isClientTimeout = (err == ErrTimeout)
-				if err != ErrTimeout {
+				isTimeout := errors.Is(err, ErrTimeout)
+				isClientTimeout = isTimeout
+				if !isTimeout {
 					if deviceOverloadError(err) {
 						cmd.node.incrErrorCount()
 					}
@@ -2207,7 +2215,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 				cmd.conn = nil
 			}
 
-			return setInDoubt(err, isRead, commandSentCounter)
+			return errChain.setInDoubt(isRead, commandSentCounter)
 		}
 
 		// in case it has grown and re-allocated
@@ -2221,25 +2229,24 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		// cmd.node.PutConnection(cmd.conn)
 		ifc.putConnection(cmd.conn)
 
-		// command has completed successfully.  Exit method.
+		// command has completed successfully. Exit method.
 		return nil
 
 	}
 
 	// execution timeout
-	return ErrTimeout
+	errChain = chainErrors(ErrTimeout, errChain).iter(iterations)
+	return errChain
 }
 
-func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
+func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	panic("Abstract method. Should not end up here")
 }
 
-func networkError(err error) bool {
-	_, ok := err.(net.Error)
-	return err == ErrTimeout || err == io.EOF || ok
+func networkError(err Error) bool {
+	return err.Matches(types.NETWORK_ERROR, types.TIMEOUT)
 }
 
-func deviceOverloadError(err error) bool {
-	aerr, ok := err.(AerospikeError)
-	return ok && aerr.ResultCode == types.DEVICE_OVERLOAD
+func deviceOverloadError(err Error) bool {
+	return err.Matches(types.DEVICE_OVERLOAD)
 }

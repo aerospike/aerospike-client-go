@@ -116,7 +116,7 @@ func (fltr *Filter) IndexCollectionType() IndexCollectionType {
 }
 
 // EstimateSize will estimate the size of the filter for wire protocol
-func (fltr *Filter) EstimateSize() (int, error) {
+func (fltr *Filter) EstimateSize() (int, Error) {
 	// bin name size(1) + particle type size(1) + begin particle size(4) + end particle size(4) = 10
 	szBegin, err := fltr.begin.EstimateSize()
 	if err != nil {
@@ -131,7 +131,7 @@ func (fltr *Filter) EstimateSize() (int, error) {
 	return len(fltr.name) + szBegin + szEnd + 10, nil
 }
 
-func (fltr *Filter) write(cmd *baseCommand) (int, error) {
+func (fltr *Filter) write(cmd *baseCommand) (int, Error) {
 	size := 0
 
 	// Write name length

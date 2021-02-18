@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"errors"
 	"math"
 
 	gg "github.com/onsi/ginkgo"
@@ -48,7 +49,7 @@ var _ = gg.Describe("CDT List Test", func() {
 
 	gg.It("should create a valid CDT List", func() {
 		cdtList, err := client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, 0))
-		gm.Expect(err).To(gm.Equal(as.ErrKeyNotFound))
+		gm.Expect(errors.Is(err, as.ErrKeyNotFound)).To(gm.BeTrue())
 		gm.Expect(cdtList).To(gm.BeNil())
 
 		list := []interface{}{}

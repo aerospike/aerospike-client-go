@@ -27,7 +27,7 @@ type readHeaderCommand struct {
 	record *Record
 }
 
-func newReadHeaderCommand(cluster *Cluster, policy *BasePolicy, key *Key) (readHeaderCommand, error) {
+func newReadHeaderCommand(cluster *Cluster, policy *BasePolicy, key *Key) (readHeaderCommand, Error) {
 	partition, err := PartitionForRead(cluster, policy, key)
 	if err != nil {
 		return readHeaderCommand{}, err
@@ -45,11 +45,11 @@ func (cmd *readHeaderCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *readHeaderCommand) writeBuffer(ifc command) error {
+func (cmd *readHeaderCommand) writeBuffer(ifc command) Error {
 	return cmd.setReadHeader(cmd.policy, cmd.key)
 }
 
-func (cmd *readHeaderCommand) getNode(ifc command) (*Node, error) {
+func (cmd *readHeaderCommand) getNode(ifc command) (*Node, Error) {
 	return cmd.partition.GetNodeRead(cmd.cluster)
 }
 
@@ -58,7 +58,7 @@ func (cmd *readHeaderCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
-func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {
+func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) Error {
 	// Read header.
 	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
 		return err
@@ -81,9 +81,9 @@ func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) error {
 		if types.ResultCode(resultCode) == types.KEY_NOT_FOUND_ERROR {
 			cmd.record = nil
 		} else if types.ResultCode(resultCode) == types.FILTERED_OUT {
-			return ErrFilteredOut
+			return ErrFilteredOut.err()
 		} else {
-			return NewAerospikeError(types.ResultCode(resultCode))
+			return newError(types.ResultCode(resultCode))
 		}
 	}
 	return cmd.emptySocket(conn)
@@ -93,6 +93,6 @@ func (cmd *readHeaderCommand) GetRecord() *Record {
 	return cmd.record
 }
 
-func (cmd *readHeaderCommand) Execute() error {
+func (cmd *readHeaderCommand) Execute() Error {
 	return cmd.execute(cmd, true)
 }

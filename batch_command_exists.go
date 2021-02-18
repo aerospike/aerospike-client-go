@@ -55,13 +55,13 @@ func (cmd *batchCommandExists) cloneBatchCommand(batch *batchNode) batcher {
 	return &res
 }
 
-func (cmd *batchCommandExists) writeBuffer(ifc command) error {
+func (cmd *batchCommandExists) writeBuffer(ifc command) Error {
 	return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, nil, _INFO1_READ|_INFO1_NOBINDATA)
 }
 
 // Parse all results in the batch.  Add records to shared list.
 // If the record was not found, the bins will be nil.
-func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) (bool, error) {
+func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	//Parse each message response and add it to the result array
 	cmd.dataOffset = 0
 
@@ -78,7 +78,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			if resultCode == types.FILTERED_OUT {
 				cmd.filteredOutCnt++
 			} else {
-				return false, NewAerospikeError(resultCode)
+				return false, newCustomNodeError(cmd.node, resultCode)
 			}
 		}
 
@@ -94,7 +94,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
 		if opCount > 0 {
-			return false, NewAerospikeError(types.PARSE_ERROR, "Received bins that were not requested!")
+			return false, newCustomNodeError(cmd.node, types.PARSE_ERROR, "Received bins that were not requested!")
 		}
 
 		key, err := cmd.parseKey(fieldCount)
@@ -108,16 +108,16 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 				cmd.existsArray[batchIndex] = true
 			}
 		} else {
-			return false, NewAerospikeError(types.PARSE_ERROR, "Unexpected batch key returned: "+key.namespace+","+Buffer.BytesToHexString(key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.keys[batchIndex].digest[:]))
+			return false, newCustomNodeError(cmd.node, types.PARSE_ERROR, "Unexpected batch key returned: "+key.namespace+","+Buffer.BytesToHexString(key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.keys[batchIndex].digest[:]))
 		}
 	}
 	return true, nil
 }
 
-func (cmd *batchCommandExists) Execute() error {
+func (cmd *batchCommandExists) Execute() Error {
 	return cmd.execute(cmd, true)
 }
 
-func (cmd *batchCommandExists) generateBatchNodes(cluster *Cluster) ([]*batchNode, error) {
+func (cmd *batchCommandExists) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
 }

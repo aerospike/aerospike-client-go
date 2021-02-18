@@ -34,7 +34,7 @@ type CDTContext struct {
 	value Value
 }
 
-func (ctx *CDTContext) pack(cmd BufferEx) (int, error) {
+func (ctx *CDTContext) pack(cmd BufferEx) (int, Error) {
 	size := 0
 	sz, err := packAInt64(cmd, int64(ctx.id))
 	size += sz
@@ -51,7 +51,7 @@ func (ctx *CDTContext) pack(cmd BufferEx) (int, error) {
 // cdtContextList is used in FilterExpression API
 type cdtContextList []*CDTContext
 
-func (ctxl cdtContextList) pack(cmd BufferEx) (int, error) {
+func (ctxl cdtContextList) pack(cmd BufferEx) (int, Error) {
 	size := 0
 	for i := range ctxl {
 		sz, err := ctxl[i].pack(cmd)

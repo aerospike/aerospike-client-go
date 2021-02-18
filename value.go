@@ -37,13 +37,13 @@ type MapPair struct{ Key, Value interface{} }
 type Value interface {
 
 	// Calculate number of vl.bytes necessary to serialize the value in the wire protocol.
-	EstimateSize() (int, error)
+	EstimateSize() (int, Error)
 
 	// Serialize the value in the wire protocol.
-	write(cmd BufferEx) (int, error)
+	write(cmd BufferEx) (int, Error)
 
 	// Serialize the value using MessagePack.
-	pack(cmd BufferEx) (int, error)
+	pack(cmd BufferEx) (int, Error)
 
 	// GetType returns wire protocol value type.
 	GetType() int
@@ -441,7 +441,7 @@ func NewValue(v interface{}) Value {
 	}
 
 	// panic for anything that is not supported.
-	panic(NewAerospikeError(types.TYPE_NOT_SUPPORTED, fmt.Sprintf("Value type '%v' (%s) not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)", v, reflect.TypeOf(v).String())))
+	panic(newError(types.TYPE_NOT_SUPPORTED, fmt.Sprintf("Value type '%v' (%s) not supported (if you are compiling via 'as_performance' tag, use cast either to primitives, or use ListIter or MapIter interfaces.)", v, reflect.TypeOf(v).String())))
 }
 
 // NullValue is an empty value.
@@ -455,15 +455,15 @@ func NewNullValue() NullValue {
 }
 
 // EstimateSize returns the size of the NullValue in wire protocol.
-func (vl NullValue) EstimateSize() (int, error) {
+func (vl NullValue) EstimateSize() (int, Error) {
 	return 0, nil
 }
 
-func (vl NullValue) write(cmd BufferEx) (int, error) {
+func (vl NullValue) write(cmd BufferEx) (int, Error) {
 	return 0, nil
 }
 
-func (vl NullValue) pack(cmd BufferEx) (int, error) {
+func (vl NullValue) pack(cmd BufferEx) (int, Error) {
 	return packNil(cmd)
 }
 
@@ -494,15 +494,15 @@ func NewInfinityValue() InfinityValue {
 }
 
 // EstimateSize returns the size of the InfinityValue in wire protocol.
-func (vl InfinityValue) EstimateSize() (int, error) {
+func (vl InfinityValue) EstimateSize() (int, Error) {
 	return 0, nil
 }
 
-func (vl InfinityValue) write(cmd BufferEx) (int, error) {
+func (vl InfinityValue) write(cmd BufferEx) (int, Error) {
 	return 0, nil
 }
 
-func (vl InfinityValue) pack(cmd BufferEx) (int, error) {
+func (vl InfinityValue) pack(cmd BufferEx) (int, Error) {
 	return packInfinity(cmd)
 }
 
@@ -533,15 +533,15 @@ func NewWildCardValue() WildCardValue {
 }
 
 // EstimateSize returns the size of the WildCardValue in wire protocol.
-func (vl WildCardValue) EstimateSize() (int, error) {
+func (vl WildCardValue) EstimateSize() (int, Error) {
 	return 0, nil
 }
 
-func (vl WildCardValue) write(cmd BufferEx) (int, error) {
+func (vl WildCardValue) write(cmd BufferEx) (int, Error) {
 	return 0, nil
 }
 
-func (vl WildCardValue) pack(cmd BufferEx) (int, error) {
+func (vl WildCardValue) pack(cmd BufferEx) (int, Error) {
 	return packWildCard(cmd)
 }
 
@@ -582,15 +582,15 @@ func NewBlobValue(object AerospikeBlob) BytesValue {
 }
 
 // EstimateSize returns the size of the BytesValue in wire protocol.
-func (vl BytesValue) EstimateSize() (int, error) {
+func (vl BytesValue) EstimateSize() (int, Error) {
 	return len(vl), nil
 }
 
-func (vl BytesValue) write(cmd BufferEx) (int, error) {
+func (vl BytesValue) write(cmd BufferEx) (int, Error) {
 	return cmd.Write(vl)
 }
 
-func (vl BytesValue) pack(cmd BufferEx) (int, error) {
+func (vl BytesValue) pack(cmd BufferEx) (int, Error) {
 	return packBytes(cmd, vl)
 }
 
@@ -620,15 +620,15 @@ func NewStringValue(value string) StringValue {
 }
 
 // EstimateSize returns the size of the StringValue in wire protocol.
-func (vl StringValue) EstimateSize() (int, error) {
+func (vl StringValue) EstimateSize() (int, Error) {
 	return len(vl), nil
 }
 
-func (vl StringValue) write(cmd BufferEx) (int, error) {
+func (vl StringValue) write(cmd BufferEx) (int, Error) {
 	return cmd.WriteString(string(vl))
 }
 
-func (vl StringValue) pack(cmd BufferEx) (int, error) {
+func (vl StringValue) pack(cmd BufferEx) (int, Error) {
 	return packString(cmd, string(vl))
 }
 
@@ -658,16 +658,16 @@ func NewIntegerValue(value int) IntegerValue {
 }
 
 // EstimateSize returns the size of the IntegerValue in wire protocol.
-func (vl IntegerValue) EstimateSize() (int, error) {
+func (vl IntegerValue) EstimateSize() (int, Error) {
 	return 8, nil
 }
 
-func (vl IntegerValue) write(cmd BufferEx) (int, error) {
+func (vl IntegerValue) write(cmd BufferEx) (int, Error) {
 	n := cmd.WriteInt64(int64(vl))
 	return n, nil
 }
 
-func (vl IntegerValue) pack(cmd BufferEx) (int, error) {
+func (vl IntegerValue) pack(cmd BufferEx) (int, Error) {
 	return packAInt64(cmd, int64(vl))
 }
 
@@ -697,16 +697,16 @@ func NewLongValue(value int64) LongValue {
 }
 
 // EstimateSize returns the size of the LongValue in wire protocol.
-func (vl LongValue) EstimateSize() (int, error) {
+func (vl LongValue) EstimateSize() (int, Error) {
 	return 8, nil
 }
 
-func (vl LongValue) write(cmd BufferEx) (int, error) {
+func (vl LongValue) write(cmd BufferEx) (int, Error) {
 	n := cmd.WriteInt64(int64(vl))
 	return n, nil
 }
 
-func (vl LongValue) pack(cmd BufferEx) (int, error) {
+func (vl LongValue) pack(cmd BufferEx) (int, Error) {
 	return packAInt64(cmd, int64(vl))
 }
 
@@ -736,16 +736,16 @@ func NewFloatValue(value float64) FloatValue {
 }
 
 // EstimateSize returns the size of the FloatValue in wire protocol.
-func (vl FloatValue) EstimateSize() (int, error) {
+func (vl FloatValue) EstimateSize() (int, Error) {
 	return 8, nil
 }
 
-func (vl FloatValue) write(cmd BufferEx) (int, error) {
+func (vl FloatValue) write(cmd BufferEx) (int, Error) {
 	n := cmd.WriteFloat64(float64(vl))
 	return n, nil
 }
 
-func (vl FloatValue) pack(cmd BufferEx) (int, error) {
+func (vl FloatValue) pack(cmd BufferEx) (int, Error) {
 	return packFloat64(cmd, float64(vl))
 }
 
@@ -771,15 +771,15 @@ func (vl FloatValue) String() string {
 type _BoolValue bool
 
 // EstimateSize returns the size of the _BoolValue in wire protocol.
-func (vb _BoolValue) EstimateSize() (int, error) {
+func (vb _BoolValue) EstimateSize() (int, Error) {
 	return PackBool(nil, bool(vb))
 }
 
-func (vb _BoolValue) write(cmd BufferEx) (int, error) {
+func (vb _BoolValue) write(cmd BufferEx) (int, Error) {
 	panic("Unreachable")
 }
 
-func (vb _BoolValue) pack(cmd BufferEx) (int, error) {
+func (vb _BoolValue) pack(cmd BufferEx) (int, Error) {
 	return PackBool(cmd, bool(vb))
 }
 
@@ -812,15 +812,15 @@ func NewValueArray(array []Value) *ValueArray {
 }
 
 // EstimateSize returns the size of the ValueArray in wire protocol.
-func (va ValueArray) EstimateSize() (int, error) {
+func (va ValueArray) EstimateSize() (int, Error) {
 	return packValueArray(nil, va)
 }
 
-func (va ValueArray) write(cmd BufferEx) (int, error) {
+func (va ValueArray) write(cmd BufferEx) (int, Error) {
 	return packValueArray(cmd, va)
 }
 
-func (va ValueArray) pack(cmd BufferEx) (int, error) {
+func (va ValueArray) pack(cmd BufferEx) (int, Error) {
 	return packValueArray(cmd, []Value(va))
 }
 
@@ -851,15 +851,15 @@ func NewListValue(list []interface{}) ListValue {
 }
 
 // EstimateSize returns the size of the ListValue in wire protocol.
-func (vl ListValue) EstimateSize() (int, error) {
+func (vl ListValue) EstimateSize() (int, Error) {
 	return packIfcList(nil, vl)
 }
 
-func (vl ListValue) write(cmd BufferEx) (int, error) {
+func (vl ListValue) write(cmd BufferEx) (int, Error) {
 	return packIfcList(cmd, vl)
 }
 
-func (vl ListValue) pack(cmd BufferEx) (int, error) {
+func (vl ListValue) pack(cmd BufferEx) (int, Error) {
 	return packIfcList(cmd, []interface{}(vl))
 }
 
@@ -896,15 +896,15 @@ func NewListerValue(list ListIter) *ListerValue {
 }
 
 // EstimateSize returns the size of the ListerValue in wire protocol.
-func (vl *ListerValue) EstimateSize() (int, error) {
+func (vl *ListerValue) EstimateSize() (int, Error) {
 	return packList(nil, vl.list)
 }
 
-func (vl *ListerValue) write(cmd BufferEx) (int, error) {
+func (vl *ListerValue) write(cmd BufferEx) (int, Error) {
 	return packList(cmd, vl.list)
 }
 
-func (vl *ListerValue) pack(cmd BufferEx) (int, error) {
+func (vl *ListerValue) pack(cmd BufferEx) (int, Error) {
 	return packList(cmd, vl.list)
 }
 
@@ -935,15 +935,15 @@ func NewMapValue(vmap map[interface{}]interface{}) MapValue {
 }
 
 // EstimateSize returns the size of the MapValue in wire protocol.
-func (vl MapValue) EstimateSize() (int, error) {
+func (vl MapValue) EstimateSize() (int, Error) {
 	return packIfcMap(nil, vl)
 }
 
-func (vl MapValue) write(cmd BufferEx) (int, error) {
+func (vl MapValue) write(cmd BufferEx) (int, Error) {
 	return packIfcMap(cmd, vl)
 }
 
-func (vl MapValue) pack(cmd BufferEx) (int, error) {
+func (vl MapValue) pack(cmd BufferEx) (int, Error) {
 	return packIfcMap(cmd, vl)
 }
 
@@ -973,15 +973,15 @@ func NewJsonValue(vmap map[string]interface{}) JsonValue {
 }
 
 // EstimateSize returns the size of the JsonValue in wire protocol.
-func (vl JsonValue) EstimateSize() (int, error) {
+func (vl JsonValue) EstimateSize() (int, Error) {
 	return packJsonMap(nil, vl)
 }
 
-func (vl JsonValue) write(cmd BufferEx) (int, error) {
+func (vl JsonValue) write(cmd BufferEx) (int, Error) {
 	return packJsonMap(cmd, vl)
 }
 
-func (vl JsonValue) pack(cmd BufferEx) (int, error) {
+func (vl JsonValue) pack(cmd BufferEx) (int, Error) {
 	return packJsonMap(cmd, vl)
 }
 
@@ -1017,15 +1017,15 @@ func NewMapperValue(vmap MapIter) *MapperValue {
 }
 
 // EstimateSize returns the size of the MapperValue in wire protocol.
-func (vl *MapperValue) EstimateSize() (int, error) {
+func (vl *MapperValue) EstimateSize() (int, Error) {
 	return packMap(nil, vl.vmap)
 }
 
-func (vl *MapperValue) write(cmd BufferEx) (int, error) {
+func (vl *MapperValue) write(cmd BufferEx) (int, Error) {
 	return packMap(cmd, vl.vmap)
 }
 
-func (vl *MapperValue) pack(cmd BufferEx) (int, error) {
+func (vl *MapperValue) pack(cmd BufferEx) (int, Error) {
 	return packMap(cmd, vl.vmap)
 }
 
@@ -1056,12 +1056,12 @@ func NewGeoJSONValue(value string) GeoJSONValue {
 }
 
 // EstimateSize returns the size of the GeoJSONValue in wire protocol.
-func (vl GeoJSONValue) EstimateSize() (int, error) {
+func (vl GeoJSONValue) EstimateSize() (int, Error) {
 	// flags + ncells + jsonstr
 	return 1 + 2 + len(string(vl)), nil
 }
 
-func (vl GeoJSONValue) write(cmd BufferEx) (int, error) {
+func (vl GeoJSONValue) write(cmd BufferEx) (int, Error) {
 	cmd.WriteByte(0) // flags
 	cmd.WriteByte(0) // flags
 	cmd.WriteByte(0) // flags
@@ -1069,7 +1069,7 @@ func (vl GeoJSONValue) write(cmd BufferEx) (int, error) {
 	return cmd.WriteString(string(vl))
 }
 
-func (vl GeoJSONValue) pack(cmd BufferEx) (int, error) {
+func (vl GeoJSONValue) pack(cmd BufferEx) (int, Error) {
 	return packGeoJson(cmd, string(vl))
 }
 
@@ -1099,15 +1099,15 @@ func NewHLLValue(bytes []byte) HLLValue {
 }
 
 // EstimateSize returns the size of the HLLValue in wire protocol.
-func (vl HLLValue) EstimateSize() (int, error) {
+func (vl HLLValue) EstimateSize() (int, Error) {
 	return len(vl), nil
 }
 
-func (vl HLLValue) write(cmd BufferEx) (int, error) {
+func (vl HLLValue) write(cmd BufferEx) (int, Error) {
 	return cmd.Write(vl)
 }
 
-func (vl HLLValue) pack(cmd BufferEx) (int, error) {
+func (vl HLLValue) pack(cmd BufferEx) (int, Error) {
 	return packBytes(cmd, vl)
 }
 
@@ -1128,7 +1128,7 @@ func (vl HLLValue) String() string {
 
 //////////////////////////////////////////////////////////////////////////////
 
-func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}, error) {
+func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}, Error) {
 
 	switch ptype {
 	case ParticleType.INTEGER:
@@ -1172,7 +1172,7 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 	return nil, nil
 }
 
-func bytesToKeyValue(pType int, buf []byte, offset int, len int) (Value, error) {
+func bytesToKeyValue(pType int, buf []byte, offset int, len int) (Value, Error) {
 
 	switch pType {
 	case ParticleType.STRING:
@@ -1190,7 +1190,7 @@ func bytesToKeyValue(pType int, buf []byte, offset int, len int) (Value, error) 
 		return NewBytesValue(bytes), nil
 
 	default:
-		return nil, NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("ParticleType %d not recognized. Please file a github issue.", pType))
+		return nil, newError(types.PARSE_ERROR, fmt.Sprintf("ParticleType %d not recognized. Please file a github issue.", pType))
 	}
 }
 

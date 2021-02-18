@@ -44,15 +44,15 @@ func (cmd *queryPartitionCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *queryPartitionCommand) writeBuffer(ifc command) error {
+func (cmd *queryPartitionCommand) writeBuffer(ifc command) Error {
 	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.recordset.TaskId(), cmd.operations, cmd.writePolicy != nil, cmd.nodePartitions)
 }
 
-func (cmd *queryPartitionCommand) shouldRetry(e error) bool {
+func (cmd *queryPartitionCommand) shouldRetry(e Error) bool {
 	return cmd.tracker != nil && cmd.tracker.shouldRetry(e)
 }
 
-func (cmd *queryPartitionCommand) Execute() error {
+func (cmd *queryPartitionCommand) Execute() Error {
 	err := cmd.execute(cmd, true)
 	if err != nil {
 		// signal to the executor that no retries should be attempted

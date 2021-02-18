@@ -42,7 +42,7 @@ func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statem
 	return cmd
 }
 
-func (cmd *queryAggregateCommand) Execute() error {
+func (cmd *queryAggregateCommand) Execute() Error {
 	cmd.policy.MaxRetries = 0
 	err := cmd.execute(cmd, true)
 	if err != nil {
@@ -51,7 +51,7 @@ func (cmd *queryAggregateCommand) Execute() error {
 	return err
 }
 
-func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
+func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	// Read/parse remaining message bytes one record at a time.
 	cmd.dataOffset = 0
 
@@ -73,9 +73,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 				}
 				return false, nil
 			}
-			err := NewAerospikeError(resultCode)
-			err = newNodeError(cmd.node, err)
-			return false, err
+			return false, newCustomNodeError(cmd.node, resultCode)
 		}
 
 		info3 := int(cmd.dataBuffer[3])
@@ -91,14 +89,11 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
 		if opCount != 1 {
-			err := fmt.Errorf("Query aggregate command expects exactly only one bin. Received: %d", opCount)
-			err = newNodeError(cmd.node, err)
-			return false, err
+			return false, newNodeError(cmd.node, fmt.Errorf("Query aggregate command expects exactly only one bin. Received: %d", opCount))
 		}
 
 		if _, err := cmd.parseKey(fieldCount); err != nil {
-			err = newNodeError(cmd.node, err)
-			return false, err
+			return false, newNodeError(cmd.node, err)
 		}
 
 		// if there is a recordset, process the record traditionally
@@ -109,8 +104,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 
 		for i := 0; i < opCount; i++ {
 			if err := cmd.readBytes(8); err != nil {
-				err = newNodeError(cmd.node, err)
-				return false, err
+				return false, newNodeError(cmd.node, err)
 			}
 
 			opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, 0))
@@ -118,20 +112,17 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 			nameSize := int(cmd.dataBuffer[7])
 
 			if err := cmd.readBytes(nameSize); err != nil {
-				err = newNodeError(cmd.node, err)
-				return false, err
+				return false, newNodeError(cmd.node, err)
 			}
 			name := string(cmd.dataBuffer[:nameSize])
 
 			particleBytesSize := opSize - (4 + nameSize)
 			if err := cmd.readBytes(particleBytesSize); err != nil {
-				err = newNodeError(cmd.node, err)
-				return false, err
+				return false, newNodeError(cmd.node, err)
 			}
 			value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
 			if err != nil {
-				err = newNodeError(cmd.node, err)
-				return false, err
+				return false, newNodeError(cmd.node, err)
 			}
 
 			if bins == nil {
@@ -143,10 +134,10 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		recs, exists := bins["SUCCESS"]
 		if !exists {
 			if errStr, exists := bins["FAILURE"]; exists {
-				return false, NewAerospikeError(types.QUERY_GENERIC, errStr.(string))
+				return false, newError(types.QUERY_GENERIC, errStr.(string))
 			}
 
-			return false, NewAerospikeError(types.QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
+			return false, newError(types.QUERY_GENERIC, fmt.Sprintf("QueryAggregate's expected result was not returned. Received: %v", bins))
 		}
 
 		// If the channel is full and it blocks, we don't want this command to
@@ -155,7 +146,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		// send back the result on the async channel
 		case cmd.inputChan <- recs:
 		case <-cmd.recordset.cancelled:
-			return false, NewAerospikeError(types.QUERY_TERMINATED)
+			return false, newError(types.QUERY_TERMINATED)
 		}
 	}
 

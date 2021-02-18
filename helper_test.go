@@ -14,15 +14,15 @@
 
 package aerospike
 
-func (clstr *Cluster) GetMasterNode(partition *Partition) (*Node, error) {
+func (clstr *Cluster) GetMasterNode(partition *Partition) (*Node, Error) {
 	return partition.getMasterNode(clstr)
 }
 
-func (ptn *Partition) GetMasterNode(cluster *Cluster) (*Node, error) {
+func (ptn *Partition) GetMasterNode(cluster *Cluster) (*Node, Error) {
 	return ptn.getMasterNode(cluster)
 }
 
-func (ptn *Partition) GetMasterProlesNode(cluster *Cluster) (*Node, error) {
+func (ptn *Partition) GetMasterProlesNode(cluster *Cluster) (*Node, Error) {
 	return ptn.getMasterProlesNode(cluster)
 }
 

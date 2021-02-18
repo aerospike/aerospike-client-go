@@ -21,7 +21,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/types"
 )
 
-func queryValidateBegin(node *Node, namespace string) (int64, error) {
+func queryValidateBegin(node *Node, namespace string) (int64, Error) {
 	if !node.supportsClusterStable.Get() {
 		return 0, nil
 	}
@@ -33,16 +33,15 @@ func queryValidateBegin(node *Node, namespace string) (int64, error) {
 		return -1, err
 	}
 
-	i, err := strconv.ParseInt(result[cmd], 16, 64)
-	if err == nil {
+	if i, err := strconv.ParseInt(result[cmd], 16, 64); err == nil {
 		return i, nil
 	}
 
 	// Yes, even scans return QUERY_ABORTED.
-	return -1, newAerospikeNodeError(node, types.QUERY_ABORTED, "Cluster is in migration:", result[cmd])
+	return -1, newCustomNodeError(node, types.QUERY_ABORTED, "Cluster is in migration:", result[cmd])
 }
 
-func queryValidate(node *Node, namespace string, expectedKey int64) error {
+func queryValidate(node *Node, namespace string, expectedKey int64) Error {
 	if expectedKey == 0 || !node.supportsClusterStable.Get() {
 		return nil
 	}
@@ -54,7 +53,7 @@ func queryValidate(node *Node, namespace string, expectedKey int64) error {
 	}
 
 	if clusterKey != expectedKey {
-		return newAerospikeNodeError(node, types.QUERY_ABORTED, fmt.Sprintf("Cluster is in migration: %d != %d", expectedKey, clusterKey))
+		return newCustomNodeError(node, types.QUERY_ABORTED, fmt.Sprintf("Cluster is in migration: %d != %d", expectedKey, clusterKey))
 	}
 
 	return nil

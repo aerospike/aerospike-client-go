@@ -39,7 +39,7 @@ func NewExecuteTask(cluster *Cluster, statement *Statement) *ExecuteTask {
 }
 
 // IsDone queries all nodes for task completion status.
-func (etsk *ExecuteTask) IsDone() (bool, error) {
+func (etsk *ExecuteTask) IsDone() (bool, Error) {
 	var module string
 	if etsk.scan {
 		module = "scan"
@@ -71,7 +71,7 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 
 		if strings.HasPrefix(response, "ERROR:") {
 			// Mark done and quit immediately.
-			return false, NewAerospikeError(types.UDF_BAD_RESPONSE, response)
+			return false, newError(types.UDF_BAD_RESPONSE, response)
 		}
 
 		find := "status="
@@ -103,6 +103,6 @@ func (etsk *ExecuteTask) IsDone() (bool, error) {
 // completed.
 // If an error is encountered while performing the task, an error
 // will be sent on the channel.
-func (etsk *ExecuteTask) OnComplete() chan error {
+func (etsk *ExecuteTask) OnComplete() chan Error {
 	return etsk.onComplete(etsk)
 }

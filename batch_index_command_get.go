@@ -50,14 +50,14 @@ func (cmd *batchIndexCommandGet) cloneBatchCommand(batch *batchNode) batcher {
 	return &res
 }
 
-func (cmd *batchIndexCommandGet) writeBuffer(ifc command) error {
+func (cmd *batchIndexCommandGet) writeBuffer(ifc command) Error {
 	return cmd.setBatchIndexRead(cmd.policy, cmd.indexRecords, cmd.batch)
 }
 
-func (cmd *batchIndexCommandGet) Execute() error {
+func (cmd *batchIndexCommandGet) Execute() Error {
 	return cmd.execute(cmd, true)
 }
 
-func (cmd *batchIndexCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, error) {
+func (cmd *batchIndexCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchNodeListRecords(cluster, cmd.policy, cmd.indexRecords, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
 }

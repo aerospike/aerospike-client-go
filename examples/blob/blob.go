@@ -69,7 +69,7 @@ func main() {
 	result.DecodeBlob(rec.Bins["bin2"].([]byte))
 }
 
-func panicOnError(err error) {
+func panicOnError(err Error) {
 	if err != nil {
 		panic(err)
 	}

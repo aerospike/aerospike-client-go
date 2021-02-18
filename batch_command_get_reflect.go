@@ -17,7 +17,6 @@
 package aerospike
 
 import (
-	"errors"
 	"reflect"
 
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
@@ -35,22 +34,22 @@ func parseBatchObject(
 	fieldCount int,
 	generation uint32,
 	expiration uint32,
-) error {
+) Error {
 	supportsFloat := cmd.node.cluster.supportsFloat.Get()
 	if opCount > 0 {
 		rv := *cmd.objects[offset]
 
 		if rv.Kind() != reflect.Ptr {
-			return errors.New("Invalid type for result object. It should be of type Struct Pointer.")
+			return ErrInvalidObjectType.err()
 		}
 		rv = rv.Elem()
 
 		if !rv.CanAddr() {
-			return errors.New("Invalid type for object. It should be addressable (a pointer)")
+			return ErrInvalidObjectType.err()
 		}
 
 		if rv.Kind() != reflect.Struct {
-			return errors.New("Invalid type for object. It should be a pointer to a struct.")
+			return ErrInvalidObjectType.err()
 		}
 
 		// find the name based on tag mapping

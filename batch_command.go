@@ -24,8 +24,8 @@ type batcher interface {
 	cloneBatchCommand(batch *batchNode) batcher
 	filteredOut() int
 
-	retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration, commandSentCounter int) (bool, error)
-	generateBatchNodes(*Cluster) ([]*batchNode, error)
+	retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration, commandSentCounter int) (bool, Error)
+	generateBatchNodes(*Cluster) ([]*batchNode, Error)
 	setSequence(int, int)
 }
 
@@ -54,7 +54,7 @@ func (cmd *batchCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return false
 }
 
-func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration, commandSentCounter int) (bool, error) {
+func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration, commandSentCounter int) (bool, Error) {
 	// Retry requires keys for this node to be split among other nodes.
 	// This is both recursive and exponential.
 	batchNodes, err := ifc.generateBatchNodes(cluster)
@@ -68,19 +68,19 @@ func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time
 	}
 
 	// Run batch requests sequentially in same thread.
-	var errs []error
+	var ferr Error
 	for _, batchNode := range batchNodes {
 		command := ifc.cloneBatchCommand(batchNode)
 		command.setSequence(cmd.sequenceAP, cmd.sequenceSC)
 		if err := command.executeAt(command, cmd.policy.GetBasePolicy(), true, deadline, iteration, commandSentCounter); err != nil {
+			ferr = chainErrors(err, ferr)
 			if !cmd.policy.AllowPartialResults {
-				return false, err
+				return false, ferr
 			}
-			errs = append(errs, err)
 		}
 	}
 
-	return true, mergeErrors(errs)
+	return true, ferr
 }
 
 func (cmd *batchCommand) setSequence(ap, sc int) {
@@ -91,7 +91,7 @@ func (cmd *batchCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *batchCommand) Execute() error {
+func (cmd *batchCommand) Execute() Error {
 	return cmd.execute(cmd, true)
 }
 
@@ -99,7 +99,7 @@ func (cmd *batchCommand) filteredOut() int {
 	return cmd.filteredOutCnt
 }
 
-func (cmd *batchCommand) generateBatchNodes(cluster *Cluster) ([]*batchNode, error) {
+func (cmd *batchCommand) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	panic("Unreachable")
 }
 
@@ -107,6 +107,6 @@ func (cmd *batchCommand) cloneBatchCommand(batch *batchNode) batcher {
 	panic("Unreachable")
 }
 
-func (cmd *batchCommand) writeBuffer(ifc command) error {
+func (cmd *batchCommand) writeBuffer(ifc command) Error {
 	panic("Unreachable")
 }

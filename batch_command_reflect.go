@@ -49,7 +49,7 @@ func batchParseObject(
 	fieldCount int,
 	generation uint32,
 	expiration uint32,
-) error {
+) Error {
 	supportsFloat := cmd.node.cluster.supportsFloat.Get()
 	for i := 0; i < opCount; i++ {
 		if err := cmd.readBytes(8); err != nil {

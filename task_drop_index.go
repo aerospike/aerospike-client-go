@@ -34,7 +34,7 @@ func NewDropIndexTask(cluster *Cluster, namespace string, indexName string) *Dro
 }
 
 // IsDone queries all nodes for task completion status.
-func (tski *DropIndexTask) IsDone() (bool, error) {
+func (tski *DropIndexTask) IsDone() (bool, Error) {
 	command := "sindex/" + tski.namespace + "/" + tski.indexName
 	nodes := tski.cluster.GetNodes()
 	complete := false
@@ -59,6 +59,6 @@ func (tski *DropIndexTask) IsDone() (bool, error) {
 
 // OnComplete returns a channel that will be closed as soon as the task is finished.
 // If an error is encountered during operation, an error will be sent on the channel.
-func (tski *DropIndexTask) OnComplete() chan error {
+func (tski *DropIndexTask) OnComplete() chan Error {
 	return tski.onComplete(tski)
 }

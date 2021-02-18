@@ -30,7 +30,7 @@ type existsCommand struct {
 	exists bool
 }
 
-func newExistsCommand(cluster *Cluster, policy *BasePolicy, key *Key) (*existsCommand, error) {
+func newExistsCommand(cluster *Cluster, policy *BasePolicy, key *Key) (*existsCommand, Error) {
 	partition, err := PartitionForRead(cluster, policy, key)
 	if err != nil {
 		return nil, err
@@ -46,11 +46,11 @@ func (cmd *existsCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *existsCommand) writeBuffer(ifc command) error {
+func (cmd *existsCommand) writeBuffer(ifc command) Error {
 	return cmd.setExists(cmd.policy, cmd.key)
 }
 
-func (cmd *existsCommand) getNode(ifc command) (*Node, error) {
+func (cmd *existsCommand) getNode(ifc command) (*Node, Error) {
 	return cmd.partition.GetNodeRead(cmd.cluster)
 }
 
@@ -59,7 +59,7 @@ func (cmd *existsCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
-func (cmd *existsCommand) parseResult(ifc command, conn *Connection) error {
+func (cmd *existsCommand) parseResult(ifc command, conn *Connection) Error {
 	// Read header.
 	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
 		return err
@@ -84,9 +84,9 @@ func (cmd *existsCommand) parseResult(ifc command, conn *Connection) error {
 			return err
 		}
 		cmd.exists = true
-		return ErrFilteredOut
+		return ErrFilteredOut.err()
 	default:
-		return NewAerospikeError(types.ResultCode(resultCode))
+		return newError(types.ResultCode(resultCode))
 	}
 
 	return cmd.emptySocket(conn)
@@ -96,6 +96,6 @@ func (cmd *existsCommand) Exists() bool {
 	return cmd.exists
 }
 
-func (cmd *existsCommand) Execute() error {
+func (cmd *existsCommand) Execute() Error {
 	return cmd.execute(cmd, true)
 }

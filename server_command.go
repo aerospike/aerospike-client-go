@@ -29,11 +29,11 @@ func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy,
 	}
 }
 
-func (cmd *serverCommand) writeBuffer(ifc command) (err error) {
+func (cmd *serverCommand) writeBuffer(ifc command) (err Error) {
 	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.statement.TaskId, cmd.operations, cmd.writePolicy != nil, nil)
 }
 
-func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
+func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	// Server commands (Query/Execute UDF) should only send back a return code.
 	// Keep parsing logic to empty socket buffer just in case server does
 	// send records back.
@@ -49,7 +49,7 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 			if resultCode == types.KEY_NOT_FOUND_ERROR {
 				return false, nil
 			}
-			return false, NewAerospikeError(resultCode)
+			return false, newError(resultCode)
 		}
 
 		info3 := int(cmd.dataBuffer[3])
@@ -86,6 +86,6 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 	return true, nil
 }
 
-func (cmd *serverCommand) Execute() error {
+func (cmd *serverCommand) Execute() Error {
 	return cmd.execute(cmd, false)
 }

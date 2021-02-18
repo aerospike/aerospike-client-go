@@ -52,7 +52,7 @@ var multiObjectParser func(
 	fieldCount int,
 	generation uint32,
 	expiration uint32,
-) error
+) Error
 
 var prepareReflectionData func(cmd *baseMultiCommand)
 
@@ -103,7 +103,7 @@ func newCorrectStreamingMultiCommand(recordset *Recordset, namespace string) *ba
 	return cmd
 }
 
-func (cmd *baseMultiCommand) getNode(ifc command) (*Node, error) {
+func (cmd *baseMultiCommand) getNode(ifc command) (*Node, Error) {
 	return cmd.node, nil
 }
 
@@ -111,7 +111,7 @@ func (cmd *baseMultiCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return false
 }
 
-func (cmd *baseMultiCommand) getConnection(policy Policy) (*Connection, error) {
+func (cmd *baseMultiCommand) getConnection(policy Policy) (*Connection, Error) {
 	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().deadline(), policy.GetBasePolicy().socketTimeout(), byte(xrand.Int64()%256))
 }
 
@@ -119,17 +119,17 @@ func (cmd *baseMultiCommand) putConnection(conn *Connection) {
 	cmd.node.putConnectionWithHint(conn, byte(xrand.Int64()%256))
 }
 
-func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
+func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 	// Read socket into receive buffer one record at a time.  Do not read entire receive size
 	// because the receive buffer would be too big.
 	status := true
 
-	var err error
+	var err Error
 
 	cmd.bc = newBufferedConn(conn, 0)
 	for status {
 		if err = cmd.conn.initInflater(false, 0); err != nil {
-			return NewAerospikeError(types.PARSE_ERROR, "Error setting up zlib inflater:", err.Error())
+			return newError(types.PARSE_ERROR, "Error setting up zlib inflater:", err.Error())
 		}
 		cmd.bc.reset(8)
 
@@ -153,7 +153,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 
 			receiveSize = int(Buffer.BytesToInt64(cmd.dataBuffer, 0)) - 8
 			if err = cmd.conn.initInflater(true, compressedSize-8); err != nil {
-				return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize-8, err.Error()))
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize-8, err.Error()))
 			}
 
 			// read the first 8 bytes
@@ -188,11 +188,11 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) error {
 	return nil
 }
 
-func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
+func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, Error) {
 	var digest [20]byte
 	var namespace, setName string
 	var userKey Value
-	var err error
+	var err Error
 
 	for i := 0; i < fieldCount; i++ {
 		if err = cmd.readBytes(4); err != nil {
@@ -224,11 +224,11 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, error) {
 	return &Key{namespace: namespace, setName: setName, digest: digest, userKey: userKey}, nil
 }
 
-func (cmd *baseMultiCommand) readBytes(length int) (err error) {
+func (cmd *baseMultiCommand) readBytes(length int) (err Error) {
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
 	if length > MaxBufferSize || length < 0 {
-		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
+		return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
 	}
 
 	cmd.dataBuffer, err = cmd.bc.read(length)
@@ -240,7 +240,7 @@ func (cmd *baseMultiCommand) readBytes(length int) (err error) {
 	return nil
 }
 
-func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (bool, error) {
+func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	// Read/parse remaining message bytes one record at a time.
 	cmd.dataOffset = 0
 
@@ -255,7 +255,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			if resultCode == types.KEY_NOT_FOUND_ERROR || resultCode == types.FILTERED_OUT {
 				return false, nil
 			}
-			err := NewAerospikeError(resultCode)
+			err := newError(resultCode)
 			err = newNodeError(cmd.node, err)
 			return false, err
 		}
@@ -327,11 +327,11 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			case <-cmd.recordset.cancelled:
 				switch cmd.terminationErrorType {
 				case types.SCAN_TERMINATED:
-					return false, ErrScanTerminated
+					return false, ErrScanTerminated.err()
 				case types.QUERY_TERMINATED:
-					return false, ErrQueryTerminated
+					return false, ErrQueryTerminated.err()
 				default:
-					return false, NewAerospikeError(cmd.terminationErrorType)
+					return false, newError(cmd.terminationErrorType)
 				}
 			}
 		} else if multiObjectParser != nil {
@@ -348,7 +348,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			switch chosen {
 			case 0: // object sent
 			case 1: // cancel channel is closed
-				return false, NewAerospikeError(cmd.terminationErrorType)
+				return false, newError(cmd.terminationErrorType)
 			}
 		}
 
@@ -360,7 +360,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 	return true, nil
 }
 
-func (cmd *baseMultiCommand) execute(ifc command, isRead bool) error {
+func (cmd *baseMultiCommand) execute(ifc command, isRead bool) Error {
 
 	/***************************************************************************
 	IMPORTANT: 	No need to send the error here to the recordset.Error channel.

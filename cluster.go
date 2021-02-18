@@ -15,11 +15,9 @@
 package aerospike
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"runtime/debug"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -76,7 +74,7 @@ type Cluster struct {
 }
 
 // NewCluster generates a Cluster instance.
-func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
+func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	// Validate the policy params
 	if policy.MinConnectionsPerNode > policy.ConnectionQueueSize {
 		panic("minimum number of connections specified in the ClientPolicy is bigger than total connection pool size")
@@ -126,7 +124,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	// setup auth info for cluster
 	if policy.RequiresAuthentication() {
 		if policy.AuthMode == AuthModeExternal && policy.TlsConfig == nil {
-			return nil, errors.New("External Authentication requires TLS configuration to be set, because it sends clear password on the wire.")
+			return nil, newError(types.PARAMETER_ERROR, "External Authentication requires TLS configuration to be set, because it sends clear password on the wire.")
 		}
 
 		newCluster.user = policy.User
@@ -145,7 +143,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("Failed to connect to host(s): %v. The network connection(s) to cluster nodes may have timed out, or the cluster may be in a state of flux.", hosts)
+		return nil, newError(types.PARAMETER_ERROR, fmt.Sprintf("Failed to connect to host(s): %v. The network connection(s) to cluster nodes may have timed out, or the cluster may be in a state of flux.", hosts))
 	}
 
 	// start up cluster maintenance go routine
@@ -225,7 +223,7 @@ func (clstr *Cluster) AddSeeds(hosts []*Host) {
 }
 
 // Updates cluster state
-func (clstr *Cluster) tend() error {
+func (clstr *Cluster) tend() Error {
 
 	nodes := clstr.GetNodes()
 	nodeCountBeforeTend := len(nodes)
@@ -491,30 +489,24 @@ func (clstr *Cluster) peerExists(peers *peers, nodeName string) bool {
 // If the cluster has not stabilized by the timeout, return
 // control as well.  Do not return an error since future
 // database requests may still succeed.
-func (clstr *Cluster) waitTillStabilized() error {
+func (clstr *Cluster) waitTillStabilized() Error {
 	count := -1
 
-	doneCh := make(chan error, 10)
+	doneCh := make(chan Error, 10)
 
 	// will run until the cluster is stabilized
 	go func() {
-		var err error
+		var err Error
 		for {
 			if err = clstr.tend(); err != nil {
-				if aerr, ok := err.(AerospikeError); ok {
-					switch aerr.ResultCode {
-					case types.NOT_AUTHENTICATED, types.CLUSTER_NAME_MISMATCH_ERROR:
-						doneCh <- err
-						return
+				if err.Matches(types.NOT_AUTHENTICATED, types.CLUSTER_NAME_MISMATCH_ERROR) {
+					select {
+					case doneCh <- err:
+					default:
 					}
 				}
 				logger.Logger.Warn(err.Error())
 			}
-
-			// // if there are no errors in connecting to the cluster, then validate the partition table
-			// if err == nil {
-			// 	err = clstr.getPartitions().validate()
-			// }
 
 			// Check to see if cluster has changed since the last Tend().
 			// If not, assume cluster has stabilized and return.
@@ -534,7 +526,7 @@ func (clstr *Cluster) waitTillStabilized() error {
 		if clstr.clientPolicy.FailIfNotConnected {
 			clstr.Close()
 		}
-		return errors.New("Connecting to the cluster timed out.")
+		return ErrTimeout.err()
 	case err := <-doneCh:
 		if err != nil && clstr.clientPolicy.FailIfNotConnected {
 			clstr.Close()
@@ -584,7 +576,7 @@ func discoverSeedIPs(seeds []*Host) (res []*Host) {
 }
 
 // Adds seeds to the cluster
-func (clstr *Cluster) seedNodes() (bool, error) {
+func (clstr *Cluster) seedNodes() (bool, Error) {
 	// Must copy array reference for copy on write semantics to work.
 	seedArrayIfc, _ := clstr.seeds.GetSyncedVia(func(val interface{}) (interface{}, error) {
 		seeds := val.([]*Host)
@@ -598,7 +590,7 @@ func (clstr *Cluster) seedNodes() (bool, error) {
 	seedArray := discoverSeedIPs(seedArrayIfc.([]*Host))
 
 	successChan := make(chan struct{}, len(seedArray))
-	errChan := make(chan error, len(seedArray))
+	errChan := make(chan Error, len(seedArray))
 
 	logger.Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
@@ -618,13 +610,13 @@ func (clstr *Cluster) seedNodes() (bool, error) {
 		}(i, seed)
 	}
 
-	errorList := make([]error, 0, len(seedArray))
+	var errChain Error
 	seedCount := len(seedArray)
 L:
 	for {
 		select {
 		case err := <-errChan:
-			errorList = append(errorList, err)
+			errChain = chainErrors(err, errChain)
 			seedCount--
 			if seedCount <= 0 {
 				break L
@@ -638,22 +630,11 @@ L:
 		}
 	}
 
-	var errStrs []string
-	for _, err := range errorList {
-		if err != nil {
-			if aerr, ok := err.(AerospikeError); ok {
-				switch aerr.ResultCode {
-				case types.NOT_AUTHENTICATED:
-					return false, NewAerospikeError(types.NOT_AUTHENTICATED)
-				case types.CLUSTER_NAME_MISMATCH_ERROR:
-					return false, aerr
-				}
-			}
-			errStrs = append(errStrs, err.Error())
-		}
+	if errChain != nil {
+		errChain = chainErrors(newError(types.INVALID_NODE_ERROR, fmt.Sprintf("Failed to connect to hosts: %v", seedArray)), errChain)
 	}
 
-	return false, NewAerospikeError(types.INVALID_NODE_ERROR, "Failed to connect to hosts:"+strings.Join(errStrs, "\n"))
+	return false, errChain
 }
 
 func (clstr *Cluster) createNode(nv *nodeValidator) *Node {
@@ -824,7 +805,7 @@ func (clstr *Cluster) IsConnected() bool {
 }
 
 // GetRandomNode returns a random node on the cluster
-func (clstr *Cluster) GetRandomNode() (*Node, error) {
+func (clstr *Cluster) GetRandomNode() (*Node, Error) {
 	// Must copy array reference for copy on write semantics to work.
 	nodeArray := clstr.GetNodes()
 	length := len(nodeArray)
@@ -839,7 +820,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, error) {
 		}
 	}
 
-	return nil, NewAerospikeError(types.INVALID_NODE_ERROR, "Cluster is empty.")
+	return nil, ErrClusterIsEmpty.err()
 }
 
 // GetNodes returns a list of all nodes in the cluster
@@ -880,11 +861,11 @@ func (clstr *Cluster) GetAliases() map[Host]*Node {
 
 // GetNodeByName finds a node by name and returns an
 // error if the node is not found.
-func (clstr *Cluster) GetNodeByName(nodeName string) (*Node, error) {
+func (clstr *Cluster) GetNodeByName(nodeName string) (*Node, Error) {
 	node := clstr.findNodeByName(nodeName)
 
 	if node == nil {
-		return nil, NewAerospikeError(types.INVALID_NODE_ERROR, "Invalid node name"+nodeName)
+		return nil, newError(types.INVALID_NODE_ERROR, "Invalid node name"+nodeName)
 	}
 	return node, nil
 }
@@ -917,7 +898,7 @@ func (clstr *Cluster) Close() {
 
 // MigrationInProgress determines if any node in the cluster
 // is participating in a data migration
-func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err error) {
+func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err Error) {
 	if timeout <= 0 {
 		timeout = _DEFAULT_TIMEOUT
 	}
@@ -944,7 +925,7 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 	for {
 		select {
 		case <-dealine:
-			return false, NewAerospikeError(types.TIMEOUT)
+			return false, ErrTimeout.err()
 		case <-done:
 			return res, err
 		}
@@ -953,11 +934,11 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 
 // WaitUntillMigrationIsFinished will block until all
 // migration operations in the cluster all finished.
-func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) error {
+func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) Error {
 	if timeout <= 0 {
 		timeout = _NO_TIMEOUT
 	}
-	done := make(chan error, 1)
+	done := make(chan Error, 1)
 
 	go func() {
 		// this function is guaranteed to return after timeout
@@ -973,7 +954,7 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) error
 	dealine := time.After(timeout)
 	select {
 	case <-dealine:
-		return NewAerospikeError(types.TIMEOUT)
+		return ErrTimeout.err()
 	case err := <-done:
 		return err
 	}
@@ -1006,7 +987,7 @@ func (clstr *Cluster) ClientPolicy() (res ClientPolicy) {
 // If the count is <= 0, the connection queue will be filled.
 // If the count is more than the size of the pool, the pool will be filled.
 // Note: One connection per node is reserved for tend operations and is not used for transactions.
-func (clstr *Cluster) WarmUp(count int) (int, error) {
+func (clstr *Cluster) WarmUp(count int) (int, Error) {
 	var g errgroup.Group
 	cnt := iatomic.NewInt(0)
 	nodes := clstr.GetNodes()
@@ -1021,5 +1002,8 @@ func (clstr *Cluster) WarmUp(count int) (int, error) {
 	}
 
 	err := g.Wait()
-	return cnt.Get(), err
+	if err != nil {
+		return cnt.Get(), err.(Error)
+	}
+	return cnt.Get(), nil
 }

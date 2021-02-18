@@ -45,7 +45,7 @@ var batchObjectParser func(
 	fieldCount int,
 	generation uint32,
 	expiration uint32,
-) error
+) Error
 
 func newBatchCommandGet(
 	node *Node,
@@ -78,17 +78,17 @@ func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode) batcher {
 	return &res
 }
 
-func (cmd *batchCommandGet) writeBuffer(ifc command) error {
+func (cmd *batchCommandGet) writeBuffer(ifc command) Error {
 	return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, cmd.binNames, cmd.readAttr)
 }
 
 // On batch operations the key values are not returned from the server
 // So we reuse the Key on the batch Object
-func (cmd *batchCommandGet) parseKey(fieldCount int) error {
+func (cmd *batchCommandGet) parseKey(fieldCount int) Error {
 	// var digest [20]byte
 	// var namespace, setName string
 	// var userKey Value
-	var err error
+	var err Error
 
 	for i := 0; i < fieldCount; i++ {
 		if err = cmd.readBytes(4); err != nil {
@@ -122,7 +122,7 @@ func (cmd *batchCommandGet) parseKey(fieldCount int) error {
 
 // Parse all results in the batch.  Add records to shared list.
 // If the record was not found, the bins will be nil.
-func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bool, error) {
+func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	//Parse each message response and add it to the result array
 	cmd.dataOffset = 0
 
@@ -138,7 +138,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 			if resultCode == types.FILTERED_OUT {
 				cmd.filteredOutCnt++
 			} else {
-				return false, NewAerospikeError(resultCode)
+				return false, newCustomNodeError(cmd.node, resultCode)
 			}
 		}
 
@@ -189,7 +189,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 
 // Parses the given byte buffer and populate the result object.
 // Returns the number of bytes that were parsed from the given buffer.
-func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expiration uint32) (*Record, error) {
+func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expiration uint32) (*Record, Error) {
 	bins := make(BinMap, opCount)
 
 	for i := 0; i < opCount; i++ {
@@ -220,10 +220,10 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expir
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
-func (cmd *batchCommandGet) Execute() error {
+func (cmd *batchCommandGet) Execute() Error {
 	return cmd.execute(cmd, true)
 }
 
-func (cmd *batchCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, error) {
+func (cmd *batchCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
 }

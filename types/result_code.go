@@ -21,6 +21,12 @@ import "fmt"
 type ResultCode int
 
 const (
+	// NETWORK_ERROR defines a network error. Checked the wrapped error for detail.
+	NETWORK_ERROR ResultCode = -18
+
+	// COMMON_ERROR defines a common, none-aerospike error. Checked the wrapped error for detail.
+	COMMON_ERROR ResultCode = -17
+
 	// MAX_RETRIES_EXCEEDED defines max retries limit reached.
 	MAX_RETRIES_EXCEEDED ResultCode = -16
 
@@ -285,6 +291,12 @@ const (
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
 
+	case NETWORK_ERROR:
+		return "network error. Checked the wrapped error for detail"
+
+	case COMMON_ERROR:
+		return "common, none-aerospike error. Checked the wrapped error for detail"
+
 	case MAX_RETRIES_EXCEEDED:
 		return "Max retries exceeded"
 
@@ -542,5 +554,186 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	default:
 		return fmt.Sprintf("Error code (%v) not available yet - please file an issue on github.", resultCode)
+	}
+}
+
+func (rc ResultCode) String() string {
+	switch rc {
+	case NETWORK_ERROR:
+		return "NETWORK_ERROR"
+	case COMMON_ERROR:
+		return "COMMON_ERROR"
+	case MAX_RETRIES_EXCEEDED:
+		return "MAX_RETRIES_EXCEEDED"
+	case MAX_ERROR_RATE:
+		return "MAX_ERROR_RATE"
+	case RACK_NOT_DEFINED:
+		return "RACK_NOT_DEFINED"
+	case INVALID_CLUSTER_PARTITION_MAP:
+		return "INVALID_CLUSTER_PARTITION_MAP"
+	case SERVER_NOT_AVAILABLE:
+		return "SERVER_NOT_AVAILABLE"
+	case CLUSTER_NAME_MISMATCH_ERROR:
+		return "CLUSTER_NAME_MISMATCH_ERROR"
+	case RECORDSET_CLOSED:
+		return "RECORDSET_CLOSED"
+	case NO_AVAILABLE_CONNECTIONS_TO_NODE:
+		return "NO_AVAILABLE_CONNECTIONS_TO_NODE"
+	case TYPE_NOT_SUPPORTED:
+		return "TYPE_NOT_SUPPORTED"
+	case COMMAND_REJECTED:
+		return "COMMAND_REJECTED"
+	case QUERY_TERMINATED:
+		return "QUERY_TERMINATED"
+	case SCAN_TERMINATED:
+		return "SCAN_TERMINATED"
+	case INVALID_NODE_ERROR:
+		return "INVALID_NODE_ERROR"
+	case PARSE_ERROR:
+		return "PARSE_ERROR"
+	case SERIALIZE_ERROR:
+		return "SERIALIZE_ERROR"
+	case OK:
+		return "OK"
+	case SERVER_ERROR:
+		return "SERVER_ERROR"
+	case KEY_NOT_FOUND_ERROR:
+		return "KEY_NOT_FOUND_ERROR"
+	case GENERATION_ERROR:
+		return "GENERATION_ERROR"
+	case PARAMETER_ERROR:
+		return "PARAMETER_ERROR"
+	case KEY_EXISTS_ERROR:
+		return "KEY_EXISTS_ERROR"
+	case BIN_EXISTS_ERROR:
+		return "BIN_EXISTS_ERROR"
+	case CLUSTER_KEY_MISMATCH:
+		return "CLUSTER_KEY_MISMATCH"
+	case SERVER_MEM_ERROR:
+		return "SERVER_MEM_ERROR"
+	case TIMEOUT:
+		return "TIMEOUT"
+	case ALWAYS_FORBIDDEN:
+		return "ALWAYS_FORBIDDEN"
+	case PARTITION_UNAVAILABLE:
+		return "PARTITION_UNAVAILABLE"
+	case BIN_TYPE_ERROR:
+		return "BIN_TYPE_ERROR"
+	case RECORD_TOO_BIG:
+		return "RECORD_TOO_BIG"
+	case KEY_BUSY:
+		return "KEY_BUSY"
+	case SCAN_ABORT:
+		return "SCAN_ABORT"
+	case UNSUPPORTED_FEATURE:
+		return "UNSUPPORTED_FEATURE"
+	case BIN_NOT_FOUND:
+		return "BIN_NOT_FOUND"
+	case DEVICE_OVERLOAD:
+		return "DEVICE_OVERLOAD"
+	case KEY_MISMATCH:
+		return "KEY_MISMATCH"
+	case INVALID_NAMESPACE:
+		return "INVALID_NAMESPACE"
+	case BIN_NAME_TOO_LONG:
+		return "BIN_NAME_TOO_LONG"
+	case FAIL_FORBIDDEN:
+		return "FAIL_FORBIDDEN"
+	case FAIL_ELEMENT_NOT_FOUND:
+		return "FAIL_ELEMENT_NOT_FOUND"
+	case FAIL_ELEMENT_EXISTS:
+		return "FAIL_ELEMENT_EXISTS"
+	case ENTERPRISE_ONLY:
+		return "ENTERPRISE_ONLY"
+	case OP_NOT_APPLICABLE:
+		return "OP_NOT_APPLICABLE"
+	case FILTERED_OUT:
+		return "FILTERED_OUT"
+	case LOST_CONFLICT:
+		return "LOST_CONFLICT"
+	case QUERY_END:
+		return "QUERY_END"
+	case SECURITY_NOT_SUPPORTED:
+		return "SECURITY_NOT_SUPPORTED"
+	case SECURITY_NOT_ENABLED:
+		return "SECURITY_NOT_ENABLED"
+	case SECURITY_SCHEME_NOT_SUPPORTED:
+		return "SECURITY_SCHEME_NOT_SUPPORTED"
+	case INVALID_COMMAND:
+		return "INVALID_COMMAND"
+	case INVALID_FIELD:
+		return "INVALID_FIELD"
+	case ILLEGAL_STATE:
+		return "ILLEGAL_STATE"
+	case INVALID_USER:
+		return "INVALID_USER"
+	case USER_ALREADY_EXISTS:
+		return "USER_ALREADY_EXISTS"
+	case INVALID_PASSWORD:
+		return "INVALID_PASSWORD"
+	case EXPIRED_PASSWORD:
+		return "EXPIRED_PASSWORD"
+	case FORBIDDEN_PASSWORD:
+		return "FORBIDDEN_PASSWORD"
+	case INVALID_CREDENTIAL:
+		return "INVALID_CREDENTIAL"
+	case EXPIRED_SESSION:
+		return "EXPIRED_SESSION"
+	case INVALID_ROLE:
+		return "INVALID_ROLE"
+	case ROLE_ALREADY_EXISTS:
+		return "ROLE_ALREADY_EXISTS"
+	case INVALID_PRIVILEGE:
+		return "INVALID_PRIVILEGE"
+	case INVALID_WHITELIST:
+		return "INVALID_WHITELIST"
+	case NOT_AUTHENTICATED:
+		return "NOT_AUTHENTICATED"
+	case ROLE_VIOLATION:
+		return "ROLE_VIOLATION"
+	case NOT_WHITELISTED:
+		return "NOT_WHITELISTED"
+	case UDF_BAD_RESPONSE:
+		return "UDF_BAD_RESPONSE"
+	case BATCH_DISABLED:
+		return "BATCH_DISABLED"
+	case BATCH_MAX_REQUESTS_EXCEEDED:
+		return "BATCH_MAX_REQUESTS_EXCEEDED"
+	case BATCH_QUEUES_FULL:
+		return "BATCH_QUEUES_FULL"
+	case GEO_INVALID_GEOJSON:
+		return "GEO_INVALID_GEOJSON"
+	case INDEX_FOUND:
+		return "INDEX_FOUND"
+	case INDEX_NOTFOUND:
+		return "INDEX_NOTFOUND"
+	case INDEX_OOM:
+		return "INDEX_OOM"
+	case INDEX_NOTREADABLE:
+		return "INDEX_NOTREADABLE"
+	case INDEX_GENERIC:
+		return "INDEX_GENERIC"
+	case INDEX_NAME_MAXLEN:
+		return "INDEX_NAME_MAXLEN"
+	case INDEX_MAXCOUNT:
+		return "INDEX_MAXCOUNT"
+	case QUERY_ABORTED:
+		return "QUERY_ABORTED"
+	case QUERY_QUEUEFULL:
+		return "QUERY_QUEUEFULL"
+	case QUERY_TIMEOUT:
+		return "QUERY_TIMEOUT"
+	case QUERY_GENERIC:
+		return "QUERY_GENERIC"
+	case QUERY_NETIO_ERR:
+		return "QUERY_NETIO_ERR"
+	case QUERY_DUPLICATE:
+		return "QUERY_DUPLICATE"
+	case AEROSPIKE_ERR_UDF_NOT_FOUND:
+		return "AEROSPIKE_ERR_UDF_NOT_FOUND"
+	case AEROSPIKE_ERR_LUA_FILE_NOT_FOUND:
+		return "AEROSPIKE_ERR_LUA_FILE_NOT_FOUND"
+	default:
+		return "invalid ResultCode. Please report on https://github.com/aerospike/aerospike-client.go"
 	}
 }

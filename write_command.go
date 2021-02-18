@@ -37,7 +37,7 @@ func newWriteCommand(cluster *Cluster,
 	key *Key,
 	bins []*Bin,
 	binMap BinMap,
-	operation OperationType) (writeCommand, error) {
+	operation OperationType) (writeCommand, Error) {
 
 	partition, err := PartitionForWrite(cluster, &policy.BasePolicy, key)
 	if err != nil {
@@ -59,11 +59,11 @@ func (cmd *writeCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *writeCommand) writeBuffer(ifc command) error {
+func (cmd *writeCommand) writeBuffer(ifc command) Error {
 	return cmd.setWrite(cmd.policy, cmd.operation, cmd.key, cmd.bins, cmd.binMap)
 }
 
-func (cmd *writeCommand) getNode(ifc command) (*Node, error) {
+func (cmd *writeCommand) getNode(ifc command) (*Node, Error) {
 	return cmd.partition.GetNodeWrite(cmd.cluster)
 }
 
@@ -72,7 +72,7 @@ func (cmd *writeCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
-func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {
+func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 	// Read header.
 	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
 		return err
@@ -89,16 +89,16 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) error {
 
 	if resultCode != 0 {
 		if resultCode == byte(types.KEY_NOT_FOUND_ERROR) {
-			return ErrKeyNotFound
+			return ErrKeyNotFound.err()
 		} else if types.ResultCode(resultCode) == types.FILTERED_OUT {
-			return ErrFilteredOut
+			return ErrFilteredOut.err()
 		}
 
-		return NewAerospikeError(types.ResultCode(resultCode))
+		return newCustomNodeError(cmd.node, types.ResultCode(resultCode))
 	}
 	return cmd.emptySocket(conn)
 }
 
-func (cmd *writeCommand) Execute() error {
+func (cmd *writeCommand) Execute() Error {
 	return cmd.execute(cmd, false)
 }

@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 // Host name/port of database server.
@@ -49,16 +51,16 @@ func (h *Host) equals(other *Host) bool {
 }
 
 // NewHosts initializes new host instances by a passed slice of addresses.
-func NewHosts(addresses ...string) ([]*Host, error) {
+func NewHosts(addresses ...string) ([]*Host, Error) {
 	aerospikeHosts := make([]*Host, 0, len(addresses))
 	for _, address := range addresses {
 		hostStr, portStr, err := net.SplitHostPort(address)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing address %s: %s", address, err)
+			return nil, newErrorAndWrap(err, types.PARAMETER_ERROR, fmt.Sprintf("error parsing address %s: %s", address, err))
 		}
 		port, err := strconv.Atoi(portStr)
 		if err != nil {
-			return nil, fmt.Errorf("error converting port %s: %s", address, err)
+			return nil, newErrorAndWrap(err, types.PARAMETER_ERROR, fmt.Sprintf("error converting port %s: %s", address, err))
 		}
 
 		host := NewHost(hostStr, port)

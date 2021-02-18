@@ -36,7 +36,7 @@ type info struct {
 
 // Send multiple commands to server and store results.
 // Timeout should already be set on the connection.
-func newInfo(conn *Connection, commands ...string) (*info, error) {
+func newInfo(conn *Connection, commands ...string) (*info, Error) {
 	commandStr := strings.Trim(strings.Join(commands, "\n"), " ")
 	if strings.Trim(commandStr, " ") != "" {
 		commandStr += "\n"
@@ -53,47 +53,48 @@ func newInfo(conn *Connection, commands ...string) (*info, error) {
 
 // RequestInfo gets info values by name from the specified connection.
 // Timeout should already be set on the connection.
-func RequestInfo(conn *Connection, names ...string) (map[string]string, error) {
+func RequestInfo(conn *Connection, names ...string) (map[string]string, Error) {
 	info, err := newInfo(conn, names...)
 	if err != nil {
 		return nil, err
 	}
+
 	return info.parseMultiResponse()
 }
 
 // Issue request and set results buffer. This method is used internally.
 // The static request methods should be used instead.
-func (nfo *info) sendCommand(conn *Connection) error {
+func (nfo *info) sendCommand(conn *Connection) Error {
 	b, err := nfo.msg.Serialize()
 	if err != nil {
-		return err
+		return newCommonError(err)
 	}
 
 	// Write
 	if _, err = conn.Write(b); err != nil {
-		logger.Logger.Debug("Failed to send command.")
-		return err
+		logger.Logger.Debug("Failed to send command: %s", err.Error())
+		return errToAerospikeErr(nil, err)
 	}
 
 	// Read - reuse input buffer.
 	header := bytes.NewBuffer(make([]byte, types.MSG_HEADER_SIZE))
 	if _, err = conn.Read(header.Bytes(), types.MSG_HEADER_SIZE); err != nil {
-		return err
+		return errToAerospikeErr(nil, err)
 	}
 	if err = binary.Read(header, binary.BigEndian, &nfo.msg.MessageHeader); err != nil {
 		logger.Logger.Debug("Failed to read command response.")
-		return err
+		return newCommonError(err)
 	}
 
 	//logger.Logger.Debug("Header Response: %v %v %v %v", t.Type, t.Version, t.Length(), t.DataLen)
 	if err = nfo.msg.Resize(nfo.msg.Length()); err != nil {
-		return err
+		return newCommonError(err)
 	}
 	_, err = conn.Read(nfo.msg.Data, len(nfo.msg.Data))
-	return err
+	return errToAerospikeErr(nil, err)
 }
 
-func (nfo *info) parseMultiResponse() (map[string]string, error) {
+func (nfo *info) parseMultiResponse() (map[string]string, Error) {
 	responses := make(map[string]string)
 	data := strings.Trim(string(nfo.msg.Data), "\n")
 

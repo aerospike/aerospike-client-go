@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -28,7 +29,7 @@ import (
 // Result is the value returned by Recordset's Results() function.
 type Result struct {
 	Record *Record
-	Err    error
+	Err    Error
 }
 
 // String implements the Stringer interface
@@ -47,7 +48,7 @@ type objectset struct {
 	// Errors is a channel on which all errors will be sent back.
 	// NOTE: Do not use Errors directly. Range on channel returned by Results() instead.
 	// This field is deprecated and will be unexported in the future
-	Errors chan error
+	Errors chan Error
 
 	wgGoroutines sync.WaitGroup
 	goroutines   *atomic.Int
@@ -100,7 +101,7 @@ func newObjectset(objChan reflect.Value, goroutines int) *objectset {
 
 	rs := &objectset{
 		objChan:    objChan,
-		Errors:     make(chan error, goroutines),
+		Errors:     make(chan Error, goroutines),
 		active:     atomic.NewBool(true),
 		closed:     atomic.NewBool(false),
 		goroutines: atomic.NewInt(goroutines),
@@ -131,14 +132,14 @@ func (rcs *Recordset) IsActive() bool {
 
 // Read reads the next record from the Recordset. If the Recordset has been
 // closed, it returns ErrRecordsetClosed.
-func (rcs *Recordset) Read() (record *Record, err error) {
+func (rcs *Recordset) Read() (record *Record, err Error) {
 	var ok bool
 
 L:
 	select {
 	case record, ok = <-rcs.Records:
 		if !ok {
-			err = ErrRecordsetClosed
+			err = ErrRecordsetClosed.err()
 		}
 	case err = <-rcs.Errors:
 		if err == nil {
@@ -192,7 +193,7 @@ func (rcs *Recordset) Results() <-chan *Result {
 		defer close(res)
 		for {
 			record, err := rcs.Read()
-			if err == ErrRecordsetClosed {
+			if errors.Is(err, ErrRecordsetClosed) {
 				return
 			}
 
@@ -210,11 +211,11 @@ func (rcs *Recordset) Results() <-chan *Result {
 }
 
 // Close all streams from different nodes. A successful close return nil,
-// subsequent calls to the method will return ErrRecordsetClosed.
-func (rcs *Recordset) Close() error {
+// subsequent calls to the method will return ErrRecordsetClosed.err().
+func (rcs *Recordset) Close() Error {
 	// do it only once
 	if !rcs.closed.CompareAndToggle(false) {
-		return ErrRecordsetClosed
+		return ErrRecordsetClosed.err()
 	}
 
 	// mark the recordset as inactive
@@ -247,7 +248,7 @@ func (rcs *Recordset) signalEnd() {
 	}
 }
 
-func (rcs *Recordset) sendError(err error) {
+func (rcs *Recordset) sendError(err Error) {
 	rcs.chanLock.Lock()
 	defer rcs.chanLock.Unlock()
 	if rcs.IsActive() {

@@ -23,9 +23,9 @@ import (
 	"github.com/aerospike/aerospike-client-go/types"
 )
 
-var aeroerr = NewAerospikeError(types.PARSE_ERROR, "Error parsing peers list.")
+var aeroerr = newError(types.PARSE_ERROR, "Error parsing peers list.")
 
-func parsePeers(cluster *Cluster, node *Node) (*peerListParser, error) {
+func parsePeers(cluster *Cluster, node *Node) (*peerListParser, Error) {
 	cmd := cluster.clientPolicy.peersString()
 
 	info, err := node.RequestInfo(&cluster.infoPolicy, cmd)
@@ -35,7 +35,7 @@ func parsePeers(cluster *Cluster, node *Node) (*peerListParser, error) {
 
 	peersStr, exists := info[cmd]
 	if !exists {
-		return nil, NewAerospikeError(types.PARSE_ERROR, "Info Command response was empty.")
+		return nil, newError(types.PARSE_ERROR, "Info Command response was empty.")
 	}
 
 	p := peerListParser{buf: []byte(peersStr)}
@@ -93,9 +93,9 @@ func (p *peerListParser) PeekByte() *byte {
 	return &ch
 }
 
-func (p *peerListParser) readInt64() (*int64, error) {
+func (p *peerListParser) readInt64() (*int64, Error) {
 	if p.pos == len(p.buf) {
-		return nil, io.EOF
+		return nil, newErrorAndWrap(io.EOF, types.PARSE_ERROR, "Error Parsing the peers list")
 	}
 
 	if p.buf[p.pos] == ',' {
@@ -113,14 +113,14 @@ func (p *peerListParser) readInt64() (*int64, error) {
 
 	num, err := strconv.ParseInt(string(p.buf[begin:p.pos]), 10, 64)
 	if err != nil {
-		return nil, err
+		return nil, newErrorAndWrap(err, types.PARSE_ERROR, "Error Parsing the peers list")
 	}
 	return &num, nil
 }
 
-func (p *peerListParser) readString() (string, error) {
+func (p *peerListParser) readString() (string, Error) {
 	if p.pos == len(p.buf) {
-		return "", io.EOF
+		return "", newErrorAndWrap(io.EOF, types.PARSE_ERROR, "Error Parsing the peers list")
 	}
 
 	if p.buf[p.pos] == ',' {
@@ -147,7 +147,7 @@ func (p *peerListParser) readString() (string, error) {
 	return string(p.buf[begin:p.pos]), nil
 }
 
-func (p *peerListParser) ParseHost(host string) (*Host, error) {
+func (p *peerListParser) ParseHost(host string) (*Host, Error) {
 	ppos := -1
 	bpos := -1
 	for i := 0; i < len(host); i++ {
@@ -169,7 +169,7 @@ func (p *peerListParser) ParseHost(host string) (*Host, error) {
 		portStr := host[ppos+1:]
 		port, err = strconv.Atoi(portStr)
 		if err != nil {
-			return nil, err
+			return nil, newErrorAndWrap(err, types.PARSE_ERROR, "Error Parsing the peers list")
 		}
 	}
 
@@ -187,7 +187,7 @@ func (p *peerListParser) ParseHost(host string) (*Host, error) {
 	return NewHost(addr, port), nil
 }
 
-func (p *peerListParser) readHosts(tlsName string) ([]*Host, error) {
+func (p *peerListParser) readHosts(tlsName string) ([]*Host, Error) {
 	if !p.Expect('[') {
 		return nil, aeroerr
 	}
@@ -223,7 +223,7 @@ func (p *peerListParser) readHosts(tlsName string) ([]*Host, error) {
 	return hostList, nil
 }
 
-func (p *peerListParser) readPeer() (*peer, error) {
+func (p *peerListParser) readPeer() (*peer, Error) {
 	if !p.Expect('[') {
 		return nil, nil
 	}
@@ -258,7 +258,7 @@ func (p *peerListParser) readPeer() (*peer, error) {
 	return nodeData, nil
 }
 
-func (p *peerListParser) readNodeList() ([]*peer, error) {
+func (p *peerListParser) readNodeList() ([]*peer, Error) {
 	ch := p.readByte()
 	if ch == nil {
 		return nil, nil
@@ -293,8 +293,8 @@ func (p *peerListParser) readNodeList() ([]*peer, error) {
 	return nodeList, nil
 }
 
-func (p *peerListParser) Parse() error {
-	var err error
+func (p *peerListParser) Parse() Error {
+	var err Error
 	p.gen, err = p.readInt64()
 	if err != nil {
 		return err

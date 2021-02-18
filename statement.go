@@ -64,7 +64,7 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 
 // SetFilter Sets a filter for the statement.
 // Aerospike Server currently only supports using a single filter per statement/query.
-func (stmt *Statement) SetFilter(filter *Filter) error {
+func (stmt *Statement) SetFilter(filter *Filter) Error {
 	stmt.Filter = filter
 
 	return nil
@@ -106,7 +106,7 @@ func (stmt *Statement) SetFilter(filter *Filter) error {
 //  );
 // NOTE: This feature is deprecated on Aerospike servers and will be removed in the future.
 // It has been replaced by FilterExpressions.
-func (stmt *Statement) SetPredExp(predexp ...PredExp) error {
+func (stmt *Statement) SetPredExp(predexp ...PredExp) Error {
 	stmt.predExps = predexp
 	return nil
 }

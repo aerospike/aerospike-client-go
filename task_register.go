@@ -34,7 +34,7 @@ func NewRegisterTask(cluster *Cluster, packageName string) *RegisterTask {
 }
 
 // IsDone will query all nodes for task completion status.
-func (tskr *RegisterTask) IsDone() (bool, error) {
+func (tskr *RegisterTask) IsDone() (bool, Error) {
 	command := "udf-list"
 	nodes := tskr.cluster.GetNodes()
 	done := false
@@ -60,6 +60,6 @@ func (tskr *RegisterTask) IsDone() (bool, error) {
 
 // OnComplete returns a channel that will be closed as soon as the task is finished.
 // If an error is encountered during operation, an error will be sent on the channel.
-func (tskr *RegisterTask) OnComplete() chan error {
+func (tskr *RegisterTask) OnComplete() chan Error {
 	return tskr.onComplete(tskr)
 }

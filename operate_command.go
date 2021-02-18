@@ -23,11 +23,11 @@ type operateCommand struct {
 	hasWrite bool
 }
 
-func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) (operateCommand, error) {
+func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) (operateCommand, Error) {
 	hasWrite := hasWriteOp(operations)
 
 	var partition *Partition
-	var err error
+	var err Error
 	if hasWrite {
 		partition, err = PartitionForWrite(cluster, &policy.BasePolicy, key)
 	} else {
@@ -52,12 +52,12 @@ func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operatio
 	}, nil
 }
 
-func (cmd *operateCommand) writeBuffer(ifc command) (err error) {
+func (cmd *operateCommand) writeBuffer(ifc command) (err Error) {
 	cmd.hasWrite, err = cmd.setOperate(cmd.policy, cmd.key, cmd.operations)
 	return err
 }
 
-func (cmd *operateCommand) getNode(ifc command) (*Node, error) {
+func (cmd *operateCommand) getNode(ifc command) (*Node, Error) {
 	if cmd.hasWrite {
 		return cmd.partition.GetNodeWrite(cmd.cluster)
 	}
@@ -75,7 +75,7 @@ func (cmd *operateCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
-func (cmd *operateCommand) Execute() error {
+func (cmd *operateCommand) Execute() Error {
 	return cmd.execute(cmd, !cmd.hasWrite)
 }
 

@@ -32,7 +32,7 @@ type touchCommand struct {
 	policy *WritePolicy
 }
 
-func newTouchCommand(cluster *Cluster, policy *WritePolicy, key *Key) (touchCommand, error) {
+func newTouchCommand(cluster *Cluster, policy *WritePolicy, key *Key) (touchCommand, Error) {
 	partition, err := PartitionForWrite(cluster, &policy.BasePolicy, key)
 	if err != nil {
 		return touchCommand{}, err
@@ -50,11 +50,11 @@ func (cmd *touchCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *touchCommand) writeBuffer(ifc command) error {
+func (cmd *touchCommand) writeBuffer(ifc command) Error {
 	return cmd.setTouch(cmd.policy, cmd.key)
 }
 
-func (cmd *touchCommand) getNode(ifc command) (*Node, error) {
+func (cmd *touchCommand) getNode(ifc command) (*Node, Error) {
 	return cmd.partition.GetNodeWrite(cmd.cluster)
 }
 
@@ -63,7 +63,7 @@ func (cmd *touchCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
-func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
+func (cmd *touchCommand) parseResult(ifc command, conn *Connection) Error {
 	// Read header.
 	_, err := conn.Read(cmd.dataBuffer, 8)
 	if err != nil {
@@ -86,7 +86,7 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 		}
 
 		if err = cmd.conn.initInflater(true, compressedSize); err != nil {
-			return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
+			return newError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
 		}
 
 		// Read header.
@@ -116,16 +116,16 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) error {
 
 	if resultCode != 0 {
 		if resultCode == byte(types.KEY_NOT_FOUND_ERROR) {
-			return ErrKeyNotFound
+			return ErrKeyNotFound.err()
 		} else if types.ResultCode(resultCode) == types.FILTERED_OUT {
-			return ErrFilteredOut
+			return ErrFilteredOut.err()
 		}
 
-		return NewAerospikeError(types.ResultCode(resultCode))
+		return newError(types.ResultCode(resultCode))
 	}
 	return cmd.emptySocket(conn)
 }
 
-func (cmd *touchCommand) Execute() error {
+func (cmd *touchCommand) Execute() Error {
 	return cmd.execute(cmd, false)
 }

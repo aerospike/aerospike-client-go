@@ -17,6 +17,7 @@
 package aerospike_test
 
 import (
+	"errors"
 	"math"
 	"strings"
 
@@ -56,7 +57,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 					gg.It("must return error for Get for a nonexisting key", func() {
 						rec, err = client.Get(rpolicy, key)
-						gm.Expect(err).To(gm.Equal(as.ErrKeyNotFound))
+						gm.Expect(errors.Is(err, as.ErrKeyNotFound)).To(gm.BeTrue())
 					})
 
 					gg.It("must save a key with Array Types", func() {

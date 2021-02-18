@@ -26,7 +26,7 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
-func registerUDF(client *as.Client, path, filename string) error {
+func registerUDF(client *as.Client, path, filename string) as.Error {
 	regTask, err := client.RegisterUDFFromFile(nil, path+filename+".lua", filename+".lua", as.LUA)
 	if err != nil {
 		return err

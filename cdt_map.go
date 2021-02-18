@@ -251,7 +251,7 @@ func DefaultMapPolicy() *MapPolicy {
 	return NewMapPolicy(MapOrder.UNORDERED, MapWriteMode.UPDATE)
 }
 
-func newMapSetPolicyEncoder(op *Operation, packer BufferEx) (int, error) {
+func newMapSetPolicyEncoder(op *Operation, packer BufferEx) (int, Error) {
 	return packCDTParamsAsArray(packer, cdtMapOpTypeSetType, op.ctx, op.binValue.(IntegerValue))
 }
 
@@ -265,7 +265,7 @@ func newMapSetPolicy(binName string, attributes mapOrderType, ctx []*CDTContext)
 	}
 }
 
-func newMapCreatePutEncoder(op *Operation, packer BufferEx) (int, error) {
+func newMapCreatePutEncoder(op *Operation, packer BufferEx) (int, Error) {
 	return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.ctx, op.binValue.(ListValue))
 }
 

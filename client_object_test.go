@@ -899,8 +899,8 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(resObj.TTL1).NotTo(gm.Equal(uint32(0)))
 				gm.Expect(resObj.TTL1).To(gm.Equal(resObj.TTL2))
 
-				defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))
-				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defaultTTL, nerr := strconv.Atoi(nsInfo(ns, "default-ttl"))
+				gm.Expect(nerr).ToNot(gm.HaveOccurred())
 
 				switch defaultTTL {
 				case 0:

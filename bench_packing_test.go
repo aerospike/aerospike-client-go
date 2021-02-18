@@ -222,13 +222,13 @@ func (bb *benchBuffer) WriteByte(b byte) {
 	bb.dataOffset++
 }
 
-func (bb *benchBuffer) WriteString(s string) (int, error) {
+func (bb *benchBuffer) WriteString(s string) (int, Error) {
 	copy(bb.dataBuffer[bb.dataOffset:bb.dataOffset+len(s)], s)
 	bb.dataOffset += len(s)
 	return len(s), nil
 }
 
-func (bb *benchBuffer) Write(b []byte) (int, error) {
+func (bb *benchBuffer) Write(b []byte) (int, Error) {
 	copy(bb.dataBuffer[bb.dataOffset:bb.dataOffset+len(b)], b)
 	bb.dataOffset += len(b)
 	return len(b), nil

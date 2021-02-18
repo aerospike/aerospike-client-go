@@ -31,7 +31,7 @@ func newExecuteCommand(
 	packageName string,
 	functionName string,
 	args *ValueArray,
-) (executeCommand, error) {
+) (executeCommand, Error) {
 	partition, err := PartitionForWrite(cluster, &policy.BasePolicy, key)
 	if err != nil {
 		return executeCommand{}, err
@@ -51,11 +51,11 @@ func newExecuteCommand(
 	}, nil
 }
 
-func (cmd *executeCommand) writeBuffer(ifc command) error {
+func (cmd *executeCommand) writeBuffer(ifc command) Error {
 	return cmd.setUdf(cmd.policy, cmd.key, cmd.packageName, cmd.functionName, cmd.args)
 }
 
-func (cmd *executeCommand) getNode(ifc command) (*Node, error) {
+func (cmd *executeCommand) getNode(ifc command) (*Node, Error) {
 	return cmd.partition.GetNodeWrite(cmd.cluster)
 }
 
@@ -64,6 +64,6 @@ func (cmd *executeCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
-func (cmd *executeCommand) Execute() error {
+func (cmd *executeCommand) Execute() Error {
 	return cmd.execute(cmd, false)
 }

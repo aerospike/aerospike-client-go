@@ -24,7 +24,7 @@ import (
 // The accptable arguments are:
 // Value, ExpressionFilter, []*CDTContext
 type ExpressionArgument interface {
-	pack(BufferEx) (int, error)
+	pack(BufferEx) (int, Error)
 }
 
 // ExpType defines the expression's data type.
@@ -148,7 +148,7 @@ func newFilterExpression(
 func (fe *FilterExpression) packExpression(
 	exps []*FilterExpression,
 	buf BufferEx,
-) (int, error) {
+) (int, Error) {
 	size := 0
 
 	sz, err := packArrayBegin(buf, len(exps)+1)
@@ -173,7 +173,7 @@ func (fe *FilterExpression) packExpression(
 	return size, nil
 }
 
-func (fe *FilterExpression) packCommand(cmd *expOp, buf BufferEx) (int, error) {
+func (fe *FilterExpression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 	size := 0
 
 	switch cmd {
@@ -393,12 +393,12 @@ func (fe *FilterExpression) packCommand(cmd *expOp, buf BufferEx) (int, error) {
 	return size, nil
 }
 
-func (fe *FilterExpression) packValue(buf BufferEx) (int, error) {
+func (fe *FilterExpression) packValue(buf BufferEx) (int, Error) {
 	// Packing logic for Value based Ops
 	return fe.val.pack(buf)
 }
 
-func (fe *FilterExpression) pack(buf BufferEx) (int, error) {
+func (fe *FilterExpression) pack(buf BufferEx) (int, Error) {
 	if len(fe.exps) > 0 {
 		return fe.packExpression(fe.exps, buf)
 	} else if fe.cmd != nil {
@@ -407,7 +407,7 @@ func (fe *FilterExpression) pack(buf BufferEx) (int, error) {
 	return fe.packValue(buf)
 }
 
-func (fe *FilterExpression) base64() (string, error) {
+func (fe *FilterExpression) base64() (string, Error) {
 	sz, err := fe.pack(nil)
 	if err != nil {
 		return "", err

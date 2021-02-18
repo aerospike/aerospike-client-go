@@ -74,18 +74,37 @@ func connectionFinalizer(c *Connection) {
 	c.Close()
 }
 
-func errToTimeoutErr(conn *Connection, err error) error {
-	if err, ok := err.(net.Error); ok && err.Timeout() {
-		return ErrTimeout
+// errToAerospikeErr will convert golang's net and io errors into *AerospikeError
+// If the errors is nil, nil be returned. If conn is not nil, its node value
+// will be set for the error.
+func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
+	if err == nil {
+		return nil
 	}
-	return err
+
+	if terr, ok := err.(net.Error); ok {
+		if terr.Timeout() {
+			aerr = newErrorAndWrap(err, types.TIMEOUT)
+		} else {
+			aerr = newErrorAndWrap(err, types.NETWORK_ERROR)
+		}
+	} else {
+		aerr = newErrorAndWrap(err, types.NETWORK_ERROR)
+	}
+
+	// set node if exists
+	if conn != nil {
+		aerr.setNode(conn.node)
+	}
+
+	return aerr
 }
 
 // newConnection creates a connection on the network and returns the pointer
 // A minimum timeout of 2 seconds will always be applied.
 // If the connection is not established in the specified timeout,
 // an error will be returned
-func newConnection(address string, timeout time.Duration) (*Connection, error) {
+func newConnection(address string, timeout time.Duration) (*Connection, Error) {
 	newConn := &Connection{dataBuffer: bufPool.Get().([]byte)}
 	runtime.SetFinalizer(newConn, connectionFinalizer)
 
@@ -97,7 +116,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, error) {
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
 		logger.Logger.Debug("Connection to address `%s` failed to establish with error: %s", address, err.Error())
-		return nil, errToTimeoutErr(nil, err)
+		return nil, errToAerospikeErr(nil, err)
 	}
 	newConn.conn = conn
 	newConn.limitReader = &io.LimitedReader{R: conn, N: 0}
@@ -115,7 +134,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, error) {
 // A minimum timeout of 2 seconds will always be applied.
 // If the connection is not established in the specified timeout,
 // an error will be returned
-func NewConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
+func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
 	address := net.JoinHostPort(host.Name, strconv.Itoa(host.Port))
 	conn, err := newConnection(address, policy.Timeout)
 	if err != nil {
@@ -132,19 +151,23 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
 
 	sconn := tls.Client(conn.conn, tlsConfig)
 	if err := sconn.Handshake(); err != nil {
-		if cerr := sconn.Close(); err != nil {
+		nerr := newWrapNetworkError(err)
+		if cerr := sconn.Close(); cerr != nil {
 			logger.Logger.Debug("Closing connection after handshake error failed: %s", cerr.Error())
+			nerr = chainErrors(newWrapNetworkError(cerr), nerr)
 		}
-		return nil, err
+		return nil, nerr
 	}
 
 	if host.TLSName != "" && !tlsConfig.InsecureSkipVerify {
 		if err := sconn.VerifyHostname(host.TLSName); err != nil {
+			nerr := newWrapNetworkError(err)
 			if cerr := sconn.Close(); err != nil {
 				logger.Logger.Debug("Closing connection after VerifyHostName error failed: %s", cerr.Error())
+				nerr = chainErrors(newWrapNetworkError(cerr), nerr)
 			}
 			logger.Logger.Error("Connection to address `%s` failed to establish with error: %s", address, err.Error())
-			return nil, errToTimeoutErr(nil, err)
+			return nil, nerr
 		}
 	}
 
@@ -153,26 +176,23 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
 }
 
 // Write writes the slice to the connection buffer.
-func (ctn *Connection) Write(buf []byte) (total int, err error) {
+func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 	// make sure all bytes are written
 	// Don't worry about the loop, timeout has been set elsewhere
-	length := len(buf)
-	for total < length {
-		var r int
-		if err = ctn.updateDeadline(); err != nil {
-			break
-		}
-		r, err = ctn.conn.Write(buf[total:])
-		total += r
-		if err != nil {
-			break
-		}
+	if err := ctn.updateDeadline(); err != nil {
+		aerr = errToAerospikeErr(ctn, err)
 	}
 
-	// If all bytes are written, ignore any potential error
-	// The error will bubble up on the next network io if it matters.
-	if total == len(buf) {
+	if total, err := ctn.conn.Write(buf); err == nil {
 		return total, nil
+	} else {
+		// If all bytes are written, ignore any potential error
+		// The error will bubble up on the next network io if it matters.
+		if total == len(buf) {
+			return total, nil
+		}
+
+		aerr = errToAerospikeErr(ctn, err)
 	}
 
 	if ctn.node != nil {
@@ -182,11 +202,13 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 
 	ctn.Close()
 
-	return total, errToTimeoutErr(ctn, err)
+	return total, aerr
 }
 
 // Read reads from connection buffer to the provided slice.
-func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
+func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
+	var err error
+
 	// if all bytes are not read, retry until successful
 	// Don't worry about the loop; we've already set the timeout elsewhere
 	for total < length {
@@ -223,7 +245,7 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 
 	ctn.Close()
 
-	return total, errToTimeoutErr(ctn, err)
+	return total, errToAerospikeErr(ctn, err)
 }
 
 // IsConnected returns true if the connection is not closed yet.
@@ -234,7 +256,7 @@ func (ctn *Connection) IsConnected() bool {
 // updateDeadline sets connection timeout for both read and write operations.
 // this function is called before each read and write operation. If deadline has passed,
 // the function will return a TIMEOUT error.
-func (ctn *Connection) updateDeadline() error {
+func (ctn *Connection) updateDeadline() Error {
 	now := time.Now()
 	var socketDeadline time.Time
 	if ctn.deadline.IsZero() {
@@ -243,7 +265,7 @@ func (ctn *Connection) updateDeadline() error {
 		}
 	} else {
 		if now.After(ctn.deadline) {
-			return NewAerospikeError(types.TIMEOUT)
+			return newError(types.TIMEOUT)
 		}
 		if ctn.socketTimeout == 0 {
 			socketDeadline = ctn.deadline
@@ -266,14 +288,14 @@ func (ctn *Connection) updateDeadline() error {
 		if ctn.node != nil {
 			atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 		}
-		return err
+		return errToAerospikeErr(ctn, err)
 	}
 
 	return nil
 }
 
 // SetTimeout sets connection timeout for both read and write operations.
-func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duration) error {
+func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duration) Error {
 	ctn.deadline = deadline
 	ctn.socketTimeout = socketTimeout
 
@@ -309,7 +331,7 @@ func (ctn *Connection) Close() {
 // Authenticate will send authentication information to the server.
 // Notice: This method does not support external authentication mechanisms like LDAP.
 // This method is deprecated and will be removed in the future.
-func (ctn *Connection) Authenticate(user string, password string) error {
+func (ctn *Connection) Authenticate(user string, password string) Error {
 	// need to authenticate
 	if user != "" {
 		hashedPass, err := hashPassword(password)
@@ -323,7 +345,7 @@ func (ctn *Connection) Authenticate(user string, password string) error {
 }
 
 // authenticateFast will send authentication information to the server.
-func (ctn *Connection) authenticateFast(user string, hashedPass []byte) error {
+func (ctn *Connection) authenticateFast(user string, hashedPass []byte) Error {
 	// need to authenticate
 	if len(user) > 0 {
 		command := newLoginCommand(ctn.dataBuffer)
@@ -340,7 +362,7 @@ func (ctn *Connection) authenticateFast(user string, hashedPass []byte) error {
 }
 
 // Login will send authentication information to the server.
-func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessionToken []byte) error {
+func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessionToken []byte) Error {
 	// need to authenticate
 	if policy.RequiresAuthentication() {
 		switch policy.AuthMode {
@@ -359,7 +381,7 @@ func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessio
 				}
 				// Socket not authenticated. Do not put back into pool.
 				ctn.Close()
-				return err
+				return errToAerospikeErr(ctn, err)
 			}
 
 			if ctn.node != nil && command.SessionToken != nil {
@@ -380,7 +402,7 @@ func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessio
 // Login will send authentication information to the server.
 // This function is provided for using the connection in conjunction with external libraries.
 // The password will be hashed everytime, which is a slow operation.
-func (ctn *Connection) Login(policy *ClientPolicy) error {
+func (ctn *Connection) Login(policy *ClientPolicy) Error {
 	if !policy.RequiresAuthentication() {
 		return nil
 	}
@@ -414,14 +436,14 @@ func (ctn *Connection) refresh() {
 }
 
 // initInflater sets up the zlib inflater to read compressed data from the connection
-func (ctn *Connection) initInflater(enabled bool, length int) error {
+func (ctn *Connection) initInflater(enabled bool, length int) Error {
 	ctn.compressed = enabled
 	ctn.inflater = nil
 	if ctn.compressed {
 		ctn.limitReader.N = int64(length)
 		r, err := zlib.NewReader(ctn.limitReader)
 		if err != nil {
-			return err
+			return newCommonError(err)
 		}
 		ctn.inflater = r
 	}
@@ -430,16 +452,8 @@ func (ctn *Connection) initInflater(enabled bool, length int) error {
 
 // KeepConnection decides if a connection should be kept
 // based on the error type.
-func KeepConnection(err error) bool {
-	// if error is not an AerospikeError, Throw the connection away conservatively
-	ae, ok := err.(AerospikeError)
-	if !ok {
-		return false
-	}
-
-	switch ae.ResultCode {
-	case 0, // Zero Value
-		types.QUERY_TERMINATED,
+func KeepConnection(err Error) bool {
+	return !err.Matches(types.QUERY_TERMINATED,
 		types.SCAN_TERMINATED,
 		types.PARSE_ERROR,
 		types.SERIALIZE_ERROR,
@@ -451,9 +465,5 @@ func KeepConnection(err error) bool {
 		types.SERVER_MEM_ERROR,
 		types.TIMEOUT,
 		types.INDEX_OOM,
-		types.QUERY_TIMEOUT:
-		return false
-	default:
-		return true
-	}
+		types.QUERY_TIMEOUT)
 }

@@ -47,7 +47,7 @@ type partitionParser struct {
 	regimeError bool
 }
 
-func newPartitionParser(node *Node, partitions partitionMap, partitionCount int) (*partitionParser, error) {
+func newPartitionParser(node *Node, partitions partitionMap, partitionCount int) (*partitionParser, Error) {
 	newPartitionParser := &partitionParser{
 		partitionCount: partitionCount,
 	}
@@ -69,7 +69,7 @@ func newPartitionParser(node *Node, partitions partitionMap, partitionCount int)
 	newPartitionParser.buffer = info.msg.Data
 	newPartitionParser.length = len(info.msg.Data)
 	if newPartitionParser.length == 0 {
-		return nil, NewAerospikeError(types.PARSE_ERROR, "Partition info is empty")
+		return nil, newError(types.PARSE_ERROR, "Partition info is empty")
 	}
 
 	newPartitionParser.generation, err = newPartitionParser.parseGeneration()
@@ -94,7 +94,7 @@ func (pp *partitionParser) getGeneration() int {
 	return pp.generation
 }
 
-func (pp *partitionParser) parseGeneration() (int, error) {
+func (pp *partitionParser) parseGeneration() (int, Error) {
 	if err := pp.expectName(_PartitionGeneration); err != nil {
 		return -1, err
 	}
@@ -104,14 +104,18 @@ func (pp *partitionParser) parseGeneration() (int, error) {
 		if pp.buffer[pp.offset] == '\n' {
 			s := string(pp.buffer[begin:pp.offset])
 			pp.offset++
-			return strconv.Atoi(s)
+			v, err := strconv.Atoi(s)
+			if err != nil {
+				return -1, newError(types.PARSE_ERROR, "Failed to find partition-generation value")
+			}
+			return v, nil
 		}
 		pp.offset++
 	}
-	return -1, NewAerospikeError(types.PARSE_ERROR, "Failed to find partition-generation value")
+	return -1, newError(types.PARSE_ERROR, "Failed to find partition-generation value")
 }
 
-func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
+func (pp *partitionParser) parseReplicasAll(node *Node, command string) Error {
 	// Use low-level info methods and parse byte array directly for maximum performance.
 	// Receive format: replicas-all\t
 	//                 <ns1>:[regime],<count>,<base 64 encoded bitmap1>,<base 64 encoded bitmap2>...;
@@ -130,7 +134,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 
 			if len(namespace) <= 0 || len(namespace) >= 32 {
 				response := pp.getTruncatedResponse()
-				return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid partition namespace `%s` response: `%s`", namespace, response))
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid partition namespace `%s` response: `%s`", namespace, response))
 			}
 			pp.offset++
 			begin = pp.offset
@@ -149,7 +153,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 				var err error
 				regime, err = strconv.Atoi(string(pp.buffer[begin:pp.offset]))
 				if err != nil {
-					return err
+					return newErrorAndWrap(err, types.PARSE_ERROR, "Failed to parse regime value")
 				}
 
 				pp.offset++
@@ -168,7 +172,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 
 			replicaCount, err := strconv.Atoi(string(pp.buffer[begin:pp.offset]))
 			if err != nil {
-				return err
+				return newErrorAndWrap(err, types.PARSE_ERROR, "Failed to find replica count value")
 			}
 
 			partitions := pp.pmap[namespace]
@@ -201,7 +205,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 
 				if pp.offset == begin {
 					response := pp.getTruncatedResponse()
-					return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Empty partition id for namespace `%s` response: `%s`", namespace, response))
+					return newError(types.PARSE_ERROR, fmt.Sprintf("Empty partition id for namespace `%s` response: `%s`", namespace, response))
 				}
 
 				if err := pp.decodeBitmap(node, partitions, i, regime, begin); err != nil {
@@ -218,10 +222,10 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) error {
 	return nil
 }
 
-func (pp *partitionParser) decodeBitmap(node *Node, partitions *Partitions, replica int, regime int, begin int) error {
+func (pp *partitionParser) decodeBitmap(node *Node, partitions *Partitions, replica int, regime int, begin int) Error {
 	restoreBuffer, err := base64.StdEncoding.DecodeString(string(pp.buffer[begin:pp.offset]))
 	if err != nil {
-		return err
+		return newErrorAndWrap(err, types.PARSE_ERROR, "Failed to decode partition bitmap value")
 	}
 
 	for partition := 0; partition < pp.partitionCount; partition++ {
@@ -254,7 +258,7 @@ func (pp *partitionParser) decodeBitmap(node *Node, partitions *Partitions, repl
 	return nil
 }
 
-func (pp *partitionParser) expectName(name string) error {
+func (pp *partitionParser) expectName(name string) Error {
 	begin := pp.offset
 
 	for pp.offset < pp.length {
@@ -269,7 +273,7 @@ func (pp *partitionParser) expectName(name string) error {
 		pp.offset++
 	}
 
-	return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Failed to find `%s`", name))
+	return newError(types.PARSE_ERROR, fmt.Sprintf("Failed to find `%s`", name))
 }
 
 func (pp *partitionParser) getTruncatedResponse() string {

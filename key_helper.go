@@ -85,7 +85,7 @@ func (vb *keyWriter) WriteByte(b byte) {
 }
 
 // WriteString writes a string to the key
-func (vb *keyWriter) WriteString(s string) (int, error) {
+func (vb *keyWriter) WriteString(s string) (int, Error) {
 	// To avoid allocating memory, write the strings in small chunks
 	l := len(s)
 	const size = 128
@@ -116,11 +116,15 @@ func (vb *keyWriter) WriteString(s string) (int, error) {
 	return len(s), nil
 }
 
-func (vb *keyWriter) Write(b []byte) (int, error) {
-	return vb.hash.Write(b)
+func (vb *keyWriter) Write(b []byte) (int, Error) {
+	n, err := vb.hash.Write(b)
+	if err != nil {
+		return n, newCommonError(err)
+	}
+	return n, nil
 }
 
-func (vb *keyWriter) writeKey(val Value) error {
+func (vb *keyWriter) writeKey(val Value) Error {
 	switch v := val.(type) {
 	case IntegerValue:
 		vb.WriteInt64(int64(v))
@@ -154,5 +158,5 @@ func (vb *keyWriter) writeKey(val Value) error {
 		return nil
 	}
 
-	return NewAerospikeError(types.PARAMETER_ERROR, "Key Generation Error. Value not supported: "+val.String())
+	return newError(types.PARAMETER_ERROR, "Key Generation Error. Value not supported: "+val.String())
 }

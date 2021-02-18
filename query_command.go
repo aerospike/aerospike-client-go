@@ -37,16 +37,16 @@ func (cmd *queryCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *queryCommand) writeBuffer(ifc command) (err error) {
+func (cmd *queryCommand) writeBuffer(ifc command) (err Error) {
 	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.recordset.TaskId(), cmd.operations, cmd.writePolicy != nil, nil)
 }
 
-func (cmd *queryCommand) parseResult(ifc command, conn *Connection) error {
+func (cmd *queryCommand) parseResult(ifc command, conn *Connection) Error {
 	return cmd.baseMultiCommand.parseResult(ifc, conn)
 }
 
 // Execute will run the query.
-func (cmd *queryCommand) Execute() error {
+func (cmd *queryCommand) Execute() Error {
 	err := cmd.execute(cmd, true)
 	if err != nil {
 		cmd.recordset.sendError(err)

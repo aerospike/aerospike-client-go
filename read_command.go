@@ -45,10 +45,10 @@ var objectParser func(
 	fieldCount int,
 	generation uint32,
 	expiration uint32,
-) error
+) Error
 
-func newReadCommand(cluster *Cluster, policy *BasePolicy, key *Key, binNames []string, partition *Partition) (readCommand, error) {
-	var err error
+func newReadCommand(cluster *Cluster, policy *BasePolicy, key *Key, binNames []string, partition *Partition) (readCommand, Error) {
+	var err Error
 	if partition == nil {
 		partition, err = PartitionForRead(cluster, policy, key)
 		if err != nil {
@@ -67,11 +67,11 @@ func (cmd *readCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *readCommand) writeBuffer(ifc command) error {
+func (cmd *readCommand) writeBuffer(ifc command) Error {
 	return cmd.setRead(cmd.policy, cmd.key, cmd.binNames)
 }
 
-func (cmd *readCommand) getNode(ifc command) (*Node, error) {
+func (cmd *readCommand) getNode(ifc command) (*Node, Error) {
 	return cmd.partition.GetNodeRead(cmd.cluster)
 }
 
@@ -80,7 +80,7 @@ func (cmd *readCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
-func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
+func (cmd *readCommand) parseResult(ifc command, conn *Connection) Error {
 	// Read proto and check if compressed
 	if _, err := conn.Read(cmd.dataBuffer, 8); err != nil {
 		logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
@@ -95,7 +95,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 		}
 
 		if err := cmd.conn.initInflater(true, compressedSize); err != nil {
-			return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
+			return newError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
 		}
 
 		// Read header.
@@ -142,9 +142,9 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 
 	if resultCode != 0 {
 		if resultCode == types.KEY_NOT_FOUND_ERROR {
-			return ErrKeyNotFound
+			return ErrKeyNotFound.err()
 		} else if resultCode == types.FILTERED_OUT {
-			return ErrFilteredOut
+			return ErrFilteredOut.err()
 		} else if resultCode == types.UDF_BAD_RESPONSE {
 			cmd.record, _ = cmd.parseRecord(ifc, opCount, fieldCount, generation, expiration)
 			err := cmd.handleUdfError(resultCode)
@@ -152,7 +152,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 			return err
 		}
 
-		return NewAerospikeError(resultCode)
+		return newError(resultCode)
 	}
 
 	if cmd.object == nil {
@@ -162,7 +162,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 			return nil
 		}
 
-		var err error
+		var err Error
 		cmd.record, err = cmd.parseRecord(ifc, opCount, fieldCount, generation, expiration)
 		if err != nil {
 			return err
@@ -176,11 +176,11 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) error {
 	return nil
 }
 
-func (cmd *readCommand) handleUdfError(resultCode types.ResultCode) error {
+func (cmd *readCommand) handleUdfError(resultCode types.ResultCode) Error {
 	if ret, exists := cmd.record.Bins["FAILURE"]; exists {
-		return NewAerospikeError(resultCode, ret.(string))
+		return newError(resultCode, ret.(string))
 	}
-	return NewAerospikeError(resultCode)
+	return newError(resultCode)
 }
 
 func (cmd *readCommand) parseRecord(
@@ -189,7 +189,7 @@ func (cmd *readCommand) parseRecord(
 	fieldCount int,
 	generation uint32,
 	expiration uint32,
-) (*Record, error) {
+) (*Record, Error) {
 	var bins BinMap
 	receiveOffset := 0
 
@@ -260,6 +260,6 @@ func (cmd *readCommand) GetRecord() *Record {
 	return cmd.record
 }
 
-func (cmd *readCommand) Execute() error {
+func (cmd *readCommand) Execute() Error {
 	return cmd.execute(cmd, true)
 }

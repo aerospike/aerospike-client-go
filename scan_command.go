@@ -52,15 +52,15 @@ func (cmd *scanCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *scanCommand) writeBuffer(ifc command) error {
+func (cmd *scanCommand) writeBuffer(ifc command) Error {
 	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames, cmd.recordset.taskID, cmd.nodePartitions)
 }
 
-func (cmd *scanCommand) parseResult(ifc command, conn *Connection) error {
+func (cmd *scanCommand) parseResult(ifc command, conn *Connection) Error {
 	return cmd.baseMultiCommand.parseResult(cmd, conn)
 }
 
-func (cmd *scanCommand) Execute() error {
+func (cmd *scanCommand) Execute() Error {
 	err := cmd.execute(cmd, true)
 	if err != nil {
 		cmd.recordset.sendError(err)

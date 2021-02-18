@@ -15,7 +15,7 @@
 
 package aerospike
 
-func newCDTCreateOperationEncoder(op *Operation, packer BufferEx) (int, error) {
+func newCDTCreateOperationEncoder(op *Operation, packer BufferEx) (int, Error) {
 	if op.binValue != nil {
 		if params := op.binValue.(ListValue); len(params) > 0 {
 			return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.ctx, op.binValue.(ListValue))

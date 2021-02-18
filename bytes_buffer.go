@@ -30,8 +30,8 @@ type BufferEx interface {
 	WriteFloat32(float float32) int
 	WriteFloat64(float float64) int
 	WriteByte(b byte)
-	WriteString(s string) (int, error)
-	Write(b []byte) (int, error)
+	WriteString(s string) (int, Error)
+	Write(b []byte) (int, Error)
 }
 
 var _ BufferEx = &bufferEx{}
@@ -114,13 +114,13 @@ func (buf *bufferEx) WriteByte(b byte) {
 	buf.dataOffset++
 }
 
-func (buf *bufferEx) WriteString(s string) (int, error) {
+func (buf *bufferEx) WriteString(s string) (int, Error) {
 	copy(buf.dataBuffer[buf.dataOffset:buf.dataOffset+len(s)], s)
 	buf.dataOffset += len(s)
 	return len(s), nil
 }
 
-func (buf *bufferEx) Write(b []byte) (int, error) {
+func (buf *bufferEx) Write(b []byte) (int, Error) {
 	copy(buf.dataBuffer[buf.dataOffset:buf.dataOffset+len(b)], b)
 	buf.dataOffset += len(b)
 	return len(b), nil

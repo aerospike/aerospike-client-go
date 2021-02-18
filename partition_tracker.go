@@ -17,8 +17,6 @@ package aerospike
 
 import (
 	"fmt"
-	"io"
-	"net"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/types"
@@ -74,16 +72,16 @@ func newPartitionTracker(policy *MultiPolicy, filter *PartitionFilter, nodes []*
 	// cluster partitions may change on the server and PartitionFilter will never have access
 	// to Cluster instance.  Use fixed number of partitions for now.
 	if !(filter.begin >= 0 && filter.begin < _PARTITIONS) {
-		panic(NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition begin %d . Valid range: 0-%d", filter.begin,
+		panic(newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition begin %d . Valid range: 0-%d", filter.begin,
 			(_PARTITIONS-1))))
 	}
 
 	if filter.count <= 0 {
-		panic(NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition count %d", filter.count)))
+		panic(newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition count %d", filter.count)))
 	}
 
 	if filter.begin+filter.count > _PARTITIONS {
-		panic(NewAerospikeError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition range (%d,%d)", filter.begin, filter.begin+filter.count)))
+		panic(newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition range (%d,%d)", filter.begin, filter.begin+filter.count)))
 	}
 
 	pt := &partitionTracker{
@@ -129,14 +127,14 @@ func (pt *partitionTracker) SetSleepBetweenRetries(sleepBetweenRetries time.Dura
 	pt.sleepBetweenRetries = sleepBetweenRetries
 }
 
-func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace string) ([]*nodePartitions, error) {
+func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace string) ([]*nodePartitions, Error) {
 	list := make([]*nodePartitions, 0, pt.nodeCapacity)
 
 	pMap := cluster.getPartitions()
 	partitions := pMap[namespace]
 
 	if partitions == nil {
-		return nil, NewAerospikeError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Map for namespace `%s` in Partition Scan", namespace))
+		return nil, newError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Map for namespace `%s` in Partition Scan", namespace))
 	}
 
 	master := partitions.Replicas[0]
@@ -146,7 +144,7 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 			node := master[part.id]
 
 			if node == nil {
-				return nil, NewAerospikeError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Id %d for namespace `%s` in Partition Scan", part.id, namespace))
+				return nil, newError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Id %d for namespace `%s` in Partition Scan", part.id, namespace))
 			}
 
 			// Use node name to check for single node equality because
@@ -216,7 +214,7 @@ func (pt *partitionTracker) setDigest(nodePartitions *nodePartitions, key *Key) 
 	nodePartitions.recordCount++
 }
 
-func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, error) {
+func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, Error) {
 	recordCount := int64(0)
 	partsRequested := 0
 	partsReceived := 0
@@ -233,7 +231,7 @@ func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, error) {
 
 	// Check if limits have been reached.
 	if pt.iteration > policy.MaxRetries {
-		return false, NewAerospikeError(types.MAX_RETRIES_EXCEEDED, fmt.Sprintf("Max retries exceeded: %d", policy.MaxRetries))
+		return false, newError(types.MAX_RETRIES_EXCEEDED, fmt.Sprintf("Max retries exceeded: %d", policy.MaxRetries))
 	}
 
 	if policy.TotalTimeout > 0 {
@@ -241,7 +239,7 @@ func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, error) {
 		remaining := time.Until(pt.deadline) - pt.sleepBetweenRetries
 
 		if remaining <= 0 {
-			return false, ErrTimeout
+			return false, ErrTimeout.err()
 		}
 
 		if remaining < pt.totalTimeout {
@@ -261,33 +259,11 @@ func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, error) {
 	return false, nil
 }
 
-func (pt *partitionTracker) shouldRetry(e error) bool {
-	if ae, ok := e.(AerospikeError); ok {
-		e = ae.error
-	}
-
-	if e == io.EOF {
-		return true
-	}
-
-	// retry on network errors
-	_, ok := e.(net.Error)
-	if ok {
-		return true
-	}
-
-	ae, ok := e.(AerospikeError)
-	if !ok {
-		return false
-	}
-
-	switch ae.ResultCode {
-	case types.SERVER_NOT_AVAILABLE, types.PARTITION_UNAVAILABLE, types.TIMEOUT:
-		return true
-
-	default:
-		return false
-	}
+func (pt *partitionTracker) shouldRetry(e Error) bool {
+	return e.Matches(types.TIMEOUT,
+		types.NETWORK_ERROR,
+		types.SERVER_NOT_AVAILABLE,
+		types.PARTITION_UNAVAILABLE)
 }
 
 type nodePartitions struct {

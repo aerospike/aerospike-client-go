@@ -62,7 +62,7 @@ var _ = gg.Describe("Index operations test", func() {
 				// no duplicate index is allowed
 				_, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
 				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.(as.AerospikeError).ResultCode).To(gm.Equal(ast.INDEX_FOUND))
+				gm.Expect(err.Matches(ast.INDEX_FOUND)).To(gm.BeTrue())
 			})
 
 			gg.It("must drop an Index", func() {

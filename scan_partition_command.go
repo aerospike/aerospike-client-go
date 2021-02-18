@@ -46,15 +46,15 @@ func (cmd *scanPartitionCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *scanPartitionCommand) writeBuffer(ifc command) error {
+func (cmd *scanPartitionCommand) writeBuffer(ifc command) Error {
 	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames, cmd.recordset.taskID, cmd.nodePartitions)
 }
 
-func (cmd *scanPartitionCommand) shouldRetry(e error) bool {
+func (cmd *scanPartitionCommand) shouldRetry(e Error) bool {
 	return cmd.tracker != nil && cmd.tracker.shouldRetry(e)
 }
 
-func (cmd *scanPartitionCommand) Execute() error {
+func (cmd *scanPartitionCommand) Execute() Error {
 	err := cmd.execute(cmd, true)
 	if err != nil {
 		// signal to the executor that no retries should be attempted

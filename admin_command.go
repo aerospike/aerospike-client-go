@@ -80,7 +80,7 @@ func newAdminCommand(buf []byte) *adminCommand {
 	}
 }
 
-func (acmd *adminCommand) createUser(cluster *Cluster, policy *AdminPolicy, user string, password []byte, roles []string) error {
+func (acmd *adminCommand) createUser(cluster *Cluster, policy *AdminPolicy, user string, password []byte, roles []string) Error {
 	acmd.writeHeader(_CREATE_USER, 3)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeFieldBytes(_PASSWORD, password)
@@ -88,20 +88,20 @@ func (acmd *adminCommand) createUser(cluster *Cluster, policy *AdminPolicy, user
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) dropUser(cluster *Cluster, policy *AdminPolicy, user string) error {
+func (acmd *adminCommand) dropUser(cluster *Cluster, policy *AdminPolicy, user string) Error {
 	acmd.writeHeader(_DROP_USER, 1)
 	acmd.writeFieldStr(_USER, user)
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) setPassword(cluster *Cluster, policy *AdminPolicy, user string, password []byte) error {
+func (acmd *adminCommand) setPassword(cluster *Cluster, policy *AdminPolicy, user string, password []byte) Error {
 	acmd.writeHeader(_SET_PASSWORD, 2)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeFieldBytes(_PASSWORD, password)
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) changePassword(cluster *Cluster, policy *AdminPolicy, user string, password []byte) error {
+func (acmd *adminCommand) changePassword(cluster *Cluster, policy *AdminPolicy, user string, password []byte) Error {
 	acmd.writeHeader(_CHANGE_PASSWORD, 3)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeFieldBytes(_OLD_PASSWORD, cluster.Password())
@@ -109,21 +109,21 @@ func (acmd *adminCommand) changePassword(cluster *Cluster, policy *AdminPolicy, 
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) grantRoles(cluster *Cluster, policy *AdminPolicy, user string, roles []string) error {
+func (acmd *adminCommand) grantRoles(cluster *Cluster, policy *AdminPolicy, user string, roles []string) Error {
 	acmd.writeHeader(_GRANT_ROLES, 2)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeRoles(roles)
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) revokeRoles(cluster *Cluster, policy *AdminPolicy, user string, roles []string) error {
+func (acmd *adminCommand) revokeRoles(cluster *Cluster, policy *AdminPolicy, user string, roles []string) Error {
 	acmd.writeHeader(_REVOKE_ROLES, 2)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeRoles(roles)
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) createRole(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string) error {
+func (acmd *adminCommand) createRole(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string) Error {
 	fieldcount := 1
 	if len(privileges) > 1 {
 		fieldcount++
@@ -147,13 +147,13 @@ func (acmd *adminCommand) createRole(cluster *Cluster, policy *AdminPolicy, role
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) dropRole(cluster *Cluster, policy *AdminPolicy, roleName string) error {
+func (acmd *adminCommand) dropRole(cluster *Cluster, policy *AdminPolicy, roleName string) Error {
 	acmd.writeHeader(_DROP_ROLE, 1)
 	acmd.writeFieldStr(_ROLE, roleName)
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) grantPrivileges(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege) error {
+func (acmd *adminCommand) grantPrivileges(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege) Error {
 	acmd.writeHeader(_GRANT_PRIVILEGES, 2)
 	acmd.writeFieldStr(_ROLE, roleName)
 	if err := acmd.writePrivileges(privileges); err != nil {
@@ -162,7 +162,7 @@ func (acmd *adminCommand) grantPrivileges(cluster *Cluster, policy *AdminPolicy,
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) revokePrivileges(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege) error {
+func (acmd *adminCommand) revokePrivileges(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege) Error {
 	acmd.writeHeader(_REVOKE_PRIVILEGES, 2)
 	acmd.writeFieldStr(_ROLE, roleName)
 	if err := acmd.writePrivileges(privileges); err != nil {
@@ -171,7 +171,7 @@ func (acmd *adminCommand) revokePrivileges(cluster *Cluster, policy *AdminPolicy
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) setWhitelist(cluster *Cluster, policy *AdminPolicy, roleName string, whitelist []string) error {
+func (acmd *adminCommand) setWhitelist(cluster *Cluster, policy *AdminPolicy, roleName string, whitelist []string) Error {
 	fieldCount := 1
 	if len(whitelist) > 0 {
 		fieldCount++
@@ -184,7 +184,7 @@ func (acmd *adminCommand) setWhitelist(cluster *Cluster, policy *AdminPolicy, ro
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user string) (*UserRoles, error) {
+func (acmd *adminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user string) (*UserRoles, Error) {
 	acmd.writeHeader(_QUERY_USERS, 1)
 	acmd.writeFieldStr(_USER, user)
 	list, err := acmd.readUsers(cluster, policy)
@@ -199,7 +199,7 @@ func (acmd *adminCommand) queryUser(cluster *Cluster, policy *AdminPolicy, user 
 	return nil, nil
 }
 
-func (acmd *adminCommand) queryUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, error) {
+func (acmd *adminCommand) queryUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, Error) {
 	acmd.writeHeader(_QUERY_USERS, 0)
 	list, err := acmd.readUsers(cluster, policy)
 	if err != nil {
@@ -208,7 +208,7 @@ func (acmd *adminCommand) queryUsers(cluster *Cluster, policy *AdminPolicy) ([]*
 	return list, nil
 }
 
-func (acmd *adminCommand) queryRole(cluster *Cluster, policy *AdminPolicy, roleName string) (*Role, error) {
+func (acmd *adminCommand) queryRole(cluster *Cluster, policy *AdminPolicy, roleName string) (*Role, Error) {
 	acmd.writeHeader(_QUERY_ROLES, 1)
 	acmd.writeFieldStr(_ROLE, roleName)
 	list, err := acmd.readRoles(cluster, policy)
@@ -223,7 +223,7 @@ func (acmd *adminCommand) queryRole(cluster *Cluster, policy *AdminPolicy, roleN
 	return nil, nil
 }
 
-func (acmd *adminCommand) queryRoles(cluster *Cluster, policy *AdminPolicy) ([]*Role, error) {
+func (acmd *adminCommand) queryRoles(cluster *Cluster, policy *AdminPolicy) ([]*Role, Error) {
 	acmd.writeHeader(_QUERY_ROLES, 0)
 	list, err := acmd.readRoles(cluster, policy)
 	if err != nil {
@@ -248,7 +248,7 @@ func (acmd *adminCommand) writeRoles(roles []string) {
 	acmd.dataOffset = offset
 }
 
-func (acmd *adminCommand) writePrivileges(privileges []Privilege) error {
+func (acmd *adminCommand) writePrivileges(privileges []Privilege) Error {
 	offset := acmd.dataOffset + int(_FIELD_HEADER_SIZE)
 	acmd.dataBuffer[offset] = byte(len(privileges))
 	offset++
@@ -262,7 +262,7 @@ func (acmd *adminCommand) writePrivileges(privileges []Privilege) error {
 		if privilege.canScope() {
 
 			if len(privilege.SetName) > 0 && len(privilege.Namespace) == 0 {
-				return NewAerospikeError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
+				return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
 			}
 
 			acmd.dataBuffer[offset] = byte(len(privilege.Namespace))
@@ -276,7 +276,7 @@ func (acmd *adminCommand) writePrivileges(privileges []Privilege) error {
 			offset += len(privilege.SetName)
 		} else {
 			if len(privilege.Namespace) > 0 || len(privilege.SetName) > 0 {
-				return NewAerospikeError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
+				return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
 			}
 		}
 	}
@@ -345,7 +345,7 @@ func (acmd *adminCommand) writeFieldHeader(id byte, size int) {
 	acmd.dataOffset++
 }
 
-func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) error {
+func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) Error {
 	acmd.writeSize()
 	node, err := cluster.GetRandomNode()
 	if err != nil {
@@ -374,13 +374,13 @@ func (acmd *adminCommand) executeCommand(cluster *Cluster, policy *AdminPolicy) 
 
 	result := acmd.dataBuffer[_RESULT_CODE]
 	if result != 0 {
-		return NewAerospikeError(types.ResultCode(result))
+		return newCustomNodeError(node, types.ResultCode(result))
 	}
 
 	return nil
 }
 
-func (acmd *adminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, error) {
+func (acmd *adminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*UserRoles, Error) {
 	acmd.writeSize()
 	node, err := cluster.GetRandomNode()
 	if err != nil {
@@ -409,12 +409,12 @@ func (acmd *adminCommand) readUsers(cluster *Cluster, policy *AdminPolicy) ([]*U
 	}
 
 	if status > 0 {
-		return nil, NewAerospikeError(types.ResultCode(status))
+		return nil, newCustomNodeError(node, types.ResultCode(status))
 	}
 	return list, nil
 }
 
-func (acmd *adminCommand) readUserBlocks(conn *Connection) (status int, rlist []*UserRoles, err error) {
+func (acmd *adminCommand) readUserBlocks(conn *Connection) (status int, rlist []*UserRoles, err Error) {
 
 	var list []*UserRoles
 
@@ -445,7 +445,7 @@ func (acmd *adminCommand) readUserBlocks(conn *Connection) (status int, rlist []
 	return status, rlist, nil
 }
 
-func (acmd *adminCommand) parseUsers(receiveSize int) (int, []*UserRoles, error) {
+func (acmd *adminCommand) parseUsers(receiveSize int) (int, []*UserRoles, Error) {
 	acmd.dataOffset = 0
 	list := make([]*UserRoles, 0, 100)
 
@@ -507,17 +507,17 @@ func (acmd *adminCommand) parseRoles(userRoles *UserRoles) {
 	}
 }
 
-func hashPassword(password string) ([]byte, error) {
+func hashPassword(password string) ([]byte, Error) {
 	// Hashing the password with the cost of 10, with a static salt
 	const salt = "$2a$10$7EqJtq98hPqEX7fNZaFWoO"
 	hashedPassword, err := bcrypt.Hash(password, salt)
 	if err != nil {
-		return nil, err
+		return nil, newCommonError(err)
 	}
 	return []byte(hashedPassword), nil
 }
 
-func (acmd *adminCommand) readRoles(cluster *Cluster, policy *AdminPolicy) ([]*Role, error) {
+func (acmd *adminCommand) readRoles(cluster *Cluster, policy *AdminPolicy) ([]*Role, Error) {
 	acmd.writeSize()
 	node, err := cluster.GetRandomNode()
 	if err != nil {
@@ -546,12 +546,12 @@ func (acmd *adminCommand) readRoles(cluster *Cluster, policy *AdminPolicy) ([]*R
 	}
 
 	if status > 0 {
-		return nil, NewAerospikeError(types.ResultCode(status))
+		return nil, newCustomNodeError(node, types.ResultCode(status))
 	}
 	return list, nil
 }
 
-func (acmd *adminCommand) readRoleBlocks(conn *Connection) (status int, rlist []*Role, err error) {
+func (acmd *adminCommand) readRoleBlocks(conn *Connection) (status int, rlist []*Role, err Error) {
 
 	var list []*Role
 
@@ -582,7 +582,7 @@ func (acmd *adminCommand) readRoleBlocks(conn *Connection) (status int, rlist []
 	return status, rlist, nil
 }
 
-func (acmd *adminCommand) parseRolesFull(receiveSize int) (int, []*Role, error) {
+func (acmd *adminCommand) parseRolesFull(receiveSize int) (int, []*Role, Error) {
 	acmd.dataOffset = 0
 
 	var list []*Role

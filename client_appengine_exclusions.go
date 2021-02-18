@@ -18,7 +18,6 @@ package aerospike
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"golang.org/x/sync/semaphore"
@@ -26,7 +25,6 @@ import (
 	"github.com/aerospike/aerospike-client-go/internal/atomic"
 	lualib "github.com/aerospike/aerospike-client-go/internal/lua"
 	"github.com/aerospike/aerospike-client-go/logger"
-	"github.com/aerospike/aerospike-client-go/types"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -47,19 +45,19 @@ func SetLuaPath(lpath string) {
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, error) {
+func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, Error) {
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, true)
 
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "QueryAggregate failed because cluster is empty.")
+		return nil, ErrClusterIsEmpty.err()
 	}
 
 	clusterKey := int64(0)
 	if policy.FailOnClusterChange {
-		var err error
+		var err Error
 		clusterKey, err = queryValidateBegin(nodes[0], statement.Namespace)
 		if err != nil {
 			return nil, err
@@ -73,7 +71,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 	// get a lua instance
 	luaInstance := lualib.LuaPool.Get().(*lua.LState)
 	if luaInstance == nil {
-		return nil, fmt.Errorf("Error fetching a lua instance from pool")
+		return nil, ErrLuaPoolEmpty.err()
 	}
 
 	// Input Channel
@@ -137,7 +135,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 
 		err := luaInstance.DoFile(lualib.Path() + packageName + ".lua")
 		if err != nil {
-			recSet.Errors <- err
+			recSet.Errors <- newCommonError(err)
 			return
 		}
 
@@ -155,7 +153,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 		},
 			luaArgs...,
 		); err != nil {
-			recSet.Errors <- err
+			recSet.Errors <- newCommonError(err)
 			return
 		}
 

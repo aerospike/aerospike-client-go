@@ -186,7 +186,7 @@ const (
 	ListWriteFlagsPartial = 8
 )
 
-func listGenericOpEncoder(op *Operation, packer BufferEx) (int, error) {
+func listGenericOpEncoder(op *Operation, packer BufferEx) (int, Error) {
 	args := op.binValue.(ListValue)
 	if len(args) > 1 {
 		return packCDTIfcVarParamsAsArray(packer, int16(args[0].(int)), op.ctx, args[1:]...)
@@ -194,10 +194,10 @@ func listGenericOpEncoder(op *Operation, packer BufferEx) (int, error) {
 	return packCDTIfcVarParamsAsArray(packer, int16(args[0].(int)), op.ctx)
 }
 
-func packCDTParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ...Value) (int, error) {
+func packCDTParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ...Value) (int, Error) {
 	size := 0
 	n := 0
-	var err error
+	var err Error
 	if len(ctx) > 0 {
 		if n, err = packArrayBegin(packer, 3); err != nil {
 			return size + n, err
@@ -260,14 +260,14 @@ func packCDTParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, para
 	return size, nil
 }
 
-func packCDTIfcParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ListValue) (int, error) {
+func packCDTIfcParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ListValue) (int, Error) {
 	return packCDTIfcVarParamsAsArray(packer, opType, ctx, []interface{}(params)...)
 }
 
-func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ...interface{}) (int, error) {
+func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ...interface{}) (int, Error) {
 	size := 0
 	n := 0
-	var err error
+	var err Error
 	if len(ctx) > 0 {
 		if n, err = packArrayBegin(packer, 3); err != nil {
 			return size + n, err
@@ -332,7 +332,7 @@ func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext
 	return size, nil
 }
 
-func cdtCreateOpEncoder(op *Operation, packer BufferEx) (int, error) {
+func cdtCreateOpEncoder(op *Operation, packer BufferEx) (int, Error) {
 	args := op.binValue.(ListValue)
 	if len(args) > 2 {
 		return packCDTCreate(packer, int16(args[0].(int)), op.ctx, args[1].(int), args[2:]...)
@@ -340,10 +340,10 @@ func cdtCreateOpEncoder(op *Operation, packer BufferEx) (int, error) {
 	return packCDTCreate(packer, int16(args[0].(int)), op.ctx, args[1].(int))
 }
 
-func packCDTCreate(packer BufferEx, opType int16, ctx []*CDTContext, flag int, params ...interface{}) (int, error) {
+func packCDTCreate(packer BufferEx, opType int16, ctx []*CDTContext, flag int, params ...interface{}) (int, Error) {
 	size := 0
 	n := 0
-	var err error
+	var err Error
 	if n, err = packArrayBegin(packer, 3); err != nil {
 		return size + n, err
 	}

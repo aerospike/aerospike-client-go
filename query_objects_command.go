@@ -30,7 +30,7 @@ func newQueryObjectsCommand(node *Node, policy *QueryPolicy, statement *Statemen
 	return cmd
 }
 
-func (cmd *queryObjectsCommand) Execute() error {
+func (cmd *queryObjectsCommand) Execute() Error {
 	defer cmd.recordset.signalEnd()
 	err := cmd.execute(cmd, true)
 	if err != nil {

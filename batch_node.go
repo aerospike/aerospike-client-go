@@ -14,20 +14,16 @@
 
 package aerospike
 
-import (
-	"github.com/aerospike/aerospike-client-go/types"
-)
-
 type batchNode struct {
 	Node    *Node
 	offsets []int
 }
 
-func newBatchNodeList(cluster *Cluster, policy *BatchPolicy, keys []*Key) ([]*batchNode, error) {
+func newBatchNodeList(cluster *Cluster, policy *BatchPolicy, keys []*Key) ([]*batchNode, Error) {
 	nodes := cluster.GetNodes()
 
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
+		return nil, ErrClusterIsEmpty.err()
 	}
 
 	// Create initial key capacity for each node as average + 25%.
@@ -60,11 +56,11 @@ func newBatchNodeList(cluster *Cluster, policy *BatchPolicy, keys []*Key) ([]*ba
 	return batchNodes, nil
 }
 
-func newBatchNodeListKeys(cluster *Cluster, policy *BatchPolicy, keys []*Key, sequenceAP, sequenceSC int, batchSeed *batchNode) ([]*batchNode, error) {
+func newBatchNodeListKeys(cluster *Cluster, policy *BatchPolicy, keys []*Key, sequenceAP, sequenceSC int, batchSeed *batchNode) ([]*batchNode, Error) {
 	nodes := cluster.GetNodes()
 
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
+		return nil, ErrClusterIsEmpty.err()
 	}
 
 	// Create initial key capacity for each node as average + 25%.
@@ -97,11 +93,11 @@ func newBatchNodeListKeys(cluster *Cluster, policy *BatchPolicy, keys []*Key, se
 	return batchNodes, nil
 }
 
-func newBatchNodeListRecords(cluster *Cluster, policy *BatchPolicy, records []*BatchRead, sequenceAP, sequenceSC int, batchSeed *batchNode) ([]*batchNode, error) {
+func newBatchNodeListRecords(cluster *Cluster, policy *BatchPolicy, records []*BatchRead, sequenceAP, sequenceSC int, batchSeed *batchNode) ([]*batchNode, Error) {
 	nodes := cluster.GetNodes()
 
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
+		return nil, ErrClusterIsEmpty.err()
 	}
 
 	// Create initial key capacity for each node as average + 25%.
@@ -134,11 +130,11 @@ func newBatchNodeListRecords(cluster *Cluster, policy *BatchPolicy, records []*B
 	return batchNodes, nil
 }
 
-func newBatchIndexNodeList(cluster *Cluster, policy *BatchPolicy, records []*BatchRead) ([]*batchNode, error) {
+func newBatchIndexNodeList(cluster *Cluster, policy *BatchPolicy, records []*BatchRead) ([]*batchNode, Error) {
 	nodes := cluster.GetNodes()
 
 	if len(nodes) == 0 {
-		return nil, NewAerospikeError(types.SERVER_NOT_AVAILABLE, "command failed because cluster is empty.")
+		return nil, ErrClusterIsEmpty.err()
 	}
 
 	// Create initial key capacity for each node as average + 25%.

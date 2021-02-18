@@ -28,7 +28,7 @@ func runExample(client *as.Client) {
 	log.Println("Total Unique Object Count:", totalUniqueObjects)
 }
 
-func countSetObjects(client *as.Client, ns, set string) (int, error) {
+func countSetObjects(client *as.Client, ns, set string) (int, Error) {
 	const statKey = "objects"
 
 	// get the list of cluster nodes
@@ -62,7 +62,7 @@ N:
 	return objCount, nil
 }
 
-func replicationFactor(client *as.Client, ns string) (int, error) {
+func replicationFactor(client *as.Client, ns string) (int, Error) {
 	const statKey = "effective_replication_factor"
 
 	// get the list of cluster nodes

@@ -18,6 +18,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 
 	as "github.com/aerospike/aerospike-client-go"
@@ -42,7 +43,7 @@ func runReplaceExample(client *as.Client) {
 	log.Printf("Put: namespace=%s set=%s key=%s bin1=%s value1=%s bin2=%s value2=%s",
 		key.Namespace(), key.SetName(), key.Value(), bin1.Name, bin1.Value, bin2.Name, bin2.Value)
 
-	client.PutBins(shared.WritePolicy, key, bin1, bin2)
+	shared.PanicOnError(client.PutBins(shared.WritePolicy, key, bin1, bin2))
 
 	log.Printf("Replace with: namespace=%s set=%s key=%s bin=%s value=%s",
 		key.Namespace(), key.SetName(), key.Value(), bin3.Name, bin3.Value)
@@ -89,7 +90,7 @@ func runReplaceOnlyExample(client *as.Client) {
 	wpolicy := as.NewWritePolicy(0, 0)
 	wpolicy.RecordExistsAction = as.REPLACE_ONLY
 	err = client.PutBins(wpolicy, key, bin)
-	if ae, ok := err.(as.AerospikeError); ok && ae.ResultCode == ast.KEY_NOT_FOUND_ERROR {
+	if errors.Is(err, &as.AerospikeError{ResultCode: ast.KEY_NOT_FOUND_ERROR}) {
 		log.Printf("Success. `Not found` error returned as expected.")
 	} else {
 		log.Fatalln("Failure. This command should have resulted in an error.")

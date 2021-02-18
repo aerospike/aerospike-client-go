@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -39,7 +38,7 @@ func newUnpacker(buffer []byte, offset int, length int) *unpacker {
 	}
 }
 
-func (upckr *unpacker) UnpackList() ([]interface{}, error) {
+func (upckr *unpacker) UnpackList() ([]interface{}, Error) {
 	if upckr.length <= 0 {
 		return nil, nil
 	}
@@ -63,7 +62,7 @@ func (upckr *unpacker) UnpackList() ([]interface{}, error) {
 	return upckr.unpackList(count)
 }
 
-func (upckr *unpacker) unpackList(count int) ([]interface{}, error) {
+func (upckr *unpacker) unpackList(count int) ([]interface{}, Error) {
 	if count == 0 {
 		return make([]interface{}, 0), nil
 	}
@@ -101,7 +100,7 @@ func (upckr *unpacker) unpackList(count int) ([]interface{}, error) {
 	return out, nil
 }
 
-func (upckr *unpacker) UnpackMap() (interface{}, error) {
+func (upckr *unpacker) UnpackMap() (interface{}, Error) {
 	if upckr.length <= 0 {
 		return nil, nil
 	}
@@ -124,7 +123,7 @@ func (upckr *unpacker) UnpackMap() (interface{}, error) {
 	return upckr.unpackMap(count)
 }
 
-func (upckr *unpacker) unpackMap(count int) (interface{}, error) {
+func (upckr *unpacker) unpackMap(count int) (interface{}, Error) {
 	if count <= 0 {
 		return make(map[interface{}]interface{}), nil
 	}
@@ -135,7 +134,7 @@ func (upckr *unpacker) unpackMap(count int) (interface{}, error) {
 	return upckr.unpackMapNormal(count)
 }
 
-func (upckr *unpacker) unpackMapNormal(count int) (map[interface{}]interface{}, error) {
+func (upckr *unpacker) unpackMapNormal(count int) (map[interface{}]interface{}, Error) {
 	out := make(map[interface{}]interface{}, count)
 
 	for i := 0; i < count; i++ {
@@ -153,7 +152,7 @@ func (upckr *unpacker) unpackMapNormal(count int) (map[interface{}]interface{}, 
 	return out, nil
 }
 
-func (upckr *unpacker) unpackCDTMap(count int) ([]MapPair, error) {
+func (upckr *unpacker) unpackCDTMap(count int) ([]MapPair, Error) {
 	out := make([]MapPair, 0, count-1)
 
 	for i := 0; i < count; i++ {
@@ -199,7 +198,7 @@ func (upckr *unpacker) isMapCDT() bool {
 	return false
 }
 
-func (upckr *unpacker) unpackObjects() (interface{}, error) {
+func (upckr *unpacker) unpackObjects() (interface{}, Error) {
 	if upckr.length <= 0 {
 		return nil, nil
 	}
@@ -207,7 +206,7 @@ func (upckr *unpacker) unpackObjects() (interface{}, error) {
 	return upckr.unpackObject(false)
 }
 
-func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (interface{}, error) {
+func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (interface{}, Error) {
 	theType := upckr.buffer[upckr.offset] & 0xff
 	upckr.offset++
 	count--
@@ -233,16 +232,17 @@ func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (interface{}, error)
 		val = NewGeoJSONValue(string(upckr.buffer[upckr.offset : upckr.offset+count]))
 
 	default:
-		return nil, NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Error while unpacking BLOB. Type-header with code `%d` not recognized.", theType))
+		return nil, newError(types.PARSE_ERROR, fmt.Sprintf("Error while unpacking BLOB. Type-header with code `%d` not recognized.", theType))
 	}
 	upckr.offset += count
 
 	return val, nil
 }
 
-var errSkipHeader = errors.New("Skip the unpacker error")
+// errSkipHeader is used internally as a signal; it is never sent back to the user
+var errSkipHeader = newError(types.OK, "Skip the unpacker error")
 
-func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, error) {
+func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, Error) {
 	theType := upckr.buffer[upckr.offset] & 0xff
 	upckr.offset++
 
@@ -412,5 +412,5 @@ func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, error) {
 		}
 	}
 
-	return nil, NewAerospikeError(types.SERIALIZE_ERROR)
+	return nil, newError(types.SERIALIZE_ERROR)
 }

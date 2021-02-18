@@ -429,7 +429,7 @@ func BitGetIntOp(binName string, bitOffset int, bitSize int, signed bool, ctx ..
 	}
 }
 
-func newCDTBitwiseEncoder(op *Operation, packer BufferEx) (int, error) {
+func newCDTBitwiseEncoder(op *Operation, packer BufferEx) (int, Error) {
 	params := op.binValue.(ListValue)
 	opType := params[0].(int)
 	if len(op.binValue.(ListValue)) > 1 {
@@ -438,14 +438,14 @@ func newCDTBitwiseEncoder(op *Operation, packer BufferEx) (int, error) {
 	return packCDTBitIfcParamsAsArray(packer, int16(opType), op.ctx, nil)
 }
 
-func packCDTBitIfcParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ListValue) (int, error) {
+func packCDTBitIfcParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ListValue) (int, Error) {
 	return packCDTBitIfcVarParamsAsArray(packer, opType, ctx, []interface{}(params)...)
 }
 
-func packCDTBitIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ...interface{}) (int, error) {
+func packCDTBitIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ...interface{}) (int, Error) {
 	size := 0
 	n := 0
-	var err error
+	var err Error
 	if len(ctx) > 0 {
 		if n, err = packArrayBegin(packer, 3); err != nil {
 			return size + n, err

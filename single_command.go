@@ -35,7 +35,7 @@ func newSingleCommand(cluster *Cluster, key *Key, partition *Partition) singleCo
 	}
 }
 
-func (cmd *singleCommand) getConnection(policy Policy) (*Connection, error) {
+func (cmd *singleCommand) getConnection(policy Policy) (*Connection, Error) {
 	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().deadline(), policy.GetBasePolicy().socketTimeout(), cmd.key.digest[0])
 }
 
@@ -43,7 +43,7 @@ func (cmd *singleCommand) putConnection(conn *Connection) {
 	cmd.node.putConnectionWithHint(conn, cmd.key.digest[0])
 }
 
-func (cmd *singleCommand) emptySocket(conn *Connection) error {
+func (cmd *singleCommand) emptySocket(conn *Connection) Error {
 	// There should not be any more bytes.
 	// Empty the socket to be safe.
 	sz := Buffer.BytesToInt64(cmd.dataBuffer, 0)

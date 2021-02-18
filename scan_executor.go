@@ -23,7 +23,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker, namespace string, setName string, rs *Recordset, binNames ...string) error {
+func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker, namespace string, setName string, rs *Recordset, binNames ...string) Error {
 	defer rs.signalEnd()
 
 	// for exponential backoff
@@ -94,7 +94,7 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodePartition(policy *ScanPolicy, recordset *Recordset, tracker *partitionTracker, nodePartition *nodePartitions, namespace string, setName string, binNames ...string) error {
+func (clnt *Client) scanNodePartition(policy *ScanPolicy, recordset *Recordset, tracker *partitionTracker, nodePartition *nodePartitions, namespace string, setName string, binNames ...string) Error {
 	command := newScanPartitionCommand(policy, tracker, nodePartition, namespace, setName, binNames, recordset)
 	return command.Execute()
 }

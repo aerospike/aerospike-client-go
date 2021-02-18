@@ -15,7 +15,7 @@
 package aerospike
 
 import (
-	"errors"
+	"github.com/aerospike/aerospike-client-go/types"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
@@ -27,10 +27,10 @@ var _ = gg.Describe("Recordset test", func() {
 	gg.It("must avoid panic on sendError", func() {
 		rs := newRecordset(100, 1)
 
-		rs.sendError(errors.New("Error"))
+		rs.sendError(newError(types.PARAMETER_ERROR, "Error"))
 		rs.wgGoroutines.Done()
 		rs.Close()
-		rs.sendError(errors.New("Error"))
+		rs.sendError(newError(types.PARAMETER_ERROR, "Error"))
 
 		gm.Expect(<-rs.Errors).NotTo(gm.BeNil())
 		// gm.Expect(<-rs.Errors).To(gm.BeNil())

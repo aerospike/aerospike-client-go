@@ -23,10 +23,10 @@ import (
 
 // Task interface defines methods for asynchronous tasks.
 type Task interface {
-	IsDone() (bool, error)
+	IsDone() (bool, Error)
 
-	onComplete(ifc Task) chan error
-	OnComplete() chan error
+	onComplete(ifc Task) chan Error
+	OnComplete() chan Error
 }
 
 // baseTask is used to poll for server task completion.
@@ -43,8 +43,8 @@ func newTask(cluster *Cluster) *baseTask {
 }
 
 // Wait for asynchronous task to complete using default sleep interval.
-func (btsk *baseTask) onComplete(ifc Task) chan error {
-	ch := make(chan error, 1)
+func (btsk *baseTask) onComplete(ifc Task) chan Error {
+	ch := make(chan Error, 1)
 
 	// goroutine will loop every <interval> until IsDone() returns true or error
 	go func() {
@@ -66,11 +66,10 @@ func (btsk *baseTask) onComplete(ifc Task) chan error {
 				}
 			}
 			if err != nil {
-				ae, ok := err.(AerospikeError)
-				if ok && ae.ResultCode == types.TIMEOUT {
-					ae.InDoubt = true
+				if err.Matches(types.TIMEOUT) {
+					err.markInDoubt()
 				}
-				ch <- ae
+				ch <- err
 				return
 			} else if done {
 				ch <- nil

@@ -130,9 +130,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		_, err := client.Operate(nil, key, ops...)
 		gm.Expect(err).To(gm.HaveOccurred())
 
-		aerr, ok := err.(as.AerospikeError)
-		gm.Expect(ok).To(gm.BeTrue())
-		gm.Expect(aerr.ResultCode).To(gm.Equal(eresult))
+		gm.Expect(err.Matches(eresult)).To(gm.BeTrue())
 	}
 
 	expectSuccess := func(key *as.Key, ops ...*as.Operation) *as.Record {

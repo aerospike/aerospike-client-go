@@ -34,7 +34,7 @@ func NewRemoveTask(cluster *Cluster, packageName string) *RemoveTask {
 }
 
 // IsDone will query all nodes for task completion status.
-func (tskr *RemoveTask) IsDone() (bool, error) {
+func (tskr *RemoveTask) IsDone() (bool, Error) {
 	command := "udf-list"
 	nodes := tskr.cluster.GetNodes()
 	done := false
@@ -60,6 +60,6 @@ func (tskr *RemoveTask) IsDone() (bool, error) {
 
 // OnComplete returns a channel that will be closed as soon as the task is finished.
 // If an error is encountered during operation, an error will be sent on the channel.
-func (tskr *RemoveTask) OnComplete() chan error {
+func (tskr *RemoveTask) OnComplete() chan Error {
 	return tskr.onComplete(tskr)
 }

@@ -75,11 +75,11 @@ func (bc *bufferedConn) shiftContentToHead(length int) {
 
 // readConn will read the minimum minLength number of bytes from the connection.
 // It will read more if it has extra empty capacity in the buffer.
-func (bc *bufferedConn) readConn(minLength int) error {
+func (bc *bufferedConn) readConn(minLength int) Error {
 	// Corrupted data streams can result in a huge minLength.
 	// Do a sanity check here.
 	if minLength > MaxBufferSize || minLength <= 0 || minLength > bc.remaining {
-		return NewAerospikeError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", minLength))
+		return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", minLength))
 	}
 
 	bc.shiftContentToHead(minLength)
@@ -101,7 +101,7 @@ func (bc *bufferedConn) readConn(minLength int) error {
 	return nil
 }
 
-func (bc *bufferedConn) read(length int) ([]byte, error) {
+func (bc *bufferedConn) read(length int) ([]byte, Error) {
 	if cl := bc.len(); length > cl {
 		if err := bc.readConn(length - cl); err != nil {
 			return nil, err
@@ -114,7 +114,7 @@ func (bc *bufferedConn) read(length int) ([]byte, error) {
 	return buf, nil
 }
 
-func (bc *bufferedConn) drainConn() error {
+func (bc *bufferedConn) drainConn() Error {
 	if !bc.conn.IsConnected() {
 		return nil
 	}
@@ -136,7 +136,7 @@ func (bc *bufferedConn) drainConn() error {
 	return nil
 }
 
-func (bc *bufferedConn) reset(total int) error {
+func (bc *bufferedConn) reset(total int) Error {
 	bc.remaining = total
 	bc.head = 0
 	bc.tail = 0

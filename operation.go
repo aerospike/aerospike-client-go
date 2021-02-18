@@ -51,7 +51,7 @@ type Operation struct {
 	// CDT context for nested types
 	ctx []*CDTContext
 
-	encoder func(*Operation, BufferEx) (int, error)
+	encoder func(*Operation, BufferEx) (int, Error)
 
 	// binName (Optional) determines the name of bin used in operation.
 	binName string
@@ -68,7 +68,7 @@ type Operation struct {
 }
 
 // cache uses the encoder and caches the packed operation for further use.
-func (op *Operation) cache() error {
+func (op *Operation) cache() Error {
 	packer := newPacker()
 
 	if _, err := op.encoder(op, packer); err != nil {

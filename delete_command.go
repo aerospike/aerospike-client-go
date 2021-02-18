@@ -30,7 +30,7 @@ type deleteCommand struct {
 	existed bool
 }
 
-func newDeleteCommand(cluster *Cluster, policy *WritePolicy, key *Key) (*deleteCommand, error) {
+func newDeleteCommand(cluster *Cluster, policy *WritePolicy, key *Key) (*deleteCommand, Error) {
 	partition, err := PartitionForWrite(cluster, &policy.BasePolicy, key)
 	if err != nil {
 		return nil, err
@@ -48,11 +48,11 @@ func (cmd *deleteCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
-func (cmd *deleteCommand) writeBuffer(ifc command) error {
+func (cmd *deleteCommand) writeBuffer(ifc command) Error {
 	return cmd.setDelete(cmd.policy, cmd.key)
 }
 
-func (cmd *deleteCommand) getNode(ifc command) (*Node, error) {
+func (cmd *deleteCommand) getNode(ifc command) (*Node, Error) {
 	return cmd.partition.GetNodeWrite(cmd.cluster)
 }
 
@@ -61,7 +61,7 @@ func (cmd *deleteCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
-func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) error {
+func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) Error {
 	// Read header.
 	if _, err := conn.Read(cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
 		return err
@@ -86,9 +86,9 @@ func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) error {
 			return err
 		}
 		cmd.existed = true
-		return ErrFilteredOut
+		return ErrFilteredOut.err()
 	default:
-		return NewAerospikeError(types.ResultCode(resultCode))
+		return newError(types.ResultCode(resultCode))
 	}
 
 	return cmd.emptySocket(conn)
@@ -98,6 +98,6 @@ func (cmd *deleteCommand) Existed() bool {
 	return cmd.existed
 }
 
-func (cmd *deleteCommand) Execute() error {
+func (cmd *deleteCommand) Execute() Error {
 	return cmd.execute(cmd, false)
 }

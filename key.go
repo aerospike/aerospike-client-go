@@ -65,7 +65,7 @@ func (ky *Key) Value() Value {
 
 // SetValue sets the Key's value and recompute's its digest without allocating new memory.
 // This allows the keys to be reusable.
-func (ky *Key) SetValue(val Value) error {
+func (ky *Key) SetValue(val Value) Error {
 	ky.userKey = val
 	return ky.computeDigest()
 }
@@ -95,7 +95,7 @@ func (ky *Key) String() string {
 // NewKey initializes a key from namespace, optional set name and user key.
 // The set name and user defined key are converted to a digest before sending to the server.
 // The server handles record identifiers by digest only.
-func NewKey(namespace string, setName string, key interface{}) (*Key, error) {
+func NewKey(namespace string, setName string, key interface{}) (*Key, Error) {
 	newKey := &Key{
 		namespace: namespace,
 		setName:   setName,
@@ -111,7 +111,7 @@ func NewKey(namespace string, setName string, key interface{}) (*Key, error) {
 
 // NewKeyWithDigest initializes a key from namespace, optional set name and user key.
 // The server handles record identifiers by digest only.
-func NewKeyWithDigest(namespace string, setName string, key interface{}, digest []byte) (*Key, error) {
+func NewKeyWithDigest(namespace string, setName string, key interface{}, digest []byte) (*Key, Error) {
 	newKey := &Key{
 		namespace: namespace,
 		setName:   setName,
@@ -125,9 +125,9 @@ func NewKeyWithDigest(namespace string, setName string, key interface{}, digest 
 }
 
 // SetDigest sets a custom hash
-func (ky *Key) SetDigest(digest []byte) error {
+func (ky *Key) SetDigest(digest []byte) Error {
 	if len(digest) != 20 {
-		return NewAerospikeError(types.PARAMETER_ERROR, "Invalid digest: Digest is required to be exactly 20 bytes.")
+		return newError(types.PARAMETER_ERROR, "Invalid digest: Digest is required to be exactly 20 bytes.")
 	}
 	copy(ky.digest[:], digest)
 	return nil
@@ -135,7 +135,7 @@ func (ky *Key) SetDigest(digest []byte) error {
 
 // Generate unique server hash value from set name, key type and user defined key.
 // The hash function is RIPEMD-160 (a 160 bit hash).
-func (ky *Key) computeDigest() error {
+func (ky *Key) computeDigest() Error {
 	// With custom changes to the ripemd160 package,
 	// now the following line does not allocate on the heap anymore/.
 	ky.keyWriter.hash.Reset()

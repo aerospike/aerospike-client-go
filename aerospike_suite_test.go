@@ -31,6 +31,7 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 	asl "github.com/aerospike/aerospike-client-go/logger"
+	ast "github.com/aerospike/aerospike-client-go/types"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
@@ -171,8 +172,8 @@ func info(client *as.Client, feature string) string {
 	node := client.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), feature)
 	if err != nil {
-		if ae, ok := err.(as.AerospikeError); ok {
-			return ae.Error()
+		if !err.Matches(ast.TIMEOUT, ast.NETWORK_ERROR) {
+			return err.Error()
 		} else {
 			log.Fatal("Failed to connect to aerospike: err:", err)
 		}
@@ -246,10 +247,9 @@ func initTLS() *tls.Config {
 			log.Fatalf("Failed to encode PEM data for key or certificate")
 		}
 
-		cert, err := tls.X509KeyPair(certPEM, keyPEM)
-
-		if err != nil {
-			log.Fatalf("Failed to add client certificate and key to the pool: `%s`", err)
+		cert, cerr := tls.X509KeyPair(certPEM, keyPEM)
+		if cerr != nil {
+			log.Fatalf("Failed to add client certificate and key to the pool: `%s`", cerr)
 		}
 
 		log.Printf("Adding client certificate and key to the pool...")

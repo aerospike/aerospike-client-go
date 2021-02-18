@@ -17,13 +17,13 @@
 package aerospike
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"reflect"
 	"strings"
 	"time"
 
+	"github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
@@ -38,7 +38,7 @@ func parseObject(
 	fieldCount int,
 	generation uint32,
 	expiration uint32,
-) error {
+) Error {
 	receiveOffset := 0
 
 	// There can be fields in the response (setname etc).
@@ -58,16 +58,16 @@ func parseObject(
 		rv := *cmd.object
 
 		if rv.Kind() != reflect.Ptr {
-			return errors.New("Invalid type for result object. It should be of type Struct Pointer.")
+			return ErrInvalidObjectType.err()
 		}
 		rv = rv.Elem()
 
 		if !rv.CanAddr() {
-			return errors.New("Invalid type for object. It should be addressable (a pointer)")
+			return ErrInvalidObjectType.err()
 		}
 
 		if rv.Kind() != reflect.Struct {
-			return errors.New("Invalid type for object. It should be a pointer to a struct.")
+			return ErrInvalidObjectType.err()
 		}
 
 		// find the name based on tag mapping
@@ -98,7 +98,7 @@ func parseObject(
 	return nil
 }
 
-func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) error {
+func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) Error {
 	// find the name based on tag mapping
 	iobj := indirect(obj)
 
@@ -121,7 +121,7 @@ func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) error {
 	return nil
 }
 
-func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName string, value interface{}, supportsFloat bool) error {
+func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName string, value interface{}, supportsFloat bool) Error {
 	if value == nil {
 		return nil
 	}
@@ -136,7 +136,7 @@ func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName stri
 	return setValue(f, value, supportsFloat)
 }
 
-func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
+func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 	// find the name based on tag mapping
 	if f.CanSet() {
 		if value == nil {
@@ -188,7 +188,7 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 			case bool:
 				f.SetBool(v)
 			default:
-				return fmt.Errorf("Invalid value `%#v` for boolean field", value)
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for boolean field", value))
 			}
 		case reflect.Interface:
 			if value != nil {
@@ -296,7 +296,7 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 				case bool:
 					tempV = v
 				default:
-					return fmt.Errorf("Invalid value `%#v` for boolean field", value)
+					return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for boolean field", value))
 				}
 
 				rv := reflect.ValueOf(&tempV)
@@ -404,7 +404,7 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 						if newMap.Type().Elem().NumField() == 0 {
 							newMap.SetMapIndex(newKey, emptyStruct)
 						} else {
-							return errors.New("Map value type is struct{}, but data returned from database is a non-empty map[interface{}]interface{}")
+							return newError(types.PARSE_ERROR, "Map value type is struct{}, but data returned from database is a non-empty map[interface{}]interface{}")
 						}
 					} else {
 						newMap.SetMapIndex(newKey, newVal)
@@ -434,7 +434,7 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 	return nil
 }
 
-func setStructValue(f reflect.Value, valMap map[interface{}]interface{}, supportsFloat bool, typeOfT reflect.Type, index []int) (err error) {
+func setStructValue(f reflect.Value, valMap map[interface{}]interface{}, supportsFloat bool, typeOfT reflect.Type, index []int) (err Error) {
 	numFields := typeOfT.NumField()
 	for i := 0; i < numFields; i++ {
 		fld := typeOfT.Field(i)

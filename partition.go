@@ -45,7 +45,7 @@ func NewPartition(partitions *Partitions, key *Key, replica ReplicaPolicy, linea
 }
 
 // PartitionForWrite returns a partition for write purposes
-func PartitionForWrite(cluster *Cluster, policy *BasePolicy, key *Key) (*Partition, error) {
+func PartitionForWrite(cluster *Cluster, policy *BasePolicy, key *Key) (*Partition, Error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	pmap := cluster.getPartitions()
 	partitions := pmap[key.namespace]
@@ -58,7 +58,7 @@ func PartitionForWrite(cluster *Cluster, policy *BasePolicy, key *Key) (*Partiti
 }
 
 // PartitionForRead returns a partition for read purposes
-func PartitionForRead(cluster *Cluster, policy *BasePolicy, key *Key) (*Partition, error) {
+func PartitionForRead(cluster *Cluster, policy *BasePolicy, key *Key) (*Partition, Error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	pmap := cluster.getPartitions()
 	partitions := pmap[key.namespace]
@@ -112,7 +112,7 @@ func GetReplicaPolicySC(policy *BasePolicy) ReplicaPolicy {
 }
 
 // GetNodeBatchRead returns a node for batch reads
-func GetNodeBatchRead(cluster *Cluster, key *Key, replica ReplicaPolicy, replicaSC ReplicaPolicy, sequence int, sequenceSC int) (*Node, error) {
+func GetNodeBatchRead(cluster *Cluster, key *Key, replica ReplicaPolicy, replicaSC ReplicaPolicy, sequence int, sequenceSC int) (*Node, Error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	pmap := cluster.getPartitions()
 	partitions := pmap[key.namespace]
@@ -132,7 +132,7 @@ func GetNodeBatchRead(cluster *Cluster, key *Key, replica ReplicaPolicy, replica
 }
 
 // GetNodeRead returns a node for read operations
-func (ptn *Partition) GetNodeRead(cluster *Cluster) (*Node, error) {
+func (ptn *Partition) GetNodeRead(cluster *Cluster) (*Node, Error) {
 	switch ptn.replica {
 	default:
 		fallthrough
@@ -154,7 +154,7 @@ func (ptn *Partition) GetNodeRead(cluster *Cluster) (*Node, error) {
 }
 
 // GetNodeWrite returns a node for write operations
-func (ptn *Partition) GetNodeWrite(cluster *Cluster) (*Node, error) {
+func (ptn *Partition) GetNodeWrite(cluster *Cluster) (*Node, Error) {
 	switch ptn.replica {
 	default:
 		fallthrough
@@ -186,7 +186,7 @@ func (ptn *Partition) PrepareRetryWrite(isClientTimeout bool) {
 	}
 }
 
-func (ptn *Partition) getSequenceNode(cluster *Cluster) (*Node, error) {
+func (ptn *Partition) getSequenceNode(cluster *Cluster) (*Node, Error) {
 	replicas := ptn.partitions.Replicas
 
 	for range replicas {
@@ -202,7 +202,7 @@ func (ptn *Partition) getSequenceNode(cluster *Cluster) (*Node, error) {
 	return nil, newInvalidNodeError(len(nodeArray), ptn)
 }
 
-func (ptn *Partition) getRackNode(cluster *Cluster) (*Node, error) {
+func (ptn *Partition) getRackNode(cluster *Cluster) (*Node, Error) {
 	replicas := ptn.partitions.Replicas
 	var fallback *Node
 
@@ -230,7 +230,7 @@ func (ptn *Partition) getRackNode(cluster *Cluster) (*Node, error) {
 	return nil, newInvalidNodeError(len(nodeArray), ptn)
 }
 
-func (ptn *Partition) getMasterNode(cluster *Cluster) (*Node, error) {
+func (ptn *Partition) getMasterNode(cluster *Cluster) (*Node, Error) {
 	node := ptn.partitions.Replicas[0][ptn.PartitionId]
 
 	if node != nil && node.IsActive() {
@@ -240,7 +240,7 @@ func (ptn *Partition) getMasterNode(cluster *Cluster) (*Node, error) {
 	return nil, newInvalidNodeError(len(nodeArray), ptn)
 }
 
-func (ptn *Partition) getMasterProlesNode(cluster *Cluster) (*Node, error) {
+func (ptn *Partition) getMasterProlesNode(cluster *Cluster) (*Node, Error) {
 	replicas := ptn.partitions.Replicas
 
 	for range replicas {
@@ -267,10 +267,10 @@ func (ptn *Partition) Equals(other *Partition) bool {
 
 // newnewInvalidNamespaceError creates an AerospikeError with Resultcode INVALID_NAMESPACE
 // and a corresponding message.
-func newInvalidNamespaceError(ns string, mapSize int) error {
+func newInvalidNamespaceError(ns string, mapSize int) Error {
 	s := "Partition map empty"
 	if mapSize != 0 {
 		s = "Namespace not found in partition map: " + ns
 	}
-	return NewAerospikeError(types.INVALID_NAMESPACE, s)
+	return newError(types.INVALID_NAMESPACE, s)
 }
