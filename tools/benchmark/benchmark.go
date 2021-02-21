@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -370,7 +371,8 @@ func randBytes(size int, xr *XorRand) []byte {
 }
 
 func incOnError(op, timeout *int, err error) {
-	if ae, ok := err.(ast.AerospikeError); ok && (ae.ResultCode() == ast.TIMEOUT || err == ast.ErrConnectionPoolEmpty || err == ast.ErrTooManyConnectionsForNode || err == ast.ErrTooManyOpeningConnections) {
+	ae := &as.AerospikeError{}
+	if errors.As(err, &ae) && ae.Matches(ast.TIMEOUT, as.ErrConnectionPoolEmpty.ResultCode, as.ErrTooManyConnectionsForNode.ResultCode, as.ErrTooManyOpeningConnections.ResultCode) {
 		*timeout++
 	} else {
 		*op++
