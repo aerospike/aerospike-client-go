@@ -31,9 +31,12 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 		var err error
 		var client *as.Client
 
+		dbHost := as.NewHost(*host, *port)
+		dbHost.TLSName = *nodeTLSName
+
 		gg.BeforeEach(func() {
 			// use the same client for all
-			client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
+			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
