@@ -29,6 +29,7 @@ type partitionTracker struct {
 	partitionBegin      int
 	nodeCapacity        int
 	nodeFilter          *Node
+	partitionFilter     *PartitionFilter
 	nodePartitionsList  []*nodePartitions
 	partitionsCapacity  int
 	maxRecords          int64
@@ -52,7 +53,8 @@ func newPartitionTrackerForNodes(policy *MultiPolicy, nodes []*Node) *partitionT
 		maxRecords:         policy.MaxRecords,
 	}
 
-	pt.partitionsAll = pt.initPartitionTracker(policy, _PARTITIONS, nil)
+	pt.partitionsAll = pt.initPartitions(policy, _PARTITIONS, nil)
+	pt.initTimeout(policy)
 	return &pt
 }
 
@@ -65,7 +67,8 @@ func newPartitionTrackerForNode(policy *MultiPolicy, nodeFilter *Node) *partitio
 		maxRecords:         policy.MaxRecords,
 	}
 
-	pt.partitionsAll = pt.initPartitionTracker(policy, _PARTITIONS, nil)
+	pt.partitionsAll = pt.initPartitions(policy, _PARTITIONS, nil)
+	pt.initTimeout(policy)
 	return &pt
 }
 
@@ -94,12 +97,34 @@ func newPartitionTracker(policy *MultiPolicy, filter *PartitionFilter, nodes []*
 		maxRecords:         policy.MaxRecords,
 	}
 
-	pt.partitionsAll = pt.initPartitionTracker(policy, filter.count, filter.digest)
+	if len(filter.partitions) == 0 {
+		filter.partitions = pt.initPartitions(policy, filter.count, filter.digest)
+	} else {
+		for _, part := range filter.partitions {
+			part.done = false
+		}
 
+	}
+
+	pt.partitionsAll = filter.partitions
+	pt.partitionFilter = filter
+	pt.initTimeout(policy)
 	return pt
 }
 
-func (pt *partitionTracker) initPartitionTracker(policy *MultiPolicy, partitionCount int, digest []byte) []*partitionStatus {
+func (pt *partitionTracker) initTimeout(policy *MultiPolicy) {
+	pt.sleepBetweenRetries = policy.SleepBetweenRetries
+	pt.socketTimeout = policy.SocketTimeout
+	pt.totalTimeout = policy.TotalTimeout
+	if pt.totalTimeout > 0 {
+		pt.deadline = time.Now().Add(pt.totalTimeout)
+		if pt.socketTimeout == 0 || pt.socketTimeout > pt.totalTimeout {
+			pt.socketTimeout = pt.totalTimeout
+		}
+	}
+}
+
+func (pt *partitionTracker) initPartitions(policy *MultiPolicy, partitionCount int, digest []byte) []*partitionStatus {
 	partsAll := make([]*partitionStatus, partitionCount)
 
 	for i := 0; i < partitionCount; i++ {
@@ -227,7 +252,14 @@ func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, error) {
 		partsReceived += np.partsReceived
 	}
 
-	if partsReceived >= partsRequested || (pt.maxRecords > 0 && recordCount >= pt.maxRecords) {
+	if partsReceived >= partsRequested {
+		if pt.partitionFilter != nil && recordCount > 0 {
+			pt.partitionFilter.done = true
+		}
+		return true, nil
+	}
+
+	if pt.maxRecords > 0 && recordCount >= pt.maxRecords {
 		return true, nil
 	}
 
@@ -319,14 +351,4 @@ func (np *nodePartitions) addPartition(part *partitionStatus) {
 		np.partsPartial = append(np.partsPartial, part)
 	}
 	np.partsRequested++
-}
-
-type partitionStatus struct {
-	id     int
-	done   bool
-	digest []byte
-}
-
-func newPartitionStatus(id int) *partitionStatus {
-	return &partitionStatus{id: id}
 }

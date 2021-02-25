@@ -33,30 +33,32 @@ func main() {
 
 func runExample(client *as.Client) {
 	log.Printf("Scan parallel: namespace=" + *shared.Namespace + " set=" + *shared.Set)
-
 	recordCount := 0
 	begin := time.Now()
 	policy := as.NewScanPolicy()
-	recordset, err := client.ScanAll(policy, *shared.Namespace, *shared.Set)
-	shared.PanicOnError(err)
+	policy.MaxRecords = 30
 
-	for rec := range recordset.Results() {
-		if rec.Err != nil {
-			// if there was an error, stop
-			shared.PanicOnError(err)
-		}
+	pf := as.NewPartitionFilterAll()
 
-		recordCount++
+	receivedRecords := 1
+	for receivedRecords > 0 {
+		receivedRecords = 0
 
-		if (recordCount % 100000) == 0 {
-			log.Println("Records ", recordCount)
+		log.Println("Scanning Page:", recordCount/int(policy.MaxRecords))
+		recordset, err := client.ScanPartitions(policy, pf, *shared.Namespace, *shared.Set)
+		shared.PanicOnError(err)
+
+		for rec := range recordset.Results() {
+			if rec.Err != nil {
+				// if there was an error, stop
+				shared.PanicOnError(err)
+			}
+
+			recordCount++
+			receivedRecords++
 		}
 	}
 
-	end := time.Now()
-	seconds := float64(end.Sub(begin)) / float64(time.Second)
 	log.Println("Total records returned: ", recordCount)
-	log.Println("Elapsed time: ", seconds, " seconds")
-	performance := shared.Round(float64(recordCount)/float64(seconds), 0.5, 0)
-	log.Println("Records/second: ", performance)
+	log.Println("Elapsed time: ", time.Since(begin), " seconds")
 }
