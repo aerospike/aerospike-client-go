@@ -58,18 +58,18 @@ To write 10,000,000 keys to the database (static bin data):
 
 ```$ ./benchmark -k 10000000```
 
-To generate a load consisting 50% reads and 50% updates (static bin data):
+To generate a load consisting 50% reads and 50% writes (static bin data):
 
 ```$ ./benchmark -k 10000000 -w RU,50```
 
-To generate a load consisting 50% reads and 50% updates, using random bin data:
+To generate a load consisting 50% reads and 50% writes, using random bin data:
 
 ```$ ./benchmark -k 10000000 -w RU,50 -R```
 
-To generate a load consisting 80% reads, using random bin data of strings 50 characters long:
+To generate a load consisting 80% reads and 20% writes, using random bin data of strings 50 characters long:
 
-```$ ./benchmark -k 10000000 -w RU,50 -R -o S:50```
+```$ ./benchmark -k 10000000 -w RU,80 -R -o S:50```
 
-To generate a load consisting 80% reads, using random bin data of strings 50 characters long, and set a timeout of 10ms:
+To generate a load consisting 80% reads and 20% writes, using random bin data of strings 50 characters long, and set a timeout of 10ms:
 
-```$ ./benchmark -k 10000000 -w RU,50 -R -o S:50 - T 50```
+```$ ./benchmark -k 10000000 -w RU,80 -R -o S:50 -T 10```
