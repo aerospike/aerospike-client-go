@@ -89,7 +89,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
 		if opCount != 1 {
-			return false, newNodeError(cmd.node, fmt.Errorf("Query aggregate command expects exactly only one bin. Received: %d", opCount))
+			return false, newCustomNodeError(cmd.node, types.PARSE_ERROR, fmt.Sprintf("Query aggregate command expects exactly only one bin. Received: %d", opCount))
 		}
 
 		if _, err := cmd.parseKey(fieldCount); err != nil {

@@ -17,6 +17,8 @@ package aerospike
 import (
 	"errors"
 	"fmt"
+	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/aerospike/aerospike-client-go/types"
@@ -36,12 +38,15 @@ type Error interface {
 	Matches(rcs ...types.ResultCode) bool
 	// Unwrap returns the error inside
 	Unwrap() error
+	// Trace returns a stack trace of where the error originates from
+	Trace() string
 
 	// wrapInside(e error) *AerospikeError
 	iter(int) Error
 	setInDoubt(bool, int) Error
 	setNode(*Node) Error
 	markInDoubt() Error
+	wrap(error)
 }
 
 // AerospikeError implements Error interface for aerospike specific errors.
@@ -82,6 +87,9 @@ type AerospikeError struct {
 	InDoubt bool
 	// Iteration determies on which retry the error occurred
 	Iteration int
+
+	// Includes stack frames for the error
+	stackFrames []stackFrame
 }
 
 var _ error = &AerospikeError{}
@@ -95,24 +103,24 @@ func newError(code types.ResultCode, messages ...string) Error {
 		messages = []string{types.ResultCodeToString(code)}
 	}
 
-	return &AerospikeError{msg: strings.Join(messages, " "), ResultCode: code}
+	return &AerospikeError{msg: strings.Join(messages, " "), ResultCode: code, stackFrames: stackTrace(nil)}
 }
 
 func newErrorAndWrap(e error, code types.ResultCode, messages ...string) Error {
 	ne := newError(code, messages...)
-	ne.(*AerospikeError).wrapped = e
+	ne.wrap(e)
 	return ne
 }
 
 func newTimeoutError(e error, messages ...string) Error {
 	ne := newError(types.TIMEOUT, messages...)
-	ne.(*AerospikeError).wrapped = e
+	ne.wrap(e)
 	return ne
 }
 
 func newCommonError(e error, messages ...string) Error {
 	ne := newError(types.COMMON_ERROR, messages...)
-	ne.(*AerospikeError).wrapped = e
+	ne.wrap(e)
 	return ne
 }
 
@@ -136,6 +144,25 @@ func (ase *AerospikeError) markInDoubt() Error {
 	return ase
 }
 
+// Trace returns a stack trace of where the error originates from
+func (ase *AerospikeError) Trace() string {
+	var sb strings.Builder
+	for i := range ase.stackFrames {
+		sb.WriteString(ase.stackFrames[i].String())
+		sb.WriteString("\n")
+	}
+
+	if ase.wrapped != nil {
+		ae := new(AerospikeError)
+		if errors.As(ase.wrapped, &ae) {
+			sb.WriteString("Embedded:\n")
+			sb.WriteString(ae.Trace())
+		}
+	}
+
+	return sb.String()
+}
+
 // Error implements the error interface
 func (ase *AerospikeError) Error() string {
 	const cErr = "ResultCode: %s, Iteration: %d, InDoubt: %t, Node: %s: %s"
@@ -144,6 +171,10 @@ func (ase *AerospikeError) Error() string {
 		return fmt.Sprintf(cErrNL, ase.ResultCode.String(), ase.Iteration, ase.InDoubt, ase.Node, ase.msg, ase.wrapped.Error())
 	}
 	return fmt.Sprintf(cErr, ase.ResultCode.String(), ase.Iteration, ase.InDoubt, ase.Node, ase.msg)
+}
+
+func (ase *AerospikeError) wrap(err error) {
+	ase.wrapped = err
 }
 
 // chain wraps an error inside a new error. The new error cannot be nil.
@@ -220,6 +251,7 @@ func (ase *AerospikeError) Is(e error) bool {
 		(ase.Node == target.Node || target.Node == nil)
 }
 
+// Unwrap returns the error wraped inside this error
 func (ase *AerospikeError) Unwrap() error {
 	return ase.wrapped
 }
@@ -228,23 +260,29 @@ func (ase *AerospikeError) Unwrap() error {
 	Node Error
 */
 
-func newNodeError(node *Node, err error) Error {
-	return &AerospikeError{
-		wrapped: err,
-		Node:    node,
+func newNodeError(node *Node, err Error) Error {
+	if err == nil {
+		return nil
 	}
+
+	ae := new(AerospikeError)
+	errors.As(err, ae)
+
+	res := *ae
+	res.Node = node
+	res.wrap(err)
+	return &res
 }
 
 func newCustomNodeError(node *Node, code types.ResultCode, messages ...string) Error {
 	ne := newError(code, messages...)
-	ne.(*AerospikeError).Node = node
+	ne.setNode(node)
 	return ne
 }
 
 func newWrapNetworkError(err error, messages ...string) Error {
-	panic(err)
 	ne := newError(types.NETWORK_ERROR, messages...)
-	ne.(*AerospikeError).wrapped = err
+	ne.wrap(err)
 	return ne
 }
 
@@ -253,7 +291,9 @@ func newInvalidNodeError(clusterSize int, partition *Partition) Error {
 	if clusterSize == 0 {
 		return ErrClusterIsEmpty.err()
 	}
-	return newError(types.INVALID_NODE_ERROR, "Node not found for partition "+partition.String()+" in partition table.")
+	res := newError(types.INVALID_NODE_ERROR, "Node not found for partition "+partition.String()+" in partition table.")
+	res.wrap(nil)
+	return res
 }
 
 /*
@@ -278,6 +318,7 @@ func newConstError(code types.ResultCode, messages ...string) *constAerospikeErr
 
 func (ase *constAerospikeError) err() Error {
 	v := ase.AerospikeError
+	v.wrap(nil)
 	return &v
 }
 
@@ -333,4 +374,36 @@ func chainErrors(outer Error, inner error) Error {
 
 	ae.wrapped = inner
 	return ae
+}
+
+type stackFrame struct {
+	fl, fn string
+	ln     int
+}
+
+func (st *stackFrame) String() string {
+	return st.fl + ":" + strconv.Itoa(st.ln) + " " + st.fn + "()"
+}
+
+func stackTrace(err Error) []stackFrame {
+	const maxDepth = 10
+	sFrames := make([]stackFrame, 0, maxDepth)
+	for i := 3; i <= maxDepth+3; i++ {
+		pc, fl, ln, ok := runtime.Caller(i)
+		if !ok {
+			break
+		}
+		fn := runtime.FuncForPC(pc)
+		sFrame := stackFrame{
+			fl: fl,
+			fn: fn.Name(),
+			ln: ln,
+		}
+		sFrames = append(sFrames, sFrame)
+	}
+
+	if len(sFrames) > 0 {
+		return sFrames
+	}
+	return nil
 }
