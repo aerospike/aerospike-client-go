@@ -126,7 +126,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 	// setup auth info for cluster
 	if policy.RequiresAuthentication() {
 		if policy.AuthMode == AuthModeExternal && policy.TlsConfig == nil {
-			return nil, errors.New("External Authentication requires TLS configuration to be set, because it sends clear password on the wire.")
+			return nil, errors.New("external Authentication requires TLS configuration to be set, because it sends clear password on the wire")
 		}
 
 		newCluster.user = policy.User
@@ -145,7 +145,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, error) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("Failed to connect to host(s): %v. The network connection(s) to cluster nodes may have timed out, or the cluster may be in a state of flux.", hosts)
+		return nil, fmt.Errorf("failed to connect to host(s): %v. The network connection(s) to cluster nodes may have timed out, or the cluster may be in a state of flux", hosts)
 	}
 
 	// start up cluster maintenance go routine
@@ -534,7 +534,7 @@ func (clstr *Cluster) waitTillStabilized() error {
 		if clstr.clientPolicy.FailIfNotConnected {
 			clstr.Close()
 		}
-		return errors.New("Connecting to the cluster timed out.")
+		return errors.New("connecting to the cluster timed out")
 	case err := <-doneCh:
 		if err != nil && clstr.clientPolicy.FailIfNotConnected {
 			clstr.Close()
@@ -588,10 +588,10 @@ func (clstr *Cluster) seedNodes() (bool, error) {
 	// Must copy array reference for copy on write semantics to work.
 	seedArrayIfc, _ := clstr.seeds.GetSyncedVia(func(val interface{}) (interface{}, error) {
 		seeds := val.([]*Host)
-		seeds_copy := make([]*Host, len(seeds))
-		copy(seeds_copy, seeds)
+		seedsCopy := make([]*Host, len(seeds))
+		copy(seedsCopy, seeds)
 
-		return seeds_copy, nil
+		return seedsCopy, nil
 	})
 
 	// discover seed IPs from DNS or Load Balancers
@@ -603,8 +603,8 @@ func (clstr *Cluster) seedNodes() (bool, error) {
 	logger.Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
 	// Add all nodes at once to avoid copying entire array multiple times.
-	for i, seed := range seedArray {
-		go func(index int, seed *Host) {
+	for _, seed := range seedArray {
+		go func(seed *Host) {
 			nodesToAdd := make(nodesToAddT, 128)
 			nv := nodeValidator{}
 			err := nv.seedNodes(clstr, seed, nodesToAdd)
@@ -615,7 +615,7 @@ func (clstr *Cluster) seedNodes() (bool, error) {
 			}
 			clstr.addNodes(nodesToAdd)
 			successChan <- struct{}{}
-		}(i, seed)
+		}(seed)
 	}
 
 	errorList := make([]error, 0, len(seedArray))
