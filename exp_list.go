@@ -480,7 +480,7 @@ func ExpListGetByValueRelativeRankRangeCount(
 // selected data specified by returnType.
 func ExpListGetByIndex(
 	returnType ListReturnType,
-	value_type ExpType,
+	valueType ExpType,
 	index *FilterExpression,
 	bin *FilterExpression,
 	ctx ...*CDTContext,
@@ -491,7 +491,7 @@ func ExpListGetByIndex(
 		index,
 		cdtContextList(ctx),
 	}
-	return cdtListAddRead(bin, value_type, args)
+	return cdtListAddRead(bin, valueType, args)
 }
 
 // ExpListGetByIndexRange creates an expression that selects list items starting at specified index to the end of list
@@ -534,7 +534,7 @@ func ExpListGetByIndexRangeCount(
 // data specified by returnType.
 func ExpListGetByRank(
 	returnType ListReturnType,
-	value_type ExpType,
+	valueType ExpType,
 	rank *FilterExpression,
 	bin *FilterExpression,
 	ctx ...*CDTContext,
@@ -545,7 +545,7 @@ func ExpListGetByRank(
 		rank,
 		cdtContextList(ctx),
 	}
-	return cdtListAddRead(bin, value_type, args)
+	return cdtListAddRead(bin, valueType, args)
 }
 
 // ExpListGetByRankRange creates an expression that selects list items starting at specified rank to the last ranked item
