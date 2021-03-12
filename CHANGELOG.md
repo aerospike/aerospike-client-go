@@ -1,5 +1,16 @@
 # Change History
 
+## March 12 2021: v4.4.0
+  Minor fix and improvements release. 
+
+  * **Fixes**
+
+    - Fixes an issue where the client's reflection API expected certain `int` value types returned from the database. That assumption was wrong for `CDT`s and free form `List`s and `Map`s. The client will now convert types to each other per Go's conversion rules where possible.
+
+  * **Improvements**
+
+    - Use a global TLS setting everywhere in tests.
+
 ## March 1 2021: v4.3.0
   Minor feature and fix and major clean up release. While there aren't many user facing changes, the quality of the code has been markedly improved. 
   This release puts us on a good footing for the next few bigger releases.
