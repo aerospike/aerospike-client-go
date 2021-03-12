@@ -153,6 +153,10 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 			v = v.Convert(f.Type())
 			f.Set(v)
 		case reflect.Float64, reflect.Float32:
+			if v, ok := value.(float32); ok {
+				value = float64(v)
+			}
+
 			// if value has returned as a float
 			if fv, ok := value.(float64); ok {
 				f.SetFloat(fv)
@@ -231,6 +235,10 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) error {
 				}
 				f.Set(rv)
 			case reflect.Float32:
+				if v, ok := value.(float32); ok {
+					value = float64(v)
+				}
+
 				// it is possible that the value is an integer set in the field
 				// via the old float<->int64 type cast
 				var tempV64 float64
