@@ -53,6 +53,7 @@ var (
 	nodeTLSName       = flag.String("node_tls_name", "", "Node's TLS name.")
 	rootCA            = flag.String("root_ca", "", "Root certificate.")
 
+	tlsConfig    *tls.Config
 	clientPolicy *as.ClientPolicy
 	client       *as.Client
 )
@@ -83,7 +84,8 @@ func initTestVars() {
 	}
 
 	// setup TLS
-	clientPolicy.TlsConfig = initTLS()
+	tlsConfig = initTLS()
+	clientPolicy.TlsConfig = tlsConfig
 
 	dbHost := as.NewHost(*host, *port)
 	dbHost.TLSName = *nodeTLSName

@@ -46,6 +46,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 				gg.It("must return error if it fails to authenticate", func() {
 					clientPolicy := as.NewClientPolicy()
+					clientPolicy.TlsConfig = tlsConfig
 					clientPolicy.User = "non_existent_user"
 					clientPolicy.Password = "non_existent_user"
 
@@ -61,6 +62,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 			gg.It("must return a new connection on every poll", func() {
 				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
 				clientPolicy.LimitConnectionsToQueueSize = false
 				clientPolicy.ConnectionQueueSize = 4
 				clientPolicy.User = *user
@@ -89,6 +91,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 			gg.It("must return an error when maximum number of connections are polled", func() {
 				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
 				clientPolicy.LimitConnectionsToQueueSize = true
 				clientPolicy.ConnectionQueueSize = 4
 				clientPolicy.User = *user
@@ -135,6 +138,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 			gg.It("must reuse connections before they become idle", func() {
 				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
 				// clientPolicy.TendInterval = time.Hour
 				clientPolicy.User = *user
@@ -226,6 +230,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 			gg.It("must maintain a minimum number of connections per client policy even if idle", func() {
 				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
 				clientPolicy.IdleTimeout = 2000 * time.Millisecond
 				clientPolicy.MinConnectionsPerNode = 5
 				clientPolicy.User = *user
@@ -248,6 +253,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 			gg.It("must delay the connection from becoming idle if it is put back in the queue", func() {
 				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
