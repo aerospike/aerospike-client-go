@@ -50,7 +50,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 					clientPolicy.User = "non_existent_user"
 					clientPolicy.Password = "non_existent_user"
 
-					client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
+					client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 					gm.Expect(err).To(gm.HaveOccurred())
 				})
 
@@ -68,7 +68,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
-				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
@@ -97,7 +97,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
-				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
@@ -144,7 +144,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
-				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
@@ -236,7 +236,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
-				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
@@ -258,7 +258,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
 
-				client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
