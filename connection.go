@@ -132,7 +132,7 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
 
 	sconn := tls.Client(conn.conn, tlsConfig)
 	if err := sconn.Handshake(); err != nil {
-		if cerr := sconn.Close(); err != nil {
+		if cerr := sconn.Close(); cerr != nil {
 			logger.Logger.Debug("Closing connection after handshake error failed: %s", cerr.Error())
 		}
 		return nil, err
@@ -140,7 +140,7 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, error) {
 
 	if host.TLSName != "" && !tlsConfig.InsecureSkipVerify {
 		if err := sconn.VerifyHostname(host.TLSName); err != nil {
-			if cerr := sconn.Close(); err != nil {
+			if cerr := sconn.Close(); cerr != nil {
 				logger.Logger.Debug("Closing connection after VerifyHostName error failed: %s", cerr.Error())
 			}
 			logger.Logger.Error("Connection to address `%s` failed to establish with error: %s", address, err.Error())
