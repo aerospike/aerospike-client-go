@@ -338,7 +338,9 @@ var _ = gg.Describe("Query operations", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
-			for rec := range recordset.Records {
+			for res := range recordset.Results() {
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				rec := res.Record
 				results := rec.Bins["SUCCESS"].(map[interface{}]interface{})
 				gm.Expect(results["bin4"]).To(gm.Equal("constValue"))
 				// gm.Expect(results["bin5"]).To(gm.Equal(-1))

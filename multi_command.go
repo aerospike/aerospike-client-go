@@ -323,7 +323,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			// block forever, or panic in case the channel is closed in the meantime.
 			select {
 			// send back the result on the async channel
-			case cmd.recordset.Records <- newRecord(cmd.node, key, bins, generation, expiration):
+			case cmd.recordset.records <- &Result{Record: newRecord(cmd.node, key, bins, generation, expiration), Err: nil}:
 			case <-cmd.recordset.cancelled:
 				switch cmd.terminationErrorType {
 				case types.SCAN_TERMINATED:

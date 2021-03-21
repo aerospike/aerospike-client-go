@@ -125,7 +125,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 		}()
 
 		for val := range outputChan {
-			recSet.Records <- &Record{Bins: BinMap{"SUCCESS": val}}
+			recSet.records <- &Result{Record: &Record{Bins: BinMap{"SUCCESS": val}}, Err: nil}
 		}
 	}()
 
