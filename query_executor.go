@@ -15,57 +15,47 @@
 package aerospike
 
 import (
-	"context"
-	"sync"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/logger"
-	"golang.org/x/sync/semaphore"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
 )
 
-func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, rs *Recordset) Error {
-	defer rs.signalEnd()
+func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, recordset *Recordset) {
+	defer recordset.signalEnd()
 
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
+	var errs Error
 	for {
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), statement.Namespace)
 		if err != nil {
-			return err
+			errs = chainErrors(err, errs)
+			recordset.sendError(errs)
+			return
 		}
 
-		wg := new(sync.WaitGroup)
-
-		// the whole call should be wrapped in a goroutine
-		wg.Add(len(list))
-
-		// results channel must be async for performance
 		maxConcurrentNodes := policy.MaxConcurrentNodes
 		if maxConcurrentNodes <= 0 {
 			maxConcurrentNodes = len(list)
 		}
-		sem := semaphore.NewWeighted(int64(maxConcurrentNodes))
-		ctx := context.Background()
-		for _, nodePartition := range list {
-			if serr := sem.Acquire(ctx, 1); err != nil {
-				logger.Logger.Error("Constraint Semaphore failed for Query: %s", serr.Error())
-			}
-			go func(nodePartition *nodePartitions) {
-				defer sem.Release(1)
-				defer wg.Done()
-				if err := clnt.queryNodePartition(policy, rs, tracker, nodePartition, statement); err != nil {
-					logger.Logger.Debug("Error while Executing query for node %s: %s", nodePartition.node.String(), err.Error())
-				}
-			}(nodePartition)
-		}
 
-		wg.Wait()
+		weg := newWeightedErrGroup(maxConcurrentNodes)
+		for _, nodePartition := range list {
+			cmd := newQueryPartitionCommand(policy, tracker, nodePartition, statement, recordset)
+			weg.execute(cmd)
+		}
+		// no need to manage the errors; they are send back via the recordset
+		weg.wait()
 
 		done, err := tracker.isComplete(&policy.BasePolicy)
 		if done || err != nil {
 			// Query is complete.
-			return err
+			if err != nil {
+				errs = chainErrors(err, errs)
+				recordset.sendError(errs)
+			}
+			return
 		}
 
 		if policy.SleepBetweenRetries > 0 {
@@ -77,14 +67,24 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 			}
 		}
 
-		rs.resetTaskID()
+		recordset.resetTaskID()
 	}
 
 }
 
-// QueryNode reads all records in specified namespace and set for one node only.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) queryNodePartition(policy *QueryPolicy, recordset *Recordset, tracker *partitionTracker, nodePartition *nodePartitions, statement *Statement) Error {
-	command := newQueryPartitionCommand(policy, tracker, nodePartition, statement, recordset)
-	return command.Execute()
+func (clnt *Client) queryNodes(policy *QueryPolicy, recordset *Recordset, clusterKey int64, statement *Statement, nodes ...*Node) {
+	maxConcurrentNodes := policy.MaxConcurrentNodes
+	if maxConcurrentNodes <= 0 {
+		maxConcurrentNodes = len(nodes)
+	}
+
+	weg := newWeightedErrGroup(maxConcurrentNodes)
+	first := atomic.NewBool(true)
+	for _, node := range nodes {
+		cmd := newQueryRecordCommand(node, policy, statement, recordset, clusterKey, first.CompareAndToggle(true))
+		weg.executeFunc(cmd, func() { recordset.signalEnd() })
+	}
+
+	// skip the wg.wait, no need to sync here; Recordset will do the sync
+	// wg.wait
 }

@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -24,12 +23,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"golang.org/x/sync/semaphore"
-
-	"github.com/aerospike/aerospike-client-go/internal/atomic"
 	"github.com/aerospike/aerospike-client-go/logger"
 	"github.com/aerospike/aerospike-client-go/types"
 )
@@ -535,51 +530,19 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 	}
 
 	policy := *clnt.getUsableScanPolicy(apolicy)
-
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, ErrClusterIsEmpty.err()
 	}
 
-	clusterKey := int64(0)
-	if policy.FailOnClusterChange {
-		var err Error
-		clusterKey, err = queryValidateBegin(nodes[0], namespace)
-		if err != nil {
-			return nil, err
-		}
+	clusterKey, err := clnt.clusterKey(&policy.MultiPolicy, nodes[0], namespace)
+	if err != nil {
+		return nil, err
 	}
-
-	first := atomic.NewBool(true)
 
 	// result recordset
 	res := newRecordset(policy.RecordQueueSize, len(nodes))
-
-	// the whole call should be wrapped in a goroutine
-	if policy.ConcurrentNodes && len(nodes) > 1 {
-		maxConcurrentNodes := policy.MaxConcurrentNodes
-		if maxConcurrentNodes <= 0 {
-			maxConcurrentNodes = len(nodes)
-		}
-		sem := semaphore.NewWeighted(int64(maxConcurrentNodes))
-		ctx := context.Background()
-		for _, node := range nodes {
-			if err := sem.Acquire(ctx, 1); err != nil {
-				logger.Logger.Error("Constraint Semaphore failed for Scan: %s", err.Error())
-			}
-			go func(node *Node, first bool) {
-				defer sem.Release(1)
-				clnt.scanNode(&policy, node, res, namespace, setName, clusterKey, first, binNames...)
-			}(node, first.CompareAndToggle(true))
-		}
-	} else {
-		// scan nodes one by one
-		go func() {
-			for _, node := range nodes {
-				clnt.scanNode(&policy, node, res, namespace, setName, clusterKey, first.CompareAndToggle(true), binNames...)
-			}
-		}()
-	}
+	clnt.scanNodes(&policy, res, clusterKey, namespace, setName, binNames, nodes...)
 
 	return res, nil
 }
@@ -588,7 +551,6 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) scanNodePartitions(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
-
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
 
 	// result recordset
@@ -606,29 +568,15 @@ func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, 
 	}
 
 	policy := *clnt.getUsableScanPolicy(apolicy)
-
-	clusterKey := int64(0)
-	if policy.FailOnClusterChange {
-		var err Error
-		clusterKey, err = queryValidateBegin(node, namespace)
-		if err != nil {
-			return nil, err
-		}
+	clusterKey, err := clnt.clusterKey(&policy.MultiPolicy, node, namespace)
+	if err != nil {
+		return nil, err
 	}
 
 	// results channel must be async for performance
 	res := newRecordset(policy.RecordQueueSize, 1)
-
-	go clnt.scanNode(&policy, node, res, namespace, setName, clusterKey, true, binNames...)
+	clnt.scanNodes(&policy, res, clusterKey, namespace, setName, binNames, node)
 	return res, nil
-}
-
-// ScanNode reads all records in specified namespace and set for one node only.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNode(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, clusterKey int64, first bool, binNames ...string) Error {
-	defer recordset.signalEnd()
-	command := newScanCommand(node, policy, namespace, setName, binNames, recordset, clusterKey, first)
-	return command.Execute()
 }
 
 //---------------------------------------------------------------
@@ -993,14 +941,12 @@ func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, p
 	}
 
 	policy = clnt.getUsableQueryPolicy(policy)
-
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, ErrClusterIsEmpty.err()
 	}
 
 	var tracker *partitionTracker
-
 	if partitionFilter == nil {
 		tracker = newPartitionTrackerForNodes(&policy.MultiPolicy, nodes)
 	} else {
@@ -1012,6 +958,13 @@ func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, p
 	go clnt.queryPartitions(policy, tracker, statement, res)
 
 	return res, nil
+}
+
+func (clnt *Client) clusterKey(policy *MultiPolicy, node *Node, namespace string) (int64, Error) {
+	if policy.FailOnClusterChange {
+		return queryValidateBegin(node, namespace)
+	}
+	return 0, nil
 }
 
 // Query executes a query and returns a Recordset.
@@ -1027,44 +980,21 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 	}
 
 	policy = clnt.getUsableQueryPolicy(policy)
-
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, ErrClusterIsEmpty.err()
 	}
 
-	clusterKey := int64(0)
-	if policy.FailOnClusterChange {
-		var err Error
-		clusterKey, err = queryValidateBegin(nodes[0], statement.Namespace)
-		if err != nil {
-			return nil, err
-		}
+	clusterKey, err := clnt.clusterKey(&policy.MultiPolicy, nodes[0], statement.Namespace)
+	if err != nil {
+		return nil, err
 	}
-
-	first := atomic.NewBool(true)
 
 	// results channel must be async for performance
-	recSet := newRecordset(policy.RecordQueueSize, len(nodes))
+	recordset := newRecordset(policy.RecordQueueSize, len(nodes))
+	clnt.queryNodes(policy, recordset, clusterKey, statement, nodes...)
 
-	// results channel must be async for performance
-	maxConcurrentNodes := policy.MaxConcurrentNodes
-	if maxConcurrentNodes <= 0 {
-		maxConcurrentNodes = len(nodes)
-	}
-	sem := semaphore.NewWeighted(int64(maxConcurrentNodes))
-	ctx := context.Background()
-	for _, node := range nodes {
-		if err := sem.Acquire(ctx, 1); err != nil {
-			logger.Logger.Error("Constraint Semaphore failed for Query: %s", err.Error())
-		}
-		go func(node *Node, first bool) {
-			defer sem.Release(1)
-			clnt.queryNode(node, policy, statement, recSet, clusterKey, first)
-		}(node, first.CompareAndToggle(true))
-	}
-
-	return recSet, nil
+	return recordset, nil
 }
 
 // QueryNode executes a query on a specific node and returns a recordset.
@@ -1079,28 +1009,20 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 	}
 
 	policy = clnt.getUsableQueryPolicy(policy)
-
-	// results channel must be async for performance
-	recSet := newRecordset(policy.RecordQueueSize, 1)
-
-	clusterKey := int64(0)
-	if policy.FailOnClusterChange {
-		var err Error
-		clusterKey, err = queryValidateBegin(node, statement.Namespace)
-		if err != nil {
-			return nil, err
-		}
+	clusterKey, err := clnt.clusterKey(&policy.MultiPolicy, node, statement.Namespace)
+	if err != nil {
+		return nil, err
 	}
 
-	// copy policies to avoid race conditions
-	go clnt.queryNode(node, policy, statement, recSet, clusterKey, true)
+	// results channel must be async for performance
+	recordset := newRecordset(policy.RecordQueueSize, 1)
+	clnt.queryNodes(policy, recordset, clusterKey, statement, node)
 
-	return recSet, nil
+	return recordset, nil
 }
 
 func (clnt *Client) queryNodePartitions(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
-
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
 
 	// result recordset
@@ -1108,21 +1030,6 @@ func (clnt *Client) queryNodePartitions(policy *QueryPolicy, node *Node, stateme
 	go clnt.queryPartitions(policy, tracker, statement, res)
 
 	return res, nil
-}
-
-// queryNode executes a query on a specific node and returns a recordset.
-// The caller can concurrently pop records off the channel through the
-// record channel.
-//
-// This method is only supported by Aerospike 3+ servers.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) queryNode(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset, clusterKey int64, first bool) Error {
-	defer recordset.signalEnd()
-
-	// copy policies to avoid race conditions
-	newPolicy := *policy
-	command := newQueryRecordCommand(node, &newPolicy, statement, recordset, clusterKey, first)
-	return command.Execute()
 }
 
 //--------------------------------------------------------
@@ -1534,59 +1441,6 @@ func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[
 	}
 
 	return results, nil
-}
-
-// batchExecute Uses sync.WaitGroup to run commands using multiple goroutines,
-// and waits for their return
-func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, cmd batcher) (int, Error) {
-	var wg sync.WaitGroup
-	filteredOut := 0
-
-	// Use a goroutine per namespace per node
-	var errs Error
-	errm := new(sync.Mutex)
-
-	wg.Add(len(batchNodes))
-	if policy.ConcurrentNodes <= 0 {
-		for _, batchNode := range batchNodes {
-			newCmd := cmd.cloneBatchCommand(batchNode)
-			go func(cmd command) {
-				defer wg.Done()
-				err := cmd.Execute()
-				errm.Lock()
-				if err != nil {
-					errs = chainErrors(err, errs)
-				}
-				filteredOut += cmd.(batcher).filteredOut()
-				errm.Unlock()
-			}(newCmd)
-		}
-	} else {
-		sem := semaphore.NewWeighted(int64(policy.ConcurrentNodes))
-		ctx := context.Background()
-
-		for _, batchNode := range batchNodes {
-			if err := sem.Acquire(ctx, 1); err != nil {
-				logger.Logger.Error("Constraint Semaphore failed for Batch: %s", err.Error())
-			}
-
-			newCmd := cmd.cloneBatchCommand(batchNode)
-			go func(cmd command) {
-				defer sem.Release(1)
-				defer wg.Done()
-				err := cmd.Execute()
-				errm.Lock()
-				if err != nil {
-					errs = chainErrors(err, errs)
-				}
-				filteredOut += cmd.(batcher).filteredOut()
-				errm.Unlock()
-			}(newCmd)
-		}
-	}
-
-	wg.Wait()
-	return filteredOut, errs
 }
 
 //-------------------------------------------------------

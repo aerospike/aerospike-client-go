@@ -15,69 +15,50 @@
 package aerospike
 
 import (
-	"context"
-	"sync"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/logger"
-	"golang.org/x/sync/semaphore"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
 )
 
-func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker, namespace string, setName string, rs *Recordset, binNames ...string) Error {
-	defer rs.signalEnd()
+func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker, namespace string, setName string, recordset *Recordset, binNames ...string) {
+	defer recordset.signalEnd()
 
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
+
+	var errs Error
 	for {
-		rs.resetTaskID()
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), namespace)
 		if err != nil {
-			return err
+			errs = chainErrors(err, errs)
+			recordset.sendError(errs)
+			return
 		}
 
-		wg := new(sync.WaitGroup)
-
-		// the whole call should be wrapped in a goroutine
-		if policy.ConcurrentNodes && len(list) > 1 {
-			wg.Add(len(list))
-
-			maxConcurrentNodes := policy.MaxConcurrentNodes
-			if maxConcurrentNodes <= 0 {
-				maxConcurrentNodes = len(list)
-			}
-			sem := semaphore.NewWeighted(int64(maxConcurrentNodes))
-			ctx := context.Background()
-
-			for _, nodePartition := range list {
-				if err := sem.Acquire(ctx, 1); err != nil {
-					logger.Logger.Error("Constraint Semaphore failed for Scan: %s", err.Error())
-				}
-				go func(nodePartition *nodePartitions) {
-					defer sem.Release(1)
-					defer wg.Done()
-					if err := clnt.scanNodePartition(policy, rs, tracker, nodePartition, namespace, setName, binNames...); err != nil {
-						logger.Logger.Debug("Error while Executing scan for node %s: %s", nodePartition.node.String(), err.Error())
-					}
-				}(nodePartition)
-			}
-		} else {
-			wg.Add(1)
-			// scan nodes one by one
-			go func() {
-				defer wg.Done()
-				for _, nodePartition := range list {
-					if err := clnt.scanNodePartition(policy, rs, tracker, nodePartition, namespace, setName, binNames...); err != nil {
-						logger.Logger.Debug("Error while Executing scan for node %s: %s", nodePartition.node.String(), err.Error())
-					}
-				}
-			}()
+		maxConcurrentNodes := policy.MaxConcurrentNodes
+		if maxConcurrentNodes <= 0 {
+			maxConcurrentNodes = len(list)
 		}
 
-		wg.Wait()
+		if !policy.ConcurrentNodes {
+			maxConcurrentNodes = 1
+		}
+
+		weg := newWeightedErrGroup(maxConcurrentNodes)
+		for _, nodePartition := range list {
+			cmd := newScanPartitionCommand(policy, tracker, nodePartition, namespace, setName, binNames, recordset)
+			weg.execute(cmd)
+		}
+		// no need to manage the errors; they are send back via the recordset
+		weg.wait()
 
 		if done, err := tracker.isComplete(&policy.BasePolicy); done || err != nil {
 			// Scan is complete.
-			return err
+			if err != nil {
+				errs = chainErrors(err, errs)
+				recordset.sendError(errs)
+			}
+			return
 		}
 
 		if policy.SleepBetweenRetries > 0 {
@@ -88,13 +69,29 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 				interval = time.Duration(float64(interval) * policy.SleepMultiplier)
 			}
 		}
+
+		recordset.resetTaskID()
 	}
 
 }
 
-// ScanNode reads all records in specified namespace and set for one node only.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodePartition(policy *ScanPolicy, recordset *Recordset, tracker *partitionTracker, nodePartition *nodePartitions, namespace string, setName string, binNames ...string) Error {
-	command := newScanPartitionCommand(policy, tracker, nodePartition, namespace, setName, binNames, recordset)
-	return command.Execute()
+func (clnt *Client) scanNodes(policy *ScanPolicy, recordset *Recordset, clusterKey int64, namespace, setName string, binNames []string, nodes ...*Node) {
+	maxConcurrentNodes := policy.MaxConcurrentNodes
+	if maxConcurrentNodes <= 0 {
+		maxConcurrentNodes = len(nodes)
+	}
+
+	if !policy.ConcurrentNodes {
+		maxConcurrentNodes = 1
+	}
+
+	weg := newWeightedErrGroup(maxConcurrentNodes)
+	first := atomic.NewBool(true)
+	for _, node := range nodes {
+		cmd := newScanCommand(node, policy, namespace, setName, binNames, recordset, clusterKey, first.CompareAndToggle(true))
+		weg.executeFunc(cmd, func() { recordset.signalEnd() })
+	}
+
+	// skip the wg.wait, no need to sync here; Recordset will do the sync
+	// wg.wait
 }

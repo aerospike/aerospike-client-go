@@ -24,8 +24,6 @@ import (
 	"github.com/aerospike/aerospike-client-go/types"
 )
 
-var _ error = errors.New("Must match the interface")
-
 // Error is the internal error interface for the Aerospike client's errors.
 // All the public API return this error type. This interface is compatible
 // with error interface, including errors.Is and errors.As.
@@ -251,7 +249,7 @@ func (ase *AerospikeError) Is(e error) bool {
 		(ase.Node == target.Node || target.Node == nil)
 }
 
-// Unwrap returns the error wraped inside this error
+// Unwrap will return the error wrapped inside the error, or nil.
 func (ase *AerospikeError) Unwrap() error {
 	return ase.wrapped
 }

@@ -179,21 +179,21 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
 func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 	// make sure all bytes are written
 	// Don't worry about the loop, timeout has been set elsewhere
-	if err := ctn.updateDeadline(); err != nil {
-		aerr = errToAerospikeErr(ctn, err)
-	}
+	err := ctn.updateDeadline()
+	if err == nil {
+		total, err := ctn.conn.Write(buf)
+		if err == nil {
+			return total, nil
+		}
 
-	if total, err := ctn.conn.Write(buf); err == nil {
-		return total, nil
-	} else {
 		// If all bytes are written, ignore any potential error
 		// The error will bubble up on the next network io if it matters.
 		if total == len(buf) {
 			return total, nil
 		}
-
-		aerr = errToAerospikeErr(ctn, err)
 	}
+
+	aerr = chainErrors(errToAerospikeErr(ctn, err), aerr)
 
 	if ctn.node != nil {
 		ctn.node.incrErrorCount()
@@ -211,32 +211,26 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 
 	// if all bytes are not read, retry until successful
 	// Don't worry about the loop; we've already set the timeout elsewhere
-	for total < length {
-		var r int
-		if err = ctn.updateDeadline(); err != nil {
-			break
-		}
-
+	err = ctn.updateDeadline()
+	if err == nil {
 		if !ctn.compressed {
-			r, err = ctn.conn.Read(buf[total:length])
+			total, err = io.ReadFull(ctn.conn, buf[:length])
 		} else {
-			r, err = ctn.inflater.Read(buf[total:length])
-			if err == io.EOF && total+r == length {
+			total, err = io.ReadFull(ctn.inflater, buf[:length])
+			if err == nil {
 				ctn.compressed = false
-				err = ctn.inflater.Close()
+				aerr = newCommonError(ctn.inflater.Close())
 			}
 		}
-		total += r
-		if err != nil {
-			break
+
+		if total == length {
+			// If all required bytes are read, ignore any potential error.
+			// The error will bubble up on the next network io if it matters.
+			return total, nil
 		}
 	}
 
-	if total == length {
-		// If all required bytes are read, ignore any potential error.
-		// The error will bubble up on the next network io if it matters.
-		return total, nil
-	}
+	aerr = chainErrors(errToAerospikeErr(ctn, err), aerr)
 
 	if ctn.node != nil {
 		ctn.node.incrErrorCount()
