@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -82,7 +81,7 @@ type Recordset struct {
 	// Records is a channel on which the resulting records will be sent back.
 	// NOTE: Do not use Records directly. Range on channel returned by Results() instead.
 	// Will be unexported in the future
-	Records chan *Record
+	records chan *Result
 }
 
 // makes sure the recordset is closed eventually, even if it is not consumed
@@ -117,7 +116,7 @@ func newRecordset(recSize, goroutines int) *Recordset {
 	var nilChan chan *struct{}
 
 	rs := &Recordset{
-		Records:   make(chan *Record, recSize),
+		records:   make(chan *Result, recSize),
 		objectset: *newObjectset(reflect.ValueOf(nilChan), goroutines),
 	}
 
@@ -128,30 +127,6 @@ func newRecordset(recSize, goroutines int) *Recordset {
 // IsActive returns true if the operation hasn't been finished or cancelled.
 func (rcs *Recordset) IsActive() bool {
 	return rcs.active.Get()
-}
-
-// Read reads the next record from the Recordset. If the Recordset has been
-// closed, it returns ErrRecordsetClosed.
-func (rcs *Recordset) Read() (record *Record, err Error) {
-	var ok bool
-
-L:
-	select {
-	case record, ok = <-rcs.Records:
-		if !ok {
-			err = ErrRecordsetClosed.err()
-		}
-	case err = <-rcs.Errors:
-		if err == nil {
-			// if err == nil, it means the Errors chan has been closed
-			// we should not return nil as an error, so we should listen
-			// to other chans again to determine either cancellation,
-			// or normal EOR
-			goto L
-		}
-	}
-
-	return record, err
 }
 
 // Results returns a new receive-only channel with the results of the Scan/Query.
@@ -173,41 +148,7 @@ L:
 //    }
 //  }
 func (rcs *Recordset) Results() <-chan *Result {
-	recCap := cap(rcs.Records)
-	if recCap < 1 {
-		recCap = 1
-	}
-	res := make(chan *Result, recCap)
-
-	select {
-	case <-rcs.cancelled:
-		// Bail early and give the caller a channel for nothing -- it's
-		// functionally wasted memory, but the caller did something
-		// after close, so it's their own doing.
-		close(res)
-		return res
-	default:
-	}
-
-	go func(cancelled <-chan struct{}) {
-		defer close(res)
-		for {
-			record, err := rcs.Read()
-			if errors.Is(err, ErrRecordsetClosed) {
-				return
-			}
-
-			result := &Result{Record: record, Err: err}
-			select {
-			case <-cancelled:
-				return
-			case res <- result:
-
-			}
-		}
-	}(rcs.cancelled)
-
-	return res
+	return (<-chan *Result)(rcs.records)
 }
 
 // Close all streams from different nodes. A successful close return nil,
@@ -238,8 +179,8 @@ func (rcs *Recordset) signalEnd() {
 		rcs.chanLock.Lock()
 		defer rcs.chanLock.Unlock()
 
-		if rcs.Records != nil {
-			close(rcs.Records)
+		if rcs.records != nil {
+			close(rcs.records)
 		} else if rcs.objChan.IsValid() {
 			rcs.objChan.Close()
 		}
@@ -252,6 +193,10 @@ func (rcs *Recordset) sendError(err Error) {
 	rcs.chanLock.Lock()
 	defer rcs.chanLock.Unlock()
 	if rcs.IsActive() {
-		rcs.Errors <- err
+		if rcs.objectset.objChan == nil {
+			rcs.records <- &Result{Err: err}
+		} else {
+			rcs.Errors <- err
+		}
 	}
 }
