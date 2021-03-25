@@ -17,9 +17,17 @@ package aerospike
 
 // PartitionFilter is used in scan/queries.
 type PartitionFilter struct {
-	begin  int
-	count  int
-	digest []byte
+	begin      int
+	count      int
+	digest     []byte
+	partitions []*partitionStatus
+	done       bool
+}
+
+// NewPartitionFilterAll creates a partition filter that
+// reads all the partitions.
+func NewPartitionFilterAll() *PartitionFilter {
+	return newPartitionFilter(0, _PARTITIONS)
 }
 
 // NewPartitionFilterById creates a partition filter by partition id.
@@ -43,4 +51,10 @@ func NewPartitionFilterByKey(key *Key) *PartitionFilter {
 
 func newPartitionFilter(begin, count int) *PartitionFilter {
 	return &PartitionFilter{begin: begin, count: count}
+}
+
+// IsDone returns - if using ScanPolicy.MaxRecords or QueryPolicy,MaxRecords -
+// if the previous paginated scans with this partition filter instance return all records?
+func (pf *PartitionFilter) IsDone() bool {
+	return pf.done
 }

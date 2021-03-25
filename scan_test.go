@@ -43,7 +43,7 @@ var _ = gg.Describe("Scan operations", func() {
 
 	// read all records from the channel and make sure all of them are returned
 	// if cancelCnt is set, it will cancel the scan after specified record count
-	var checkResults = func(recordset *as.Recordset, cancelCnt int, checkLDT bool) {
+	var checkResults = func(recordset *as.Recordset, cancelCnt int, checkLDT bool) int {
 		counter := 0
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
@@ -73,6 +73,7 @@ var _ = gg.Describe("Scan operations", func() {
 		}
 
 		gm.Expect(counter).To(gm.BeNumerically(">", 0))
+		return counter
 	}
 
 	gg.BeforeEach(func() {
@@ -91,6 +92,26 @@ var _ = gg.Describe("Scan operations", func() {
 	for _, failOnClusterChange := range []bool{false, true} {
 		var scanPolicy = as.NewScanPolicy()
 		scanPolicy.FailOnClusterChange = failOnClusterChange
+
+		gg.It("must Scan and paginate to get all records back from all partitions concurrently", func() {
+			gm.Expect(len(keys)).To(gm.Equal(keyCount))
+
+			pf := as.NewPartitionFilterAll()
+			spolicy := as.NewScanPolicy()
+			spolicy.MaxRecords = 30
+
+			received := 0
+			for received < keyCount {
+				recordset, err := client.ScanPartitions(spolicy, pf, ns, set)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				recs := checkResults(recordset, 0, false)
+				gm.Expect(recs).To(gm.BeNumerically("<=", int(spolicy.MaxRecords)))
+				received += recs
+			}
+
+			gm.Expect(len(keys)).To(gm.Equal(0))
+		})
 
 		gg.It("must Scan and get all records back from all partitions concurrently", func() {
 			gm.Expect(len(keys)).To(gm.Equal(keyCount))

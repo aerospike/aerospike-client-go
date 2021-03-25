@@ -147,24 +147,16 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 		}
 
 		switch f.Kind() {
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			f.SetInt(int64(value.(int)))
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			switch v := value.(type) {
-			case uint8:
-				f.SetUint(uint64(v))
-			case uint16:
-				f.SetUint(uint64(v))
-			case uint32:
-				f.SetUint(uint64(v))
-			case uint64:
-				f.SetUint(v)
-			case uint:
-				f.SetUint(uint64(v))
-			default:
-				f.SetUint(uint64(value.(int)))
-			}
+		case reflect.Int, reflect.Int64, reflect.Int8, reflect.Int16, reflect.Int32,
+			reflect.Uint, reflect.Uint64, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+			v := reflect.ValueOf(value)
+			v = v.Convert(f.Type())
+			f.Set(v)
 		case reflect.Float64, reflect.Float32:
+			if v, ok := value.(float32); ok {
+				value = float64(v)
+			}
+
 			// if value has returned as a float
 			if fv, ok := value.(float64); ok {
 				f.SetFloat(fv)
@@ -196,20 +188,6 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 			}
 		case reflect.Ptr:
 			switch f.Type().Elem().Kind() {
-			case reflect.Int:
-				tempV := value.(int)
-				rv := reflect.ValueOf(&tempV)
-				if rv.Type() != f.Type() {
-					rv = rv.Convert(f.Type())
-				}
-				f.Set(rv)
-			case reflect.Uint:
-				tempV := uint(value.(int))
-				rv := reflect.ValueOf(&tempV)
-				if rv.Type() != f.Type() {
-					rv = rv.Convert(f.Type())
-				}
-				f.Set(rv)
 			case reflect.String:
 				tempV := value.(string)
 				rv := reflect.ValueOf(&tempV)
@@ -217,62 +195,14 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 					rv = rv.Convert(f.Type())
 				}
 				f.Set(rv)
-			case reflect.Int8:
-				tempV := int8(value.(int))
-				rv := reflect.ValueOf(&tempV)
-				if rv.Type() != f.Type() {
-					rv = rv.Convert(f.Type())
+			case reflect.Int, reflect.Int64, reflect.Int8, reflect.Int16, reflect.Int32,
+				reflect.Uint, reflect.Uint64, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+				v := reflect.ValueOf(value).Convert(f.Type().Elem())
+				if f.IsZero() {
+					f.Set(reflect.New(f.Type().Elem()))
 				}
-				f.Set(rv)
-			case reflect.Uint8:
-				tempV := uint8(value.(int))
-				rv := reflect.ValueOf(&tempV)
-				if rv.Type() != f.Type() {
-					rv = rv.Convert(f.Type())
-				}
-				f.Set(rv)
-			case reflect.Int16:
-				tempV := int16(value.(int))
-				rv := reflect.ValueOf(&tempV)
-				if rv.Type() != f.Type() {
-					rv = rv.Convert(f.Type())
-				}
-				f.Set(rv)
-			case reflect.Uint16:
-				tempV := uint16(value.(int))
-				rv := reflect.ValueOf(&tempV)
-				if rv.Type() != f.Type() {
-					rv = rv.Convert(f.Type())
-				}
-				f.Set(rv)
-			case reflect.Int32:
-				tempV := int32(value.(int))
-				rv := reflect.ValueOf(&tempV)
-				if rv.Type() != f.Type() {
-					rv = rv.Convert(f.Type())
-				}
-				f.Set(rv)
-			case reflect.Uint32:
-				tempV := uint32(value.(int))
-				rv := reflect.ValueOf(&tempV)
-				if rv.Type() != f.Type() {
-					rv = rv.Convert(f.Type())
-				}
-				f.Set(rv)
-			case reflect.Int64:
-				tempV := int64(value.(int))
-				rv := reflect.ValueOf(&tempV)
-				if rv.Type() != f.Type() {
-					rv = rv.Convert(f.Type())
-				}
-				f.Set(rv)
-			case reflect.Uint64:
-				tempV := uint64(value.(int))
-				rv := reflect.ValueOf(&tempV)
-				if rv.Type() != f.Type() {
-					rv = rv.Convert(f.Type())
-				}
-				f.Set(rv)
+
+				f.Elem().Set(v)
 			case reflect.Float64:
 				// it is possible that the value is an integer set in the field
 				// via the old float<->int64 type cast
@@ -305,6 +235,10 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 				}
 				f.Set(rv)
 			case reflect.Float32:
+				if v, ok := value.(float32); ok {
+					value = float64(v)
+				}
+
 				// it is possible that the value is an integer set in the field
 				// via the old float<->int64 type cast
 				var tempV64 float64

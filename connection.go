@@ -162,7 +162,7 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
 	if host.TLSName != "" && !tlsConfig.InsecureSkipVerify {
 		if err := sconn.VerifyHostname(host.TLSName); err != nil {
 			nerr := newWrapNetworkError(err)
-			if cerr := sconn.Close(); err != nil {
+			if cerr := sconn.Close(); cerr != nil {
 				logger.Logger.Debug("Closing connection after VerifyHostName error failed: %s", cerr.Error())
 				nerr = chainErrors(newWrapNetworkError(cerr), nerr)
 			}

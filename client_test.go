@@ -39,9 +39,11 @@ var _ = gg.Describe("Aerospike", func() {
 
 	gg.Describe("Client Management", func() {
 
+		dbHost := as.NewHost(*host, *port)
+		dbHost.TLSName = *nodeTLSName
+
 		gg.It("must open and close the client without a problem", func() {
-			// use the same client for all
-			client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+			client, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(client.IsConnected()).To(gm.BeTrue())
 
@@ -73,23 +75,21 @@ var _ = gg.Describe("Aerospike", func() {
 		})
 
 		gg.It("must return an error if supplied cluster-name is wrong", func() {
-			// use the same client for all
 			cpolicy := *clientPolicy
 			cpolicy.ClusterName = "haha"
 			cpolicy.Timeout = 10 * time.Second
-			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.CLUSTER_NAME_MISMATCH_ERROR)).To(gm.BeTrue())
 			gm.Expect(nclient).To(gm.BeNil())
 		})
 
 		gg.It("must return a client even if cluster-name is wrong, but failIfConnected is false", func() {
-			// use the same client for all
 			cpolicy := *clientPolicy
 			cpolicy.ClusterName = "haha"
 			cpolicy.Timeout = 10 * time.Second
 			cpolicy.FailIfNotConnected = false
-			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.CLUSTER_NAME_MISMATCH_ERROR)).To(gm.BeTrue())
 			gm.Expect(nclient).NotTo(gm.BeNil())
@@ -99,11 +99,10 @@ var _ = gg.Describe("Aerospike", func() {
 		gg.It("must connect to the cluster when cluster-name is correct", func() {
 			nodeCount := len(client.GetNodes())
 
-			// use the same client for all
 			cpolicy := *clientPolicy
 			cpolicy.ClusterName = actualClusterName
 			cpolicy.Timeout = 10 * time.Second
-			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
 			gm.Expect(err).NotTo(gm.HaveOccurred())
 			gm.Expect(len(nclient.GetNodes())).To(gm.Equal(nodeCount))
 		})
@@ -115,13 +114,12 @@ var _ = gg.Describe("Aerospike", func() {
 
 			nodeCount := len(client.GetNodes())
 
-			// use the same client for all
 			cpolicy := *clientPolicy
 			cpolicy.Timeout = 10 * time.Second
 			cpolicy.AuthMode = as.AuthModeExternal
 			cpolicy.User = "badwan"
 			cpolicy.Password = "blastoff"
-			nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
 			gm.Expect(err).NotTo(gm.HaveOccurred())
 			gm.Expect(len(nclient.GetNodes())).To(gm.Equal(nodeCount))
 		})
@@ -132,7 +130,7 @@ var _ = gg.Describe("Aerospike", func() {
 				cpolicy := *clientPolicy
 				cpolicy.User = *user
 				cpolicy.Password = *password
-				c, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+				c, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
 				gm.Expect(err).NotTo(gm.HaveOccurred())
 
 				info := info(c, "racks:")
@@ -140,13 +138,12 @@ var _ = gg.Describe("Aerospike", func() {
 					gg.Skip("gg.Skipping RackAware test since it is not supported on this cluster...")
 				}
 
-				// use the same client for all
 				cpolicy = *clientPolicy
 				cpolicy.Timeout = 10 * time.Second
 				cpolicy.RackAware = true
 
 				for rid := 1; rid <= 20; rid++ {
-					nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+					nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
 					gm.Expect(err).NotTo(gm.HaveOccurred())
 
 					wpolicy := as.NewWritePolicy(0, 0)
@@ -169,7 +166,6 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 
 			// gg.It("must connect to the cluster in rackaware mode", func() {
-			// 	// use the same client for all
 			// 	cpolicy := *clientPolicy
 			// 	cpolicy.Timeout = 10 * time.Second
 			// 	cpolicy.RackAware = true
@@ -180,7 +176,7 @@ var _ = gg.Describe("Aerospike", func() {
 			// 	for rid := 1; rid <= 20; rid++ {
 			// 		cpolicy.RackId = (rid % 2) + 1
 
-			// 		nclient, err := as.NewClientWithPolicy(&cpolicy, *host, *port)
+			// 		nclient, err := as.NewClientWithPolicyAndHostNewClientWithPolicy(&cpolicy, dbHost)
 			// 		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 			// 		for i := 0; i < 12; i++ {

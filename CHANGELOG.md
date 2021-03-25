@@ -1,18 +1,35 @@
 # Change History
 
-## February 15 2021: v4.3.0
-  Minor fix and major clean up release. While there aren't many user facing changes, the quality of the code has been markedly improved. 
-  This release puts us on a good footing for the next few bigger releases.
+## March 12 2021: v4.4.0
+  Minor fix and improvements release. 
 
   * **Fixes**
 
-    - Fixes an issue where if errors and filtered records happened at the msame time in Batch requests, no error would be returned to the user.
+    - Fixes an issue where the client's reflection API expected certain `int` value types returned from the database. That assumption was wrong for `CDT`s and free form `List`s and `Map`s. The client will now convert types to each other per Go's conversion rules where possible.
 
   * **Improvements**
 
-    - Fixes code samples in documentation, typos, etc.
+    - Use a global TLS setting everywhere in tests.
+
+## March 1 2021: v4.3.0
+  Minor feature and fix and major clean up release. While there aren't many user facing changes, the quality of the code has been markedly improved. 
+  This release puts us on a good footing for the next few bigger releases.
+
+  * **New Features**:
+
+    - [CLIENT-1457] Support scan pagination through ScanPartitions() with PartitionFilter
+
+  * **Fixes**
+
+    - Fixes an issue where if errors and filtered records happened at the same time in Batch requests, no error would be returned to the user.
+
+  * **Improvements**
+
+    - Makes the code samples more readable in the docs.
+    - Fixes a lot of code samples in documentation, along with typos, etc.
     - Fixes copy/paste naming errors in the documentation. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
     - Removes a few unreachable lines from the code. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
+    - Handles a few TLS connection related issues in tests.
 
 ## February 12 2021: v4.2.0
 

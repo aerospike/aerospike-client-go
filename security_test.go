@@ -190,10 +190,11 @@ var _ = gg.Describe("Security tests", func() {
 			time.Sleep(time.Second)
 
 			// connect using the new user
-			client_policy := as.NewClientPolicy()
-			client_policy.User = "test_user"
-			client_policy.Password = "test"
-			new_client, err := as.NewClientWithPolicy(client_policy, *host, *port)
+			clientPolicy := as.NewClientPolicy()
+			clientPolicy.TlsConfig = tlsConfig
+			clientPolicy.User = "test_user"
+			clientPolicy.Password = "test"
+			new_client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			defer new_client.Close()
 
@@ -205,7 +206,7 @@ var _ = gg.Describe("Security tests", func() {
 
 			// exhaust all node connections
 			for _, node := range new_client.GetNodes() {
-				for i := 0; i < client_policy.ConnectionQueueSize; i++ {
+				for i := 0; i < clientPolicy.ConnectionQueueSize; i++ {
 					conn, err := node.GetConnection(time.Second)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 					node.InvalidateConnection(conn)
