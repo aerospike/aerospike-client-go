@@ -266,7 +266,7 @@ func newNodeError(node *Node, err Error) Error {
 	}
 
 	ae := new(AerospikeError)
-	errors.As(err, ae)
+	errors.As(err, &ae)
 
 	res := *ae
 	res.Node = node
