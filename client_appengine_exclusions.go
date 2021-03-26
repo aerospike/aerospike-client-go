@@ -135,7 +135,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 
 		err := luaInstance.DoFile(lualib.Path() + packageName + ".lua")
 		if err != nil {
-			recSet.Errors <- newCommonError(err)
+			recSet.sendError(newCommonError(err))
 			return
 		}
 
@@ -153,7 +153,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 		},
 			luaArgs...,
 		); err != nil {
-			recSet.Errors <- newCommonError(err)
+			recSet.sendError(newCommonError(err))
 			return
 		}
 

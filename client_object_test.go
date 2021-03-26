@@ -1147,7 +1147,7 @@ var _ = gg.Describe("Aerospike", func() {
 						cnt++
 					}
 
-					for e := range rs.Errors {
+				for e := range rs.Errors() {
 						gm.Expect(e).ToNot(gm.HaveOccurred())
 					}
 
@@ -1204,7 +1204,7 @@ var _ = gg.Describe("Aerospike", func() {
 						cnt++
 					}
 
-					for e := range rs.Errors {
+				for e := range rs.Errors() {
 						gm.Expect(e).ToNot(gm.HaveOccurred())
 					}
 
@@ -1245,7 +1245,7 @@ var _ = gg.Describe("Aerospike", func() {
 						cnt++
 					}
 
-					for e := range rs.Errors {
+				for e := range rs.Errors() {
 						gm.Expect(e).ToNot(gm.HaveOccurred())
 					}
 
@@ -1290,11 +1290,11 @@ var _ = gg.Describe("Aerospike", func() {
 
 						if cnt >= 10 {
 							rs.Close()
-							gm.Eventually(rs.Errors).Should(gm.BeClosed())
+						gm.Eventually(rs.Errors()).Should(gm.BeClosed())
 						}
 					}
 
-					for e := range rs.Errors {
+				for e := range rs.Errors() {
 						gm.Expect(e).ToNot(gm.HaveOccurred())
 					}
 

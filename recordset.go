@@ -47,7 +47,7 @@ type objectset struct {
 	// Errors is a channel on which all errors will be sent back.
 	// NOTE: Do not use Errors directly. Range on channel returned by Results() instead.
 	// This field is deprecated and will be unexported in the future
-	Errors chan Error
+	errors chan Error
 
 	wgGoroutines sync.WaitGroup
 	goroutines   *atomic.Int
@@ -100,7 +100,7 @@ func newObjectset(objChan reflect.Value, goroutines int) *objectset {
 
 	rs := &objectset{
 		objChan:    objChan,
-		Errors:     make(chan Error, goroutines),
+		errors:     make(chan Error, goroutines),
 		active:     atomic.NewBool(true),
 		closed:     atomic.NewBool(false),
 		goroutines: atomic.NewInt(goroutines),
@@ -127,6 +127,15 @@ func newRecordset(recSize, goroutines int) *Recordset {
 // IsActive returns true if the operation hasn't been finished or cancelled.
 func (rcs *Recordset) IsActive() bool {
 	return rcs.active.Get()
+}
+
+// Errors returns a read-only Error channel for the objectset. It will panic
+// for recordsets returned for non-reflection APIs.
+func (rcs *Recordset) Errors() <-chan Error {
+	if rcs.records == nil {
+		return (<-chan Error)(rcs.errors)
+	}
+	panic("Errors chan not valid for non-reflection API")
 }
 
 // Results returns a new receive-only channel with the results of the Scan/Query.
@@ -185,7 +194,7 @@ func (rcs *Recordset) signalEnd() {
 			rcs.objChan.Close()
 		}
 
-		close(rcs.Errors)
+		close(rcs.errors)
 	}
 }
 
@@ -193,10 +202,10 @@ func (rcs *Recordset) sendError(err Error) {
 	rcs.chanLock.Lock()
 	defer rcs.chanLock.Unlock()
 	if rcs.IsActive() {
-		if rcs.objectset.objChan == nil {
+		if rcs.records != nil {
 			rcs.records <- &Result{Err: err}
 		} else {
-			rcs.Errors <- err
+			rcs.errors <- err
 		}
 	}
 }

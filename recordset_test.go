@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"time"
+
 	"github.com/aerospike/aerospike-client-go/types"
 
 	gg "github.com/onsi/ginkgo"
@@ -32,8 +34,13 @@ var _ = gg.Describe("Recordset test", func() {
 		rs.Close()
 		rs.sendError(newError(types.PARAMETER_ERROR, "Error"))
 
-		gm.Expect(<-rs.Errors).NotTo(gm.BeNil())
-		// gm.Expect(<-rs.Errors).To(gm.BeNil())
+		timeout := time.After(time.Second)
+		select {
+		case res := <-rs.Results():
+			gm.Expect(res).ToNot(gm.BeNil())
+		case <-timeout:
+			panic("wrong result!")
+		}
 	})
 
 })
