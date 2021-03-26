@@ -40,9 +40,6 @@ type Statement struct {
 	functionName string
 	functionArgs []Value
 
-	// Ordered list of predicate expressions
-	predExps []PredExp
-
 	// TaskId determines query task id. (Optional)
 	// This value is not used anymore and will be removed later.
 	TaskId uint64
@@ -67,47 +64,6 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 func (stmt *Statement) SetFilter(filter *Filter) Error {
 	stmt.Filter = filter
 
-	return nil
-}
-
-// SetPredExp sets low-level predicate expressions for the statement in postfix notation.
-// Supported only by Aerospike Server v3.12+.
-// Predicate expression filters are applied on the query results on the server.
-// Predicate expression filters may occur on any bin in the record.
-// To learn how to use this API, consult predexp_test.go file.
-//
-// Postfix notation is described here: http://wiki.c2.com/?PostfixNotation
-//
-// Example: (c >= 11 and c <= 20) or (d > 3 and (d < 5)
-//
-//  stmt.SetPredExp(
-//    NewPredExpIntegerValue(11),
-//    NewPredExpIntegerBin("c"),
-//    NewPredExpIntegerGreaterEq(),
-//    NewPredExpIntegerValue(20),
-//    NewPredExpIntegerBin("c"),
-//    NewPredExpIntegerLessEq(),
-//    NewPredExpAnd(2),
-//    NewPredExpIntegerValue(3),
-//    NewPredExpIntegerBin("d"),
-//    NewPredExpIntegerGreater(),
-//    NewPredExpIntegerValue(5),
-//    NewPredExpIntegerBin("d"),
-//    NewPredExpIntegerLess(),
-//    NewPredExpAnd(2),
-//    NewPredExpOr(2)
-//  );
-//
-//  // Record last update time > 2017-01-15
-//  stmt.SetPredExp(
-//    NewIntegerValue(time.Date(2017, 0, 15, 0, 0, 0, 0, time.UTC).UnixNano()),
-//    NewPredExpRecLastUpdate(),
-//    NewPredExpIntegerGreater(),
-//  );
-// NOTE: This feature is deprecated on Aerospike servers and will be removed in the future.
-// It has been replaced by FilterExpressions.
-func (stmt *Statement) SetPredExp(predexp ...PredExp) Error {
-	stmt.predExps = predexp
 	return nil
 }
 

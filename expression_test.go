@@ -138,10 +138,10 @@ var _ = gg.Describe("Expression Operations", func() {
 			insertRecs.Set(false)
 		})
 
-		// gg.AfterEach(func() {
-		// 	gm.Expect(client.DropIndex(nil, ns, set, "intval")).ToNot(gm.HaveOccurred())
-		// 	gm.Expect(client.DropIndex(nil, ns, set, "strval")).ToNot(gm.HaveOccurred())
-		// })
+		gg.BeforeEach(func() {
+			qpolicy.PredExp = nil
+			qpolicy.FilterExpression = nil
+		})
 
 		gg.It("server error with top level expression value node", func() {
 			// This statement doesn't form a predicate expression.
@@ -161,7 +161,7 @@ var _ = gg.Describe("Expression Operations", func() {
 			stm := as.NewStatement(ns, set)
 			stm.SetFilter(as.NewRangeFilter("intval", 0, 400))
 
-			stm.SetPredExp(as.NewPredExpIntegerValue(8))
+			qpolicy.PredExp = []as.PredExp{as.NewPredExpIntegerValue(8)}
 			qpolicy.FilterExpression = as.ExpGreaterEq(as.ExpIntBin("modval"), as.ExpIntVal(8))
 
 			recordset, err := client.Query(qpolicy, stm)

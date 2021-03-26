@@ -1118,7 +1118,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	filterSize := 0
 	binNameSize := 0
 	predSize := 0
-	predExp := statement.predExps
 	partsFullSize := 0
 	partsPartialSize := 0
 	maxRecords := int64(0)
@@ -1216,10 +1215,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		}
 	}
 
-	if len(policy.PredExp) > 0 && len(predExp) == 0 {
-		predExp = policy.PredExp
-	}
-
 	if policy.FilterExpression != nil {
 		var err Error
 		predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
@@ -1229,8 +1224,8 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(predExp) > 0 {
-		predSize = cmd.estimatePredExpSize(predExp)
+	} else if len(policy.PredExp) > 0 {
+		predSize = cmd.estimatePredExpSize(policy.PredExp)
 		fieldCount++
 	}
 
@@ -1369,8 +1364,8 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
 			return err
 		}
-	} else if len(predExp) > 0 {
-		if err := cmd.writePredExp(predExp, predSize); err != nil {
+	} else if len(policy.PredExp) > 0 {
+		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
