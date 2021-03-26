@@ -164,89 +164,84 @@ var _ = gg.Describe("UDF/Query tests", func() {
 
 	gg.Context("must run the UDF on all records", func() {
 
-		for _, failOnClusterChange := range []bool{false, true} {
-			var scanPolicy = as.NewScanPolicy()
-			scanPolicy.FailOnClusterChange = failOnClusterChange
+		var scanPolicy = as.NewScanPolicy()
+		var queryPolicy = as.NewQueryPolicy()
 
-			var queryPolicy = as.NewQueryPolicy()
-			queryPolicy.FailOnClusterChange = failOnClusterChange
-
-			gg.BeforeEach(func() {
-				set = randString(50)
-				for i := 0; i < keyCount; i++ {
-					key, err = as.NewKey(ns, set, randString(50))
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-
-					err = client.PutBins(wpolicy, key, bin1, bin2)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-				}
-			})
-
-			gg.It("must run a UDF on all records", func() {
-				// run the UDF 3 times consecutively
-				for i := 1; i <= 3; i++ {
-					statement := as.NewStatement(ns, set)
-					exTask, err := client.ExecuteUDF(queryPolicy, statement, "udf1", "testFunc1", as.NewValue(i*2))
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-
-					// wait until UDF is run on all records
-					err = <-exTask.OnComplete()
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-
-					time.Sleep(3 * time.Second)
-
-					// read all data and make sure it is consistent
-					recordset, err := client.ScanAll(scanPolicy, ns, set)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-
-					for fullRec := range recordset.Results() {
-						gm.Expect(fullRec.Err).ToNot(gm.HaveOccurred())
-						gm.Expect(fullRec.Record.Bins[bin2.Name]).To(gm.Equal(bin1.Value.GetObject().(int) / (i * 2)))
-					}
-				}
-			})
-
-			gg.It("must run a DeleteUDF on a range of records", func() {
-				idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-				defer client.DropIndex(nil, ns, set, set+bin1.Name)
-
-				gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
-
-				regTask, err := client.RegisterUDF(wpolicy, []byte(udfDelete), "udfDelete.lua", as.LUA)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-
-				// wait until UDF is created
-				gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
-
-				// a new record that is not in the range
+		gg.BeforeEach(func() {
+			set = randString(50)
+			for i := 0; i < keyCount; i++ {
 				key, err = as.NewKey(ns, set, randString(50))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-				err = client.PutBins(wpolicy, key, as.NewBin(bin1.Name, math.MaxInt16+1))
-				gm.Expect(err).ToNot(gm.HaveOccurred())
 
+				err = client.PutBins(wpolicy, key, bin1, bin2)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+			}
+		})
+
+		gg.It("must run a UDF on all records", func() {
+			// run the UDF 3 times consecutively
+			for i := 1; i <= 3; i++ {
 				statement := as.NewStatement(ns, set)
-				statement.SetFilter(as.NewRangeFilter(bin1.Name, 0, math.MaxInt16))
-				exTask, err := client.ExecuteUDF(queryPolicy, statement, "udfDelete", "deleteRecord")
+				exTask, err := client.ExecuteUDF(queryPolicy, statement, "udf1", "testFunc1", as.NewValue(i*2))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				// wait until UDF is run on all records
-				gm.Expect(<-exTask.OnComplete()).ToNot(gm.HaveOccurred())
+				err = <-exTask.OnComplete()
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				time.Sleep(3 * time.Second)
 
 				// read all data and make sure it is consistent
 				recordset, err := client.ScanAll(scanPolicy, ns, set)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				i := 0
 				for fullRec := range recordset.Results() {
 					gm.Expect(fullRec.Err).ToNot(gm.HaveOccurred())
-					i++
-					// only one record should be returned
-					gm.Expect(fullRec.Record.Bins[bin1.Name]).To(gm.Equal(math.MaxInt16 + 1))
+					gm.Expect(fullRec.Record.Bins[bin2.Name]).To(gm.Equal(bin1.Value.GetObject().(int) / (i * 2)))
 				}
-				gm.Expect(i).To(gm.Equal(1))
-			})
-		}
+			}
+		})
+
+		gg.It("must run a DeleteUDF on a range of records", func() {
+			idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer client.DropIndex(nil, ns, set, set+bin1.Name)
+
+			gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
+
+			regTask, err := client.RegisterUDF(wpolicy, []byte(udfDelete), "udfDelete.lua", as.LUA)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// wait until UDF is created
+			gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
+
+			// a new record that is not in the range
+			key, err = as.NewKey(ns, set, randString(50))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			err = client.PutBins(wpolicy, key, as.NewBin(bin1.Name, math.MaxInt16+1))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			statement := as.NewStatement(ns, set)
+			statement.SetFilter(as.NewRangeFilter(bin1.Name, 0, math.MaxInt16))
+			exTask, err := client.ExecuteUDF(queryPolicy, statement, "udfDelete", "deleteRecord")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// wait until UDF is run on all records
+			gm.Expect(<-exTask.OnComplete()).ToNot(gm.HaveOccurred())
+
+			// read all data and make sure it is consistent
+			recordset, err := client.ScanAll(scanPolicy, ns, set)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			i := 0
+			for fullRec := range recordset.Results() {
+				gm.Expect(fullRec.Err).ToNot(gm.HaveOccurred())
+				i++
+				// only one record should be returned
+				gm.Expect(fullRec.Record.Bins[bin1.Name]).To(gm.Equal(math.MaxInt16 + 1))
+			}
+			gm.Expect(i).To(gm.Equal(1))
+		})
 	}) // context
 
 	gg.Context("must serialize parameters and return values sensibly", func() {

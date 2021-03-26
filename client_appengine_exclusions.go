@@ -22,7 +22,6 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	"github.com/aerospike/aerospike-client-go/internal/atomic"
 	lualib "github.com/aerospike/aerospike-client-go/internal/lua"
 	"github.com/aerospike/aerospike-client-go/logger"
 	lua "github.com/yuin/gopher-lua"
@@ -55,16 +54,6 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 		return nil, ErrClusterIsEmpty.err()
 	}
 
-	clusterKey := int64(0)
-	if policy.FailOnClusterChange {
-		var err Error
-		clusterKey, err = queryValidateBegin(nodes[0], statement.Namespace)
-		if err != nil {
-			return nil, err
-		}
-	}
-	first := atomic.NewBool(true)
-
 	// results channel must be async for performance
 	recSet := newRecordset(policy.RecordQueueSize, len(nodes))
 
@@ -95,7 +84,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 	for _, node := range nodes {
 		// copy policies to avoid race conditions
 		newPolicy := *policy
-		command := newQueryAggregateCommand(node, &newPolicy, statement, recSet, clusterKey, first.CompareAndToggle(true))
+		command := newQueryAggregateCommand(node, &newPolicy, statement, recSet)
 		command.luaInstance = luaInstance
 		command.inputChan = inputChan
 

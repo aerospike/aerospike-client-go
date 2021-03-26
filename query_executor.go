@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"time"
-
-	"github.com/aerospike/aerospike-client-go/internal/atomic"
 )
 
 func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, recordset *Recordset) {
@@ -72,16 +70,15 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 
 }
 
-func (clnt *Client) queryNodes(policy *QueryPolicy, recordset *Recordset, clusterKey int64, statement *Statement, nodes ...*Node) {
+func (clnt *Client) queryNodes(policy *QueryPolicy, recordset *Recordset, statement *Statement, nodes ...*Node) {
 	maxConcurrentNodes := policy.MaxConcurrentNodes
 	if maxConcurrentNodes <= 0 {
 		maxConcurrentNodes = len(nodes)
 	}
 
 	weg := newWeightedErrGroup(maxConcurrentNodes)
-	first := atomic.NewBool(true)
 	for _, node := range nodes {
-		cmd := newQueryRecordCommand(node, policy, statement, recordset, clusterKey, first.CompareAndToggle(true))
+		cmd := newQueryRecordCommand(node, policy, statement, recordset)
 		weg.executeFunc(cmd, func() { recordset.signalEnd() })
 	}
 

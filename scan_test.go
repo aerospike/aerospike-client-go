@@ -16,7 +16,6 @@ package aerospike_test
 
 import (
 	"bytes"
-	"fmt"
 	"math"
 	"math/rand"
 
@@ -89,211 +88,208 @@ var _ = gg.Describe("Scan operations", func() {
 		}
 	})
 
-	for _, failOnClusterChange := range []bool{false, true} {
-		var scanPolicy = as.NewScanPolicy()
-		scanPolicy.FailOnClusterChange = failOnClusterChange
+	var scanPolicy = as.NewScanPolicy()
 
-		gg.It("must Scan and paginate to get all records back from all partitions concurrently", func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
+	gg.It("must Scan and paginate to get all records back from all partitions concurrently", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 
-			pf := as.NewPartitionFilterAll()
-			spolicy := as.NewScanPolicy()
-			spolicy.MaxRecords = 30
+		pf := as.NewPartitionFilterAll()
+		spolicy := as.NewScanPolicy()
+		spolicy.MaxRecords = 30
 
-			received := 0
-			for received < keyCount {
-				recordset, err := client.ScanPartitions(spolicy, pf, ns, set)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-
-				recs := checkResults(recordset, 0, false)
-				gm.Expect(recs).To(gm.BeNumerically("<=", int(spolicy.MaxRecords)))
-				received += recs
-			}
-
-			gm.Expect(len(keys)).To(gm.Equal(0))
-		})
-
-		gg.It("must Scan and get all records back from all partitions concurrently", func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
-
-			pf := as.NewPartitionFilterByRange(0, 4096)
-			recordset, err := client.ScanPartitions(nil, pf, ns, set)
+		received := 0
+		for received < keyCount {
+			recordset, err := client.ScanPartitions(spolicy, pf, ns, set)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			checkResults(recordset, 0, false)
+			recs := checkResults(recordset, 0, false)
+			gm.Expect(recs).To(gm.BeNumerically("<=", int(spolicy.MaxRecords)))
+			received += recs
+		}
 
-			gm.Expect(len(keys)).To(gm.Equal(0))
-		})
+		gm.Expect(len(keys)).To(gm.Equal(0))
+	})
 
-		gg.It(fmt.Sprintf("must Scan and get all partition records back for a specified key. channelFailOnClusterChange: %v", failOnClusterChange), func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
+	gg.It("must Scan and get all records back from all partitions concurrently", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 
-			counter := 0
+		pf := as.NewPartitionFilterByRange(0, 4096)
+		recordset, err := client.ScanPartitions(nil, pf, ns, set)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			var rkey *as.Key
-			for _, k := range keys {
-				rkey = k
+		checkResults(recordset, 0, false)
 
-				pf := as.NewPartitionFilterByKey(rkey)
-				recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(len(keys)).To(gm.Equal(0))
+	})
 
-				for res := range recordset.Results() {
-					gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-					gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-					gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+	gg.It("must Scan and get all partition records back for a specified key", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 
-					// the key itself should not be returned
-					gm.Expect(bytes.Equal(rkey.Digest(), res.Record.Key.Digest())).To(gm.BeFalse())
+		counter := 0
 
-					delete(keys, string(res.Record.Key.Digest()))
+		var rkey *as.Key
+		for _, k := range keys {
+			rkey = k
 
-					counter++
-				}
-
-			}
-			gm.Expect(len(keys)).To(gm.BeNumerically(">", 0))
-			gm.Expect(counter).To(gm.BeNumerically(">", 0))
-			gm.Expect(counter).To(gm.BeNumerically("<", keyCount))
-		})
-
-		gg.It(fmt.Sprintf("must Scan and get all partition records back for a specified partition range. channelFailOnClusterChange: %v", failOnClusterChange), func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
-
-			pbegin := 1000
-			for i := 1; i < 10; i++ {
-				counter := 0
-
-				pf := as.NewPartitionFilterByRange(pbegin, rand.Intn(i*191)+1)
-				recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-
-				for res := range recordset.Results() {
-					gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-					gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-					gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
-
-					delete(keys, string(res.Record.Key.Digest()))
-
-					counter++
-
-					gm.Expect(counter).To(gm.BeNumerically(">", 0))
-					gm.Expect(counter).To(gm.BeNumerically("<", keyCount))
-				}
-			}
-			gm.Expect(len(keys)).To(gm.BeNumerically(">", 0))
-		})
-
-		gg.It(fmt.Sprintf("must Scan and get all records back for a specified node using Results() channel: FailOnClusterChange: %v", failOnClusterChange), func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
-
-			counter := 0
-			for _, node := range client.GetNodes() {
-				recordset, err := client.ScanNode(scanPolicy, node, ns, set)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-
-				for res := range recordset.Results() {
-					gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-					key, exists := keys[string(res.Record.Key.Digest())]
-
-					gm.Expect(exists).To(gm.Equal(true))
-					gm.Expect(key.Value().GetObject()).To(gm.Equal(res.Record.Key.Value().GetObject()))
-					gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-					gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
-
-					delete(keys, string(res.Record.Key.Digest()))
-
-					counter++
-				}
-			}
-
-			gm.Expect(len(keys)).To(gm.Equal(0))
-			gm.Expect(counter).To(gm.Equal(keyCount))
-		})
-
-		gg.It(fmt.Sprintf("must Scan and get all records back for a specified node: FailOnClusterChange: %v", failOnClusterChange), func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
-
-			for _, node := range client.GetNodes() {
-				recordset, err := client.ScanNode(scanPolicy, node, ns, set)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-
-				checkResults(recordset, 0, false)
-			}
-
-			gm.Expect(len(keys)).To(gm.Equal(0))
-		})
-
-		gg.It(fmt.Sprintf("must Scan and get all records back from all nodes concurrently: FailOnClusterChange: %v", failOnClusterChange), func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
-
-			recordset, err := client.ScanAll(scanPolicy, ns, set)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			checkResults(recordset, 0, false)
-
-			gm.Expect(len(keys)).To(gm.Equal(0))
-		})
-
-		gg.It(fmt.Sprintf("must Scan and get all records back from all nodes concurrently with policy.RecordsPerSecond set: FailOnClusterChange: %v", failOnClusterChange), func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
-
-			policy := as.NewScanPolicy()
-			policy.RecordsPerSecond = keyCount - 100
-			recordset, err := client.ScanAll(policy, ns, set)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			checkResults(recordset, 0, false)
-
-			gm.Expect(len(keys)).To(gm.Equal(0))
-		})
-
-		gg.It(fmt.Sprintf("must Scan and get all records back from all nodes concurrently without the Bin Data: FailOnClusterChange: %v", failOnClusterChange), func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
-
-			sp := as.NewScanPolicy()
-			sp.IncludeBinData = false
-			recordset, err := client.ScanAll(sp, ns, set)
+			pf := as.NewPartitionFilterByKey(rkey)
+			recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				rec := res.Record
-				key, exists := keys[string(rec.Key.Digest())]
+				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
+				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-				gm.Expect(exists).To(gm.Equal(true))
-				gm.Expect(key.Value().GetObject()).To(gm.Equal(rec.Key.Value().GetObject()))
-				gm.Expect(len(rec.Bins)).To(gm.Equal(0))
+				// the key itself should not be returned
+				gm.Expect(bytes.Equal(rkey.Digest(), res.Record.Key.Digest())).To(gm.BeFalse())
 
 				delete(keys, string(res.Record.Key.Digest()))
+
+				counter++
 			}
 
-			gm.Expect(len(keys)).To(gm.Equal(0))
-		})
+		}
+		gm.Expect(len(keys)).To(gm.BeNumerically(">", 0))
+		gm.Expect(counter).To(gm.BeNumerically(">", 0))
+		gm.Expect(counter).To(gm.BeNumerically("<", keyCount))
+	})
 
-		gg.It(fmt.Sprintf("must Scan and get all records back from all nodes sequnetially: FailOnClusterChange: %v", failOnClusterChange), func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
+	gg.It("must Scan and get all partition records back for a specified partition range", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 
-			scanPolicy := as.NewScanPolicy()
-			scanPolicy.ConcurrentNodes = false
+		pbegin := 1000
+		for i := 1; i < 10; i++ {
+			counter := 0
 
-			recordset, err := client.ScanAll(scanPolicy, ns, set)
+			pf := as.NewPartitionFilterByRange(pbegin, rand.Intn(i*191)+1)
+			recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			for res := range recordset.Results() {
+				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
+				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+
+				delete(keys, string(res.Record.Key.Digest()))
+
+				counter++
+
+				gm.Expect(counter).To(gm.BeNumerically(">", 0))
+				gm.Expect(counter).To(gm.BeNumerically("<", keyCount))
+			}
+		}
+		gm.Expect(len(keys)).To(gm.BeNumerically(">", 0))
+	})
+
+	gg.It("must Scan and get all records back for a specified node using Results() channel", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
+
+		counter := 0
+		for _, node := range client.GetNodes() {
+			recordset, err := client.ScanNode(scanPolicy, node, ns, set)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			for res := range recordset.Results() {
+				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
+				key, exists := keys[string(res.Record.Key.Digest())]
+
+				gm.Expect(exists).To(gm.Equal(true))
+				gm.Expect(key.Value().GetObject()).To(gm.Equal(res.Record.Key.Value().GetObject()))
+				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+
+				delete(keys, string(res.Record.Key.Digest()))
+
+				counter++
+			}
+		}
+
+		gm.Expect(len(keys)).To(gm.Equal(0))
+		gm.Expect(counter).To(gm.Equal(keyCount))
+	})
+
+	gg.It("must Scan and get all records back for a specified node", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
+
+		for _, node := range client.GetNodes() {
+			recordset, err := client.ScanNode(scanPolicy, node, ns, set)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			checkResults(recordset, 0, false)
+		}
 
-			gm.Expect(len(keys)).To(gm.Equal(0))
-		})
+		gm.Expect(len(keys)).To(gm.Equal(0))
+	})
 
-		gg.It("must Cancel Scan", func() {
-			gm.Expect(len(keys)).To(gm.Equal(keyCount))
+	gg.It("must Scan and get all records back from all nodes concurrently", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 
-			recordset, err := client.ScanAll(scanPolicy, ns, set)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+		recordset, err := client.ScanAll(scanPolicy, ns, set)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			checkResults(recordset, keyCount/2, false)
+		checkResults(recordset, 0, false)
 
-			gm.Expect(len(keys)).To(gm.BeNumerically("<=", keyCount/2))
-		})
-	}
+		gm.Expect(len(keys)).To(gm.Equal(0))
+	})
+
+	gg.It("must Scan and get all records back from all nodes concurrently with policy.RecordsPerSecond set", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
+
+		policy := as.NewScanPolicy()
+		policy.RecordsPerSecond = keyCount - 100
+		recordset, err := client.ScanAll(policy, ns, set)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		checkResults(recordset, 0, false)
+
+		gm.Expect(len(keys)).To(gm.Equal(0))
+	})
+
+	gg.It("must Scan and get all records back from all nodes concurrently without the Bin Data", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
+
+		sp := as.NewScanPolicy()
+		sp.IncludeBinData = false
+		recordset, err := client.ScanAll(sp, ns, set)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			rec := res.Record
+			key, exists := keys[string(rec.Key.Digest())]
+
+			gm.Expect(exists).To(gm.Equal(true))
+			gm.Expect(key.Value().GetObject()).To(gm.Equal(rec.Key.Value().GetObject()))
+			gm.Expect(len(rec.Bins)).To(gm.Equal(0))
+
+			delete(keys, string(res.Record.Key.Digest()))
+		}
+
+		gm.Expect(len(keys)).To(gm.Equal(0))
+	})
+
+	gg.It("must Scan and get all records back from all nodes sequnetially", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
+
+		scanPolicy := as.NewScanPolicy()
+		scanPolicy.MaxConcurrentNodes = 1
+
+		recordset, err := client.ScanAll(scanPolicy, ns, set)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		checkResults(recordset, 0, false)
+
+		gm.Expect(len(keys)).To(gm.Equal(0))
+	})
+
+	gg.It("must Cancel Scan", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
+
+		recordset, err := client.ScanAll(scanPolicy, ns, set)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		checkResults(recordset, keyCount/2, false)
+
+		gm.Expect(len(keys)).To(gm.BeNumerically("<=", keyCount/2))
+	})
 })

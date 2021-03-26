@@ -26,11 +26,8 @@ type MultiPolicy struct {
 	// will be made to 8 nodes in parallel.  When a query completes, a new query will
 	// be issued until all 16 nodes have been queried.
 	// Default (0) is to issue requests to all server nodes in parallel.
+	// 1 will to issue requests to server nodes one by one avoiding parallel queries.
 	MaxConcurrentNodes int
-
-	// FailOnClusterChange determines scan termination if cluster is in fluctuating state.
-	// Only used for server versions < 4.9.
-	FailOnClusterChange bool
 
 	// MaxRecords approximates the number of records to return to the client. This number is divided by the
 	// number of nodes involved in the query. The actual number of records returned
@@ -77,11 +74,10 @@ func NewMultiPolicy() *MultiPolicy {
 	bp.MaxRetries = 5
 
 	return &MultiPolicy{
-		BasePolicy:          bp,
-		MaxConcurrentNodes:  0,
-		RecordsPerSecond:    0,
-		RecordQueueSize:     50,
-		IncludeBinData:      true,
-		FailOnClusterChange: false,
+		BasePolicy:         bp,
+		MaxConcurrentNodes: 0,
+		RecordsPerSecond:   0,
+		RecordQueueSize:    50,
+		IncludeBinData:     true,
 	}
 }

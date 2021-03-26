@@ -27,11 +27,12 @@ type Policy interface {
 	compress() bool
 }
 
+// enforce the interface
+var _ Policy = &BasePolicy{}
+
 // BasePolicy encapsulates parameters for transaction policy attributes
 // used in all database operation calls.
 type BasePolicy struct {
-	Policy
-
 	// PredExps is the optional predicate expression filter in postfix notation. If the predicate
 	// expression exists and evaluates to false, the transaction is ignored.
 	//
@@ -42,13 +43,6 @@ type BasePolicy struct {
 
 	// FilterExpression is the optional Filter Expression. Supported on Server v5.2+
 	FilterExpression *FilterExpression
-
-	// Priority of request relative to other transactions.
-	// Only used for scans on server versions < 4.9.
-	//
-	// Priority is obsolete and will eventually be removed.
-	// Use ScanPolicy.RecordsPerSecond instead of priority.
-	Priority Priority //= Priority.DEFAULT;
 
 	// ReadModeAP indicates read policy for AP (availability) namespaces.
 	ReadModeAP ReadModeAP //= ONE
@@ -153,7 +147,6 @@ type BasePolicy struct {
 // NewPolicy generates a new BasePolicy instance with default values.
 func NewPolicy() *BasePolicy {
 	return &BasePolicy{
-		Priority:            DEFAULT,
 		ReadModeAP:          ReadModeAPOne,
 		ReadModeSC:          ReadModeSCSession,
 		TotalTimeout:        0 * time.Millisecond,

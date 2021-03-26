@@ -14,30 +14,9 @@
 
 package aerospike
 
-import (
-	"fmt"
-
-	"github.com/aerospike/aerospike-client-go/types"
-)
-
 // ScanPolicy encapsulates parameters used in scan operations.
 type ScanPolicy struct {
 	MultiPolicy
-
-	// ScanPercent determines percent of data to scan.
-	// Valid integer range is 1 to 100.
-	//
-	// This field is supported on server versions < 4.9.
-	// For server versions >= 4.9, use MultiPolicy.MaxRecords.
-	//
-	// Default is 100.
-	ScanPercent int //= 100;
-
-	// ConcurrentNodes determines how to issue scan requests (in parallel or sequentially).
-	// The value of MultiPolicy.MaxConcurrentNodes will determine how many nodes will be
-	// called in parallel.
-	// This value is deprected and will be removed in the future.
-	ConcurrentNodes bool //= true;
 }
 
 // NewScanPolicy creates a new ScanPolicy instance with default values.
@@ -58,15 +37,6 @@ func NewScanPolicy() *ScanPolicy {
 	mp.TotalTimeout = 0
 
 	return &ScanPolicy{
-		MultiPolicy:     mp,
-		ScanPercent:     100,
-		ConcurrentNodes: true,
-	}
-}
-
-// Verify policies fields are within range.
-func (sp *ScanPolicy) validate() {
-	if sp.ScanPercent <= 0 || sp.ScanPercent > 100 {
-		panic(newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid scan percent: %d", sp.ScanPercent)))
+		MultiPolicy: mp,
 	}
 }

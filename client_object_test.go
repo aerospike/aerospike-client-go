@@ -17,7 +17,6 @@
 package aerospike_test
 
 import (
-	"fmt"
 	"math"
 	"strconv"
 	"time"
@@ -1093,215 +1092,210 @@ var _ = gg.Describe("Aerospike", func() {
 			}) // it
 		})
 
-		for _, failOnClusterChange := range []bool{false, true} {
-			var scanPolicy = as.NewScanPolicy()
-			scanPolicy.FailOnClusterChange = failOnClusterChange
+		var scanPolicy = as.NewScanPolicy()
+		var queryPolicy = as.NewQueryPolicy()
 
-			var queryPolicy = as.NewQueryPolicy()
-			queryPolicy.FailOnClusterChange = failOnClusterChange
+		gg.Context("ScanObjects operations", func() {
 
-			gg.Context("ScanObjects operations", func() {
+			type InnerStruct struct {
+				PersistNot      int    `as:"-"`
+				PersistAsInner1 int    `as:"inner1"`
+				Gen             uint32 `asm:"gen"`
+				TTL             uint32 `asm:"ttl"`
+			}
 
-				type InnerStruct struct {
-					PersistNot      int    `as:"-"`
-					PersistAsInner1 int    `as:"inner1"`
-					Gen             uint32 `asm:"gen"`
-					TTL             uint32 `asm:"ttl"`
+			gg.BeforeEach(func() {
+				set = randString(50)
+
+				wp := as.NewWritePolicy(0, 500)
+				for i := 1; i < 100; i++ {
+					key, err = as.NewKey(ns, set, randString(50))
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+
+					testObj := InnerStruct{PersistAsInner1: i}
+					err := client.PutObject(wp, key, &testObj)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 				}
 
-				gg.BeforeEach(func() {
-					set = randString(50)
+			})
 
-					wp := as.NewWritePolicy(0, 500)
-					for i := 1; i < 100; i++ {
-						key, err = as.NewKey(ns, set, randString(50))
-						gm.Expect(err).ToNot(gm.HaveOccurred())
+			gg.It("must scan all objects with the most complex structure possible", func() {
 
-						testObj := InnerStruct{PersistAsInner1: i}
-						err := client.PutObject(wp, key, &testObj)
-						gm.Expect(err).ToNot(gm.HaveOccurred())
-					}
+				testObj := &InnerStruct{}
 
-				})
+				retChan := make(chan *InnerStruct, 10)
 
-				gg.It(fmt.Sprintf("must scan all objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
+				rs, err := client.ScanAllObjects(scanPolicy, retChan, ns, set)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-					testObj := &InnerStruct{}
+				cnt := 0
+				for resObj := range retChan {
+					gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">", 0))
+					gm.Expect(resObj.PersistNot).To(gm.Equal(0))
+					gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
+					gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
 
-					retChan := make(chan *InnerStruct, 10)
-
-					rs, err := client.ScanAllObjects(scanPolicy, retChan, ns, set)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-
-					cnt := 0
-					for resObj := range retChan {
-						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">", 0))
-						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
-						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
-						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
-
-						testObj.PersistAsInner1 = resObj.PersistAsInner1
-						testObj.Gen = resObj.Gen
-						testObj.TTL = resObj.TTL
-						gm.Expect(resObj).To(gm.Equal(testObj))
-						cnt++
-					}
-
-				for e := range rs.Errors() {
-						gm.Expect(e).ToNot(gm.HaveOccurred())
-					}
-
-					gm.Expect(cnt).To(gm.Equal(99))
-				})
-
-			}) // ScanObjects context
-
-			gg.Context("QueryObjects operations", func() {
-
-				type InnerStruct struct {
-					PersistNot      int    `as:"-"`
-					PersistAsInner1 int    `as:"inner1"`
-					Gen             uint32 `asm:"gen"`
-					TTL             uint32 `asm:"ttl"`
+					testObj.PersistAsInner1 = resObj.PersistAsInner1
+					testObj.Gen = resObj.Gen
+					testObj.TTL = resObj.TTL
+					gm.Expect(resObj).To(gm.Equal(testObj))
+					cnt++
 				}
 
-				gg.BeforeEach(func() {
-					set = randString(50)
+				for e := range rs.Errors() {
+					gm.Expect(e).ToNot(gm.HaveOccurred())
+				}
 
-					wp := as.NewWritePolicy(5, 500)
-					for i := 1; i < 100; i++ {
-						key, err = as.NewKey(ns, set, randString(50))
-						gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(cnt).To(gm.Equal(99))
+			})
 
-						testObj := InnerStruct{PersistAsInner1: i}
-						err := client.PutObject(wp, key, &testObj)
-						gm.Expect(err).ToNot(gm.HaveOccurred())
-					}
+		}) // ScanObjects context
 
-				})
+		gg.Context("QueryObjects operations", func() {
 
-				gg.It(fmt.Sprintf("must scan all objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
+			type InnerStruct struct {
+				PersistNot      int    `as:"-"`
+				PersistAsInner1 int    `as:"inner1"`
+				Gen             uint32 `asm:"gen"`
+				TTL             uint32 `asm:"ttl"`
+			}
 
-					testObj := &InnerStruct{}
+			gg.BeforeEach(func() {
+				set = randString(50)
 
-					retChan := make(chan *InnerStruct, 10)
-					stmt := as.NewStatement(ns, set)
-
-					rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
+				wp := as.NewWritePolicy(5, 500)
+				for i := 1; i < 100; i++ {
+					key, err = as.NewKey(ns, set, randString(50))
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 
-					cnt := 0
-					for resObj := range retChan {
-						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">", 0))
-						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
-						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
-						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+					testObj := InnerStruct{PersistAsInner1: i}
+					err := client.PutObject(wp, key, &testObj)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+				}
 
-						testObj.PersistAsInner1 = resObj.PersistAsInner1
-						testObj.Gen = resObj.Gen
-						testObj.TTL = resObj.TTL
-						gm.Expect(resObj).To(gm.Equal(testObj))
-						cnt++
-					}
+			})
+
+			gg.It("must scan all objects with the most complex structure possible", func() {
+
+				testObj := &InnerStruct{}
+
+				retChan := make(chan *InnerStruct, 10)
+				stmt := as.NewStatement(ns, set)
+
+				rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				cnt := 0
+				for resObj := range retChan {
+					gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">", 0))
+					gm.Expect(resObj.PersistNot).To(gm.Equal(0))
+					gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
+					gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+
+					testObj.PersistAsInner1 = resObj.PersistAsInner1
+					testObj.Gen = resObj.Gen
+					testObj.TTL = resObj.TTL
+					gm.Expect(resObj).To(gm.Equal(testObj))
+					cnt++
+				}
 
 				for e := range rs.Errors() {
-						gm.Expect(e).ToNot(gm.HaveOccurred())
-					}
+					gm.Expect(e).ToNot(gm.HaveOccurred())
+				}
 
-					gm.Expect(cnt).To(gm.Equal(99))
-				})
+				gm.Expect(cnt).To(gm.Equal(99))
+			})
 
-				gg.It(fmt.Sprintf("must query only relevant objects with the most complex structure possible. FailOnClusterChange: %v", failOnClusterChange), func() {
+			gg.It("must query only relevant objects with the most complex structure possible", func() {
 
-					// first create an index
-					idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-					defer client.DropIndex(nil, ns, set, set+"inner1")
+				// first create an index
+				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defer client.DropIndex(nil, ns, set, set+"inner1")
 
-					// wait until index is created
-					<-idxTask.OnComplete()
+				// wait until index is created
+				<-idxTask.OnComplete()
 
-					testObj := &InnerStruct{}
+				testObj := &InnerStruct{}
 
-					retChan := make(chan *InnerStruct, 10)
-					stmt := as.NewStatement(ns, set)
-					stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
+				retChan := make(chan *InnerStruct, 10)
+				stmt := as.NewStatement(ns, set)
+				stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
 
-					rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
+				rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-					cnt := 0
-					for resObj := range retChan {
-						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">=", 21))
-						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically("<=", 70))
-						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
-						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
-						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+				cnt := 0
+				for resObj := range retChan {
+					gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">=", 21))
+					gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically("<=", 70))
+					gm.Expect(resObj.PersistNot).To(gm.Equal(0))
+					gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
+					gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
 
-						testObj.PersistAsInner1 = resObj.PersistAsInner1
-						testObj.Gen = resObj.Gen
-						testObj.TTL = resObj.TTL
-						gm.Expect(resObj).To(gm.Equal(testObj))
-						cnt++
-					}
+					testObj.PersistAsInner1 = resObj.PersistAsInner1
+					testObj.Gen = resObj.Gen
+					testObj.TTL = resObj.TTL
+					gm.Expect(resObj).To(gm.Equal(testObj))
+					cnt++
+				}
 
 				for e := range rs.Errors() {
-						gm.Expect(e).ToNot(gm.HaveOccurred())
-					}
+					gm.Expect(e).ToNot(gm.HaveOccurred())
+				}
 
-					gm.Expect(cnt).To(gm.Equal(50))
-				})
+				gm.Expect(cnt).To(gm.Equal(50))
+			})
 
-				gg.It(fmt.Sprintf("must query only relevant objects, and close and return. FailOnClusterChange: %v", failOnClusterChange), func() {
+			gg.It("must query only relevant objects, and close and return", func() {
 
-					// first create an index
-					idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-					defer client.DropIndex(nil, ns, set, set+"inner1")
+				// first create an index
+				idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defer client.DropIndex(nil, ns, set, set+"inner1")
 
-					// wait until index is created
-					<-idxTask.OnComplete()
+				// wait until index is created
+				<-idxTask.OnComplete()
 
-					testObj := &InnerStruct{}
+				testObj := &InnerStruct{}
 
-					retChan := make(chan *InnerStruct, 1)
-					stmt := as.NewStatement(ns, set)
-					stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
+				retChan := make(chan *InnerStruct, 1)
+				stmt := as.NewStatement(ns, set)
+				stmt.SetFilter(as.NewRangeFilter("inner1", 21, 70))
 
-					qpolicy := as.NewQueryPolicy()
-					qpolicy.RecordQueueSize = 1
+				qpolicy := as.NewQueryPolicy()
+				qpolicy.RecordQueueSize = 1
 
-					rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
+				rs, err := client.QueryObjects(queryPolicy, stmt, retChan)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-					cnt := 0
-					for resObj := range retChan {
-						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">=", 21))
-						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically("<=", 70))
-						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
-						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
-						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+				cnt := 0
+				for resObj := range retChan {
+					gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">=", 21))
+					gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically("<=", 70))
+					gm.Expect(resObj.PersistNot).To(gm.Equal(0))
+					gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
+					gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
 
-						testObj.PersistAsInner1 = resObj.PersistAsInner1
-						testObj.Gen = resObj.Gen
-						testObj.TTL = resObj.TTL
-						gm.Expect(resObj).To(gm.Equal(testObj))
-						cnt++
+					testObj.PersistAsInner1 = resObj.PersistAsInner1
+					testObj.Gen = resObj.Gen
+					testObj.TTL = resObj.TTL
+					gm.Expect(resObj).To(gm.Equal(testObj))
+					cnt++
 
-						if cnt >= 10 {
-							rs.Close()
+					if cnt >= 10 {
+						rs.Close()
 						gm.Eventually(rs.Errors()).Should(gm.BeClosed())
-						}
 					}
+				}
 
 				for e := range rs.Errors() {
-						gm.Expect(e).ToNot(gm.HaveOccurred())
-					}
+					gm.Expect(e).ToNot(gm.HaveOccurred())
+				}
 
-					gm.Expect(cnt).To(gm.BeNumerically("<=", 11))
-				})
+				gm.Expect(cnt).To(gm.BeNumerically("<=", 11))
+			})
 
-			}) // QueryObject context
-		}
+		}) // QueryObject context
 	})
 })

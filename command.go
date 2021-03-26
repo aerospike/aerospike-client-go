@@ -1026,13 +1026,6 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		fieldCount++
 	}
 
-	// Only set scan options for server versions < 4.9.
-	if nodePartitions == nil {
-		// Estimate scan options size.
-		cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
-		fieldCount++
-	}
-
 	// Estimate scan timeout size.
 	cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
 	fieldCount++
@@ -1102,21 +1095,6 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 	if policy.RecordsPerSecond > 0 {
 		cmd.writeFieldInt32(int32(policy.RecordsPerSecond), RECORDS_PER_SECOND)
-	}
-
-	// Only set scan options for server versions < 4.9.
-	if nodePartitions == nil {
-		cmd.writeFieldHeader(2, SCAN_OPTIONS)
-
-		priority := byte(policy.Priority)
-		priority <<= 4
-
-		if policy.FailOnClusterChange {
-			priority |= 0x08
-		}
-
-		cmd.WriteByte(priority)
-		cmd.WriteByte(byte(policy.ScanPercent))
 	}
 
 	// Write scan timeout
@@ -1205,7 +1183,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	} else {
 		// Calling query with no filters is more efficiently handled by a primary index scan.
 		// Estimate scan options size.
-
 		if nodePartitions != nil {
 			partsFullSize = len(nodePartitions.partsFull) * 2
 			partsPartialSize = len(nodePartitions.partsPartial) * 20
@@ -1225,13 +1202,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		// Estimate max records size;
 		if maxRecords > 0 {
 			cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
-			fieldCount++
-		}
-
-		// Only set scan options for server versions < 4.9.
-		if nodePartitions == nil {
-			// Estimate scan options size.
-			cmd.dataOffset += 2 + int(_FIELD_HEADER_SIZE)
 			fieldCount++
 		}
 
@@ -1383,20 +1353,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 
 		if maxRecords > 0 {
 			cmd.writeFieldInt64(maxRecords, SCAN_MAX_RECORDS)
-		}
-
-		if nodePartitions == nil {
-			cmd.writeFieldHeader(2, SCAN_OPTIONS)
-
-			priority := byte(policy.Priority)
-			priority <<= 4
-
-			if !write && policy.FailOnClusterChange {
-				priority |= 0x08
-			}
-
-			cmd.WriteByte(priority)
-			cmd.WriteByte(byte(100))
 		}
 
 		// Write scan timeout

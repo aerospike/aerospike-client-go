@@ -32,11 +32,9 @@ func newScanCommand(
 	setName string,
 	binNames []string,
 	recordset *Recordset,
-	clusterKey int64,
-	first bool,
 ) *scanCommand {
 	cmd := &scanCommand{
-		baseMultiCommand: *newStreamingMultiCommand(node, recordset, namespace, clusterKey, first),
+		baseMultiCommand: *newStreamingMultiCommand(node, recordset, namespace),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,

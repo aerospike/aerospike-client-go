@@ -535,14 +535,9 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 		return nil, ErrClusterIsEmpty.err()
 	}
 
-	clusterKey, err := clnt.clusterKey(&policy.MultiPolicy, nodes[0], namespace)
-	if err != nil {
-		return nil, err
-	}
-
 	// result recordset
 	res := newRecordset(policy.RecordQueueSize, len(nodes))
-	clnt.scanNodes(&policy, res, clusterKey, namespace, setName, binNames, nodes...)
+	clnt.scanNodes(&policy, res, namespace, setName, binNames, nodes...)
 
 	return res, nil
 }
@@ -568,14 +563,10 @@ func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, 
 	}
 
 	policy := *clnt.getUsableScanPolicy(apolicy)
-	clusterKey, err := clnt.clusterKey(&policy.MultiPolicy, node, namespace)
-	if err != nil {
-		return nil, err
-	}
 
 	// results channel must be async for performance
 	res := newRecordset(policy.RecordQueueSize, 1)
-	clnt.scanNodes(&policy, res, clusterKey, namespace, setName, binNames, node)
+	clnt.scanNodes(&policy, res, namespace, setName, binNames, node)
 	return res, nil
 }
 
@@ -960,13 +951,6 @@ func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, p
 	return res, nil
 }
 
-func (clnt *Client) clusterKey(policy *MultiPolicy, node *Node, namespace string) (int64, Error) {
-	if policy.FailOnClusterChange {
-		return queryValidateBegin(node, namespace)
-	}
-	return 0, nil
-}
-
 // Query executes a query and returns a Recordset.
 // The query executor puts records on the channel from separate goroutines.
 // The caller can concurrently pop records off the channel through the
@@ -985,14 +969,9 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 		return nil, ErrClusterIsEmpty.err()
 	}
 
-	clusterKey, err := clnt.clusterKey(&policy.MultiPolicy, nodes[0], statement.Namespace)
-	if err != nil {
-		return nil, err
-	}
-
 	// results channel must be async for performance
 	recordset := newRecordset(policy.RecordQueueSize, len(nodes))
-	clnt.queryNodes(policy, recordset, clusterKey, statement, nodes...)
+	clnt.queryNodes(policy, recordset, statement, nodes...)
 
 	return recordset, nil
 }
@@ -1009,14 +988,10 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 	}
 
 	policy = clnt.getUsableQueryPolicy(policy)
-	clusterKey, err := clnt.clusterKey(&policy.MultiPolicy, node, statement.Namespace)
-	if err != nil {
-		return nil, err
-	}
 
 	// results channel must be async for performance
 	recordset := newRecordset(policy.RecordQueueSize, 1)
-	clnt.queryNodes(policy, recordset, clusterKey, statement, node)
+	clnt.queryNodes(policy, recordset, statement, node)
 
 	return recordset, nil
 }
@@ -1480,13 +1455,10 @@ func (clnt *Client) getUsableWritePolicy(policy *WritePolicy) *WritePolicy {
 func (clnt *Client) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
 	if policy == nil {
 		if clnt.DefaultScanPolicy != nil {
-			res := clnt.DefaultScanPolicy
-			res.validate()
-			return res
+			return clnt.DefaultScanPolicy
 		}
 		return NewScanPolicy()
 	}
-	policy.validate()
 	return policy
 }
 

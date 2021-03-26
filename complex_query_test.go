@@ -15,8 +15,6 @@
 package aerospike_test
 
 import (
-	"fmt"
-
 	as "github.com/aerospike/aerospike-client-go"
 
 	gg "github.com/onsi/ginkgo"
@@ -81,107 +79,104 @@ var _ = gg.Describe("Query operations on complex types", func() {
 		gm.Expect(client.DropIndex(nil, ns, set, set+bin2.Name+"values")).ToNot(gm.HaveOccurred())
 	})
 
-	for _, failOnClusterChange := range []bool{false, true} {
-		var queryPolicy = as.NewQueryPolicy()
-		queryPolicy.FailOnClusterChange = failOnClusterChange
+	var queryPolicy = as.NewQueryPolicy()
 
-		gg.It(fmt.Sprintf("must Query a specific element in list and get only relevant records back. FailOnClusterChange: %v", failOnClusterChange), func() {
-			stm := as.NewStatement(ns, set)
-			stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 1))
-			recordset, err := client.Query(queryPolicy, stm)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+	gg.It("must Query a specific element in list and get only relevant records back", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 1))
+		recordset, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				rec := res.Record
-				cnt++
-				_, exists := keys[string(rec.Key.Digest())]
-				gm.Expect(exists).To(gm.Equal(true))
-			}
+		cnt := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			rec := res.Record
+			cnt++
+			_, exists := keys[string(rec.Key.Digest())]
+			gm.Expect(exists).To(gm.Equal(true))
+		}
 
-			gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
-		})
+		gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
+	})
 
-		gg.It(fmt.Sprintf("must Query a specific non-existig element in list and get no records back. FailOnClusterChange: %v", failOnClusterChange), func() {
-			stm := as.NewStatement(ns, set)
-			stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 10))
-			recordset, err := client.Query(queryPolicy, stm)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+	gg.It("must Query a specific non-existig element in list and get no records back", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 10))
+		recordset, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				cnt++
-			}
+		cnt := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			cnt++
+		}
 
-			gm.Expect(cnt).To(gm.BeNumerically("==", 0))
-		})
+		gm.Expect(cnt).To(gm.BeNumerically("==", 0))
+	})
 
-		gg.It(fmt.Sprintf("must Query a key in map and get only relevant records back. FailOnClusterChange: %v", failOnClusterChange), func() {
-			stm := as.NewStatement(ns, set)
-			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 0))
-			recordset, err := client.Query(queryPolicy, stm)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+	gg.It("must Query a key in map and get only relevant records back", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 0))
+		recordset, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				rec := res.Record
-				cnt++
-				_, exists := keys[string(rec.Key.Digest())]
-				gm.Expect(exists).To(gm.Equal(true))
-			}
+		cnt := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			rec := res.Record
+			cnt++
+			_, exists := keys[string(rec.Key.Digest())]
+			gm.Expect(exists).To(gm.Equal(true))
+		}
 
-			gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
-		})
+		gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
+	})
 
-		gg.It(fmt.Sprintf("must Query a specific non-existig key in map and get no records back. FailOnClusterChange: %v", failOnClusterChange), func() {
-			stm := as.NewStatement(ns, set)
-			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 10))
-			recordset, err := client.Query(queryPolicy, stm)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+	gg.It("must Query a specific non-existig key in map and get no records back", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 10))
+		recordset, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				cnt++
-			}
+		cnt := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			cnt++
+		}
 
-			gm.Expect(cnt).To(gm.BeNumerically("==", 0))
-		})
+		gm.Expect(cnt).To(gm.BeNumerically("==", 0))
+	})
 
-		gg.It(fmt.Sprintf("must Query a value in map and get only relevant records back. FailOnClusterChange: %v", failOnClusterChange), func() {
-			stm := as.NewStatement(ns, set)
-			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 1))
-			recordset, err := client.Query(queryPolicy, stm)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+	gg.It("must Query a value in map and get only relevant records back", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 1))
+		recordset, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				rec := res.Record
-				cnt++
-				_, exists := keys[string(rec.Key.Digest())]
-				gm.Expect(exists).To(gm.Equal(true))
-			}
+		cnt := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			rec := res.Record
+			cnt++
+			_, exists := keys[string(rec.Key.Digest())]
+			gm.Expect(exists).To(gm.Equal(true))
+		}
 
-			gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
-		})
+		gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
+	})
 
-		gg.It(fmt.Sprintf("must Query a specific non-existig value in map and get no records back. FailOnClusterChange: %v", failOnClusterChange), func() {
-			stm := as.NewStatement(ns, set)
-			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 10))
-			recordset, err := client.Query(queryPolicy, stm)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+	gg.It("must Query a specific non-existig value in map and get no records back", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 10))
+		recordset, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				cnt++
-			}
+		cnt := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			cnt++
+		}
 
-			gm.Expect(cnt).To(gm.BeNumerically("==", 0))
-		})
-	}
+		gm.Expect(cnt).To(gm.BeNumerically("==", 0))
+	})
 })

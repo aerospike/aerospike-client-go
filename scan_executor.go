@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"time"
-
-	"github.com/aerospike/aerospike-client-go/internal/atomic"
 )
 
 func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker, namespace string, setName string, recordset *Recordset, binNames ...string) {
@@ -38,10 +36,6 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 		maxConcurrentNodes := policy.MaxConcurrentNodes
 		if maxConcurrentNodes <= 0 {
 			maxConcurrentNodes = len(list)
-		}
-
-		if !policy.ConcurrentNodes {
-			maxConcurrentNodes = 1
 		}
 
 		weg := newWeightedErrGroup(maxConcurrentNodes)
@@ -75,20 +69,15 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 
 }
 
-func (clnt *Client) scanNodes(policy *ScanPolicy, recordset *Recordset, clusterKey int64, namespace, setName string, binNames []string, nodes ...*Node) {
+func (clnt *Client) scanNodes(policy *ScanPolicy, recordset *Recordset, namespace, setName string, binNames []string, nodes ...*Node) {
 	maxConcurrentNodes := policy.MaxConcurrentNodes
 	if maxConcurrentNodes <= 0 {
 		maxConcurrentNodes = len(nodes)
 	}
 
-	if !policy.ConcurrentNodes {
-		maxConcurrentNodes = 1
-	}
-
 	weg := newWeightedErrGroup(maxConcurrentNodes)
-	first := atomic.NewBool(true)
 	for _, node := range nodes {
-		cmd := newScanCommand(node, policy, namespace, setName, binNames, recordset, clusterKey, first.CompareAndToggle(true))
+		cmd := newScanCommand(node, policy, namespace, setName, binNames, recordset)
 		weg.executeFunc(cmd, func() { recordset.signalEnd() })
 	}
 

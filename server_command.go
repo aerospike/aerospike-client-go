@@ -25,7 +25,7 @@ type serverCommand struct {
 
 func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, taskId uint64, operations []*Operation) *serverCommand {
 	return &serverCommand{
-		queryCommand: *newQueryCommand(node, policy, writePolicy, statement, operations, nil, 0, false),
+		queryCommand: *newQueryCommand(node, policy, writePolicy, statement, operations, nil),
 	}
 }
 

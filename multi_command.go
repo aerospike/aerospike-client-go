@@ -26,10 +26,7 @@ import (
 type baseMultiCommand struct {
 	baseCommand
 
-	namespace  string
-	clusterKey int64
-	first      bool
-
+	namespace string
 	recordset *Recordset
 
 	// Used in correct Scans/Queries
@@ -70,16 +67,14 @@ func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	return cmd
 }
 
-func newStreamingMultiCommand(node *Node, recordset *Recordset, namespace string, clusterKey int64, first bool) *baseMultiCommand {
+func newStreamingMultiCommand(node *Node, recordset *Recordset, namespace string) *baseMultiCommand {
 	cmd := &baseMultiCommand{
 		baseCommand: baseCommand{
 			node:    node,
 			oneShot: true,
 		},
-		namespace:  namespace,
-		clusterKey: clusterKey,
-		first:      first,
-		recordset:  recordset,
+		namespace: namespace,
+		recordset: recordset,
 	}
 
 	if prepareReflectionData != nil {
@@ -367,20 +362,6 @@ func (cmd *baseMultiCommand) execute(ifc command, isRead bool) Error {
 				It is being sent from the downstream command from the result
 				returned from the function.
 	****************************************************************************/
-
-	if cmd.clusterKey != 0 {
-		if !cmd.first {
-			if err := queryValidate(cmd.node, cmd.namespace, cmd.clusterKey); err != nil {
-				return err
-			}
-		}
-
-		if err := cmd.baseCommand.execute(ifc, isRead); err != nil {
-			return err
-		}
-
-		return queryValidate(cmd.node, cmd.namespace, cmd.clusterKey)
-	}
 
 	return cmd.baseCommand.execute(ifc, isRead)
 }

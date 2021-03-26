@@ -20,9 +20,9 @@ type queryRecordCommand struct {
 	queryCommand
 }
 
-func newQueryRecordCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset, clusterKey int64, first bool) *queryRecordCommand {
+func newQueryRecordCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryRecordCommand {
 	cmd := &queryRecordCommand{
-		queryCommand: *newQueryCommand(node, policy, nil, statement, nil, recordset, clusterKey, first),
+		queryCommand: *newQueryCommand(node, policy, nil, statement, nil, recordset),
 	}
 
 	cmd.terminationErrorType = types.QUERY_TERMINATED
