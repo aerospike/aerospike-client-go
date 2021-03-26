@@ -18,7 +18,6 @@ package aerospike
 
 import (
 	"fmt"
-	"math"
 	"reflect"
 	"strings"
 	"sync"
@@ -61,7 +60,7 @@ func SetAerospikeTag(tag string) {
 	aerospikeTag = tag
 }
 
-func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
+func valueToInterface(f reflect.Value) interface{} {
 	// get to the core value
 	for f.Kind() == reflect.Ptr {
 		if f.IsNil() {
@@ -76,18 +75,13 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 	case reflect.Uint64, reflect.Uint, reflect.Uint8, reflect.Uint32, reflect.Uint16:
 		return int64(f.Uint())
 	case reflect.Float64, reflect.Float32:
-		// support floats through integer encoding if
-		// server doesn't support floats
-		if clusterSupportsFloat {
-			return FloatValue(f.Float())
-		}
-		return IntegerValue(math.Float64bits(f.Float()))
+		return FloatValue(f.Float())
 
 	case reflect.Struct:
 		if f.Type().PkgPath() == "time" && f.Type().Name() == "Time" {
 			return f.Interface().(time.Time).UTC().UnixNano()
 		}
-		return structToMap(f, clusterSupportsFloat)
+		return structToMap(f)
 	case reflect.Bool:
 		if f.Bool() {
 			return IntegerValue(1)
@@ -100,7 +94,7 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 
 		newMap := make(map[interface{}]interface{}, f.Len())
 		for _, mk := range f.MapKeys() {
-			newMap[valueToInterface(mk, clusterSupportsFloat)] = valueToInterface(f.MapIndex(mk), clusterSupportsFloat)
+			newMap[valueToInterface(mk)] = valueToInterface(f.MapIndex(mk))
 		}
 
 		return newMap
@@ -115,7 +109,7 @@ func valueToInterface(f reflect.Value, clusterSupportsFloat bool) interface{} {
 		// convert to primitives recursively
 		newSlice := make([]interface{}, f.Len(), f.Cap())
 		for i := 0; i < len(newSlice); i++ {
-			newSlice[i] = valueToInterface(f.Index(i), clusterSupportsFloat)
+			newSlice[i] = valueToInterface(f.Index(i))
 		}
 		return newSlice
 	case reflect.Interface:
@@ -158,7 +152,7 @@ func fieldAlias(f reflect.StructField) string {
 	return f.Name
 }
 
-func setBinMap(s reflect.Value, clusterSupportsFloat bool, typeOfT reflect.Type, binMap BinMap, index []int) {
+func setBinMap(s reflect.Value, typeOfT reflect.Type, binMap BinMap, index []int) {
 	numFields := typeOfT.NumField()
 	var fld reflect.StructField
 	for i := 0; i < numFields; i++ {
@@ -167,7 +161,7 @@ func setBinMap(s reflect.Value, clusterSupportsFloat bool, typeOfT reflect.Type,
 		fldIndex := append(index, fld.Index...)
 
 		if fld.Anonymous && fld.Type.Kind() == reflect.Struct {
-			setBinMap(s, clusterSupportsFloat, fld.Type, binMap, fldIndex)
+			setBinMap(s, fld.Type, binMap, fldIndex)
 			continue
 		}
 
@@ -191,7 +185,7 @@ func setBinMap(s reflect.Value, clusterSupportsFloat bool, typeOfT reflect.Type,
 			continue
 		}
 
-		binValue := valueToInterface(value, clusterSupportsFloat)
+		binValue := valueToInterface(value)
 
 		if _, ok := binMap[alias]; ok {
 			panic(fmt.Sprintf("ambiguous fields with the same name or alias: %s", alias))
@@ -200,21 +194,21 @@ func setBinMap(s reflect.Value, clusterSupportsFloat bool, typeOfT reflect.Type,
 	}
 }
 
-func structToMap(s reflect.Value, clusterSupportsFloat bool) BinMap {
+func structToMap(s reflect.Value) BinMap {
 	if !s.IsValid() {
 		return nil
 	}
 
 	binMap := make(BinMap, s.NumField())
 
-	setBinMap(s, clusterSupportsFloat, s.Type(), binMap, nil)
+	setBinMap(s, s.Type(), binMap, nil)
 
 	return binMap
 }
 
-func marshal(v interface{}, clusterSupportsFloat bool) BinMap {
+func marshal(v interface{}) BinMap {
 	s := indirect(reflect.ValueOf(v))
-	return structToMap(s, clusterSupportsFloat)
+	return structToMap(s)
 }
 
 type syncMap struct {

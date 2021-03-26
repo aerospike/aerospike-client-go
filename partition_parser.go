@@ -30,7 +30,6 @@ import (
 const (
 	_PartitionGeneration = "partition-generation"
 	_Replicas            = "replicas"
-	_ReplicasAll         = "replicas-all"
 )
 
 var partitionMapLock sync.Mutex
@@ -54,12 +53,7 @@ func newPartitionParser(node *Node, partitions partitionMap, partitionCount int)
 
 	// Send format 1:  partition-generation\nreplicas\n
 	// Send format 2:  partition-generation\nreplicas-all\n
-	var command string
-	if node.supportsReplicas.Get() {
-		command = _Replicas
-	} else {
-		command = _ReplicasAll
-	}
+	command := _Replicas
 
 	info, err := node.requestRawInfo(&node.cluster.infoPolicy, _PartitionGeneration, command)
 	if err != nil {

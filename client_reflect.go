@@ -46,7 +46,7 @@ import (
 func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err Error) {
 	policy = clnt.getUsableWritePolicy(policy)
 
-	binMap := marshal(obj, clnt.cluster.supportsFloat.Get())
+	binMap := marshal(obj)
 	command, err := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _WRITE)
 	if err != nil {
 		return err

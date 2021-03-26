@@ -68,19 +68,3 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 	}
 
 }
-
-func (clnt *Client) scanNodes(policy *ScanPolicy, recordset *Recordset, namespace, setName string, binNames []string, nodes ...*Node) {
-	maxConcurrentNodes := policy.MaxConcurrentNodes
-	if maxConcurrentNodes <= 0 {
-		maxConcurrentNodes = len(nodes)
-	}
-
-	weg := newWeightedErrGroup(maxConcurrentNodes)
-	for _, node := range nodes {
-		cmd := newScanCommand(node, policy, namespace, setName, binNames, recordset)
-		weg.executeFunc(cmd, func() { recordset.signalEnd() })
-	}
-
-	// skip the wg.wait, no need to sync here; Recordset will do the sync
-	// wg.wait
-}

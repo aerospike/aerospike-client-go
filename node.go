@@ -67,10 +67,6 @@ type Node struct {
 	rebalanceGeneration iatomic.Int
 
 	active iatomic.Bool
-
-	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPeers,
-	supportsLUTNow, supportsTruncateNamespace, supportsClusterStable, supportsBitwiseOps,
-	supportsPartitionScans iatomic.Bool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -93,17 +89,6 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		partitionChanged:    *iatomic.NewBool(false),
 		errorCount:          *iatomic.NewInt(0),
 		rebalanceGeneration: *iatomic.NewInt(-1),
-
-		supportsFloat:             *iatomic.NewBool(nv.supportsFloat),
-		supportsBatchIndex:        *iatomic.NewBool(nv.supportsBatchIndex),
-		supportsReplicas:          *iatomic.NewBool(nv.supportsReplicas),
-		supportsGeo:               *iatomic.NewBool(nv.supportsGeo),
-		supportsPeers:             *iatomic.NewBool(nv.supportsPeers),
-		supportsLUTNow:            *iatomic.NewBool(nv.supportsLUTNow),
-		supportsTruncateNamespace: *iatomic.NewBool(nv.supportsTruncateNamespace),
-		supportsClusterStable:     *iatomic.NewBool(nv.supportsClusterStable),
-		supportsBitwiseOps:        *iatomic.NewBool(nv.supportsBitwiseOps),
-		supportsPartitionScans:    *iatomic.NewBool(nv.supportsPartitionScans),
 	}
 
 	newNode.aliases.Store(nv.aliases)
@@ -131,59 +116,30 @@ func (nd *Node) Refresh(peers *peers) Error {
 	nd.referenceCount.Set(0)
 
 	var infoMap map[string]string
-	var err Error
-	if peers.usePeers.Get() {
-		commands := []string{"node", "peers-generation", "partition-generation"}
-		if nd.cluster.clientPolicy.RackAware {
-			commands = append(commands, "racks:")
-		}
+	commands := []string{"node", "peers-generation", "partition-generation"}
+	if nd.cluster.clientPolicy.RackAware {
+		commands = append(commands, "racks:")
+	}
 
-		infoMap, err = nd.RequestInfo(&nd.cluster.infoPolicy, commands...)
-		if err != nil {
-			nd.refreshFailed(err)
-			return err
-		}
+	infoMap, err := nd.RequestInfo(&nd.cluster.infoPolicy, commands...)
+	if err != nil {
+		nd.refreshFailed(err)
+		return err
+	}
 
-		if err = nd.verifyNodeName(infoMap); err != nil {
-			nd.refreshFailed(err)
-			return err
-		}
+	if err = nd.verifyNodeName(infoMap); err != nil {
+		nd.refreshFailed(err)
+		return err
+	}
 
-		if err = nd.verifyPeersGeneration(infoMap, peers); err != nil {
-			nd.refreshFailed(err)
-			return err
-		}
+	if err = nd.verifyPeersGeneration(infoMap, peers); err != nil {
+		nd.refreshFailed(err)
+		return err
+	}
 
-		if err = nd.verifyPartitionGeneration(infoMap); err != nil {
-			nd.refreshFailed(err)
-			return err
-		}
-	} else {
-		commands := []string{"node", "partition-generation", nd.cluster.clientPolicy.servicesString()}
-		if nd.cluster.clientPolicy.RackAware {
-			commands = append(commands, "racks:")
-		}
-
-		infoMap, err = nd.RequestInfo(&nd.cluster.infoPolicy, commands...)
-		if err != nil {
-			nd.refreshFailed(err)
-			return err
-		}
-
-		if err = nd.verifyNodeName(infoMap); err != nil {
-			nd.refreshFailed(err)
-			return err
-		}
-
-		if err = nd.verifyPartitionGeneration(infoMap); err != nil {
-			nd.refreshFailed(err)
-			return err
-		}
-
-		if err = nd.addFriends(infoMap, peers); err != nil {
-			nd.refreshFailed(err)
-			return err
-		}
+	if err = nd.verifyPartitionGeneration(infoMap); err != nil {
+		nd.refreshFailed(err)
+		return err
 	}
 
 	if err = nd.updateRackInfo(infoMap); err != nil {
@@ -358,84 +314,6 @@ func (nd *Node) verifyPartitionGeneration(infoMap map[string]string) Error {
 		nd.partitionChanged.Set(true)
 	}
 	return nil
-}
-
-func (nd *Node) addFriends(infoMap map[string]string, peers *peers) Error {
-	friendString, exists := infoMap[nd.cluster.clientPolicy.servicesString()]
-
-	if !exists || len(friendString) == 0 {
-		nd.peersCount.Set(0)
-		return nil
-	}
-
-	friendNames := strings.Split(friendString, ";")
-	nd.peersCount.Set(len(friendNames))
-
-	for _, friend := range friendNames {
-		friendInfo := strings.Split(friend, ":")
-
-		if len(friendInfo) != 2 {
-			logger.Logger.Error("Node info from asinfo:services is malformed. Expected HOST:PORT, but got `%s`", friend)
-			continue
-		}
-
-		hostName := friendInfo[0]
-		port, _ := strconv.Atoi(friendInfo[1])
-
-		if len(nd.cluster.clientPolicy.IpMap) > 0 {
-			if alternativeHost, ok := nd.cluster.clientPolicy.IpMap[hostName]; ok {
-				hostName = alternativeHost
-			}
-		}
-
-		host := NewHost(hostName, port)
-		node := nd.cluster.findAlias(host)
-
-		if node != nil {
-			node.referenceCount.IncrementAndGet()
-		} else {
-			if !peers.hostExists(*host) {
-				nd.prepareFriend(host, peers)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (nd *Node) prepareFriend(host *Host, peers *peers) bool {
-	nv := &nodeValidator{}
-	if err := nv.validateNode(nd.cluster, host); err != nil {
-		logger.Logger.Warn("Adding node `%s` failed: %s", host, err)
-		return false
-	}
-
-	node := peers.nodeByName(nv.name)
-
-	if node != nil {
-		// Duplicate node name found.  This usually occurs when the server
-		// services list contains both internal and external IP addresses
-		// for the same node.
-		peers.addHost(*host)
-		node.addAlias(host)
-		return true
-	}
-
-	// Check for duplicate nodes in cluster.
-	node = nd.cluster.nodesMap.Get().(map[string]*Node)[nv.name]
-
-	if node != nil {
-		peers.addHost(*host)
-		node.addAlias(host)
-		node.referenceCount.IncrementAndGet()
-		nd.cluster.addAlias(host, node)
-		return true
-	}
-
-	node = nd.cluster.createNode(nv)
-	peers.addHost(*host)
-	peers.addNode(nv.name, node)
-	return true
 }
 
 func (nd *Node) refreshPeers(peers *peers) {

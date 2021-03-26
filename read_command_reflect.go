@@ -53,7 +53,6 @@ func parseObject(
 		}
 	}
 
-	supportsFloat := cmd.cluster.supportsFloat.Get()
 	if opCount > 0 {
 		rv := *cmd.object
 
@@ -87,7 +86,7 @@ func parseObject(
 
 			particleBytesSize := opSize - (4 + nameSize)
 			value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
-			if err := setObjectField(mappings, iobj, name, value, supportsFloat); err != nil {
+			if err := setObjectField(mappings, iobj, name, value); err != nil {
 				return err
 			}
 
@@ -106,14 +105,14 @@ func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) Error {
 
 	for i := range ttlMap {
 		f := iobj.FieldByIndex(ttlMap[i])
-		if err := setValue(f, ttl, true); err != nil {
+		if err := setValue(f, ttl); err != nil {
 			return err
 		}
 	}
 
 	for i := range genMap {
 		f := iobj.FieldByIndex(genMap[i])
-		if err := setValue(f, gen, true); err != nil {
+		if err := setValue(f, gen); err != nil {
 			return err
 		}
 	}
@@ -121,7 +120,7 @@ func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) Error {
 	return nil
 }
 
-func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName string, value interface{}, supportsFloat bool) Error {
+func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName string, value interface{}) Error {
 	if value == nil {
 		return nil
 	}
@@ -133,10 +132,10 @@ func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName stri
 	} else {
 		f = obj.FieldByName(fieldName)
 	}
-	return setValue(f, value, supportsFloat)
+	return setValue(f, value)
 }
 
-func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
+func setValue(f reflect.Value, value interface{}) Error {
 	// find the name based on tag mapping
 	if f.CanSet() {
 		if value == nil {
@@ -160,12 +159,9 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 			// if value has returned as a float
 			if fv, ok := value.(float64); ok {
 				f.SetFloat(fv)
-			} else if supportsFloat {
+			} else {
 				// an int value has been set in the float - possibly due to a lua UDF
 				f.SetFloat(float64(value.(int)))
-			} else {
-				// otherwise it is an old float64<->int64 marshalling type cast which needs to be set as int
-				f.SetFloat(math.Float64frombits(uint64(value.(int))))
 			}
 		case reflect.String:
 			rv := reflect.ValueOf(value.(string))
@@ -272,7 +268,7 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 					}
 
 					theStruct := newObjPtr.Elem()
-					if err := setStructValue(theStruct, valMap, supportsFloat, theStruct.Type(), nil); err != nil {
+					if err := setStructValue(theStruct, valMap, theStruct.Type(), nil); err != nil {
 						return err
 					}
 
@@ -294,7 +290,7 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 			}
 
 			for i := 0; i < theArray.Len(); i++ {
-				if err := setValue(f.Index(i), theArray.Index(i).Interface(), supportsFloat); err != nil {
+				if err := setValue(f.Index(i), theArray.Index(i).Interface()); err != nil {
 					return err
 				}
 			}
@@ -325,7 +321,7 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 						switch newVal.Kind() {
 						case reflect.Map, reflect.Slice, reflect.Array:
 							newVal = reflect.New(f.Type().Elem())
-							if err := setValue(newVal.Elem(), elem, supportsFloat); err != nil {
+							if err := setValue(newVal.Elem(), elem); err != nil {
 								return err
 							}
 							newVal = reflect.Indirect(newVal)
@@ -356,7 +352,7 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 
 			valMap := value.(map[interface{}]interface{})
 			// iteraste over struct fields and recursively fill them up
-			if err := setStructValue(f, valMap, supportsFloat, f.Type(), nil); err != nil {
+			if err := setStructValue(f, valMap, f.Type(), nil); err != nil {
 				return err
 			}
 
@@ -368,13 +364,13 @@ func setValue(f reflect.Value, value interface{}, supportsFloat bool) Error {
 	return nil
 }
 
-func setStructValue(f reflect.Value, valMap map[interface{}]interface{}, supportsFloat bool, typeOfT reflect.Type, index []int) (err Error) {
+func setStructValue(f reflect.Value, valMap map[interface{}]interface{}, typeOfT reflect.Type, index []int) (err Error) {
 	numFields := typeOfT.NumField()
 	for i := 0; i < numFields; i++ {
 		fld := typeOfT.Field(i)
 		fldIndex := append(index, fld.Index...)
 		if fld.Anonymous && fld.Type.Kind() == reflect.Struct {
-			if err := setStructValue(f, valMap, supportsFloat, fld.Type, fldIndex); err != nil {
+			if err := setStructValue(f, valMap, fld.Type, fldIndex); err != nil {
 				return err
 			}
 			continue
@@ -391,7 +387,7 @@ func setStructValue(f reflect.Value, valMap map[interface{}]interface{}, support
 		}
 
 		if valMap[alias] != nil {
-			if err := setValue(f.FieldByIndex(fldIndex), valMap[alias], supportsFloat); err != nil {
+			if err := setValue(f.FieldByIndex(fldIndex), valMap[alias]); err != nil {
 				return err
 			}
 		}

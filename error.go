@@ -355,6 +355,8 @@ var (
 func chainErrors(outer Error, inner error) Error {
 	if inner == nil && outer == nil {
 		return nil
+	} else if outer == nil {
+		outer = inner
 	}
 
 	var ae *AerospikeError

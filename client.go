@@ -495,10 +495,6 @@ func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operat
 // If the policy is nil, the default relevant policy will be used.
 // This method is only supported by Aerospike 4.9+ servers.
 func (clnt *Client) ScanPartitions(apolicy *ScanPolicy, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
-	if !clnt.cluster.supportsPartitionScans.Get() {
-		return nil, ErrPartitionScanQueryNotSupported.err()
-	}
-
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
@@ -525,21 +521,7 @@ func (clnt *Client) ScanPartitions(apolicy *ScanPolicy, partitionFilter *Partiti
 // parallel. Otherwise, server nodes are read sequentially.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName string, binNames ...string) (*Recordset, Error) {
-	if clnt.cluster.supportsPartitionScans.Get() {
-		return clnt.ScanPartitions(apolicy, nil, namespace, setName, binNames...)
-	}
-
-	policy := *clnt.getUsableScanPolicy(apolicy)
-	nodes := clnt.cluster.GetNodes()
-	if len(nodes) == 0 {
-		return nil, ErrClusterIsEmpty.err()
-	}
-
-	// result recordset
-	res := newRecordset(policy.RecordQueueSize, len(nodes))
-	clnt.scanNodes(&policy, res, namespace, setName, binNames, nodes...)
-
-	return res, nil
+	return clnt.ScanPartitions(apolicy, nil, namespace, setName, binNames...)
 }
 
 // scanNodePartitions reads all records in specified namespace and set for one node only.
@@ -558,16 +540,7 @@ func (clnt *Client) scanNodePartitions(apolicy *ScanPolicy, node *Node, namespac
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, Error) {
-	if clnt.cluster.supportsPartitionScans.Get() {
-		return clnt.scanNodePartitions(apolicy, node, namespace, setName, binNames...)
-	}
-
-	policy := *clnt.getUsableScanPolicy(apolicy)
-
-	// results channel must be async for performance
-	res := newRecordset(policy.RecordQueueSize, 1)
-	clnt.scanNodes(&policy, res, namespace, setName, binNames, node)
-	return res, nil
+	return clnt.scanNodePartitions(apolicy, node, namespace, setName, binNames...)
 }
 
 //---------------------------------------------------------------
@@ -927,7 +900,7 @@ func parseIndexErrorCode(response string) types.ResultCode {
 // This method is only supported by Aerospike 4.9+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, partitionFilter *PartitionFilter) (*Recordset, Error) {
-	if statement.Filter != nil || !clnt.cluster.supportsPartitionScans.Get() {
+	if statement.Filter != nil {
 		return nil, ErrPartitionScanQueryNotSupported.err()
 	}
 
@@ -959,7 +932,7 @@ func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, p
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset, Error) {
-	if statement.Filter == nil && clnt.cluster.supportsPartitionScans.Get() {
+	if statement.Filter == nil {
 		return clnt.QueryPartitions(policy, statement, nil)
 	}
 
@@ -983,7 +956,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
-	if statement.Filter == nil && clnt.cluster.supportsPartitionScans.Get() {
+	if statement.Filter == nil {
 		return clnt.queryNodePartitions(policy, node, statement)
 	}
 
@@ -1162,23 +1135,12 @@ func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeL
 		strCmd.WriteString(";set=")
 		strCmd.WriteString(set)
 	} else {
-		// Servers >= 4.5.1.0 support truncate-namespace.
-		if node.supportsTruncateNamespace.Get() {
-			strCmd.WriteString("truncate-namespace:namespace=")
-			strCmd.WriteString(namespace)
-		} else {
-			strCmd.WriteString("truncate:namespace=")
-			strCmd.WriteString(namespace)
-		}
+		strCmd.WriteString("truncate-namespace:namespace=")
+		strCmd.WriteString(namespace)
 	}
 	if beforeLastUpdate != nil {
 		strCmd.WriteString(";lut=")
 		strCmd.WriteString(strconv.FormatInt(beforeLastUpdate.UnixNano(), 10))
-	} else {
-		// Servers >= 4.3.1.4 and <= 4.5.0.1 require lut argument.
-		if node.supportsLUTNow.Get() {
-			strCmd.WriteString(";lut=now")
-		}
 	}
 
 	responseMap, err := RequestInfo(node.tendConn, strCmd.String())

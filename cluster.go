@@ -63,9 +63,6 @@ type Cluster struct {
 	closed      iatomic.Bool
 	tendCount   int
 
-	// Aerospike v3.6.0+
-	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo, supportsPartitionScans *iatomic.Bool
-
 	// User name in UTF-8 encoded bytes.
 	user string
 
@@ -111,12 +108,6 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		stats:    map[string]*nodeStats{},
 
 		password: *iatomic.NewSyncVal(nil),
-
-		supportsFloat:          iatomic.NewBool(false),
-		supportsBatchIndex:     iatomic.NewBool(false),
-		supportsReplicas:       iatomic.NewBool(false),
-		supportsGeo:            iatomic.NewBool(false),
-		supportsPartitionScans: iatomic.NewBool(false),
 	}
 
 	newCluster.partitionWriteMap.Store(make(partitionMap))
@@ -246,9 +237,6 @@ func (clstr *Cluster) tend() Error {
 		// Clear node reference counts.
 		node.referenceCount.Set(0)
 		node.partitionChanged.Set(false)
-		if !node.supportsPeers.Get() {
-			peers.usePeers.Set(false)
-		}
 	}
 
 	wg := sync.WaitGroup{}
@@ -264,7 +252,7 @@ func (clstr *Cluster) tend() Error {
 	wg.Wait()
 
 	// Refresh peers when necessary.
-	if peers.usePeers.Get() && (peers.genChanged.Get() || len(peers.peers()) != nodeCountBeforeTend) {
+	if peers.genChanged.Get() || len(peers.peers()) != nodeCountBeforeTend {
 		// Refresh peers for all nodes that responded the first time even if only one node's peers changed.
 		peers.refreshCount.Set(0)
 
@@ -344,7 +332,7 @@ func (clstr *Cluster) tend() Error {
 	// This waits for the both steps above
 	wg.Wait()
 
-	if peers.genChanged.Get() || !peers.usePeers.Get() {
+	if peers.genChanged.Get() {
 		// Handle nodes changes determined from refreshes.
 		removeList := clstr.findNodesToRemove(peers.refreshCount.Get())
 
@@ -366,31 +354,6 @@ func (clstr *Cluster) tend() Error {
 
 	// add to the number of successful tends
 	clstr.tendCount++
-
-	// set the cluster supported features
-	floatSupport := true
-	batchIndexSupport := true
-	geoSupport := true
-	supportsReplicas := true
-	supportsPartitionScans := true
-
-	for _, node := range clstr.GetNodes() {
-		floatSupport = floatSupport && node.supportsFloat.Get()
-		batchIndexSupport = batchIndexSupport && node.supportsBatchIndex.Get()
-		geoSupport = geoSupport && node.supportsGeo.Get()
-		supportsReplicas = supportsReplicas && node.supportsReplicas.Get()
-		supportsPartitionScans = supportsPartitionScans && node.supportsPartitionScans.Get()
-	}
-
-	clstr.supportsFloat.Set(floatSupport)
-	clstr.supportsBatchIndex.Set(batchIndexSupport)
-	clstr.supportsGeo.Set(geoSupport)
-	clstr.supportsReplicas.Set(supportsReplicas)
-	clstr.supportsPartitionScans.Set(supportsPartitionScans)
-
-	if !floatSupport {
-		logger.Logger.Warn("Some cluster nodes do not support float type. Disabling native float support in the client library...")
-	}
 
 	// update all partitions in one go
 	updatePartitionMap := false

@@ -49,9 +49,7 @@ type nodeValidator struct {
 	sessionToken      []byte
 	SessionExpiration time.Time
 
-	supportsFloat, supportsBatchIndex, supportsReplicas, supportsGeo,
-	supportsPeers, supportsLUTNow, supportsTruncateNamespace, supportsClusterStable,
-	supportsBitwiseOps, supportsPartitionScans bool
+	supportsPartitionScans bool
 }
 
 func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nodesToAddT) Error {
@@ -100,7 +98,7 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) Error {
 	var resultErr Error
 	for _, alias := range ndv.aliases {
 		if err := ndv.validateAlias(cluster, alias); err != nil {
-			resultErr = err
+			resultErr = chainErrors(err, resultErr)
 			logger.Logger.Debug("Aliases %s failed: %s", alias, err)
 			continue
 		}
@@ -226,6 +224,10 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 		ndv.setFeatures(features)
 	}
 
+	if !ndv.supportsPartitionScans {
+		return newError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is version < 4.9. This client supports server versions >= 4.9", nodeName, alias.String()))
+	}
+
 	// check if the host is a load-balancer
 	if peersStr, exists := infoMap[addressCommand]; exists {
 		var hostAddress []*Host
@@ -301,24 +303,6 @@ func (ndv *nodeValidator) setFeatures(features string) {
 	featureList := strings.Split(features, ";")
 	for i := range featureList {
 		switch featureList[i] {
-		case "float":
-			ndv.supportsFloat = true
-		case "batch-index":
-			ndv.supportsBatchIndex = true
-		case "replicas":
-			ndv.supportsReplicas = true
-		case "geo":
-			ndv.supportsGeo = true
-		case "peers":
-			ndv.supportsPeers = true
-		case "lut-now":
-			ndv.supportsLUTNow = true
-		case "truncate-namespace":
-			ndv.supportsTruncateNamespace = true
-		case "blob-bits":
-			ndv.supportsBitwiseOps = true
-		case "cluster-stable":
-			ndv.supportsClusterStable = true
 		case "pscans":
 			ndv.supportsPartitionScans = true
 		}

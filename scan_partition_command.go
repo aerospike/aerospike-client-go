@@ -16,7 +16,14 @@ package aerospike
 
 import "github.com/aerospike/aerospike-client-go/types"
 
-type scanPartitionCommand scanCommand
+type scanPartitionCommand struct {
+	baseMultiCommand
+
+	policy    *ScanPolicy
+	namespace string
+	setName   string
+	binNames  []string
+}
 
 func newScanPartitionCommand(
 	policy *ScanPolicy,

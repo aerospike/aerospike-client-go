@@ -25,7 +25,6 @@ type peers struct {
 	_hosts       map[Host]struct{}
 	_nodes       map[string]*Node
 	refreshCount atomic.Int
-	usePeers     atomic.Bool
 	genChanged   atomic.Bool
 
 	mutex sync.RWMutex
@@ -36,7 +35,6 @@ func newPeers(peerCapacity int, addCapacity int) *peers {
 		_peers:     make(map[string]*peer, peerCapacity),
 		_hosts:     make(map[Host]struct{}, addCapacity),
 		_nodes:     make(map[string]*Node, addCapacity),
-		usePeers:   *atomic.NewBool(true),
 		genChanged: *atomic.NewBool(true),
 	}
 }

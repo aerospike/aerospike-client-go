@@ -35,7 +35,6 @@ func parseBatchObject(
 	generation uint32,
 	expiration uint32,
 ) Error {
-	supportsFloat := cmd.node.cluster.supportsFloat.Get()
 	if opCount > 0 {
 		rv := *cmd.objects[offset]
 
@@ -81,7 +80,7 @@ func parseBatchObject(
 			if err != nil {
 				return err
 			}
-			if err := setObjectField(mappings, iobj, name, value, supportsFloat); err != nil {
+			if err := setObjectField(mappings, iobj, name, value); err != nil {
 				return err
 			}
 		}
