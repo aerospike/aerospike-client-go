@@ -766,36 +766,38 @@ func (vl FloatValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// BoolValue encapsulates a boolean value.
+// _BoolValue encapsulates a boolean value.
 // Supported by Aerospike server v5.6+ only.
-type BoolValue bool
+type _BoolValue bool
 
-// EstimateSize returns the size of the BoolValue in wire protocol.
-func (vb BoolValue) EstimateSize() (int, error) {
+// EstimateSize returns the size of the _BoolValue in wire protocol.
+func (vb _BoolValue) EstimateSize() (int, error) {
 	return PackBool(nil, bool(vb))
 }
 
-func (vb BoolValue) write(cmd BufferEx) (int, error) {
-	n := cmd.WriteBool(bool(vb))
-	return n, nil
+func (vb _BoolValue) write(cmd BufferEx) (int, error) {
+	panic("Unreachable")
+	// n := cmd.WriteBool(bool(vb))
+	// return n, nil
 }
 
-func (vb BoolValue) pack(cmd BufferEx) (int, error) {
+func (vb _BoolValue) pack(cmd BufferEx) (int, error) {
 	return PackBool(cmd, bool(vb))
 }
 
 // GetType returns wire protocol value type.
-func (vb BoolValue) GetType() int {
-	return ParticleType.BOOL
+func (vb _BoolValue) GetType() int {
+	panic("Unreachable")
+	// return ParticleType.BOOL
 }
 
 // GetObject returns original value as an interface{}.
-func (vb BoolValue) GetObject() interface{} {
+func (vb _BoolValue) GetObject() interface{} {
 	return bool(vb)
 }
 
 // String implements Stringer interface.
-func (vb BoolValue) String() string {
+func (vb _BoolValue) String() string {
 	return (fmt.Sprintf("%v", bool(vb)))
 }
 

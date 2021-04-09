@@ -382,7 +382,7 @@ func BitLScanOp(binName string, bitOffset int, bitSize int, value bool, ctx ...*
 		opType:   _BIT_READ,
 		ctx:      ctx,
 		binName:  binName,
-		binValue: ListValue{_CDT_BITWISE_LSCAN, IntegerValue(bitOffset), IntegerValue(bitSize), BoolValue(value)},
+		binValue: ListValue{_CDT_BITWISE_LSCAN, IntegerValue(bitOffset), IntegerValue(bitSize), _BoolValue(value)},
 		encoder:  newCDTBitwiseEncoder,
 	}
 }
@@ -401,7 +401,7 @@ func BitRScanOp(binName string, bitOffset int, bitSize int, value bool, ctx ...*
 		opType:   _BIT_READ,
 		ctx:      ctx,
 		binName:  binName,
-		binValue: ListValue{_CDT_BITWISE_RSCAN, IntegerValue(bitOffset), IntegerValue(bitSize), BoolValue(value)},
+		binValue: ListValue{_CDT_BITWISE_RSCAN, IntegerValue(bitOffset), IntegerValue(bitSize), _BoolValue(value)},
 		encoder:  newCDTBitwiseEncoder,
 	}
 }
