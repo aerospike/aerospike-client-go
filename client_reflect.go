@@ -129,11 +129,49 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 	return objectsFound, err
 }
 
+// ScanPartitionObjects Reads records in specified namespace, set and partition filter.
+// If the policy's concurrentNodes is specified, each server node will be read in
+// parallel. Otherwise, server nodes are read sequentially.
+// If partitionFilter is nil, all partitions will be scanned.
+// If the policy is nil, the default relevant policy will be used.
+// This method is only supported by Aerospike 4.9+ servers.
+func (clnt *Client) ScanPartitionObjects(apolicy *ScanPolicy, objChan interface{}, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, error) {
+	if !clnt.cluster.supportsPartitionScans.Get() {
+		return nil, types.ErrPartitionScanQueryNotSupported
+	}
+
+	policy := *clnt.getUsableScanPolicy(apolicy)
+
+	nodes := clnt.cluster.GetNodes()
+	if len(nodes) == 0 {
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Scan failed because cluster is empty.")
+	}
+
+	var tracker *partitionTracker
+	if partitionFilter == nil {
+		tracker = newPartitionTrackerForNodes(&policy.MultiPolicy, nodes)
+	} else {
+		tracker = newPartitionTracker(&policy.MultiPolicy, partitionFilter, nodes)
+	}
+
+	// result recordset
+	res := &Recordset{
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
+	}
+	go clnt.scanPartitionObjects(&policy, tracker, namespace, setName, res, binNames...)
+
+	return res, nil
+}
+
 // ScanAllObjects reads all records in specified namespace and set from all nodes.
 // If the policy's concurrentNodes is specified, each server node will be read in
 // parallel. Otherwise, server nodes are read sequentially.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
+	if clnt.cluster.supportsPartitionScans.Get() {
+		return clnt.ScanPartitionObjects(apolicy, objChan, nil, namespace, setName, binNames...)
+	}
+
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
@@ -178,12 +216,32 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 	return res, nil
 }
 
+// scanNodePartitions reads all records in specified namespace and set for one node only.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) scanNodePartitionsObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
+	policy := *clnt.getUsableScanPolicy(apolicy)
+
+	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
+
+	// result recordset
+	res := &Recordset{
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
+	}
+	go clnt.scanPartitionObjects(&policy, tracker, namespace, setName, res, binNames...)
+
+	return res, nil
+}
+
 // ScanNodeObjects reads all records in specified namespace and set for one node only,
 // and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
 // The resulting records will be marshalled into the objChan.
 // objChan will be closed after all the records are read.
 func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, error) {
+	if clnt.cluster.supportsPartitionScans.Get() {
+		return clnt.scanNodePartitionsObjects(apolicy, node, objChan, namespace, setName, binNames...)
+	}
+
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	clusterKey := int64(0)
@@ -212,6 +270,42 @@ func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *R
 	return command.Execute()
 }
 
+// QueryPartitionObjects executes a query for specified partitions and returns a recordset.
+// The query executor puts records on the channel from separate goroutines.
+// The caller can concurrently pop records off the channel through the
+// Recordset.Records channel.
+//
+// This method is only supported by Aerospike 4.9+ servers.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) QueryPartitionObjects(policy *QueryPolicy, statement *Statement, objChan interface{}, partitionFilter *PartitionFilter) (*Recordset, error) {
+	if statement.Filter != nil || !clnt.cluster.supportsPartitionScans.Get() {
+		return nil, types.ErrPartitionScanQueryNotSupported
+	}
+
+	policy = clnt.getUsableQueryPolicy(policy)
+
+	nodes := clnt.cluster.GetNodes()
+	if len(nodes) == 0 {
+		return nil, types.NewAerospikeError(types.SERVER_NOT_AVAILABLE, "Query failed because cluster is empty.")
+	}
+
+	var tracker *partitionTracker
+
+	if partitionFilter == nil {
+		tracker = newPartitionTrackerForNodes(&policy.MultiPolicy, nodes)
+	} else {
+		tracker = newPartitionTracker(&policy.MultiPolicy, partitionFilter, nodes)
+	}
+
+	// result recordset
+	res := &Recordset{
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
+	}
+	go clnt.queryPartitionObjects(policy, tracker, statement, res)
+
+	return res, nil
+}
+
 // QueryObjects executes a query on all nodes in the cluster and marshals the records into the given channel.
 // The query executor puts records on the channel from separate goroutines.
 // The caller can concurrently pop objects.
@@ -219,6 +313,10 @@ func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *R
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, error) {
+	if statement.Filter == nil && clnt.cluster.supportsPartitionScans.Get() {
+		return clnt.QueryPartitionObjects(policy, statement, objChan, nil)
+	}
+
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	nodes := clnt.cluster.GetNodes()
@@ -257,12 +355,30 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 	return recSet, nil
 }
 
+func (clnt *Client) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, error) {
+	policy = clnt.getUsableQueryPolicy(policy)
+
+	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
+
+	// result recordset
+	res := &Recordset{
+		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
+	}
+	go clnt.queryPartitionObjects(policy, tracker, statement, res)
+
+	return res, nil
+}
+
 // QueryNodeObjects executes a query on a specific node and marshals the records into the given channel.
 // The caller can concurrently pop records off the channel.
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, error) {
+	if statement.Filter == nil && clnt.cluster.supportsPartitionScans.Get() {
+		return clnt.queryNodePartitionsObjects(policy, node, statement, objChan)
+	}
+
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	// results channel must be async for performance
