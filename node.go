@@ -541,6 +541,33 @@ func (nd *Node) getConnection(deadline time.Time, timeout time.Duration) (conn *
 	return nd.getConnectionWithHint(deadline, timeout, 0)
 }
 
+// newConnectionAllowed will tentatively check if the client is allowed to make a new connection
+// based on the ClientPolicy passed to it.
+// This is more or less a copy of the logic in the beginning of newConnection function.
+func (nd *Node) newConnectionAllowed() error {
+	if !nd.active.Get() {
+		return types.ErrServerNotAvailable
+	}
+
+	// if connection count is limited and enough connections are already created, don't create a new one
+	cc := nd.connectionCount.IncrementAndGet()
+	defer nd.connectionCount.DecrementAndGet()
+	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
+		return types.ErrTooManyConnectionsForNode
+	}
+
+	// Check for opening connection threshold
+	if nd.cluster.clientPolicy.OpeningConnectionThreshold > 0 {
+		ct := nd.cluster.connectionThreshold.IncrementAndGet()
+		defer nd.cluster.connectionThreshold.DecrementAndGet()
+		if ct > nd.cluster.clientPolicy.OpeningConnectionThreshold {
+			return types.ErrTooManyOpeningConnections
+		}
+	}
+
+	return nil
+}
+
 // newConnection will make a new connection for the node.
 func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 	if !nd.active.Get() {
@@ -581,7 +608,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, error) {
 
 	// need to authenticate
 	if err = conn.login(&nd.cluster.clientPolicy, nd.cluster.Password(), nd.sessionToken()); err != nil {
-		// increment node errors if authenitocation hit a network error
+		// increment node errors if authentication hit a network error
 		if networkError(err) {
 			nd.incrErrorCount()
 		}
@@ -627,7 +654,10 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 	}
 
 	if conn == nil {
-		go nd.makeConnectionForPool(hint)
+		// tentatively check if a connection is allowed to avoid launching too many goroutines.
+		if err = nd.newConnectionAllowed(); err == nil {
+			go nd.makeConnectionForPool(hint)
+		}
 		return nil, types.ErrConnectionPoolEmpty
 	}
 

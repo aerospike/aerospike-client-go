@@ -9,6 +9,10 @@
 
   * **Fixes**
 
+    - [CLIENT-1495] Tentatively check if a connection is allowed to avoid launching too many goroutines.
+
+  * **Fixes**
+
     - Implements correct and re-triable Scans for the Reflection API.
     - Fixes an obscure var shadowing bug in TLS connection handshake error logging.
 
