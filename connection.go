@@ -146,7 +146,7 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
 	}
 
 	// Use version dependent clone function to clone the config
-	tlsConfig := cloneTLSConfig(policy.TlsConfig)
+	tlsConfig := policy.TlsConfig.Clone()
 	tlsConfig.ServerName = host.TLSName
 
 	sconn := tls.Client(conn.conn, tlsConfig)
