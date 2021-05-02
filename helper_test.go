@@ -18,6 +18,12 @@ func (clstr *Cluster) GetMasterNode(partition *Partition) (*Node, Error) {
 	return partition.getMasterNode(clstr)
 }
 
+// implements GomegaStringer to avoid some of the pain points
+// in formatting the code
+func (n *Node) GomegaString() string {
+	return n.String()
+}
+
 func (ptn *Partition) GetMasterNode(cluster *Cluster) (*Node, Error) {
 	return ptn.getMasterNode(cluster)
 }
