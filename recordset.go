@@ -44,9 +44,7 @@ type objectset struct {
 	// a reference to the object channel to close on end signal
 	objChan reflect.Value
 
-	// Errors is a channel on which all errors will be sent back.
-	// NOTE: Do not use Errors directly. Range on channel returned by Results() instead.
-	// This field is deprecated and will be unexported in the future
+	// errors is a channel on which all errors will be sent back.
 	errors chan Error
 
 	wgGoroutines sync.WaitGroup

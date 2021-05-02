@@ -22,4 +22,29 @@ type UserRoles struct {
 
 	// Roles is a list of assigned roles.
 	Roles []string
+
+	// ReadInfo is the list of read statistics. List may be nil.
+	// Current statistics by offset are:
+	//
+	// 0: read quota in records per second
+	// 1: single record read transaction rate (TPS)
+	// 2: read scan/query record per second rate (RPS)
+	// 3: number of limitless read scans/queries
+	//
+	// Future server releases may add additional statistics.
+	ReadInfo []int
+
+	// WriteInfo is the list of write statistics. List may be nil.
+	// Current statistics by offset are:
+	//
+	// 0: write quota in records per second
+	// 1: single record write transaction rate (TPS)
+	// 2: write scan/query record per second rate (RPS)
+	// 3: number of limitless write scans/queries
+	//
+	// Future server releases may add additional statistics.
+	WriteInfo []int
+
+	// ConnsInUse is the number of currently open connections for the user
+	ConnsInUse int
 }

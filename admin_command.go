@@ -39,6 +39,7 @@ const (
 	_GRANT_PRIVILEGES  byte = 12
 	_REVOKE_PRIVILEGES byte = 13
 	_SET_WHITELIST     byte = 14
+	_SET_QUOTAS        byte = 15
 	_QUERY_ROLES       byte = 16
 	_LOGIN             byte = 20
 
@@ -54,6 +55,11 @@ const (
 	_ROLE           byte = 11
 	_PRIVILEGES     byte = 12
 	_WHITELIST      byte = 13
+	_READ_QUOTA     byte = 14
+	_WRITE_QUOTA    byte = 15
+	_READ_INFO      byte = 16
+	_WRITE_INFO     byte = 17
+	_CONNECTIONS    byte = 18
 
 	// Misc
 	_MSG_VERSION int64 = 2
@@ -123,15 +129,25 @@ func (acmd *adminCommand) revokeRoles(cluster *Cluster, policy *AdminPolicy, use
 	return acmd.executeCommand(cluster, policy)
 }
 
-func (acmd *adminCommand) createRole(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string) Error {
-	fieldcount := 1
+func (acmd *adminCommand) createRole(cluster *Cluster, policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string, readQuota, writeQuota uint32) Error {
+	fieldCount := 1
 	if len(privileges) > 1 {
-		fieldcount++
+		fieldCount++
 	}
+
 	if len(whitelist) > 1 {
-		fieldcount++
+		fieldCount++
 	}
-	acmd.writeHeader(_CREATE_ROLE, fieldcount)
+
+	if readQuota > 0 {
+		fieldCount++
+	}
+
+	if writeQuota > 0 {
+		fieldCount++
+	}
+
+	acmd.writeHeader(_CREATE_ROLE, fieldCount)
 	acmd.writeFieldStr(_ROLE, roleName)
 
 	if len(privileges) > 0 {
@@ -142,6 +158,14 @@ func (acmd *adminCommand) createRole(cluster *Cluster, policy *AdminPolicy, role
 
 	if len(whitelist) > 0 {
 		acmd.writeWhitelist(whitelist)
+	}
+
+	if readQuota > 0 {
+		acmd.writeFieldUint32(_READ_QUOTA, readQuota)
+	}
+
+	if writeQuota > 0 {
+		acmd.writeFieldUint32(_WRITE_QUOTA, writeQuota)
 	}
 
 	return acmd.executeCommand(cluster, policy)
@@ -181,6 +205,14 @@ func (acmd *adminCommand) setWhitelist(cluster *Cluster, policy *AdminPolicy, ro
 	if len(whitelist) > 0 {
 		acmd.writeWhitelist(whitelist)
 	}
+	return acmd.executeCommand(cluster, policy)
+}
+
+func (acmd *adminCommand) setQuotas(cluster *Cluster, policy *AdminPolicy, roleName string, readQuota, writeQuota uint32) Error {
+	acmd.writeHeader(_SET_QUOTAS, 3)
+	acmd.writeFieldStr(_ROLE, roleName)
+	acmd.writeFieldUint32(_READ_QUOTA, readQuota)
+	acmd.writeFieldUint32(_WRITE_QUOTA, writeQuota)
 	return acmd.executeCommand(cluster, policy)
 }
 
@@ -336,6 +368,12 @@ func (acmd *adminCommand) writeFieldBytes(id byte, bytes []byte) {
 	acmd.dataOffset += len(bytes)
 }
 
+func (acmd *adminCommand) writeFieldUint32(id byte, size uint32) {
+	acmd.writeFieldHeader(id, 4)
+	binary.BigEndian.PutUint32(acmd.dataBuffer[acmd.dataOffset:], size)
+	acmd.dataOffset += 4
+}
+
 func (acmd *adminCommand) writeFieldHeader(id byte, size int) {
 	// Buffer.Int32ToBytes(int32(size+1), acmd.dataBuffer, acmd.dataOffset)
 	binary.BigEndian.PutUint32(acmd.dataBuffer[acmd.dataOffset:], uint32(size+1))
@@ -470,12 +508,20 @@ func (acmd *adminCommand) parseUsers(receiveSize int) (int, []*UserRoles, Error)
 			acmd.dataOffset++
 			flen--
 
-			if id == _USER {
+			switch id {
+			case _USER:
 				userRoles.User = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+flen])
 				acmd.dataOffset += flen
-			} else if id == _ROLES {
+			case _ROLES:
 				acmd.parseRoles(userRoles)
-			} else {
+			case _READ_INFO:
+				userRoles.ReadInfo = acmd.parseInfo()
+			case _WRITE_INFO:
+				userRoles.WriteInfo = acmd.parseInfo()
+			case _CONNECTIONS:
+				userRoles.ConnsInUse = int(Buffer.BytesToInt32(acmd.dataBuffer, acmd.dataOffset))
+				acmd.dataOffset += flen
+			default:
 				acmd.dataOffset += flen
 			}
 		}
@@ -505,6 +551,19 @@ func (acmd *adminCommand) parseRoles(userRoles *UserRoles) {
 		acmd.dataOffset += len
 		userRoles.Roles = append(userRoles.Roles, role)
 	}
+}
+
+func (acmd *adminCommand) parseInfo() []int {
+	size := int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
+	acmd.dataOffset++
+	list := make([]int, 0, size)
+
+	for i := 0; i < size; i++ {
+		val := int(Buffer.BytesToUint32(acmd.dataBuffer, acmd.dataOffset))
+		acmd.dataOffset += 4
+		list = append(list, val)
+	}
+	return list
 }
 
 func hashPassword(password string) ([]byte, Error) {
@@ -607,14 +666,21 @@ func (acmd *adminCommand) parseRolesFull(receiveSize int) (int, []*Role, Error) 
 			acmd.dataOffset++
 			len--
 
-			if id == _ROLE {
+			switch id {
+			case _ROLE:
 				role.Name = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
 				acmd.dataOffset += len
-			} else if id == _PRIVILEGES {
+			case _PRIVILEGES:
 				acmd.parsePrivileges(role)
-			} else if id == _WHITELIST {
+			case _WHITELIST:
 				role.Whitelist = acmd.parseWhitelist(len)
-			} else {
+			case _READ_QUOTA:
+				role.ReadQuota = Buffer.BytesToUint32(acmd.dataBuffer, acmd.dataOffset)
+				acmd.dataOffset += len
+			case _WRITE_QUOTA:
+				role.WriteQuota = Buffer.BytesToUint32(acmd.dataBuffer, acmd.dataOffset)
+				acmd.dataOffset += len
+			default:
 				acmd.dataOffset += len
 			}
 		}

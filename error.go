@@ -77,12 +77,15 @@ type AerospikeError struct {
 
 	// Node where the error occurred
 	Node *Node
+
 	// ResultCode determines the type of error
 	ResultCode types.ResultCode
+
 	// InDoubt determines if the command was sent to the server, but
 	// there is doubt if the server received and executed the command
 	// and changed the data. Only applies to commands that change data
 	InDoubt bool
+
 	// Iteration determies on which retry the error occurred
 	Iteration int
 

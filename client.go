@@ -1262,11 +1262,13 @@ func (clnt *Client) QueryRoles(policy *AdminPolicy) ([]*Role, Error) {
 }
 
 // CreateRole creates a user-defined role.
-func (clnt *Client) CreateRole(policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string) Error {
+// Quotas require server security configuration "enable-quotas" to be set to true.
+// Pass 0 for quota values for no limit.
+func (clnt *Client) CreateRole(policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string, readQuota, writeQuota uint32) Error {
 	policy = clnt.getUsableAdminPolicy(policy)
 
 	command := newAdminCommand(nil)
-	return command.createRole(clnt.cluster, policy, roleName, privileges, whitelist)
+	return command.createRole(clnt.cluster, policy, roleName, privileges, whitelist, readQuota, writeQuota)
 }
 
 // DropRole removes a user-defined role.
@@ -1299,6 +1301,16 @@ func (clnt *Client) SetWhitelist(policy *AdminPolicy, roleName string, whitelist
 
 	command := newAdminCommand(nil)
 	return command.setWhitelist(clnt.cluster, policy, roleName, whitelist)
+}
+
+// Set maximum reads/writes per second limits for a role.  If a quota is zero, the limit is removed.
+// Quotas require server security configuration "enable-quotas" to be set to true.
+// Pass 0 for quota values for no limit.
+func (clnt *Client) SetQuotas(policy *AdminPolicy, roleName string, readQuota, writeQuota uint32) Error {
+	policy = clnt.getUsableAdminPolicy(policy)
+
+	command := newAdminCommand(nil)
+	return command.setQuotas(clnt.cluster, policy, roleName, readQuota, writeQuota)
 }
 
 //-------------------------------------------------------

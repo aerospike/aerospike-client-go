@@ -60,10 +60,10 @@ var _ = gg.Describe("Security tests", func() {
 			defer client.DropRole(nil, "dummy-role")
 
 			// Add a user defined Role
-			err := client.CreateRole(nil, "role-read-test-test", []as.Privilege{{Code: as.Read, Namespace: ns, SetName: "test"}}, []string{getOutboundIP().String()})
+			err := client.CreateRole(nil, "role-read-test-test", []as.Privilege{{Code: as.Read, Namespace: ns, SetName: "test"}}, []string{getOutboundIP().String()}, 0, 0)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			err = client.CreateRole(nil, "role-write-test", []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: ""}}, []string{getOutboundIP().String()})
+			err = client.CreateRole(nil, "role-write-test", []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: ""}}, []string{getOutboundIP().String()}, 0, 0)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			time.Sleep(time.Second)
@@ -79,7 +79,7 @@ var _ = gg.Describe("Security tests", func() {
 			err = client.RevokePrivileges(nil, "role-read-test-test", []as.Privilege{{Code: as.ReadWriteUDF, Namespace: ns, SetName: "test"}})
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			err = client.CreateRole(nil, "dummy-role", []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}, []string{getOutboundIP().String()})
+			err = client.CreateRole(nil, "dummy-role", []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}, []string{getOutboundIP().String()}, 0, 0)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			time.Sleep(time.Second)
@@ -109,10 +109,38 @@ var _ = gg.Describe("Security tests", func() {
 			gm.Expect(roles).To(gm.ContainElement(&as.Role{Name: "role-write-test", Privileges: []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: ""}}, Whitelist: []string{getOutboundIP().String()}}))
 		})
 
+		gg.It("Must work with Quotas Perfectly", func() {
+			defer client.DropRole(nil, "role-read-test-test")
+			defer client.DropRole(nil, "role-write-test")
+
+			// Add a user defined Role
+			err := client.CreateRole(nil, "role-read-test-test", []as.Privilege{{Code: as.Read, Namespace: ns, SetName: "test"}}, []string{}, 1000, 2000)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			err = client.CreateRole(nil, "role-write-test", []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: ""}}, []string{}, 1001, 2002)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			time.Sleep(time.Second)
+
+			roles, err := client.QueryRoles(nil)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Our test Roles
+			gm.Expect(roles).To(gm.ContainElement(&as.Role{Name: "role-read-test-test", Privileges: []as.Privilege{{Code: as.Read, Namespace: ns, SetName: "test"}}, ReadQuota: 1000, WriteQuota: 2000}))
+			gm.Expect(roles).To(gm.ContainElement(&as.Role{Name: "role-write-test", Privileges: []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: ""}}, ReadQuota: 1001, WriteQuota: 2002}))
+
+			err = client.SetQuotas(nil, "role-read-test-test", 10010, 20020)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			time.Sleep(1 * time.Second)
+
+			gm.Expect(roles).To(gm.ContainElement(&as.Role{Name: "role-read-test-test", Privileges: []as.Privilege{{Code: as.Read, Namespace: ns, SetName: "test"}}, ReadQuota: 10010, WriteQuota: 20020}))
+		})
+
 		gg.It("Must set and query Whitelist for Roles Perfectly", func() {
 			defer client.DropRole(nil, "whitelist-test")
 
-			err = client.CreateRole(nil, "whitelist-test", []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}, []string{})
+			err = client.CreateRole(nil, "whitelist-test", []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}, []string{}, 0, 0)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			time.Sleep(time.Second)

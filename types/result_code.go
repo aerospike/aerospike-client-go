@@ -217,6 +217,12 @@ const (
 	// INVALID_WHITELIST defines invalid IP address whiltelist
 	INVALID_WHITELIST = 73
 
+	// Quotas not enabled on server.
+	QUOTAS_NOT_ENABLED = 74
+
+	// Invalid quota value.
+	INVALID_QUOTA = 75
+
 	// NOT_AUTHENTICATED defines user must be authentication before performing database operations.
 	NOT_AUTHENTICATED ResultCode = 80
 
@@ -225,6 +231,9 @@ const (
 
 	// NOT_WHITELISTED defines command not allowed because sender IP address not whitelisted.
 	NOT_WHITELISTED = 82
+
+	// Quota exceeded.
+	QUOTA_EXCEEDED = 83
 
 	// UDF_BAD_RESPONSE defines a user defined function returned an error code.
 	UDF_BAD_RESPONSE ResultCode = 100
@@ -483,6 +492,12 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case INVALID_WHITELIST:
 		return "Invalid whitelist"
 
+	case QUOTAS_NOT_ENABLED:
+		return "Quotas not enabled"
+
+	case INVALID_QUOTA:
+		return "Invalid quota"
+
 	case NOT_AUTHENTICATED:
 		return "Not authenticated"
 
@@ -491,6 +506,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 	case NOT_WHITELISTED:
 		return "Command not whitelisted"
+
+	case QUOTA_EXCEEDED:
+		return "Quota exceeded"
 
 	case UDF_BAD_RESPONSE:
 		return "UDF returned error"
@@ -687,12 +705,18 @@ func (rc ResultCode) String() string {
 		return "INVALID_PRIVILEGE"
 	case INVALID_WHITELIST:
 		return "INVALID_WHITELIST"
+	case QUOTAS_NOT_ENABLED:
+		return "QUOTAS_NOT_ENABLED"
+	case INVALID_QUOTA:
+		return "INVALID_QUOTA"
 	case NOT_AUTHENTICATED:
 		return "NOT_AUTHENTICATED"
 	case ROLE_VIOLATION:
 		return "ROLE_VIOLATION"
 	case NOT_WHITELISTED:
 		return "NOT_WHITELISTED"
+	case QUOTA_EXCEEDED:
+		return "QUOTA_EXCEEDED"
 	case UDF_BAD_RESPONSE:
 		return "UDF_BAD_RESPONSE"
 	case BATCH_DISABLED:

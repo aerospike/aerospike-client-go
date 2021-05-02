@@ -17,10 +17,20 @@ package aerospike
 
 // Role allows granular access to database entities for users.
 type Role struct {
+	// Name is role name
 	Name string
 
+	// Priviledge is the list of assigned privileges
 	Privileges []Privilege
-	Whitelist  []string
+
+	// While is the list of allowable IP addresses
+	Whitelist []string
+
+	// ReadQuota is the maximum reads per second limit for the role
+	ReadQuota uint32
+
+	// WriteQuota is the maximum writes per second limit for the role
+	WriteQuota uint32
 }
 
 // Pre-defined user roles.
