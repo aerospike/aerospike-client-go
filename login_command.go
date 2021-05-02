@@ -89,11 +89,6 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 
 	result := lcmd.dataBuffer[_RESULT_CODE] & 0xFF
 	if result != 0 {
-		if int(result) == int(types.INVALID_COMMAND) {
-			// New login not supported.  Try old authentication.
-			return lcmd.authenticateInternal(conn, policy.User, hashedPass)
-		}
-
 		if int(result) == int(types.SECURITY_NOT_ENABLED) {
 			// Server does not require login.
 			return nil
@@ -152,29 +147,6 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 	return nil
 }
 
-func (lcmd *loginCommand) authenticateInternal(conn *Connection, user string, passwordHash []byte) Error {
-	lcmd.dataOffset = 8
-	lcmd.writeHeader(_AUTHENTICATE, 2)
-	lcmd.writeFieldStr(_USER, user)
-	lcmd.writeFieldBytes(_CREDENTIAL, passwordHash)
-	lcmd.writeSize()
-
-	if _, err := conn.Write(lcmd.dataBuffer[:lcmd.dataOffset]); err != nil {
-		return err
-	}
-
-	if _, err := conn.Read(lcmd.dataBuffer, _HEADER_SIZE); err != nil {
-		return err
-	}
-
-	result := lcmd.dataBuffer[_RESULT_CODE] & 0xFF
-	if result != 0 && int(result) != int(types.SECURITY_NOT_ENABLED) {
-		return newError(types.ResultCode(result), "Authentication failed")
-	}
-
-	return nil
-}
-
 func (lcmd *loginCommand) authenticateViaToken(policy *ClientPolicy, conn *Connection, sessionToken []byte) Error {
 	lcmd.setAuthenticate(policy, sessionToken)
 
@@ -201,14 +173,6 @@ func (lcmd *loginCommand) setAuthenticate(policy *ClientPolicy, sessionToken []b
 	if sessionToken != nil {
 		// New authentication.
 		lcmd.writeFieldBytes(_SESSION_TOKEN, sessionToken)
-	} else {
-		hashedPass, err := hashPassword(policy.Password)
-		if err != nil {
-			return err
-		}
-
-		// Old authentication.
-		lcmd.writeFieldBytes(_CREDENTIAL, hashedPass)
 	}
 
 	lcmd.writeSize()
