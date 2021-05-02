@@ -77,9 +77,10 @@ func (clnt *Client) queryNodes(policy *QueryPolicy, recordset *Recordset, statem
 	}
 
 	weg := newWeightedErrGroup(maxConcurrentNodes)
+	weg.f = func() { recordset.signalEnd() }
 	for _, node := range nodes {
 		cmd := newQueryRecordCommand(node, policy, statement, recordset)
-		weg.executeFunc(cmd, func() { recordset.signalEnd() })
+		weg.execute(cmd)
 	}
 
 	// skip the wg.wait, no need to sync here; Recordset will do the sync
