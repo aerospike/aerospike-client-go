@@ -134,6 +134,8 @@ var _ = gg.Describe("Security tests", func() {
 
 			time.Sleep(1 * time.Second)
 
+			roles, err = client.QueryRoles(nil)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(roles).To(gm.ContainElement(&as.Role{Name: "role-read-test-test", Privileges: []as.Privilege{{Code: as.Read, Namespace: ns, SetName: "test"}}, ReadQuota: 10010, WriteQuota: 20020}))
 		})
 
