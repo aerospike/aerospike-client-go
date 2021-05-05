@@ -513,11 +513,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 
 	for i := range operations {
 		switch operations[i].opType {
-		case _BIT_READ:
-			fallthrough
-		case _HLL_READ:
-			fallthrough
-		case _MAP_READ:
+		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ:
 			// Map operations require RespondPerEachOp to be true.
 			RespondPerEachOp = true
 			// Fall through to read.
@@ -535,11 +531,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, operations []*
 				readAttr |= _INFO1_READ
 				readHeader = true
 			}
-		case _BIT_MODIFY:
-			fallthrough
-		case _HLL_MODIFY:
-			fallthrough
-		case _MAP_MODIFY:
+		case _BIT_MODIFY, _EXP_MODIFY, _HLL_MODIFY, _MAP_MODIFY:
 			// Map operations require RespondPerEachOp to be true.
 			RespondPerEachOp = true
 			// Fall through to default.

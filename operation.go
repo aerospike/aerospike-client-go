@@ -30,6 +30,8 @@ var (
 	_MAP_READ   OperationType = &struct{ op byte }{3}
 	_MAP_MODIFY OperationType = &struct{ op byte }{4}
 	_ADD        OperationType = &struct{ op byte }{5}
+	_EXP_READ   OperationType = &struct{ op byte }{7}
+	_EXP_MODIFY OperationType = &struct{ op byte }{8}
 	_APPEND     OperationType = &struct{ op byte }{9}
 	_PREPEND    OperationType = &struct{ op byte }{10}
 	_TOUCH      OperationType = &struct{ op byte }{11}

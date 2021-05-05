@@ -56,6 +56,7 @@ var (
 type expOp uint
 
 var (
+	expOpUnknown       expOp = 0
 	expOpEQ            expOp = 1
 	expOpNE            expOp = 2
 	expOpGT            expOp = 3
@@ -67,6 +68,31 @@ var (
 	expOpAND           expOp = 16
 	expOpOR            expOp = 17
 	expOpNOT           expOp = 18
+	expOpExclusive     expOp = 19
+	expOpAdd           expOp = 20
+	expOpSub           expOp = 21
+	expOpMul           expOp = 22
+	expOpDiv           expOp = 23
+	expOpPow           expOp = 24
+	expOpLog           expOp = 25
+	expOpMod           expOp = 26
+	expOpAbs           expOp = 27
+	expOpFloor         expOp = 28
+	expOpCeil          expOp = 29
+	expOpToInt         expOp = 30
+	expOpToFloat       expOp = 31
+	expOpIntAnd        expOp = 32
+	expOpIntOr         expOp = 33
+	expOpIntXor        expOp = 34
+	expOpIntNot        expOp = 35
+	expOpIntLshift     expOp = 36
+	expOpIntRshift     expOp = 37
+	expOpIntArshift    expOp = 38
+	expOpIntCount      expOp = 39
+	expOpIntLscan      expOp = 40
+	expOpIntRscan      expOp = 41
+	expOpMin           expOp = 50
+	expOpMax           expOp = 51
 	expOpDIGEST_MODULO expOp = 64
 	expOpDEVICE_SIZE   expOp = 65
 	expOpLAST_UPDATE   expOp = 66
@@ -80,6 +106,9 @@ var (
 	expOpKEY           expOp = 80
 	expOpBIN           expOp = 81
 	expOpBIN_TYPE      expOp = 82
+	expOpCond          expOp = 123
+	expOpVar           expOp = 124
+	expOpLet           expOp = 125
 	expOpQUOTED        expOp = 126
 	expOpCALL          expOp = 127
 )

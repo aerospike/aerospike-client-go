@@ -34,12 +34,13 @@ type Error interface {
 	// any of the errors wrapped down the chain has any of the
 	// provided codes.
 	Matches(rcs ...types.ResultCode) bool
+
 	// Unwrap returns the error inside
 	Unwrap() error
+
 	// Trace returns a stack trace of where the error originates from
 	Trace() string
 
-	// wrapInside(e error) *AerospikeError
 	iter(int) Error
 	setInDoubt(bool, int) Error
 	setNode(*Node) Error
