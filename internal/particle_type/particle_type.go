@@ -23,6 +23,7 @@ const (
 	STRING  = 3
 	BLOB    = 4
 	DIGEST  = 6
+	BOOL    = 17
 	HLL     = 18
 	MAP     = 19
 	LIST    = 20

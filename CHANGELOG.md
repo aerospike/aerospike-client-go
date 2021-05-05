@@ -1,5 +1,21 @@
 # Change History
 
+## April 9 2021: v4.5.0
+  Minor feature and fix release.
+
+  * **New Features**
+
+    - Allows reading of boolean types from the server, supported in Aerospike server v5.6. The current client will not support writing boolean type to the server. That features will be supported in the upcoming Go client v5.
+
+  * **Fixes**
+
+    - [CLIENT-1495] Tentatively check if a connection is allowed to avoid launching too many goroutines.
+
+  * **Fixes**
+
+    - Implements correct and re-triable Scans for the Reflection API.
+    - Fixes an obscure var shadowing bug in TLS connection handshake error logging.
+
 ## March 12 2021: v4.4.0
   Minor fix and improvements release. 
 
@@ -17,7 +33,7 @@
 
   * **New Features**:
 
-    - [CLIENT-1457] Support scan pagination through ScanPartitions() with PartitionFilter
+    - [CLIENT-1457] Support scan pagination through `ScanPartitions()` with `PartitionFilter`
 
   * **Fixes**
 

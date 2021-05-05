@@ -79,6 +79,16 @@ func (vb *keyWriter) WriteFloat64(float float64) int {
 	return 8
 }
 
+// WriteBool writes a bool to the key
+func (vb *keyWriter) WriteBool(b bool) int {
+	if b {
+		vb.hash.Write([]byte{1})
+	} else {
+		vb.hash.Write([]byte{0})
+	}
+	return 1
+}
+
 // WriteByte writes a byte to the key
 func (vb *keyWriter) WriteByte(b byte) {
 	vb.hash.Write([]byte{b})

@@ -766,8 +766,8 @@ func (vl FloatValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// _BoolValue encapsulates a bool value.
-// This method is only used in bitwise CDT operations internally.
+// _BoolValue encapsulates a boolean value.
+// Supported by Aerospike server v5.6+ only.
 type _BoolValue bool
 
 // EstimateSize returns the size of the _BoolValue in wire protocol.
@@ -777,6 +777,8 @@ func (vb _BoolValue) EstimateSize() (int, Error) {
 
 func (vb _BoolValue) write(cmd BufferEx) (int, Error) {
 	panic("Unreachable")
+	// n := cmd.WriteBool(bool(vb))
+	// return n, nil
 }
 
 func (vb _BoolValue) pack(cmd BufferEx) (int, Error) {
@@ -786,6 +788,7 @@ func (vb _BoolValue) pack(cmd BufferEx) (int, Error) {
 // GetType returns wire protocol value type.
 func (vb _BoolValue) GetType() int {
 	panic("Unreachable")
+	// return ParticleType.BOOL
 }
 
 // GetObject returns original value as an interface{}.
@@ -1143,6 +1146,9 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 
 	case ParticleType.FLOAT:
 		return Buffer.BytesToFloat64(buf, offset), nil
+
+	case ParticleType.BOOL:
+		return Buffer.BytesToBool(buf, offset, length), nil
 
 	case ParticleType.MAP:
 		return newUnpacker(buf, offset, length).UnpackMap()

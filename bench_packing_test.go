@@ -217,6 +217,15 @@ func (bb *benchBuffer) WriteFloat64(float float64) int {
 	return 8
 }
 
+func (bb *benchBuffer) WriteBool(b bool) int {
+	if b {
+		bb.WriteByte(1)
+	} else {
+		bb.WriteByte(0)
+	}
+	return 1
+}
+
 func (bb *benchBuffer) WriteByte(b byte) {
 	bb.dataBuffer[bb.dataOffset] = b
 	bb.dataOffset++

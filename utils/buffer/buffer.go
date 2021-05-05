@@ -134,3 +134,11 @@ func BytesToFloat64(buf []byte, offset int) float64 {
 	bits := binary.BigEndian.Uint64(buf[offset : offset+float64sz])
 	return math.Float64frombits(bits)
 }
+
+// BytesToBool converts a byte slice to a bool
+func BytesToBool(buf []byte, offset, length int) bool {
+	if length <= 0 {
+		return false
+	}
+	return buf[offset] != 0
+}

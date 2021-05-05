@@ -545,6 +545,32 @@ var _ = gg.Describe("Aerospike", func() {
 				})
 			})
 
+			// TODO: Uncomment after server v5.6 release.
+			// gg.Context("Bins with `bool` only values", func() {
+			// 	gg.It("must save a key with SINGLE bin", func() {
+			// 		bin := as.NewBin("Aerospike", as.BoolValue(true))
+			// 		err = client.PutBins(wpolicy, key, bin)
+			// 		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// 		rec, err = client.Get(rpolicy, key)
+			// 		gm.Expect(err).ToNot(gm.HaveOccurred())
+			// 		gm.Expect(bool(rec.Bins[bin.Name].(bool))).To(gm.Equal(bin.Value.GetObject()))
+			// 	})
+
+			// 	gg.It("must save a key with MULTIPLE bins", func() {
+			// 		bin1 := as.NewBin("Aerospike1", as.BoolValue(true))
+			// 		bin2 := as.NewBin("Aerospike2", as.BoolValue(false))
+			// 		err = client.PutBins(wpolicy, key, bin1, bin2)
+			// 		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// 		rec, err = client.Get(rpolicy, key)
+			// 		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// 		gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+			// 		gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+			// 	})
+			// })
+
 			gg.Context("Bins with complex types", func() {
 
 				gg.Context("Bins with BLOB type", func() {
