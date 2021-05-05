@@ -82,6 +82,8 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.Context("PutObject & GetObject operations", func() {
 			gg.It("must save an object with anonymous fields", func() {
+				as.UseNativeBoolTypeInReflection = false
+
 				key, _ := as.NewKey(ns, set, randString(50))
 				expected := makeTestObject()
 				err = client.PutObject(nil, key, expected)

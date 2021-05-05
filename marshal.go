@@ -24,6 +24,10 @@ import (
 	"time"
 )
 
+// UseNativeBoolTypeInReflection determines if Boolean values should be directly translated to native Boolean type in reflection API
+// introduced in server version 5.6+. By default it keeps the old behavior, but can be set to true to opt in.
+var UseNativeBoolTypeInReflection = false
+
 var aerospikeTag = "as"
 
 const (
@@ -83,6 +87,10 @@ func valueToInterface(f reflect.Value) interface{} {
 		}
 		return structToMap(f)
 	case reflect.Bool:
+		if UseNativeBoolTypeInReflection {
+			return BoolValue(f.Bool())
+		}
+
 		if f.Bool() {
 			return IntegerValue(1)
 		}
