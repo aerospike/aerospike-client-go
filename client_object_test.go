@@ -32,7 +32,9 @@ var _ = gg.Describe("Aerospike", func() {
 
 	for _, useBoolType := range []bool{false, true} {
 
-		as.UseNativeBoolTypeInReflection = useBoolType
+		gg.BeforeEach(func() {
+			as.UseNativeBoolTypeInReflection = useBoolType
+		})
 
 		gg.Describe("Data operations on objects", func() {
 			// connection data
@@ -42,7 +44,6 @@ var _ = gg.Describe("Aerospike", func() {
 			var key *as.Key
 
 			gg.BeforeEach(func() {
-
 				key, err = as.NewKey(ns, set, randString(50))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 			})

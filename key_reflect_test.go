@@ -17,30 +17,25 @@
 package aerospike_test
 
 import (
-	"encoding/hex"
-
-	as "github.com/aerospike/aerospike-client-go"
-
 	gg "github.com/onsi/ginkgo"
-	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Key Test Reflection", func() {
 
-	gg.Context("Digests should be the same", func() {
+	// gg.Context("Digests should be the same", func() {
 
-		gg.It("for Arrays", func() {
+	// 	gg.It("for Arrays", func() {
 
-			// The following two cases should be in exact order
-			key, _ := as.NewKey("namespace", "set", []int{1, 2, 3})
-			gm.Expect(hex.EncodeToString(key.Digest())).To(gm.Equal("a8b63a8208ebebb49d027d51899121fd0d03d2f7"))
+	// 		// The following two cases should be in exact order
+	// 		key, _ := as.NewKey("namespace", "set", []int{1, 2, 3})
+	// 		gm.Expect(hex.EncodeToString(key.Digest())).To(gm.Equal("a8b63a8208ebebb49d027d51899121fd0d03d2f7"))
 
-			keyInterfaceArrayOfTheSameValues, _ := as.NewKey("namespace", "set", []interface{}{1, 2, 3})
-			gm.Expect(hex.EncodeToString(keyInterfaceArrayOfTheSameValues.Digest())).To(gm.Equal(hex.EncodeToString(key.Digest())))
+	// 		keyInterfaceArrayOfTheSameValues, _ := as.NewKey("namespace", "set", []interface{}{1, 2, 3})
+	// 		gm.Expect(hex.EncodeToString(keyInterfaceArrayOfTheSameValues.Digest())).To(gm.Equal(hex.EncodeToString(key.Digest())))
 
-		})
+	// 	})
 
-	})
+	// })
 
 })

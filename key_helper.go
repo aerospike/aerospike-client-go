@@ -142,27 +142,9 @@ func (vb *keyWriter) writeKey(val Value) Error {
 	case LongValue:
 		vb.WriteInt64(int64(v))
 		return nil
-	case FloatValue:
-		vb.WriteFloat64(float64(v))
-		return nil
 	case StringValue:
 		vb.WriteString(string(v))
 		return nil
-	case ListValue:
-		_, err := v.pack(vb)
-		return err
-	case *ListValue:
-		_, err := v.pack(vb)
-		return err
-	case *ListerValue:
-		_, err := v.pack(vb)
-		return err
-	case ValueArray:
-		_, err := v.pack(vb)
-		return err
-	case *ValueArray:
-		_, err := v.pack(vb)
-		return err
 	case BytesValue:
 		vb.Write(v)
 		return nil
