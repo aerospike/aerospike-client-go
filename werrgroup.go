@@ -67,11 +67,6 @@ func (weg *werrGroup) execute(cmd command) {
 	}()
 }
 
-func (weg *werrGroup) executeFunc(cmd command, f func()) {
-	weg.f = f
-	weg.execute(cmd)
-}
-
 func (weg *werrGroup) wait() Error {
 	weg.wg.Wait()
 	return weg.errs

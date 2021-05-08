@@ -647,6 +647,16 @@ func (vb *packer) WriteFloat64(float float64) int {
 	return n
 }
 
+// WriteBool writes a bool to the buffer
+func (vb *packer) WriteBool(b bool) int {
+	if b {
+		vb.WriteByte(1)
+	} else {
+		vb.WriteByte(0)
+	}
+	return 1
+}
+
 // WriteBytes writes a byte to the buffer
 func (vb *packer) WriteByte(b byte) {
 	vb.Write([]byte{b})

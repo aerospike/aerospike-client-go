@@ -673,7 +673,7 @@ func ExpIntVal(val int64) *FilterExpression {
 
 // ExpBoolVal creates a Boolean value
 func ExpBoolVal(val bool) *FilterExpression {
-	return newFilterExpression(nil, _BoolValue(val), nil, nil, nil, nil)
+	return newFilterExpression(nil, BoolValue(val), nil, nil, nil, nil)
 }
 
 // ExpStringVal creates a String bin value

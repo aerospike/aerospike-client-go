@@ -112,6 +112,8 @@ func tryConcreteValue(v interface{}) Value {
 		if int64(val) >= 0 {
 			return LongValue(int64(val))
 		}
+	case bool:
+		return BoolValue(val)
 	case MapIter:
 		return NewMapperValue(val)
 	case ListIter:
@@ -766,35 +768,36 @@ func (vl FloatValue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// _BoolValue encapsulates a bool value.
-// This method is only used in bitwise CDT operations internally.
-type _BoolValue bool
+// BoolValue encapsulates a boolean value.
+// Supported by Aerospike server v5.6+ only.
+type BoolValue bool
 
-// EstimateSize returns the size of the _BoolValue in wire protocol.
-func (vb _BoolValue) EstimateSize() (int, Error) {
+// EstimateSize returns the size of the BoolValue in wire protocol.
+func (vb BoolValue) EstimateSize() (int, Error) {
 	return PackBool(nil, bool(vb))
 }
 
-func (vb _BoolValue) write(cmd BufferEx) (int, Error) {
-	panic("Unreachable")
+func (vb BoolValue) write(cmd BufferEx) (int, Error) {
+	n := cmd.WriteBool(bool(vb))
+	return n, nil
 }
 
-func (vb _BoolValue) pack(cmd BufferEx) (int, Error) {
+func (vb BoolValue) pack(cmd BufferEx) (int, Error) {
 	return PackBool(cmd, bool(vb))
 }
 
 // GetType returns wire protocol value type.
-func (vb _BoolValue) GetType() int {
-	panic("Unreachable")
+func (vb BoolValue) GetType() int {
+	return ParticleType.BOOL
 }
 
 // GetObject returns original value as an interface{}.
-func (vb _BoolValue) GetObject() interface{} {
+func (vb BoolValue) GetObject() interface{} {
 	return bool(vb)
 }
 
 // String implements Stringer interface.
-func (vb _BoolValue) String() string {
+func (vb BoolValue) String() string {
 	return (fmt.Sprintf("%v", bool(vb)))
 }
 
@@ -1143,6 +1146,9 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 
 	case ParticleType.FLOAT:
 		return Buffer.BytesToFloat64(buf, offset), nil
+
+	case ParticleType.BOOL:
+		return Buffer.BytesToBool(buf, offset, length), nil
 
 	case ParticleType.MAP:
 		return newUnpacker(buf, offset, length).UnpackMap()

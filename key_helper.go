@@ -79,6 +79,16 @@ func (vb *keyWriter) WriteFloat64(float float64) int {
 	return 8
 }
 
+// WriteBool writes a bool to the key
+func (vb *keyWriter) WriteBool(b bool) int {
+	if b {
+		vb.hash.Write([]byte{1})
+	} else {
+		vb.hash.Write([]byte{0})
+	}
+	return 1
+}
+
 // WriteByte writes a byte to the key
 func (vb *keyWriter) WriteByte(b byte) {
 	vb.hash.Write([]byte{b})
@@ -132,27 +142,9 @@ func (vb *keyWriter) writeKey(val Value) Error {
 	case LongValue:
 		vb.WriteInt64(int64(v))
 		return nil
-	case FloatValue:
-		vb.WriteFloat64(float64(v))
-		return nil
 	case StringValue:
 		vb.WriteString(string(v))
 		return nil
-	case ListValue:
-		_, err := v.pack(vb)
-		return err
-	case *ListValue:
-		_, err := v.pack(vb)
-		return err
-	case *ListerValue:
-		_, err := v.pack(vb)
-		return err
-	case ValueArray:
-		_, err := v.pack(vb)
-		return err
-	case *ValueArray:
-		_, err := v.pack(vb)
-		return err
 	case BytesValue:
 		vb.Write(v)
 		return nil

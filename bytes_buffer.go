@@ -29,6 +29,7 @@ type BufferEx interface {
 	WriteUint16(num uint16) int
 	WriteFloat32(float float32) int
 	WriteFloat64(float float64) int
+	WriteBool(b bool) int
 	WriteByte(b byte)
 	WriteString(s string) (int, Error)
 	Write(b []byte) (int, Error)
@@ -118,6 +119,15 @@ func (buf *bufferEx) WriteString(s string) (int, Error) {
 	copy(buf.dataBuffer[buf.dataOffset:buf.dataOffset+len(s)], s)
 	buf.dataOffset += len(s)
 	return len(s), nil
+}
+
+func (buf *bufferEx) WriteBool(b bool) int {
+	if b {
+		buf.WriteByte(1)
+	} else {
+		buf.WriteByte(0)
+	}
+	return 1
 }
 
 func (buf *bufferEx) Write(b []byte) (int, Error) {
