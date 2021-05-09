@@ -85,9 +85,9 @@ var (
 	expOpIntOr         expOp = 33
 	expOpIntXor        expOp = 34
 	expOpIntNot        expOp = 35
-	expOpIntLshift     expOp = 36
-	expOpIntRshift     expOp = 37
-	expOpIntArshift    expOp = 38
+	expOpIntLShift     expOp = 36
+	expOpIntRShift     expOp = 37
+	expOpIntARShift    expOp = 38
 	expOpIntCount      expOp = 39
 	expOpIntLscan      expOp = 40
 	expOpIntRscan      expOp = 41
@@ -123,21 +123,20 @@ const (
 	ExpRegexFlagNONE ExpRegexFlags = 0
 
 	// ExpRegexFlagEXTENDED uses POSIX Extended Regular Expression syntax when interpreting regex.
-	ExpRegexFlagEXTENDED ExpRegexFlags = 1
+	ExpRegexFlagEXTENDED ExpRegexFlags = 1 << 0
 
 	// ExpRegexFlagICASE does not differentiate cases.
-	ExpRegexFlagICASE ExpRegexFlags = 2
+	ExpRegexFlagICASE ExpRegexFlags = 1 << 1
 
 	// ExpRegexFlagNOSUB does not report position of matches.
-	ExpRegexFlagNOSUB ExpRegexFlags = 3
+	ExpRegexFlagNOSUB ExpRegexFlags = 1 << 2
 
 	// ExpRegexFlagNEWLINE does not Match-any-character operators don't match a newline.
-	ExpRegexFlagNEWLINE ExpRegexFlags = 8
+	ExpRegexFlagNEWLINE ExpRegexFlags = 1 << 3
 )
 
 // FilterExpression which can be applied to most commands, to control which records are
-// affected by the command. Filter expression are created using the functions in the
-// [expressions](crate::expressions) module and its submodules.
+// affected by the command.
 type FilterExpression struct {
 	// The Operation code
 	cmd *expOp
@@ -180,23 +179,48 @@ func (fe *FilterExpression) packExpression(
 ) (int, Error) {
 	size := 0
 
-	sz, err := packArrayBegin(buf, len(exps)+1)
-	size += sz
-	if err != nil {
-		return size, err
-	}
-
-	sz, err = packAInt64(buf, int64(*fe.cmd))
-	size += sz
-	if err != nil {
-		return size, err
-	}
-
-	for _, exp := range exps {
-		sz, err = exp.pack(buf)
+	if fe.val != nil {
+		// DEF expression
+		sz, err := packRawString(buf, fe.val.String())
 		size += sz
 		if err != nil {
 			return size, err
+		}
+
+		sz, err = exps[0].pack(buf)
+		size += sz
+		if err != nil {
+			return size, err
+		}
+	} else {
+		if fe.cmd == &expOpLet {
+			// Let wire format: LET <defname1>, <defexp1>, <defname2>, <defexp2>, ..., <scope exp>
+			count := (len(exps)-1)*2 + 2
+			sz, err := packArrayBegin(buf, count)
+			size += sz
+			if err != nil {
+				return size, err
+			}
+		} else {
+			sz, err := packArrayBegin(buf, len(exps)+1)
+			size += sz
+			if err != nil {
+				return size, err
+			}
+		}
+
+		sz, err := packAInt64(buf, int64(*fe.cmd))
+		size += sz
+		if err != nil {
+			return size, err
+		}
+
+		for _, exp := range exps {
+			sz, err = exp.pack(buf)
+			size += sz
+			if err != nil {
+				return size, err
+			}
 		}
 	}
 	return size, nil
@@ -363,6 +387,8 @@ func (fe *FilterExpression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 			return size, err
 		}
 		size += sz
+	case &expOpVar:
+		fallthrough
 	case &expOpBIN_TYPE:
 		// BinType encoder
 		sz, err := packArrayBegin(buf, 2)
@@ -781,6 +807,20 @@ func ExpOr(exps ...*FilterExpression) *FilterExpression {
 	}
 }
 
+// ExpExclusive creates an expression that returns true if only one of the expressions are true.
+// Requires server version 5.6.0+.
+func ExpExclusive(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpExclusive,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
 // ExpEq creates a equal (==) expression.
 func ExpEq(left *FilterExpression, right *FilterExpression) *FilterExpression {
 	return &FilterExpression{
@@ -855,6 +895,448 @@ func ExpLessEq(left *FilterExpression, right *FilterExpression) *FilterExpressio
 		flags:     nil,
 		module:    nil,
 		exps:      []*FilterExpression{left, right},
+		arguments: nil,
+	}
+}
+
+// ExpNumAdd creates "add" (+) operator that applies to a variable number of expressions.
+// Return sum of all `FilterExpressions` given. All arguments must resolve to the same type (integer or float).
+// Requires server version 5.6.0+.
+func ExpNumAdd(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpAdd,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+// ExpNumSub creates "subtract" (-) operator that applies to a variable number of expressions.
+// If only one `FilterExpressions` is provided, return the negation of that argument.
+// Otherwise, return the sum of the 2nd to Nth `FilterExpressions` subtracted from the 1st
+// `FilterExpressions`. All `FilterExpressions` must resolve to the same type (integer or float).
+// Requires server version 5.6.0+.
+func ExpNumSub(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpSub,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+// ExpNumMul creates "multiply" (*) operator that applies to a variable number of expressions.
+// Return the product of all `FilterExpressions`. If only one `FilterExpressions` is supplied, return
+// that `FilterExpressions`. All `FilterExpressions` must resolve to the same type (integer or float).
+// Requires server version 5.6.0+.
+func ExpNumMul(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpMul,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+// ExpNumDiv creates "divide" (/) operator that applies to a variable number of expressions.
+// If there is only one `FilterExpressions`, returns the reciprocal for that `FilterExpressions`.
+// Otherwise, return the first `FilterExpressions` divided by the product of the rest.
+// All `FilterExpressions` must resolve to the same type (integer or float).
+// Requires server version 5.6.0+.
+func ExpNumDiv(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpDiv,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+// ExpNumPow creates "power" operator that raises a "base" to the "exponent" power.
+// All arguments must resolve to floats.
+// Requires server version 5.6.0+.
+func ExpNumPow(base *FilterExpression, exponent *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpPow,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{base, exponent},
+		arguments: nil,
+	}
+}
+
+// ExpNumLog creates "log" operator for logarithm of "num" with base "base".
+// All arguments must resolve to floats.
+// Requires server version 5.6.0+.
+func ExpNumLog(num *FilterExpression, base *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpLog,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{num, base},
+		arguments: nil,
+	}
+}
+
+// ExpNumMod creates "modulo" (%) operator that determines the remainder of "numerator"
+// divided by "denominator". All arguments must resolve to integers.
+// Requires server version 5.6.0+.
+func ExpNumMod(numerator *FilterExpression, denominator *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpMod,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{numerator, denominator},
+		arguments: nil,
+	}
+}
+
+// ExpNumAbs creates operator that returns absolute value of a number.
+// All arguments must resolve to integer or float.
+// Requires server version 5.6.0+.
+func ExpNumAbs(value *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpAbs,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{value},
+		arguments: nil,
+	}
+}
+
+// ExpNumFloor creates expression that rounds a floating point number down to the closest integer value.
+// The return type is float.
+// Requires server version 5.6.0+.
+func ExpNumFloor(num *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpFloor,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{num},
+		arguments: nil,
+	}
+}
+
+// ExpNumCeil creates expression that rounds a floating point number up to the closest integer value.
+// The return type is float.
+// Requires server version 5.6.0+.
+func ExpNumCeil(num *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpCeil,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{num},
+		arguments: nil,
+	}
+}
+
+// ExpToInt creates expression that converts an integer to a float.
+// Requires server version 5.6.0+.
+func ExpToInt(num *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpToInt,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{num},
+		arguments: nil,
+	}
+}
+
+// ExpToFloat creates expression that converts a float to an integer.
+// Requires server version 5.6.0+.
+func ExpToFloat(num *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpToFloat,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{num},
+		arguments: nil,
+	}
+}
+
+// ExpIntAnd creates integer "and" (&) operator that is applied to two or more integers.
+// All arguments must resolve to integers.
+// Requires server version 5.6.0+.
+func ExpIntAnd(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpIntAnd,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+// ExpIntOr creates integer "or" (|) operator that is applied to two or more integers.
+// All arguments must resolve to integers.
+// Requires server version 5.6.0+.
+func ExpIntOr(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpIntOr,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+// ExpIntXor creates integer "xor" (^) operator that is applied to two or more integers.
+// All arguments must resolve to integers.
+// Requires server version 5.6.0+.
+func ExpIntXor(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpIntXor,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+// ExpIntNot creates integer "not" (~) operator.
+// Requires server version 5.6.0+.
+func ExpIntNot(exp *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpIntNot,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{exp},
+		arguments: nil,
+	}
+}
+
+// ExpIntLShift creates integer "left shift" (<<) operator.
+// Requires server version 5.6.0+.
+func ExpIntLShift(value *FilterExpression, shift *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpIntLShift,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{value, shift},
+		arguments: nil,
+	}
+}
+
+// ExpIntRShift creates integer "logical right shift" (>>>) operator.
+// Requires server version 5.6.0+.
+func ExpIntRShift(value *FilterExpression, shift *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpIntRShift,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{value, shift},
+		arguments: nil,
+	}
+}
+
+// ExpIntARShift creates integer "arithmetic right shift" (>>) operator.
+// The sign bit is preserved and not shifted.
+// Requires server version 5.6.0+.
+func ExpIntARShift(value *FilterExpression, shift *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpIntARShift,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{value, shift},
+		arguments: nil,
+	}
+}
+
+// ExpIntCount creates expression that returns count of integer bits that are set to 1.
+// Requires server version 5.6.0+.
+func ExpIntCount(exp *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpIntCount,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{exp},
+		arguments: nil,
+	}
+}
+
+// ExpIntLScan creates expression that scans integer bits from left (most significant bit) to
+// right (least significant bit), looking for a search bit value. When the
+// search value is found, the index of that bit (where the most significant bit is
+// index 0) is returned. If "search" is true, the scan will search for the bit
+// value 1. If "search" is false it will search for bit value 0.
+// Requires server version 5.6.0+.
+func ExpIntLScan(value *FilterExpression, search *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpIntLscan,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{value, search},
+		arguments: nil,
+	}
+}
+
+// ExpIntRScan creates expression that scans integer bits from right (least significant bit) to
+// left (most significant bit), looking for a search bit value. When the
+// search value is found, the index of that bit (where the most significant bit is
+// index 0) is returned. If "search" is true, the scan will search for the bit
+// value 1. If "search" is false it will search for bit value 0.
+// Requires server version 5.6.0+.
+func ExpIntRScan(value *FilterExpression, search *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpIntRscan,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{value, search},
+		arguments: nil,
+	}
+}
+
+// ExpMin creates expression that returns the minimum value in a variable number of expressions.
+// All arguments must be the same type (integer or float).
+// Requires server version 5.6.0+.
+func ExpMin(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpMin,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+// ExpMax creates expression that returns the maximum value in a variable number of expressions.
+// All arguments must be the same type (integer or float).
+// Requires server version 5.6.0+.
+func ExpMax(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpMax,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+//--------------------------------------------------
+// Variables
+//--------------------------------------------------
+
+// ExpCond will conditionally select an expression from a variable number of expression pairs
+// followed by default expression action.
+// Requires server version 5.6.0+.
+func ExpCond(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpCond,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+// ExpLet will define variables and expressions in scope.
+// Requires server version 5.6.0+.
+func ExpLet(exps ...*FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpLet,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      exps,
+		arguments: nil,
+	}
+}
+
+// ExpDef will assign variable to an expression that can be accessed later.
+// Requires server version 5.6.0+.
+func ExpDef(name string, value *FilterExpression) *FilterExpression {
+	return &FilterExpression{
+		cmd:       nil,
+		val:       StringValue(name),
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      []*FilterExpression{value},
+		arguments: nil,
+	}
+}
+
+// ExpVar will retrieve expression value from a variable.
+// Requires server version 5.6.0+.
+func ExpVar(name string) *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpVar,
+		val:       StringValue(name),
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      nil,
+		arguments: nil,
+	}
+}
+
+// ExpUnknown creates unknown value. Used to intentionally fail an expression.
+// The failure can be ignored with `ExpWriteFlags` `EVAL_NO_FAIL`
+// or `ExpReadFlags` `EVAL_NO_FAIL`.
+// Requires server version 5.6.0+.
+func ExpUnknown() *FilterExpression {
+	return &FilterExpression{
+		cmd:       &expOpUnknown,
+		val:       nil,
+		bin:       nil,
+		flags:     nil,
+		module:    nil,
+		exps:      nil,
 		arguments: nil,
 	}
 }

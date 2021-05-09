@@ -19,13 +19,14 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 	"github.com/aerospike/aerospike-client-go/internal/atomic"
+	ast "github.com/aerospike/aerospike-client-go/types"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = gg.Describe("Expression Operations", func() {
+var _ = gg.Describe("Expression Filters", func() {
 
 	var ns = *namespace
 	var set = randString(50)
@@ -852,5 +853,166 @@ var _ = gg.Describe("Expression Operations", func() {
 		})
 
 	}) // Describe
+
+	var _ = gg.Describe("Expression Filter Operations", func() {
+		binA := "A"
+		binB := "B"
+		binC := "C"
+		binD := "D"
+		binE := "E"
+
+		keyA, _ := as.NewKey(ns, set, "A")
+		keyB, _ := as.NewKey(ns, set, []byte{'B'})
+		keyC, _ := as.NewKey(ns, set, "C")
+
+		type testParams struct {
+			desc        string
+			exp         *as.FilterExpression
+			key, expKey *as.Key
+			bin         string
+			expected    int
+			reverseExp  bool
+		}
+		matrix := []testParams{
+			{"Exclusive", as.ExpExclusive(as.ExpEq(as.ExpIntBin(binA), as.ExpIntVal(1)), as.ExpEq(as.ExpIntBin(binD), as.ExpIntVal(1))), keyA, keyB, binA, 2, false},
+			{"AddInt", as.ExpEq(as.ExpNumAdd(as.ExpIntBin(binA), as.ExpIntBin(binD), as.ExpIntVal(1)), as.ExpIntVal(4)), keyA, keyB, binA, 2, false},
+			{"SubInt", as.ExpEq(as.ExpNumSub(as.ExpIntVal(1), as.ExpIntBin(binA), as.ExpIntBin(binD)), as.ExpIntVal(-2)), keyA, keyB, binA, 2, false},
+			{"MulInt", as.ExpEq(as.ExpNumMul(as.ExpIntVal(2), as.ExpIntBin(binA), as.ExpIntBin(binD)), as.ExpIntVal(4)), keyA, keyB, binA, 2, false},
+			{"DivInt", as.ExpEq(as.ExpNumDiv(as.ExpIntVal(8), as.ExpIntBin(binA), as.ExpIntBin(binD)), as.ExpIntVal(4)), keyA, keyB, binA, 2, false},
+			{"ModInt", as.ExpEq(as.ExpNumMod(as.ExpIntBin(binA), as.ExpIntVal(2)), as.ExpIntVal(0)), keyA, keyB, binA, 2, false},
+			{"AbsInt", as.ExpEq(as.ExpNumAbs(as.ExpIntBin(binE)), as.ExpIntVal(2)), keyA, keyB, binA, 2, false},
+			{"Floor", as.ExpEq(as.ExpNumFloor(as.ExpFloatBin(binB)), as.ExpFloatVal(2)), keyA, keyB, binA, 2, false},
+			{"Ceil", as.ExpEq(as.ExpNumCeil(as.ExpFloatBin(binB)), as.ExpFloatVal(3)), keyA, keyB, binA, 2, false},
+			{"ToInt", as.ExpEq(as.ExpToInt(as.ExpFloatBin(binB)), as.ExpIntVal(2)), keyA, keyB, binA, 2, false},
+			{"ToFloat", as.ExpEq(as.ExpToFloat(as.ExpIntBin(binA)), as.ExpFloatVal(2)), keyA, keyB, binA, 2, false},
+			{"IntAnd", as.ExpNot(
+				as.ExpAnd(
+					as.ExpEq(
+						as.ExpIntAnd(as.ExpIntBin(binA), as.ExpIntVal(0)),
+						as.ExpIntVal(0)),
+					as.ExpEq(
+						as.ExpIntAnd(as.ExpIntBin(binA), as.ExpIntVal(0xFFFF)),
+						as.ExpIntVal(1),
+					))), keyA, keyA, binA, 1, true},
+			{"IntOr", as.ExpNot(
+				as.ExpAnd(
+					as.ExpEq(
+						as.ExpIntOr(as.ExpIntBin(binA), as.ExpIntVal(0)),
+						as.ExpIntVal(1)),
+					as.ExpEq(
+						as.ExpIntOr(as.ExpIntBin(binA), as.ExpIntVal(0xFF)),
+						as.ExpIntVal(0xFF),
+					))), keyA, keyA, binA, 1, true},
+			{"IntXor", as.ExpNot(
+				as.ExpAnd(
+					as.ExpEq(
+						as.ExpIntXor(as.ExpIntBin(binA), as.ExpIntVal(0)),
+						as.ExpIntVal(1)),
+					as.ExpEq(
+						as.ExpIntXor(as.ExpIntBin(binA), as.ExpIntVal(0xFF)),
+						as.ExpIntVal(0xFE),
+					))), keyA, keyA, binA, 1, true},
+			{"IntNot", as.ExpNot(
+				as.ExpEq(
+					as.ExpIntNot(as.ExpIntBin(binA)),
+					as.ExpIntVal(-2))), keyA, keyA, binA, 1, true},
+			{"LShift", as.ExpNot(
+				as.ExpEq(
+					as.ExpIntLShift(as.ExpIntBin(binA), as.ExpIntVal(2)),
+					as.ExpIntVal(4))), keyA, keyA, binA, 1, true},
+			{"RShift", as.ExpNot(
+				as.ExpEq(
+					as.ExpIntRShift(as.ExpIntBin(binE), as.ExpIntVal(62)),
+					as.ExpIntVal(3))), keyB, keyB, binE, -2, true},
+			{"ARShift", as.ExpNot(
+				as.ExpEq(
+					as.ExpIntARShift(as.ExpIntBin(binE), as.ExpIntVal(62)),
+					as.ExpIntVal(-1))), keyB, keyB, binE, -2, true},
+			{"BitCount", as.ExpNot(
+				as.ExpEq(
+					as.ExpIntCount(as.ExpIntBin(binA)),
+					as.ExpIntVal(1))), keyA, keyA, binA, 1, true},
+			{"LScan", as.ExpNot(
+				as.ExpEq(
+					as.ExpIntLScan(as.ExpIntBin(binA), as.ExpBoolVal(true)),
+					as.ExpIntVal(63))), keyA, keyA, binA, 1, true},
+			{"RScan", as.ExpNot(
+				as.ExpEq(
+					as.ExpIntRScan(as.ExpIntBin(binA), as.ExpBoolVal(true)),
+					as.ExpIntVal(63))), keyA, keyA, binA, 1, true},
+			{"Min", as.ExpNot(
+				as.ExpEq(
+					as.ExpMin(as.ExpIntBin(binA), as.ExpIntBin(binD), as.ExpIntBin(binE)),
+					as.ExpIntVal(-1))), keyA, keyA, binA, 1, true},
+			{"Max", as.ExpNot(
+				as.ExpEq(
+					as.ExpMax(as.ExpIntBin(binA), as.ExpIntBin(binD), as.ExpIntBin(binE)),
+					as.ExpIntVal(1))), keyA, keyA, binA, 1, true},
+			{"Cond", as.ExpNot(
+				as.ExpEq(
+					as.ExpCond(
+						as.ExpEq(as.ExpIntBin(binA), as.ExpIntVal(0)), as.ExpNumAdd(as.ExpIntBin(binD), as.ExpIntBin(binE)),
+						as.ExpEq(as.ExpIntBin(binA), as.ExpIntVal(1)), as.ExpNumSub(as.ExpIntBin(binD), as.ExpIntBin(binE)),
+						as.ExpEq(as.ExpIntBin(binA), as.ExpIntVal(2)), as.ExpNumMul(as.ExpIntBin(binD), as.ExpIntBin(binE)),
+						as.ExpIntVal(-1)),
+					as.ExpIntVal(2))), keyA, keyA, binA, 1, true},
+
+			{"AddFloat", as.ExpLet(
+				as.ExpDef("val", as.ExpNumAdd(as.ExpFloatBin(binB), as.ExpFloatVal(1.1))),
+				as.ExpAnd(
+					as.ExpGreaterEq(as.ExpVar("val"), as.ExpFloatVal(3.2999)),
+					as.ExpLessEq(as.ExpVar("val"), as.ExpFloatVal(3.3001)),
+				)),
+				keyA, keyB, binA, 2, false},
+			{"LogFloat", as.ExpLet(
+				as.ExpDef("val", as.ExpNumLog(as.ExpFloatBin(binB), as.ExpFloatVal(2.0))),
+				as.ExpAnd(
+					as.ExpGreaterEq(as.ExpVar("val"), as.ExpFloatVal(1.1374)),
+					as.ExpLessEq(as.ExpVar("val"), as.ExpFloatVal(1.1376)))), keyA, keyB, binA, 2, false},
+			{"PowFloat", as.ExpLet(
+				as.ExpDef("val", as.ExpNumPow(as.ExpFloatBin(binB), as.ExpFloatVal(2.0))),
+				as.ExpAnd(
+					as.ExpGreaterEq(as.ExpVar("val"), as.ExpFloatVal(4.8399)),
+					as.ExpLessEq(as.ExpVar("val"), as.ExpFloatVal(4.8401)))), keyA, keyB, binA, 2, false},
+		}
+
+		insertRecs := atomic.NewBool(true)
+		gg.BeforeEach(func() {
+			if !insertRecs.Get() {
+				return
+			}
+
+			err := client.Put(nil, keyA, as.BinMap{binA: 1, binB: 1.1, binC: "abcde", binD: 1, binE: -1})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			err = client.Put(nil, keyB, as.BinMap{binA: 2, binB: 2.2, binC: "abcdeabcde", binD: 1, binE: -2})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			err = client.Put(nil, keyC, as.BinMap{binA: 0, binB: -1, binC: 1})
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		})
+
+		assertBinEqual := func(key *as.Key, r as.BinMap, binName string, expected interface{}) {
+			_, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(r[binName]).To(gm.Equal(expected))
+		}
+
+		gg.It("Filtering via expressions should work", func() {
+			for _, params := range matrix {
+				policy := as.NewPolicy()
+				policy.FilterExpression = params.exp
+				_, err := client.Get(policy, params.key)
+				gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
+
+				if params.reverseExp {
+					policy.FilterExpression = as.ExpNot(policy.FilterExpression)
+				}
+
+				r, err := client.Get(policy, params.expKey)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				assertBinEqual(params.key, r.Bins, params.bin, params.expected)
+			}
+		})
+
+	})
 
 }) // Describe

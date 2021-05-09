@@ -217,10 +217,10 @@ const (
 	// INVALID_WHITELIST defines invalid IP address whiltelist
 	INVALID_WHITELIST = 73
 
-	// Quotas not enabled on server.
+	// QUOTAS_NOT_ENABLED defines Quotas not enabled on server.
 	QUOTAS_NOT_ENABLED = 74
 
-	// Invalid quota value.
+	// INVALID_QUOTA defines invalid quota value.
 	INVALID_QUOTA = 75
 
 	// NOT_AUTHENTICATED defines user must be authentication before performing database operations.
@@ -232,7 +232,7 @@ const (
 	// NOT_WHITELISTED defines command not allowed because sender IP address not whitelisted.
 	NOT_WHITELISTED = 82
 
-	// Quota exceeded.
+	// QUOTA_EXCEEDED defines Quota exceeded.
 	QUOTA_EXCEEDED = 83
 
 	// UDF_BAD_RESPONSE defines a user defined function returned an error code.

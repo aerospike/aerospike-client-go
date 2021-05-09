@@ -1303,7 +1303,7 @@ func (clnt *Client) SetWhitelist(policy *AdminPolicy, roleName string, whitelist
 	return command.setWhitelist(clnt.cluster, policy, roleName, whitelist)
 }
 
-// Set maximum reads/writes per second limits for a role.  If a quota is zero, the limit is removed.
+// SetQuotas sets maximum reads/writes per second limits for a role.  If a quota is zero, the limit is removed.
 // Quotas require server security configuration "enable-quotas" to be set to true.
 // Pass 0 for quota values for no limit.
 func (clnt *Client) SetQuotas(policy *AdminPolicy, roleName string, readQuota, writeQuota uint32) Error {

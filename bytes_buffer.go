@@ -48,6 +48,11 @@ func newBuffer(sz int) *bufferEx {
 	}
 }
 
+// Bytes returns the content of the buffer
+func (buf *bufferEx) Bytes() []byte {
+	return buf.dataBuffer[:buf.dataOffset]
+}
+
 // Int64ToBytes converts an int64 into slice of Bytes.
 func (buf *bufferEx) WriteInt64(num int64) int {
 	return buf.WriteUint64(uint64(num))

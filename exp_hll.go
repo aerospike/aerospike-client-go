@@ -17,6 +17,7 @@ package aerospike
 const hllMODULE int64 = 2
 
 var (
+	_HllExpOpINIT           = 0
 	_HllExpOpADD            = 1
 	_HllExpOpCOUNT          = 50
 	_HllExpOpUNION          = 51
@@ -26,6 +27,33 @@ var (
 	_HllExpOpDESCRIBE       = 55
 	_HllExpOpMAYCONTAIN     = 56
 )
+
+// ExpHLLInit creates expression that creates a new HLL or resets an existing HLL.
+func ExpHLLInit(
+	policy *HLLPolicy,
+	index_bit_count *FilterExpression,
+	bin *FilterExpression,
+) *FilterExpression {
+	return ExpHLLInitWithMinHash(policy, index_bit_count, ExpIntVal(-1), bin)
+}
+
+// ExpHLLInitWithMinHash creates expression that creates a new HLL or resets an existing HLL with minhash bits.
+func ExpHLLInitWithMinHash(
+	policy *HLLPolicy,
+	index_bit_count *FilterExpression,
+	min_hash_count *FilterExpression,
+	bin *FilterExpression,
+) *FilterExpression {
+	return expHLLAddWrite(
+		bin,
+		[]ExpressionArgument{
+			IntegerValue(_HllExpOpINIT),
+			index_bit_count,
+			min_hash_count,
+			IntegerValue(policy.flags),
+		},
+	)
+}
 
 // ExpHLLAdd creates an expression that adds list values to a HLL set and returns HLL set.
 // The function assumes HLL bin already exists.
