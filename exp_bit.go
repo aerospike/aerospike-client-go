@@ -42,10 +42,10 @@ const (
 // and returns byte[].
 func ExpBitResize(
 	policy *BitPolicy,
-	byteSize *FilterExpression,
+	byteSize *Expression,
 	resizeFlags BitResizeFlags,
-	bin *FilterExpression,
-) *FilterExpression {
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpRESIZE),
 		byteSize,
@@ -59,10 +59,10 @@ func ExpBitResize(
 // ExpBitInsert creates an expression that inserts value bytes into byte[] bin at byteOffset and returns byte[].
 func ExpBitInsert(
 	policy *BitPolicy,
-	byteOffset *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	byteOffset *Expression,
+	value *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpINSERT),
 		byteOffset,
@@ -76,10 +76,10 @@ func ExpBitInsert(
 // ExpBitRemove creates an expression that removes bytes from byte[] bin at byteOffset for byteSize and returns byte[].
 func ExpBitRemove(
 	policy *BitPolicy,
-	byteOffset *FilterExpression,
-	byteSize *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	byteOffset *Expression,
+	byteSize *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpREMOVE),
 		byteOffset,
@@ -93,11 +93,11 @@ func ExpBitRemove(
 // ExpBitSet creates an expression that sets value on byte[] bin at bitOffset for bitSize and returns byte[].
 func ExpBitSet(
 	policy *BitPolicy,
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	value *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpSET),
 		bitOffset,
@@ -113,11 +113,11 @@ func ExpBitSet(
 // and returns byte[].
 func ExpBitOr(
 	policy *BitPolicy,
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	value *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpOR),
 		bitOffset,
@@ -133,11 +133,11 @@ func ExpBitOr(
 // and returns byte[].
 func ExpBitXor(
 	policy *BitPolicy,
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	value *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpXOR),
 		bitOffset,
@@ -159,11 +159,11 @@ func ExpBitXor(
 //  bin result = [0b00000001, 0b01000010, 0b00000010, 0b00000000, 0b00000101]
 func ExpBitAnd(
 	policy *BitPolicy,
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	value *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpAND),
 		bitOffset,
@@ -178,10 +178,10 @@ func ExpBitAnd(
 // ExpBitNot creates an expression that negates byte[] bin starting at bitOffset for bitSize and returns byte[].
 func ExpBitNot(
 	policy *BitPolicy,
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpNOT),
 		bitOffset,
@@ -195,11 +195,11 @@ func ExpBitNot(
 // ExpBitLShift creates an expression that shifts left byte[] bin starting at bitOffset for bitSize and returns byte[].
 func ExpBitLShift(
 	policy *BitPolicy,
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	shift *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	shift *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpLSHIFT),
 		bitOffset,
@@ -214,11 +214,11 @@ func ExpBitLShift(
 // ExpBitRShift creates an expression that shifts right byte[] bin starting at bitOffset for bitSize and returns byte[].
 func ExpBitRShift(
 	policy *BitPolicy,
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	shift *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	shift *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpRSHIFT),
 		bitOffset,
@@ -235,13 +235,13 @@ func ExpBitRShift(
 // If add overflows/underflows, `BitOverflowAction` is used.
 func ExpBitAdd(
 	policy *BitPolicy,
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	value *FilterExpression,
+	bitOffset *Expression,
+	bitSize *Expression,
+	value *Expression,
 	signed bool,
 	action BitOverflowAction,
-	bin *FilterExpression,
-) *FilterExpression {
+	bin *Expression,
+) *Expression {
 	flags := byte(action)
 	if signed {
 		flags |= bitwiseINT_FLAGS_SIGNED
@@ -263,13 +263,13 @@ func ExpBitAdd(
 // If add overflows/underflows, `BitOverflowAction` is used.
 func ExpBitSubtract(
 	policy *BitPolicy,
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	value *FilterExpression,
+	bitOffset *Expression,
+	bitSize *Expression,
+	value *Expression,
 	signed bool,
 	action BitOverflowAction,
-	bin *FilterExpression,
-) *FilterExpression {
+	bin *Expression,
+) *Expression {
 	flags := byte(action)
 	if signed {
 		flags |= bitwiseINT_FLAGS_SIGNED
@@ -290,11 +290,11 @@ func ExpBitSubtract(
 // `BitSize` must be <= 64.
 func ExpBitSetInt(
 	policy *BitPolicy,
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	value *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpSETINT),
 		bitOffset,
@@ -308,10 +308,10 @@ func ExpBitSetInt(
 
 // ExpBitGet creates an expression that returns bits from byte[] bin starting at bitOffset for bitSize.
 func ExpBitGet(
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpGET),
 		bitOffset,
@@ -324,10 +324,10 @@ func ExpBitGet(
 // ExpBitCount creates an expression that returns integer count of set bits from byte[] bin starting at
 // bitOffset for bitSize.
 func ExpBitCount(
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpCOUNT),
 		bitOffset,
@@ -340,11 +340,11 @@ func ExpBitCount(
 // ExpBitLScan creates an expression that returns integer bit offset of the first specified value bit in byte[] bin
 // starting at bitOffset for bitSize.
 func ExpBitLScan(
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	value *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpLSCAN),
 		bitOffset,
@@ -358,11 +358,11 @@ func ExpBitLScan(
 // ExpBitRScan creates an expression that returns integer bit offset of the last specified value bit in byte[] bin
 // starting at bitOffset for bitSize.
 func ExpBitRScan(
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	bitOffset *Expression,
+	bitSize *Expression,
+	value *Expression,
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpRSCAN),
 		bitOffset,
@@ -376,11 +376,11 @@ func ExpBitRScan(
 // ExpBitGetInt Create expression that returns integer from byte[] bin starting at bitOffset for bitSize.
 // Signed indicates if bits should be treated as a signed number.
 func ExpBitGetInt(
-	bitOffset *FilterExpression,
-	bitSize *FilterExpression,
+	bitOffset *Expression,
+	bitSize *Expression,
 	signed bool,
-	bin *FilterExpression,
-) *FilterExpression {
+	bin *Expression,
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_BitExpOpGETINT),
 		bitOffset,
@@ -393,9 +393,9 @@ func ExpBitGetInt(
 	return expBitAddRead(bin, ExpTypeINT, args)
 }
 
-func expBitAddWrite(bin *FilterExpression, arguments []ExpressionArgument) *FilterExpression {
+func expBitAddWrite(bin *Expression, arguments []ExpressionArgument) *Expression {
 	flags := int64(bitwiseMODULE | _MODIFY)
-	return &FilterExpression{
+	return &Expression{
 		cmd:       &expOpCALL,
 		val:       nil,
 		bin:       bin,
@@ -407,12 +407,12 @@ func expBitAddWrite(bin *FilterExpression, arguments []ExpressionArgument) *Filt
 }
 
 func expBitAddRead(
-	bin *FilterExpression,
+	bin *Expression,
 	return_type ExpType,
 	arguments []ExpressionArgument,
-) *FilterExpression {
+) *Expression {
 	flags := int64(bitwiseMODULE)
-	return &FilterExpression{
+	return &Expression{
 		cmd:       &expOpCALL,
 		val:       nil,
 		bin:       bin,

@@ -31,19 +31,19 @@ var (
 // ExpHLLInit creates expression that creates a new HLL or resets an existing HLL.
 func ExpHLLInit(
 	policy *HLLPolicy,
-	index_bit_count *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	index_bit_count *Expression,
+	bin *Expression,
+) *Expression {
 	return ExpHLLInitWithMinHash(policy, index_bit_count, ExpIntVal(-1), bin)
 }
 
 // ExpHLLInitWithMinHash creates expression that creates a new HLL or resets an existing HLL with minhash bits.
 func ExpHLLInitWithMinHash(
 	policy *HLLPolicy,
-	index_bit_count *FilterExpression,
-	min_hash_count *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	index_bit_count *Expression,
+	min_hash_count *Expression,
+	bin *Expression,
+) *Expression {
 	return expHLLAddWrite(
 		bin,
 		[]ExpressionArgument{
@@ -57,7 +57,7 @@ func ExpHLLInitWithMinHash(
 
 // ExpHLLAdd creates an expression that adds list values to a HLL set and returns HLL set.
 // The function assumes HLL bin already exists.
-func ExpHLLAdd(policy *HLLPolicy, list *FilterExpression, bin *FilterExpression) *FilterExpression {
+func ExpHLLAdd(policy *HLLPolicy, list *Expression, bin *Expression) *Expression {
 	return ExpHLLAddWithIndexAndMinHash(policy, list, ExpIntVal(-1), ExpIntVal(-1), bin)
 }
 
@@ -65,10 +65,10 @@ func ExpHLLAdd(policy *HLLPolicy, list *FilterExpression, bin *FilterExpression)
 // If HLL bin does not exist, use `indexBitCount` to create HLL bin.
 func ExpHLLAddWithIndex(
 	policy *HLLPolicy,
-	list *FilterExpression,
-	indexBitCount *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	list *Expression,
+	indexBitCount *Expression,
+	bin *Expression,
+) *Expression {
 	return ExpHLLAddWithIndexAndMinHash(policy, list, indexBitCount, ExpIntVal(-1), bin)
 }
 
@@ -76,11 +76,11 @@ func ExpHLLAddWithIndex(
 // exist, use `indexBitCount` and `minHashBitCount` to create HLL set.
 func ExpHLLAddWithIndexAndMinHash(
 	policy *HLLPolicy,
-	list *FilterExpression,
-	indexBitCount *FilterExpression,
-	minHashCount *FilterExpression,
-	bin *FilterExpression,
-) *FilterExpression {
+	list *Expression,
+	indexBitCount *Expression,
+	minHashCount *Expression,
+	bin *Expression,
+) *Expression {
 	return expHLLAddWrite(
 		bin,
 		[]ExpressionArgument{
@@ -94,7 +94,7 @@ func ExpHLLAddWithIndexAndMinHash(
 }
 
 // ExpHLLGetCount creates an expression that returns estimated number of elements in the HLL bin.
-func ExpHLLGetCount(bin *FilterExpression) *FilterExpression {
+func ExpHLLGetCount(bin *Expression) *Expression {
 	return expHLLAddRead(
 		bin,
 		ExpTypeINT,
@@ -106,7 +106,7 @@ func ExpHLLGetCount(bin *FilterExpression) *FilterExpression {
 
 // ExpHLLGetUnion creates an expression that returns a HLL object that is the union of all specified HLL objects
 // in the list with the HLL bin.
-func ExpHLLGetUnion(list *FilterExpression, bin *FilterExpression) *FilterExpression {
+func ExpHLLGetUnion(list *Expression, bin *Expression) *Expression {
 	return expHLLAddRead(
 		bin,
 		ExpTypeHLL,
@@ -119,7 +119,7 @@ func ExpHLLGetUnion(list *FilterExpression, bin *FilterExpression) *FilterExpres
 
 // ExpHLLGetUnionCount creates an expression that returns estimated number of elements that would be contained by
 // the union of these HLL objects.
-func ExpHLLGetUnionCount(list *FilterExpression, bin *FilterExpression) *FilterExpression {
+func ExpHLLGetUnionCount(list *Expression, bin *Expression) *Expression {
 	return expHLLAddRead(
 		bin,
 		ExpTypeINT,
@@ -132,7 +132,7 @@ func ExpHLLGetUnionCount(list *FilterExpression, bin *FilterExpression) *FilterE
 
 // ExpHLLGetIntersectCount creates an expression that returns estimated number of elements that would be contained by
 // the intersection of these HLL objects.
-func ExpHLLGetIntersectCount(list *FilterExpression, bin *FilterExpression) *FilterExpression {
+func ExpHLLGetIntersectCount(list *Expression, bin *Expression) *Expression {
 	return expHLLAddRead(
 		bin,
 		ExpTypeINT,
@@ -144,7 +144,7 @@ func ExpHLLGetIntersectCount(list *FilterExpression, bin *FilterExpression) *Fil
 }
 
 // ExpHLLGetSimilarity creates an expression that returns estimated similarity of these HLL objects as a 64 bit float.
-func ExpHLLGetSimilarity(list *FilterExpression, bin *FilterExpression) *FilterExpression {
+func ExpHLLGetSimilarity(list *Expression, bin *Expression) *Expression {
 	return expHLLAddRead(
 		bin,
 		ExpTypeFLOAT,
@@ -157,7 +157,7 @@ func ExpHLLGetSimilarity(list *FilterExpression, bin *FilterExpression) *FilterE
 
 // ExpHLLDescribe creates an expression that returns `indexBitCount` and `minHashBitCount` used to create HLL bin
 // in a list of longs. `list[0]` is `indexBitCount` and `list[1]` is `minHashBitCount`.
-func ExpHLLDescribe(bin *FilterExpression) *FilterExpression {
+func ExpHLLDescribe(bin *Expression) *Expression {
 	return expHLLAddRead(
 		bin,
 		ExpTypeLIST,
@@ -168,7 +168,7 @@ func ExpHLLDescribe(bin *FilterExpression) *FilterExpression {
 }
 
 // ExpHLLMayContain creates an expression that returns one if HLL bin may contain all items in the list.
-func ExpHLLMayContain(list *FilterExpression, bin *FilterExpression) *FilterExpression {
+func ExpHLLMayContain(list *Expression, bin *Expression) *Expression {
 	return expHLLAddRead(
 		bin,
 		ExpTypeINT,
@@ -180,12 +180,12 @@ func ExpHLLMayContain(list *FilterExpression, bin *FilterExpression) *FilterExpr
 }
 
 func expHLLAddRead(
-	bin *FilterExpression,
+	bin *Expression,
 	returnType ExpType,
 	arguments []ExpressionArgument,
-) *FilterExpression {
+) *Expression {
 	flags := hllMODULE
-	return &FilterExpression{
+	return &Expression{
 		cmd:       &expOpCALL,
 		val:       nil,
 		bin:       bin,
@@ -196,9 +196,9 @@ func expHLLAddRead(
 	}
 }
 
-func expHLLAddWrite(bin *FilterExpression, arguments []ExpressionArgument) *FilterExpression {
+func expHLLAddWrite(bin *Expression, arguments []ExpressionArgument) *Expression {
 	flags := hllMODULE | _MODIFY
-	return &FilterExpression{
+	return &Expression{
 		cmd:       &expOpCALL,
 		val:       nil,
 		bin:       bin,

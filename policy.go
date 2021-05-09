@@ -42,7 +42,7 @@ type BasePolicy struct {
 	PredExp []PredExp
 
 	// FilterExpression is the optional Filter Expression. Supported on Server v5.2+
-	FilterExpression *FilterExpression
+	FilterExpression *Expression
 
 	// ReadModeAP indicates read policy for AP (availability) namespaces.
 	ReadModeAP ReadModeAP //= ONE

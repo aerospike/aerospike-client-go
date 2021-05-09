@@ -1499,7 +1499,7 @@ func (cmd *baseCommand) estimatePredExpSize(predExp []PredExp) int {
 	return sz
 }
 
-func (cmd *baseCommand) estimateExpressionSize(exp *FilterExpression) (int, Error) {
+func (cmd *baseCommand) estimateExpressionSize(exp *Expression) (int, Error) {
 	size, err := exp.pack(nil)
 	if err != nil {
 		return size, err
@@ -1752,7 +1752,7 @@ func (cmd *baseCommand) writePredExp(predExp []PredExp, predSize int) Error {
 	return nil
 }
 
-func (cmd *baseCommand) writeFilterExpression(exp *FilterExpression, expSize int) Error {
+func (cmd *baseCommand) writeFilterExpression(exp *Expression, expSize int) Error {
 	cmd.writeFieldHeader(expSize, FILTER_EXP)
 	if _, err := exp.pack(cmd); err != nil {
 		return err

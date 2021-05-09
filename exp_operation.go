@@ -61,7 +61,7 @@ const (
 )
 
 // ExpWriteOp creates an operation with an expression that writes to record bin.
-func ExpWriteOp(binName string, exp *FilterExpression, flags ExpWriteFlags) *Operation {
+func ExpWriteOp(binName string, exp *Expression, flags ExpWriteFlags) *Operation {
 	val, err := encodeExpOperation(exp, int(flags))
 	if err != nil {
 		panic(err)
@@ -75,7 +75,7 @@ func ExpWriteOp(binName string, exp *FilterExpression, flags ExpWriteFlags) *Ope
 }
 
 // ExpReadOp creates an operation with an expression that reads from a record.
-func ExpReadOp(name string, exp *FilterExpression, flags ExpReadFlags) *Operation {
+func ExpReadOp(name string, exp *Expression, flags ExpReadFlags) *Operation {
 	val, err := encodeExpOperation(exp, int(flags))
 	if err != nil {
 		panic(err)
@@ -89,7 +89,7 @@ func ExpReadOp(name string, exp *FilterExpression, flags ExpReadFlags) *Operatio
 }
 
 // newExpOperationEncoder is used to encode the operation expression wire protocol
-func encodeExpOperation(exp *FilterExpression, flags int) ([]byte, Error) {
+func encodeExpOperation(exp *Expression, flags int) ([]byte, Error) {
 	// expression is double packed: first normally, and then as a BLOB in operation
 	// find the size of packed expression and pack it in temp buffer
 	tsz, err := exp.pack(nil)

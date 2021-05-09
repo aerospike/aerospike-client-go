@@ -19,10 +19,10 @@ const expListMODULE int64 = 0
 // ExpListAppend creates an expression that appends value to end of list.
 func ExpListAppend(
 	policy *ListPolicy,
-	value *FilterExpression,
-	bin *FilterExpression,
+	value *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_APPEND),
 		value,
@@ -36,10 +36,10 @@ func ExpListAppend(
 // ExpListAppendItems creates an expression that appends list items to end of list.
 func ExpListAppendItems(
 	policy *ListPolicy,
-	list *FilterExpression,
-	bin *FilterExpression,
+	list *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_APPEND_ITEMS),
 		list,
@@ -53,11 +53,11 @@ func ExpListAppendItems(
 // ExpListInsert creates an expression that inserts value to specified index of list.
 func ExpListInsert(
 	policy *ListPolicy,
-	index *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
+	index *Expression,
+	value *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_INSERT),
 		index,
@@ -71,11 +71,11 @@ func ExpListInsert(
 // ExpListInsertItems creates an expression that inserts each input list item starting at specified index of list.
 func ExpListInsertItems(
 	policy *ListPolicy,
-	index *FilterExpression,
-	list *FilterExpression,
-	bin *FilterExpression,
+	index *Expression,
+	list *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_INSERT_ITEMS),
 		index,
@@ -90,11 +90,11 @@ func ExpListInsertItems(
 // Value expression should resolve to a number.
 func ExpListIncrement(
 	policy *ListPolicy,
-	index *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
+	index *Expression,
+	value *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_INCREMENT),
 		index,
@@ -109,11 +109,11 @@ func ExpListIncrement(
 // ExpListSet creates an expression that sets item value at specified index in list.
 func ExpListSet(
 	policy *ListPolicy,
-	index *FilterExpression,
-	value *FilterExpression,
-	bin *FilterExpression,
+	index *Expression,
+	value *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_SET),
 		index,
@@ -125,7 +125,7 @@ func ExpListSet(
 }
 
 // ExpListClear creates an expression that removes all items in list.
-func ExpListClear(bin *FilterExpression, ctx ...*CDTContext) *FilterExpression {
+func ExpListClear(bin *Expression, ctx ...*CDTContext) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_CLEAR),
 		cdtContextList(ctx),
@@ -136,9 +136,9 @@ func ExpListClear(bin *FilterExpression, ctx ...*CDTContext) *FilterExpression {
 // ExpListSort creates an expression that sorts list according to sortFlags.
 func ExpListSort(
 	sortFlags ListSortFlags,
-	bin *FilterExpression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_SORT),
 		IntegerValue(sortFlags),
@@ -149,10 +149,10 @@ func ExpListSort(
 
 // ExpListRemoveByValue creates an expression that removes list items identified by value.
 func ExpListRemoveByValue(
-	value *FilterExpression,
-	bin *FilterExpression,
+	value *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE),
 		IntegerValue(ListReturnTypeNone),
@@ -164,10 +164,10 @@ func ExpListRemoveByValue(
 
 // ExpListRemoveByValueList creates an expression that removes list items identified by values.
 func ExpListRemoveByValueList(
-	values *FilterExpression,
-	bin *FilterExpression,
+	values *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE_LIST),
 		IntegerValue(ListReturnTypeNone),
@@ -181,11 +181,11 @@ func ExpListRemoveByValueList(
 // If valueBegin is null, the range is less than valueEnd. If valueEnd is null, the range is
 // greater than equal to valueBegin.
 func ExpListRemoveByValueRange(
-	valueBegin *FilterExpression,
-	valueEnd *FilterExpression,
-	bin *FilterExpression,
+	valueBegin *Expression,
+	valueEnd *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		cdtContextList(ctx),
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE_INTERVAL),
@@ -213,11 +213,11 @@ func ExpListRemoveByValueRange(
 //  (3,3) = [11,15]
 //  (3,-3) = [0,4,5,9,11,15]
 func ExpListRemoveByValueRelativeRankRange(
-	value *FilterExpression,
-	rank *FilterExpression,
-	bin *FilterExpression,
+	value *Expression,
+	rank *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE),
 		IntegerValue(ListReturnTypeNone),
@@ -239,12 +239,12 @@ func ExpListRemoveByValueRelativeRankRange(
 //  (3,3,7) = [11,15]
 //  (3,-3,2) = []
 func ExpListRemoveByValueRelativeRankRangeCount(
-	value *FilterExpression,
-	rank *FilterExpression,
-	count *FilterExpression,
-	bin *FilterExpression,
+	value *Expression,
+	rank *Expression,
+	count *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE),
 		IntegerValue(ListReturnTypeNone),
@@ -258,10 +258,10 @@ func ExpListRemoveByValueRelativeRankRangeCount(
 
 // ExpListRemoveByIndex creates an expression that removes list item identified by index.
 func ExpListRemoveByIndex(
-	index *FilterExpression,
-	bin *FilterExpression,
+	index *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_INDEX),
 		IntegerValue(ListReturnTypeNone),
@@ -273,10 +273,10 @@ func ExpListRemoveByIndex(
 
 // ExpListRemoveByIndexRange creates an expression that removes list items starting at specified index to the end of list.
 func ExpListRemoveByIndexRange(
-	index *FilterExpression,
-	bin *FilterExpression,
+	index *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_INDEX_RANGE),
 		IntegerValue(ListReturnTypeNone),
@@ -288,11 +288,11 @@ func ExpListRemoveByIndexRange(
 
 // ExpListRemoveByIndexRangeCount creates an expression that removes "count" list items starting at specified index.
 func ExpListRemoveByIndexRangeCount(
-	index *FilterExpression,
-	count *FilterExpression,
-	bin *FilterExpression,
+	index *Expression,
+	count *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_INDEX_RANGE),
 		IntegerValue(ListReturnTypeNone),
@@ -305,10 +305,10 @@ func ExpListRemoveByIndexRangeCount(
 
 // ExpListRemoveByRank creates an expression that removes list item identified by rank.
 func ExpListRemoveByRank(
-	rank *FilterExpression,
-	bin *FilterExpression,
+	rank *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_RANK),
 		IntegerValue(ListReturnTypeNone),
@@ -320,10 +320,10 @@ func ExpListRemoveByRank(
 
 // ExpListRemoveByRankRange creates an expression that removes list items starting at specified rank to the last ranked item.
 func ExpListRemoveByRankRange(
-	rank *FilterExpression,
-	bin *FilterExpression,
+	rank *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_RANK_RANGE),
 		IntegerValue(ListReturnTypeNone),
@@ -335,11 +335,11 @@ func ExpListRemoveByRankRange(
 
 // ExpListRemoveByRankRangeCount creates an expression that removes "count" list items starting at specified rank.
 func ExpListRemoveByRankRangeCount(
-	rank *FilterExpression,
-	count *FilterExpression,
-	bin *FilterExpression,
+	rank *Expression,
+	count *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_RANK_RANGE),
 		IntegerValue(ListReturnTypeNone),
@@ -351,7 +351,7 @@ func ExpListRemoveByRankRangeCount(
 }
 
 // ExpListSize creates an expression that returns list size.
-func ExpListSize(bin *FilterExpression, ctx ...*CDTContext) *FilterExpression {
+func ExpListSize(bin *Expression, ctx ...*CDTContext) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_SIZE),
 		cdtContextList(ctx),
@@ -363,10 +363,10 @@ func ExpListSize(bin *FilterExpression, ctx ...*CDTContext) *FilterExpression {
 // data specified by returnType.
 func ExpListGetByValue(
 	returnType ListReturnType,
-	value *FilterExpression,
-	bin *FilterExpression,
+	value *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_GET_BY_VALUE),
 		IntegerValue(returnType),
@@ -380,11 +380,11 @@ func ExpListGetByValue(
 // specified by returnType.
 func ExpListGetByValueRange(
 	returnType ListReturnType,
-	valueBegin *FilterExpression,
-	valueEnd *FilterExpression,
-	bin *FilterExpression,
+	valueBegin *Expression,
+	valueEnd *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		cdtContextList(ctx),
 		IntegerValue(_CDT_LIST_GET_BY_VALUE_INTERVAL),
@@ -405,10 +405,10 @@ func ExpListGetByValueRange(
 // specified by returnType.
 func ExpListGetByValueList(
 	returnType ListReturnType,
-	values *FilterExpression,
-	bin *FilterExpression,
+	values *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_GET_BY_VALUE_LIST),
 		IntegerValue(returnType),
@@ -431,11 +431,11 @@ func ExpListGetByValueList(
 //  (3,-3) = [0,4,5,9,11,15]
 func ExpListGetByValueRelativeRankRange(
 	returnType ListReturnType,
-	value *FilterExpression,
-	rank *FilterExpression,
-	bin *FilterExpression,
+	value *Expression,
+	rank *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE),
 		IntegerValue(returnType),
@@ -459,12 +459,12 @@ func ExpListGetByValueRelativeRankRange(
 //  (3,-3,2) = []
 func ExpListGetByValueRelativeRankRangeCount(
 	returnType ListReturnType,
-	value *FilterExpression,
-	rank *FilterExpression,
-	count *FilterExpression,
-	bin *FilterExpression,
+	value *Expression,
+	rank *Expression,
+	count *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE),
 		IntegerValue(returnType),
@@ -481,10 +481,10 @@ func ExpListGetByValueRelativeRankRangeCount(
 func ExpListGetByIndex(
 	returnType ListReturnType,
 	value_type ExpType,
-	index *FilterExpression,
-	bin *FilterExpression,
+	index *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_GET_BY_INDEX),
 		IntegerValue(returnType),
@@ -498,10 +498,10 @@ func ExpListGetByIndex(
 // and returns selected data specified by returnType .
 func ExpListGetByIndexRange(
 	returnType ListReturnType,
-	index *FilterExpression,
-	bin *FilterExpression,
+	index *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_GET_BY_INDEX_RANGE),
 		IntegerValue(returnType),
@@ -515,11 +515,11 @@ func ExpListGetByIndexRange(
 // and returns selected data specified by returnType.
 func ExpListGetByIndexRangeCount(
 	returnType ListReturnType,
-	index *FilterExpression,
-	count *FilterExpression,
-	bin *FilterExpression,
+	index *Expression,
+	count *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_GET_BY_INDEX_RANGE),
 		IntegerValue(returnType),
@@ -535,10 +535,10 @@ func ExpListGetByIndexRangeCount(
 func ExpListGetByRank(
 	returnType ListReturnType,
 	value_type ExpType,
-	rank *FilterExpression,
-	bin *FilterExpression,
+	rank *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_GET_BY_RANK),
 		IntegerValue(returnType),
@@ -552,10 +552,10 @@ func ExpListGetByRank(
 // and returns selected data specified by returnType.
 func ExpListGetByRankRange(
 	returnType ListReturnType,
-	rank *FilterExpression,
-	bin *FilterExpression,
+	rank *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_GET_BY_RANK_RANGE),
 		IntegerValue(returnType),
@@ -569,11 +569,11 @@ func ExpListGetByRankRange(
 // selected data specified by returnType.
 func ExpListGetByRankRangeCount(
 	returnType ListReturnType,
-	rank *FilterExpression,
-	count *FilterExpression,
-	bin *FilterExpression,
+	rank *Expression,
+	count *Expression,
+	bin *Expression,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_GET_BY_RANK_RANGE),
 		IntegerValue(returnType),
@@ -585,12 +585,12 @@ func ExpListGetByRankRangeCount(
 }
 
 func cdtListAddRead(
-	bin *FilterExpression,
+	bin *Expression,
 	returnType ExpType,
 	arguments []ExpressionArgument,
-) *FilterExpression {
+) *Expression {
 	flags := expListMODULE
-	return &FilterExpression{
+	return &Expression{
 		cmd:       &expOpCALL,
 		val:       nil,
 		bin:       bin,
@@ -602,10 +602,10 @@ func cdtListAddRead(
 }
 
 func cdtListAddWrite(
-	bin *FilterExpression,
+	bin *Expression,
 	arguments []ExpressionArgument,
 	ctx ...*CDTContext,
-) *FilterExpression {
+) *Expression {
 	var returnType ExpType
 	if len(ctx) == 0 {
 		returnType = ExpTypeLIST
@@ -616,7 +616,7 @@ func cdtListAddWrite(
 	}
 
 	flags := expListMODULE | _MODIFY
-	return &FilterExpression{
+	return &Expression{
 		cmd:       &expOpCALL,
 		val:       nil,
 		bin:       bin,

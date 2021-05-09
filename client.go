@@ -840,7 +840,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 // SetXDRFilter sets XDR filter for given datacenter name and namespace. The expression filter indicates
 // which records XDR should ship to the datacenter.
 // Pass nil as filter to remove the currentl filter on the server.
-func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespace string, filter *FilterExpression) Error {
+func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespace string, filter *Expression) Error {
 	policy = clnt.getUsableInfoPolicy(policy)
 
 	var strCmd string

@@ -50,7 +50,7 @@ var _ = gg.Describe("Expression Filters - Maps", func() {
 		insertRecs.Set(false)
 	})
 
-	runQuery := func(filter *as.FilterExpression, set_name string) *as.Recordset {
+	runQuery := func(filter *as.Expression, set_name string) *as.Recordset {
 		qpolicy.FilterExpression = filter
 		stmt := as.NewStatement(ns, set_name)
 		rs, err := client.Query(qpolicy, stmt)
