@@ -193,7 +193,6 @@ func (ase *AerospikeError) iter(i int) Error {
 // Matches returns true if the error or any of its wrapped errors contains
 // any of the passed results codes.
 // For convenience, it will return false if the error is nil.
-// TODO: find a better name
 func (ase *AerospikeError) Matches(rcs ...types.ResultCode) bool {
 	// don't panic on nil error, and don't go ahead
 	// if no result codes are provided

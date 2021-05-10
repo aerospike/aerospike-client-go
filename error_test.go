@@ -25,6 +25,31 @@ import (
 
 var _ = gg.Describe("Aerospike Error Tests", func() {
 
+	gg.Context("Matches()", func() {
+
+		gg.It("should handle simple case", func() {
+			err := newError(ast.UDF_BAD_RESPONSE)
+
+			res := err.Matches(ast.UDF_BAD_RESPONSE)
+			gm.Expect(res).To(gm.BeTrue())
+		})
+
+		gg.It("should handle simple case", func() {
+			inner := newError(ast.UDF_BAD_RESPONSE)
+			err := newError(ast.TIMEOUT).wrap(inner)
+
+			res := err.Matches(ast.UDF_BAD_RESPONSE)
+			gm.Expect(res).To(gm.BeTrue())
+
+			res = err.Matches(ast.TIMEOUT)
+			gm.Expect(res).To(gm.BeTrue())
+
+			res = err.Matches(ast.UDF_BAD_RESPONSE, ast.TIMEOUT)
+			gm.Expect(res).To(gm.BeTrue())
+		})
+
+	})
+
 	gg.Context("errors.Is", func() {
 
 		gg.It("should handle simple case", func() {
