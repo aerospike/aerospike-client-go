@@ -393,12 +393,12 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 
 	cmd := newBatchCommandGet(nil, nil, policy, keys, binNames, records, _INFO1_READ)
 	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
-	if filteredOut > 0 {
-		err = chainErrors(ErrFilteredOut, err)
-	}
-
 	if err != nil && !policy.AllowPartialResults {
 		return nil, err
+	}
+
+	if filteredOut > 0 {
+		err = chainErrors(ErrFilteredOut, err)
 	}
 
 	return records, err
@@ -421,12 +421,12 @@ func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) E
 	}
 
 	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
-	if filteredOut > 0 {
-		err = chainErrors(ErrFilteredOut, err)
-	}
-
 	if err != nil && !policy.AllowPartialResults {
 		return err
+	}
+
+	if filteredOut > 0 {
+		err = chainErrors(ErrFilteredOut, err)
 	}
 
 	return err
@@ -451,12 +451,12 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 
 	cmd := newBatchCommandGet(nil, nil, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
 	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
-	if filteredOut > 0 {
-		err = chainErrors(ErrFilteredOut, err)
-	}
-
 	if err != nil && !policy.AllowPartialResults {
 		return nil, err
+	}
+
+	if filteredOut > 0 {
+		err = chainErrors(ErrFilteredOut, err)
 	}
 
 	return records, err
