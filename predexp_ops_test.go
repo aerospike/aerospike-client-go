@@ -319,43 +319,43 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 		})
 
 		gg.It("should work for Operate Read", func() {
-			r, err := client.Operate(predAEq1WPolicy, keyA, as.GetOpForBin(binAName))
+			r, err := client.Operate(predAEq1WPolicy, keyA, as.GetBinOp(binAName))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			gm.Expect(r.Bins[binA1.Name]).To(gm.Equal(binA1.Value.GetObject()))
 
-			r, err = client.Operate(predAEq1WPolicy, keyB, as.GetOpForBin(binAName))
+			r, err = client.Operate(predAEq1WPolicy, keyB, as.GetBinOp(binAName))
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
 			gm.Expect(r).To(gm.BeNil())
 		})
 
 		gg.It("should work for Operate Read Except...", func() {
-			_, err := client.Operate(predAEq1WPolicy, keyA, as.GetOpForBin(binAName))
+			_, err := client.Operate(predAEq1WPolicy, keyA, as.GetBinOp(binAName))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			_, err = client.Operate(predAEq1WPolicy, keyB, as.GetOpForBin(binAName))
+			_, err = client.Operate(predAEq1WPolicy, keyB, as.GetBinOp(binAName))
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
 		})
 
 		gg.It("should work for Operate Write", func() {
-			r, err := client.Operate(predAEq1WPolicy, keyA, as.PutOp(binA3), as.GetOpForBin(binAName))
+			r, err := client.Operate(predAEq1WPolicy, keyA, as.PutOp(binA3), as.GetBinOp(binAName))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			gm.Expect(r.Bins[binA3.Name]).To(gm.Equal(binA3.Value.GetObject()))
 
-			r, err = client.Operate(predAEq1WPolicy, keyB, as.PutOp(binA3), as.GetOpForBin(binAName))
+			r, err = client.Operate(predAEq1WPolicy, keyB, as.PutOp(binA3), as.GetBinOp(binAName))
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
 			gm.Expect(r).To(gm.BeNil())
 		})
 
 		gg.It("should work for Operate Write Except...", func() {
-			_, err := client.Operate(predAEq1WPolicy, keyA, as.PutOp(binA3), as.GetOpForBin(binAName))
+			_, err := client.Operate(predAEq1WPolicy, keyA, as.PutOp(binA3), as.GetBinOp(binAName))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			_, err = client.Operate(predAEq1WPolicy, keyB, as.PutOp(binA3), as.GetOpForBin(binAName))
+			_, err = client.Operate(predAEq1WPolicy, keyB, as.PutOp(binA3), as.GetBinOp(binAName))
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
 		})

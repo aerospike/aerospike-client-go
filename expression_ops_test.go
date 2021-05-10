@@ -55,7 +55,7 @@ var _ = gg.Describe("Expression Operations", func() {
 		exp := as.ExpListVal(list...)
 		rec, err := client.Operate(nil, keyA,
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagDefault),
-			as.GetOpForBin(binC),
+			as.GetBinOp(binC),
 			as.ExpReadOp("var", exp, as.ExpReadFlagDefault),
 		)
 
@@ -200,14 +200,14 @@ var _ = gg.Describe("Expression Operations", func() {
 
 		r, err := client.Operate(nil, keyA,
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagDefault),
-			as.GetOpForBin(binC),
+			as.GetBinOp(binC),
 		)
 		gm.Expect(err).To(gm.HaveOccurred())
 		gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue())
 
 		r, err = client.Operate(nil, keyB,
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagEvalNoFail),
-			as.GetOpForBin(binC),
+			as.GetBinOp(binC),
 		)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(len(r.Bins)).To(gm.BeNumerically(">", 0))
@@ -220,7 +220,7 @@ var _ = gg.Describe("Expression Operations", func() {
 
 		r, err := client.Operate(nil, keyA,
 			as.ExpReadOp(expVar, exp, as.ExpReadFlagDefault),
-			as.GetOpForBin(binC),
+			as.GetBinOp(binC),
 		)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(r.Bins).To(gm.Equal(as.BinMap{expVar: nil, binC: nil}))
@@ -231,7 +231,7 @@ var _ = gg.Describe("Expression Operations", func() {
 
 		r, err := client.Operate(nil, keyA,
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagDefault),
-			as.GetOpForBin(binC),
+			as.GetBinOp(binC),
 			as.ExpReadOp(expVar, exp, as.ExpReadFlagDefault),
 		)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -249,7 +249,7 @@ var _ = gg.Describe("Expression Operations", func() {
 
 		r, err := client.Operate(nil, keyA,
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagDefault),
-			as.GetOpForBin(binC),
+			as.GetBinOp(binC),
 			as.ExpReadOp(expVar, exp, as.ExpReadFlagDefault),
 		)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -268,7 +268,7 @@ var _ = gg.Describe("Expression Operations", func() {
 
 		r, err := client.Operate(nil, keyA,
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagDefault),
-			as.GetOpForBin(binC),
+			as.GetBinOp(binC),
 			as.ExpReadOp(expVar, exp, as.ExpReadFlagDefault),
 		)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -287,7 +287,7 @@ var _ = gg.Describe("Expression Operations", func() {
 
 		r, err := client.Operate(nil, keyA,
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagDefault),
-			as.GetOpForBin(binC),
+			as.GetBinOp(binC),
 			as.ExpReadOp(expVar, exp, as.ExpReadFlagDefault),
 		)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -305,7 +305,7 @@ var _ = gg.Describe("Expression Operations", func() {
 
 		r, err := client.Operate(nil, keyA,
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagDefault),
-			as.GetOpForBin(binC),
+			as.GetBinOp(binC),
 			as.ExpReadOp(expVar, exp, as.ExpReadFlagDefault),
 		)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -318,8 +318,8 @@ var _ = gg.Describe("Expression Operations", func() {
 		r, err := client.Operate(nil, keyA,
 			as.HLLInitOp(as.DefaultHLLPolicy(), binH, 4, -1),
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagDefault),
-			as.GetOpForBin(binH),
-			as.GetOpForBin(binC),
+			as.GetBinOp(binH),
+			as.GetBinOp(binC),
 			as.ExpReadOp(expVar, exp, as.ExpReadFlagDefault),
 		)
 		gm.Expect(err).ToNot(gm.HaveOccurred())

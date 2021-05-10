@@ -83,8 +83,8 @@ func (op *Operation) cache() Error {
 	return nil
 }
 
-// GetOpForBin creates read bin database operation.
-func GetOpForBin(binName string) *Operation {
+// GetBinOp creates read bin database operation.
+func GetBinOp(binName string) *Operation {
 	return &Operation{opType: _READ, binName: binName, binValue: NewNullValue()}
 }
 

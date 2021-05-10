@@ -278,7 +278,7 @@ var _ = gg.Describe("CDT List Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(cdtListRes.Bins[cdtBinName]).To(gm.Equal(list[:3]))
 
-			cdtListRes, err = client.Operate(wpolicy, key, as.GetOpForBin(cdtBinName))
+			cdtListRes, err = client.Operate(wpolicy, key, as.GetBinOp(cdtBinName))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(cdtListRes.Bins[cdtBinName]).To(gm.Equal(list[3:]))
 		})
@@ -698,11 +698,11 @@ var _ = gg.Describe("CDT List Test", func() {
 			err := client.Put(wpolicy, key, as.BinMap{cdtBinName: list})
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			record, err := client.Operate(wpolicy, key, as.GetOpForBin(cdtBinName))
+			record, err := client.Operate(wpolicy, key, as.GetBinOp(cdtBinName))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(record.Bins[cdtBinName]).To(gm.Equal(list))
 
-			record, err = client.Operate(wpolicy, key, as.ListAppendWithPolicyContextOp(as.DefaultListPolicy(), cdtBinName, []*as.CDTContext{as.CtxListIndex(-1)}, 11), as.GetOpForBin(cdtBinName))
+			record, err = client.Operate(wpolicy, key, as.ListAppendWithPolicyContextOp(as.DefaultListPolicy(), cdtBinName, []*as.CDTContext{as.CtxListIndex(-1)}, 11), as.GetBinOp(cdtBinName))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			gm.Expect(record.Bins[cdtBinName]).To(gm.Equal([]interface{}{
@@ -733,11 +733,11 @@ var _ = gg.Describe("CDT List Test", func() {
 			err := client.Put(wpolicy, key, as.BinMap{cdtBinName: m})
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			record, err := client.Operate(wpolicy, key, as.GetOpForBin(cdtBinName))
+			record, err := client.Operate(wpolicy, key, as.GetBinOp(cdtBinName))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(record.Bins[cdtBinName]).To(gm.Equal(m))
 
-			record, err = client.Operate(wpolicy, key, as.ListAppendWithPolicyContextOp(as.DefaultListPolicy(), cdtBinName, []*as.CDTContext{as.CtxMapKey(as.StringValue("key2")), as.CtxListRank(0)}, 11), as.GetOpForBin(cdtBinName))
+			record, err = client.Operate(wpolicy, key, as.ListAppendWithPolicyContextOp(as.DefaultListPolicy(), cdtBinName, []*as.CDTContext{as.CtxMapKey(as.StringValue("key2")), as.CtxListRank(0)}, 11), as.GetBinOp(cdtBinName))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			gm.Expect(record.Bins[cdtBinName]).To(gm.Equal([]interface{}{
@@ -766,14 +766,14 @@ var _ = gg.Describe("CDT List Test", func() {
 			// Create list.
 			record, err := client.Operate(nil, key,
 				as.ListAppendWithPolicyOp(as.NewListPolicy(as.ListOrderOrdered, 0), cdtBinName, inputList...),
-				as.GetOpForBin(cdtBinName),
+				as.GetBinOp(cdtBinName),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			// Append value to new list created after the original 3 lists.
 			record, err = client.Operate(nil, key,
 				as.ListAppendWithPolicyContextOp(as.NewListPolicy(as.ListOrderOrdered, 0), cdtBinName, []*as.CDTContext{as.CtxListIndexCreate(3, as.ListOrderOrdered, false)}, as.IntegerValue(2)),
-				as.GetOpForBin(cdtBinName),
+				as.GetBinOp(cdtBinName),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 

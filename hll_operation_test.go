@@ -457,7 +457,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		var hlls []as.HLLValue
 
 		for i := 0; i < len(keys); i++ {
-			record := expectSuccess(keys[i], as.GetOpForBin(binName), as.HLLGetCountOp(binName))
+			record := expectSuccess(keys[i], as.GetBinOp(binName), as.HLLGetCountOp(binName))
 			result_list := record.Bins[binName].([]interface{})
 			hll := as.HLLValue(result_list[0].([]byte))
 
@@ -535,7 +535,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		record := expectSuccess(key,
 			as.DeleteOp(),
 			as.HLLAddOp(as.DefaultHLLPolicy(), otherName, entries, index_bits, -1),
-			as.GetOpForBin(otherName))
+			as.GetBinOp(otherName))
 		result_list := record.Bins[otherName].([]interface{})
 		hll := as.HLLValue(result_list[1].([]byte))
 
@@ -639,7 +639,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 			record := expectSuccess(keys[i],
 				as.DeleteOp(),
 				as.HLLAddOp(as.DefaultHLLPolicy(), binName, sub_vals, index_bits, -1),
-				as.GetOpForBin(binName))
+				as.GetBinOp(binName))
 
 			result_list := record.Bins[binName].([]interface{})
 			hlls = append(hlls, as.HLLValue(result_list[1].([]byte)))
@@ -732,7 +732,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 				as.DeleteOp(),
 				as.HLLAddOp(as.DefaultHLLPolicy(), binName, vals[i], index_bits, minhash_bits),
 				as.HLLAddOp(as.DefaultHLLPolicy(), binName, common, index_bits, minhash_bits),
-				as.GetOpForBin(binName))
+				as.GetBinOp(binName))
 
 			result_list := record.Bins[binName].([]interface{})
 			hlls = append(hlls, as.HLLValue(result_list[2].([]byte)))
@@ -807,7 +807,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 			record := expectSuccess(key,
 				as.DeleteOp(),
 				as.HLLInitOp(as.DefaultHLLPolicy(), binName, nIndexBits, nMinhashBits),
-				as.GetOpForBin(binName))
+				as.GetBinOp(binName))
 
 			resultList := record.Bins[binName].([]interface{})
 			var hlls []as.HLLValue
@@ -842,9 +842,9 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 			record := expectSuccess(key,
 				as.DeleteOp(),
 				as.HLLAddOp(as.DefaultHLLPolicy(), binName, entries, indexBits, minhashBits),
-				as.GetOpForBin(binName),
+				as.GetBinOp(binName),
 				as.HLLAddOp(as.DefaultHLLPolicy(), otherBinName, entries, indexBits, 4),
-				as.GetOpForBin(otherBinName))
+				as.GetBinOp(otherBinName))
 
 			var hlls []as.HLLValue
 			var hmhs []as.HLLValue

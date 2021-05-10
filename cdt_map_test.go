@@ -188,7 +188,7 @@ var _ = gg.Describe("CDT Map Test", func() {
 				as.MapPutOp(addMode, cdtBinName, 3, 3),
 				as.MapPutOp(addMode, cdtBinName, 4, 4),
 
-				as.GetOpForBin(cdtBinName),
+				as.GetBinOp(cdtBinName),
 			)
 			// gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(cdtMap).NotTo(gm.Equal([]interface{}{1, 2, 3, 4, 4, 4, map[interface{}]interface{}{1: 1, 2: 2, 3: 3, 4: 4}}))
@@ -231,7 +231,7 @@ var _ = gg.Describe("CDT Map Test", func() {
 				as.MapGetByKeyOp(cdtBinName, 1, as.MapReturnType.VALUE),
 				as.MapGetByKeyOp(cdtBinName, -8734, as.MapReturnType.VALUE),
 				as.MapGetByKeyRangeOp(cdtBinName, 12, 15, as.MapReturnType.KEY_VALUE),
-				// as.GetOpForBin(cdtBinName),
+				// as.GetBinOp(cdtBinName),
 			)
 
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -265,7 +265,7 @@ var _ = gg.Describe("CDT Map Test", func() {
 			cdtMap, err = client.Operate(wpolicy, key,
 				as.MapGetByKeyOp(cdtBinName, 12, as.MapReturnType.INDEX),
 				as.AppendOp(as.NewBin(otherBinName, "...tail")),
-				as.GetOpForBin(otherBinName),
+				as.GetBinOp(otherBinName),
 			)
 
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -784,11 +784,11 @@ var _ = gg.Describe("CDT Map Test", func() {
 		err := client.Put(wpolicy, key, as.BinMap{cdtBinName: m})
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		record, err := client.Operate(wpolicy, key, as.GetOpForBin(cdtBinName))
+		record, err := client.Operate(wpolicy, key, as.GetBinOp(cdtBinName))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(record.Bins[cdtBinName]).To(gm.Equal(m))
 
-		record, err = client.Operate(wpolicy, key, as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, as.StringValue("key21"), as.IntegerValue(11), as.CtxMapKey(as.StringValue("key2"))), as.GetOpForBin(cdtBinName))
+		record, err = client.Operate(wpolicy, key, as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, as.StringValue("key21"), as.IntegerValue(11), as.CtxMapKey(as.StringValue("key2"))), as.GetBinOp(cdtBinName))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		gm.Expect(record.Bins[cdtBinName]).To(gm.Equal([]interface{}{
@@ -819,11 +819,11 @@ var _ = gg.Describe("CDT Map Test", func() {
 		err := client.Put(wpolicy, key, as.BinMap{cdtBinName: m})
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		record, err := client.Operate(wpolicy, key, as.GetOpForBin(cdtBinName))
+		record, err := client.Operate(wpolicy, key, as.GetBinOp(cdtBinName))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(record.Bins[cdtBinName]).To(gm.Equal(m))
 
-		record, err = client.Operate(wpolicy, key, as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, as.StringValue("key121"), as.IntegerValue(11), as.CtxMapKey(as.StringValue("key1")), as.CtxMapRank(-1)), as.GetOpForBin(cdtBinName))
+		record, err = client.Operate(wpolicy, key, as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, as.StringValue("key121"), as.IntegerValue(11), as.CtxMapKey(as.StringValue("key1")), as.CtxMapRank(-1)), as.GetBinOp(cdtBinName))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		gm.Expect(record.Bins[cdtBinName]).To(gm.Equal([]interface{}{
@@ -898,7 +898,7 @@ var _ = gg.Describe("CDT Map Test", func() {
 		record, err := client.Operate(nil, key,
 			as.MapCreateOp(cdtBinName, as.MapOrder.KEY_ORDERED, []*as.CDTContext{as.CtxMapKey(as.StringValue("key3"))}),
 			as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, "key31", 99, as.CtxMapKey(as.StringValue("key3"))),
-			as.GetOpForBin(cdtBinName),
+			as.GetBinOp(cdtBinName),
 		)
 
 		gm.Expect(err).ToNot(gm.HaveOccurred())
