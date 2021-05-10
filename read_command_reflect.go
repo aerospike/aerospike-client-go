@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/types"
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	"github.com/aerospike/aerospike-client-go/v5/types"
+	Buffer "github.com/aerospike/aerospike-client-go/v5/utils/buffer"
 )
 
 // if this file is included in the build, it will include this method

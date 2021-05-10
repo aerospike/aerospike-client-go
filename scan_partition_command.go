@@ -14,7 +14,7 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/types"
+import "github.com/aerospike/aerospike-client-go/v5/types"
 
 type scanPartitionCommand struct {
 	baseMultiCommand

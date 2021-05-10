@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/pkg/bcrypt"
-	"github.com/aerospike/aerospike-client-go/types"
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	"github.com/aerospike/aerospike-client-go/v5/pkg/bcrypt"
+	"github.com/aerospike/aerospike-client-go/v5/types"
+	Buffer "github.com/aerospike/aerospike-client-go/v5/utils/buffer"
 )
 
 const (

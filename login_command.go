@@ -17,12 +17,12 @@ package aerospike
 import (
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/logger"
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/v5/logger"
+	"github.com/aerospike/aerospike-client-go/v5/types"
 
-	// "github.com/aerospike/aerospike-client-go/pkg/bcrypt"
+	// "github.com/aerospike/aerospike-client-go/v5/pkg/bcrypt"
 
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	Buffer "github.com/aerospike/aerospike-client-go/v5/utils/buffer"
 )
 
 // Login command authenticates to the server.

@@ -19,7 +19,7 @@ package aerospike
 import (
 	"reflect"
 
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	Buffer "github.com/aerospike/aerospike-client-go/v5/utils/buffer"
 )
 
 // this function will only be set if the performance flag is not passed for build

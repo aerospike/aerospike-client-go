@@ -22,7 +22,7 @@ import (
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 
-	ilua "github.com/aerospike/aerospike-client-go/internal/lua"
+	ilua "github.com/aerospike/aerospike-client-go/v5/internal/lua"
 )
 
 var _ = gg.Describe("Lua Aerospike API Test", func() {

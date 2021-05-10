@@ -21,8 +21,8 @@ import (
 	"runtime"
 	"strings"
 
-	as "github.com/aerospike/aerospike-client-go"
-	asl "github.com/aerospike/aerospike-client-go/logger"
+	as "github.com/aerospike/aerospike-client-go/v5"
+	asl "github.com/aerospike/aerospike-client-go/v5/logger"
 )
 
 // flag information

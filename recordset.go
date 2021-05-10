@@ -20,9 +20,9 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/v5/internal/atomic"
 
-	xornd "github.com/aerospike/aerospike-client-go/types/rand"
+	xornd "github.com/aerospike/aerospike-client-go/v5/types/rand"
 )
 
 // Result is the value returned by Recordset's Results() function.

@@ -49,7 +49,7 @@ package main
 import (
   "fmt"
 
-  aero "github.com/aerospike/aerospike-client-go"
+  aero "github.com/aerospike/aerospike-client-go/v5"
 )
 
 // This is only for this example.

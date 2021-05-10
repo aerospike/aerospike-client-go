@@ -17,8 +17,8 @@ package aerospike
 import (
 	"reflect"
 
-	"github.com/aerospike/aerospike-client-go/types"
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	"github.com/aerospike/aerospike-client-go/v5/types"
+	Buffer "github.com/aerospike/aerospike-client-go/v5/utils/buffer"
 )
 
 type batchCommandGet struct {
