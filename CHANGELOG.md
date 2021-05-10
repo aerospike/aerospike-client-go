@@ -1,5 +1,44 @@
 # Change History
 
+## May 10 2021: v5.0.0
+  This is a major feature release. It is also a major breaking release. We have adopted Go's module system as recommended by the Go authors, so the new release moves the active branch to `v5`.
+  As such, the import path changes to `github.com/aerospike/aerospike-client-go/v5`. The `master` branch remains in place to allow maintenance for the older v4 classic version until most users
+  get the chance to upgrade.
+
+  This release also changes the way errors work in the client, and invalidates the old way. This allows the client to support Go's somewhat new `errors.Is` and `errors.As` API, and properly
+  chain errors together.
+
+  Also note that the Go Client now requires server version 4.9+ and will not work properly with older versions.
+
+  * **New Features**
+
+    - Adopts module system and changes the import paths to `github.com/aerospike/aerospike-client-go/v5`
+    - [CLIENT-1476] Support new expressions introduced in server version 5.6, including `ExpReadOp` and `ExpWriteOp`.
+    - [CLIENT-1463] Support boolean particle type and make it opt-in for reflection API via `UseNativeBoolTypeInReflection`.
+    - [CLIENT-1522] Support user quotas and statistics.
+    - [CLIENT-1492] Remove ability to use old authentication protocol. This works behind the scenes and doesn't have any impact on user code.
+    - [CLIENT-1081] Adds `Error` interface, changes all API signature to return `Error`.
+
+  * **Breaking Changes**
+    - Limits keys to `int`, `string` and `[]byte` types. The old `ListValue` arrays as types are not supported anymore.
+    - Remove TLS code support for golang v1.8 and before.
+    - Moves `AerospikeError` from `/types` to the root of the package, and removes all other error type like `NodeError`
+    - [CLIENT-1526] Removes `Policy.Priority`, `ScanPolicy.ScanPercent` and `ScanPolicy.FailOnClusterChange`
+    - Removes `Recordset.Read()` and avoids multiplexing of `Records` channel in `Recordset.Results()`, and unexports the `Error` channel.
+    - Remove legacy client code for old servers. Go client now requires server version 4.9+
+    - Remove `Statement.PredExp`, and only use the `Policy.PredExp` to avoid confusion. `PredExp` has been deprecated and replaced by `Expression`.
+    - Renames type `FilterExpression` to `Expression`.
+    - `Client.GetBatchXXX()` will return `ErrFilteredOut` if an expression is passed to the API and some records were filtered out, regardless of `BatchPolicy.AllowPartialResults`.
+    - `Client.CreateRole()` now requires quota information in the param list.
+    - Removed `Connection.Authenticate()` API.
+    - Renamed `GetOpForBin()` to `GetBinOp()`
+    - Removed `ScanPolicy.ConcurrentNodes`. Now only uses `.MaxConcurrentNodes` to avoid confusion.
+
+  * **Improvements**
+
+    - Implement `GomegaStringer` interface to prevent very long error messages in tests.
+    - Adds `ResultCode.String()`.
+
 ## April 9 2021: v4.5.0
   Minor feature and fix release.
 
@@ -7,7 +46,7 @@
 
     - Allows reading of boolean types from the server, supported in Aerospike server v5.6. The current client will not support writing boolean type to the server. That features will be supported in the upcoming Go client v5.
 
-  * **Fixes**
+  * **Improvements**
 
     - [CLIENT-1495] Tentatively check if a connection is allowed to avoid launching too many goroutines.
 
