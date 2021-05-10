@@ -1986,8 +1986,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
-			println(policy.MaxRetries)
-			panic("WGAT?")
 			return chainErrors(ErrMaxRetriesExceeded, errChain).iter(iterations).setInDoubt(isRead, commandSentCounter)
 		}
 

@@ -45,29 +45,29 @@ type Error interface {
 	setInDoubt(bool, int) Error
 	setNode(*Node) Error
 	markInDoubt() Error
-	wrap(error)
+	wrap(error) Error
 }
 
 // AerospikeError implements Error interface for aerospike specific errors.
 // All errors returning from the library are of this type.
 // Errors resulting from Go's stdlib are not translated to this type, unless
-// they are a net.Timeout error.
+// they are a net.Timeout error. Refer to errors_test.go for examples.
 // To be able to check for error type, you could use the idiomatic
 // errors.Is and errors.As patterns:
 //   if errors.Is(err, as.ErrTimeout) {
 //       ...
 //   }
 // or
-//   if errors.Is(err, &as.AerospikeError{ResultCode: as.PARAMETER_ERROR}) {
+//   if errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR}) {
 //       ...
 //   }
 // or
-//   if err.Matches(as.TIMEOUT, as.NETWORK_ERROR, as.PARAMETER_ERROR) {
+//   if err.Matches(ast.TIMEOUT, ast.NETWORK_ERROR, ast.PARAMETER_ERROR) {
 //       ...
 //   }
 // or
 //   ae := &as.AerospikeError{}
-//   if errors.As(err, ae) {
+//   if errors.As(err, &ae) {
 //       println(ae.ResultCode)
 //   }
 type AerospikeError struct {
@@ -175,8 +175,9 @@ func (ase *AerospikeError) Error() string {
 	return fmt.Sprintf(cErr, ase.ResultCode.String(), ase.Iteration, ase.InDoubt, ase.Node, ase.msg)
 }
 
-func (ase *AerospikeError) wrap(err error) {
+func (ase *AerospikeError) wrap(err error) Error {
 	ase.wrapped = err
+	return ase
 }
 
 // chain wraps an error inside a new error. The new error cannot be nil.
@@ -233,6 +234,9 @@ func (ase *AerospikeError) As(target interface{}) bool {
 // If the error is not of type *AerospikeError, it will return false.
 // Otherwise, it will compare ResultCode and Node (if it exists), and
 // will return a result accordingly.
+// If passed error's InDoubt is set to true, the InDoubt property will
+// also be checked. You should not check if the error's InDoubt is false, since
+// it is not checked when the passed error's InDoubt is false.
 func (ase *AerospikeError) Is(e error) bool {
 	if ase == nil || e == nil {
 		return false
@@ -249,8 +253,14 @@ func (ase *AerospikeError) Is(e error) bool {
 		return false
 	}
 
-	return (ase.ResultCode == target.ResultCode) &&
+	res := (ase.ResultCode == target.ResultCode) &&
 		(ase.Node == target.Node || target.Node == nil)
+
+	if target.InDoubt {
+		res = res && (ase.InDoubt == target.InDoubt)
+	}
+
+	return res
 }
 
 // Unwrap will return the error wrapped inside the error, or nil.
