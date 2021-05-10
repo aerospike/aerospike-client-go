@@ -38,8 +38,8 @@ const (
 	_BitExpOpGETINT   = 54
 )
 
-// ExpBitResize creates an expression that resizes byte[] to byteSize according to resizeFlags
-// and returns byte[].
+// ExpBitResize creates an expression that resizes []byte to byteSize according to resizeFlags
+// and returns []byte.
 func ExpBitResize(
 	policy *BitPolicy,
 	byteSize *Expression,
@@ -56,7 +56,7 @@ func ExpBitResize(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitInsert creates an expression that inserts value bytes into byte[] bin at byteOffset and returns byte[].
+// ExpBitInsert creates an expression that inserts value bytes into []byte bin at byteOffset and returns []byte.
 func ExpBitInsert(
 	policy *BitPolicy,
 	byteOffset *Expression,
@@ -73,7 +73,7 @@ func ExpBitInsert(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitRemove creates an expression that removes bytes from byte[] bin at byteOffset for byteSize and returns byte[].
+// ExpBitRemove creates an expression that removes bytes from []byte bin at byteOffset for byteSize and returns []byte.
 func ExpBitRemove(
 	policy *BitPolicy,
 	byteOffset *Expression,
@@ -90,7 +90,7 @@ func ExpBitRemove(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitSet creates an expression that sets value on byte[] bin at bitOffset for bitSize and returns byte[].
+// ExpBitSet creates an expression that sets value on []byte bin at bitOffset for bitSize and returns []byte.
 func ExpBitSet(
 	policy *BitPolicy,
 	bitOffset *Expression,
@@ -109,8 +109,8 @@ func ExpBitSet(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitOr creates an expression that performs bitwise "or" on value and byte[] bin at bitOffset for bitSize
-// and returns byte[].
+// ExpBitOr creates an expression that performs bitwise "or" on value and []byte bin at bitOffset for bitSize
+// and returns []byte.
 func ExpBitOr(
 	policy *BitPolicy,
 	bitOffset *Expression,
@@ -129,8 +129,8 @@ func ExpBitOr(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitXor creates an expression that performs bitwise "xor" on value and byte[] bin at bitOffset for bitSize
-// and returns byte[].
+// ExpBitXor creates an expression that performs bitwise "xor" on value and []byte bin at bitOffset for bitSize
+// and returns []byte.
 func ExpBitXor(
 	policy *BitPolicy,
 	bitOffset *Expression,
@@ -149,8 +149,8 @@ func ExpBitXor(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitAnd creates an expression that performs bitwise "and" on value and byte[] bin at bitOffset for bitSize
-// and returns byte[].
+// ExpBitAnd creates an expression that performs bitwise "and" on value and []byte bin at bitOffset for bitSize
+// and returns []byte.
 //
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
 //  bitOffset = 23
@@ -175,7 +175,7 @@ func ExpBitAnd(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitNot creates an expression that negates byte[] bin starting at bitOffset for bitSize and returns byte[].
+// ExpBitNot creates an expression that negates []byte bin starting at bitOffset for bitSize and returns []byte.
 func ExpBitNot(
 	policy *BitPolicy,
 	bitOffset *Expression,
@@ -192,7 +192,7 @@ func ExpBitNot(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitLShift creates an expression that shifts left byte[] bin starting at bitOffset for bitSize and returns byte[].
+// ExpBitLShift creates an expression that shifts left []byte bin starting at bitOffset for bitSize and returns []byte.
 func ExpBitLShift(
 	policy *BitPolicy,
 	bitOffset *Expression,
@@ -211,7 +211,7 @@ func ExpBitLShift(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitRShift creates an expression that shifts right byte[] bin starting at bitOffset for bitSize and returns byte[].
+// ExpBitRShift creates an expression that shifts right []byte bin starting at bitOffset for bitSize and returns []byte.
 func ExpBitRShift(
 	policy *BitPolicy,
 	bitOffset *Expression,
@@ -230,7 +230,7 @@ func ExpBitRShift(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitAdd creates an expression that adds value to byte[] bin starting at bitOffset for bitSize and returns byte[].
+// ExpBitAdd creates an expression that adds value to []byte bin starting at bitOffset for bitSize and returns []byte.
 // `BitSize` must be <= 64. Signed indicates if bits should be treated as a signed number.
 // If add overflows/underflows, `BitOverflowAction` is used.
 func ExpBitAdd(
@@ -258,7 +258,7 @@ func ExpBitAdd(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitSubtract creates an expression that subtracts value from byte[] bin starting at bitOffset for bitSize and returns byte[].
+// ExpBitSubtract creates an expression that subtracts value from []byte bin starting at bitOffset for bitSize and returns []byte.
 // `BitSize` must be <= 64. Signed indicates if bits should be treated as a signed number.
 // If add overflows/underflows, `BitOverflowAction` is used.
 func ExpBitSubtract(
@@ -286,7 +286,7 @@ func ExpBitSubtract(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitSetInt creates an expression that sets value to byte[] bin starting at bitOffset for bitSize and returns byte[].
+// ExpBitSetInt creates an expression that sets value to []byte bin starting at bitOffset for bitSize and returns []byte.
 // `BitSize` must be <= 64.
 func ExpBitSetInt(
 	policy *BitPolicy,
@@ -306,7 +306,7 @@ func ExpBitSetInt(
 	return expBitAddWrite(bin, args)
 }
 
-// ExpBitGet creates an expression that returns bits from byte[] bin starting at bitOffset for bitSize.
+// ExpBitGet creates an expression that returns bits from []byte bin starting at bitOffset for bitSize.
 func ExpBitGet(
 	bitOffset *Expression,
 	bitSize *Expression,
@@ -321,7 +321,7 @@ func ExpBitGet(
 	return expBitAddRead(bin, ExpTypeBLOB, args)
 }
 
-// ExpBitCount creates an expression that returns integer count of set bits from byte[] bin starting at
+// ExpBitCount creates an expression that returns integer count of set bits from []byte bin starting at
 // bitOffset for bitSize.
 func ExpBitCount(
 	bitOffset *Expression,
@@ -337,7 +337,7 @@ func ExpBitCount(
 	return expBitAddRead(bin, ExpTypeINT, args)
 }
 
-// ExpBitLScan creates an expression that returns integer bit offset of the first specified value bit in byte[] bin
+// ExpBitLScan creates an expression that returns integer bit offset of the first specified value bit in []byte bin
 // starting at bitOffset for bitSize.
 func ExpBitLScan(
 	bitOffset *Expression,
@@ -355,7 +355,7 @@ func ExpBitLScan(
 	return expBitAddRead(bin, ExpTypeINT, args)
 }
 
-// ExpBitRScan creates an expression that returns integer bit offset of the last specified value bit in byte[] bin
+// ExpBitRScan creates an expression that returns integer bit offset of the last specified value bit in []byte bin
 // starting at bitOffset for bitSize.
 func ExpBitRScan(
 	bitOffset *Expression,
@@ -373,7 +373,7 @@ func ExpBitRScan(
 	return expBitAddRead(bin, ExpTypeINT, args)
 }
 
-// ExpBitGetInt Create expression that returns integer from byte[] bin starting at bitOffset for bitSize.
+// ExpBitGetInt Create expression that returns integer from []byte bin starting at bitOffset for bitSize.
 // Signed indicates if bits should be treated as a signed number.
 func ExpBitGetInt(
 	bitOffset *Expression,

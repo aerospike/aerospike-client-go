@@ -49,7 +49,7 @@ const (
 )
 
 // BitResizeOp creates byte "resize" operation.
-// Server resizes byte[] to byteSize according to resizeFlags (See BitResizeFlags).
+// Server resizes []byte to byteSize according to resizeFlags (See BitResizeFlags).
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010]
@@ -67,7 +67,7 @@ func BitResizeOp(policy *BitPolicy, binName string, byteSize int, resizeFlags Bi
 }
 
 // BitInsertOp creates byte "insert" operation.
-// Server inserts value bytes into byte[] bin at byteOffset.
+// Server inserts value bytes into []byte bin at byteOffset.
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -85,7 +85,7 @@ func BitInsertOp(policy *BitPolicy, binName string, byteOffset int, value []byte
 }
 
 // BitRemoveOp creates byte "remove" operation.
-// Server removes bytes from byte[] bin at byteOffset for byteSize.
+// Server removes bytes from []byte bin at byteOffset for byteSize.
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -103,7 +103,7 @@ func BitRemoveOp(policy *BitPolicy, binName string, byteOffset int, byteSize int
 }
 
 // BitSetOp creates bit "set" operation.
-// Server sets value on byte[] bin at bitOffset for bitSize.
+// Server sets value on []byte bin at bitOffset for bitSize.
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -122,7 +122,7 @@ func BitSetOp(policy *BitPolicy, binName string, bitOffset int, bitSize int, val
 }
 
 // BitOrOp creates bit "or" operation.
-// Server performs bitwise "or" on value and byte[] bin at bitOffset for bitSize.
+// Server performs bitwise "or" on value and []byte bin at bitOffset for bitSize.
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -141,7 +141,7 @@ func BitOrOp(policy *BitPolicy, binName string, bitOffset int, bitSize int, valu
 }
 
 // BitXorOp creates bit "exclusive or" operation.
-// Server performs bitwise "xor" on value and byte[] bin at bitOffset for bitSize.
+// Server performs bitwise "xor" on value and []byte bin at bitOffset for bitSize.
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -160,7 +160,7 @@ func BitXorOp(policy *BitPolicy, binName string, bitOffset int, bitSize int, val
 }
 
 // BitAndOp creates bit "and" operation.
-// Server performs bitwise "and" on value and byte[] bin at bitOffset for bitSize.
+// Server performs bitwise "and" on value and []byte bin at bitOffset for bitSize.
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -179,7 +179,7 @@ func BitAndOp(policy *BitPolicy, binName string, bitOffset int, bitSize int, val
 }
 
 // BitNotOp creates bit "not" operation.
-// Server negates byte[] bin starting at bitOffset for bitSize.
+// Server negates []byte bin starting at bitOffset for bitSize.
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -197,7 +197,7 @@ func BitNotOp(policy *BitPolicy, binName string, bitOffset int, bitSize int, ctx
 }
 
 // BitLShiftOp creates bit "left shift" operation.
-// Server shifts left byte[] bin starting at bitOffset for bitSize.
+// Server shifts left []byte bin starting at bitOffset for bitSize.
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -216,7 +216,7 @@ func BitLShiftOp(policy *BitPolicy, binName string, bitOffset int, bitSize int, 
 }
 
 // BitRShiftOp creates bit "right shift" operation.
-// Server shifts right byte[] bin starting at bitOffset for bitSize.
+// Server shifts right []byte bin starting at bitOffset for bitSize.
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -235,7 +235,7 @@ func BitRShiftOp(policy *BitPolicy, binName string, bitOffset int, bitSize int, 
 }
 
 // BitAddOp creates bit "add" operation.
-// Server adds value to byte[] bin starting at bitOffset for bitSize. BitSize must be <= 64.
+// Server adds value to []byte bin starting at bitOffset for bitSize. BitSize must be <= 64.
 // Signed indicates if bits should be treated as a signed number.
 // If add overflows/underflows, BitOverflowAction is used.
 // Server does not return a value.
@@ -272,7 +272,7 @@ func BitAddOp(
 }
 
 // BitSubtractOp creates bit "subtract" operation.
-// Server subtracts value from byte[] bin starting at bitOffset for bitSize. BitSize must be <= 64.
+// Server subtracts value from []byte bin starting at bitOffset for bitSize. BitSize must be <= 64.
 // Signed indicates if bits should be treated as a signed number.
 // If add overflows/underflows, BitOverflowAction is used.
 // Server does not return a value.
@@ -309,7 +309,7 @@ func BitSubtractOp(
 }
 
 // BitSetIntOp creates bit "setInt" operation.
-// Server sets value to byte[] bin starting at bitOffset for bitSize. Size must be <= 64.
+// Server sets value to []byte bin starting at bitOffset for bitSize. Size must be <= 64.
 // Server does not return a value.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -335,7 +335,7 @@ func BitSetIntOp(policy *BitPolicy, binName string, bitOffset int, bitSize int, 
 }
 
 // BitGetOp creates bit "get" operation.
-// Server returns bits from byte[] bin starting at bitOffset for bitSize.
+// Server returns bits from []byte bin starting at bitOffset for bitSize.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
 //  bitOffset = 9
@@ -352,7 +352,7 @@ func BitGetOp(binName string, bitOffset int, bitSize int, ctx ...*CDTContext) *O
 }
 
 // BitCountOp creates bit "count" operation.
-// Server returns integer count of set bits from byte[] bin starting at bitOffset for bitSize.
+// Server returns integer count of set bits from []byte bin starting at bitOffset for bitSize.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
 //  bitOffset = 20
@@ -369,7 +369,7 @@ func BitCountOp(binName string, bitOffset int, bitSize int, ctx ...*CDTContext) 
 }
 
 // BitLScanOp creates bit "left scan" operation.
-// Server returns integer bit offset of the first specified value bit in byte[] bin
+// Server returns integer bit offset of the first specified value bit in []byte bin
 // starting at bitOffset for bitSize.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -388,7 +388,7 @@ func BitLScanOp(binName string, bitOffset int, bitSize int, value bool, ctx ...*
 }
 
 // BitRScanOp creates bit "right scan" operation.
-// Server returns integer bit offset of the last specified value bit in byte[] bin
+// Server returns integer bit offset of the last specified value bit in []byte bin
 // starting at bitOffset for bitSize.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
@@ -407,7 +407,7 @@ func BitRScanOp(binName string, bitOffset int, bitSize int, value bool, ctx ...*
 }
 
 // BitGetIntOp creates bit "get integer" operation.
-// Server returns integer from byte[] bin starting at bitOffset for bitSize.
+// Server returns integer from []byte bin starting at bitOffset for bitSize.
 // Signed indicates if bits should be treated as a signed number.
 // Example:
 //  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]

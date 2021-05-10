@@ -24,9 +24,9 @@ const (
 	// BitResizeFlagsFromFront Adds/removes bytes from the beginning instead of the end.
 	BitResizeFlagsFromFront BitResizeFlags = 1
 
-	// BitResizeFlagsGrowOnly will only allow the byte[] size to increase.
+	// BitResizeFlagsGrowOnly will only allow the []byte size to increase.
 	BitResizeFlagsGrowOnly BitResizeFlags = 2
 
-	// BitResizeFlagsShrinkOnly will only allow the byte[] size to decrease.
+	// BitResizeFlagsShrinkOnly will only allow the []byte size to decrease.
 	BitResizeFlagsShrinkOnly BitResizeFlags = 4
 )
