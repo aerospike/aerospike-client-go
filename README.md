@@ -4,7 +4,15 @@
 [![Build Status](https://travis-ci.org/aerospike/aerospike-client-go.svg?branch=master)](https://travis-ci.org/aerospike/aerospike-client-go)
 [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go)
 
-An Aerospike library for Go.
+## IMPORTANT NOTE
+
+This is an old version the _Aerospike Go Client_, which is v4.x.x. The newest version _v5_ has migrated to _go modules_,
+which required us to put it in the `v5` branch [here](https://github.com/aerospike/aerospike-client-go/tree/v5).
+All the latest changes to the library are applied in that branch, documented in the [CHANGELOG](https://github.com/aerospike/aerospike-client-go/blob/v5/CHANGELOG.md).
+
+---
+
+Official Aerospike Client library for Go.
 
 This library is compatible with Go 1.9+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
 
@@ -13,18 +21,6 @@ Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.
 You can refer to the test files for idiomatic use cases.
 
 Please refer to [`CHANGELOG.md`](CHANGELOG.md) for release notes, or if you encounter breaking changes.
-
-## Notice:
-
-We have released the Go Client v2, with some breaking API changes. Most changes are minor, and can be fixed with relative ease.
-
-The only major issue is that the behavior of the client when a key does not exist has changed. 
-
-It used to return no error, but a `nil` `Record.Bins`. Now it returns `ErrKeyNotFound` error.
-
-This is a significant changes, and you should search your code for all instances of `Bins == nil` and adapt the code accordingly.
-
-Please refer to the [`CHANGELOG.md`](CHANGELOG.md) for details.
 
 - [Usage](#Usage)
 - [Prerequisites](#Prerequisites)
