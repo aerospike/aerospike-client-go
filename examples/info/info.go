@@ -33,7 +33,7 @@ func main() {
 		log.Fatalln(err.Error())
 	}
 
-	infoMap, err := as.RequestInfo(conn, "")
+	infoMap, err := conn.RequestInfo("")
 	if err != nil {
 		log.Fatalln(err.Error())
 	}

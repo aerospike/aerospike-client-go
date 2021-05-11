@@ -166,7 +166,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 	}
 
 	// check to make sure we have actually connected
-	info, err := RequestInfo(conn, "build")
+	info, err := conn.RequestInfo("build")
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 		infoKeys = append(infoKeys, addressCommand)
 	}
 
-	infoMap, err := RequestInfo(conn, infoKeys...)
+	infoMap, err := conn.RequestInfo(infoKeys...)
 	if err != nil {
 		return err
 	}

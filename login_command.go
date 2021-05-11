@@ -28,7 +28,7 @@ import (
 // Login command authenticates to the server.
 // If the authentication is external, Session Information will be returned.
 type loginCommand struct {
-	adminCommand
+	AdminCommand
 
 	// SessionToken for the current session on the external authentication server.
 	SessionToken []byte
@@ -39,7 +39,7 @@ type loginCommand struct {
 
 func newLoginCommand(buf []byte) *loginCommand {
 	return &loginCommand{
-		adminCommand: *newAdminCommand(buf),
+		AdminCommand: *NewAdminCommand(buf),
 	}
 }
 

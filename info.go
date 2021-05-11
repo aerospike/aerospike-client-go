@@ -51,17 +51,6 @@ func newInfo(conn *Connection, commands ...string) (*info, Error) {
 	return newInfo, nil
 }
 
-// RequestInfo gets info values by name from the specified connection.
-// Timeout should already be set on the connection.
-func RequestInfo(conn *Connection, names ...string) (map[string]string, Error) {
-	info, err := newInfo(conn, names...)
-	if err != nil {
-		return nil, err
-	}
-
-	return info.parseMultiResponse()
-}
-
 // Issue request and set results buffer. This method is used internally.
 // The static request methods should be used instead.
 func (nfo *info) sendCommand(conn *Connection) Error {

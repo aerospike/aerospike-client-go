@@ -19,7 +19,6 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v5"
 )
@@ -50,16 +49,9 @@ func main() {
 	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 	dieIfError(err)
 
-	node := client.GetNodes()[0]
-	conn, err := node.GetConnection(time.Second)
+	node := client.Cluster().GetNodes()[0]
+	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), *value)
 	dieIfError(err)
-
-	infoMap, err := as.RequestInfo(conn, *value)
-	dieIfError(err, func() {
-		node.InvalidateConnection(conn)
-	})
-
-	node.PutConnection(conn)
 
 	if len(infoMap) == 0 {
 		log.Printf("Query successful, no information for -v \"%s\"\n\n", *value)

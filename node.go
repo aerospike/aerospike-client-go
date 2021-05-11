@@ -750,7 +750,7 @@ func (nd *Node) requestInfo(timeout time.Duration, name ...string) (map[string]s
 		return nil, err
 	}
 
-	response, err := RequestInfo(nd.tendConn, name...)
+	response, err := nd.tendConn.RequestInfo(name...)
 	if err != nil {
 		nd.tendConn.Close()
 		return nil, err

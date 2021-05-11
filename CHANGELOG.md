@@ -18,6 +18,7 @@
     - [CLIENT-1522] Support user quotas and statistics.
     - [CLIENT-1492] Remove ability to use old authentication protocol. This works behind the scenes and doesn't have any impact on user code.
     - [CLIENT-1081] Adds `Error` interface, changes all API signature to return `Error`.
+    - Exports `AdminCommand` and its `QueryXXX` API.
 
   * **Breaking Changes**
     - Limits keys to `int`, `string` and `[]byte` types. The old `ListValue` arrays as types are not supported anymore.
@@ -33,6 +34,7 @@
     - Removed `Connection.Authenticate()` API.
     - Renamed `GetOpForBin()` to `GetBinOp()`
     - Removed `ScanPolicy.ConcurrentNodes`. Now only uses `.MaxConcurrentNodes` to avoid confusion.
+    - Moves the `RequestInfo()` under `Connection`.
 
   * **Improvements**
 

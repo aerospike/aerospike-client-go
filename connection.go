@@ -369,6 +369,17 @@ func (ctn *Connection) Login(policy *ClientPolicy) Error {
 	return ctn.login(policy, hashedPassword, nil)
 }
 
+// RequestInfo gets info values by name from the specified connection.
+// Timeout should already be set on the connection.
+func (ctn *Connection) RequestInfo(names ...string) (map[string]string, Error) {
+	info, err := newInfo(ctn, names...)
+	if err != nil {
+		return nil, err
+	}
+
+	return info.parseMultiResponse()
+}
+
 // setIdleTimeout sets the idle timeout for the connection.
 func (ctn *Connection) setIdleTimeout(timeout time.Duration) {
 	ctn.idleTimeout = timeout
