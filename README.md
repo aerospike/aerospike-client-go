@@ -1,4 +1,4 @@
-# Aerospike Go Client
+# Aerospike Go Client v5
 
 [![Aerospike Client Go](https://goreportcard.com/badge/github.com/aerospike/aerospike-client-go)](https://goreportcard.com/report/github.com/aerospike/aerospike-client-go)
 [![Build Status](https://travis-ci.org/aerospike/aerospike-client-go.svg?branch=master)](https://travis-ci.org/aerospike/aerospike-client-go)
@@ -6,25 +6,13 @@
 
 An Aerospike library for Go.
 
-This library is compatible with Go 1.9+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
+This library is compatible with Go 1.13+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
 
 Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go).
 
 You can refer to the test files for idiomatic use cases.
 
 Please refer to [`CHANGELOG.md`](CHANGELOG.md) for release notes, or if you encounter breaking changes.
-
-## Notice:
-
-We have released the Go Client v2, with some breaking API changes. Most changes are minor, and can be fixed with relative ease.
-
-The only major issue is that the behavior of the client when a key does not exist has changed. 
-
-It used to return no error, but a `nil` `Record.Bins`. Now it returns `ErrKeyNotFound` error.
-
-This is a significant changes, and you should search your code for all instances of `Bins == nil` and adapt the code accordingly.
-
-Please refer to the [`CHANGELOG.md`](CHANGELOG.md) for details.
 
 - [Usage](#Usage)
 - [Prerequisites](#Prerequisites)
@@ -116,7 +104,7 @@ Supported operating systems:
 <a name="Installation"></a>
 ## Installation
 
-1. Install Go 1.9+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
+1. Install Go 1.13+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
 2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go```
   * To update the client library: ```go get -u github.com/aerospike/aerospike-client-go```
 
