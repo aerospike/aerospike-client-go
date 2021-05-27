@@ -7,7 +7,8 @@
   * **Fixes**
 
     - Handle lack of key digests in `BatchExists` command.
-    - Allow and handle nil arguments for `chainError`
+    - Allow and handle nil arguments for `chainError`.
+    - Avoid race condition in chaining prefined errors.
 
 ## May 10 2021: v5.0.0
   This is a major feature release. It is also a major breaking release. We have adopted Go's module system as recommended by the Go authors, so the new release moves the active branch to `v5`.

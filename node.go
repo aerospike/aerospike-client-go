@@ -425,14 +425,14 @@ func (nd *Node) getConnection(deadline time.Time, timeout time.Duration) (conn *
 // This is more or less a copy of the logic in the beginning of newConnection function.
 func (nd *Node) newConnectionAllowed() Error {
 	if !nd.active.Get() {
-		return ErrServerNotAvailable
+		return ErrServerNotAvailable.err()
 	}
 
 	// if connection count is limited and enough connections are already created, don't create a new one
 	cc := nd.connectionCount.IncrementAndGet()
 	defer nd.connectionCount.DecrementAndGet()
 	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
-		return ErrTooManyConnectionsForNode
+		return ErrTooManyConnectionsForNode.err()
 	}
 
 	// Check for opening connection threshold
@@ -440,7 +440,7 @@ func (nd *Node) newConnectionAllowed() Error {
 		ct := nd.cluster.connectionThreshold.IncrementAndGet()
 		defer nd.cluster.connectionThreshold.DecrementAndGet()
 		if ct > nd.cluster.clientPolicy.OpeningConnectionThreshold {
-			return ErrTooManyOpeningConnections
+			return ErrTooManyOpeningConnections.err()
 		}
 	}
 
@@ -537,7 +537,7 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 		if err = nd.newConnectionAllowed(); err == nil {
 			go nd.makeConnectionForPool(hint)
 		}
-		return nil, ErrConnectionPoolEmpty
+		return nil, ErrConnectionPoolEmpty.err()
 	}
 
 	if err = conn.SetTimeout(deadline, timeout); err != nil {

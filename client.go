@@ -321,7 +321,7 @@ func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, Error
 	cmd := newBatchCommandExists(nil, nil, policy, keys, existsArray)
 	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if filteredOut > 0 {
-		err = chainErrors(ErrFilteredOut, err)
+		err = chainErrors(ErrFilteredOut.err(), err)
 	}
 
 	if err != nil {
@@ -398,7 +398,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 	}
 
 	if filteredOut > 0 {
-		err = chainErrors(ErrFilteredOut, err)
+		err = chainErrors(ErrFilteredOut.err(), err)
 	}
 
 	return records, err
@@ -426,7 +426,7 @@ func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) E
 	}
 
 	if filteredOut > 0 {
-		err = chainErrors(ErrFilteredOut, err)
+		err = chainErrors(ErrFilteredOut.err(), err)
 	}
 
 	return err
@@ -456,7 +456,7 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 	}
 
 	if filteredOut > 0 {
-		err = chainErrors(ErrFilteredOut, err)
+		err = chainErrors(ErrFilteredOut.err(), err)
 	}
 
 	return records, err

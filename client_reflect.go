@@ -121,7 +121,7 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 	}
 
 	if filteredOut > 0 {
-		err = chainErrors(ErrFilteredOut, err)
+		err = chainErrors(ErrFilteredOut.err(), err)
 	}
 
 	return objectsFound, err
@@ -207,7 +207,7 @@ func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *R
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryPartitionObjects(policy *QueryPolicy, statement *Statement, objChan interface{}, partitionFilter *PartitionFilter) (*Recordset, Error) {
 	if statement.Filter != nil {
-		return nil, ErrPartitionScanQueryNotSupported
+		return nil, ErrPartitionScanQueryNotSupported.err()
 	}
 
 	policy = clnt.getUsableQueryPolicy(policy)

@@ -180,8 +180,6 @@ func (ase *AerospikeError) wrap(err error) Error {
 	return ase
 }
 
-// chain wraps an error inside a new error. The new error cannot be nil.
-// if the old error is nil, the new error will be returned.
 func (ase *AerospikeError) iter(i int) Error {
 	if ase == nil {
 		return nil

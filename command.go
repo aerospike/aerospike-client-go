@@ -1986,7 +1986,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
-			return chainErrors(ErrMaxRetriesExceeded, errChain).iter(iterations).setInDoubt(isRead, commandSentCounter)
+			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(iterations).setInDoubt(isRead, commandSentCounter)
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -2176,7 +2176,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 	}
 
 	// execution timeout
-	errChain = chainErrors(ErrTimeout, errChain).iter(iterations)
+	errChain = chainErrors(ErrTimeout.err(), errChain).iter(iterations)
 	return errChain
 }
 
