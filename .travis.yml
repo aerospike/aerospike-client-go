@@ -6,6 +6,7 @@ go:
 - "1.13"
 - "1.14"
 - "1.15"
+- "1.16"
 - tip
 matrix:
   allow_failures:
@@ -34,17 +35,17 @@ install:
 - cd ../..
 - pwd
 script:
-- ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites internal/lua
-- ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites types
-- ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites pkg
+- GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites internal/lua
+- GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites types
+- GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites pkg
 - find tools -name "*.go" -type f -print0 | xargs -0 -n1 go build
 - find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
-- ginkgo build -tags="as_performance" .
-- ginkgo build -tags="app_engine" .
-- ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
-# - ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -- -use-replicas
-# - ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -tags="as_performance"
-# - ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -tags="app_engine"
+- GO111MODULE="auto" ginkgo build -tags="as_performance" .
+- GO111MODULE="auto" ginkgo build -tags="app_engine" .
+- GO111MODULE="auto" ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
+# - GO111MODULE="auto" ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -- -use-replicas
+# - GO111MODULE="auto" ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -tags="as_performance"
+# - GO111MODULE="auto" ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -tags="app_engine"
 - cd aerospike-server/instance1
 - sudo ./bin/aerospike stop
 - cat /dev/null > var/log/aerospike.log
@@ -54,10 +55,10 @@ script:
 - sudo ./bin/aerospike start
 - ../../.travis/wait_for_node.sh var/log/aerospike.log
 - cd ../..
-- ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
-# - ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -- -use-replicas
-# - ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -tags="as_performance"
-# - ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -tags="app_engine"
+- GO111MODULE="auto" ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
+# - GO111MODULE="auto" ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -- -use-replicas
+# - GO111MODULE="auto" ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -tags="as_performance"
+# - GO111MODULE="auto" ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15 -tags="app_engine"
 - .travis/proxy_check.sh
 notifications:
   hipchat:
