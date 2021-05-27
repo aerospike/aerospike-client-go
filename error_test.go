@@ -50,6 +50,26 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 
 	})
 
+	gg.Context("chainErrors()", func() {
+
+		gg.It("should handle nil for inner error", func() {
+			outer := newError(ast.UDF_BAD_RESPONSE)
+			err := chainErrors(outer, nil)
+
+			res := err.Matches(ast.UDF_BAD_RESPONSE)
+			gm.Expect(res).To(gm.BeTrue())
+		})
+
+		gg.It("should handle nil for inner error", func() {
+			inner := newError(ast.UDF_BAD_RESPONSE)
+			err := chainErrors(nil, inner)
+
+			res := err.Matches(ast.UDF_BAD_RESPONSE)
+			gm.Expect(res).To(gm.BeTrue())
+		})
+
+	})
+
 	gg.Context("errors.Is", func() {
 
 		gg.It("should handle simple case", func() {
