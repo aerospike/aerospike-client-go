@@ -1,5 +1,14 @@
 # Change History
 
+## May 27 2021: v5.0.1
+
+  Minor feature and fix release.
+
+  * **Fixes**
+
+    - Handle lack of key digests in `BatchExists` command.
+    - Allow and handle nil arguments for `chainError`
+
 ## May 10 2021: v5.0.0
   This is a major feature release. It is also a major breaking release. We have adopted Go's module system as recommended by the Go authors, so the new release moves the active branch to `v5`.
   As such, the import path changes to `github.com/aerospike/aerospike-client-go/v5`. The `master` branch remains in place to allow maintenance for the older v4 classic version until most users
