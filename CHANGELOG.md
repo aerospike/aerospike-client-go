@@ -1,5 +1,13 @@
 # Change History
 
+
+## May 27 2021: v4.5.1
+  Minor fix release.
+
+  * **Fixes**
+
+    - Handle lack of key digests in `BatchExists` command.
+
 ## April 9 2021: v4.5.0
   Minor feature and fix release.
 

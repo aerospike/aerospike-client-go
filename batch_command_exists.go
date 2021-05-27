@@ -15,8 +15,6 @@
 package aerospike
 
 import (
-	"bytes"
-
 	"github.com/aerospike/aerospike-client-go/types"
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -97,19 +95,13 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			return false, types.NewAerospikeError(types.PARSE_ERROR, "Received bins that were not requested!")
 		}
 
-		key, err := cmd.parseKey(fieldCount)
+		_, err := cmd.parseKey(fieldCount)
 		if err != nil {
 			return false, err
 		}
 
-		if bytes.Equal(key.digest[:], cmd.keys[batchIndex].digest[:]) {
-			// only set the results to true; as a result, no synchronization is needed
-			if resultCode == 0 {
-				cmd.existsArray[batchIndex] = true
-			}
-		} else {
-			return false, types.NewAerospikeError(types.PARSE_ERROR, "Unexpected batch key returned: "+key.namespace+","+Buffer.BytesToHexString(key.digest[:])+". Expected: "+Buffer.BytesToHexString(cmd.keys[batchIndex].digest[:]))
-		}
+		// only set the results to true; as a result, no synchronization is needed
+		cmd.existsArray[batchIndex] = resultCode == 0
 	}
 	return true, nil
 }
