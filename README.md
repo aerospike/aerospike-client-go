@@ -8,7 +8,7 @@ An Aerospike library for Go.
 
 This library is compatible with Go 1.13+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
 
-Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go).
+Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v5).
 
 You can refer to the test files for idiomatic use cases.
 
