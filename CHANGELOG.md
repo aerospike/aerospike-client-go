@@ -1,6 +1,13 @@
 # Change History
 
 
+## May 28 2021: v4.5.2
+  Minor fix release.
+
+  * **Fixes**
+
+    - Handle reading keys where the original value sent to the server was a list. Resolves Issue #350.
+
 ## May 27 2021: v4.5.1
   Minor fix release.
 

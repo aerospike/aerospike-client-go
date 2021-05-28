@@ -1292,6 +1292,35 @@ var _ = gg.Describe("Aerospike", func() {
 				}
 			})
 
+			gg.It("must send List key on Put operations", func() {
+				kval := []int{1, 2, 3}
+				key, err := as.NewKey(ns, set, kval)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				ops1 := []*as.Operation{
+					as.PutOp(bin1),
+					as.PutOp(bin2),
+					as.GetOp(),
+				}
+
+				wpolicy := as.NewWritePolicy(0, 0)
+				wpolicy.SendKey = true
+				rec, err = client.Operate(wpolicy, key, ops1...)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				recordset, err := client.ScanAll(nil, key.Namespace(), key.SetName())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				// make sure the result is what we put in
+				for r := range recordset.Results() {
+					gm.Expect(r.Err).ToNot(gm.HaveOccurred())
+					if bytes.Equal(key.Digest(), r.Record.Key.Digest()) {
+						gm.Expect(r.Record.Key.Value()).To(gm.Equal(as.NewListValue([]interface{}{1, 2, 3})))
+						gm.Expect(r.Record.Bins).To(gm.Equal(rec.Bins))
+					}
+				}
+			})
+
 			gg.It("must send key on Touch operations", func() {
 				key, err := as.NewKey(ns, set, randString(50))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
