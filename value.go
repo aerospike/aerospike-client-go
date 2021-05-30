@@ -1178,22 +1178,29 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 	return nil, nil
 }
 
-func bytesToKeyValue(pType int, buf []byte, offset int, len int) (Value, Error) {
+func bytesToKeyValue(pType int, buf []byte, offset int, length int) (Value, Error) {
 
 	switch pType {
 	case ParticleType.STRING:
-		return NewStringValue(string(buf[offset : offset+len])), nil
+		return NewStringValue(string(buf[offset : offset+length])), nil
 
 	case ParticleType.INTEGER:
-		return NewLongValue(Buffer.VarBytesToInt64(buf, offset, len)), nil
+		return NewLongValue(Buffer.VarBytesToInt64(buf, offset, length)), nil
 
 	case ParticleType.FLOAT:
 		return NewFloatValue(Buffer.BytesToFloat64(buf, offset)), nil
 
 	case ParticleType.BLOB:
-		bytes := make([]byte, len)
-		copy(bytes, buf[offset:offset+len])
+		bytes := make([]byte, length)
+		copy(bytes, buf[offset:offset+length])
 		return NewBytesValue(bytes), nil
+
+	case ParticleType.LIST:
+		v, err := newUnpacker(buf, offset, length).UnpackList()
+		if err != nil {
+			return nil, err
+		}
+		return ListValue(v), nil
 
 	default:
 		return nil, newError(types.PARSE_ERROR, fmt.Sprintf("ParticleType %d not recognized. Please file a github issue.", pType))
