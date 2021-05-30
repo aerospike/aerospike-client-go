@@ -369,6 +369,9 @@ func chainErrors(outer Error, inner error) Error {
 	} else if inner == nil {
 		return outer
 	} else if outer == nil {
+		if e, ok := inner.(Error); ok {
+			return e
+		}
 		return newCommonError(inner)
 	}
 
