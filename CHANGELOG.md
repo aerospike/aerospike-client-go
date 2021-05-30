@@ -1,8 +1,18 @@
 # Change History
 
+## May 30 2021: v5.0.2
+
+  Minor fix release.
+
+  * **Fixes**
+
+    - Improve handling and chaining of errors in `BatchCommand` retries.
+    - Don't wrap in `chainErrors` if outer is `nil` and the inner error is of type `Error`.
+    - Support reading back keys with original `List` values.
+
 ## May 27 2021: v5.0.1
 
-  Minor feature and fix release.
+  Minor fix release.
 
   * **Fixes**
 
