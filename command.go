@@ -2057,7 +2057,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			isClientTimeout = false
 
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(iterations)
+			errChain = chainErrors(err, errChain).iter(iterations).setNode(cmd.node)
 
 			// Max error rate achieved, try again per policy
 			continue
@@ -2068,7 +2068,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			isClientTimeout = true
 
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(iterations)
+			errChain = chainErrors(err, errChain).iter(iterations).setNode(cmd.node)
 
 			if errors.Is(err, ErrConnectionPoolEmpty) {
 				// if the connection pool is empty, we still haven't tried
@@ -2086,7 +2086,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		err = ifc.writeBuffer(ifc)
 		if err != nil {
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(iterations)
+			errChain = chainErrors(err, errChain).iter(iterations).setNode(cmd.node)
 
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
@@ -2107,14 +2107,14 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// now that the deadline has been set in the buffer, compress the contents
 		if err = cmd.compress(); err != nil {
-			return chainErrors(err, errChain).iter(iterations)
+			return chainErrors(err, errChain).iter(iterations).setNode(cmd.node)
 		}
 
 		// Send command.
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 		if err != nil {
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(iterations)
+			errChain = chainErrors(err, errChain).iter(iterations).setNode(cmd.node)
 
 			isClientTimeout = true
 			if deviceOverloadError(err) {
@@ -2136,7 +2136,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		err = ifc.parseResult(ifc, cmd.conn)
 		if err != nil {
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(iterations)
+			errChain = chainErrors(err, errChain).iter(iterations).setNode(cmd.node)
 
 			if networkError(err) {
 				isTimeout := errors.Is(err, ErrTimeout)
@@ -2192,7 +2192,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 	}
 
 	// execution timeout
-	errChain = chainErrors(ErrTimeout.err(), errChain).iter(iterations)
+	errChain = chainErrors(ErrTimeout.err(), errChain).iter(iterations).setNode(cmd.node)
 	return errChain
 }
 
