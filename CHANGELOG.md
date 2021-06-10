@@ -1,5 +1,21 @@
 # Change History
 
+## June 10 2021: v5.1.0
+
+  Major fix release. We recommend updating to this version immediately.
+
+  * **Improvements**
+
+    - Set the error node on transaction failures.
+    - Add compression and minConnsPerNode to benchmark tool options.
+
+  * **Fixes**
+
+    - Add missing Compress commands.
+    - Check if error is not `nil` before chaining. Resolves issue #353.
+    - Handle `nil` case in `Node.String()`.
+    - Correctly handle errors in `Connection.Read` and `Connection.Write`. Avoids shadowing of the error. Resolves issue #352.
+
 ## May 30 2021: v5.0.2
 
   Minor fix release.
