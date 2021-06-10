@@ -177,12 +177,12 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
 
 // Write writes the slice to the connection buffer.
 func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
+	var err error
+
 	// make sure all bytes are written
 	// Don't worry about the loop, timeout has been set elsewhere
-	err := ctn.updateDeadline()
-	if err == nil {
-		total, err := ctn.conn.Write(buf)
-		if err == nil {
+	if err = ctn.updateDeadline(); err == nil {
+		if total, err = ctn.conn.Write(buf); err == nil {
 			return total, nil
 		}
 
@@ -211,23 +211,31 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 
 	// if all bytes are not read, retry until successful
 	// Don't worry about the loop; we've already set the timeout elsewhere
-	err = ctn.updateDeadline()
-	if err == nil {
-		if !ctn.compressed {
-			total, err = io.ReadFull(ctn.conn, buf[:length])
-		} else {
-			total, err = io.ReadFull(ctn.inflater, buf[:length])
-			if err == nil {
-				ctn.compressed = false
-				aerr = newCommonError(ctn.inflater.Close())
-			}
+	for total < length {
+		var r int
+		if err = ctn.updateDeadline(); err != nil {
+			break
 		}
 
-		if total == length {
-			// If all required bytes are read, ignore any potential error.
-			// The error will bubble up on the next network io if it matters.
-			return total, nil
+		if !ctn.compressed {
+			r, err = ctn.conn.Read(buf[total:length])
+		} else {
+			r, err = ctn.inflater.Read(buf[total:length])
+			if err == io.EOF && total+r == length {
+				ctn.compressed = false
+				err = ctn.inflater.Close()
+			}
 		}
+		total += r
+		if err != nil {
+			break
+		}
+	}
+
+	if total == length {
+		// If all required bytes are read, ignore any potential error.
+		// The error will bubble up on the next network io if it matters.
+		return total, nil
 	}
 
 	aerr = chainErrors(errToAerospikeErr(ctn, err), aerr)
@@ -239,7 +247,7 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 
 	ctn.Close()
 
-	return total, errToAerospikeErr(ctn, err)
+	return total, aerr
 }
 
 // IsConnected returns true if the connection is not closed yet.
