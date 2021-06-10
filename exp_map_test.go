@@ -44,7 +44,8 @@ var _ = gg.Describe("Expression Filters - Maps", func() {
 			key, _ := as.NewKey(ns, set, ii)
 			ibin := as.BinMap{"bin": map[string]interface{}{"test": ii, "test2": "a"}}
 			client.Delete(wpolicy, key)
-			client.Put(wpolicy, key, ibin)
+			err := client.Put(wpolicy, key, ibin)
+			gm.Expect(err).NotTo(gm.HaveOccurred())
 		}
 
 		insertRecs.Set(false)

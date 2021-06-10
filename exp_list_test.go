@@ -44,7 +44,8 @@ var _ = gg.Describe("Expression Filters - Lists", func() {
 			key, _ := as.NewKey(ns, set, ii)
 			ibin := as.NewBin("bin", []int{1, 2, 3, ii})
 			client.Delete(wpolicy, key)
-			client.PutBins(wpolicy, key, ibin)
+			err := client.PutBins(wpolicy, key, ibin)
+			gm.Expect(err).NotTo(gm.HaveOccurred())
 		}
 
 		insertRecs.Set(false)
