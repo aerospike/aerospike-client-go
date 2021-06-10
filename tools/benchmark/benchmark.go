@@ -73,6 +73,8 @@ var maxErrorRate = flag.Int("maxErrorRate", 50, "Maximum Error Rate for the Circ
 var errorRateWindow = flag.Int("errorRateWindow", 1, "Error Rate Window for the Circuit-Breaker to trigger.")
 var openingConnectionThreshold = flag.Int("openingConnectionThreshold", 64, "Maximum number of connections allowed to open simultaneously.")
 var warmUp = flag.Int("warmUp", 128, "Number of connections to open on start up.")
+var useCompression = flag.Bool("compress", false, "Use compression to send and receive data from the server.")
+var minConnsPerNode = flag.Int("minConnsPerNode", 0, "Minimum connections to maintain to each node.")
 
 var randBinData = flag.Bool("R", false, "Use dynamically generated random bin values instead of default static fixed bin values.")
 var useMarshalling = flag.Bool("M", false, "Use marshaling a struct instead of simple key/value operations")
@@ -148,6 +150,7 @@ func main() {
 	clientPolicy.Password = *password
 	clientPolicy.Timeout = 10 * time.Second
 	clientPolicy.OpeningConnectionThreshold = *openingConnectionThreshold
+	clientPolicy.MinConnectionsPerNode = *minConnsPerNode
 	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		logger.Fatal(err)
@@ -390,6 +393,7 @@ func runBench_I(client *as.Client, ident int, times int) {
 	writepolicy := as.NewWritePolicy(0, 0)
 	writepolicy.TotalTimeout = time.Duration(*timeout) * time.Millisecond
 	writepolicy.MaxRetries = *maxRetries
+	writepolicy.UseCompression = *useCompression
 
 	defaultBin := getBin(xr)
 	defaultObj := getDataStruct(xr)
@@ -497,6 +501,7 @@ func runBench_RU(client *as.Client, ident int, times int) {
 	writepolicy := as.NewWritePolicy(0, 0)
 	writepolicy.TotalTimeout = time.Duration(*timeout) * time.Millisecond
 	writepolicy.MaxRetries = *maxRetries
+	writepolicy.UseCompression = *useCompression
 
 	readpolicy := writepolicy.GetBasePolicy()
 
