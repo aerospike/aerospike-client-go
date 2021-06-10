@@ -1975,7 +1975,6 @@ func (cmd *baseCommand) execute(ifc command, isRead bool) Error {
 	return cmd.executeAt(ifc, policy, isRead, deadline, -1, 0)
 }
 
-// TODO: Manage the error chianing properly
 func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) (errChain Error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
@@ -2021,7 +2020,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 					}
 
 					// chain the errors and retry
-					errChain = chainErrors(err, errChain).iter(iterations)
+					if err != nil {
+						errChain = chainErrors(err, errChain).iter(iterations)
+					}
 					continue
 				}
 			}
@@ -2043,7 +2044,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			isClientTimeout = true
 
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(iterations)
+			if err != nil {
+				errChain = chainErrors(err, errChain).iter(iterations)
+			}
 
 			// Node is currently inactive. Retry.
 			continue
