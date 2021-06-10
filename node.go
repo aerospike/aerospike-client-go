@@ -627,7 +627,10 @@ func (nd *Node) Close() {
 
 // String implements stringer interface
 func (nd *Node) String() string {
-	return nd.name + " " + nd.host.String()
+	if nd != nil {
+		return nd.name + " " + nd.host.String()
+	}
+	return "<nil>"
 }
 
 func (nd *Node) closeConnections() {
