@@ -380,7 +380,7 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) Error {
 		predSize = cmd.estimatePredExpSize(policy.PredExp)
 		fieldCount++
 	}
-	if err := cmd.sizeBuffer(false); err != nil {
+	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 	cmd.writeHeader(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
@@ -397,6 +397,8 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) Error {
 		}
 	}
 	cmd.end()
+	cmd.markCompressed(policy)
+
 	return nil
 
 }
@@ -423,7 +425,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 		for i := range binNames {
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
-		if err := cmd.sizeBuffer(false); err != nil {
+		if err := cmd.sizeBuffer(policy.compress()); err != nil {
 			return nil
 		}
 		cmd.writeHeader(policy, _INFO1_READ, 0, fieldCount, len(binNames))
@@ -445,6 +447,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 			cmd.writeOperationForBinName(binNames[i], _READ)
 		}
 		cmd.end()
+		cmd.markCompressed(policy)
 	}
 	return cmd.setReadForKeyOnly(policy, key)
 }
@@ -492,6 +495,8 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) Error {
 	}
 	cmd.writeOperationForBinName("", _READ)
 	cmd.end()
+	cmd.markCompressed(policy)
+
 	return nil
 
 }
