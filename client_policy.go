@@ -90,7 +90,7 @@ type ClientPolicy struct {
 
 	// ErrorRateWindow defined the number of cluster tend iterations that defines the window for MaxErrorRate.
 	// One tend iteration is defined as TendInterval plus the time to tend all nodes.
-	// At the end of tend iteration, the error count is reset to zero and backoff state is removed
+	// At the end of the window, the error count is reset to zero and backoff state is removed
 	// on all nodes.
 	//
 	// Default: 1
