@@ -135,7 +135,7 @@ const (
 	// -1 = largest value
 	ListReturnTypeRank ListReturnType = 3
 
-	// ListReturnTypeReverseRank will return reserve value order.
+	// ListReturnTypeReverseRank will return reverse value order.
 	// 0 = largest value
 	// N = Nth largest value
 	// -1 = smallest value

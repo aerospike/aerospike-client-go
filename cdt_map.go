@@ -138,7 +138,7 @@ var MapReturnType = struct {
 	// -1 = largest value
 	RANK mapReturnType
 
-	// REVERSE_RANK will return reserve value order.
+	// REVERSE_RANK will return reverse value order.
 	//
 	// 0 = largest value
 	// N = Nth largest value
