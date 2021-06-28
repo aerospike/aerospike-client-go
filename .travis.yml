@@ -38,7 +38,10 @@ script:
 - ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites internal/lua
 - ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites types
 - ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites pkg
-- find tools -name "*.go" -type f -print0 | xargs -0 -n1 go build
+#- find tools -name "*.go" -type f -print0 | xargs -0 -n1 go build
+- cd tools/benchmark | go build .
+- cd tools/info | go build .
+- cd tools/cli | go build .
 - find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
 - ginkgo build -tags="as_performance" .
 - ginkgo build -tags="app_engine" .
