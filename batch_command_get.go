@@ -82,44 +82,6 @@ func (cmd *batchCommandGet) writeBuffer(ifc command) Error {
 	return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, cmd.binNames, cmd.readAttr)
 }
 
-// On batch operations the key values are not returned from the server
-// So we reuse the Key on the batch Object
-func (cmd *batchCommandGet) parseKey(fieldCount int) Error {
-	// var digest [20]byte
-	// var namespace, setName string
-	// var userKey Value
-	var err Error
-
-	for i := 0; i < fieldCount; i++ {
-		if err = cmd.readBytes(4); err != nil {
-			return err
-		}
-
-		fieldlen := int(Buffer.BytesToUint32(cmd.dataBuffer, 0))
-		if err = cmd.readBytes(fieldlen); err != nil {
-			return err
-		}
-
-		fieldtype := FieldType(cmd.dataBuffer[0])
-		size := fieldlen - 1
-
-		switch fieldtype {
-		case DIGEST_RIPE:
-			copy(cmd.key.digest[:], cmd.dataBuffer[1:size+1])
-		case NAMESPACE:
-			cmd.key.namespace = string(cmd.dataBuffer[1 : size+1])
-		case TABLE:
-			cmd.key.setName = string(cmd.dataBuffer[1 : size+1])
-		case KEY:
-			if cmd.key.userKey, err = bytesToKeyValue(int(cmd.dataBuffer[1]), cmd.dataBuffer, 2, size-1); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
 // Parse all results in the batch.  Add records to shared list.
 // If the record was not found, the bins will be nil.
 func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
@@ -154,7 +116,7 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
-		err := cmd.parseKey(fieldCount)
+		err := cmd.skipKey(fieldCount)
 		if err != nil {
 			return false, err
 		}

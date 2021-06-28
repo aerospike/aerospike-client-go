@@ -95,7 +95,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			return false, newCustomNodeError(cmd.node, types.PARSE_ERROR, "Received bins that were not requested!")
 		}
 
-		_, err := cmd.parseKey(fieldCount)
+		err := cmd.skipKey(fieldCount)
 		if err != nil {
 			return false, err
 		}

@@ -219,6 +219,21 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, Error) {
 	return &Key{namespace: namespace, setName: setName, digest: digest, userKey: userKey}, nil
 }
 
+func (cmd *baseMultiCommand) skipKey(fieldCount int) (err Error) {
+	for i := 0; i < fieldCount; i++ {
+		if err = cmd.readBytes(4); err != nil {
+			return err
+		}
+
+		fieldlen := int(Buffer.BytesToUint32(cmd.dataBuffer, 0))
+		if err = cmd.readBytes(fieldlen); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (cmd *baseMultiCommand) readBytes(length int) (err Error) {
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
