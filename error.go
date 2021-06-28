@@ -35,6 +35,9 @@ type Error interface {
 	// provided codes.
 	Matches(rcs ...types.ResultCode) bool
 
+	// resultCode returns the error result code.
+	resultCode() types.ResultCode
+
 	// Unwrap returns the error inside
 	Unwrap() error
 
@@ -144,6 +147,10 @@ func (ase *AerospikeError) setNode(node *Node) Error {
 func (ase *AerospikeError) markInDoubt() Error {
 	ase.InDoubt = true
 	return ase
+}
+
+func (ase *AerospikeError) resultCode() types.ResultCode {
+	return ase.ResultCode
 }
 
 // Trace returns a stack trace of where the error originates from

@@ -426,17 +426,13 @@ func (ctn *Connection) initInflater(enabled bool, length int) Error {
 // KeepConnection decides if a connection should be kept
 // based on the error type.
 func KeepConnection(err Error) bool {
+	// Do not keep connection on client errors.
+	if err.resultCode() < 0 {
+		return false
+	}
+
 	return !err.Matches(types.QUERY_TERMINATED,
-		types.SCAN_TERMINATED,
-		types.PARSE_ERROR,
-		types.SERIALIZE_ERROR,
-		types.SERVER_NOT_AVAILABLE,
 		types.SCAN_ABORT,
 		types.QUERY_ABORTED,
-
-		types.INVALID_NODE_ERROR,
-		types.SERVER_MEM_ERROR,
-		types.TIMEOUT,
-		types.INDEX_OOM,
-		types.QUERY_TIMEOUT)
+		types.TIMEOUT)
 }
