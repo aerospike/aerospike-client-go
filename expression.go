@@ -531,6 +531,18 @@ func ExpBlobBin(name string) *Expression {
 	)
 }
 
+// ExpBoolBin creates a boolean bin expression.
+func ExpBoolBin(name string) *Expression {
+	return newFilterExpression(
+		&expOpBIN,
+		StringValue(name),
+		nil,
+		nil,
+		&ExpTypeBOOL,
+		nil,
+	)
+}
+
 // ExpFloatBin creates a 64 bit float bin expression.
 func ExpFloatBin(name string) *Expression {
 	return newFilterExpression(
