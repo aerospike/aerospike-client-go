@@ -51,7 +51,7 @@ type TStats struct {
 
 var countReportChan chan *TStats
 
-var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
+var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses.")
 var port = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
 var namespace = flag.String("n", "test", "Aerospike namespace.")
 var set = flag.String("s", "testset", "Aerospike set name.")
@@ -60,6 +60,17 @@ var keyCount = flag.Int("k", 1000000, "Key/record count or key/record range.")
 var user = flag.String("U", "", "User name.")
 var password = flag.String("P", "", "User password.")
 var authMode = flag.String("A", "internal", "Authentication mode: internal | external")
+
+var rootCA = flag.String("rootCA", "", "Root CA to validate client certificates (for mutual TLS).")
+var certFile = flag.String("certFile", "", "Server certificate.")
+var keyFile = flag.String("keyFile", "", "Private key associated with server certificate.")
+var keyFilePassphrase = flag.String("keyFilePass", "", `Passphrase for encrypted keyFile. Supports:
+   1. "<secret>" (secret directly)
+   2. "file:<file-that-contains-secret>" (file containing secret)
+   3. "env:<environment-variable-that-contains-secret>" (environment variable containing secret)
+   4. "env-b64:<environment-variable-that-contains-base64-encoded-secret>" (environment variable containing base64 encoded secret)
+   5. "b64:<base64-encoded-secret>" (base64 encoded secret)
+`)
 
 var binDef = flag.String("o", "I", "Bin object specification.\n\tI\t: Read/write integer bin.\n\tB:200\t: Read/write byte array bin of length 200.\n\tS:50\t: Read/write string bin of length 50.")
 var concurrency = flag.Int("c", 32, "Number of goroutines to generate load.")
@@ -151,13 +162,14 @@ func main() {
 	clientPolicy.Timeout = 10 * time.Second
 	clientPolicy.OpeningConnectionThreshold = *openingConnectionThreshold
 	clientPolicy.MinConnectionsPerNode = *minConnsPerNode
+	clientPolicy.TlsConfig = initAerospikeTLS()
 	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
 	if err != nil {
 		logger.Fatal(err)
 	}
 
 	cc, _ := client.WarmUp(*warmUp)
-	logger.Printf("Warm-up conns.\t:%d", cc)
+	logger.Printf("Warm-up conns.:\t%d", cc)
 
 	logger.Println("Nodes Found:", client.GetNodeNames())
 
@@ -219,6 +231,9 @@ func printBenchmarkParams() {
 	logger.Printf("latency:\t\t%d:%d", latBase, latCols)
 	logger.Printf("conn. pool size:\t%d", *connQueueSize)
 	logger.Printf("conn. threshold:\t%d", *openingConnectionThreshold)
+	logger.Printf("root CA file:\t%s", *rootCA)
+	logger.Printf("cert file:\t%s", *certFile)
+	logger.Printf("key file:\t\t%s", *keyFile)
 }
 
 // parses an string of (key:value) type
