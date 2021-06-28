@@ -926,3 +926,18 @@ func (nd *Node) validateErrorCount() Error {
 	}
 	return nil
 }
+
+// PeersGeneration returns node's Peers Generation
+func (nd *Node) PeersGeneration() int {
+	return nd.peersGeneration.Get()
+}
+
+// PartitionGeneration returns node's Partition Generation
+func (nd *Node) PartitionGeneration() int {
+	return nd.partitionGeneration.Get()
+}
+
+// RebalanceGeneration returns node's Rebalance Generation
+func (nd *Node) RebalanceGeneration() int {
+	return nd.rebalanceGeneration.Get()
+}
