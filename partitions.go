@@ -180,7 +180,7 @@ func (pm partitionMap) validate() Error {
 			errs = chainErrors(newError(types.COMMON_ERROR, fmt.Sprintf("Replica partition nodes not defined for namespace `%s`: %d", nsName, len(partitionList))), errs)
 		}
 
-		errs = chainErrors(newError(types.INVALID_CLUSTER_PARTITION_MAP, "Partition map errors normally occur when the cluster has partitioned due to network anomaly or node crash, or is not configured properly. Refer to https://www.aerospike.com/docs/operations/configure for more information."), errs)
+		errs = chainErrors(ErrInvalidPartitionMap.err(), errs)
 		return errs
 	}
 

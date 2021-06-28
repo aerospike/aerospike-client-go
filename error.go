@@ -335,6 +335,7 @@ func (ase *constAerospikeError) err() Error {
 
 var (
 	ErrServerNotAvailable              = newConstError(types.SERVER_NOT_AVAILABLE)
+	ErrInvalidPartitionMap             = newConstError(types.INVALID_CLUSTER_PARTITION_MAP, "Partition map errors normally occur when the cluster has partitioned due to network anomaly or node crash, or is not configured properly. Refer to https://www.aerospike.com/docs/operations/configure for more information.")
 	ErrKeyNotFound                     = newConstError(types.KEY_NOT_FOUND_ERROR)
 	ErrRecordsetClosed                 = newConstError(types.RECORDSET_CLOSED)
 	ErrConnectionPoolEmpty             = newConstError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "connection pool is empty. This happens when either all connection are in-use already, or no connections were available")

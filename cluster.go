@@ -213,6 +213,15 @@ func (clstr *Cluster) AddSeeds(hosts []*Host) {
 	})
 }
 
+// Healthy returns an error if the cluster is not healthy.
+func (clstr *Cluster) Healthy() Error {
+	p := clstr.getPartitions()
+	if p == nil {
+		return ErrInvalidPartitionMap.err()
+	}
+	return p.validate()
+}
+
 // Updates cluster state
 func (clstr *Cluster) tend() Error {
 
