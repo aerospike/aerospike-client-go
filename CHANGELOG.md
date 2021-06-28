@@ -1,5 +1,29 @@
 # Change History
 
+## June 28 2021: v5.2.0
+
+  Major fix release. We recommend updating to this version immediately.
+
+  * **New Features**
+
+    - Add support for boolean bins in expressions (`ExpBoolBin`).
+    - Add `Node.PeersGeneration`, `Node.PartitionGeneration`, `Node.RebalanceGeneration`.
+    - Support TLS connections in benchmark tool. Resolves #313.
+    - Expose Partition Health API to the user (`Cluster.Healthy()`). Resolves #334.
+
+  * **Improvements**
+
+    - Do not keep connection on all client-side errors
+    - Refactor batch commands to better reflect that keys are not created on batch requests.
+    - Mention List/Map WriteFlags in List/Map Policy constructors.
+    - Fix `ClientPolicy.ErrorRateWindow` documentation.
+    - Fix benchmark document. Thanks to [Koji Miyata](https://github.com/miyatakoji)
+    - Fix unidiomatic variable naming. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
+
+  * **Fixes**
+
+    - Fix an issue where batch commands for a single node were not retried. Resolves #355.
+
 ## June 10 2021: v5.1.0
 
   Major fix release. We recommend updating to this version immediately.
