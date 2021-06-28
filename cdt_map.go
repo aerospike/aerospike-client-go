@@ -226,7 +226,7 @@ type MapPolicy struct {
 	itemsCommand int
 }
 
-// NewMapPolicy creates a MapPolicy with WriteMode. Use with servers before v4.3
+// NewMapPolicy creates a MapPolicy with WriteMode. Use with servers before v4.3.
 func NewMapPolicy(order mapOrderType, writeMode *mapWriteMode) *MapPolicy {
 	return &MapPolicy{
 		attributes:   order,
@@ -236,7 +236,8 @@ func NewMapPolicy(order mapOrderType, writeMode *mapWriteMode) *MapPolicy {
 	}
 }
 
-// NewMapPolicyWithFlags creates a MapPolicy with WriteFlags. Use with servers v4.3+
+// NewMapPolicyWithFlags creates a MapPolicy with WriteFlags. Use with servers v4.3+.
+// Flags are MapWriteFlags. You can specify multiple flags by 'or'ing them together.
 func NewMapPolicyWithFlags(order mapOrderType, flags int) *MapPolicy {
 	return &MapPolicy{
 		attributes:   order,

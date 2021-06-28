@@ -96,6 +96,7 @@ type ListPolicy struct {
 }
 
 // NewListPolicy creates a policy with directives when creating a list and writing list items.
+// Flags are ListWriteFlags. You can specify multiple by `or`ing them together.
 func NewListPolicy(order ListOrderType, flags int) *ListPolicy {
 	return &ListPolicy{
 		attributes: order,
