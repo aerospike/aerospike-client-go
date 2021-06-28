@@ -2010,11 +2010,11 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			if !ifc.prepareRetry(ifc, isClientTimeout || err.Matches(types.SERVER_NOT_AVAILABLE)) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
-					retry, err := bc.retryBatch(bc, cmd.node.cluster, deadline, iterations, commandSentCounter)
-					if !retry {
+					alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, deadline, iterations, commandSentCounter)
+					if alreadyRetried {
 						// Batch was retried in separate subcommands. Complete this command.
 						if err != nil {
-							return chainErrors(err, errChain)
+							return chainErrors(err, errChain).iter(iterations)
 						}
 						return nil
 					}
@@ -2022,8 +2022,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 					// chain the errors and retry
 					if err != nil {
 						errChain = chainErrors(err, errChain).iter(iterations)
+						continue
 					}
-					continue
 				}
 			}
 		}
