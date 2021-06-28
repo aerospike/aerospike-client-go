@@ -552,10 +552,10 @@ func (clstr *Cluster) seedNodes() (bool, Error) {
 	// Must copy array reference for copy on write semantics to work.
 	seedArrayIfc, _ := clstr.seeds.GetSyncedVia(func(val interface{}) (interface{}, error) {
 		seeds := val.([]*Host)
-		seeds_copy := make([]*Host, len(seeds))
-		copy(seeds_copy, seeds)
+		seedsCopy := make([]*Host, len(seeds))
+		copy(seedsCopy, seeds)
 
-		return seeds_copy, nil
+		return seedsCopy, nil
 	})
 
 	// discover seed IPs from DNS or Load Balancers

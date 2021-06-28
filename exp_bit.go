@@ -408,7 +408,7 @@ func expBitAddWrite(bin *Expression, arguments []ExpressionArgument) *Expression
 
 func expBitAddRead(
 	bin *Expression,
-	return_type ExpType,
+	returnType ExpType,
 	arguments []ExpressionArgument,
 ) *Expression {
 	flags := int64(bitwiseMODULE)
@@ -417,7 +417,7 @@ func expBitAddRead(
 		val:       nil,
 		bin:       bin,
 		flags:     &flags,
-		module:    &return_type,
+		module:    &returnType,
 		exps:      nil,
 		arguments: arguments,
 	}

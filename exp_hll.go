@@ -31,25 +31,25 @@ var (
 // ExpHLLInit creates expression that creates a new HLL or resets an existing HLL.
 func ExpHLLInit(
 	policy *HLLPolicy,
-	index_bit_count *Expression,
+	indexBitCount *Expression,
 	bin *Expression,
 ) *Expression {
-	return ExpHLLInitWithMinHash(policy, index_bit_count, ExpIntVal(-1), bin)
+	return ExpHLLInitWithMinHash(policy, indexBitCount, ExpIntVal(-1), bin)
 }
 
 // ExpHLLInitWithMinHash creates expression that creates a new HLL or resets an existing HLL with minhash bits.
 func ExpHLLInitWithMinHash(
 	policy *HLLPolicy,
-	index_bit_count *Expression,
-	min_hash_count *Expression,
+	indexBitCount *Expression,
+	minHashCount *Expression,
 	bin *Expression,
 ) *Expression {
 	return expHLLAddWrite(
 		bin,
 		[]ExpressionArgument{
 			IntegerValue(_HllExpOpINIT),
-			index_bit_count,
-			min_hash_count,
+			indexBitCount,
+			minHashCount,
 			IntegerValue(policy.flags),
 		},
 	)
