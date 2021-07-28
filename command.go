@@ -448,6 +448,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 		}
 		cmd.end()
 		cmd.markCompressed(policy)
+		return nil
 	}
 	return cmd.setReadForKeyOnly(policy, key)
 }
