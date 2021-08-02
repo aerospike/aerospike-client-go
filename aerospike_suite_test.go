@@ -38,6 +38,7 @@ import (
 )
 
 var (
+	hosts       = flag.String("hosts", "", "Comma separated Aerospike server seed hostnames or IP addresses and ports. eg: s1:3000,s2:3000,s3:3000")
 	host        = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
 	port        = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
 	user        = flag.String("U", "", "Username.")
@@ -60,6 +61,8 @@ var (
 
 func initTestVars() {
 	var buf bytes.Buffer
+	var err error
+
 	logger := log.New(&buf, "", log.LstdFlags|log.Lshortfile)
 	logger.SetOutput(os.Stdout)
 	asl.Logger.SetLogger(logger)
@@ -87,10 +90,22 @@ func initTestVars() {
 	tlsConfig = initTLS()
 	clientPolicy.TlsConfig = tlsConfig
 
-	dbHost := as.NewHost(*host, *port)
-	dbHost.TLSName = *nodeTLSName
+	var dbHosts []*as.Host
 
-	client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+	if len(strings.TrimSpace(*hosts)) > 0 {
+		dbHosts, err = as.NewHosts(strings.Split(*hosts, ",")...)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+	} else {
+		dbHost := as.NewHost(*host, *port)
+		dbHost.TLSName = *nodeTLSName
+
+		dbHosts = append(dbHosts, dbHost)
+	}
+
+	log.Println("Connecting to seeds:", dbHosts)
+	client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
