@@ -1,5 +1,17 @@
 # Change History
 
+## August 2 2021: v5.3.0
+
+  * **Improvements**
+
+    - Improve seeding of cluster nodes in tend. All seeds are discovered and added on the first step.
+    - Add `-hosts` flag to test command arguments.
+
+  * **Fixes**
+
+    - Fix where Bin names were not sent to the server in GetXXX commands and all bins were retrieved.
+
+
 ## June 28 2021: v5.2.0
 
   Major fix release. We recommend updating to this version immediately.
