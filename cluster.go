@@ -231,7 +231,7 @@ func (clstr *Cluster) tend() Error {
 	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
 	if len(nodes) == 0 {
-		logger.Logger.Info("No connections available; seeding...")
+		logger.Logger.Info("No nodes available; seeding...")
 		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
 			return err
 		}
@@ -320,7 +320,7 @@ func (clstr *Cluster) tend() Error {
 				node := clstr.createNode(&nv)
 				peers.addNode(nv.name, node)
 				setPartitionMap(pmlock)
-				node.refreshPartitions(peers, partMap)
+				node.refreshPartitions(peers, partMap, true)
 				break
 			}
 		}(_peer)
@@ -333,7 +333,7 @@ func (clstr *Cluster) tend() Error {
 			defer wg.Done()
 			if node.partitionChanged.Get() {
 				setPartitionMap(pmlock)
-				node.refreshPartitions(peers, partMap)
+				node.refreshPartitions(peers, partMap, false)
 			}
 		}(node)
 	}
@@ -548,7 +548,7 @@ func discoverSeedIPs(seeds []*Host) (res []*Host) {
 }
 
 // Adds seeds to the cluster
-func (clstr *Cluster) seedNodes() (bool, Error) {
+func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
 	// Must copy array reference for copy on write semantics to work.
 	seedArrayIfc, _ := clstr.seeds.GetSyncedVia(func(val interface{}) (interface{}, error) {
 		seeds := val.([]*Host)
@@ -582,7 +582,6 @@ func (clstr *Cluster) seedNodes() (bool, Error) {
 		}(i, seed)
 	}
 
-	var errChain Error
 	seedCount := len(seedArray)
 L:
 	for {
@@ -594,8 +593,11 @@ L:
 				break L
 			}
 		case <-successChan:
-			// even one seed is enough
-			return true, nil
+			seedCount--
+			newSeedsFound = true
+			if seedCount <= 0 {
+				break L
+			}
 		case <-time.After(clstr.clientPolicy.Timeout):
 			// time is up, no seeds found
 			break L
@@ -606,7 +608,7 @@ L:
 		errChain = chainErrors(newError(types.INVALID_NODE_ERROR, fmt.Sprintf("Failed to connect to hosts: %v", seedArray)), errChain)
 	}
 
-	return false, errChain
+	return newSeedsFound, errChain
 }
 
 func (clstr *Cluster) createNode(nv *nodeValidator) *Node {
