@@ -719,6 +719,25 @@ var _ = gg.Describe("Aerospike", func() {
 
 		}) // put context
 
+		gg.Context("Get operations", func() {
+			gg.It("must get only requested bins", func() {
+				bins := as.BinMap{
+					"bin1": 1,
+					"bin2": 2,
+					"bin3": 3,
+					"bin4": 4,
+				}
+
+				err := client.Put(wpolicy, key, bins)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				rec, err := client.Get(rpolicy, key, "bin1", "bin2")
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(len(rec.Bins)).To(gm.Equal(2))
+				gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{"bin1": 1, "bin2": 2}))
+			})
+		})
+
 		gg.Context("Append operations", func() {
 			bin := as.NewBin("Aerospike", randString(rand.Intn(100)))
 
