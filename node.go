@@ -33,6 +33,9 @@ import (
 
 const (
 	_PARTITIONS = 4096
+
+	_SUPPORTS_PARTITION_SCAN = 1 << 0
+	_SUPPORTS_QUERY_SHOW     = 1 << 1
 )
 
 // Node represents an Aerospike Database Server Node
@@ -66,6 +69,8 @@ type Node struct {
 	errorCount          iatomic.Int
 	rebalanceGeneration iatomic.Int
 
+	features int
+
 	active iatomic.Bool
 }
 
@@ -76,6 +81,8 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		name:    nv.name,
 		// address: nv.primaryAddress,
 		host: nv.primaryHost,
+
+		features: nv.features,
 
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).
@@ -100,6 +107,11 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	atomic.AddInt64(&newNode.stats.NodeAdded, 1)
 
 	return newNode
+}
+
+// Refresh requests current status from server node, and updates node with the result.
+func (nd *Node) SupportsQueryShow() bool {
+	return (nd.features & _SUPPORTS_QUERY_SHOW) != 0
 }
 
 // Refresh requests current status from server node, and updates node with the result.

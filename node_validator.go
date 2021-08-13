@@ -49,7 +49,7 @@ type nodeValidator struct {
 	sessionToken      []byte
 	SessionExpiration time.Time
 
-	supportsPartitionScans bool
+	features int
 }
 
 func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nodesToAddT) Error {
@@ -224,7 +224,10 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 		ndv.setFeatures(features)
 	}
 
-	if !ndv.supportsPartitionScans {
+	// This client requires partition scan support. Partition scans were first
+	// supported in server version 4.9. Do not allow any server node into the
+	// cluster that is running server version < 4.9.
+	if (ndv.features & _SUPPORTS_PARTITION_SCAN) == 0 {
 		return newError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is version < 4.9. This client supports server versions >= 4.9", nodeName, alias.String()))
 	}
 
@@ -304,7 +307,9 @@ func (ndv *nodeValidator) setFeatures(features string) {
 	for i := range featureList {
 		switch featureList[i] {
 		case "pscans":
-			ndv.supportsPartitionScans = true
+			ndv.features |= _SUPPORTS_PARTITION_SCAN
+		case "query-show":
+			ndv.features |= _SUPPORTS_QUERY_SHOW
 		}
 	}
 }

@@ -47,11 +47,19 @@ func (etsk *ExecuteTask) IsDone() (bool, Error) {
 		module = "query"
 	}
 
-	command := "jobs:module=" + module + ";cmd=get-job;trid=" + strconv.FormatUint(etsk.taskID, 10)
+	oldCommand := "jobs:module=" + module + ";cmd=get-job;trid=" + strconv.FormatUint(etsk.taskID, 10)
+	newCommand := module + "-show;trid=" + strconv.FormatUint(etsk.taskID, 10)
 
 	nodes := etsk.cluster.GetNodes()
 
 	for _, node := range nodes {
+		var command string
+		if node.SupportsQueryShow() {
+			command = newCommand
+		} else {
+			command = oldCommand
+		}
+
 		responseMap, err := node.requestInfoWithRetry(&etsk.cluster.infoPolicy, 5, command)
 		if err != nil {
 			return false, err
