@@ -29,6 +29,7 @@ type Partition struct {
 	PartitionId int
 	partitions  *Partitions
 	replica     ReplicaPolicy
+	prevNode    *Node
 	sequence    int
 	linearize   bool
 }
@@ -204,26 +205,31 @@ func (ptn *Partition) getSequenceNode(cluster *Cluster) (*Node, Error) {
 
 func (ptn *Partition) getRackNode(cluster *Cluster) (*Node, Error) {
 	replicas := ptn.partitions.Replicas
-	var fallback *Node
+
+	for _, rackId := range cluster.clientPolicy.RackIds {
+		seq := ptn.sequence
+		for range replicas {
+			index := ptn.sequence % len(replicas)
+			node := replicas[index][ptn.PartitionId]
+
+			if node != nil && node != ptn.prevNode && node.hasRack(ptn.Namespace, rackId) && node.IsActive() {
+				ptn.prevNode = node
+				ptn.sequence = seq
+				return node, nil
+			}
+			seq++
+		}
+	}
 
 	for range replicas {
 		index := ptn.sequence % len(replicas)
 		node := replicas[index][ptn.PartitionId]
 
 		if node != nil && node.IsActive() {
-			if node.hasRack(ptn.Namespace, cluster.clientPolicy.RackId) {
-				return node, nil
-			}
-
-			if fallback == nil {
-				fallback = node
-			}
+			ptn.prevNode = node
+			return node, nil
 		}
 		ptn.sequence++
-	}
-
-	if fallback != nil {
-		return fallback, nil
 	}
 
 	nodeArray := cluster.GetNodes()

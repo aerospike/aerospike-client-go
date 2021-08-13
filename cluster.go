@@ -96,8 +96,13 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		hosts = newHosts
 	}
 
+	clientPolicy := *policy
+	if policy.RackAware && len(policy.RackIds) <= 0 {
+		clientPolicy.RackIds = append(clientPolicy.RackIds, clientPolicy.RackId)
+	}
+
 	newCluster := &Cluster{
-		clientPolicy: *policy,
+		clientPolicy: clientPolicy,
 		infoPolicy:   InfoPolicy{Timeout: policy.Timeout},
 		tendChannel:  make(chan struct{}),
 

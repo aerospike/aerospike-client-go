@@ -143,7 +143,17 @@ type ClientPolicy struct {
 
 	// RackId defines the Rack the application is on. This will only influence reads if Rackaware is enabled on the client,
 	// and configured on the server.
+	// If RackIds is set, this value will be ignored.
+	// Note: This attribute is deprecated and will be removed in future versions.
 	RackId int // 0
+
+	// RackIds defines the list of acceptable racks in order of preference. Nodes in RackIds[0] are chosen first.
+	// If a node is not found in rackIds[0], then nodes in rackIds[1] are searched, and so on.
+	// If rackIds is set, ClientPolicy.RackId is ignored.
+	//
+	// ClientPolicy.RackAware, ReplicaPolicy.PREFER_RACK and server rack
+	// configuration must also be set to enable this functionality.
+	RackIds []int // nil
 
 	// TlsConfig specifies TLS secure connection policy for TLS enabled servers.
 	// For better performance, we suggest preferring the server-side ciphers by
