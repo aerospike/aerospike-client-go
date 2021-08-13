@@ -721,7 +721,7 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 			bin_sz := 15
 			bin_bit_sz := bin_sz * 8
 
-			for set_sz := 1; set_sz <= 80; set_sz++ {
+			for set_sz := 1; set_sz <= 4; set_sz++ {
 				set_data := make([]byte, (set_sz+7)/8)
 
 				for offset := 0; offset <= (bin_bit_sz - set_sz); offset++ {
@@ -756,7 +756,7 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 			bin_sz := 15
 			bin_bit_sz := bin_sz * 8
 
-			for set_sz := 1; set_sz <= 80; set_sz++ {
+			for set_sz := 1; set_sz <= 4; set_sz++ {
 				set_data := make([]byte, (set_sz+7)/8)
 
 				for offset := 0; offset <= (bin_bit_sz - set_sz); offset++ {
