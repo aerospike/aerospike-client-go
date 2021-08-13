@@ -184,7 +184,7 @@ func NewClientPolicy() *ClientPolicy {
 
 // RequiresAuthentication returns true if a User or Password is set for ClientPolicy.
 func (cp *ClientPolicy) RequiresAuthentication() bool {
-	return (cp.User != "") || (cp.Password != "")
+	return (cp.User != "") || (cp.Password != "") || (cp.AuthMode == AuthModePKI)
 }
 
 func (cp *ClientPolicy) servicesString() string {

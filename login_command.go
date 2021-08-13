@@ -67,6 +67,8 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 		lcmd.writeHeader(_LOGIN, 2)
 		lcmd.writeFieldStr(_USER, policy.User)
 		lcmd.writeFieldBytes(_CREDENTIAL, hashedPass)
+	case AuthModePKI:
+		lcmd.writeHeader(_LOGIN, 0)
 	default:
 		return newError(types.ResultCode(types.INVALID_COMMAND), "Invalid ClientPolicy.AuthMode.")
 	}
@@ -167,8 +169,12 @@ func (lcmd *loginCommand) authenticateViaToken(policy *ClientPolicy, conn *Conne
 }
 
 func (lcmd *loginCommand) setAuthenticate(policy *ClientPolicy, sessionToken []byte) Error {
-	lcmd.writeHeader(_AUTHENTICATE, 2)
-	lcmd.writeFieldStr(_USER, policy.User)
+	if policy.AuthMode != AuthModePKI {
+		lcmd.writeHeader(_AUTHENTICATE, 2)
+		lcmd.writeFieldStr(_USER, policy.User)
+	} else {
+		lcmd.writeHeader(_AUTHENTICATE, 1)
+	}
 
 	if sessionToken != nil {
 		// New authentication.
