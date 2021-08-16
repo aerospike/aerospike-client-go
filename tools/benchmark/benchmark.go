@@ -59,11 +59,12 @@ var keyCount = flag.Int("k", 1000000, "Key/record count or key/record range.")
 
 var user = flag.String("U", "", "User name.")
 var password = flag.String("P", "", "User password.")
-var authMode = flag.String("A", "internal", "Authentication mode: internal | external")
+var authMode = flag.String("A", "internal", "Authentication mode: internal | external | pki")
 
-var rootCA = flag.String("rootCA", "", "Root CA to validate client certificates (for mutual TLS).")
-var certFile = flag.String("certFile", "", "Server certificate.")
-var keyFile = flag.String("keyFile", "", "Private key associated with server certificate.")
+var tlsName = flag.String("tlsName", "", "TLS name.")
+var rootCA = flag.String("tlsCAFile", "", "Root CA to validate client certificates (for mutual TLS).")
+var certFile = flag.String("tlsCertFile", "", "Server certificate.")
+var keyFile = flag.String("tlsKeyFile", "", "Private key associated with server certificate.")
 var keyFilePassphrase = flag.String("keyFilePass", "", `Passphrase for encrypted keyFile. Supports:
    1. "<secret>" (secret directly)
    2. "file:<file-that-contains-secret>" (file containing secret)
@@ -144,14 +145,17 @@ func main() {
 
 	printBenchmarkParams()
 
-	*authMode = strings.ToLower(strings.TrimSpace(*authMode))
-	if *authMode != "internal" && *authMode != "external" {
-		log.Fatalln("Invalid auth mode: only `internal` and `external` values are accepted.")
-	}
-
 	clientPolicy := as.NewClientPolicy()
-	if *authMode == "external" {
+	*authMode = strings.ToLower(strings.TrimSpace(*authMode))
+	switch *authMode {
+	case "internal":
+		clientPolicy.AuthMode = as.AuthModeInternal
+	case "external":
 		clientPolicy.AuthMode = as.AuthModeExternal
+	case "pki":
+		clientPolicy.AuthMode = as.AuthModePKI
+	default:
+		log.Fatalln("Invalid auth mode: only `internal` and `external` values are accepted.")
 	}
 	// cache lots of connections
 	clientPolicy.ConnectionQueueSize = *connQueueSize
@@ -163,7 +167,9 @@ func main() {
 	clientPolicy.OpeningConnectionThreshold = *openingConnectionThreshold
 	clientPolicy.MinConnectionsPerNode = *minConnsPerNode
 	clientPolicy.TlsConfig = initAerospikeTLS()
-	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+	dbHost := as.NewHost(*host, *port)
+	dbHost.TLSName = *tlsName
+	client, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -215,13 +221,14 @@ func throughputToString() string {
 }
 
 func printBenchmarkParams() {
-	logger.Printf("hosts:\t\t%s", *host)
+	logger.Printf("host:\t\t%s", *host)
+	logger.Printf("tls name:\t\t%s", *tlsName)
 	logger.Printf("port:\t\t%d", *port)
 	logger.Printf("namespace:\t%s", *namespace)
 	logger.Printf("set:\t\t%s", *set)
 	logger.Printf("keys/records:\t%d", *keyCount)
 	logger.Printf("object spec:\t%s, size: %d", binDataType, binDataSize)
-	logger.Printf("random bin values:\t%v", *randBinData)
+	logger.Printf("rnd bin values:\t%v", *randBinData)
 	logger.Printf("workload:\t\t%s", workloadToString())
 	logger.Printf("concurrency:\t%d", *concurrency)
 	logger.Printf("max throughput:\t%s", throughputToString())
@@ -234,6 +241,9 @@ func printBenchmarkParams() {
 	logger.Printf("root CA file:\t%s", *rootCA)
 	logger.Printf("cert file:\t%s", *certFile)
 	logger.Printf("key file:\t\t%s", *keyFile)
+	logger.Printf("auth mode:\t%s", *authMode)
+	logger.Printf("user:\t\t%s", *user)
+	logger.Printf("password:\t\t%s", *password)
 }
 
 // parses an string of (key:value) type
