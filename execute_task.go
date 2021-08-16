@@ -48,7 +48,7 @@ func (etsk *ExecuteTask) IsDone() (bool, Error) {
 	}
 
 	oldCommand := "jobs:module=" + module + ";cmd=get-job;trid=" + strconv.FormatUint(etsk.taskID, 10)
-	newCommand := module + "-show;trid=" + strconv.FormatUint(etsk.taskID, 10)
+	newCommand := module + "-show:trid=" + strconv.FormatUint(etsk.taskID, 10)
 
 	nodes := etsk.cluster.GetNodes()
 
