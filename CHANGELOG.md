@@ -1,5 +1,18 @@
 # Change History
 
+## August 16 2021: v5.4.0
+
+  * **New Features**
+
+    - [CLIENT-1576] Support a list of preferred racks rather than a single rack when replica is `PREFER_RACK`.
+    - [CLIENT-1577] Support PKI authentication where the TLS certificate's common name (CN) specifies the Aerospike user name.
+    - [CLIENT-1578] Support `scan-show` and `query-show` info commands.
+
+  * **Improvements**
+
+    - Run fewer iterations for CDT RSHIFTEX and LSHIFTEX.
+    - Add PKI authentication to the benchmark utility.
+
 ## August 2 2021: v5.3.0
 
   * **Improvements**
