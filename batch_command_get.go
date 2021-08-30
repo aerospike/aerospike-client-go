@@ -25,7 +25,8 @@ type batchCommandGet struct {
 	batchCommand
 
 	keys         []*Key
-	binNames     []string
+	binNames     []string     // binNames are mutually exclusive with ops
+	ops          []*Operation // ops are mutually exclusive with binNames
 	records      []*Record
 	indexRecords []*BatchRead
 	readAttr     int
@@ -53,16 +54,19 @@ func newBatchCommandGet(
 	policy *BatchPolicy,
 	keys []*Key,
 	binNames []string,
+	ops []*Operation,
 	records []*Record,
 	readAttr int,
+	isOperation bool,
 ) *batchCommandGet {
 	res := &batchCommandGet{
 		batchCommand: batchCommand{
-			baseMultiCommand: *newMultiCommand(node, nil),
+			baseMultiCommand: *newMultiCommand(node, nil, isOperation),
 			policy:           policy,
 			batch:            batch,
 		},
 		keys:     keys,
+		ops:      ops,
 		binNames: binNames,
 		records:  records,
 		readAttr: readAttr,
@@ -79,7 +83,7 @@ func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode) batcher {
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) Error {
-	return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, cmd.binNames, cmd.readAttr)
+	return cmd.setBatchRead(cmd.policy, cmd.keys, cmd.batch, cmd.binNames, cmd.ops, cmd.readAttr)
 }
 
 // Parse all results in the batch.  Add records to shared list.
@@ -176,7 +180,19 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expir
 			return nil, err
 		}
 
-		bins[name] = value
+		if cmd.isOperation {
+			if prev, ok := bins[name]; ok {
+				if prev2, ok := prev.(OpResults); ok {
+					bins[name] = append(prev2, value)
+				} else {
+					bins[name] = OpResults{prev, value}
+				}
+			} else {
+				bins[name] = value
+			}
+		} else {
+			bins[name] = value
+		}
 	}
 
 	return newRecord(cmd.node, key, bins, generation, expiration), nil

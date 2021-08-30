@@ -416,6 +416,9 @@ func tryConcreteValue(v interface{}) Value {
 	return nil
 }
 
+// OpResults encapsulates the results of read operations
+type OpResults []interface{}
+
 // NewValue generates a new Value object based on the type.
 // If the type is not supported, NewValue will panic.
 // This method is a convenience method, and should not be used

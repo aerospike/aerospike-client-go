@@ -1032,6 +1032,27 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 					for idx, rec := range brecords {
 						if exList[idx].shouldExist {
+							gm.Expect(len(rec.Record.Bins)).To(gm.Equal(2))
+							gm.Expect(rec.Record.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
+							gm.Expect(rec.Record.Key).To(gm.Equal(keys[idx]))
+						} else {
+							gm.Expect(rec.Record).To(gm.BeNil())
+						}
+					}
+
+					brecords = make([]*as.BatchRead, len(keys))
+					for i := range keys {
+						brecords[i] = &as.BatchRead{
+							Key:         keys[i],
+							ReadAllBins: false,
+							BinNames:    []string{bin.Name},
+						}
+					}
+					err = client.BatchGetComplex(bpolicy, brecords)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					for idx, rec := range brecords {
+						if exList[idx].shouldExist {
+							gm.Expect(len(rec.Record.Bins)).To(gm.Equal(1))
 							gm.Expect(rec.Record.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
 							gm.Expect(rec.Record.Key).To(gm.Equal(keys[idx]))
 						} else {
@@ -1188,6 +1209,96 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 
 		}) // GetHeader context
+
+		gg.Context("BatchOperate", func() {
+
+			gg.It("must execute BatchGetOperate with Operations", func() {
+				const keyCount = 10
+				const listSize = 10
+				const cdtBinName = "cdtBin"
+
+				keys := make([]*as.Key, 10)
+				for i := 0; i < keyCount; i++ {
+					keys[i], err = as.NewKey(ns, set, randString(10))
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+				}
+
+				// First Part: For CDTs
+				list := []interface{}{}
+				for j, key := range keys {
+					for i := 1; i <= listSize; i++ {
+						list = append(list, i*100)
+
+						sz, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, j+i*100))
+						gm.Expect(err).ToNot(gm.HaveOccurred())
+						gm.Expect(sz.Bins[cdtBinName]).To(gm.Equal(i))
+					}
+				}
+
+				records, err := client.BatchGetOperate(bpolicy, keys,
+					as.ListSizeOp(cdtBinName),
+					as.ListGetByIndexOp(cdtBinName, -1, as.ListReturnTypeValue),
+					as.ListGetByIndexOp(cdtBinName, 0, as.ListReturnTypeValue),
+					as.ListGetByIndexOp(cdtBinName, 2, as.ListReturnTypeValue),
+				)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				for i, key := range keys {
+					rec := records[i]
+					gm.Expect(rec.Key.Digest()).To(gm.Equal(key.Digest()))
+					gm.Expect(rec.Bins[cdtBinName]).To(gm.Equal(as.OpResults{listSize, i + listSize*100, i + 100, i + 300}))
+				}
+
+			})
+
+			gg.It("must execute BatchGetComplex with Operations", func() {
+				const keyCount = 10
+				const listSize = 10
+				const cdtBinName = "cdtBin"
+
+				keys := make([]*as.Key, 10)
+				for i := 0; i < keyCount; i++ {
+					keys[i], err = as.NewKey(ns, set, randString(10))
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+				}
+
+				brecords := make([]*as.BatchRead, len(keys))
+				for i := range keys {
+					brecords[i] = &as.BatchRead{
+						Key:         keys[i],
+						ReadAllBins: false, // just to check if the internal flags are set correctly regardless
+						Ops: []*as.Operation{
+							as.ListSizeOp(cdtBinName),
+							as.ListGetByIndexOp(cdtBinName, -1, as.ListReturnTypeValue),
+							as.ListGetByIndexOp(cdtBinName, 0, as.ListReturnTypeValue),
+							as.ListGetByIndexOp(cdtBinName, 2, as.ListReturnTypeValue),
+						},
+					}
+				}
+
+				// First Part: For CDTs
+				list := []interface{}{}
+				for j, key := range keys {
+					for i := 1; i <= listSize; i++ {
+						list = append(list, i*100)
+
+						sz, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, j+i*100))
+						gm.Expect(err).ToNot(gm.HaveOccurred())
+						gm.Expect(sz.Bins[cdtBinName]).To(gm.Equal(i))
+					}
+				}
+
+				err = client.BatchGetComplex(bpolicy, brecords)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				for i, key := range keys {
+					rec := brecords[i].Record
+					gm.Expect(rec.Key.Digest()).To(gm.Equal(key.Digest()))
+					gm.Expect(rec.Bins[cdtBinName]).To(gm.Equal(as.OpResults{listSize, i + listSize*100, i + 100, i + 300}))
+				}
+
+			})
+		})
 
 		gg.Context("Batch Get Header operations", func() {
 			bin := as.NewBin("Aerospike", rand.Int())

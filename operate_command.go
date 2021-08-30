@@ -17,28 +17,12 @@ package aerospike
 type operateCommand struct {
 	readCommand
 
-	policy     *WritePolicy
-	operations []*Operation
-
-	hasWrite bool
+	policy *WritePolicy
+	args   operateArgs
 }
 
-func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operations []*Operation) (operateCommand, Error) {
-	hasWrite := hasWriteOp(operations)
-
-	var partition *Partition
-	var err Error
-	if hasWrite {
-		partition, err = PartitionForWrite(cluster, &policy.BasePolicy, key)
-	} else {
-		partition, err = PartitionForRead(cluster, &policy.BasePolicy, key)
-	}
-
-	if err != nil {
-		return operateCommand{}, err
-	}
-
-	rdCommand, err := newReadCommand(cluster, &policy.BasePolicy, key, nil, partition)
+func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, args operateArgs) (operateCommand, Error) {
+	rdCommand, err := newReadCommand(cluster, &policy.BasePolicy, key, nil, args.partition)
 	if err != nil {
 		return operateCommand{}, err
 	}
@@ -46,19 +30,16 @@ func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, operatio
 	return operateCommand{
 		readCommand: rdCommand,
 		policy:      policy,
-		operations:  operations,
-
-		hasWrite: hasWrite,
+		args:        args,
 	}, nil
 }
 
 func (cmd *operateCommand) writeBuffer(ifc command) (err Error) {
-	cmd.hasWrite, err = cmd.setOperate(cmd.policy, cmd.key, cmd.operations)
-	return err
+	return cmd.setOperate(cmd.policy, cmd.key, &cmd.args)
 }
 
 func (cmd *operateCommand) getNode(ifc command) (*Node, Error) {
-	if cmd.hasWrite {
+	if cmd.args.hasWrite {
 		return cmd.partition.GetNodeWrite(cmd.cluster)
 	}
 
@@ -67,7 +48,7 @@ func (cmd *operateCommand) getNode(ifc command) (*Node, Error) {
 }
 
 func (cmd *operateCommand) prepareRetry(ifc command, isTimeout bool) bool {
-	if cmd.hasWrite {
+	if cmd.args.hasWrite {
 		cmd.partition.PrepareRetryWrite(isTimeout)
 	} else {
 		cmd.partition.PrepareRetryRead(isTimeout)
@@ -76,7 +57,7 @@ func (cmd *operateCommand) prepareRetry(ifc command, isTimeout bool) bool {
 }
 
 func (cmd *operateCommand) Execute() Error {
-	return cmd.execute(cmd, !cmd.hasWrite)
+	return cmd.execute(cmd, !cmd.args.hasWrite)
 }
 
 func hasWriteOp(operations []*Operation) bool {

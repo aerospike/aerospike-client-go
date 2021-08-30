@@ -41,7 +41,7 @@ var _ = gg.Describe("CDT List Test", func() {
 			return
 		}
 
-		key, err = as.NewKey(ns, set, randString(50))
+		key, err = as.NewKey(ns, set, "randString(50)")
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		cdtBinName = randString(10)
@@ -80,6 +80,9 @@ var _ = gg.Describe("CDT List Test", func() {
 
 		// make a fresh list before each operation
 		gg.BeforeEach(func() {
+			_, err = client.Delete(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
 			list = []interface{}{}
 
 			for i := 1; i <= listSize; i++ {
@@ -523,7 +526,7 @@ var _ = gg.Describe("CDT List Test", func() {
 			for i := 0; i < listSize; i++ {
 				cdtListRes, err := client.Operate(wpolicy, key, as.ListSetOp(cdtBinName, i, math.MaxInt64))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-				gm.Expect(cdtListRes.Bins).To(gm.Equal(as.BinMap{}))
+				gm.Expect(cdtListRes.Bins).To(gm.Equal(as.BinMap{cdtBinName: nil}))
 
 				elems = append(elems, math.MaxInt64)
 
@@ -536,7 +539,7 @@ var _ = gg.Describe("CDT List Test", func() {
 		gg.It("should set the last element", func() {
 			cdtListRes, err := client.Operate(wpolicy, key, as.ListSetOp(cdtBinName, -1, math.MaxInt64))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(cdtListRes.Bins).To(gm.Equal(as.BinMap{}))
+			gm.Expect(cdtListRes.Bins).To(gm.Equal(as.BinMap{cdtBinName: nil}))
 
 			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetOp(cdtBinName, -1))
 			gm.Expect(err).ToNot(gm.HaveOccurred())

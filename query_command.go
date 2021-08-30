@@ -25,7 +25,7 @@ type queryCommand struct {
 
 func newQueryCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, operations []*Operation, recordset *Recordset) *queryCommand {
 	return &queryCommand{
-		baseMultiCommand: *newStreamingMultiCommand(node, recordset, statement.Namespace),
+		baseMultiCommand: *newStreamingMultiCommand(node, recordset, statement.Namespace, false),
 		policy:           policy,
 		writePolicy:      writePolicy,
 		statement:        statement,

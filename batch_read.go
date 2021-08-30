@@ -25,6 +25,7 @@ type BatchRead struct {
 	Key *Key
 
 	// BinNames specifies the Bins to retrieve for this key.
+	// BinNames are mutually exclusive with Ops.
 	BinNames []string
 
 	// ReadAllBins defines what data should be read from the record.
@@ -35,6 +36,12 @@ type BatchRead struct {
 
 	// Record result after batch command has completed.  Will be null if record was not found.
 	Record *Record
+
+	// Ops specifies the operations to perform for every key.
+	// Ops are mutually exclusive with BinNames.
+	// A binName can be emulated with GetOp(String)
+	// Supported by server v5.6.0+.
+	Ops []*Operation
 }
 
 // NewBatchRead defines a key and bins to retrieve in a batch operation.
@@ -42,6 +49,21 @@ func NewBatchRead(key *Key, binNames []string) *BatchRead {
 	res := &BatchRead{
 		Key:      key,
 		BinNames: binNames,
+	}
+
+	if len(binNames) == 0 {
+		res.ReadAllBins = true
+	}
+
+	return res
+}
+
+// NewBatchReadOps defines a key and bins to retrieve in a batch operation, including expressions.
+func NewBatchReadOps(key *Key, binNames []string, ops []*Operation) *BatchRead {
+	res := &BatchRead{
+		Key:      key,
+		BinNames: binNames,
+		Ops:      ops,
 	}
 
 	if len(binNames) == 0 {

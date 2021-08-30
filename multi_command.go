@@ -29,6 +29,8 @@ type baseMultiCommand struct {
 	namespace string
 	recordset *Recordset
 
+	isOperation bool
+
 	// Used in correct Scans/Queries
 	tracker        *partitionTracker
 	nodePartitions *nodePartitions
@@ -53,12 +55,13 @@ var multiObjectParser func(
 
 var prepareReflectionData func(cmd *baseMultiCommand)
 
-func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
+func newMultiCommand(node *Node, recordset *Recordset, isOperation bool) *baseMultiCommand {
 	cmd := &baseMultiCommand{
 		baseCommand: baseCommand{
 			node: node,
 		},
-		recordset: recordset,
+		recordset:   recordset,
+		isOperation: isOperation,
 	}
 
 	if prepareReflectionData != nil {
@@ -67,14 +70,15 @@ func newMultiCommand(node *Node, recordset *Recordset) *baseMultiCommand {
 	return cmd
 }
 
-func newStreamingMultiCommand(node *Node, recordset *Recordset, namespace string) *baseMultiCommand {
+func newStreamingMultiCommand(node *Node, recordset *Recordset, namespace string, isOperation bool) *baseMultiCommand {
 	cmd := &baseMultiCommand{
 		baseCommand: baseCommand{
 			node:    node,
 			oneShot: true,
 		},
-		namespace: namespace,
-		recordset: recordset,
+		namespace:   namespace,
+		recordset:   recordset,
+		isOperation: isOperation,
 	}
 
 	if prepareReflectionData != nil {
@@ -326,7 +330,20 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 				if bins == nil {
 					bins = make(BinMap, opCount)
 				}
-				bins[name] = value
+
+				if cmd.isOperation {
+					if prev, ok := bins[name]; ok {
+						if prev2, ok := prev.(OpResults); ok {
+							bins[name] = append(prev2, value)
+						} else {
+							bins[name] = OpResults{prev, value}
+						}
+					} else {
+						bins[name] = value
+					}
+				} else {
+					bins[name] = value
+				}
 			}
 
 			// If the channel is full and it blocks, we don't want this command to

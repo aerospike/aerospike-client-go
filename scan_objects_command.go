@@ -35,7 +35,7 @@ func newScanObjectsCommand(
 	recordset *Recordset,
 ) *scanObjectsCommand {
 	cmd := &scanObjectsCommand{
-		baseMultiCommand: *newStreamingMultiCommand(node, recordset, namespace),
+		baseMultiCommand: *newStreamingMultiCommand(node, recordset, namespace, false),
 		policy:           policy,
 		namespace:        namespace,
 		setName:          setName,

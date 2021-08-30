@@ -35,7 +35,7 @@ func newBatchCommandExists(
 ) *batchCommandExists {
 	res := &batchCommandExists{
 		batchCommand: batchCommand{
-			baseMultiCommand: *newMultiCommand(node, nil),
+			baseMultiCommand: *newMultiCommand(node, nil, false),
 			policy:           policy,
 			batch:            batch,
 		},
@@ -54,7 +54,7 @@ func (cmd *batchCommandExists) cloneBatchCommand(batch *batchNode) batcher {
 }
 
 func (cmd *batchCommandExists) writeBuffer(ifc command) Error {
-	return cmd.setBatchIndexReadCompat(cmd.policy, cmd.keys, cmd.batch, nil, _INFO1_READ|_INFO1_NOBINDATA)
+	return cmd.setBatchRead(cmd.policy, cmd.keys, cmd.batch, nil, nil, _INFO1_READ|_INFO1_NOBINDATA)
 }
 
 // Parse all results in the batch.  Add records to shared list.

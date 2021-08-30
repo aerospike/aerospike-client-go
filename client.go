@@ -391,7 +391,37 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 		return nil, err
 	}
 
-	cmd := newBatchCommandGet(nil, nil, policy, keys, binNames, records, _INFO1_READ)
+	cmd := newBatchCommandGet(nil, nil, policy, keys, binNames, nil, records, _INFO1_READ, false)
+	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
+	if err != nil && !policy.AllowPartialResults {
+		return nil, err
+	}
+
+	if filteredOut > 0 {
+		err = chainErrors(ErrFilteredOut.err(), err)
+	}
+
+	return records, err
+}
+
+// BatchGetOperate reads multiple records for specified keys using read operations in one batch call.
+// The returned records are in positional order with the original key array order.
+// If a key is not found, the positional record will be null.
+//
+// If a batch request to a node fails, the entire batch is cancelled.
+func (clnt *Client) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Operation) ([]*Record, Error) {
+	policy = clnt.getUsableBatchPolicy(policy)
+
+	// same array can be used without synchronization;
+	// when a key exists, the corresponding index will be set to record
+	records := make([]*Record, len(keys))
+
+	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := newBatchCommandGet(nil, nil, policy, keys, nil, ops, records, _INFO1_READ, true)
 	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
 		return nil, err
@@ -413,7 +443,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) Error {
 	policy = clnt.getUsableBatchPolicy(policy)
 
-	cmd := newBatchIndexCommandGet(nil, policy, records)
+	cmd := newBatchIndexCommandGet(nil, policy, records, true)
 
 	batchNodes, err := newBatchIndexNodeList(clnt.cluster, policy, records)
 	if err != nil {
@@ -449,7 +479,7 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 		return nil, err
 	}
 
-	cmd := newBatchCommandGet(nil, nil, policy, keys, nil, records, _INFO1_READ|_INFO1_NOBINDATA)
+	cmd := newBatchCommandGet(nil, nil, policy, keys, nil, nil, records, _INFO1_READ|_INFO1_NOBINDATA, false)
 	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
 		return nil, err
@@ -473,7 +503,11 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operation) (*Record, Error) {
 	policy = clnt.getUsableWritePolicy(policy)
-	command, err := newOperateCommand(clnt.cluster, policy, key, operations)
+	args, err := newOperateArgs(clnt.cluster, policy, key, operations)
+	if err != nil {
+		return nil, err
+	}
+	command, err := newOperateCommand(clnt.cluster, policy, key, args)
 	if err != nil {
 		return nil, err
 	}

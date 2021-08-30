@@ -15,31 +15,35 @@
 package aerospike
 
 // OperationType determines operation type
-type OperationType *struct{ op byte }
+type OperationType struct {
+	op      byte
+	isWrite bool
+}
+
 type operationSubType *int
 
 // Valid OperationType values that can be used to create custom Operations.
 // The names are self-explanatory.
 var (
-	_READ OperationType = &struct{ op byte }{1}
-	// READ_HEADER *OperationType = &struct{op:  1 }
+	_READ = OperationType{1, false}
+	// READ_HEADER OperationType = {1, false }
 
-	_WRITE      OperationType = &struct{ op byte }{2}
-	_CDT_READ   OperationType = &struct{ op byte }{3}
-	_CDT_MODIFY OperationType = &struct{ op byte }{4}
-	_MAP_READ   OperationType = &struct{ op byte }{3}
-	_MAP_MODIFY OperationType = &struct{ op byte }{4}
-	_ADD        OperationType = &struct{ op byte }{5}
-	_EXP_READ   OperationType = &struct{ op byte }{7}
-	_EXP_MODIFY OperationType = &struct{ op byte }{8}
-	_APPEND     OperationType = &struct{ op byte }{9}
-	_PREPEND    OperationType = &struct{ op byte }{10}
-	_TOUCH      OperationType = &struct{ op byte }{11}
-	_BIT_READ   OperationType = &struct{ op byte }{12}
-	_BIT_MODIFY OperationType = &struct{ op byte }{13}
-	_DELETE     OperationType = &struct{ op byte }{14}
-	_HLL_READ   OperationType = &struct{ op byte }{15}
-	_HLL_MODIFY OperationType = &struct{ op byte }{16}
+	_WRITE      = OperationType{2, true}
+	_CDT_READ   = OperationType{3, false}
+	_CDT_MODIFY = OperationType{4, true}
+	_MAP_READ   = OperationType{3, false}
+	_MAP_MODIFY = OperationType{4, true}
+	_ADD        = OperationType{5, true}
+	_EXP_READ   = OperationType{7, false}
+	_EXP_MODIFY = OperationType{8, true}
+	_APPEND     = OperationType{9, true}
+	_PREPEND    = OperationType{10, true}
+	_TOUCH      = OperationType{11, true}
+	_BIT_READ   = OperationType{12, false}
+	_BIT_MODIFY = OperationType{13, true}
+	_DELETE     = OperationType{14, true}
+	_HLL_READ   = OperationType{15, false}
+	_HLL_MODIFY = OperationType{16, true}
 )
 
 // Operation contains operation definition.

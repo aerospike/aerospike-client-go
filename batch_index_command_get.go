@@ -22,6 +22,7 @@ func newBatchIndexCommandGet(
 	batch *batchNode,
 	policy *BatchPolicy,
 	records []*BatchRead,
+	isOperation bool,
 ) *batchIndexCommandGet {
 	var node *Node
 	if batch != nil {
@@ -31,7 +32,7 @@ func newBatchIndexCommandGet(
 	res := &batchIndexCommandGet{
 		batchCommandGet{
 			batchCommand: batchCommand{
-				baseMultiCommand: *newMultiCommand(node, nil),
+				baseMultiCommand: *newMultiCommand(node, nil, isOperation),
 				policy:           policy,
 				batch:            batch,
 			},
