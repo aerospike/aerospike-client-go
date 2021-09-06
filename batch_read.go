@@ -39,7 +39,7 @@ type BatchRead struct {
 
 	// Ops specifies the operations to perform for every key.
 	// Ops are mutually exclusive with BinNames.
-	// A binName can be emulated with GetOp(String)
+	// A binName can be emulated with `GetOp(binName)`
 	// Supported by server v5.6.0+.
 	Ops []*Operation
 }

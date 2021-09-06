@@ -416,7 +416,7 @@ func tryConcreteValue(v interface{}) Value {
 	return nil
 }
 
-// OpResults encapsulates the results of read operations
+// OpResults encapsulates the results of batch read operations
 type OpResults []interface{}
 
 // NewValue generates a new Value object based on the type.

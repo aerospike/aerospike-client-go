@@ -41,7 +41,7 @@ var _ = gg.Describe("CDT List Test", func() {
 			return
 		}
 
-		key, err = as.NewKey(ns, set, "randString(50)")
+		key, err = as.NewKey(ns, set, randString(50))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		cdtBinName = randString(10)
