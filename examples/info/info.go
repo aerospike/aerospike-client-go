@@ -28,10 +28,19 @@ func main() {
 	// connect to the host
 	cp := as.NewClientPolicy()
 	cp.Timeout = 10 * time.Second
+
+	// cp.User = "admin"
+	// cp.Password = "admin"
+
 	conn, err := as.NewConnection(cp, as.NewHost("localhost", 3000))
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
+
+	// Login if needed
+	// if err := conn.Login(cp); err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
 
 	infoMap, err := conn.RequestInfo("")
 	if err != nil {
@@ -40,7 +49,7 @@ func main() {
 
 	cnt := 1
 	for k, v := range infoMap {
-		log.Printf("%d :  %s\n     %s\n\n", cnt, k, v)
+		log.Printf("%d :  %s\n     %s\n", cnt, k, v)
 		cnt++
 	}
 }
