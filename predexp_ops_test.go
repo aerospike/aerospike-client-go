@@ -363,7 +363,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 		gg.It("should work for UDF", func() {
 			registerUDF()
 
-			_, err := client.Execute(predAEq1WPolicy, keyA, "record_example", "writeBin", as.StringValue(binA3.Name), binA3.Value)
+			_, err := client.Execute(predAEq1WPolicy, keyA, "udf1", "writeBin", as.StringValue(binA3.Name), binA3.Value)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			r, err := client.Get(nil, keyA)
@@ -371,7 +371,7 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 
 			gm.Expect(r.Bins[binA3.Name]).To(gm.Equal(binA3.Value.GetObject()))
 
-			_, err = client.Execute(predAEq1WPolicy, keyB, "record_example", "writeBin", as.StringValue(binA3.Name), binA3.Value)
+			_, err = client.Execute(predAEq1WPolicy, keyB, "udf1", "writeBin", as.StringValue(binA3.Name), binA3.Value)
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
 
@@ -383,10 +383,10 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 		gg.It("should work for UDF Except...", func() {
 			registerUDF()
 
-			_, err := client.Execute(predAEq1WPolicy, keyA, "record_example", "writeBin", as.StringValue(binA3.Name), binA3.Value)
+			_, err := client.Execute(predAEq1WPolicy, keyA, "udf1", "writeBin", as.StringValue(binA3.Name), binA3.Value)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			_, err = client.Execute(predAEq1WPolicy, keyB, "record_example", "writeBin", as.StringValue(binA3.Name), binA3.Value)
+			_, err = client.Execute(predAEq1WPolicy, keyB, "udf1", "writeBin", as.StringValue(binA3.Name), binA3.Value)
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
 		})
