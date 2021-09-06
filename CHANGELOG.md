@@ -1,5 +1,19 @@
 # Change History
 
+## September 6 2021: v5.5.0
+
+  * **New Features**
+
+    - [CLIENT-1586] Support Batch Read Operations.
+
+  * **Improvements**
+
+    - Add authentication to info example.
+
+  * **Fixes**
+
+    - Fix the worng udf name in predexp test.
+
 ## August 16 2021: v5.4.0
 
   * **New Features**
