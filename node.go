@@ -40,13 +40,12 @@ const (
 
 // Node represents an Aerospike Database Server Node
 type Node struct {
-	cluster            *Cluster
-	name               string
-	host               *Host
-	aliases            atomic.Value //[]*Host
-	stats              nodeStats
-	_sessionToken      atomic.Value //[]byte
-	_sessionExpiration atomic.Value //time.Time
+	cluster     *Cluster
+	name        string
+	host        *Host
+	aliases     atomic.Value //[]*Host
+	stats       nodeStats
+	sessionInfo atomic.Value //*sessionInfo
 
 	racks atomic.Value //map[string]int
 
@@ -79,8 +78,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	newNode := &Node{
 		cluster: cluster,
 		name:    nv.name,
-		// address: nv.primaryAddress,
-		host: nv.primaryHost,
+		host:    nv.primaryHost,
 
 		features: nv.features,
 
@@ -99,7 +97,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	}
 
 	newNode.aliases.Store(nv.aliases)
-	newNode._sessionToken.Store(nv.sessionToken)
+	newNode.sessionInfo.Store(nv.sessionInfo)
 	newNode.racks.Store(map[string]int{})
 
 	// this will reset to zero on first aggregation on the cluster,
@@ -183,17 +181,15 @@ func (nd *Node) Refresh(peers *peers) Error {
 // refreshSessionToken refreshes the session token if it has been expired
 func (nd *Node) refreshSessionToken() Error {
 	// no session token to refresh
-	if !nd.cluster.clientPolicy.RequiresAuthentication() || nd.cluster.clientPolicy.AuthMode != AuthModeExternal {
+	if !nd.cluster.clientPolicy.RequiresAuthentication() {
 		return nil
 	}
 
-	var deadline time.Time
-	deadlineIfc := nd._sessionExpiration.Load()
-	if deadlineIfc != nil {
-		deadline = deadlineIfc.(time.Time)
-	}
+	st := nd.sessionInfo.Load().(*sessionInfo)
 
-	if deadline.IsZero() || time.Now().Before(deadline) {
+	// Consider when the next tend will be in this calculation. If the next tend will be too late,
+	// refresh the sessionInfo now.
+	if st.expiration.IsZero() || time.Now().Before(st.expiration.Add(-nd.cluster.clientPolicy.TendInterval)) {
 		return nil
 	}
 
@@ -206,14 +202,14 @@ func (nd *Node) refreshSessionToken() Error {
 
 	command := newLoginCommand(nd.tendConn.dataBuffer)
 	if err := command.login(&nd.cluster.clientPolicy, nd.tendConn, nd.cluster.Password()); err != nil {
+		// force new connections to use default creds until a new valid session token is acquired
+		nd.resetSessionInfo()
 		// Socket not authenticated. Do not put back into pool.
 		nd.tendConn.Close()
 		return err
 	}
 
-	nd._sessionToken.Store(command.SessionToken)
-	nd._sessionExpiration.Store(command.SessionExpiration)
-
+	nd.sessionInfo.Store(command.sessionInfo())
 	return nil
 }
 
@@ -499,8 +495,9 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 	conn.node = nd
 
+	sessionInfo := nd.sessionInfo.Load().(*sessionInfo)
 	// need to authenticate
-	if err = conn.login(&nd.cluster.clientPolicy, nd.cluster.Password(), nd.sessionToken()); err != nil {
+	if err = conn.login(&nd.cluster.clientPolicy, nd.cluster.Password(), sessionInfo); err != nil {
 		// increment node errors if authentication hit a network error
 		if networkError(err) {
 			nd.incrErrorCount()
@@ -818,24 +815,21 @@ func (nd *Node) RequestStats(policy *InfoPolicy) (map[string]string, Error) {
 	return res, nil
 }
 
+// resetSessionInfo resets the sessionInfo after an
+// unsuccessful authentication with token
+func (nd *Node) resetSessionInfo() {
+	nd.sessionInfo.Store(sessionInfo{})
+}
+
 // sessionToken returns the session token for the node.
 // It will return nil if the session has expired.
 func (nd *Node) sessionToken() []byte {
-	var deadline time.Time
-	deadlineIfc := nd._sessionExpiration.Load()
-	if deadlineIfc != nil {
-		deadline = deadlineIfc.(time.Time)
-	}
-
-	if deadline.IsZero() || time.Now().After(deadline) {
+	si := nd.sessionInfo.Load().(*sessionInfo)
+	if !si.isValid() {
 		return nil
 	}
 
-	st := nd._sessionToken.Load()
-	if st != nil {
-		return st.([]byte)
-	}
-	return nil
+	return si.token
 }
 
 // Rack returns the rack number for the namespace.

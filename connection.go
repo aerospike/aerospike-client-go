@@ -331,16 +331,28 @@ func (ctn *Connection) Close() {
 }
 
 // Login will send authentication information to the server.
-func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessionToken []byte) Error {
+func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessionInfo *sessionInfo) Error {
 	// need to authenticate
 	if policy.RequiresAuthentication() {
 		var err Error
 		command := newLoginCommand(ctn.dataBuffer)
 
-		if sessionToken == nil {
+		if !sessionInfo.isValid() {
 			err = command.login(policy, ctn, hashedPassword)
 		} else {
-			err = command.authenticateViaToken(policy, ctn, sessionToken)
+			err = command.authenticateViaToken(policy, ctn, sessionInfo.token)
+			if err != nil && err.Matches(types.INVALID_CREDENTIAL, types.EXPIRED_SESSION) {
+				// invalidate the token
+				if ctn.node != nil {
+					ctn.node.resetSessionInfo()
+				}
+
+				// retry via user/pass
+				if hashedPassword != nil {
+					command = newLoginCommand(ctn.dataBuffer)
+					err = command.login(policy, ctn, hashedPassword)
+				}
+			}
 		}
 
 		if err != nil {
@@ -352,9 +364,9 @@ func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessio
 			return err
 		}
 
-		if ctn.node != nil && command.SessionToken != nil {
-			ctn.node._sessionToken.Store(command.SessionToken)
-			ctn.node._sessionExpiration.Store(command.SessionExpiration)
+		si := command.sessionInfo()
+		if ctn.node != nil && si.isValid() {
+			ctn.node.sessionInfo.Store(si)
 		}
 	}
 

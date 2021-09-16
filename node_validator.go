@@ -20,7 +20,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/aerospike/aerospike-client-go/v5/logger"
 	"github.com/aerospike/aerospike-client-go/v5/types"
@@ -46,8 +45,7 @@ type nodeValidator struct {
 
 	detectLoadBalancer bool
 
-	sessionToken      []byte
-	SessionExpiration time.Time
+	sessionInfo *sessionInfo
 
 	features int
 }
@@ -161,8 +159,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 			return err
 		}
 
-		ndv.sessionToken = acmd.SessionToken
-		ndv.SessionExpiration = acmd.SessionExpiration
+		ndv.sessionInfo = acmd.sessionInfo()
 	}
 
 	// check to make sure we have actually connected
@@ -274,8 +271,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 							continue
 						}
 
-						ndv.sessionToken = acmd.SessionToken
-						ndv.SessionExpiration = acmd.SessionExpiration
+						ndv.sessionInfo = acmd.sessionInfo()
 					}
 
 					alias = h

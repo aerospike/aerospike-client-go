@@ -20,10 +20,21 @@ import (
 	"github.com/aerospike/aerospike-client-go/v5/logger"
 	"github.com/aerospike/aerospike-client-go/v5/types"
 
-	// "github.com/aerospike/aerospike-client-go/v5/pkg/bcrypt"
-
 	Buffer "github.com/aerospike/aerospike-client-go/v5/utils/buffer"
 )
+
+type sessionInfo struct {
+	token      []byte
+	expiration time.Time
+}
+
+func (si *sessionInfo) isValid() bool {
+	if si.token == nil || si.expiration.IsZero() || time.Now().After(si.expiration) {
+		return false
+	}
+
+	return true
+}
 
 // Login command authenticates to the server.
 // If the authentication is external, Session Information will be returned.
@@ -41,6 +52,13 @@ func newLoginCommand(buf []byte) *loginCommand {
 	return &loginCommand{
 		AdminCommand: *NewAdminCommand(buf),
 	}
+}
+
+func (lcmd *loginCommand) sessionInfo() *sessionInfo {
+	if lcmd.SessionToken != nil {
+		return &sessionInfo{token: lcmd.SessionToken, expiration: lcmd.SessionExpiration}
+	}
+	return &sessionInfo{}
 }
 
 // Login tries to authenticate to the aerospike server. Depending on the server configuration and ClientPolicy,
@@ -128,7 +146,9 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 
 		switch id {
 		case _SESSION_TOKEN:
-			lcmd.SessionToken = lcmd.dataBuffer[lcmd.dataOffset : lcmd.dataOffset+mlen]
+			// copy the contents of the buffer into a new byte slice
+			lcmd.SessionToken = make([]byte, mlen)
+			copy(lcmd.SessionToken, lcmd.dataBuffer[lcmd.dataOffset:lcmd.dataOffset+mlen])
 		case _SESSION_TTL:
 			// Subtract 60 seconds from TTL so client session expires before server session.
 			seconds := int(Buffer.BytesToUint32(lcmd.dataBuffer, lcmd.dataOffset) - 60)
