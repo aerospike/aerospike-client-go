@@ -1,5 +1,11 @@
 # Change History
 
+## September 17 2021: v5.6.0
+
+  * **Fixes**
+
+- [OPS-5141] Invalidate Session Token on unsuccessful login, Copy token from the connection buffer, Consider Tend interval in session expiration calculations.
+
 ## September 6 2021: v5.5.0
 
   * **New Features**
