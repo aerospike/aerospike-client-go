@@ -25,6 +25,8 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -294,4 +296,62 @@ func readFromFile(filePath string) ([]byte, error) {
 	data := bytes.TrimSuffix(dataBytes, []byte("\n"))
 
 	return data, nil
+}
+
+/*
+
+	Version Comparison Code
+
+*/
+
+type versionStatus string
+
+const (
+	vsNewer versionStatus = "newer"
+	vsOlder versionStatus = "older"
+	vsEqual versionStatus = "equal"
+)
+
+func cmpServerVersion(v string) versionStatus {
+	var pattern = `(?P<v1>\d+)(\.(?P<v2>\d+)(\.(?P<v3>\d+)(\.(?P<v4>\d+))?)?)?.*`
+	var vmeta = regexp.MustCompile(pattern)
+
+	vs := info(client, "build")
+
+	server := findNamedMatches(vmeta, vs)
+	req := findNamedMatches(vmeta, v)
+
+	for i := 0; i < 4; i++ {
+		if req[i] < server[i] {
+			return vsNewer
+		} else if req[i] > server[i] {
+			return vsOlder
+		}
+	}
+
+	return vsEqual
+}
+
+func serverIsOlderThan(v string) bool {
+	return cmpServerVersion(v) == vsOlder
+}
+
+func serverIsNewerThan(v string) bool {
+	return cmpServerVersion(v) != vsOlder
+}
+
+func findNamedMatches(regex *regexp.Regexp, str string) []int {
+	match := regex.FindStringSubmatch(str)
+	names := regex.SubexpNames()
+	results := make([]int, len(names))
+
+	j := 0
+	for i, vstr := range match {
+		if len(names[i]) > 0 {
+			vr, _ := strconv.Atoi(vstr)
+			results[j] = vr
+			j++
+		}
+	}
+	return results[:j]
 }

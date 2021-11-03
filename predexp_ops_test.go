@@ -127,6 +127,13 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 		}
 	})
 
+	gg.BeforeEach(func() {
+		if serverIsNewerThan("5.8") {
+			gg.Skip("Server has removed Predexp")
+			return
+		}
+	})
+
 	var udfReg sync.Once
 
 	var registerUDF = func() {

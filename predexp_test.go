@@ -28,6 +28,13 @@ import (
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("predexp operations", func() {
 
+	gg.BeforeEach(func() {
+		if serverIsNewerThan("5.8") {
+			gg.Skip("Server has removed Predexp")
+			return
+		}
+	})
+
 	const keyCount = 1000
 
 	var ns = *namespace
