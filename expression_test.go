@@ -834,15 +834,26 @@ var _ = gg.Describe("Expression Filters", func() {
 					key, _ := as.NewKey(ns, set, i)
 					keys = append(keys, key)
 				}
+				results, err := client.BatchGet(bpolicy, keys)
+				// all keys other than one are filtered out, so error is returned
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				count := 0
+				for _, result := range results {
+					if result != nil {
+						count++
+					}
+				}
+				gm.Expect(count).To(gm.Equal(5))
 				bpolicy.FilterExpression = as.ExpGreater(
 					as.ExpIntBin("bin"),
 					as.ExpIntVal(88),
 				)
-				results, err := client.BatchGet(bpolicy, keys)
+				results, err = client.BatchGet(bpolicy, keys)
 				// all keys other than one are filtered out, so error is returned
 				gm.Expect(err).To(gm.HaveOccurred())
 
-				count := 0
+				count = 0
 				for _, result := range results {
 					if result != nil {
 						count++
