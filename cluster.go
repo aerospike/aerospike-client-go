@@ -193,7 +193,7 @@ Loop:
 			}
 
 			// Tending took longer than requested tend interval.
-			// Tending is too slow for the cluster, and may be falling behind scheule.
+			// Tending is too slow for the cluster, and may be falling behind schedule.
 			if tendDuration := time.Since(tm); tendDuration > clstr.clientPolicy.TendInterval {
 				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clstr.clientPolicy.TendInterval)
 			}
@@ -356,6 +356,9 @@ func (clstr *Cluster) tend() Error {
 				logger.Logger.Debug("The following nodes will be removed: %s", n)
 			}
 			clstr.removeNodes(removeList)
+
+			// remove departed nodes from the partition map
+			partMap.removeNodes(removeList)
 		}
 
 		clstr.aggregateNodestats(removeList)
