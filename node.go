@@ -545,8 +545,11 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 
 	if conn == nil {
 		// tentatively check if a connection is allowed to avoid launching too many goroutines.
-		if err = nd.newConnectionAllowed(); err == nil {
+		err = nd.newConnectionAllowed()
+		if err == nil {
 			go nd.makeConnectionForPool(hint)
+		} else if errors.Is(err, ErrTooManyConnectionsForNode) {
+			return nil, ErrConnectionPoolExhausted.err()
 		}
 		return nil, ErrConnectionPoolEmpty.err()
 	}

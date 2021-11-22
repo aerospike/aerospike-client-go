@@ -2086,7 +2086,12 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(iterations).setNode(cmd.node)
 
-			if errors.Is(err, ErrConnectionPoolEmpty) {
+			// exit immediately if connection pool is exhausted and the corresponding policy option is set
+			if policy.ExitFastOnExhaustedConnectionPool && errors.Is(err, ErrConnectionPoolExhausted) {
+				break
+			}
+
+			if errors.Is(err, ErrConnectionPoolEmpty) || errors.Is(err, ErrConnectionPoolExhausted) {
 				// if the connection pool is empty, we still haven't tried
 				// the transaction to increase the iteration count.
 				iterations--

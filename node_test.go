@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"errors"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v5"
@@ -72,15 +73,15 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
-				node := client.GetNodes()[0]
+				for _, node := range client.GetNodes() {
+					for i := 0; i < 20; i++ {
+						c, err := node.GetConnection(0)
+						gm.Expect(err).NotTo(gm.HaveOccurred())
+						gm.Expect(c).NotTo(gm.BeNil())
+						gm.Expect(c.IsConnected()).To(gm.BeTrue())
 
-				for i := 0; i < 20; i++ {
-					c, err := node.GetConnection(0)
-					gm.Expect(err).NotTo(gm.HaveOccurred())
-					gm.Expect(c).NotTo(gm.BeNil())
-					gm.Expect(c.IsConnected()).To(gm.BeTrue())
-
-					node.InvalidateConnection(c)
+						node.InvalidateConnection(c)
+					}
 				}
 
 			})
@@ -88,6 +89,56 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 		})
 
 		gg.Context("When A Connection Count Limit Is Set", func() {
+
+			gg.Context("When ExitFastOnExhaustedConnectionPool is set", func() {
+
+				gg.It("must return appropriate error when pool is exhausted", func() {
+					clientPolicy := as.NewClientPolicy()
+					clientPolicy.TlsConfig = tlsConfig
+					clientPolicy.LimitConnectionsToQueueSize = true
+					clientPolicy.ConnectionQueueSize = 4
+					clientPolicy.User = *user
+					clientPolicy.Password = *password
+
+					client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					defer client.Close()
+
+					for _, node := range client.GetNodes() {
+						for i := 0; i < clientPolicy.ConnectionQueueSize-1; i++ {
+							c, err := node.GetConnection(0)
+							gm.Expect(err).NotTo(gm.HaveOccurred())
+							gm.Expect(c).NotTo(gm.BeNil())
+							gm.Expect(c.IsConnected()).To(gm.BeTrue())
+
+							defer node.InvalidateConnection(c)
+						}
+
+						// pool exhausted
+						c, err := node.GetConnection(0)
+						gm.Expect(err).To(gm.HaveOccurred())
+						gm.Expect(errors.Is(err, as.ErrConnectionPoolExhausted)).To(gm.BeTrue())
+						gm.Expect(c).To(gm.BeNil())
+					}
+
+					// same error on a command
+					p := as.NewPolicy()
+					p.ExitFastOnExhaustedConnectionPool = true
+					p.MaxRetries = 5
+
+					key, _ := as.NewKey(*namespace, randString(50), 5)
+					_, err := client.Get(p, key)
+					gm.Expect(err).To(gm.HaveOccurred())
+					gm.Expect(errors.Is(err, as.ErrConnectionPoolExhausted)).To(gm.BeTrue())
+
+					ae := new(as.AerospikeError)
+					res := errors.As(err, &ae)
+					gm.Expect(res).To(gm.BeTrue())
+					gm.Expect(ae.Iteration).To(gm.Equal(0))
+					gm.Expect(ae.Node).ToNot(gm.BeNil())
+				})
+
+			})
 
 			gg.It("must return an error when maximum number of connections are polled", func() {
 				clientPolicy := as.NewClientPolicy()

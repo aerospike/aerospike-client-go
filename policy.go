@@ -121,6 +121,15 @@ type BasePolicy struct {
 	// Default to (1.0); Only values greater than 1 are valid.
 	SleepMultiplier float64 //= 1.0;
 
+	// ExitFastOnExhaustedConnectionPool determines if a command that tries to get a
+	// connection from the connection pool will wait and retry in case the pool is
+	// exhausted until a connection becomes available (or the TotalTimeout is reached).
+	// If set to true, an error will be return immediately.
+	// If set to false, getting a connection will be retried.
+	// This only applies if LimitConnectionsToQueueSize is set to true and the number of open connections to a node has reached ConnectionQueueSize.
+	// The default is false
+	ExitFastOnExhaustedConnectionPool bool // false
+
 	// SendKey determines to whether send user defined key in addition to hash digest on both reads and writes.
 	// If the key is sent on a write, the key will be stored with the record on
 	// the server.
