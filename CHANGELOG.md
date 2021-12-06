@@ -1,10 +1,20 @@
 # Change History
 
+
+## Decempber 6 2021: v5.7.0
+
+  * **Improvements**
+
+    - Improve Policy.deadline() logic to use MaxRetries and SocketTimeout to calculate TotalTimeout when it is not set
+    - [CLIENT-1635] Allow Preventing Retries on Exhausted Connection Pools
+    - Do not test PredExp for server v5.8+.
+    - Explicitly remove departed nodes from the partition map on cluster change.
+
 ## September 17 2021: v5.6.0
 
   * **Fixes**
 
-- [OPS-5141] Invalidate Session Token on unsuccessful login, Copy token from the connection buffer, Consider Tend interval in session expiration calculations.
+    - [OPS-5141] Invalidate Session Token on unsuccessful login, Copy token from the connection buffer, Consider Tend interval in session expiration calculations.
 
 ## September 6 2021: v5.5.0
 
