@@ -357,8 +357,10 @@ func (clstr *Cluster) tend() Error {
 			}
 			clstr.removeNodes(removeList)
 
-			// remove departed nodes from the partition map
-			partMap.removeNodes(removeList)
+			if partMap != nil {
+				// remove departed nodes from the partition map
+				partMap.removeNodes(removeList)
+			}
 		}
 
 		clstr.aggregateNodestats(removeList)

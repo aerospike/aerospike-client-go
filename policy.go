@@ -193,8 +193,16 @@ func (p *BasePolicy) socketTimeout() time.Duration {
 
 func (p *BasePolicy) deadline() time.Time {
 	var deadline time.Time
-	if p != nil && p.TotalTimeout > 0 {
-		deadline = time.Now().Add(p.TotalTimeout)
+	if p != nil {
+		if p.TotalTimeout > 0 {
+			deadline = time.Now().Add(p.TotalTimeout)
+		} else if p.SocketTimeout > 0 {
+			if p.MaxRetries > 0 {
+				deadline = time.Now().Add(time.Duration(p.MaxRetries) * p.SocketTimeout)
+			} else {
+				deadline = time.Now().Add(p.SocketTimeout)
+			}
+		}
 	}
 
 	return deadline
