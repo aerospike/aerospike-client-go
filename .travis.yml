@@ -14,7 +14,7 @@ matrix:
 install:
 - ifconfig
 - if [ -d "$HOME/gopath/src/github.com/citrusleaf" ]; then mv $HOME/gopath/src/github.com/citrusleaf
-  $HOME/gopath/src/github.com/aerospike; fi
+  $HOME/gopath/src/github.com/adjust; fi
 - export PATH=$PATH:$HOME/gopath/bin
 - go get github.com/onsi/ginkgo/ginkgo
 - go get github.com/onsi/gomega

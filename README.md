@@ -1,14 +1,14 @@
 # Aerospike Go Client
 
-[![Aerospike Client Go](https://goreportcard.com/badge/github.com/aerospike/aerospike-client-go)](https://goreportcard.com/report/github.com/aerospike/aerospike-client-go)
+[![Aerospike Client Go](https://goreportcard.com/badge/github.com/adjust/aerospike-client-go)](https://goreportcard.com/report/github.com/adjust/aerospike-client-go)
 [![Build Status](https://travis-ci.org/aerospike/aerospike-client-go.svg?branch=master)](https://travis-ci.org/aerospike/aerospike-client-go)
-[![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go)
+[![Godoc](https://godoc.org/github.com/adjust/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/adjust/aerospike-client-go)
 
 ## IMPORTANT NOTE
 
 This is an old version the _Aerospike Go Client_, which is v4.x.x. The newest version _v5_ has migrated to _go modules_,
-which required us to put it in the `v5` branch [here](https://github.com/aerospike/aerospike-client-go/tree/v5).
-All the latest changes to the library are applied in that branch, documented in the [CHANGELOG](https://github.com/aerospike/aerospike-client-go/blob/v5/CHANGELOG.md).
+which required us to put it in the `v5` branch [here](https://github.com/adjust/aerospike-client-go/tree/v5).
+All the latest changes to the library are applied in that branch, documented in the [CHANGELOG](https://github.com/adjust/aerospike-client-go/blob/v5/CHANGELOG.md).
 
 ---
 
@@ -16,7 +16,7 @@ Official Aerospike Client library for Go.
 
 This library is compatible with Go 1.9+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
 
-Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go).
+Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/adjust/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/adjust/aerospike-client-go).
 
 You can refer to the test files for idiomatic use cases.
 
@@ -45,7 +45,7 @@ package main
 import (
   "fmt"
 
-  aero "github.com/aerospike/aerospike-client-go"
+  aero "github.com/adjust/aerospike-client-go"
 )
 
 // This is only for this example.
@@ -113,8 +113,8 @@ Supported operating systems:
 ## Installation
 
 1. Install Go 1.9+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
-2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go```
-  * To update the client library: ```go get -u github.com/aerospike/aerospike-client-go```
+2. Get the client in your ```GOPATH``` : ```go get github.com/adjust/aerospike-client-go```
+  * To update the client library: ```go get -u github.com/adjust/aerospike-client-go```
 
 Using [gopkg.in](https://gopkg.in/) is also supported: `go get -u gopkg.in/aerospike/aerospike-client-go.v1`
 
@@ -165,7 +165,7 @@ See the [`tools/benchmark/README.md`](tools/benchmark/README.md) for details.
 <a name="API-Documentation"></a>
 ## API Documentation
 
-A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go).
+A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/adjust/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/adjust/aerospike-client-go).
 
 <a name="App-Engine"></a>
 ## Google App Engine

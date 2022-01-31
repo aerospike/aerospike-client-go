@@ -16,26 +16,36 @@ package atomic_test
 
 import (
 	"runtime"
+	"sync"
 
-	"github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/adjust/aerospike-client-go/core/atomic"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 )
 
-var _ = gg.Describe("Atomic Bool", func() {
+var _ = gg.Describe("Atomic Int", func() {
 	// atomic tests require actual parallelism
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	var ab *atomic.Bool
+	var ai *atomic.Int
+	wg := new(sync.WaitGroup)
 
 	gg.BeforeEach(func() {
-		ab = atomic.NewBool(true)
+		ai = atomic.NewInt(0)
 	})
 
-	gg.It("must CompareAndToggle correctly", func() {
-		gm.Expect(ab.CompareAndToggle(true)).To(gm.BeTrue())
-		gm.Expect(ab.CompareAndToggle(true)).To(gm.BeFalse())
+	gg.It("must Offer() more elements than queue's capacity, and still not block", func() {
+		for i := 0; i < 100; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ai.IncrementAndGet()
+			}()
+		}
+
+		wg.Wait()
+		gm.Expect(ai.Get()).To(gm.Equal(100))
 	})
 
 })

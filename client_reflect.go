@@ -20,8 +20,8 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/aerospike/aerospike-client-go/internal/atomic"
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/adjust/aerospike-client-go/core/atomic"
+	"github.com/adjust/aerospike-client-go/types"
 )
 
 // PutObject writes record bin(s) to the server.

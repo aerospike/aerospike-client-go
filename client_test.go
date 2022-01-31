@@ -23,9 +23,9 @@ import (
 	"strings"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go"
-	ast "github.com/aerospike/aerospike-client-go/types"
-	asub "github.com/aerospike/aerospike-client-go/utils/buffer"
+	as "github.com/adjust/aerospike-client-go"
+	ast "github.com/adjust/aerospike-client-go/types"
+	asub "github.com/adjust/aerospike-client-go/utils/buffer"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"

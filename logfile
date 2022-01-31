@@ -1,0 +1,70 @@
+LOG:  database system was shut down at 2022-01-23 17:34:19 CET
+LOG:  MultiXact member wraparound protections are now enabled
+LOG:  database system is ready to accept connections
+LOG:  autovacuum launcher started
+ERROR:  column "meta" of relation "goals" does not exist at character 154
+STATEMENT:  INSERT INTO "goals" ("id","product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING "goals"."id"
+ERROR:  column "meta" of relation "goals" does not exist at character 149
+STATEMENT:  INSERT INTO "goals" ("product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING "goals"."id"
+ERROR:  column "meta" of relation "goals" does not exist at character 149
+STATEMENT:  INSERT INTO "goals" ("product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING "goals"."id"
+ERROR:  column "meta" of relation "goals" does not exist at character 149
+STATEMENT:  INSERT INTO "goals" ("product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING "goals"."id"
+ERROR:  column "meta" of relation "goals" does not exist at character 154
+STATEMENT:  INSERT INTO "goals" ("id","product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING "goals"."id"
+ERROR:  invalid input syntax for uuid: "koa"
+STATEMENT:  SELECT * FROM "categories"  WHERE "categories"."deleted_at" IS NULL AND "categories"."id" = $1 ORDER BY "categories"."id" ASC LIMIT 1
+ERROR:  invalid input syntax for uuid: "koaaa"
+STATEMENT:  SELECT * FROM "categories"  WHERE "categories"."deleted_at" IS NULL AND "categories"."id" = $1 ORDER BY "categories"."id" ASC LIMIT 1
+ERROR:  column "meta" of relation "goals" does not exist at character 154
+STATEMENT:  INSERT INTO "goals" ("id","product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING "goals"."id"
+ERROR:  column "meta" of relation "goals" does not exist at character 154
+STATEMENT:  INSERT INTO "goals" ("id","product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING "goals"."id"
+ERROR:  column "meta" of relation "goals" does not exist at character 154
+STATEMENT:  INSERT INTO "goals" ("id","product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING "goals"."id"
+ERROR:  column "meta" of relation "goals" does not exist at character 154
+STATEMENT:  INSERT INTO "goals" ("id","product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING "goals"."id"
+ERROR:  syntax error at or near "Call" at character 1
+STATEMENT:  Call public.deleteuser($1)
+ERROR:  column "meta" of relation "goals" does not exist at character 149
+STATEMENT:  INSERT INTO "goals" ("product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING "goals"."id"
+ERROR:  insert or update on table "goals" violates foreign key constraint "fk_vendor_goals"
+DETAIL:  Key (vendor_id)=(wronga) is not present in table "vendors".
+STATEMENT:  INSERT INTO "goals" ("product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING "goals"."id"
+ERROR:  invalid input syntax for uuid: "koa"
+STATEMENT:  SELECT * FROM "categories"  WHERE "categories"."deleted_at" IS NULL AND "categories"."id" = $1 ORDER BY "categories"."id" ASC LIMIT 1
+ERROR:  invalid input syntax for uuid: "koaaa"
+STATEMENT:  SELECT * FROM "categories"  WHERE "categories"."deleted_at" IS NULL AND "categories"."id" = $1 ORDER BY "categories"."id" ASC LIMIT 1
+ERROR:  syntax error at or near "Call" at character 1
+STATEMENT:  Call public.deleteuser($1)
+ERROR:  insert or update on table "goals" violates foreign key constraint "fk_vendor_goals"
+DETAIL:  Key (vendor_id)=(wronga) is not present in table "vendors".
+STATEMENT:  INSERT INTO "goals" ("product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING "goals"."id"
+ERROR:  invalid input syntax for uuid: "koa"
+STATEMENT:  SELECT * FROM "categories"  WHERE "categories"."deleted_at" IS NULL AND "categories"."id" = $1 ORDER BY "categories"."id" ASC LIMIT 1
+ERROR:  invalid input syntax for uuid: "koaaa"
+STATEMENT:  SELECT * FROM "categories"  WHERE "categories"."deleted_at" IS NULL AND "categories"."id" = $1 ORDER BY "categories"."id" ASC LIMIT 1
+ERROR:  syntax error at or near "Call" at character 1
+STATEMENT:  Call public.deleteuser($1)
+ERROR:  insert or update on table "goals" violates foreign key constraint "fk_vendor_goals"
+DETAIL:  Key (vendor_id)=(wronga) is not present in table "vendors".
+STATEMENT:  INSERT INTO "goals" ("product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING "goals"."id"
+ERROR:  invalid input syntax for uuid: "koa"
+STATEMENT:  SELECT * FROM "categories"  WHERE "categories"."deleted_at" IS NULL AND "categories"."id" = $1 ORDER BY "categories"."id" ASC LIMIT 1
+ERROR:  invalid input syntax for uuid: "koaaa"
+STATEMENT:  SELECT * FROM "categories"  WHERE "categories"."deleted_at" IS NULL AND "categories"."id" = $1 ORDER BY "categories"."id" ASC LIMIT 1
+ERROR:  syntax error at or near "Call" at character 1
+STATEMENT:  Call public.deleteuser($1)
+ERROR:  insert or update on table "goals" violates foreign key constraint "fk_vendor_goals"
+DETAIL:  Key (vendor_id)=(wronga) is not present in table "vendors".
+STATEMENT:  INSERT INTO "goals" ("product_id","user_id","name","img_url","target","deposits","currency_code","recurrence","type","locked","enabled","vendor_id","meta","created_at","updated_at","deleted_at") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING "goals"."id"
+ERROR:  invalid input syntax for uuid: "koa"
+STATEMENT:  SELECT * FROM "categories"  WHERE "categories"."deleted_at" IS NULL AND "categories"."id" = $1 ORDER BY "categories"."id" ASC LIMIT 1
+ERROR:  invalid input syntax for uuid: "koaaa"
+STATEMENT:  SELECT * FROM "categories"  WHERE "categories"."deleted_at" IS NULL AND "categories"."id" = $1 ORDER BY "categories"."id" ASC LIMIT 1
+ERROR:  syntax error at or near "Call" at character 1
+STATEMENT:  Call public.deleteuser($1)
+LOG:  autovacuum launcher shutting down
+LOG:  received smart shutdown request
+LOG:  shutting down
+LOG:  database system is shut down

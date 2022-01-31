@@ -8,7 +8,7 @@ Benchmark tool is intended to generate artificial yet customizable load on your 
 To build this tool:
 
 ```
-cd $GOPATH/src/github.com/aerospike/aerospike-client-go/tools/benchmark
+cd $GOPATH/src/github.com/adjust/aerospike-client-go/tools/benchmark
 go build .
 ```
 

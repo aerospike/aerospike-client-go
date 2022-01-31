@@ -1,5 +1,5 @@
 name: aerospike-client-go
-dir: src/github.com/aerospike/aerospike-client-go
+dir: src/github.com/adjust/aerospike-client-go
 
 container:
   - base:
@@ -8,8 +8,8 @@ container:
 build:
   - name: build
     script:
-      - go get -v github.com/aerospike/aerospike-client-go
-      - go build -v -x github.com/aerospike/aerospike-client-go
-      - go install -v -x github.com/aerospike/aerospike-client-go/tools/cli
-      - go install -v -x github.com/aerospike/aerospike-client-go/tools/benchmark
-      - go install -v -x github.com/aerospike/aerospike-client-go/tools/asinfo
+      - go get -v github.com/adjust/aerospike-client-go
+      - go build -v -x github.com/adjust/aerospike-client-go
+      - go install -v -x github.com/adjust/aerospike-client-go/tools/cli
+      - go install -v -x github.com/adjust/aerospike-client-go/tools/benchmark
+      - go install -v -x github.com/adjust/aerospike-client-go/tools/asinfo
