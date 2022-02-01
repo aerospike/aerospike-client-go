@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go"
+	as "github.com/adjust/aerospike-client-go"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"

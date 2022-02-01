@@ -21,8 +21,8 @@ import (
 	"log"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go"
-	shared "github.com/aerospike/aerospike-client-go/examples/shared"
+	as "github.com/adjust/aerospike-client-go"
+	shared "github.com/adjust/aerospike-client-go/examples/shared"
 )
 
 func main() {

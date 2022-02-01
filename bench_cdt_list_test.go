@@ -21,7 +21,7 @@ import (
 	// "time"
 	_ "net/http/pprof"
 
-	as "github.com/aerospike/aerospike-client-go"
+	as "github.com/adjust/aerospike-client-go"
 )
 
 var list []as.Value

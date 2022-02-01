@@ -18,7 +18,7 @@ import (
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 
-	as "github.com/aerospike/aerospike-client-go"
+	as "github.com/adjust/aerospike-client-go"
 )
 
 const udfCDTTests = `

@@ -25,9 +25,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	iatomic "github.com/aerospike/aerospike-client-go/internal/atomic"
-	"github.com/aerospike/aerospike-client-go/logger"
-	"github.com/aerospike/aerospike-client-go/types"
+	iatomic "github.com/adjust/aerospike-client-go/internal/atomic"
+	"github.com/adjust/aerospike-client-go/logger"
+	"github.com/adjust/aerospike-client-go/types"
 )
 
 const (

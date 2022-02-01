@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/adjust/aerospike-client-go/types"
 )
 
 func queryValidateBegin(node *Node, namespace string) (int64, error) {

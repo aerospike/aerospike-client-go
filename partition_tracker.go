@@ -21,7 +21,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/adjust/aerospike-client-go/types"
 )
 
 type partitionTracker struct {
