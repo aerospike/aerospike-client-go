@@ -5,18 +5,19 @@
 
   * **Improvements**
 
-    - Improve Policy.deadline() logic to use MaxRetries and SocketTimeout to calculate TotalTimeout when it is not set
-    - [CLIENT-1635] Allow Preventing Retries on Exhausted Connection Pools
-    - Do not test PredExp for server v5.8+.
+    - Improve `Policy.deadline()` logic to use `MaxRetries` and `SocketTimeout` to calculate `TotalTimeout` when it is not set.
+    - [CLIENT-1635] Allow Preventing Retries on Exhausted Connection Pools.
+    - Do not test `PredExp` for server v5.8+.
     - Explicitly remove departed nodes from the partition map on cluster change.
 
 ## September 17 2021: v5.6.0
 
   * **Fixes**
 
-    - [OPS-5141] Invalidate Session Token on unsuccessful login, Copy token from the connection buffer, Consider Tend interval in session expiration calculations.
+    - [CLIENT-1605] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. This fix invalidates the Session Token on unsuccessful login, Copy token from the connection buffer, and  will consider tend interval in session expiration calculations.
 
 ## September 6 2021: v5.5.0
+  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
   * **New Features**
 
@@ -31,6 +32,7 @@
     - Fix the worng udf name in predexp test.
 
 ## August 16 2021: v5.4.0
+  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
   * **New Features**
 
@@ -44,6 +46,7 @@
     - Add PKI authentication to the benchmark utility.
 
 ## August 2 2021: v5.3.0
+  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
   * **Improvements**
 
@@ -56,6 +59,7 @@
 
 
 ## June 28 2021: v5.2.0
+  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
   Major fix release. We recommend updating to this version immediately.
 
@@ -80,6 +84,7 @@
     - Fix an issue where batch commands for a single node were not retried. Resolves #355.
 
 ## June 10 2021: v5.1.0
+  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
   Major fix release. We recommend updating to this version immediately.
 
@@ -96,6 +101,7 @@
     - Correctly handle errors in `Connection.Read` and `Connection.Write`. Avoids shadowing of the error. Resolves issue #352.
 
 ## May 30 2021: v5.0.2
+  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
   Minor fix release.
 
@@ -106,6 +112,7 @@
     - Support reading back keys with original `List` values.
 
 ## May 27 2021: v5.0.1
+  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
   Minor fix release.
 
@@ -116,6 +123,8 @@
     - Avoid race condition in chaining prefined errors.
 
 ## May 10 2021: v5.0.0
+  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
+
   This is a major feature release. It is also a major breaking release. We have adopted Go's module system as recommended by the Go authors, so the new release moves the active branch to `v5`.
   As such, the import path changes to `github.com/aerospike/aerospike-client-go/v5`. The `master` branch remains in place to allow maintenance for the older v4 classic version until most users
   get the chance to upgrade.
@@ -356,7 +365,7 @@
 
   * **New Features**
 
-    - Adds support for Relaxed Strong Consistency mode.
+    - Adds support for Relaxed Strong Consistency mode. `ClientPolicy.LinearizeRead = true` has been removed and should be replaced with `policy.ReadModeSC = as.ReadModeSCLinearize`.
     - Adds support for whitelists in Roles.
 
 ## May 28 2020: v2.12.0
