@@ -215,7 +215,7 @@
 
   * **New Features**
 
-    - Adds support for Relaxed Strong Consistency mode.
+    - Adds support for Relaxed Strong Consistency mode. `ClientPolicy.LinearizeRead = true` has been removed and should be replaced with `policy.ReadModeSC = as.ReadModeSCLinearize`.
     - Adds support for whitelists in Roles.
 
 ## May 28 2020: v2.12.0
