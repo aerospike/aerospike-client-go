@@ -446,6 +446,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 			cmd.writeOperationForBinName(binNames[i], _READ)
 		}
 		cmd.end()
+		return nil
 	}
 	return cmd.setReadForKeyOnly(policy, key)
 }
