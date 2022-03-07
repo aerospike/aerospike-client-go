@@ -1997,12 +1997,14 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 	notFirstIteration := false
 	isClientTimeout := false
+	loopCount := 0
 
 	var err Error
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
 		iterations++
+		loopCount++
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && iterations > 0) || (policy.MaxRetries > 0 && iterations > policy.MaxRetries) {
@@ -2057,7 +2059,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		// set command node, so when you return a record it has the node
 		cmd.node, err = ifc.getNode(ifc)
 		if cmd.node == nil || !cmd.node.IsActive() || err != nil {
-			isClientTimeout = true
+			isClientTimeout = false
 
 			// chain the errors
 			if err != nil {
@@ -2081,7 +2083,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		cmd.conn, err = ifc.getConnection(policy)
 		if err != nil {
-			isClientTimeout = true
+			isClientTimeout = false
 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(iterations).setNode(cmd.node)
@@ -2092,6 +2094,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			}
 
 			if errors.Is(err, ErrConnectionPoolEmpty) || errors.Is(err, ErrConnectionPoolExhausted) {
+				if errors.Is(err, ErrConnectionPoolExhausted) || (errors.Is(err, ErrConnectionPoolEmpty) && loopCount == 1) {
+					isClientTimeout = true
+				}
 				// if the connection pool is empty, we still haven't tried
 				// the transaction to increase the iteration count.
 				iterations--
@@ -2142,9 +2147,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(iterations).setNode(cmd.node)
 
-			isClientTimeout = true
+			isClientTimeout = false
 			if deviceOverloadError(err) {
-				isClientTimeout = false
 				cmd.node.incrErrorCount()
 			}
 
