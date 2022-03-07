@@ -295,7 +295,8 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		// Partition is done, don't go further
 		if (info3 & _INFO3_PARTITION_DONE) != 0 {
 			cmd.tracker.partitionDone(cmd.nodePartitions, int(generation))
-			return true, nil
+			continue
+			// return true, nil
 		}
 
 		// if there is a recordset, process the record traditionally
