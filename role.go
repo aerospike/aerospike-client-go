@@ -44,6 +44,12 @@ const (
 	// DataAdmin allows to manage indicies and user defined functions.
 	DataAdmin privilegeCode = "data-admin"
 
+	// UDFAdmin allows to manage user defined functions.
+	UDFAdmin privilegeCode = "udf-admin"
+
+	// SIndexAdmin allows to manage indicies.
+	SIndexAdmin privilegeCode = "sindex-admin"
+
 	// ReadWriteUDF allows read, write and UDF transactions with the database.
 	ReadWriteUDF privilegeCode = "read-write-udf"
 
@@ -55,4 +61,7 @@ const (
 
 	// Write allows write transactions with the database.
 	Write privilegeCode = "write"
+
+	// Truncate allow issuing truncate commands.
+	Truncate privilegeCode = "truncate"
 )

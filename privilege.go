@@ -45,11 +45,21 @@ func (p *Privilege) code() int {
 	case SysAdmin:
 		return 1
 
-	// User can perform data administration functions on a database that do not involve user
-	// administration.  Examples include index and user defined function management.
-	// Global scope only.
+	// User can perform UDF and SINDEX administration actions. Global scope only.
 	case DataAdmin:
 		return 2
+
+	// User can perform user defined function(UDF) administration actions.
+	// Examples include create/drop UDF. Global scope only.
+	// Requires server version 6+
+	case UDFAdmin:
+		return 3
+
+	// User can perform secondary index administration actions.
+	// Examples include create/drop index. Global scope only.
+	// Requires server version 6+
+	case SIndexAdmin:
+		return 4
 
 	// User can read data only.
 	case Read:
@@ -66,6 +76,11 @@ func (p *Privilege) code() int {
 	// User can read and write data through user defined functions.
 	case Write:
 		return 13
+
+	// User can truncate data only.
+	// Requires server version 6+
+	case Truncate:
+		return 14
 	}
 
 	panic("invalid role: " + p.Code)
@@ -89,6 +104,18 @@ func privilegeFrom(code uint8) privilegeCode {
 	case 2:
 		return DataAdmin
 
+	// User can perform user defined function(UDF) administration actions.
+	// Examples include create/drop UDF. Global scope only.
+	// Requires server version 6+
+	case 3:
+		return UDFAdmin
+
+	// User can perform secondary index administration actions.
+	// Examples include create/drop index. Global scope only.
+	// Requires server version 6+
+	case 4:
+		return SIndexAdmin
+
 	// User can read data.
 	case 10:
 		return Read
@@ -104,6 +131,11 @@ func privilegeFrom(code uint8) privilegeCode {
 	// User can only write data.
 	case 13:
 		return Write
+
+	// User can truncate data only.
+	// Requires server version 6+
+	case 14:
+		return Truncate
 	}
 
 	panic(fmt.Sprintf("invalid privilege code: %v", code))
