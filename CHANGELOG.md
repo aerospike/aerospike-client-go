@@ -1,6 +1,19 @@
 # Change History
 
 
+## March 7 2022: v5.8.0
+
+  This is a major fix release.
+
+  * **Improvements**
+  
+    - Adds notices regarding Auth issue to CHANGELOG and clarifies how to change code for an old breaking change in v3.
+    - Forward compatibility with Server v6 regarding queries and scans not sending a fresh message header per partition.
+
+  * **Fixes**
+
+    - Fixes an issue where with default policies and after certain errors the replica node was not selected on retry.
+
 ## Decempber 6 2021: v5.7.0
 
   * **Improvements**
