@@ -113,7 +113,7 @@ func readCertificates(serverCertDir string, clientCertFile, clientKeyFile string
 	}
 
 	// Try to load client cert
-	if len(clientCertFile)+len(clientCertFile) > 0 {
+	if len(clientCertFile)+len(clientKeyFile) > 0 {
 		// Loading the client certificate.
 		// This certificate is used to verify the identity of the client to the server nodes.
 		cert, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile)
