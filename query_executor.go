@@ -46,7 +46,7 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 		// no need to manage the errors; they are send back via the recordset
 		weg.wait()
 
-		done, err := tracker.isComplete(&policy.BasePolicy)
+		done, err := tracker.isComplete(clnt.Cluster(), &policy.BasePolicy)
 		if done || err != nil {
 			// Query is complete.
 			if err != nil {

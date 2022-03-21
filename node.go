@@ -33,9 +33,12 @@ import (
 
 const (
 	_PARTITIONS = 4096
+)
 
-	_SUPPORTS_PARTITION_SCAN = 1 << 0
-	_SUPPORTS_QUERY_SHOW     = 1 << 1
+const (
+	_SUPPORTS_PARTITION_SCAN = 1 << iota
+	_SUPPORTS_QUERY_SHOW
+	_SUPPORTS_PARTITION_QUERY
 )
 
 // Node represents an Aerospike Database Server Node
@@ -107,9 +110,14 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	return newNode
 }
 
-// Refresh requests current status from server node, and updates node with the result.
+// SupportsQueryShow returns true if the node supports the feature.
 func (nd *Node) SupportsQueryShow() bool {
 	return (nd.features & _SUPPORTS_QUERY_SHOW) != 0
+}
+
+// SupportsPartitionQuery returns true if the node supports the feature.
+func (nd *Node) SupportsPartitionQuery() bool {
+	return (nd.features & _SUPPORTS_PARTITION_QUERY) != 0
 }
 
 // Refresh requests current status from server node, and updates node with the result.

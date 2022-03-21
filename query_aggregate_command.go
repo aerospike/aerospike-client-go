@@ -1,3 +1,4 @@
+//go:build !app_engine
 // +build !app_engine
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -54,6 +55,7 @@ func (cmd *queryAggregateCommand) Execute() Error {
 func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	// Read/parse remaining message bytes one record at a time.
 	cmd.dataOffset = 0
+	var bval int64
 
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
@@ -92,7 +94,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 			return false, newCustomNodeError(cmd.node, types.PARSE_ERROR, fmt.Sprintf("Query aggregate command expects exactly only one bin. Received: %d", opCount))
 		}
 
-		if _, err := cmd.parseKey(fieldCount); err != nil {
+		if _, err := cmd.parseKey(fieldCount, &bval); err != nil {
 			return false, newNodeError(cmd.node, err)
 		}
 

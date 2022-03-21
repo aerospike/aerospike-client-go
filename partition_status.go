@@ -15,12 +15,23 @@
 
 package aerospike
 
+import "fmt"
+
 type partitionStatus struct {
+	bval   int64
 	id     int
-	done   bool
+	retry  bool
 	digest []byte
 }
 
 func newPartitionStatus(id int) *partitionStatus {
-	return &partitionStatus{id: id}
+	return &partitionStatus{id: id, retry: true}
+}
+
+func (ps *partitionStatus) String() string {
+	r := 'F'
+	if ps.retry {
+		r = 'T'
+	}
+	return fmt.Sprintf("%04d:%c", ps.id, r)
 }

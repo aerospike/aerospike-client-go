@@ -32,11 +32,12 @@ const (
 	DIGEST_RIPE_ARRAY    FieldType = 6
 	TRAN_ID              FieldType = 7 // user supplied transaction id, which is simply passed back
 	SCAN_OPTIONS         FieldType = 8
-	SCAN_TIMEOUT         FieldType = 9
+	SOCKET_TIMEOUT       FieldType = 9
 	RECORDS_PER_SECOND   FieldType = 10
 	PID_ARRAY            FieldType = 11
 	DIGEST_ARRAY         FieldType = 12
-	SCAN_MAX_RECORDS     FieldType = 13
+	MAX_RECORDS          FieldType = 13
+	BVAL_ARRAY           FieldType = 15
 	INDEX_NAME           FieldType = 21
 	INDEX_RANGE          FieldType = 22
 	INDEX_FILTER         FieldType = 23

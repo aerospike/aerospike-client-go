@@ -63,6 +63,8 @@ type Cluster struct {
 	closed      iatomic.Bool
 	tendCount   int
 
+	supportsPartitionQuery iatomic.Bool // whether all nodes in the cluster support query by partition.
+
 	// User name in UTF-8 encoded bytes.
 	user string
 
@@ -113,6 +115,8 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		stats:    map[string]*nodeStats{},
 
 		password: *iatomic.NewSyncVal(nil),
+
+		supportsPartitionQuery: *iatomic.NewBool(false),
 	}
 
 	newCluster.partitionWriteMap.Store(make(partitionMap))
@@ -703,7 +707,21 @@ func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
 	return false
 }
 
+func (clstr *Cluster) updateClusterFeatures() {
+	pQuery := true
+	for _, n := range clstr.GetNodes() {
+		if !n.SupportsPartitionQuery() {
+			pQuery = false
+			break
+		}
+	}
+	clstr.supportsPartitionQuery.Set(pQuery)
+}
+
 func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
+	// update features for all nodes
+	defer clstr.updateClusterFeatures()
+
 	clstr.nodes.Update(func(val interface{}) (interface{}, error) {
 		nodes := val.([]*Node)
 		for _, node := range nodesToAdd {
@@ -731,6 +749,8 @@ func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
 }
 
 func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
+	// update features for all nodes
+	defer clstr.updateClusterFeatures()
 
 	// There is no need to delete nodes from partitionWriteMap because the nodes
 	// have already been set to inactive.

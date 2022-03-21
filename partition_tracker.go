@@ -17,19 +17,20 @@ package aerospike
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v5/types"
 )
 
 type partitionTracker struct {
-	partitionsAll       []*partitionStatus
+	partitions          []*partitionStatus
+	partitionsCapacity  int
 	partitionBegin      int
 	nodeCapacity        int
 	nodeFilter          *Node
 	partitionFilter     *PartitionFilter
 	nodePartitionsList  []*nodePartitions
-	partitionsCapacity  int
 	maxRecords          int64
 	sleepBetweenRetries time.Duration
 	socketTimeout       time.Duration
@@ -49,9 +50,10 @@ func newPartitionTrackerForNodes(policy *MultiPolicy, nodes []*Node) *partitionT
 		nodeFilter:         nil,
 		partitionsCapacity: ppn,
 		maxRecords:         policy.MaxRecords,
+		iteration:          1,
 	}
 
-	pt.partitionsAll = pt.initPartitions(policy, _PARTITIONS, nil)
+	pt.partitions = pt.initPartitions(policy, _PARTITIONS, nil)
 	pt.initTimeout(policy)
 	return &pt
 }
@@ -63,9 +65,10 @@ func newPartitionTrackerForNode(policy *MultiPolicy, nodeFilter *Node) *partitio
 		nodeFilter:         nodeFilter,
 		partitionsCapacity: _PARTITIONS,
 		maxRecords:         policy.MaxRecords,
+		iteration:          1,
 	}
 
-	pt.partitionsAll = pt.initPartitions(policy, _PARTITIONS, nil)
+	pt.partitions = pt.initPartitions(policy, _PARTITIONS, nil)
 	pt.initTimeout(policy)
 	return &pt
 }
@@ -93,18 +96,21 @@ func newPartitionTracker(policy *MultiPolicy, filter *PartitionFilter, nodes []*
 		nodeFilter:         nil,
 		partitionsCapacity: filter.count,
 		maxRecords:         policy.MaxRecords,
+		iteration:          1,
 	}
 
 	if len(filter.partitions) == 0 {
 		filter.partitions = pt.initPartitions(policy, filter.count, filter.digest)
 	} else {
-		for _, part := range filter.partitions {
-			part.done = false
+		// Retry all partitions when maxRecords not specified.
+		if policy.MaxRecords <= 0 {
+			for _, ps := range filter.partitions {
+				ps.retry = true
+			}
 		}
-
 	}
 
-	pt.partitionsAll = filter.partitions
+	pt.partitions = filter.partitions
 	pt.partitionFilter = filter
 	pt.initTimeout(policy)
 	return pt
@@ -164,13 +170,15 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 
 	master := partitions.Replicas[0]
 
-	for _, part := range pt.partitionsAll {
-		if part != nil && !part.done {
+	for _, part := range pt.partitions {
+		if part != nil && part.retry {
 			node := master[part.id]
 
 			if node == nil {
 				return nil, newError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Id %d for namespace `%s` in Partition Scan", part.id, namespace))
 			}
+
+			part.retry = false
 
 			// Use node name to check for single node equality because
 			// partition map may be in transitional state between
@@ -202,7 +210,10 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 			list = list[:nodeSize]
 		}
 
-		max := pt.maxRecords / int64(nodeSize)
+		max := int64(0)
+		if nodeSize > 0 {
+			max = pt.maxRecords / int64(nodeSize)
+		}
 		rem := int(pt.maxRecords - (max * int64(nodeSize)))
 
 		for i, np := range list[:nodeSize] {
@@ -228,31 +239,73 @@ func (pt *partitionTracker) findNode(list []*nodePartitions, node *Node) *nodePa
 	return nil
 }
 
-func (pt *partitionTracker) partitionDone(nodePartitions *nodePartitions, partitionId int) {
-	pt.partitionsAll[partitionId-pt.partitionBegin].done = true
-	nodePartitions.partsReceived++
+func (pt *partitionTracker) partitionUnavailable(nodePartitions *nodePartitions, partitionId int) {
+	pt.partitions[partitionId-pt.partitionBegin].retry = true
+	nodePartitions.partsUnavailable++
 }
 
 func (pt *partitionTracker) setDigest(nodePartitions *nodePartitions, key *Key) {
 	partitionId := key.PartitionId()
-	pt.partitionsAll[partitionId-pt.partitionBegin].digest = key.Digest()
+	pt.partitions[partitionId-pt.partitionBegin].digest = key.Digest()
 	nodePartitions.recordCount++
 }
 
-func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, Error) {
+func (pt *partitionTracker) setLast(nodePartitions *nodePartitions, key *Key, bval int64) {
+	partitionId := key.PartitionId()
+	if partitionId-pt.partitionBegin < 0 {
+		panic(fmt.Sprintf("key.partitionId: %d, partitionBegin: %d", partitionId, pt.partitionBegin))
+	}
+	ps := pt.partitions[partitionId-pt.partitionBegin]
+	ps.digest = key.digest[:]
+	ps.bval = bval
+	nodePartitions.recordCount++
+}
+
+func (pt *partitionTracker) isComplete(cluster *Cluster, policy *BasePolicy) (bool, Error) {
 	recordCount := int64(0)
-	partsRequested := 0
-	partsReceived := 0
+	partsUnavailable := 0
 
 	for _, np := range pt.nodePartitionsList {
 		recordCount += np.recordCount
-		partsRequested += np.partsRequested
-		partsReceived += np.partsReceived
+		partsUnavailable += np.partsUnavailable
 	}
 
-	if partsReceived >= partsRequested {
-		if pt.partitionFilter != nil && recordCount > 0 {
-			pt.partitionFilter.done = true
+	if partsUnavailable == 0 {
+		if pt.maxRecords <= 0 {
+			if pt.partitionFilter != nil {
+				pt.partitionFilter.done = true
+			}
+		} else {
+			if cluster.supportsPartitionQuery.Get() {
+				// Server version >= 6.0 will return all records for each node up to
+				// that node's max. If node's record count reached max, there still
+				// may be records available for that node.
+				done := true
+
+				for _, np := range pt.nodePartitionsList {
+					if np.recordCount >= np.recordMax {
+						pt.markRetry(np)
+						done = false
+					}
+				}
+
+				if pt.partitionFilter != nil {
+					pt.partitionFilter.done = done
+				}
+			} else {
+				// Servers version < 6.0 can return less records than max and still
+				// have more records for each node, so the node is only done if no
+				// records were retrieved for that node.
+				for _, np := range pt.nodePartitionsList {
+					if np.recordCount > 0 {
+						pt.markRetry(np)
+					}
+				}
+
+				if pt.partitionFilter != nil {
+					pt.partitionFilter.done = (recordCount == 0)
+				}
+			}
 		}
 		return true, nil
 	}
@@ -291,21 +344,48 @@ func (pt *partitionTracker) isComplete(policy *BasePolicy) (bool, Error) {
 	return false, nil
 }
 
-func (pt *partitionTracker) shouldRetry(e Error) bool {
-	return e.Matches(types.TIMEOUT,
+func (pt *partitionTracker) shouldRetry(nodePartitions *nodePartitions, e Error) bool {
+	res := e.Matches(types.TIMEOUT,
 		types.NETWORK_ERROR,
 		types.SERVER_NOT_AVAILABLE,
-		types.PARTITION_UNAVAILABLE)
+		types.INDEX_NOTFOUND)
+	if res {
+		pt.markRetry(nodePartitions)
+		nodePartitions.partsUnavailable = len(nodePartitions.partsFull) + len(nodePartitions.partsPartial)
+	}
+	return res
+}
+
+func (pt *partitionTracker) markRetry(nodePartitions *nodePartitions) {
+	for _, ps := range nodePartitions.partsFull {
+		ps.retry = true
+	}
+
+	for _, ps := range nodePartitions.partsPartial {
+		ps.retry = true
+	}
+}
+
+func (pt *partitionTracker) String() string {
+	var sb strings.Builder
+	for i, ps := range pt.partitions {
+		sb.WriteString(ps.String())
+		if (i+1)%16 == 0 {
+			sb.WriteString("\n")
+		} else {
+			sb.WriteString("\t")
+		}
+	}
+	return sb.String()
 }
 
 type nodePartitions struct {
-	node           *Node
-	partsFull      []*partitionStatus
-	partsPartial   []*partitionStatus
-	recordCount    int64
-	recordMax      int64
-	partsRequested int
-	partsReceived  int
+	node             *Node
+	partsFull        []*partitionStatus
+	partsPartial     []*partitionStatus
+	recordCount      int64
+	recordMax        int64
+	partsUnavailable int
 }
 
 func newNodePartitions(node *Node, capacity int) *nodePartitions {
@@ -326,5 +406,4 @@ func (np *nodePartitions) addPartition(part *partitionStatus) {
 	} else {
 		np.partsPartial = append(np.partsPartial, part)
 	}
-	np.partsRequested++
 }

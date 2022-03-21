@@ -38,6 +38,7 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 	// Keep parsing logic to empty socket buffer just in case server does
 	// send records back.
 	cmd.dataOffset = 0
+	var bval int64
 
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
@@ -62,7 +63,7 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
-		if _, err := cmd.parseKey(fieldCount); err != nil {
+		if _, err := cmd.parseKey(fieldCount, &bval); err != nil {
 			return false, err
 		}
 

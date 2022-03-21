@@ -46,7 +46,7 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 		// no need to manage the errors; they are send back via the recordset
 		weg.wait()
 
-		if done, err := tracker.isComplete(&policy.BasePolicy); done || err != nil {
+		if done, err := tracker.isComplete(clnt.Cluster(), &policy.BasePolicy); done || err != nil {
 			// Scan is complete.
 			if err != nil {
 				errs = chainErrors(err, errs)

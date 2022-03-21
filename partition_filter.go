@@ -45,6 +45,8 @@ func NewPartitionFilterByRange(begin, count int) *PartitionFilter {
 
 // NewPartitionFilterByKey creates a partition filter that will return
 // records after key's digest in the partition containing the digest.
+// Note that digest order is not the same as userKey order. This method
+// only works for scan or query with null filter.
 func NewPartitionFilterByKey(key *Key) *PartitionFilter {
 	return &PartitionFilter{begin: key.PartitionId(), count: 1, digest: key.Digest()}
 }

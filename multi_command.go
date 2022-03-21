@@ -187,7 +187,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 	return nil
 }
 
-func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, Error) {
+func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64) (*Key, Error) {
 	var digest [20]byte
 	var namespace, setName string
 	var userKey Value
@@ -217,6 +217,8 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int) (*Key, Error) {
 			if userKey, err = bytesToKeyValue(int(cmd.dataBuffer[1]), cmd.dataBuffer, 2, size-1); err != nil {
 				return nil, err
 			}
+		case BVAL_ARRAY:
+			*bval = Buffer.LittleBytesToInt64(cmd.dataBuffer, cmd.dataOffset)
 		}
 	}
 
@@ -286,7 +288,8 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
-		key, err := cmd.parseKey(fieldCount)
+		var bval int64
+		key, err := cmd.parseKey(fieldCount, &bval)
 		if err != nil {
 			err = newNodeError(cmd.node, err)
 			return false, err
@@ -294,7 +297,12 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 
 		// Partition is done, don't go further
 		if (info3 & _INFO3_PARTITION_DONE) != 0 {
-			cmd.tracker.partitionDone(cmd.nodePartitions, int(generation))
+			// When an error code is received, mark partition as unavailable
+			// for the current round. Unavailable partitions will be retried
+			// in the next round. Generation is overloaded as partitionId.
+			if err != nil {
+				cmd.tracker.partitionUnavailable(cmd.nodePartitions, int(generation))
+			}
 			continue
 			// return true, nil
 		}
@@ -381,7 +389,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		}
 
 		if cmd.tracker != nil {
-			cmd.tracker.setDigest(cmd.nodePartitions, key)
+			cmd.tracker.setLast(cmd.nodePartitions, key, bval)
 		}
 	}
 

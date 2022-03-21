@@ -47,17 +47,23 @@ func (etsk *ExecuteTask) IsDone() (bool, Error) {
 		module = "query"
 	}
 
-	oldCommand := "jobs:module=" + module + ";cmd=get-job;trid=" + strconv.FormatUint(etsk.taskID, 10)
-	newCommand := module + "-show:trid=" + strconv.FormatUint(etsk.taskID, 10)
+	taskId := strconv.FormatUint(etsk.taskID, 10)
+
+	cmd1 := "query-show:trid=" + taskId
+	cmd2 := module + "-show:trid=" + taskId
+	cmd3 := "jobs:module=" + module + ";cmd=get-job;trid=" + taskId
 
 	nodes := etsk.cluster.GetNodes()
 
 	for _, node := range nodes {
 		var command string
-		if node.SupportsQueryShow() {
-			command = newCommand
+		if node.SupportsPartitionQuery() {
+			// query-show works for both scan and query.
+			command = cmd1
+		} else if node.SupportsQueryShow() {
+			command = cmd2
 		} else {
-			command = oldCommand
+			command = cmd3
 		}
 
 		responseMap, err := node.requestInfoWithRetry(&etsk.cluster.infoPolicy, 5, command)

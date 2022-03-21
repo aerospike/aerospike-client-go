@@ -17,6 +17,14 @@ package aerospike
 // QueryPolicy encapsulates parameters for policy attributes used in query operations.
 type QueryPolicy struct {
 	MultiPolicy
+
+	// ShortQuery detemines wether query expected to return less than 100 records.
+	// If true, the server will optimize the query for a small record set.
+	// This field is ignored for aggregation queries, background queries
+	// and server versions 6.0+.
+	//
+	// Default: false
+	ShortQuery bool
 }
 
 // NewQueryPolicy generates a new QueryPolicy instance with default values.

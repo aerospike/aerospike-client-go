@@ -51,7 +51,7 @@ func (cmd *scanPartitionObjectsCommand) writeBuffer(ifc command) Error {
 }
 
 func (cmd *scanPartitionObjectsCommand) shouldRetry(e Error) bool {
-	return cmd.tracker != nil && cmd.tracker.shouldRetry(e)
+	return cmd.tracker != nil && cmd.tracker.shouldRetry(cmd.nodePartitions, e)
 }
 
 func (cmd *scanPartitionObjectsCommand) Execute() Error {

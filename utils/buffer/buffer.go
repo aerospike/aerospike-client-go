@@ -75,6 +75,16 @@ func LittleBytesToInt32(buf []byte, offset int) int32 {
 	return r
 }
 
+// LittleBytesToInt64 converts a slice into int64; only maximum of 8 bytes will be used
+func LittleBytesToInt64(buf []byte, offset int) int64 {
+	l := len(buf[offset:])
+	if l > uint64sz {
+		l = uint64sz
+	}
+	r := int64(binary.LittleEndian.Uint64(buf[offset : offset+l]))
+	return r
+}
+
 // BytesToInt64 converts a slice into int64; only maximum of 8 bytes will be used
 func BytesToInt64(buf []byte, offset int) int64 {
 	l := len(buf[offset:])

@@ -65,7 +65,7 @@ func (clnt *Client) scanPartitionObjects(policy *ScanPolicy, tracker *partitionT
 
 		wg.Wait()
 
-		done, err := tracker.isComplete(&policy.BasePolicy)
+		done, err := tracker.isComplete(clnt.Cluster(), &policy.BasePolicy)
 		if done || err != nil {
 			// Scan is complete.
 			return err

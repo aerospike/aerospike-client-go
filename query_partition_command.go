@@ -49,7 +49,7 @@ func (cmd *queryPartitionCommand) writeBuffer(ifc command) Error {
 }
 
 func (cmd *queryPartitionCommand) shouldRetry(e Error) bool {
-	return cmd.tracker != nil && cmd.tracker.shouldRetry(e)
+	return cmd.tracker != nil && cmd.tracker.shouldRetry(cmd.nodePartitions, e)
 }
 
 func (cmd *queryPartitionCommand) Execute() Error {

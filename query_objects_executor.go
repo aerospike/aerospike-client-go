@@ -65,7 +65,7 @@ func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitio
 
 		wg.Wait()
 
-		done, err := tracker.isComplete(&policy.BasePolicy)
+		done, err := tracker.isComplete(clnt.Cluster(), &policy.BasePolicy)
 		if done || err != nil {
 			// Query is complete.
 			return err

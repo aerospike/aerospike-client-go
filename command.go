@@ -35,6 +35,8 @@ const (
 	_INFO1_READ int = (1 << 0)
 	// Get all bins.
 	_INFO1_GET_ALL int = (1 << 1)
+	// Short query
+	_INFO1_SHORT_QUERY int = (1 << 2)
 	// Batch read or exists.
 	_INFO1_BATCH int = (1 << 3)
 
@@ -67,7 +69,8 @@ const (
 	_INFO3_LAST int = (1 << 0)
 	// Commit to master only before declaring success.
 	_INFO3_COMMIT_MASTER int = (1 << 1)
-	// Partition is complete response in scan.
+	// On send: Do not return partition done in scan/query.
+	// On receive: Specified partition is done in scan/query.
 	_INFO3_PARTITION_DONE int = (1 << 2)
 	// Update only. Merge bins.
 	_INFO3_UPDATE_ONLY int = (1 << 3)
@@ -951,15 +954,10 @@ func (cmd *baseCommand) writeBatchFields(policy *BatchPolicy, key *Key, fieldCou
 func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *string, binNames []string, taskID uint64, nodePartitions *nodePartitions) Error {
 	cmd.begin()
 	fieldCount := 0
-	partsFullSize := 0
-	partsPartialSize := 0
-	maxRecords := int64(0)
 
-	if nodePartitions != nil {
-		partsFullSize = len(nodePartitions.partsFull) * 2
-		partsPartialSize = len(nodePartitions.partsPartial) * 20
-		maxRecords = nodePartitions.recordMax
-	}
+	partsFullSize := len(nodePartitions.partsFull) * 2
+	partsPartialSize := len(nodePartitions.partsPartial) * 20
+	maxRecords := int64(nodePartitions.recordMax)
 
 	predSize := 0
 	if policy.FilterExpression != nil {
@@ -1070,7 +1068,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	}
 
 	if maxRecords > 0 {
-		cmd.writeFieldInt64(maxRecords, SCAN_MAX_RECORDS)
+		cmd.writeFieldInt64(maxRecords, MAX_RECORDS)
 	}
 
 	if policy.RecordsPerSecond > 0 {
@@ -1078,7 +1076,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	}
 
 	// Write scan timeout
-	cmd.writeFieldHeader(4, SCAN_TIMEOUT)
+	cmd.writeFieldHeader(4, SOCKET_TIMEOUT)
 	cmd.WriteInt32(int32(policy.SocketTimeout / time.Millisecond)) // in milliseconds
 
 	cmd.writeFieldHeader(8, TRAN_ID)
@@ -1093,19 +1091,13 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
-func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, write bool, nodePartitions *nodePartitions) Error {
+func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, background bool, nodePartitions *nodePartitions) Error {
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
 	predSize := 0
-	partsFullSize := 0
-	partsPartialSize := 0
-	maxRecords := int64(0)
 
-	recordsPerSecond := 0
-	if !write {
-		recordsPerSecond = policy.RecordsPerSecond
-	}
+	isNew := cmd.node.cluster.supportsPartitionQuery.Get()
 
 	cmd.begin()
 
@@ -1114,15 +1106,27 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		fieldCount++
 	}
 
-	if statement.IndexName != "" {
-		cmd.dataOffset += len(statement.IndexName) + int(_FIELD_HEADER_SIZE)
-		fieldCount++
-	}
+	// if statement.IndexName != "" {
+	// 	cmd.dataOffset += len(statement.IndexName) + int(_FIELD_HEADER_SIZE)
+	// 	fieldCount++
+	// }
 
 	if statement.SetName != "" {
 		cmd.dataOffset += len(statement.SetName) + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
+
+	// Estimate recordsPerSecond field size. This field is used in new servers and not used
+	// (but harmless to add) in old servers.
+	if policy.RecordsPerSecond > 0 {
+		cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	// Estimate socket timeout field size. This field is used in new servers and not used
+	// (but harmless to add) in old servers.
+	cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+	fieldCount++
 
 	// Allocate space for TaskId field.
 	cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
@@ -1131,11 +1135,13 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	if statement.Filter != nil {
 		idxType := statement.Filter.IndexCollectionType()
 
+		// Estimate INDEX_TYPE field.
 		if idxType != ICT_DEFAULT {
 			cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 1
 			fieldCount++
 		}
 
+		// Estimate INDEX_RANGE field.
 		cmd.dataOffset += int(_FIELD_HEADER_SIZE)
 		filterSize++ // num filters
 
@@ -1149,51 +1155,68 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		fieldCount++
 
 		// Query bin names are specified as a field (Scan bin names are specified later as operations)
-		if len(statement.BinNames) > 0 {
-			cmd.dataOffset += int(_FIELD_HEADER_SIZE)
-			binNameSize++ // num bin names
+		// in old servers. Estimate size for selected bin names.
+		if !isNew {
+			if len(statement.BinNames) > 0 {
+				cmd.dataOffset += int(_FIELD_HEADER_SIZE)
+				binNameSize++ // num bin names
 
-			for _, binName := range statement.BinNames {
-				binNameSize += len(binName) + 1
+				for _, binName := range statement.BinNames {
+					binNameSize += len(binName) + 1
+				}
+				cmd.dataOffset += binNameSize
+				fieldCount++
 			}
-			cmd.dataOffset += binNameSize
-			fieldCount++
-		}
-	} else {
-		// Calling query with no filters is more efficiently handled by a primary index scan.
-		// Estimate scan options size.
-		if nodePartitions != nil {
-			partsFullSize = len(nodePartitions.partsFull) * 2
-			partsPartialSize = len(nodePartitions.partsPartial) * 20
-			maxRecords = nodePartitions.recordMax
-		}
-
-		if partsFullSize > 0 {
-			cmd.dataOffset += partsFullSize + int(_FIELD_HEADER_SIZE)
-			fieldCount++
-		}
-
-		if partsPartialSize > 0 {
-			cmd.dataOffset += partsPartialSize + int(_FIELD_HEADER_SIZE)
-			fieldCount++
-		}
-
-		// Estimate max records size;
-		if maxRecords > 0 {
-			cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
-			fieldCount++
-		}
-
-		// Estimate scan timeout size.
-		cmd.dataOffset += (4 + int(_FIELD_HEADER_SIZE))
-		fieldCount++
-
-		// Estimate records per second size.
-		if recordsPerSecond > 0 {
-			cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
-			fieldCount++
 		}
 	}
+
+	partsFullSize := 0
+	partsPartialSize := 0
+	maxRecords := int64(0)
+	partsPartialBValSize := 0
+
+	// Calling query with no filters is more efficiently handled by a primary index scan.
+	// Estimate scan options size.
+	if nodePartitions != nil {
+		partsFullSize = len(nodePartitions.partsFull) * 2
+		partsPartialSize = len(nodePartitions.partsPartial) * 20
+		if statement.Filter != nil {
+			partsPartialBValSize = len(nodePartitions.partsPartial) * 8
+		}
+		maxRecords = nodePartitions.recordMax
+	}
+
+	if partsFullSize > 0 {
+		cmd.dataOffset += partsFullSize + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	if partsPartialSize > 0 {
+		cmd.dataOffset += partsPartialSize + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	if partsPartialBValSize > 0 {
+		cmd.dataOffset += partsPartialBValSize + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	// Estimate max records size;
+	if maxRecords > 0 {
+		cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
+		fieldCount++
+	}
+
+	// 	// Estimate scan timeout size.
+	// 	cmd.dataOffset += (4 + int(_FIELD_HEADER_SIZE))
+	// 	fieldCount++
+
+	// 	// Estimate records per second size.
+	// 	if recordsPerSecond > 0 {
+	// 		cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+	// 		fieldCount++
+	// 	}
+	// }
 
 	if policy.FilterExpression != nil {
 		var err Error
@@ -1237,11 +1260,13 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 				return err
 			}
 		}
-	} else if len(statement.BinNames) > 0 && statement.Filter == nil {
+	} else if len(statement.BinNames) > 0 && (isNew || statement.Filter == nil) {
 		for _, binName := range statement.BinNames {
 			cmd.estimateOperationSizeForBinName(binName)
 		}
 	}
+
+	//////////////////////////////////////////////////////////////////////////
 
 	if err := cmd.sizeBuffer(false); err != nil {
 		return err
@@ -1254,12 +1279,15 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		operationCount = len(statement.BinNames)
 	}
 
-	if write {
+	if background {
 		cmd.writeHeaderWithPolicy(wpolicy, 0, _INFO2_WRITE, fieldCount, operationCount)
 	} else {
 		readAttr := _INFO1_READ | _INFO1_NOBINDATA
 		if policy.IncludeBinData {
 			readAttr = _INFO1_READ
+		}
+		if policy.ShortQuery {
+			readAttr |= _INFO1_SHORT_QUERY
 		}
 		cmd.writeHeader(&policy.BasePolicy, readAttr, 0, fieldCount, operationCount)
 	}
@@ -1295,49 +1323,60 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			return err
 		}
 
-		if len(statement.BinNames) > 0 {
-			cmd.writeFieldHeader(binNameSize, QUERY_BINLIST)
-			cmd.WriteByte(byte(len(statement.BinNames)))
+		if !isNew {
+			// Query bin names are specified as a field (Scan bin names are specified later as operations)
+			// in old servers.
+			if len(statement.BinNames) > 0 {
+				cmd.writeFieldHeader(binNameSize, QUERY_BINLIST)
+				cmd.WriteByte(byte(len(statement.BinNames)))
 
-			for _, binName := range statement.BinNames {
-				len := copy(cmd.dataBuffer[cmd.dataOffset+1:], binName)
-				cmd.dataBuffer[cmd.dataOffset] = byte(len)
-				cmd.dataOffset += len + 1
-			}
-		}
-	} else {
-		// Calling query with no filters is more efficiently handled by a primary index scan.
-
-		if partsFullSize > 0 {
-			cmd.writeFieldHeader(partsFullSize, PID_ARRAY)
-
-			for _, part := range nodePartitions.partsFull {
-				cmd.WriteInt16LittleEndian(uint16(part.id))
-			}
-		}
-
-		if partsPartialSize > 0 {
-			cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
-
-			for _, part := range nodePartitions.partsPartial {
-				if _, err := cmd.Write(part.digest[:]); err != nil {
-					return newCommonError(err)
+				for _, binName := range statement.BinNames {
+					len := copy(cmd.dataBuffer[cmd.dataOffset+1:], binName)
+					cmd.dataBuffer[cmd.dataOffset] = byte(len)
+					cmd.dataOffset += len + 1
 				}
 			}
 		}
+	}
 
-		if maxRecords > 0 {
-			cmd.writeFieldInt64(maxRecords, SCAN_MAX_RECORDS)
+	// Calling query with no filters is more efficiently handled by a primary index scan.
+	if partsFullSize > 0 {
+		cmd.writeFieldHeader(partsFullSize, PID_ARRAY)
+
+		for _, part := range nodePartitions.partsFull {
+			cmd.WriteInt16LittleEndian(uint16(part.id))
 		}
+	}
 
-		// Write scan timeout
-		cmd.writeFieldHeader(4, SCAN_TIMEOUT)
-		cmd.WriteInt32(int32(policy.SocketTimeout / time.Millisecond)) // in milliseconds
+	if partsPartialSize > 0 {
+		cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
 
-		// Write records per second.
-		if recordsPerSecond > 0 {
-			cmd.writeFieldInt32(int32(recordsPerSecond), RECORDS_PER_SECOND)
+		for _, part := range nodePartitions.partsPartial {
+			if _, err := cmd.Write(part.digest[:]); err != nil {
+				return newCommonError(err)
+			}
 		}
+	}
+
+	if partsPartialBValSize > 0 {
+		cmd.writeFieldHeader(partsPartialBValSize, BVAL_ARRAY)
+
+		for _, part := range nodePartitions.partsPartial {
+			cmd.WriteInt64LittleEndian(uint64(part.bval))
+		}
+	}
+
+	if maxRecords > 0 {
+		cmd.writeFieldInt64(maxRecords, MAX_RECORDS)
+	}
+
+	// Write scan timeout
+	cmd.writeFieldHeader(4, SOCKET_TIMEOUT)
+	cmd.WriteInt32(int32(policy.SocketTimeout / time.Millisecond)) // in milliseconds
+
+	// Write records per second.
+	if policy.RecordsPerSecond > 0 {
+		cmd.writeFieldInt32(int32(policy.RecordsPerSecond), RECORDS_PER_SECOND)
 	}
 
 	if policy.FilterExpression != nil {
