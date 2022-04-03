@@ -1,6 +1,14 @@
 # Change History
 
 
+## April 3 2022: v5.8.1
+
+  This is a major fix release. We recommend upgrading to this release if you are using authentication.
+
+  * **Fixes**
+
+    - [CLIENT-1695] Fixes a potential `nil` deference in `sessionInfo.validate()` method.
+
 ## March 7 2022: v5.8.0
 
   This is a major fix release.
