@@ -821,7 +821,8 @@ func (nd *Node) RequestStats(policy *InfoPolicy) (map[string]string, Error) {
 // resetSessionInfo resets the sessionInfo after an
 // unsuccessful authentication with token
 func (nd *Node) resetSessionInfo() {
-	nd.sessionInfo.Store(sessionInfo{})
+	si := &sessionInfo{}
+	nd.sessionInfo.Store(si)
 }
 
 // sessionToken returns the session token for the node.

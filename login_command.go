@@ -29,7 +29,7 @@ type sessionInfo struct {
 }
 
 func (si *sessionInfo) isValid() bool {
-	if si.token == nil || si.expiration.IsZero() || time.Now().After(si.expiration) {
+	if si == nil || si.token == nil || si.expiration.IsZero() || time.Now().After(si.expiration) {
 		return false
 	}
 
