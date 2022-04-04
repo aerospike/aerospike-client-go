@@ -38,6 +38,7 @@ const (
 const (
 	_SUPPORTS_PARTITION_SCAN = 1 << iota
 	_SUPPORTS_QUERY_SHOW
+	_SUPPORTS_BATCH_ANY
 	_SUPPORTS_PARTITION_QUERY
 )
 
@@ -108,6 +109,11 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	atomic.AddInt64(&newNode.stats.NodeAdded, 1)
 
 	return newNode
+}
+
+// SupportsBatchAny returns true if the node supports the feature.
+func (nd *Node) SupportsBatchAny() bool {
+	return (nd.features & _SUPPORTS_BATCH_ANY) != 0
 }
 
 // SupportsQueryShow returns true if the node supports the feature.

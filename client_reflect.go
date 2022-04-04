@@ -1,3 +1,4 @@
+//go:build !as_performance
 // +build !as_performance
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -110,7 +111,7 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 	cmd.objects = objectsVal
 	cmd.objectsFound = objectsFound
 
-	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
+	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, nil, false)
 	if err != nil {
 		return nil, err
 	}

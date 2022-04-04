@@ -14,157 +14,11 @@
 
 package aerospike
 
+import "fmt"
+
 type batchNode struct {
 	Node    *Node
 	offsets []int
-}
-
-func newBatchNodeList(cluster *Cluster, policy *BatchPolicy, keys []*Key) ([]*batchNode, Error) {
-	nodes := cluster.GetNodes()
-
-	if len(nodes) == 0 {
-		return nil, ErrClusterIsEmpty.err()
-	}
-
-	// Create initial key capacity for each node as average + 25%.
-	keysPerNode := len(keys) / len(nodes)
-	keysPerNode += keysPerNode / 2
-
-	// The minimum key capacity is 10.
-	if keysPerNode < 10 {
-		keysPerNode = 10
-	}
-
-	replicaPolicy := policy.ReplicaPolicy
-	replicaPolicySC := GetReplicaPolicySC(policy.GetBasePolicy())
-
-	// Split keys by server node.
-	batchNodes := make([]*batchNode, 0, len(nodes))
-
-	for i := range keys {
-		node, err := GetNodeBatchRead(cluster, keys[i], replicaPolicy, replicaPolicySC, 0, 0)
-		if err != nil {
-			return nil, err
-		}
-
-		if batchNode := findBatchNode(batchNodes, node); batchNode == nil {
-			batchNodes = append(batchNodes, newBatchNode(node, keysPerNode, i))
-		} else {
-			batchNode.AddKey(i)
-		}
-	}
-	return batchNodes, nil
-}
-
-func newBatchNodeListKeys(cluster *Cluster, policy *BatchPolicy, keys []*Key, sequenceAP, sequenceSC int, batchSeed *batchNode) ([]*batchNode, Error) {
-	nodes := cluster.GetNodes()
-
-	if len(nodes) == 0 {
-		return nil, ErrClusterIsEmpty.err()
-	}
-
-	// Create initial key capacity for each node as average + 25%.
-	keysPerNode := len(keys) / len(nodes)
-	keysPerNode += keysPerNode / 2
-
-	// The minimum key capacity is 10.
-	if keysPerNode < 10 {
-		keysPerNode = 10
-	}
-
-	replicaPolicy := policy.ReplicaPolicy
-	replicaPolicySC := GetReplicaPolicySC(policy.GetBasePolicy())
-
-	// Split keys by server node.
-	batchNodes := make([]*batchNode, 0, len(nodes))
-
-	for _, offset := range batchSeed.offsets {
-		node, err := GetNodeBatchRead(cluster, keys[offset], replicaPolicy, replicaPolicySC, sequenceAP, sequenceSC)
-		if err != nil {
-			return nil, err
-		}
-
-		if batchNode := findBatchNode(batchNodes, node); batchNode == nil {
-			batchNodes = append(batchNodes, newBatchNode(node, keysPerNode, offset))
-		} else {
-			batchNode.AddKey(offset)
-		}
-	}
-	return batchNodes, nil
-}
-
-func newBatchNodeListRecords(cluster *Cluster, policy *BatchPolicy, records []*BatchRead, sequenceAP, sequenceSC int, batchSeed *batchNode) ([]*batchNode, Error) {
-	nodes := cluster.GetNodes()
-
-	if len(nodes) == 0 {
-		return nil, ErrClusterIsEmpty.err()
-	}
-
-	// Create initial key capacity for each node as average + 25%.
-	keysPerNode := len(batchSeed.offsets) / len(nodes)
-	keysPerNode += keysPerNode / 2
-
-	// The minimum key capacity is 10.
-	if keysPerNode < 10 {
-		keysPerNode = 10
-	}
-
-	replicaPolicy := policy.ReplicaPolicy
-	replicaPolicySC := GetReplicaPolicySC(policy.GetBasePolicy())
-
-	// Split keys by server node.
-	batchNodes := make([]*batchNode, 0, len(nodes))
-
-	for _, offset := range batchSeed.offsets {
-		node, err := GetNodeBatchRead(cluster, records[offset].Key, replicaPolicy, replicaPolicySC, sequenceAP, sequenceSC)
-		if err != nil {
-			return nil, err
-		}
-
-		if batchNode := findBatchNode(batchNodes, node); batchNode == nil {
-			batchNodes = append(batchNodes, newBatchNode(node, keysPerNode, offset))
-		} else {
-			batchNode.AddKey(offset)
-		}
-	}
-	return batchNodes, nil
-}
-
-func newBatchIndexNodeList(cluster *Cluster, policy *BatchPolicy, records []*BatchRead) ([]*batchNode, Error) {
-	nodes := cluster.GetNodes()
-
-	if len(nodes) == 0 {
-		return nil, ErrClusterIsEmpty.err()
-	}
-
-	// Create initial key capacity for each node as average + 25%.
-	keysPerNode := len(records) / len(nodes)
-	keysPerNode += keysPerNode / 2
-
-	// The minimum key capacity is 10.
-	if keysPerNode < 10 {
-		keysPerNode = 10
-	}
-
-	replicaPolicy := policy.ReplicaPolicy
-	replicaPolicySC := GetReplicaPolicySC(policy.GetBasePolicy())
-
-	// Split keys by server node.
-	batchNodes := make([]*batchNode, 0, len(nodes))
-
-	for i := range records {
-		node, err := GetNodeBatchRead(cluster, records[i].Key, replicaPolicy, replicaPolicySC, 0, 0)
-		if err != nil {
-			return nil, err
-		}
-
-		if batchNode := findBatchNode(batchNodes, node); batchNode == nil {
-			batchNodes = append(batchNodes, newBatchNode(node, keysPerNode, i))
-		} else {
-			batchNode.AddKey(i)
-		}
-	}
-	return batchNodes, nil
 }
 
 func newBatchNode(node *Node, capacity int, offset int) *batchNode {
@@ -181,12 +35,7 @@ func (bn *batchNode) AddKey(offset int) {
 	bn.offsets = append(bn.offsets, offset)
 }
 
-func findBatchNode(nodes []*batchNode, node *Node) *batchNode {
-	for i := range nodes {
-		// Note: using pointer equality for performance.
-		if nodes[i].Node == node {
-			return nodes[i]
-		}
-	}
-	return nil
+func (bn *batchNode) String() string {
+	return fmt.Sprintf("Node: %s, Offsets: %v", bn.Node.String(), bn.offsets)
+
 }

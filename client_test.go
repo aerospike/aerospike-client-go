@@ -1023,7 +1023,9 @@ var _ = gg.Describe("Aerospike", func() {
 					brecords := make([]*as.BatchRead, len(keys))
 					for i := range keys {
 						brecords[i] = &as.BatchRead{
-							Key:         keys[i],
+							BatchRecord: as.BatchRecord{
+								Key: keys[i],
+							},
 							ReadAllBins: true,
 						}
 					}
@@ -1043,7 +1045,9 @@ var _ = gg.Describe("Aerospike", func() {
 					brecords = make([]*as.BatchRead, len(keys))
 					for i := range keys {
 						brecords[i] = &as.BatchRead{
-							Key:         keys[i],
+							BatchRecord: as.BatchRecord{
+								Key: keys[i],
+							},
 							ReadAllBins: false,
 							BinNames:    []string{bin.Name},
 						}
@@ -1126,7 +1130,9 @@ var _ = gg.Describe("Aerospike", func() {
 					brecords := make([]*as.BatchRead, len(keys))
 					for i := range keys {
 						brecords[i] = &as.BatchRead{
-							Key:         keys[i],
+							BatchRecord: as.BatchRecord{
+								Key: keys[i],
+							},
 							ReadAllBins: true,
 						}
 					}
@@ -1145,7 +1151,9 @@ var _ = gg.Describe("Aerospike", func() {
 					brecords = make([]*as.BatchRead, len(keys))
 					for i := range keys {
 						brecords[i] = &as.BatchRead{
-							Key:         keys[i],
+							BatchRecord: as.BatchRecord{
+								Key: keys[i],
+							},
 							ReadAllBins: false,
 							BinNames:    []string{"Aerospike", "Redundant"},
 						}
@@ -1165,7 +1173,9 @@ var _ = gg.Describe("Aerospike", func() {
 					brecords = make([]*as.BatchRead, len(keys))
 					for i := range keys {
 						brecords[i] = &as.BatchRead{
-							Key:         keys[i],
+							BatchRecord: as.BatchRecord{
+								Key: keys[i],
+							},
 							ReadAllBins: false,
 							BinNames:    nil,
 						}
@@ -1265,7 +1275,9 @@ var _ = gg.Describe("Aerospike", func() {
 				brecords := make([]*as.BatchRead, len(keys))
 				for i := range keys {
 					brecords[i] = &as.BatchRead{
-						Key:         keys[i],
+						BatchRecord: as.BatchRecord{
+							Key: keys[i],
+						},
 						ReadAllBins: false, // just to check if the internal flags are set correctly regardless
 						Ops: []*as.Operation{
 							as.ListSizeOp(cdtBinName),

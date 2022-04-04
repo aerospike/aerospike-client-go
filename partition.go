@@ -35,11 +35,12 @@ type Partition struct {
 }
 
 // NewPartition returns a partition representation
-func NewPartition(partitions *Partitions, key *Key, replica ReplicaPolicy, linearize bool) *Partition {
+func NewPartition(partitions *Partitions, key *Key, replica ReplicaPolicy, prevNode *Node, linearize bool) *Partition {
 	return &Partition{
 		partitions:  partitions,
 		Namespace:   key.Namespace(),
 		replica:     replica,
+		prevNode:    prevNode,
 		linearize:   linearize,
 		PartitionId: key.PartitionId(),
 	}
@@ -55,7 +56,7 @@ func PartitionForWrite(cluster *Cluster, policy *BasePolicy, key *Key) (*Partiti
 		return nil, newInvalidNamespaceError(key.namespace, len(pmap))
 	}
 
-	return NewPartition(partitions, key, policy.ReplicaPolicy, false), nil
+	return NewPartition(partitions, key, policy.ReplicaPolicy, nil, false), nil
 }
 
 // PartitionForRead returns a partition for read purposes
@@ -92,7 +93,7 @@ func PartitionForRead(cluster *Cluster, policy *BasePolicy, key *Key) (*Partitio
 		replica = policy.ReplicaPolicy
 		linearize = false
 	}
-	return NewPartition(partitions, key, replica, linearize), nil
+	return NewPartition(partitions, key, replica, nil, linearize), nil
 }
 
 // GetReplicaPolicySC returns a ReplicaPolicy based on different variables in SC mode
@@ -113,7 +114,7 @@ func GetReplicaPolicySC(policy *BasePolicy) ReplicaPolicy {
 }
 
 // GetNodeBatchRead returns a node for batch reads
-func GetNodeBatchRead(cluster *Cluster, key *Key, replica ReplicaPolicy, replicaSC ReplicaPolicy, sequence int, sequenceSC int) (*Node, Error) {
+func GetNodeBatchRead(cluster *Cluster, key *Key, replica ReplicaPolicy, replicaSC ReplicaPolicy, prevNode *Node, sequence int, sequenceSC int) (*Node, Error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	pmap := cluster.getPartitions()
 	partitions := pmap[key.namespace]
@@ -127,9 +128,25 @@ func GetNodeBatchRead(cluster *Cluster, key *Key, replica ReplicaPolicy, replica
 		sequence = sequenceSC
 	}
 
-	p := NewPartition(partitions, key, replica, false)
+	p := NewPartition(partitions, key, replica, prevNode, false)
 	p.sequence = sequence
 	return p.GetNodeRead(cluster)
+}
+
+// GetNodeBatchWrite returns a node for batch Writes
+func GetNodeBatchWrite(cluster *Cluster, key *Key, replica ReplicaPolicy, prevNode *Node, sequence int) (*Node, Error) {
+	// Must copy hashmap reference for copy on write semantics to work.
+	pmap := cluster.getPartitions()
+	partitions := pmap[key.namespace]
+
+	if partitions == nil {
+		return nil, newInvalidNamespaceError(key.namespace, len(pmap))
+	}
+
+	p := NewPartition(partitions, key, replica, prevNode, false)
+	p.prevNode = prevNode
+	p.sequence = sequence
+	return p.GetNodeWrite(cluster)
 }
 
 // GetNodeRead returns a node for read operations

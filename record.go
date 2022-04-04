@@ -59,3 +59,15 @@ func newRecord(node *Node, key *Key, bins BinMap, generation, expiration uint32)
 func (rc *Record) String() string {
 	return fmt.Sprintf("%s %v", rc.Key, rc.Bins)
 }
+
+// udfError returns the the error string returned by a UDF execute in a batch.
+// Returns nil if an error did not occur.
+func (rc *Record) udfError() string {
+	return rc.Bins["FAILURE"].(string)
+}
+
+// udfResult returns the value returned by a UDF execute in a batch.
+// The result may be nil.
+func (rc *Record) udfResult() BinMap {
+	return BinMap(rc.Bins["SUCCESS"].(map[string]interface{}))
+}

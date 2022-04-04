@@ -37,3 +37,8 @@ func (ptn *Partition) GetMasterProlesNode(cluster *Cluster) (*Node, Error) {
 func (nd *Node) ConnsCount() int {
 	return nd.connectionCount.Get()
 }
+
+// CloseConnections closes all the node connections
+func (nd *Node) CloseConnections() {
+	nd.closeConnections()
+}
