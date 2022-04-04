@@ -15,66 +15,35 @@
 package aerospike
 
 import (
-	"reflect"
-
 	"github.com/aerospike/aerospike-client-go/v5/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v5/utils/buffer"
 )
 
-type batchCommandGet struct {
+type batchCommandOperate struct {
 	batchCommand
 
-	keys         []*Key
-	binNames     []string     // binNames are mutually exclusive with ops
-	ops          []*Operation // ops are mutually exclusive with binNames
-	records      []*Record
-	indexRecords []*BatchRead
-	readAttr     int
-	key          Key
-
-	// pointer to the object that's going to be unmarshalled
-	objects      []*reflect.Value
-	objectsFound []bool
+	attr    *batchAttr
+	records []BatchRecordIfc
 }
 
-// this method uses reflection.
-// Will not be set if performance flag is passed for the build.
-var batchObjectParser func(
-	cmd *batchCommandGet,
-	offset int,
-	opCount int,
-	fieldCount int,
-	generation uint32,
-	expiration uint32,
-) Error
-
-func newBatchCommandGet(
+func newBatchCommandOperate(
 	node *Node,
 	batch *batchNode,
 	policy *BatchPolicy,
-	keys []*Key,
-	binNames []string,
-	ops []*Operation,
-	records []*Record,
-	readAttr int,
-	isOperation bool,
-) *batchCommandGet {
-	res := &batchCommandGet{
+	records []BatchRecordIfc,
+) *batchCommandOperate {
+	res := &batchCommandOperate{
 		batchCommand: batchCommand{
-			baseMultiCommand: *newMultiCommand(node, nil, isOperation),
+			baseMultiCommand: *newMultiCommand(node, nil, true),
 			policy:           policy,
 			batch:            batch,
 		},
-		keys:     keys,
-		ops:      ops,
-		binNames: binNames,
-		records:  records,
-		readAttr: readAttr,
+		records: records,
 	}
 	return res
 }
 
-func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode) batcher {
+func (cmd *batchCommandOperate) cloneBatchCommand(batch *batchNode) batcher {
 	res := *cmd
 	res.node = batch.Node
 	res.batch = batch
@@ -82,13 +51,15 @@ func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode) batcher {
 	return &res
 }
 
-func (cmd *batchCommandGet) writeBuffer(ifc command) Error {
-	return cmd.setBatchRead(cmd.policy, cmd.keys, cmd.batch, cmd.binNames, cmd.ops, cmd.readAttr)
+func (cmd *batchCommandOperate) writeBuffer(ifc command) Error {
+	attr, err := cmd.setBatchOperateIfc(cmd.policy, cmd.records, cmd.batch)
+	cmd.attr = attr
+	return err
 }
 
 // Parse all results in the batch.  Add records to shared list.
 // If the record was not found, the bins will be nil.
-func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
+func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	//Parse each message response and add it to the result array
 	cmd.dataOffset = 0
 
@@ -97,16 +68,6 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 			return false, err
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
-
-		// The only valid server return codes are "ok" and "not found" and "filtered out".
-		// If other return codes are received, then abort the batch.
-		if resultCode != 0 && resultCode != types.KEY_NOT_FOUND_ERROR {
-			if resultCode == types.FILTERED_OUT {
-				cmd.filteredOutCnt++
-			} else {
-				return false, newCustomNodeError(cmd.node, resultCode)
-			}
-		}
 
 		info3 := int(cmd.dataBuffer[3])
 
@@ -120,42 +81,48 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
+
+		// The only valid server return codes are "ok" and "not found" and "filtered out".
+		// If other return codes are received, then abort the batch.
+		if resultCode != 0 {
+			if resultCode != types.KEY_NOT_FOUND_ERROR {
+				if resultCode == types.FILTERED_OUT {
+					cmd.filteredOutCnt++
+				}
+			}
+
+			if resultCode != types.KEY_NOT_FOUND_ERROR && resultCode != types.FILTERED_OUT {
+				return false, newCustomNodeError(cmd.node, resultCode)
+			}
+
+			cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+			continue
+		}
+
 		err := cmd.skipKey(fieldCount)
 		if err != nil {
 			return false, err
 		}
 
-		if cmd.indexRecords != nil {
-			if len(cmd.indexRecords) > 0 {
-				if resultCode == 0 {
-					if cmd.indexRecords[batchIndex].Record, err = cmd.parseRecord(cmd.indexRecords[batchIndex].Key, opCount, generation, expiration); err != nil {
-						return false, err
-					}
-				}
+		if resultCode == 0 {
+			rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
+			if err != nil {
+				cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+				return false, err
 			}
+			cmd.records[batchIndex].setRecord(rec)
 		} else {
-			if resultCode == 0 {
-				if cmd.objects == nil {
-					if cmd.records[batchIndex], err = cmd.parseRecord(cmd.keys[batchIndex], opCount, generation, expiration); err != nil {
-						return false, err
-					}
-				} else if batchObjectParser != nil {
-					// mark it as found
-					cmd.objectsFound[batchIndex] = true
-					if err := batchObjectParser(cmd, batchIndex, opCount, fieldCount, generation, expiration); err != nil {
-						return false, err
-
-					}
-				}
-			}
+			cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+			cmd.records[batchIndex].chainError(newCustomNodeError(cmd.node, resultCode))
 		}
 	}
+
 	return true, nil
 }
 
 // Parses the given byte buffer and populate the result object.
 // Returns the number of bytes that were parsed from the given buffer.
-func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expiration uint32) (*Record, Error) {
+func (cmd *batchCommandOperate) parseRecord(key *Key, opCount int, generation, expiration uint32) (*Record, Error) {
 	bins := make(BinMap, opCount)
 
 	for i := 0; i < opCount; i++ {
@@ -198,10 +165,10 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expir
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
-func (cmd *batchCommandGet) Execute() Error {
+func (cmd *batchCommandOperate) Execute() Error {
 	return cmd.execute(cmd, true)
 }
 
-func (cmd *batchCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
-	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, nil, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, false)
+func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
+	return newBatchOperateNodeListIfcRetry(cluster, cmd.policy, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
 }

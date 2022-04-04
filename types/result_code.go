@@ -21,6 +21,12 @@ import "fmt"
 type ResultCode int
 
 const (
+	// BATCH_FAILED means one or more keys failed in a batch.
+	BATCH_FAILED ResultCode = -20
+
+	// NO_RESPONSE means no response was received from the server.
+	NO_RESPONSE ResultCode = -19
+
 	// NETWORK_ERROR defines a network error. Checked the wrapped error for detail.
 	NETWORK_ERROR ResultCode = -18
 
@@ -299,6 +305,11 @@ const (
 // ResultCodeToString returns a human readable errors message based on the result code.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
+	case BATCH_FAILED:
+		return "one or more keys failed in a batch"
+
+	case NO_RESPONSE:
+		return "no response was received from the server"
 
 	case NETWORK_ERROR:
 		return "network error. Checked the wrapped error for detail"
@@ -577,6 +588,10 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 func (rc ResultCode) String() string {
 	switch rc {
+	case BATCH_FAILED:
+		return "BATCH_FAILED"
+	case NO_RESPONSE:
+		return "NO_RESPONSE"
 	case NETWORK_ERROR:
 		return "NETWORK_ERROR"
 	case COMMON_ERROR:

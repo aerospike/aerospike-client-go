@@ -36,8 +36,16 @@ type Client struct {
 
 	// DefaultPolicy is used for all read commands without a specific policy.
 	DefaultPolicy *BasePolicy
-	// DefaultBatchPolicy is used for all batch commands without a specific policy.
+	// DefaultBatchPolicy is the default parent policy used in batch read commands. Base policy fields
+	// include socketTimeout, totalTimeout, maxRetries, etc...
 	DefaultBatchPolicy *BatchPolicy
+	// DefaultBatchWritePolicy is the default write policy used in batch operate commands.
+	// Write policy fields include generation, expiration, durableDelete, etc...
+	DefaultBatchWritePolicy *BatchWritePolicy
+	// DefaultBatchDeletePolicy is the default delete policy used in batch delete commands.
+	DefaultBatchDeletePolicy *BatchDeletePolicy
+	// DefaultBatchUDFPolicy is the default user defined function policy used in batch UDF excecute commands.
+	DefaultBatchUDFPolicy *BatchUDFPolicy
 	// DefaultWritePolicy is used for all write commands without a specific policy.
 	DefaultWritePolicy *WritePolicy
 	// DefaultScanPolicy is used for all scan commands without a specific policy.
@@ -84,13 +92,16 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	}
 
 	client := &Client{
-		cluster:            cluster,
-		DefaultPolicy:      NewPolicy(),
-		DefaultBatchPolicy: NewBatchPolicy(),
-		DefaultWritePolicy: NewWritePolicy(0, 0),
-		DefaultScanPolicy:  NewScanPolicy(),
-		DefaultQueryPolicy: NewQueryPolicy(),
-		DefaultAdminPolicy: NewAdminPolicy(),
+		cluster:                  cluster,
+		DefaultPolicy:            NewPolicy(),
+		DefaultBatchPolicy:       NewBatchPolicy(),
+		DefaultBatchWritePolicy:  NewBatchWritePolicy(),
+		DefaultBatchDeletePolicy: NewBatchDeletePolicy(),
+		DefaultBatchUDFPolicy:    NewBatchUDFPolicy(),
+		DefaultWritePolicy:       NewWritePolicy(0, 0),
+		DefaultScanPolicy:        NewScanPolicy(),
+		DefaultQueryPolicy:       NewQueryPolicy(),
+		DefaultAdminPolicy:       NewAdminPolicy(),
 	}
 
 	runtime.SetFinalizer(client, clientFinalizer)
@@ -312,7 +323,7 @@ func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, Error
 	// when a key exists, the corresponding index will be marked true
 	existsArray := make([]bool, len(keys))
 
-	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
+	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +397,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
+	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -416,7 +427,7 @@ func (clnt *Client) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Op
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
+	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -474,7 +485,7 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 	// when a key exists, the corresponding index will be set to record
 	records := make([]*Record, len(keys))
 
-	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys)
+	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -489,6 +500,85 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 		err = chainErrors(ErrFilteredOut.err(), err)
 	}
 
+	return records, err
+}
+
+// BatchDelete deletes records for specified keys. If a key is not found, the corresponding result
+// BatchRecord.ResultCode will be types.KEY_NOT_FOUND_ERROR.
+//
+// Requires server version 6.0+
+func (clnt *Client) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePolicy, keys []*Key) ([]*BatchRecord, Error) {
+	policy = clnt.getUsableBatchPolicy(policy)
+	deletePolicy = clnt.getUsableBatchDeletePolicy(deletePolicy)
+
+	attr := &batchAttr{}
+	attr.setBatchDelete(deletePolicy)
+
+	// same array can be used without synchronization;
+	// when a key exists, the corresponding index will be set to record
+	records := make([]*BatchRecord, len(keys))
+	for i := range records {
+		records[i] = newSimpleBatchRecord(keys[i], true)
+	}
+
+	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, records, true)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := newBatchCommandDelete(nil, nil, policy, keys, records, attr)
+	_, err = clnt.batchExecute(policy, batchNodes, cmd)
+	return records, err
+}
+
+// BatchOperate will read/write multiple records for specified batch keys in one batch call.
+// This method allows different namespaces/bins for each key in the batch.
+// The returned records are located in the same list.
+//
+// BatchRecord can be *BatchRead, *BatchWrite, *BatchDelete or *BatchUDF.
+//
+// Requires server version 6.0+
+func (clnt *Client) BatchOperate(policy *BatchPolicy, records []BatchRecordIfc) Error {
+	policy = clnt.getUsableBatchPolicy(policy)
+
+	batchNodes, err := newBatchOperateNodeListIfc(clnt.cluster, policy, records)
+	if err != nil {
+		return err
+	}
+
+	cmd := newBatchCommandOperate(nil, nil, policy, records)
+	_, err = clnt.batchExecute(policy, batchNodes, cmd)
+	return err
+}
+
+// BatchExecute will read/write multiple records for specified batch keys in one batch call.
+// This method allows different namespaces/bins for each key in the batch.
+// The returned records are located in the same list.
+//
+// BatchRecord can be *BatchRead, *BatchWrite, *BatchDelete or *BatchUDF.
+//
+// Requires server version 6.0+
+func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy, keys []*Key, packageName string, functionName string, args ...Value) ([]*BatchRecord, Error) {
+	policy = clnt.getUsableBatchPolicy(policy)
+	udfPolicy = clnt.getUsableBatchUDFPolicy(udfPolicy)
+
+	attr := &batchAttr{}
+	attr.setBatchUDF(udfPolicy)
+
+	// same array can be used without synchronization;
+	// when a key exists, the corresponding index will be set to record
+	records := make([]*BatchRecord, len(keys))
+	for i := range records {
+		records[i] = newSimpleBatchRecord(keys[i], attr.hasWrite)
+	}
+
+	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, records, attr.hasWrite)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := newBatchCommandUDF(nil, nil, policy, keys, packageName, functionName, args, records, attr)
+	_, err = clnt.batchExecute(policy, batchNodes, cmd)
 	return records, err
 }
 
@@ -1628,6 +1718,46 @@ func (clnt *Client) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
 			return clnt.DefaultBatchPolicy
 		}
 		return NewBatchPolicy()
+	}
+	return policy
+}
+
+func (clnt *Client) getUsableBaseBatchWritePolicy(policy *BatchPolicy) *BatchPolicy {
+	if policy == nil {
+		if clnt.DefaultBatchPolicy != nil {
+			return clnt.DefaultBatchPolicy
+		}
+		return NewBatchPolicy()
+	}
+	return policy
+}
+
+func (clnt *Client) getUsableBatchWritePolicy(policy *BatchWritePolicy) *BatchWritePolicy {
+	if policy == nil {
+		if clnt.DefaultBatchWritePolicy != nil {
+			return clnt.DefaultBatchWritePolicy
+		}
+		return NewBatchWritePolicy()
+	}
+	return policy
+}
+
+func (clnt *Client) getUsableBatchDeletePolicy(policy *BatchDeletePolicy) *BatchDeletePolicy {
+	if policy == nil {
+		if clnt.DefaultBatchDeletePolicy != nil {
+			return clnt.DefaultBatchDeletePolicy
+		}
+		return NewBatchDeletePolicy()
+	}
+	return policy
+}
+
+func (clnt *Client) getUsableBatchUDFPolicy(policy *BatchUDFPolicy) *BatchUDFPolicy {
+	if policy == nil {
+		if clnt.DefaultBatchUDFPolicy != nil {
+			return clnt.DefaultBatchUDFPolicy
+		}
+		return NewBatchUDFPolicy()
 	}
 	return policy
 }

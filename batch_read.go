@@ -16,13 +16,17 @@ package aerospike
 
 import (
 	"fmt"
+
+	"github.com/aerospike/aerospike-client-go/v5/types"
 )
 
 // BatchRead specifies the Key and bin names used in batch read commands
 // where variable bins are needed for each key.
 type BatchRead struct {
-	// Key specifies the key to retrieve.
-	Key *Key
+	BatchRecord
+
+	// Optional read policy.
+	policy *BatchPolicy
 
 	// BinNames specifies the Bins to retrieve for this key.
 	// BinNames are mutually exclusive with Ops.
@@ -34,9 +38,6 @@ type BatchRead struct {
 	// If false and binNames are not set, read record header (generation, expiration) only.
 	ReadAllBins bool //= false
 
-	// Record result after batch command has completed.  Will be null if record was not found.
-	Record *Record
-
 	// Ops specifies the operations to perform for every key.
 	// Ops are mutually exclusive with BinNames.
 	// A binName can be emulated with `GetOp(binName)`
@@ -46,24 +47,19 @@ type BatchRead struct {
 
 // NewBatchRead defines a key and bins to retrieve in a batch operation.
 func NewBatchRead(key *Key, binNames []string) *BatchRead {
-	res := &BatchRead{
-		Key:      key,
-		BinNames: binNames,
+	return &BatchRead{
+		BatchRecord: *newSimpleBatchRecord(key, false),
+		BinNames:    binNames,
+		ReadAllBins: len(binNames) == 0,
 	}
-
-	if len(binNames) == 0 {
-		res.ReadAllBins = true
-	}
-
-	return res
 }
 
 // NewBatchReadOps defines a key and bins to retrieve in a batch operation, including expressions.
 func NewBatchReadOps(key *Key, binNames []string, ops []*Operation) *BatchRead {
 	res := &BatchRead{
-		Key:      key,
-		BinNames: binNames,
-		Ops:      ops,
+		BatchRecord: *newSimpleBatchRecord(key, false),
+		BinNames:    binNames,
+		Ops:         ops,
 	}
 
 	if len(binNames) == 0 {
@@ -76,9 +72,58 @@ func NewBatchReadOps(key *Key, binNames []string, ops []*Operation) *BatchRead {
 // NewBatchReadHeader defines a key to retrieve the record headers only in a batch operation.
 func NewBatchReadHeader(key *Key) *BatchRead {
 	return &BatchRead{
-		Key:         key,
+		BatchRecord: *newSimpleBatchRecord(key, false),
 		ReadAllBins: false,
 	}
+}
+
+// Return batch command type.
+func (br *BatchRead) getType() batchRecordType {
+	return _BRT_BATCH_READ
+}
+
+// Optimized reference equality check to determine batch wire protocol repeat flag.
+// For internal use only.
+func (br *BatchRead) equals(obj BatchRecordIfc) bool {
+	other, ok := obj.(*BatchRead)
+	if !ok {
+		return false
+	}
+
+	return &br.BinNames == &other.BinNames && &br.Ops == &other.Ops && br.policy == other.policy && br.ReadAllBins == other.ReadAllBins
+}
+
+// Return wire protocol size. For internal use only.
+func (br *BatchRead) size() (int, Error) {
+	size := 0
+
+	if br.policy != nil {
+		if br.policy.FilterExpression != nil {
+			if sz, err := br.policy.FilterExpression.pack(nil); err != nil {
+				return -1, err
+			} else {
+				size += sz
+			}
+		}
+	}
+
+	for i := range br.BinNames {
+		size += len(br.BinNames[i]) + int(_OPERATION_HEADER_SIZE)
+	}
+
+	for i := range br.Ops {
+		if br.Ops[i].opType.isWrite {
+			return -1, newError(types.PARAMETER_ERROR, "Write operations not allowed in batch read")
+		}
+		size += len(br.Ops[i].binName) + int(_OPERATION_HEADER_SIZE)
+		if sz, err := br.Ops[i].binValue.EstimateSize(); err != nil {
+			return -1, err
+		} else {
+			size += sz
+		}
+	}
+
+	return size, nil
 }
 
 // String implements the Stringer interface.

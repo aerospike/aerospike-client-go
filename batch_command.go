@@ -37,6 +37,8 @@ type batchCommand struct {
 	sequenceAP int
 	sequenceSC int
 
+	splitRetry bool
+
 	filteredOutCnt int
 }
 

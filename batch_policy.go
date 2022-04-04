@@ -50,6 +50,37 @@ type BatchPolicy struct {
 	// can process the entire batch before moving onto the next command.
 	AllowInline bool //= true
 
+	// Allow batch to be processed immediately in the server's receiving thread for SSD
+	// namespaces. If false, the batch will always be processed in separate service threads.
+	// Server versions before 6.0 ignore this field.
+	//
+	// Inline processing can introduce the possibility of unfairness because the server
+	// can process the entire batch before moving onto the next command.
+	//
+	// Default: false
+	AllowInlineSSD bool // = false
+
+	// Should all batch keys be attempted regardless of errors. This field is used on both
+	// the client and server. The client handles node specific errors and the server handles
+	// key specific errors.
+	//
+	// If true, every batch key is attempted regardless of previous key specific errors.
+	// Node specific errors such as timeouts stop keys to that node, but keys directed at
+	// other nodes will continue to be processed.
+	//
+	// If false, the server will stop the batch to its node on most key specific errors.
+	// The exceptions are {@link com.aerospike.client.ResultCode#KEY_NOT_FOUND_ERROR} and
+	// {@link com.aerospike.client.ResultCode#FILTERED_OUT} which never stop the batch.
+	// The client will stop the entire batch on node specific errors for sync commands
+	// that are run in sequence (maxConcurrentThreads == 1). The client will not stop
+	// the entire batch for async commands or sync commands run in parallel.
+	//
+	// Server versions &lt; 6.0 do not support this field and treat this value as false
+	// for key specific errors.
+	//
+	// Default: true
+	RespondAllKeys bool //= true;
+
 	// AllowPartialResults determines if the results for some nodes should be returned in case
 	// some nodes encounter an error. The result for the unreceived records will be nil.
 	// The returned records will be safe to use, since only fully received data will be parsed
@@ -58,11 +89,6 @@ type BatchPolicy struct {
 	// This flag is only supported for BatchGet and BatchGetHeader methods. BatchGetComplex always returns
 	// partial results by design.
 	AllowPartialResults bool //= false
-
-	// Send set name field to server for every key in the batch for batch index protocol.
-	// This is only necessary when authentication is enabled and security roles are defined
-	// on a per set basis.
-	SendSetName bool //= false
 }
 
 // NewBatchPolicy initializes a new BatchPolicy instance with default parameters.
@@ -72,6 +98,18 @@ func NewBatchPolicy() *BatchPolicy {
 		ConcurrentNodes:     1,
 		AllowInline:         true,
 		AllowPartialResults: false,
-		SendSetName:         false,
+		RespondAllKeys:      true,
 	}
+}
+
+// NewReadBatchPolicy initializes a new BatchPolicy instance for reads.
+func NewReadBatchPolicy() *BatchPolicy {
+	return NewBatchPolicy()
+}
+
+// NewWriteBatchPolicy initializes a new BatchPolicy instance for writes.
+func NewWriteBatchPolicy() *BatchPolicy {
+	res := NewBatchPolicy()
+	res.MaxRetries = 0
+	return res
 }

@@ -306,6 +306,8 @@ func (ndv *nodeValidator) setFeatures(features string) {
 			ndv.features |= _SUPPORTS_PARTITION_SCAN
 		case "query-show":
 			ndv.features |= _SUPPORTS_QUERY_SHOW
+		case "batch-any":
+			ndv.features |= _SUPPORTS_BATCH_ANY
 		case "pquery":
 			ndv.features |= _SUPPORTS_PARTITION_QUERY
 		}
