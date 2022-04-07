@@ -1,4 +1,4 @@
-module github.com/aerospike/aerospike-client-go/v5
+module github.com/aerospike/aerospike-client-go/v6
 
 go 1.13
 

@@ -22,8 +22,8 @@ import (
 	"os"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go/v5"
-	shared "github.com/aerospike/aerospike-client-go/v5/examples/shared"
+	as "github.com/aerospike/aerospike-client-go/v6"
+	shared "github.com/aerospike/aerospike-client-go/v6/examples/shared"
 )
 
 const keyCount = 1000

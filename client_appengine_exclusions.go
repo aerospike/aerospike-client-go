@@ -1,3 +1,4 @@
+//go:build !app_engine
 // +build !app_engine
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -22,8 +23,8 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	lualib "github.com/aerospike/aerospike-client-go/v5/internal/lua"
-	"github.com/aerospike/aerospike-client-go/v5/logger"
+	lualib "github.com/aerospike/aerospike-client-go/v6/internal/lua"
+	"github.com/aerospike/aerospike-client-go/v6/logger"
 	lua "github.com/yuin/gopher-lua"
 )
 

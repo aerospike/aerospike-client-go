@@ -17,7 +17,7 @@ package aerospike
 import (
 	"errors"
 
-	ast "github.com/aerospike/aerospike-client-go/v5/types"
+	ast "github.com/aerospike/aerospike-client-go/v6/types"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"

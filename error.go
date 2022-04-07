@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aerospike/aerospike-client-go/v5/types"
+	"github.com/aerospike/aerospike-client-go/v6/types"
 )
 
 // Error is the internal error interface for the Aerospike client's errors.

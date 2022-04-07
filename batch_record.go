@@ -17,7 +17,7 @@ package aerospike
 import (
 	"fmt"
 
-	"github.com/aerospike/aerospike-client-go/v5/types"
+	"github.com/aerospike/aerospike-client-go/v6/types"
 )
 
 type batchRecordType byte

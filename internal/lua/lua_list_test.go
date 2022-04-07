@@ -1,3 +1,4 @@
+//go:build !app_engine
 // +build !app_engine
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -22,7 +23,7 @@ import (
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 
-	ilua "github.com/aerospike/aerospike-client-go/v5/internal/lua"
+	ilua "github.com/aerospike/aerospike-client-go/v6/internal/lua"
 )
 
 var _ = gg.Describe("Lua List API Test", func() {

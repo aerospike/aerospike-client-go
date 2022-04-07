@@ -21,8 +21,8 @@ import (
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 
-	as "github.com/aerospike/aerospike-client-go/v5"
-	ast "github.com/aerospike/aerospike-client-go/v5/types"
+	as "github.com/aerospike/aerospike-client-go/v6"
+	ast "github.com/aerospike/aerospike-client-go/v6/types"
 )
 
 const udfPredexpBody = `local function putBin(r,name,value)
