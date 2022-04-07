@@ -1,4 +1,4 @@
-// Copyright 2014-2019 Aerospike, Inc.
+// Copyright 2014-2022 Aerospike, Inc.
 //
 // Portions may be licensed to Aerospike, Inc. under one or more contributor
 // license agreements.
