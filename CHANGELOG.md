@@ -1,17 +1,9 @@
 # Change History
 
 
-## April 3 2022: v5.8.1
+## April 7 2022: v5.8.0
 
   This is a major fix release. We recommend upgrading to this release if you are using authentication.
-
-  * **Fixes**
-
-    - [CLIENT-1695] Fixes a potential `nil` deference in `sessionInfo.validate()` method.
-
-## March 7 2022: v5.8.0
-
-  This is a major fix release.
 
   * **Improvements**
   
@@ -20,6 +12,7 @@
 
   * **Fixes**
 
+    - [CLIENT-1695] Fixes a potential `nil` deference in `sessionInfo.isValid()` method.
     - Fixes an issue where with default policies and after certain errors the replica node was not selected on retry.
 
 ## Decempber 6 2021: v5.7.0
