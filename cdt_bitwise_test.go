@@ -572,7 +572,6 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 			}
 
 			// assertRecordFound(key, record)
-			//System.out.println("Record: " + record);
 
 			result_list := record.Bins[cdtBinName].([]interface{})
 			results := make([][]byte, len(expected))
@@ -949,9 +948,6 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 				as.BitResizeOp(policy, cdtBinName, 0, as.BitResizeFlagsShrinkOnly),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			//System.out.println("Record: " + record);
-
 			result_list := record.Bins[cdtBinName].([]interface{})
 			get0 := result_list[1].([]byte)
 			get1 := result_list[3].([]byte)
