@@ -9,7 +9,7 @@
 
     - [CLIENT-1699] Support New v6 Queries.
     - [CLIENT-1700] Support New Server v6 Roles and Privileges.
-    - [CLIENT-1701] Support New v6 Queries.
+    - [CLIENT-1701] Support New Batch Writes.
     - [CLIENT-1702] Remove PredExp feature from the client.
 
 ## April 7 2022: v5.8.0
