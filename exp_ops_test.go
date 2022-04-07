@@ -184,23 +184,9 @@ var _ = gg.Describe("PredExp in Transactions Test", func() {
 			predAEq1BPolicy = as.NewBatchPolicy()
 			predAEq1RPolicy = as.NewPolicy()
 
-			predAEq1BPolicy.PredExp = []as.PredExp{
-				as.NewPredExpIntegerBin(binAName),
-				as.NewPredExpIntegerValue(1),
-				as.NewPredExpIntegerEqual(),
-			}
-
-			predAEq1RPolicy.PredExp = []as.PredExp{
-				as.NewPredExpIntegerBin(binAName),
-				as.NewPredExpIntegerValue(1),
-				as.NewPredExpIntegerEqual(),
-			}
-
-			predAEq1WPolicy.PredExp = []as.PredExp{
-				as.NewPredExpIntegerBin(binAName),
-				as.NewPredExpIntegerValue(1),
-				as.NewPredExpIntegerEqual(),
-			}
+			predAEq1BPolicy.FilterExpression = as.ExpEq(as.ExpIntBin(binAName), as.ExpIntVal(1))
+			predAEq1RPolicy.FilterExpression = as.ExpEq(as.ExpIntBin(binAName), as.ExpIntVal(1))
+			predAEq1WPolicy.FilterExpression = as.ExpEq(as.ExpIntBin(binAName), as.ExpIntVal(1))
 
 			_, err := client.Delete(nil, keyA)
 			gm.Expect(err).ToNot(gm.HaveOccurred())

@@ -33,14 +33,6 @@ var _ Policy = &BasePolicy{}
 // BasePolicy encapsulates parameters for transaction policy attributes
 // used in all database operation calls.
 type BasePolicy struct {
-	// PredExps is the optional predicate expression filter in postfix notation. If the predicate
-	// expression exists and evaluates to false, the transaction is ignored.
-	//
-	// Default: nil
-	// NOTE: This feature is deprecated on Aerospike servers and will be removed in the future.
-	// It has been replaced by FilterExpressions.
-	PredExp []PredExp
-
 	// FilterExpression is the optional Filter Expression. Supported on Server v5.2+
 	FilterExpression *Expression
 
