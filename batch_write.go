@@ -18,7 +18,7 @@ import "github.com/aerospike/aerospike-client-go/v5/types"
 
 var _ BatchRecordIfc = &BatchWrite{}
 
-// Batch key and read/write operations with write policy.
+// BatchWrite encapsulates a batch key and read/write operations with write policy.
 type BatchWrite struct {
 	BatchRecord
 
@@ -29,10 +29,10 @@ type BatchWrite struct {
 	ops []*Operation
 }
 
-// Initialize policy, batch key and read/write operations.
-// Operation.Get() is not allowed because it returns a variable number of bins and
+// NewBatchWrite initializesa policy, batch key and read/write operations.
+// ANy GetOp() is not allowed because it returns a variable number of bins and
 // makes it difficult (sometimes impossible) to lineup operations with results. Instead,
-// use Operation.get(string) for each bin name.
+// use GetBinOp(string) for each bin name.
 func NewBatchWrite(policy *BatchWritePolicy, key *Key, ops ...*Operation) *BatchWrite {
 	return &BatchWrite{
 		BatchRecord: *newSimpleBatchRecord(key, true),

@@ -290,7 +290,7 @@ func MapCreateOp(binName string, order mapOrderType, ctx []*CDTContext) *Operati
 }
 
 // MapSetPolicyOp creates set map policy operation.
-// Server sets map policy attributes.  Server returns null.
+// Server sets map policy attributes.  Server returns nil.
 //
 // The required map policy attributes can be changed after the map is created.
 func MapSetPolicyOp(policy *MapPolicy, binName string, ctx ...*CDTContext) *Operation {
@@ -402,7 +402,7 @@ func MapDecrementOp(policy *MapPolicy, binName string, key interface{}, decr int
 }
 
 // MapClearOp creates map clear operation.
-// Server removes all items in map.  Server returns null.
+// Server removes all items in map.  Server returns nil.
 func MapClearOp(binName string, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValues0(cdtMapOpTypeClear, _MAP_MODIFY, binName, ctx)
 }
@@ -421,8 +421,8 @@ func MapRemoveByKeyListOp(binName string, keys []interface{}, returnType mapRetu
 
 // MapRemoveByKeyRangeOp creates map remove operation.
 // Server removes map items identified by key range (keyBegin inclusive, keyEnd exclusive).
-// If keyBegin is null, the range is less than keyEnd.
-// If keyEnd is null, the range is greater than equal to keyBegin.
+// If keyBegin is nil, the range is less than keyEnd.
+// If keyEnd is nil, the range is greater than equal to keyBegin.
 //
 // Server returns removed data specified by returnType.
 func MapRemoveByKeyRangeOp(binName string, keyBegin interface{}, keyEnd interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
@@ -443,8 +443,8 @@ func MapRemoveByValueListOp(binName string, values []interface{}, returnType map
 
 // MapRemoveByValueRangeOp creates map remove operation.
 // Server removes map items identified by value range (valueBegin inclusive, valueEnd exclusive).
-// If valueBegin is null, the range is less than valueEnd.
-// If valueEnd is null, the range is greater than equal to valueBegin.
+// If valueBegin is nil, the range is less than valueEnd.
+// If valueEnd is nil, the range is greater than equal to valueBegin.
 //
 // Server returns removed data specified by returnType.
 func MapRemoveByValueRangeOp(binName string, valueBegin interface{}, valueEnd interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
@@ -561,8 +561,8 @@ func MapGetByKeyOp(binName string, key interface{}, returnType mapReturnType, ct
 
 // MapGetByKeyRangeOp creates map get by key range operation.
 // Server selects map items identified by key range (keyBegin inclusive, keyEnd exclusive).
-// If keyBegin is null, the range is less than keyEnd.
-// If keyEnd is null, the range is greater than equal to keyBegin.
+// If keyBegin is nil, the range is less than keyEnd.
+// If keyEnd is nil, the range is greater than equal to keyBegin.
 //
 // Server returns selected data specified by returnType.
 func MapGetByKeyRangeOp(binName string, keyBegin interface{}, keyEnd interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
@@ -614,8 +614,8 @@ func MapGetByValueOp(binName string, value interface{}, returnType mapReturnType
 
 // MapGetByValueRangeOp creates map get by value range operation.
 // Server selects map items identified by value range (valueBegin inclusive, valueEnd exclusive)
-// If valueBegin is null, the range is less than valueEnd.
-// If valueEnd is null, the range is greater than equal to valueBegin.
+// If valueBegin is nil, the range is less than valueEnd.
+// If valueEnd is nil, the range is greater than equal to valueBegin.
 //
 // Server returns selected data specified by returnType.
 func MapGetByValueRangeOp(binName string, valueBegin interface{}, valueEnd interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {

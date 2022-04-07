@@ -130,8 +130,8 @@ func ExpMapRemoveByKeyList(
 }
 
 // ExpMapRemoveByKeyRange creates an expression that removes map items identified by key range (keyBegin inclusive, keyEnd exclusive).
-// If keyBegin is null, the range is less than keyEnd.
-// If keyEnd is null, the range is greater than equal to keyBegin.
+// If keyBegin is nil, the range is less than keyEnd.
+// If keyEnd is nil, the range is greater than equal to keyBegin.
 func ExpMapRemoveByKeyRange(
 	keyBegin *Expression,
 	keyEnd *Expression,
@@ -239,8 +239,8 @@ func ExpMapRemoveByValueList(
 }
 
 // ExpMapRemoveByValueRange creates an expression that removes map items identified by value range (valueBegin inclusive, valueEnd exclusive).
-// If valueBegin is null, the range is less than valueEnd.
-// If valueEnd is null, the range is greater than equal to valueBegin.
+// If valueBegin is nil, the range is less than valueEnd.
+// If valueEnd is nil, the range is greater than equal to valueBegin.
 func ExpMapRemoveByValueRange(
 	valueBegin *Expression,
 	valueEnd *Expression,
@@ -433,8 +433,8 @@ func ExpMapGetByKey(
 }
 
 // ExpMapGetByKeyRange creates an expression that selects map items identified by key range (keyBegin inclusive, keyEnd exclusive).
-// If keyBegin is null, the range is less than keyEnd.
-// If keyEnd is null, the range is greater than equal to keyBegin.
+// If keyBegin is nil, the range is less than keyEnd.
+// If keyEnd is nil, the range is greater than equal to keyBegin.
 // Expression returns selected data specified by returnType.
 func ExpMapGetByKeyRange(
 	returnType mapReturnType,
@@ -551,8 +551,8 @@ func ExpMapGetByValue(
 }
 
 // ExpMapGetByValueRange creates an expression that selects map items identified by value range (valueBegin inclusive, valueEnd exclusive)
-// If valueBegin is null, the range is less than valueEnd.
-// If valueEnd is null, the range is greater than equal to valueBegin.
+// If valueBegin is nil, the range is less than valueEnd.
+// If valueEnd is nil, the range is greater than equal to valueBegin.
 //
 // Expression returns selected data specified by returnType.
 func ExpMapGetByValueRange(

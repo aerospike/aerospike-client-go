@@ -69,10 +69,9 @@ type BatchPolicy struct {
 	// other nodes will continue to be processed.
 	//
 	// If false, the server will stop the batch to its node on most key specific errors.
-	// The exceptions are {@link com.aerospike.client.ResultCode#KEY_NOT_FOUND_ERROR} and
-	// {@link com.aerospike.client.ResultCode#FILTERED_OUT} which never stop the batch.
+	// The exceptions are types.KEY_NOT_FOUND_ERROR and types.FILTERED_OUT which never stop the batch.
 	// The client will stop the entire batch on node specific errors for sync commands
-	// that are run in sequence (maxConcurrentThreads == 1). The client will not stop
+	// that are run in sequence (MaxConcurrentThreads == 1). The client will not stop
 	// the entire batch for async commands or sync commands run in parallel.
 	//
 	// Server versions &lt; 6.0 do not support this field and treat this value as false

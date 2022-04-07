@@ -433,7 +433,7 @@ func ListCreateOp(binName string, listOrder ListOrderType, pad bool, ctx ...*CDT
 }
 
 // ListSetOrderOp creates a set list order operation.
-// Server sets list order.  Server returns null.
+// Server sets list order.  Server returns nil.
 func ListSetOrderOp(binName string, listOrder ListOrderType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET_TYPE, IntegerValue(listOrder)}, encoder: listGenericOpEncoder}
 }
@@ -755,8 +755,8 @@ func ListGetByValueListOp(binName string, values []interface{}, returnType ListR
 
 // ListGetByValueRangeOp creates a list get by value range operation.
 // Server selects list items identified by value range (valueBegin inclusive, valueEnd exclusive)
-// If valueBegin is null, the range is less than valueEnd.
-// If valueEnd is null, the range is greater than equal to valueBegin.
+// If valueBegin is nil, the range is less than valueEnd.
+// If valueEnd is nil, the range is greater than equal to valueBegin.
 // Server returns selected data specified by returnType.
 func ListGetByValueRangeOp(binName string, beginValue, endValue interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(beginValue), NewValue(endValue)}, encoder: listGenericOpEncoder}

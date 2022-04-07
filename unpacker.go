@@ -76,7 +76,7 @@ func (upckr *unpacker) unpackList(count int) ([]interface{}, Error) {
 	}
 
 	if val == nil {
-		// Determine if null value is because of an extension type.
+		// Determine if nil value is because of an extension type.
 		typ := upckr.buffer[mark] & 0xff
 
 		if typ != 0xc0 { // not nil type

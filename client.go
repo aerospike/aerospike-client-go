@@ -417,7 +417,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 
 // BatchGetOperate reads multiple records for specified keys using read operations in one batch call.
 // The returned records are in positional order with the original key array order.
-// If a key is not found, the positional record will be null.
+// If a key is not found, the positional record will be nil.
 //
 // If a batch request to a node fails, the entire batch is cancelled.
 func (clnt *Client) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Operation) ([]*Record, Error) {
@@ -448,7 +448,7 @@ func (clnt *Client) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Op
 // BatchGetComplex reads multiple records for specified batch keys in one batch call.
 // This method allows different namespaces/bins to be requested for each key in the batch.
 // The returned records are located in the same list.
-// If the BatchRead key field is not found, the corresponding record field will be null.
+// If the BatchRead key field is not found, the corresponding record field will be nil.
 // The policy can be used to specify timeouts and maximum concurrent threads.
 // This method requires Aerospike Server version >= 3.6.0.
 func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) Error {

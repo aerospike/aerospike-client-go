@@ -1,6 +1,20 @@
 # Change History
 
 
+## April 7 2022: v6.0.0
+
+  This is a major feature release. It adds several new features supported by the server v6, and drops supports for Predicate Expressions.
+
+  * **New Features**
+
+    - [CLIENT-1699] Support New v6 Queries.
+    - [CLIENT-1700] Support New Server v6 Roles and Privileges.
+    - [CLIENT-1701] Support New v6 Queries.
+    - [CLIENT-1702] Remove PredExp feature from the client.
+
+  * **New Features**
+
+
 ## April 3 2022: v5.8.1
 
   This is a major fix release. We recommend upgrading to this release if you are using authentication.
@@ -22,7 +36,7 @@
 
     - Fixes an issue where with default policies and after certain errors the replica node was not selected on retry.
 
-## Decempber 6 2021: v5.7.0
+## December 6 2021: v5.7.0
 
   * **Improvements**
 

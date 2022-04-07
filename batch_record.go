@@ -31,8 +31,10 @@ const (
 	_BRT_BATCH_UDF
 )
 
+// BatchRecordIfc is the interface type to encapsulate BatchRead, BatchWrite and BatchUDF commands.
 type BatchRecordIfc interface {
-	Contents() *BatchRecord
+	// Returns the BatchRecord
+	BatchRec() *BatchRecord
 
 	key() *Key
 	resultCode() types.ResultCode
@@ -57,7 +59,7 @@ type BatchRecord struct {
 	// or an error occurred. See ResultCode.
 	Record *Record
 
-	// ResultCode for this returned record. See {@link com.aerospike.client.ResultCode}.
+	// ResultCode for this returned record. See types.ResultCode.
 	// If not OK, the record will be nil.
 	ResultCode types.ResultCode
 
@@ -91,7 +93,8 @@ func newBatchRecord(key *Key, record *Record, resultCode types.ResultCode, inDou
 	}
 }
 
-func (br *BatchRecord) Contents() *BatchRecord {
+// BatchRec returns the embedded batch record in the interface.
+func (br *BatchRecord) BatchRec() *BatchRecord {
 	return br
 }
 
@@ -131,7 +134,7 @@ func (br *BatchRecord) setError(resultCode types.ResultCode, inDoubt bool) {
 	br.InDoubt = inDoubt
 }
 
-// Convert to string.
+// String implements the Stringer interface.
 func (br *BatchRecord) String() string {
 	return fmt.Sprintf("Key: %s, Record: %s, ResultCode: %s, InDoubt: %t, Err: %v", br.Key, br.Record, br.ResultCode.String(), br.InDoubt, br.Err)
 }

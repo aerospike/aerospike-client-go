@@ -16,11 +16,11 @@ package aerospike
 
 var _ BatchRecordIfc = &BatchDelete{}
 
-// Batch key
+// BatchDelete encapsulates a batch delete operation.
 type BatchDelete struct {
 	BatchRecord
 
-	// Optional write policy.
+	// policy os the optional write policy.
 	policy *BatchDeletePolicy
 }
 
@@ -32,7 +32,7 @@ func (bd *BatchDelete) key() *Key {
 	return bd.Key
 }
 
-// Batch delete operation.
+// NewBatchDelete creates a batch delete operation.
 func NewBatchDelete(policy *BatchDeletePolicy, key *Key) *BatchDelete {
 	return &BatchDelete{
 		BatchRecord: *newSimpleBatchRecord(key, true),

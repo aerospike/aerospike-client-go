@@ -16,13 +16,9 @@ package aerospike
 
 // BatchDeletePolicy is used in batch delete commands.
 type BatchDeletePolicy struct {
-	// Optional expression filter. If filterExp exists and evaluates to false, the specific batch key
-	// request is not performed and {@link com.aerospike.client.BatchRecord#resultCode} is set to
-	// {@link com.aerospike.client.ResultCode#FILTERED_OUT}.
-	// If exists, this filter overrides the batch parent filter {@link com.aerospike.client.policy.Policy#filterExp}
-	// for the specific key in batch commands that allow a different policy per key.
-	// Otherwise, this filter is ignored.
-	// Default: null
+	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
+	// request is not performed and BatchRecord.ResultCode is set to type.FILTERED_OUT.
+	// Default: nil
 	FilterExpression *Expression
 
 	// Desired consistency guarantee when committing a transaction on the server. The default

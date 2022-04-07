@@ -119,24 +119,24 @@ var _ = gg.Describe("Aerospike", func() {
 				err := client.BatchOperate(bpolicy, brecs)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				gm.Expect(op1.Contents().Err).ToNot(gm.HaveOccurred())
-				gm.Expect(op1.Contents().ResultCode).To(gm.Equal(types.OK))
-				gm.Expect(op1.Contents().Record.Bins).To(gm.Equal(as.BinMap{"bin1": nil}))
-				gm.Expect(op1.Contents().InDoubt).To(gm.BeFalse())
+				gm.Expect(op1.BatchRec().Err).ToNot(gm.HaveOccurred())
+				gm.Expect(op1.BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(op1.BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1": nil}))
+				gm.Expect(op1.BatchRec().InDoubt).To(gm.BeFalse())
 
-				gm.Expect(op2.Contents().Err).ToNot(gm.HaveOccurred())
-				gm.Expect(op2.Contents().ResultCode).To(gm.Equal(types.OK))
-				gm.Expect(op2.Contents().Record.Bins).To(gm.Equal(as.BinMap{"bin2": nil}))
-				gm.Expect(op2.Contents().InDoubt).To(gm.BeFalse())
+				gm.Expect(op2.BatchRec().Err).ToNot(gm.HaveOccurred())
+				gm.Expect(op2.BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(op2.BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin2": nil}))
+				gm.Expect(op2.BatchRec().InDoubt).To(gm.BeFalse())
 
-				gm.Expect(op3.Contents().Err).ToNot(gm.HaveOccurred())
-				gm.Expect(op3.Contents().ResultCode).To(gm.Equal(types.OK))
-				gm.Expect(op3.Contents().Record.Bins).To(gm.Equal(as.BinMap{"bin2": "b"}))
-				gm.Expect(op3.Contents().InDoubt).To(gm.BeFalse())
+				gm.Expect(op3.BatchRec().Err).ToNot(gm.HaveOccurred())
+				gm.Expect(op3.BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(op3.BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin2": "b"}))
+				gm.Expect(op3.BatchRec().InDoubt).To(gm.BeFalse())
 
-				gm.Expect(op4.Contents().Err).ToNot(gm.HaveOccurred())
-				gm.Expect(op4.Contents().ResultCode).To(gm.Equal(types.OK))
-				gm.Expect(op4.Contents().InDoubt).To(gm.BeFalse())
+				gm.Expect(op4.BatchRec().Err).ToNot(gm.HaveOccurred())
+				gm.Expect(op4.BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(op4.BatchRec().InDoubt).To(gm.BeFalse())
 
 				// make sure the delete case actually ran
 				exists, err := client.Exists(nil, key1)
@@ -186,9 +186,9 @@ var _ = gg.Describe("Aerospike", func() {
 
 					for _, rec := range brecs {
 						if i < 3 {
-							gm.Expect(rec.Contents().ResultCode).To(gm.Equal(types.OK))
+							gm.Expect(rec.BatchRec().ResultCode).To(gm.Equal(types.OK))
 						} else {
-							gm.Expect(rec.Contents().ResultCode).To(gm.Equal(types.FILTERED_OUT))
+							gm.Expect(rec.BatchRec().ResultCode).To(gm.Equal(types.FILTERED_OUT))
 						}
 					}
 				}

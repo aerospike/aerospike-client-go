@@ -178,7 +178,7 @@ func ExpListRemoveByValueList(
 }
 
 // ExpListRemoveByValueRange creates an expression that removes list items identified by value range (valueBegin inclusive, valueEnd exclusive).
-// If valueBegin is null, the range is less than valueEnd. If valueEnd is null, the range is
+// If valueBegin is nil, the range is less than valueEnd. If valueEnd is nil, the range is
 // greater than equal to valueBegin.
 func ExpListRemoveByValueRange(
 	valueBegin *Expression,

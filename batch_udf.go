@@ -16,7 +16,7 @@ package aerospike
 
 var _ BatchRecordIfc = &BatchUDF{}
 
-// Batch user defined functions.
+// BatchUDF encapsulates a batch user defined function operation.
 type BatchUDF struct {
 	BatchRecord
 
@@ -36,7 +36,7 @@ type BatchUDF struct {
 	argBytes []byte
 }
 
-// Constructor using specified policy.
+// NewBatchUDF creates a batch UDF operation.
 func NewBatchUDF(policy *BatchUDFPolicy, key *Key, packageName, functionName string, functionArgs ...Value) *BatchUDF {
 	return &BatchUDF{
 		BatchRecord:  *newSimpleBatchRecord(key, true),

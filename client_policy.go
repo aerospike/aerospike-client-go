@@ -31,7 +31,7 @@ type ClientPolicy struct {
 	// in hashed format. Leave empty for clusters running without restricted access.
 	Password string
 
-	// ClusterName sets the expected cluster ID.  If not null, server nodes must return this cluster ID in order to
+	// ClusterName sets the expected cluster ID.  If not nil, server nodes must return this cluster ID in order to
 	// join the client's view of the cluster. Should only be set when connecting to servers that
 	// support the "cluster-name" info command. (v3.10+)
 	ClusterName string //=""
