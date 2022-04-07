@@ -179,9 +179,6 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 
 	if binMap == nil {
@@ -214,10 +211,6 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -259,9 +252,6 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) Error {
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
@@ -273,10 +263,6 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) Error {
 	}
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -304,9 +290,6 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) Error {
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 
 	cmd.estimateOperationSize()
@@ -319,10 +302,6 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) Error {
 	}
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -349,9 +328,6 @@ func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) Error {
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 
 	if err := cmd.sizeBuffer(false); err != nil {
@@ -363,10 +339,6 @@ func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) Error {
 	}
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -391,9 +363,6 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) Error {
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
@@ -404,10 +373,6 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) Error {
 	}
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -432,9 +397,6 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 			if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
 				return err
 			}
-		} else if len(policy.PredExp) > 0 {
-			predSize = cmd.estimatePredExpSize(policy.PredExp)
-			fieldCount++
 		}
 
 		for i := range binNames {
@@ -450,10 +412,6 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 
 		if policy.FilterExpression != nil {
 			if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-				return err
-			}
-		} else if len(policy.PredExp) > 0 {
-			if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 				return err
 			}
 		}
@@ -485,9 +443,6 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) Error {
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 
 	cmd.estimateOperationSizeForBinName("")
@@ -502,10 +457,6 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) Error {
 	}
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -547,9 +498,6 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, args *operateA
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
@@ -568,10 +516,6 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, args *operateA
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -604,9 +548,6 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 
 	fc, err := cmd.estimateUdfSize(packageName, functionName, args)
@@ -625,10 +566,6 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	}
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -660,9 +597,6 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 	cmd.dataOffset += predSize
 
@@ -704,10 +638,6 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return nil, err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return nil, err
 		}
 	}
@@ -826,9 +756,6 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 	cmd.dataOffset += predSize
 
@@ -892,10 +819,6 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -967,9 +890,6 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 	cmd.dataOffset += predSize
 
@@ -1019,10 +939,6 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -1171,9 +1087,6 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 	cmd.dataOffset += predSize
 
@@ -1222,10 +1135,6 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -1309,9 +1218,6 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 
 	cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 5
@@ -1364,10 +1270,6 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -1485,9 +1387,6 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 
 	if namespace != nil {
@@ -1575,10 +1474,6 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
 			return err
 		}
 	}
@@ -1743,9 +1638,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		if predSize > 0 {
 			fieldCount++
 		}
-	} else if len(policy.PredExp) > 0 {
-		predSize = cmd.estimatePredExpSize(policy.PredExp)
-		fieldCount++
 	}
 
 	var functionArgs *ValueArray
@@ -1899,10 +1791,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
 			return err
 		}
-	} else if len(policy.PredExp) > 0 {
-		if err := cmd.writePredExp(policy.PredExp, predSize); err != nil {
-			return err
-		}
 	}
 
 	if statement.functionName != "" {
@@ -2035,15 +1923,6 @@ func (cmd *baseCommand) estimateOperationSizeForBinName(binName string) {
 
 func (cmd *baseCommand) estimateOperationSize() {
 	cmd.dataOffset += int(_OPERATION_HEADER_SIZE)
-}
-
-func (cmd *baseCommand) estimatePredExpSize(predExp []PredExp) int {
-	sz := 0
-	for _, predexp := range predExp {
-		sz += predexp.marshaledSize()
-	}
-	cmd.dataOffset += sz + int(_FIELD_HEADER_SIZE)
-	return sz
 }
 
 func (cmd *baseCommand) estimateExpressionSize(exp *Expression) (int, Error) {
@@ -2318,14 +2197,6 @@ func (cmd *baseCommand) writeOperationForOperationType(operation OperationType) 
 	cmd.WriteByte(0)
 	cmd.WriteByte(0)
 	cmd.WriteByte(0)
-}
-
-func (cmd *baseCommand) writePredExp(predExp []PredExp, predSize int) Error {
-	cmd.writeFieldHeader(predSize, FILTER_EXP)
-	for i := range predExp {
-		predExp[i].marshal(cmd)
-	}
-	return nil
 }
 
 func (cmd *baseCommand) writeFilterExpression(exp *Expression, expSize int) Error {

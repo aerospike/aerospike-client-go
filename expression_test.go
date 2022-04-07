@@ -140,7 +140,6 @@ var _ = gg.Describe("Expression Filters", func() {
 		})
 
 		gg.BeforeEach(func() {
-			qpolicy.PredExp = nil
 			qpolicy.FilterExpression = nil
 		})
 
@@ -155,29 +154,6 @@ var _ = gg.Describe("Expression Filters", func() {
 			for res := range recordset.Results() {
 				gm.Expect(res.Err).To(gm.HaveOccurred())
 			}
-		})
-
-		gg.It("expression filters should be prioritized over predexp", func() {
-			// This statement doesn't form a predicate expression.
-			stm := as.NewStatement(ns, set)
-			stm.SetFilter(as.NewRangeFilter("intval", 0, 400))
-
-			qpolicy.PredExp = []as.PredExp{as.NewPredExpIntegerValue(8)}
-			qpolicy.FilterExpression = as.ExpGreaterEq(as.ExpIntBin("modval"), as.ExpIntVal(8))
-
-			recordset, err := client.Query(qpolicy, stm)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			// The query clause selects [0, 1, ... 400, 401] The predexp
-			// only takes mod 8 and 9, should be 2 pre decade or 80 total.
-
-			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				cnt++
-			}
-
-			gm.Expect(cnt).To(gm.BeNumerically("==", 80))
 		})
 
 		gg.It("expression must additionally filter indexed query results", func() {
