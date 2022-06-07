@@ -708,7 +708,7 @@ var _ = gg.Describe("Expression Filters", func() {
 					as.ExpIntBin("bin"),
 					as.ExpIntVal(35),
 				)
-				_, err = client.Get(rpolicy, key)
+				_, err = client.Get(rpolicy, key, "bin")
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			})

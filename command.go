@@ -414,8 +414,12 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 
 		predSize := 0
 		if policy.FilterExpression != nil {
-			if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
+			predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
+			if err != nil {
 				return err
+			}
+			if predSize > 0 {
+				fieldCount++
 			}
 		} else if len(policy.PredExp) > 0 {
 			predSize = cmd.estimatePredExpSize(policy.PredExp)
