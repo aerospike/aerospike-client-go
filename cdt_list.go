@@ -148,6 +148,9 @@ const (
 	// ListReturnTypeValue will return value for single key read and value list for range read.
 	ListReturnTypeValue ListReturnType = 7
 
+	// ListReturnTypeExists returns true if count > 0.
+	ListReturnTypeExists ListReturnType = 13
+
 	// ListReturnTypeInverted will invert meaning of list command and return values.  For example:
 	// ListOperation.getByIndexRange(binName, index, count, ListReturnType.INDEX | ListReturnType.INVERTED)
 	// With the INVERTED flag enabled, the items outside of the specified index range will be returned.
