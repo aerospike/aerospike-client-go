@@ -140,7 +140,7 @@
   [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
   This is a major feature release. It is also a major breaking release. We have adopted Go's module system as recommended by the Go authors, so the new release moves the active branch to `v5`.
-  As such, the import path changes to `github.com/aerospike/aerospike-client-go/v5`. The `master` branch remains in place to allow maintenance for the older v4 classic version until most users
+  As such, the import path changes to `github.com/adumovic/aerospike-client-go/v5`. The `master` branch remains in place to allow maintenance for the older v4 classic version until most users
   get the chance to upgrade.
 
   This release also changes the way errors work in the client, and invalidates the old way. This allows the client to support Go's somewhat new `errors.Is` and `errors.As` API, and properly
@@ -150,7 +150,7 @@
 
   * **New Features**
 
-    - Adopts module system and changes the import paths to `github.com/aerospike/aerospike-client-go/v5`
+    - Adopts module system and changes the import paths to `github.com/adumovic/aerospike-client-go/v5`
     - [CLIENT-1476] Support new expressions introduced in server version 5.6, including `ExpReadOp` and `ExpWriteOp`.
     - [CLIENT-1463] Support boolean particle type and make it opt-in for reflection API via `UseNativeBoolTypeInReflection`.
     - [CLIENT-1522] Support user quotas and statistics.

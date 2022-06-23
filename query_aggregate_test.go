@@ -1,3 +1,4 @@
+//go:build !app_engine
 // +build !app_engine
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -19,8 +20,8 @@ package aerospike_test
 import (
 	"os"
 
-	as "github.com/aerospike/aerospike-client-go/v5"
-	"github.com/aerospike/aerospike-client-go/v5/internal/atomic"
+	as "github.com/adumovic/aerospike-client-go/v5"
+	"github.com/adumovic/aerospike-client-go/v5/internal/atomic"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"

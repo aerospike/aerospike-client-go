@@ -1,4 +1,4 @@
-module github.com/aerospike/aerospike-client-go/v5
+module github.com/adumovic/aerospike-client-go/v5
 
 go 1.13
 
@@ -10,5 +10,4 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210809222454-d867a43fc93e // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/tools v0.1.5 // indirect
 )

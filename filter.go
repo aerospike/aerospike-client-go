@@ -17,7 +17,7 @@ package aerospike
 import (
 	"fmt"
 
-	ParticleType "github.com/aerospike/aerospike-client-go/v5/internal/particle_type"
+	ParticleType "github.com/adumovic/aerospike-client-go/v5/internal/particle_type"
 )
 
 // Filter specifies a query filter definition.

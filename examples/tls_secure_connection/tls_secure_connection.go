@@ -26,7 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
-	as "github.com/aerospike/aerospike-client-go/v5"
+	as "github.com/adumovic/aerospike-client-go/v5"
 )
 
 var host = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")

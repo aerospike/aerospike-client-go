@@ -4,7 +4,7 @@ Various log levels available to log from the Aerospike API.
 Default is set to OFF.
 
 ```go
-  import asl "github.com/aerospike/aerospike-client-go/v5/logger"
+  import asl "github.com/adumovic/aerospike-client-go/v5/logger"
 
   asl.Logger.SetLevel(asl.OFF)
 ```

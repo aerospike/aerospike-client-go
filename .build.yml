@@ -10,6 +10,6 @@ build:
     script:
       - go get -v github.com/aerospike/aerospike-client-go
       - go build -v -x github.com/aerospike/aerospike-client-go
-      - go install -v -x github.com/aerospike/aerospike-client-go/tools/cli
-      - go install -v -x github.com/aerospike/aerospike-client-go/tools/benchmark
-      - go install -v -x github.com/aerospike/aerospike-client-go/tools/asinfo
+      - go install -v -x github.com/adumovic/aerospike-client-go/tools/cli
+      - go install -v -x github.com/adumovic/aerospike-client-go/tools/benchmark
+      - go install -v -x github.com/adumovic/aerospike-client-go/tools/asinfo
