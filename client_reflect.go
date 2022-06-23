@@ -1,3 +1,4 @@
+//go:build !as_performance
 // +build !as_performance
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -19,7 +20,7 @@ package aerospike
 import (
 	"reflect"
 
-	"github.com/aerospike/aerospike-client-go/v5/types"
+	"github.com/adumovic/aerospike-client-go/v5/types"
 )
 
 // PutObject writes record bin(s) to the server.

@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v5/types"
+	"github.com/adumovic/aerospike-client-go/v5/types"
 )
 
 type partitionTracker struct {
