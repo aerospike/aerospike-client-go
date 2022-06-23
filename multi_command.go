@@ -294,6 +294,11 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 
 		// Partition is done, don't go further
 		if (info3 & _INFO3_PARTITION_DONE) != 0 {
+			// When nodes are removed, the tracker is getting set to null
+			if cmd.tracker == nil {
+				return false, newError(types.PARTITION_UNAVAILABLE)
+			}
+
 			cmd.tracker.partitionDone(cmd.nodePartitions, int(generation))
 			continue
 			// return true, nil
