@@ -1,6 +1,20 @@
 # Change History
 
 
+## June 23 2022: v6.1.0
+
+  This is a minor feature and bug fix release version.
+
+  * **New Features**
+
+    - [CLIENT-1747] Add `EXISTS` return type for CDT read operations.
+
+  * **Fixes**
+
+    - [CLIENT-1754] Go SDK doesn't support MapIncrementOp for batch write.
+    - [CLIENT-1770] Assume background query is complete when the server 6.0+ returns 'not found' in 'query-show' info command. For the old servers, the client will check if it has already observed the job before. If it has, it will also assume the job has finished.
+
+
 ## April 7 2022: v6.0.0
 
   This is a major feature release. It adds several new features supported by the server v6, and drops supports for Predicate Expressions.
