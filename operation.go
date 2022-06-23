@@ -73,6 +73,38 @@ type Operation struct {
 	used bool
 }
 
+// size returns the size of the operation on the wire protocol.
+func (op *Operation) size() (int, Error) {
+	size := len(op.binName)
+
+	if op.used {
+		// cahce will set the used flag to false again
+		if err := op.cache(); err != nil {
+			return -1, err
+		}
+	}
+
+	// Simple case
+	if op.encoder == nil {
+		valueLength, err := op.binValue.EstimateSize()
+		if err != nil {
+			return -1, err
+		}
+
+		size += valueLength + 8
+		return size, nil
+	}
+
+	// Complex case, for CDTs
+	valueLength, err := op.encoder(op, nil)
+	if err != nil {
+		return -1, err
+	}
+
+	size += valueLength + 8
+	return size, nil
+}
+
 // cache uses the encoder and caches the packed operation for further use.
 func (op *Operation) cache() Error {
 	packer := newPacker()

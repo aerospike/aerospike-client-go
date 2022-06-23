@@ -93,12 +93,11 @@ func (bw *BatchWrite) size() (int, Error) {
 		if op.opType.isWrite {
 			hasWrite = true
 		}
-		size += len(op.binName) + int(_OPERATION_HEADER_SIZE)
-		if sz, err := op.binValue.EstimateSize(); err != nil {
+		sz, err := op.size()
+		if err != nil {
 			return -1, err
-		} else {
-			size += sz
 		}
+		size += sz
 	}
 
 	if !hasWrite {

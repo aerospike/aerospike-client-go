@@ -115,12 +115,11 @@ func (br *BatchRead) size() (int, Error) {
 		if br.Ops[i].opType.isWrite {
 			return -1, newError(types.PARAMETER_ERROR, "Write operations not allowed in batch read")
 		}
-		size += len(br.Ops[i].binName) + int(_OPERATION_HEADER_SIZE)
-		if sz, err := br.Ops[i].binValue.EstimateSize(); err != nil {
+		sz, err := br.Ops[i].size()
+		if err != nil {
 			return -1, err
-		} else {
-			size += sz
 		}
+		size += sz
 	}
 
 	return size, nil

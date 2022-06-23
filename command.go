@@ -394,8 +394,12 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 
 		predSize := 0
 		if policy.FilterExpression != nil {
-			if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
+			predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
+			if err != nil {
 				return err
+			}
+			if predSize > 0 {
+				fieldCount++
 			}
 		}
 
@@ -621,19 +625,18 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 			if sz, err := record.size(); err != nil {
 				return nil, err
 			} else {
-				cmd.dataOffset += sz + int(_FIELD_HEADER_SIZE) + 1
+				cmd.dataOffset += sz
 			}
 
 			prev = record
 		}
+
 	}
 
-	// fmt.Println("msg length estimate:", cmd.dataOffset)
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return nil, err
 	}
 
-	// fmt.Println("===================================================###", cmd.dataOffset)
 	cmd.writeBatchHeader(policy, fieldCount)
 
 	if policy.FilterExpression != nil {
@@ -1896,24 +1899,12 @@ func (cmd *baseCommand) estimateOperationSizeForOperation(operation *Operation, 
 		return newError(types.PARAMETER_ERROR, "Write operations not allowed in batch read")
 	}
 
-	binLen := len(operation.binName)
-	cmd.dataOffset += binLen + int(_OPERATION_HEADER_SIZE)
-
-	if operation.encoder == nil {
-		if operation.binValue != nil {
-			sz, err := operation.binValue.EstimateSize()
-			if err != nil {
-				return err
-			}
-			cmd.dataOffset += sz
-		}
-	} else {
-		sz, err := operation.encoder(operation, nil)
-		if err != nil {
-			return err
-		}
-		cmd.dataOffset += sz
+	size, err := operation.size()
+	if err != nil {
+		return err
 	}
+
+	cmd.dataOffset += size
 	return nil
 }
 
