@@ -19,7 +19,7 @@ import (
 	"log"
 	"time"
 
-	as "github.com/adumovic/aerospike-client-go/v5"
+	as "github.com/aerospike/aerospike-client-go/v5"
 )
 
 /*

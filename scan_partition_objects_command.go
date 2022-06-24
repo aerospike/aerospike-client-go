@@ -14,7 +14,7 @@
 
 package aerospike
 
-import "github.com/adumovic/aerospike-client-go/v5/types"
+import "github.com/aerospike/aerospike-client-go/v5/types"
 
 type scanPartitionObjectsCommand scanObjectsCommand
 

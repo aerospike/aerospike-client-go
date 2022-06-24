@@ -18,10 +18,10 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/adumovic/aerospike-client-go/v5/logger"
-	"github.com/adumovic/aerospike-client-go/v5/types"
+	"github.com/aerospike/aerospike-client-go/v5/logger"
+	"github.com/aerospike/aerospike-client-go/v5/types"
 
-	Buffer "github.com/adumovic/aerospike-client-go/v5/utils/buffer"
+	Buffer "github.com/aerospike/aerospike-client-go/v5/utils/buffer"
 )
 
 type readCommand struct {

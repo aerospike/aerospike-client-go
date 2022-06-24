@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"time"
 
-	as "github.com/adumovic/aerospike-client-go/v5"
+	as "github.com/aerospike/aerospike-client-go/v5"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
