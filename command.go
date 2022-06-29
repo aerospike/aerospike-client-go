@@ -608,7 +608,7 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 
 	var prev BatchRecordIfc
 	for i := 0; i < max; i++ {
-		record := records[i]
+		record := records[offsets[i]]
 		key := record.key()
 		cmd.dataOffset += len(key.digest) + 4
 
@@ -659,7 +659,7 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 		index := offsets[i]
 		cmd.WriteUint32(uint32(index))
 
-		record := records[i]
+		record := records[index]
 		key := record.key()
 		if _, err := cmd.Write(key.digest[:]); err != nil {
 			return nil, newCommonError(err)
