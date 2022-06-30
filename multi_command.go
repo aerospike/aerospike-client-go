@@ -300,7 +300,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			// When an error code is received, mark partition as unavailable
 			// for the current round. Unavailable partitions will be retried
 			// in the next round. Generation is overloaded as partitionId.
-			if err != nil {
+			if err != nil && cmd.tracker != nil {
 				cmd.tracker.partitionUnavailable(cmd.nodePartitions, int(generation))
 			}
 			continue
