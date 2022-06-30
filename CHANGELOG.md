@@ -1,5 +1,12 @@
 # Change History
 
+## June 30 2022: v5.9.0
+
+  This is a major fix release. We recommend upgrading to this release if you are using .
+
+  * **Fixes**
+    - [CLIENT-1783] Fix client crashes when tracker is nil during Scan/Queries. PR #379, thanks to [adumovic](https://github.com/adumovic)
+    - Fix `client.Get` when `policy.FilterExpression` and bin names are both provided.
 
 ## April 7 2022: v5.8.0
 
