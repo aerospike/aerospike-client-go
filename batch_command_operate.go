@@ -72,7 +72,7 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 		info3 := int(cmd.dataBuffer[3])
 
 		// If cmd is the end marker of the response, do not proceed further
-		if (info3 & _INFO3_LAST) == _INFO3_LAST {
+		if resultCode == 0 && (info3&_INFO3_LAST) == _INFO3_LAST {
 			return false, nil
 		}
 
