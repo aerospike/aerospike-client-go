@@ -1,6 +1,16 @@
 # Change History
 
 
+## June 30 2022: v6.2.0
+
+  This is a major fix release. We recommend upgrading to this release if you are using `BatchOperate` or `Scan/Queries`.
+
+  * **Fixes**
+
+    - [CLIENT-1783] Client crashes when tracker is `nil` during Scan/Queries.
+    - [CLIENT-1782] `BatchOperate` doesn't return error `BATCH_MAX_REQUESTS_EXCEEDED`.
+    - [CLIENT-1781] Fix `BatchOperate`: use offset index to pick correct record.
+
 ## June 23 2022: v6.1.0
 
   This is a minor feature and bug fix release version.
