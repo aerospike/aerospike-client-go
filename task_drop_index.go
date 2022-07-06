@@ -46,7 +46,7 @@ func (tski *DropIndexTask) IsDone() (bool, Error) {
 		}
 
 		for _, response := range responseMap {
-			if strings.Contains(response, "FAIL:201") {
+			if strings.Contains(response, "FAIL:201") || strings.Contains(response, "ERROR:201") {
 				complete = true
 				continue
 			}

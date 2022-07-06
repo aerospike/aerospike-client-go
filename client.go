@@ -44,7 +44,7 @@ type Client struct {
 	DefaultBatchWritePolicy *BatchWritePolicy
 	// DefaultBatchDeletePolicy is the default delete policy used in batch delete commands.
 	DefaultBatchDeletePolicy *BatchDeletePolicy
-	// DefaultBatchUDFPolicy is the default user defined function policy used in batch UDF excecute commands.
+	// DefaultBatchUDFPolicy is the default user defined function policy used in batch UDF execute commands.
 	DefaultBatchUDFPolicy *BatchUDFPolicy
 	// DefaultWritePolicy is used for all write commands without a specific policy.
 	DefaultWritePolicy *WritePolicy
