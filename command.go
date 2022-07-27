@@ -2448,7 +2448,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		}
 
 		if notFirstIteration {
-			if !ifc.prepareRetry(ifc, isClientTimeout || err.Matches(types.SERVER_NOT_AVAILABLE)) {
+			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
 					alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, deadline, cmd.commandSentCounter, commandSentCounter)
