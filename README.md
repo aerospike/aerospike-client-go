@@ -6,9 +6,9 @@
 
 ## IMPORTANT NOTE
 
-This is an old version the _Aerospike Go Client_, which is v4.x.x. The newest version _v5_ has migrated to _go modules_,
-which required us to put it in the `v5` branch [here](https://github.com/aerospike/aerospike-client-go/tree/v5).
-All the latest changes to the library are applied in that branch, documented in the [CHANGELOG](https://github.com/aerospike/aerospike-client-go/blob/v5/CHANGELOG.md).
+This is an old version the _Aerospike Go Client_, which is v4.x.x. The newest version _v6_ has migrated to _go modules_,
+which required us to put it in the `v6` branch [here](https://github.com/aerospike/aerospike-client-go/tree/v6).
+All the latest changes to the library are applied in that branch, documented in the [CHANGELOG](https://github.com/aerospike/aerospike-client-go/blob/v6/CHANGELOG.md).
 
 ---
 
