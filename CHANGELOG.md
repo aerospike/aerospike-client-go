@@ -1,7 +1,16 @@
 # Change History
 
+## July 27 2022: v6.2.1
+
+  This is mostly a re-release of v6.2.0, with one added minor change. It seems that we bungled the github tag somehow for that release. Upgrade from v6.2.0 to this version for the changes in that version to be applied to your code.
+
+  * **Fixes**
+
+    - Add a nil check for error in batch retry to be on the safe side.
 
 ## June 30 2022: v6.2.0
+
+  NOTE: It seems that the tag reference for this release was incorrect on Github, or we somehow confused the `Go mod`. Do not use this version. Use v6.2.1 instead.
 
   This is a major fix release. We recommend upgrading to this release if you are using `BatchOperate` or `Scan/Queries`.
 
@@ -12,6 +21,8 @@
     - [CLIENT-1781] Fix `BatchOperate`: use offset index to pick correct record.
 
 ## June 23 2022: v6.1.0
+  
+  NOTE: This release contains a bug in `BatchOperate` command. If you are using that command, we strongly recommend you upgrade to v6.2.1.
 
   This is a minor feature and bug fix release version.
 
@@ -26,6 +37,8 @@
 
 
 ## April 7 2022: v6.0.0
+
+  NOTE: This release contains a bug in `BatchOperate` command. If you are using that command, we strongly recommend you upgrade to v6.2.1.
 
   This is a major feature release. It adds several new features supported by the server v6, and drops supports for Predicate Expressions.
 
