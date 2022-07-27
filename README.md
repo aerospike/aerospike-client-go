@@ -1,4 +1,4 @@
-# Aerospike Go Client v5
+# Aerospike Go Client v6
 
 [![Aerospike Client Go](https://goreportcard.com/badge/github.com/aerospike/aerospike-client-go)](https://goreportcard.com/report/github.com/aerospike/aerospike-client-go)
 [![Build Status](https://travis-ci.org/aerospike/aerospike-client-go.svg?branch=master)](https://travis-ci.org/aerospike/aerospike-client-go)
@@ -8,7 +8,7 @@ An Aerospike library for Go.
 
 This library is compatible with Go 1.13+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
 
-Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v5).
+Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v6).
 
 You can refer to the test files for idiomatic use cases.
 
@@ -37,7 +37,7 @@ package main
 import (
   "fmt"
 
-  aero "github.com/aerospike/aerospike-client-go/v5"
+  aero "github.com/aerospike/aerospike-client-go/v6"
 )
 
 // This is only for this example.
