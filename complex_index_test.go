@@ -28,7 +28,7 @@ var _ = gg.Describe("Complex Index operations test", func() {
 		// connection data
 		var err error
 		var ns = *namespace
-		var set = randString(50)
+		var set = randString(40)
 		var key *as.Key
 		var wpolicy = as.NewWritePolicy(0, 0)
 

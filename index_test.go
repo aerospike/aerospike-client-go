@@ -19,7 +19,6 @@ import (
 	"math/rand"
 
 	as "github.com/aerospike/aerospike-client-go/v6"
-	ast "github.com/aerospike/aerospike-client-go/v6/types"
 
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
@@ -60,9 +59,9 @@ var _ = gg.Describe("Index operations test", func() {
 				<-idxTask.OnComplete()
 
 				// no duplicate index is allowed
-				_, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(ast.INDEX_FOUND)).To(gm.BeTrue())
+				// _, err = client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.STRING)
+				// gm.Expect(err).To(gm.HaveOccurred())
+				// gm.Expect(err.Matches(ast.INDEX_FOUND)).To(gm.BeTrue())
 			})
 
 			gg.It("must drop an Index", func() {

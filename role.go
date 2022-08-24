@@ -20,7 +20,7 @@ type Role struct {
 	// Name is role name
 	Name string
 
-	// Priviledge is the list of assigned privileges
+	// Privilege is the list of assigned privileges
 	Privileges []Privilege
 
 	// While is the list of allowable IP addresses
