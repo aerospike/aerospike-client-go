@@ -53,15 +53,15 @@ type ClientPolicy struct {
 	// stack will always be the least used. These connections are checked for IdleTimeout
 	// on every tend (usually 1 second).
 	//
-	// Default: 55 seconds
-	IdleTimeout time.Duration //= 55 seconds
+	// Default: 0 seconds
+	IdleTimeout time.Duration //= 0 seconds
 
 	// LoginTimeout specifies the timeout for login operation for external authentication such as LDAP.
 	LoginTimeout time.Duration //= 10 seconds
 
 	// ConnectionQueueCache specifies the size of the Connection Queue cache PER NODE.
 	// Note: One connection per node is reserved for tend operations and is not used for transactions.
-	ConnectionQueueSize int //= 256
+	ConnectionQueueSize int //= 100
 
 	// MinConnectionsPerNode specifies the minimum number of synchronous connections allowed per server node.
 	// Preallocate min connections on client node creation.
@@ -85,7 +85,7 @@ type ClientPolicy struct {
 	// The counted error types are any error that causes the connection to close (socket errors
 	// and client timeouts) and types.ResultCode.DEVICE_OVERLOAD.
 	//
-	// Default: 0
+	// Default: 100
 	MaxErrorRate int
 
 	// ErrorRateWindow defined the number of cluster tend iterations that defines the window for MaxErrorRate.
@@ -169,15 +169,15 @@ func NewClientPolicy() *ClientPolicy {
 	return &ClientPolicy{
 		AuthMode:                    AuthModeInternal,
 		Timeout:                     30 * time.Second,
-		IdleTimeout:                 55 * time.Second,
+		IdleTimeout:                 0 * time.Second,
 		LoginTimeout:                10 * time.Second,
-		ConnectionQueueSize:         256,
+		ConnectionQueueSize:         100,
 		OpeningConnectionThreshold:  0,
 		FailIfNotConnected:          true,
 		TendInterval:                time.Second,
 		LimitConnectionsToQueueSize: true,
 		IgnoreOtherSubnetAliases:    false,
-		MaxErrorRate:                0,
+		MaxErrorRate:                100,
 		ErrorRateWindow:             1,
 	}
 }

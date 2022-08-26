@@ -55,13 +55,13 @@ type MultiPolicy struct {
 }
 
 // NewMultiPolicy initializes a MultiPolicy instance with default values.
-//
+// It disables TotalTimeout and sets MaxRetries.
 // Set MaxRetries for non-aggregation queries with a nil filter on
 // server versions >= 4.9. All other queries are not retried.
 //
 // The latest servers support retries on individual data partitions.
 // This feature is useful when a cluster is migrating and partition(s)
-// are missed or incomplete on the first query (with nil filter) attempt.
+// are missed or incomplete on the first query attempt.
 //
 // If the first query attempt misses 2 of 4096 partitions, then only
 // those 2 partitions are retried in the next query attempt from the
@@ -70,6 +70,7 @@ type MultiPolicy struct {
 // all query results because a single partition was missed.
 func NewMultiPolicy() *MultiPolicy {
 	bp := *NewPolicy()
+	bp.TotalTimeout = 0 * time.Second
 	bp.SocketTimeout = 30 * time.Second
 	bp.MaxRetries = 5
 

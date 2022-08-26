@@ -55,7 +55,9 @@ type BasePolicy struct {
 	// on network timeouts/errors until MaxRetries is exceeded. If MaxRetries is exceeded, the
 	// transaction also aborts with Timeout error.
 	//
-	// Default: 0 (no time limit and rely on MaxRetries).
+	// Default for scan/query: 0 (no time limit and rely on MaxRetries)
+	//
+	// Default for all other commands: 1000ms
 	TotalTimeout time.Duration
 
 	// SocketTimeout determines network timeout for each attempt.
@@ -85,8 +87,6 @@ type BasePolicy struct {
 	//
 	// Default for partition scan or query with nil filter: 5
 	// (6 attempts. See ScanPolicy comments.)
-	//
-	// No default for legacy scan/query. No retries are allowed for these commands.
 	MaxRetries int //= 2;
 
 	// SleepBetweenRtries determines the duration to sleep between retries.  Enter zero to skip sleep.
@@ -150,7 +150,7 @@ func NewPolicy() *BasePolicy {
 	return &BasePolicy{
 		ReadModeAP:          ReadModeAPOne,
 		ReadModeSC:          ReadModeSCSession,
-		TotalTimeout:        0 * time.Millisecond,
+		TotalTimeout:        1000 * time.Millisecond,
 		SocketTimeout:       30 * time.Second,
 		MaxRetries:          2,
 		SleepBetweenRetries: 1 * time.Millisecond,
