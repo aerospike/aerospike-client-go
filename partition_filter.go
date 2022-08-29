@@ -15,7 +15,11 @@
 
 package aerospike
 
-// PartitionFilter is used in scan/queries.
+// PartitionFilter is used in scan/queries. This filter is also used as a cursor.
+//
+// If a previous scan/query returned all records specified by a PartitionFilter instance, a
+// future scan/query using the same PartitionFilter instance will only return new records added
+// after the last record read (in digest order) in each partition in the previous scan/query.
 type PartitionFilter struct {
 	begin      int
 	count      int
