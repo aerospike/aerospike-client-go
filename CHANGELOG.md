@@ -1,5 +1,25 @@
 # Change History
 
+## August 29 2022: v6.3
+
+  * **New Features**
+
+    - [CLIENT-1802] Support creating an secondary index on elements within a CDT using context. SUpported by server v6.1+.
+    - [CLIENT-1773] Change client configuration defaults:
+      - Set `ClientPolicy.ConnectionQueueSize` from 256 to 100.
+      - Set `ClientPolicy.IdleTimeout` from 55 to 0 secs.
+      - Set `ClientPolicy.MaxErrorRate` from 0 to 100.
+      - Set `Policy.TotalTimeout from` 0 to 1000ms for all commands except scan/query.
+
+  * **Fixes**
+
+    - Fixed a few Linter warnings.
+
+  * **Improvements**
+
+    - Documented a few constraints in HLL API docs.
+    - Documented that PartitionFilter is both a filter and a cursor in the API docs.
+
 ## July 27 2022: v6.2.1
 
   This is mostly a re-release of v6.2.0, with one added minor change. It seems that we bungled the github tag somehow for that release. Upgrade from v6.2.0 to this version for the changes in that version to be applied to your code.
