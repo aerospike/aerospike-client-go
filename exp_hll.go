@@ -38,6 +38,7 @@ func ExpHLLInit(
 }
 
 // ExpHLLInitWithMinHash creates expression that creates a new HLL or resets an existing HLL with minhash bits.
+// indexBitCount + minHashBitCount must be <= 64.
 func ExpHLLInitWithMinHash(
 	policy *HLLPolicy,
 	indexBitCount *Expression,
@@ -57,6 +58,7 @@ func ExpHLLInitWithMinHash(
 
 // ExpHLLAdd creates an expression that adds list values to a HLL set and returns HLL set.
 // The function assumes HLL bin already exists.
+// indexBitCount + minHashBitCount must be <= 64.
 func ExpHLLAdd(policy *HLLPolicy, list *Expression, bin *Expression) *Expression {
 	return ExpHLLAddWithIndexAndMinHash(policy, list, ExpIntVal(-1), ExpIntVal(-1), bin)
 }
@@ -74,6 +76,7 @@ func ExpHLLAddWithIndex(
 
 // ExpHLLAddWithIndexAndMinHash creates an expression that adds values to a HLL set and returns HLL set. If HLL bin does not
 // exist, use `indexBitCount` and `minHashBitCount` to create HLL set.
+// indexBitCount + minHashBitCount must be <= 64.
 func ExpHLLAddWithIndexAndMinHash(
 	policy *HLLPolicy,
 	list *Expression,

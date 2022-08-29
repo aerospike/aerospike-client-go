@@ -48,6 +48,7 @@ const (
 // binName			name of bin
 // indexBitCount	number of index bits. Must be between 4 and 16 inclusive. Pass -1 for default.
 // minHashBitCount  number of min hash bits. Must be between 4 and 58 inclusive. Pass -1 for default.
+// indexBitCount + minHashBitCount must be <= 64.
 func HLLInitOp(policy *HLLPolicy, binName string, indexBitCount, minHashBitCount int) *Operation {
 	return &Operation{
 		opType:   _HLL_MODIFY,
@@ -66,6 +67,7 @@ func HLLInitOp(policy *HLLPolicy, binName string, indexBitCount, minHashBitCount
 // list				list of values to be added
 // indexBitCount	number of index bits. Must be between 4 and 16 inclusive. Pass -1 for default.
 // minHashBitCount  number of min hash bits. Must be between 4 and 58 inclusive. Pass -1 for default.
+// indexBitCount + minHashBitCount must be <= 64.
 func HLLAddOp(policy *HLLPolicy, binName string, list []Value, indexBitCount, minHashBitCount int) *Operation {
 	return &Operation{
 		opType:   _HLL_MODIFY,
