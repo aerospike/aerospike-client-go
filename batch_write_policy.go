@@ -14,7 +14,7 @@
 
 package aerospike
 
-// Policy attributes used in batch write commands.
+// BatchWritePolicy attributes used in batch write commands.
 type BatchWritePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
 	// request is not performed and BatchRecord#resultCode is set to types.FILTERED_OUT.
@@ -74,6 +74,7 @@ type BatchWritePolicy struct {
 	SendKey bool // = false
 }
 
+// NewBatchWritePolicy returns a policy instance for BatchWrite commands.
 func NewBatchWritePolicy() *BatchWritePolicy {
 	return &BatchWritePolicy{
 		RecordExistsAction: UPDATE,

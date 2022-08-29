@@ -41,36 +41,36 @@ func NewBatchDelete(policy *BatchDeletePolicy, key *Key) *BatchDelete {
 }
 
 // Return batch command type.
-func (bw *BatchDelete) getType() batchRecordType {
+func (bd *BatchDelete) getType() batchRecordType {
 	return _BRT_BATCH_WRITE
 }
 
 // Optimized reference equality check to determine batch wire protocol repeat flag.
 // For internal use only.
-func (bw *BatchDelete) equals(obj BatchRecordIfc) bool {
+func (bd *BatchDelete) equals(obj BatchRecordIfc) bool {
 	other, ok := obj.(*BatchDelete)
 	if !ok {
 		return false
 	}
 
-	return bw.policy == other.policy
+	return bd.policy == other.policy
 }
 
 // Return wire protocol size. For internal use only.
-func (bw *BatchDelete) size() (int, Error) {
+func (bd *BatchDelete) size() (int, Error) {
 	size := 6 // gen(2) + exp(4) = 6
 
-	if bw.policy != nil {
-		if bw.policy.FilterExpression != nil {
-			if sz, err := bw.policy.FilterExpression.pack(nil); err != nil {
+	if bd.policy != nil {
+		if bd.policy.FilterExpression != nil {
+			if sz, err := bd.policy.FilterExpression.pack(nil); err != nil {
 				return -1, err
 			} else {
 				size += sz
 			}
 		}
 
-		if bw.policy.SendKey {
-			if sz, err := bw.Key.userKey.EstimateSize(); err != nil {
+		if bd.policy.SendKey {
+			if sz, err := bd.Key.userKey.EstimateSize(); err != nil {
 				return -1, err
 			} else {
 				size += sz + int(_FIELD_HEADER_SIZE) + 1

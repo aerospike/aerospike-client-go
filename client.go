@@ -1141,6 +1141,7 @@ func (clnt *Client) CreateComplexIndex(
 	binName string,
 	indexType IndexType,
 	indexCollectionType IndexCollectionType,
+	ctx ...*CDTContext,
 ) (*IndexTask, Error) {
 	policy = clnt.getUsableWritePolicy(policy)
 
@@ -1155,7 +1156,25 @@ func (clnt *Client) CreateComplexIndex(
 
 	strCmd.WriteString(";indexname=")
 	strCmd.WriteString(indexName)
-	strCmd.WriteString(";numbins=1")
+
+	var bufEx *bufferEx
+	if len(ctx) > 0 {
+		sz, err := cdtContextList(ctx).packArray(nil)
+		if err != nil {
+			return nil, err
+		}
+
+		bufEx = newBuffer(sz)
+
+		_, err = cdtContextList(ctx).packArray(bufEx)
+		if err != nil {
+			return nil, err
+		}
+
+		strCmd.WriteString(";context=")
+		s := base64.StdEncoding.EncodeToString(bufEx.Bytes())
+		strCmd.WriteString(s)
+	}
 
 	if indexCollectionType != ICT_DEFAULT {
 		strCmd.WriteString(";indextype=")
@@ -1166,7 +1185,6 @@ func (clnt *Client) CreateComplexIndex(
 	strCmd.WriteString(binName)
 	strCmd.WriteString(",")
 	strCmd.WriteString(string(indexType))
-	strCmd.WriteString(";priority=normal")
 
 	// Send index command to one node. That node will distribute the command to other nodes.
 	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())

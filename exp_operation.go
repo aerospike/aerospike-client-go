@@ -100,7 +100,7 @@ func encodeExpOperation(exp *Expression, flags int) ([]byte, Error) {
 	// header + packed bytes + flags = 16 + len bytes max
 	buf := newBuffer(tsz + 16)
 
-	if _, err := packArrayBegin(buf, 2); err != nil {
+	if _, err = packArrayBegin(buf, 2); err != nil {
 		return nil, err
 	}
 

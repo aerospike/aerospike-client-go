@@ -27,86 +27,88 @@ type Filter struct {
 	valueParticleType int
 	begin             Value
 	end               Value
+	ctx               []*CDTContext
 }
 
 // NewEqualFilter creates a new equality filter instance for query.
-func NewEqualFilter(binName string, value interface{}) *Filter {
+func NewEqualFilter(binName string, value interface{}, ctx ...*CDTContext) *Filter {
 	val := NewValue(value)
-	return newFilter(binName, ICT_DEFAULT, val.GetType(), val, val)
+	return newFilter(binName, ICT_DEFAULT, val.GetType(), val, val, ctx)
 }
 
 // NewRangeFilter creates a range filter for query.
 // Range arguments must be int64 values.
 // String ranges are not supported.
-func NewRangeFilter(binName string, begin int64, end int64) *Filter {
+func NewRangeFilter(binName string, begin int64, end int64, ctx ...*CDTContext) *Filter {
 	vBegin, vEnd := NewValue(begin), NewValue(end)
-	return newFilter(binName, ICT_DEFAULT, vBegin.GetType(), vBegin, vEnd)
+	return newFilter(binName, ICT_DEFAULT, vBegin.GetType(), vBegin, vEnd, ctx)
 }
 
 // NewContainsFilter creates a contains filter for query on collection index.
-func NewContainsFilter(binName string, indexCollectionType IndexCollectionType, value interface{}) *Filter {
+func NewContainsFilter(binName string, indexCollectionType IndexCollectionType, value interface{}, ctx ...*CDTContext) *Filter {
 	v := NewValue(value)
-	return newFilter(binName, indexCollectionType, v.GetType(), v, v)
+	return newFilter(binName, indexCollectionType, v.GetType(), v, v, ctx)
 }
 
 // NewContainsRangeFilter creates a contains filter for query on ranges of data in a collection index.
-func NewContainsRangeFilter(binName string, indexCollectionType IndexCollectionType, begin, end int64) *Filter {
+func NewContainsRangeFilter(binName string, indexCollectionType IndexCollectionType, begin, end int64, ctx ...*CDTContext) *Filter {
 	vBegin, vEnd := NewValue(begin), NewValue(end)
-	return newFilter(binName, indexCollectionType, vBegin.GetType(), vBegin, vEnd)
+	return newFilter(binName, indexCollectionType, vBegin.GetType(), vBegin, vEnd, ctx)
 }
 
 // NewGeoWithinRegionFilter creates a geospatial "within region" filter for query.
 // Argument must be a valid GeoJSON region.
-func NewGeoWithinRegionFilter(binName, region string) *Filter {
+func NewGeoWithinRegionFilter(binName, region string, ctx ...*CDTContext) *Filter {
 	v := NewStringValue(region)
-	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
+	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, v, v, ctx)
 }
 
 // NewGeoWithinRegionForCollectionFilter creates a geospatial "within region" filter for query on collection index.
 // Argument must be a valid GeoJSON region.
-func NewGeoWithinRegionForCollectionFilter(binName string, collectionType IndexCollectionType, region string) *Filter {
+func NewGeoWithinRegionForCollectionFilter(binName string, collectionType IndexCollectionType, region string, ctx ...*CDTContext) *Filter {
 	v := NewStringValue(region)
-	return newFilter(binName, collectionType, ParticleType.GEOJSON, v, v)
+	return newFilter(binName, collectionType, ParticleType.GEOJSON, v, v, ctx)
 }
 
 // NewGeoRegionsContainingPointFilter creates a geospatial "containing point" filter for query.
 // Argument must be a valid GeoJSON point.
-func NewGeoRegionsContainingPointFilter(binName, point string) *Filter {
+func NewGeoRegionsContainingPointFilter(binName, point string, ctx ...*CDTContext) *Filter {
 	v := NewStringValue(point)
-	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, v, v)
+	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, v, v, ctx)
 }
 
 // NewGeoRegionsContainingPointForCollectionFilter creates a geospatial "containing point" filter for query on collection index.
 // Argument must be a valid GeoJSON point.
-func NewGeoRegionsContainingPointForCollectionFilter(binName string, collectionType IndexCollectionType, point string) *Filter {
+func NewGeoRegionsContainingPointForCollectionFilter(binName string, collectionType IndexCollectionType, point string, ctx ...*CDTContext) *Filter {
 	v := NewStringValue(point)
-	return newFilter(binName, collectionType, ParticleType.GEOJSON, v, v)
+	return newFilter(binName, collectionType, ParticleType.GEOJSON, v, v, ctx)
 }
 
 // NewGeoWithinRadiusFilter creates a geospatial "within radius" filter for query.
 // Arguments must be valid longitude/latitude/radius (meters) values.
-func NewGeoWithinRadiusFilter(binName string, lng, lat, radius float64) *Filter {
+func NewGeoWithinRadiusFilter(binName string, lng, lat, radius float64, ctx ...*CDTContext) *Filter {
 	rgnStr := fmt.Sprintf("{ \"type\": \"AeroCircle\", "+"\"coordinates\": [[%.8f, %.8f], %f] }", lng, lat, radius)
-	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, NewValue(rgnStr), NewValue(rgnStr))
+	return newFilter(binName, ICT_DEFAULT, ParticleType.GEOJSON, NewValue(rgnStr), NewValue(rgnStr), ctx)
 }
 
 // NewGeoWithinRadiusForCollectionFilter creates a geospatial "within radius" filter for query on collection index.
 // Arguments must be valid longitude/latitude/radius (meters) values.
-func NewGeoWithinRadiusForCollectionFilter(binName string, collectionType IndexCollectionType, lng, lat, radius float64) *Filter {
+func NewGeoWithinRadiusForCollectionFilter(binName string, collectionType IndexCollectionType, lng, lat, radius float64, ctx ...*CDTContext) *Filter {
 	rgnStr := fmt.Sprintf("{ \"type\": \"AeroCircle\", "+"\"coordinates\": [[%.8f, %.8f], %f] }", lng, lat, radius)
-	return newFilter(binName, collectionType, ParticleType.GEOJSON, NewValue(rgnStr), NewValue(rgnStr))
+	return newFilter(binName, collectionType, ParticleType.GEOJSON, NewValue(rgnStr), NewValue(rgnStr), ctx)
 }
 
 // Create a filter for query.
 // Range arguments must be longs or integers which can be cast to longs.
 // String ranges are not supported.
-func newFilter(name string, indexCollectionType IndexCollectionType, valueParticleType int, begin Value, end Value) *Filter {
+func newFilter(name string, indexCollectionType IndexCollectionType, valueParticleType int, begin Value, end Value, ctx []*CDTContext) *Filter {
 	return &Filter{
 		name:              name,
 		idxType:           indexCollectionType,
 		valueParticleType: valueParticleType,
 		begin:             begin,
 		end:               end,
+		ctx:               ctx,
 	}
 }
 
@@ -129,6 +131,24 @@ func (fltr *Filter) EstimateSize() (int, Error) {
 	}
 
 	return len(fltr.name) + szBegin + szEnd + 10, nil
+}
+
+// Retrieve packed Context.
+// For internal use only.
+func (fltr *Filter) packCtx(cmd BufferEx) (sz int, err Error) {
+	if len(fltr.ctx) > 0 {
+		sz, err = cdtContextList(fltr.ctx).packArray(cmd)
+	}
+	return sz, err
+}
+
+// Retrieve packed Context size.
+// For internal use only.
+func (fltr *Filter) estimatePackedCtxSize() (sz int, err Error) {
+	if len(fltr.ctx) > 0 {
+		sz, err = cdtContextList(fltr.ctx).packArray(nil)
+	}
+	return sz, err
 }
 
 func (fltr *Filter) write(cmd *baseCommand) (int, Error) {

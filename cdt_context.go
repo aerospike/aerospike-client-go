@@ -64,6 +64,24 @@ func (ctxl cdtContextList) pack(cmd BufferEx) (int, Error) {
 	return size, nil
 }
 
+// used in CreateComplexIndex
+func (ctxl cdtContextList) packArray(cmd BufferEx) (int, Error) {
+	size, err := packArrayBegin(cmd, len(ctxl)*2)
+	if err != nil {
+		return size, err
+	}
+
+	for i := range ctxl {
+		sz, err := ctxl[i].pack(cmd)
+		size += sz
+		if err != nil {
+			return size, err
+		}
+	}
+
+	return size, nil
+}
+
 // CtxListIndex defines Lookup list by index offset.
 // If the index is negative, the resolved index starts backwards from end of list.
 // If an index is out of bounds, a parameter error will be returned.

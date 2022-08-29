@@ -407,7 +407,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 			cmd.estimateOperationSizeForBinName(binNames[i])
 		}
 		if err := cmd.sizeBuffer(policy.compress()); err != nil {
-			return nil
+			return err
 		}
 		cmd.writeHeader(policy, _INFO1_READ, 0, fieldCount, len(binNames))
 		if err := cmd.writeKey(key, false); err != nil {
@@ -923,7 +923,7 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 
 			cmd.dataOffset += 6
 			if sz, err := cmd.estimateUdfSize(packageName, functionName, &args); err != nil {
-				return nil
+				return err
 			} else {
 				cmd.dataOffset += sz
 			}
@@ -1510,6 +1510,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	filterSize := 0
 	binNameSize := 0
 	predSize := 0
+	var ctxSize int
 
 	isNew := cmd.node.cluster.supportsPartitionQuery.Get()
 
@@ -1579,6 +1580,17 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 					binNameSize += len(binName) + 1
 				}
 				cmd.dataOffset += binNameSize
+				fieldCount++
+			}
+		}
+
+		if statement.Filter.ctx != nil {
+			ctxSize, err = statement.Filter.estimatePackedCtxSize()
+			if err != nil {
+				return newCommonError(err)
+			}
+			if ctxSize > 0 {
+				cmd.dataOffset += int(_FIELD_HEADER_SIZE) + ctxSize
 				fieldCount++
 			}
 		}
@@ -1746,6 +1758,13 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 					cmd.dataBuffer[cmd.dataOffset] = byte(len)
 					cmd.dataOffset += len + 1
 				}
+			}
+		}
+
+		if ctxSize > 0 {
+			cmd.writeFieldHeader(ctxSize, INDEX_CONTEXT)
+			if _, err = statement.Filter.packCtx(cmd); err != nil {
+				return newCommonError(err)
 			}
 		}
 	}
@@ -2535,7 +2554,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		err = ifc.writeBuffer(ifc)
 		if err != nil {
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.

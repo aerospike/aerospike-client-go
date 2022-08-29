@@ -14,7 +14,7 @@
 
 package aerospike
 
-// Policy attributes used in batch UDF execute commands.
+// BatchUDFPolicy attributes used in batch UDF execute commands.
 type BatchUDFPolicy struct {
 	// Optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
 	// request is not performed and BatchRecord.ResultCode is set to types.FILTERED_OUT.
@@ -50,7 +50,7 @@ type BatchUDFPolicy struct {
 	SendKey bool // = false
 }
 
-// Copy constructor.
+// NewBatchUDFPolicy returns a policy instance for Batch UDF commands.
 func NewBatchUDFPolicy() *BatchUDFPolicy {
 	return &BatchUDFPolicy{
 		CommitLevel: COMMIT_ALL,

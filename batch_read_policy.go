@@ -14,7 +14,7 @@
 
 package aerospike
 
-// Policy attributes used in batch read commands.
+// BatchReadPolicy attributes used in batch read commands.
 type BatchReadPolicy struct {
 	// FilterExpression is the optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
 	// request is not performed and BatchRecord.ResultCode is set to types.FILTERED_OUT.
