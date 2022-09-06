@@ -42,7 +42,7 @@ func NewBatchDelete(policy *BatchDeletePolicy, key *Key) *BatchDelete {
 
 // Return batch command type.
 func (bd *BatchDelete) getType() batchRecordType {
-	return _BRT_BATCH_WRITE
+	return _BRT_BATCH_DELETE
 }
 
 // Optimized reference equality check to determine batch wire protocol repeat flag.
