@@ -133,6 +133,8 @@ type command interface {
 	execute(ifc command, isRead bool) Error
 	executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) Error
 
+	canPutConnBack() bool
+
 	// Executes the command
 	Execute() Error
 }
@@ -2636,7 +2638,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			// cancelling/closing the batch/multi commands will return an error, which will
 			// close the connection to throw away its data and signal the server about the
 			// situation. We will not put back the connection in the buffer.
-			if cmd.conn.IsConnected() && KeepConnection(err) {
+			if ifc.canPutConnBack() && cmd.conn.IsConnected() && KeepConnection(err) {
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
@@ -2666,6 +2668,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 	// execution timeout
 	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 	return errChain
+}
+
+func (cmd *baseCommand) canPutConnBack() bool {
+	return true
 }
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {

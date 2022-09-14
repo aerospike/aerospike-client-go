@@ -396,6 +396,10 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 	return true, nil
 }
 
+func (cmd *baseMultiCommand) canPutConnBack() bool {
+	return false
+}
+
 func (cmd *baseMultiCommand) execute(ifc command, isRead bool) Error {
 
 	/***************************************************************************
