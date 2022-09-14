@@ -1,5 +1,21 @@
 # Change History
 
+## September 14 2022: v5.10.0
+
+  This is a Major fix release. We recommend you update to this version ASAP.
+
+  * **Fixes**
+
+    - [CLIENT-1822] Scan/Query/Other streaming commands, including some Batch could put a faulty connection back to the pool after a cluster event where in certain conditions its buffer contents would end up in another scan and mix the results.
+    - Update go.mod, redact buggy versions and update required Go version to v1.16
+    - Fixes a few test errors for serrver v6.1+.
+    - Adds a `nil` check for error in the execution retry.
+
+  * **Improvements**
+
+    - Update the examples for the new retriable scan/queries
+    - Avoid indirection for `[]byte` conversion during reflection. Resolves #382.
+
 ## June 30 2022: v5.9.0
 
   This is a major fix release. We recommend upgrading to this release if you are using .
