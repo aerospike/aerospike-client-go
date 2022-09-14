@@ -1,10 +1,25 @@
 # Change History
 
-## August 29 2022: v6.3
+## September 14 2022: v6.4.0
+
+  This is a Major fix release. We recommend you update to this version ASAP.
+
+  * **Fixes**
+
+    - [CLIENT-1822] Scan/Query/Other streaming commands, including some Batch could put a faulty connection back to the pool after a cluster event where in certain conditions its buffer contents would end up in another scan and mix the results.
+    - Update go.mod, redact buggy versions and update required Go version to v1.16
+
+  * **Improvements**
+
+    - Update the examples for the new retriable scan/queries
+    - Avoid indirection for `[]byte` conversion during reflection. Resolves #382.
+    - Change v5 to v6 in some documentation.
+
+## August 29 2022: v6.3.0
 
   * **New Features**
 
-    - [CLIENT-1802] Support creating an secondary index on elements within a CDT using context. SUpported by server v6.1+.
+    - [CLIENT-1802] Support creating an secondary index on elements within a CDT using context. Supported by server v6.1+.
     - [CLIENT-1773] Change client configuration defaults:
       - Set `ClientPolicy.ConnectionQueueSize` from 256 to 100.
       - Set `ClientPolicy.IdleTimeout` from 55 to 0 secs.
