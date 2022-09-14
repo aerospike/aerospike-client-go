@@ -6,7 +6,7 @@
 
 An Aerospike library for Go.
 
-This library is compatible with Go 1.13+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
+This library is compatible with Go 1.16+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
 
 Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v5).
 
@@ -104,7 +104,7 @@ Supported operating systems:
 <a name="Installation"></a>
 ## Installation
 
-1. Install Go 1.13+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
+1. Install Go 1.16+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
 2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go```
   * To update the client library: ```go get -u github.com/aerospike/aerospike-client-go```
 

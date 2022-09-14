@@ -1,6 +1,6 @@
 module github.com/aerospike/aerospike-client-go/v5
 
-go 1.13
+go 1.16
 
 require (
 	github.com/onsi/ginkgo v1.16.4
@@ -15,7 +15,8 @@ require (
 
 retract (
     // Scan/Query/Other streaming commands could put a faulty connection back to the pool after a cluster event where in certain conditions its contents would end up in another scan and mix the results.
-	[v5.6.0, v5.7.0, v5.8.0, v5.9.0, v5.9.1]
+	[v5.6.0, v5.9.1]
+
 	// An authentication bug was discovered where the client may fail to refresh its session token after it expires, requiring the client to be restarted. Update to the latest client.
-	[v5.0.0, v5.0.1, v5.0.2, v5.1.0, v5.2.0, v5.3.0, v5.4.0, v5.5.0]
+	[v5.0.0, v5.5.0]
 )
