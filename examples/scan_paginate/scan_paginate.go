@@ -50,8 +50,10 @@ func runExample(client *as.Client) {
 
 		for rec := range recordset.Results() {
 			if rec.Err != nil {
-				// if there was an error, stop
-				shared.PanicOnError(err)
+				// if there was an error, handle it if needed
+				// Scans are retried in Aerospike servers v5+
+				log.Println(err)
+				continue
 			}
 
 			recordCount++
