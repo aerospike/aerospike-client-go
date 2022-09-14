@@ -113,7 +113,7 @@ func valueToInterface(f reflect.Value) interface{} {
 		}
 		if f.Kind() == reflect.Slice && reflect.TypeOf(f.Interface()).Elem().Kind() == reflect.Uint8 {
 			// handle blobs
-			return f.Interface().([]byte)
+			return f.Bytes()
 		}
 		// convert to primitives recursively
 		newSlice := make([]interface{}, f.Len(), f.Cap())
