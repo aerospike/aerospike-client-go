@@ -265,7 +265,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
-		if resultCode != 0 {
+		if resultCode != 0 && resultCode != types.PARTITION_UNAVAILABLE {
 			if resultCode == types.KEY_NOT_FOUND_ERROR || resultCode == types.FILTERED_OUT {
 				return false, nil
 			}
@@ -294,14 +294,11 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 
 		// Partition is done, don't go further
 		if (info3 & _INFO3_PARTITION_DONE) != 0 {
-			// When nodes are removed, the tracker is getting set to null
-			if cmd.tracker == nil {
-				return false, newError(types.PARTITION_UNAVAILABLE)
+			// When nodes are removed, the tracker is getting set to nil
+			if resultCode == 0 && cmd.tracker != nil {
+				cmd.tracker.partitionDone(cmd.nodePartitions, int(generation))
 			}
-
-			cmd.tracker.partitionDone(cmd.nodePartitions, int(generation))
 			continue
-			// return true, nil
 		}
 
 		// if there is a recordset, process the record traditionally
