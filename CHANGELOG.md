@@ -1,11 +1,12 @@
 # Change History
 
-## September 14 2022: v6.4.0
+## September 16 2022: v6.4.0
 
   This is a Major fix release. We recommend you update to this version ASAP.
 
   * **Fixes**
 
+    - [CLIENT-1827]  IdleTimeout new default 0 may be missing tend thread reaping.
     - [CLIENT-1822] Scan/Query/Other streaming commands, including some Batch could put a faulty connection back to the pool after a cluster event where in certain conditions its buffer contents would end up in another scan and mix the results.
     - Update go.mod, redact buggy versions and update required Go version to v1.16
 
