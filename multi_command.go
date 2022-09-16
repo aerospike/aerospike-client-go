@@ -267,7 +267,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
-		if resultCode != 0 {
+		if resultCode != 0 && resultCode != types.PARTITION_UNAVAILABLE {
 			if resultCode == types.KEY_NOT_FOUND_ERROR || resultCode == types.FILTERED_OUT {
 				return false, nil
 			}
@@ -300,11 +300,10 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			// When an error code is received, mark partition as unavailable
 			// for the current round. Unavailable partitions will be retried
 			// in the next round. Generation is overloaded as partitionId.
-			if err != nil && cmd.tracker != nil {
+			if resultCode != 0 && cmd.tracker != nil {
 				cmd.tracker.partitionUnavailable(cmd.nodePartitions, int(generation))
 			}
 			continue
-			// return true, nil
 		}
 
 		// if there is a recordset, process the record traditionally
