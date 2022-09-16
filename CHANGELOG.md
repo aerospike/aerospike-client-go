@@ -18,6 +18,8 @@
 
 ## August 29 2022: v6.3.0
 
+  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
+
   * **New Features**
 
     - [CLIENT-1802] Support creating an secondary index on elements within a CDT using context. Supported by server v6.1+.
@@ -38,6 +40,8 @@
 
 ## July 27 2022: v6.2.1
 
+  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
+
   This is mostly a re-release of v6.2.0, with one added minor change. It seems that we bungled the github tag somehow for that release. Upgrade from v6.2.0 to this version for the changes in that version to be applied to your code.
 
   * **Fixes**
@@ -45,6 +49,8 @@
     - Add a nil check for error in batch retry to be on the safe side.
 
 ## June 30 2022: v6.2.0
+
+  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
 
   NOTE: It seems that the tag reference for this release was incorrect on Github, or we somehow confused the `Go mod`. Do not use this version. Use v6.2.1 instead.
 
