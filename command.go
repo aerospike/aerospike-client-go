@@ -2452,7 +2452,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 0) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
-			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(isRead, commandSentCounter)
+			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(isRead, commandSentCounter).setNode(cmd.node)
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -2476,14 +2476,14 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 					if alreadyRetried {
 						// Batch was retried in separate subcommands. Complete this command.
 						if err != nil {
-							return chainErrors(err, errChain).iter(cmd.commandSentCounter)
+							return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 						}
 						return nil
 					}
 
 					// chain the errors and retry
 					if err != nil {
-						errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter)
+						errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 						continue
 					}
 				}
