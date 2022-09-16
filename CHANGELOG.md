@@ -2,7 +2,7 @@
 
 ## September 14 2022: v5.10.0
 
-  This is a Major fix release. We recommend you update to this version ASAP.
+  This is a Major fix release. We recommend you update to this version ASAP. 
 
   * **Fixes**
 
@@ -18,6 +18,8 @@
 
 ## June 30 2022: v5.9.0
 
+  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
+
   This is a major fix release. We recommend upgrading to this release if you are using .
 
   * **Fixes**
@@ -25,6 +27,8 @@
     - Fix `client.Get` when `policy.FilterExpression` and bin names are both provided.
 
 ## April 7 2022: v5.8.0
+
+  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
 
   This is a major fix release. We recommend upgrading to this release if you are using authentication.
 
@@ -40,6 +44,8 @@
 
 ## Decempber 6 2021: v5.7.0
 
+  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
+
   * **Improvements**
 
     - Improve `Policy.deadline()` logic to use `MaxRetries` and `SocketTimeout` to calculate `TotalTimeout` when it is not set.
@@ -49,11 +55,14 @@
 
 ## September 17 2021: v5.6.0
 
+  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
+
   * **Fixes**
 
     - [CLIENT-1605] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. This fix invalidates the Session Token on unsuccessful login, Copy token from the connection buffer, and  will consider tend interval in session expiration calculations.
 
 ## September 6 2021: v5.5.0
+
   [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
   * **New Features**
