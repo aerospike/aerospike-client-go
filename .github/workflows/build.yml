@@ -11,11 +11,9 @@ jobs:
     strategy:
       matrix:
         go-version:
-          - '1.14'
-#          - '1.15'
-#          - '1.16'
-#          - '1.17'
-#          - '1.18'
+          - '1.16'
+          - '1.17'
+          - '1.18'
           - '1.19'
     steps:
       - uses: actions/checkout@v3
@@ -29,17 +27,17 @@ jobs:
       - name: Set up Aerospike Database
         uses: reugn/github-action-aerospike@v1
       - name: Install Ginkgo
-        run: go get github.com/onsi/ginkgo/ginkgo
+        run: GO111MODULE="auto" go get github.com/onsi/ginkgo/ginkgo
       - name: Install Gomega
-        run: go get github.com/onsi/gomega
-      - name: Install Dependencies
-        run: go get .
+        run: GO111MODULE="auto" go get github.com/onsi/gomega
+#      - name: Install Dependencies
+#        run: GO111MODULE="auto" go get .
       - name: Test Lua Code
-        run: ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites internal/lua
+        run: GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites internal/lua
       - name: Test types package
-        run: ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites types
+        run: GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites types
       - name: Test pkg tests
-        run: ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites pkg
+        run: GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites pkg
       - name: Build Benchmark tool
         run: cd tools/benchmark | go build -o benchmark .
       - name: Build asinfo tool
@@ -49,8 +47,8 @@ jobs:
       - name: Build example files
         run: find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
       - name: Build with Reflection code removed
-        run: ginkgo build -tags="as_performance" .
+        run: GO111MODULE="auto" ginkgo build -tags="as_performance" .
       - name: Build for Google App Engine (unsafe package removed)
-        run: ginkgo build -tags="app_engine" .
+        run: GO111MODULE="auto" ginkgo build -tags="app_engine" .
       - name: Run the tests
-        run: ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
+        run: GO111MODULE="auto" ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
