@@ -12,10 +12,10 @@ jobs:
       matrix:
         go-version:
           - '1.14'
-          - '1.15'
-          - '1.16'
-          - '1.17'
-          - '1.18'
+#          - '1.15'
+#          - '1.16'
+#          - '1.17'
+#          - '1.18'
           - '1.19'
     steps:
       - uses: actions/checkout@v3
@@ -28,6 +28,12 @@ jobs:
         run: go version
       - name: Set up Aerospike Database
         uses: reugn/github-action-aerospike@v1
+      - name: Install Ginkgo
+        run: go get github.com/onsi/ginkgo/ginkgo
+      - name: Install Gomega
+        run: go get github.com/onsi/gomega
+      - name: Install Dependencies
+        run: go get .
       - name: Test Lua Code
         run: ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites internal/lua
       - name: Test types package
