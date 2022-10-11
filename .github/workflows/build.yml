@@ -10,34 +10,32 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version:
-          - '1.16'
-          - '1.17'
-          - '1.18'
-          - '1.19'
+        go: ['1.16', '1.17', '1.18', '1.19']
+        aerospike: ['4.9.0.37', '5.7.0.21', 'latest']
+
     steps:
       - uses: actions/checkout@v3
       - name: 'Setup Go ${{ matrix.go-version }}'
         uses: actions/setup-go@v3
         with:
-          go-version: '${{ matrix.go-version }}'
+          go-version: ${{ matrix.go }}
           #cache: true
       - name: Display Go version
         run: go version
       - name: Set up Aerospike Database
         uses: reugn/github-action-aerospike@v1
+        with:
+          server-version: ${{ matrix.aerospike }}
       - name: Install Ginkgo
-        run: GO111MODULE="auto" go get github.com/onsi/ginkgo/ginkgo
+        run: GO111MODULE="auto" go install github.com/onsi/ginkgo
       - name: Install Gomega
         run: GO111MODULE="auto" go get github.com/onsi/gomega
-#      - name: Install Dependencies
-#        run: GO111MODULE="auto" go get .
-      - name: Test Lua Code
-        run: GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites internal/lua
-      - name: Test types package
-        run: GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites types
-      - name: Test pkg tests
-        run: GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites pkg
+      # - name: Test Lua Code
+      #   run: GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites internal/lua
+      # - name: Test types package
+      #   run: GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites types
+      # - name: Test pkg tests
+      #   run: GO111MODULE="auto" ginkgo -cover -race -r -keepGoing -succinct -randomizeSuites pkg
       - name: Build Benchmark tool
         run: cd tools/benchmark | go build -o benchmark .
       - name: Build asinfo tool
@@ -47,8 +45,8 @@ jobs:
       - name: Build example files
         run: find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
       - name: Build with Reflection code removed
-        run: GO111MODULE="auto" ginkgo build -tags="as_performance" .
+        run: GO111MODULE="auto" go build -tags="as_performance" .
       - name: Build for Google App Engine (unsafe package removed)
-        run: GO111MODULE="auto" ginkgo build -tags="app_engine" .
+        run: GO111MODULE="auto" go build -tags="app_engine" .
       - name: Run the tests
-        run: GO111MODULE="auto" ginkgo -race -keepGoing -succinct -randomizeSuites -slowSpecThreshold=15
+        run: GO111MODULE="auto" go test -race -args -ginkgo.succinct
