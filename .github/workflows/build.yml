@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: ['1.16', '1.17', '1.18', '1.19']
+        go: ['1.16', 'latest']
         aerospike: ['4.9.0.37', '5.7.0.21', 'latest']
 
     steps:
