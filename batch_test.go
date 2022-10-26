@@ -176,6 +176,38 @@ var _ = gg.Describe("Aerospike", func() {
 		})
 
 		gg.Context("BatchOperate operations", func() {
+
+			gg.It("ListGetByValueRangeOp and ListRemoveByValueRangeOp with nil arguments correctly", func() {
+				const binName = "int_bin"
+
+				key, err := as.NewKey(ns, set, "list_key1")
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				l := []int{7, 6, 5, 8, 9, 10}
+				err = client.PutBins(wpolicy, key, as.NewBin(binName, l))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				// Get
+				op1 := as.ListGetByValueRangeOp(binName, as.NewValue(7), as.NewValue(9), as.ListReturnTypeValue)
+				op2 := as.ListGetByValueRangeOp(binName, as.NewValue(7), nil, as.ListReturnTypeIndex)
+				op3 := as.ListGetByValueRangeOp(binName, as.NewValue(7), nil, as.ListReturnTypeValue)
+				op4 := as.ListGetByValueRangeOp(binName, as.NewValue(7), nil, as.ListReturnTypeRank)
+				op5 := as.ListGetByValueRangeOp(binName, nil, as.NewValue(9), as.ListReturnTypeValue)
+				r, err := client.Operate(wpolicy, key, op1, op2, op3, op4, op5)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(r.Bins[binName]).To(gm.Equal([]interface{}{[]interface{}{7, 8}, []interface{}{0, 3, 4, 5}, []interface{}{7, 8, 9, 10}, []interface{}{2, 3, 4, 5}, []interface{}{7, 6, 5, 8}}))
+
+				// Remove
+				op6 := as.ListRemoveByValueRangeOp(binName, as.ListReturnTypeIndex, as.NewValue(7), nil)
+				r2, err2 := client.Operate(wpolicy, key, op6)
+				gm.Expect(err2).ToNot(gm.HaveOccurred())
+				gm.Expect(r2.Bins[binName]).To(gm.Equal([]interface{}{0, 3, 4, 5}))
+
+				r3, err3 := client.Get(nil, key)
+				gm.Expect(err3).ToNot(gm.HaveOccurred())
+				gm.Expect(r3.Bins[binName]).To(gm.Equal([]interface{}{6, 5}))
+			})
+
 			gg.It("must return the result with same ordering", func() {
 				const keyCount = 50
 				keys := []*as.Key{}

@@ -558,6 +558,9 @@ func ListRemoveByValueListOp(binName string, values []interface{}, returnType Li
 // If valueEnd is nil, the range is greater than equal to valueBegin.
 // Server returns removed data specified by returnType
 func ListRemoveByValueRangeOp(binName string, returnType ListReturnType, valueBegin, valueEnd interface{}, ctx ...*CDTContext) *Operation {
+	if valueEnd == nil {
+		return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(valueBegin)}, encoder: listGenericOpEncoder}
+	}
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(valueBegin), NewValue(valueEnd)}, encoder: listGenericOpEncoder}
 }
 
@@ -769,6 +772,9 @@ func ListGetByValueListOp(binName string, values []interface{}, returnType ListR
 // If valueEnd is nil, the range is greater than equal to valueBegin.
 // Server returns selected data specified by returnType.
 func ListGetByValueRangeOp(binName string, beginValue, endValue interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
+	if endValue == nil {
+		return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(beginValue)}, encoder: listGenericOpEncoder}
+	}
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(beginValue), NewValue(endValue)}, encoder: listGenericOpEncoder}
 }
 
