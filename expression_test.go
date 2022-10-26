@@ -16,6 +16,7 @@ package aerospike_test
 
 import (
 	"fmt"
+	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v6"
 	"github.com/aerospike/aerospike-client-go/v6/internal/atomic"
@@ -512,6 +513,7 @@ var _ = gg.Describe("Expression Filters", func() {
 			})
 
 			gg.It("ExpSinceUpdate must work", func() {
+				time.Sleep(time.Millisecond * 150)
 				rs := runQuery(
 					as.ExpGreater(as.ExpSinceUpdate(), as.ExpIntVal(150)),
 					set,
