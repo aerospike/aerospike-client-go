@@ -82,26 +82,18 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
-		// The only valid server return codes are "ok" and "not found" and "filtered out".
-		// If other return codes are received, then abort the batch.
-		if resultCode != 0 {
-			if resultCode != types.KEY_NOT_FOUND_ERROR {
-				if resultCode == types.FILTERED_OUT {
-					cmd.filteredOutCnt++
-				}
-			}
+		err := cmd.skipKey(fieldCount)
+		if err != nil {
+			return false, err
+		}
 
-			if resultCode != types.KEY_NOT_FOUND_ERROR && resultCode != types.FILTERED_OUT {
-				return false, newCustomNodeError(cmd.node, resultCode)
+		if resultCode != 0 {
+			if resultCode == types.FILTERED_OUT {
+				cmd.filteredOutCnt++
 			}
 
 			cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
 			continue
-		}
-
-		err := cmd.skipKey(fieldCount)
-		if err != nil {
-			return false, err
 		}
 
 		if resultCode == 0 {
@@ -111,9 +103,6 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 				return false, err
 			}
 			cmd.records[batchIndex].setRecord(rec)
-		} else {
-			cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
-			cmd.records[batchIndex].chainError(newCustomNodeError(cmd.node, resultCode))
 		}
 	}
 
