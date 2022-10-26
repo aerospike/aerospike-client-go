@@ -1,5 +1,19 @@
 # Change History
 
+## October 26 2022: v6.5.0
+
+  This is a Minor feature ands fix release. We recommend you update your client if you are using batch operate API.
+
+  * **New Features**
+
+    - [CLIENT-1852] Add `ListSetWithPolicyOp` to list operations.
+    
+  * **Fixes**
+
+    - [CLIENT-1852] Fix `ListRemoveByIndexRangeOp` index param type.
+    - [CLIENT-1855] Fix an issue where `ListGetByValueRangeOp`, `ListRemoveByValueRangeOp` with `nil` end value return empty slice.
+    - [CLIENT-1867] Fix an issue where `BatchOperate` returns unexpected `ResultCode` for successful records when a record within a batch returns an error.
+
 ## September 16 2022: v6.4.0
 
   This is a Major fix release. We recommend you update to this version ASAP.
