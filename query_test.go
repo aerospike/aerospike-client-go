@@ -16,6 +16,7 @@ package aerospike_test
 
 import (
 	"bytes"
+	"errors"
 	"math"
 	"math/rand"
 
@@ -400,6 +401,20 @@ var _ = gg.Describe("Query operations", func() {
 
 		// there should be at least one result
 		gm.Expect(len(recs)).To(gm.Equal(keyCount))
+	})
+
+	gg.It("must return an error if read operations are requested in a background query", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewEqualFilter(bin6.Name, 1))
+
+		bin7 := as.NewBin("Aerospike7", 42)
+		_, err := client.QueryExecute(queryPolicy, nil, stm, as.GetBinOp(bin7.Name))
+		gm.Expect(err).To(gm.HaveOccurred())
+
+		var typedErr *as.AerospikeError
+		isAsErr := errors.As(err, &typedErr)
+		gm.Expect(isAsErr).To(gm.BeTrue())
+		gm.Expect(typedErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
 	})
 
 	gg.It("must Query specific equality filters and apply operations on the records without filters", func() {
