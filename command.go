@@ -624,7 +624,7 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 
-			if sz, err := record.size(); err != nil {
+			if sz, err := record.size(&policy.BasePolicy); err != nil {
 				return nil, err
 			} else {
 				cmd.dataOffset += sz

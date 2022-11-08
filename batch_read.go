@@ -94,7 +94,7 @@ func (br *BatchRead) equals(obj BatchRecordIfc) bool {
 }
 
 // Return wire protocol size. For internal use only.
-func (br *BatchRead) size() (int, Error) {
+func (br *BatchRead) size(parentPolicy *BasePolicy) (int, Error) {
 	size := 0
 
 	if br.policy != nil {

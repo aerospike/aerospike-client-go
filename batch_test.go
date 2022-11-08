@@ -146,32 +146,41 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 
 			gg.It("must successfully execute a delete op", func() {
-				key1, _ := as.NewKey(ns, set, 1)
-				op1 := as.NewBatchWrite(nil, key1, as.PutOp(as.NewBin("bin1", "a")), as.PutOp(as.NewBin("bin2", "b")))
-				op2 := as.NewBatchDelete(nil, key1)
-				op3 := as.NewBatchRead(key1, []string{"bin2"})
+				bwPolicy := as.NewBatchWritePolicy()
+				bdPolicy := as.NewBatchDeletePolicy()
 
-				brecs := []as.BatchRecordIfc{op1, op2, op3}
-				err := client.BatchOperate(bpolicy, brecs)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
+				for _, sendKey := range []bool{true, false}	{
+					bwPolicy.SendKey = sendKey
+					bdPolicy.SendKey = sendKey
+					bpolicy.SendKey = !sendKey
 
-				gm.Expect(op1.BatchRec().Err).ToNot(gm.HaveOccurred())
-				gm.Expect(op1.BatchRec().ResultCode).To(gm.Equal(types.OK))
-				gm.Expect(op1.BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1": nil, "bin2": nil}))
-				gm.Expect(op1.BatchRec().InDoubt).To(gm.BeFalse())
+					key1, _ := as.NewKey(ns, set, 1)
+					op1 := as.NewBatchWrite(bwPolicy, key1, as.PutOp(as.NewBin("bin1", "a")), as.PutOp(as.NewBin("bin2", "b")))
+					op2 := as.NewBatchDelete(bdPolicy, key1)
+					op3 := as.NewBatchRead(key1, []string{"bin2"})
 
-				gm.Expect(op2.BatchRec().Err).ToNot(gm.HaveOccurred())
-				gm.Expect(op2.BatchRec().ResultCode).To(gm.Equal(types.OK))
-				gm.Expect(op2.BatchRec().Record.Bins).To(gm.Equal(as.BinMap{}))
-				gm.Expect(op2.BatchRec().InDoubt).To(gm.BeFalse())
+					brecs := []as.BatchRecordIfc{op1, op2, op3}
+					err := client.BatchOperate(bpolicy, brecs)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				gm.Expect(op3.BatchRec().Err).ToNot(gm.HaveOccurred())
-				gm.Expect(op3.BatchRec().ResultCode).To(gm.Equal(types.KEY_NOT_FOUND_ERROR))
-				gm.Expect(op3.BatchRec().Record).To(gm.BeNil())
-				gm.Expect(op3.BatchRec().InDoubt).To(gm.BeFalse())
+					gm.Expect(op1.BatchRec().Err).ToNot(gm.HaveOccurred())
+					gm.Expect(op1.BatchRec().ResultCode).To(gm.Equal(types.OK))
+					gm.Expect(op1.BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1": nil, "bin2": nil}))
+					gm.Expect(op1.BatchRec().InDoubt).To(gm.BeFalse())
 
-				exists, err := client.Exists(nil, key1)
-				gm.Expect(exists).To(gm.BeFalse())
+					gm.Expect(op2.BatchRec().Err).ToNot(gm.HaveOccurred())
+					gm.Expect(op2.BatchRec().ResultCode).To(gm.Equal(types.OK))
+					gm.Expect(op2.BatchRec().Record.Bins).To(gm.Equal(as.BinMap{}))
+					gm.Expect(op2.BatchRec().InDoubt).To(gm.BeFalse())
+
+					gm.Expect(op3.BatchRec().Err).ToNot(gm.HaveOccurred())
+					gm.Expect(op3.BatchRec().ResultCode).To(gm.Equal(types.KEY_NOT_FOUND_ERROR))
+					gm.Expect(op3.BatchRec().Record).To(gm.BeNil())
+					gm.Expect(op3.BatchRec().InDoubt).To(gm.BeFalse())
+
+					exists, err := client.Exists(nil, key1)
+					gm.Expect(exists).To(gm.BeFalse())
+				}
 			})
 		})
 

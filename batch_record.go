@@ -46,7 +46,7 @@ type BatchRecordIfc interface {
 	chainError(err Error)
 	String() string
 	getType() batchRecordType
-	size() (int, Error)
+	size(parentPolicy *BasePolicy) (int, Error)
 	equals(BatchRecordIfc) bool
 }
 

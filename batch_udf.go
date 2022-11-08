@@ -72,7 +72,7 @@ func (bu *BatchUDF) equals(obj BatchRecordIfc) bool {
 }
 
 // Return wire protocol size. For internal use only.
-func (bu *BatchUDF) size() (int, Error) {
+func (bu *BatchUDF) size(parentPolicy *BasePolicy) (int, Error) {
 	size := 6 // gen(2) + exp(4) = 6
 
 	if bu.policy != nil {
@@ -84,14 +84,21 @@ func (bu *BatchUDF) size() (int, Error) {
 			size += sz
 		}
 
-		if bu.policy.SendKey {
+		if bu.policy.SendKey || parentPolicy.SendKey {
 			if sz, err := bu.Key.userKey.EstimateSize(); err != nil {
 				return -1, err
 			} else {
 				size += sz + int(_FIELD_HEADER_SIZE) + 1
 			}
 		}
+	} else if parentPolicy.SendKey {
+		sz, err := bu.Key.userKey.EstimateSize()
+		if err != nil {
+			return -1, err
+		}
+		size += sz + int(_FIELD_HEADER_SIZE) + 1
 	}
+
 	size += len(bu.packageName) + int(_FIELD_HEADER_SIZE)
 	size += len(bu.functionName) + int(_FIELD_HEADER_SIZE)
 

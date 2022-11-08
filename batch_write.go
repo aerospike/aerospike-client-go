@@ -66,7 +66,7 @@ func (bw *BatchWrite) equals(obj BatchRecordIfc) bool {
 }
 
 // Return wire protocol size. For internal use only.
-func (bw *BatchWrite) size() (int, Error) {
+func (bw *BatchWrite) size(parentPolicy *BasePolicy) (int, Error) {
 	size := 6 // gen(2) + exp(4) = 6
 
 	if bw.policy != nil {
@@ -78,13 +78,19 @@ func (bw *BatchWrite) size() (int, Error) {
 			}
 		}
 
-		if bw.policy.SendKey {
+		if bw.policy.SendKey || parentPolicy.SendKey {
 			if sz, err := bw.Key.userKey.EstimateSize(); err != nil {
 				return -1, err
 			} else {
 				size += sz + int(_FIELD_HEADER_SIZE) + 1
 			}
 		}
+	} else if parentPolicy.SendKey {
+		sz, err := bw.Key.userKey.EstimateSize()
+		if err != nil {
+			return -1, err
+		}
+		size += sz + int(_FIELD_HEADER_SIZE) + 1
 	}
 
 	hasWrite := false
