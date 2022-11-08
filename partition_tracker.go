@@ -178,6 +178,28 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 				return nil, newError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Id %d for namespace `%s` in Partition Scan", part.id, namespace))
 			}
 
+			if pt.iteration == 1 {
+				part.replicaIndex = 0
+			} else {
+				// If the partition was unavailable in the previous iteration, retry on
+				// a different replica.
+				if part.unavailable && part.node == node {
+					part.replicaIndex++
+
+					if part.replicaIndex >= len(partitions.Replicas) {
+						part.replicaIndex = 0
+					}
+
+					replica := partitions.Replicas[part.replicaIndex][part.id]
+
+					if replica != nil {
+						node = replica
+					}
+				}
+			}
+
+			part.node = node
+			part.unavailable = false
 			part.retry = false
 
 			// Use node name to check for single node equality because
@@ -240,7 +262,9 @@ func (pt *partitionTracker) findNode(list []*nodePartitions, node *Node) *nodePa
 }
 
 func (pt *partitionTracker) partitionUnavailable(nodePartitions *nodePartitions, partitionId int) {
-	pt.partitions[partitionId-pt.partitionBegin].retry = true
+	ps := pt.partitions[partitionId-pt.partitionBegin]
+	ps.unavailable = true
+	ps.retry = true
 	nodePartitions.partsUnavailable++
 }
 

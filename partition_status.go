@@ -22,6 +22,10 @@ type partitionStatus struct {
 	id     int
 	retry  bool
 	digest []byte
+
+	node         *Node
+	replicaIndex int
+	unavailable  bool
 }
 
 func newPartitionStatus(id int) *partitionStatus {
