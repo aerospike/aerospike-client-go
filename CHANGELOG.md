@@ -1,8 +1,23 @@
 # Change History
 
+## November 8 2022: v6.6.0
+
+  This is a minor improvement and fix release.
+
+  * **Improvements**
+
+    - [CLIENT-1959] Retry a foreground scan/query partition to a different replica when a partition unavailable error occurs.
+    - [CLIENT-1957] Handle Query, QueryExecute and QueryAggregate on non-existing sets without timing out.
+    - [CLIENT-1956] Return an error when a read operation is used in a background query.
+
+  * **Fixes**
+
+    - [CLIENT-1958] Prevent division by zero if the node array is empty in `Cluster.GetRandomNode()`.
+    - [CLIENT-1955] Allow `BatchPolicy.SendKey` to be applied to all batch keys in all batch commands. Batch commands used in `BatchOperate` take an independent policy object. We used to ignore the `SendKey` attribute in those policies.
+
 ## October 26 2022: v6.5.0
 
-  This is a Minor feature ands fix release. We recommend you update your client if you are using batch operate API.
+  This is a Minor feature and fix release. We recommend you update your client if you are using batch operate API.
 
   * **New Features**
 
