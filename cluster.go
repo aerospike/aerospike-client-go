@@ -818,14 +818,18 @@ func (clstr *Cluster) GetRandomNode() (*Node, Error) {
 	// Must copy array reference for copy on write semantics to work.
 	nodeArray := clstr.GetNodes()
 	length := len(nodeArray)
-	for i := 0; i < length; i++ {
-		// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
-		index := int(atomic.AddUint64(&clstr.nodeIndex, 1) % uint64(length))
-		node := nodeArray[index]
 
-		if node != nil && node.IsActive() {
-			//logger.Logger.Debug("Node `%s` is active. index=%d", node, index)
-			return node, nil
+	// prevent division by zero
+	if length > 0 {
+		for i := 0; i < length; i++ {
+			// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
+			index := int(atomic.AddUint64(&clstr.nodeIndex, 1) % uint64(length))
+			node := nodeArray[index]
+
+			if node != nil && node.IsActive() {
+				//logger.Logger.Debug("Node `%s` is active. index=%d", node, index)
+				return node, nil
+			}
 		}
 	}
 
