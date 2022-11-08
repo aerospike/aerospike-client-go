@@ -403,6 +403,24 @@ var _ = gg.Describe("Query operations", func() {
 		gm.Expect(len(recs)).To(gm.Equal(keyCount))
 	})
 
+	gg.It("must handle a Query on a non-existing set without timing out", func() {
+		stm := as.NewStatement(ns, set + "NON_EXISTING")
+
+		bin7 := as.NewBin("Aerospike7", 42)
+		tsk, err := client.QueryExecute(queryPolicy, nil, stm, as.PutOp(bin7))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(<-tsk.OnComplete()).To(gm.BeNil())
+
+		rs, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		cnt:=0
+		for res := range rs.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			cnt++
+		}
+		gm.Expect(cnt).To(gm.Equal(0))
+	})
+
 	gg.It("must return an error if read operations are requested in a background query", func() {
 		stm := as.NewStatement(ns, set)
 		stm.SetFilter(as.NewEqualFilter(bin6.Name, 1))

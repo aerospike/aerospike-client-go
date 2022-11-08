@@ -101,6 +101,23 @@ var _ = gg.Describe("Query Aggregate operations", func() {
 		}
 	})
 
+	gg.It("must handle running an aggregate query on a set that does not exist without timing out", func() {
+		stm := as.NewStatement(ns, set+"_NOT_EXISTS")
+		res, err := client.QueryAggregate(nil, stm, "sum_single_bin", "sum_single_bin", as.StringValue("bin1"))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		// gm.Expect(res.TaskId()).To(gm.Equal(stm.TaskId))
+		gm.Expect(res.TaskId()).To(gm.BeNumerically(">", 0))
+
+		cnt := 0
+		for rec := range res.Results() {
+			gm.Expect(rec.Err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Record.Bins["SUCCESS"]).To(gm.Equal(sumAll(keyCount)))
+			cnt++
+		}
+		gm.Expect(cnt).To(gm.Equal(0))
+	})
+
 	gg.It("must return Sum and Count to the client", func() {
 		stm := as.NewStatement(ns, set)
 		res, err := client.QueryAggregate(nil, stm, "average", "average", as.StringValue("bin1"))
