@@ -1024,10 +1024,6 @@ func parseIndexErrorCode(response string) types.ResultCode {
 // This method is only supported by Aerospike 4.9+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, partitionFilter *PartitionFilter) (*Recordset, Error) {
-	if statement.Filter != nil {
-		return nil, ErrPartitionScanQueryNotSupported.err()
-	}
-
 	policy = clnt.getUsableQueryPolicy(policy)
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {

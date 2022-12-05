@@ -218,7 +218,7 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64) (*Key, Error)
 				return nil, err
 			}
 		case BVAL_ARRAY:
-			*bval = Buffer.LittleBytesToInt64(cmd.dataBuffer, cmd.dataOffset)
+			*bval = Buffer.LittleBytesToInt64(cmd.dataBuffer, 1)
 		}
 	}
 
