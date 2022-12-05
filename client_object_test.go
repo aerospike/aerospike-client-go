@@ -1123,7 +1123,7 @@ var _ = gg.Describe("Aerospike", func() {
 						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						gm.Expect(t.Test).To(gm.Equal(float64(i)))
-						gm.Expect(t.TestLua).To(gm.Equal(testLua))
+						gm.Expect(t.TestLua).To(gm.BeNumerically("~", testLua))
 					}
 
 				}) // it
