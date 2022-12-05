@@ -1,5 +1,18 @@
 # Change History
 
+## December 5 2022: v6.7.0
+
+  This is a minor improvement and fix release.
+
+  * **Improvements**
+
+    - Improves testing for float64 precision formatting between amd64 and aarch64.
+
+  * **Fixes**
+
+    - [CLIENT-2019] Write Batch operation with an invalid namespace record causes all batch transactions to fail.
+    - [CLIENT-2020] Support `QueryPartitions` with non-nil filter (secondary index query)
+
 ## November 8 2022: v6.6.0
 
   This is a minor improvement and fix release.
