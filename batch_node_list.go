@@ -276,8 +276,10 @@ func newBatchOperateNodeListIfc(cluster *Cluster, policy *BatchPolicy, records [
 		}
 
 		if err != nil {
+			records[i].chainError(err)
+			records[i].setError(err.resultCode(), false)
 			errs = chainErrors(err, errs)
-			// return nil, err
+			continue
 		}
 
 		if batchNode := findBatchNode(batchNodes, node); batchNode == nil {

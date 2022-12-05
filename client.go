@@ -542,7 +542,7 @@ func (clnt *Client) BatchOperate(policy *BatchPolicy, records []BatchRecordIfc) 
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	batchNodes, err := newBatchOperateNodeListIfc(clnt.cluster, policy, records)
-	if err != nil {
+	if err != nil && policy.RespondAllKeys {
 		return err
 	}
 

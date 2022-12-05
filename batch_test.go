@@ -264,6 +264,96 @@ var _ = gg.Describe("Aerospike", func() {
 		})
 
 		gg.Context("BatchUDF operations", func() {
+			gg.It("must return the results when one operation is against an invalid namespace", func() {
+				luaCode := []byte(`-- Create a record
+				function rec_create(rec, bins)
+				    if bins ~= nil then
+				        for b, bv in map.pairs(bins) do
+				            rec[b] = bv
+				        end
+				    end
+				    status = aerospike:create(rec)
+				    return status
+				end`)
+
+				client.RemoveUDF(nil, "test_ops.lua")
+				client.RegisterUDF(nil, luaCode, "test_ops.lua", as.LUA)
+
+				batchRecords := []as.BatchRecordIfc{}
+
+				key1, _ := as.NewKey(randString(10), set, 1)
+				args := make(map[interface{}]interface{})
+				args["bin1_str"] = "a"
+				batchRecords = append(batchRecords, as.NewBatchUDF(
+					nil,
+					key1,
+					"test_ops",
+					"rec_create",
+					as.NewMapValue(args),
+				))
+
+				key2, _ := as.NewKey(ns, set, 2)
+				batchRecords = append(batchRecords, as.NewBatchWrite(
+					nil,
+					key2,
+					as.PutOp(as.NewBin("bin1_str", "aa")),
+				))
+
+				key3, _ := as.NewKey(ns, set, 3)
+				batchRecords = append(batchRecords, as.NewBatchWrite(
+					nil,
+					key3,
+					as.PutOp(as.NewBin("bin1_str", "aaa")),
+				))
+
+				batchRecords = append(batchRecords, as.NewBatchRead(
+					key1,
+					[]string{"bin1_str"},
+				))
+
+				batchRecords = append(batchRecords, as.NewBatchRead(
+					key2,
+					[]string{"bin1_str"},
+				))
+
+				batchRecords = append(batchRecords, as.NewBatchRead(
+					key3,
+					[]string{"bin1_str"},
+				))
+
+				bp := as.NewBatchPolicy()
+				bp.RespondAllKeys = false
+				err := client.BatchOperate(bp, batchRecords)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				gm.Expect(batchRecords[0].BatchRec().Err.Matches(types.INVALID_NAMESPACE)).To(gm.BeTrue())
+				gm.Expect(batchRecords[0].BatchRec().ResultCode).To(gm.Equal(types.INVALID_NAMESPACE))
+
+				gm.Expect(batchRecords[1].BatchRec().Err).To(gm.BeNil())
+				gm.Expect(batchRecords[1].BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(batchRecords[1].BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1_str": nil}))
+
+				gm.Expect(batchRecords[2].BatchRec().Err).To(gm.BeNil())
+				gm.Expect(batchRecords[2].BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(batchRecords[2].BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1_str": nil}))
+
+				gm.Expect(batchRecords[3].BatchRec().Err.Matches(types.INVALID_NAMESPACE)).To(gm.BeTrue())
+				gm.Expect(batchRecords[3].BatchRec().ResultCode).To(gm.Equal(types.INVALID_NAMESPACE))
+
+				gm.Expect(batchRecords[4].BatchRec().Err).To(gm.BeNil())
+				gm.Expect(batchRecords[4].BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(batchRecords[4].BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1_str": "aa"}))
+
+				gm.Expect(batchRecords[5].BatchRec().Err).To(gm.BeNil())
+				gm.Expect(batchRecords[5].BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(batchRecords[5].BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1_str": "aaa"}))
+
+				bp.RespondAllKeys = true
+				err = client.BatchOperate(bp, batchRecords)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(types.INVALID_NAMESPACE)).To(gm.BeTrue())
+			})
+
 			gg.It("must return the result with same ordering", func() {
 				const keyCount = 50
 				keys := []*as.Key{}
