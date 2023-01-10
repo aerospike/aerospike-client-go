@@ -15,6 +15,13 @@
 
 package aerospike
 
+import (
+	"encoding/base64"
+	"fmt"
+
+	"github.com/aerospike/aerospike-client-go/v6/types"
+)
+
 const (
 	ctxTypeListIndex = 0x10
 	ctxTypeListRank  = 0x11
@@ -32,6 +39,54 @@ const (
 type CDTContext struct {
 	id    int
 	value Value
+}
+
+// CDTContextToBase64 converts a []*CDTContext into a base64 encoded string.
+func CDTContextToBase64(ctxl []*CDTContext) (string, Error) {
+	ctx := cdtContextList(ctxl)
+	sz, err := ctx.packArray(nil)
+	if err != nil {
+		return "", err
+	}
+
+	buf := newBuffer(sz)
+	_, err = ctx.packArray(buf)
+	if err != nil {
+		return "", err
+	}
+
+	b64 := base64.StdEncoding.EncodeToString(buf.dataBuffer)
+	return b64, nil
+}
+
+// Base64ToCDTContext converts a b64 encoded string back into a []*CDTContext.
+func Base64ToCDTContext(b64 string) ([]*CDTContext, Error) {
+	msg, err1 := base64.StdEncoding.DecodeString(b64)
+	if err1 != nil {
+		return nil, newError(types.PARSE_ERROR, err1.Error())
+	}
+
+	unpacker := newUnpacker(msg, 0, len(msg))
+	list, err := unpacker.UnpackList()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(list)%2 != 0 {
+		return nil, newError(types.PARSE_ERROR, "List count must be even")
+	}
+
+	res := make([]*CDTContext, 0, len(list)/2)
+	for i := 0; i < len(list); i += 2 {
+		res = append(res, &CDTContext{id: list[i].(int), value: NewValue(list[i+1])})
+	}
+
+	return res, nil
+}
+
+// String implements the Stringer interface for CDTContext
+func (ctx *CDTContext) String() string {
+	return fmt.Sprintf("CDTContext{id: %d, value: %s}", ctx.id, ctx.value.String())
 }
 
 func (ctx *CDTContext) pack(cmd BufferEx) (int, Error) {
