@@ -390,7 +390,10 @@ func chainErrors(outer Error, inner error) Error {
 		t := outer.(*constAerospikeError).AerospikeError
 		ae = &t
 	case *AerospikeError:
-		ae = outer.(*AerospikeError)
+		// copy the reference to avoid issues with checking the last error
+		// when it is chained.
+		t := *outer.(*AerospikeError)
+		ae = &t
 	}
 
 	if inner == nil {
