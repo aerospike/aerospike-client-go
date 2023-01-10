@@ -1,5 +1,13 @@
 # Change History
 
+## January 10 2023: v5.11.0
+
+  Minor fix and feature release.
+
+  * **Fixes**
+
+    - [CLIENT-1204] Retry logic will keep retrying on `KEY_NOT_FOUND` errors until `policy.MaxRetries` is hit or record is returned to the client.
+
 ## September 14 2022: v5.10.0
 
   This is a Major fix release. We recommend you update to this version ASAP. 
