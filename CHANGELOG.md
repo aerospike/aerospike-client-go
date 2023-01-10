@@ -1,5 +1,18 @@
 # Change History
 
+## January 10 2023: v6.8.0
+
+  * **New Features**
+    - [CLIENT-1988] dded base64 encoding functions `CDTContextToBase64` and `Base64ToCDTContext` for `CDTContext`.
+
+  * **Improvements**
+    
+    - Added an example for regexp expressions in Queries.
+
+  * **Fixes**
+
+    - [CLIENT-1204] Retry logic will keep retrying on `KEY_NOT_FOUND` errors until `policy.MaxRetries` is hit or record is returned to the client.
+
 ## December 5 2022: v6.7.0
 
   This is a minor improvement and fix release.
