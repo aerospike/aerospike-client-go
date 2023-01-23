@@ -17,25 +17,31 @@ package aerospike
 
 import "fmt"
 
+// partitionStatus encapsulates the pagination status in partitions.
 type partitionStatus struct {
-	bval   int64
-	id     int
-	retry  bool
-	digest []byte
+	// BVal
+	BVal int64
+	// Id shows the partition Id.
+	Id int
+	// Retry signifies if the partition requires a retry.
+	Retry bool
+	// Digest records the digest of the last key digest received from the server
+	// for this partition.
+	Digest []byte
 
 	node         *Node
-	replicaIndex int
-	unavailable  bool
+	ReplicaIndex int
+	Unavailable  bool
 }
 
 func newPartitionStatus(id int) *partitionStatus {
-	return &partitionStatus{id: id, retry: true}
+	return &partitionStatus{Id: id, Retry: true}
 }
 
 func (ps *partitionStatus) String() string {
 	r := 'F'
-	if ps.retry {
+	if ps.Retry {
 		r = 'T'
 	}
-	return fmt.Sprintf("%04d:%c", ps.id, r)
+	return fmt.Sprintf("%04d:%c", ps.Id, r)
 }

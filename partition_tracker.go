@@ -105,7 +105,7 @@ func newPartitionTracker(policy *MultiPolicy, filter *PartitionFilter, nodes []*
 		// Retry all partitions when maxRecords not specified.
 		if policy.MaxRecords <= 0 {
 			for _, ps := range filter.partitions {
-				ps.retry = true
+				ps.Retry = true
 			}
 		}
 	}
@@ -136,7 +136,7 @@ func (pt *partitionTracker) initPartitions(policy *MultiPolicy, partitionCount i
 	}
 
 	if digest != nil {
-		partsAll[0].digest = digest
+		partsAll[0].Digest = digest
 	}
 
 	pt.sleepBetweenRetries = policy.SleepBetweenRetries
@@ -171,26 +171,26 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 	master := partitions.Replicas[0]
 
 	for _, part := range pt.partitions {
-		if part != nil && part.retry {
-			node := master[part.id]
+		if part != nil && part.Retry {
+			node := master[part.Id]
 
 			if node == nil {
-				return nil, newError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Id %d for namespace `%s` in Partition Scan", part.id, namespace))
+				return nil, newError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Id %d for namespace `%s` in Partition Scan", part.Id, namespace))
 			}
 
 			if pt.iteration == 1 {
-				part.replicaIndex = 0
+				part.ReplicaIndex = 0
 			} else {
 				// If the partition was unavailable in the previous iteration, retry on
 				// a different replica.
-				if part.unavailable && part.node == node {
-					part.replicaIndex++
+				if part.Unavailable && part.node == node {
+					part.ReplicaIndex++
 
-					if part.replicaIndex >= len(partitions.Replicas) {
-						part.replicaIndex = 0
+					if part.ReplicaIndex >= len(partitions.Replicas) {
+						part.ReplicaIndex = 0
 					}
 
-					replica := partitions.Replicas[part.replicaIndex][part.id]
+					replica := partitions.Replicas[part.ReplicaIndex][part.Id]
 
 					if replica != nil {
 						node = replica
@@ -199,8 +199,8 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 			}
 
 			part.node = node
-			part.unavailable = false
-			part.retry = false
+			part.Unavailable = false
+			part.Retry = false
 
 			// Use node name to check for single node equality because
 			// partition map may be in transitional state between
@@ -263,14 +263,14 @@ func (pt *partitionTracker) findNode(list []*nodePartitions, node *Node) *nodePa
 
 func (pt *partitionTracker) partitionUnavailable(nodePartitions *nodePartitions, partitionId int) {
 	ps := pt.partitions[partitionId-pt.partitionBegin]
-	ps.unavailable = true
-	ps.retry = true
+	ps.Unavailable = true
+	ps.Retry = true
 	nodePartitions.partsUnavailable++
 }
 
 func (pt *partitionTracker) setDigest(nodePartitions *nodePartitions, key *Key) {
 	partitionId := key.PartitionId()
-	pt.partitions[partitionId-pt.partitionBegin].digest = key.Digest()
+	pt.partitions[partitionId-pt.partitionBegin].Digest = key.Digest()
 	nodePartitions.recordCount++
 }
 
@@ -280,8 +280,8 @@ func (pt *partitionTracker) setLast(nodePartitions *nodePartitions, key *Key, bv
 		panic(fmt.Sprintf("key.partitionId: %d, partitionBegin: %d", partitionId, pt.partitionBegin))
 	}
 	ps := pt.partitions[partitionId-pt.partitionBegin]
-	ps.digest = key.digest[:]
-	ps.bval = bval
+	ps.Digest = key.digest[:]
+	ps.BVal = bval
 	nodePartitions.recordCount++
 }
 
@@ -382,11 +382,11 @@ func (pt *partitionTracker) shouldRetry(nodePartitions *nodePartitions, e Error)
 
 func (pt *partitionTracker) markRetry(nodePartitions *nodePartitions) {
 	for _, ps := range nodePartitions.partsFull {
-		ps.retry = true
+		ps.Retry = true
 	}
 
 	for _, ps := range nodePartitions.partsPartial {
-		ps.retry = true
+		ps.Retry = true
 	}
 }
 
@@ -425,7 +425,7 @@ func (np *nodePartitions) String() string {
 }
 
 func (np *nodePartitions) addPartition(part *partitionStatus) {
-	if part.digest == nil {
+	if part.Digest == nil {
 		np.partsFull = append(np.partsFull, part)
 	} else {
 		np.partsPartial = append(np.partsPartial, part)

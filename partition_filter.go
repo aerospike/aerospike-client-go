@@ -15,15 +15,23 @@
 
 package aerospike
 
+import (
+	"bytes"
+	"encoding/gob"
+
+	"github.com/aerospike/aerospike-client-go/v6/types"
+)
+
 // PartitionFilter is used in scan/queries. This filter is also used as a cursor.
 //
 // If a previous scan/query returned all records specified by a PartitionFilter instance, a
 // future scan/query using the same PartitionFilter instance will only return new records added
 // after the last record read (in digest order) in each partition in the previous scan/query.
 type PartitionFilter struct {
-	begin      int
-	count      int
-	digest     []byte
+	begin  int
+	count  int
+	digest []byte
+	// partitions encapsulates the cursor for the progress of the scan/query to be used for pagination.
 	partitions []*partitionStatus
 	done       bool
 }
@@ -63,4 +71,31 @@ func newPartitionFilter(begin, count int) *PartitionFilter {
 // if the previous paginated scans with this partition filter instance return all records?
 func (pf *PartitionFilter) IsDone() bool {
 	return pf.done
+}
+
+// EncodeCursor encodes and returns the cursor for the partition filter.
+// This cursor can be persisted and reused later for pagination via PartitionFilter.DecodeCursor.
+func (pf *PartitionFilter) EncodeCursor() ([]byte, Error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(pf.partitions)
+	if err != nil {
+		return nil, newError(types.PARAMETER_ERROR, err.Error())
+	}
+
+	return buf.Bytes(), nil
+}
+
+// Decodes and sets the cursor for the partition filter using the output of PartitionFilter.EncodeCursor.
+func (pf *PartitionFilter) DecodeCursor(b []byte) Error {
+	buf := bytes.NewBuffer(b)
+	dec := gob.NewDecoder(buf)
+
+	var parts []*partitionStatus
+	if err := dec.Decode(&parts); err != nil {
+		return newError(types.PARSE_ERROR, err.Error())
+	}
+
+	pf.partitions = parts
+	return nil
 }

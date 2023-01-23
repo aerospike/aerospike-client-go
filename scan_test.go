@@ -97,8 +97,10 @@ var _ = gg.Describe("Scan operations", func() {
 		spolicy := as.NewScanPolicy()
 		spolicy.MaxRecords = 30
 
+		times := 0
 		received := 0
 		for received < keyCount {
+			times++
 			recordset, err := client.ScanPartitions(spolicy, pf, ns, set)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
@@ -107,6 +109,40 @@ var _ = gg.Describe("Scan operations", func() {
 			received += recs
 		}
 
+		gm.Expect(times).To(gm.BeNumerically(">=", keyCount/spolicy.MaxRecords))
+		gm.Expect(len(keys)).To(gm.Equal(0))
+	})
+
+	gg.It("must Scan and paginate using a persisted cursor to get all records back from all partitions concurrently", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
+
+		spolicy := as.NewScanPolicy()
+		spolicy.MaxRecords = 30
+
+		received := 0
+		var buf []byte
+		times := 0
+		for received < keyCount {
+			times++
+			pf := as.NewPartitionFilterAll()
+
+			if len(buf) > 0 {
+				err = pf.DecodeCursor(buf)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+			}
+
+			recordset, err := client.ScanPartitions(spolicy, pf, ns, set)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			recs := checkResults(recordset, 0, false)
+			gm.Expect(recs).To(gm.BeNumerically("<=", int(spolicy.MaxRecords)))
+			received += recs
+
+			buf, err = pf.EncodeCursor()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		}
+
+		gm.Expect(times).To(gm.BeNumerically(">=", keyCount/spolicy.MaxRecords))
 		gm.Expect(len(keys)).To(gm.Equal(0))
 	})
 

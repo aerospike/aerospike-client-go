@@ -1463,7 +1463,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		cmd.writeFieldHeader(partsFullSize, PID_ARRAY)
 
 		for _, part := range nodePartitions.partsFull {
-			cmd.WriteInt16LittleEndian(uint16(part.id))
+			cmd.WriteInt16LittleEndian(uint16(part.Id))
 		}
 	}
 
@@ -1471,7 +1471,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
 
 		for _, part := range nodePartitions.partsPartial {
-			if _, err := cmd.Write(part.digest[:]); err != nil {
+			if _, err := cmd.Write(part.Digest[:]); err != nil {
 				return newCommonError(err)
 			}
 		}
@@ -1783,7 +1783,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		cmd.writeFieldHeader(partsFullSize, PID_ARRAY)
 
 		for _, part := range nodePartitions.partsFull {
-			cmd.WriteInt16LittleEndian(uint16(part.id))
+			cmd.WriteInt16LittleEndian(uint16(part.Id))
 		}
 	}
 
@@ -1791,7 +1791,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
 
 		for _, part := range nodePartitions.partsPartial {
-			if _, err := cmd.Write(part.digest[:]); err != nil {
+			if _, err := cmd.Write(part.Digest[:]); err != nil {
 				return newCommonError(err)
 			}
 		}
@@ -1801,7 +1801,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		cmd.writeFieldHeader(partsPartialBValSize, BVAL_ARRAY)
 
 		for _, part := range nodePartitions.partsPartial {
-			cmd.WriteInt64LittleEndian(uint64(part.bval))
+			cmd.WriteInt64LittleEndian(uint64(part.BVal))
 		}
 	}
 
