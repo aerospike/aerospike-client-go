@@ -179,18 +179,18 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 			}
 
 			if pt.iteration == 1 {
-				part.ReplicaIndex = 0
+				part.replicaIndex = 0
 			} else {
 				// If the partition was unavailable in the previous iteration, retry on
 				// a different replica.
-				if part.Unavailable && part.node == node {
-					part.ReplicaIndex++
+				if part.unavailable && part.node == node {
+					part.replicaIndex++
 
-					if part.ReplicaIndex >= len(partitions.Replicas) {
-						part.ReplicaIndex = 0
+					if part.replicaIndex >= len(partitions.Replicas) {
+						part.replicaIndex = 0
 					}
 
-					replica := partitions.Replicas[part.ReplicaIndex][part.Id]
+					replica := partitions.Replicas[part.replicaIndex][part.Id]
 
 					if replica != nil {
 						node = replica
@@ -199,7 +199,7 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 			}
 
 			part.node = node
-			part.Unavailable = false
+			part.unavailable = false
 			part.Retry = false
 
 			// Use node name to check for single node equality because
@@ -263,7 +263,7 @@ func (pt *partitionTracker) findNode(list []*nodePartitions, node *Node) *nodePa
 
 func (pt *partitionTracker) partitionUnavailable(nodePartitions *nodePartitions, partitionId int) {
 	ps := pt.partitions[partitionId-pt.partitionBegin]
-	ps.Unavailable = true
+	ps.unavailable = true
 	ps.Retry = true
 	nodePartitions.partsUnavailable++
 }

@@ -30,8 +30,8 @@ type partitionStatus struct {
 	Digest []byte
 
 	node         *Node
-	ReplicaIndex int
-	Unavailable  bool
+	replicaIndex int
+	unavailable  bool
 }
 
 func newPartitionStatus(id int) *partitionStatus {
