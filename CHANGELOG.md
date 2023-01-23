@@ -1,6 +1,15 @@
-# Change History
+  # Change History
+
+## January 23 2023: v6.9.1
+
+  Hotfix release.
+
+- **Fixes**
+  - Mark `PartitionStatus.unavailable` and `PartitionStatus.replicaIndex` as transient in `PartitionFilter.EncodeCursor`.
 
 ## January 23 2023: v6.9.0
+
+  NOTICE: This release is redacted. Please use v6.9.1.
 
 - **New Features**
   - [CLIENT-2138] Allow PartitionFilter to persist its cursor, and retrieve the encoded cursor back to allow pagination. While the Go client supported pagination, it did not export the necessary data structures to allow that cursor to be persisted by the user. These data structures remain private, but two methods (`PartitionFilter.EncodeCursor` and `PartitionFilter.DecodeCursor`) are exported on the PartitionFilter to allow this mechanism to work.
