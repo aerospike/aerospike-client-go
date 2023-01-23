@@ -1,1941 +1,1970 @@
 # Change History
 
+## January 23 2023: v6.9.0
+
+- **New Features**
+  - [CLIENT-2138] Allow PartitionFilter to persist its cursor, and retrieve the encoded cursor back to allow pagination. While the Go client supported pagination, it did not export the necessary data structures to allow that cursor to be persisted by the user. These data structures remain private, but two methods (`PartitionFilter.EncodeCursor` and `PartitionFilter.DecodeCursor`) are exported on the PartitionFilter to allow this mechanism to work.
+
 ## January 10 2023: v6.8.0
 
-  * **New Features**
-    - [CLIENT-1988] dded base64 encoding functions `CDTContextToBase64` and `Base64ToCDTContext` for `CDTContext`.
+- **New Features**
 
-  * **Improvements**
-    
-    - Added an example for regexp expressions in Queries.
+  - [CLIENT-1988] dded base64 encoding functions `CDTContextToBase64` and `Base64ToCDTContext` for `CDTContext`.
 
-  * **Fixes**
+- **Improvements**
 
-    - [CLIENT-1204] Retry logic will keep retrying on `KEY_NOT_FOUND` errors until `policy.MaxRetries` is hit or record is returned to the client.
+  - Added an example for regexp expressions in Queries.
+
+- **Fixes**
+
+  - [CLIENT-1204] Retry logic will keep retrying on `KEY_NOT_FOUND` errors until `policy.MaxRetries` is hit or record is returned to the client.
 
 ## December 5 2022: v6.7.0
 
-  This is a minor improvement and fix release.
+This is a minor improvement and fix release.
 
-  * **Improvements**
+- **Improvements**
 
-    - Improves testing for float64 precision formatting between amd64 and aarch64.
+  - Improves testing for float64 precision formatting between amd64 and aarch64.
 
-  * **Fixes**
+- **Fixes**
 
-    - [CLIENT-2019] Write Batch operation with an invalid namespace record causes all batch transactions to fail.
-    - [CLIENT-2020] Support `QueryPartitions` with non-nil filter (secondary index query)
+  - [CLIENT-2019] Write Batch operation with an invalid namespace record causes all batch transactions to fail.
+  - [CLIENT-2020] Support `QueryPartitions` with non-nil filter (secondary index query)
 
 ## November 8 2022: v6.6.0
 
-  This is a minor improvement and fix release.
+This is a minor improvement and fix release.
 
-  * **Improvements**
+- **Improvements**
 
-    - [CLIENT-1959] Retry a foreground scan/query partition to a different replica when a partition unavailable error occurs.
-    - [CLIENT-1957] Handle Query, QueryExecute and QueryAggregate on non-existing sets without timing out.
-    - [CLIENT-1956] Return an error when a read operation is used in a background query.
+  - [CLIENT-1959] Retry a foreground scan/query partition to a different replica when a partition unavailable error occurs.
+  - [CLIENT-1957] Handle Query, QueryExecute and QueryAggregate on non-existing sets without timing out.
+  - [CLIENT-1956] Return an error when a read operation is used in a background query.
 
-  * **Fixes**
+- **Fixes**
 
-    - [CLIENT-1958] Prevent division by zero if the node array is empty in `Cluster.GetRandomNode()`.
-    - [CLIENT-1955] Allow `BatchPolicy.SendKey` to be applied to all batch keys in all batch commands. Batch commands used in `BatchOperate` take an independent policy object. We used to ignore the `SendKey` attribute in those policies.
+  - [CLIENT-1958] Prevent division by zero if the node array is empty in `Cluster.GetRandomNode()`.
+  - [CLIENT-1955] Allow `BatchPolicy.SendKey` to be applied to all batch keys in all batch commands. Batch commands used in `BatchOperate` take an independent policy object. We used to ignore the `SendKey` attribute in those policies.
 
 ## October 26 2022: v6.5.0
 
-  This is a Minor feature and fix release. We recommend you update your client if you are using batch operate API.
+This is a Minor feature and fix release. We recommend you update your client if you are using batch operate API.
 
-  * **New Features**
+- **New Features**
 
-    - [CLIENT-1852] Add `ListSetWithPolicyOp` to list operations.
-    
-  * **Fixes**
+  - [CLIENT-1852] Add `ListSetWithPolicyOp` to list operations.
 
-    - [CLIENT-1852] Fix `ListRemoveByIndexRangeOp` index param type.
-    - [CLIENT-1855] Fix an issue where `ListGetByValueRangeOp`, `ListRemoveByValueRangeOp` with `nil` end value return empty slice.
-    - [CLIENT-1867] Fix an issue where `BatchOperate` returns unexpected `ResultCode` for successful records when a record within a batch returns an error.
+- **Fixes**
+
+  - [CLIENT-1852] Fix `ListRemoveByIndexRangeOp` index param type.
+  - [CLIENT-1855] Fix an issue where `ListGetByValueRangeOp`, `ListRemoveByValueRangeOp` with `nil` end value return empty slice.
+  - [CLIENT-1867] Fix an issue where `BatchOperate` returns unexpected `ResultCode` for successful records when a record within a batch returns an error.
 
 ## September 16 2022: v6.4.0
 
-  This is a Major fix release. We recommend you update to this version ASAP.
+This is a Major fix release. We recommend you update to this version ASAP.
 
-  * **Fixes**
+- **Fixes**
 
-    - [CLIENT-1827]  IdleTimeout new default 0 may be missing tend thread reaping.
-    - [CLIENT-1822] Scan/Query/Other streaming commands, including some Batch could put a faulty connection back to the pool after a cluster event where in certain conditions its buffer contents would end up in another scan and mix the results.
-    - Update go.mod, redact buggy versions and update required Go version to v1.16
+  - [CLIENT-1827] IdleTimeout new default 0 may be missing tend thread reaping.
+  - [CLIENT-1822] Scan/Query/Other streaming commands, including some Batch could put a faulty connection back to the pool after a cluster event where in certain conditions its buffer contents would end up in another scan and mix the results.
+  - Update go.mod, redact buggy versions and update required Go version to v1.16
 
-  * **Improvements**
+- **Improvements**
 
-    - Update the examples for the new retriable scan/queries
-    - Avoid indirection for `[]byte` conversion during reflection. Resolves #382.
-    - Change v5 to v6 in some documentation.
+  - Update the examples for the new retriable scan/queries
+  - Avoid indirection for `[]byte` conversion during reflection. Resolves #382.
+  - Change v5 to v6 in some documentation.
 
 ## August 29 2022: v6.3.0
 
-  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
+[**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
 
-  * **New Features**
+- **New Features**
 
-    - [CLIENT-1802] Support creating an secondary index on elements within a CDT using context. Supported by server v6.1+.
-    - [CLIENT-1773] Change client configuration defaults:
-      - Set `ClientPolicy.ConnectionQueueSize` from 256 to 100.
-      - Set `ClientPolicy.IdleTimeout` from 55 to 0 secs.
-      - Set `ClientPolicy.MaxErrorRate` from 0 to 100.
-      - Set `Policy.TotalTimeout from` 0 to 1000ms for all commands except scan/query.
+  - [CLIENT-1802] Support creating an secondary index on elements within a CDT using context. Supported by server v6.1+.
+  - [CLIENT-1773] Change client configuration defaults:
+    - Set `ClientPolicy.ConnectionQueueSize` from 256 to 100.
+    - Set `ClientPolicy.IdleTimeout` from 55 to 0 secs.
+    - Set `ClientPolicy.MaxErrorRate` from 0 to 100.
+    - Set `Policy.TotalTimeout from` 0 to 1000ms for all commands except scan/query.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixed a few Linter warnings.
+  - Fixed a few Linter warnings.
 
-  * **Improvements**
+- **Improvements**
 
-    - Documented a few constraints in HLL API docs.
-    - Documented that PartitionFilter is both a filter and a cursor in the API docs.
+  - Documented a few constraints in HLL API docs.
+  - Documented that PartitionFilter is both a filter and a cursor in the API docs.
 
 ## July 27 2022: v6.2.1
 
-  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
+[**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
 
-  This is mostly a re-release of v6.2.0, with one added minor change. It seems that we bungled the github tag somehow for that release. Upgrade from v6.2.0 to this version for the changes in that version to be applied to your code.
+This is mostly a re-release of v6.2.0, with one added minor change. It seems that we bungled the github tag somehow for that release. Upgrade from v6.2.0 to this version for the changes in that version to be applied to your code.
 
-  * **Fixes**
+- **Fixes**
 
-    - Add a nil check for error in batch retry to be on the safe side.
+  - Add a nil check for error in batch retry to be on the safe side.
 
 ## June 30 2022: v6.2.0
 
-  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
+[**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
 
-  NOTE: It seems that the tag reference for this release was incorrect on Github, or we somehow confused the `Go mod`. Do not use this version. Use v6.2.1 instead.
+NOTE: It seems that the tag reference for this release was incorrect on Github, or we somehow confused the `Go mod`. Do not use this version. Use v6.2.1 instead.
 
-  This is a major fix release. We recommend upgrading to this release if you are using `BatchOperate` or `Scan/Queries`.
+This is a major fix release. We recommend upgrading to this release if you are using `BatchOperate` or `Scan/Queries`.
 
-  * **Fixes**
+- **Fixes**
 
-    - [CLIENT-1783] Client crashes when tracker is `nil` during Scan/Queries.
-    - [CLIENT-1782] `BatchOperate` doesn't return error `BATCH_MAX_REQUESTS_EXCEEDED`.
-    - [CLIENT-1781] Fix `BatchOperate`: use offset index to pick correct record.
+  - [CLIENT-1783] Client crashes when tracker is `nil` during Scan/Queries.
+  - [CLIENT-1782] `BatchOperate` doesn't return error `BATCH_MAX_REQUESTS_EXCEEDED`.
+  - [CLIENT-1781] Fix `BatchOperate`: use offset index to pick correct record.
 
 ## June 23 2022: v6.1.0
-  
-  NOTE: This release contains a bug in `BatchOperate` command. If you are using that command, we strongly recommend you upgrade to v6.2.1.
 
-  This is a minor feature and bug fix release version.
+NOTE: This release contains a bug in `BatchOperate` command. If you are using that command, we strongly recommend you upgrade to v6.2.1.
 
-  * **New Features**
+This is a minor feature and bug fix release version.
 
-    - [CLIENT-1747] Add `EXISTS` return type for CDT read operations.
+- **New Features**
 
-  * **Fixes**
+  - [CLIENT-1747] Add `EXISTS` return type for CDT read operations.
 
-    - [CLIENT-1754] Go SDK doesn't support MapIncrementOp for batch write.
-    - [CLIENT-1770] Assume background query is complete when the server 6.0+ returns 'not found' in 'query-show' info command. For the old servers, the client will check if it has already observed the job before. If it has, it will also assume the job has finished.
+- **Fixes**
 
+  - [CLIENT-1754] Go SDK doesn't support MapIncrementOp for batch write.
+  - [CLIENT-1770] Assume background query is complete when the server 6.0+ returns 'not found' in 'query-show' info command. For the old servers, the client will check if it has already observed the job before. If it has, it will also assume the job has finished.
 
 ## April 7 2022: v6.0.0
 
-  NOTE: This release contains a bug in `BatchOperate` command. If you are using that command, we strongly recommend you upgrade to v6.2.1.
+NOTE: This release contains a bug in `BatchOperate` command. If you are using that command, we strongly recommend you upgrade to v6.2.1.
 
-  This is a major feature release. It adds several new features supported by the server v6, and drops supports for Predicate Expressions.
+This is a major feature release. It adds several new features supported by the server v6, and drops supports for Predicate Expressions.
 
-  * **New Features**
+- **New Features**
 
-    - [CLIENT-1699] Support New v6 Queries.
-    - [CLIENT-1700] Support New Server v6 Roles and Privileges.
-    - [CLIENT-1701] Support New Batch Writes.
-    - [CLIENT-1702] Remove PredExp feature from the client.
+  - [CLIENT-1699] Support New v6 Queries.
+  - [CLIENT-1700] Support New Server v6 Roles and Privileges.
+  - [CLIENT-1701] Support New Batch Writes.
+  - [CLIENT-1702] Remove PredExp feature from the client.
 
 ## April 7 2022: v5.8.0
 
-  This is a major fix release. We recommend upgrading to this release if you are using authentication.
+This is a major fix release. We recommend upgrading to this release if you are using authentication.
 
-  * **Improvements**
-  
-    - Adds notices regarding Auth issue to CHANGELOG and clarifies how to change code for an old breaking change in v3.
-    - Forward compatibility with Server v6 regarding queries and scans not sending a fresh message header per partition.
+- **Improvements**
 
-  * **Fixes**
+  - Adds notices regarding Auth issue to CHANGELOG and clarifies how to change code for an old breaking change in v3.
+  - Forward compatibility with Server v6 regarding queries and scans not sending a fresh message header per partition.
 
-    - [CLIENT-1695] Fixes a potential `nil` deference in `sessionInfo.isValid()` method.
-    - Fixes an issue where with default policies and after certain errors the replica node was not selected on retry.
+- **Fixes**
+
+  - [CLIENT-1695] Fixes a potential `nil` deference in `sessionInfo.isValid()` method.
+  - Fixes an issue where with default policies and after certain errors the replica node was not selected on retry.
 
 ## December 6 2021: v5.7.0
 
-  * **Improvements**
+- **Improvements**
 
-    - Improve `Policy.deadline()` logic to use `MaxRetries` and `SocketTimeout` to calculate `TotalTimeout` when it is not set.
-    - [CLIENT-1635] Allow Preventing Retries on Exhausted Connection Pools.
-    - Do not test `PredExp` for server v5.8+.
-    - Explicitly remove departed nodes from the partition map on cluster change.
+  - Improve `Policy.deadline()` logic to use `MaxRetries` and `SocketTimeout` to calculate `TotalTimeout` when it is not set.
+  - [CLIENT-1635] Allow Preventing Retries on Exhausted Connection Pools.
+  - Do not test `PredExp` for server v5.8+.
+  - Explicitly remove departed nodes from the partition map on cluster change.
 
 ## September 17 2021: v5.6.0
 
-  * **Fixes**
+- **Fixes**
 
-    - [CLIENT-1605] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. This fix invalidates the Session Token on unsuccessful login, Copy token from the connection buffer, and  will consider tend interval in session expiration calculations.
+  - [CLIENT-1605] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. This fix invalidates the Session Token on unsuccessful login, Copy token from the connection buffer, and will consider tend interval in session expiration calculations.
 
 ## September 6 2021: v5.5.0
-  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  * **New Features**
+[**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-    - [CLIENT-1586] Support Batch Read Operations.
+- **New Features**
 
-  * **Improvements**
+  - [CLIENT-1586] Support Batch Read Operations.
 
-    - Add authentication to info example.
+- **Improvements**
 
-  * **Fixes**
+  - Add authentication to info example.
 
-    - Fix the worng udf name in predexp test.
+- **Fixes**
+
+  - Fix the worng udf name in predexp test.
 
 ## August 16 2021: v5.4.0
-  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  * **New Features**
+[**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-    - [CLIENT-1576] Support a list of preferred racks rather than a single rack when replica is `PREFER_RACK`.
-    - [CLIENT-1577] Support PKI authentication where the TLS certificate's common name (CN) specifies the Aerospike user name.
-    - [CLIENT-1578] Support `scan-show` and `query-show` info commands.
+- **New Features**
 
-  * **Improvements**
+  - [CLIENT-1576] Support a list of preferred racks rather than a single rack when replica is `PREFER_RACK`.
+  - [CLIENT-1577] Support PKI authentication where the TLS certificate's common name (CN) specifies the Aerospike user name.
+  - [CLIENT-1578] Support `scan-show` and `query-show` info commands.
 
-    - Run fewer iterations for CDT RSHIFTEX and LSHIFTEX.
-    - Add PKI authentication to the benchmark utility.
+- **Improvements**
+
+  - Run fewer iterations for CDT RSHIFTEX and LSHIFTEX.
+  - Add PKI authentication to the benchmark utility.
 
 ## August 2 2021: v5.3.0
-  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  * **Improvements**
+[**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-    - Improve seeding of cluster nodes in tend. All seeds are discovered and added on the first step.
-    - Add `-hosts` flag to test command arguments.
+- **Improvements**
 
-  * **Fixes**
+  - Improve seeding of cluster nodes in tend. All seeds are discovered and added on the first step.
+  - Add `-hosts` flag to test command arguments.
 
-    - Fix where Bin names were not sent to the server in GetXXX commands and all bins were retrieved.
+- **Fixes**
 
+  - Fix where Bin names were not sent to the server in GetXXX commands and all bins were retrieved.
 
 ## June 28 2021: v5.2.0
-  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  Major fix release. We recommend updating to this version immediately.
+[**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  * **New Features**
+Major fix release. We recommend updating to this version immediately.
 
-    - Add support for boolean bins in expressions (`ExpBoolBin`).
-    - Add `Node.PeersGeneration`, `Node.PartitionGeneration`, `Node.RebalanceGeneration`.
-    - Support TLS connections in benchmark tool. Resolves #313.
-    - Expose Partition Health API to the user (`Cluster.Healthy()`). Resolves #334.
+- **New Features**
 
-  * **Improvements**
+  - Add support for boolean bins in expressions (`ExpBoolBin`).
+  - Add `Node.PeersGeneration`, `Node.PartitionGeneration`, `Node.RebalanceGeneration`.
+  - Support TLS connections in benchmark tool. Resolves #313.
+  - Expose Partition Health API to the user (`Cluster.Healthy()`). Resolves #334.
 
-    - Do not keep connection on all client-side errors
-    - Refactor batch commands to better reflect that keys are not created on batch requests.
-    - Mention List/Map WriteFlags in List/Map Policy constructors.
-    - Fix `ClientPolicy.ErrorRateWindow` documentation.
-    - Fix benchmark document. Thanks to [Koji Miyata](https://github.com/miyatakoji)
-    - Fix unidiomatic variable naming. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
+- **Improvements**
 
-  * **Fixes**
+  - Do not keep connection on all client-side errors
+  - Refactor batch commands to better reflect that keys are not created on batch requests.
+  - Mention List/Map WriteFlags in List/Map Policy constructors.
+  - Fix `ClientPolicy.ErrorRateWindow` documentation.
+  - Fix benchmark document. Thanks to [Koji Miyata](https://github.com/miyatakoji)
+  - Fix unidiomatic variable naming. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
 
-    - Fix an issue where batch commands for a single node were not retried. Resolves #355.
+- **Fixes**
+
+  - Fix an issue where batch commands for a single node were not retried. Resolves #355.
 
 ## June 10 2021: v5.1.0
-  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  Major fix release. We recommend updating to this version immediately.
+[**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  * **Improvements**
+Major fix release. We recommend updating to this version immediately.
 
-    - Set the error node on transaction failures.
-    - Add compression and minConnsPerNode to benchmark tool options.
+- **Improvements**
 
-  * **Fixes**
+  - Set the error node on transaction failures.
+  - Add compression and minConnsPerNode to benchmark tool options.
 
-    - Add missing Compress commands.
-    - Check if error is not `nil` before chaining. Resolves issue #353.
-    - Handle `nil` case in `Node.String()`.
-    - Correctly handle errors in `Connection.Read` and `Connection.Write`. Avoids shadowing of the error. Resolves issue #352.
+- **Fixes**
+
+  - Add missing Compress commands.
+  - Check if error is not `nil` before chaining. Resolves issue #353.
+  - Handle `nil` case in `Node.String()`.
+  - Correctly handle errors in `Connection.Read` and `Connection.Write`. Avoids shadowing of the error. Resolves issue #352.
 
 ## May 30 2021: v5.0.2
-  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  Minor fix release.
+[**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  * **Fixes**
+Minor fix release.
 
-    - Improve handling and chaining of errors in `BatchCommand` retries.
-    - Don't wrap in `chainErrors` if outer is `nil` and the inner error is of type `Error`.
-    - Support reading back keys with original `List` values.
+- **Fixes**
+
+  - Improve handling and chaining of errors in `BatchCommand` retries.
+  - Don't wrap in `chainErrors` if outer is `nil` and the inner error is of type `Error`.
+  - Support reading back keys with original `List` values.
 
 ## May 27 2021: v5.0.1
-  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  Minor fix release.
+[**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  * **Fixes**
+Minor fix release.
 
-    - Handle lack of key digests in `BatchExists` command.
-    - Allow and handle nil arguments for `chainError`.
-    - Avoid race condition in chaining prefined errors.
+- **Fixes**
+
+  - Handle lack of key digests in `BatchExists` command.
+  - Allow and handle nil arguments for `chainError`.
+  - Avoid race condition in chaining prefined errors.
 
 ## May 10 2021: v5.0.0
-  [**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  This is a major feature release. It is also a major breaking release. We have adopted Go's module system as recommended by the Go authors, so the new release moves the active branch to `v5`.
-  As such, the import path changes to `github.com/aerospike/aerospike-client-go/v5`. The `master` branch remains in place to allow maintenance for the older v4 classic version until most users
-  get the chance to upgrade.
+[**IMPORTANT NOTE**] An authentication bug was introduced in Go client 5.0.0. As a result, the client may fail to refresh its session token after it expires, requiring the client to be restarted. If you are using password-based authentication, we highly recommend that you upgrade your client to version 5.6.0+, which you can do safely.
 
-  This release also changes the way errors work in the client, and invalidates the old way. This allows the client to support Go's somewhat new `errors.Is` and `errors.As` API, and properly
-  chain errors together.
+This is a major feature release. It is also a major breaking release. We have adopted Go's module system as recommended by the Go authors, so the new release moves the active branch to `v5`.
+As such, the import path changes to `github.com/aerospike/aerospike-client-go/v5`. The `master` branch remains in place to allow maintenance for the older v4 classic version until most users
+get the chance to upgrade.
 
-  Also note that the Go Client now requires server version 4.9+ and will not work properly with older versions.
+This release also changes the way errors work in the client, and invalidates the old way. This allows the client to support Go's somewhat new `errors.Is` and `errors.As` API, and properly
+chain errors together.
 
-  * **New Features**
+Also note that the Go Client now requires server version 4.9+ and will not work properly with older versions.
 
-    - Adopts module system and changes the import paths to `github.com/aerospike/aerospike-client-go/v5`
-    - [CLIENT-1476] Support new expressions introduced in server version 5.6, including `ExpReadOp` and `ExpWriteOp`.
-    - [CLIENT-1463] Support boolean particle type and make it opt-in for reflection API via `UseNativeBoolTypeInReflection`.
-    - [CLIENT-1522] Support user quotas and statistics.
-    - [CLIENT-1492] Remove ability to use old authentication protocol. This works behind the scenes and doesn't have any impact on user code.
-    - [CLIENT-1081] Adds `Error` interface, changes all API signature to return `Error`.
-    - Exports `AdminCommand` and its `QueryXXX` API.
+- **New Features**
 
-  * **Breaking Changes**
-    - Limits keys to `int`, `string` and `[]byte` types. The old `ListValue` arrays as types are not supported anymore.
-    - Remove TLS code support for golang v1.8 and before.
-    - Moves `AerospikeError` from `/types` to the root of the package, and removes all other error type like `NodeError`
-    - [CLIENT-1526] Removes `Policy.Priority`, `ScanPolicy.ScanPercent` and `ScanPolicy.FailOnClusterChange`
-    - Removes `Recordset.Read()` and avoids multiplexing of `Records` channel in `Recordset.Results()`, and unexports the `Error` channel.
-    - Remove legacy client code for old servers. Go client now requires server version 4.9+
-    - Remove `Statement.PredExp`, and only use the `Policy.PredExp` to avoid confusion. `PredExp` has been deprecated and replaced by `Expression`.
-    - Renames type `FilterExpression` to `Expression`.
-    - `Client.GetBatchXXX()` will return `ErrFilteredOut` if an expression is passed to the API and some records were filtered out, regardless of `BatchPolicy.AllowPartialResults`.
-    - `Client.CreateRole()` now requires quota information in the param list.
-    - Removed `Connection.Authenticate()` API.
-    - Renamed `GetOpForBin()` to `GetBinOp()`
-    - Removed `ScanPolicy.ConcurrentNodes`. Now only uses `.MaxConcurrentNodes` to avoid confusion.
-    - Moves the `RequestInfo()` under `Connection`.
+  - Adopts module system and changes the import paths to `github.com/aerospike/aerospike-client-go/v5`
+  - [CLIENT-1476] Support new expressions introduced in server version 5.6, including `ExpReadOp` and `ExpWriteOp`.
+  - [CLIENT-1463] Support boolean particle type and make it opt-in for reflection API via `UseNativeBoolTypeInReflection`.
+  - [CLIENT-1522] Support user quotas and statistics.
+  - [CLIENT-1492] Remove ability to use old authentication protocol. This works behind the scenes and doesn't have any impact on user code.
+  - [CLIENT-1081] Adds `Error` interface, changes all API signature to return `Error`.
+  - Exports `AdminCommand` and its `QueryXXX` API.
 
-  * **Improvements**
+- **Breaking Changes**
 
-    - Implement `GomegaStringer` interface to prevent very long error messages in tests.
-    - Adds `ResultCode.String()`.
+  - Limits keys to `int`, `string` and `[]byte` types. The old `ListValue` arrays as types are not supported anymore.
+  - Remove TLS code support for golang v1.8 and before.
+  - Moves `AerospikeError` from `/types` to the root of the package, and removes all other error type like `NodeError`
+  - [CLIENT-1526] Removes `Policy.Priority`, `ScanPolicy.ScanPercent` and `ScanPolicy.FailOnClusterChange`
+  - Removes `Recordset.Read()` and avoids multiplexing of `Records` channel in `Recordset.Results()`, and unexports the `Error` channel.
+  - Remove legacy client code for old servers. Go client now requires server version 4.9+
+  - Remove `Statement.PredExp`, and only use the `Policy.PredExp` to avoid confusion. `PredExp` has been deprecated and replaced by `Expression`.
+  - Renames type `FilterExpression` to `Expression`.
+  - `Client.GetBatchXXX()` will return `ErrFilteredOut` if an expression is passed to the API and some records were filtered out, regardless of `BatchPolicy.AllowPartialResults`.
+  - `Client.CreateRole()` now requires quota information in the param list.
+  - Removed `Connection.Authenticate()` API.
+  - Renamed `GetOpForBin()` to `GetBinOp()`
+  - Removed `ScanPolicy.ConcurrentNodes`. Now only uses `.MaxConcurrentNodes` to avoid confusion.
+  - Moves the `RequestInfo()` under `Connection`.
+
+- **Improvements**
+
+  - Implement `GomegaStringer` interface to prevent very long error messages in tests.
+  - Adds `ResultCode.String()`.
 
 ## April 9 2021: v4.5.0
-  Minor feature and fix release.
 
-  * **New Features**
+Minor feature and fix release.
 
-    - Allows reading of boolean types from the server, supported in Aerospike server v5.6. The current client will not support writing boolean type to the server. That features will be supported in the upcoming Go client v5.
+- **New Features**
 
-  * **Improvements**
+  - Allows reading of boolean types from the server, supported in Aerospike server v5.6. The current client will not support writing boolean type to the server. That features will be supported in the upcoming Go client v5.
 
-    - [CLIENT-1495] Tentatively check if a connection is allowed to avoid launching too many goroutines.
+- **Improvements**
 
-  * **Fixes**
+  - [CLIENT-1495] Tentatively check if a connection is allowed to avoid launching too many goroutines.
 
-    - Implements correct and re-triable Scans for the Reflection API.
-    - Fixes an obscure var shadowing bug in TLS connection handshake error logging.
+- **Fixes**
+
+  - Implements correct and re-triable Scans for the Reflection API.
+  - Fixes an obscure var shadowing bug in TLS connection handshake error logging.
 
 ## March 12 2021: v4.4.0
-  Minor fix and improvements release. 
 
-  * **Fixes**
+Minor fix and improvements release.
 
-    - Fixes an issue where the client's reflection API expected certain `int` value types returned from the database. That assumption was wrong for `CDT`s and free form `List`s and `Map`s. The client will now convert types to each other per Go's conversion rules where possible.
+- **Fixes**
 
-  * **Improvements**
+  - Fixes an issue where the client's reflection API expected certain `int` value types returned from the database. That assumption was wrong for `CDT`s and free form `List`s and `Map`s. The client will now convert types to each other per Go's conversion rules where possible.
 
-    - Use a global TLS setting everywhere in tests.
+- **Improvements**
+
+  - Use a global TLS setting everywhere in tests.
 
 ## March 1 2021: v4.3.0
-  Minor feature and fix and major clean up release. While there aren't many user facing changes, the quality of the code has been markedly improved. 
-  This release puts us on a good footing for the next few bigger releases.
 
-  * **New Features**:
+Minor feature and fix and major clean up release. While there aren't many user facing changes, the quality of the code has been markedly improved.
+This release puts us on a good footing for the next few bigger releases.
 
-    - [CLIENT-1457] Support scan pagination through `ScanPartitions()` with `PartitionFilter`
+- **New Features**:
 
-  * **Fixes**
+  - [CLIENT-1457] Support scan pagination through `ScanPartitions()` with `PartitionFilter`
 
-    - Fixes an issue where if errors and filtered records happened at the same time in Batch requests, no error would be returned to the user.
+- **Fixes**
 
-  * **Improvements**
+  - Fixes an issue where if errors and filtered records happened at the same time in Batch requests, no error would be returned to the user.
 
-    - Makes the code samples more readable in the docs.
-    - Fixes a lot of code samples in documentation, along with typos, etc.
-    - Fixes copy/paste naming errors in the documentation. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
-    - Removes a few unreachable lines from the code. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
-    - Handles a few TLS connection related issues in tests.
+- **Improvements**
+
+  - Makes the code samples more readable in the docs.
+  - Fixes a lot of code samples in documentation, along with typos, etc.
+  - Fixes copy/paste naming errors in the documentation. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
+  - Removes a few unreachable lines from the code. Thanks to [Yevgeny Rizhkov](https://github.com/reugn)
+  - Handles a few TLS connection related issues in tests.
 
 ## February 12 2021: v4.2.0
 
-  Major feature and improvements release.
+Major feature and improvements release.
 
-  * **New Features**:
+- **New Features**:
 
-    - [CLIENT-1192] Adds Support for partition scans. Queries which lack a `Statement.Filter` will be automatically converted to partition scans. If the cluster supports partition scans, all Scans and Queries will use the new protocol to allow retrying in case of some errors.
-    - [CLIENT-1237] Adds Support for `MultiPolicy.MaxRecords` in scans and queries without `Statement.Filter`.
-    - Adds `NewHosts` convenience function. (Github #320) thanks to [Yegor Myskin](https://github.com/un000)
+  - [CLIENT-1192] Adds Support for partition scans. Queries which lack a `Statement.Filter` will be automatically converted to partition scans. If the cluster supports partition scans, all Scans and Queries will use the new protocol to allow retrying in case of some errors.
+  - [CLIENT-1237] Adds Support for `MultiPolicy.MaxRecords` in scans and queries without `Statement.Filter`.
+  - Adds `NewHosts` convenience function. (Github #320) thanks to [Yegor Myskin](https://github.com/un000)
 
-  * **Improvements**
+- **Improvements**
 
-    - Adds a few missing error checks.
-    - Moves examples files to dedicated folders to avoid `multiple main function` errors for new users.
-    - Some documentation clean up. (Github #314) thanks to [Shin Uozumi](https://github.com/sinozu)
-    - Fix typo in example `NewKey()`. (Github #331) thanks to [Patrick Kuca](https://github.com/pkuca)
-    - Adds an example to list operations (using operate and list policy).
-    - Runs the XDR tests only when XDR is configured on the server.
-    - Add TLS config to test params.
-    - Mark `NewPredExpXXX` return value as the PredExp interface instead of concrete type. It will now group them under the `PredExp` interface in the docs.
+  - Adds a few missing error checks.
+  - Moves examples files to dedicated folders to avoid `multiple main function` errors for new users.
+  - Some documentation clean up. (Github #314) thanks to [Shin Uozumi](https://github.com/sinozu)
+  - Fix typo in example `NewKey()`. (Github #331) thanks to [Patrick Kuca](https://github.com/pkuca)
+  - Adds an example to list operations (using operate and list policy).
+  - Runs the XDR tests only when XDR is configured on the server.
+  - Add TLS config to test params.
+  - Mark `NewPredExpXXX` return value as the PredExp interface instead of concrete type. It will now group them under the `PredExp` interface in the docs.
 
-  * **Changes**
-    - Only use `Policy.Priority` and `MultiPolicy.FailOnClusterChange` on server versions < 4.9. `Priority` is now deprecated and replaced with `MultiPolicy.RecordPerSecond`.
-    - `Statement.TaskID` is deprecated and will be removed in the next major version.
-    - `ScanPolicy.ConcurrentNodes` is deprecated and will be removed in the next major version.
+- **Changes**
+  - Only use `Policy.Priority` and `MultiPolicy.FailOnClusterChange` on server versions < 4.9. `Priority` is now deprecated and replaced with `MultiPolicy.RecordPerSecond`.
+  - `Statement.TaskID` is deprecated and will be removed in the next major version.
+  - `ScanPolicy.ConcurrentNodes` is deprecated and will be removed in the next major version.
 
 … versions < 4.9
 
 ## January 25 2021: v4.1.0
 
-  Major feature release.
+Major feature release.
 
-  * **New Features**:
+- **New Features**:
 
-    - [CLIENT-1417] Adds Circuit-Breaker. Rejects command when assigned node's error rate exceeds `ClientPolicy.MaxErrorRate` over `ClientPolicy.ErrorRateWindow`.
-    - [CLIENT-1410] Adds `Client.SetXDRFilter()`.
-    - [CLIENT-1433] Adds `ExpMemorySize()` to expression filters.
+  - [CLIENT-1417] Adds Circuit-Breaker. Rejects command when assigned node's error rate exceeds `ClientPolicy.MaxErrorRate` over `ClientPolicy.ErrorRateWindow`.
+  - [CLIENT-1410] Adds `Client.SetXDRFilter()`.
+  - [CLIENT-1433] Adds `ExpMemorySize()` to expression filters.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes an issue where remainder miscalculation would cause the connection pool to be smaller than it should have been. (Github #332) thanks to [ShawnZhang](https://github.com/xqzhang2015)
+  - Fixes an issue where remainder miscalculation would cause the connection pool to be smaller than it should have been. (Github #332) thanks to [ShawnZhang](https://github.com/xqzhang2015)
 
-  * **Improvements**
+- **Improvements**
 
-    - [CLIENT-1434] Reset peers, partition and rebalance generations on node tend errors.
-    - Use named fields in `LimitedReader` initialization.
-    - Skip `device_total_bytes` tests in Expressions for memory-only namespaces
-    - Change unexported field check in marshaller in anticipation of go 1.16 changes
+  - [CLIENT-1434] Reset peers, partition and rebalance generations on node tend errors.
+  - Use named fields in `LimitedReader` initialization.
+  - Skip `device_total_bytes` tests in Expressions for memory-only namespaces
+  - Change unexported field check in marshaller in anticipation of go 1.16 changes
 
-  * **Changes**
-    - Pack byte array header with string header codes when using msgpack to be consistent with server.
-    - Adds `ResultCode.LOST_CONFLICT`
-    - Change log level from Debug to Error for partition validation failures
+- **Changes**
 
-  * **Fixes**
+  - Pack byte array header with string header codes when using msgpack to be consistent with server.
+  - Adds `ResultCode.LOST_CONFLICT`
+  - Change log level from Debug to Error for partition validation failures
 
-    - Fix remainder calculation in `ConnectionHeap`.
+- **Fixes**
+
+  - Fix remainder calculation in `ConnectionHeap`.
 
 ## November 27 2020: v4.0.0
 
-  Major feature release. Deprecates `PredExp` filters and replaces them with the far more capable Expressions.
+Major feature release. Deprecates `PredExp` filters and replaces them with the far more capable Expressions.
 
-  * **New Features**:
+- **New Features**:
 
-    - [CLIENT-1361] Replace predicate filters with new Aerospike Expressions.
+  - [CLIENT-1361] Replace predicate filters with new Aerospike Expressions.
 
-  * **Fixes**
+- **Fixes**
 
-    - Allows unmarshalling of bool fields to sub objects in reflection API. (Github #325)
-    - Fixes an issue where BatchIndexGet commands were not retried in some circumstances.
+  - Allows unmarshalling of bool fields to sub objects in reflection API. (Github #325)
+  - Fixes an issue where BatchIndexGet commands were not retried in some circumstances.
 
-  * **Incompatible changes**:
+- **Incompatible changes**:
 
-    - Changes the `BitResizeFlagsXXX` enum types to  `BitResizeFlags` type. This should not affect any code if the enums were used.
-    - Changes the `ListSortFlagsXXX` enum types to`ListSortFlags` are now typed. This should not affect any code if the enums were used.
+  - Changes the `BitResizeFlagsXXX` enum types to `BitResizeFlags` type. This should not affect any code if the enums were used.
+  - Changes the `ListSortFlagsXXX` enum types to`ListSortFlags` are now typed. This should not affect any code if the enums were used.
 
 ## November 9 2020: v3.1.1
 
-  Hotfix release. We recommend upgrading to this version, or cherry-picking the changeset to your vendored version if possible.
+Hotfix release. We recommend upgrading to this version, or cherry-picking the changeset to your vendored version if possible.
 
-  * **Fixes**
+- **Fixes**
 
-    - Handle cleanup cases in `Offer` and `DropIdleTail` for `singleConnectionHeap`. (Github #318)
-    - Unlock the mutex in `singleConnectionHeap.Poll` if called after cleanup. (Github #323) thanks to [linchuan4028](https://github.com/linchuan4028)
+  - Handle cleanup cases in `Offer` and `DropIdleTail` for `singleConnectionHeap`. (Github #318)
+  - Unlock the mutex in `singleConnectionHeap.Poll` if called after cleanup. (Github #323) thanks to [linchuan4028](https://github.com/linchuan4028)
 
-  * **Changes**
+- **Changes**
 
-    - Removes support for versions prior to Go v1.12 due to incompatibility in the testing library we use. Go v1.9+ should still work, though they will not be tested in our tests.
+  - Removes support for versions prior to Go v1.12 due to incompatibility in the testing library we use. Go v1.9+ should still work, though they will not be tested in our tests.
 
 ## September 10 2020: v3.1.0
 
-  Minor fix release.
+Minor fix release.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes an issue where initial tend was not adhering to the `ClientPolicy.Timeout`. (CLIENT-1344)
+  - Fixes an issue where initial tend was not adhering to the `ClientPolicy.Timeout`. (CLIENT-1344)
 
 ## August 19 2020: v3.0.5
 
-  Minor fix release.
+Minor fix release.
 
-  * **Fixes**
+- **Fixes**
 
-    - Corrects the maximum bin name size in error message.
-    - Fixes geo coordinates in predexp tests due to more strict server validation.
-    - Fixes misspelled words and doc links. PR #311, thanks to [Abhay](https://github.com/pnutmath)
+  - Corrects the maximum bin name size in error message.
+  - Fixes geo coordinates in predexp tests due to more strict server validation.
+  - Fixes misspelled words and doc links. PR #311, thanks to [Abhay](https://github.com/pnutmath)
 
 ## July 7 2020: v3.0.4
 
-  Minor fix release.
+Minor fix release.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes `Client.SetWhitelist` API.
-    - Fixes an issue where `Whilelist` was not set during `QueryRole`.
+  - Fixes `Client.SetWhitelist` API.
+  - Fixes an issue where `Whilelist` was not set during `QueryRole`.
 
 ## July 3 2020: v3.0.3
 
-  Minor fix release.
+Minor fix release.
 
-  * **Fixes**
+- **Fixes**
 
-    - Resolves an issue where batch retry could return some nil records in some situations.
+  - Resolves an issue where batch retry could return some nil records in some situations.
 
 ## June 24 2020: v3.0.2
 
-  Minor improvement release.
+Minor improvement release.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes an issue where if a slice was pre-assigned on a struct, the data would not be allocated to it in reflection API. PR #302, thanks to [gdm85](https://github.com/gdm85)
-    - Fixes an issue where `Node.GetConnection()` could in rare circumstances return no connection without an `error`. This would potentially cause a panic in VERY slow production servers.
+  - Fixes an issue where if a slice was pre-assigned on a struct, the data would not be allocated to it in reflection API. PR #302, thanks to [gdm85](https://github.com/gdm85)
+  - Fixes an issue where `Node.GetConnection()` could in rare circumstances return no connection without an `error`. This would potentially cause a panic in VERY slow production servers.
 
-  * **Improvements**
+- **Improvements**
 
-    - Converts a few panics to errors in wire protocol encoding/decoding. Resolves issue #304.
+  - Converts a few panics to errors in wire protocol encoding/decoding. Resolves issue #304.
 
 ## June 17 2020: v3.0.1
 
-  Minor bug fix release.
+Minor bug fix release.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes caching of embedded structs with options in alias. Resolves issue #301.
+  - Fixes caching of embedded structs with options in alias. Resolves issue #301.
 
 ## June 8 2020: v3.0.0
 
-  Major feature release. There are a few minor breaking API changes. See `ClientPolicy`.
+Major feature release. There are a few minor breaking API changes. See `ClientPolicy`.
 
-  Note: There has been significant changes to clustering code. We recommend extensive testing before using in production.
+Note: There has been significant changes to clustering code. We recommend extensive testing before using in production.
 
-  * **New Features**
+- **New Features**
 
-    - Adds support for Relaxed Strong Consistency mode. `ClientPolicy.LinearizeRead = true` has been removed and should be replaced with `policy.ReadModeSC = as.ReadModeSCLinearize`.
-    - Adds support for whitelists in Roles.
+  - Adds support for Relaxed Strong Consistency mode. `ClientPolicy.LinearizeRead = true` has been removed and should be replaced with `policy.ReadModeSC = as.ReadModeSCLinearize`.
+  - Adds support for whitelists in Roles.
 
 ## May 28 2020: v2.12.0
 
-  Minor feature release.
+Minor feature release.
 
-  * **New Features**
+- **New Features**
 
-    - Adds `MapCreateOp` and `ListCreateOp` in `Context` for CDTs.
+  - Adds `MapCreateOp` and `ListCreateOp` in `Context` for CDTs.
 
 ## May 27 2020: v2.11.0
 
-  Major feature release.
+Major feature release.
 
-  * **New Features**
+- **New Features**
 
-    - Adds HyperLogLog support.
+  - Adds HyperLogLog support.
 
-  * **Improvements**
+- **Improvements**
 
-    - Exports `estimateSize` on `Value` Datastructure. PR #299, thanks to [Sainadh Devireddy](https://github.com/sainadh-d)
-    - Adds more detail regarding `ClientPolicy.IdleTimeout` in the documentation, and changes the default value to 55 seconds.
+  - Exports `estimateSize` on `Value` Datastructure. PR #299, thanks to [Sainadh Devireddy](https://github.com/sainadh-d)
+  - Adds more detail regarding `ClientPolicy.IdleTimeout` in the documentation, and changes the default value to 55 seconds.
 
 ## May 12 2020: v2.10.0
 
-  Minor feature release.
+Minor feature release.
 
-  * **New Features**
+- **New Features**
 
-    - Adds `ClientPolicy.MinConnectionsPerNode`.
+  - Adds `ClientPolicy.MinConnectionsPerNode`.
 
-  * **Improvements**
+- **Improvements**
 
-    - Returns distinct error when empty slice is passed to BatchGetObjects. PR #297, thanks to [Mohamed Osama](https://github.com/oss92)
+  - Returns distinct error when empty slice is passed to BatchGetObjects. PR #297, thanks to [Mohamed Osama](https://github.com/oss92)
 
 ## March 14 2020: v2.9.0
 
-  Minor feature release.
+Minor feature release.
 
-  * **New Features**
+- **New Features**
 
-    - Supports use of anonymous structs in reflection API. PR #287, thanks to [小马哥](https://github.com/andot)
+  - Supports use of anonymous structs in reflection API. PR #287, thanks to [小马哥](https://github.com/andot)
 
 ## March 4 2020: v2.8.2
 
-  Hotfix.
+Hotfix.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes a race condition introduced in the last release.
+  - Fixes a race condition introduced in the last release.
 
 ## March 4 2020: v2.8.1
 
-  Minor fix and improvements.
+Minor fix and improvements.
 
-  * **Improvements**
+- **Improvements**
 
-    - Uses a `sync.Pool` to preserve the connection buffers on close to remove pressure from the allocator and the GC during connection churns.
+  - Uses a `sync.Pool` to preserve the connection buffers on close to remove pressure from the allocator and the GC during connection churns.
 
-  * **Fixes**
+- **Fixes**
 
-    - Cleanup the data structure cross refs on Cluster.Close to help GC free the objects.
+  - Cleanup the data structure cross refs on Cluster.Close to help GC free the objects.
 
 ## February 28 2020: v2.8.0
 
-  Minor feature release.
+Minor feature release.
 
-  * **New Features**
+- **New Features**
 
-    - Allows `,omitempty` tag to be used in struct tags. It behaves the same as the stdlib json. Note that there should be no whitespace between the comma and the rest of the tag.
+  - Allows `,omitempty` tag to be used in struct tags. It behaves the same as the stdlib json. Note that there should be no whitespace between the comma and the rest of the tag.
 
 ## January 30 2020: v2.7.2
 
-  Minor fix release.
+Minor fix release.
 
-  * **Fixes**
+- **Fixes**
 
-    - Resolves an issue where an invalid/malformed compressed header could cause a panic by reporting wrong compressed data size. Resolves #280.
+  - Resolves an issue where an invalid/malformed compressed header could cause a panic by reporting wrong compressed data size. Resolves #280.
 
 ## January 20 2020: v2.7.1
 
-  Minor fix release.
+Minor fix release.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes an issue where an error was not checked after a read in `multi_command.go` and would cause a panic. Resolves #280.
+  - Fixes an issue where an error was not checked after a read in `multi_command.go` and would cause a panic. Resolves #280.
 
 ## December 24 2019: v2.7.0
 
-  Minor feature and fix release.
+Minor feature and fix release.
 
-  * **New Features**
+- **New Features**
 
-    - Adds support for client/server wire transport compression.
-    - Adds support for descending CDT list order.
+  - Adds support for client/server wire transport compression.
+  - Adds support for descending CDT list order.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes an issue where unpacking `Value` objects would cause an infinite loop. PR #273, thanks to [small-egg](https://github.com/small-egg)
+  - Fixes an issue where unpacking `Value` objects would cause an infinite loop. PR #273, thanks to [small-egg](https://github.com/small-egg)
 
 ## November 25 2019: v2.6.0
-  Minor feature release.
 
-  * **New Features**
+Minor feature release.
 
-    - Supports correct Query/Scans via `Scan/QueryPolicy.FailOnClusterChange`
+- **New Features**
 
-  * **Fixes**
+  - Supports correct Query/Scans via `Scan/QueryPolicy.FailOnClusterChange`
 
-    - Fixes an issue where the client using multiple seeds via DNS or Load Balancer would fail to connect if more than one of them were unreachable.
+- **Fixes**
+
+  - Fixes an issue where the client using multiple seeds via DNS or Load Balancer would fail to connect if more than one of them were unreachable.
 
 ## November 8 2019: v2.5.0
-  Major feature release.
 
-  * **New Features**
+Major feature release.
 
-    - Adds support for predicate expressions in all transactions. See `Policy.Predexp`.
+- **New Features**
+
+  - Adds support for predicate expressions in all transactions. See `Policy.Predexp`.
 
 ## October 29 2019: v2.4.0
-  Major feature release.
 
-  * **New Features**
+Major feature release.
 
-    - Adds support for bitwise operations.
-    - Adds support for nested CDTs.
+- **New Features**
+
+  - Adds support for bitwise operations.
+  - Adds support for nested CDTs.
 
 ## October 17 2019: v2.3.0
-  Major feature release.
 
-  * **New Features**
+Major feature release.
 
-    - Adds support for mixed security modes in cluster to enable rolling upgrade with security changes.
-    - Adds support for delete record operation `DeleteOp()` in `Client.Operate()`.
-    - Adds support for write operations in background scan/query.
-    - Adds support for `Scan/QueryPolicy.RecordsPerSecond` field to limit throughput.
+- **New Features**
+
+  - Adds support for mixed security modes in cluster to enable rolling upgrade with security changes.
+  - Adds support for delete record operation `DeleteOp()` in `Client.Operate()`.
+  - Adds support for write operations in background scan/query.
+  - Adds support for `Scan/QueryPolicy.RecordsPerSecond` field to limit throughput.
 
 ## August 13 2019: v2.2.1
-  Minor improvement release.
 
-  * **Improvements**
+Minor improvement release.
 
-    - Supports the `Write` role in server v4.6.0.2+
+- **Improvements**
+
+  - Supports the `Write` role in server v4.6.0.2+
 
 ## May 21 2019: v2.2.0
-  Minor Fixes and improvements release.
 
-  * **Fixes**
+Minor Fixes and improvements release.
 
-    - Fixes an issue where an empty connection pool would cause a lock contention that would in turn lead to high CPU load.
-    - Fixes an issue where in some circumstances connection pool would be depleted of connections.
-    - Fixes an issue where the replica node would not be selected in case of master-node failure in `Policy.ReplicaPolicy.SEQUENCE` for reads.
+- **Fixes**
 
-  * **Improvements**
+  - Fixes an issue where an empty connection pool would cause a lock contention that would in turn lead to high CPU load.
+  - Fixes an issue where in some circumstances connection pool would be depleted of connections.
+  - Fixes an issue where the replica node would not be selected in case of master-node failure in `Policy.ReplicaPolicy.SEQUENCE` for reads.
 
-    - Transactions will not count a lack of connection in the node's connection pool as an iteration anymore.
+- **Improvements**
+
+  - Transactions will not count a lack of connection in the node's connection pool as an iteration anymore.
 
 ## April 25 2019: v2.1.1
-  Minor Fixes and improvements release.
 
-  * **Fixes**
+Minor Fixes and improvements release.
 
-    - Fixes an issue where meta tags were ignored in reflection API for `ScanAllObjects`/`QueryObjects`/`BatchGetObjects`. Resolves #260.
+- **Fixes**
 
-  * **Improvements**
+  - Fixes an issue where meta tags were ignored in reflection API for `ScanAllObjects`/`QueryObjects`/`BatchGetObjects`. Resolves #260.
 
-    - Tend won't send `rack:` command to the nodes if `ClientPolicy.RackAware` is not set. PR #259, thanks to [Dmitry Maksimov](https://github.com/kolo)
-    - Adds a new GeoJson example.
+- **Improvements**
+
+  - Tend won't send `rack:` command to the nodes if `ClientPolicy.RackAware` is not set. PR #259, thanks to [Dmitry Maksimov](https://github.com/kolo)
+  - Adds a new GeoJson example.
 
 ## April 11 2019: v2.1.0
-  Minor Feature and Improvements release.
 
-  * **New Features**
+Minor Feature and Improvements release.
 
-    - Adds `WarmUp` method for `Client`, `Cluster` and `Node`. This method will fill the connection queue to ensure maximum and smooth performance on start up.
+- **New Features**
 
-  * **Improvements**
+  - Adds `WarmUp` method for `Client`, `Cluster` and `Node`. This method will fill the connection queue to ensure maximum and smooth performance on start up.
 
-    - Simplify connection Timeout calculation and floor the min timeout to 1ms.
-    - Simplify resetting server timeout for each iteration.
-    - Adds a few pre-defined errors to avoid allocating them during runtime.
+- **Improvements**
 
-  * **Changes**
+  - Simplify connection Timeout calculation and floor the min timeout to 1ms.
+  - Simplify resetting server timeout for each iteration.
+  - Adds a few pre-defined errors to avoid allocating them during runtime.
 
-    - Adds a TLS connection example.
-    - Adds `Cap` method to `connectionHeap`.
+- **Changes**
+
+  - Adds a TLS connection example.
+  - Adds `Cap` method to `connectionHeap`.
 
 ## March 19 2019: v2.0.0
-  Major release. There are some breaking changes, both syntactically and semantically.
-  Most changes are minor, and can be fixed with relative ease.
-  The only major issue is that the behavior of the client when a key does not exist has changed. 
-  It used to return no error, but `nil` `Record.Bins`. Now it returns `ErrKeyNotFound` error.
-  This is a significant changes, and you should search your code for all instances of `Bins == nil` and adapt the code accordingly.
-  
-  * **Major**:
-    - Optimizes connection creation out of the transaction pipeline and makes it async.
-    - Put a threshold on the number of connections allowed to open simultaneously. Controlled via `ClientPolicy.OpeningConnectionThreshold`.
-    - Do not clear partition map entry when a node reports that it no longer owns that partition entry.
-    - Uses rolling timeout instead of strict timeout for connections.
-    - Remove `ToValueArray` and `ToValueSlice` methods to discourage such suboptimal use. Changes `QueryAggregate` signature to remove the need for those methods.
-    - Remove unnecessary conversion from BinMap to Bins in reflection API to speedup the command an avoid unnecessary memory allocations.
-    - Use shorter intervals with exponential back-off for tasks.
 
-  * **Breaking**:
-    - `Get`/`Put`/`Touch`/`Operate` and `ExecuteUDF` commands will return an `ErrKeyNotFound` error when the key does not exist in the database. The old behavior used to be not to return an error, but have an empty `Record.Bins`.
-    - Renames `Statement.Addfilter` to `Statement.SetFilter`, change the name and type of `Statement.Filters` to `Statement.Filter`.
-    - Remove `ClientPolicy.RequestProleReplicas`. THe client will always request them.
-    - Removes `ScanPolicy.ServerSocketTimeout` and `QueryPolicy.ServerSocketTimeout` in favor of the already existing `Policy.SocketTimeout`.
-    - Renames `Policy.Timeout` to `Policy.TotalTimeout` to make the naming consistent with other clients.
-    - Moves `atomic` package to internal.
-    - Moves `ParticleType` package to internal.
-    - Moves `RequestNodeInfo` and `RequestNodeStats` to methods on Node object, and adds `InfoPolicy` to the relevant API signatures.
-    - Removes `WaitUntilMigrationIsFinished` from `Scan`/`Query` policies.
-    - Changes `NewConnection` method signature, makes `LoginCommand` private.
-    - Makes `OperationType` private.
-    - Remove long deprecated method for pool management.
-    - Removes unused `ReadN` method in `Connection`.
-    - Embeds Policies as values and not pointers inside `MultiPolicy`, `ScanPolicy`, `QueryPolicy`
+Major release. There are some breaking changes, both syntactically and semantically.
+Most changes are minor, and can be fixed with relative ease.
+The only major issue is that the behavior of the client when a key does not exist has changed.
+It used to return no error, but `nil` `Record.Bins`. Now it returns `ErrKeyNotFound` error.
+This is a significant changes, and you should search your code for all instances of `Bins == nil` and adapt the code accordingly.
 
-  * **Minor**:
-    - Fixes a race condition in the `AdminCommand`.
-    - Synchronize the `XORShift` to avoid race conditions.
-    - Completely removes deprecated LDT code.
+- **Major**:
+
+  - Optimizes connection creation out of the transaction pipeline and makes it async.
+  - Put a threshold on the number of connections allowed to open simultaneously. Controlled via `ClientPolicy.OpeningConnectionThreshold`.
+  - Do not clear partition map entry when a node reports that it no longer owns that partition entry.
+  - Uses rolling timeout instead of strict timeout for connections.
+  - Remove `ToValueArray` and `ToValueSlice` methods to discourage such suboptimal use. Changes `QueryAggregate` signature to remove the need for those methods.
+  - Remove unnecessary conversion from BinMap to Bins in reflection API to speedup the command an avoid unnecessary memory allocations.
+  - Use shorter intervals with exponential back-off for tasks.
+
+- **Breaking**:
+
+  - `Get`/`Put`/`Touch`/`Operate` and `ExecuteUDF` commands will return an `ErrKeyNotFound` error when the key does not exist in the database. The old behavior used to be not to return an error, but have an empty `Record.Bins`.
+  - Renames `Statement.Addfilter` to `Statement.SetFilter`, change the name and type of `Statement.Filters` to `Statement.Filter`.
+  - Remove `ClientPolicy.RequestProleReplicas`. THe client will always request them.
+  - Removes `ScanPolicy.ServerSocketTimeout` and `QueryPolicy.ServerSocketTimeout` in favor of the already existing `Policy.SocketTimeout`.
+  - Renames `Policy.Timeout` to `Policy.TotalTimeout` to make the naming consistent with other clients.
+  - Moves `atomic` package to internal.
+  - Moves `ParticleType` package to internal.
+  - Moves `RequestNodeInfo` and `RequestNodeStats` to methods on Node object, and adds `InfoPolicy` to the relevant API signatures.
+  - Removes `WaitUntilMigrationIsFinished` from `Scan`/`Query` policies.
+  - Changes `NewConnection` method signature, makes `LoginCommand` private.
+  - Makes `OperationType` private.
+  - Remove long deprecated method for pool management.
+  - Removes unused `ReadN` method in `Connection`.
+  - Embeds Policies as values and not pointers inside `MultiPolicy`, `ScanPolicy`, `QueryPolicy`
+
+- **Minor**:
+  - Fixes a race condition in the `AdminCommand`.
+  - Synchronize the `XORShift` to avoid race conditions.
+  - Completely removes deprecated LDT code.
 
 ## March 11 2019: v1.39.0
 
-  Major improvements Release.
+Major improvements Release.
 
-  * **Improvements**
+- **Improvements**
 
-    - Significantly improves `Batch`/`Scan`/`Query`/`UDF`/`QueryAggregate` performance, up to 10x depending on the number of records.
+  - Significantly improves `Batch`/`Scan`/`Query`/`UDF`/`QueryAggregate` performance, up to 10x depending on the number of records.
 
-  * **Changes**
+- **Changes**
 
-    - Removes `BatchPolicy.UseBatchDirect` from the code since it is not supported on the server anymore.
+  - Removes `BatchPolicy.UseBatchDirect` from the code since it is not supported on the server anymore.
 
 ## February 21 2019: v1.38.0
 
-  * **New Features**
+- **New Features**
 
-    - Support new server `truncate-namespace` command via `Client.Truncate` when `set` is not specified.
+  - Support new server `truncate-namespace` command via `Client.Truncate` when `set` is not specified.
 
-  * **Improvements**
+- **Improvements**
 
-    - The client will not clear a partition map entry when a node reports that it no longer owns that partition entry until another node claims ownership.
-    - Adapt UDF test for new server changes. The server will not return an error after `RemoveUDF` if the UDF did not exist.
-    - Improves a few tests and relaxes tolerances in tests to accommodate slower cloud test environments.
+  - The client will not clear a partition map entry when a node reports that it no longer owns that partition entry until another node claims ownership.
+  - Adapt UDF test for new server changes. The server will not return an error after `RemoveUDF` if the UDF did not exist.
+  - Improves a few tests and relaxes tolerances in tests to accommodate slower cloud test environments.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes a race condition in XOR shift RNG.
-    - Fixes a race condition in the AdminCommand.
-
+  - Fixes a race condition in XOR shift RNG.
+  - Fixes a race condition in the AdminCommand.
 
 ## December 3 2018: v1.37.0
 
-  * **New Features**
+- **New Features**
 
-    - Support lut-now parameter for Client.Truncate() in servers that support and require it.
-    - Added support for CDT Map Relative Ops: `MapGetByKeyRelativeIndexRangeOp`, `MapGetByKeyRelativeIndexRangeCountOp`, `MapGetByValueRelativeRankRangeOp`, `MapGetByValueRelativeRankRangeCountOp`, `MapRemoveByKeyRelativeIndexRangeOp`, `MapRemoveByKeyRelativeIndexRangeCountOp`.
-    - Added support for CDT List Relative Ops: `ListGetByValueRelativeRankRangeOp`, `ListGetByValueRelativeRankRangeCountOp`, `ListRemoveByValueRelativeRankRangeOp`, `ListRemoveByValueRelativeRankRangeCountOp`.
-    - Added `INFINITY` and `WILDCARD` values for use in CDT map/list comparators.
+  - Support lut-now parameter for Client.Truncate() in servers that support and require it.
+  - Added support for CDT Map Relative Ops: `MapGetByKeyRelativeIndexRangeOp`, `MapGetByKeyRelativeIndexRangeCountOp`, `MapGetByValueRelativeRankRangeOp`, `MapGetByValueRelativeRankRangeCountOp`, `MapRemoveByKeyRelativeIndexRangeOp`, `MapRemoveByKeyRelativeIndexRangeCountOp`.
+  - Added support for CDT List Relative Ops: `ListGetByValueRelativeRankRangeOp`, `ListGetByValueRelativeRankRangeCountOp`, `ListRemoveByValueRelativeRankRangeOp`, `ListRemoveByValueRelativeRankRangeCountOp`.
+  - Added `INFINITY` and `WILDCARD` values for use in CDT map/list comparators.
 
-  * **Improvements**
+- **Improvements**
 
-    - Increase default `Policy.SocketTimeout` to 30s. If `SocketTimeout` is longer than `Timeout`, `Timeout` will be used instead silently. This change is done for the client to perform more intuitively in cloud environments.
-    - Never return a random node if a node was not found in the partition map.
-    - Return more descriptive error messages on various partition map and other node related errors.
+  - Increase default `Policy.SocketTimeout` to 30s. If `SocketTimeout` is longer than `Timeout`, `Timeout` will be used instead silently. This change is done for the client to perform more intuitively in cloud environments.
+  - Never return a random node if a node was not found in the partition map.
+  - Return more descriptive error messages on various partition map and other node related errors.
 
-  * **Changes**
+- **Changes**
 
-    - Remove the ability to force old batch direct protocol on the client because the server will be removing support for the old batch direct protocol.
-    - Update admin message version to 2.
-    - Remove unused error codes.
-    - Remove Go 1.7 and 1.8 from travis tests due to incompatibility with the test framework.
+  - Remove the ability to force old batch direct protocol on the client because the server will be removing support for the old batch direct protocol.
+  - Update admin message version to 2.
+  - Remove unused error codes.
+  - Remove Go 1.7 and 1.8 from travis tests due to incompatibility with the test framework.
 
 ## November 1 2018: v1.36.0
 
-  Feature Release.
+Feature Release.
 
-  * **New Features**
+- **New Features**
 
-    - Support rackaware feature. You need to set the `ClientPolicy.RackAware = true`, and set the `ClientPolicy.RackId`. All read operations will try to choose a node on the same rack if `Policy.ReplicaPolicy = PREFER_RACK`. This feature is especially useful when the app/cluster are on the cloud and network throughput over different zones are price differently.
+  - Support rackaware feature. You need to set the `ClientPolicy.RackAware = true`, and set the `ClientPolicy.RackId`. All read operations will try to choose a node on the same rack if `Policy.ReplicaPolicy = PREFER_RACK`. This feature is especially useful when the app/cluster are on the cloud and network throughput over different zones are price differently.
 
-  * **Improvements**
+- **Improvements**
 
-    - Update Operate command documentation.
-    - Improve an expectation in a CDT Map test.
-    - Move UDF object test to the proper file.
-    - Support float64 struct fields when the value of the field has been changed inside lua and set to int - will only affect clusters which support float.
-    - Fixes an issue where key value was sent and cause server PARAMETER_ERROR via the operate command if policy.SendKey was set but no write operations were passed.
-    - Updated README example with clarification.
+  - Update Operate command documentation.
+  - Improve an expectation in a CDT Map test.
+  - Move UDF object test to the proper file.
+  - Support float64 struct fields when the value of the field has been changed inside lua and set to int - will only affect clusters which support float.
+  - Fixes an issue where key value was sent and cause server PARAMETER_ERROR via the operate command if policy.SendKey was set but no write operations were passed.
+  - Updated README example with clarification.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes an issue where multiple operation results for a bin would be appended to the first result if it was a list.
+  - Fixes an issue where multiple operation results for a bin would be appended to the first result if it was a list.
 
 ## October 2 2018: v1.35.2
 
-  Improvement release.
+Improvement release.
 
-  * **Improvements**
+- **Improvements**
 
-    - Do not allocate a partition map on each tend unless needed.
-    - Adds `ConnectionsClosed` stat and sets the connection and dataBuffer to nil in a few places to help the GC.
-    - Use a heap data structure for connection pooling instead of a queue.
-      This allows better management of connections after a surge, since it keeps the unused connection in the bottom of the heap to close.
-      It also helps with performance a bit due to better caching of the data structure in CPU.
+  - Do not allocate a partition map on each tend unless needed.
+  - Adds `ConnectionsClosed` stat and sets the connection and dataBuffer to nil in a few places to help the GC.
+  - Use a heap data structure for connection pooling instead of a queue.
+    This allows better management of connections after a surge, since it keeps the unused connection in the bottom of the heap to close.
+    It also helps with performance a bit due to better caching of the data structure in CPU.
 
 ## September 18 2018: v1.35.1
 
-  Hot fix release. We recommend updating to this version if you are using authentication.
+Hot fix release. We recommend updating to this version if you are using authentication.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes a regression to avoid hashing passwords per each login, using the cached password.
+  - Fixes a regression to avoid hashing passwords per each login, using the cached password.
 
-  * **Changes**
+- **Changes**
 
-    - Minor code clean up and dead code removal.
-
+  - Minor code clean up and dead code removal.
 
 ## August 29 2018: v1.35.0
 
-  * **New Features**
+- **New Features**
 
-    - Support for external authentication (LDAP).
-    - Support Map and List WriteFlags: `NoFail` and `Partial`.
-    - Support load balancers as seed node.
+  - Support for external authentication (LDAP).
+  - Support Map and List WriteFlags: `NoFail` and `Partial`.
+  - Support load balancers as seed node.
 
-  * **Changes**
+- **Changes**
 
-    - Change default Scan/Query `ServerSocketTimeout` to 30s.
+  - Change default Scan/Query `ServerSocketTimeout` to 30s.
 
-  * **Improvements**
+- **Improvements**
 
-    - Adds `QueryPolicy.ServerSocketTimeout` and `QueryPolicy.FailOnClusterChange` for when the queries are automatically converted to scans.
-    - Minor documentation improvements.
-    - Synchronize logging at all situations.
-    - Add -debug switch to allow logging at debug level in tests.
-    - Allow the user to define the namespace for tests to run on.
+  - Adds `QueryPolicy.ServerSocketTimeout` and `QueryPolicy.FailOnClusterChange` for when the queries are automatically converted to scans.
+  - Minor documentation improvements.
+  - Synchronize logging at all situations.
+  - Add -debug switch to allow logging at debug level in tests.
+  - Allow the user to define the namespace for tests to run on.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fix a few go vet errors for Go 1.11.
-    - Fixes minor unsigned length conversions for admin command.
+  - Fix a few go vet errors for Go 1.11.
+  - Fixes minor unsigned length conversions for admin command.
 
 ## August 29 2018: v1.34.2
 
-  Fix release.
+Fix release.
 
-  * **Fixes**
+- **Fixes**
 
-    - Use pointer receiver for `AerospikeError.SetInDoubt` and `AerospikeError.MarkInDoubt`.
-    - Remove unused variable in truncate test.
+  - Use pointer receiver for `AerospikeError.SetInDoubt` and `AerospikeError.MarkInDoubt`.
+  - Remove unused variable in truncate test.
 
-  * **Changes**
+- **Changes**
 
-    - Add Go 1.11 to Travis' test versions.
-    - Use the last error code in MaxRetries timeout errors for Go 1.11.
+  - Add Go 1.11 to Travis' test versions.
+  - Use the last error code in MaxRetries timeout errors for Go 1.11.
 
 ## August 9 2018: v1.34.1
 
-  Hot fix release. We recommend updating to this version asap, especially if you are using the Strong Consistency feature.
+Hot fix release. We recommend updating to this version asap, especially if you are using the Strong Consistency feature.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes an issue where a race condition was preventing the partition table to form correctly. (CLIENT-1028)
+  - Fixes an issue where a race condition was preventing the partition table to form correctly. (CLIENT-1028)
 
 ## July 17 2018: v1.34.0
 
-  * **Changes**
+- **Changes**
 
-    - Removed the LDT code completely.
-    - Adds build tag `app_engine` for compatibility with Google's App Engine. Query Aggregate features are not available in this mode due to lua limitations.
+  - Removed the LDT code completely.
+  - Adds build tag `app_engine` for compatibility with Google's App Engine. Query Aggregate features are not available in this mode due to lua limitations.
 
-  * **Improvements**
+- **Improvements**
 
-    - Document how to use AerospikeError type in the code.
-    - Allow Task.OnComplete() to be listened to by multiple goroutines. Thanks to [HArmen](https://github.com/alicebob)
+  - Document how to use AerospikeError type in the code.
+  - Allow Task.OnComplete() to be listened to by multiple goroutines. Thanks to [HArmen](https://github.com/alicebob)
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes an issue where `ClientPolicy.FailIfNotConnected` flag was not respected.
-    - Fixes a merging issue for PartitionMap, and add a naive validation for partition maps. (CLIENT-1027)
+  - Fixes an issue where `ClientPolicy.FailIfNotConnected` flag was not respected.
+  - Fixes a merging issue for PartitionMap, and add a naive validation for partition maps. (CLIENT-1027)
 
 ## June 11 2018: v1.33.0
 
-  * **New Features**
+- **New Features**
 
-    - Adds `BatchPolicy.AllowPartialResults` flag to allow the batch command return partial records returned from the cluster.
-    - Adds `INVERTED` flag to the `MapReturnType`. Take a look at INVERTED test in `cdt_map_test.go` to see how to use it.
-    - Adds a lot of new Ordered Map and List operations and brings the client up to date with the latest server API.
+  - Adds `BatchPolicy.AllowPartialResults` flag to allow the batch command return partial records returned from the cluster.
+  - Adds `INVERTED` flag to the `MapReturnType`. Take a look at INVERTED test in `cdt_map_test.go` to see how to use it.
+  - Adds a lot of new Ordered Map and List operations and brings the client up to date with the latest server API.
 
-  * **Changes**
+- **Changes**
 
-    - Use the default values for `BasePolicy` in `BatchPolicy` to keep the behavior consistent with the older releases.
+  - Use the default values for `BasePolicy` in `BatchPolicy` to keep the behavior consistent with the older releases.
 
-  * **Improvements**
+- **Improvements**
 
-    - Adds a recover to the tend goroutine to guarantee the client will recover from internal crashes.
-    - Removes unneeded type casts.
-    - Uses the new stat name for migrations check.
+  - Adds a recover to the tend goroutine to guarantee the client will recover from internal crashes.
+  - Removes unneeded type casts.
+  - Uses the new stat name for migrations check.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes TTL in `GetObject` and `BatchGetObject` reflection API.
-    - Handle extension marker in List headers.
+  - Fixes TTL in `GetObject` and `BatchGetObject` reflection API.
+  - Handle extension marker in List headers.
 
 ## March 15 2018: v1.32.0
 
-  Major feature release.
+Major feature release.
 
-  * **New Features**
-  
-    - Support for *Strong Consistency* mode in Aerospike Server v4. You will need to set the `policy.LinearizeRead` to `true`. Adds `AerospikeError.InDoubt()` method.
-    - Set the resulting `Record.Key` value in Batch Operations to the Original User-Provided Key to preserve the original namespace/set/userValue and avoid memory allocation.
+- **New Features**
 
-  * **Changes**
+  - Support for _Strong Consistency_ mode in Aerospike Server v4. You will need to set the `policy.LinearizeRead` to `true`. Adds `AerospikeError.InDoubt()` method.
+  - Set the resulting `Record.Key` value in Batch Operations to the Original User-Provided Key to preserve the original namespace/set/userValue and avoid memory allocation.
 
-    - Does not retry on writes by default, and put a 100ms timeout on all transactions by default.
-    - Changed some warn logs to debug level.
-    - Add missing stats counters to improve statistics reports.
-    - Uses sync.Once instead of sync.Mutex for `Connection.close` method.
-    - Added `DefaultBufferSize` for initial buffer size for connections.
+- **Changes**
 
-  * **Fixes**
+  - Does not retry on writes by default, and put a 100ms timeout on all transactions by default.
+  - Changed some warn logs to debug level.
+  - Add missing stats counters to improve statistics reports.
+  - Uses sync.Once instead of sync.Mutex for `Connection.close` method.
+  - Added `DefaultBufferSize` for initial buffer size for connections.
 
-    - Fix the tests for object marshalling to account for monotonic time in Go v1.8+.
-    - Stops the ongoing tends on initial connection errors.
+- **Fixes**
 
+  - Fix the tests for object marshalling to account for monotonic time in Go v1.8+.
+  - Stops the ongoing tends on initial connection errors.
 
 ## November 29 2017: v1.31.0
 
-  Feature release.
+Feature release.
 
-  * **New Features**
-  
-    - Support for newer Batch Protocol. Add `BatchGetComplex` for complex batch queries. Old batch API upgraded to automatically support the new protocol under the hood, unless `BatchPolicy.UseBatchDirect` flag is set to `true`.
+- **New Features**
 
-  * **Changes**
+  - Support for newer Batch Protocol. Add `BatchGetComplex` for complex batch queries. Old batch API upgraded to automatically support the new protocol under the hood, unless `BatchPolicy.UseBatchDirect` flag is set to `true`.
 
-    - Renames ResultCode `NO_XDS` to `ALWAYS_FORBIDDEN`.
-    - Makes `SERVER_NOT_AVAILABLE` a client generated error.
+- **Changes**
+
+  - Renames ResultCode `NO_XDS` to `ALWAYS_FORBIDDEN`.
+  - Makes `SERVER_NOT_AVAILABLE` a client generated error.
 
 ## October 12 2017: v1.30.0
 
-  Fix and improvements release.
+Fix and improvements release.
 
-  * **Changes**
+- **Changes**
 
-    - Deprecated LDTs and removed them from the official build.
-    - Change supported go versions to 1.7+ due to gopher-lua requiring `Context`.
+  - Deprecated LDTs and removed them from the official build.
+  - Change supported go versions to 1.7+ due to gopher-lua requiring `Context`.
 
-  * **Improvements**
+- **Improvements**
 
-    - Get socket timeout once per command execution, do not redefine err var in command execution loop. PR #211, thanks to [Maxim Krasilnikov](https://github.com/chapsuk)
-    - Allow running a UDF on a specific node only.
-    - Close cluster only once. PR #208, thanks to [Jun Kimura](https://github.com/bluele)
-    - Use actual cluster name in tests instead of assuming `null`.
-    - Check for the type of error as well in Duplicate Index Creation.
-    - Update description for error code 21. PR #207, thanks to [Maxim Krasilnikov](https://github.com/chapsuk)
+  - Get socket timeout once per command execution, do not redefine err var in command execution loop. PR #211, thanks to [Maxim Krasilnikov](https://github.com/chapsuk)
+  - Allow running a UDF on a specific node only.
+  - Close cluster only once. PR #208, thanks to [Jun Kimura](https://github.com/bluele)
+  - Use actual cluster name in tests instead of assuming `null`.
+  - Check for the type of error as well in Duplicate Index Creation.
+  - Update description for error code 21. PR #207, thanks to [Maxim Krasilnikov](https://github.com/chapsuk)
 
 ## September 5 2017: v1.29.0
 
-  Feature and improvements release.
+Feature and improvements release.
 
-  * **New Features**
+- **New Features**
 
-    - Added `ListIncrementOp` to the CDT list operations.
-    - Added `SEQUENCE` to replica policies.
+  - Added `ListIncrementOp` to the CDT list operations.
+  - Added `SEQUENCE` to replica policies.
 
-  * **Improvements**
+- **Improvements**
 
-    - Tweaked node removal algorithm to cover more corner cases.
-    - Make `predExp` interface public. Closes issue #205.
-    - Added more stats to the `Client.Stats()`.
+  - Tweaked node removal algorithm to cover more corner cases.
+  - Make `predExp` interface public. Closes issue #205.
+  - Added more stats to the `Client.Stats()`.
 
 ## August 17 2017: v1.28.0
 
-  Feature, Performance improvements and bug fix release.
+Feature, Performance improvements and bug fix release.
 
-  * **New Features**
+- **New Features**
 
-    - Added `Client.Stats()` method to get client's internal statistics.
-    - Added `Policy.SocketTimeout` to differentiate between network timeouts and the total transaction timeouts.
-    - Support `policy.IncludeBinData` for queries. Only for servers that support this feature.
-    - Minor documentation updates.
-    - Return key not found exception (instead of returning nil record) for Operate() command where operations include a write.
+  - Added `Client.Stats()` method to get client's internal statistics.
+  - Added `Policy.SocketTimeout` to differentiate between network timeouts and the total transaction timeouts.
+  - Support `policy.IncludeBinData` for queries. Only for servers that support this feature.
+  - Minor documentation updates.
+  - Return key not found exception (instead of returning nil record) for Operate() command where operations include a write.
 
-  * **Improvements**
+- **Improvements**
 
-    - Close the tend connection when closing node connections.
-    - Added Connection finalizer to make sure all connections are closed eventually.
-    - Automatically retry failed info requests on async tasks before returning an error.
-    - Updated build instructions for the benchmark tool.
-    - Make digest_modulo test deterministic.
-    - Relax predexp_modulo test a bit to avoid occasional failures.
+  - Close the tend connection when closing node connections.
+  - Added Connection finalizer to make sure all connections are closed eventually.
+  - Automatically retry failed info requests on async tasks before returning an error.
+  - Updated build instructions for the benchmark tool.
+  - Make digest_modulo test deterministic.
+  - Relax predexp_modulo test a bit to avoid occasional failures.
 
-  * **Fixes**
+- **Fixes**
 
-    - Indirect CAS ops to prevent the compiler from optimizing them out.
-    - Return errors instead of nil.
+  - Indirect CAS ops to prevent the compiler from optimizing them out.
+  - Return errors instead of nil.
 
 ## April 25 2017: v1.27.0
 
-  Feature, Performance improvements and bug fix release.
+Feature, Performance improvements and bug fix release.
 
-  * **New Features**
+- **New Features**
 
-    - Added `BatchGetObjects` method.
-    - Added Exponential Backoff by introducing `BasePolicy.SleepMultiplier`. Only Values > 1.0 are effective. PR #192, thanks to [Venil Noronha](https://github.com/venilnoronha)
+  - Added `BatchGetObjects` method.
+  - Added Exponential Backoff by introducing `BasePolicy.SleepMultiplier`. Only Values > 1.0 are effective. PR #192, thanks to [Venil Noronha](https://github.com/venilnoronha)
 
-  * **Improvements**
+- **Improvements**
 
-    - Packer tries to see if it can use generic data types before using reflection.
-    - Operations, including CDTs do not allocate a buffer anymore, unless reused.
+  - Packer tries to see if it can use generic data types before using reflection.
+  - Operations, including CDTs do not allocate a buffer anymore, unless reused.
 
-  * **Incompatible changes**:
-    - `BinName` and `BinValue` are not exported in `Operation` anymore. These fields shouldn't have been used anyway since `Operation`s used to cache their internal command.
+- **Incompatible changes**:
 
-  * **Fixes**
+  - `BinName` and `BinValue` are not exported in `Operation` anymore. These fields shouldn't have been used anyway since `Operation`s used to cache their internal command.
 
-    - Documentation Fixes. Thanks to [Nassor Paulino da Silva](https://github.com/nassor) and [HArmen](https://github.com/alicebob)
+- **Fixes**
 
+  - Documentation Fixes. Thanks to [Nassor Paulino da Silva](https://github.com/nassor) and [HArmen](https://github.com/alicebob)
 
 ## April 5 2017: v1.26.0
 
-  Feature, Performance improvements and bug fix release.
+Feature, Performance improvements and bug fix release.
 
-  * **New Features**
+- **New Features**
 
-    - Predicate API is supported (for server v3.12+)
-    - Added `Truncate` method to quickly remove all data from namespaces or sets (for server v3.12+).
-    - Support `ScanPolicy.ServerSocketTimeout` (for server v3.12+).
-    - Support `ClientPolicy.IgnoreOtherSubnetAliases` to ignore hosts from other subnets. PR #182, thanks to [wedi-dev](https://github.com/wedi-dev)
+  - Predicate API is supported (for server v3.12+)
+  - Added `Truncate` method to quickly remove all data from namespaces or sets (for server v3.12+).
+  - Support `ScanPolicy.ServerSocketTimeout` (for server v3.12+).
+  - Support `ClientPolicy.IgnoreOtherSubnetAliases` to ignore hosts from other subnets. PR #182, thanks to [wedi-dev](https://github.com/wedi-dev)
 
-  * **Improvements**
+- **Improvements**
 
-    - Added a lot of predefined generic slice and map types in `NewValue` method to avoid hitting reflection as much as possible.
-    - Fix `go vet` complaints.
+  - Added a lot of predefined generic slice and map types in `NewValue` method to avoid hitting reflection as much as possible.
+  - Fix `go vet` complaints.
 
-  * **Fixes**
+- **Fixes**
 
-    - Allow streaming commands (scan/query/aggregation) to retry unless the error occurs during parsing of the results. Fixes issue #187
-    - Use `net.JoinHostPort` to concatinate host and port values instead of doing it directly. Fixes some issues in IPv6 connection strings.
-    - Improved initial Tend run.
-    - Fixes `cluster-name` checking bug.
+  - Allow streaming commands (scan/query/aggregation) to retry unless the error occurs during parsing of the results. Fixes issue #187
+  - Use `net.JoinHostPort` to concatinate host and port values instead of doing it directly. Fixes some issues in IPv6 connection strings.
+  - Improved initial Tend run.
+  - Fixes `cluster-name` checking bug.
 
 ## March 8 2017: v1.25.1
 
-  Hot fix release. Updating the client is recommended.
+Hot fix release. Updating the client is recommended.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixed an issue where errors in Scan/Query unmarshalling would be duplicated and could cause a deadlock.
+  - Fixed an issue where errors in Scan/Query unmarshalling would be duplicated and could cause a deadlock.
 
 ## February 28 2017: v1.25.0
 
-  Performance improvements and fix release.
+Performance improvements and fix release.
 
-  * **Improvements**
+- **Improvements**
 
-    - Check tend duration and compare it to tend interval, and warn the user if tend takes longer than tend interval.
-    - Seed the cluster concurrently, and return as soon as any of the seeds is validated.
-    - Tend the cluster concurrently. Allows use of very big clusters with no delay.
-    - Partitions the connection queue to avoid contention.
-    - Cluster partition map is merged from all node fragments and updated only once per tend to reduce contention to absolute minimum.
+  - Check tend duration and compare it to tend interval, and warn the user if tend takes longer than tend interval.
+  - Seed the cluster concurrently, and return as soon as any of the seeds is validated.
+  - Tend the cluster concurrently. Allows use of very big clusters with no delay.
+  - Partitions the connection queue to avoid contention.
+  - Cluster partition map is merged from all node fragments and updated only once per tend to reduce contention to absolute minimum.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixed an issue where a valid but unreachable seed could timeout and stall connecting and tending the cluster..
-    - Fix result code comments.
+  - Fixed an issue where a valid but unreachable seed could timeout and stall connecting and tending the cluster..
+  - Fix result code comments.
 
 ## January 11 2017: v1.24.0
 
-  Minor feature and fix release.
+Minor feature and fix release.
 
-  * **New Features**
+- **New Features**
 
-    - TLS/SSL connections are now officially supported.
-    - Added Role/Privilege API.
+  - TLS/SSL connections are now officially supported.
+  - Added Role/Privilege API.
 
-  * **Improvements**
+- **Improvements**
 
-    - Return a client-side error when no ops are passed to the operate command.
-    - Export error attribute in `NodeError`
-    - Do not attempt to refresh peers if it is not supported by the nodes.
+  - Return a client-side error when no ops are passed to the operate command.
+  - Export error attribute in `NodeError`
+  - Do not attempt to refresh peers if it is not supported by the nodes.
 
-  * **Fixes**
+- **Fixes**
 
-    - Use namespace default-ttl for tests instead of assuming 30d
-    - Always drain scan connections after parsing the records.
-    - Fix panic in GetObject() if all bins in result is nil. PR #172, thanks to [Hamper](https://github.com/hamper)
-    - Fix WritePolicy usage with UDF. PR #174, thanks to [Bertrand Paquet](https://github.com/bpaquet)
-    - Close connection right when it has an io error and don't wait for the caller.
+  - Use namespace default-ttl for tests instead of assuming 30d
+  - Always drain scan connections after parsing the records.
+  - Fix panic in GetObject() if all bins in result is nil. PR #172, thanks to [Hamper](https://github.com/hamper)
+  - Fix WritePolicy usage with UDF. PR #174, thanks to [Bertrand Paquet](https://github.com/bpaquet)
+  - Close connection right when it has an io error and don't wait for the caller.
 
 ## December 20 2016 : v1.23.0
 
-  Minor feature and fix release.
+Minor feature and fix release.
 
-  * **New Features**
+- **New Features**
 
-    - Exposes the internal `client.Cluster` object to the users.
-    - Added New API for high-performance complex data type packing, and removed the old API.
+  - Exposes the internal `client.Cluster` object to the users.
+  - Added New API for high-performance complex data type packing, and removed the old API.
 
-  * **Improvements**
+- **Improvements**
 
-    - Only update the partition map if the partition generatio has changed.
-    - Use tend connection for user management commands.
-    - Marks LargeList as deprecated. Use CDT methods instead.
-    - Always validate the message header to avoid reading the remainder of other command buffers.
-    - Removes GeoJson from key helper.
-    - Improves tend algorthm to allow complete disconnection from the cluster if none of the clusters are accessible.
-    - `PutObject` method will now accept objects as well. PR #156, thanks to [Sarath S Pillai](https://github.com/sarathsp06)
+  - Only update the partition map if the partition generatio has changed.
+  - Use tend connection for user management commands.
+  - Marks LargeList as deprecated. Use CDT methods instead.
+  - Always validate the message header to avoid reading the remainder of other command buffers.
+  - Removes GeoJson from key helper.
+  - Improves tend algorthm to allow complete disconnection from the cluster if none of the clusters are accessible.
+  - `PutObject` method will now accept objects as well. PR #156, thanks to [Sarath S Pillai](https://github.com/sarathsp06)
 
-  * **Fixes**
+- **Fixes**
 
-    - Do not attemp to add a node which were unaccessible to avoid panic.
-    - Fix invalid connectionCount. PR #168, thanks to [Jun Kimura](https://github.com/bluele)
-    - Fixes minor bug that didn't return the error on reading from the connection during scans.
+  - Do not attemp to add a node which were unaccessible to avoid panic.
+  - Fix invalid connectionCount. PR #168, thanks to [Jun Kimura](https://github.com/bluele)
+  - Fixes minor bug that didn't return the error on reading from the connection during scans.
 
 ## November 29 2016 : v1.22.0
 
-  Hot fix release. Please upgrade if you have been using other aerospike clients with your database parallel to Go.
+Hot fix release. Please upgrade if you have been using other aerospike clients with your database parallel to Go.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes an issue where short strings in Lists and Maps wouldn't unpack correctly. Resolves #161.
+  - Fixes an issue where short strings in Lists and Maps wouldn't unpack correctly. Resolves #161.
 
 ## November 16 2016 : v1.21.0
 
-  Minor fix release.
+Minor fix release.
 
-  * **New Features**
+- **New Features**
 
-    - Added new constants for expiration in `WritePolicy`: `TTLServerDefault`, `TTLDontExpire`, `TTLDontUpdate`
+  - Added new constants for expiration in `WritePolicy`: `TTLServerDefault`, `TTLDontExpire`, `TTLDontUpdate`
 
-  * **Improvements**
+- **Improvements**
 
-    - Corrects typos in the code. PR #142, thanks to [Muyiwa Olurin ](https://github.com/muyiwaolurin)
-    - Use the tend connection for `RequestInfo` commands.
+  - Corrects typos in the code. PR #142, thanks to [Muyiwa Olurin ](https://github.com/muyiwaolurin)
+  - Use the tend connection for `RequestInfo` commands.
 
-  * **Fixes**
+- **Fixes**
 
-    - Fixes an issue where TTL values were calcualted wrongly when they were set not to expire.
-    - Fixes an issue where `PutObjects` would marshal `[]byte` to `List` in database. PR #152, thanks to [blide](https://github.com/blide)
-    - Fixes an issue where `Recordset` could leak goroutines. PR #153, thanks to [Deepak Prabhakara](https://github.com/deepakprabhakara)
+  - Fixes an issue where TTL values were calcualted wrongly when they were set not to expire.
+  - Fixes an issue where `PutObjects` would marshal `[]byte` to `List` in database. PR #152, thanks to [blide](https://github.com/blide)
+  - Fixes an issue where `Recordset` could leak goroutines. PR #153, thanks to [Deepak Prabhakara](https://github.com/deepakprabhakara)
 
 ## October 25 2016 : v1.20.0
 
-  Major improvements release. There has been major changes in the library. Please test rigorously before upgrading to the new version.
+Major improvements release. There has been major changes in the library. Please test rigorously before upgrading to the new version.
 
-  * **New Features**
+- **New Features**
 
-    - Let user define the desired tag for bin names in structs using `SetAerospikeTag` function.
-    - Added `as_performance` build tag to avoid including the slow convenience API which uses reflections in the client code.
-      To use this feature, you should include -tags="as_performance" when building your project.
+  - Let user define the desired tag for bin names in structs using `SetAerospikeTag` function.
+  - Added `as_performance` build tag to avoid including the slow convenience API which uses reflections in the client code.
+    To use this feature, you should include -tags="as_performance" when building your project.
 
-      *NOTICE*: Keep in mind that your code may not compile using this flag. That is by design.
+    _NOTICE_: Keep in mind that your code may not compile using this flag. That is by design.
 
-  * **Improvements**
+- **Improvements**
 
-    - Added special packer for map[string]interface{} in `NewValue` method.
-    - Avoid allocating memory for Map and List values.
-    - Allocate commands on the stack to avoid heap allcations.
-    - Avoid allocating memory for `packer`.
-    - Avoid Allocating memory in computeHash for keys.
-    - Avoid allocating memory in Ripe160MD digest.
-    - Removed BufferPool and moved buffers to `Connection` objects to remove lock contention.
-    - Added `ListIter` and `MapIter` interfaces to support passing Maps and Lists to the client without using reflection.
+  - Added special packer for map[string]interface{} in `NewValue` method.
+  - Avoid allocating memory for Map and List values.
+  - Allocate commands on the stack to avoid heap allcations.
+  - Avoid allocating memory for `packer`.
+  - Avoid Allocating memory in computeHash for keys.
+  - Avoid allocating memory in Ripe160MD digest.
+  - Removed BufferPool and moved buffers to `Connection` objects to remove lock contention.
+  - Added `ListIter` and `MapIter` interfaces to support passing Maps and Lists to the client without using reflection.
 
 ## October 14 2016 : v1.19.0
 
-  Major feature and improvement release.
+Major feature and improvement release.
 
-  * **New Features**
+- **New Features**
 
-    * Support TLS secured connections. (Feature will be supported in coming server releases.)
+  - Support TLS secured connections. (Feature will be supported in coming server releases.)
 
-    * Support IPv6 protocol. Supported by Aerospike Server 3.10+.
+  - Support IPv6 protocol. Supported by Aerospike Server 3.10+.
 
-    * Support `cluster-name` verification. Supported by Aerospike Server 3.10+.
+  - Support `cluster-name` verification. Supported by Aerospike Server 3.10+.
 
-    * Support new peers info protocol. Supported by Aerospike Server 3.10+.
+  - Support new peers info protocol. Supported by Aerospike Server 3.10+.
 
-  * **Improvements**
+- **Improvements**
 
-    * Will retry the operation even when reading from the buffer. Set `Policy.MaxRetries = 0` to avoid this behavior. PR #143, thanks to [Hector Jusforgues](https://github.com/hectorj)
+  - Will retry the operation even when reading from the buffer. Set `Policy.MaxRetries = 0` to avoid this behavior. PR #143, thanks to [Hector Jusforgues](https://github.com/hectorj)
 
-    * Much improved cluster management algorithm. Will now handle the case where multiple nodes go down simultaneously, still protecting against split brain rogue nodes.
+  - Much improved cluster management algorithm. Will now handle the case where multiple nodes go down simultaneously, still protecting against split brain rogue nodes.
 
-  * **Fixes**
+- **Fixes**
 
-    * Try all alias IPs in node validator. Resolves #144.
+  - Try all alias IPs in node validator. Resolves #144.
 
-    * Updated job status check for execute tasks.
+  - Updated job status check for execute tasks.
 
 ## August 19 2016 : v1.18.0
 
-  Minor improvements release.
+Minor improvements release.
 
-  * **New Features**
+- **New Features**
 
-    * Support 'Durable Deletes' for the next version of Aerospike Server Enterprise.
+  - Support 'Durable Deletes' for the next version of Aerospike Server Enterprise.
 
-  * **Improvements**
+- **Improvements**
 
-    * Don't run tests for features that are not supported by the server.
+  - Don't run tests for features that are not supported by the server.
 
-    * Added new server error codes.
-
+  - Added new server error codes.
 
 ## July 27 2016 : v1.17.1
 
-  Minor improvements release.
+Minor improvements release.
 
-  * **Improvements**
+- **Improvements**
 
-    * Add `TaskId()` method for `Recordset`.
+  - Add `TaskId()` method for `Recordset`.
 
-    * Cleanup indexes after test cases.
+  - Cleanup indexes after test cases.
 
-    * Keep connections on recoverable server errors.
+  - Keep connections on recoverable server errors.
 
-    * Return the error on unexpected keys in `BatchCommandGet/Header`.
+  - Return the error on unexpected keys in `BatchCommandGet/Header`.
 
-    * Use the same client object in tests and support using replicas on travis.
+  - Use the same client object in tests and support using replicas on travis.
 
 ## July 19 2016 : v1.17.0
 
-  Major feature and improvement release.
+Major feature and improvement release.
 
-  * **New Features**
+- **New Features**
 
-    * Client now supports distributing reads from Replicas using `ClientPolicy.RequestProleReplicas` and `Policy.ReplicaPolicy`
+  - Client now supports distributing reads from Replicas using `ClientPolicy.RequestProleReplicas` and `Policy.ReplicaPolicy`
 
-  * **Improvements**
+- **Improvements**
 
-    * `Cluster.GetConnection` will now retry to acquire a connection until timeout.
+  - `Cluster.GetConnection` will now retry to acquire a connection until timeout.
 
-    * `Client.DropIndex` method now blocks until all nodes report the index is dropped.
+  - `Client.DropIndex` method now blocks until all nodes report the index is dropped.
 
-    * Async tasks like `CreateIndex` will retry a few times before deciding a non-existing job means it has finished.
+  - Async tasks like `CreateIndex` will retry a few times before deciding a non-existing job means it has finished.
 
-    * Don't use math.MaxInt64, it breaks 32-bit builds. PR #139, thanks to [Cameron Sparr](https://github.com/sparrc)
+  - Don't use math.MaxInt64, it breaks 32-bit builds. PR #139, thanks to [Cameron Sparr](https://github.com/sparrc)
 
-  * **Fixes**
+- **Fixes**
 
-    * Maps with 0 elements will automatically shortcut to unordered empty maps.
+  - Maps with 0 elements will automatically shortcut to unordered empty maps.
 
-    * Return the error in BatchCommandGet on parse error.
+  - Return the error in BatchCommandGet on parse error.
 
 ## June 28 2016 : v1.16.3
 
-  Major bugfix release. Update recommended.
+Major bugfix release. Update recommended.
 
-  * **Improvements**
+- **Improvements**
 
-    * Skip LDT tests if LDT is not enabled.
+  - Skip LDT tests if LDT is not enabled.
 
-    * Returns last error after all retry attempts to run a command are exhausted.
+  - Returns last error after all retry attempts to run a command are exhausted.
 
-    * Reserves a connection for tend operation to avoid dropping a node when high load prevents acquiring a proper connection.
+  - Reserves a connection for tend operation to avoid dropping a node when high load prevents acquiring a proper connection.
 
-    * Added Finalizers to `Client` and `Recordset`. Both will be automatically closed by the GC.
+  - Added Finalizers to `Client` and `Recordset`. Both will be automatically closed by the GC.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixes an issue where `services-alternate` wasn't used in `Node.addFriends()` when instructed so in the policy.
+  - Fixes an issue where `services-alternate` wasn't used in `Node.addFriends()` when instructed so in the policy.
 
-    * Fixes an issue where object metadata wasn't cached if `QueryObjects` was called before `PutObject`.
+  - Fixes an issue where object metadata wasn't cached if `QueryObjects` was called before `PutObject`.
 
-    * Fixes an issue where idle connections were not dropped.
+  - Fixes an issue where idle connections were not dropped.
 
-    * Fixes an issue where requested buffer sizes were not guarded against negative numbers.
+  - Fixes an issue where requested buffer sizes were not guarded against negative numbers.
 
 ## June 7 2016 : v1.16.2
 
-  Minor bugfix release.
+Minor bugfix release.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixes an issue where empty unordered maps were confused with CDT maps.
+  - Fixes an issue where empty unordered maps were confused with CDT maps.
 
 ## June 6 2016 : v1.16.1
 
-  Minor bugfix release.
+Minor bugfix release.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixes an issue where complex maps and lists weren't unmarshalled correctly in `GetObject` method.
+  - Fixes an issue where complex maps and lists weren't unmarshalled correctly in `GetObject` method.
 
 ## June 2 2016 : v1.16
 
-  Major feature and improvements release.
+Major feature and improvements release.
 
-  > NOTICE: Due to the relatively extensive code overhaul, upgrade with caution.
+> NOTICE: Due to the relatively extensive code overhaul, upgrade with caution.
 
-  * **New Features**
+- **New Features**
 
-    * Added CDT Ordered Map API. (Requires server v3.8.3+)
+  - Added CDT Ordered Map API. (Requires server v3.8.3+)
 
-  * **Improvements**
+- **Improvements**
 
-    * Removed mutexes from `Cluster` and `Node` code.
+  - Removed mutexes from `Cluster` and `Node` code.
 
-    * Improved code quality using various linters.
+  - Improved code quality using various linters.
 
 ## May 27 2016 : v1.15
 
-  Minor fixes and improvements release.
+Minor fixes and improvements release.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixed an issue where unmarshalling embedded structs and pointers didn't work properly if they were tagged.
+  - Fixed an issue where unmarshalling embedded structs and pointers didn't work properly if they were tagged.
 
 ## May 16 2016 : v1.14
 
-  Minor fixes and improvements release.
+Minor fixes and improvements release.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixed an issue in which go-routines were leaked in `Results()` method of `Recordset` on cancellation. Based on PR #128, thanks to [Noel Cower](https://github.com/nilium)
+  - Fixed an issue in which go-routines were leaked in `Results()` method of `Recordset` on cancellation. Based on PR #128, thanks to [Noel Cower](https://github.com/nilium)
 
-    * Fixed issues regarding leaked goroutines in `Cluster.WaitTillStablized()`, `Cluster.MigrationInProgress()`, and `Cluster.WaitUntillMigrationIsFinished()` methods. PR #126, thanks to [Anton](https://github.com/yiiton)
+  - Fixed issues regarding leaked goroutines in `Cluster.WaitTillStablized()`, `Cluster.MigrationInProgress()`, and `Cluster.WaitUntillMigrationIsFinished()` methods. PR #126, thanks to [Anton](https://github.com/yiiton)
 
-  * **Improvements**
+- **Improvements**
 
-    * Improved cluster `tend()` logic.
+  - Improved cluster `tend()` logic.
 
-    * Added `Recordset.Read()` method.
+  - Added `Recordset.Read()` method.
 
-    * Minor fixes in docs and code formatting. Thanks to [Andrew Murray](https://github.com/radarhere) and [Erik Dubbelboer](https://github.com/erikdubbelboer)
+  - Minor fixes in docs and code formatting. Thanks to [Andrew Murray](https://github.com/radarhere) and [Erik Dubbelboer](https://github.com/erikdubbelboer)
 
 ## April 1 2016 : v1.13
 
-  Minor features and improvements release.
+Minor features and improvements release.
 
-  * **New Features**
+- **New Features**
 
-    * Added `NewGeoWithinRegionForCollectionFilter`, `NewGeoRegionsContainingPointForCollectionFilter`, `NewGeoWithinRadiusForCollectionFilter` for queries on collection bins.
+  - Added `NewGeoWithinRegionForCollectionFilter`, `NewGeoRegionsContainingPointForCollectionFilter`, `NewGeoWithinRadiusForCollectionFilter` for queries on collection bins.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixed an issue in which bounded byte arrays were silently being dropped as map keys.
+  - Fixed an issue in which bounded byte arrays were silently being dropped as map keys.
 
-  * **Improvements**
+- **Improvements**
 
-    * Removed and fixed unused assignments and variables.
+  - Removed and fixed unused assignments and variables.
 
-    * Fixed typos in the comments.
+  - Fixed typos in the comments.
 
-    * Minor changes and formatting. PR #124, thanks to [Harmen](https://github.com/alicebob)
+  - Minor changes and formatting. PR #124, thanks to [Harmen](https://github.com/alicebob)
 
 ## March 8 2016 : v1.12
 
-  Minor features and improvements release.
+Minor features and improvements release.
 
-  * **New Features**
+- **New Features**
 
-    * Support Metadata in struct tags to fetch TTL and Generation via `GetObject`.
+  - Support Metadata in struct tags to fetch TTL and Generation via `GetObject`.
     Notice: Metadata attributes in an struct are considered transient, and won't be persisted.
 
-    Example:
-    ```go
-    type SomeStruct struct {
-      TTL  uint32         `asm:"ttl"` // record time-to-live in seconds
-      Gen  uint32         `asm:"gen"` // record generation
-      A    int
-      Self *SomeStruct
-    }
+  Example:
 
-    key, _ := as.NewKey("ns", "set", value)
-    err := client.PutObject(nil, key, obj)
-    // handle error here
+  ```go
+  type SomeStruct struct {
+    TTL  uint32         `asm:"ttl"` // record time-to-live in seconds
+    Gen  uint32         `asm:"gen"` // record generation
+    A    int
+    Self *SomeStruct
+  }
 
-    rObj := &OtherStruct{}
-    err = client.GetObject(nil, key, rObj)
-    ```
+  key, _ := as.NewKey("ns", "set", value)
+  err := client.PutObject(nil, key, obj)
+  // handle error here
 
-    * GeoJSON support in Lists and Maps
+  rObj := &OtherStruct{}
+  err = client.GetObject(nil, key, rObj)
+  ```
 
-  * **Improvements**
+  - GeoJSON support in Lists and Maps
 
-    * Use `ClientPolicy.timeout` for connection timeout when refreshing nodes
+- **Improvements**
 
-    * Added new server error codes
+  - Use `ClientPolicy.timeout` for connection timeout when refreshing nodes
 
-    * Protect RNG pool against low-precision clocks during init
+  - Added new server error codes
 
-    * Better error message distingushing between timeout because of reaching deadline and exceeding maximum retries
+  - Protect RNG pool against low-precision clocks during init
 
-  * **Fixes**
+  - Better error message distingushing between timeout because of reaching deadline and exceeding maximum retries
 
-    * Fixed object mapping cache for anonymous structs. PR #115, thanks to [Moshe Revah](https://github.com/zippoxer)
+- **Fixes**
 
-    * Fixed an issue where `Execute()` method wasn't observing the `SendKey` flag in Policy.
+  - Fixed object mapping cache for anonymous structs. PR #115, thanks to [Moshe Revah](https://github.com/zippoxer)
+
+  - Fixed an issue where `Execute()` method wasn't observing the `SendKey` flag in Policy.
 
 ## February 9 2016 : v1.11
 
-  Minor features and improvements release.
+Minor features and improvements release.
 
-  * **New Features**
+- **New Features**
 
-      * Can now use `services-alternate` for cluster tend.
+  - Can now use `services-alternate` for cluster tend.
 
-      * New CDT List API: `ListGetRangeFromOp`, `ListRemoveRangeFromOp`, `ListPopRangeFromOp`
+  - New CDT List API: `ListGetRangeFromOp`, `ListRemoveRangeFromOp`, `ListPopRangeFromOp`
 
-  * **Improvements**
+- **Improvements**
 
-      * Improves marshalling of data types into and out of the Lua library and avoids marshalling values before they are needed.
+  - Improves marshalling of data types into and out of the Lua library and avoids marshalling values before they are needed.
 
-      * Returns error for having more than one Filter on client-side to avoid confusion.
+  - Returns error for having more than one Filter on client-side to avoid confusion.
 
-      * Increases default `ClientPolicy.Timeout` and return a meaningful error message when the client is not fully connected to the cluster after `waitTillStabilized` call
+  - Increases default `ClientPolicy.Timeout` and return a meaningful error message when the client is not fully connected to the cluster after `waitTillStabilized` call
 
 ## January 13 2016 : v1.10
 
-  Major release. Adds Aggregation.
+Major release. Adds Aggregation.
 
-  * **New Features**
+- **New Features**
 
-    * Added `client.QueryAggregate` method.
+  - Added `client.QueryAggregate` method.
 
-      * For examples regarding how to use this feature, look at the examples directory.
+    - For examples regarding how to use this feature, look at the examples directory.
 
-      * You can find more documentation regarding the [Aggregation Feature on Aerospike Website](http://www.aerospike.com/docs/guide/aggregation.html)
+    - You can find more documentation regarding the [Aggregation Feature on Aerospike Website](http://www.aerospike.com/docs/guide/aggregation.html)
 
-  * **Improvements**
+- **Improvements**
 
-    * Improve Query/Scan performance by reading from the socket in bigger chunks
+  - Improve Query/Scan performance by reading from the socket in bigger chunks
 
 ## December 14 2015 : v1.9
 
-  Major release. Adds new features.
+Major release. Adds new features.
 
-  * **New Features**
+- **New Features**
 
-    * Added CDT List operations.
+  - Added CDT List operations.
 
-    * Added `NewGeoWithinRadiusFilter` filter for queries.
+  - Added `NewGeoWithinRadiusFilter` filter for queries.
 
-  * **Changes**
+- **Changes**
 
-    * Renamed `NewGeoPointsWithinRegionFilter` to `NewGeoWithinRegionFilter`
+  - Renamed `NewGeoPointsWithinRegionFilter` to `NewGeoWithinRegionFilter`
 
 ## December 1 2015 : v1.8
 
-  Major release. Adds new features and fixes important bugs.
+Major release. Adds new features and fixes important bugs.
 
-  * **New Features**
+- **New Features**
 
-    * Added `ScanAllObjects`, `ScanNodeObjects`, `QueryObjects` and `QueryNodeObjects` to the client, to facilitate automatic unmarshalling of data similar to `GetObject`.
+  - Added `ScanAllObjects`, `ScanNodeObjects`, `QueryObjects` and `QueryNodeObjects` to the client, to facilitate automatic unmarshalling of data similar to `GetObject`.
 
-      * NOTICE: This feature and its API are experimental, and may change in the future. Please test your code throughly, and provide feedback via Github.
+    - NOTICE: This feature and its API are experimental, and may change in the future. Please test your code throughly, and provide feedback via Github.
 
-    * Added `ScanPolicy.IncludeLDT` option (Usable with yet to be released server v 3.7.0)
+  - Added `ScanPolicy.IncludeLDT` option (Usable with yet to be released server v 3.7.0)
 
-    * Added `LargeList.Exist` method.
+  - Added `LargeList.Exist` method.
 
-  * **Improvements**
+- **Improvements**
 
-    * Makes Generation and Expiration values consistent for WritePolicy and Record.
+  - Makes Generation and Expiration values consistent for WritePolicy and Record.
 
-      * NOTICE! BREAKING CHANGE: Types of `Record.Generation` and `Record.Expiration`, and also `WritePolicy.Generation` and `WritePolicy.Expiration` have changed, and may require casting in older code.
+    - NOTICE! BREAKING CHANGE: Types of `Record.Generation` and `Record.Expiration`, and also `WritePolicy.Generation` and `WritePolicy.Expiration` have changed, and may require casting in older code.
 
-    * Refactor tools/asinfo to be more idiomatic Go. PR #86, thanks to [Tyler Gibbons](https://github.com/Kavec)
+  - Refactor tools/asinfo to be more idiomatic Go. PR #86, thanks to [Tyler Gibbons](https://github.com/Kavec)
 
-    * Many documentation fixes thanks to [Charl Matthee](https://github.com/charl) and [Tyler Gibbons](https://github.com/Kavec)
+  - Many documentation fixes thanks to [Charl Matthee](https://github.com/charl) and [Tyler Gibbons](https://github.com/Kavec)
 
-  * **Fixes**
+- **Fixes**
 
-    * Changed the `KeepConnection` logic from black-list to white-list, to drop all
+  - Changed the `KeepConnection` logic from black-list to white-list, to drop all
 
-    * Fix RemoveNodesCopy logic error.
+  - Fix RemoveNodesCopy logic error.
 
-    * Add missing send on recordset Error channel. PR #99, thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+  - Add missing send on recordset Error channel. PR #99, thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
 
-    * Fix skipping of errors/records in (*recordset).Results() select after cancellation. PR #99, thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+  - Fix skipping of errors/records in (\*recordset).Results() select after cancellation. PR #99, thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
 
 ## October 16 2015 : v1.7
 
-  Major release. Adds new features and fixes important bugs.
+Major release. Adds new features and fixes important bugs.
 
-  * **New Features**
+- **New Features**
 
-    * Added support for Geo spatial queries.
+  - Added support for Geo spatial queries.
 
-    * Added support for creating indexes on List and Map bins, and querying them.
+  - Added support for creating indexes on List and Map bins, and querying them.
 
-    * Added support for native floating point values.
+  - Added support for native floating point values.
 
-    * Added `ClientPolicy.IpMap` to use IP translation for alias recognition. PR #81, Thanks to [Christopher Guiney](https://github.com/chrisguiney)
+  - Added `ClientPolicy.IpMap` to use IP translation for alias recognition. PR #81, Thanks to [Christopher Guiney](https://github.com/chrisguiney)
 
-  * **Improvements**
+- **Improvements**
 
-    * Cosmetic change to improve code consistency for `PackLong` in `packer.go`. PR #78, Thanks to [Erik Dubbelboer](https://github.com/ErikDubbelboer)
+  - Cosmetic change to improve code consistency for `PackLong` in `packer.go`. PR #78, Thanks to [Erik Dubbelboer](https://github.com/ErikDubbelboer)
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixes an issue when the info->services string was malformed and caused the client to panic.
+  - Fixes an issue when the info->services string was malformed and caused the client to panic.
 
-    * Fixes an issue with unmarshalling maps of type map[ANY]struct{} into embedded structs.
+  - Fixes an issue with unmarshalling maps of type map[ANY]struct{} into embedded structs.
 
-    * Fixes issue with unmarshalling maps of type map[ANY]struct{} into embedded structs.
+  - Fixes issue with unmarshalling maps of type map[ANY]struct{} into embedded structs.
 
-    * Fixes an issue with bound checking. PR #85, Thanks to [Tait Clarridge](https://github.com/oldmantaiter)
+  - Fixes an issue with bound checking. PR #85, Thanks to [Tait Clarridge](https://github.com/oldmantaiter)
 
-    * Fixes aa few typos in the docs. PR #76, Thanks to [Charl Matthee](https://github.com/charl)
+  - Fixes aa few typos in the docs. PR #76, Thanks to [Charl Matthee](https://github.com/charl)
 
 ## August 2015 : v1.6.5
 
-  Minor maintenance release.
+Minor maintenance release.
 
-  * **Improvements**
+- **Improvements**
 
-    * Export `MaxBufferSize` to allow tweaking of maximum buffer size allowed to read a record. If a record is bigger than this size (e.g: A lot of LDT elements in scan), this setting wil allow to tweak the buffer size.
+  - Export `MaxBufferSize` to allow tweaking of maximum buffer size allowed to read a record. If a record is bigger than this size (e.g: A lot of LDT elements in scan), this setting wil allow to tweak the buffer size.
 
 ## July 16 2015 : v1.6.4
 
-  Hot fix release.
+Hot fix release.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fix panic when a scan/query fails and the connection is not dropped.
+  - Fix panic when a scan/query fails and the connection is not dropped.
 
 ## July 9 2015 : v1.6.3
 
-  Minor fix release.
+Minor fix release.
 
-  * **Improvements**
+- **Improvements**
 
-    * Improved documentation. PR #64 and #68. Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+  - Improved documentation. PR #64 and #68. Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
 
-  * **Fixes**
+- **Fixes**
 
-    * Fix a bunch of golint notices. PR #69, Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+  - Fix a bunch of golint notices. PR #69, Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
 
-    * Connection.Read() total bytes count on error. PR #71, Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+  - Connection.Read() total bytes count on error. PR #71, Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
 
-    * Fixed a race condition on objectMappings map. PR #72, Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
+  - Fixed a race condition on objectMappings map. PR #72, Thanks to [Geert-Johan Riemer](https://github.com/GeertJohan)
 
-    * Fixed a few uint -> int convertions.
+  - Fixed a few uint -> int convertions.
 
 ## June 11 2015 : v1.6.2
 
-  Minor fix release.
+Minor fix release.
 
-  * **Improvements**
+- **Improvements**
 
-    * Improved documentation. Replaced all old API references regarding Recordset/Query/Scan to newer, more elegant API.
+  - Improved documentation. Replaced all old API references regarding Recordset/Query/Scan to newer, more elegant API.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixed an issue where erroring out on Scan would result a panic.
+  - Fixed an issue where erroring out on Scan would result a panic.
 
-    * Fixed an issue where `Statement.TaskId` would be negative. converted `Statement.TaskId` to `uint64`
+  - Fixed an issue where `Statement.TaskId` would be negative. converted `Statement.TaskId` to `uint64`
 
 ## June 9 2015 : v1.6.1
 
-  Minor fix release.
+Minor fix release.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixed an issue where marshaller wouldn't marshal some embedded structs.
+  - Fixed an issue where marshaller wouldn't marshal some embedded structs.
 
-    * Fixed an issue where querying/scanning empty sets wouldn't drain the socket before return.
+  - Fixed an issue where querying/scanning empty sets wouldn't drain the socket before return.
 
 ## May 30 2015 : v1.6.0
 
-  There's an important performance regression bug fix in this release. We recommend everyone to upgrade.
+There's an important performance regression bug fix in this release. We recommend everyone to upgrade.
 
-  * **New Features**
+- **New Features**
 
-    * Added New LargeList API.
+  - Added New LargeList API.
 
-      * NOTICE! BREAKING CHANGE: New LargeList API on the Go Client uses the New API defined on newer server versions. As Such, it has changed some signatures in LargeList.
+    - NOTICE! BREAKING CHANGE: New LargeList API on the Go Client uses the New API defined on newer server versions. As Such, it has changed some signatures in LargeList.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixed an issue where connections where not put back to the pool on some non-critical errors.
+  - Fixed an issue where connections where not put back to the pool on some non-critical errors.
 
-    * Fixed an issue where Object Unmarshaller wouldn't extend a slice.
+  - Fixed an issue where Object Unmarshaller wouldn't extend a slice.
 
-    * Decode RegisterUDF() error message from base64
+  - Decode RegisterUDF() error message from base64
 
-    * Fixed invalid connection handling on node connections (thanks to @rndive)
+  - Fixed invalid connection handling on node connections (thanks to @rndive)
 
 ## May 15 2015 : v1.5.2
 
-  Hotfix release.
+Hotfix release.
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixed a branch-merge mistake regarding error handling during connection authentication.
+  - Fixed a branch-merge mistake regarding error handling during connection authentication.
 
 ## May 15 2015 : v1.5.1
 
-  Major maintenance release.
+Major maintenance release.
 
-  NOTICE: All LDTs on server other than LLIST have been deprecated, and will be removed in the future. As Such, all API regarding those features are considered deprecated and will be removed in tandem.
+NOTICE: All LDTs on server other than LLIST have been deprecated, and will be removed in the future. As Such, all API regarding those features are considered deprecated and will be removed in tandem.
 
-  * **Improvements**
+- **Improvements**
 
-    * Introduces `ClientPolicy.IdleTimeout` to close stale connections to the server. Thanks to Mário Freitas (@imkira). PR #57
+  - Introduces `ClientPolicy.IdleTimeout` to close stale connections to the server. Thanks to Mário Freitas (@imkira). PR #57
 
-    * Use type alias instead of struct for NullValue.
+  - Use type alias instead of struct for NullValue.
 
-    * Removed workaround regarding filtering bin names on the client for `BatchGet`. Issue #60
+  - Removed workaround regarding filtering bin names on the client for `BatchGet`. Issue #60
 
-  * **Fixes**
+- **Fixes**
 
-    * Fixed a few race conditions.
+  - Fixed a few race conditions.
 
-    * Fixed #58 regarding race condition accessing `Cluster.password`.
+  - Fixed #58 regarding race condition accessing `Cluster.password`.
 
-    * Fixed minor bugs regarding handling of nulls in structs for `GetObj()` and `PutObj()`.
+  - Fixed minor bugs regarding handling of nulls in structs for `GetObj()` and `PutObj()`.
 
-    * Fixed a bug regarding setting TaskIds on the client.
+  - Fixed a bug regarding setting TaskIds on the client.
 
-  * ** Other Changes **
+- ** Other Changes **
 
-    * Removed deprecated `ReplaceRoles()` method.
+  - Removed deprecated `ReplaceRoles()` method.
 
-    * Removed deprecated `SetCapacity()` and `GetCapacity()` methods for LDTs.
+  - Removed deprecated `SetCapacity()` and `GetCapacity()` methods for LDTs.
 
 ## April 13 2015 : v1.5.0
 
-  This release includes potential BREAKING CHANGES.
+This release includes potential BREAKING CHANGES.
 
-  * **New Features**
+- **New Features**
 
-    * Introduces `ClientPolicy.LimitConnectionsToQueueSize`. If set to true, the client won't attemp to create new connections to the node if the total number of pooled connections to the node is equal or more than the pool size. The client will retry to poll a connection from the queue until a timeout occurs. If no timeout is set, it will only retry for ten times.
+  - Introduces `ClientPolicy.LimitConnectionsToQueueSize`. If set to true, the client won't attemp to create new connections to the node if the total number of pooled connections to the node is equal or more than the pool size. The client will retry to poll a connection from the queue until a timeout occurs. If no timeout is set, it will only retry for ten times.
 
-  * **Improvements**
+- **Improvements**
 
-    * BREAKING CHANGE: |
-                        Uses type aliases instead of structs in several XXXValue methods. This removes a memory allocation per `Value` usage.
-                        Since every `Put` operation uses at list one value object, this has the potential to improve application performance.
-                        Since the signature of several `NewXXXValue` methods have changed, this might break some existing code if you have used the value objects directly.
+  - BREAKING CHANGE: |
+    Uses type aliases instead of structs in several XXXValue methods. This removes a memory allocation per `Value` usage.
+    Since every `Put` operation uses at list one value object, this has the potential to improve application performance.
+    Since the signature of several `NewXXXValue` methods have changed, this might break some existing code if you have used the value objects directly.
 
-    * Improved `Logger` so that it will accept a generalized `Logger` interface. Any Logger with a `Printf(format string, values ...interface{})` method can be used. Examples include Logrus.
+  - Improved `Logger` so that it will accept a generalized `Logger` interface. Any Logger with a `Printf(format string, values ...interface{})` method can be used. Examples include Logrus.
 
-    * Improved `Client.BatchGet()` performance.
+  - Improved `Client.BatchGet()` performance.
 
-  * **Fixes**
+- **Fixes**
 
-    * Bin names were ignored in BatchCommands.
+  - Bin names were ignored in BatchCommands.
 
-    * `BatchCommandGet.parseRecord()` returned wrong values when `BinNames` was empty but not nil.
+  - `BatchCommandGet.parseRecord()` returned wrong values when `BinNames` was empty but not nil.
 
 ## March 31 2015 : v1.4.2
 
-  Maintenance release.
+Maintenance release.
 
-  * **Improvements**
+- **Improvements**
 
-    * Replace channel-based queue system with a lock-based algorithm.
-    * Marshaller now supports arrays of arbitrary types.
-    * `Client.GetObject()` now returns an error when the object is not found.
-    * Partition calculation uses a trick that is twice as fast.
+  - Replace channel-based queue system with a lock-based algorithm.
+  - Marshaller now supports arrays of arbitrary types.
+  - `Client.GetObject()` now returns an error when the object is not found.
+  - Partition calculation uses a trick that is twice as fast.
 
-  * **Improvements**
+- **Improvements**
 
-    * Unpacking BLOBs resulted in returning references to pooled buffers. Now copies are returned.
+  - Unpacking BLOBs resulted in returning references to pooled buffers. Now copies are returned.
 
 ## March 12 2015 : v1.4.1
 
-  This is a minor release to help improve the compatibility of the client on Mac OS, and to make cross compilation easier.
+This is a minor release to help improve the compatibility of the client on Mac OS, and to make cross compilation easier.
 
-  * **Improvements**
+- **Improvements**
 
-    * Node validator won't call net.HostLookup if an IP is passed as a seed to it.
+  - Node validator won't call net.HostLookup if an IP is passed as a seed to it.
 
 ## Feb 17 2015 : v1.4.0
 
-  This is a major release, and makes using the client much easier to develop applications.
+This is a major release, and makes using the client much easier to develop applications.
 
-  * **New Features**
+- **New Features**
 
-    * Added Marshalling Support for Put and Get operations. Refer to [Marshalling Test](client_object_test.go) to see how to take advantage.
+  - Added Marshalling Support for Put and Get operations. Refer to [Marshalling Test](client_object_test.go) to see how to take advantage.
     Same functionality for other APIs will follow soon.
     Example:
-    ```go
-    type SomeStruct struct {
-      A    int            `as:"a"`  // alias the field to a
-      Self *SomeStruct    `as:"-"`  // will not persist the field
-    }
 
-    type OtherStruct struct {
-      i interface{}
-      OtherObject *OtherStruct
-    }
+  ```go
+  type SomeStruct struct {
+    A    int            `as:"a"`  // alias the field to a
+    Self *SomeStruct    `as:"-"`  // will not persist the field
+  }
 
-    obj := &OtherStruct {
-      i: 15,
-      OtherObject: OtherStruct {A: 18},
-    }
+  type OtherStruct struct {
+    i interface{}
+    OtherObject *OtherStruct
+  }
 
-    key, _ := as.NewKey("ns", "set", value)
-    err := client.PutObject(nil, key, obj)
-    // handle error here
+  obj := &OtherStruct {
+    i: 15,
+    OtherObject: OtherStruct {A: 18},
+  }
 
-    rObj := &OtherStruct{}
-    err = client.GetObject(nil, key, rObj)
-    ```
+  key, _ := as.NewKey("ns", "set", value)
+  err := client.PutObject(nil, key, obj)
+  // handle error here
 
-    * Added `Recordset.Results()`. Consumers of a recordset do not have to implement a select anymore. Instead of:
-    ```go
-    recordset, err := client.ScanAll(...)
-    L:
-    for {
-      select {
-      case r := <-recordset.Record:
-        if r == nil {
-          break L
-        }
-        // process record here
-      case e := <-recordset.Errors:
-        // handle error here
+  rObj := &OtherStruct{}
+  err = client.GetObject(nil, key, rObj)
+  ```
+
+  - Added `Recordset.Results()`. Consumers of a recordset do not have to implement a select anymore. Instead of:
+
+  ```go
+  recordset, err := client.ScanAll(...)
+  L:
+  for {
+    select {
+    case r := <-recordset.Record:
+      if r == nil {
+        break L
       }
+      // process record here
+    case e := <-recordset.Errors:
+      // handle error here
     }
-    ```
+  }
+  ```
 
-    one should only range on `recordset.Results()`:
+  one should only range on `recordset.Results()`:
 
-    ```go
-    recordset, err := client.ScanAll(...)
-    for res := range recordset.Results() {
-      if res.Err != nil {
-        // handle error here
-      } else {
-        // process record here
-        fmt.Println(res.Record.Bins)
-      }
+  ```go
+  recordset, err := client.ScanAll(...)
+  for res := range recordset.Results() {
+    if res.Err != nil {
+      // handle error here
+    } else {
+      // process record here
+      fmt.Println(res.Record.Bins)
     }
-    ```
+  }
+  ```
 
-    Use of the old pattern is discouraged and deprecated, and direct access to recordset.Records and recordset.Errors will be removed in a future release.
+  Use of the old pattern is discouraged and deprecated, and direct access to recordset.Records and recordset.Errors will be removed in a future release.
 
-  * **Improvements**
+- **Improvements**
 
-    * Custom Types are now allowed as bin values.
+  - Custom Types are now allowed as bin values.
 
 ## Jan 26 2015 : v1.3.1
 
-  * **Improvements**
+- **Improvements**
 
-    * Removed dependency on `unsafe` package.
+  - Removed dependency on `unsafe` package.
 
 ## Jan 20 2015 : v1.3.0
 
-  * **Breaking Changes**
+- **Breaking Changes**
 
-    * Removed `Record.Duplicates` and `GenerationPolicy/DUPLICATE`
+  - Removed `Record.Duplicates` and `GenerationPolicy/DUPLICATE`
 
-  * **New Features**
+- **New Features**
 
-    * Added Security Features: Please consult [Security Docs](https://www.aerospike.com/docs/guide/security.html) on Aerospike website.
+  - Added Security Features: Please consult [Security Docs](https://www.aerospike.com/docs/guide/security.html) on Aerospike website.
 
-      * `ClientPolicy.User`, `ClientPolicy.Password`
-      * `Client.CreateUser()`, `Client.DropUser()`, `Client.ChangePassword()`
-      * `Client.GrantRoles()`, `Client.RevokeRoles()`, `Client.ReplaceRoles()`
-      * `Client.QueryUser()`, `Client.QueryUsers`
+    - `ClientPolicy.User`, `ClientPolicy.Password`
+    - `Client.CreateUser()`, `Client.DropUser()`, `Client.ChangePassword()`
+    - `Client.GrantRoles()`, `Client.RevokeRoles()`, `Client.ReplaceRoles()`
+    - `Client.QueryUser()`, `Client.QueryUsers`
 
-    * Added `Client.QueryNode()`
+  - Added `Client.QueryNode()`
 
-    * Added `ClientPolicy.TendInterval`
+  - Added `ClientPolicy.TendInterval`
 
-  * **Improvements**
+- **Improvements**
 
-    * Cleaned up Scan/Query/Recordset concurrent code
+  - Cleaned up Scan/Query/Recordset concurrent code
 
-  * **Fixes**
+- **Fixes**
 
-      * Fixed a bug in `tools/cli/cli.go`.
+  - Fixed a bug in `tools/cli/cli.go`.
 
-      * Fixed a bug when `GetHeaderOp()` would always translate into `GetOp()`
+  - Fixed a bug when `GetHeaderOp()` would always translate into `GetOp()`
 
 ## Dec 29 2014: v1.2.0
 
-  * **New Features**
+- **New Features**
 
-    * Added `NewKeyWithDigest()` method. You can now create keys with custom digests, or only using digests without
-      knowing the original value. (Useful when you are getting back results with Query and Scan)
+  - Added `NewKeyWithDigest()` method. You can now create keys with custom digests, or only using digests without
+    knowing the original value. (Useful when you are getting back results with Query and Scan)
 
 ## Dec 22 2014
 
-  * **New Features**
+- **New Features**
 
-    * Added `ConsistencyLevel` to `BasePolicy`.
+  - Added `ConsistencyLevel` to `BasePolicy`.
 
-    * Added `CommitLevel` to `WritePolicy`.
+  - Added `CommitLevel` to `WritePolicy`.
 
-    * Added `LargeList.Range` and `LargeList.RangeThenFilter` methods.
+  - Added `LargeList.Range` and `LargeList.RangeThenFilter` methods.
 
-    * Added `LargeMap.Exists` method.
+  - Added `LargeMap.Exists` method.
 
-  * **Improvements**
+- **Improvements**
 
-    * We use a pooled XORShift RNG to produce random numbers in the client. It is FAST.
+  - We use a pooled XORShift RNG to produce random numbers in the client. It is FAST.
 
 ## Dec 19 2014
 
-  * **Fixes**
+- **Fixes**
 
-    * `Record.Expiration` wasn't converted to TTL values on `Client.BatchGet`, `Client.Scan` and `Client.Query`.
+  - `Record.Expiration` wasn't converted to TTL values on `Client.BatchGet`, `Client.Scan` and `Client.Query`.
 
 ## Dec 10 2014
 
-  * **Fixes**:
+- **Fixes**:
 
-    * Fixed issue when the size of key field would not be estimated correctly when WritePolicy.SendKey was set.
+  - Fixed issue when the size of key field would not be estimated correctly when WritePolicy.SendKey was set.
 
 ## Nov 27 2014
 
-  Major Performance Enhancements. Minor new features and fixes.
+Major Performance Enhancements. Minor new features and fixes.
 
-  * **Improvements**
+- **Improvements**
 
-    * Go client is much faster and more memory efficient now.
-      In some workloads, it competes and wins against C and Java clients.
+  - Go client is much faster and more memory efficient now.
+    In some workloads, it competes and wins against C and Java clients.
 
-    * Complex objects are now de/serialized much faster.
+  - Complex objects are now de/serialized much faster.
 
-  * **New Features**
+- **New Features**
 
-    * Added Default Policies for Client object.
-      Instead of creating a new policy when the passed policy is nil, default policies will be used.
+  - Added Default Policies for Client object.
+    Instead of creating a new policy when the passed policy is nil, default policies will be used.
 
 ## Nov 24 2014
 
-  * **Fixes**:
+- **Fixes**:
 
-    * Fixed issue when WritePolicy.SendKey = true was not respected in Touch() and Operate()
+  - Fixed issue when WritePolicy.SendKey = true was not respected in Touch() and Operate()
 
 ## Nov 22 2014
 
-  Hotfix in unpacker. Update strongly recommended for everyone using Complex objects, LDTs and UDFs.
+Hotfix in unpacker. Update strongly recommended for everyone using Complex objects, LDTs and UDFs.
 
-  * **Fixes**:
+- **Fixes**:
 
-    * When Blob, ByteArray or String size has a bit sign set, unpacker reads it wrong.
-        Note: This bug only affects unpacking of these objects. Packing was unaffected, and data in the database is valid.
+  - When Blob, ByteArray or String size has a bit sign set, unpacker reads it wrong.
+    Note: This bug only affects unpacking of these objects. Packing was unaffected, and data in the database is valid.
 
 ## Nov 2 2014
 
-  Minor, but very impoortant fix.
+Minor, but very impoortant fix.
 
-  * **Fixes**:
+- **Fixes**:
 
-    * Node selection in partition map was flawed on first refresh.
+  - Node selection in partition map was flawed on first refresh.
 
-  * **Incompatible changes**:
+- **Incompatible changes**:
 
-    * `Expiration` and `Generation` in `WritePolicy` are now `int32`
-    * `TaskId` in `Statement` is now always set in the client, and is `int64`
+  - `Expiration` and `Generation` in `WritePolicy` are now `int32`
+  - `TaskId` in `Statement` is now always set in the client, and is `int64`
 
-  * **New Features**:
+- **New Features**:
 
-    * float32, float64 and bool are now supported in map and array types
+  - float32, float64 and bool are now supported in map and array types
 
 ## Oct 15 2014 (Beta 2)
 
-  * **Hot fix**:
+- **Hot fix**:
 
-    * Fixed pack/unpack for uint64
+  - Fixed pack/unpack for uint64
 
 ## Aug 20 2014 (Beta 1)
 
-  Major changes and improvements.
+Major changes and improvements.
 
-  * **New Features**:
+- **New Features**:
 
-    * Added client.Query()
-    * Added client.ScanNode()/All()
-    * Added client.Operate()
-    * Added client.CreateIndex()
-    * Added client.DropIndex()
-    * Added client.RegisterUDF()
-    * Added client.RegisterUDFFromFile()
-    * Added client.Execute()
-    * Added client.ExecuteUDF()
-    * Added client.BatchGet()
-    * Added client.BatchGetHeader()
-    * Added client.BatchExists()
-    * Added LDT implementation
-    * Added `Node` and `Key` references to the Record
+  - Added client.Query()
+  - Added client.ScanNode()/All()
+  - Added client.Operate()
+  - Added client.CreateIndex()
+  - Added client.DropIndex()
+  - Added client.RegisterUDF()
+  - Added client.RegisterUDFFromFile()
+  - Added client.Execute()
+  - Added client.ExecuteUDF()
+  - Added client.BatchGet()
+  - Added client.BatchGetHeader()
+  - Added client.BatchExists()
+  - Added LDT implementation
+  - Added `Node` and `Key` references to the Record
 
-  * **Changes**:
+- **Changes**:
 
-    * Many minor and major bug fixes
-    * Potentially breaking change: Reduced Undocumented API surface
-    * Fixed a few places where error results were not checked
-    * Breaking Change: Convert Key.namespace & Key.setName from pointer to string; affects Key API
-    * Renamed all `this` receivers to appropriate names
-    * Major performance improvements (~2X improvements in speed and memory consumption):
-      * better memory management for commands; won't allocate if capacity is big enough
-      * better hash management in key; avoids two redundant memory allocs
-      * use a buffer pool to reduce GC load
-      * fine-grained, customizable and deterministic buffer pool implementation for command
+  - Many minor and major bug fixes
+  - Potentially breaking change: Reduced Undocumented API surface
+  - Fixed a few places where error results were not checked
+  - Breaking Change: Convert Key.namespace & Key.setName from pointer to string; affects Key API
+  - Renamed all `this` receivers to appropriate names
+  - Major performance improvements (~2X improvements in speed and memory consumption):
 
-    * Optimizations for Key & Digest
-      * changed digest implementation, removed an allocation
-      * Added RIPEMD160 hash files from crypto to lib
-      * pool hash objects
+    - better memory management for commands; won't allocate if capacity is big enough
+    - better hash management in key; avoids two redundant memory allocs
+    - use a buffer pool to reduce GC load
+    - fine-grained, customizable and deterministic buffer pool implementation for command
 
-    * Various Benchmark tool improvements
-      * now profileable using localhost:6060
-      * minor bug fixes
+  - Optimizations for Key & Digest
+
+    - changed digest implementation, removed an allocation
+    - Added RIPEMD160 hash files from crypto to lib
+    - pool hash objects
+
+  - Various Benchmark tool improvements
+    - now profileable using localhost:6060
+    - minor bug fixes
 
 ## Jul 26 2014 (Alpha)
 
-  * Initial Release.
+- Initial Release.
