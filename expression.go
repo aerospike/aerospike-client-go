@@ -18,6 +18,7 @@ import (
 	"encoding/base64"
 
 	ParticleType "github.com/aerospike/aerospike-client-go/v6/internal/particle_type"
+	"github.com/aerospike/aerospike-client-go/v6/types"
 )
 
 // ExpressionArgument is used for passing arguments to filter expressions.
@@ -152,6 +153,9 @@ type Expression struct {
 	exps []*Expression
 
 	arguments []ExpressionArgument
+
+	// ready to use buffer to write directly on the wire
+	bytes []byte
 }
 
 func newFilterExpression(
@@ -454,7 +458,13 @@ func (fe *Expression) packValue(buf BufferEx) (int, Error) {
 }
 
 func (fe *Expression) pack(buf BufferEx) (int, Error) {
-	if len(fe.exps) > 0 {
+	if len(fe.bytes) > 0 {
+		if buf != nil {
+			return buf.Write(fe.bytes)
+		}
+		// return the size
+		return len(fe.bytes), nil
+	} else if len(fe.exps) > 0 {
 		return fe.packExpression(fe.exps, buf)
 	} else if fe.cmd != nil {
 		return fe.packCommand(fe.cmd, buf)
@@ -462,7 +472,7 @@ func (fe *Expression) pack(buf BufferEx) (int, Error) {
 	return fe.packValue(buf)
 }
 
-func (fe *Expression) base64() (string, Error) {
+func (fe *Expression) Base64() (string, Error) {
 	sz, err := fe.pack(nil)
 	if err != nil {
 		return "", err
@@ -475,6 +485,17 @@ func (fe *Expression) base64() (string, Error) {
 	}
 
 	return base64.StdEncoding.EncodeToString(input.dataBuffer[:input.dataOffset]), nil
+}
+
+// ExpFromBase64 creates an expression from an encoded base64 expression.
+func ExpFromBase64(str string) (*Expression, Error) {
+	b := make([]byte, base64.StdEncoding.DecodedLen(len(str)))
+	n, err := base64.StdEncoding.Decode(b, []byte(str))
+	if err != nil {
+		return nil, newError(types.PARSE_ERROR, err.Error())
+	}
+
+	return &Expression{bytes: b[:n]}, nil
 }
 
 // ExpKey creates a record key expression of specified type.

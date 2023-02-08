@@ -217,6 +217,38 @@ var _ = gg.Describe("Expression Filters", func() {
 
 			gm.Expect(cnt).To(gm.BeNumerically("==", 203))
 		})
+
+		gg.It("Base64 encode/decode must work", func() {
+
+			stm := as.NewStatement(ns, set)
+
+			exp := as.ExpOr(
+				as.ExpAnd(
+					as.ExpNot(as.ExpEq(as.ExpStringBin("strval"), as.ExpStringVal("0x0001"))),
+					as.ExpGreaterEq(as.ExpIntBin("modval"), as.ExpIntVal(8)),
+				),
+				as.ExpEq(as.ExpStringBin("strval"), as.ExpStringVal("0x0104")),
+				as.ExpEq(as.ExpStringBin("strval"), as.ExpStringVal("0x0105")),
+				as.ExpEq(as.ExpStringBin("strval"), as.ExpStringVal("0x0106")),
+			)
+
+			bexp, err := exp.Base64()
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			qpolicy.FilterExpression, err = as.ExpFromBase64(bexp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			recordset, err := client.Query(qpolicy, stm)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			cnt := 0
+			for res := range recordset.Results() {
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				cnt++
+			}
+
+			gm.Expect(cnt).To(gm.BeNumerically("==", 203))
+		})
 	})
 
 	runQuery := func(filter *as.Expression, set_name string) *as.Recordset {

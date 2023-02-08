@@ -971,7 +971,7 @@ func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespac
 	if filter == nil {
 		strCmd = "xdr-set-filter:dc=" + datacenter + ";namespace=" + namespace + ";exp=null"
 	} else {
-		b64, err := filter.base64()
+		b64, err := filter.Base64()
 		if err != nil {
 			return newError(types.SERIALIZE_ERROR, "FilterExpression could not be serialized to Base64")
 		}
