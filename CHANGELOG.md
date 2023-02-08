@@ -1,4 +1,11 @@
-  # Change History
+# Change History
+
+## February 8 2023: v6.10.0
+
+- **New Features**
+
+  - [CLIENT-2170] Export `MapReturnTypes`, `MapOrderTypes` and `MapWriteModes`.
+  - [CLIENT-2129], [CLIENT-2035] Adds `Expression.Base64()` and `ExpFromBase64()` to allow for serialization of expressions.
 
 ## January 23 2023: v6.9.1
 
