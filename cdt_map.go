@@ -112,6 +112,15 @@ var MapOrder = struct {
 
 type mapReturnType int
 
+// MapReturnTypes exports the type of individual MapReturnType values
+type MapReturnTypes = mapReturnType
+
+// MapOrderTypes exports the type of individual MapOrderType values
+type MapOrderTypes = mapOrderType
+
+// MapWriteModes exports the type of individual MapWriteMode values
+type MapWriteModes = mapWriteMode
+
 // MapReturnType defines the map return type.
 // Type of data to return when selecting or removing items from the map.
 var MapReturnType = struct {
@@ -460,9 +469,9 @@ func MapRemoveByValueRangeOp(binName string, valueBegin interface{}, valueEnd in
 //
 // Examples for map [{4=2},{9=10},{5=15},{0=17}]:
 //
-//  (value,rank) = [removed items]
-//  (11,1) = [{0=17}]
-//  (11,-1) = [{9=10},{5=15},{0=17}]
+//	(value,rank) = [removed items]
+//	(11,1) = [{0=17}]
+//	(11,-1) = [{9=10},{5=15},{0=17}]
 func MapRemoveByValueRelativeRankRangeOp(binName string, value interface{}, rank int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateRangeOperation(cdtMapOpTypeRemoveByValueRelRankRange, _MAP_MODIFY, binName, ctx, value, rank, returnType)
 }
@@ -473,9 +482,9 @@ func MapRemoveByValueRelativeRankRangeOp(binName string, value interface{}, rank
 //
 // Examples for map [{4=2},{9=10},{5=15},{0=17}]:
 //
-//  (value,rank,count) = [removed items]
-//  (11,1,1) = [{0=17}]
-//  (11,-1,1) = [{9=10}]
+//	(value,rank,count) = [removed items]
+//	(11,1,1) = [{0=17}]
+//	(11,-1,1) = [{9=10}]
 func MapRemoveByValueRelativeRankRangeCountOp(binName string, value interface{}, rank, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeRemoveByValueRelRankRange, _MAP_MODIFY, binName, ctx, NewValue(value), rank, count, returnType)
 }
@@ -524,12 +533,12 @@ func MapRemoveByRankRangeCountOp(binName string, rank int, count int, returnType
 //
 // Examples for map [{0=17},{4=2},{5=15},{9=10}]:
 //
-//  (value,index) = [removed items]
-//  (5,0) = [{5=15},{9=10}]
-//  (5,1) = [{9=10}]
-//  (5,-1) = [{4=2},{5=15},{9=10}]
-//  (3,2) = [{9=10}]
-//  (3,-2) = [{0=17},{4=2},{5=15},{9=10}]
+//	(value,index) = [removed items]
+//	(5,0) = [{5=15},{9=10}]
+//	(5,1) = [{9=10}]
+//	(5,-1) = [{4=2},{5=15},{9=10}]
+//	(3,2) = [{9=10}]
+//	(3,-2) = [{0=17},{4=2},{5=15},{9=10}]
 func MapRemoveByKeyRelativeIndexRangeOp(binName string, key interface{}, index int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndex(cdtMapOpTypeRemoveByKeyRelIndexRange, _MAP_MODIFY, binName, ctx, NewValue(key), index, returnType)
 }
@@ -540,12 +549,12 @@ func MapRemoveByKeyRelativeIndexRangeOp(binName string, key interface{}, index i
 //
 // Examples for map [{0=17},{4=2},{5=15},{9=10}]:
 //
-//  (value,index,count) = [removed items]
-//  (5,0,1) = [{5=15}]
-//  (5,1,2) = [{9=10}]
-//  (5,-1,1) = [{4=2}]
-//  (3,2,1) = [{9=10}]
-//  (3,-2,2) = [{0=17}]
+//	(value,index,count) = [removed items]
+//	(5,0,1) = [{5=15}]
+//	(5,1,2) = [{9=10}]
+//	(5,-1,1) = [{4=2}]
+//	(3,2,1) = [{9=10}]
+//	(3,-2,2) = [{0=17}]
 func MapRemoveByKeyRelativeIndexRangeCountOp(binName string, key interface{}, index, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeRemoveByKeyRelIndexRange, _MAP_MODIFY, binName, ctx, NewValue(key), index, count, returnType)
 }
@@ -578,12 +587,12 @@ func MapGetByKeyRangeOp(binName string, keyBegin interface{}, keyEnd interface{}
 //
 // Examples for ordered map [{0=17},{4=2},{5=15},{9=10}]:
 //
-//  (value,index) = [selected items]
-//  (5,0) = [{5=15},{9=10}]
-//  (5,1) = [{9=10}]
-//  (5,-1) = [{4=2},{5=15},{9=10}]
-//  (3,2) = [{9=10}]
-//  (3,-2) = [{0=17},{4=2},{5=15},{9=10}]
+//	(value,index) = [selected items]
+//	(5,0) = [{5=15},{9=10}]
+//	(5,1) = [{9=10}]
+//	(5,-1) = [{4=2},{5=15},{9=10}]
+//	(3,2) = [{9=10}]
+//	(3,-2) = [{0=17},{4=2},{5=15},{9=10}]
 func MapGetByKeyRelativeIndexRangeOp(binName string, key interface{}, index int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndex(cdtMapOpTypeGetByKeyRelIndexRange, _MAP_READ, binName, ctx, NewValue(key), index, returnType)
 }
@@ -593,12 +602,13 @@ func MapGetByKeyRelativeIndexRangeOp(binName string, key interface{}, index int,
 // Server returns selected data specified by returnType (See MapReturnType).
 //
 // Examples for ordered map [{0=17},{4=2},{5=15},{9=10}]:
-//  (value,index,count) = [selected items]
-//  (5,0,1) = [{5=15}]
-//  (5,1,2) = [{9=10}]
-//  (5,-1,1) = [{4=2}]
-//  (3,2,1) = [{9=10}]
-//  (3,-2,2) = [{0=17}]
+//
+//	(value,index,count) = [selected items]
+//	(5,0,1) = [{5=15}]
+//	(5,1,2) = [{9=10}]
+//	(5,-1,1) = [{4=2}]
+//	(3,2,1) = [{9=10}]
+//	(3,-2,2) = [{0=17}]
 func MapGetByKeyRelativeIndexRangeCountOp(binName string, key interface{}, index, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeGetByKeyRelIndexRange, _MAP_READ, binName, ctx, NewValue(key), index, count, returnType)
 }
@@ -631,9 +641,9 @@ func MapGetByValueRangeOp(binName string, valueBegin interface{}, valueEnd inter
 //
 // Examples for map [{4=2},{9=10},{5=15},{0=17}]:
 //
-//  (value,rank) = [selected items]
-//  (11,1) = [{0=17}]
-//  (11,-1) = [{9=10},{5=15},{0=17}]
+//	(value,rank) = [selected items]
+//	(11,1) = [{0=17}]
+//	(11,-1) = [{9=10},{5=15},{0=17}]
 func MapGetByValueRelativeRankRangeOp(binName string, value interface{}, rank int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndex(cdtMapOpTypeGetByValueRelRankRange, _MAP_READ, binName, ctx, NewValue(value), rank, returnType)
 }
@@ -644,9 +654,9 @@ func MapGetByValueRelativeRankRangeOp(binName string, value interface{}, rank in
 //
 // Examples for map [{4=2},{9=10},{5=15},{0=17}]:
 //
-//  (value,rank,count) = [selected items]
-//  (11,1,1) = [{0=17}]
-//  (11,-1,1) = [{9=10}]
+//	(value,rank,count) = [selected items]
+//	(11,1,1) = [{0=17}]
+//	(11,-1,1) = [{9=10}]
 func MapGetByValueRelativeRankRangeCountOp(binName string, value interface{}, rank, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeGetByValueRelRankRange, _MAP_READ, binName, ctx, NewValue(value), rank, count, returnType)
 }
