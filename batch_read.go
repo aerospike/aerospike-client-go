@@ -99,7 +99,7 @@ func (br *BatchRead) size(parentPolicy *BasePolicy) (int, Error) {
 
 	if br.policy != nil {
 		if br.policy.FilterExpression != nil {
-			if sz, err := br.policy.FilterExpression.pack(nil); err != nil {
+			if sz, err := br.policy.FilterExpression.size(); err != nil {
 				return -1, err
 			} else {
 				size += sz

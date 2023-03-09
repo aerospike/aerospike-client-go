@@ -182,6 +182,43 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(exists).To(gm.BeFalse())
 				}
 			})
+
+			gg.It("must successfully execute ops with policies", func() {
+				key1, _ := as.NewKey(ns, set, randString(50))
+				err := client.Put(nil, key1, as.BinMap{"bin1": 1, "bin2": 2})
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				// Create the policy
+				writePolicy := as.NewBatchWritePolicy()
+				writePolicy.FilterExpression = as.ExpLess(as.ExpIntBin("bin1"), as.ExpIntVal(1))
+
+				// Create write operation
+				record := as.NewBatchWrite(writePolicy, key1,
+					as.PutOp(as.NewBin("bin3", 3)),
+					as.PutOp(as.NewBin("bin4", 4)),
+				)
+
+				records := []as.BatchRecordIfc{record}
+
+				err = client.BatchOperate(nil, records)
+				gm.Expect(err).ToNot(gm.HaveOccurred())		
+				gm.Expect(record.ResultCode).To(gm.Equal(types.FILTERED_OUT))
+
+				rec, err := client.Get(nil, key1)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(len(rec.Bins)).To(gm.Equal(2))
+
+				// remove the filter
+
+				writePolicy.FilterExpression = nil
+				err = client.BatchOperate(nil, records)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(record.ResultCode).To(gm.Equal(types.OK))
+
+				rec, err = client.Get(nil, key1)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(len(rec.Bins)).To(gm.Equal(4))
+			})
 		})
 
 		gg.Context("BatchOperate operations", func() {

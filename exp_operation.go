@@ -92,7 +92,7 @@ func ExpReadOp(name string, exp *Expression, flags ExpReadFlags) *Operation {
 func encodeExpOperation(exp *Expression, flags int) ([]byte, Error) {
 	// expression is double packed: first normally, and then as a BLOB in operation
 	// find the size of packed expression and pack it in temp buffer
-	tsz, err := exp.pack(nil)
+	tsz, err := exp.size()
 	if err != nil {
 		return nil, err
 	}

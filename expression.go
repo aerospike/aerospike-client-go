@@ -457,6 +457,10 @@ func (fe *Expression) packValue(buf BufferEx) (int, Error) {
 	return fe.val.pack(buf)
 }
 
+func (fe *Expression) size() (int, Error) {
+	return fe.pack(nil)
+}
+
 func (fe *Expression) pack(buf BufferEx) (int, Error) {
 	if len(fe.bytes) > 0 {
 		if buf != nil {
@@ -473,7 +477,7 @@ func (fe *Expression) pack(buf BufferEx) (int, Error) {
 }
 
 func (fe *Expression) Base64() (string, Error) {
-	sz, err := fe.pack(nil)
+	sz, err := fe.size()
 	if err != nil {
 		return "", err
 	}

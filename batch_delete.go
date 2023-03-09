@@ -62,7 +62,7 @@ func (bd *BatchDelete) size(parentPolicy *BasePolicy) (int, Error) {
 
 	if bd.policy != nil {
 		if bd.policy.FilterExpression != nil {
-			if sz, err := bd.policy.FilterExpression.pack(nil); err != nil {
+			if sz, err := bd.policy.FilterExpression.size(); err != nil {
 				return -1, err
 			} else {
 				size += sz

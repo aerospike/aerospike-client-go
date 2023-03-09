@@ -77,7 +77,7 @@ func (bu *BatchUDF) size(parentPolicy *BasePolicy) (int, Error) {
 
 	if bu.policy != nil {
 		if bu.policy.FilterExpression != nil {
-			sz, err := bu.policy.FilterExpression.pack(nil)
+			sz, err := bu.policy.FilterExpression.size()
 			if err != nil {
 				return -1, err
 			}

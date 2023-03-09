@@ -1351,7 +1351,7 @@ func (cmd *baseCommand) writeBatchFieldsWithFilter(key *Key, filter *Expression,
 	if filter != nil {
 		fieldCount++
 		cmd.writeBatchFields(key, fieldCount, opCount)
-		expSize, err := cmd.estimateExpressionSize(filter)
+		expSize, err := filter.size()
 		if err != nil {
 			return err
 		}
@@ -1945,7 +1945,7 @@ func (cmd *baseCommand) estimateOperationSize() {
 }
 
 func (cmd *baseCommand) estimateExpressionSize(exp *Expression) (int, Error) {
-	size, err := exp.pack(nil)
+	size, err := exp.size()
 	if err != nil {
 		return size, err
 	}
