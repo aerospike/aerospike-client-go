@@ -1,5 +1,15 @@
 # Change History
 
+## March 9 2023: v6.11.0
+
+- **Improvements**
+
+  - [CLIENT-2116] Check for completion/cancellation of the Scan/Query before firing off commands to nodes.
+
+- **Fixes**
+
+  - [CLINET-2227] PARAMETER_ERROR using expressions and batch write. Wire protocol was violated when the estimateExpressionSize was called.
+
 ## February 8 2023: v6.10.0
 
 - **New Features**
