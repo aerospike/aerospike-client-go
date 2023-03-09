@@ -38,15 +38,17 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 			maxConcurrentNodes = len(list)
 		}
 
-		weg := newWeightedErrGroup(maxConcurrentNodes)
-		for _, nodePartition := range list {
-			cmd := newQueryPartitionCommand(policy, tracker, nodePartition, statement, recordset)
-			weg.execute(cmd)
+		if recordset.IsActive() {
+			weg := newWeightedErrGroup(maxConcurrentNodes)
+			for _, nodePartition := range list {
+				cmd := newQueryPartitionCommand(policy, tracker, nodePartition, statement, recordset)
+				weg.execute(cmd)
+			}
+			errs = chainErrors(weg.wait(), errs)
 		}
-		errs = chainErrors(weg.wait(), errs)
 
 		done, err := tracker.isComplete(clnt.Cluster(), &policy.BasePolicy)
-		if done || err != nil {
+		if !recordset.IsActive() || done || err != nil {
 			errs = chainErrors(err, errs)
 			// Query is complete.
 			if errs != nil {

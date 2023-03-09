@@ -38,14 +38,16 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 			maxConcurrentNodes = len(list)
 		}
 
-		weg := newWeightedErrGroup(maxConcurrentNodes)
-		for _, nodePartition := range list {
-			cmd := newScanPartitionCommand(policy, tracker, nodePartition, namespace, setName, binNames, recordset)
-			weg.execute(cmd)
+		if recordset.IsActive() {
+			weg := newWeightedErrGroup(maxConcurrentNodes)
+			for _, nodePartition := range list {
+				cmd := newScanPartitionCommand(policy, tracker, nodePartition, namespace, setName, binNames, recordset)
+				weg.execute(cmd)
+			}
+			errs = chainErrors(weg.wait(), errs)
 		}
-		errs = chainErrors(weg.wait(), errs)
 
-		if done, err := tracker.isComplete(clnt.Cluster(), &policy.BasePolicy); done || err != nil {
+		if done, err := tracker.isComplete(clnt.Cluster(), &policy.BasePolicy); !recordset.IsActive() || done || err != nil {
 			errs = chainErrors(err, errs)
 			// Scan is complete.
 			if errs != nil {

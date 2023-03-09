@@ -50,23 +50,25 @@ func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitio
 		sem := semaphore.NewWeighted(int64(maxConcurrentNodes))
 		ctx := context.Background()
 
-		for _, nodePartition := range list {
-			if err := sem.Acquire(ctx, 1); err != nil {
-				logger.Logger.Error("Constraint Semaphore failed for Query: %s", err.Error())
-			}
-			go func(nodePartition *nodePartitions) {
-				defer sem.Release(1)
-				defer wg.Done()
-				if err := clnt.queryNodePartitionObjects(policy, rs, tracker, nodePartition, statement); err != nil {
-					logger.Logger.Debug("Error while Executing query for node %s: %s", nodePartition.node.String(), err.Error())
+		if rs.IsActive() {
+			for _, nodePartition := range list {
+				if err := sem.Acquire(ctx, 1); err != nil {
+					logger.Logger.Error("Constraint Semaphore failed for Query: %s", err.Error())
 				}
-			}(nodePartition)
+				go func(nodePartition *nodePartitions) {
+					defer sem.Release(1)
+					defer wg.Done()
+					if err := clnt.queryNodePartitionObjects(policy, rs, tracker, nodePartition, statement); err != nil {
+						logger.Logger.Debug("Error while Executing query for node %s: %s", nodePartition.node.String(), err.Error())
+					}
+				}(nodePartition)
+			}
+
+			wg.Wait()
 		}
 
-		wg.Wait()
-
 		done, err := tracker.isComplete(clnt.Cluster(), &policy.BasePolicy)
-		if done || err != nil {
+		if !rs.IsActive() || done || err != nil {
 			// Query is complete.
 			return err
 		}
@@ -80,7 +82,6 @@ func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitio
 			}
 		}
 	}
-
 }
 
 // QueryNode reads all records in specified namespace and set for one node only.
