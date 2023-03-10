@@ -35,7 +35,7 @@ import (
 	asl "github.com/aerospike/aerospike-client-go/v6/logger"
 	ast "github.com/aerospike/aerospike-client-go/v6/types"
 
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
 

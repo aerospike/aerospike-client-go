@@ -28,7 +28,7 @@ import (
 	ast "github.com/aerospike/aerospike-client-go/v6/types"
 	asub "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
 
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
 

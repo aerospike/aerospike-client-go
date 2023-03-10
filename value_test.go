@@ -18,7 +18,7 @@ import (
 	"math"
 	"reflect"
 
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 
 	ParticleType "github.com/aerospike/aerospike-client-go/v6/internal/particle_type"

@@ -18,7 +18,7 @@
 package aerospike_test
 
 import (
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters

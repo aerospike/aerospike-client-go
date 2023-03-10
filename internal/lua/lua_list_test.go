@@ -20,7 +20,7 @@ package lua_test
 import (
 	lua "github.com/yuin/gopher-lua"
 
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 
 	ilua "github.com/aerospike/aerospike-client-go/v6/internal/lua"
