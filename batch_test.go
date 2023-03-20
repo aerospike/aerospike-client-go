@@ -223,6 +223,22 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.Context("BatchOperate operations", func() {
 
+			gg.It("Overall command error should be reflected in API call error and not BatchRecord error", func() {
+				var batchRecords []as.BatchRecordIfc
+				for i := 0; i < len(client.Cluster().GetNodes()) * 5500; i++ {
+					key, _ := as.NewKey(*namespace, set, i)
+					batchRecords = append(batchRecords, as.NewBatchReadHeader(key))
+				}
+
+				err := client.BatchOperate(nil, batchRecords)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(types.BATCH_MAX_REQUESTS_EXCEEDED)).To(gm.BeTrue())
+
+				for _, bri := range batchRecords {
+					gm.Expect(bri.BatchRec().ResultCode).To(gm.Equal(types.NO_RESPONSE))
+				}
+			})
+
 			gg.It("ListGetByValueRangeOp and ListRemoveByValueRangeOp with nil arguments correctly", func() {
 				const binName = "int_bin"
 

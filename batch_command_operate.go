@@ -62,7 +62,7 @@ func (cmd *batchCommandOperate) writeBuffer(ifc command) Error {
 func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	//Parse each message response and add it to the result array
 	cmd.dataOffset = 0
-
+	firstRecord := true
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
 			return false, err
@@ -92,11 +92,18 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 				cmd.filteredOutCnt++
 			}
 
+			// If it looks like the error is on the first record and the message is marked as last part,
+			// the error is for the whole command and not just for the first batchIndex
+			if firstRecord && (info3&_INFO3_LAST) == _INFO3_LAST {
+				return false, newError(resultCode)
+			}
+
 			cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
 			continue
 		}
 
 		if resultCode == 0 {
+			firstRecord = false
 			rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
 			if err != nil {
 				cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))

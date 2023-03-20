@@ -20,3 +20,4 @@ tools/
 cmd/
 .revive.toml
 Makefile
+testdata/
