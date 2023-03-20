@@ -679,8 +679,8 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 			case _BRT_BATCH_READ:
 				br := record.(*BatchRead)
 
-				if br.policy != nil {
-					attr.setRead(br.policy)
+				if br.Policy != nil {
+					attr.setRead(br.Policy)
 				} else {
 					attr.setRead(policy)
 				}

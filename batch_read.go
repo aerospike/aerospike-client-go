@@ -26,7 +26,7 @@ type BatchRead struct {
 	BatchRecord
 
 	// Optional read policy.
-	policy *BatchPolicy
+	Policy *BatchPolicy
 
 	// BinNames specifies the Bins to retrieve for this key.
 	// BinNames are mutually exclusive with Ops.
@@ -47,6 +47,7 @@ type BatchRead struct {
 
 // NewBatchRead defines a key and bins to retrieve in a batch operation.
 func NewBatchRead(key *Key, binNames []string) *BatchRead {
+	// TODO: Add policy to this API signature
 	return &BatchRead{
 		BatchRecord: *newSimpleBatchRecord(key, false),
 		BinNames:    binNames,
@@ -56,6 +57,8 @@ func NewBatchRead(key *Key, binNames []string) *BatchRead {
 
 // NewBatchReadOps defines a key and bins to retrieve in a batch operation, including expressions.
 func NewBatchReadOps(key *Key, binNames []string, ops []*Operation) *BatchRead {
+	// TODO: Add policy to this API signature and remove binNames,
+	// since binNames is mutually exclusive with ops parameter.
 	res := &BatchRead{
 		BatchRecord: *newSimpleBatchRecord(key, false),
 		BinNames:    binNames,
@@ -90,16 +93,16 @@ func (br *BatchRead) equals(obj BatchRecordIfc) bool {
 		return false
 	}
 
-	return &br.BinNames == &other.BinNames && &br.Ops == &other.Ops && br.policy == other.policy && br.ReadAllBins == other.ReadAllBins
+	return &br.BinNames == &other.BinNames && &br.Ops == &other.Ops && br.Policy == other.Policy && br.ReadAllBins == other.ReadAllBins
 }
 
 // Return wire protocol size. For internal use only.
 func (br *BatchRead) size(parentPolicy *BasePolicy) (int, Error) {
 	size := 0
 
-	if br.policy != nil {
-		if br.policy.FilterExpression != nil {
-			if sz, err := br.policy.FilterExpression.size(); err != nil {
+	if br.Policy != nil {
+		if br.Policy.FilterExpression != nil {
+			if sz, err := br.Policy.FilterExpression.size(); err != nil {
 				return -1, err
 			} else {
 				size += sz + int(_FIELD_HEADER_SIZE)
