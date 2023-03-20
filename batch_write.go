@@ -74,7 +74,7 @@ func (bw *BatchWrite) size(parentPolicy *BasePolicy) (int, Error) {
 			if sz, err := bw.policy.FilterExpression.size(); err != nil {
 				return -1, err
 			} else {
-				size += sz
+				size += sz + int(_FIELD_HEADER_SIZE)
 			}
 		}
 

@@ -81,7 +81,7 @@ func (bu *BatchUDF) size(parentPolicy *BasePolicy) (int, Error) {
 			if err != nil {
 				return -1, err
 			}
-			size += sz
+			size += sz + int(_FIELD_HEADER_SIZE)
 		}
 
 		if bu.policy.SendKey || parentPolicy.SendKey {
