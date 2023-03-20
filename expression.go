@@ -633,8 +633,22 @@ func ExpBinExists(name string) *Expression {
 	return ExpNotEq(ExpBinType(name), ExpIntVal(ParticleType.NULL))
 }
 
-// ExpBinType creates a function that returns bin's integer particle type.
+// ExpBinType creates a function that returns bin's integer particle type. Valid values are:
+//
+//	NULL    = 0
+//	INTEGER = 1
+//	FLOAT   = 2
+//	STRING  = 3
+//	BLOB    = 4
+//	DIGEST  = 6
+//	BOOL    = 17
+//	HLL     = 18
+//	MAP     = 19
+//	LIST    = 20
+//	LDT     = 21
+//	GEOJSON = 23
 func ExpBinType(name string) *Expression {
+	// TODO: Improve documentation and provide examples.
 	return newFilterExpression(
 		&expOpBIN_TYPE,
 		StringValue(name),

@@ -425,12 +425,18 @@ type OpResults []interface{}
 // when absolute performance is required unless for the reason mentioned below.
 //
 // If you have custom maps or slices like:
-//     type MyMap map[primitive1]primitive2, eg: map[int]string
+//
+//	type MyMap map[primitive1]primitive2, eg: map[int]string
+//
 // or
-//     type MySlice []primitive, eg: []float64
+//
+//	type MySlice []primitive, eg: []float64
+//
 // cast them to their primitive type when passing them to this method:
-//     v := NewValue(map[int]string(myVar))
-//     v := NewValue([]float64(myVar))
+//
+//	v := NewValue(map[int]string(myVar))
+//	v := NewValue([]float64(myVar))
+//
 // This way you will avoid hitting reflection.
 // To completely avoid reflection in the library,
 // use the build tag: as_performance while building your program.
@@ -698,6 +704,7 @@ type LongValue int64
 
 // NewLongValue generates a LongValue instance.
 func NewLongValue(value int64) LongValue {
+	// TODO: Remove this type, it's not necessary next to IntegerValue
 	return LongValue(value)
 }
 

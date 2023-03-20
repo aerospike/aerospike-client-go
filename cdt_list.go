@@ -570,13 +570,13 @@ func ListRemoveByValueRangeOp(binName string, returnType ListReturnType, valueBe
 //
 // Examples for ordered list [0,4,5,9,11,15]:
 //
-//  (value,rank) = [removed items]
-//  (5,0) = [5,9,11,15]
-//  (5,1) = [9,11,15]
-//  (5,-1) = [4,5,9,11,15]
-//  (3,0) = [4,5,9,11,15]
-//  (3,3) = [11,15]
-//  (3,-3) = [0,4,5,9,11,15]
+//	(value,rank) = [removed items]
+//	(5,0) = [5,9,11,15]
+//	(5,1) = [9,11,15]
+//	(5,-1) = [4,5,9,11,15]
+//	(3,0) = [4,5,9,11,15]
+//	(3,3) = [11,15]
+//	(3,-3) = [0,4,5,9,11,15]
 func ListRemoveByValueRelativeRankRangeOp(binName string, returnType ListReturnType, value interface{}, rank int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank)}, encoder: listGenericOpEncoder}
 }
@@ -586,13 +586,13 @@ func ListRemoveByValueRelativeRankRangeOp(binName string, returnType ListReturnT
 // Server returns removed data specified by returnType.
 // Examples for ordered list [0,4,5,9,11,15]:
 //
-//  (value,rank,count) = [removed items]
-//  (5,0,2) = [5,9]
-//  (5,1,1) = [9]
-//  (5,-1,2) = [4,5]
-//  (3,0,1) = [4]
-//  (3,3,7) = [11,15]
-//  (3,-3,2) = []
+//	(value,rank,count) = [removed items]
+//	(5,0,2) = [5,9]
+//	(5,1,1) = [9]
+//	(5,-1,2) = [4,5]
+//	(3,0,1) = [4]
+//	(3,3,7) = [11,15]
+//	(3,-3,2) = []
 func ListRemoveByValueRelativeRankRangeCountOp(binName string, returnType ListReturnType, value interface{}, rank, count int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank), IntegerValue(count)}, encoder: listGenericOpEncoder}
 }
@@ -823,13 +823,13 @@ func ListGetByRankRangeCountOp(binName string, rank, count int, returnType ListR
 //
 // Examples for ordered list [0,4,5,9,11,15]:
 //
-//  (value,rank) = [selected items]
-//  (5,0) = [5,9,11,15]
-//  (5,1) = [9,11,15]
-//  (5,-1) = [4,5,9,11,15]
-//  (3,0) = [4,5,9,11,15]
-//  (3,3) = [11,15]
-//  (3,-3) = [0,4,5,9,11,15]
+//	(value,rank) = [selected items]
+//	(5,0) = [5,9,11,15]
+//	(5,1) = [9,11,15]
+//	(5,-1) = [4,5,9,11,15]
+//	(3,0) = [4,5,9,11,15]
+//	(3,3) = [11,15]
+//	(3,-3) = [0,4,5,9,11,15]
 func ListGetByValueRelativeRankRangeOp(binName string, value interface{}, rank int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank)}, encoder: listGenericOpEncoder}
 }
@@ -840,13 +840,13 @@ func ListGetByValueRelativeRankRangeOp(binName string, value interface{}, rank i
 //
 // Examples for ordered list [0,4,5,9,11,15]:
 //
-//  (value,rank,count) = [selected items]
-//  (5,0,2) = [5,9]
-//  (5,1,1) = [9]
-//  (5,-1,2) = [4,5]
-//  (3,0,1) = [4]
-//  (3,3,7) = [11,15]
-//  (3,-3,2) = []
+//	(value,rank,count) = [selected items]
+//	(5,0,2) = [5,9]
+//	(5,1,1) = [9]
+//	(5,-1,2) = [4,5]
+//	(3,0,1) = [4]
+//	(3,3,7) = [11,15]
+//	(3,-3,2) = []
 func ListGetByValueRelativeRankRangeCountOp(binName string, value interface{}, rank, count int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank), IntegerValue(count)}, encoder: listGenericOpEncoder}
 }

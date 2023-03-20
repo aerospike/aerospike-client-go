@@ -1252,6 +1252,7 @@ func (clnt *Client) DropIndex(
 // greater than the truncate cutoff (set at the time of truncate call).
 // For more information, See https://www.aerospike.com/docs/reference/info#truncate
 func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) Error {
+	// TODO: Change WritePolicy to InfoPolicy in the signature
 	policy = clnt.getUsableWritePolicy(policy)
 
 	node, err := clnt.cluster.GetRandomNode()
