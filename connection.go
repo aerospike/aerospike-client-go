@@ -88,6 +88,9 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 
 	if terr, ok := err.(net.Error); ok {
 		if terr.Timeout() {
+			if conn != nil && conn.node != nil {
+				conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
+			}
 			aerr = newErrorAndWrap(err, types.TIMEOUT)
 		} else {
 			aerr = newErrorAndWrap(err, types.NETWORK_ERROR)
@@ -216,6 +219,7 @@ func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 		ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 	}
 
+	// the line should happen before .Close()
 	ctn.Close()
 
 	return total, aerr
@@ -266,6 +270,7 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 		ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 	}
 
+	// the line should happen before .Close()
 	ctn.Close()
 
 	return total, aerr

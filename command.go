@@ -2575,6 +2575,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 1) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
+			if cmd.node != nil && cmd.node.cluster != nil {
+				cmd.node.cluster.maxRetriesExceededCount.GetAndIncrement()
+			}
 			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandWasSent).setNode(cmd.node)
 		}
 
@@ -2788,6 +2791,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	}
 
 	// execution timeout
+	if cmd.node != nil && cmd.node.cluster != nil {
+		cmd.node.cluster.totalTimeoutExceededCount.GetAndIncrement()
+	}
 	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 	return errChain
 }
