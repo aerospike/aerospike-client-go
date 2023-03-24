@@ -1510,11 +1510,13 @@ func (clnt *Client) Stats() (map[string]interface{}, error) {
 	}
 
 	res["open-connections"] = clusterStats.ConnectionsOpen
-	res["total-nodes"] = len(clnt.cluster.GetNodes())
+	nodeCount := len(clnt.cluster.GetNodes())
+	res["total-nodes"] = nodeCount
 
 	aggstats := res["cluster-aggregated-stats"].(map[string]interface{})
 	aggstats["exceeded-max-retries"] = clnt.cluster.maxRetriesExceededCount.Get()
 	aggstats["exceeded-total-timeout"] = clnt.cluster.totalTimeoutExceededCount.Get()
+	aggstats["total-nodes"] = nodeCount
 
 	return res, nil
 }
