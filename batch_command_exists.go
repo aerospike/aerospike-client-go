@@ -106,6 +106,33 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 	return true, nil
 }
 
+func (cmd *batchCommandExists) directGet(client *Client) error {
+	var errs []error
+	var err error
+	for _, offset := range cmd.batch.offsets {
+		cmd.existsArray[offset], err = client.Exists(&cmd.policy.BasePolicy, cmd.keys[offset])
+		if err != nil {
+			// Key not found is an error for batch requests
+			if err == types.ErrKeyNotFound {
+				continue
+			}
+
+			if err == types.ErrFilteredOut {
+				cmd.filteredOutCnt++
+				continue
+			}
+
+			if cmd.policy.AllowPartialResults {
+				errs = append(errs, err)
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+	return mergeErrors(errs)
+}
+
 func (cmd *batchCommandExists) Execute() error {
 	return cmd.execute(cmd, true)
 }

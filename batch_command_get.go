@@ -220,6 +220,42 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expir
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
+func (cmd *batchCommandGet) directGet(client *Client) error {
+	var errs []error
+	for _, offset := range cmd.batch.offsets {
+		var err error
+		if cmd.objects == nil {
+			if (cmd.readAttr & _INFO1_NOBINDATA) == _INFO1_NOBINDATA {
+				cmd.records[offset], err = client.GetHeader(&cmd.policy.BasePolicy, cmd.keys[offset])
+			} else {
+				cmd.records[offset], err = client.Get(&cmd.policy.BasePolicy, cmd.keys[offset], cmd.binNames...)
+			}
+		} else {
+			err = client.getObjectDirect(&cmd.policy.BasePolicy, cmd.keys[offset], cmd.objects[offset])
+			cmd.objectsFound[offset] = err == nil
+		}
+		if err != nil {
+			// Key not found is an error for batch requests
+			if err == types.ErrKeyNotFound {
+				continue
+			}
+
+			if err == types.ErrFilteredOut {
+				cmd.filteredOutCnt++
+				continue
+			}
+
+			if cmd.policy.AllowPartialResults {
+				errs = append(errs, err)
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+	return mergeErrors(errs)
+}
+
 func (cmd *batchCommandGet) Execute() error {
 	return cmd.execute(cmd, true)
 }

@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/types"
+
 type batchIndexCommandGet struct {
 	batchCommandGet
 }
@@ -52,6 +54,37 @@ func (cmd *batchIndexCommandGet) cloneBatchCommand(batch *batchNode) batcher {
 
 func (cmd *batchIndexCommandGet) writeBuffer(ifc command) error {
 	return cmd.setBatchIndexRead(cmd.policy, cmd.indexRecords, cmd.batch)
+}
+
+func (cmd *batchIndexCommandGet) directGet(client *Client) error {
+	var errs []error
+	for _, br := range cmd.indexRecords {
+		var err error
+		if br.headerOnly() {
+			br.Record, err = client.GetHeader(&cmd.policy.BasePolicy, br.Key)
+		} else {
+			br.Record, err = client.Get(&cmd.policy.BasePolicy, br.Key, br.BinNames...)
+		}
+		if err != nil {
+			// Key not found is an error for batch requests
+			if err == types.ErrKeyNotFound {
+				continue
+			}
+
+			if err == types.ErrFilteredOut {
+				cmd.filteredOutCnt++
+				continue
+			}
+
+			if cmd.policy.AllowPartialResults {
+				errs = append(errs, err)
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+	return mergeErrors(errs)
 }
 
 func (cmd *batchIndexCommandGet) Execute() error {

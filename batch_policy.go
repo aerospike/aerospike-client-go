@@ -38,6 +38,17 @@ type BatchPolicy struct {
 	// The downside is extra goroutines will still need to be created (or taken from a goroutine pool).
 	ConcurrentNodes int // = 1
 
+	// DirectGetThreshold determines the maximum number of keys per node which would work around
+	// the batch request and would turn it into a direct get request.
+	// Batch requests with few keys per node can have increased latency, due to the way the server
+	// handles batch requests. Coverting those requests to direct get commands will be beneficial.
+	// Don't use values greater than 4, it will significantly degrade the performance.
+	//
+	// Values:
+	// <= 0: No threshold. Batch commands will always be used.
+	// > 0: Batch requests with this many or fewer keys will be converted to direct get requests sequencially.
+	DirectGetThreshold int // = 1
+
 	// Allow batch to be processed immediately in the server's receiving thread when the server
 	// deems it to be appropriate.  If false, the batch will always be processed in separate
 	// transaction goroutines.  This field is only relevant for the new batch index protocol.
@@ -69,6 +80,7 @@ type BatchPolicy struct {
 func NewBatchPolicy() *BatchPolicy {
 	return &BatchPolicy{
 		BasePolicy:          *NewPolicy(),
+		DirectGetThreshold:  1,
 		ConcurrentNodes:     1,
 		AllowInline:         true,
 		AllowPartialResults: false,

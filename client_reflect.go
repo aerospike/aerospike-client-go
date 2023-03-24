@@ -76,6 +76,22 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 	return command.Execute()
 }
 
+// getObjectDirect reads a record for specified key and puts the result into the provided object.
+// The policy can be used to specify timeouts.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) getObjectDirect(policy *BasePolicy, key *Key, rval *reflect.Value) error {
+	policy = clnt.getUsablePolicy(policy)
+
+	binNames := objectMappings.getFields(rval.Type())
+	command, err := newReadCommand(clnt.cluster, policy, key, binNames, nil)
+	if err != nil {
+		return err
+	}
+
+	command.object = rval
+	return command.Execute()
+}
+
 // BatchGetObjects reads multiple record headers and bins for specified keys in one batch request.
 // The returned objects are in positional order with the original key array order.
 // If a key is not found, the positional object will not change, and the positional found boolean will be false.

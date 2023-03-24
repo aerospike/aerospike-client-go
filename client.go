@@ -1565,7 +1565,13 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, c
 			newCmd := cmd.cloneBatchCommand(batchNode)
 			go func(cmd command) {
 				defer wg.Done()
-				err := cmd.Execute()
+				var err error
+				if policy.DirectGetThreshold > 0 && len(batchNode.offsets) <= policy.DirectGetThreshold {
+					// run direct get commands instead
+					err = newCmd.directGet(clnt)
+				} else {
+					err = cmd.Execute()
+				}
 				errm.Lock()
 				if err != nil {
 					errs = append(errs, err)
@@ -1587,7 +1593,13 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, c
 			go func(cmd command) {
 				defer sem.Release(1)
 				defer wg.Done()
-				err := cmd.Execute()
+				var err error
+				if policy.DirectGetThreshold > 0 && len(batchNode.offsets) <= policy.DirectGetThreshold {
+					// run direct get commands instead
+					err = newCmd.directGet(clnt)
+				} else {
+					err = cmd.Execute()
+				}
 				errm.Lock()
 				if err != nil {
 					errs = append(errs, err)

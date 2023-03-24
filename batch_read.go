@@ -63,3 +63,7 @@ func NewBatchReadHeader(key *Key) *BatchRead {
 func (br *BatchRead) String() string {
 	return fmt.Sprintf("%s: %v", br.Key, br.BinNames)
 }
+
+func (br *BatchRead) headerOnly() bool {
+	return br.BinNames == nil && !br.ReadAllBins
+}
