@@ -1,6 +1,24 @@
 # Change History
 
 
+## March 24 2023: v4.6.0
+  Major feature release. We recommend testing your app vigorously before deploying this version if yoiu depend on batch requests.
+
+  * **New Features**
+
+    - [CLIENT-2238] Convert batch calls with just a few keys per node in sub-batches to sequential Get requests. If the number keys for a sub-batch to a node is equal or less then the value set in `BatchPolicy.DirectGetThreshold`, the client use direct get instead of batch commands to reduce the load/latency on the server.
+    - [CLIENT-2240] Add more client statistics.  
+      - Adds the following statistics:
+        - "circuit-breaker-hits": Number of times circuit breaker was hit
+        - "connections-error-other": Connection errors other than timeouts
+        - "connections-error-timeout": Connection Timeout errors
+        - "connections-idle-dropped": The connection was idle and dropped
+        - "connections-pool-overflow": The command offered the connection to the pool, but the pool was full and the connection was closed
+        - "exceeded-max-retries": Number of transactions where exceeded maximum number of retries specified in the policy
+        - "exceeded-total-timeout": Number of transactions that exceeded the specified total timeout
+        - "total-nodes": Total number of nodes in the cluster
+
+
 ## May 28 2021: v4.5.2
   Minor fix release.
 
