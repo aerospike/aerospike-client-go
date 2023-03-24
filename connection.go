@@ -75,10 +75,28 @@ func connectionFinalizer(c *Connection) {
 }
 
 func errToTimeoutErr(conn *Connection, err error) error {
-	if err, ok := err.(net.Error); ok && err.Timeout() {
+	switch e := err.(type) {
+	case net.Error:
+		if e.Timeout() {
+			if conn != nil && conn.node != nil {
+				atomic.AddInt64(&conn.node.stats.ConnectionsTimeoutErrors, 1)
+			}
+		}
 		return types.ErrTimeout
+	case types.AerospikeError:
+		if e.ResultCode() == types.TIMEOUT {
+			if conn != nil && conn.node != nil {
+				atomic.AddInt64(&conn.node.stats.ConnectionsTimeoutErrors, 1)
+			}
+		}
+		return e
+	default:
+		if conn != nil && conn.node != nil {
+			atomic.AddInt64(&conn.node.stats.ConnectionsOtherErrors, 1)
+		}
+
+		return err
 	}
-	return err
 }
 
 // newConnection creates a connection on the network and returns the pointer
@@ -180,9 +198,11 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	}
 
+	// the line should happen before .Close()
+	err = errToTimeoutErr(ctn, err)
 	ctn.Close()
 
-	return total, errToTimeoutErr(ctn, err)
+	return total, err
 }
 
 // Read reads from connection buffer to the provided slice.
@@ -221,9 +241,11 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	}
 
+	// the line should happen before .Close()
+	err = errToTimeoutErr(ctn, err)
 	ctn.Close()
 
-	return total, errToTimeoutErr(ctn, err)
+	return total, err
 }
 
 // IsConnected returns true if the connection is not closed yet.

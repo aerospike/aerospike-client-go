@@ -680,6 +680,7 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 func (nd *Node) putConnectionWithHint(conn *Connection, hint byte) bool {
 	conn.refresh()
 	if !nd.active.Get() || !nd.connections.Offer(conn, hint) {
+		atomic.AddInt64(&nd.stats.ConnectionsPoolOverflow, 1)
 		conn.Close()
 		return false
 	}
@@ -1037,6 +1038,7 @@ func (nd *Node) errorCountWithinLimit() bool {
 // returns error if errorCount has gone above the threshold set in the policy
 func (nd *Node) validateErrorCount() error {
 	if !nd.errorCountWithinLimit() {
+		atomic.AddInt64(&nd.stats.CircuitBreakerHits, 1)
 		return types.NewAerospikeError(types.MAX_ERROR_RATE)
 	}
 	return nil

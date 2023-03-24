@@ -2056,6 +2056,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 				err = types.NewAerospikeError(ae.ResultCode(), fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err.Error()))
 			}
 
+			if cmd.node != nil && cmd.node.cluster != nil {
+				cmd.node.cluster.maxRetriesExceededCount.GetAndIncrement()
+			}
 			return setInDoubt(err, isRead, commandSentCounter)
 		}
 
@@ -2228,6 +2231,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 	}
 
 	// execution timeout
+	if cmd.node != nil && cmd.node.cluster != nil {
+		cmd.node.cluster.totalTimeoutExceededCount.GetAndIncrement()
+	}
 	return types.ErrTimeout
 }
 

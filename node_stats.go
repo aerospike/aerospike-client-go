@@ -20,53 +20,85 @@ import "sync/atomic"
 // These statistics are aggregated once per tend in the cluster object
 // and then are served to the end-user.
 type nodeStats struct {
-	ConnectionsAttempts   int64 `json:"connections-attempts"`
+	// Attempts to open a connection (failed + successful)
+	ConnectionsAttempts int64 `json:"connections-attempts"`
+	// Successful attempts to open a connection
 	ConnectionsSuccessful int64 `json:"connections-successful"`
-	ConnectionsFailed     int64 `json:"connections-failed"`
-	ConnectionsPoolEmpty  int64 `json:"connections-pool-empty"`
-	ConnectionsOpen       int64 `json:"open-connections"`
-	ConnectionsClosed     int64 `json:"closed-connections"`
-	TendsTotal            int64 `json:"tends-total"`
-	TendsSuccessful       int64 `json:"tends-successful"`
-	TendsFailed           int64 `json:"tends-failed"`
-	PartitionMapUpdates   int64 `json:"partition-map-updates"`
-	NodeAdded             int64 `json:"node-added-count"`
-	NodeRemoved           int64 `json:"node-removed-count"`
+	// Failed attempts to use a connection (includes all errors)
+	ConnectionsFailed int64 `json:"connections-failed"`
+	// Connection Timeout errors
+	ConnectionsTimeoutErrors int64 `json:"connections-error-timeout"`
+	// Connection errors other than timeouts
+	ConnectionsOtherErrors int64 `json:"connections-error-other"`
+	// Number of times circuit breaker was hit
+	CircuitBreakerHits int64 `json:"circuit-breaker-hits"`
+	// The command polled the connection pool, but no connections were in the pool
+	ConnectionsPoolEmpty int64 `json:"connections-pool-empty"`
+	// The command offered the connection to the pool, but the pool was full and the connection was closed
+	ConnectionsPoolOverflow int64 `json:"connections-pool-overflow"`
+	// The connection was idle and was dropped
+	ConnectionsIdleDropped int64 `json:"connections-idle-dropped"`
+	// Number of open connections at a given time
+	ConnectionsOpen int64 `json:"open-connections"`
+	// Number of connections that were closed, for any reason (idled out, errored out, etc)
+	ConnectionsClosed int64 `json:"closed-connections"`
+	// Total number of attempted tends (failed + success)
+	TendsTotal int64 `json:"tends-total"`
+	// Total number of successful tends
+	TendsSuccessful int64 `json:"tends-successful"`
+	// Total number of failed tends
+	TendsFailed int64 `json:"tends-failed"`
+	// Total number of partition map updates
+	PartitionMapUpdates int64 `json:"partition-map-updates"`
+	// Total number of times nodes were added to the client (not the same as actual nodes added. Network disruptions between client and server may cause a node being dropped and re-added client-side)
+	NodeAdded int64 `json:"node-added-count"`
+	// Total number of times nodes were removed from the client (not the same as actual nodes removed. Network disruptions between client and server may cause a node being dropped client-side)
+	NodeRemoved int64 `json:"node-removed-count"`
 }
 
 // latest returns the latest values to be used in aggregation and then resets the values
 func (ns *nodeStats) getAndReset() *nodeStats {
 	return &nodeStats{
-		ConnectionsAttempts:   atomic.SwapInt64(&ns.ConnectionsAttempts, 0),
-		ConnectionsSuccessful: atomic.SwapInt64(&ns.ConnectionsSuccessful, 0),
-		ConnectionsFailed:     atomic.SwapInt64(&ns.ConnectionsFailed, 0),
-		ConnectionsPoolEmpty:  atomic.SwapInt64(&ns.ConnectionsPoolEmpty, 0),
-		ConnectionsOpen:       atomic.SwapInt64(&ns.ConnectionsOpen, 0),
-		ConnectionsClosed:     atomic.SwapInt64(&ns.ConnectionsClosed, 0),
-		TendsTotal:            atomic.SwapInt64(&ns.TendsTotal, 0),
-		TendsSuccessful:       atomic.SwapInt64(&ns.TendsSuccessful, 0),
-		TendsFailed:           atomic.SwapInt64(&ns.TendsFailed, 0),
-		PartitionMapUpdates:   atomic.SwapInt64(&ns.PartitionMapUpdates, 0),
-		NodeAdded:             atomic.SwapInt64(&ns.NodeAdded, 0),
-		NodeRemoved:           atomic.SwapInt64(&ns.NodeRemoved, 0),
+		ConnectionsAttempts:      atomic.SwapInt64(&ns.ConnectionsAttempts, 0),
+		ConnectionsSuccessful:    atomic.SwapInt64(&ns.ConnectionsSuccessful, 0),
+		ConnectionsFailed:        atomic.SwapInt64(&ns.ConnectionsFailed, 0),
+		ConnectionsTimeoutErrors: atomic.SwapInt64(&ns.ConnectionsTimeoutErrors, 0),
+		ConnectionsOtherErrors:   atomic.SwapInt64(&ns.ConnectionsOtherErrors, 0),
+		CircuitBreakerHits:       atomic.SwapInt64(&ns.CircuitBreakerHits, 0),
+		ConnectionsPoolEmpty:     atomic.SwapInt64(&ns.ConnectionsPoolEmpty, 0),
+		ConnectionsPoolOverflow:  atomic.SwapInt64(&ns.ConnectionsPoolOverflow, 0),
+		ConnectionsIdleDropped:   atomic.SwapInt64(&ns.ConnectionsIdleDropped, 0),
+		ConnectionsOpen:          atomic.SwapInt64(&ns.ConnectionsOpen, 0),
+		ConnectionsClosed:        atomic.SwapInt64(&ns.ConnectionsClosed, 0),
+		TendsTotal:               atomic.SwapInt64(&ns.TendsTotal, 0),
+		TendsSuccessful:          atomic.SwapInt64(&ns.TendsSuccessful, 0),
+		TendsFailed:              atomic.SwapInt64(&ns.TendsFailed, 0),
+		PartitionMapUpdates:      atomic.SwapInt64(&ns.PartitionMapUpdates, 0),
+		NodeAdded:                atomic.SwapInt64(&ns.NodeAdded, 0),
+		NodeRemoved:              atomic.SwapInt64(&ns.NodeRemoved, 0),
 	}
 }
 
 // latest returns the latest values to be used in aggregation and then resets the values
 func (ns *nodeStats) clone() nodeStats {
 	return nodeStats{
-		ConnectionsAttempts:   atomic.LoadInt64(&ns.ConnectionsAttempts),
-		ConnectionsSuccessful: atomic.LoadInt64(&ns.ConnectionsSuccessful),
-		ConnectionsFailed:     atomic.LoadInt64(&ns.ConnectionsFailed),
-		ConnectionsPoolEmpty:  atomic.LoadInt64(&ns.ConnectionsPoolEmpty),
-		ConnectionsOpen:       atomic.LoadInt64(&ns.ConnectionsOpen),
-		ConnectionsClosed:     atomic.LoadInt64(&ns.ConnectionsClosed),
-		TendsTotal:            atomic.LoadInt64(&ns.TendsTotal),
-		TendsSuccessful:       atomic.LoadInt64(&ns.TendsSuccessful),
-		TendsFailed:           atomic.LoadInt64(&ns.TendsFailed),
-		PartitionMapUpdates:   atomic.LoadInt64(&ns.PartitionMapUpdates),
-		NodeAdded:             atomic.LoadInt64(&ns.NodeAdded),
-		NodeRemoved:           atomic.LoadInt64(&ns.NodeRemoved),
+		ConnectionsAttempts:      atomic.LoadInt64(&ns.ConnectionsAttempts),
+		ConnectionsSuccessful:    atomic.LoadInt64(&ns.ConnectionsSuccessful),
+		ConnectionsFailed:        atomic.LoadInt64(&ns.ConnectionsFailed),
+		ConnectionsTimeoutErrors: atomic.LoadInt64(&ns.ConnectionsTimeoutErrors),
+		ConnectionsOtherErrors:   atomic.LoadInt64(&ns.ConnectionsOtherErrors),
+		CircuitBreakerHits:       atomic.LoadInt64(&ns.CircuitBreakerHits),
+		ConnectionsPoolEmpty:     atomic.LoadInt64(&ns.ConnectionsPoolEmpty),
+		ConnectionsPoolOverflow:  atomic.LoadInt64(&ns.ConnectionsPoolOverflow),
+		ConnectionsIdleDropped:   atomic.LoadInt64(&ns.ConnectionsIdleDropped),
+		ConnectionsOpen:          atomic.LoadInt64(&ns.ConnectionsOpen),
+		ConnectionsClosed:        atomic.LoadInt64(&ns.ConnectionsClosed),
+		TendsTotal:               atomic.LoadInt64(&ns.TendsTotal),
+		TendsSuccessful:          atomic.LoadInt64(&ns.TendsSuccessful),
+		TendsFailed:              atomic.LoadInt64(&ns.TendsFailed),
+		PartitionMapUpdates:      atomic.LoadInt64(&ns.PartitionMapUpdates),
+		NodeAdded:                atomic.LoadInt64(&ns.NodeAdded),
+		NodeRemoved:              atomic.LoadInt64(&ns.NodeRemoved),
 	}
 }
 
@@ -74,7 +106,12 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	atomic.AddInt64(&ns.ConnectionsAttempts, newStats.ConnectionsAttempts)
 	atomic.AddInt64(&ns.ConnectionsSuccessful, newStats.ConnectionsSuccessful)
 	atomic.AddInt64(&ns.ConnectionsFailed, newStats.ConnectionsFailed)
+	atomic.AddInt64(&ns.ConnectionsTimeoutErrors, newStats.ConnectionsTimeoutErrors)
+	atomic.AddInt64(&ns.ConnectionsOtherErrors, newStats.ConnectionsOtherErrors)
+	atomic.AddInt64(&ns.CircuitBreakerHits, newStats.CircuitBreakerHits)
 	atomic.AddInt64(&ns.ConnectionsPoolEmpty, newStats.ConnectionsPoolEmpty)
+	atomic.AddInt64(&ns.ConnectionsPoolOverflow, newStats.ConnectionsPoolOverflow)
+	atomic.AddInt64(&ns.ConnectionsIdleDropped, newStats.ConnectionsIdleDropped)
 	atomic.AddInt64(&ns.ConnectionsOpen, newStats.ConnectionsOpen)
 	atomic.AddInt64(&ns.ConnectionsClosed, newStats.ConnectionsClosed)
 	atomic.AddInt64(&ns.TendsTotal, newStats.TendsTotal)

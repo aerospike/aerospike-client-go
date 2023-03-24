@@ -17,6 +17,7 @@ package aerospike
 import (
 	"runtime"
 	"sync"
+	"sync/atomic"
 )
 
 // singleConnectionHeap is a non-blocking LIFO heap.
@@ -131,6 +132,9 @@ func (h *singleConnectionHeap) DropIdleTail() bool {
 		h.tail = (h.tail + 1) % h.size
 		h.data[h.tail] = nil
 		h.full = false
+		if conn.node != nil {
+			atomic.AddInt64(&conn.node.stats.ConnectionsIdleDropped, 1)
+		}
 		conn.Close()
 
 		return true

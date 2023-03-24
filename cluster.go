@@ -57,6 +57,9 @@ type Cluster struct {
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
 
+	maxRetriesExceededCount   iatomic.Int // number of times the commands on this cluster were exceeded the specifiedmax retries
+	totalTimeoutExceededCount iatomic.Int // number of times the commands on this cluster were exceeded the specified total timeout
+
 	nodeIndex    uint64 // only used via atomic operations
 	replicaIndex uint64 // only used via atomic operations
 
