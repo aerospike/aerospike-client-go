@@ -1,7 +1,17 @@
 # Change History
 
 
+## March 30 2023: v4.6.1
+  Hotfix release. We recommend updating to this version if you are using v4.6.0.
+
+  * **Fixes**
+
+    - [CLIENT-2268] Fix memory issue with the v4.6.0 release due to a miscaptured pointer in closure.
+    - Set `BatchPolicy.DirectGetThreshold = 0` by default, disabling the feature unless manually enabled.
+
 ## March 24 2023: v4.6.0
+  NOTICE: This version has a major bug if the `BatchPolicy.DirectGetThreshold` is set to values larger than 0. Update to v4.6.1 if you are using Batch commands.
+
   Major feature release. We recommend testing your app vigorously before deploying this version if yoiu depend on batch requests.
 
   * **New Features**
