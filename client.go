@@ -1568,9 +1568,10 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, c
 
 	wg.Add(len(batchNodes))
 	if policy.ConcurrentNodes <= 0 {
-		for _, batchNode := range batchNodes {
-			newCmd := cmd.cloneBatchCommand(batchNode)
-			go func(cmd command) {
+		for i := range batchNodes {
+			bNode := batchNodes[i]
+			newCmd := cmd.cloneBatchCommand(bNode)
+			go func(cmd batcher, batchNode *batchNode) {
 				defer wg.Done()
 				var err error
 				if policy.DirectGetThreshold > 0 && len(batchNode.offsets) <= policy.DirectGetThreshold {
@@ -1585,19 +1586,20 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, c
 				}
 				filteredOut += cmd.(batcher).filteredOut()
 				errm.Unlock()
-			}(newCmd)
+			}(newCmd, bNode)
 		}
 	} else {
 		sem := semaphore.NewWeighted(int64(policy.ConcurrentNodes))
 		ctx := context.Background()
 
-		for _, batchNode := range batchNodes {
+		for i := range batchNodes {
 			if err := sem.Acquire(ctx, 1); err != nil {
 				logger.Logger.Error("Constraint Semaphore failed for Batch: %s", err.Error())
 			}
 
-			newCmd := cmd.cloneBatchCommand(batchNode)
-			go func(cmd command) {
+			bNode := batchNodes[i]
+			newCmd := cmd.cloneBatchCommand(bNode)
+			go func(cmd batcher, batchNode *batchNode) {
 				defer sem.Release(1)
 				defer wg.Done()
 				var err error
@@ -1613,7 +1615,7 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, c
 				}
 				filteredOut += cmd.(batcher).filteredOut()
 				errm.Unlock()
-			}(newCmd)
+			}(newCmd, bNode)
 		}
 	}
 

@@ -14,7 +14,9 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/types"
+import (
+	"github.com/aerospike/aerospike-client-go/types"
+)
 
 type batchIndexCommandGet struct {
 	batchCommandGet
@@ -58,7 +60,8 @@ func (cmd *batchIndexCommandGet) writeBuffer(ifc command) error {
 
 func (cmd *batchIndexCommandGet) directGet(client *Client) error {
 	var errs []error
-	for _, br := range cmd.indexRecords {
+	for _, offset := range cmd.batch.offsets {
+		br := cmd.indexRecords[offset]
 		var err error
 		if br.headerOnly() {
 			br.Record, err = client.GetHeader(&cmd.policy.BasePolicy, br.Key)
