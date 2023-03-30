@@ -47,7 +47,7 @@ type BatchPolicy struct {
 	// Values:
 	// <= 0: No threshold. Batch commands will always be used.
 	// > 0: Batch requests with this many or fewer keys will be converted to direct get requests sequencially.
-	DirectGetThreshold int // = 1
+	DirectGetThreshold int // = 0
 
 	// Allow batch to be processed immediately in the server's receiving thread when the server
 	// deems it to be appropriate.  If false, the batch will always be processed in separate
@@ -80,7 +80,7 @@ type BatchPolicy struct {
 func NewBatchPolicy() *BatchPolicy {
 	return &BatchPolicy{
 		BasePolicy:          *NewPolicy(),
-		DirectGetThreshold:  1,
+		DirectGetThreshold:  0,
 		ConcurrentNodes:     1,
 		AllowInline:         true,
 		AllowPartialResults: false,
