@@ -56,7 +56,7 @@ func (bc *bufferedConn) buf() []byte {
 func (bc *bufferedConn) shiftContentToHead(length int) {
 	// shift data to the head of the byte slice
 	if length > bc.emptyCap() {
-		buf := make([]byte, bc.len()+length)
+		buf := bigBuffPool.Get(bc.len() + length)
 		copy(buf, bc.buf()[bc.head:bc.tail])
 		bc.conn.dataBuffer = buf
 

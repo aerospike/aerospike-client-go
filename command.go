@@ -106,6 +106,10 @@ const (
 	_AS_MSG_TYPE_COMPRESSED    int64 = 4
 )
 
+var (
+	bigBuffPool = types.NewBufferPool()
+)
+
 // command interface describes all commands available
 type command interface {
 	getPolicy(ifc command) Policy
@@ -1934,7 +1938,7 @@ func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) error {
 		cmd.dataBuffer = cmd.dataBuffer[:size]
 	} else {
 		// not enough space
-		cmd.dataBuffer = make([]byte, size)
+		cmd.dataBuffer = bigBuffPool.Get(size)
 	}
 
 	// The trick here to keep a ref to the buffer, and set the buffer itself
@@ -2214,12 +2218,16 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			return setInDoubt(err, isRead, commandSentCounter)
 		}
 
-		// in case it has grown and re-allocated
-		if len(cmd.dataBufferCompress) > len(cmd.dataBuffer) {
-			cmd.conn.dataBuffer = cmd.dataBufferCompress
-		} else {
-			cmd.conn.dataBuffer = cmd.dataBuffer
+		// in case it has grown and re-allocated, put it back in the pool
+		if len(cmd.dataBufferCompress) > DefaultBufferSize && cmd.dataBufferCompress != cmd.conn.origDataBuffer {
+			bigBuffPool.Put(cmd.dataBufferCompress)
+		} else if len(cmd.dataBuffer) > DefaultBufferSize && cmd.dataBuffer != cmd.conn.origDataBuffer {
+			bigBuffPool.Put(cmd.dataBuffer)
 		}
+
+		cmd.dataBuffer = nil
+		cmd.dataBufferCompress = nil
+		cmd.conn.dataBuffer = cmd.conn.origDataBuffer
 
 		// Put connection back in pool.
 		// cmd.node.PutConnection(cmd.conn)

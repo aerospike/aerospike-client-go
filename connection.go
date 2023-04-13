@@ -32,6 +32,9 @@ import (
 // DefaultBufferSize specifies the initial size of the connection buffer when it is created.
 // If not big enough (as big as the average record), it will be reallocated to size again
 // which will be more expensive.
+// This value should not be changed after connecting to a database, otherwise there is a chance
+// of the original connection buffers ending up in the buffer pool and bveing simultaniously
+// used both from the pool and on the original connection.
 var DefaultBufferSize = 64 * 1024 // 64 KiB
 
 // bufPool reuses the data buffers to remove pressure from
@@ -59,6 +62,12 @@ type Connection struct {
 
 	// to avoid having a buffer pool and contention
 	dataBuffer []byte
+
+	// This is a reference to the original data buffer.
+	// After a big buffer is used temporarily, we will use
+	// this field to reset the dataBuffer field to the original
+	// smaller buffer.
+	origDataBuffer []byte
 
 	compressed bool
 	inflater   io.ReadCloser
@@ -105,6 +114,8 @@ func errToTimeoutErr(conn *Connection, err error) error {
 // an error will be returned
 func newConnection(address string, timeout time.Duration) (*Connection, error) {
 	newConn := &Connection{dataBuffer: bufPool.Get().([]byte)}
+	newConn.origDataBuffer = newConn.dataBuffer
+
 	runtime.SetFinalizer(newConn, connectionFinalizer)
 
 	// don't wait indefinitely
@@ -323,6 +334,7 @@ func (ctn *Connection) Close() {
 			}
 
 			ctn.dataBuffer = nil
+			ctn.origDataBuffer = nil
 			ctn.node = nil
 		}
 	})
@@ -433,6 +445,7 @@ func (ctn *Connection) refresh() {
 	}
 	ctn.compressed = false
 	ctn.inflater = nil
+	ctn.dataBuffer = ctn.origDataBuffer
 }
 
 // initInflater sets up the zlib inflater to read compressed data from the connection

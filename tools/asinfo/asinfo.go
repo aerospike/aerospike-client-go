@@ -19,7 +19,6 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
 	as "github.com/aerospike/aerospike-client-go"
 )
@@ -47,19 +46,13 @@ func main() {
 	*value = strings.Trim(*value, " ")
 
 	// connect to the host
-	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+	conn, err := as.NewConnection(clientPolicy, as.NewHost(*host, *port))
 	dieIfError(err)
 
-	node := client.GetNodes()[0]
-	conn, err := node.GetConnection(time.Second)
-	dieIfError(err)
+	defer conn.Close()
 
 	infoMap, err := as.RequestInfo(conn, *value)
-	dieIfError(err, func() {
-		node.InvalidateConnection(conn)
-	})
-
-	node.PutConnection(conn)
+	dieIfError(err)
 
 	if len(infoMap) == 0 {
 		log.Printf("Query successful, no information for -v \"%s\"\n\n", *value)
