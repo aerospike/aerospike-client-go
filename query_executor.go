@@ -70,20 +70,3 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 	}
 
 }
-
-func (clnt *Client) queryNodes(policy *QueryPolicy, recordset *Recordset, statement *Statement, nodes ...*Node) {
-	maxConcurrentNodes := policy.MaxConcurrentNodes
-	if maxConcurrentNodes <= 0 {
-		maxConcurrentNodes = len(nodes)
-	}
-
-	weg := newWeightedErrGroup(maxConcurrentNodes)
-	weg.f = func() { recordset.signalEnd() }
-	for _, node := range nodes {
-		cmd := newQueryRecordCommand(node, policy, statement, recordset)
-		weg.execute(cmd)
-	}
-
-	// skip the wg.wait, no need to sync here; Recordset will do the sync
-	// wg.wait
-}

@@ -1052,21 +1052,7 @@ func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, p
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset, Error) {
-	if statement.Filter == nil {
-		return clnt.QueryPartitions(policy, statement, nil)
-	}
-
-	policy = clnt.getUsableQueryPolicy(policy)
-	nodes := clnt.cluster.GetNodes()
-	if len(nodes) == 0 {
-		return nil, ErrClusterIsEmpty.err()
-	}
-
-	// results channel must be async for performance
-	recordset := newRecordset(policy.RecordQueueSize, len(nodes))
-	clnt.queryNodes(policy, recordset, statement, nodes...)
-
-	return recordset, nil
+	return clnt.QueryPartitions(policy, statement, nil)
 }
 
 // QueryNode executes a query on a specific node and returns a recordset.
@@ -1076,17 +1062,7 @@ func (clnt *Client) Query(policy *QueryPolicy, statement *Statement) (*Recordset
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
-	if statement.Filter == nil {
-		return clnt.queryNodePartitions(policy, node, statement)
-	}
-
-	policy = clnt.getUsableQueryPolicy(policy)
-
-	// results channel must be async for performance
-	recordset := newRecordset(policy.RecordQueueSize, 1)
-	clnt.queryNodes(policy, recordset, statement, node)
-
-	return recordset, nil
+	return clnt.queryNodePartitions(policy, node, statement)
 }
 
 func (clnt *Client) queryNodePartitions(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
