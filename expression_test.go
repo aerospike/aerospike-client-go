@@ -369,6 +369,19 @@ var _ = gg.Describe("Expression Filters", func() {
 				count := countResults(rs)
 				gm.Expect(count).To(gm.Equal(100))
 			})
+
+			gg.It("ExpMapReturnType must work", func() {
+				rs := runQuery(
+					as.ExpMapGetByValue(
+						as.MapReturnType.EXISTS,
+						as.ExpStringVal("test"),
+						as.ExpMapBin("bin6"),
+					),
+					set,
+				)
+				count := countResults(rs)
+				gm.Expect(count).To(gm.Equal(100))
+			})
 		})
 
 		var _ = gg.Context("Logical Ops", func() {

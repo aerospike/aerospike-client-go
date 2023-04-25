@@ -139,6 +139,10 @@ var _ = gg.Describe("CDT List Test", func() {
 			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByValueRangeOp(cdtBinName, 5, 9, as.ListReturnTypeIndex))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(cdtListRes.Bins[cdtBinName]).To(gm.Equal([]interface{}{4, 5, 6, 7}))
+
+			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetByValueRangeOp(cdtBinName, 5, 9, as.ListReturnTypeExists))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(cdtListRes.Bins[cdtBinName]).To(gm.Equal(true))
 		})
 
 		gg.It("should Get by index", func() {

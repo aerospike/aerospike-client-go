@@ -172,12 +172,18 @@ var MapReturnType = struct {
 	// EXISTS returns true if count > 0.
 	EXISTS mapReturnType
 
+	// UNORDERED_MAP returns an unordered map.
+	UNORDERED_MAP mapReturnType
+
+	// ORDERED_MAP returns an ordered map.
+	ORDERED_MAP mapReturnType
+
 	// INVERTED will invert meaning of map command and return values.  For example:
 	// MapRemoveByKeyRange(binName, keyBegin, keyEnd, MapReturnType.KEY | MapReturnType.INVERTED)
 	// With the INVERTED flag enabled, the keys outside of the specified key range will be removed and returned.
 	INVERTED mapReturnType
 }{
-	0, 1, 2, 3, 4, 5, 6, 7, 8, 13, 0x10000,
+	0, 1, 2, 3, 4, 5, 6, 7, 8, 13, 16, 17, 0x10000,
 }
 
 // Unique key map write type.
