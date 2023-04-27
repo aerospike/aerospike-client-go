@@ -35,6 +35,10 @@ type Error interface {
 	// provided codes.
 	Matches(rcs ...types.ResultCode) bool
 
+	// IsInDoubt signifies that the write operation may have gone through on the server
+	// but the client is not able to confirm that due an error.
+	IsInDoubt() bool
+
 	// resultCode returns the error result code.
 	resultCode() types.ResultCode
 
@@ -45,9 +49,10 @@ type Error interface {
 	Trace() string
 
 	iter(int) Error
-	setInDoubt(bool, int) Error
+	setInDoubt(bool, bool) Error
 	setNode(*Node) Error
 	markInDoubt() Error
+	markInDoubtIf(bool) Error
 	wrap(error) Error
 }
 
@@ -57,22 +62,29 @@ type Error interface {
 // they are a net.Timeout error. Refer to errors_test.go for examples.
 // To be able to check for error type, you could use the idiomatic
 // errors.Is and errors.As patterns:
-//   if errors.Is(err, as.ErrTimeout) {
-//       ...
-//   }
+//
+//	if errors.Is(err, as.ErrTimeout) {
+//	    ...
+//	}
+//
 // or
-//   if errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR}) {
-//       ...
-//   }
+//
+//	if errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR}) {
+//	    ...
+//	}
+//
 // or
-//   if err.Matches(ast.TIMEOUT, ast.NETWORK_ERROR, ast.PARAMETER_ERROR) {
-//       ...
-//   }
+//
+//	if err.Matches(ast.TIMEOUT, ast.NETWORK_ERROR, ast.PARAMETER_ERROR) {
+//	    ...
+//	}
+//
 // or
-//   ae := &as.AerospikeError{}
-//   if errors.As(err, &ae) {
-//       println(ae.ResultCode)
-//   }
+//
+//	ae := &as.AerospikeError{}
+//	if errors.As(err, &ae) {
+//	    println(ae.ResultCode)
+//	}
 type AerospikeError struct {
 	wrapped error
 
@@ -132,8 +144,8 @@ func newCommonError(e error, messages ...string) Error {
 // SetInDoubt sets whether it is possible that the write transaction may have completed
 // even though this error was generated.  This may be the case when a
 // client error occurs (like timeout) after the command was sent to the server.
-func (ase *AerospikeError) setInDoubt(isRead bool, commandSentCounter int) Error {
-	if !isRead && (commandSentCounter > 1 || (commandSentCounter == 1 && (ase.ResultCode == types.TIMEOUT || ase.ResultCode <= 0))) {
+func (ase *AerospikeError) setInDoubt(isRead bool, commandWasSent bool) Error {
+	if !isRead && commandWasSent {
 		ase.InDoubt = true
 	}
 	return ase
@@ -146,6 +158,11 @@ func (ase *AerospikeError) setNode(node *Node) Error {
 
 func (ase *AerospikeError) markInDoubt() Error {
 	ase.InDoubt = true
+	return ase
+}
+
+func (ase *AerospikeError) markInDoubtIf(inDoubt bool) Error {
+	ase.InDoubt = inDoubt
 	return ase
 }
 
@@ -175,7 +192,7 @@ func (ase *AerospikeError) Trace() string {
 // Error implements the error interface
 func (ase *AerospikeError) Error() string {
 	const cErr = "ResultCode: %s, Iteration: %d, InDoubt: %t, Node: %s: %s"
-	const cErrNL = cErr + "\n%s"
+	const cErrNL = cErr + "\n  %s"
 	if ase.wrapped != nil {
 		return fmt.Sprintf(cErrNL, ase.ResultCode.String(), ase.Iteration, ase.InDoubt, ase.Node, ase.msg, ase.wrapped.Error())
 	}
@@ -191,8 +208,15 @@ func (ase *AerospikeError) iter(i int) Error {
 	if ase == nil {
 		return nil
 	}
-	ase.Iteration = i
+	// TODO: Make iteration 1-based
+	ase.Iteration = i - 1
 	return ase
+}
+
+// IsInDoubt signifies that the write operation may have gone through on the server
+// but the client is not able to confirm that due an error.
+func (ase *AerospikeError) IsInDoubt() bool {
+	return ase.InDoubt
 }
 
 // Matches returns true if the error or any of its wrapped errors contains

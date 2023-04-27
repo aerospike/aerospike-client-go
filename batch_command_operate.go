@@ -62,7 +62,6 @@ func (cmd *batchCommandOperate) writeBuffer(ifc command) Error {
 func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	//Parse each message response and add it to the result array
 	cmd.dataOffset = 0
-	firstRecord := true
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
 			return false, err
@@ -94,19 +93,50 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 
 			// If it looks like the error is on the first record and the message is marked as last part,
 			// the error is for the whole command and not just for the first batchIndex
-			if firstRecord && (info3&_INFO3_LAST) == _INFO3_LAST {
-				return false, newError(resultCode)
+			if resultCode == types.BATCH_DISABLED || resultCode == types.BATCH_MAX_REQUESTS_EXCEEDED || resultCode == types.BATCH_QUEUES_FULL {
+				return false, newError(resultCode).setNode(cmd.node)
 			}
 
-			cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+			if resultCode == types.UDF_BAD_RESPONSE {
+				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
+				if err != nil {
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+					return false, err
+				}
+
+				var msg interface{}
+				if rec != nil {
+					msg = rec.Bins["FAILURE"]
+				}
+
+				// Need to store record because failure bin contains an error message.
+				cmd.records[batchIndex].setRecord(rec)
+				if msg, ok := msg.(string); ok && len(msg) > 0 {
+					cmd.records[batchIndex].setErrorWithMsg(cmd.node, resultCode, msg, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+				} else {
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+				}
+
+				// If cmd is the end marker of the response, do not proceed further
+				if (info3 & _INFO3_LAST) == _INFO3_LAST {
+					return false, nil
+				}
+				continue
+			}
+
+			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+
+			// If cmd is the end marker of the response, do not proceed further
+			if (info3 & _INFO3_LAST) == _INFO3_LAST {
+				return false, nil
+			}
 			continue
 		}
 
 		if resultCode == 0 {
-			firstRecord = false
 			rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
 			if err != nil {
-				cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+				cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
 				return false, err
 			}
 			cmd.records[batchIndex].setRecord(rec)

@@ -42,7 +42,8 @@ type BatchRecordIfc interface {
 
 	prepare()
 	setRecord(record *Record)
-	setError(resultCode types.ResultCode, inDoubt bool)
+	setError(node *Node, resultCode types.ResultCode, inDoubt bool)
+	setErrorWithMsg(node *Node, resultCode types.ResultCode, msg string, inDoubt bool)
 	chainError(err Error)
 	String() string
 	getType() batchRecordType
@@ -129,9 +130,17 @@ func (br *BatchRecord) setRecord(record *Record) {
 }
 
 // Set error result. For internal use only.
-func (br *BatchRecord) setError(resultCode types.ResultCode, inDoubt bool) {
+func (br *BatchRecord) setError(node *Node, resultCode types.ResultCode, inDoubt bool) {
 	br.ResultCode = resultCode
 	br.InDoubt = inDoubt
+	br.chainError(newError(br.ResultCode).setNode(node).markInDoubtIf(inDoubt))
+}
+
+// Set error result. For internal use only.
+func (br *BatchRecord) setErrorWithMsg(node *Node, resultCode types.ResultCode, msg string, inDoubt bool) {
+	br.ResultCode = resultCode
+	br.InDoubt = inDoubt
+	br.Err = newError(br.ResultCode, msg).setNode(node).markInDoubtIf(inDoubt)
 }
 
 // String implements the Stringer interface.

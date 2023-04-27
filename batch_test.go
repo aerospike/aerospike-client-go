@@ -17,6 +17,8 @@ package aerospike_test
 import (
 	"math"
 	"math/rand"
+	"time"
+	"strings"
 
 	as "github.com/aerospike/aerospike-client-go/v6"
 	"github.com/aerospike/aerospike-client-go/v6/types"
@@ -173,7 +175,7 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(op2.BatchRec().Record.Bins).To(gm.Equal(as.BinMap{}))
 					gm.Expect(op2.BatchRec().InDoubt).To(gm.BeFalse())
 
-					gm.Expect(op3.BatchRec().Err).ToNot(gm.HaveOccurred())
+					gm.Expect(op3.BatchRec().Err).To(gm.HaveOccurred())
 					gm.Expect(op3.BatchRec().ResultCode).To(gm.Equal(types.KEY_NOT_FOUND_ERROR))
 					gm.Expect(op3.BatchRec().Record).To(gm.BeNil())
 					gm.Expect(op3.BatchRec().InDoubt).To(gm.BeFalse())
@@ -403,8 +405,127 @@ var _ = gg.Describe("Aerospike", func() {
 
 				bp.RespondAllKeys = true
 				err = client.BatchOperate(bp, batchRecords)
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(types.INVALID_NAMESPACE)).To(gm.BeTrue())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				gm.Expect(batchRecords[0].BatchRec().Err.Matches(types.INVALID_NAMESPACE)).To(gm.BeTrue())
+				gm.Expect(batchRecords[0].BatchRec().ResultCode).To(gm.Equal(types.INVALID_NAMESPACE))
+
+				gm.Expect(batchRecords[1].BatchRec().Err).To(gm.BeNil())
+				gm.Expect(batchRecords[1].BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(batchRecords[1].BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1_str": nil}))
+
+				gm.Expect(batchRecords[2].BatchRec().Err).To(gm.BeNil())
+				gm.Expect(batchRecords[2].BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(batchRecords[2].BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1_str": nil}))
+
+				gm.Expect(batchRecords[3].BatchRec().Err.Matches(types.INVALID_NAMESPACE)).To(gm.BeTrue())
+				gm.Expect(batchRecords[3].BatchRec().ResultCode).To(gm.Equal(types.INVALID_NAMESPACE))
+
+				gm.Expect(batchRecords[4].BatchRec().Err).To(gm.BeNil())
+				gm.Expect(batchRecords[4].BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(batchRecords[4].BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1_str": "aa"}))
+
+				gm.Expect(batchRecords[5].BatchRec().Err).To(gm.BeNil())
+				gm.Expect(batchRecords[5].BatchRec().ResultCode).To(gm.Equal(types.OK))
+				gm.Expect(batchRecords[5].BatchRec().Record.Bins).To(gm.Equal(as.BinMap{"bin1_str": "aaa"}))
+			})
+
+			gg.It("must return correct errors", func() {
+
+				client.Truncate(nil, ns, set, nil)
+
+				udf := `function wait_and_update(rec, bins, n)
+						    info("WAIT_AND_WRITE BEGIN")
+						    sleep(n)
+						    info("WAIT FINISHED")
+						    if bins ~= nil then
+						        for b, bv in map.pairs(bins) do
+						            rec[b] = bv
+						        end
+						    end
+						    status = aerospike:update(rec)
+						    return status
+						end
+
+						function rec_create(rec, bins)
+						    if bins ~= nil then
+						        for b, bv in map.pairs(bins) do
+						            rec[b] = bv
+						        end
+						    end
+						    status = aerospike:create(rec)
+						    return status
+						end`
+
+				task, err := client.RegisterUDF(nil, []byte(udf), "test_ops.lua", as.LUA)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				err = <-task.OnComplete()
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				var batchRecords []as.BatchRecordIfc
+				for i := 0; i < 100; i++ {
+					key, _ := as.NewKey(ns, set+"1", i)
+					client.PutBins(nil, key, as.NewBin("i", 1))
+
+					bin := make(map[string]int, 0)
+					bin["bin"] = i
+					batchRecords = append(batchRecords,
+						as.NewBatchUDF(nil, key, "test_ops", "wait_and_update", as.NewValue(bin), as.NewValue(2)),
+					)
+				}
+
+				bp := as.NewBatchPolicy()
+				bp.TotalTimeout = 10000 * time.Millisecond
+				bp.SocketTimeout = 1000 * time.Millisecond
+				bp.MaxRetries = 5
+				err = client.BatchOperate(bp, batchRecords)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				for _, bri := range batchRecords {
+					br := bri.BatchRec()
+					gm.Expect(br.InDoubt).To(gm.BeTrue())
+					gm.Expect(br.ResultCode).To(gm.Equal(types.UDF_BAD_RESPONSE))
+					gm.Expect(br.Err.Matches(types.UDF_BAD_RESPONSE)).To(gm.Equal(true))
+					gm.Expect(br.Err.IsInDoubt()).To(gm.Equal(true))
+				}
+
+				if nsInfo(ns, "storage-engine") == "device" {
+					writeBlockSize := 1048576
+					bigBin := make(map[string]string, 0)
+					bigBin["big_bin"] = strings.Repeat("a", writeBlockSize)
+					smallBin := make(map[string]string, 0)
+					smallBin["small_bin"] = strings.Repeat("a", 1000)
+					key1, _ := as.NewKey(ns, set, 0)
+					key2, _ := as.NewKey(ns, set, 1)
+					key3, _ := as.NewKey(ns+"1", set, 2)
+					batchRecords = []as.BatchRecordIfc{
+						as.NewBatchUDF(nil, key1, "test_ops", "rec_create", as.NewValue(bigBin)),
+						as.NewBatchUDF(nil, key2, "test_ops", "rec_create", as.NewValue(bigBin)),
+						as.NewBatchUDF(nil, key3, "test_ops", "rec_create", as.NewValue(smallBin)),
+					}
+
+					err = client.BatchOperate(nil, batchRecords)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+
+					br := batchRecords[0].BatchRec()
+					gm.Expect(br.Err.IsInDoubt()).To(gm.BeTrue())
+					gm.Expect(br.ResultCode).To(gm.Equal(types.RECORD_TOO_BIG))
+					gm.Expect(br.Err.Matches(types.RECORD_TOO_BIG)).To(gm.Equal(true))
+					gm.Expect(br.Err.IsInDoubt()).To(gm.Equal(true))
+
+					br = batchRecords[1].BatchRec()
+					gm.Expect(br.Err.IsInDoubt()).To(gm.BeTrue())
+					gm.Expect(br.ResultCode).To(gm.Equal(types.RECORD_TOO_BIG))
+					gm.Expect(br.Err.Matches(types.RECORD_TOO_BIG)).To(gm.Equal(true))
+					gm.Expect(br.Err.IsInDoubt()).To(gm.Equal(true))
+
+					br = batchRecords[2].BatchRec()
+					gm.Expect(br.Err.IsInDoubt()).To(gm.BeFalse())
+					gm.Expect(br.ResultCode).To(gm.Equal(types.INVALID_NAMESPACE))
+					gm.Expect(br.Err.Matches(types.INVALID_NAMESPACE)).To(gm.Equal(true))
+					gm.Expect(br.Err.IsInDoubt()).To(gm.Equal(false))
+				}
 			})
 
 			gg.It("must return the result with same ordering", func() {

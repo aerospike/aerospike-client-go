@@ -131,7 +131,7 @@ type command interface {
 	prepareRetry(ifc command, isTimeout bool) bool
 
 	execute(ifc command, isRead bool) Error
-	executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) Error
+	executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations int, commandWasSent bool) Error
 
 	canPutConnBack() bool
 
@@ -162,6 +162,7 @@ type baseCommand struct {
 	compressed bool
 
 	commandSentCounter int
+	commandWasSent     bool
 }
 
 // Writes the command for write operations
@@ -2526,20 +2527,24 @@ func (cmd *baseCommand) compressedSize() int {
 	return int(size)
 }
 
-func (cmd *baseCommand) batchInDoubt(isWrite bool, commandSentCounter int) bool {
-	return isWrite && commandSentCounter > 1
+func (cmd *baseCommand) batchInDoubt(isWrite bool, commandWasSent bool) bool {
+	return isWrite && commandWasSent
 }
 
-////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+//
+//	Execute
+//
+///////////////////////////////////////////////////////////////////////////////
 
 func (cmd *baseCommand) execute(ifc command, isRead bool) Error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	deadline := policy.deadline()
 
-	return cmd.executeAt(ifc, policy, isRead, deadline, -1, 0)
+	return cmd.executeAt(ifc, policy, isRead, deadline, -1, false)
 }
 
-func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) (errChain Error) {
+func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations int, commandWasSent bool) (errChain Error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
@@ -2549,7 +2554,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 	var err Error
 
-	cmd.commandSentCounter = iterations
+	cmd.commandWasSent = cmd.commandWasSent || commandWasSent
 
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
@@ -2557,8 +2562,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		loopCount++
 
 		// too many retries
-		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 0) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
-			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(isRead, commandSentCounter).setNode(cmd.node)
+		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 1) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
+			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(isRead, cmd.commandWasSent).setNode(cmd.node)
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -2578,7 +2583,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
-					alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, deadline, cmd.commandSentCounter, commandSentCounter)
+					alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, deadline, cmd.commandSentCounter, commandWasSent)
 					if alreadyRetried {
 						// Batch was retried in separate subcommands. Complete this command.
 						if err != nil {
@@ -2686,12 +2691,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 		}
 
-		// if cmd, ok := ifc.(*operateCommand); ok {
-		// 	println("Writing...")
-		// 	ioutil.WriteFile("dump_not_ok"+strconv.Itoa(int(time.Now().UnixNano())), []byte(hex.Dump(cmd.dataBuffer[:cmd.dataOffset])), 0644)
-		// }
-
 		// Send command.
+		cmd.commandWasSent = true
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 		if err != nil {
 			// chain the errors
@@ -2710,7 +2711,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
 		}
-		commandSentCounter++
 
 		// Parse results.
 		err = ifc.parseResult(ifc, cmd.conn)
@@ -2752,7 +2752,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 				cmd.conn = nil
 			}
 
-			return errChain.setInDoubt(isRead, commandSentCounter)
+			return errChain.setInDoubt(isRead, commandWasSent)
 		}
 
 		// in case it has grown and re-allocated
@@ -2763,7 +2763,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		}
 
 		// Put connection back in pool.
-		// cmd.node.PutConnection(cmd.conn)
 		ifc.putConnection(cmd.conn)
 
 		// command has completed successfully. Exit method.

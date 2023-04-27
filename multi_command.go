@@ -128,7 +128,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 	cmd.bc = newBufferedConn(conn, 0)
 	for status {
 		if err = cmd.conn.initInflater(false, 0); err != nil {
-			return newError(types.PARSE_ERROR, "Error setting up zlib inflater:", err.Error())
+			return newError(types.PARSE_ERROR, "Error setting up zlib inflater:", err.Error()).setNode(cmd.node)
 		}
 		cmd.bc.reset(8)
 
@@ -152,7 +152,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 
 			receiveSize = int(Buffer.BytesToInt64(cmd.dataBuffer, 0)) - 8
 			if err = cmd.conn.initInflater(true, compressedSize-8); err != nil {
-				return newError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize-8, err.Error()))
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize-8, err.Error())).setNode(cmd.node)
 			}
 
 			// read the first 8 bytes
@@ -215,7 +215,7 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64) (*Key, Error)
 			setName = string(cmd.dataBuffer[1 : size+1])
 		case KEY:
 			if userKey, err = bytesToKeyValue(int(cmd.dataBuffer[1]), cmd.dataBuffer, 2, size-1); err != nil {
-				return nil, err
+				return nil, err.setNode(cmd.node)
 			}
 		case BVAL_ARRAY:
 			*bval = Buffer.LittleBytesToInt64(cmd.dataBuffer, 1)
@@ -244,7 +244,7 @@ func (cmd *baseMultiCommand) readBytes(length int) (err Error) {
 	// Corrupted data streams can result in a huge length.
 	// Do a sanity check here.
 	if length > MaxBufferSize || length < 0 {
-		return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length))
+		return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid readBytes length: %d", length)).setNode(cmd.node)
 	}
 
 	cmd.dataBuffer, err = cmd.bc.read(length)
@@ -362,11 +362,11 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			case <-cmd.recordset.cancelled:
 				switch cmd.terminationErrorType {
 				case types.SCAN_TERMINATED:
-					return false, ErrScanTerminated.err()
+					return false, ErrScanTerminated.err().setNode(cmd.node)
 				case types.QUERY_TERMINATED:
-					return false, ErrQueryTerminated.err()
+					return false, ErrQueryTerminated.err().setNode(cmd.node)
 				default:
-					return false, newError(cmd.terminationErrorType)
+					return false, newError(cmd.terminationErrorType).setNode(cmd.node)
 				}
 			}
 		} else if multiObjectParser != nil {
@@ -383,7 +383,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			switch chosen {
 			case 0: // object sent
 			case 1: // cancel channel is closed
-				return false, newError(cmd.terminationErrorType)
+				return false, newError(cmd.terminationErrorType).setNode(cmd.node)
 			}
 		}
 
