@@ -819,6 +819,16 @@ func ExpNilValue() *Expression {
 	return newFilterExpression(nil, nullValue, nil, nil, nil, nil)
 }
 
+// ExpInfinityValue creates an Infinity Value
+func ExpInfinityValue() *Expression {
+	return newFilterExpression(nil, infinityValue, nil, nil, nil, nil)
+}
+
+// ExpWildCardValue creates a WildCard Value
+func ExpWildCardValue() *Expression {
+	return newFilterExpression(nil, wildCardValue, nil, nil, nil, nil)
+}
+
 // ExpNot creates a "not" operator expression.
 func ExpNot(exp *Expression) *Expression {
 	return &Expression{
