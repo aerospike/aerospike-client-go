@@ -146,26 +146,35 @@ func setValue(f reflect.Value, value interface{}) Error {
 			return nil
 		}
 
-		switch f.Kind() {
+		switch fieldKind := f.Kind(); fieldKind {
 		case reflect.Int, reflect.Int64, reflect.Int8, reflect.Int16, reflect.Int32,
 			reflect.Uint, reflect.Uint64, reflect.Uint8, reflect.Uint16, reflect.Uint32:
 			v := reflect.ValueOf(value)
-			v = v.Convert(f.Type())
-			f.Set(v)
-		case reflect.Float64, reflect.Float32:
-			if v, ok := value.(float32); ok {
-				value = float64(v)
+			t := f.Type()
+			if !v.CanConvert(t) {
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
 			}
 
-			// if value has returned as a float
-			if fv, ok := value.(float64); ok {
-				f.SetFloat(fv)
-			} else {
-				// an int value has been set in the float - possibly due to a lua UDF
-				f.SetFloat(float64(value.(int)))
+			v = v.Convert(t)
+			f.Set(v)
+		case reflect.Float64, reflect.Float32:
+			switch v := value.(type) {
+			case float64:
+				f.SetFloat(v)
+			case float32:
+				f.SetFloat(float64(v))
+			case int:
+				f.SetFloat(float64(v))
+			default:
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
 			}
 		case reflect.String:
-			rv := reflect.ValueOf(value.(string))
+			v, ok := value.(string)
+			if !ok {
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
+			}
+
+			rv := reflect.ValueOf(v)
 			if rv.Type() != f.Type() {
 				rv = rv.Convert(f.Type())
 			}
@@ -177,16 +186,19 @@ func setValue(f reflect.Value, value interface{}) Error {
 			case bool:
 				f.SetBool(v)
 			default:
-				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for boolean field", value))
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
 			}
 		case reflect.Interface:
 			if value != nil {
 				f.Set(reflect.ValueOf(value))
 			}
 		case reflect.Ptr:
-			switch f.Type().Elem().Kind() {
+			switch fieldKind := f.Type().Elem().Kind(); fieldKind {
 			case reflect.String:
-				tempV := value.(string)
+				tempV, ok := value.(string)
+				if !ok {
+					return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for *%s field", value, fieldKind))
+				}
 				rv := reflect.ValueOf(&tempV)
 				if rv.Type() != f.Type() {
 					rv = rv.Convert(f.Type())
@@ -194,7 +206,12 @@ func setValue(f reflect.Value, value interface{}) Error {
 				f.Set(rv)
 			case reflect.Int, reflect.Int64, reflect.Int8, reflect.Int16, reflect.Int32,
 				reflect.Uint, reflect.Uint64, reflect.Uint8, reflect.Uint16, reflect.Uint32:
-				v := reflect.ValueOf(value).Convert(f.Type().Elem())
+				v := reflect.ValueOf(value)
+				t := f.Type().Elem()
+				if !v.CanConvert(t) {
+					return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for *%s field", value, fieldKind))
+				}
+				v = v.Convert(t)
 				if f.IsZero() {
 					f.Set(reflect.New(f.Type().Elem()))
 				}
@@ -207,7 +224,11 @@ func setValue(f reflect.Value, value interface{}) Error {
 				if fv, ok := value.(float64); ok {
 					tempV = fv
 				} else {
-					tempV = math.Float64frombits(uint64(value.(int)))
+					v, ok := value.(int)
+					if !ok {
+						return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for *%s field", value, fieldKind))
+					}
+					tempV = math.Float64frombits(uint64(v))
 				}
 
 				rv := reflect.ValueOf(&tempV)
@@ -219,7 +240,7 @@ func setValue(f reflect.Value, value interface{}) Error {
 				var tempV bool
 				switch v := value.(type) {
 				case int:
-					tempV = (v == 1)
+					tempV = v == 1
 				case bool:
 					tempV = v
 				default:
@@ -242,7 +263,11 @@ func setValue(f reflect.Value, value interface{}) Error {
 				if fv, ok := value.(float64); ok {
 					tempV64 = fv
 				} else {
-					tempV64 = math.Float64frombits(uint64(value.(int)))
+					v, ok := value.(int)
+					if !ok {
+						return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for *%s field", value, fieldKind))
+					}
+					tempV64 = math.Float64frombits(uint64(v))
 				}
 
 				tempV := float32(tempV64)
@@ -256,12 +281,19 @@ func setValue(f reflect.Value, value interface{}) Error {
 			case reflect.Struct:
 				// support time.Time
 				if f.Type().Elem().PkgPath() == "time" && f.Type().Elem().Name() == "Time" {
-					tm := time.Unix(0, int64(value.(int)))
+					v, ok := value.(int)
+					if !ok {
+						return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for *%s field", value, fieldKind))
+					}
+					tm := time.Unix(0, int64(v))
 					f.Set(reflect.ValueOf(&tm))
 					break
 				}
-				valMap := value.(map[interface{}]interface{})
-				// iteraste over struct fields and recursively fill them up
+				valMap, ok := value.(map[interface{}]interface{})
+				if !ok {
+					return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
+				}
+				// iterate over struct fields and recursively fill them up
 				if valMap != nil {
 					newObjPtr := f
 					if f.IsNil() {
@@ -280,6 +312,9 @@ func setValue(f reflect.Value, value interface{}) Error {
 		case reflect.Slice, reflect.Array:
 			// BLOBs come back as []byte
 			theArray := reflect.ValueOf(value)
+			if theArray.Kind() != reflect.Slice {
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
+			}
 
 			if f.Kind() == reflect.Slice {
 				if f.IsNil() {
@@ -297,37 +332,48 @@ func setValue(f reflect.Value, value interface{}) Error {
 			}
 		case reflect.Map:
 			emptyStruct := reflect.ValueOf(struct{}{})
-			theMap := value.(map[interface{}]interface{})
+			theMap, ok := value.(map[interface{}]interface{})
+			if !ok {
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
+			}
 			if theMap != nil {
 				newMap := reflect.MakeMap(f.Type())
 				var newKey, newVal reflect.Value
 				for key, elem := range theMap {
+					fKeyType := f.Type().Key()
 					if key != nil {
 						newKey = reflect.ValueOf(key)
 					} else {
-						newKey = reflect.Zero(f.Type().Key())
+						newKey = reflect.Zero(fKeyType)
 					}
 
-					if newKey.Type() != f.Type().Key() {
-						newKey = newKey.Convert(f.Type().Key())
+					if newKey.Type() != fKeyType {
+						if !newKey.CanConvert(fKeyType) {
+							return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid key `%#v` for %s field", value, fieldKind))
+						}
+						newKey = newKey.Convert(fKeyType)
 					}
 
+					fElemType := f.Type().Elem()
 					if elem != nil {
 						newVal = reflect.ValueOf(elem)
 					} else {
-						newVal = reflect.Zero(f.Type().Elem())
+						newVal = reflect.Zero(fElemType)
 					}
 
-					if newVal.Type() != f.Type().Elem() {
+					if newVal.Type() != fElemType {
 						switch newVal.Kind() {
 						case reflect.Map, reflect.Slice, reflect.Array:
-							newVal = reflect.New(f.Type().Elem())
+							newVal = reflect.New(fElemType)
 							if err := setValue(newVal.Elem(), elem); err != nil {
 								return err
 							}
 							newVal = reflect.Indirect(newVal)
 						default:
-							newVal = newVal.Convert(f.Type().Elem())
+							if !newVal.CanConvert(fElemType) {
+								return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
+							}
+							newVal = newVal.Convert(fElemType)
 						}
 					}
 
@@ -347,12 +393,19 @@ func setValue(f reflect.Value, value interface{}) Error {
 		case reflect.Struct:
 			// support time.Time
 			if f.Type().PkgPath() == "time" && f.Type().Name() == "Time" {
-				f.Set(reflect.ValueOf(time.Unix(0, int64(value.(int)))))
+				v, ok := value.(int)
+				if !ok {
+					return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for time %s field", value, fieldKind))
+				}
+				f.Set(reflect.ValueOf(time.Unix(0, int64(v))))
 				break
 			}
 
-			valMap := value.(map[interface{}]interface{})
-			// iteraste over struct fields and recursively fill them up
+			valMap, ok := value.(map[interface{}]interface{})
+			if !ok {
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
+			}
+			// iterate over struct fields and recursively fill them up
 			if err := setStructValue(f, valMap, f.Type(), nil); err != nil {
 				return err
 			}
