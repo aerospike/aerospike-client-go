@@ -15,7 +15,11 @@
 package aerospike
 
 import (
+	"math/rand"
+
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
+	grpc "google.golang.org/grpc"
 
 	Buffer "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
 )
@@ -31,9 +35,13 @@ type deleteCommand struct {
 }
 
 func newDeleteCommand(cluster *Cluster, policy *WritePolicy, key *Key) (*deleteCommand, Error) {
-	partition, err := PartitionForWrite(cluster, &policy.BasePolicy, key)
-	if err != nil {
-		return nil, err
+	var err Error
+	var partition *Partition
+	if cluster != nil {
+		partition, err = PartitionForWrite(cluster, &policy.BasePolicy, key)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	newDeleteCmd := &deleteCommand{
@@ -100,4 +108,39 @@ func (cmd *deleteCommand) Existed() bool {
 
 func (cmd *deleteCommand) Execute() Error {
 	return cmd.execute(cmd, false)
+}
+
+func (cmd *deleteCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
+	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
+	if err != nil {
+		return err
+	}
+
+	req := kvs.AerospikeRequestPayload{
+		Id:          rand.Uint32(),
+		Iteration:   1,
+		Payload:     cmd.dataBuffer[:cmd.dataOffset],
+		WritePolicy: cmd.policy.grpc(),
+	}
+
+	client := kvs.NewKVSClient(conn)
+
+	ctx := cmd.policy.grpcDeadlineContext()
+
+	res, gerr := client.Delete(ctx, &req)
+	if gerr != nil {
+		return newGrpcError(gerr, gerr.Error())
+	}
+
+	if res.Status != 0 {
+		return newGrpcStatusError(res)
+	}
+
+	cmd.conn = newGrpcFakeConnection(res.Payload, nil)
+	err = cmd.parseResult(cmd, cmd.conn)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

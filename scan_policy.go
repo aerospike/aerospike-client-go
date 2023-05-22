@@ -14,6 +14,12 @@
 
 package aerospike
 
+import (
+	"time"
+
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+)
+
 // ScanPolicy encapsulates parameters used in scan operations.
 type ScanPolicy struct {
 	MultiPolicy
@@ -38,5 +44,28 @@ func NewScanPolicy() *ScanPolicy {
 
 	return &ScanPolicy{
 		MultiPolicy: mp,
+	}
+}
+
+func (sp *ScanPolicy) grpc() *kvs.ScanPolicy {
+	TotalTimeout := uint32(sp.TotalTimeout / time.Millisecond)
+	MaxRecords := uint64(sp.MaxRecords)
+	RecordsPerSecond := uint32(sp.RecordsPerSecond)
+	MaxConcurrentNodes := uint32(sp.MaxConcurrentNodes)
+	IncludeBinData := sp.IncludeBinData
+	ConcurrentNodes := MaxConcurrentNodes > 1
+
+	return &kvs.ScanPolicy{
+		Replica:            sp.ReplicaPolicy.grpc(),
+		ReadModeAP:         sp.ReadModeAP.grpc(),
+		ReadModeSC:         sp.ReadModeSC.grpc(),
+		Compress:           sp.UseCompression,
+		Expression:         sp.FilterExpression.grpc(),
+		TotalTimeout:       &TotalTimeout,
+		MaxRecords:         &MaxRecords,
+		RecordsPerSecond:   &RecordsPerSecond,
+		ConcurrentNodes:    &ConcurrentNodes,
+		MaxConcurrentNodes: &MaxConcurrentNodes,
+		IncludeBinData:     &IncludeBinData,
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/gob"
 
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
 )
 
@@ -98,4 +99,16 @@ func (pf *PartitionFilter) DecodeCursor(b []byte) Error {
 
 	pf.partitions = parts
 	return nil
+}
+
+func (pf *PartitionFilter) grpc() *kvs.PartitionFilter {
+	Begin := uint32(pf.begin)
+	return &kvs.PartitionFilter{
+		Begin:             &Begin,
+		Count:             uint32(pf.count),
+		Digest:            pf.digest,
+		PartitionStatuses: nil,   // TODO: implement
+		Retry:             false, // TODO: implement
+	}
+
 }

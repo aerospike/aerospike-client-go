@@ -43,7 +43,7 @@ function filter_by_name(stream,name)
 end`
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = gg.Describe("Query operations", func() {
+var _ = gg.Describe("XXXXQuery operations", func() {
 
 	// connection data
 	var ns = *namespace
@@ -90,27 +90,8 @@ var _ = gg.Describe("Query operations", func() {
 		gm.Expect(counter).To(gm.BeNumerically(">", 0))
 	}
 
-	var createIndex = func(
-		policy *as.WritePolicy,
-		namespace string,
-		setName string,
-		indexName string,
-		binName string,
-		indexType as.IndexType,
-	) {
-		idxTask, err := client.CreateIndex(policy, namespace, setName, indexName, binName, indexType)
-		if err != nil {
-			if !err.Matches(ast.INDEX_FOUND) {
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-			}
-			return // index already exists
-		}
-		// wait until index is created
-		gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
-	}
-
 	gg.BeforeEach(func() {
-		client.Truncate(nil, ns, set, nil)
+		nativeClient.Truncate(nil, ns, set, nil)
 
 		keys = make(map[string]*as.Key, keyCount)
 		set = randString(50)
@@ -140,18 +121,22 @@ var _ = gg.Describe("Query operations", func() {
 
 	gg.AfterEach(func() {
 		indexName = set + bin3.Name
-		gm.Expect(client.DropIndex(nil, ns, set, indexName)).ToNot(gm.HaveOccurred())
+		gm.Expect(nativeClient.DropIndex(nil, ns, set, indexName)).ToNot(gm.HaveOccurred())
 
 		indexName = set + bin6.Name
-		gm.Expect(client.DropIndex(nil, ns, set, indexName)).ToNot(gm.HaveOccurred())
+		gm.Expect(nativeClient.DropIndex(nil, ns, set, indexName)).ToNot(gm.HaveOccurred())
 
 		indexName = set + bin7.Name
-		gm.Expect(client.DropIndex(nil, ns, set, indexName)).ToNot(gm.HaveOccurred())
+		gm.Expect(nativeClient.DropIndex(nil, ns, set, indexName)).ToNot(gm.HaveOccurred())
 	})
 
 	var queryPolicy = as.NewQueryPolicy()
 
 	gg.It("must Query and get all records back for a specified node using Results() channel", func() {
+		if *grpc{
+			gg.Skip("Not Supported for GRPC client")
+		}
+
 		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 
 		stm := as.NewStatement(ns, set)
@@ -232,6 +217,8 @@ var _ = gg.Describe("Query operations", func() {
 				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
 				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
 				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+				gm.Expect(res.Record.Bins[bin7.Name]).To(gm.BeNumerically(">=", 1))
+				gm.Expect(res.Record.Bins[bin7.Name]).To(gm.BeNumerically("<=", 2))
 
 				delete(keys, string(res.Record.Key.Digest()))
 
@@ -347,7 +334,8 @@ var _ = gg.Describe("Query operations", func() {
 		gm.Expect(len(keys)).To(gm.Equal(0))
 	})
 
-	gg.It("must Query a range and get all records back without the Bin Data", func() {
+	gg.It("must Query a range and get all records back without the Bin Data", func() {	
+		// FAILS IN GRPC MODE BECAUSE INCLUDEBINDATA DOES NOT WORK
 		stm := as.NewStatement(ns, set)
 		qp := as.NewQueryPolicy()
 		qp.IncludeBinData = false
@@ -400,7 +388,7 @@ var _ = gg.Describe("Query operations", func() {
 	})
 
 	gg.It("must Query a specific range by applying a udf filter and get only relevant records back", func() {
-		regTask, err := client.RegisterUDF(nil, []byte(udfFilter), "udfFilter.lua", as.LUA)
+		regTask, err := nativeClient.RegisterUDF(nil, []byte(udfFilter), "udfFilter.lua", as.LUA)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		// wait until UDF is created
@@ -456,7 +444,7 @@ var _ = gg.Describe("Query operations", func() {
 		gm.Expect(recs).To(gm.ContainElement(bin3.Value.GetObject()))
 	})
 
-	gg.It("must Query specific equality filters and apply operations on the records", func() {
+	gg.It("TTTTmust Query specific equality filters and apply operations on the records", func() {
 		stm := as.NewStatement(ns, set)
 		stm.SetFilter(as.NewEqualFilter(bin6.Name, 1))
 

@@ -51,15 +51,11 @@ var _ = gg.Describe("Query operations with Context", func() {
 		}
 
 		// queries only work on indices
-		idxTask1, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin1Name, bin1Name, as.NUMERIC, as.ICT_DEFAULT, as.CtxListRank(-1))
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		// wait until index is created
-		gm.Expect(<-idxTask1.OnComplete()).ToNot(gm.HaveOccurred())
+		createComplexIndex(wpolicy, ns, set, set+bin1Name, bin1Name, as.NUMERIC, as.ICT_DEFAULT, as.CtxListRank(-1))
 	})
 
 	gg.AfterEach(func() {
-		gm.Expect(client.DropIndex(nil, ns, set, set+bin1Name)).ToNot(gm.HaveOccurred())
+		dropIndex(nil, ns, set, set+bin1Name)
 	})
 
 	var queryPolicy = as.NewQueryPolicy()

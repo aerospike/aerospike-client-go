@@ -47,6 +47,18 @@ func NewBatchUDF(policy *BatchUDFPolicy, key *Key, packageName, functionName str
 	}
 }
 
+// newBatchUDF creates a batch UDF operation.
+func newBatchUDF(policy *BatchUDFPolicy, key *Key, packageName, functionName string, functionArgs ...Value) (*BatchUDF, *BatchRecord) {
+	res := &BatchUDF{
+		BatchRecord:  *newSimpleBatchRecord(key, true),
+		policy:       policy,
+		packageName:  packageName,
+		functionName: functionName,
+		functionArgs: functionArgs,
+	}
+	return res, &res.BatchRecord
+}
+
 func (bu *BatchUDF) isWrite() bool {
 	return bu.hasWrite
 }

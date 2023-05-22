@@ -91,6 +91,7 @@ var minConnsPerNode = flag.Int("minConnsPerNode", 0, "Minimum connections to mai
 var randBinData = flag.Bool("R", false, "Use dynamically generated random bin values instead of default static fixed bin values.")
 var useMarshalling = flag.Bool("M", false, "Use marshaling a struct instead of simple key/value operations")
 var debugMode = flag.Bool("d", false, "Run benchmarks in debug mode.")
+var grpc = flag.Bool("grpc", false, "Enable GRPC mode.")
 var profileMode = flag.Bool("profile", false, "Run benchmarks with profiler active on port 6060 by default.")
 var profilePort = flag.Int("profilePort", 6060, "Profile port.")
 var showUsage = flag.Bool("u", false, "Show usage information.")
@@ -169,15 +170,27 @@ func main() {
 	clientPolicy.TlsConfig = initAerospikeTLS()
 	dbHost := as.NewHost(*host, *port)
 	dbHost.TLSName = *tlsName
-	client, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
-	if err != nil {
-		logger.Fatal(err)
+
+	var client as.ClientIfc
+	if *grpc {
+		gclient, err := as.NewGrpcClient(clientPolicy, dbHost)
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		client = gclient
+	} else {
+		nclient, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		cc, _ := nclient.WarmUp(*warmUp)
+		logger.Printf("Warm-up conns.:\t%d", cc)
+		logger.Println("Nodes Found:", nclient.GetNodeNames())
+
+		client = nclient
 	}
-
-	cc, _ := client.WarmUp(*warmUp)
-	logger.Printf("Warm-up conns.:\t%d", cc)
-
-	logger.Println("Nodes Found:", client.GetNodeNames())
 
 	go reporter()
 
@@ -407,7 +420,7 @@ func incOnError(op, timeout *int, err error) {
 	}
 }
 
-func runBench_I(client *as.Client, ident int, times int) {
+func runBench_I(client as.ClientIfc, ident int, times int) {
 	defer wg.Done()
 
 	xr := NewXorRand()
@@ -443,7 +456,6 @@ func runBench_I(client *as.Client, ident int, times int) {
 	for i := 1; i <= times; i++ {
 		wLat = 0
 		key.SetValue(as.IntegerValue(partition + (i % times)))
-		WCount++
 		if !*useMarshalling {
 			// if randomBin data has been requested
 			if *randBinData {
@@ -452,6 +464,8 @@ func runBench_I(client *as.Client, ident int, times int) {
 			tm = time.Now()
 			if err = client.PutBins(writepolicy, key, bin); err != nil {
 				incOnError(&writeErr, &writeTOErr, err)
+				// log.Fatalln(err)
+				continue
 			}
 		} else {
 			// if randomBin data has been requested
@@ -461,8 +475,10 @@ func runBench_I(client *as.Client, ident int, times int) {
 			tm = time.Now()
 			if err = client.PutObject(writepolicy, key, obj); err != nil {
 				incOnError(&writeErr, &writeTOErr, err)
+				continue
 			}
 		}
+		WCount++
 		wLat = int64(time.Now().Sub(tm) / time.Millisecond)
 		wLatTotal += wLat
 
@@ -513,7 +529,7 @@ func runBench_I(client *as.Client, ident int, times int) {
 	countReportChan <- &TStats{false, WCount, 0, writeErr, 0, writeTOErr, 0, wMinLat, wMaxLat, 0, 0, wLatTotal, 0, wLatList, nil}
 }
 
-func runBench_RU(client *as.Client, ident int, times int) {
+func runBench_RU(client as.ClientIfc, ident int, times int) {
 	defer wg.Done()
 
 	xr := NewXorRand()
@@ -558,7 +574,6 @@ func runBench_RU(client *as.Client, ident int, times int) {
 		key.SetValue(as.IntegerValue(partition + (i % times)))
 		// key, _ := as.NewKey(*namespace, *set, as.IntegerValue(partition+(i%times)))
 		if int(xr.Uint64()%100) >= workloadPercent {
-			WCount++
 			if !*useMarshalling {
 				// if randomBin data has been requested
 				if *randBinData {
@@ -578,7 +593,9 @@ func runBench_RU(client *as.Client, ident int, times int) {
 			wLatTotal += wLat
 			if err != nil {
 				incOnError(&writeErr, &writeTOErr, err)
+				continue
 			}
+			WCount++
 
 			// under 1 ms
 			if wLat <= int64(latBase) {
@@ -594,7 +611,6 @@ func runBench_RU(client *as.Client, ident int, times int) {
 			wMinLat = min(wLat, wMinLat)
 			wMaxLat = max(wLat, wMaxLat)
 		} else {
-			RCount++
 			if !*useMarshalling {
 				tm = time.Now()
 				_, err = client.Get(readpolicy, key, bin.Name)
@@ -606,7 +622,9 @@ func runBench_RU(client *as.Client, ident int, times int) {
 			rLatTotal += rLat
 			if err != nil {
 				incOnError(&readErr, &readTOErr, err)
+				continue
 			}
+			RCount++
 
 			// under 1 ms
 			if rLat <= int64(latBase) {

@@ -14,6 +14,8 @@
 
 package aerospike
 
+import kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+
 // GenerationPolicy determines how to handle record writes based on record generation.
 type GenerationPolicy int
 
@@ -28,3 +30,15 @@ const (
 	// This is useful for restore after backup.
 	EXPECT_GEN_GT
 )
+
+func (gp GenerationPolicy) grpc() kvs.GenerationPolicy {
+	switch gp {
+	case NONE:
+		return kvs.GenerationPolicy_NONE
+	case EXPECT_GEN_EQUAL:
+		return kvs.GenerationPolicy_EXPECT_GEN_EQUAL
+	case EXPECT_GEN_GT:
+		return kvs.GenerationPolicy_EXPECT_GEN_GT
+	}
+	panic("UNREACHABLE")
+}

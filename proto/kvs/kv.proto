@@ -1,0 +1,786 @@
+syntax = "proto3";
+
+option go_package = ".;kvs";
+option java_package = "com.aerospike.proxy.client";
+
+// The about request message.
+message AboutRequest {
+  // Empty for now.
+}
+
+// The about response message.
+message AboutResponse {
+  // Empty for now.
+}
+
+// Read policy for AP (availability) namespaces.
+// How duplicates should be consulted in a read operation.
+// Only makes a difference during migrations and only applicable in AP mode.
+enum ReadModeAP {
+  // Involve single node in the read operation.
+  ONE = 0;
+
+  // Involve all duplicates in the read operation.
+  ALL = 1;
+}
+
+// Read policy for SC (strong consistency) namespaces.
+// Determines SC read consistency options.
+enum ReadModeSC {
+  // Ensures this client will only see an increasing sequence of record versions.
+  // Server only reads from master.  This is the default.
+  SESSION = 0;
+
+  // Ensures ALL clients will only see an increasing sequence of record versions.
+  // Server only reads from master.
+  LINEARIZE = 1;
+
+  // Server may read from master or any full (non-migrating) replica.
+  // Increasing sequence of record versions is not guaranteed.
+  ALLOW_REPLICA = 2;
+
+  // Server may read from master or any full (non-migrating) replica or from unavailable
+  // partitions.  Increasing sequence of record versions is not guaranteed.
+  ALLOW_UNAVAILABLE = 3;
+}
+
+// Defines algorithm used to determine the target node for a command.
+// Scan and query are not affected by replica algorithm.
+//
+// Note: The enum ordinals do not match the Aerospike Client ordinals because
+// the default has to be ordinal zero in protobuf.
+enum Replica {
+  // Try node containing master partition first.
+  // If connection fails, all commands try nodes containing replicated partitions.
+  // If socketTimeout is reached, reads also try nodes containing replicated partitions,
+  // but writes remain on master node.
+  SEQUENCE = 0;
+
+  // Use node containing key's master partition.
+  MASTER = 1;
+
+  // Distribute reads across nodes containing key's master and replicated partitions
+  // in round-robin fashion.  Writes always use node containing key's master partition.
+  MASTER_PROLES = 2;
+
+  // Try node on the same rack as the client first.  If timeout or there are no nodes on the
+  // same rack, use SEQUENCE instead.
+  PREFER_RACK = 3;
+
+  // Distribute reads across all nodes in cluster in round-robin fashion.
+  // Writes always use node containing key's master partition.
+  // This option is useful when the replication factor equals the number
+  // of nodes in the cluster and the overhead of requesting proles is not desired.
+  RANDOM = 4;
+}
+
+// Read policy attributes used in read database commands that are not part of
+// the wire protocol.
+message ReadPolicy {
+  // Read policy for AP (availability) namespaces.
+  Replica replica = 1;
+
+  // Read policy for SC (strong consistency) namespaces.
+  ReadModeAP readModeAP = 2;
+
+  // Replica algorithm used to determine the target node
+  // for a single record command.
+  // Scan and query are not affected by replica algorithms.
+  ReadModeSC readModeSC = 3;
+}
+
+// Write policy attributes used in write database commands that are not part of
+// the wire protocol.
+message WritePolicy {
+  // Read policy for AP (availability) namespaces.
+  Replica replica = 1;
+
+  // Read policy for SC (strong consistency) namespaces.
+  ReadModeAP readModeAP = 2;
+
+  // Replica algorithm used to determine the target node
+  // for a single record command.
+  // Scan and query are not affected by replica algorithms.
+  ReadModeSC readModeSC = 3;
+}
+
+
+// The request message containing the user's name.
+message AerospikeRequestPayload {
+  // Unique identifier of the request in the stream.
+  uint32 id = 1;
+
+  // Client retry iteration.
+  uint32 iteration = 2;
+
+  // Aerospike wire format request payload.
+  bytes payload = 3;
+
+  // Read policy for read requests.
+  optional ReadPolicy readPolicy = 4;
+
+  // Write policy for write requests.
+  optional WritePolicy writePolicy = 5;
+
+  // Scan request for scan.
+  optional ScanRequest scanRequest = 6;
+
+  // Request for running a query.
+  optional QueryRequest queryRequest = 7;
+
+  // Abort a scan/query on application error.
+  optional AbortRequest abortRequest = 8;
+
+  // Request for executing operations background on matching records.
+  optional BackgroundExecuteRequest backgroundExecuteRequest = 9;
+
+  // Request for getting background task status.
+  optional BackgroundTaskStatusRequest backgroundTaskStatusRequest = 10;
+}
+
+// The request message containing the user's name.
+message AerospikeResponsePayload {
+  // Unique identifier of the corresponding request in the stream.
+  uint32 id = 1;
+
+  // Status of the corresponding request.
+  //  if status equals 0
+  //     The proxy received a valid response from Aerospike. The payload's
+  //     result code should be used as the client result code.
+  //  else
+  //     The request failed at the proxy. This status should be used
+  //     as the client result code.
+  int32 status = 2;
+
+  // This flag indicates that the write transaction may have completed,
+  // even though the client sees an error.
+  bool inDoubt = 3;
+
+  // Aerospike wire format request payload.
+  bytes payload = 4;
+
+  // For requests with multiple responses like batch and queries,
+  // hasNext flag indicates if there are more responses to follow this
+  // response or if this is the last response for this request.
+  bool hasNext = 5;
+
+  // Background task status, populated for background task request.
+  optional BackgroundTaskStatus backgroundTaskStatus = 6;
+}
+
+// Information about the service.
+service About {
+  rpc Get (AboutRequest) returns (AboutResponse) {}
+}
+
+// Aerospike KVS operations service
+service KVS {
+  // Read a single record
+  rpc Read (AerospikeRequestPayload) returns
+      (AerospikeResponsePayload) {}
+
+  // Process stream of single record read requests.
+  rpc ReadStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Get a single record header containing metadata like generation, expiration
+  rpc GetHeader (AerospikeRequestPayload) returns
+      (AerospikeResponsePayload) {}
+
+  // Process stream of single record get header requests.
+  rpc GetHeaderStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Check if a record exists.
+  rpc Exists (AerospikeRequestPayload) returns
+      (AerospikeResponsePayload) {}
+
+  // Process stream of single record exist requests.
+  rpc ExistsStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Write a single record
+  rpc Write (AerospikeRequestPayload) returns
+      (AerospikeResponsePayload) {}
+
+  // Process a stream of single record write requests.
+  rpc WriteStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Delete a single record.
+  rpc Delete (AerospikeRequestPayload) returns
+      (AerospikeResponsePayload) {}
+
+  // Process a stream of single record delete requests.
+  rpc DeleteStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Reset single record's time to expiration using the write policy's expiration.
+  rpc Touch (AerospikeRequestPayload) returns
+      (AerospikeResponsePayload) {}
+
+  // Process a stream of single record touch requests.
+  rpc TouchStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Perform multiple read/write operations on a single key in one batch call.
+  rpc Operate (AerospikeRequestPayload) returns
+      (AerospikeResponsePayload) {}
+
+  // Perform a stream of operate requests.
+  rpc OperateStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Execute single key user defined function on server and return results.
+  rpc Execute (AerospikeRequestPayload) returns
+      (AerospikeResponsePayload) {}
+
+  // Process a stream of single record execute requests.
+  rpc ExecuteStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Process batch requests.
+  rpc BatchOperate (AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Process a stream of batch requests.
+  rpc BatchOperateStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+}
+
+// Scan policy attributes used by queries.
+// Scan requests are send completely using proto buffers and hence include all policy attributes.
+message ScanPolicy {
+  // Read policy for AP (availability) namespaces.
+  Replica replica = 1;
+
+  // Read policy for SC (strong consistency) namespaces.
+  ReadModeAP readModeAP = 2;
+
+  // Replica algorithm used to determine the target node
+  // for a single record command.
+  // Scan and scan are not affected by replica algorithms.
+  ReadModeSC readModeSC = 3;
+
+  // Use zlib compression on command buffers sent to the server and responses received
+  // from the server when the buffer size is greater than 128 bytes.
+  // This option will increase cpu and memory usage (for extra compressed buffers),but
+  // decrease the size of data sent over the network.
+  bool compress = 4;
+
+  // Optional expression filter. If filterExp exists and evaluates to false, the
+  // transaction is ignored.
+  optional bytes expression = 5;
+
+  // Total transaction timeout in milliseconds.
+  // Default for all other commands: 1000ms
+  optional uint32 totalTimeout = 6;
+
+  // Approximate number of records to return to client. This number is divided by the
+  // number of nodes involved in the scan.  The actual number of records returned
+  // may be less than maxRecords if node record counts are small and unbalanced across
+  // nodes.
+  // Default: 0 (do not limit record count)
+  optional uint64 maxRecords = 7;
+
+  // Limit returned records per second (rps) rate for each server.
+  // Do not apply rps limit if recordsPerSecond is zero.
+  // Default: 0
+  optional uint32 recordsPerSecond = 8;
+
+  // Should scan requests be issued in parallel.
+  // Default: true
+  optional bool concurrentNodes = 9;
+
+  // Maximum number of concurrent requests to server nodes at any point in time.
+  // If there are 16 nodes in the cluster and maxConcurrentNodes is 8, then queries
+  // will be made to 8 nodes in parallel.  When a scan completes, a new scan will
+  // be issued until all 16 nodes have been queried.
+  // Default: 0 (issue requests to all server nodes in parallel)
+  optional uint32 maxConcurrentNodes = 10;
+
+  // Should bin data be retrieved. If false, only record digests (and user keys
+  // if stored on the server) are retrieved.
+  // Default: true
+  optional bool includeBinData = 11;
+}
+
+// Partition status used to perform partial scans on client side retries.
+message PartitionStatus {
+  // The partition status.
+  optional uint32 id = 1;
+
+  // Begin value to start scanning / querying after.
+  optional int64 bVal = 2;
+
+  // Digest to start scanning / querying after.
+  optional bytes digest = 3;
+
+  // Indicates this partition should be tried.
+  // Should be set to true for the first attempt as well.
+  bool retry = 5;
+}
+
+// A partition filter for scans and queries.
+message PartitionFilter {
+  // Start partition id.
+  // Not required if the digest to start scanning from is specified.
+  optional uint32 begin = 1;
+
+  // The number of records to scan.
+  uint32 count = 2;
+
+  // Optional digest to start scanning from.
+  optional bytes digest = 3;
+
+  // Optional partition statuses used on retries to restart
+  // from last known record for the partition.
+  repeated PartitionStatus partitionStatuses = 4;
+
+  // Indicates if all partitions in this filter should
+  // be retried ignoring the partition status
+  bool retry = 5;
+}
+
+// A scan request.
+message ScanRequest {
+  // Optional scan policy.
+  optional ScanPolicy scanPolicy = 1;
+
+  // The namespace to scan.
+  string namespace = 2;
+
+  // Optional set name.
+  optional string setName = 3;
+
+  // Optional bin to retrieve. All bins will be returned
+  // if not specified.
+  repeated string binNames = 4;
+
+  // Optional partition filter to selectively scan partitions.
+  optional PartitionFilter partitionFilter = 5;
+}
+
+// Aerospike scan
+service Scan {
+  // Scan Aerospike
+  rpc Scan (AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Process a stream of scan requests
+  rpc ScanStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+}
+
+// Query policy attributes used by queries.
+// Query requests are send completely using proto buffers and hence include all policy attributes.
+message QueryPolicy {
+  // Read policy for AP (availability) namespaces.
+  Replica replica = 1;
+
+  // Read policy for SC (strong consistency) namespaces.
+  ReadModeAP readModeAP = 2;
+
+  // Replica algorithm used to determine the target node
+  // for a single record command.
+  // Scan and query are not affected by replica algorithms.
+  ReadModeSC readModeSC = 3;
+
+  // Send user defined key in addition to hash digest on both reads and writes.
+  // If the key is sent on a write, the key will be stored with the record on
+  // the server.
+  // Default: false (do not send the user defined key)
+  optional bool sendKey = 4;
+
+  // Use zlib compression on command buffers sent to the server and responses received
+  // from the server when the buffer size is greater than 128 bytes.
+  // This option will increase cpu and memory usage (for extra compressed buffers),but
+  // decrease the size of data sent over the network.
+  bool compress = 5;
+
+  // Optional expression filter. If filterExp exists and evaluates to false, the
+  // transaction is ignored.
+  optional bytes expression = 6;
+
+  // Total transaction timeout in milliseconds.
+  // Default for all other commands: 1000ms
+  optional uint32 totalTimeout = 7;
+
+  // Maximum number of concurrent requests to server nodes at any point in time.
+  // If there are 16 nodes in the cluster and maxConcurrentNodes is 8, then queries
+  // will be made to 8 nodes in parallel.  When a query completes, a new query will
+  // be issued until all 16 nodes have been queried.
+  // Default: 0 (issue requests to all server nodes in parallel)
+  optional uint32 maxConcurrentNodes = 8;
+
+  // Number of records to place in queue before blocking.
+  // Records received from multiple server nodes will be placed in a queue.
+  // A separate thread consumes these records in parallel.
+  // If the queue is full, the producer threads will block until records are consumed.
+  // Default: 5000
+  optional uint32 recordQueueSize = 9;
+
+  // Should bin data be retrieved. If false, only record digests (and user keys
+  // if stored on the server) are retrieved.
+  // Default: true
+  optional bool includeBinData = 10;
+
+  // Terminate query if cluster is in migration state. If the server supports partition
+  // queries or the query filter is null (scan), this field is ignored.
+  // Default: false
+  optional bool failOnClusterChange = 11;
+
+  // Is query expected to return less than 100 records per node.
+  // If true, the server will optimize the query for a small record set.
+  // This field is ignored for aggregation queries, background queries
+  // and server versions &lt; 6.0.
+  // Default: false
+  optional bool shortQuery = 12;
+
+  // Timeout in milliseconds for "cluster-stable" info command that is run when
+  // failOnClusterChange is true and server version is less than 6.0.
+  //
+  //  Default: 1000
+  optional uint32 infoTimeout = 13;
+}
+
+
+// Secondary index collection type.
+enum IndexCollectionType {
+  // Normal scalar index.
+  DEFAULT = 0;
+
+  // Index list elements.
+  LIST = 1;
+
+  // Index map keys.
+  MAPKEYS = 2;
+
+  // Index map values.
+  MAPVALUES = 3;
+}
+
+// Query statement filter
+message Filter {
+  // Name of the filter.
+  string name = 1;
+
+  // Secondary index collection type.
+  IndexCollectionType colType = 2;
+
+  // Optional filter context packed in Aerospike format.
+  optional bytes packedCtx = 3;
+
+  // The queried column particle type.
+  int32 valType = 4;
+
+  // The Aerospike encoded query start "Value"
+  optional bytes begin = 5 ;
+
+  // The Aerospike encoded query end "Value"
+  optional bytes end = 6;
+}
+
+enum OperationType {
+  READ = 0;
+  READ_HEADER = 1;
+  WRITE = 2;
+  CDT_READ = 3;
+  CDT_MODIFY = 4;
+  MAP_READ = 5;
+  MAP_MODIFY = 6;
+  ADD = 7;
+  EXP_READ = 8;
+  EXP_MODIFY = 9;
+  APPEND = 10;
+  PREPEND = 11;
+  TOUCH = 12;
+  BIT_READ = 13;
+  BIT_MODIFY = 14;
+  DELETE = 15;
+  HLL_READ = 16;
+  HLL_MODIFY = 17;
+}
+
+// Single record operation.
+message Operation {
+  // The operation type.
+  OperationType type = 1;
+
+  // Optional bin name.
+  optional string  binName = 2;
+
+  // Optional bin value.
+  optional bytes value = 3;
+}
+
+// Query statement.
+message Statement {
+  // The namespace to query.
+  string namespace = 1;
+
+  // Optional set name.
+  optional string setName = 2;
+
+  // Optional index name.
+  optional string indexName = 3;
+
+  // Optional bins names to return for each result record.
+  // If not specified all bins are returned.
+  repeated string binNames = 4;
+
+  // Optional Filter encoded in Aerospike wire format.
+  optional Filter filter = 5;
+
+  // Aggregation file name.
+  string packageName = 6;
+
+  // Aggregation function name.
+  string functionName = 7;
+
+  // Aggregation function arguments encoded as bytes using Aerospike wire format.
+  repeated bytes functionArgs = 8;
+
+  // Operations to be performed on query encoded as bytes using Aerospike wire format.
+  repeated Operation operations = 9;
+
+  // Optional taskId.
+  optional int64 taskId = 10;
+
+  // Approximate number of records to return to client. This number is divided by the
+  // number of nodes involved in the scan.  The actual number of records returned
+  // may be less than maxRecords if node record counts are small and unbalanced across
+  // nodes.
+  // Default: 0 (do not limit record count)
+  optional uint64 maxRecords = 11;
+
+  // Limit returned records per second (rps) rate for each server.
+  // Do not apply rps limit if recordsPerSecond is zero.
+  // Default: 0
+  optional uint32 recordsPerSecond = 12;
+}
+
+// A query request.
+message QueryRequest {
+  // Optional query policy.
+  optional QueryPolicy queryPolicy = 1;
+
+  // The query statement.
+  Statement statement = 2;
+
+  // Set to true for background queries.
+  bool background = 3;
+
+  // Optional partition filter to selectively query partitions.
+  optional PartitionFilter partitionFilter = 4;
+}
+
+enum RecordExistsAction {
+  // Create or update record.
+  // Merge write command bins with existing bins.
+  UPDATE = 0;
+
+  // Update record only. Fail if record does not exist.
+  // Merge write command bins with existing bins.
+  UPDATE_ONLY = 1;
+
+  // Create or replace record.
+  // Delete existing bins not referenced by write command bins.
+  // Supported by Aerospike server versions &gt;= 3.1.6.
+  REPLACE = 2;
+
+  // Replace record only. Fail if record does not exist.
+  // Delete existing bins not referenced by write command bins.
+  // Supported by Aerospike server versions &gt;= 3.1.6.
+  REPLACE_ONLY = 3;
+
+  // Create only.  Fail if record exists.
+  CREATE_ONLY = 4;
+}
+
+enum GenerationPolicy {
+  // Do not use record generation to restrict writes.
+  NONE = 0;
+
+  // Update/delete record if expected generation is equal to server generation. Otherwise, fail.
+  EXPECT_GEN_EQUAL = 1;
+
+  // Update/delete record if expected generation greater than the server generation. Otherwise, fail.
+  // This is useful for restore after backup.
+  EXPECT_GEN_GT = 2;
+}
+
+enum CommitLevel {
+  // Server should wait until successfully committing master and all replicas.
+  COMMIT_ALL = 0;
+
+  // Server should wait until successfully committing master only.
+  COMMIT_MASTER = 1;
+}
+
+message BackgroundExecutePolicy {
+  // Read policy for AP (availability) namespaces.
+  Replica replica = 1;
+
+  // Read policy for SC (strong consistency) namespaces.
+  ReadModeAP readModeAP = 2;
+
+  // Replica algorithm used to determine the target node
+  // for a single record command.
+  // Scan and scan are not affected by replica algorithms.
+  ReadModeSC readModeSC = 3;
+
+  // Use zlib compression on command buffers sent to the server and responses received
+  // from the server when the buffer size is greater than 128 bytes.
+  // This option will increase cpu and memory usage (for extra compressed buffers),but
+  // decrease the size of data sent over the network.
+  bool compress = 4;
+
+  // Optional expression filter. If filterExp exists and evaluates to false, the
+  // transaction is ignored.
+  optional bytes expression = 5;
+
+  // Total transaction timeout in milliseconds.
+  // Default for all other commands: 1000ms
+  optional uint32 totalTimeout = 6;
+
+  // Send user defined key in addition to hash digest on both reads and writes.
+  // If the key is sent on a write, the key will be stored with the record on
+  // the server.
+  // <p>
+  // Default: false (do not send the user defined key)
+  optional bool sendKey = 7;
+
+  // Qualify how to handle writes where the record already exists.
+  //
+  // Default: RecordExistsAction.UPDATE
+  optional RecordExistsAction recordExistsAction = 8;
+
+  // Qualify how to handle record writes based on record generation. The default (NONE)
+  // indicates that the generation is not used to restrict writes.
+  //
+  // The server does not support this field for UDF execute() calls. The read-modify-write
+  // usage model can still be enforced inside the UDF code itself.
+  //
+  // Default: GenerationPolicy.NONE
+  optional GenerationPolicy generationPolicy = 9;
+
+  // Desired consistency guarantee when committing a transaction on the server. The default
+  // (COMMIT_ALL) indicates that the server should wait for master and all replica commits to
+  // be successful before returning success to the client.
+  //
+  // Default: CommitLevel.COMMIT_ALL
+  optional CommitLevel commitLevel = 10;
+
+  // Expected generation. Generation is the number of times a record has been modified
+  // (including creation) on the server. If a write operation is creating a record,
+  // the expected generation would be <code>0</code>. This field is only relevant when
+  // generationPolicy is not NONE.
+  //
+  // The server does not support this field for UDF execute() calls. The read-modify-write
+  // usage model can still be enforced inside the UDF code itself.
+  //
+  // Default: 0
+  optional uint32 generation = 11;
+
+  // Record expiration. Also known as ttl (time to live).
+  // Seconds record will live before being removed by the server.
+  //
+  // Expiration values:
+  //
+  //  - -2: Do not change ttl when record is updated.
+  //  - -1: Never expire.
+  //  - 0: Default to namespace configuration variable "default-ttl" on the server.
+  //  - &gt; 0: Actual ttl in seconds.<br>
+  //
+  // Default: 0
+  optional uint32 expiration = 12;
+
+  // For client operate(), return a result for every operation.
+  //
+  // Some operations do not return results by default (ListOperation.clear() for example).
+  // This can make it difficult to determine the desired result offset in the returned
+  // bin's result list.
+  //
+  // Setting respondAllOps to true makes it easier to identify the desired result offset
+  // (result offset equals bin's operate sequence).  If there is a map operation in operate(),
+  // respondAllOps will be forced to true for that operate() call.
+  //
+  // Default: false
+  optional bool respondAllOps = 13;
+
+  // If the transaction results in a record deletion, leave a tombstone for the record.
+  // This prevents deleted records from reappearing after node failures.
+  // Valid for Aerospike Server Enterprise Edition 3.10+ only.
+  //
+  // Default: false (do not tombstone deleted records).
+  optional bool durableDelete = 14;
+
+  // Operate in XDR mode.  Some external connectors may need to emulate an XDR client.
+  // If enabled, an XDR bit is set for writes in the wire protocol.
+  //
+  // Default: false.
+  optional bool xdr = 15;
+}
+
+message BackgroundExecuteRequest {
+  // Background write policy
+  optional BackgroundExecutePolicy writePolicy = 1;
+
+  // The statement containing the UDF function reference
+  // or the operations to be performed on matching record
+  Statement statement = 2;
+}
+
+enum BackgroundTaskStatus {
+  // Task not found.
+  NOT_FOUND = 0;
+
+  // Task in progress.
+  IN_PROGRESS = 1;
+
+  // Task completed.
+  COMPLETE = 2;
+}
+
+message BackgroundTaskStatusRequest {
+  // The id of the task.
+  int64 taskId = 1;
+
+  // If true indicates the task is a scan task else task is a query
+  bool isScan = 2;
+}
+
+// Abort a request identified by id in the stream.
+message AbortRequest {
+  // Unique identifier of the corresponding request in the stream to abort.
+  // Not to be confused with the AbortRequest's id in the stream.
+  uint32 abortId = 1;
+}
+
+// Aerospike queries
+service Query {
+  // Query Aerospike
+  rpc Query (AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Process a stream of query requests
+  rpc QueryStreaming (stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Execute background write on selected records.
+  rpc BackgroundExecute(AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Execute a stream of  background write requests.
+  rpc BackgroundExecuteStreaming(stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Get status of a background task.
+  rpc BackgroundTaskStatus(AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+
+  // Get status of a stream of background tasks.
+  rpc BackgroundTaskStatusStreaming(stream AerospikeRequestPayload) returns
+      (stream AerospikeResponsePayload) {}
+}

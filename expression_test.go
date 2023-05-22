@@ -19,7 +19,6 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v6"
-	"github.com/aerospike/aerospike-client-go/v6/internal/atomic"
 	ast "github.com/aerospike/aerospike-client-go/v6/types"
 
 	gg "github.com/onsi/ginkgo/v2"
@@ -35,21 +34,21 @@ var _ = gg.Describe("Expression Filters", func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
 	var qpolicy = as.NewQueryPolicy()
 
-	var _ = gg.Context("Generic", func() {
+	var _ = gg.Context("Generic", gg.Ordered, func() {
 
 		var set = "expression_tests" // The name of the set should be consistent because of predexp_modulo tests, since set name is a part of the digest
 
 		const keyCount = 1000
 
-		insertRecs := atomic.NewBool(true)
+		gg.AfterAll(func() {
+			dropIndex(nil, ns, set, "intval")
+			dropIndex(nil, ns, set, "strval")
+		})
 
-		gg.BeforeEach(func() {
-			if !insertRecs.Get() {
-				return
-			}
+		gg.BeforeAll(func() {
 
-			client.DropIndex(nil, ns, set, "intval")
-			client.DropIndex(nil, ns, set, "strval")
+			dropIndex(nil, ns, set, "intval")
+			dropIndex(nil, ns, set, "strval")
 
 			wpolicy = as.NewWritePolicy(0, 24*60*60)
 
@@ -129,15 +128,8 @@ var _ = gg.Describe("Expression Filters", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 			}
 
-			idxTask, err := client.CreateIndex(wpolicy, ns, set, "intval", "intval", as.NUMERIC)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
-
-			idxTask, err = client.CreateIndex(wpolicy, ns, set, "strval", "strval", as.STRING)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
-
-			insertRecs.Set(false)
+			createIndex(wpolicy, ns, set, "intval", "intval", as.NUMERIC)
+			createIndex(wpolicy, ns, set, "strval", "strval", as.STRING)
 		})
 
 		gg.BeforeEach(func() {
@@ -271,19 +263,11 @@ var _ = gg.Describe("Expression Filters", func() {
 		return count
 	}
 
-	var _ = gg.Describe("Expressions", func() {
+	var _ = gg.Describe("Expressions", gg.Ordered, func() {
 		const keyCount = 100
 		set = randString(50)
 
-		insertRecs := atomic.NewBool(true)
-
-		// wpolicy.Expiration = as.TTLDontExpire
-
-		gg.BeforeEach(func() {
-			if !insertRecs.Get() {
-				return
-			}
-
+		gg.BeforeAll(func() {
 			for ii := 0; ii < keyCount; ii++ {
 				key, _ := as.NewKey(ns, set, ii)
 				ibin := as.BinMap{
@@ -298,8 +282,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				client.Put(wpolicy, key, ibin)
 
 			}
-
-			insertRecs.Set(false)
 		})
 
 		var _ = gg.Context("Data Types", func() {
@@ -875,7 +857,7 @@ var _ = gg.Describe("Expression Filters", func() {
 
 	}) // Describe
 
-	var _ = gg.Describe("Expression Filter Operations", func() {
+	var _ = gg.Describe("Expression Filter Operations", gg.Ordered, func() {
 		binA := "A"
 		binB := "B"
 		binC := "C"
@@ -997,12 +979,7 @@ var _ = gg.Describe("Expression Filters", func() {
 					as.ExpLessEq(as.ExpVar("val"), as.ExpFloatVal(4.8401)))), keyA, keyB, binA, 2, false},
 		}
 
-		insertRecs := atomic.NewBool(true)
-		gg.BeforeEach(func() {
-			if !insertRecs.Get() {
-				return
-			}
-
+		gg.BeforeAll(func() {
 			err := client.Put(nil, keyA, as.BinMap{binA: 1, binB: 1.1, binC: "abcde", binD: 1, binE: -1})
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			err = client.Put(nil, keyB, as.BinMap{binA: 2, binB: 2.2, binC: "abcdeabcde", binD: 1, binE: -2})

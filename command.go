@@ -1378,9 +1378,15 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	cmd.begin()
 	fieldCount := 0
 
-	partsFullSize := len(nodePartitions.partsFull) * 2
-	partsPartialSize := len(nodePartitions.partsPartial) * 20
-	maxRecords := int64(nodePartitions.recordMax)
+	// for grpc
+	partsFullSize := 0
+	partsPartialSize := 0
+	maxRecords := int64(0)
+	if nodePartitions != nil {
+		partsFullSize = len(nodePartitions.partsFull) * 2
+		partsPartialSize = len(nodePartitions.partsPartial) * 20
+		maxRecords = int64(nodePartitions.recordMax)
+	}
 
 	predSize := 0
 	if policy.FilterExpression != nil {
@@ -1514,7 +1520,10 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	predSize := 0
 	var ctxSize int
 
-	isNew := cmd.node.cluster.supportsPartitionQuery.Get()
+	isNew := false
+	if cmd.node != nil {
+		isNew = cmd.node.cluster.supportsPartitionQuery.Get()
+	}
 
 	cmd.begin()
 
@@ -1634,17 +1643,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 		fieldCount++
 	}
-
-	// 	// Estimate scan timeout size.
-	// 	cmd.dataOffset += (4 + int(_FIELD_HEADER_SIZE))
-	// 	fieldCount++
-
-	// 	// Estimate records per second size.
-	// 	if recordsPerSecond > 0 {
-	// 		cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
-	// 		fieldCount++
-	// 	}
-	// }
 
 	if policy.FilterExpression != nil {
 		var err Error
@@ -2559,38 +2557,38 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		// Assign the connection buffer to the command buffer
 		cmd.dataBuffer = cmd.conn.dataBuffer
 
-		// Set command buffer.
-		err = ifc.writeBuffer(ifc)
-		if err != nil {
-			// chain the errors
-			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+		// // Set command buffer.
+		// err = ifc.writeBuffer(ifc)
+		// if err != nil {
+		// 	// chain the errors
+		// 	err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 
-			// All runtime exceptions are considered fatal. Do not retry.
-			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.conn.Close()
-			cmd.conn = nil
-			return err
-		}
+		// 	// All runtime exceptions are considered fatal. Do not retry.
+		// 	// Close socket to flush out possible garbage. Do not put back in pool.
+		// 	cmd.conn.Close()
+		// 	cmd.conn = nil
+		// 	return err
+		// }
 
-		// Reset timeout in send buffer (destined for server) and socket.
-		binary.BigEndian.PutUint32(cmd.dataBuffer[22:], 0)
-		if !deadline.IsZero() {
-			serverTimeout := time.Until(deadline)
-			if serverTimeout < time.Millisecond {
-				serverTimeout = time.Millisecond
-			}
-			binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond))
-		}
+		// // Reset timeout in send buffer (destined for server) and socket.
+		// binary.BigEndian.PutUint32(cmd.dataBuffer[22:], 0)
+		// if !deadline.IsZero() {
+		// 	serverTimeout := time.Until(deadline)
+		// 	if serverTimeout < time.Millisecond {
+		// 		serverTimeout = time.Millisecond
+		// 	}
+		// 	binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond))
+		// }
+
+		// // now that the deadline has been set in the buffer, compress the contents
+		// if err = cmd.compress(); err != nil {
+		// 	return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+		// }
 
 		// now that the deadline has been set in the buffer, compress the contents
-		if err = cmd.compress(); err != nil {
+		if err = cmd.prepareBuffer(ifc, deadline); err != nil {
 			return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 		}
-
-		// if cmd, ok := ifc.(*operateCommand); ok {
-		// 	println("Writing...")
-		// 	ioutil.WriteFile("dump_not_ok"+strconv.Itoa(int(time.Now().UnixNano())), []byte(hex.Dump(cmd.dataBuffer[:cmd.dataOffset])), 0644)
-		// }
 
 		// Send command.
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
@@ -2675,6 +2673,26 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 	// execution timeout
 	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 	return errChain
+}
+
+func (cmd *baseCommand) prepareBuffer(ifc command, deadline time.Time) Error {
+	// Set command buffer.
+	if err := ifc.writeBuffer(ifc); err != nil {
+		return err
+	}
+
+	// Reset timeout in send buffer (destined for server) and socket.
+	binary.BigEndian.PutUint32(cmd.dataBuffer[22:], 0)
+	if !deadline.IsZero() {
+		serverTimeout := time.Until(deadline)
+		if serverTimeout < time.Millisecond {
+			serverTimeout = time.Millisecond
+		}
+		binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond))
+	}
+
+	// now that the deadline has been set in the buffer, compress the contents
+	return cmd.compress()
 }
 
 func (cmd *baseCommand) canPutConnBack() bool {

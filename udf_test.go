@@ -77,6 +77,10 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	bin2 := as.NewBin("bin2", 1)
 
 	gg.It("must Register a UDF", func() {
+		if *grpc {
+			gg.Skip("Not supported in GRPC mode")
+		}
+
 		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udf1.lua", as.LUA)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
@@ -85,6 +89,8 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	})
 
 	gg.It("must run a UDF on a single record", func() {
+		registerUDF(udfBody, "udf1.lua")
+
 		key, err = as.NewKey(ns, set, randString(50))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		err = client.PutBins(wpolicy, key, bin1, bin2)
@@ -108,11 +114,7 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	})
 
 	gg.It("must run a UDF to create single record and persist the original key value", func() {
-		regTask, err := client.RegisterUDF(wpolicy, []byte(udfCreateWithSendKey), "sendKey.lua", as.LUA)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		// wait until UDF is created
-		gm.Expect(<-regTask.OnComplete()).NotTo(gm.HaveOccurred())
+		registerUDF(udfCreateWithSendKey, "sendKey.lua")
 
 		tSet := randString(50)
 		key, err := as.NewKey(ns, tSet, -1)
@@ -142,18 +144,21 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	})
 
 	gg.It("must list all udfs on the server", func() {
+		if *grpc {
+			gg.Skip("Not supported in GRPC mode")
+		}
+
 		udfList, err := client.ListUDF(nil)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(len(udfList)).To(gm.BeNumerically(">", 0))
 	})
 
 	gg.It("must drop a udf on the server", func() {
-		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udfToBeDropped.lua", as.LUA)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		if *grpc {
+			gg.Skip("Not supported in GRPC mode")
+		}
 
-		// wait until UDF is created
-		err = <-regTask.OnComplete()
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		registerUDF(udfBody, "udfToBeDropped.lua")
 
 		delTask, err := client.RemoveUDF(wpolicy, "udfToBeDropped.lua")
 		gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -179,6 +184,8 @@ var _ = gg.Describe("UDF/Query tests", func() {
 		})
 
 		gg.It("must run a UDF on all records", func() {
+			registerUDF(udfBody, "udf1.lua")
+
 			// run the UDF 3 times consecutively
 			for i := 1; i <= 3; i++ {
 				statement := as.NewStatement(ns, set)
@@ -203,17 +210,10 @@ var _ = gg.Describe("UDF/Query tests", func() {
 		})
 
 		gg.It("must run a DeleteUDF on a range of records", func() {
-			idxTask, err := client.CreateIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			defer client.DropIndex(nil, ns, set, set+bin1.Name)
+			createIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC)
+			defer dropIndex(nil, ns, set, set+bin1.Name)
 
-			gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
-
-			regTask, err := client.RegisterUDF(wpolicy, []byte(udfDelete), "udfDelete.lua", as.LUA)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			// wait until UDF is created
-			gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
+			registerUDF(udfDelete, "udfDelete.lua")
 
 			// a new record that is not in the range
 			key, err = as.NewKey(ns, set, randString(50))
@@ -228,6 +228,8 @@ var _ = gg.Describe("UDF/Query tests", func() {
 
 			// wait until UDF is run on all records
 			gm.Expect(<-exTask.OnComplete()).ToNot(gm.HaveOccurred())
+
+			time.Sleep(3 * time.Second)
 
 			// read all data and make sure it is consistent
 			recordset, err := client.ScanAll(scanPolicy, ns, set)
@@ -250,17 +252,11 @@ var _ = gg.Describe("UDF/Query tests", func() {
 
 		gg.BeforeEach(func() {
 			udfReg.Do(func() {
-				regTask, err := client.RegisterUDF(wpolicy, []byte(udfEcho), "udfEcho.lua", as.LUA)
-				if err != nil {
-					panic(err)
-				}
-				// wait until UDF is created
-				<-regTask.OnComplete()
+				registerUDF(udfEcho,  "udfEcho.lua")
+
 				// a new record that is not in the range
 				key, err = as.NewKey(ns, set, randString(50))
-				if err != nil {
-					panic(err)
-				}
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			})
 		})
 

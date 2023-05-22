@@ -27,7 +27,14 @@ import (
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Index operations test", func() {
 
+		gg.BeforeEach(func() {
+			if *grpc {
+				gg.Skip("Not supported in GRPC Client")
+			}
+		})
+
 	gg.Describe("Index creation", func() {
+
 		var err error
 		var ns = *namespace
 		var set = randString(50)

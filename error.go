@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
 )
 
@@ -47,7 +48,7 @@ type Error interface {
 	iter(int) Error
 	setInDoubt(bool, int) Error
 	setNode(*Node) Error
-	markInDoubt() Error
+	markInDoubt(bool) Error
 	wrap(error) Error
 }
 
@@ -57,22 +58,29 @@ type Error interface {
 // they are a net.Timeout error. Refer to errors_test.go for examples.
 // To be able to check for error type, you could use the idiomatic
 // errors.Is and errors.As patterns:
-//   if errors.Is(err, as.ErrTimeout) {
-//       ...
-//   }
+//
+//	if errors.Is(err, as.ErrTimeout) {
+//	    ...
+//	}
+//
 // or
-//   if errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR}) {
-//       ...
-//   }
+//
+//	if errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR}) {
+//	    ...
+//	}
+//
 // or
-//   if err.Matches(ast.TIMEOUT, ast.NETWORK_ERROR, ast.PARAMETER_ERROR) {
-//       ...
-//   }
+//
+//	if err.Matches(ast.TIMEOUT, ast.NETWORK_ERROR, ast.PARAMETER_ERROR) {
+//	    ...
+//	}
+//
 // or
-//   ae := &as.AerospikeError{}
-//   if errors.As(err, &ae) {
-//       println(ae.ResultCode)
-//   }
+//
+//	ae := &as.AerospikeError{}
+//	if errors.As(err, &ae) {
+//	    println(ae.ResultCode)
+//	}
 type AerospikeError struct {
 	wrapped error
 
@@ -129,6 +137,17 @@ func newCommonError(e error, messages ...string) Error {
 	return ne
 }
 
+func newGrpcError(e error, messages ...string) Error {
+	ne := newError(types.GRPC_ERROR, messages...)
+	ne.wrap(e)
+	return ne
+}
+
+func newGrpcStatusError(res *kvs.AerospikeResponsePayload) Error {
+	ne := newError(types.GRPC_ERROR).markInDoubt(res.InDoubt)
+	return ne
+}
+
 // SetInDoubt sets whether it is possible that the write transaction may have completed
 // even though this error was generated.  This may be the case when a
 // client error occurs (like timeout) after the command was sent to the server.
@@ -144,8 +163,8 @@ func (ase *AerospikeError) setNode(node *Node) Error {
 	return ase
 }
 
-func (ase *AerospikeError) markInDoubt() Error {
-	ase.InDoubt = true
+func (ase *AerospikeError) markInDoubt(v bool) Error {
+	ase.InDoubt = v
 	return ase
 }
 
@@ -366,6 +385,8 @@ var (
 	ErrMaxRetriesExceeded              = newConstError(types.MAX_RETRIES_EXCEEDED, "command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`.")
 	ErrInvalidParam                    = newConstError(types.PARAMETER_ERROR)
 	ErrLuaPoolEmpty                    = newConstError(types.COMMON_ERROR, "Error fetching a lua instance from pool")
+
+	errGRPCStreamEnd = newError(types.OK, "GRPC Steam was ended successfully")
 )
 
 //revive:enable

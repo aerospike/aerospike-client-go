@@ -67,7 +67,7 @@ func (btsk *baseTask) onComplete(ifc Task) chan Error {
 			}
 			if err != nil {
 				if err.Matches(types.TIMEOUT) {
-					err.markInDoubt()
+					err.markInDoubt(true)
 				}
 				ch <- err
 				return

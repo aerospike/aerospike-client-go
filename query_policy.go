@@ -14,6 +14,12 @@
 
 package aerospike
 
+import (
+	"time"
+
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+)
+
 // QueryPolicy encapsulates parameters for policy attributes used in query operations.
 type QueryPolicy struct {
 	MultiPolicy
@@ -43,5 +49,32 @@ type QueryPolicy struct {
 func NewQueryPolicy() *QueryPolicy {
 	return &QueryPolicy{
 		MultiPolicy: *NewMultiPolicy(),
+	}
+}
+
+func (qp *QueryPolicy) grpc() *kvs.QueryPolicy {
+	SendKey := qp.SendKey
+	TotalTimeout := uint32(qp.TotalTimeout / time.Millisecond)
+	RecordQueueSize := uint32(qp.RecordQueueSize)
+	MaxConcurrentNodes := uint32(qp.MaxConcurrentNodes)
+	IncludeBinData := qp.IncludeBinData
+	FailOnClusterChange := false //qp.FailOnClusterChange
+	ShortQuery := qp.ShortQuery
+	InfoTimeout := uint32(qp.SocketTimeout / time.Millisecond)
+
+	return &kvs.QueryPolicy{
+		Replica:             qp.ReplicaPolicy.grpc(),
+		ReadModeAP:          qp.ReadModeAP.grpc(),
+		ReadModeSC:          qp.ReadModeSC.grpc(),
+		SendKey:             &SendKey,
+		Compress:            qp.UseCompression,
+		Expression:          qp.FilterExpression.grpc(),
+		TotalTimeout:        &TotalTimeout,
+		MaxConcurrentNodes:  &MaxConcurrentNodes,
+		RecordQueueSize:     &RecordQueueSize,
+		IncludeBinData:      &IncludeBinData,
+		FailOnClusterChange: &FailOnClusterChange,
+		ShortQuery:          &ShortQuery,
+		InfoTimeout:         &InfoTimeout,
 	}
 }

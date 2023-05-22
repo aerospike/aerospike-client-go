@@ -84,15 +84,17 @@ func newOperateArgs(
 	}
 	res.writeAttr = wattr
 
-	if write {
-		res.partition, err = PartitionForWrite(cluster, &res.writePolicy.BasePolicy, key)
-		if err != nil {
-			return operateArgs{}, err
-		}
-	} else {
-		res.partition, err = PartitionForRead(cluster, &res.writePolicy.BasePolicy, key)
-		if err != nil {
-			return operateArgs{}, err
+	if cluster != nil {
+		if write {
+			res.partition, err = PartitionForWrite(cluster, &res.writePolicy.BasePolicy, key)
+			if err != nil {
+				return operateArgs{}, err
+			}
+		} else {
+			res.partition, err = PartitionForRead(cluster, &res.writePolicy.BasePolicy, key)
+			if err != nil {
+				return operateArgs{}, err
+			}
 		}
 	}
 	return res, nil

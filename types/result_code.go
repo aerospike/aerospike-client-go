@@ -8,7 +8,7 @@
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.proto
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
@@ -17,10 +17,13 @@ package types
 import "fmt"
 
 // ResultCode signifies the database operation error codes.
-// The positive numbers align with the server side file proto.h.
+// The positive numbers align with the server side file kvs.h.
 type ResultCode int
 
 const (
+	// GRPC_ERROR is wrapped and directly returned from the grpc library
+	GRPC_ERROR ResultCode = -21
+
 	// BATCH_FAILED means one or more keys failed in a batch.
 	BATCH_FAILED ResultCode = -20
 
@@ -305,6 +308,8 @@ const (
 // ResultCodeToString returns a human readable errors message based on the result code.
 func ResultCodeToString(resultCode ResultCode) string {
 	switch ResultCode(resultCode) {
+	case GRPC_ERROR:
+		return "GRPC error"
 	case BATCH_FAILED:
 		return "one or more keys failed in a batch"
 
@@ -588,6 +593,8 @@ func ResultCodeToString(resultCode ResultCode) string {
 
 func (rc ResultCode) String() string {
 	switch rc {
+	case GRPC_ERROR:
+		return "GRPC error"
 	case BATCH_FAILED:
 		return "BATCH_FAILED"
 	case NO_RESPONSE:
@@ -773,6 +780,6 @@ func (rc ResultCode) String() string {
 	case AEROSPIKE_ERR_LUA_FILE_NOT_FOUND:
 		return "AEROSPIKE_ERR_LUA_FILE_NOT_FOUND"
 	default:
-		return "invalid ResultCode. Please report on https://github.com/aerospike/aerospike-client.go"
+		return fmt.Sprintf("invalid ResultCode %d. Please report on https://github.com/aerospike/aerospike-client.go", rc)
 	}
 }

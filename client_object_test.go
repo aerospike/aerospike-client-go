@@ -1024,17 +1024,14 @@ var _ = gg.Describe("Aerospike", func() {
 
 			gg.Context("UDF Objects operations", func() {
 				gg.It("must store and get values of types which implement Value interface using udf", func() {
-					udfFunc := []byte(`function setValue(rec, val)
+					udfFunc := `function setValue(rec, val)
 					rec['value'] = val
 					aerospike:update(rec)
 				
 					return rec
-				end`)
+				end`
 
-					regTask, err := client.RegisterUDF(nil, udfFunc, "test_set.lua", as.LUA)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-
-					gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
+					registerUDF( udfFunc, "test_set.lua")
 
 					var (
 						bytes    = []byte("bytes")
@@ -1090,7 +1087,7 @@ var _ = gg.Describe("Aerospike", func() {
 						TestLua float64 `as:"testLua"`
 					}
 
-					udfFunc := []byte(`function addValue(rec, val)
+					udfFunc := `function addValue(rec, val)
 			    local ret = map()
 			    if not aerospike:exists(rec) then
 			        ret['status'] = false
@@ -1101,12 +1098,9 @@ var _ = gg.Describe("Aerospike", func() {
 			        ret['status'] = true
 			    end
 			    return ret
-			end`)
+			end`
 
-					regTask, err := client.RegisterUDF(nil, udfFunc, "test.lua", as.LUA)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-
-					gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
+					registerUDF(udfFunc, "test.lua")
 
 					adOp := as.AddOp(as.NewBin("test", float64(1)))
 					testLua := float64(0)
@@ -1246,12 +1240,8 @@ var _ = gg.Describe("Aerospike", func() {
 				gg.It("must query only relevant objects with the most complex structure possible", func() {
 
 					// first create an index
-					idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-					defer client.DropIndex(nil, ns, set, set+"inner1")
-
-					// wait until index is created
-					<-idxTask.OnComplete()
+					createIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
+					defer dropIndex(nil, ns, set, set+"inner1")
 
 					testObj := &InnerStruct{}
 
@@ -1287,12 +1277,8 @@ var _ = gg.Describe("Aerospike", func() {
 				gg.It("must query only relevant objects, and close and return", func() {
 
 					// first create an index
-					idxTask, err := client.CreateIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-					defer client.DropIndex(nil, ns, set, set+"inner1")
-
-					// wait until index is created
-					<-idxTask.OnComplete()
+					createIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
+					defer dropIndex(nil, ns, set, set+"inner1")
 
 					testObj := &InnerStruct{}
 

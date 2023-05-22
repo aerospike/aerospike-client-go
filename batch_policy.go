@@ -14,6 +14,10 @@
 
 package aerospike
 
+import (
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+)
+
 // BatchPolicy encapsulates parameters for policy attributes used in write operations.
 // This object is passed into methods where database writes can occur.
 type BatchPolicy struct {
@@ -111,4 +115,12 @@ func NewWriteBatchPolicy() *BatchPolicy {
 	res := NewBatchPolicy()
 	res.MaxRetries = 0
 	return res
+}
+
+func (p *BatchPolicy) grpc_write() *kvs.WritePolicy {
+	return &kvs.WritePolicy{
+		Replica:    p.ReplicaPolicy.grpc(),
+		ReadModeSC: p.ReadModeSC.grpc(),
+		ReadModeAP: p.ReadModeAP.grpc(),
+	}
 }

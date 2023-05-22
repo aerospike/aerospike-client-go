@@ -17,6 +17,7 @@ package aerospike_test
 import (
 	"math"
 	"strconv"
+	"time"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -48,6 +49,10 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 	var legalIndexBits []int
 	var legalDescriptions [][]int
 	var illegalDescriptions [][]int
+
+	gg.AfterEach(func() {
+		time.Sleep(3 * time.Second)
+	})
 
 	gg.BeforeEach(func() {
 

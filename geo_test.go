@@ -16,7 +16,6 @@ package aerospike_test
 
 import (
 	"fmt"
-	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v6"
 
@@ -25,7 +24,7 @@ import (
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = gg.Describe("Geo Spacial Tests", func() {
+var _ = gg.Describe("QQQQ Geo Spacial Tests", func() {
 
 	gg.BeforeEach(func() {
 		if !featureEnabled("geo") {
@@ -45,6 +44,7 @@ var _ = gg.Describe("Geo Spacial Tests", func() {
 	var binName = "GeoBin"
 
 	gg.It("must Query a specific Region Containing a Point and get only relevant records back", func() {
+		dropIndex(wpolicy, ns, set, set+binName)
 
 		regions := []string{
 			`{
@@ -73,16 +73,8 @@ var _ = gg.Describe("Geo Spacial Tests", func() {
 		}
 
 		// queries only work on indices
-		client.DropIndex(wpolicy, ns, set, set+binName)
-		time.Sleep(time.Second)
-
-		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		// wait until index is created
-		gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
-
-		defer client.DropIndex(wpolicy, ns, set, set+binName)
+		createIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
+		defer dropIndex(wpolicy, ns, set, set+binName)
 
 		points := []string{
 			`{ "type": "Point", "coordinates": [-122.000000, 37.500000] }`,
@@ -112,6 +104,8 @@ var _ = gg.Describe("Geo Spacial Tests", func() {
 	})
 
 	gg.It("must Query a specific Point in Region and get only relevant records back", func() {
+		dropIndex(wpolicy, ns, set, set+binName)
+
 		points := []string{}
 		for i := 0; i < size; i++ {
 			lng := -122.0 + (0.1 * float64(i))
@@ -131,16 +125,8 @@ var _ = gg.Describe("Geo Spacial Tests", func() {
 		}
 
 		// queries only work on indices
-		client.DropIndex(wpolicy, ns, set, set+binName)
-		time.Sleep(time.Second)
-
-		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		// wait until index is created
-		gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
-
-		defer client.DropIndex(wpolicy, ns, set, set+binName)
+		createIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
+		defer dropIndex(wpolicy, ns, set, set+binName)
 
 		rgnsb := `{
 		    "type": "Polygon",
@@ -168,6 +154,8 @@ var _ = gg.Describe("Geo Spacial Tests", func() {
 	})
 
 	gg.It("must Query specific Points in Region denoted by a point and radius and get only relevant records back", func() {
+		dropIndex(wpolicy, ns, set, set+binName)
+
 		points := []string{}
 		for i := 0; i < size; i++ {
 			lng := -122.0 + (0.1 * float64(i))
@@ -187,16 +175,8 @@ var _ = gg.Describe("Geo Spacial Tests", func() {
 		}
 
 		// queries only work on indices
-		client.DropIndex(wpolicy, ns, set, set+binName)
-		time.Sleep(time.Second)
-
-		idxTask, err := client.CreateIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		// wait until index is created
-		gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
-
-		defer client.DropIndex(wpolicy, ns, set, set+binName)
+		createIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
+		defer dropIndex(wpolicy, ns, set, set+binName)
 
 		lon := float64(-122.0)
 		lat := float64(37.5)

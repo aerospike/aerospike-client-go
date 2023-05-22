@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option go_package = ".;auth";
+option java_package = "com.aerospike.proxy.client";
+
+// Proxy auth service
+service AuthService {
+    rpc Get(AerospikeAuthRequest) returns (AerospikeAuthResponse) {}
+}
+
+// An auth request to get an access token to perform operations on Aerospike
+// database.
+message AerospikeAuthRequest {
+    string username = 1;
+    string password = 2;
+}
+
+// An auth token to perform operations on Aerospike database.
+message AerospikeAuthResponse {
+    string token = 1;
+}

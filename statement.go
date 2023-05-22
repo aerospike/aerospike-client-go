@@ -14,7 +14,12 @@
 
 package aerospike
 
-import xornd "github.com/aerospike/aerospike-client-go/v6/types/rand"
+import (
+	"fmt"
+
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+	xornd "github.com/aerospike/aerospike-client-go/v6/types/rand"
+)
 
 // Statement encapsulates query statement parameters.
 type Statement struct {
@@ -59,6 +64,20 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 	}
 }
 
+func (stmt *Statement) String() string {
+	return fmt.Sprintf("Statement: {Namespace: %s, set: %s, IndexName: %s, BinNames: %v, Filter: %s, UDF: %s.%s(%v), TaskId: %d, return data: %v}",
+		stmt.Namespace,
+		stmt.SetName,
+		stmt.IndexName,
+		stmt.BinNames,
+		stmt.Filter,
+		stmt.packageName,
+		stmt.functionName,
+		stmt.functionArgs,
+		stmt.TaskId, stmt.returnData,
+	)
+}
+
 // SetFilter Sets a filter for the statement.
 // Aerospike Server currently only supports using a single filter per statement/query.
 func (stmt *Statement) SetFilter(filter *Filter) Error {
@@ -85,4 +104,41 @@ func (stmt *Statement) IsScan() bool {
 // Always set the taskID client-side to a non-zero random value
 func (stmt *Statement) prepare(returnData bool) {
 	stmt.returnData = returnData
+}
+
+func (stmt *Statement) grpc(policy *QueryPolicy, ops []*Operation) *kvs.Statement {
+	IndexName := stmt.IndexName
+	TaskId := int64(stmt.TaskId)
+	SetName := stmt.SetName
+
+	MaxRecords := uint64(policy.MaxRecords)
+	RecordsPerSecond := uint32(policy.RecordsPerSecond)
+
+	funcArgs := make([][]byte, 0, len(stmt.functionArgs))
+	for i := range stmt.functionArgs {
+		funcArgs = append(funcArgs, grpcValuePacked(stmt.functionArgs[i]))
+	}
+
+	return &kvs.Statement{
+		Namespace:        stmt.Namespace,
+		SetName:          &SetName,
+		IndexName:        &IndexName,
+		BinNames:         stmt.BinNames,
+		Filter:           stmt.Filter.grpc(),
+		PackageName:      stmt.packageName,
+		FunctionName:     stmt.functionName,
+		FunctionArgs:     funcArgs,
+		Operations:       grpcOperations(ops),
+		TaskId:           &TaskId,
+		MaxRecords:       &MaxRecords,
+		RecordsPerSecond: &RecordsPerSecond,
+	}
+}
+
+func grpcOperations(ops []*Operation) []*kvs.Operation {
+	res := make([]*kvs.Operation, 0, len(ops))
+	for i := range ops {
+		res = append(res, ops[i].grpc())
+	}
+	return res
 }

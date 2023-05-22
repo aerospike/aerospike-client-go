@@ -40,6 +40,15 @@ func NewBatchDelete(policy *BatchDeletePolicy, key *Key) *BatchDelete {
 	}
 }
 
+// newBatchDelete creates a batch delete operation.
+func newBatchDelete(policy *BatchDeletePolicy, key *Key) (*BatchDelete, *BatchRecord) {
+	bd := &BatchDelete{
+		BatchRecord: *newSimpleBatchRecord(key, true),
+		policy:      policy,
+	}
+	return bd, &bd.BatchRecord
+}
+
 // Return batch command type.
 func (bd *BatchDelete) getType() batchRecordType {
 	return _BRT_BATCH_DELETE

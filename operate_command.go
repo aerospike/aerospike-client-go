@@ -14,6 +14,13 @@
 
 package aerospike
 
+import (
+	"math/rand"
+
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+	grpc "google.golang.org/grpc"
+)
+
 type operateCommand struct {
 	readCommand
 
@@ -60,15 +67,37 @@ func (cmd *operateCommand) Execute() Error {
 	return cmd.execute(cmd, !cmd.args.hasWrite)
 }
 
-func hasWriteOp(operations []*Operation) bool {
-	for i := range operations {
-		switch operations[i].opType {
-		case _MAP_READ, _READ, _CDT_READ:
-		default:
-			// All other cases are a type of write
-			return true
-		}
+func (cmd *operateCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
+	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
+	if err != nil {
+		return err
 	}
 
-	return false
+	req := kvs.AerospikeRequestPayload{
+		Id:          rand.Uint32(),
+		Iteration:   1,
+		Payload:     cmd.dataBuffer[:cmd.dataOffset],
+		WritePolicy: cmd.policy.grpc(),
+	}
+
+	client := kvs.NewKVSClient(conn)
+
+	ctx := cmd.policy.grpcDeadlineContext()
+
+	res, gerr := client.Operate(ctx, &req)
+	if gerr != nil {
+		return newGrpcError(gerr, gerr.Error())
+	}
+
+	if res.Status != 0 {
+		return newGrpcStatusError(res)
+	}
+
+	cmd.conn = newGrpcFakeConnection(res.Payload, nil)
+	err = cmd.parseResult(cmd, cmd.conn)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -37,10 +37,16 @@ type batchCommandGet struct {
 	objectsFound []bool
 }
 
+type batchObjectParsetIfc interface {
+	buf() []byte
+	readBytes(int) Error
+	object(int) *reflect.Value
+}
+
 // this method uses reflection.
 // Will not be set if performance flag is passed for the build.
 var batchObjectParser func(
-	cmd *batchCommandGet,
+	cmd batchObjectParsetIfc,
 	offset int,
 	opCount int,
 	fieldCount int,
@@ -80,6 +86,14 @@ func (cmd *batchCommandGet) cloneBatchCommand(batch *batchNode) batcher {
 	res.batch = batch
 
 	return &res
+}
+
+func (cmd *batchCommandGet) buf() []byte {
+	return cmd.dataBuffer
+}
+
+func (cmd *batchCommandGet) object(index int) *reflect.Value {
+	return cmd.objects[index]
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) Error {

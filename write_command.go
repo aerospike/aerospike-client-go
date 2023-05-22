@@ -15,7 +15,11 @@
 package aerospike
 
 import (
+	"math/rand"
+
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
+	grpc "google.golang.org/grpc"
 
 	Buffer "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
 )
@@ -39,9 +43,13 @@ func newWriteCommand(cluster *Cluster,
 	binMap BinMap,
 	operation OperationType) (writeCommand, Error) {
 
-	partition, err := PartitionForWrite(cluster, &policy.BasePolicy, key)
-	if err != nil {
-		return writeCommand{}, err
+	var partition *Partition
+	var err Error
+	if cluster != nil {
+		partition, err = PartitionForWrite(cluster, &policy.BasePolicy, key)
+		if err != nil {
+			return writeCommand{}, err
+		}
 	}
 
 	newWriteCmd := writeCommand{
@@ -101,4 +109,39 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 
 func (cmd *writeCommand) Execute() Error {
 	return cmd.execute(cmd, false)
+}
+
+func (cmd *writeCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
+	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
+	if err != nil {
+		return err
+	}
+
+	req := kvs.AerospikeRequestPayload{
+		Id:          rand.Uint32(),
+		Iteration:   1,
+		Payload:     cmd.dataBuffer[:cmd.dataOffset],
+		WritePolicy: cmd.policy.grpc(),
+	}
+
+	client := kvs.NewKVSClient(conn)
+
+	ctx := cmd.policy.grpcDeadlineContext()
+
+	res, gerr := client.Write(ctx, &req)
+	if gerr != nil {
+		return newGrpcError(gerr, gerr.Error())
+	}
+
+	if res.Status != 0 {
+		return newGrpcStatusError(res)
+	}
+
+	cmd.conn = newGrpcFakeConnection(res.Payload, nil)
+	err = cmd.parseResult(cmd, cmd.conn)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

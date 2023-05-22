@@ -26,7 +26,7 @@ import (
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = gg.Describe("Scan operations", func() {
+var _ = gg.Describe("SSSSScan operations", func() {
 
 	// connection data
 	var ns = *namespace

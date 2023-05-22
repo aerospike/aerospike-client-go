@@ -19,26 +19,46 @@ package aerospike_test
 
 import (
 	"os"
+	"sync"
 
 	as "github.com/aerospike/aerospike-client-go/v6"
-	"github.com/aerospike/aerospike-client-go/v6/internal/atomic"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
 
-func registerUDF(client *as.Client, path, filename string) as.Error {
-	regTask, err := client.RegisterUDFFromFile(nil, path+filename+".lua", filename+".lua", as.LUA)
-	if err != nil {
-		return err
-	}
+func registerUDFFromFile(path, filename string) {
+	regTask, err := nativeClient.RegisterUDFFromFile(nil, path+filename+".lua", filename+".lua", as.LUA)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
 
 	// wait until UDF is created
-	return <-regTask.OnComplete()
+	gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
+}
+
+func registerUDF(udf, moduleName string) {
+	regTask, err := nativeClient.RegisterUDF(nil, []byte(udf), moduleName, as.LUA)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+
+	// wait until UDF is created
+	gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
+}
+
+func removeUDF(moduleName string) {
+	remTask, err := nativeClient.RemoveUDF(nil, moduleName)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+
+	// wait until UDF is created
+	gm.Expect(<-remTask.OnComplete()).ToNot(gm.HaveOccurred())
 }
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Query Aggregate operations", func() {
+
+	gg.BeforeEach(func() {
+		if *grpc {
+			gg.Skip("Not supported in GRPC Client")
+		}
+	})
 
 	var sumAll = func(upTo int) float64 {
 		return float64((1 + upTo) * upTo / 2.0)
@@ -57,18 +77,13 @@ var _ = gg.Describe("Query Aggregate operations", func() {
 
 	const keyCount = 1000
 
-	createUDFs := atomic.NewBool(true)
+	createUDFs := new(sync.Once)
 
 	gg.BeforeEach(func() {
-		if createUDFs.Get() {
-			err := registerUDF(client, luaPath, "sum_single_bin")
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			err = registerUDF(client, luaPath, "average")
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			createUDFs.Set(false)
-		}
+		createUDFs.Do(func() {
+			registerUDFFromFile(luaPath, "sum_single_bin")
+			registerUDFFromFile(luaPath, "average")
+		})
 
 		set = randString(50)
 		for i := 1; i <= keyCount; i++ {

@@ -14,6 +14,10 @@
 
 package aerospike
 
+import (
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+)
+
 // OperationType determines operation type
 type OperationType struct {
 	op      byte
@@ -26,8 +30,7 @@ type operationSubType *int
 // The names are self-explanatory.
 var (
 	_READ = OperationType{1, false}
-	// READ_HEADER OperationType = {1, false }
-
+	// _READ_HEADER = OperationType{1, false}
 	_WRITE      = OperationType{2, true}
 	_CDT_READ   = OperationType{3, false}
 	_CDT_MODIFY = OperationType{4, true}
@@ -45,6 +48,51 @@ var (
 	_HLL_READ   = OperationType{15, false}
 	_HLL_MODIFY = OperationType{16, true}
 )
+
+func (o *Operation) grpc_op_type() kvs.OperationType {
+	// case _READ: return  kvs.OperationType_READ
+	switch o.opType {
+	case _READ:
+		if o.headerOnly {
+			return kvs.OperationType_READ_HEADER
+		}
+		return kvs.OperationType_READ
+	case _WRITE:
+		return kvs.OperationType_WRITE
+	case _CDT_READ:
+		return kvs.OperationType_CDT_READ
+	case _CDT_MODIFY:
+		return kvs.OperationType_CDT_MODIFY
+	case _MAP_READ:
+		return kvs.OperationType_MAP_READ
+	case _MAP_MODIFY:
+		return kvs.OperationType_MAP_MODIFY
+	case _ADD:
+		return kvs.OperationType_ADD
+	case _EXP_READ:
+		return kvs.OperationType_EXP_READ
+	case _EXP_MODIFY:
+		return kvs.OperationType_EXP_MODIFY
+	case _APPEND:
+		return kvs.OperationType_APPEND
+	case _PREPEND:
+		return kvs.OperationType_PREPEND
+	case _TOUCH:
+		return kvs.OperationType_TOUCH
+	case _BIT_READ:
+		return kvs.OperationType_BIT_READ
+	case _BIT_MODIFY:
+		return kvs.OperationType_BIT_MODIFY
+	case _DELETE:
+		return kvs.OperationType_DELETE
+	case _HLL_READ:
+		return kvs.OperationType_HLL_READ
+	case _HLL_MODIFY:
+		return kvs.OperationType_HLL_MODIFY
+	}
+
+	panic("UNREACHABLE")
+}
 
 // Operation contains operation definition.
 // This struct is used in client's operate() method.
@@ -103,6 +151,15 @@ func (op *Operation) size() (int, Error) {
 
 	size += valueLength + 8
 	return size, nil
+}
+
+func (op *Operation) grpc() *kvs.Operation {
+	BinName := op.binName
+	return &kvs.Operation{
+		Type:    op.grpc_op_type(),
+		BinName: &BinName,
+		Value:   grpcValuePacked(op.binValue),
+	}
 }
 
 // cache uses the encoder and caches the packed operation for further use.

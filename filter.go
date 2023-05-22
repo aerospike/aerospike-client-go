@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	ParticleType "github.com/aerospike/aerospike-client-go/v6/internal/particle_type"
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 )
 
 // Filter specifies a query filter definition.
@@ -112,6 +113,34 @@ func newFilter(name string, indexCollectionType IndexCollectionType, valuePartic
 	}
 }
 
+func (fltr *Filter) String() string {
+	return fmt.Sprintf("Filter: {name: %s, index type: %s, value particle type: %d, begin: %s, end: %s, context: %v}",
+		fltr.name,
+		fltr.idxType,
+		fltr.valueParticleType,
+		fltr.begin,
+		fltr.end,
+		fltr.ctx,
+	)
+}
+
+func (fltr *Filter) grpc() *kvs.Filter {
+	if fltr == nil {
+		return nil
+	}
+
+	res := &kvs.Filter{
+		Name:      fltr.name,
+		ColType:   fltr.idxType.grpc(),
+		PackedCtx: fltr.grpcPackCtxPayload(),
+		ValType:   int32(fltr.valueParticleType),
+		Begin:     grpcValuePacked(fltr.begin),
+		End:       grpcValuePacked(fltr.end),
+	}
+
+	return res
+}
+
 // IndexCollectionType returns filter's index type.
 func (fltr *Filter) IndexCollectionType() IndexCollectionType {
 	return fltr.idxType
@@ -131,6 +160,18 @@ func (fltr *Filter) EstimateSize() (int, Error) {
 	}
 
 	return len(fltr.name) + szBegin + szEnd + 10, nil
+}
+
+func (fltr *Filter) grpcPackCtxPayload() []byte {
+	sz, err := fltr.estimatePackedCtxSize()
+	if err != nil {
+		panic(err)
+	}
+	buf := newBuffer(sz)
+	if _, err := fltr.packCtx(buf); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
 // Retrieve packed Context.

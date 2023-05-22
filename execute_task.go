@@ -15,10 +15,14 @@
 package aerospike
 
 import (
+	"context"
+	"math/rand"
 	"strconv"
 	"strings"
 
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
+	grpc "google.golang.org/grpc"
 )
 
 // ExecuteTask is used to poll for long running server execute job completion.
@@ -27,6 +31,8 @@ type ExecuteTask struct {
 
 	taskID uint64
 	scan   bool
+
+	grpcConn *grpc.ClientConn
 
 	// The following map keeps an account of what nodes were ever observed with the job registered on them.
 	// If the job was ever observed, the task will return true for it is not found anymore (purged from task queue after completetion)
@@ -43,8 +49,22 @@ func NewExecuteTask(cluster *Cluster, statement *Statement) *ExecuteTask {
 	}
 }
 
+// newGRPCExecuteTask initializes task with fields needed to query server nodes.
+func newGRPCExecuteTask(conn *grpc.ClientConn, statement *Statement) *ExecuteTask {
+	return &ExecuteTask{
+		baseTask: newTask(nil),
+		taskID:   statement.TaskId,
+		scan:     statement.IsScan(),
+		grpcConn: conn,
+	}
+}
+
 // IsDone queries all nodes for task completion status.
 func (etsk *ExecuteTask) IsDone() (bool, Error) {
+	if etsk.grpcConn != nil {
+		return etsk.grpcIsDone()
+	}
+
 	var module string
 	if etsk.scan {
 		module = "scan"
@@ -134,4 +154,52 @@ func (etsk *ExecuteTask) IsDone() (bool, Error) {
 // will be sent on the channel.
 func (etsk *ExecuteTask) OnComplete() chan Error {
 	return etsk.onComplete(etsk)
+}
+
+func (etsk *ExecuteTask) grpcIsDone() (bool, Error) {
+	statusReq := &kvs.BackgroundTaskStatusRequest{
+		TaskId: int64(etsk.taskID),
+		IsScan: etsk.scan,
+	}
+
+	req := kvs.AerospikeRequestPayload{
+		Id:                          rand.Uint32(),
+		Iteration:                   1,
+		BackgroundTaskStatusRequest: statusReq,
+	}
+
+	client := kvs.NewQueryClient(etsk.grpcConn)
+
+	ctx, _ := context.WithTimeout(context.Background(), NewInfoPolicy().Timeout)
+
+	streamRes, gerr := client.BackgroundTaskStatus(ctx, &req)
+	if gerr != nil {
+		return false, newGrpcError(gerr, gerr.Error())
+	}
+
+	for {
+		res, gerr := streamRes.Recv()
+		if gerr != nil {
+			e := newGrpcError(gerr)
+			return false, e
+		}
+
+		if res.Status != 0 {
+			e := newGrpcStatusError(res)
+			return false, e
+		}
+
+		switch *res.BackgroundTaskStatus {
+		case kvs.BackgroundTaskStatus_COMPLETE:
+			return true, nil
+		default:
+			return false, nil
+		}
+
+		if !res.HasNext {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }

@@ -28,6 +28,12 @@ import (
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Truncate operations test", func() {
 
+	gg.BeforeEach(func() {
+		if *grpc {
+			gg.Skip("Not supported in GRPC Client")
+		}
+	})
+
 	gg.Context("Truncate", func() {
 		var err error
 		var ns = *namespace

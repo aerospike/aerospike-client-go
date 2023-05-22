@@ -144,8 +144,8 @@ type ClientPolicy struct {
 	// RackId defines the Rack the application is on. This will only influence reads if Rackaware is enabled on the client,
 	// and configured on the server.
 	// If RackIds is set, this value will be ignored.
-	// Note: This attribute is deprecated and will be removed in future versions.
-	RackId int // 0
+	// Deprecated: Will be removed in future versions. Use RackIds instead.
+	RackId int // 0 TODO: Remove later
 
 	// RackIds defines the list of acceptable racks in order of preference. Nodes in RackIds[0] are chosen first.
 	// If a node is not found in rackIds[0], then nodes in rackIds[1] are searched, and so on.

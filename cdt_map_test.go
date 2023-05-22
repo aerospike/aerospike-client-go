@@ -841,10 +841,7 @@ var _ = gg.Describe("CDT Map Test", func() {
 
 	gg.It("should handle CDTs in UDFs", func() {
 
-		regTsk, err := client.RegisterUDF(nil, []byte(udfCDTTests), "cdt_tests.lua", as.LUA)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		gm.Expect(<-regTsk.OnComplete()).ToNot(gm.HaveOccurred())
+		registerUDF(udfCDTTests, "cdt_tests.lua")
 
 		_, err = client.Execute(nil, key, "cdt_tests", "add", as.NewValue("b"), as.NewValue("k"), as.NewValue(1))
 		gm.Expect(err).ToNot(gm.HaveOccurred())

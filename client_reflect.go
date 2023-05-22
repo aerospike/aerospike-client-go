@@ -29,14 +29,14 @@ import (
 // If the policy is nil, the default relevant policy will be used.
 // A struct can be tagged to influence the way the object is put in the database:
 //
-//  type Person struct {
-//		TTL uint32 `asm:"ttl"`
-//		RecGen uint32 `asm:"gen"`
-//		Name string `as:"name"`
-//  		Address string `as:"desc,omitempty"`
-//  		Age uint8 `as:",omitempty"`
-//  		Password string `as:"-"`
-//  }
+//	 type Person struct {
+//			TTL uint32 `asm:"ttl"`
+//			RecGen uint32 `asm:"gen"`
+//			Name string `as:"name"`
+//	 		Address string `as:"desc,omitempty"`
+//	 		Age uint8 `as:",omitempty"`
+//	 		Password string `as:"-"`
+//	 }
 //
 // Tag `as:` denotes Aerospike fields. The first value will be the alias for the field.
 // `,omitempty` (without any spaces between the comma and the word) will act like the
@@ -66,7 +66,12 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) Err
 	rval := reflect.ValueOf(obj)
 	binNames := objectMappings.getFields(rval.Type())
 
-	command, err := newReadCommand(clnt.cluster, policy, key, binNames, nil)
+	partition, err := PartitionForRead(clnt.cluster, policy, key)
+	if err != nil {
+		return err
+	}
+
+	command, err := newReadCommand(clnt.cluster, policy, key, binNames, partition)
 	if err != nil {
 		return err
 	}

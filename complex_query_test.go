@@ -52,31 +52,17 @@ var _ = gg.Describe("Query operations on complex types", func() {
 		}
 
 		// queries only work on indices
-		idxTask1, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC, as.ICT_LIST)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		// wait until index is created
-		gm.Expect(<-idxTask1.OnComplete()).ToNot(gm.HaveOccurred())
-
+		createComplexIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC, as.ICT_LIST)
 		// queries only work on indices
-		idxTask2, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin2.Name, as.NUMERIC, as.ICT_MAPKEYS)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		// wait until index is created
-		gm.Expect(<-idxTask2.OnComplete()).ToNot(gm.HaveOccurred())
-
+		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin2.Name, as.NUMERIC, as.ICT_MAPKEYS)
 		// queries only work on indices
-		idxTask3, err := client.CreateComplexIndex(wpolicy, ns, set, set+bin2.Name+"values", bin2.Name, as.NUMERIC, as.ICT_MAPVALUES)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-
-		// wait until index is created
-		gm.Expect(<-idxTask3.OnComplete()).ToNot(gm.HaveOccurred())
+		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"values", bin2.Name, as.NUMERIC, as.ICT_MAPVALUES)
 	})
 
 	gg.AfterEach(func() {
-		gm.Expect(client.DropIndex(nil, ns, set, set+bin1.Name)).ToNot(gm.HaveOccurred())
-		gm.Expect(client.DropIndex(nil, ns, set, set+bin2.Name+"keys")).ToNot(gm.HaveOccurred())
-		gm.Expect(client.DropIndex(nil, ns, set, set+bin2.Name+"values")).ToNot(gm.HaveOccurred())
+		dropIndex(nil, ns, set, set+bin1.Name)
+		dropIndex(nil, ns, set, set+bin2.Name+"keys")
+		dropIndex(nil, ns, set, set+bin2.Name+"values")
 	})
 
 	var queryPolicy = as.NewQueryPolicy()

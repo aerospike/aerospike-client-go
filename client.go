@@ -77,7 +77,7 @@ func NewClientWithPolicy(policy *ClientPolicy, hostname string, port int) (*Clie
 	return NewClientWithPolicyAndHost(policy, NewHost(hostname, port))
 }
 
-// NewClientWithPolicyAndHost generates a new Client the specified ClientPolicy and
+// NewClientWithPolicyAndHost generates a new Client with the specified ClientPolicy and
 // sets up the cluster using the provided hosts.
 // If the policy is nil, the default relevant policy will be used.
 func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, Error) {
@@ -107,6 +107,110 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	runtime.SetFinalizer(client, clientFinalizer)
 	return client, err
 
+}
+
+//-------------------------------------------------------
+// Policy methods
+//-------------------------------------------------------
+
+// DefaultPolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultPolicy() *BasePolicy {
+	return clnt.DefaultPolicy
+}
+
+// DefaultBatchPolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultBatchPolicy() *BatchPolicy {
+	return clnt.DefaultBatchPolicy
+}
+
+// DefaultBatchWritePolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultBatchWritePolicy() *BatchWritePolicy {
+	return clnt.DefaultBatchWritePolicy
+}
+
+// DefaultBatchDeletePolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultBatchDeletePolicy() *BatchDeletePolicy {
+	return clnt.DefaultBatchDeletePolicy
+}
+
+// DefaultBatchUDFPolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultBatchUDFPolicy() *BatchUDFPolicy {
+	return clnt.DefaultBatchUDFPolicy
+}
+
+// DefaultWritePolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultWritePolicy() *WritePolicy {
+	return clnt.DefaultWritePolicy
+}
+
+// DefaultScanPolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultScanPolicy() *ScanPolicy {
+	return clnt.DefaultScanPolicy
+}
+
+// DefaultQueryPolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultQueryPolicy() *QueryPolicy {
+	return clnt.DefaultQueryPolicy
+}
+
+// DefaultAdminPolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultAdminPolicy() *AdminPolicy {
+	return clnt.DefaultAdminPolicy
+}
+
+// DefaultInfoPolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultInfoPolicy() *InfoPolicy {
+	return clnt.DefaultInfoPolicy
+}
+
+// DefaultPolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultPolicy(policy *BasePolicy) {
+	clnt.DefaultPolicy = policy
+}
+
+// DefaultBatchPolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultBatchPolicy(policy *BatchPolicy) {
+	clnt.DefaultBatchPolicy = policy
+}
+
+// DefaultBatchWritePolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultBatchWritePolicy(policy *BatchWritePolicy) {
+	clnt.DefaultBatchWritePolicy = policy
+}
+
+// DefaultBatchDeletePolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultBatchDeletePolicy(policy *BatchDeletePolicy) {
+	clnt.DefaultBatchDeletePolicy = policy
+}
+
+// DefaultBatchUDFPolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultBatchUDFPolicy(policy *BatchUDFPolicy) {
+	clnt.DefaultBatchUDFPolicy = policy
+}
+
+// DefaultWritePolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultWritePolicy(policy *WritePolicy) {
+	clnt.DefaultWritePolicy = policy
+}
+
+// DefaultScanPolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultScanPolicy(policy *ScanPolicy) {
+	clnt.DefaultScanPolicy = policy
+}
+
+// DefaultQueryPolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultQueryPolicy(policy *QueryPolicy) {
+	clnt.DefaultQueryPolicy = policy
+}
+
+// DefaultAdminPolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultAdminPolicy(policy *AdminPolicy) {
+	clnt.DefaultAdminPolicy = policy
+}
+
+// DefaultInfoPolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultInfoPolicy(policy *InfoPolicy) {
+	clnt.DefaultInfoPolicy = policy
 }
 
 //-------------------------------------------------------

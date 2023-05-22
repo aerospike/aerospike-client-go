@@ -29,7 +29,7 @@ func init() {
 }
 
 func parseBatchObject(
-	cmd *batchCommandGet,
+	cmd batchObjectParsetIfc,
 	offset int,
 	opCount int,
 	fieldCount int,
@@ -37,7 +37,7 @@ func parseBatchObject(
 	expiration uint32,
 ) Error {
 	if opCount > 0 {
-		rv := *cmd.objects[offset]
+		rv := *cmd.object(offset)
 
 		if rv.Kind() != reflect.Ptr {
 			return ErrInvalidObjectType.err()
@@ -64,20 +64,20 @@ func parseBatchObject(
 			if err := cmd.readBytes(8); err != nil {
 				return err
 			}
-			opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, 0))
-			particleType := int(cmd.dataBuffer[5])
-			nameSize := int(cmd.dataBuffer[7])
+			opSize := int(Buffer.BytesToUint32(cmd.buf(), 0))
+			particleType := int(cmd.buf()[5])
+			nameSize := int(cmd.buf()[7])
 
 			if err := cmd.readBytes(nameSize); err != nil {
 				return err
 			}
-			name := string(cmd.dataBuffer[:nameSize])
+			name := string(cmd.buf()[:nameSize])
 
 			particleBytesSize := opSize - (4 + nameSize)
 			if err := cmd.readBytes(particleBytesSize); err != nil {
 				return err
 			}
-			value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
+			value, err := bytesToParticle(particleType, cmd.buf(), 0, particleBytesSize)
 			if err != nil {
 				return err
 			}

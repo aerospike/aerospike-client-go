@@ -477,18 +477,27 @@ func (fe *Expression) pack(buf BufferEx) (int, Error) {
 }
 
 func (fe *Expression) Base64() (string, Error) {
+	buf := fe.grpc()
+	return base64.StdEncoding.EncodeToString(buf), nil
+}
+
+func (fe *Expression) grpc() []byte {
+	if fe == nil {
+		return nil
+	}
+
 	sz, err := fe.size()
 	if err != nil {
-		return "", err
+		panic(err)
 	}
 
-	input := newBuffer(sz)
-	_, err = fe.pack(input)
+	buf := newBuffer(sz)
+	_, err = fe.pack(buf)
 	if err != nil {
-		return "", err
+		panic(err)
 	}
 
-	return base64.StdEncoding.EncodeToString(input.dataBuffer[:input.dataOffset]), nil
+	return buf.Bytes()
 }
 
 // ExpFromBase64 creates an expression from an encoded base64 expression.

@@ -34,6 +34,10 @@ var _ = gg.Describe("Security tests", func() {
 	var err error
 
 	gg.BeforeEach(func() {
+		if *grpc {
+			gg.Skip("Not supported in GRPC Client")
+		}
+
 		if !securityEnabled() {
 			gg.Skip("Security Tests are not supported in the Community Edition.")
 		}
@@ -43,7 +47,7 @@ var _ = gg.Describe("Security tests", func() {
 	})
 
 	gg.AfterEach(func() {
-		client.DropUser(nil, "test_user")
+		dropUser(nil, "test_user")
 		time.Sleep(time.Second)
 	})
 

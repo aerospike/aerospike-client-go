@@ -15,8 +15,13 @@
 package aerospike
 
 import (
+	"math/rand"
+	"reflect"
+
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
+	grpc "google.golang.org/grpc"
 )
 
 type batchCommandOperate struct {
@@ -24,6 +29,10 @@ type batchCommandOperate struct {
 
 	attr    *batchAttr
 	records []BatchRecordIfc
+
+	// pointer to the object that's going to be unmarshalled
+	objects      []*reflect.Value
+	objectsFound []bool
 }
 
 func newBatchCommandOperate(
@@ -41,6 +50,14 @@ func newBatchCommandOperate(
 		records: records,
 	}
 	return res
+}
+
+func (cmd *batchCommandOperate) buf() []byte {
+	return cmd.dataBuffer
+}
+
+func (cmd *batchCommandOperate) object(index int) *reflect.Value {
+	return cmd.objects[index]
 }
 
 func (cmd *batchCommandOperate) cloneBatchCommand(batch *batchNode) batcher {
@@ -98,18 +115,28 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 				return false, newError(resultCode)
 			}
 
-			cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+			cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.node)
 			continue
 		}
 
 		if resultCode == 0 {
 			firstRecord = false
-			rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
-			if err != nil {
-				cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
-				return false, err
+
+			if cmd.objects == nil {
+				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
+				if err != nil {
+					cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.node)
+					return false, err
+				}
+				cmd.records[batchIndex].setRecord(rec)
+			} else if batchObjectParser != nil {
+				// mark it as found
+				cmd.objectsFound[batchIndex] = true
+				if err := batchObjectParser(cmd, batchIndex, opCount, fieldCount, generation, expiration); err != nil {
+					return false, err
+
+				}
 			}
-			cmd.records[batchIndex].setRecord(rec)
 		}
 	}
 
@@ -167,4 +194,67 @@ func (cmd *batchCommandOperate) Execute() Error {
 
 func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchOperateNodeListIfcRetry(cluster, cmd.policy, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
+}
+
+func (cmd *batchCommandOperate) ExecuteGRPC(conn *grpc.ClientConn) Error {
+	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
+	if err != nil {
+		return err
+	}
+
+	req := kvs.AerospikeRequestPayload{
+		Id:          rand.Uint32(),
+		Iteration:   1,
+		Payload:     cmd.dataBuffer[:cmd.dataOffset],
+		ReadPolicy:  cmd.policy.grpc(),
+		WritePolicy: cmd.policy.grpc_write(),
+	}
+
+	client := kvs.NewKVSClient(conn)
+
+	ctx := cmd.policy.grpcDeadlineContext()
+
+	streamRes, gerr := client.BatchOperate(ctx, &req)
+	if gerr != nil {
+		return newGrpcError(gerr, gerr.Error())
+	}
+
+	readCallback := func() ([]byte, Error) {
+		res, gerr := streamRes.Recv()
+		if gerr != nil {
+			e := newGrpcError(gerr)
+			return nil, e
+		}
+
+		if res.Status != 0 {
+			e := newGrpcStatusError(res)
+			return res.Payload, e
+		}
+
+		if !res.HasNext {
+			return nil, errGRPCStreamEnd
+		}
+
+		return res.Payload, nil
+	}
+
+	cmd.conn = newGrpcFakeConnection(nil, readCallback)
+	err = cmd.parseResult(cmd, cmd.conn)
+	if err != nil && err != errGRPCStreamEnd {
+		return err
+	}
+
+	var errs Error
+	for _, r := range cmd.records {
+		if b := r.BatchRec(); b.Err != nil {
+			if errs == nil {
+				errs = chainErrors(b.Err, errs)
+			} else if !errs.Matches(b.ResultCode, types.FILTERED_OUT) {
+				// add only new errors
+				errs = chainErrors(b.Err, errs)
+			}
+		}
+	}
+
+	return errs
 }

@@ -42,12 +42,14 @@ import (
 var (
 	hosts       = flag.String("hosts", "", "Comma separated Aerospike server seed hostnames or IP addresses and ports. eg: s1:3000,s2:3000,s3:3000")
 	host        = flag.String("h", "127.0.0.1", "Aerospike server seed hostnames or IP addresses")
+	nativeHosts = flag.String("nh", "127.0.0.1:3000", "Native Aerospike server seed hostnames or IP addresses, used in tests for GRPC to support unsupported API")
 	port        = flag.Int("p", 3000, "Aerospike server seed hostname or IP address port number.")
 	user        = flag.String("U", "", "Username.")
 	password    = flag.String("P", "", "Password.")
 	authMode    = flag.String("A", "internal", "Authentication mode: internal | external")
 	useReplicas = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
 	debug       = flag.Bool("debug", false, "Will set the logging level to DEBUG.")
+	grpc        = flag.Bool("grpc", false, "Will use GRPC client.")
 	namespace   = flag.String("n", "test", "Namespace")
 
 	certFile          = flag.String("cert_file", "", "Certificate file name.")
@@ -58,7 +60,8 @@ var (
 
 	tlsConfig    *tls.Config
 	clientPolicy *as.ClientPolicy
-	client       *as.Client
+	client       as.ClientIfc
+	nativeClient *as.Client
 )
 
 func initTestVars() {
@@ -107,14 +110,36 @@ func initTestVars() {
 	}
 
 	log.Println("Connecting to seeds:", dbHosts)
-	client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
-	if err != nil {
-		log.Fatal(err.Error())
+	if *grpc {
+		client, err = as.NewGrpcClient(clientPolicy, dbHosts[0])
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+	} else {
+		nclient, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+		client = nclient
+		nativeClient = nclient
+	}
+
+	if *grpc {
+		hosts, err := as.NewHosts(*nativeHosts)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		nativeClient, err = as.NewClientWithPolicyAndHost(clientPolicy, hosts...)
+		if err != nil {
+			log.Fatal("Error connecting the native client to the cluster", err.Error())
+		}
 	}
 
 	// set default policies
 	if *useReplicas {
-		client.DefaultPolicy.ReplicaPolicy = as.MASTER_PROLES
+		p := client.GetDefaultPolicy()
+		p.ReplicaPolicy = as.MASTER_PROLES
+		client.SetDefaultPolicy(p)
 	}
 }
 
@@ -135,7 +160,7 @@ func TestAerospike(t *testing.T) {
 }
 
 func featureEnabled(feature string) bool {
-	node := client.GetNodes()[0]
+	node := nativeClient.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "features")
 	if err != nil {
 		log.Fatal("Failed to connect to aerospike: err:", err)
@@ -145,7 +170,7 @@ func featureEnabled(feature string) bool {
 }
 
 func isEnterpriseEdition() bool {
-	node := client.GetNodes()[0]
+	node := nativeClient.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "edition")
 	if err != nil {
 		log.Fatal("Failed to connect to aerospike: err:", err)
@@ -159,17 +184,17 @@ func securityEnabled() bool {
 		return false
 	}
 
-	_, err := client.QueryRoles(nil)
+	_, err := nativeClient.QueryRoles(nil)
 	return err == nil
 }
 
 func xdrEnabled() bool {
-	res := info(client, "get-config:context=xdr")
+	res := info(nativeClient, "get-config:context=xdr")
 	return len(res) > 0 && !strings.HasPrefix(res, "ERROR")
 }
 
 func nsInfo(ns string, feature string) string {
-	node := client.GetNodes()[0]
+	node := nativeClient.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "namespace/"+ns)
 	if err != nil {
 		log.Fatal("Failed to connect to aerospike: err:", err)
@@ -316,7 +341,7 @@ func cmpServerVersion(v string) versionStatus {
 	var pattern = `(?P<v1>\d+)(\.(?P<v2>\d+)(\.(?P<v3>\d+)(\.(?P<v4>\d+))?)?)?.*`
 	var vmeta = regexp.MustCompile(pattern)
 
-	vs := info(client, "build")
+	vs := info(nativeClient, "build")
 
 	server := findNamedMatches(vmeta, vs)
 	req := findNamedMatches(vmeta, v)
@@ -354,4 +379,63 @@ func findNamedMatches(regex *regexp.Regexp, str string) []int {
 		}
 	}
 	return results[:j]
+}
+
+func dropUser(
+	policy *as.AdminPolicy,
+	user string,
+) {
+	err := nativeClient.DropUser(policy, user)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+}
+
+func dropIndex(
+	policy *as.WritePolicy,
+	namespace string,
+	setName string,
+	indexName string,
+) {
+	gm.Expect(nativeClient.DropIndex(policy, namespace, setName, indexName)).ToNot(gm.HaveOccurred())
+
+	time.Sleep(time.Second)
+}
+
+func createIndex(
+	policy *as.WritePolicy,
+	namespace string,
+	setName string,
+	indexName string,
+	binName string,
+	indexType as.IndexType,
+) {
+	idxTask, err := nativeClient.CreateIndex(policy, namespace, setName, indexName, binName, indexType)
+	if err != nil {
+		if !err.Matches(ast.INDEX_FOUND) {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		}
+		return // index already exists
+	}
+
+	// time.Sleep(3 * time.Second)
+
+	// wait until index is created
+	gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
+}
+
+func createComplexIndex(
+	policy *as.WritePolicy,
+	namespace string,
+	setName string,
+	indexName string,
+	binName string,
+	indexType as.IndexType,
+	indexCollectionType as.IndexCollectionType,
+	ctx ...*as.CDTContext,
+) {
+	// queries only work on indices
+	idxTask1, err := nativeClient.CreateComplexIndex(policy, namespace, setName, indexName, binName, indexType, indexCollectionType, ctx...)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+
+	// wait until index is created
+	gm.Expect(<-idxTask1.OnComplete()).ToNot(gm.HaveOccurred())
 }
