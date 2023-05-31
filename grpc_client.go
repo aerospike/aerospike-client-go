@@ -79,7 +79,8 @@ func grpcClientFinalizer(f *GrpcClient) {
 // NewGRPCClient generates a new GRPC GrpcClient with the specified ClientPolicy and
 // sets up the cluster using the provided hosts.
 // If the policy is nil, the default relevant policy will be used.
-// Pass "dns:///<address>:<port>" for dns load balancing.
+// Pass "dns:///<address>:<port>" (note the 3 slashes) for dns load balancing,
+// automatically supported internally by grpc-go.
 func NewGrpcClient(policy *ClientPolicy, host *Host, dialOptions ...grpc.DialOption) (*GrpcClient, Error) {
 	if policy == nil {
 		policy = NewClientPolicy()
