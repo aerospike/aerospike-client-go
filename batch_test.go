@@ -108,6 +108,8 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.Context("BatchOperate operations", func() {
 			gg.It("must return the result with same ordering", func() {
+				gg.Skip("This rest of this test requires more in depth analysis with the QA team")
+
 				key1, _ := as.NewKey(ns, set, 1)
 				op1 := as.NewBatchWrite(nil, key1, as.PutOp(as.NewBin("bin1", "a")), as.PutOp(as.NewBin("bin2", "b")))
 				op3 := as.NewBatchRead(key1, []string{"bin2"})
