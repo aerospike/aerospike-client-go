@@ -112,6 +112,17 @@ func initTestVars() {
 		log.Fatal(err.Error())
 	}
 
+	client.DefaultBatchPolicy.TotalTimeout = 15 * time.Second
+	client.DefaultBatchPolicy.SocketTimeout = 5 * time.Second
+	client.DefaultWritePolicy.TotalTimeout = 15 * time.Second
+	client.DefaultWritePolicy.SocketTimeout = 5 * time.Second
+	client.DefaultScanPolicy.TotalTimeout = 15 * time.Second
+	client.DefaultScanPolicy.SocketTimeout = 5 * time.Second
+	client.DefaultQueryPolicy.TotalTimeout = 15 * time.Second
+	client.DefaultQueryPolicy.SocketTimeout = 5 * time.Second
+	client.DefaultAdminPolicy.Timeout = 15 * time.Second
+	client.DefaultInfoPolicy.Timeout = 15 * time.Second
+
 	// set default policies
 	if *useReplicas {
 		client.DefaultPolicy.ReplicaPolicy = as.MASTER_PROLES

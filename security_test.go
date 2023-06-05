@@ -43,7 +43,9 @@ var _ = gg.Describe("Security tests", func() {
 	})
 
 	gg.AfterEach(func() {
-		client.DropUser(nil, "test_user")
+		if client != nil {
+			client.DropUser(nil, "test_user")
+		}
 		time.Sleep(time.Second)
 	})
 
