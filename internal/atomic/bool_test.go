@@ -16,6 +16,7 @@ package atomic_test
 
 import (
 	"runtime"
+	"sync"
 
 	"github.com/aerospike/aerospike-client-go/v6/internal/atomic"
 
@@ -36,6 +37,41 @@ var _ = gg.Describe("Atomic Bool", func() {
 	gg.It("must CompareAndToggle correctly", func() {
 		gm.Expect(ab.CompareAndToggle(true)).To(gm.BeTrue())
 		gm.Expect(ab.CompareAndToggle(true)).To(gm.BeFalse())
+	})
+
+	gg.It("must CompareAndToggle correctly", func() {
+		var count int = 1e5
+		wg := new(sync.WaitGroup)
+		wg.Add(count * 4)
+		for i := 0; i < count; i++ {
+			go func() {
+				defer wg.Done()
+				ab.Set(true)
+			}()
+		}
+
+		for i := 0; i < count; i++ {
+			go func() {
+				defer wg.Done()
+				ab.Set(false)
+			}()
+		}
+
+		for i := 0; i < count; i++ {
+			go func() {
+				defer wg.Done()
+				ab.Get()
+			}()
+		}
+
+		for i := 0; i < count; i++ {
+			go func(i int) {
+				defer wg.Done()
+				ab.CompareAndToggle(i%2 == 0)
+			}(i)
+		}
+
+		wg.Wait()
 	})
 
 })

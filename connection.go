@@ -22,7 +22,6 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v6/logger"
@@ -197,7 +196,7 @@ func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 
 	if ctn.node != nil {
 		ctn.node.incrErrorCount()
-		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+		ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 	}
 
 	ctn.Close()
@@ -242,7 +241,7 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 
 	if ctn.node != nil {
 		ctn.node.incrErrorCount()
-		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+		ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 	}
 
 	ctn.Close()
@@ -288,7 +287,7 @@ func (ctn *Connection) updateDeadline() Error {
 
 	if err := ctn.conn.SetDeadline(socketDeadline); err != nil {
 		if ctn.node != nil {
-			atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+			ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 		}
 		return errToAerospikeErr(ctn, err)
 	}
@@ -311,7 +310,7 @@ func (ctn *Connection) Close() {
 			// deregister
 			if ctn.node != nil {
 				ctn.node.connectionCount.DecrementAndGet()
-				atomic.AddInt64(&ctn.node.stats.ConnectionsClosed, 1)
+				ctn.node.stats.ConnectionsClosed.IncrementAndGet()
 			}
 
 			if err := ctn.conn.Close(); err != nil {
@@ -357,7 +356,7 @@ func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessio
 
 		if err != nil {
 			if ctn.node != nil {
-				atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
+				ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 			}
 			// Socket not authenticated. Do not put back into pool.
 			ctn.Close()

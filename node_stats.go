@@ -14,73 +14,158 @@
 
 package aerospike
 
-import "sync/atomic"
+import (
+	"encoding/json"
+	"sync"
+
+	iatomic "github.com/aerospike/aerospike-client-go/v6/internal/atomic"
+)
 
 // nodeStats keeps track of client's internal node statistics
 // These statistics are aggregated once per tend in the cluster object
 // and then are served to the end-user.
 type nodeStats struct {
-	ConnectionsAttempts   int64 `json:"connections-attempts"`
-	ConnectionsSuccessful int64 `json:"connections-successful"`
-	ConnectionsFailed     int64 `json:"connections-failed"`
-	ConnectionsPoolEmpty  int64 `json:"connections-pool-empty"`
-	ConnectionsOpen       int64 `json:"open-connections"`
-	ConnectionsClosed     int64 `json:"closed-connections"`
-	TendsTotal            int64 `json:"tends-total"`
-	TendsSuccessful       int64 `json:"tends-successful"`
-	TendsFailed           int64 `json:"tends-failed"`
-	PartitionMapUpdates   int64 `json:"partition-map-updates"`
-	NodeAdded             int64 `json:"node-added-count"`
-	NodeRemoved           int64 `json:"node-removed-count"`
+	m                     sync.Mutex
+	ConnectionsAttempts   iatomic.Int `json:"connections-attempts"`
+	ConnectionsSuccessful iatomic.Int `json:"connections-successful"`
+	ConnectionsFailed     iatomic.Int `json:"connections-failed"`
+	ConnectionsPoolEmpty  iatomic.Int `json:"connections-pool-empty"`
+	ConnectionsOpen       iatomic.Int `json:"open-connections"`
+	ConnectionsClosed     iatomic.Int `json:"closed-connections"`
+	TendsTotal            iatomic.Int `json:"tends-total"`
+	TendsSuccessful       iatomic.Int `json:"tends-successful"`
+	TendsFailed           iatomic.Int `json:"tends-failed"`
+	PartitionMapUpdates   iatomic.Int `json:"partition-map-updates"`
+	NodeAdded             iatomic.Int `json:"node-added-count"`
+	NodeRemoved           iatomic.Int `json:"node-removed-count"`
 }
 
 // latest returns the latest values to be used in aggregation and then resets the values
 func (ns *nodeStats) getAndReset() *nodeStats {
-	return &nodeStats{
-		ConnectionsAttempts:   atomic.SwapInt64(&ns.ConnectionsAttempts, 0),
-		ConnectionsSuccessful: atomic.SwapInt64(&ns.ConnectionsSuccessful, 0),
-		ConnectionsFailed:     atomic.SwapInt64(&ns.ConnectionsFailed, 0),
-		ConnectionsPoolEmpty:  atomic.SwapInt64(&ns.ConnectionsPoolEmpty, 0),
-		ConnectionsOpen:       atomic.SwapInt64(&ns.ConnectionsOpen, 0),
-		ConnectionsClosed:     atomic.SwapInt64(&ns.ConnectionsClosed, 0),
-		TendsTotal:            atomic.SwapInt64(&ns.TendsTotal, 0),
-		TendsSuccessful:       atomic.SwapInt64(&ns.TendsSuccessful, 0),
-		TendsFailed:           atomic.SwapInt64(&ns.TendsFailed, 0),
-		PartitionMapUpdates:   atomic.SwapInt64(&ns.PartitionMapUpdates, 0),
-		NodeAdded:             atomic.SwapInt64(&ns.NodeAdded, 0),
-		NodeRemoved:           atomic.SwapInt64(&ns.NodeRemoved, 0),
+	ns.m.Lock()
+
+	res := &nodeStats{
+		ConnectionsAttempts:   ns.ConnectionsAttempts.CloneAndSet(0),
+		ConnectionsSuccessful: ns.ConnectionsSuccessful.CloneAndSet(0),
+		ConnectionsFailed:     ns.ConnectionsFailed.CloneAndSet(0),
+		ConnectionsPoolEmpty:  ns.ConnectionsPoolEmpty.CloneAndSet(0),
+		ConnectionsOpen:       ns.ConnectionsOpen.CloneAndSet(0),
+		ConnectionsClosed:     ns.ConnectionsClosed.CloneAndSet(0),
+		TendsTotal:            ns.TendsTotal.CloneAndSet(0),
+		TendsSuccessful:       ns.TendsSuccessful.CloneAndSet(0),
+		TendsFailed:           ns.TendsFailed.CloneAndSet(0),
+		PartitionMapUpdates:   ns.PartitionMapUpdates.CloneAndSet(0),
+		NodeAdded:             ns.NodeAdded.CloneAndSet(0),
+		NodeRemoved:           ns.NodeRemoved.CloneAndSet(0),
 	}
+
+	ns.m.Unlock()
+	return res
 }
 
-// latest returns the latest values to be used in aggregation and then resets the values
 func (ns *nodeStats) clone() nodeStats {
-	return nodeStats{
-		ConnectionsAttempts:   atomic.LoadInt64(&ns.ConnectionsAttempts),
-		ConnectionsSuccessful: atomic.LoadInt64(&ns.ConnectionsSuccessful),
-		ConnectionsFailed:     atomic.LoadInt64(&ns.ConnectionsFailed),
-		ConnectionsPoolEmpty:  atomic.LoadInt64(&ns.ConnectionsPoolEmpty),
-		ConnectionsOpen:       atomic.LoadInt64(&ns.ConnectionsOpen),
-		ConnectionsClosed:     atomic.LoadInt64(&ns.ConnectionsClosed),
-		TendsTotal:            atomic.LoadInt64(&ns.TendsTotal),
-		TendsSuccessful:       atomic.LoadInt64(&ns.TendsSuccessful),
-		TendsFailed:           atomic.LoadInt64(&ns.TendsFailed),
-		PartitionMapUpdates:   atomic.LoadInt64(&ns.PartitionMapUpdates),
-		NodeAdded:             atomic.LoadInt64(&ns.NodeAdded),
-		NodeRemoved:           atomic.LoadInt64(&ns.NodeRemoved),
+	ns.m.Lock()
+
+	res := nodeStats{
+		ConnectionsAttempts:   ns.ConnectionsAttempts.Clone(),
+		ConnectionsSuccessful: ns.ConnectionsSuccessful.Clone(),
+		ConnectionsFailed:     ns.ConnectionsFailed.Clone(),
+		ConnectionsPoolEmpty:  ns.ConnectionsPoolEmpty.Clone(),
+		ConnectionsOpen:       ns.ConnectionsOpen.Clone(),
+		ConnectionsClosed:     ns.ConnectionsClosed.Clone(),
+		TendsTotal:            ns.TendsTotal.Clone(),
+		TendsSuccessful:       ns.TendsSuccessful.Clone(),
+		TendsFailed:           ns.TendsFailed.Clone(),
+		PartitionMapUpdates:   ns.PartitionMapUpdates.Clone(),
+		NodeAdded:             ns.NodeAdded.Clone(),
+		NodeRemoved:           ns.NodeRemoved.Clone(),
 	}
+
+	ns.m.Unlock()
+	return res
 }
 
 func (ns *nodeStats) aggregate(newStats *nodeStats) {
-	atomic.AddInt64(&ns.ConnectionsAttempts, newStats.ConnectionsAttempts)
-	atomic.AddInt64(&ns.ConnectionsSuccessful, newStats.ConnectionsSuccessful)
-	atomic.AddInt64(&ns.ConnectionsFailed, newStats.ConnectionsFailed)
-	atomic.AddInt64(&ns.ConnectionsPoolEmpty, newStats.ConnectionsPoolEmpty)
-	atomic.AddInt64(&ns.ConnectionsOpen, newStats.ConnectionsOpen)
-	atomic.AddInt64(&ns.ConnectionsClosed, newStats.ConnectionsClosed)
-	atomic.AddInt64(&ns.TendsTotal, newStats.TendsTotal)
-	atomic.AddInt64(&ns.TendsSuccessful, newStats.TendsSuccessful)
-	atomic.AddInt64(&ns.TendsFailed, newStats.TendsFailed)
-	atomic.AddInt64(&ns.PartitionMapUpdates, newStats.PartitionMapUpdates)
-	atomic.AddInt64(&ns.NodeAdded, newStats.NodeAdded)
-	atomic.AddInt64(&ns.NodeRemoved, newStats.NodeRemoved)
+	ns.m.Lock()
+
+	ns.ConnectionsAttempts.AddAndGet(newStats.ConnectionsAttempts.Get())
+	ns.ConnectionsSuccessful.AddAndGet(newStats.ConnectionsSuccessful.Get())
+	ns.ConnectionsFailed.AddAndGet(newStats.ConnectionsFailed.Get())
+	ns.ConnectionsPoolEmpty.AddAndGet(newStats.ConnectionsPoolEmpty.Get())
+	ns.ConnectionsOpen.AddAndGet(newStats.ConnectionsOpen.Get())
+	ns.ConnectionsClosed.AddAndGet(newStats.ConnectionsClosed.Get())
+	ns.TendsTotal.AddAndGet(newStats.TendsTotal.Get())
+	ns.TendsSuccessful.AddAndGet(newStats.TendsSuccessful.Get())
+	ns.TendsFailed.AddAndGet(newStats.TendsFailed.Get())
+	ns.PartitionMapUpdates.AddAndGet(newStats.PartitionMapUpdates.Get())
+	ns.NodeAdded.AddAndGet(newStats.NodeAdded.Get())
+	ns.NodeRemoved.AddAndGet(newStats.NodeRemoved.Get())
+
+	ns.m.Unlock()
+}
+
+func (ns nodeStats) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		ConnectionsAttempts   int `json:"connections-attempts"`
+		ConnectionsSuccessful int `json:"connections-successful"`
+		ConnectionsFailed     int `json:"connections-failed"`
+		ConnectionsPoolEmpty  int `json:"connections-pool-empty"`
+		ConnectionsOpen       int `json:"open-connections"`
+		ConnectionsClosed     int `json:"closed-connections"`
+		TendsTotal            int `json:"tends-total"`
+		TendsSuccessful       int `json:"tends-successful"`
+		TendsFailed           int `json:"tends-failed"`
+		PartitionMapUpdates   int `json:"partition-map-updates"`
+		NodeAdded             int `json:"node-added-count"`
+		NodeRemoved           int `json:"node-removed-count"`
+	}{
+		ns.ConnectionsAttempts.Get(),
+		ns.ConnectionsSuccessful.Get(),
+		ns.ConnectionsFailed.Get(),
+		ns.ConnectionsPoolEmpty.Get(),
+		ns.ConnectionsOpen.Get(),
+		ns.ConnectionsClosed.Get(),
+		ns.TendsTotal.Get(),
+		ns.TendsSuccessful.Get(),
+		ns.TendsFailed.Get(),
+		ns.PartitionMapUpdates.Get(),
+		ns.NodeAdded.Get(),
+		ns.NodeRemoved.Get(),
+	})
+}
+
+func (ns *nodeStats) UnmarshalJSON(data []byte) error {
+	aux := struct {
+		ConnectionsAttempts   int `json:"connections-attempts"`
+		ConnectionsSuccessful int `json:"connections-successful"`
+		ConnectionsFailed     int `json:"connections-failed"`
+		ConnectionsPoolEmpty  int `json:"connections-pool-empty"`
+		ConnectionsOpen       int `json:"open-connections"`
+		ConnectionsClosed     int `json:"closed-connections"`
+		TendsTotal            int `json:"tends-total"`
+		TendsSuccessful       int `json:"tends-successful"`
+		TendsFailed           int `json:"tends-failed"`
+		PartitionMapUpdates   int `json:"partition-map-updates"`
+		NodeAdded             int `json:"node-added-count"`
+		NodeRemoved           int `json:"node-removed-count"`
+	}{}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	ns.ConnectionsAttempts.Set(aux.ConnectionsAttempts)
+	ns.ConnectionsSuccessful.Set(aux.ConnectionsSuccessful)
+	ns.ConnectionsFailed.Set(aux.ConnectionsFailed)
+	ns.ConnectionsPoolEmpty.Set(aux.ConnectionsPoolEmpty)
+	ns.ConnectionsOpen.Set(aux.ConnectionsOpen)
+	ns.ConnectionsClosed.Set(aux.ConnectionsClosed)
+	ns.TendsTotal.Set(aux.TendsTotal)
+	ns.TendsSuccessful.Set(aux.TendsSuccessful)
+	ns.TendsFailed.Set(aux.TendsFailed)
+	ns.PartitionMapUpdates.Set(aux.PartitionMapUpdates)
+	ns.NodeAdded.Set(aux.NodeAdded)
+	ns.NodeRemoved.Set(aux.NodeRemoved)
+
+	return nil
 }

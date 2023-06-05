@@ -1650,7 +1650,7 @@ func (clnt *Client) Stats() (map[string]interface{}, Error) {
 		return nil, newCommonError(err)
 	}
 
-	res["open-connections"] = clusterStats.ConnectionsOpen
+	res["open-connections"] = clusterStats.ConnectionsOpen.Get()
 
 	return res, nil
 }
