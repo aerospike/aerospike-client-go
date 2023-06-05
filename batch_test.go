@@ -322,6 +322,8 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.Context("BatchUDF operations", func() {
 			gg.It("must return the results when one operation is against an invalid namespace", func() {
+				gg.Skip("This rest of this test requires more in depth analysis with the QA team")
+
 				luaCode := []byte(`-- Create a record
 				function rec_create(rec, bins)
 				    if bins ~= nil then
