@@ -14,7 +14,10 @@
 
 package aerospike
 
-import xornd "github.com/aerospike/aerospike-client-go/v6/types/rand"
+import (
+	"github.com/aerospike/aerospike-client-go/v6/types"
+	xornd "github.com/aerospike/aerospike-client-go/v6/types/rand"
+)
 
 // Statement encapsulates query statement parameters.
 type Statement struct {
@@ -80,6 +83,13 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 // IsScan determines is the Statement is a full namespace/set scan or a selective Query.
 func (stmt *Statement) IsScan() bool {
 	return stmt.Filter == nil
+}
+
+func (stmt *Statement) terminationError() types.ResultCode {
+	if stmt.IsScan() {
+		return types.SCAN_TERMINATED
+	}
+	return types.QUERY_TERMINATED
 }
 
 // Always set the taskID client-side to a non-zero random value

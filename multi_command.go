@@ -387,8 +387,13 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			}
 		}
 
-		if cmd.tracker != nil {
-			cmd.tracker.setLast(cmd.nodePartitions, key, bval)
+		if fieldCount > 0 && cmd.tracker != nil {
+			// only if there is key returned. Commands like QueryAggregate do not return keys
+			if cmd.terminationErrorType == types.SCAN_TERMINATED {
+				cmd.tracker.setDigest(cmd.nodePartitions, key)
+			} else {
+				cmd.tracker.setLast(cmd.nodePartitions, key, bval)
+			}
 		}
 	}
 
