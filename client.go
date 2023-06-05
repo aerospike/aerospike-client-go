@@ -102,6 +102,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 		DefaultScanPolicy:        NewScanPolicy(),
 		DefaultQueryPolicy:       NewQueryPolicy(),
 		DefaultAdminPolicy:       NewAdminPolicy(),
+		DefaultInfoPolicy:        NewInfoPolicy(),
 	}
 
 	runtime.SetFinalizer(client, clientFinalizer)
