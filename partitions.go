@@ -42,18 +42,6 @@ func newPartitions(partitionCount int, replicaCount int, cpMode bool) *Partition
 	}
 }
 
-func (p *Partitions) removeNodes(nodes []*Node) {
-	for i := range p.Replicas {
-		for j := range p.Replicas[i] {
-			for k := range nodes {
-				if p.Replicas[i][j] == nodes[k] {
-					p.Replicas[i][j] = nil
-				}
-			}
-		}
-	}
-}
-
 func (p *Partitions) setReplicaCount(replicaCount int) {
 	if len(p.Replicas) < replicaCount {
 		i := len(p.Replicas)
@@ -95,18 +83,6 @@ func (p *Partitions) clone() *Partitions {
 */
 
 type partitionMap map[string]*Partitions
-
-// removeNodes removes all the referenced nodes stored in the lists
-// when they are removed from the cluster
-func (pm partitionMap) removeNodes(nodes []*Node) {
-	if len(nodes) == 0 {
-		return
-	}
-
-	for _, partitions := range pm {
-		partitions.removeNodes(nodes)
-	}
-}
 
 // cleanup removes all the references stored in the lists
 // to help the GC identify the unused pointers.

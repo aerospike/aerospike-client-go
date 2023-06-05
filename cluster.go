@@ -365,11 +365,6 @@ func (clstr *Cluster) tend() Error {
 				logger.Logger.Debug("The following nodes will be removed: %s", n)
 			}
 			clstr.removeNodes(removeList)
-
-			if partMap != nil {
-				// remove departed nodes from the partition map
-				partMap.removeNodes(removeList)
-			}
 		}
 
 		clstr.aggregateNodestats(removeList)
