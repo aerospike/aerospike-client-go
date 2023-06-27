@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -23,6 +24,9 @@ import (
 
 	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
+	grpc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Error is the internal error interface for the Aerospike client's errors.
@@ -138,12 +142,106 @@ func newCommonError(e error, messages ...string) Error {
 }
 
 func newGrpcError(e error, messages ...string) Error {
+	if ae, ok := e.(Error); ok && ae.resultCode() == types.GRPC_ERROR {
+		return ae
+	}
+
+	// convert error to Aerospike errors
+	if e == context.DeadlineExceeded {
+		return ErrNetTimeout.err()
+	} else if e == grpc.ErrClientConnTimeout {
+		return ErrNetTimeout.err()
+	} else if e == grpc.ErrServerStopped {
+		return ErrServerNotAvailable.err()
+	}
+
+	// try to convert the error
+	code := status.Code(e)
+	if code == codes.Unknown {
+		if s := status.Convert(e); s != nil {
+			code = s.Code()
+		}
+	}
+
+	switch code {
+	case codes.OK:
+		return nil
+	case codes.Canceled:
+		return newError(types.GRPC_ERROR)
+	case codes.InvalidArgument:
+		return newError(types.PARAMETER_ERROR, messages...)
+	case codes.DeadlineExceeded:
+		return ErrNetTimeout.err()
+	case codes.NotFound:
+		return newError(types.SERVER_NOT_AVAILABLE, messages...)
+	case codes.PermissionDenied:
+		return newError(types.FAIL_FORBIDDEN, messages...)
+	case codes.ResourceExhausted:
+		return newError(types.QUOTA_EXCEEDED, messages...)
+	case codes.FailedPrecondition:
+		return newError(types.PARAMETER_ERROR, messages...)
+	case codes.Aborted:
+		return newError(types.SERVER_ERROR)
+	case codes.OutOfRange:
+		return newError(types.PARAMETER_ERROR, messages...)
+	case codes.Unimplemented:
+		return newError(types.SERVER_NOT_AVAILABLE, messages...)
+	case codes.Internal:
+		return newError(types.SERVER_ERROR, messages...)
+	case codes.Unavailable:
+		return newError(types.SERVER_NOT_AVAILABLE, messages...)
+	case codes.DataLoss:
+		return ErrNetwork.err()
+	case codes.Unauthenticated:
+		return newError(types.NOT_AUTHENTICATED, messages...)
+
+	case codes.AlreadyExists:
+	case codes.Unknown:
+	}
+
 	ne := newError(types.GRPC_ERROR, messages...)
 	ne.wrap(e)
 	return ne
 }
 
 func newGrpcStatusError(res *kvs.AerospikeResponsePayload) Error {
+	switch res.Status {
+	case 0: //OK
+		return nil
+	case 1: //CANCELLED
+		return newError(types.GRPC_ERROR)
+	case 2: //UNKNOWN
+		return newError(types.GRPC_ERROR)
+	case 3: //INVALID_ARGUMENT
+		return newError(types.PARAMETER_ERROR)
+	case 4: //DEADLINE_EXCEEDED
+		return ErrNetTimeout.err()
+	case 5: //NOT_FOUND
+		return newError(types.SERVER_NOT_AVAILABLE)
+	case 6: //ALREADY_EXISTS
+		return newError(types.GRPC_ERROR)
+	case 7: //PERMISSION_DENIED
+		return newError(types.FAIL_FORBIDDEN)
+	case 8: //RESOURCE_EXHAUSTED
+		return newError(types.QUOTA_EXCEEDED)
+	case 9: //FAILED_PRECONDITION
+		return newError(types.PARAMETER_ERROR)
+	case 10: //ABORTED
+		return newError(types.SERVER_ERROR)
+	case 11: //OUT_OF_RANGE
+		return newError(types.PARAMETER_ERROR)
+	case 12: //UNIMPLEMENTED
+		return newError(types.SERVER_NOT_AVAILABLE)
+	case 13: //INTERNAL
+		return newError(types.SERVER_ERROR)
+	case 14: //UNAVAILABLE
+		return newError(types.SERVER_NOT_AVAILABLE)
+	case 15: //DATA_LOSS
+		return ErrNetwork.err()
+	case 16: //UNAUTHENTICATED
+		return newError(types.NOT_AUTHENTICATED)
+	}
+
 	ne := newError(types.GRPC_ERROR).markInDoubt(res.InDoubt)
 	return ne
 }
@@ -380,7 +478,7 @@ var (
 	ErrClusterIsEmpty                  = newConstError(types.INVALID_NODE_ERROR, "cluster is empty")
 	ErrInvalidUser                     = newConstError(types.INVALID_USER)
 	ErrNotAuthenticated                = newConstError(types.NOT_AUTHENTICATED)
-	ErrNetwork                         = newConstError(types.NOT_AUTHENTICATED)
+	ErrNetwork                         = newConstError(types.NETWORK_ERROR)
 	ErrInvalidObjectType               = newConstError(types.SERIALIZE_ERROR, "invalid type for result object. It should be of type struct pointer or addressable")
 	ErrMaxRetriesExceeded              = newConstError(types.MAX_RETRIES_EXCEEDED, "command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`.")
 	ErrInvalidParam                    = newConstError(types.PARAMETER_ERROR)
