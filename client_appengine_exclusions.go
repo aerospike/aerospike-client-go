@@ -161,6 +161,6 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, Error) {
+func (clnt *ProxyClient) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, Error) {
 	panic("NOT SUPPORTED")
 }

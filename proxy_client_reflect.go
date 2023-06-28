@@ -44,7 +44,7 @@ import (
 // Tag `asm:` denotes Aerospike Meta fields, and includes ttl and generation values.
 // If a tag is marked with `-`, it will not be sent to the database at all.
 // Note: Tag `as` can be replaced with any other user-defined tag via the function `SetAerospikeTag`.
-func (clnt *GrpcClient) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err Error) {
+func (clnt *ProxyClient) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err Error) {
 	policy = clnt.getUsableWritePolicy(policy)
 
 	binMap := marshal(obj)
@@ -66,7 +66,7 @@ func (clnt *GrpcClient) PutObject(policy *WritePolicy, key *Key, obj interface{}
 // GetObject reads a record for specified key and puts the result into the provided object.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) GetObject(policy *BasePolicy, key *Key, obj interface{}) Error {
+func (clnt *ProxyClient) GetObject(policy *BasePolicy, key *Key, obj interface{}) Error {
 	policy = clnt.getUsablePolicy(policy)
 
 	rval := reflect.ValueOf(obj)
@@ -93,7 +93,7 @@ func (clnt *GrpcClient) GetObject(policy *BasePolicy, key *Key, obj interface{})
 // If a key is not found, the positional object will not change, and the positional found boolean will be false.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err Error) {
+func (clnt *ProxyClient) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err Error) {
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	// check the size of  key and objects
@@ -160,7 +160,7 @@ func (clnt *GrpcClient) BatchGetObjects(policy *BatchPolicy, keys []*Key, object
 // If partitionFilter is nil, all partitions will be scanned.
 // If the policy is nil, the default relevant policy will be used.
 // This method is only supported by Aerospike 4.9+ servers.
-func (clnt *GrpcClient) ScanPartitionObjects(apolicy *ScanPolicy, objChan interface{}, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *ProxyClient) ScanPartitionObjects(apolicy *ScanPolicy, objChan interface{}, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 	conn, err := clnt.grpcConn()
 	if err != nil {
@@ -184,13 +184,13 @@ func (clnt *GrpcClient) ScanPartitionObjects(apolicy *ScanPolicy, objChan interf
 // If the policy's concurrentNodes is specified, each server node will be read in
 // parallel. Otherwise, server nodes are read sequentially.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *ProxyClient) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	return clnt.ScanPartitionObjects(apolicy, objChan, NewPartitionFilterAll(), namespace, setName, binNames...)
 }
 
 // scanNodePartitions reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) scanNodePartitionsObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *ProxyClient) scanNodePartitionsObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	panic("NOT SUPPORTED")
 }
 
@@ -199,14 +199,14 @@ func (clnt *GrpcClient) scanNodePartitionsObjects(apolicy *ScanPolicy, node *Nod
 // If the policy is nil, the default relevant policy will be used.
 // The resulting records will be marshalled into the objChan.
 // objChan will be closed after all the records are read.
-func (clnt *GrpcClient) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *ProxyClient) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	panic("NOT SUPPORTED")
 }
 
 // scanNodeObjects reads all records in specified namespace and set for one node only,
 // and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, binNames ...string) Error {
+func (clnt *ProxyClient) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, binNames ...string) Error {
 	panic("NOT SUPPORTED")
 }
 
@@ -217,7 +217,7 @@ func (clnt *GrpcClient) scanNodeObjects(policy *ScanPolicy, node *Node, recordse
 //
 // This method is only supported by Aerospike 4.9+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) QueryPartitionObjects(policy *QueryPolicy, statement *Statement, objChan interface{}, partitionFilter *PartitionFilter) (*Recordset, Error) {
+func (clnt *ProxyClient) QueryPartitionObjects(policy *QueryPolicy, statement *Statement, objChan interface{}, partitionFilter *PartitionFilter) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 	conn, err := clnt.grpcConn()
 	if err != nil {
@@ -243,11 +243,11 @@ func (clnt *GrpcClient) QueryPartitionObjects(policy *QueryPolicy, statement *St
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, Error) {
+func (clnt *ProxyClient) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, Error) {
 	return clnt.QueryPartitionObjects(policy, statement, objChan, NewPartitionFilterAll())
 }
 
-func (clnt *GrpcClient) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
+func (clnt *ProxyClient) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
 	panic("NOT SUPPORTED")
 }
 
@@ -256,6 +256,6 @@ func (clnt *GrpcClient) queryNodePartitionsObjects(policy *QueryPolicy, node *No
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
+func (clnt *ProxyClient) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
 	panic("NOT SUPPORTED")
 }

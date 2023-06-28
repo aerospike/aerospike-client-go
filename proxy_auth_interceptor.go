@@ -28,13 +28,13 @@ import (
 )
 
 type authInterceptor struct {
-	clnt *GrpcClient
+	clnt *ProxyClient
 
 	expiry    time.Time
 	fullToken string // "Bearer <token>"
 }
 
-func newAuthInterceptor(clnt *GrpcClient) (*authInterceptor, Error) {
+func newAuthInterceptor(clnt *ProxyClient) (*authInterceptor, Error) {
 	interceptor := &authInterceptor{
 		clnt: clnt,
 	}
@@ -54,7 +54,7 @@ func (interceptor *authInterceptor) scheduleRefreshToken() Error {
 	}
 
 	go func() {
-		wait := interceptor.expiry.Sub(time.Now())
+		wait := interceptor.expiry.Sub(time.Now()) - 5*time.Second
 		for {
 			time.Sleep(wait)
 			err := interceptor.refreshToken()

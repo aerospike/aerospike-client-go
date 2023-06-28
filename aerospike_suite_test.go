@@ -111,7 +111,7 @@ func initTestVars() {
 
 	log.Println("Connecting to seeds:", dbHosts)
 	if *grpc {
-		client, err = as.NewGrpcClient(clientPolicy, dbHosts[0])
+		client, err = as.NewProxyClient(clientPolicy, dbHosts[0])
 		if err != nil {
 			log.Fatal(err.Error())
 		}

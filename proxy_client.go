@@ -29,9 +29,9 @@ import (
 	"github.com/aerospike/aerospike-client-go/v6/types"
 )
 
-// GrpcClient encapsulates an Aerospike cluster.
+// ProxyClient encapsulates an Aerospike cluster.
 // All database operations are available against this object.
-type GrpcClient struct {
+type ProxyClient struct {
 	// only for GRPC
 	clientPolicy ClientPolicy
 	// TODO: Implement pool
@@ -68,7 +68,7 @@ type GrpcClient struct {
 	DefaultInfoPolicy *InfoPolicy
 }
 
-func grpcClientFinalizer(f *GrpcClient) {
+func grpcClientFinalizer(f *ProxyClient) {
 	f.Close()
 }
 
@@ -76,17 +76,17 @@ func grpcClientFinalizer(f *GrpcClient) {
 // Constructors
 //-------------------------------------------------------
 
-// NewGRPCClient generates a new GRPC GrpcClient with the specified ClientPolicy and
+// NewProxyClient generates a new ProxyClient with the specified ClientPolicy and
 // sets up the cluster using the provided hosts.
 // If the policy is nil, the default relevant policy will be used.
 // Pass "dns:///<address>:<port>" (note the 3 slashes) for dns load balancing,
 // automatically supported internally by grpc-go.
-func NewGrpcClient(policy *ClientPolicy, host *Host, dialOptions ...grpc.DialOption) (*GrpcClient, Error) {
+func NewProxyClient(policy *ClientPolicy, host *Host, dialOptions ...grpc.DialOption) (*ProxyClient, Error) {
 	if policy == nil {
 		policy = NewClientPolicy()
 	}
 
-	grpcClient := &GrpcClient{
+	grpcClient := &ProxyClient{
 		clientPolicy: *policy,
 		grpcConnPool: new(sync.Pool),
 		grpcHost:     host,
@@ -123,102 +123,102 @@ func NewGrpcClient(policy *ClientPolicy, host *Host, dialOptions ...grpc.DialOpt
 //-------------------------------------------------------
 
 // DefaultPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) GetDefaultPolicy() *BasePolicy {
+func (clnt *ProxyClient) GetDefaultPolicy() *BasePolicy {
 	return clnt.DefaultPolicy
 }
 
 // DefaultBatchPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) GetDefaultBatchPolicy() *BatchPolicy {
+func (clnt *ProxyClient) GetDefaultBatchPolicy() *BatchPolicy {
 	return clnt.DefaultBatchPolicy
 }
 
 // DefaultBatchWritePolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) GetDefaultBatchWritePolicy() *BatchWritePolicy {
+func (clnt *ProxyClient) GetDefaultBatchWritePolicy() *BatchWritePolicy {
 	return clnt.DefaultBatchWritePolicy
 }
 
 // DefaultBatchDeletePolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) GetDefaultBatchDeletePolicy() *BatchDeletePolicy {
+func (clnt *ProxyClient) GetDefaultBatchDeletePolicy() *BatchDeletePolicy {
 	return clnt.DefaultBatchDeletePolicy
 }
 
 // DefaultBatchUDFPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) GetDefaultBatchUDFPolicy() *BatchUDFPolicy {
+func (clnt *ProxyClient) GetDefaultBatchUDFPolicy() *BatchUDFPolicy {
 	return clnt.DefaultBatchUDFPolicy
 }
 
 // DefaultWritePolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) GetDefaultWritePolicy() *WritePolicy {
+func (clnt *ProxyClient) GetDefaultWritePolicy() *WritePolicy {
 	return clnt.DefaultWritePolicy
 }
 
 // DefaultScanPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) GetDefaultScanPolicy() *ScanPolicy {
+func (clnt *ProxyClient) GetDefaultScanPolicy() *ScanPolicy {
 	return clnt.DefaultScanPolicy
 }
 
 // DefaultQueryPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) GetDefaultQueryPolicy() *QueryPolicy {
+func (clnt *ProxyClient) GetDefaultQueryPolicy() *QueryPolicy {
 	return clnt.DefaultQueryPolicy
 }
 
 // DefaultAdminPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) GetDefaultAdminPolicy() *AdminPolicy {
+func (clnt *ProxyClient) GetDefaultAdminPolicy() *AdminPolicy {
 	return clnt.DefaultAdminPolicy
 }
 
 // DefaultInfoPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) GetDefaultInfoPolicy() *InfoPolicy {
+func (clnt *ProxyClient) GetDefaultInfoPolicy() *InfoPolicy {
 	return clnt.DefaultInfoPolicy
 }
 
 // DefaultPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) SetDefaultPolicy(policy *BasePolicy) {
+func (clnt *ProxyClient) SetDefaultPolicy(policy *BasePolicy) {
 	clnt.DefaultPolicy = policy
 }
 
 // DefaultBatchPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) SetDefaultBatchPolicy(policy *BatchPolicy) {
+func (clnt *ProxyClient) SetDefaultBatchPolicy(policy *BatchPolicy) {
 	clnt.DefaultBatchPolicy = policy
 }
 
 // DefaultBatchWritePolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) SetDefaultBatchWritePolicy(policy *BatchWritePolicy) {
+func (clnt *ProxyClient) SetDefaultBatchWritePolicy(policy *BatchWritePolicy) {
 	clnt.DefaultBatchWritePolicy = policy
 }
 
 // DefaultBatchDeletePolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) SetDefaultBatchDeletePolicy(policy *BatchDeletePolicy) {
+func (clnt *ProxyClient) SetDefaultBatchDeletePolicy(policy *BatchDeletePolicy) {
 	clnt.DefaultBatchDeletePolicy = policy
 }
 
 // DefaultBatchUDFPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) SetDefaultBatchUDFPolicy(policy *BatchUDFPolicy) {
+func (clnt *ProxyClient) SetDefaultBatchUDFPolicy(policy *BatchUDFPolicy) {
 	clnt.DefaultBatchUDFPolicy = policy
 }
 
 // DefaultWritePolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) SetDefaultWritePolicy(policy *WritePolicy) {
+func (clnt *ProxyClient) SetDefaultWritePolicy(policy *WritePolicy) {
 	clnt.DefaultWritePolicy = policy
 }
 
 // DefaultScanPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) SetDefaultScanPolicy(policy *ScanPolicy) {
+func (clnt *ProxyClient) SetDefaultScanPolicy(policy *ScanPolicy) {
 	clnt.DefaultScanPolicy = policy
 }
 
 // DefaultQueryPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) SetDefaultQueryPolicy(policy *QueryPolicy) {
+func (clnt *ProxyClient) SetDefaultQueryPolicy(policy *QueryPolicy) {
 	clnt.DefaultQueryPolicy = policy
 }
 
 // DefaultAdminPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) SetDefaultAdminPolicy(policy *AdminPolicy) {
+func (clnt *ProxyClient) SetDefaultAdminPolicy(policy *AdminPolicy) {
 	clnt.DefaultAdminPolicy = policy
 }
 
 // DefaultInfoPolicy returns corresponding default policy from the client
-func (clnt *GrpcClient) SetDefaultInfoPolicy(policy *InfoPolicy) {
+func (clnt *ProxyClient) SetDefaultInfoPolicy(policy *InfoPolicy) {
 	clnt.DefaultInfoPolicy = policy
 }
 
@@ -226,15 +226,15 @@ func (clnt *GrpcClient) SetDefaultInfoPolicy(policy *InfoPolicy) {
 // Cluster Connection Management
 //-------------------------------------------------------
 
-func (clnt *GrpcClient) token() string {
+func (clnt *ProxyClient) token() string {
 	return clnt.authToken.Load().(string)
 }
 
-func (clnt *GrpcClient) setAuthToken(token string) {
+func (clnt *ProxyClient) setAuthToken(token string) {
 	clnt.authToken.Store(token)
 }
 
-func (clnt *GrpcClient) grpcConn() (*grpc.ClientConn, Error) {
+func (clnt *ProxyClient) grpcConn() (*grpc.ClientConn, Error) {
 	pconn := clnt.grpcConnPool.Get()
 	if pconn != nil {
 		return pconn.(*grpc.ClientConn), nil
@@ -243,7 +243,7 @@ func (clnt *GrpcClient) grpcConn() (*grpc.ClientConn, Error) {
 	return clnt.createGrpcConn(!clnt.clientPolicy.RequiresAuthentication())
 }
 
-func (clnt *GrpcClient) createGrpcConn(noInterceptor bool) (*grpc.ClientConn, Error) {
+func (clnt *ProxyClient) createGrpcConn(noInterceptor bool) (*grpc.ClientConn, Error) {
 	// make a new connection
 	// Implement TLS and auth
 	dialOptions := []grpc.DialOption{}
@@ -272,22 +272,22 @@ func (clnt *GrpcClient) createGrpcConn(noInterceptor bool) (*grpc.ClientConn, Er
 }
 
 // Close closes all Grpcclient connections to database server nodes.
-func (clnt *GrpcClient) Close() {
+func (clnt *ProxyClient) Close() {
 	clnt.active.Set(false)
 }
 
 // IsConnected determines if the Grpcclient is ready to talk to the database server cluster.
-func (clnt *GrpcClient) IsConnected() bool {
+func (clnt *ProxyClient) IsConnected() bool {
 	return clnt.active.Get()
 }
 
 // GetNodes returns an array of active server nodes in the cluster.
-func (clnt *GrpcClient) GetNodes() []*Node {
+func (clnt *ProxyClient) GetNodes() []*Node {
 	return nil
 }
 
 // GetNodeNames returns a list of active server node names in the cluster.
-func (clnt *GrpcClient) GetNodeNames() []string {
+func (clnt *ProxyClient) GetNodeNames() []string {
 	return nil
 }
 
@@ -299,7 +299,7 @@ func (clnt *GrpcClient) GetNodeNames() []string {
 // The policy specifies the transaction timeout, record expiration and how the transaction is
 // handled when the record already exists.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) Put(policy *WritePolicy, key *Key, binMap BinMap) Error {
+func (clnt *ProxyClient) Put(policy *WritePolicy, key *Key, binMap BinMap) Error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newWriteCommand(nil, policy, key, nil, binMap, _WRITE)
 	if err != nil {
@@ -320,7 +320,7 @@ func (clnt *GrpcClient) Put(policy *WritePolicy, key *Key, binMap BinMap) Error 
 // handled when the record already exists.
 // This method avoids using the BinMap allocation and iteration and is lighter on GC.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
+func (clnt *ProxyClient) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newWriteCommand(nil, policy, key, bins, nil, _WRITE)
 	if err != nil {
@@ -345,7 +345,7 @@ func (clnt *GrpcClient) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) Err
 // handled when the record already exists.
 // This call only works for string and []byte values.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) Append(policy *WritePolicy, key *Key, binMap BinMap) Error {
+func (clnt *ProxyClient) Append(policy *WritePolicy, key *Key, binMap BinMap) Error {
 	ops := make([]*Operation, 0, len(binMap))
 	for k, v := range binMap {
 		ops = append(ops, AppendOp(NewBin(k, v)))
@@ -356,7 +356,7 @@ func (clnt *GrpcClient) Append(policy *WritePolicy, key *Key, binMap BinMap) Err
 }
 
 // AppendBins works the same as Append, but avoids BinMap allocation and iteration.
-func (clnt *GrpcClient) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
+func (clnt *ProxyClient) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
 	ops := make([]*Operation, 0, len(bins))
 	for _, bin := range bins {
 		ops = append(ops, AppendOp(bin))
@@ -371,7 +371,7 @@ func (clnt *GrpcClient) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) 
 // handled when the record already exists.
 // This call works only for string and []byte values.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) Prepend(policy *WritePolicy, key *Key, binMap BinMap) Error {
+func (clnt *ProxyClient) Prepend(policy *WritePolicy, key *Key, binMap BinMap) Error {
 	ops := make([]*Operation, 0, len(binMap))
 	for k, v := range binMap {
 		ops = append(ops, PrependOp(NewBin(k, v)))
@@ -382,7 +382,7 @@ func (clnt *GrpcClient) Prepend(policy *WritePolicy, key *Key, binMap BinMap) Er
 }
 
 // PrependBins works the same as Prepend, but avoids BinMap allocation and iteration.
-func (clnt *GrpcClient) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
+func (clnt *ProxyClient) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
 	ops := make([]*Operation, 0, len(bins))
 	for _, bin := range bins {
 		ops = append(ops, PrependOp(bin))
@@ -401,7 +401,7 @@ func (clnt *GrpcClient) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin)
 // handled when the record already exists.
 // This call only works for integer values.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) Add(policy *WritePolicy, key *Key, binMap BinMap) Error {
+func (clnt *ProxyClient) Add(policy *WritePolicy, key *Key, binMap BinMap) Error {
 	ops := make([]*Operation, 0, len(binMap))
 	for k, v := range binMap {
 		ops = append(ops, AddOp(NewBin(k, v)))
@@ -412,7 +412,7 @@ func (clnt *GrpcClient) Add(policy *WritePolicy, key *Key, binMap BinMap) Error 
 }
 
 // AddBins works the same as Add, but avoids BinMap allocation and iteration.
-func (clnt *GrpcClient) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
+func (clnt *ProxyClient) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
 	ops := make([]*Operation, 0, len(bins))
 	for _, bin := range bins {
 		ops = append(ops, AddOp(bin))
@@ -429,7 +429,7 @@ func (clnt *GrpcClient) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) Err
 // Delete deletes a record for specified key.
 // The policy specifies the transaction timeout.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) Delete(policy *WritePolicy, key *Key) (bool, Error) {
+func (clnt *ProxyClient) Delete(policy *WritePolicy, key *Key) (bool, Error) {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newDeleteCommand(nil, policy, key)
 	if err != nil {
@@ -454,7 +454,7 @@ func (clnt *GrpcClient) Delete(policy *WritePolicy, key *Key) (bool, Error) {
 // If the record exists, the record's TTL will be reset to the
 // policy's expiration.
 // If the record doesn't exist, it will return an error.
-func (clnt *GrpcClient) Touch(policy *WritePolicy, key *Key) Error {
+func (clnt *ProxyClient) Touch(policy *WritePolicy, key *Key) Error {
 	policy = clnt.getUsableWritePolicy(policy)
 	command, err := newTouchCommand(nil, policy, key)
 	if err != nil {
@@ -477,7 +477,7 @@ func (clnt *GrpcClient) Touch(policy *WritePolicy, key *Key) Error {
 // Exists determine if a record key exists.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) Exists(policy *BasePolicy, key *Key) (bool, Error) {
+func (clnt *ProxyClient) Exists(policy *BasePolicy, key *Key) (bool, Error) {
 	policy = clnt.getUsablePolicy(policy)
 	command, err := newExistsCommand(nil, policy, key)
 	if err != nil {
@@ -498,7 +498,7 @@ func (clnt *GrpcClient) Exists(policy *BasePolicy, key *Key) (bool, Error) {
 // The returned boolean array is in positional order with the original key array order.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, Error) {
+func (clnt *ProxyClient) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, Error) {
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	for _, key := range keys {
 		batchRecordsIfc = append(batchRecordsIfc, NewBatchReadHeader(key))
@@ -523,7 +523,7 @@ func (clnt *GrpcClient) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, E
 // Get reads a record header and bins for specified key.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) Get(policy *BasePolicy, key *Key, binNames ...string) (*Record, Error) {
+func (clnt *ProxyClient) Get(policy *BasePolicy, key *Key, binNames ...string) (*Record, Error) {
 	policy = clnt.getUsablePolicy(policy)
 
 	command, err := newReadCommand(nil, policy, key, binNames, nil)
@@ -547,7 +547,7 @@ func (clnt *GrpcClient) Get(policy *BasePolicy, key *Key, binNames ...string) (*
 // Bins are not read.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) GetHeader(policy *BasePolicy, key *Key) (*Record, Error) {
+func (clnt *ProxyClient) GetHeader(policy *BasePolicy, key *Key) (*Record, Error) {
 	policy = clnt.getUsablePolicy(policy)
 
 	command, err := newReadHeaderCommand(nil, policy, key)
@@ -576,7 +576,7 @@ func (clnt *GrpcClient) GetHeader(policy *BasePolicy, key *Key) (*Record, Error)
 // If a key is not found, the positional record will be nil.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...string) ([]*Record, Error) {
+func (clnt *ProxyClient) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...string) ([]*Record, Error) {
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	batchRecords := make([]*BatchRecord, 0, len(keys))
 	for _, key := range keys {
@@ -600,7 +600,7 @@ func (clnt *GrpcClient) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...s
 // If a key is not found, the positional record will be nil.
 //
 // If a batch request to a node fails, the entire batch is cancelled.
-func (clnt *GrpcClient) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Operation) ([]*Record, Error) {
+func (clnt *ProxyClient) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Operation) ([]*Record, Error) {
 	// TODO: Handle filteredout errors
 
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
@@ -627,7 +627,7 @@ func (clnt *GrpcClient) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ..
 // If the BatchRead key field is not found, the corresponding record field will be nil.
 // The policy can be used to specify timeouts and maximum concurrent threads.
 // This method requires Aerospike Server version >= 3.6.0.
-func (clnt *GrpcClient) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) Error {
+func (clnt *ProxyClient) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) Error {
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(records))
 	for _, record := range records {
 		batchRecordsIfc = append(batchRecordsIfc, record)
@@ -641,7 +641,7 @@ func (clnt *GrpcClient) BatchGetComplex(policy *BatchPolicy, records []*BatchRea
 // If a key is not found, the positional record will be nil.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record, Error) {
+func (clnt *ProxyClient) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record, Error) {
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	for _, key := range keys {
 		batchRecordsIfc = append(batchRecordsIfc, NewBatchReadHeader(key))
@@ -663,7 +663,7 @@ func (clnt *GrpcClient) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Rec
 // BatchRecord.ResultCode will be types.KEY_NOT_FOUND_ERROR.
 //
 // Requires server version 6.0+
-func (clnt *GrpcClient) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePolicy, keys []*Key) ([]*BatchRecord, Error) {
+func (clnt *ProxyClient) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePolicy, keys []*Key) ([]*BatchRecord, Error) {
 	policy = clnt.getUsableBatchPolicy(policy)
 	deletePolicy = clnt.getUsableBatchDeletePolicy(deletePolicy)
 
@@ -686,7 +686,7 @@ func (clnt *GrpcClient) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDele
 // BatchRecord can be *BatchRead, *BatchWrite, *BatchDelete or *BatchUDF.
 //
 // Requires server version 6.0+
-func (clnt *GrpcClient) BatchOperate(policy *BatchPolicy, records []BatchRecordIfc) Error {
+func (clnt *ProxyClient) BatchOperate(policy *BatchPolicy, records []BatchRecordIfc) Error {
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	batchNode, err := newGrpcBatchOperateListIfc(policy, records)
@@ -711,7 +711,7 @@ func (clnt *GrpcClient) BatchOperate(policy *BatchPolicy, records []BatchRecordI
 // BatchRecord can be *BatchRead, *BatchWrite, *BatchDelete or *BatchUDF.
 //
 // Requires server version 6.0+
-func (clnt *GrpcClient) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy, keys []*Key, packageName string, functionName string, args ...Value) ([]*BatchRecord, Error) {
+func (clnt *ProxyClient) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy, keys []*Key, packageName string, functionName string, args ...Value) ([]*BatchRecord, Error) {
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	batchRecords := make([]*BatchRecord, 0, len(keys))
 	for _, key := range keys {
@@ -734,7 +734,7 @@ func (clnt *GrpcClient) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPol
 // read the result, all in one database call.
 //
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) Operate(policy *WritePolicy, key *Key, operations ...*Operation) (*Record, Error) {
+func (clnt *ProxyClient) Operate(policy *WritePolicy, key *Key, operations ...*Operation) (*Record, Error) {
 	policy = clnt.getUsableWritePolicy(policy)
 	args, err := newOperateArgs(nil, policy, key, operations)
 	if err != nil {
@@ -768,7 +768,7 @@ func (clnt *GrpcClient) Operate(policy *WritePolicy, key *Key, operations ...*Op
 // If partitionFilter is nil, all partitions will be scanned.
 // If the policy is nil, the default relevant policy will be used.
 // This method is only supported by Aerospike 4.9+ servers.
-func (clnt *GrpcClient) ScanPartitions(apolicy *ScanPolicy, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *ProxyClient) ScanPartitions(apolicy *ScanPolicy, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 	conn, err := clnt.grpcConn()
 	if err != nil {
@@ -789,19 +789,19 @@ func (clnt *GrpcClient) ScanPartitions(apolicy *ScanPolicy, partitionFilter *Par
 // If the policy's concurrentNodes is specified, each server node will be read in
 // parallel. Otherwise, server nodes are read sequentially.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) ScanAll(apolicy *ScanPolicy, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *ProxyClient) ScanAll(apolicy *ScanPolicy, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	return clnt.ScanPartitions(apolicy, NewPartitionFilterAll(), namespace, setName, binNames...)
 }
 
 // scanNodePartitions reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) scanNodePartitions(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *ProxyClient) scanNodePartitions(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	panic("NOT SUPPORTED")
 }
 
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *ProxyClient) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	panic("NOT SUPPORTED")
 }
 
@@ -817,7 +817,7 @@ func (clnt *GrpcClient) ScanNode(apolicy *ScanPolicy, node *Node, namespace stri
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) RegisterUDFFromFile(policy *WritePolicy, clientPath string, serverPath string, language Language) (*RegisterTask, Error) {
+func (clnt *ProxyClient) RegisterUDFFromFile(policy *WritePolicy, clientPath string, serverPath string, language Language) (*RegisterTask, Error) {
 	panic("NOT SUPPORTED")
 }
 
@@ -828,7 +828,7 @@ func (clnt *GrpcClient) RegisterUDFFromFile(policy *WritePolicy, clientPath stri
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath string, language Language) (*RegisterTask, Error) {
+func (clnt *ProxyClient) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath string, language Language) (*RegisterTask, Error) {
 	panic("NOT SUPPORTED")
 }
 
@@ -839,14 +839,14 @@ func (clnt *GrpcClient) RegisterUDF(policy *WritePolicy, udfBody []byte, serverP
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask, Error) {
+func (clnt *ProxyClient) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask, Error) {
 	panic("NOT SUPPORTED")
 }
 
 // ListUDF lists all packages containing user defined functions in the server.
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) ListUDF(policy *BasePolicy) ([]*UDF, Error) {
+func (clnt *ProxyClient) ListUDF(policy *BasePolicy) ([]*UDF, Error) {
 	panic("NOT SUPPORTED")
 }
 
@@ -858,7 +858,7 @@ func (clnt *GrpcClient) ListUDF(policy *BasePolicy) ([]*UDF, Error) {
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) Execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (interface{}, Error) {
+func (clnt *ProxyClient) Execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (interface{}, Error) {
 	policy = clnt.getUsableWritePolicy(policy)
 
 	command, err := newExecuteCommand(nil, policy, key, packageName, functionName, NewValueArray(args))
@@ -894,7 +894,7 @@ func (clnt *GrpcClient) Execute(policy *WritePolicy, key *Key, packageName strin
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) QueryExecute(policy *QueryPolicy,
+func (clnt *ProxyClient) QueryExecute(policy *QueryPolicy,
 	writePolicy *WritePolicy,
 	statement *Statement,
 	ops ...*Operation,
@@ -926,7 +926,7 @@ func (clnt *GrpcClient) QueryExecute(policy *QueryPolicy,
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) ExecuteUDF(policy *QueryPolicy,
+func (clnt *ProxyClient) ExecuteUDF(policy *QueryPolicy,
 	statement *Statement,
 	packageName string,
 	functionName string,
@@ -960,7 +960,7 @@ func (clnt *GrpcClient) ExecuteUDF(policy *QueryPolicy,
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) ExecuteUDFNode(policy *QueryPolicy,
+func (clnt *ProxyClient) ExecuteUDFNode(policy *QueryPolicy,
 	node *Node,
 	statement *Statement,
 	packageName string,
@@ -973,7 +973,7 @@ func (clnt *GrpcClient) ExecuteUDFNode(policy *QueryPolicy,
 // SetXDRFilter sets XDR filter for given datacenter name and namespace. The expression filter indicates
 // which records XDR should ship to the datacenter.
 // Pass nil as filter to remove the currentl filter on the server.
-func (clnt *GrpcClient) SetXDRFilter(policy *InfoPolicy, datacenter string, namespace string, filter *Expression) Error {
+func (clnt *ProxyClient) SetXDRFilter(policy *InfoPolicy, datacenter string, namespace string, filter *Expression) Error {
 	panic("NOT SUPPORTED")
 }
 
@@ -988,7 +988,7 @@ func (clnt *GrpcClient) SetXDRFilter(policy *InfoPolicy, datacenter string, name
 //
 // This method is only supported by Aerospike 4.9+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) QueryPartitions(policy *QueryPolicy, statement *Statement, partitionFilter *PartitionFilter) (*Recordset, Error) {
+func (clnt *ProxyClient) QueryPartitions(policy *QueryPolicy, statement *Statement, partitionFilter *PartitionFilter) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 	conn, err := clnt.grpcConn()
 	if err != nil {
@@ -1012,7 +1012,7 @@ func (clnt *GrpcClient) QueryPartitions(policy *QueryPolicy, statement *Statemen
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) Query(policy *QueryPolicy, statement *Statement) (*Recordset, Error) {
+func (clnt *ProxyClient) Query(policy *QueryPolicy, statement *Statement) (*Recordset, Error) {
 	return clnt.QueryPartitions(policy, statement, NewPartitionFilterAll())
 }
 
@@ -1022,11 +1022,11 @@ func (clnt *GrpcClient) Query(policy *QueryPolicy, statement *Statement) (*Recor
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) QueryNode(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
+func (clnt *ProxyClient) QueryNode(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
 	panic("NOT SUPPORTED")
 }
 
-func (clnt *GrpcClient) queryNodePartitions(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
+func (clnt *ProxyClient) queryNodePartitions(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
 	panic("NOT SUPPORTED")
 }
 
@@ -1040,7 +1040,7 @@ func (clnt *GrpcClient) queryNodePartitions(policy *QueryPolicy, node *Node, sta
 // IndexTask instance.
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) CreateIndex(
+func (clnt *ProxyClient) CreateIndex(
 	policy *WritePolicy,
 	namespace string,
 	setName string,
@@ -1058,7 +1058,7 @@ func (clnt *GrpcClient) CreateIndex(
 // IndexTask instance.
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) CreateComplexIndex(
+func (clnt *ProxyClient) CreateComplexIndex(
 	policy *WritePolicy,
 	namespace string,
 	setName string,
@@ -1074,7 +1074,7 @@ func (clnt *GrpcClient) CreateComplexIndex(
 // DropIndex deletes a secondary index. It will block until index is dropped on all nodes.
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *GrpcClient) DropIndex(
+func (clnt *ProxyClient) DropIndex(
 	policy *WritePolicy,
 	namespace string,
 	setName string,
@@ -1089,7 +1089,7 @@ func (clnt *GrpcClient) DropIndex(
 // write new records after the server call returns because new records will have last update times
 // greater than the truncate cutoff (set at the time of truncate call).
 // For more information, See https://www.aerospike.com/docs/reference/info#truncate
-func (clnt *GrpcClient) Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) Error {
+func (clnt *ProxyClient) Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) Error {
 	panic("NOT SUPPORTED")
 }
 
@@ -1099,81 +1099,81 @@ func (clnt *GrpcClient) Truncate(policy *WritePolicy, namespace, set string, bef
 
 // CreateUser creates a new user with password and roles. Clear-text password will be hashed using bcrypt
 // before sending to server.
-func (clnt *GrpcClient) CreateUser(policy *AdminPolicy, user string, password string, roles []string) Error {
+func (clnt *ProxyClient) CreateUser(policy *AdminPolicy, user string, password string, roles []string) Error {
 	panic("NOT SUPPORTED")
 }
 
 // DropUser removes a user from the cluster.
-func (clnt *GrpcClient) DropUser(policy *AdminPolicy, user string) Error {
+func (clnt *ProxyClient) DropUser(policy *AdminPolicy, user string) Error {
 	panic("NOT SUPPORTED")
 }
 
 // ChangePassword changes a user's password. Clear-text password will be hashed using bcrypt before sending to server.
-func (clnt *GrpcClient) ChangePassword(policy *AdminPolicy, user string, password string) Error {
+func (clnt *ProxyClient) ChangePassword(policy *AdminPolicy, user string, password string) Error {
 	panic("NOT SUPPORTED")
 }
 
 // GrantRoles adds roles to user's list of roles.
-func (clnt *GrpcClient) GrantRoles(policy *AdminPolicy, user string, roles []string) Error {
+func (clnt *ProxyClient) GrantRoles(policy *AdminPolicy, user string, roles []string) Error {
 	panic("NOT SUPPORTED")
 }
 
 // RevokeRoles removes roles from user's list of roles.
-func (clnt *GrpcClient) RevokeRoles(policy *AdminPolicy, user string, roles []string) Error {
+func (clnt *ProxyClient) RevokeRoles(policy *AdminPolicy, user string, roles []string) Error {
 	panic("NOT SUPPORTED")
 }
 
 // QueryUser retrieves roles for a given user.
-func (clnt *GrpcClient) QueryUser(policy *AdminPolicy, user string) (*UserRoles, Error) {
+func (clnt *ProxyClient) QueryUser(policy *AdminPolicy, user string) (*UserRoles, Error) {
 	panic("NOT SUPPORTED")
 }
 
 // QueryUsers retrieves all users and their roles.
-func (clnt *GrpcClient) QueryUsers(policy *AdminPolicy) ([]*UserRoles, Error) {
+func (clnt *ProxyClient) QueryUsers(policy *AdminPolicy) ([]*UserRoles, Error) {
 	panic("NOT SUPPORTED")
 }
 
 // QueryRole retrieves privileges for a given role.
-func (clnt *GrpcClient) QueryRole(policy *AdminPolicy, role string) (*Role, Error) {
+func (clnt *ProxyClient) QueryRole(policy *AdminPolicy, role string) (*Role, Error) {
 	panic("NOT SUPPORTED")
 }
 
 // QueryRoles retrieves all roles and their privileges.
-func (clnt *GrpcClient) QueryRoles(policy *AdminPolicy) ([]*Role, Error) {
+func (clnt *ProxyClient) QueryRoles(policy *AdminPolicy) ([]*Role, Error) {
 	panic("NOT SUPPORTED")
 }
 
 // CreateRole creates a user-defined role.
 // Quotas require server security configuration "enable-quotas" to be set to true.
 // Pass 0 for quota values for no limit.
-func (clnt *GrpcClient) CreateRole(policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string, readQuota, writeQuota uint32) Error {
+func (clnt *ProxyClient) CreateRole(policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string, readQuota, writeQuota uint32) Error {
 	panic("NOT SUPPORTED")
 }
 
 // DropRole removes a user-defined role.
-func (clnt *GrpcClient) DropRole(policy *AdminPolicy, roleName string) Error {
+func (clnt *ProxyClient) DropRole(policy *AdminPolicy, roleName string) Error {
 	panic("NOT SUPPORTED")
 }
 
 // GrantPrivileges grant privileges to a user-defined role.
-func (clnt *GrpcClient) GrantPrivileges(policy *AdminPolicy, roleName string, privileges []Privilege) Error {
+func (clnt *ProxyClient) GrantPrivileges(policy *AdminPolicy, roleName string, privileges []Privilege) Error {
 	panic("NOT SUPPORTED")
 }
 
 // RevokePrivileges revokes privileges from a user-defined role.
-func (clnt *GrpcClient) RevokePrivileges(policy *AdminPolicy, roleName string, privileges []Privilege) Error {
+func (clnt *ProxyClient) RevokePrivileges(policy *AdminPolicy, roleName string, privileges []Privilege) Error {
 	panic("NOT SUPPORTED")
 }
 
 // SetWhitelist sets IP address whitelist for a role. If whitelist is nil or empty, it removes existing whitelist from role.
-func (clnt *GrpcClient) SetWhitelist(policy *AdminPolicy, roleName string, whitelist []string) Error {
+func (clnt *ProxyClient) SetWhitelist(policy *AdminPolicy, roleName string, whitelist []string) Error {
 	panic("NOT SUPPORTED")
 }
 
 // SetQuotas sets maximum reads/writes per second limits for a role.  If a quota is zero, the limit is removed.
 // Quotas require server security configuration "enable-quotas" to be set to true.
 // Pass 0 for quota values for no limit.
-func (clnt *GrpcClient) SetQuotas(policy *AdminPolicy, roleName string, readQuota, writeQuota uint32) Error {
+func (clnt *ProxyClient) SetQuotas(policy *AdminPolicy, roleName string, readQuota, writeQuota uint32) Error {
 	panic("NOT SUPPORTED")
 }
 
@@ -1182,17 +1182,17 @@ func (clnt *GrpcClient) SetQuotas(policy *AdminPolicy, roleName string, readQuot
 //-------------------------------------------------------
 
 // Cluster exposes the cluster object to the user
-func (clnt *GrpcClient) Cluster() *Cluster {
+func (clnt *ProxyClient) Cluster() *Cluster {
 	panic("NOT SUPPORTED")
 }
 
 // String implements the Stringer interface for Grpcclient
-func (clnt *GrpcClient) String() string {
+func (clnt *ProxyClient) String() string {
 	return ""
 }
 
 // Stats returns internal statistics regarding the inner state of the Grpcclient and the cluster.
-func (clnt *GrpcClient) Stats() (map[string]interface{}, Error) {
+func (clnt *ProxyClient) Stats() (map[string]interface{}, Error) {
 	panic("NOT SUPPORTED")
 }
 
@@ -1201,7 +1201,7 @@ func (clnt *GrpcClient) Stats() (map[string]interface{}, Error) {
 // If the count is <= 0, the connection queue will be filled.
 // If the count is more than the size of the pool, the pool will be filled.
 // Note: One connection per node is reserved for tend operations and is not used for transactions.
-func (clnt *GrpcClient) WarmUp(count int) (int, Error) {
+func (clnt *ProxyClient) WarmUp(count int) (int, Error) {
 	panic("NOT SUPPORTED")
 }
 
@@ -1209,7 +1209,7 @@ func (clnt *GrpcClient) WarmUp(count int) (int, Error) {
 // Internal Methods
 //-------------------------------------------------------
 
-func (clnt *GrpcClient) grpcMode() bool {
+func (clnt *ProxyClient) grpcMode() bool {
 	return clnt.grpcConnPool != nil
 }
 
@@ -1217,7 +1217,7 @@ func (clnt *GrpcClient) grpcMode() bool {
 // Policy Methods
 //-------------------------------------------------------
 
-func (clnt *GrpcClient) getUsablePolicy(policy *BasePolicy) *BasePolicy {
+func (clnt *ProxyClient) getUsablePolicy(policy *BasePolicy) *BasePolicy {
 	if policy == nil {
 		if clnt.DefaultPolicy != nil {
 			return clnt.DefaultPolicy
@@ -1227,7 +1227,7 @@ func (clnt *GrpcClient) getUsablePolicy(policy *BasePolicy) *BasePolicy {
 	return policy
 }
 
-func (clnt *GrpcClient) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
+func (clnt *ProxyClient) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
 	if policy == nil {
 		if clnt.DefaultBatchPolicy != nil {
 			return clnt.DefaultBatchPolicy
@@ -1237,7 +1237,7 @@ func (clnt *GrpcClient) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
 	return policy
 }
 
-func (clnt *GrpcClient) getUsableBaseBatchWritePolicy(policy *BatchPolicy) *BatchPolicy {
+func (clnt *ProxyClient) getUsableBaseBatchWritePolicy(policy *BatchPolicy) *BatchPolicy {
 	if policy == nil {
 		if clnt.DefaultBatchPolicy != nil {
 			return clnt.DefaultBatchPolicy
@@ -1247,7 +1247,7 @@ func (clnt *GrpcClient) getUsableBaseBatchWritePolicy(policy *BatchPolicy) *Batc
 	return policy
 }
 
-func (clnt *GrpcClient) getUsableBatchWritePolicy(policy *BatchWritePolicy) *BatchWritePolicy {
+func (clnt *ProxyClient) getUsableBatchWritePolicy(policy *BatchWritePolicy) *BatchWritePolicy {
 	if policy == nil {
 		if clnt.DefaultBatchWritePolicy != nil {
 			return clnt.DefaultBatchWritePolicy
@@ -1257,7 +1257,7 @@ func (clnt *GrpcClient) getUsableBatchWritePolicy(policy *BatchWritePolicy) *Bat
 	return policy
 }
 
-func (clnt *GrpcClient) getUsableBatchDeletePolicy(policy *BatchDeletePolicy) *BatchDeletePolicy {
+func (clnt *ProxyClient) getUsableBatchDeletePolicy(policy *BatchDeletePolicy) *BatchDeletePolicy {
 	if policy == nil {
 		if clnt.DefaultBatchDeletePolicy != nil {
 			return clnt.DefaultBatchDeletePolicy
@@ -1267,7 +1267,7 @@ func (clnt *GrpcClient) getUsableBatchDeletePolicy(policy *BatchDeletePolicy) *B
 	return policy
 }
 
-func (clnt *GrpcClient) getUsableBatchUDFPolicy(policy *BatchUDFPolicy) *BatchUDFPolicy {
+func (clnt *ProxyClient) getUsableBatchUDFPolicy(policy *BatchUDFPolicy) *BatchUDFPolicy {
 	if policy == nil {
 		if clnt.DefaultBatchUDFPolicy != nil {
 			return clnt.DefaultBatchUDFPolicy
@@ -1277,7 +1277,7 @@ func (clnt *GrpcClient) getUsableBatchUDFPolicy(policy *BatchUDFPolicy) *BatchUD
 	return policy
 }
 
-func (clnt *GrpcClient) getUsableWritePolicy(policy *WritePolicy) *WritePolicy {
+func (clnt *ProxyClient) getUsableWritePolicy(policy *WritePolicy) *WritePolicy {
 	if policy == nil {
 		if clnt.DefaultWritePolicy != nil {
 			return clnt.DefaultWritePolicy
@@ -1287,7 +1287,7 @@ func (clnt *GrpcClient) getUsableWritePolicy(policy *WritePolicy) *WritePolicy {
 	return policy
 }
 
-func (clnt *GrpcClient) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
+func (clnt *ProxyClient) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
 	if policy == nil {
 		if clnt.DefaultScanPolicy != nil {
 			return clnt.DefaultScanPolicy
@@ -1297,7 +1297,7 @@ func (clnt *GrpcClient) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
 	return policy
 }
 
-func (clnt *GrpcClient) getUsableQueryPolicy(policy *QueryPolicy) *QueryPolicy {
+func (clnt *ProxyClient) getUsableQueryPolicy(policy *QueryPolicy) *QueryPolicy {
 	if policy == nil {
 		if clnt.DefaultQueryPolicy != nil {
 			return clnt.DefaultQueryPolicy
@@ -1307,7 +1307,7 @@ func (clnt *GrpcClient) getUsableQueryPolicy(policy *QueryPolicy) *QueryPolicy {
 	return policy
 }
 
-func (clnt *GrpcClient) getUsableAdminPolicy(policy *AdminPolicy) *AdminPolicy {
+func (clnt *ProxyClient) getUsableAdminPolicy(policy *AdminPolicy) *AdminPolicy {
 	if policy == nil {
 		if clnt.DefaultAdminPolicy != nil {
 			return clnt.DefaultAdminPolicy
@@ -1317,7 +1317,7 @@ func (clnt *GrpcClient) getUsableAdminPolicy(policy *AdminPolicy) *AdminPolicy {
 	return policy
 }
 
-func (clnt *GrpcClient) getUsableInfoPolicy(policy *InfoPolicy) *InfoPolicy {
+func (clnt *ProxyClient) getUsableInfoPolicy(policy *InfoPolicy) *InfoPolicy {
 	if policy == nil {
 		if clnt.DefaultInfoPolicy != nil {
 			return clnt.DefaultInfoPolicy
