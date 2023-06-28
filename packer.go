@@ -22,8 +22,8 @@ import (
 	"reflect"
 	"time"
 
-	ParticleType "github.com/aerospike/aerospike-client-go/v6/internal/particle_type"
 	"github.com/aerospike/aerospike-client-go/v6/types"
+	ParticleType "github.com/aerospike/aerospike-client-go/v6/types/particle_type"
 
 	Buffer "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
 )
