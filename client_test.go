@@ -136,7 +136,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.It("must connect to the cluster using external authentication protocol", func() {
 			if *authMode != "external" {
-				gg.Skip("gg.Skipping External Authentication connection...")
+				gg.Skip("Skipping External Authentication connection...")
 			}
 
 			nodeCount := len(client.GetNodes())
@@ -162,7 +162,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 				info := info(c, "racks:")
 				if strings.HasPrefix(strings.ToUpper(info), "ERROR") {
-					gg.Skip("gg.Skipping RackAware test since it is not supported on this cluster...")
+					gg.Skip("Skipping RackAware test since it is not supported on this cluster...")
 				}
 
 				cpolicy = *clientPolicy
