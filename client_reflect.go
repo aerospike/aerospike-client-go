@@ -212,10 +212,6 @@ func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *R
 // This method is only supported by Aerospike 4.9+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryPartitionObjects(policy *QueryPolicy, statement *Statement, objChan interface{}, partitionFilter *PartitionFilter) (*Recordset, Error) {
-	if statement.Filter != nil {
-		return nil, ErrPartitionScanQueryNotSupported.err()
-	}
-
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	nodes := clnt.cluster.GetNodes()
@@ -247,35 +243,7 @@ func (clnt *Client) QueryPartitionObjects(policy *QueryPolicy, statement *Statem
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, Error) {
-	if statement.Filter == nil {
-		return clnt.QueryPartitionObjects(policy, statement, objChan, nil)
-	}
-
-	policy = clnt.getUsableQueryPolicy(policy)
-
-	nodes := clnt.cluster.GetNodes()
-	if len(nodes) == 0 {
-		return nil, ErrClusterIsEmpty.err()
-	}
-
-	// results channel must be async for performance
-	recSet := &Recordset{
-		objectset: *newObjectset(reflect.ValueOf(objChan), len(nodes)),
-	}
-
-	// the whole call sho
-	// results channel must be async for performance
-	for _, node := range nodes {
-		// copy policies to avoid race conditions
-		newPolicy := *policy
-		command := newQueryObjectsCommand(node, &newPolicy, statement, recSet)
-		go func() {
-			// Do not send the error to the channel; it is already handled in the Execute method
-			command.Execute()
-		}()
-	}
-
-	return recSet, nil
+	return clnt.QueryPartitionObjects(policy, statement, objChan, nil)
 }
 
 func (clnt *Client) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
@@ -298,23 +266,5 @@ func (clnt *Client) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, 
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
-	if statement.Filter == nil {
-		return clnt.queryNodePartitionsObjects(policy, node, statement, objChan)
-	}
-
-	policy = clnt.getUsableQueryPolicy(policy)
-
-	// results channel must be async for performance
-	recSet := &Recordset{
-		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
-	}
-
-	// copy policies to avoid race conditions
-	newPolicy := *policy
-	command := newQueryRecordCommand(node, &newPolicy, statement, recSet)
-	go func() {
-		command.Execute()
-	}()
-
-	return recSet, nil
+	return clnt.queryNodePartitionsObjects(policy, node, statement, objChan)
 }

@@ -21,7 +21,7 @@ import (
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 
-	ParticleType "github.com/aerospike/aerospike-client-go/v6/internal/particle_type"
+	ParticleType "github.com/aerospike/aerospike-client-go/v6/types/particle_type"
 	"github.com/aerospike/aerospike-client-go/v6/utils/buffer"
 )
 

@@ -14,80 +14,144 @@
 
 package atomic
 
-import "sync/atomic"
+import (
+	"strconv"
+	"sync"
+)
 
 // Int implements an int value with atomic semantics
 type Int struct {
-	val int64
+	m   sync.Mutex
+	val int
 }
 
 // NewInt generates a newVal Int instance.
 func NewInt(value int) *Int {
-	v := int64(value)
 	return &Int{
-		val: v,
+		val: value,
 	}
+}
+
+// String implements the Stringer interface
+func (ai *Int) String() string {
+	res := ai.Get()
+	return strconv.Itoa(res)
+}
+
+// GomegaString implements the GomegaStringer interface
+// to prevent race conditions during tests
+func (ai *Int) GomegaString() string {
+	return ai.String()
 }
 
 // AddAndGet atomically adds the given value to the current value.
 func (ai *Int) AddAndGet(delta int) int {
-	res := int(atomic.AddInt64(&ai.val, int64(delta)))
+	ai.m.Lock()
+	ai.val += delta
+	res := ai.val
+	ai.m.Unlock()
+	return res
+}
+
+// CloneAndSet atomically clones the atomic Int and sets the value to the given updated value.
+func (ai *Int) Clone() Int {
+	ai.m.Lock()
+	res := Int{
+		val: ai.val,
+	}
+	ai.m.Unlock()
+	return res
+}
+
+// CloneAndSet atomically clones the atomic Int and sets the value to the given updated value.
+func (ai *Int) CloneAndSet(value int) Int {
+	ai.m.Lock()
+	res := Int{
+		val: ai.val,
+	}
+	ai.val = value
+	ai.m.Unlock()
 	return res
 }
 
 // CompareAndSet atomically sets the value to the given updated value if the current value == expected value.
 // Returns true if the expectation was met
 func (ai *Int) CompareAndSet(expect int, update int) bool {
-	res := atomic.CompareAndSwapInt64(&ai.val, int64(expect), int64(update))
+	res := false
+	ai.m.Lock()
+	if ai.val == expect {
+		ai.val = update
+		res = true
+	}
+	ai.m.Unlock()
 	return res
 }
 
 // DecrementAndGet atomically decrements current value by one and returns the result.
 func (ai *Int) DecrementAndGet() int {
-	res := int(atomic.AddInt64(&ai.val, -1))
+	ai.m.Lock()
+	ai.val--
+	res := ai.val
+	ai.m.Unlock()
 	return res
 }
 
 // Get atomically retrieves the current value.
 func (ai *Int) Get() int {
-	res := int(atomic.LoadInt64(&ai.val))
+	ai.m.Lock()
+	res := ai.val
+	ai.m.Unlock()
 	return res
 }
 
 // GetAndAdd atomically adds the given delta to the current value and returns the result.
 func (ai *Int) GetAndAdd(delta int) int {
-	newVal := atomic.AddInt64(&ai.val, int64(delta))
-	res := int(newVal - int64(delta))
+	ai.m.Lock()
+	res := ai.val
+	ai.val += delta
+	ai.m.Unlock()
 	return res
 }
 
 // GetAndDecrement atomically decrements the current value by one and returns the result.
 func (ai *Int) GetAndDecrement() int {
-	newVal := atomic.AddInt64(&ai.val, -1)
-	res := int(newVal + 1)
+	ai.m.Lock()
+	res := ai.val
+	ai.val--
+	ai.m.Unlock()
 	return res
 }
 
 // GetAndIncrement atomically increments current value by one and returns the result.
 func (ai *Int) GetAndIncrement() int {
-	newVal := atomic.AddInt64(&ai.val, 1)
-	res := int(newVal - 1)
+	ai.m.Lock()
+	res := ai.val
+	ai.val++
+	ai.m.Unlock()
 	return res
 }
 
 // GetAndSet atomically sets current value to the given value and returns the old value.
 func (ai *Int) GetAndSet(newValue int) int {
-	res := int(atomic.SwapInt64(&ai.val, int64(newValue)))
+	ai.m.Lock()
+	res := ai.val
+	ai.val = newValue
+	ai.m.Unlock()
 	return res
 }
 
 // IncrementAndGet atomically increments current value by one and returns the result.
 func (ai *Int) IncrementAndGet() int {
-	res := int(atomic.AddInt64(&ai.val, 1))
+	ai.m.Lock()
+	ai.val++
+	res := ai.val
+	ai.m.Unlock()
 	return res
 }
 
 // Set atomically sets current value to the given value.
 func (ai *Int) Set(newValue int) {
-	atomic.StoreInt64(&ai.val, int64(newValue))
+	ai.m.Lock()
+	ai.val = newValue
+	ai.m.Unlock()
 }

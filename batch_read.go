@@ -26,7 +26,7 @@ type BatchRead struct {
 	BatchRecord
 
 	// Optional read policy.
-	Policy *BatchPolicy
+	Policy *BatchReadPolicy
 
 	// BinNames specifies the Bins to retrieve for this key.
 	// BinNames are mutually exclusive with Ops.
@@ -68,6 +68,10 @@ func newBatchRead(key *Key, binNames []string) (*BatchRead, *BatchRecord) {
 
 // NewBatchReadOps defines a key and bins to retrieve in a batch operation, including expressions.
 func NewBatchReadOps(key *Key, binNames []string, ops []*Operation) *BatchRead {
+	if len(binNames) > 0 && len(ops) > 0 {
+		panic("binNames and ops are mutually exclusive and only one can be used")
+	}
+
 	// TODO: Add policy to this API signature and remove binNames,
 	// since binNames is mutually exclusive with ops parameter.
 	res := &BatchRead{

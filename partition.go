@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	"fmt"
-	"sync/atomic"
 
 	"github.com/aerospike/aerospike-client-go/v6/types"
 )
@@ -267,7 +266,7 @@ func (ptn *Partition) getMasterProlesNode(cluster *Cluster) (*Node, Error) {
 	replicas := ptn.partitions.Replicas
 
 	for range replicas {
-		index := int(atomic.AddUint64(&cluster.replicaIndex, 1) % uint64(len(replicas)))
+		index := cluster.replicaIndex.IncrementAndGet() % len(replicas)
 		node := replicas[index][ptn.PartitionId]
 
 		if node != nil && node.IsActive() {

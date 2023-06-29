@@ -21,7 +21,6 @@ import (
 	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
-	grpc "google.golang.org/grpc"
 )
 
 type batchCommandOperate struct {
@@ -79,7 +78,6 @@ func (cmd *batchCommandOperate) writeBuffer(ifc command) Error {
 func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	//Parse each message response and add it to the result array
 	cmd.dataOffset = 0
-	firstRecord := true
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
 			return false, err
@@ -111,21 +109,51 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 
 			// If it looks like the error is on the first record and the message is marked as last part,
 			// the error is for the whole command and not just for the first batchIndex
-			if firstRecord && (info3&_INFO3_LAST) == _INFO3_LAST {
-				return false, newError(resultCode)
+			if resultCode == types.BATCH_DISABLED || resultCode == types.BATCH_MAX_REQUESTS_EXCEEDED || resultCode == types.BATCH_QUEUES_FULL {
+				return false, newError(resultCode).setNode(cmd.node)
 			}
 
-			cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.node)
+			if resultCode == types.UDF_BAD_RESPONSE {
+				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
+				if err != nil {
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+					return false, err
+				}
+
+				var msg interface{}
+				if rec != nil {
+					msg = rec.Bins["FAILURE"]
+				}
+
+				// Need to store record because failure bin contains an error message.
+				cmd.records[batchIndex].setRecord(rec)
+				if msg, ok := msg.(string); ok && len(msg) > 0 {
+					cmd.records[batchIndex].setErrorWithMsg(cmd.node, resultCode, msg, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+				} else {
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+				}
+
+				// If cmd is the end marker of the response, do not proceed further
+				if (info3 & _INFO3_LAST) == _INFO3_LAST {
+					return false, nil
+				}
+				continue
+			}
+
+			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+
+			// If cmd is the end marker of the response, do not proceed further
+			if (info3 & _INFO3_LAST) == _INFO3_LAST {
+				return false, nil
+			}
 			continue
 		}
 
 		if resultCode == 0 {
-			firstRecord = false
-
 			if cmd.objects == nil {
 				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
 				if err != nil {
-					cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.node)
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
 					return false, err
 				}
 				cmd.records[batchIndex].setRecord(rec)
@@ -196,7 +224,7 @@ func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNo
 	return newBatchOperateNodeListIfcRetry(cluster, cmd.policy, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
 }
 
-func (cmd *batchCommandOperate) ExecuteGRPC(conn *grpc.ClientConn) Error {
+func (cmd *batchCommandOperate) ExecuteGRPC(clnt *ProxyClient) Error {
 	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
 	if err != nil {
 		return err
@@ -208,6 +236,11 @@ func (cmd *batchCommandOperate) ExecuteGRPC(conn *grpc.ClientConn) Error {
 		Payload:     cmd.dataBuffer[:cmd.dataOffset],
 		ReadPolicy:  cmd.policy.grpc(),
 		WritePolicy: cmd.policy.grpc_write(),
+	}
+
+	conn, err := clnt.grpcConn()
+	if err != nil {
+		return err
 	}
 
 	client := kvs.NewKVSClient(conn)
@@ -244,17 +277,19 @@ func (cmd *batchCommandOperate) ExecuteGRPC(conn *grpc.ClientConn) Error {
 		return err
 	}
 
-	var errs Error
-	for _, r := range cmd.records {
-		if b := r.BatchRec(); b.Err != nil {
-			if errs == nil {
-				errs = chainErrors(b.Err, errs)
-			} else if !errs.Matches(b.ResultCode, types.FILTERED_OUT) {
-				// add only new errors
-				errs = chainErrors(b.Err, errs)
-			}
-		}
-	}
+	clnt.returnGrpcConnToPool(conn)
 
-	return errs
+	// var errs Error
+	// for _, r := range cmd.records {
+	// 	if b := r.BatchRec(); b.Err != nil {
+	// 		if errs == nil {
+	// 			errs = chainErrors(b.Err, errs)
+	// 		} else if !errs.Matches(b.ResultCode, types.FILTERED_OUT) {
+	// 			// add only new errors
+	// 			errs = chainErrors(b.Err, errs)
+	// 		}
+	// 	}
+	// }
+
+	return nil
 }

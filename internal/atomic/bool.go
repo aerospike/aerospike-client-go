@@ -14,36 +14,51 @@
 
 package atomic
 
-import "sync/atomic"
+import (
+	"sync"
+)
 
 // Bool implements a synchronized boolean value
 type Bool struct {
-	val int32
+	m   sync.Mutex
+	val bool
 }
 
 // NewBool generates a new Boolean instance.
 func NewBool(value bool) *Bool {
-	var i int32
-	if value {
-		i = 1
-	}
 	return &Bool{
-		val: i,
+		val: value,
 	}
+}
+
+// String implements the Stringer interface
+func (ab *Bool) String() string {
+	res := ab.Get()
+	if res {
+		return "true"
+	}
+	return "false"
+}
+
+// GomegaString implements the GomegaStringer interface
+// to prevent race conditions in tests
+func (ab *Bool) GomegaString() string {
+	return ab.String()
 }
 
 // Get atomically retrieves the boolean value.
 func (ab *Bool) Get() bool {
-	return atomic.LoadInt32(&(ab.val)) != 0
+	ab.m.Lock()
+	res := ab.val
+	ab.m.Unlock()
+	return res
 }
 
 // Set atomically sets the boolean value.
 func (ab *Bool) Set(newVal bool) {
-	var i int32
-	if newVal {
-		i = 1
-	}
-	atomic.StoreInt32(&(ab.val), int32(i))
+	ab.m.Lock()
+	ab.val = newVal
+	ab.m.Unlock()
 }
 
 // Or atomically applies OR operation to the boolean value.
@@ -51,16 +66,18 @@ func (ab *Bool) Or(newVal bool) bool {
 	if !newVal {
 		return ab.Get()
 	}
-	atomic.StoreInt32(&(ab.val), int32(1))
+	ab.Set(newVal)
 	return true
 }
 
-//CompareAndToggle atomically sets the boolean value if the current value is equal to updated value.
+// CompareAndToggle atomically sets the boolean value if the current value is equal to updated value.
 func (ab *Bool) CompareAndToggle(expect bool) bool {
-	updated := 1
-	if expect {
-		updated = 0
+	res := false
+	ab.m.Lock()
+	if ab.val == expect {
+		res = true
+		ab.val = !ab.val
 	}
-	res := atomic.CompareAndSwapInt32(&ab.val, int32(1-updated), int32(updated))
+	ab.m.Unlock()
 	return res
 }

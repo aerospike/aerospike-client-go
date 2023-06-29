@@ -36,8 +36,9 @@ var _ = gg.Describe("Atomic Int", func() {
 	})
 
 	gg.It("must Offer() more elements than queue's capacity, and still not block", func() {
-		for i := 0; i < 100; i++ {
-			wg.Add(1)
+		var count int = 1e6
+		wg.Add(count)
+		for i := 0; i < count; i++ {
 			go func() {
 				defer wg.Done()
 				ai.IncrementAndGet()
@@ -45,7 +46,7 @@ var _ = gg.Describe("Atomic Int", func() {
 		}
 
 		wg.Wait()
-		gm.Expect(ai.Get()).To(gm.Equal(100))
+		gm.Expect(ai.Get()).To(gm.Equal(count))
 	})
 
 })

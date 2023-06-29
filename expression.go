@@ -17,8 +17,8 @@ package aerospike
 import (
 	"encoding/base64"
 
-	ParticleType "github.com/aerospike/aerospike-client-go/v6/internal/particle_type"
 	"github.com/aerospike/aerospike-client-go/v6/types"
+	ParticleType "github.com/aerospike/aerospike-client-go/v6/types/particle_type"
 )
 
 // ExpressionArgument is used for passing arguments to filter expressions.
@@ -826,6 +826,16 @@ func ExpGeoVal(val string) *Expression {
 // ExpNilValue creates a a Nil Value
 func ExpNilValue() *Expression {
 	return newFilterExpression(nil, nullValue, nil, nil, nil, nil)
+}
+
+// ExpInfinityValue creates an Infinity Value
+func ExpInfinityValue() *Expression {
+	return newFilterExpression(nil, infinityValue, nil, nil, nil, nil)
+}
+
+// ExpWildCardValue creates a WildCard Value
+func ExpWildCardValue() *Expression {
+	return newFilterExpression(nil, wildCardValue, nil, nil, nil, nil)
 }
 
 // ExpNot creates a "not" operator expression.

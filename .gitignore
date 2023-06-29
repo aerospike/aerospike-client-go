@@ -21,3 +21,6 @@ cmd/
 .revive.toml
 Makefile
 testdata/
+Dockerfile*
+.dockerignore
+docker-compose.yml

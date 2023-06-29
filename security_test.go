@@ -34,8 +34,8 @@ var _ = gg.Describe("Security tests", func() {
 	var err error
 
 	gg.BeforeEach(func() {
-		if *grpc {
-			gg.Skip("Not supported in GRPC Client")
+		if *proxy {
+			gg.Skip("Not supported in Proxy Client")
 		}
 
 		if !securityEnabled() {

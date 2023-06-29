@@ -351,6 +351,19 @@ var _ = gg.Describe("Expression Filters", func() {
 				count := countResults(rs)
 				gm.Expect(count).To(gm.Equal(100))
 			})
+
+			gg.It("ExpMapReturnType must work", func() {
+				rs := runQuery(
+					as.ExpMapGetByValue(
+						as.MapReturnType.EXISTS,
+						as.ExpStringVal("test"),
+						as.ExpMapBin("bin6"),
+					),
+					set,
+				)
+				count := countResults(rs)
+				gm.Expect(count).To(gm.Equal(100))
+			})
 		})
 
 		var _ = gg.Context("Logical Ops", func() {
@@ -503,7 +516,7 @@ var _ = gg.Describe("Expression Filters", func() {
 
 			gg.It("ExpMemorySize must work", func() {
 				if len(nsInfo(ns, "device_total_bytes")) > 0 {
-					gg.Skip("gg.Skipping ExpDeviceSize test since the namespace is persisted and the test works only for Memory-Only namespaces.")
+					gg.Skip("Skipping ExpDeviceSize test since the namespace is persisted and the test works only for Memory-Only namespaces.")
 				}
 
 				// storage-engine could be disk/device for which memorySize() returns zero.

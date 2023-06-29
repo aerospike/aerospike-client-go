@@ -14,6 +14,12 @@
 
 package aerospike
 
+import (
+	"fmt"
+
+	"github.com/aerospike/aerospike-client-go/v6/types"
+)
+
 const expMapMODULE int64 = 0
 
 // ExpMapPut creates an expression that writes key/value item to map bin.
@@ -796,13 +802,26 @@ func expMapAddWrite(
 }
 
 func expMapGetValueType(returnType mapReturnType) ExpType {
-	var t = returnType & (^MapReturnType.INVERTED)
-	if t == MapReturnType.KEY || t == MapReturnType.VALUE {
+	t := returnType & (^MapReturnType.INVERTED)
+	switch t {
+	case MapReturnType.INDEX, MapReturnType.REVERSE_INDEX, MapReturnType.RANK, MapReturnType.REVERSE_RANK:
+		// This method only called from expressions that can return multiple integers (ie list).
 		return ExpTypeLIST
-	} else if t == MapReturnType.KEY_VALUE {
+
+	case MapReturnType.COUNT:
+		return ExpTypeINT
+	case MapReturnType.KEY, MapReturnType.VALUE:
+		// This method only called from expressions that can return multiple objects (ie list).
+		return ExpTypeLIST
+
+	case MapReturnType.KEY_VALUE, MapReturnType.ORDERED_MAP, MapReturnType.UNORDERED_MAP:
 		return ExpTypeMAP
+
+	case MapReturnType.EXISTS:
+		return ExpTypeBOOL
+
 	}
-	return ExpTypeINT
+	panic(newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid MapReturnType: %d", returnType)))
 }
 
 // Determines the correct operation to use when setting one or more map values, depending on the

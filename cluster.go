@@ -55,8 +55,8 @@ type Cluster struct {
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
 
-	nodeIndex    uint64 // only used via atomic operations
-	replicaIndex uint64 // only used via atomic operations
+	nodeIndex    iatomic.Int // only used via atomic operations
+	replicaIndex iatomic.Int // only used via atomic operations
 
 	wgTend      sync.WaitGroup
 	tendChannel chan struct{}
@@ -365,11 +365,6 @@ func (clstr *Cluster) tend() Error {
 				logger.Logger.Debug("The following nodes will be removed: %s", n)
 			}
 			clstr.removeNodes(removeList)
-
-			if partMap != nil {
-				// remove departed nodes from the partition map
-				partMap.removeNodes(removeList)
-			}
 		}
 
 		clstr.aggregateNodestats(removeList)
@@ -441,7 +436,7 @@ func (clstr *Cluster) statsCopy() map[string]nodeStats {
 		h := node.host.String()
 		if stats, exists := clstr.stats[h]; exists {
 			statsCopy := stats.clone()
-			statsCopy.ConnectionsOpen = int64(node.connectionCount.Get())
+			statsCopy.ConnectionsOpen.Set(node.connectionCount.Get())
 			res[h] = statsCopy
 		}
 	}
@@ -449,7 +444,7 @@ func (clstr *Cluster) statsCopy() map[string]nodeStats {
 	// stats for nodes which do not exist anymore
 	for h, stats := range clstr.stats {
 		if _, exists := res[h]; !exists {
-			stats.ConnectionsOpen = 0
+			stats.ConnectionsOpen.Set(0)
 			res[h] = stats.clone()
 		}
 	}
@@ -823,7 +818,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, Error) {
 	if length > 0 {
 		for i := 0; i < length; i++ {
 			// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
-			index := int(atomic.AddUint64(&clstr.nodeIndex, 1) % uint64(length))
+			index := clstr.nodeIndex.IncrementAndGet() % length
 			node := nodeArray[index]
 
 			if node != nil && node.IsActive() {

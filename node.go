@@ -106,7 +106,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 
 	// this will reset to zero on first aggregation on the cluster,
 	// therefore will only be counted once.
-	atomic.AddInt64(&newNode.stats.NodeAdded, 1)
+	newNode.stats.NodeAdded.IncrementAndGet()
 
 	return newNode
 }
@@ -132,7 +132,7 @@ func (nd *Node) Refresh(peers *peers) Error {
 		return nil
 	}
 
-	atomic.AddInt64(&nd.stats.TendsTotal, 1)
+	nd.stats.TendsTotal.IncrementAndGet()
 
 	// Close idleConnections
 	defer nd.dropIdleConnections()
@@ -179,7 +179,7 @@ func (nd *Node) Refresh(peers *peers) Error {
 	nd.failures.Set(0)
 	peers.refreshCount.IncrementAndGet()
 	nd.referenceCount.IncrementAndGet()
-	atomic.AddInt64(&nd.stats.TendsSuccessful, 1)
+	nd.stats.TendsSuccessful.IncrementAndGet()
 
 	if err = nd.refreshSessionToken(); err != nil {
 		logger.Logger.Error("Error refreshing session token: %s", err.Error())
@@ -378,7 +378,7 @@ func (nd *Node) refreshPartitions(peers *peers, partitions partitionMap, freshly
 		logger.Logger.Info("Node %s partition generation changed from %d to %d", nd.host.String(), nd.partitionGeneration.Get(), parser.getGeneration())
 		nd.partitionChanged.Set(true)
 		nd.partitionGeneration.Set(parser.getGeneration())
-		atomic.AddInt64(&nd.stats.PartitionMapUpdates, 1)
+		nd.stats.PartitionMapUpdates.IncrementAndGet()
 	}
 }
 
@@ -391,7 +391,7 @@ func (nd *Node) refreshFailed(e Error) {
 	}
 
 	nd.failures.IncrementAndGet()
-	atomic.AddInt64(&nd.stats.TendsFailed, 1)
+	nd.stats.TendsFailed.IncrementAndGet()
 
 	// Only log message if cluster is still active.
 	if nd.cluster.IsConnected() {
@@ -481,7 +481,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	cc := nd.connectionCount.IncrementAndGet()
 	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
 		nd.connectionCount.DecrementAndGet()
-		atomic.AddInt64(&nd.stats.ConnectionsPoolEmpty, 1)
+		nd.stats.ConnectionsPoolEmpty.IncrementAndGet()
 
 		return nil, ErrTooManyConnectionsForNode.err()
 	}
@@ -499,12 +499,12 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 		defer nd.cluster.connectionThreshold.DecrementAndGet()
 	}
 
-	atomic.AddInt64(&nd.stats.ConnectionsAttempts, 1)
+	nd.stats.ConnectionsAttempts.IncrementAndGet()
 	conn, err := NewConnection(&nd.cluster.clientPolicy, nd.host)
 	if err != nil {
 		nd.incrErrorCount()
 		nd.connectionCount.DecrementAndGet()
-		atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
+		nd.stats.ConnectionsFailed.IncrementAndGet()
 		return nil, err
 	}
 	conn.node = nd
@@ -516,14 +516,14 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 		if networkError(err) {
 			nd.incrErrorCount()
 		}
-		atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
+		nd.stats.ConnectionsFailed.IncrementAndGet()
 
 		// Socket not authenticated. Do not put back into pool.
 		conn.Close()
 		return nil, err
 	}
 
-	atomic.AddInt64(&nd.stats.ConnectionsSuccessful, 1)
+	nd.stats.ConnectionsSuccessful.IncrementAndGet()
 	conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
 
 	return conn, nil
@@ -569,7 +569,7 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 	}
 
 	if err = conn.SetTimeout(deadline, timeout); err != nil {
-		atomic.AddInt64(&nd.stats.ConnectionsFailed, 1)
+		nd.stats.ConnectionsFailed.IncrementAndGet()
 
 		// Do not put back into pool.
 		conn.Close()
@@ -647,7 +647,7 @@ func (nd *Node) addAlias(aliasToAdd *Host) {
 func (nd *Node) Close() {
 	if nd.active.Get() {
 		nd.active.Set(false)
-		atomic.AddInt64(&nd.stats.NodeRemoved, 1)
+		nd.stats.NodeRemoved.IncrementAndGet()
 	}
 	nd.closeConnections()
 	nd.connections.cleanup()

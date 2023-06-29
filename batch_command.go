@@ -24,7 +24,7 @@ type batcher interface {
 	cloneBatchCommand(batch *batchNode) batcher
 	filteredOut() int
 
-	retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration, commandSentCounter int) (bool, Error)
+	retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration int, commandWasSent bool) (bool, Error)
 	generateBatchNodes(*Cluster) ([]*batchNode, Error)
 	setSequence(int, int)
 }
@@ -56,7 +56,7 @@ func (cmd *batchCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return false
 }
 
-func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration, commandSentCounter int) (bool, Error) {
+func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration int, commandWasSent bool) (bool, Error) {
 	// Retry requires keys for this node to be split among other nodes.
 	// This is both recursive and exponential.
 	batchNodes, err := ifc.generateBatchNodes(cluster)
@@ -74,7 +74,7 @@ func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time
 	for _, batchNode := range batchNodes {
 		command := ifc.cloneBatchCommand(batchNode)
 		command.setSequence(cmd.sequenceAP, cmd.sequenceSC)
-		if err := command.executeAt(command, cmd.policy.GetBasePolicy(), true, deadline, iteration, commandSentCounter); err != nil {
+		if err := command.executeAt(command, cmd.policy.GetBasePolicy(), true, deadline, iteration, commandWasSent); err != nil {
 			ferr = chainErrors(err, ferr)
 			if !cmd.policy.AllowPartialResults {
 				return false, ferr

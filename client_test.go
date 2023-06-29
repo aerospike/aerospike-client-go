@@ -32,6 +32,30 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
+func isMapOrFloat(ifc interface{}) bool {
+	m, ok := ifc.(map[string]interface{})
+	if !ok {
+		_, ok1 := ifc.(float64)
+		_, ok2 := ifc.(float32)
+		_, ok3 := ifc.(int)
+		_, ok4 := ifc.(int64)
+		return ok1 || ok2 || ok3 || ok4
+	}
+
+	for _, v := range m {
+		switch v := v.(type) {
+		case float64:
+			return true
+		case map[string]interface{}:
+			return isMapOrFloat(v)
+		default:
+			return false
+		}
+	}
+
+	return true
+}
+
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Aerospike", func() {
 
@@ -67,6 +91,9 @@ var _ = gg.Describe("Aerospike", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(len(stats)).To(gm.BeNumerically(">", 0))
 			for _, nodeStatsIfc := range stats {
+				// make sure it's a strict map of string => float64 | string => float64
+				gm.Expect(isMapOrFloat(nodeStatsIfc)).To(gm.BeTrue())
+
 				if nodeStats, ok := nodeStatsIfc.(map[string]interface{}); ok {
 					gm.Expect(nodeStats["connections-attempts"].(float64)).To(gm.BeNumerically(">=", 1))
 					gm.Expect(nodeStats["node-added-count"].(float64)).To(gm.BeNumerically(">=", 1))
@@ -115,7 +142,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.It("must connect to the cluster using external authentication protocol", func() {
 			if *authMode != "external" {
-				gg.Skip("gg.Skipping External Authentication connection...")
+				gg.Skip("Skipping External Authentication connection...")
 			}
 
 			nodeCount := len(client.GetNodes())
@@ -141,7 +168,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 				info := info(c, "racks:")
 				if strings.HasPrefix(strings.ToUpper(info), "ERROR") {
-					gg.Skip("gg.Skipping RackAware test since it is not supported on this cluster...")
+					gg.Skip("Skipping RackAware test since it is not supported on this cluster...")
 				}
 
 				cpolicy = *clientPolicy

@@ -14,6 +14,12 @@
 
 package aerospike
 
+import (
+	"fmt"
+
+	"github.com/aerospike/aerospike-client-go/v6/types"
+)
+
 const expListMODULE int64 = 0
 
 // ExpListAppend creates an expression that appends value to end of list.
@@ -205,13 +211,14 @@ func ExpListRemoveByValueRange(
 // ExpListRemoveByValueRelativeRankRange creates an expression that removes list items nearest to value and greater by relative rank.
 //
 // Examples for ordered list \[0, 4, 5, 9, 11, 15\]:
-//  (value,rank) = [removed items]
-//  (5,0) = [5,9,11,15]
-//  (5,1) = [9,11,15]
-//  (5,-1) = [4,5,9,11,15]
-//  (3,0) = [4,5,9,11,15]
-//  (3,3) = [11,15]
-//  (3,-3) = [0,4,5,9,11,15]
+//
+//	(value,rank) = [removed items]
+//	(5,0) = [5,9,11,15]
+//	(5,1) = [9,11,15]
+//	(5,-1) = [4,5,9,11,15]
+//	(3,0) = [4,5,9,11,15]
+//	(3,3) = [11,15]
+//	(3,-3) = [0,4,5,9,11,15]
 func ExpListRemoveByValueRelativeRankRange(
 	value *Expression,
 	rank *Expression,
@@ -231,13 +238,14 @@ func ExpListRemoveByValueRelativeRankRange(
 // ExpListRemoveByValueRelativeRankRangeCount creates an expression that removes list items nearest to value and greater by relative rank with a count limit.
 //
 // Examples for ordered list \[0, 4, 5, 9, 11, 15\]:
-//  (value,rank,count) = [removed items]
-//  (5,0,2) = [5,9]
-//  (5,1,1) = [9]
-//  (5,-1,2) = [4,5]
-//  (3,0,1) = [4]
-//  (3,3,7) = [11,15]
-//  (3,-3,2) = []
+//
+//	(value,rank,count) = [removed items]
+//	(5,0,2) = [5,9]
+//	(5,1,1) = [9]
+//	(5,-1,2) = [4,5]
+//	(3,0,1) = [4]
+//	(3,3,7) = [11,15]
+//	(3,-3,2) = []
 func ExpListRemoveByValueRelativeRankRangeCount(
 	value *Expression,
 	rank *Expression,
@@ -422,13 +430,14 @@ func ExpListGetByValueList(
 // and returns selected data specified by returnType.
 //
 // Examples for ordered list \[0, 4, 5, 9, 11, 15\]:
-//  (value,rank) = [selected items]
-//  (5,0) = [5,9,11,15]
-//  (5,1) = [9,11,15]
-//  (5,-1) = [4,5,9,11,15]
-//  (3,0) = [4,5,9,11,15]
-//  (3,3) = [11,15]
-//  (3,-3) = [0,4,5,9,11,15]
+//
+//	(value,rank) = [selected items]
+//	(5,0) = [5,9,11,15]
+//	(5,1) = [9,11,15]
+//	(5,-1) = [4,5,9,11,15]
+//	(3,0) = [4,5,9,11,15]
+//	(3,3) = [11,15]
+//	(3,-3) = [0,4,5,9,11,15]
 func ExpListGetByValueRelativeRankRange(
 	returnType ListReturnType,
 	value *Expression,
@@ -450,13 +459,14 @@ func ExpListGetByValueRelativeRankRange(
 // and returns selected data specified by returnType.
 //
 // Examples for ordered list \[0, 4, 5, 9, 11, 15\]:
-//  (value,rank,count) = [selected items]
-//  (5,0,2) = [5,9]
-//  (5,1,1) = [9]
-//  (5,-1,2) = [4,5]
-//  (3,0,1) = [4]
-//  (3,3,7) = [11,15]
-//  (3,-3,2) = []
+//
+//	(value,rank,count) = [selected items]
+//	(5,0,2) = [5,9]
+//	(5,1,1) = [9]
+//	(5,-1,2) = [4,5]
+//	(3,0,1) = [4]
+//	(3,3,7) = [11,15]
+//	(3,-3,2) = []
 func ExpListGetByValueRelativeRankRangeCount(
 	returnType ListReturnType,
 	value *Expression,
@@ -628,8 +638,20 @@ func cdtListAddWrite(
 }
 
 func expListGetValueType(returnType ListReturnType) ExpType {
-	if (returnType & (^ListReturnTypeInverted)) == ListReturnTypeValue {
+	rt := returnType & (^ListReturnTypeInverted)
+	switch rt {
+	case ListReturnTypeIndex, ListReturnTypeReverseIndex, ListReturnTypeRank, ListReturnTypeReverseRank:
+		// This method only called from expressions that can return multiple integers (ie list).
 		return ExpTypeLIST
+	case ListReturnTypeCount:
+		return ExpTypeINT
+
+	case ListReturnTypeValue:
+		// This method only called from expressions that can return multiple objects (ie list).
+		return ExpTypeLIST
+
+	case ListReturnTypeExists:
+		return ExpTypeBOOL
 	}
-	return ExpTypeINT
+	panic(newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid ListReturnType: %d", returnType)))
 }

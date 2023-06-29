@@ -128,7 +128,7 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 		})
 
 		gg.It("should handle chained case", func() {
-			inner := newError(ast.UDF_BAD_RESPONSE).setInDoubt(false, 2)
+			inner := newError(ast.UDF_BAD_RESPONSE).setInDoubt(false, true)
 			outer := newError(ast.TIMEOUT)
 			err := chainErrors(outer, inner)
 
