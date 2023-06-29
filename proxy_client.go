@@ -289,12 +289,12 @@ func (clnt *ProxyClient) IsConnected() bool {
 
 // GetNodes returns an array of active server nodes in the cluster.
 func (clnt *ProxyClient) GetNodes() []*Node {
-	return nil
+	panic("NOT_SUPPORTED")
 }
 
 // GetNodeNames returns a list of active server node names in the cluster.
 func (clnt *ProxyClient) GetNodeNames() []string {
-	return nil
+	panic("NOT_SUPPORTED")
 }
 
 //-------------------------------------------------------
