@@ -10,7 +10,8 @@ message AboutRequest {
 
 // The about response message.
 message AboutResponse {
-  // Empty for now.
+  // Proxy server version.
+  string version = 1;
 }
 
 // Read policy for AP (availability) namespaces.
