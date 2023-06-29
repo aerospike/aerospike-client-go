@@ -19,7 +19,6 @@ import (
 
 	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
-	grpc "google.golang.org/grpc"
 )
 
 type grpcScanPartitionCommand struct {
@@ -69,7 +68,7 @@ func (cmd *grpcScanPartitionCommand) Execute() Error {
 	panic("UNREACHABLE")
 }
 
-func (cmd *grpcScanPartitionCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
+func (cmd *grpcScanPartitionCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 	defer cmd.recordset.signalEnd()
 
 	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
@@ -90,6 +89,11 @@ func (cmd *grpcScanPartitionCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
 		Iteration:   1,
 		Payload:     cmd.dataBuffer[:cmd.dataOffset],
 		ScanRequest: scanReq,
+	}
+
+	conn, err := clnt.grpcConn()
+	if err != nil {
+		return err
 	}
 
 	client := kvs.NewScanClient(conn)
@@ -128,6 +132,8 @@ func (cmd *grpcScanPartitionCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
 		cmd.recordset.sendError(err)
 		return err
 	}
+
+	clnt.returnGrpcConnToPool(conn)
 
 	return nil
 }

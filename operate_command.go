@@ -18,7 +18,6 @@ import (
 	"math/rand"
 
 	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
-	grpc "google.golang.org/grpc"
 )
 
 type operateCommand struct {
@@ -67,7 +66,7 @@ func (cmd *operateCommand) Execute() Error {
 	return cmd.execute(cmd, !cmd.args.hasWrite)
 }
 
-func (cmd *operateCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
+func (cmd *operateCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
 	if err != nil {
 		return err
@@ -80,6 +79,11 @@ func (cmd *operateCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
 		WritePolicy: cmd.policy.grpc(),
 	}
 
+	conn, err := clnt.grpcConn()
+	if err != nil {
+		return err
+	}
+
 	client := kvs.NewKVSClient(conn)
 
 	ctx := cmd.policy.grpcDeadlineContext()
@@ -88,6 +92,8 @@ func (cmd *operateCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
 	if gerr != nil {
 		return newGrpcError(gerr, gerr.Error())
 	}
+
+	defer clnt.returnGrpcConnToPool(conn)
 
 	if res.Status != 0 {
 		return newGrpcStatusError(res)

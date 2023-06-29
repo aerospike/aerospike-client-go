@@ -172,7 +172,7 @@ func newGrpcError(e error, messages ...string) Error {
 	case codes.OK:
 		return nil
 	case codes.Canceled:
-		return newError(types.GRPC_ERROR)
+		return ErrNetTimeout.err()
 	case codes.InvalidArgument:
 		return newError(types.PARAMETER_ERROR, messages...)
 	case codes.DeadlineExceeded:

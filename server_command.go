@@ -20,7 +20,6 @@ import (
 	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
-	grpc "google.golang.org/grpc"
 )
 
 type serverCommand struct {
@@ -95,7 +94,7 @@ func (cmd *serverCommand) Execute() Error {
 	return cmd.execute(cmd, false)
 }
 
-func (cmd *serverCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
+func (cmd *serverCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
 	if err != nil {
 		return err
@@ -111,6 +110,11 @@ func (cmd *serverCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
 		Iteration:                1,
 		Payload:                  cmd.dataBuffer[:cmd.dataOffset],
 		BackgroundExecuteRequest: execReq,
+	}
+
+	conn, err := clnt.grpcConn()
+	if err != nil {
+		return err
 	}
 
 	client := kvs.NewQueryClient(conn)
@@ -146,6 +150,8 @@ func (cmd *serverCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
 	if err != nil && err != errGRPCStreamEnd {
 		return err
 	}
+
+	clnt.returnGrpcConnToPool(conn)
 
 	return nil
 }

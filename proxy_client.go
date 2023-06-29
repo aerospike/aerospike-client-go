@@ -243,6 +243,12 @@ func (clnt *ProxyClient) grpcConn() (*grpc.ClientConn, Error) {
 	return clnt.createGrpcConn(!clnt.clientPolicy.RequiresAuthentication())
 }
 
+func (clnt *ProxyClient) returnGrpcConnToPool(conn *grpc.ClientConn) {
+	if conn != nil {
+		clnt.grpcConnPool.Put(conn)
+	}
+}
+
 func (clnt *ProxyClient) createGrpcConn(noInterceptor bool) (*grpc.ClientConn, Error) {
 	// make a new connection
 	// Implement TLS and auth
@@ -306,13 +312,7 @@ func (clnt *ProxyClient) Put(policy *WritePolicy, key *Key, binMap BinMap) Error
 		return err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	return command.ExecuteGRPC(conn)
+	return command.ExecuteGRPC(clnt)
 }
 
 // PutBins writes record bin(s) to the server.
@@ -327,13 +327,7 @@ func (clnt *ProxyClient) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) Er
 		return err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	return command.ExecuteGRPC(conn)
+	return command.ExecuteGRPC(clnt)
 }
 
 //-------------------------------------------------------
@@ -436,13 +430,7 @@ func (clnt *ProxyClient) Delete(policy *WritePolicy, key *Key) (bool, Error) {
 		return false, err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return false, err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	err = command.ExecuteGRPC(conn)
+	err = command.ExecuteGRPC(clnt)
 	return command.Existed(), err
 }
 
@@ -461,13 +449,7 @@ func (clnt *ProxyClient) Touch(policy *WritePolicy, key *Key) Error {
 		return err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	return command.ExecuteGRPC(conn)
+	return command.ExecuteGRPC(clnt)
 }
 
 //-------------------------------------------------------
@@ -484,13 +466,7 @@ func (clnt *ProxyClient) Exists(policy *BasePolicy, key *Key) (bool, Error) {
 		return false, err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return false, err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	err = command.ExecuteGRPC(conn)
+	err = command.ExecuteGRPC(clnt)
 	return command.Exists(), err
 }
 
@@ -531,13 +507,7 @@ func (clnt *ProxyClient) Get(policy *BasePolicy, key *Key, binNames ...string) (
 		return nil, err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	if err := command.ExecuteGRPC(conn); err != nil {
+	if err := command.ExecuteGRPC(clnt); err != nil {
 		return nil, err
 	}
 	return command.GetRecord(), nil
@@ -555,13 +525,7 @@ func (clnt *ProxyClient) GetHeader(policy *BasePolicy, key *Key) (*Record, Error
 		return nil, err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	if err := command.ExecuteGRPC(conn); err != nil {
+	if err := command.ExecuteGRPC(clnt); err != nil {
 		return nil, err
 	}
 	return command.GetRecord(), nil
@@ -694,14 +658,8 @@ func (clnt *ProxyClient) BatchOperate(policy *BatchPolicy, records []BatchRecord
 		return err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
 	cmd := newBatchCommandOperate(nil, batchNode, policy, records)
-	return cmd.ExecuteGRPC(conn)
+	return cmd.ExecuteGRPC(clnt)
 }
 
 // BatchExecute will read/write multiple records for specified batch keys in one batch call.
@@ -746,13 +704,7 @@ func (clnt *ProxyClient) Operate(policy *WritePolicy, key *Key, operations ...*O
 		return nil, err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	// defer clnt.grpcConnPool.Put(conn)
-
-	if err := command.ExecuteGRPC(conn); err != nil {
+	if err := command.ExecuteGRPC(clnt); err != nil {
 		return nil, err
 	}
 	return command.GetRecord(), nil
@@ -770,17 +722,11 @@ func (clnt *ProxyClient) Operate(policy *WritePolicy, key *Key, operations ...*O
 // This method is only supported by Aerospike 4.9+ servers.
 func (clnt *ProxyClient) ScanPartitions(apolicy *ScanPolicy, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	// TODO: Implement pool recovery
-	// defer clnt.grpcConnPool.Put(conn)
 
 	// result recordset
 	res := newRecordset(policy.RecordQueueSize, 1)
 	cmd := newGrpcScanPartitionCommand(&policy, partitionFilter, namespace, setName, binNames, res)
-	go cmd.ExecuteGRPC(conn)
+	go cmd.ExecuteGRPC(clnt)
 
 	return res, nil
 }
@@ -866,13 +812,7 @@ func (clnt *ProxyClient) Execute(policy *WritePolicy, key *Key, packageName stri
 		return nil, err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	if err := command.ExecuteGRPC(conn); err != nil {
+	if err := command.ExecuteGRPC(clnt); err != nil {
 		return nil, err
 	}
 
@@ -904,18 +844,11 @@ func (clnt *ProxyClient) QueryExecute(policy *QueryPolicy,
 
 	command := newServerCommand(nil, policy, writePolicy, statement, statement.TaskId, ops)
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	// Implement pool recovery
-	defer clnt.grpcConnPool.Put(conn)
-
-	if err := command.ExecuteGRPC(conn); err != nil {
+	if err := command.ExecuteGRPC(clnt); err != nil {
 		return nil, err
 	}
 
-	return newGRPCExecuteTask(conn, statement), nil
+	return newGRPCExecuteTask(clnt, statement), nil
 }
 
 // ExecuteUDF applies user defined function on records that match the statement filter.
@@ -939,17 +872,11 @@ func (clnt *ProxyClient) ExecuteUDF(policy *QueryPolicy,
 	nstatement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 	command := newServerCommand(nil, policy, wpolicy, &nstatement, nstatement.TaskId, nil)
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	if err := command.ExecuteGRPC(conn); err != nil {
+	if err := command.ExecuteGRPC(clnt); err != nil {
 		return nil, err
 	}
 
-	return newGRPCExecuteTask(conn, &nstatement), nil
+	return newGRPCExecuteTask(clnt, &nstatement), nil
 }
 
 // ExecuteUDFNode applies user defined function on records that match the statement filter on the specified node.
@@ -990,17 +917,10 @@ func (clnt *ProxyClient) SetXDRFilter(policy *InfoPolicy, datacenter string, nam
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *ProxyClient) QueryPartitions(policy *QueryPolicy, statement *Statement, partitionFilter *PartitionFilter) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	// TODO: Implement pool recovery
-	// defer clnt.grpcConnPool.Put(conn)
-
 	// result recordset
 	res := newRecordset(policy.RecordQueueSize, 1)
 	cmd := newGrpcQueryPartitionCommand(policy, nil, statement, nil, partitionFilter, res)
-	go cmd.ExecuteGRPC(conn)
+	go cmd.ExecuteGRPC(clnt)
 
 	return res, nil
 }

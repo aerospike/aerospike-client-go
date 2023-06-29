@@ -53,13 +53,7 @@ func (clnt *ProxyClient) PutObject(policy *WritePolicy, key *Key, obj interface{
 		return err
 	}
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	res := command.ExecuteGRPC(conn)
+	res := command.ExecuteGRPC(clnt)
 	return res
 }
 
@@ -79,13 +73,7 @@ func (clnt *ProxyClient) GetObject(policy *BasePolicy, key *Key, obj interface{}
 
 	command.object = &rval
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	return command.ExecuteGRPC(conn)
+	return command.ExecuteGRPC(clnt)
 }
 
 // BatchGetObjects reads multiple record headers and bins for specified keys in one batch request.
@@ -139,13 +127,7 @@ func (clnt *ProxyClient) BatchGetObjects(policy *BatchPolicy, keys []*Key, objec
 	cmd.objects = objectsVal
 	cmd.objectsFound = objectsFound
 
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	defer clnt.grpcConnPool.Put(conn)
-
-	err = cmd.ExecuteGRPC(conn)
+	err = cmd.ExecuteGRPC(clnt)
 	// if filteredOut > 0 {
 	// 	err = chainErrors(ErrFilteredOut.err(), err)
 	// }
@@ -162,19 +144,13 @@ func (clnt *ProxyClient) BatchGetObjects(policy *BatchPolicy, keys []*Key, objec
 // This method is only supported by Aerospike 4.9+ servers.
 func (clnt *ProxyClient) ScanPartitionObjects(apolicy *ScanPolicy, objChan interface{}, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	// TODO: Implement pool recovery
-	// defer clnt.grpcConnPool.Put(conn)
 
 	// result recordset
 	res := &Recordset{
 		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
 	}
 	cmd := newGrpcScanPartitionCommand(&policy, partitionFilter, namespace, setName, binNames, res)
-	go cmd.ExecuteGRPC(conn)
+	go cmd.ExecuteGRPC(clnt)
 
 	return res, nil
 
@@ -219,19 +195,13 @@ func (clnt *ProxyClient) scanNodeObjects(policy *ScanPolicy, node *Node, records
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *ProxyClient) QueryPartitionObjects(policy *QueryPolicy, statement *Statement, objChan interface{}, partitionFilter *PartitionFilter) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return nil, err
-	}
-	// TODO: Implement pool recovery
-	// defer clnt.grpcConnPool.Put(conn)
 
 	// result recordset
 	res := &Recordset{
 		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
 	}
 	cmd := newGrpcQueryPartitionCommand(policy, nil, statement, nil, partitionFilter, res)
-	go cmd.ExecuteGRPC(conn)
+	go cmd.ExecuteGRPC(clnt)
 
 	return res, nil
 

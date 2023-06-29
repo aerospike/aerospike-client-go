@@ -19,10 +19,10 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+	"time"
 
 	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
-	grpc "google.golang.org/grpc"
 )
 
 // ExecuteTask is used to poll for long running server execute job completion.
@@ -32,7 +32,7 @@ type ExecuteTask struct {
 	taskID uint64
 	scan   bool
 
-	grpcConn *grpc.ClientConn
+	clnt *ProxyClient
 
 	// The following map keeps an account of what nodes were ever observed with the job registered on them.
 	// If the job was ever observed, the task will return true for it is not found anymore (purged from task queue after completetion)
@@ -50,18 +50,18 @@ func NewExecuteTask(cluster *Cluster, statement *Statement) *ExecuteTask {
 }
 
 // newGRPCExecuteTask initializes task with fields needed to query server nodes.
-func newGRPCExecuteTask(conn *grpc.ClientConn, statement *Statement) *ExecuteTask {
+func newGRPCExecuteTask(clnt *ProxyClient, statement *Statement) *ExecuteTask {
 	return &ExecuteTask{
 		baseTask: newTask(nil),
 		taskID:   statement.TaskId,
 		scan:     statement.IsScan(),
-		grpcConn: conn,
+		clnt:     clnt,
 	}
 }
 
 // IsDone queries all nodes for task completion status.
 func (etsk *ExecuteTask) IsDone() (bool, Error) {
-	if etsk.grpcConn != nil {
+	if etsk.clnt != nil {
 		return etsk.grpcIsDone()
 	}
 
@@ -168,7 +168,12 @@ func (etsk *ExecuteTask) grpcIsDone() (bool, Error) {
 		BackgroundTaskStatusRequest: statusReq,
 	}
 
-	client := kvs.NewQueryClient(etsk.grpcConn)
+	conn, err := etsk.clnt.grpcConn()
+	if err != nil {
+		return false, err
+	}
+
+	client := kvs.NewQueryClient(conn)
 
 	ctx, _ := context.WithTimeout(context.Background(), NewInfoPolicy().Timeout)
 
@@ -178,6 +183,8 @@ func (etsk *ExecuteTask) grpcIsDone() (bool, Error) {
 	}
 
 	for {
+		time.Sleep(time.Second)
+
 		res, gerr := streamRes.Recv()
 		if gerr != nil {
 			e := newGrpcError(gerr)
@@ -186,20 +193,25 @@ func (etsk *ExecuteTask) grpcIsDone() (bool, Error) {
 
 		if res.Status != 0 {
 			e := newGrpcStatusError(res)
+			etsk.clnt.returnGrpcConnToPool(conn)
 			return false, e
 		}
 
 		switch *res.BackgroundTaskStatus {
 		case kvs.BackgroundTaskStatus_COMPLETE:
+			etsk.clnt.returnGrpcConnToPool(conn)
 			return true, nil
 		default:
+			etsk.clnt.returnGrpcConnToPool(conn)
 			return false, nil
 		}
 
 		if !res.HasNext {
+			etsk.clnt.returnGrpcConnToPool(conn)
 			return false, nil
 		}
 	}
 
+	etsk.clnt.returnGrpcConnToPool(conn)
 	return true, nil
 }

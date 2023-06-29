@@ -19,8 +19,6 @@ import (
 	"math/rand"
 	"reflect"
 
-	grpc "google.golang.org/grpc"
-
 	"github.com/aerospike/aerospike-client-go/v6/logger"
 	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
@@ -270,7 +268,7 @@ func (cmd *readCommand) Execute() Error {
 	return cmd.execute(cmd, true)
 }
 
-func (cmd *readCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
+func (cmd *readCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
 	if err != nil {
 		return err
@@ -283,6 +281,11 @@ func (cmd *readCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
 		ReadPolicy: cmd.policy.grpc(),
 	}
 
+	conn, err := clnt.grpcConn()
+	if err != nil {
+		return err
+	}
+
 	client := kvs.NewKVSClient(conn)
 
 	ctx := cmd.policy.grpcDeadlineContext()
@@ -291,6 +294,8 @@ func (cmd *readCommand) ExecuteGRPC(conn *grpc.ClientConn) Error {
 	if gerr != nil {
 		return newGrpcError(gerr, gerr.Error())
 	}
+
+	defer clnt.returnGrpcConnToPool(conn)
 
 	if res.Status != 0 {
 		return newGrpcStatusError(res)
