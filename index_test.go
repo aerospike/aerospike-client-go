@@ -28,8 +28,8 @@ import (
 var _ = gg.Describe("Index operations test", func() {
 
 		gg.BeforeEach(func() {
-			if *grpc {
-				gg.Skip("Not supported in GRPC Client")
+			if *proxy {
+				gg.Skip("Not supported in Proxy Client")
 			}
 		})
 

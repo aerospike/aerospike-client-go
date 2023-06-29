@@ -77,7 +77,7 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	bin2 := as.NewBin("bin2", 1)
 
 	gg.It("must Register a UDF", func() {
-		if *grpc {
+		if *proxy {
 			gg.Skip("Not supported in GRPC mode")
 		}
 
@@ -144,7 +144,7 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	})
 
 	gg.It("must list all udfs on the server", func() {
-		if *grpc {
+		if *proxy {
 			gg.Skip("Not supported in GRPC mode")
 		}
 
@@ -154,7 +154,7 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	})
 
 	gg.It("must drop a udf on the server", func() {
-		if *grpc {
+		if *proxy {
 			gg.Skip("Not supported in GRPC mode")
 		}
 

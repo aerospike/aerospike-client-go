@@ -232,8 +232,8 @@ package aerospike_test
 // 		gg.Context("BatchOperate operations", func() {
 
 // 			gg.It("Overall command error should be reflected in API call error and not BatchRecord error", func() {
-// 				if *grpc {
-// 					gg.Skip("Not possible to test for the GRPC CLient")
+// 				if *proxy {
+// 					gg.Skip("Not possible to test for the Proxy Client")
 // 				}
 
 // 				var batchRecords []as.BatchRecordIfc

@@ -26,7 +26,7 @@ import (
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = gg.Describe("SSSSScan operations", func() {
+var _ = gg.Describe("Scan operations", func() {
 
 	// connection data
 	var ns = *namespace
@@ -218,6 +218,10 @@ var _ = gg.Describe("SSSSScan operations", func() {
 	})
 
 	gg.It("must Scan and get all records back for a specified node using Results() channel", func() {
+			if *proxy {
+				gg.Skip("Not supported in Proxy Client")
+			}
+
 		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 
 		counter := 0
@@ -245,6 +249,10 @@ var _ = gg.Describe("SSSSScan operations", func() {
 	})
 
 	gg.It("must Scan and get all records back for a specified node", func() {
+			if *proxy {
+				gg.Skip("Not supported in Proxy Client")
+			}
+
 		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 
 		for _, node := range client.GetNodes() {

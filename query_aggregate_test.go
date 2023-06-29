@@ -55,8 +55,8 @@ func removeUDF(moduleName string) {
 var _ = gg.Describe("Query Aggregate operations", func() {
 
 	gg.BeforeEach(func() {
-		if *grpc {
-			gg.Skip("Not supported in GRPC Client")
+		if *proxy {
+			gg.Skip("Not supported in Proxy Client")
 		}
 	})
 

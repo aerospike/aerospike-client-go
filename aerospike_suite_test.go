@@ -49,7 +49,7 @@ var (
 	authMode    = flag.String("A", "internal", "Authentication mode: internal | external")
 	useReplicas = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
 	debug       = flag.Bool("debug", false, "Will set the logging level to DEBUG.")
-	grpc        = flag.Bool("grpc", false, "Will use GRPC client.")
+	proxy       = flag.Bool("proxy", false, "Will use Proxy Client.")
 	namespace   = flag.String("n", "test", "Namespace")
 
 	certFile          = flag.String("cert_file", "", "Certificate file name.")
@@ -110,7 +110,7 @@ func initTestVars() {
 	}
 
 	log.Println("Connecting to seeds:", dbHosts)
-	if *grpc {
+	if *proxy {
 		client, err = as.NewProxyClient(clientPolicy, dbHosts[0])
 		if err != nil {
 			log.Fatal(err.Error())
@@ -124,7 +124,7 @@ func initTestVars() {
 		nativeClient = nclient
 	}
 
-	if *grpc {
+	if *proxy {
 		hosts, err := as.NewHosts(*nativeHosts)
 		if err != nil {
 			log.Fatalln(err)
@@ -135,16 +135,27 @@ func initTestVars() {
 		}
 	}
 
-	client.DefaultBatchPolicy.TotalTimeout = 15 * time.Second
-	client.DefaultBatchPolicy.SocketTimeout = 5 * time.Second
-	client.DefaultWritePolicy.TotalTimeout = 15 * time.Second
-	client.DefaultWritePolicy.SocketTimeout = 5 * time.Second
-	client.DefaultScanPolicy.TotalTimeout = 15 * time.Second
-	client.DefaultScanPolicy.SocketTimeout = 5 * time.Second
-	client.DefaultQueryPolicy.TotalTimeout = 15 * time.Second
-	client.DefaultQueryPolicy.SocketTimeout = 5 * time.Second
-	client.DefaultAdminPolicy.Timeout = 15 * time.Second
-	client.DefaultInfoPolicy.Timeout = 15 * time.Second
+	nativeClient.DefaultBatchPolicy.TotalTimeout = 15 * time.Second
+	nativeClient.DefaultBatchPolicy.SocketTimeout = 5 * time.Second
+	nativeClient.DefaultWritePolicy.TotalTimeout = 15 * time.Second
+	nativeClient.DefaultWritePolicy.SocketTimeout = 5 * time.Second
+	nativeClient.DefaultScanPolicy.TotalTimeout = 15 * time.Second
+	nativeClient.DefaultScanPolicy.SocketTimeout = 5 * time.Second
+	nativeClient.DefaultQueryPolicy.TotalTimeout = 15 * time.Second
+	nativeClient.DefaultQueryPolicy.SocketTimeout = 5 * time.Second
+	nativeClient.DefaultAdminPolicy.Timeout = 15 * time.Second
+	nativeClient.DefaultInfoPolicy.Timeout = 15 * time.Second
+
+	client.SetDefaultBatchPolicy(nativeClient.DefaultBatchPolicy)
+	client.SetDefaultBatchPolicy(nativeClient.DefaultBatchPolicy)
+	client.SetDefaultWritePolicy(nativeClient.DefaultWritePolicy)
+	client.SetDefaultWritePolicy(nativeClient.DefaultWritePolicy)
+	client.SetDefaultScanPolicy(nativeClient.DefaultScanPolicy)
+	client.SetDefaultScanPolicy(nativeClient.DefaultScanPolicy)
+	client.SetDefaultQueryPolicy(nativeClient.DefaultQueryPolicy)
+	client.SetDefaultQueryPolicy(nativeClient.DefaultQueryPolicy)
+	client.SetDefaultAdminPolicy(nativeClient.DefaultAdminPolicy)
+	client.SetDefaultInfoPolicy(nativeClient.DefaultInfoPolicy)
 
 	// set default policies
 	if *useReplicas {
@@ -408,7 +419,7 @@ func dropIndex(
 ) {
 	gm.Expect(nativeClient.DropIndex(policy, namespace, setName, indexName)).ToNot(gm.HaveOccurred())
 
-	time.Sleep(time.Second)
+	// time.Sleep(time.Second)
 }
 
 func createIndex(
@@ -427,7 +438,7 @@ func createIndex(
 		return // index already exists
 	}
 
-	// time.Sleep(3 * time.Second)
+	// time.Sleep(time.Second)
 
 	// wait until index is created
 	gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())

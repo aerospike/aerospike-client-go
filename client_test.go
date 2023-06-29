@@ -64,8 +64,8 @@ var _ = gg.Describe("Aerospike", func() {
 	gg.Describe("Client Management", func() {
 
 		gg.BeforeEach(func() {
-			if *grpc {
-				gg.Skip("Not supported in GRPC Client")
+			if *proxy {
+				gg.Skip("Not supported in Proxy Client")
 			}
 		})
 

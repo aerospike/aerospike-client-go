@@ -43,7 +43,7 @@ function filter_by_name(stream,name)
 end`
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = gg.Describe("XXXXQuery operations", func() {
+var _ = gg.Describe("Query operations", func() {
 
 	// connection data
 	var ns = *namespace
@@ -133,8 +133,8 @@ var _ = gg.Describe("XXXXQuery operations", func() {
 	var queryPolicy = as.NewQueryPolicy()
 
 	gg.It("must Query and get all records back for a specified node using Results() channel", func() {
-		if *grpc{
-			gg.Skip("Not Supported for GRPC client")
+		if *proxy{
+			gg.Skip("Not Supported for Proxy Client")
 		}
 
 		gm.Expect(len(keys)).To(gm.Equal(keyCount))
@@ -444,7 +444,7 @@ var _ = gg.Describe("XXXXQuery operations", func() {
 		gm.Expect(recs).To(gm.ContainElement(bin3.Value.GetObject()))
 	})
 
-	gg.It("TTTTmust Query specific equality filters and apply operations on the records", func() {
+	gg.It("must Query specific equality filters and apply operations on the records", func() {
 		stm := as.NewStatement(ns, set)
 		stm.SetFilter(as.NewEqualFilter(bin6.Name, 1))
 
