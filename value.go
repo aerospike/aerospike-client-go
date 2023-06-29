@@ -1235,22 +1235,6 @@ func unwrapValue(v interface{}) interface{} {
 	return v
 }
 
-func grpcValue(v Value) []byte {
-	if v == nil {
-		return nil
-	}
-
-	sz, err := v.EstimateSize()
-	if err != nil {
-		panic(err)
-	}
-	buf := newBuffer(sz)
-	if _, err := v.write(buf); err != nil {
-		panic(err)
-	}
-	return buf.Bytes()
-}
-
 func grpcValuePacked(v Value) []byte {
 	if v == nil {
 		return nil
