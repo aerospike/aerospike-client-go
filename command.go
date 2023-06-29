@@ -1453,7 +1453,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	}
 
 	infoAttr := 0
-	if cmd.node.cluster.supportsPartitionQuery.Get() {
+	if cmd.node == nil || cmd.node.cluster.supportsPartitionQuery.Get() {
 		infoAttr = _INFO3_PARTITION_DONE
 	}
 
