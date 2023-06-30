@@ -518,9 +518,9 @@ func (clnt *ProxyClient) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, 
 	records := make([]bool, 0, len(keys))
 	for i := range batchRecordsIfc {
 		records = append(records, batchRecordsIfc[i].BatchRec().Record != nil)
-		if nerr := batchRecordsIfc[i].BatchRec().Err; nerr != nil {
-			err = chainErrors(err, nerr)
-		}
+		// if nerr := batchRecordsIfc[i].BatchRec().Err; nerr != nil {
+		// 	err = chainErrors(err, nerr)
+		// }
 	}
 
 	return records, err
@@ -649,9 +649,9 @@ func (clnt *ProxyClient) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Re
 	records := make([]*Record, 0, len(keys))
 	for i := range batchRecordsIfc {
 		records = append(records, batchRecordsIfc[i].BatchRec().Record)
-		if nerr := batchRecordsIfc[i].BatchRec().Err; nerr != nil {
-			err = chainErrors(err, nerr)
-		}
+		// if nerr := batchRecordsIfc[i].BatchRec().Err; nerr != nil {
+		// 	err = chainErrors(err, nerr)
+		// }
 	}
 
 	return records, err
