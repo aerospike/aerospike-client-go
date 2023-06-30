@@ -14,7 +14,10 @@
 
 package aerospike
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // InfoPolicy contains attributes used for info commands.
 type InfoPolicy struct {
@@ -46,4 +49,14 @@ func (p *InfoPolicy) timeout() time.Duration {
 	}
 
 	return _DEFAULT_TIMEOUT
+}
+
+func (p *InfoPolicy) grpcDeadlineContext() context.Context {
+	timeout := p.timeout()
+	if timeout <= 0 {
+		return context.Background()
+
+	}
+	ctx, _ := context.WithTimeout(context.Background(), timeout)
+	return ctx
 }

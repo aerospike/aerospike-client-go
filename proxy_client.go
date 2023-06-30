@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	iatomic "github.com/aerospike/aerospike-client-go/v6/internal/atomic"
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
 )
 
@@ -112,6 +113,14 @@ func NewProxyClient(policy *ClientPolicy, host *Host, dialOptions ...grpc.DialOp
 		}
 
 		grpcClient.authInterceptor = authInterceptor
+	}
+
+	// check the version to make sure we are connected to the server
+	infoPolicy := NewInfoPolicy()
+	infoPolicy.Timeout = policy.Timeout
+	_, err := grpcClient.ServerVersion(infoPolicy)
+	if err != nil {
+		return nil, err
 	}
 
 	runtime.SetFinalizer(grpcClient, grpcClientFinalizer)
@@ -295,6 +304,31 @@ func (clnt *ProxyClient) GetNodes() []*Node {
 // GetNodeNames returns a list of active server node names in the cluster.
 func (clnt *ProxyClient) GetNodeNames() []string {
 	panic("NOT_SUPPORTED")
+}
+
+// ServerVersion will return the version of the proxy server.
+func (clnt *ProxyClient) ServerVersion(policy *InfoPolicy) (string, Error) {
+	policy = clnt.getUsableInfoPolicy(policy)
+
+	req := kvs.AboutRequest{}
+
+	conn, err := clnt.grpcConn()
+	if err != nil {
+		return "", err
+	}
+
+	client := kvs.NewAboutClient(conn)
+
+	ctx := policy.grpcDeadlineContext()
+
+	res, gerr := client.Get(ctx, &req)
+	if gerr != nil {
+		return "", newGrpcError(gerr, gerr.Error())
+	}
+
+	clnt.returnGrpcConnToPool(conn)
+
+	return res.Version, nil
 }
 
 //-------------------------------------------------------
