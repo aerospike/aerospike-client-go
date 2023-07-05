@@ -57,6 +57,10 @@ func (cmd *batchCommandOperate) writeBuffer(ifc command) Error {
 	return err
 }
 
+func (cmd *batchCommandOperate) isRead() bool {
+	return !cmd.attr.hasWrite
+}
+
 // Parse all results in the batch.  Add records to shared list.
 // If the record was not found, the bins will be nil.
 func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
@@ -193,7 +197,7 @@ func (cmd *batchCommandOperate) parseRecord(key *Key, opCount int, generation, e
 }
 
 func (cmd *batchCommandOperate) Execute() Error {
-	return cmd.execute(cmd, true)
+	return cmd.execute(cmd)
 }
 
 func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {

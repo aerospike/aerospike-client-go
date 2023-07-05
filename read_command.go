@@ -261,5 +261,5 @@ func (cmd *readCommand) GetRecord() *Record {
 }
 
 func (cmd *readCommand) Execute() Error {
-	return cmd.execute(cmd, true)
+	return cmd.execute(cmd)
 }

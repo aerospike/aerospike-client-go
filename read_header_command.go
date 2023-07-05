@@ -94,5 +94,5 @@ func (cmd *readHeaderCommand) GetRecord() *Record {
 }
 
 func (cmd *readHeaderCommand) Execute() Error {
-	return cmd.execute(cmd, true)
+	return cmd.execute(cmd)
 }

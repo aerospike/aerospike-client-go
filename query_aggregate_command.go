@@ -45,7 +45,7 @@ func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statem
 
 func (cmd *queryAggregateCommand) Execute() Error {
 	cmd.policy.MaxRetries = 0
-	err := cmd.execute(cmd, true)
+	err := cmd.execute(cmd)
 	if err != nil {
 		cmd.recordset.sendError(err)
 	}

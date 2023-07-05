@@ -56,7 +56,7 @@ func (cmd *batchIndexCommandGet) writeBuffer(ifc command) Error {
 }
 
 func (cmd *batchIndexCommandGet) Execute() Error {
-	return cmd.execute(cmd, true)
+	return cmd.execute(cmd)
 }
 
 func (cmd *batchIndexCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {

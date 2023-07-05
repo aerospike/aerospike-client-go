@@ -51,7 +51,7 @@ func (cmd *queryPartitionCommand) shouldRetry(e Error) bool {
 }
 
 func (cmd *queryPartitionCommand) Execute() Error {
-	err := cmd.execute(cmd, true)
+	err := cmd.execute(cmd)
 	if err != nil {
 		// signal to the executor that no retries should be attempted
 		// don't send error unless no retries are planned

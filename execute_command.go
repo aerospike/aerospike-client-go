@@ -64,6 +64,10 @@ func (cmd *executeCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
+func (cmd *executeCommand) isRead() bool {
+	return false
+}
+
 func (cmd *executeCommand) Execute() Error {
-	return cmd.execute(cmd, false)
+	return cmd.execute(cmd)
 }

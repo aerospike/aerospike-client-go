@@ -107,7 +107,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 }
 
 func (cmd *batchCommandExists) Execute() Error {
-	return cmd.execute(cmd, true)
+	return cmd.execute(cmd)
 }
 
 func (cmd *batchCommandExists) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {

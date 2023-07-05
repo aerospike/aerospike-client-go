@@ -170,8 +170,12 @@ func (cmd *batchCommandUDF) parseRecord(rec *BatchRecord, key *Key, opCount int,
 	return nil
 }
 
+func (cmd *batchCommandUDF) isRead() bool {
+	return !cmd.attr.hasWrite
+}
+
 func (cmd *batchCommandUDF) Execute() Error {
-	return cmd.execute(cmd, true)
+	return cmd.execute(cmd)
 }
 
 func (cmd *batchCommandUDF) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {

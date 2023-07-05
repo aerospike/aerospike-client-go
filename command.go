@@ -130,8 +130,10 @@ type command interface {
 	parseRecordResults(ifc command, receiveSize int) (bool, Error)
 	prepareRetry(ifc command, isTimeout bool) bool
 
-	execute(ifc command, isRead bool) Error
-	executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations int, commandWasSent bool) Error
+	isRead() bool
+
+	execute(ifc command) Error
+	executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int, commandWasSent bool) Error
 
 	canPutConnBack() bool
 
@@ -2531,20 +2533,24 @@ func (cmd *baseCommand) batchInDoubt(isWrite bool, commandWasSent bool) bool {
 	return isWrite && commandWasSent
 }
 
+func (cmd *baseCommand) isRead() bool {
+	return true
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 //	Execute
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-func (cmd *baseCommand) execute(ifc command, isRead bool) Error {
+func (cmd *baseCommand) execute(ifc command) Error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	deadline := policy.deadline()
 
-	return cmd.executeAt(ifc, policy, isRead, deadline, -1, false)
+	return cmd.executeAt(ifc, policy, deadline, -1, false)
 }
 
-func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations int, commandWasSent bool) (errChain Error) {
+func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int, commandWasSent bool) (errChain Error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
@@ -2563,7 +2569,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 1) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
-			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(isRead, cmd.commandWasSent).setNode(cmd.node)
+			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandWasSent).setNode(cmd.node)
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -2752,7 +2758,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 				cmd.conn = nil
 			}
 
-			return errChain.setInDoubt(isRead, commandWasSent)
+			return errChain.setInDoubt(ifc.isRead(), commandWasSent)
 		}
 
 		// in case it has grown and re-allocated

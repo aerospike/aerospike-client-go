@@ -57,12 +57,12 @@ func NewBatchRead(key *Key, binNames []string) *BatchRead {
 
 // NewBatchReadOps defines a key and bins to retrieve in a batch operation, including expressions.
 func NewBatchReadOps(key *Key, binNames []string, ops []*Operation) *BatchRead {
+	// TODO: Add policy to this API signature and remove binNames,
+	// since binNames is mutually exclusive with ops parameter.
 	if len(binNames) > 0 && len(ops) > 0 {
 		panic("binNames and ops are mutually exclusive and only one can be used")
 	}
 
-	// TODO: Add policy to this API signature and remove binNames,
-	// since binNames is mutually exclusive with ops parameter.
 	res := &BatchRead{
 		BatchRecord: *newSimpleBatchRecord(key, false),
 		BinNames:    binNames,
@@ -78,6 +78,7 @@ func NewBatchReadOps(key *Key, binNames []string, ops []*Operation) *BatchRead {
 
 // NewBatchReadHeader defines a key to retrieve the record headers only in a batch operation.
 func NewBatchReadHeader(key *Key) *BatchRead {
+	// TODO: Add policy to this API signature.
 	return &BatchRead{
 		BatchRecord: *newSimpleBatchRecord(key, false),
 		ReadAllBins: false,

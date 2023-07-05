@@ -99,6 +99,10 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 	return cmd.emptySocket(conn)
 }
 
+func (cmd *writeCommand) isRead() bool {
+	return false
+}
+
 func (cmd *writeCommand) Execute() Error {
-	return cmd.execute(cmd, false)
+	return cmd.execute(cmd)
 }

@@ -56,8 +56,12 @@ func (cmd *operateCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return true
 }
 
+func (cmd *operateCommand) isRead() bool {
+	return !cmd.args.hasWrite
+}
+
 func (cmd *operateCommand) Execute() Error {
-	return cmd.execute(cmd, !cmd.args.hasWrite)
+	return cmd.execute(cmd)
 }
 
 func hasWriteOp(operations []*Operation) bool {
