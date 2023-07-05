@@ -93,7 +93,8 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 
 			// If it looks like the error is on the first record and the message is marked as last part,
 			// the error is for the whole command and not just for the first batchIndex
-			if resultCode == types.BATCH_DISABLED || resultCode == types.BATCH_MAX_REQUESTS_EXCEEDED || resultCode == types.BATCH_QUEUES_FULL {
+			lastMessage := (info3 & _INFO3_LAST) == _INFO3_LAST
+			if resultCode != 0 && lastMessage && receiveSize == int(_MSG_REMAINING_HEADER_SIZE) {
 				return false, newError(resultCode).setNode(cmd.node)
 			}
 
