@@ -120,6 +120,7 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 					return false, err
 				}
 
+				// for UDF failures
 				var msg interface{}
 				if rec != nil {
 					msg = rec.Bins["FAILURE"]
@@ -278,18 +279,6 @@ func (cmd *batchCommandOperate) ExecuteGRPC(clnt *ProxyClient) Error {
 	}
 
 	clnt.returnGrpcConnToPool(conn)
-
-	// var errs Error
-	// for _, r := range cmd.records {
-	// 	if b := r.BatchRec(); b.Err != nil {
-	// 		if errs == nil {
-	// 			errs = chainErrors(b.Err, errs)
-	// 		} else if !errs.Matches(b.ResultCode, types.FILTERED_OUT) {
-	// 			// add only new errors
-	// 			errs = chainErrors(b.Err, errs)
-	// 		}
-	// 	}
-	// }
 
 	return nil
 }

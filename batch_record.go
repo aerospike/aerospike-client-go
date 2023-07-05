@@ -133,7 +133,7 @@ func (br *BatchRecord) setRecord(record *Record) {
 func (br *BatchRecord) setError(node *Node, resultCode types.ResultCode, inDoubt bool) {
 	br.ResultCode = resultCode
 	br.InDoubt = inDoubt
-	br.chainError(newError(br.ResultCode).setNode(node).markInDoubtIf(inDoubt))
+	br.Err = newError(br.ResultCode).setNode(node).markInDoubtIf(inDoubt)
 }
 
 // Set error result. For internal use only.
