@@ -1,6 +1,15 @@
 # Change History
 
 
+## July 10 2023: v4.7.0
+  Minor maintenance release. 
+
+  * **Improvements**
+
+    - Upgraded lua and gomega dependencies to the latest versions.
+    - Move particle type back from internal to types.
+    
+
 ## March 30 2023: v4.6.1
   Hotfix release. We recommend updating to this version if you are using v4.6.0.
 
