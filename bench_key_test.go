@@ -19,8 +19,8 @@ import (
 	"testing"
 
 	as "github.com/aerospike/aerospike-client-go"
-	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
 	"github.com/aerospike/aerospike-client-go/pkg/ripemd160"
+	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 )
 
 var str = strings.Repeat("abcd", 128)

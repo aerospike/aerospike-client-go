@@ -19,8 +19,8 @@ import (
 	"reflect"
 	"strconv"
 
-	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
 	"github.com/aerospike/aerospike-client-go/types"
+	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
 
 	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
@@ -420,12 +420,18 @@ func tryConcreteValue(v interface{}) Value {
 // when absolute performance is required unless for the reason mentioned below.
 //
 // If you have custom maps or slices like:
-//     type MyMap map[primitive1]primitive2, eg: map[int]string
+//
+//	type MyMap map[primitive1]primitive2, eg: map[int]string
+//
 // or
-//     type MySlice []primitive, eg: []float64
+//
+//	type MySlice []primitive, eg: []float64
+//
 // cast them to their primitive type when passing them to this method:
-//     v := NewValue(map[int]string(myVar))
-//     v := NewValue([]float64(myVar))
+//
+//	v := NewValue(map[int]string(myVar))
+//	v := NewValue([]float64(myVar))
+//
 // This way you will avoid hitting reflection.
 // To completely avoid reflection in the library,
 // use the build tag: as_performance while building your program.
