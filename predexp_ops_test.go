@@ -17,7 +17,7 @@ package aerospike_test
 import (
 	"sync"
 
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 
 	as "github.com/aerospike/aerospike-client-go"
