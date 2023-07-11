@@ -2661,33 +2661,33 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		// Assign the connection buffer to the command buffer
 		cmd.dataBuffer = cmd.conn.dataBuffer
 
-		// // Set command buffer.
-		// err = ifc.writeBuffer(ifc)
-		// if err != nil {
-		// 	// chain the errors
-		// 	err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+		// Set command buffer.
+		err = ifc.writeBuffer(ifc)
+		if err != nil {
+			// chain the errors
+			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 
-		// 	// All runtime exceptions are considered fatal. Do not retry.
-		// 	// Close socket to flush out possible garbage. Do not put back in pool.
-		// 	cmd.conn.Close()
-		// 	cmd.conn = nil
-		// 	return err
-		// }
+			// All runtime exceptions are considered fatal. Do not retry.
+			// Close socket to flush out possible garbage. Do not put back in pool.
+			cmd.conn.Close()
+			cmd.conn = nil
+			return err
+		}
 
-		// // Reset timeout in send buffer (destined for server) and socket.
-		// binary.BigEndian.PutUint32(cmd.dataBuffer[22:], 0)
-		// if !deadline.IsZero() {
-		// 	serverTimeout := time.Until(deadline)
-		// 	if serverTimeout < time.Millisecond {
-		// 		serverTimeout = time.Millisecond
-		// 	}
-		// 	binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond))
-		// }
+		// Reset timeout in send buffer (destined for server) and socket.
+		binary.BigEndian.PutUint32(cmd.dataBuffer[22:], 0)
+		if !deadline.IsZero() {
+			serverTimeout := time.Until(deadline)
+			if serverTimeout < time.Millisecond {
+				serverTimeout = time.Millisecond
+			}
+			binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond))
+		}
 
-		// // now that the deadline has been set in the buffer, compress the contents
-		// if err = cmd.compress(); err != nil {
-		// 	return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
-		// }
+		// now that the deadline has been set in the buffer, compress the contents
+		if err = cmd.compress(); err != nil {
+			return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+		}
 
 		// now that the deadline has been set in the buffer, compress the contents
 		if err = cmd.prepareBuffer(ifc, deadline); err != nil {
