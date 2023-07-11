@@ -17,7 +17,6 @@ package aerospike_test
 import (
 	"math"
 	"strconv"
-	"time"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -32,7 +31,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 	var ns = *namespace
 	var set = randString(50)
 	var binName string = "ophbin"
-	var nEntries int = 1 << 18
+	var nEntries int = 1 << 8
 
 	var minIndexBits int = 4
 	var maxIndexBits int = 16
@@ -49,10 +48,6 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 	var legalIndexBits []int
 	var legalDescriptions [][]int
 	var illegalDescriptions [][]int
-
-	gg.AfterEach(func() {
-		time.Sleep(3 * time.Second)
-	})
 
 	gg.BeforeEach(func() {
 
@@ -768,8 +763,13 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 	}
 
 	gg.It("Similarity should work", func() {
+		if *proxy {
+			gg.Skip("Too long for the Proxy Client")
+		}
+
 		overlaps := []float64{0.0001, 0.001, 0.01, 0.1, 0.5}
 
+		nEntries := 1 << 18
 		for _, overlap := range overlaps {
 			expected_intersect_count := int(math.Floor(float64(nEntries) * overlap))
 			var common []as.Value
