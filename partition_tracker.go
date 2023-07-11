@@ -271,7 +271,11 @@ func (pt *partitionTracker) partitionUnavailable(nodePartitions *nodePartitions,
 func (pt *partitionTracker) setDigest(nodePartitions *nodePartitions, key *Key) {
 	partitionId := key.PartitionId()
 	pt.partitions[partitionId-pt.partitionBegin].Digest = key.Digest()
-	nodePartitions.recordCount++
+
+	// nodePartitions is nil in Proxy client
+	if nodePartitions != nil {
+		nodePartitions.recordCount++
+	}
 }
 
 func (pt *partitionTracker) setLast(nodePartitions *nodePartitions, key *Key, bval int64) {
@@ -282,7 +286,11 @@ func (pt *partitionTracker) setLast(nodePartitions *nodePartitions, key *Key, bv
 	ps := pt.partitions[partitionId-pt.partitionBegin]
 	ps.Digest = key.digest[:]
 	ps.BVal = bval
-	nodePartitions.recordCount++
+
+	// nodePartitions is nil in Proxy client
+	if nodePartitions != nil {
+		nodePartitions.recordCount++
+	}
 }
 
 func (pt *partitionTracker) isComplete(cluster *Cluster, policy *BasePolicy) (bool, Error) {
@@ -300,7 +308,8 @@ func (pt *partitionTracker) isComplete(cluster *Cluster, policy *BasePolicy) (bo
 				pt.partitionFilter.done = true
 			}
 		} else {
-			if cluster.supportsPartitionQuery.Get() {
+			// Cluster will be nil for the Proxy client
+			if cluster == nil || cluster.supportsPartitionQuery.Get() {
 				// Server version >= 6.0 will return all records for each node up to
 				// that node's max. If node's record count reached max, there still
 				// may be records available for that node.

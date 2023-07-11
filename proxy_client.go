@@ -758,8 +758,9 @@ func (clnt *ProxyClient) ScanPartitions(apolicy *ScanPolicy, partitionFilter *Pa
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	// result recordset
+	tracker := newPartitionTracker(&policy.MultiPolicy, partitionFilter, nil)
 	res := newRecordset(policy.RecordQueueSize, 1)
-	cmd := newGrpcScanPartitionCommand(&policy, partitionFilter, namespace, setName, binNames, res)
+	cmd := newGrpcScanPartitionCommand(&policy, tracker, partitionFilter, namespace, setName, binNames, res)
 	go cmd.ExecuteGRPC(clnt)
 
 	return res, nil
@@ -952,8 +953,9 @@ func (clnt *ProxyClient) SetXDRFilter(policy *InfoPolicy, datacenter string, nam
 func (clnt *ProxyClient) QueryPartitions(policy *QueryPolicy, statement *Statement, partitionFilter *PartitionFilter) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 	// result recordset
+	tracker := newPartitionTracker(&policy.MultiPolicy, partitionFilter, nil)
 	res := newRecordset(policy.RecordQueueSize, 1)
-	cmd := newGrpcQueryPartitionCommand(policy, nil, statement, nil, partitionFilter, res)
+	cmd := newGrpcQueryPartitionCommand(policy, nil, statement, nil, tracker, partitionFilter, res)
 	go cmd.ExecuteGRPC(clnt)
 
 	return res, nil

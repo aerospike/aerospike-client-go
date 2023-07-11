@@ -102,13 +102,18 @@ func (pf *PartitionFilter) DecodeCursor(b []byte) Error {
 }
 
 func (pf *PartitionFilter) grpc() *kvs.PartitionFilter {
-	Begin := uint32(pf.begin)
+	begin := uint32(pf.begin)
+	ps := make([]*kvs.PartitionStatus, len(pf.partitions))
+	for i := range pf.partitions {
+		ps[i] = pf.partitions[i].grpc()
+	}
+
 	return &kvs.PartitionFilter{
-		Begin:             &Begin,
+		Begin:             &begin,
 		Count:             uint32(pf.count),
 		Digest:            pf.digest,
-		PartitionStatuses: nil,   // TODO: implement
-		Retry:             false, // TODO: implement
+		PartitionStatuses: ps,
+		Retry:             true,
 	}
 
 }

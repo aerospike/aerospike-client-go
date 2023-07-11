@@ -33,6 +33,7 @@ type grpcScanPartitionCommand struct {
 
 func newGrpcScanPartitionCommand(
 	policy *ScanPolicy,
+	partitionTracker *partitionTracker,
 	partitionFilter *PartitionFilter,
 	namespace string,
 	setName string,
@@ -47,6 +48,7 @@ func newGrpcScanPartitionCommand(
 		binNames:         binNames,
 		partitionFilter:  partitionFilter,
 	}
+	cmd.tracker = partitionTracker
 	cmd.terminationErrorType = types.SCAN_TERMINATED
 
 	return cmd

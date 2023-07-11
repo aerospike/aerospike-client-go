@@ -36,6 +36,7 @@ func newGrpcQueryPartitionCommand(
 	writePolicy *WritePolicy,
 	statement *Statement,
 	operations []*Operation,
+	partitionTracker *partitionTracker,
 	partitionFilter *PartitionFilter,
 	recordset *Recordset,
 ) *grpcQueryPartitionCommand {
@@ -47,6 +48,7 @@ func newGrpcQueryPartitionCommand(
 		partitionFilter:  partitionFilter,
 		operations:       operations,
 	}
+	cmd.tracker = partitionTracker
 	cmd.terminationErrorType = types.QUERY_TERMINATED
 
 	return cmd

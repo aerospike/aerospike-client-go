@@ -149,7 +149,8 @@ func (clnt *ProxyClient) ScanPartitionObjects(apolicy *ScanPolicy, objChan inter
 	res := &Recordset{
 		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
 	}
-	cmd := newGrpcScanPartitionCommand(&policy, partitionFilter, namespace, setName, binNames, res)
+	tracker := newPartitionTracker(&policy.MultiPolicy, partitionFilter, nil)
+	cmd := newGrpcScanPartitionCommand(&policy, tracker, partitionFilter, namespace, setName, binNames, res)
 	go cmd.ExecuteGRPC(clnt)
 
 	return res, nil
@@ -200,7 +201,8 @@ func (clnt *ProxyClient) QueryPartitionObjects(policy *QueryPolicy, statement *S
 	res := &Recordset{
 		objectset: *newObjectset(reflect.ValueOf(objChan), 1),
 	}
-	cmd := newGrpcQueryPartitionCommand(policy, nil, statement, nil, partitionFilter, res)
+	tracker := newPartitionTracker(&policy.MultiPolicy, partitionFilter, nil)
+	cmd := newGrpcQueryPartitionCommand(policy, nil, statement, nil, tracker, partitionFilter, res)
 	go cmd.ExecuteGRPC(clnt)
 
 	return res, nil
