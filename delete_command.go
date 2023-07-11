@@ -105,8 +105,12 @@ func (cmd *deleteCommand) Existed() bool {
 	return cmd.existed
 }
 
+func (cmd *deleteCommand) isRead() bool {
+	return false
+}
+
 func (cmd *deleteCommand) Execute() Error {
-	return cmd.execute(cmd, false)
+	return cmd.execute(cmd)
 }
 
 func (cmd *deleteCommand) ExecuteGRPC(clnt *ProxyClient) Error {

@@ -90,8 +90,12 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 	return true, nil
 }
 
+func (cmd *serverCommand) isRead() bool {
+	return true
+}
+
 func (cmd *serverCommand) Execute() Error {
-	return cmd.execute(cmd, false)
+	return cmd.execute(cmd)
 }
 
 func (cmd *serverCommand) ExecuteGRPC(clnt *ProxyClient) Error {

@@ -408,7 +408,7 @@ func (cmd *baseMultiCommand) canPutConnBack() bool {
 	return false
 }
 
-func (cmd *baseMultiCommand) execute(ifc command, isRead bool) Error {
+func (cmd *baseMultiCommand) execute(ifc command) Error {
 
 	/***************************************************************************
 	IMPORTANT: 	No need to send the error here to the recordset.Error channel.
@@ -416,5 +416,5 @@ func (cmd *baseMultiCommand) execute(ifc command, isRead bool) Error {
 				returned from the function.
 	****************************************************************************/
 
-	return cmd.baseCommand.execute(ifc, isRead)
+	return cmd.baseCommand.execute(ifc)
 }

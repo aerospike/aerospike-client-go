@@ -132,8 +132,12 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) Error {
 	return cmd.emptySocket(conn)
 }
 
+func (cmd *touchCommand) isRead() bool {
+	return false
+}
+
 func (cmd *touchCommand) Execute() Error {
-	return cmd.execute(cmd, false)
+	return cmd.execute(cmd)
 }
 
 func (cmd *touchCommand) ExecuteGRPC(clnt *ProxyClient) Error {

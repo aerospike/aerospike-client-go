@@ -74,7 +74,7 @@ func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time
 	for _, batchNode := range batchNodes {
 		command := ifc.cloneBatchCommand(batchNode)
 		command.setSequence(cmd.sequenceAP, cmd.sequenceSC)
-		if err := command.executeAt(command, cmd.policy.GetBasePolicy(), true, deadline, iteration, commandWasSent); err != nil {
+		if err := command.executeAt(command, cmd.policy.GetBasePolicy(), deadline, iteration, commandWasSent); err != nil {
 			ferr = chainErrors(err, ferr)
 			if !cmd.policy.AllowPartialResults {
 				return false, ferr
@@ -94,7 +94,7 @@ func (cmd *batchCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *batchCommand) Execute() Error {
-	return cmd.execute(cmd, true)
+	return cmd.execute(cmd)
 }
 
 func (cmd *batchCommand) filteredOut() int {

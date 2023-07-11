@@ -162,7 +162,7 @@ func (cmd *batchCommandDelete) parseRecord(rec *BatchRecord, key *Key, opCount i
 }
 
 func (cmd *batchCommandDelete) Execute() Error {
-	return cmd.execute(cmd, true)
+	return cmd.execute(cmd)
 }
 
 func (cmd *batchCommandDelete) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {

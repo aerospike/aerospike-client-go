@@ -104,7 +104,7 @@ func (cmd *existsCommand) Exists() bool {
 }
 
 func (cmd *existsCommand) Execute() Error {
-	return cmd.execute(cmd, true)
+	return cmd.execute(cmd)
 }
 
 func (cmd *existsCommand) ExecuteGRPC(clnt *ProxyClient) Error {

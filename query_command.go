@@ -47,7 +47,7 @@ func (cmd *queryCommand) parseResult(ifc command, conn *Connection) Error {
 
 // Execute will run the query.
 func (cmd *queryCommand) Execute() Error {
-	err := cmd.execute(cmd, true)
+	err := cmd.execute(cmd)
 	if err != nil {
 		cmd.recordset.sendError(err)
 	}
