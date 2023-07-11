@@ -210,45 +210,55 @@ func newGrpcError(e error, messages ...string) Error {
 }
 
 func newGrpcStatusError(res *kvs.AerospikeResponsePayload) Error {
-	switch res.Status {
-	case 0: //OK
-		return nil
-	case 1: //CANCELLED
-		return newError(types.GRPC_ERROR)
-	case 2: //UNKNOWN
-		return newError(types.GRPC_ERROR)
-	case 3: //INVALID_ARGUMENT
-		return newError(types.PARAMETER_ERROR)
-	case 4: //DEADLINE_EXCEEDED
-		return ErrNetTimeout.err()
-	case 5: //NOT_FOUND
-		return newError(types.SERVER_NOT_AVAILABLE)
-	case 6: //ALREADY_EXISTS
-		return newError(types.GRPC_ERROR)
-	case 7: //PERMISSION_DENIED
-		return newError(types.FAIL_FORBIDDEN)
-	case 8: //RESOURCE_EXHAUSTED
-		return newError(types.QUOTA_EXCEEDED)
-	case 9: //FAILED_PRECONDITION
-		return newError(types.PARAMETER_ERROR)
-	case 10: //ABORTED
-		return newError(types.SERVER_ERROR)
-	case 11: //OUT_OF_RANGE
-		return newError(types.PARAMETER_ERROR)
-	case 12: //UNIMPLEMENTED
-		return newError(types.SERVER_NOT_AVAILABLE)
-	case 13: //INTERNAL
-		return newError(types.SERVER_ERROR)
-	case 14: //UNAVAILABLE
-		return newError(types.SERVER_NOT_AVAILABLE)
-	case 15: //DATA_LOSS
-		return ErrNetwork.err()
-	case 16: //UNAUTHENTICATED
-		return newError(types.NOT_AUTHENTICATED)
+	if res.Status >= 0 {
+		return newError(types.ResultCode(res.Status)).markInDoubt(res.InDoubt)
 	}
 
-	ne := newError(types.GRPC_ERROR).markInDoubt(res.InDoubt)
-	return ne
+	var resultCode = types.OK
+	switch res.Status {
+	case -16:
+		// BATCH_FAILED
+		resultCode = types.BATCH_FAILED
+	case -15:
+		// NO_RESPONSE
+		resultCode = types.NO_RESPONSE
+	case -12:
+		// MAX_ERROR_RATE
+		resultCode = types.MAX_ERROR_RATE
+	case -11:
+		// MAX_RETRIES_EXCEEDED
+		resultCode = types.MAX_RETRIES_EXCEEDED
+	case -10:
+		// SERIALIZE_ERROR
+		resultCode = types.SERIALIZE_ERROR
+	case -9:
+		// ASYNC_QUEUE_FULL
+		// resultCode = types.ASYNC_QUEUE_FULL
+		return newError(types.SERVER_ERROR, "Server ASYNC_QUEUE_FULL").markInDoubt(res.InDoubt)
+	case -8:
+		// SERVER_NOT_AVAILABLE
+		resultCode = types.SERVER_NOT_AVAILABLE
+	case -7:
+		// NO_MORE_CONNECTIONS
+		resultCode = types.NO_AVAILABLE_CONNECTIONS_TO_NODE
+	case -5:
+		// QUERY_TERMINATED
+		resultCode = types.QUERY_TERMINATED
+	case -4:
+		// SCAN_TERMINATED
+		resultCode = types.SCAN_TERMINATED
+	case -3:
+		// INVALID_NODE_ERROR
+		resultCode = types.INVALID_NODE_ERROR
+	case -2:
+		// PARSE_ERROR
+		resultCode = types.PARSE_ERROR
+	case -1:
+		// CLIENT_ERROR
+		resultCode = types.COMMON_ERROR
+	}
+
+	return newError(resultCode).markInDoubt(res.InDoubt)
 }
 
 // SetInDoubt sets whether it is possible that the write transaction may have completed
