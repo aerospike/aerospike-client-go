@@ -18,8 +18,8 @@ import (
 	"encoding/binary"
 	"math"
 
-	"github.com/aerospike/aerospike-client-go/pkg/ripemd160"
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/v4/pkg/ripemd160"
+	"github.com/aerospike/aerospike-client-go/v4/types"
 )
 
 type keyWriter struct {

@@ -21,9 +21,9 @@ import (
 	"errors"
 	"log"
 
-	as "github.com/aerospike/aerospike-client-go"
-	shared "github.com/aerospike/aerospike-client-go/examples/shared"
-	ast "github.com/aerospike/aerospike-client-go/types"
+	as "github.com/aerospike/aerospike-client-go/v4"
+	shared "github.com/aerospike/aerospike-client-go/v4/examples/shared"
+	ast "github.com/aerospike/aerospike-client-go/v4/types"
 )
 
 func main() {

@@ -20,10 +20,10 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/aerospike/aerospike-client-go/internal/atomic"
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/v4/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/v4/types"
 
-	xornd "github.com/aerospike/aerospike-client-go/types/rand"
+	xornd "github.com/aerospike/aerospike-client-go/v4/types/rand"
 )
 
 // Result is the value returned by Recordset's Results() function.
@@ -162,16 +162,16 @@ L:
 //
 // Example:
 //
-//  recordset, err := client.ScanAll(nil, namespace, set)
-//  handleError(err)
-//  for res := range recordset.Results() {
-//    if res.Err != nil {
-//      // handle error here
-//    } else {
-//      // process record here
-//      fmt.Println(res.Record.Bins)
-//    }
-//  }
+//	recordset, err := client.ScanAll(nil, namespace, set)
+//	handleError(err)
+//	for res := range recordset.Results() {
+//	  if res.Err != nil {
+//	    // handle error here
+//	  } else {
+//	    // process record here
+//	    fmt.Println(res.Record.Bins)
+//	  }
+//	}
 func (rcs *Recordset) Results() <-chan *Result {
 	recCap := cap(rcs.Records)
 	if recCap < 1 {

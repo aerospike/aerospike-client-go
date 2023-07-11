@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/logger"
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/v4/logger"
+	"github.com/aerospike/aerospike-client-go/v4/types"
 )
 
 type nodesToAddT map[string]*Node

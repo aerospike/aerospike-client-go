@@ -27,7 +27,7 @@ import (
 	"runtime"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go/v4"
 )
 
 // WritePolicy is shared for all examples

@@ -23,11 +23,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/logger"
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/v4/logger"
+	"github.com/aerospike/aerospike-client-go/v4/types"
 
-	ParticleType "github.com/aerospike/aerospike-client-go/types/particle_type"
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	ParticleType "github.com/aerospike/aerospike-client-go/v4/types/particle_type"
+	Buffer "github.com/aerospike/aerospike-client-go/v4/utils/buffer"
 )
 
 const (

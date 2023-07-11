@@ -1,6 +1,10 @@
 # Change History
 
 
+## July 11 2023: v4.7.1
+
+  - Move the v4 version to its own `v4` branch due to go modules enforcement.
+
 ## July 10 2023: v4.7.0
   Minor maintenance release. 
 
