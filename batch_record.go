@@ -81,6 +81,7 @@ func newSimpleBatchRecord(key *Key, hasWrite bool) *BatchRecord {
 		Key:        key,
 		ResultCode: types.NO_RESPONSE,
 		hasWrite:   hasWrite,
+		InDoubt:    hasWrite,
 	}
 }
 
@@ -120,13 +121,14 @@ func (br *BatchRecord) resultCode() types.ResultCode {
 func (br *BatchRecord) prepare() {
 	br.Record = nil
 	br.ResultCode = types.NO_RESPONSE
-	br.InDoubt = false
+	// br.InDoubt = false
 }
 
 // Set record result. For internal use only.
 func (br *BatchRecord) setRecord(record *Record) {
 	br.Record = record
 	br.ResultCode = types.OK
+	br.InDoubt = false
 }
 
 // Set error result. For internal use only.
