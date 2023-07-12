@@ -58,7 +58,7 @@ func (cmd *batchCommandOperate) writeBuffer(ifc command) Error {
 }
 
 func (cmd *batchCommandOperate) isRead() bool {
-	return !cmd.attr.hasWrite
+	return cmd.attr != nil && !cmd.attr.hasWrite
 }
 
 // Parse all results in the batch.  Add records to shared list.
