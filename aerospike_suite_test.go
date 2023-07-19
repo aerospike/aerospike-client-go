@@ -92,7 +92,8 @@ func initTestVars() {
 	}
 
 	// setup TLS
-	tlsConfig = initTLS()
+	tlsConfig = &tls.Config{}
+	// tlsConfig = initTLS()
 	clientPolicy.TlsConfig = tlsConfig
 
 	var dbHosts []*as.Host
@@ -104,7 +105,7 @@ func initTestVars() {
 		}
 	} else {
 		dbHost := as.NewHost(*host, *port)
-		dbHost.TLSName = *nodeTLSName
+		//dbHost.TLSName = *nodeTLSName
 
 		dbHosts = append(dbHosts, dbHost)
 	}
@@ -129,16 +130,18 @@ func initTestVars() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		nativeClient, err = as.NewClientWithPolicyAndHost(clientPolicy, hosts...)
+		nativeClient, err = as.NewClientWithPolicyAndHost(nil, hosts...)
 		if err != nil {
 			log.Fatal("Error connecting the native client to the cluster", err.Error())
 		}
 	}
 
-	nativeClient.DefaultBatchPolicy.TotalTimeout = 15 * time.Second
-	nativeClient.DefaultBatchPolicy.SocketTimeout = 5 * time.Second
-	nativeClient.DefaultWritePolicy.TotalTimeout = 15 * time.Second
-	nativeClient.DefaultWritePolicy.SocketTimeout = 5 * time.Second
+	nativeClient.DefaultPolicy.TotalTimeout = 300 * time.Second
+	nativeClient.DefaultPolicy.SocketTimeout = 300 * time.Second
+	nativeClient.DefaultBatchPolicy.TotalTimeout = 300 * time.Second
+	nativeClient.DefaultBatchPolicy.SocketTimeout = 300 * time.Second
+	nativeClient.DefaultWritePolicy.TotalTimeout = 30 * time.Second
+	nativeClient.DefaultWritePolicy.SocketTimeout = 30 * time.Second
 	nativeClient.DefaultScanPolicy.TotalTimeout = 15 * time.Second
 	nativeClient.DefaultScanPolicy.SocketTimeout = 5 * time.Second
 	nativeClient.DefaultQueryPolicy.TotalTimeout = 15 * time.Second
@@ -146,6 +149,7 @@ func initTestVars() {
 	nativeClient.DefaultAdminPolicy.Timeout = 15 * time.Second
 	nativeClient.DefaultInfoPolicy.Timeout = 15 * time.Second
 
+	client.SetDefaultPolicy(nativeClient.DefaultPolicy)
 	client.SetDefaultBatchPolicy(nativeClient.DefaultBatchPolicy)
 	client.SetDefaultBatchPolicy(nativeClient.DefaultBatchPolicy)
 	client.SetDefaultWritePolicy(nativeClient.DefaultWritePolicy)

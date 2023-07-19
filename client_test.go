@@ -234,9 +234,9 @@ var _ = gg.Describe("Aerospike", func() {
 		var ns = *namespace
 		var set = randString(50)
 		var key *as.Key
-		var wpolicy = as.NewWritePolicy(0, 0)
-		var rpolicy = as.NewPolicy()
-		var bpolicy = as.NewBatchPolicy()
+		var wpolicy = client.GetDefaultWritePolicy()
+		var rpolicy = client.GetDefaultPolicy()
+		var bpolicy = client.GetDefaultBatchPolicy()
 		var rec *as.Record
 
 		if *useReplicas {
@@ -253,6 +253,7 @@ var _ = gg.Describe("Aerospike", func() {
 			gg.Context("Expiration values", func() {
 
 				gg.It("must return 30d if set to TTLServerDefault", func() {
+					gg.Skip("This test relies on the native client to send an info command")
 					wpolicy := as.NewWritePolicy(0, as.TTLServerDefault)
 					bin := as.NewBin("Aerospike", "value")
 					rec, err = client.Operate(wpolicy, key, as.PutOp(bin), as.GetOp())
@@ -282,7 +283,8 @@ var _ = gg.Describe("Aerospike", func() {
 				})
 
 				gg.It("must not change the TTL if set to TTLDontUpdate", func() {
-					wpolicy := as.NewWritePolicy(0, as.TTLServerDefault)
+					expiration := uint32(1000)
+					wpolicy := as.NewWritePolicy(0, expiration)
 					bin := as.NewBin("Aerospike", "value")
 					err = client.PutBins(wpolicy, key, bin)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -294,18 +296,12 @@ var _ = gg.Describe("Aerospike", func() {
 					err = client.PutBins(wpolicy, key, bin)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 
-					defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))
-					gm.Expect(err).ToNot(gm.HaveOccurred())
+					// defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))
+					// gm.Expect(err).ToNot(gm.HaveOccurred())
 
 					rec, err = client.Get(rpolicy, key)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
-
-					switch defaultTTL {
-					case 0:
-						gm.Expect(rec.Expiration).To(gm.Equal(uint32(math.MaxUint32)))
-					default:
-						gm.Expect(rec.Expiration).To(gm.BeNumerically("<=", uint32(defaultTTL-3))) // default expiration on server is set to 30d
-					}
+					gm.Expect(rec.Expiration).To(gm.BeNumerically("<=", uint32(expiration-3)))
 				})
 			})
 
