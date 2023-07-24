@@ -215,6 +215,10 @@ func securityEnabled() bool {
 }
 
 func xdrEnabled() bool {
+	if *proxy {
+		// Not supported
+		return false
+	}
 	res := info(nativeClient, "get-config:context=xdr")
 	return len(res) > 0 && !strings.HasPrefix(res, "ERROR")
 }

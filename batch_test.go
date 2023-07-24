@@ -488,7 +488,8 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(br.Err.IsInDoubt()).To(gm.Equal(true))
 				}
 
-				if nsInfo(ns, "storage-engine") == "device" {
+				// The proxy server only supports SSD configurations
+				if *proxy || nsInfo(ns, "storage-engine") == "device" {
 					writeBlockSize := 1048576
 					bigBin := make(map[string]string, 0)
 					bigBin["big_bin"] = strings.Repeat("a", writeBlockSize)

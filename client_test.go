@@ -259,8 +259,13 @@ var _ = gg.Describe("Aerospike", func() {
 					rec, err = client.Operate(wpolicy, key, as.PutOp(bin), as.GetOp())
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 
-					defaultTTL, err := strconv.Atoi(nsInfo(ns, "default-ttl"))
-					gm.Expect(err).ToNot(gm.HaveOccurred())
+					// By default, default-ttl on proxy server is not set
+					// so the default-ttl is set to 0 by default
+					var defaultTTL int
+					if *proxy == false {
+						defaultTTL, err = strconv.Atoi(nsInfo(ns, "default-ttl"))
+						gm.Expect(err).ToNot(gm.HaveOccurred())
+					}
 
 					switch defaultTTL {
 					case 0:
