@@ -319,6 +319,9 @@ var _ = gg.Describe("Aerospike", func() {
 		})
 
 		gg.Context("BatchUDF operations", func() {
+			if *proxy {
+				gg.Skip("UDFs are not supported in the proxy server")
+			}
 			gg.It("must return the results when one operation is against an invalid namespace", func() {
 				// gg.Skip("This rest of this test requires more in depth analysis with the QA team")
 
