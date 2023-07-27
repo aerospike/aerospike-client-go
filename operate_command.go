@@ -97,6 +97,8 @@ func (cmd *operateCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 		return newGrpcError(gerr, gerr.Error())
 	}
 
+	cmd.commandWasSent = true
+
 	defer clnt.returnGrpcConnToPool(conn)
 
 	if res.Status != 0 {

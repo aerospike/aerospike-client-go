@@ -225,6 +225,22 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.Context("BatchOperate operations", func() {
 
+			gg.It("Should return the error for entire operation", func() {
+				var batchRecords []as.BatchRecordIfc
+				for i := 0; i < 20000; i++ {
+					key, _ := as.NewKey(*namespace, set, i)
+					batchRecords = append(batchRecords, as.NewBatchReadHeader(key))
+				}
+				bp := as.NewBatchPolicy()
+				bp.RespondAllKeys = true
+				bp.TotalTimeout = 10 * time.Second
+				bp.SocketTimeout = 10 * time.Second
+				err := client.BatchOperate(bp, batchRecords)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(types.BATCH_MAX_REQUESTS_EXCEEDED)).To(gm.BeTrue())
+			})
+
+
 			gg.It("Overall command error should be reflected in API call error and not BatchRecord error", func() {
 				var batchRecords []as.BatchRecordIfc
 				for i := 0; i < len(nativeClient.Cluster().GetNodes())*5500; i++ {

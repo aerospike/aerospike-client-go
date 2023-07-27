@@ -20,6 +20,7 @@ import (
 	"math/rand"
 
 	as "github.com/aerospike/aerospike-client-go/v6"
+	ast "github.com/aerospike/aerospike-client-go/v6/types"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -335,5 +336,21 @@ var _ = gg.Describe("Scan operations", func() {
 		checkResults(recordset, keyCount/2, false)
 
 		gm.Expect(len(keys)).To(gm.BeNumerically("<=", keyCount/2))
+	})
+
+	gg.It("must return the error for invalid expression", func() {
+		scanPolicy := as.NewScanPolicy()
+		// the right expression has to be as.ExpListVal(as.NewIntegerValue(11)) for valid expression
+		scanPolicy.FilterExpression = as.ExpEq(as.ExpListGetByValueRange(as.ListReturnTypeValue, as.ExpIntVal(10), as.ExpIntVal(13), as.ExpListBin(bin1.Name)), as.ExpIntVal(11))
+		recordset, err := client.ScanAll(scanPolicy, ns, set)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		counter := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).To(gm.HaveOccurred())
+			gm.Expect(res.Err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+		}
+
+		gm.Expect(counter).To(gm.Equal(0))
 	})
 })

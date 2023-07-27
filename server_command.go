@@ -130,6 +130,8 @@ func (cmd *serverCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 		return newGrpcError(gerr, gerr.Error())
 	}
 
+	cmd.commandWasSent = true
+
 	readCallback := func() ([]byte, Error) {
 		res, gerr := streamRes.Recv()
 		if gerr != nil {

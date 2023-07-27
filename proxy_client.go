@@ -583,7 +583,10 @@ func (clnt *ProxyClient) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...
 		batchRecords = append(batchRecords, batchRecord)
 	}
 
-	err := clnt.BatchOperate(policy, batchRecordsIfc)
+	filteredOut, err := clnt.batchOperate(policy, batchRecordsIfc)
+	if filteredOut > 0 {
+		err = chainErrors(ErrFilteredOut.err(), err)
+	}
 
 	records := make([]*Record, 0, len(keys))
 	for i := range batchRecords {
@@ -599,8 +602,6 @@ func (clnt *ProxyClient) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...
 //
 // If a batch request to a node fails, the entire batch is cancelled.
 func (clnt *ProxyClient) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Operation) ([]*Record, Error) {
-	// TODO: Handle filteredout errors
-
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	batchRecords := make([]*BatchRecord, 0, len(keys))
 	for _, key := range keys {
@@ -609,7 +610,10 @@ func (clnt *ProxyClient) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops .
 		batchRecords = append(batchRecords, batchRecord)
 	}
 
-	err := clnt.BatchOperate(policy, batchRecordsIfc)
+	filteredOut, err := clnt.batchOperate(policy, batchRecordsIfc)
+	if filteredOut > 0 {
+		err = chainErrors(ErrFilteredOut.err(), err)
+	}
 
 	records := make([]*Record, 0, len(keys))
 	for i := range batchRecords {
@@ -631,7 +635,12 @@ func (clnt *ProxyClient) BatchGetComplex(policy *BatchPolicy, records []*BatchRe
 		batchRecordsIfc = append(batchRecordsIfc, record)
 	}
 
-	return clnt.BatchOperate(policy, batchRecordsIfc)
+	filteredOut, err := clnt.batchOperate(policy, batchRecordsIfc)
+	if filteredOut > 0 {
+		err = chainErrors(ErrFilteredOut.err(), err)
+	}
+
+	return err
 }
 
 // BatchGetHeader reads multiple record header data for specified keys in one batch request.
@@ -645,13 +654,17 @@ func (clnt *ProxyClient) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Re
 		batchRecordsIfc = append(batchRecordsIfc, NewBatchReadHeader(key))
 	}
 
-	err := clnt.BatchOperate(policy, batchRecordsIfc)
+	filteredOut, err := clnt.batchOperate(policy, batchRecordsIfc)
 	records := make([]*Record, 0, len(keys))
 	for i := range batchRecordsIfc {
 		records = append(records, batchRecordsIfc[i].BatchRec().Record)
 		// if nerr := batchRecordsIfc[i].BatchRec().Err; nerr != nil {
 		// 	err = chainErrors(err, nerr)
 		// }
+	}
+
+	if filteredOut > 0 {
+		err = chainErrors(ErrFilteredOut.err(), err)
 	}
 
 	return records, err
@@ -673,8 +686,23 @@ func (clnt *ProxyClient) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDel
 		batchRecords = append(batchRecords, batchRecord)
 	}
 
-	err := clnt.BatchOperate(policy, batchRecordsIfc)
+	filteredOut, err := clnt.batchOperate(policy, batchRecordsIfc)
+	if filteredOut > 0 {
+		err = chainErrors(ErrFilteredOut.err(), err)
+	}
 	return batchRecords, err
+}
+
+func (clnt *ProxyClient) batchOperate(policy *BatchPolicy, records []BatchRecordIfc) (int, Error) {
+	policy = clnt.getUsableBatchPolicy(policy)
+
+	batchNode, err := newGrpcBatchOperateListIfc(policy, records)
+	if err != nil && policy.RespondAllKeys {
+		return 0, err
+	}
+
+	cmd := newBatchCommandOperate(nil, batchNode, policy, records)
+	return cmd.filteredOutCnt, cmd.ExecuteGRPC(clnt)
 }
 
 // BatchOperate will read/write multiple records for specified batch keys in one batch call.
@@ -685,15 +713,8 @@ func (clnt *ProxyClient) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDel
 //
 // Requires server version 6.0+
 func (clnt *ProxyClient) BatchOperate(policy *BatchPolicy, records []BatchRecordIfc) Error {
-	policy = clnt.getUsableBatchPolicy(policy)
-
-	batchNode, err := newGrpcBatchOperateListIfc(policy, records)
-	if err != nil && policy.RespondAllKeys {
-		return err
-	}
-
-	cmd := newBatchCommandOperate(nil, batchNode, policy, records)
-	return cmd.ExecuteGRPC(clnt)
+	_, err := clnt.batchOperate(policy, records)
+	return err
 }
 
 // BatchExecute will read/write multiple records for specified batch keys in one batch call.
@@ -712,7 +733,10 @@ func (clnt *ProxyClient) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPo
 		batchRecords = append(batchRecords, batchRecord)
 	}
 
-	err := clnt.BatchOperate(policy, batchRecordsIfc)
+	filteredOut, err := clnt.batchOperate(policy, batchRecordsIfc)
+	if filteredOut > 0 {
+		err = chainErrors(ErrFilteredOut.err(), err)
+	}
 
 	return batchRecords, err
 }

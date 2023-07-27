@@ -32,6 +32,8 @@ type batchCommandOperate struct {
 	// pointer to the object that's going to be unmarshalled
 	objects      []*reflect.Value
 	objectsFound []bool
+
+	grpcEOS bool
 }
 
 func newBatchCommandOperate(
@@ -74,7 +76,7 @@ func (cmd *batchCommandOperate) writeBuffer(ifc command) Error {
 }
 
 func (cmd *batchCommandOperate) isRead() bool {
-	return !cmd.attr.hasWrite
+	return cmd.attr != nil && !cmd.attr.hasWrite
 }
 
 // Parse all results in the batch.  Add records to shared list.
@@ -113,7 +115,7 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 
 			// If it looks like the error is on the first record and the message is marked as last part,
 			// the error is for the whole command and not just for the first batchIndex
-			lastMessage := (info3 & _INFO3_LAST) == _INFO3_LAST
+			lastMessage := (info3&_INFO3_LAST) == _INFO3_LAST || cmd.grpcEOS
 			if resultCode != 0 && lastMessage && receiveSize == int(_MSG_REMAINING_HEADER_SIZE) {
 				return false, newError(resultCode).setNode(cmd.node)
 			}
@@ -140,7 +142,8 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 				}
 
 				// If cmd is the end marker of the response, do not proceed further
-				if (info3 & _INFO3_LAST) == _INFO3_LAST {
+				// if (info3 & _INFO3_LAST) == _INFO3_LAST {
+				if lastMessage {
 					return false, nil
 				}
 				continue
@@ -155,7 +158,9 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 			continue
 		}
 
-		if resultCode == 0 {
+		// Do not process records after grpc stream has ended.
+		// This is a special case due to proxy server shortcomings.
+		if resultCode == 0 && !cmd.grpcEOS {
 			if cmd.objects == nil {
 				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
 				if err != nil {
@@ -258,7 +263,13 @@ func (cmd *batchCommandOperate) ExecuteGRPC(clnt *ProxyClient) Error {
 		return newGrpcError(gerr, gerr.Error())
 	}
 
+	cmd.commandWasSent = true
+
 	readCallback := func() ([]byte, Error) {
+		if cmd.grpcEOS {
+			return nil, errGRPCStreamEnd
+		}
+
 		res, gerr := streamRes.Recv()
 		if gerr != nil {
 			e := newGrpcError(gerr)
@@ -271,7 +282,8 @@ func (cmd *batchCommandOperate) ExecuteGRPC(clnt *ProxyClient) Error {
 		}
 
 		if !res.HasNext {
-			return nil, errGRPCStreamEnd
+			cmd.grpcEOS = true
+			return res.Payload, nil
 		}
 
 		return res.Payload, nil

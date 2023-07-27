@@ -335,7 +335,6 @@ var _ = gg.Describe("Query operations", func() {
 	})
 
 	gg.It("must Query a range and get all records back without the Bin Data", func() {	
-		// FAILS IN GRPC MODE BECAUSE INCLUDEBINDATA DOES NOT WORK
 		stm := as.NewStatement(ns, set)
 		qp := as.NewQueryPolicy()
 		qp.IncludeBinData = false
@@ -530,4 +529,21 @@ var _ = gg.Describe("Query operations", func() {
 		// there should be at least one result
 		gm.Expect(len(recs)).To(gm.Equal(keyCount))
 	})
+
+	gg.It("must return the error for invalid expression", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16/2))
+
+		queryPolicy := as.NewQueryPolicy()
+		queryPolicy.FilterExpression = as.ExpEq(as.ExpListGetByValueRange(as.ListReturnTypeValue, as.ExpIntVal(10), as.ExpIntVal(13), as.ExpListBin(bin1.Name)), as.ExpIntVal(11))
+
+		recordset, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).To(gm.HaveOccurred())
+			gm.Expect(res.Err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+		}
+	})
+
 })
