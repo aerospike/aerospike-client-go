@@ -1,5 +1,35 @@
 # Change History
 
+## July 28 2023: v6.13.0
+
+- **New Features**
+
+  - Add `ClientPolicy.SeedOnlyCluster` in clientPolicy for using only seedNodes for connection. (Github #407) thanks to [Sudhanshu Ranjan](https://github.com/sud82)
+  - [CLIENT-2307] Add ExpInfinityValue() and ExpWildCardValue()
+  - [CLIENT-2316], [CLIENT-2317] BatchResult Err and ResultCode are not always set on errors, Incorrect in-doubt flag handling during batch operation.
+
+- **Improvements**
+
+  - [CLIENT-2317] Better handle setting the Error.InDoubt flag in commands
+  - [CLIENT-2379] Fix returning overall batch error
+  - Move particle type outside of internal and back to `types/` dir.
+  - Updated dependencies to address security advisories.
+  - Improve tests in slow environments.
+  - Remove atomic integer operations, move to Mutex.
+  - [CLIENT-2315] Use BatchReadPolicy in BatchRead instead of BatchPolicy.
+  - [CLIENT-2312] Remove support for old-style queries.
+  - [CLIENT-2265] Increase the required Go version to 1.17 to be able to compile a dependency which itself was updated due to security issues.
+
+
+- **Fixes**
+
+  - Removes race condition from the client, resolves #399.
+  - [CLIENT-2339] Developer tests detecting race condition after updating query protocol.
+  - Assign DefaultInfoPolicy on Client initialization.
+  - Fixed panics in Read Command Reflection API. (Github #402) thanks to [Yegor Myskin](https://github.com/un000)
+  - [CLIENT-2283] Set correct return types in list/map read expressions.
+
+
 ## March 20 2023: v6.12.0
 
 - **Improvements**
