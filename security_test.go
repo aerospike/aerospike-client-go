@@ -35,7 +35,7 @@ var _ = gg.Describe("Security tests", func() {
 
 	gg.BeforeEach(func() {
 		if !securityEnabled() {
-			gg.Skip("Security Tests are not supported in the Community Edition.")
+			gg.Skip("Security Tests are not supported in the Community Edition, or when security is not enabled for the Enterprise Edition.")
 		}
 
 		client, err = as.NewClientWithPolicy(clientPolicy, *host, *port)
