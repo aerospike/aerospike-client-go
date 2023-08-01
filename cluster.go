@@ -470,7 +470,7 @@ func (clstr *Cluster) peerExists(peers *peers, nodeName string) bool {
 
 // Tend the cluster until it has stabilized and return control.
 // This helps avoid initial database request timeout issues when
-// a large number of threads are initiated at client startup.
+// a large number of goroutines are initiated at client startup.
 //
 // If the cluster has not stabilized by the timeout, return
 // control as well.  Do not return an error since future

@@ -554,7 +554,7 @@ func (clnt *Client) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Op
 // This method allows different namespaces/bins to be requested for each key in the batch.
 // The returned records are located in the same list.
 // If the BatchRead key field is not found, the corresponding record field will be nil.
-// The policy can be used to specify timeouts and maximum concurrent threads.
+// The policy can be used to specify timeouts and maximum concurrent goroutines.
 // This method requires Aerospike Server version >= 3.6.0.
 func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) Error {
 	policy = clnt.getUsableBatchPolicy(policy)

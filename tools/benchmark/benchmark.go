@@ -37,7 +37,7 @@ import (
 	ast "github.com/aerospike/aerospike-client-go/v6/types"
 )
 
-// TStats is a thread's statistics values
+// TStats is a goroutine's statistics values
 type TStats struct {
 	Exit       bool
 	W, R       int // write and read counts
