@@ -43,6 +43,7 @@ type nodeValidator struct {
 	aliases     []*Host
 	primaryHost *Host
 
+	seedOnlyCluster    bool
 	detectLoadBalancer bool
 
 	sessionInfo *sessionInfo
@@ -107,13 +108,13 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) Error {
 }
 
 func (ndv *nodeValidator) setAliases(host *Host) Error {
-	ndv.detectLoadBalancer = true
+	ndv.detectLoadBalancer = !ndv.seedOnlyCluster
 
 	// IP addresses do not need a lookup
 	ip := net.ParseIP(host.Name)
 	if ip != nil {
 		// avoid detecting load balancer on localhost
-		ndv.detectLoadBalancer = !ip.IsLoopback()
+		ndv.detectLoadBalancer = ndv.detectLoadBalancer && !ip.IsLoopback()
 
 		aliases := make([]*Host, 1)
 		aliases[0] = NewHost(host.Name, host.Port)
@@ -180,7 +181,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 	}
 
 	addressCommand := clientPolicy.serviceString()
-	if ndv.detectLoadBalancer {
+	if ndv.detectLoadBalancer && !ndv.seedOnlyCluster {
 		infoKeys = append(infoKeys, addressCommand)
 	}
 
