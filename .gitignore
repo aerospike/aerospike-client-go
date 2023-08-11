@@ -4,6 +4,7 @@
 tools/benchmark/benchmark
 tools/asinfo/asinfo
 debug/
+_debug/
 tmp/
 .DS_Store
 TODO
