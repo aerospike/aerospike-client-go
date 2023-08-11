@@ -16,14 +16,13 @@ package aerospike_test
 
 import (
 	as "github.com/aerospike/aerospike-client-go/v6"
-	"github.com/aerospike/aerospike-client-go/v6/internal/atomic"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = gg.Describe("Expression Filters - HLL", func() {
+var _ = gg.Describe("Expression Filters - HLL", gg.Ordered, func() {
 
 	const keyCount = 100
 
@@ -32,13 +31,7 @@ var _ = gg.Describe("Expression Filters - HLL", func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
 	var qpolicy = as.NewQueryPolicy()
 
-	insertRecs := atomic.NewBool(true)
-
-	gg.BeforeEach(func() {
-		if !insertRecs.Get() {
-			return
-		}
-
+	gg.BeforeAll(func() {
 		for ii := 0; ii < keyCount; ii++ {
 			key, _ := as.NewKey(ns, set, ii)
 			bin := as.BinMap{"bin": ii, "lbin": []interface{}{ii, "a"}}
@@ -69,8 +62,6 @@ var _ = gg.Describe("Expression Filters - HLL", func() {
 			_, err = client.Operate(nil, key, ops...)
 			gm.Expect(err).NotTo(gm.HaveOccurred())
 		}
-
-		insertRecs.Set(false)
 	})
 
 	runQuery := func(filter *as.Expression, set_name string) *as.Recordset {

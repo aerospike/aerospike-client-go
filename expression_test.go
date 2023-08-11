@@ -57,8 +57,6 @@ var _ = gg.Describe("Expression Filters", func() {
 			dropIndex(nil, ns, set, "intval")
 			dropIndex(nil, ns, set, "strval")
 
-			wpolicy = as.NewWritePolicy(0, 24*60*60)
-
 			starbucks := [][2]float64{
 				{-122.1708441, 37.4241193},
 				{-122.1492040, 37.4273569},

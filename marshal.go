@@ -27,6 +27,8 @@ import (
 
 // UseNativeBoolTypeInReflection determines if Boolean values should be directly translated to native Boolean type in reflection API
 // introduced in server version 5.6+. By default it keeps the old behavior, but can be set to true to opt in.
+//
+// Deprecated: Will be removed in the next major version.
 var UseNativeBoolTypeInReflection = false
 
 var aerospikeTag = "as"

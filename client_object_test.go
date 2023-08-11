@@ -31,6 +31,12 @@ import (
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Aerospike", func() {
 
+	gg.BeforeEach(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
+		}
+	})
+
 	for _, useBoolType := range []bool{false, true} {
 
 		gg.BeforeEach(func() {
