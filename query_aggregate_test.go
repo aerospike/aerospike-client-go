@@ -54,12 +54,6 @@ func removeUDF(moduleName string) {
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Query Aggregate operations", func() {
 
-	gg.BeforeEach(func() {
-		if *proxy {
-			gg.Skip("Not supported in Proxy Client")
-		}
-	})
-
 	var sumAll = func(upTo int) float64 {
 		return float64((1 + upTo) * upTo / 2.0)
 	}
@@ -80,6 +74,14 @@ var _ = gg.Describe("Query Aggregate operations", func() {
 	createUDFs := new(sync.Once)
 
 	gg.BeforeEach(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
+		}
+
+		if *proxy {
+			gg.Skip("Not supported in Proxy Client")
+		}
+
 		createUDFs.Do(func() {
 			registerUDFFromFile(luaPath, "sum_single_bin")
 			registerUDFFromFile(luaPath, "average")

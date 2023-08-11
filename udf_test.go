@@ -76,11 +76,17 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	bin1 := as.NewBin("bin1", rand.Intn(math.MaxInt16))
 	bin2 := as.NewBin("bin2", 1)
 
-	gg.It("must Register a UDF", func() {
-		if *proxy {
-			gg.Skip("Not supported in GRPC mode")
+	gg.BeforeEach(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
 		}
 
+		if *proxy {
+			gg.Skip("Not supported in proxy environment")
+		}
+	})
+
+	gg.It("must Register a UDF", func() {
 		regTask, err := client.RegisterUDF(wpolicy, []byte(udfBody), "udf1.lua", as.LUA)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
@@ -144,20 +150,12 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	})
 
 	gg.It("must list all udfs on the server", func() {
-		if *proxy {
-			gg.Skip("Not supported in GRPC mode")
-		}
-
 		udfList, err := client.ListUDF(nil)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(len(udfList)).To(gm.BeNumerically(">", 0))
 	})
 
 	gg.It("must drop a udf on the server", func() {
-		if *proxy {
-			gg.Skip("Not supported in GRPC mode")
-		}
-
 		registerUDF(udfBody, "udfToBeDropped.lua")
 
 		delTask, err := client.RemoveUDF(wpolicy, "udfToBeDropped.lua")
@@ -252,7 +250,7 @@ var _ = gg.Describe("UDF/Query tests", func() {
 
 		gg.BeforeEach(func() {
 			udfReg.Do(func() {
-				registerUDF(udfEcho,  "udfEcho.lua")
+				registerUDF(udfEcho, "udfEcho.lua")
 
 				// a new record that is not in the range
 				key, err = as.NewKey(ns, set, randString(50))

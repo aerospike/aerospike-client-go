@@ -91,6 +91,10 @@ var _ = gg.Describe("Query operations", func() {
 	}
 
 	gg.BeforeEach(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
+		}
+
 		nativeClient.Truncate(nil, ns, set, nil)
 
 		keys = make(map[string]*as.Key, keyCount)
@@ -120,6 +124,10 @@ var _ = gg.Describe("Query operations", func() {
 	})
 
 	gg.AfterEach(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
+		}
+
 		indexName = set + bin3.Name
 		gm.Expect(nativeClient.DropIndex(nil, ns, set, indexName)).ToNot(gm.HaveOccurred())
 

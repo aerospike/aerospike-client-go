@@ -252,6 +252,12 @@ var _ = gg.Describe("Aerospike", func() {
 
 			gg.Context("Expiration values", func() {
 
+				gg.BeforeEach(func() {
+					if *dbaas {
+						gg.Skip("Not supported in DBAAS environment")
+					}
+				})
+
 				gg.It("must return 30d if set to TTLServerDefault", func() {
 					wpolicy := as.NewWritePolicy(0, as.TTLServerDefault)
 					bin := as.NewBin("Aerospike", "value")
@@ -1677,6 +1683,10 @@ var _ = gg.Describe("Aerospike", func() {
 		gg.Context("XDR Filter", func() {
 
 			gg.BeforeEach(func() {
+				if *proxy {
+					gg.Skip("Not supported in Proxy Client")
+				}
+
 				if !xdrEnabled() {
 					gg.Skip("XDR Filter Tests are not supported in the Community Edition, or when the server is not configured for XDR")
 					return

@@ -935,6 +935,10 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(resObj.TTL1).NotTo(gm.Equal(uint32(0)))
 					gm.Expect(resObj.TTL1).To(gm.Equal(resObj.TTL2))
 
+					if *dbaas {
+						gg.Skip("Not supported in DBAAS environment")
+					}
+
 					defaultTTL, nerr := strconv.Atoi(nsInfo(ns, "default-ttl"))
 					gm.Expect(nerr).ToNot(gm.HaveOccurred())
 
@@ -1023,15 +1027,21 @@ var _ = gg.Describe("Aerospike", func() {
 			}) // ScanObjects context
 
 			gg.Context("UDF Objects operations", func() {
+				gg.BeforeEach(func() {
+					if *dbaas {
+						gg.Skip("Not supported in DBAAS environment")
+					}
+				})
+
 				gg.It("must store and get values of types which implement Value interface using udf", func() {
 					udfFunc := `function setValue(rec, val)
 					rec['value'] = val
 					aerospike:update(rec)
-				
+
 					return rec
 				end`
 
-					registerUDF( udfFunc, "test_set.lua")
+					registerUDF(udfFunc, "test_set.lua")
 
 					var (
 						bytes    = []byte("bytes")
@@ -1238,6 +1248,9 @@ var _ = gg.Describe("Aerospike", func() {
 				})
 
 				gg.It("must query only relevant objects with the most complex structure possible", func() {
+					if *dbaas {
+						gg.Skip("Not supported in DBAAS environment")
+					}
 
 					// first create an index
 					createIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)
@@ -1275,6 +1288,9 @@ var _ = gg.Describe("Aerospike", func() {
 				})
 
 				gg.It("must query only relevant objects, and close and return", func() {
+					if *dbaas {
+						gg.Skip("Not supported in DBAAS environment")
+					}
 
 					// first create an index
 					createIndex(nil, ns, set, set+"inner1", "inner1", as.NUMERIC)

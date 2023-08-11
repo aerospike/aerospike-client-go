@@ -43,14 +43,20 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 
 	var binName = "GeoBin"
 
-
 	gg.BeforeAll(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
+		}
 		// queries only work on indices
 		dropIndex(wpolicy, ns, set, set+binName)
 		createIndex(wpolicy, ns, set, set+binName, binName, as.GEO2DSPHERE)
 	})
 
 	gg.AfterAll(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
+		}
+
 		dropIndex(wpolicy, ns, set, set+binName)
 	})
 

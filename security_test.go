@@ -47,8 +47,10 @@ var _ = gg.Describe("Security tests", func() {
 	})
 
 	gg.AfterEach(func() {
-		dropUser(nil, "test_user")
-		time.Sleep(time.Second)
+		if securityEnabled() {
+			dropUser(nil, "test_user")
+			time.Sleep(time.Second)
+		}
 	})
 
 	gg.Context("Roles", func() {

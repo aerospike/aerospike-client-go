@@ -50,6 +50,7 @@ var (
 	useReplicas = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
 	debug       = flag.Bool("debug", false, "Will set the logging level to DEBUG.")
 	proxy       = flag.Bool("proxy", false, "Will use Proxy Client.")
+	dbaas       = flag.Bool("dbaas", false, "Will run the tests for a dbaas environment.")
 	namespace   = flag.String("n", "test", "Namespace")
 
 	certFile          = flag.String("cert_file", "", "Certificate file name.")
@@ -71,6 +72,11 @@ func initTestVars() {
 	logger := log.New(&buf, "", log.LstdFlags|log.Lshortfile)
 	logger.SetOutput(os.Stdout)
 	asl.Logger.SetLogger(logger)
+
+	// dbaas implies a proxy client, albeit with no access to a native client for test setup.
+	if *dbaas {
+		*proxy = true
+	}
 
 	if *debug {
 		asl.Logger.SetLevel(asl.DEBUG)
@@ -124,7 +130,7 @@ func initTestVars() {
 		nativeClient = nclient
 	}
 
-	if *proxy {
+	if *proxy && !*dbaas {
 		hosts, err := as.NewHosts(*nativeHosts)
 		if err != nil {
 			log.Fatalln(err)
@@ -135,27 +141,46 @@ func initTestVars() {
 		}
 	}
 
-	nativeClient.DefaultBatchPolicy.TotalTimeout = 15 * time.Second
-	nativeClient.DefaultBatchPolicy.SocketTimeout = 5 * time.Second
-	nativeClient.DefaultWritePolicy.TotalTimeout = 15 * time.Second
-	nativeClient.DefaultWritePolicy.SocketTimeout = 5 * time.Second
-	nativeClient.DefaultScanPolicy.TotalTimeout = 15 * time.Second
-	nativeClient.DefaultScanPolicy.SocketTimeout = 5 * time.Second
-	nativeClient.DefaultQueryPolicy.TotalTimeout = 15 * time.Second
-	nativeClient.DefaultQueryPolicy.SocketTimeout = 5 * time.Second
-	nativeClient.DefaultAdminPolicy.Timeout = 15 * time.Second
-	nativeClient.DefaultInfoPolicy.Timeout = 15 * time.Second
+	defaultBatchPolicy := as.NewBatchPolicy()
+	defaultBatchPolicy.TotalTimeout = 15 * time.Second
+	defaultBatchPolicy.SocketTimeout = 5 * time.Second
+	defaultWritePolicy := as.NewWritePolicy(0, 0)
+	defaultWritePolicy.TotalTimeout = 15 * time.Second
+	defaultWritePolicy.SocketTimeout = 5 * time.Second
+	defaultScanPolicy := as.NewScanPolicy()
+	defaultScanPolicy.TotalTimeout = 15 * time.Second
+	defaultScanPolicy.SocketTimeout = 5 * time.Second
+	defaultQueryPolicy := as.NewQueryPolicy()
+	defaultQueryPolicy.TotalTimeout = 15 * time.Second
+	defaultQueryPolicy.SocketTimeout = 5 * time.Second
+	defaultAdminPolicy := as.NewAdminPolicy()
+	defaultAdminPolicy.Timeout = 15 * time.Second
+	defaultInfoPolicy := as.NewInfoPolicy()
+	defaultInfoPolicy.Timeout = 15 * time.Second
 
-	client.SetDefaultBatchPolicy(nativeClient.DefaultBatchPolicy)
-	client.SetDefaultBatchPolicy(nativeClient.DefaultBatchPolicy)
-	client.SetDefaultWritePolicy(nativeClient.DefaultWritePolicy)
-	client.SetDefaultWritePolicy(nativeClient.DefaultWritePolicy)
-	client.SetDefaultScanPolicy(nativeClient.DefaultScanPolicy)
-	client.SetDefaultScanPolicy(nativeClient.DefaultScanPolicy)
-	client.SetDefaultQueryPolicy(nativeClient.DefaultQueryPolicy)
-	client.SetDefaultQueryPolicy(nativeClient.DefaultQueryPolicy)
-	client.SetDefaultAdminPolicy(nativeClient.DefaultAdminPolicy)
-	client.SetDefaultInfoPolicy(nativeClient.DefaultInfoPolicy)
+	if nativeClient != nil {
+		nativeClient.SetDefaultBatchPolicy(defaultBatchPolicy)
+		nativeClient.SetDefaultBatchPolicy(defaultBatchPolicy)
+		nativeClient.SetDefaultWritePolicy(defaultWritePolicy)
+		nativeClient.SetDefaultWritePolicy(defaultWritePolicy)
+		nativeClient.SetDefaultScanPolicy(defaultScanPolicy)
+		nativeClient.SetDefaultScanPolicy(defaultScanPolicy)
+		nativeClient.SetDefaultQueryPolicy(defaultQueryPolicy)
+		nativeClient.SetDefaultQueryPolicy(defaultQueryPolicy)
+		nativeClient.SetDefaultAdminPolicy(defaultAdminPolicy)
+		nativeClient.SetDefaultInfoPolicy(defaultInfoPolicy)
+	}
+
+	client.SetDefaultBatchPolicy(defaultBatchPolicy)
+	client.SetDefaultBatchPolicy(defaultBatchPolicy)
+	client.SetDefaultWritePolicy(defaultWritePolicy)
+	client.SetDefaultWritePolicy(defaultWritePolicy)
+	client.SetDefaultScanPolicy(defaultScanPolicy)
+	client.SetDefaultScanPolicy(defaultScanPolicy)
+	client.SetDefaultQueryPolicy(defaultQueryPolicy)
+	client.SetDefaultQueryPolicy(defaultQueryPolicy)
+	client.SetDefaultAdminPolicy(defaultAdminPolicy)
+	client.SetDefaultInfoPolicy(defaultInfoPolicy)
 
 	// set default policies
 	if *useReplicas {
@@ -182,6 +207,10 @@ func TestAerospike(t *testing.T) {
 }
 
 func featureEnabled(feature string) bool {
+	if *dbaas {
+		gg.Skip("Not supported in DBAAS environment")
+	}
+
 	node := nativeClient.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "features")
 	if err != nil {
@@ -192,6 +221,10 @@ func featureEnabled(feature string) bool {
 }
 
 func isEnterpriseEdition() bool {
+	if *dbaas {
+		gg.Skip("Not supported in DBAAS environment")
+	}
+
 	node := nativeClient.GetNodes()[0]
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "edition")
 	if err != nil {
@@ -202,6 +235,10 @@ func isEnterpriseEdition() bool {
 }
 
 func securityEnabled() bool {
+	if *dbaas {
+		gg.Skip("Not supported in DBAAS environment")
+	}
+
 	if !isEnterpriseEdition() {
 		return false
 	}
@@ -211,6 +248,10 @@ func securityEnabled() bool {
 }
 
 func xdrEnabled() bool {
+	if *dbaas {
+		gg.Skip("Not supported in DBAAS environment")
+	}
+
 	res := info(nativeClient, "get-config:context=xdr")
 	return len(res) > 0 && !strings.HasPrefix(res, "ERROR")
 }

@@ -40,6 +40,10 @@ var _ = gg.Describe("Query operations on complex types", func() {
 	var keys map[string]*as.Key
 
 	gg.BeforeEach(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
+		}
+
 		keys = make(map[string]*as.Key, keyCount)
 		set = randString(50)
 		for i := 0; i < keyCount; i++ {
@@ -60,6 +64,10 @@ var _ = gg.Describe("Query operations on complex types", func() {
 	})
 
 	gg.AfterEach(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
+		}
+
 		dropIndex(nil, ns, set, set+bin1.Name)
 		dropIndex(nil, ns, set, set+bin2.Name+"keys")
 		dropIndex(nil, ns, set, set+bin2.Name+"values")

@@ -36,6 +36,10 @@ var _ = gg.Describe("Query operations with Context", func() {
 	var keys map[string]*as.Key
 
 	gg.BeforeEach(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
+		}
+
 		keys = make(map[string]*as.Key, keyCount)
 		set = randString(50)
 		for i := 0; i < keyCount; i++ {

@@ -17,8 +17,8 @@ package aerospike_test
 import (
 	"math"
 	"math/rand"
-	"time"
 	"strings"
+	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v6"
 	"github.com/aerospike/aerospike-client-go/v6/types"
@@ -240,8 +240,11 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err.Matches(types.BATCH_MAX_REQUESTS_EXCEEDED)).To(gm.BeTrue())
 			})
 
-
 			gg.It("Overall command error should be reflected in API call error and not BatchRecord error", func() {
+				if *dbaas {
+					gg.Skip("Not supported in DBAAS environment")
+				}
+
 				var batchRecords []as.BatchRecordIfc
 				for i := 0; i < len(nativeClient.Cluster().GetNodes())*5500; i++ {
 					key, _ := as.NewKey(*namespace, set, i)
@@ -335,6 +338,12 @@ var _ = gg.Describe("Aerospike", func() {
 		})
 
 		gg.Context("BatchUDF operations", func() {
+			gg.BeforeEach(func() {
+				if *dbaas {
+					gg.Skip("Not supported in DBAAS environment")
+				}
+			})
+
 			gg.It("must return the results when one operation is against an invalid namespace", func() {
 				// gg.Skip("This rest of this test requires more in depth analysis with the QA team")
 
@@ -505,6 +514,10 @@ var _ = gg.Describe("Aerospike", func() {
 				}
 
 				if nsInfo(ns, "storage-engine") == "device" {
+					if *dbaas {
+						gg.Skip("Not supported in DBAAS environment")
+					}
+
 					writeBlockSize := 1048576
 					bigBin := make(map[string]string, 0)
 					bigBin["big_bin"] = strings.Repeat("a", writeBlockSize)
