@@ -138,10 +138,6 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 		}
 
 		proto := Buffer.BytesToInt64(cmd.dataBuffer, 0)
-		if err = cmd.validateHeader(proto); err != nil {
-			return err
-		}
-
 		receiveSize := int(proto & 0xFFFFFFFFFFFF)
 		if receiveSize <= 0 {
 			continue

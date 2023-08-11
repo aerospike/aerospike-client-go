@@ -236,6 +236,9 @@ func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNo
 }
 
 func (cmd *batchCommandOperate) ExecuteGRPC(clnt *ProxyClient) Error {
+	cmd.dataBuffer = bufPool.Get().([]byte)
+	defer cmd.grpcPutBufferBack()
+
 	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
 	if err != nil {
 		return err

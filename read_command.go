@@ -269,6 +269,9 @@ func (cmd *readCommand) Execute() Error {
 }
 
 func (cmd *readCommand) ExecuteGRPC(clnt *ProxyClient) Error {
+	cmd.dataBuffer = bufPool.Get().([]byte)
+	defer cmd.grpcPutBufferBack()
+
 	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
 	if err != nil {
 		return err

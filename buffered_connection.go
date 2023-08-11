@@ -115,7 +115,7 @@ func (bc *bufferedConn) read(length int) ([]byte, Error) {
 }
 
 func (bc *bufferedConn) drainConn() Error {
-	if bc.conn.grpcPayload != nil {
+	if bc.conn.grpcReader != nil {
 		return nil
 	}
 

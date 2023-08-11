@@ -133,7 +133,7 @@ var _ = gg.Describe("Query operations", func() {
 	var queryPolicy = as.NewQueryPolicy()
 
 	gg.It("must Query and get all records back for a specified node using Results() channel", func() {
-		if *proxy{
+		if *proxy {
 			gg.Skip("Not Supported for Proxy Client")
 		}
 
@@ -227,10 +227,10 @@ var _ = gg.Describe("Query operations", func() {
 		}
 
 		gm.Expect(len(keys)).To(gm.Equal(334))
-	  // This depends on how many keys end up in the same partition.
-	  // Since keys are statistically distributed randomly and uniformly,
-	  // we expect that there aren't many partitions that share more than one key.
-		gm.Expect(counter).To(gm.BeNumerically("~", keyCount - 334, 50))
+		// This depends on how many keys end up in the same partition.
+		// Since keys are statistically distributed randomly and uniformly,
+		// we expect that there aren't many partitions that share more than one key.
+		gm.Expect(counter).To(gm.BeNumerically("~", keyCount-334, 50))
 	})
 
 	gg.It("must Query and get all partition records back for a specified key and filter", func() {
@@ -334,7 +334,7 @@ var _ = gg.Describe("Query operations", func() {
 		gm.Expect(len(keys)).To(gm.Equal(0))
 	})
 
-	gg.It("must Query a range and get all records back without the Bin Data", func() {	
+	gg.It("must Query a range and get all records back without the Bin Data", func() {
 		stm := as.NewStatement(ns, set)
 		qp := as.NewQueryPolicy()
 		qp.IncludeBinData = false
@@ -472,7 +472,7 @@ var _ = gg.Describe("Query operations", func() {
 	})
 
 	gg.It("must handle a Query on a non-existing set without timing out", func() {
-		stm := as.NewStatement(ns, set + "NON_EXISTING")
+		stm := as.NewStatement(ns, set+"NON_EXISTING")
 
 		bin7 := as.NewBin("Aerospike7", 42)
 		tsk, err := client.QueryExecute(queryPolicy, nil, stm, as.PutOp(bin7))
@@ -481,7 +481,7 @@ var _ = gg.Describe("Query operations", func() {
 
 		rs, err := client.Query(queryPolicy, stm)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
-		cnt:=0
+		cnt := 0
 		for res := range rs.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 			cnt++

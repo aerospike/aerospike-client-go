@@ -2499,13 +2499,25 @@ func (cmd *baseCommand) compress() Error {
 
 		compressedSz := b.Len()
 
+		// check if compression ended up inflating the data.
+		// If so, the internal buffer has grown and reallocated, try to reuse it.
+		// If not possible to reuse it, reallocate a buffer.
+		if compressedSz+msgHeaderPad > len(cmd.dataBufferCompress) {
+			// compression added to the size of the message
+			buf := make([]byte, compressedSz+msgHeaderPad)
+			if n := copy(buf[msgHeaderPad:], b.Bytes()); n < compressedSz {
+				return newError(types.SERIALIZE_ERROR)
+			}
+			cmd.dataBufferCompress = buf
+		}
+
 		// Use compressed buffer if compression completed within original buffer size.
 		var proto = int64(compressedSz+8) | (_CL_MSG_VERSION << 56) | (_AS_MSG_TYPE_COMPRESSED << 48)
 		binary.BigEndian.PutUint64(cmd.dataBufferCompress[0:], uint64(proto))
 		binary.BigEndian.PutUint64(cmd.dataBufferCompress[8:], uint64(cmd.dataOffset))
 
 		cmd.dataBuffer = cmd.dataBufferCompress
-		cmd.dataOffset = compressedSz + 16
+		cmd.dataOffset = compressedSz + msgHeaderPad
 		cmd.dataBufferCompress = nil
 	}
 
@@ -2533,6 +2545,16 @@ func (cmd *baseCommand) batchInDoubt(isWrite bool, commandWasSent bool) bool {
 
 func (cmd *baseCommand) isRead() bool {
 	return true
+}
+
+// grpcPutBufferBack puts the assigned buffer back in the pool.
+// This function should only be called from grpc commands.
+func (cmd *baseCommand) grpcPutBufferBack() {
+	// put the data buffer back in the pool in case it gets used again
+	if len(cmd.dataBuffer) >= DefaultBufferSize && len(cmd.dataBuffer) <= MaxBufferSize {
+		bufPool.Put(cmd.dataBuffer)
+	}
+	cmd.dataBuffer = nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////

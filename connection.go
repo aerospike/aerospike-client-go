@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"bytes"
 	"compress/zlib"
 	"crypto/tls"
 	"io"
@@ -68,9 +69,8 @@ type Connection struct {
 	closer sync.Once
 
 	grpcConn         bool
-	grpcPayload      []byte
 	grpcReadCallback func() ([]byte, Error)
-	grpcPos          int
+	grpcReader       io.ReadWriter
 }
 
 // makes sure that the connection is closed eventually, even if it is not consumed
@@ -107,10 +107,12 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 // newGrpcFakeConnection creates a connection that fakes a real connection for when grpc connections are required.
 // These connections only support reading to allow parsing of the returned payload.
 func newGrpcFakeConnection(payload []byte, callback func() ([]byte, Error)) *Connection {
+	buf := bytes.NewBuffer(payload)
 	return &Connection{
 		grpcConn:         true,
-		grpcPayload:      payload,
+		grpcReader:       buf,
 		grpcReadCallback: callback,
+		limitReader:      &io.LimitedReader{R: buf, N: 0},
 	}
 }
 
@@ -221,91 +223,114 @@ func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 
 // Read reads from connection buffer to the provided slice.
 func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
-	if !ctn.grpcConn {
-		var err error
-
-		// if all bytes are not read, retry until successful
-		// Don't worry about the loop; we've already set the timeout elsewhere
-		for total < length {
-			var r int
-			if err = ctn.updateDeadline(); err != nil {
-				break
-			}
-
-			if !ctn.compressed {
-				r, err = ctn.conn.Read(buf[total:length])
-			} else {
-				r, err = ctn.inflater.Read(buf[total:length])
-				if err == io.EOF && total+r == length {
-					ctn.compressed = false
-					err = ctn.inflater.Close()
-				}
-			}
-			total += r
-			if err != nil {
-				break
-			}
-		}
-
-		if total == length {
-			// If all required bytes are read, ignore any potential error.
-			// The error will bubble up on the next network io if it matters.
-			return total, nil
-		}
-
-		aerr = chainErrors(errToAerospikeErr(ctn, err), aerr)
-
-		if ctn.node != nil {
-			ctn.node.incrErrorCount()
-			ctn.node.stats.ConnectionsFailed.IncrementAndGet()
-		}
-
-		ctn.Close()
-
-		return total, aerr
+	if ctn.grpcConn {
+		// grpc fake conn
+		return ctn.grpcRead(buf, length)
 	}
 
-	// grpc fake conn
-	return ctn.grpcRead(buf, length)
+	var err error
+
+	// if all bytes are not read, retry until successful
+	// Don't worry about the loop; we've already set the timeout elsewhere
+	for total < length {
+		var r int
+		if err = ctn.updateDeadline(); err != nil {
+			break
+		}
+
+		if !ctn.compressed {
+			r, err = ctn.conn.Read(buf[total:length])
+		} else {
+			r, err = ctn.inflater.Read(buf[total:length])
+			if err == io.EOF && total+r == length {
+				ctn.compressed = false
+				err = ctn.inflater.Close()
+			}
+		}
+		total += r
+		if err != nil {
+			break
+		}
+	}
+
+	if total == length {
+		// If all required bytes are read, ignore any potential error.
+		// The error will bubble up on the next network io if it matters.
+		return total, nil
+	}
+
+	aerr = chainErrors(errToAerospikeErr(ctn, err), aerr)
+
+	if ctn.node != nil {
+		ctn.node.incrErrorCount()
+		ctn.node.stats.ConnectionsFailed.IncrementAndGet()
+	}
+
+	ctn.Close()
+
+	return total, aerr
 }
 
 // Reads the grpc payload
-func (ctn *Connection) grpcRead(buf []byte, length int) (int, Error) {
+func (ctn *Connection) grpcReadNext() (aerr Error) {
 	// if there is no payload set, ask for the next chunk
-	if ctn.grpcPayload == nil {
-		if ctn.grpcReadCallback != nil {
-			var err Error
-			ctn.grpcPayload, err = ctn.grpcReadCallback()
-			if err != nil {
-				return 0, err
-			}
+	if ctn.grpcReadCallback != nil {
+		grpcPayload, err := ctn.grpcReadCallback()
+		if err != nil {
+			return err
+		}
+
+		if _, err := ctn.grpcReader.Write(grpcPayload); err != nil {
+			errToAerospikeErr(ctn, io.EOF)
+		}
+
+		if ctn.compressed {
+			ctn.limitReader.R = ctn.grpcReader
+		}
+
+		return nil
+	}
+	return errToAerospikeErr(ctn, io.EOF)
+}
+
+// Reads the grpc payload
+func (ctn *Connection) grpcRead(buf []byte, length int) (total int, aerr Error) {
+	var err error
+
+	// if all bytes are not read, retry until successful
+	// Don't worry about the loop; we've already set the timeout elsewhere
+	for total < length {
+		var r int
+		if !ctn.compressed {
+			r, err = ctn.grpcReader.Read(buf[total:length])
 		} else {
-			return 0, errToAerospikeErr(ctn, io.EOF)
+			r, err = ctn.inflater.Read(buf[total:length])
+			if err == io.EOF && total+r == length {
+				ctn.compressed = false
+				err = ctn.inflater.Close()
+			}
+		}
+		total += r
+		if err != nil {
+			if err == io.EOF {
+				if err := ctn.grpcReadNext(); err != nil {
+					return total, err
+				}
+				continue
+			}
+			break
 		}
 	}
 
-	// if there are not enough bytes in the payload
-	if length > len(ctn.grpcPayload[ctn.grpcPos:]) {
-		// read as much as you can, and then recusively read the rest
-		n := copy(buf, ctn.grpcPayload[ctn.grpcPos:])
-		// reset the payload
-		ctn.grpcPayload = nil
-		ctn.grpcPos = 0
-		// recusively read more
-		l, err := ctn.grpcRead(buf[n:], length-n)
-		return l + n, err
+	if total == length {
+		// If all required bytes are read, ignore any potential error.
+		// The error will bubble up on the next network io if it matters.
+		return total, nil
 	}
 
-	// otherwise:
-	ctn.grpcPos += copy(buf, ctn.grpcPayload[ctn.grpcPos:ctn.grpcPos+length])
+	aerr = chainErrors(errToAerospikeErr(ctn, err), aerr)
 
-	// if payload is exhausted, reset everything
-	if ctn.grpcPos >= len(ctn.grpcPayload) {
-		ctn.grpcPayload = nil
-		ctn.grpcPos = 0
-	}
-
-	return length, nil
+	return total, aerr
 }
 
 // IsConnected returns true if the connection is not closed yet.
@@ -433,7 +458,7 @@ func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessio
 
 // Login will send authentication information to the server.
 // This function is provided for using the connection in conjunction with external libraries.
-// The password will be hashed everytime, which is a slow operation.
+// The password will be hashed every time, which is a slow operation.
 func (ctn *Connection) Login(policy *ClientPolicy) Error {
 	if !policy.RequiresAuthentication() {
 		return nil
