@@ -291,6 +291,10 @@ func info(client *as.Client, feature string) string {
 
 func initTLS() *tls.Config {
 	if len(*rootCA) == 0 && len(*certFile) == 0 && len(*keyFile) == 0 {
+		if *dbaas {
+			// if testing in dbaas environment, still enable the default TLS config
+			return &tls.Config{}
+		}
 		return nil
 	}
 
