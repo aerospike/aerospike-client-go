@@ -77,12 +77,12 @@ func grpcClientFinalizer(f *ProxyClient) {
 // Constructors
 //-------------------------------------------------------
 
-// NewProxyClient generates a new ProxyClient with the specified ClientPolicy and
+// NewProxyClientWithPolicyAndHost generates a new ProxyClient with the specified ClientPolicy and
 // sets up the cluster using the provided hosts.
 // If the policy is nil, the default relevant policy will be used.
 // Pass "dns:///<address>:<port>" (note the 3 slashes) for dns load balancing,
 // automatically supported internally by grpc-go.
-func NewProxyClient(policy *ClientPolicy, host *Host, dialOptions ...grpc.DialOption) (*ProxyClient, Error) {
+func NewProxyClientWithPolicyAndHost(policy *ClientPolicy, host *Host, dialOptions ...grpc.DialOption) (*ProxyClient, Error) {
 	if policy == nil {
 		policy = NewClientPolicy()
 	}

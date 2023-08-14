@@ -117,7 +117,7 @@ func initTestVars() {
 
 	log.Println("Connecting to seeds:", dbHosts)
 	if *proxy {
-		client, err = as.NewProxyClient(clientPolicy, dbHosts[0])
+		client, err = as.NewProxyClientWithPolicyAndHost(clientPolicy, dbHosts[0])
 		if err != nil {
 			log.Fatal(err.Error())
 		}

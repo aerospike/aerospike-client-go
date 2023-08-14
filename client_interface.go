@@ -98,6 +98,7 @@ type ClientIfc interface {
 	ScanPartitionObjects(apolicy *ScanPolicy, objChan interface{}, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error)
 
 	// TODO: Synchronization here for the sake of dynamic config in the future
+
 	GetDefaultPolicy() *BasePolicy
 	GetDefaultBatchPolicy() *BatchPolicy
 	GetDefaultBatchWritePolicy() *BatchWritePolicy
