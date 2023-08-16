@@ -115,6 +115,10 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.Context("BatchOperate operations", func() {
 			gg.It("must return the result with same ordering", func() {
+				if *dbaas {
+					gg.Skip("Not supported in DBAAS environment")
+				}
+
 				key1, _ := as.NewKey(ns, set, 1)
 				op1 := as.NewBatchWrite(nil, key1, as.PutOp(as.NewBin("bin1", "a")), as.PutOp(as.NewBin("bin2", "b")))
 				op3 := as.NewBatchRead(key1, []string{"bin2"})
@@ -155,6 +159,11 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 
 			gg.It("must successfully execute a delete op", func() {
+				if *dbaas {
+					gg.Skip("Not supported in DBAAS environment")
+				}
+
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				bwPolicy := as.NewBatchWritePolicy()
 				bdPolicy := as.NewBatchDeletePolicy()
 
@@ -188,6 +197,7 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(op3.BatchRec().InDoubt).To(gm.BeFalse())
 
 					exists, err := client.Exists(nil, key1)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 					gm.Expect(exists).To(gm.BeFalse())
 				}
 			})
