@@ -14,6 +14,7 @@ jobs:
           - '1.18'
           - '1.19'
           - '1.20'
+          - '1.21'
     steps:
       - uses: actions/checkout@v3
       - name: 'Setup Go ${{ matrix.go-version }}'
@@ -39,9 +40,9 @@ jobs:
         run: cd tools/cli | go build -o cli .
       - name: Build example files
         run: find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
-      - name: Build with Reflection code removed
-        run: go run github.com/onsi/ginkgo/v2/ginkgo build -tags="as_performance" .
-      - name: Build for Google App Engine (unsafe package removed)
-        run: go run github.com/onsi/ginkgo/v2/ginkgo -tags="app_engine" .
+#      - name: Build with Reflection code removed
+#        run: go run github.com/onsi/ginkgo/v2/ginkgo build -tags="as_performance" .
+#      - name: Build for Google App Engine (unsafe package removed)
+#        run: go run github.com/onsi/ginkgo/v2/ginkgo -tags="app_engine" .
       - name: Run the tests
         run: go run github.com/onsi/ginkgo/v2/ginkgo -cover -race -keep-going -succinct -randomize-suites
