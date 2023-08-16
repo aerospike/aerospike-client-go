@@ -50,6 +50,9 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 	var illegalDescriptions [][]int
 
 	gg.BeforeEach(func() {
+		if *dbaas {
+			gg.Skip("Not supported in DBAAS environment")
+		}
 
 		for i := 0; i < nEntries; i++ {
 			entries = append(entries, as.StringValue("key "+strconv.Itoa(i)))
