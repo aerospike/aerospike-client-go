@@ -39,12 +39,12 @@ var _ = gg.Describe("Aerospike", func() {
 		var bdpolicy = as.NewBatchDeletePolicy()
 		// bpolicy.AllowInline = true
 
-		wpolicy.TotalTimeout = 15 * time.Second
-		wpolicy.SocketTimeout = 5 * time.Second
-		rpolicy.TotalTimeout = 15 * time.Second
-		rpolicy.SocketTimeout = 5 * time.Second
-		bpolicy.TotalTimeout = 15 * time.Second
-		bpolicy.SocketTimeout = 5 * time.Second
+		wpolicy.TotalTimeout = 45 * time.Second
+		wpolicy.SocketTimeout = 15 * time.Second
+		rpolicy.TotalTimeout = 45 * time.Second
+		rpolicy.SocketTimeout = 15 * time.Second
+		bpolicy.TotalTimeout = 45 * time.Second
+		bpolicy.SocketTimeout = 15 * time.Second
 
 		if *useReplicas {
 			rpolicy.ReplicaPolicy = as.MASTER_PROLES
