@@ -35,7 +35,6 @@ import (
 type ProxyClient struct {
 	// only for GRPC
 	clientPolicy ClientPolicy
-	// TODO: Implement pool
 	grpcConnPool *sync.Pool
 	grpcHost     *Host
 	dialOptions  []grpc.DialOption
@@ -1182,7 +1181,19 @@ func (clnt *ProxyClient) Stats() (map[string]interface{}, Error) {
 // If the count is more than the size of the pool, the pool will be filled.
 // Note: One connection per node is reserved for tend operations and is not used for transactions.
 func (clnt *ProxyClient) WarmUp(count int) (int, Error) {
-	panic("NOT SUPPORTED")
+	if count <= 0 || count > clnt.clientPolicy.ConnectionQueueSize {
+		count = clnt.clientPolicy.ConnectionQueueSize
+	}
+
+	for i := 0; i < count; i++ {
+		conn, err := clnt.createGrpcConn(!clnt.clientPolicy.RequiresAuthentication())
+		if err != nil {
+			return i, err
+		}
+		clnt.returnGrpcConnToPool(conn)
+	}
+
+	return count, nil
 }
 
 //-------------------------------------------------------
