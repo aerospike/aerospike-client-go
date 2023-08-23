@@ -1,5 +1,12 @@
 # Change History
 
+## August 2023: v6.14.0
+
+- **New Features**
+
+  - Adds support for the AerospikeProxy and DBAAS service.
+
+
 ## July 28 2023: v6.13.0
 
 - **New Features**
