@@ -7,7 +7,8 @@ env:
   AEROSPIKE_HOSTS: '127.0.0.1:3000'
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: client_team_runners
     strategy:
       matrix:
         go-version:
