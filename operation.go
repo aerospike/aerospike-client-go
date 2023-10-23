@@ -115,22 +115,11 @@ type Operation struct {
 
 	// will be true ONLY for GetHeader() operation
 	headerOnly bool
-
-	// reused determines if the operation is cached. If so, it will cache the
-	// internal bytes in binValue field and remove the encoder for maximum performance
-	used bool
 }
 
 // size returns the size of the operation on the wire protocol.
 func (op *Operation) size() (int, Error) {
 	size := len(op.binName)
-
-	if op.used {
-		// cahce will set the used flag to false again
-		if err := op.cache(); err != nil {
-			return -1, err
-		}
-	}
 
 	// Simple case
 	if op.encoder == nil {
@@ -160,20 +149,6 @@ func (op *Operation) grpc() *kvs.Operation {
 		BinName: &BinName,
 		Value:   grpcValuePacked(op.binValue),
 	}
-}
-
-// cache uses the encoder and caches the packed operation for further use.
-func (op *Operation) cache() Error {
-	packer := newPacker()
-
-	if _, err := op.encoder(op, packer); err != nil {
-		return err
-	}
-
-	op.binValue = BytesValue(packer.Bytes())
-	op.encoder = nil // do not encode anymore; just use the cache
-	op.used = false  // do not encode anymore; just use the cache
-	return nil
 }
 
 // GetBinOp creates read bin database operation.

@@ -2260,13 +2260,6 @@ func (cmd *baseCommand) writeBatchReadOperations(ops []*Operation, readAttr int)
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], operation.binName)
 
-	if operation.used {
-		// cahce will set the used flag to false again
-		if err := operation.cache(); err != nil {
-			return err
-		}
-	}
-
 	if operation.encoder == nil {
 		valueLength, err := operation.binValue.EstimateSize()
 		if err != nil {
@@ -2295,8 +2288,6 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
 	cmd.WriteByte((byte(nameLength)))
 	cmd.dataOffset += nameLength
 	_, err = operation.encoder(operation, cmd)
-	//mark the operation as used, so that it will be cached the next time it is used
-	operation.used = err == nil
 	return err
 }
 
