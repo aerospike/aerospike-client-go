@@ -315,6 +315,39 @@ var _ = gg.Describe("CDT Map Test", func() {
 
 		})
 
+		gg.It("should create a valid CDT Map and then Switch Policy For Order with Persisted Index", func() {
+
+			cdtMap, err := client.Operate(wpolicy, key,
+				as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, 4, 1),
+				as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, 3, 2),
+				as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, 2, 3),
+				as.MapPutOp(as.DefaultMapPolicy(), cdtBinName, 1, 4),
+
+				as.MapGetByIndexOp(cdtBinName, 2, as.MapReturnType.KEY_VALUE),
+				as.MapGetByIndexRangeCountOp(cdtBinName, 0, 10, as.MapReturnType.KEY_VALUE),
+			)
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(cdtMap.Bins[cdtBinName].([]interface{})[0]).To(gm.Equal(1))
+			gm.Expect(cdtMap.Bins[cdtBinName].([]interface{})[1]).To(gm.Equal(2))
+			gm.Expect(cdtMap.Bins[cdtBinName].([]interface{})[2]).To(gm.Equal(3))
+			gm.Expect(cdtMap.Bins[cdtBinName].([]interface{})[3]).To(gm.Equal(4))
+			gm.Expect(cdtMap.Bins[cdtBinName].([]interface{})[4]).To(gm.Equal([]as.MapPair{{Key: 3, Value: 2}}))
+			gm.Expect(cdtMap.Bins[cdtBinName].([]interface{})[5]).To(gm.ConsistOf([]as.MapPair{{Key: 1, Value: 4}, {Key: 2, Value: 3}, {Key: 3, Value: 2}, {Key: 4, Value: 1}}))
+
+			cdtMap, err = client.Operate(wpolicy, key,
+				as.MapSetPolicyOp(as.NewMapPolicyWithFlagsAndPersistedIndex(as.MapOrder.KEY_ORDERED, as.MapWriteFlagsDefault), cdtBinName),
+
+				as.MapGetByKeyRangeOp(cdtBinName, 3, 5, as.MapReturnType.COUNT),
+				as.MapGetByKeyRangeOp(cdtBinName, -5, 2, as.MapReturnType.KEY_VALUE),
+				as.MapGetByIndexRangeCountOp(cdtBinName, 0, 10, as.MapReturnType.KEY_VALUE),
+			)
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(cdtMap.Bins).To(gm.Equal(as.BinMap{cdtBinName: []interface{}{interface{}(nil), 2, []as.MapPair{{Key: 1, Value: 4}}, []as.MapPair{{Key: 1, Value: 4}, {Key: 2, Value: 3}, {Key: 3, Value: 2}, {Key: 4, Value: 1}}}}))
+
+		})
+
 		gg.It("should create a valid CDT Map and then apply Inc/Dec operations and Get Correct Values", func() {
 
 			items := map[interface{}]interface{}{
