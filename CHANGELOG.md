@@ -1,5 +1,16 @@
 # Change History
 
+## November 1 2023: v6.14.1
+
+  Hotfix.
+
+- **Fixes**
+
+  - [CLIENT-2624] `BatchGetOperate` triggering SIGSEGV nil pointer in the Go client.
+    Caching of the operation is faulty and causes race conditions when used concurrently.
+    This commit removes the caching which included a useless allocation and rarely, if ever, had any practical influence on performance.
+
+
 ## August 2023: v6.14.0
 
 - **New Features**
