@@ -173,7 +173,7 @@ func main() {
 
 	var client as.ClientIfc
 	if *grpc {
-		gclient, err := as.NewProxyClient(clientPolicy, dbHost)
+		gclient, err := as.NewProxyClientWithPolicyAndHost(clientPolicy, dbHost)
 		if err != nil {
 			logger.Fatal(err)
 		}
