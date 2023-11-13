@@ -22,7 +22,7 @@ import (
 )
 
 /*
-	myListInt
+myListInt
 */
 var _ as.ListIter = myListInt([]int{})
 

@@ -22,7 +22,7 @@ import (
 )
 
 /*
-	myListString
+myListString
 */
 var _ as.ListIter = myListString([]string{})
 

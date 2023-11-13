@@ -144,16 +144,16 @@ func (rcs *Recordset) Errors() <-chan Error {
 //
 // Example:
 //
-//  recordset, err := client.ScanAll(nil, namespace, set)
-//  handleError(err)
-//  for res := range recordset.Results() {
-//    if res.Err != nil {
-//      // handle error here
-//    } else {
-//      // process record here
-//      fmt.Println(res.Record.Bins)
-//    }
-//  }
+//	recordset, err := client.ScanAll(nil, namespace, set)
+//	handleError(err)
+//	for res := range recordset.Results() {
+//	  if res.Err != nil {
+//	    // handle error here
+//	  } else {
+//	    // process record here
+//	    fmt.Println(res.Record.Bins)
+//	  }
+//	}
 func (rcs *Recordset) Results() <-chan *Result {
 	return (<-chan *Result)(rcs.records)
 }

@@ -17,23 +17,24 @@ package aerospike
 // MapIter allows to define general maps of your own type to be used in the Go client
 // without the use of reflection.
 // function PackMap should be exactly Like the following (Do not change, just copy/paste and adapt PackXXX methods):
-//  func (cm *CustomMap) PackMap(buf aerospike.BufferEx) (int, error) {
-//  	size := 0
-//  	for k, v := range cm {
-//  		n, err := PackXXX(buf, k)
-//  		size += n
-//  		if err != nil {
-//  			return size, err
-//  		}
 //
-//  		n, err = PackXXX(buf, v)
-//  		size += n
-//  		if err != nil {
-//  			return size, err
-//  		}
-//  	}
-//  	return size, nil
-//  }
+//	func (cm *CustomMap) PackMap(buf aerospike.BufferEx) (int, error) {
+//		size := 0
+//		for k, v := range cm {
+//			n, err := PackXXX(buf, k)
+//			size += n
+//			if err != nil {
+//				return size, err
+//			}
+//
+//			n, err = PackXXX(buf, v)
+//			size += n
+//			if err != nil {
+//				return size, err
+//			}
+//		}
+//		return size, nil
+//	}
 type MapIter interface {
 	PackMap(buf BufferEx) (int, error)
 	Len() int
@@ -42,17 +43,18 @@ type MapIter interface {
 // ListIter allows to define general maps of your own type to be used in the Go client
 // without the use of reflection.
 // function PackList should be exactly Like the following (Do not change, just copy/paste and adapt PackXXX methods):
-//  func (cs *CustomSlice) PackList(buf aerospike.BufferEx) (int, error) {
-//  	size := 0
-//  	for _, elem := range cs {
-//  		n, err := PackXXX(buf, elem)
-//  		size += n
-//  		if err != nil {
-//  			return size, err
-//  		}
-//  	}
-//  	return size, nil
-//  }
+//
+//	func (cs *CustomSlice) PackList(buf aerospike.BufferEx) (int, error) {
+//		size := 0
+//		for _, elem := range cs {
+//			n, err := PackXXX(buf, elem)
+//			size += n
+//			if err != nil {
+//				return size, err
+//			}
+//		}
+//		return size, nil
+//	}
 type ListIter interface {
 	PackList(buf BufferEx) (int, error)
 	Len() int
