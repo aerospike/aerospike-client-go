@@ -265,6 +265,23 @@ func NewMapPolicyWithFlags(order mapOrderType, flags int) *MapPolicy {
 	}
 }
 
+// NewMapPolicyWithFlagsAndPersistedIndex creates a MapPolicy with WriteFlags that persists
+// the map index. A map index improves lookup performance, but requires more storage. A map
+// index can be created for a top-level ordered map only. Nested and unordered map indexes
+// are not supported.
+// Use with servers v7+.
+// Flags are MapWriteFlags. You can specify multiple flags by 'or'ing them together.
+func NewMapPolicyWithFlagsAndPersistedIndex(order mapOrderType, flags int) *MapPolicy {
+	// set the persistIndex flag
+	order.attr |= 0x10
+	return &MapPolicy{
+		attributes:   order,
+		flags:        flags,
+		itemCommand:  MapWriteMode.UPDATE.itemCommand,
+		itemsCommand: MapWriteMode.UPDATE.itemsCommand,
+	}
+}
+
 // DefaultMapPolicy returns the default map policy
 func DefaultMapPolicy() *MapPolicy {
 	return NewMapPolicy(MapOrder.UNORDERED, MapWriteMode.UPDATE)
@@ -275,6 +292,11 @@ func newMapSetPolicyEncoder(op *Operation, packer BufferEx) (int, Error) {
 }
 
 func newMapSetPolicy(binName string, attributes mapOrderType, ctx []*CDTContext) *Operation {
+	// Remove persistIndex flag for nested maps.
+	if len(ctx) > 0 && (attributes.attr&0x10) != 0 {
+		attributes.attr &= ^0x10
+	}
+
 	return &Operation{
 		opType:   _MAP_MODIFY,
 		binName:  binName,
@@ -305,6 +327,18 @@ func MapCreateOp(binName string, order mapOrderType, ctx []*CDTContext) *Operati
 		ctx:      ctx,
 		encoder:  cdtCreateOpEncoder,
 	}
+}
+
+// MapCreateWithIndexOp creates a map create operation that persists its index.
+// Server creates map at given context level.
+// A map index improves lookup performance but requires more storage.
+// A map index can be created for a top-level ordered map only.
+// Nested and unordered map indexes are not supported.
+func MapCreateWithIndexOp(binName string, order mapOrderType) *Operation {
+	// If context not defined, the set order for top-level bin map.
+	// set index persistence flag
+	order.attr |= 0x10
+	return MapSetPolicyOp(NewMapPolicyWithFlags(order, 0), binName)
 }
 
 // MapSetPolicyOp creates set map policy operation.
