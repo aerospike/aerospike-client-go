@@ -23,7 +23,7 @@ import (
 )
 
 /*
-	myListTime
+myListTime
 */
 var _ as.ListIter = myListTime([]time.Time{})
 

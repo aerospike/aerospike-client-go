@@ -152,11 +152,11 @@ func ExpBitXor(
 // ExpBitAnd creates an expression that performs bitwise "and" on value and []byte bin at bitOffset for bitSize
 // and returns []byte.
 //
-//  bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
-//  bitOffset = 23
-//  bitSize = 9
-//  value = [0b00111100, 0b10000000]
-//  bin result = [0b00000001, 0b01000010, 0b00000010, 0b00000000, 0b00000101]
+//	bin = [0b00000001, 0b01000010, 0b00000011, 0b00000100, 0b00000101]
+//	bitOffset = 23
+//	bitSize = 9
+//	value = [0b00111100, 0b10000000]
+//	bin result = [0b00000001, 0b01000010, 0b00000010, 0b00000000, 0b00000101]
 func ExpBitAnd(
 	policy *BitPolicy,
 	bitOffset *Expression,

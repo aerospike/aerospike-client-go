@@ -23,7 +23,7 @@ import (
 )
 
 /*
-	myMapStringTime
+myMapStringTime
 */
 var _ as.MapIter = myMapStringTime(map[string]time.Time{})
 
