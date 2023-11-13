@@ -22,7 +22,7 @@ import (
 )
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
-var _ = gg.Describe("Query operations on complex types", func() {
+var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 
 	// connection data
 	var ns = *namespace
@@ -32,14 +32,14 @@ var _ = gg.Describe("Query operations on complex types", func() {
 
 	const keyCount = 1000
 
-	valueList := []interface{}{1, 2, 3, "a", "ab", "abc"}
-	valueMap := map[interface{}]interface{}{"a": "b", 0: 1, 1: "a", "b": 2}
+	valueList := []interface{}{1, 2, 3, "a", "ab", "abc", []byte{1}, []byte{2, 3}, []byte{1, 3, 5}}
+	valueMap := map[interface{}]interface{}{"a": "b", 0: 1, 1: "a", "b": 2, 6: []byte{1, 2, 3}}
 
 	bin1 := as.NewBin("List", valueList)
 	bin2 := as.NewBin("Map", valueMap)
 	var keys map[string]*as.Key
 
-	gg.BeforeEach(func() {
+	gg.BeforeAll(func() {
 		if *dbaas {
 			gg.Skip("Not supported in DBAAS environment")
 		}
@@ -56,121 +56,155 @@ var _ = gg.Describe("Query operations on complex types", func() {
 		}
 
 		// queries only work on indices
-		createComplexIndex(wpolicy, ns, set, set+bin1.Name, bin1.Name, as.NUMERIC, as.ICT_LIST)
+		createComplexIndex(wpolicy, ns, set, set+bin1.Name+"N", bin1.Name, as.NUMERIC, as.ICT_LIST)
 		// queries only work on indices
-		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"keys", bin2.Name, as.NUMERIC, as.ICT_MAPKEYS)
+		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"N"+"keys", bin2.Name, as.NUMERIC, as.ICT_MAPKEYS)
 		// queries only work on indices
-		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"values", bin2.Name, as.NUMERIC, as.ICT_MAPVALUES)
+		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"N"+"values", bin2.Name, as.NUMERIC, as.ICT_MAPVALUES)
+
+		// queries only work on indices
+		createComplexIndex(wpolicy, ns, set, set+bin1.Name+"S", bin1.Name, as.STRING, as.ICT_LIST)
+		// queries only work on indices
+		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"S"+"keys", bin2.Name, as.STRING, as.ICT_MAPKEYS)
+		// queries only work on indices
+		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"S"+"values", bin2.Name, as.STRING, as.ICT_MAPVALUES)
+
+		// queries only work on indices
+		createComplexIndex(wpolicy, ns, set, set+bin1.Name+"B", bin1.Name, as.BLOB, as.ICT_LIST)
+		// queries only work on indices
+		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"B"+"keys", bin2.Name, as.BLOB, as.ICT_MAPKEYS)
+		// queries only work on indices
+		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"B"+"values", bin2.Name, as.BLOB, as.ICT_MAPVALUES)
 	})
 
-	gg.AfterEach(func() {
+	gg.AfterAll(func() {
 		if *dbaas {
 			gg.Skip("Not supported in DBAAS environment")
 		}
 
-		dropIndex(nil, ns, set, set+bin1.Name)
-		dropIndex(nil, ns, set, set+bin2.Name+"keys")
-		dropIndex(nil, ns, set, set+bin2.Name+"values")
+		dropIndex(nil, ns, set, set+bin1.Name+"N")
+		dropIndex(nil, ns, set, set+bin2.Name+"N"+"keys")
+		dropIndex(nil, ns, set, set+bin2.Name+"N"+"values")
+
+		dropIndex(nil, ns, set, set+bin1.Name+"S")
+		dropIndex(nil, ns, set, set+bin2.Name+"S"+"keys")
+		dropIndex(nil, ns, set, set+bin2.Name+"S"+"values")
+
+		dropIndex(nil, ns, set, set+bin1.Name+"B")
+		dropIndex(nil, ns, set, set+bin2.Name+"B"+"keys")
+		dropIndex(nil, ns, set, set+bin2.Name+"B"+"values")
 	})
 
 	var queryPolicy = as.NewQueryPolicy()
 
 	gg.It("must Query a specific element in list and get only relevant records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 1))
-		recordset, err := client.Query(queryPolicy, stm)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		for _, v := range []interface{}{1, "a", []byte{1, 3, 5}} {
+			stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, v))
+			recordset, err := client.Query(queryPolicy, stm)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cnt := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
-			cnt++
-			_, exists := keys[string(rec.Key.Digest())]
-			gm.Expect(exists).To(gm.Equal(true))
+			cnt := 0
+			for res := range recordset.Results() {
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				rec := res.Record
+				cnt++
+				_, exists := keys[string(rec.Key.Digest())]
+				gm.Expect(exists).To(gm.Equal(true))
+			}
+
+			gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
 		}
-
-		gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
 	})
 
 	gg.It("must Query a specific non-existig element in list and get no records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 10))
-		recordset, err := client.Query(queryPolicy, stm)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		for _, v := range []interface{}{-1, "aaaa", []byte{0, 1, 255}} {
+			stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, v))
+			recordset, err := client.Query(queryPolicy, stm)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cnt := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			cnt++
+			cnt := 0
+			for res := range recordset.Results() {
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				cnt++
+			}
+
+			gm.Expect(cnt).To(gm.BeNumerically("==", 0))
 		}
-
-		gm.Expect(cnt).To(gm.BeNumerically("==", 0))
 	})
 
 	gg.It("must Query a key in map and get only relevant records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 0))
-		recordset, err := client.Query(queryPolicy, stm)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		for _, v := range []interface{}{1, "a"} {
+			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, v))
+			recordset, err := client.Query(queryPolicy, stm)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cnt := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
-			cnt++
-			_, exists := keys[string(rec.Key.Digest())]
-			gm.Expect(exists).To(gm.Equal(true))
+			cnt := 0
+			for res := range recordset.Results() {
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				rec := res.Record
+				cnt++
+				_, exists := keys[string(rec.Key.Digest())]
+				gm.Expect(exists).To(gm.Equal(true))
+			}
+
+			gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
 		}
-
-		gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
 	})
 
 	gg.It("must Query a specific non-existig key in map and get no records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, 10))
-		recordset, err := client.Query(queryPolicy, stm)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		for _, v := range []interface{}{-1, "aaaa", []byte{255, 245, 5}} {
+			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, v))
+			recordset, err := client.Query(queryPolicy, stm)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cnt := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			cnt++
+			cnt := 0
+			for res := range recordset.Results() {
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				cnt++
+			}
+
+			gm.Expect(cnt).To(gm.BeNumerically("==", 0))
 		}
-
-		gm.Expect(cnt).To(gm.BeNumerically("==", 0))
 	})
 
 	gg.It("must Query a value in map and get only relevant records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 1))
-		recordset, err := client.Query(queryPolicy, stm)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		for _, v := range []interface{}{1, "a", []byte{1, 2, 3}} {
+			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, v))
+			recordset, err := client.Query(queryPolicy, stm)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cnt := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
-			cnt++
-			_, exists := keys[string(rec.Key.Digest())]
-			gm.Expect(exists).To(gm.Equal(true))
+			cnt := 0
+			for res := range recordset.Results() {
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				rec := res.Record
+				cnt++
+				_, exists := keys[string(rec.Key.Digest())]
+				gm.Expect(exists).To(gm.Equal(true))
+			}
+
+			gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
 		}
-
-		gm.Expect(cnt).To(gm.BeNumerically("==", keyCount))
 	})
 
 	gg.It("must Query a specific non-existig value in map and get no records back", func() {
 		stm := as.NewStatement(ns, set)
-		stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, 10))
-		recordset, err := client.Query(queryPolicy, stm)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		for _, v := range []interface{}{-1, "aaaa", []byte{255, 255, 5}} {
+			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, v))
+			recordset, err := client.Query(queryPolicy, stm)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cnt := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			cnt++
+			cnt := 0
+			for res := range recordset.Results() {
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				cnt++
+			}
+
+			gm.Expect(cnt).To(gm.BeNumerically("==", 0))
 		}
-
-		gm.Expect(cnt).To(gm.BeNumerically("==", 0))
 	})
 })

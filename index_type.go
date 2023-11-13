@@ -24,6 +24,9 @@ const (
 	// STRING specifies an index on string values.
 	STRING IndexType = "STRING"
 
+	// BLOB specifies a []byte index. Requires server version 7.0+.
+	BLOB IndexType = "BLOB"
+
 	// GEO2DSPHERE specifies 2-dimensional spherical geospatial index.
 	GEO2DSPHERE IndexType = "GEO2DSPHERE"
 )
