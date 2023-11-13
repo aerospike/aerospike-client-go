@@ -507,6 +507,18 @@ var _ = gg.Describe("Expression Filters", func() {
 
 		var _ = gg.Context("Record Ops", func() {
 
+			gg.It("ExpRecordSize must work", func() {
+				// storage-engine could be memory for which deviceSize() returns zero.
+				// This just tests that the expression was sent correctly
+				// because all device sizes are effectively allowed.
+				rs := runQuery(
+					as.ExpGreaterEq(as.ExpRecordSize(), as.ExpIntVal(0)),
+					set,
+				)
+				count := countResults(rs)
+				gm.Expect(count).To(gm.Equal(100))
+			})
+
 			gg.It("ExpDeviceSize must work", func() {
 				// storage-engine could be memory for which deviceSize() returns zero.
 				// This just tests that the expression was sent correctly

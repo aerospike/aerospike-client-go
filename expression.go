@@ -104,6 +104,7 @@ var (
 	expOpKEY_EXISTS    expOp = 71
 	expOpIS_TOMBSTONE  expOp = 72
 	expOpMEMORY_SIZE   expOp = 73
+	expOpRECORD_SIZE   expOp = 74
 	expOpKEY           expOp = 80
 	expOpBIN           expOp = 81
 	expOpBIN_TYPE      expOp = 82
@@ -673,8 +674,20 @@ func ExpSetName() *Expression {
 	return newFilterExpression(&expOpSET_NAME, nil, nil, nil, nil, nil)
 }
 
+// ExpRecordSize creates an expression that returns the record size.
+// This expression usually evaluates quickly because record meta data is cached in memory.
+//
+// Requires server version 7.0+. This expression replaces ExpDeviceSize() and
+// ExpMemorySize() since those older expressions are equivalent on server version 7.0+.
+func ExpRecordSize() *Expression {
+	return newFilterExpression(&expOpRECORD_SIZE, nil, nil, nil, nil, nil)
+}
+
 // ExpDeviceSize creates a function that returns record size on disk.
 // If server storage-engine is memory, then zero is returned.
+//
+// This expression should only be used for server versions less than 7.0. Use
+// ExpRecordSize() for server version 7.0+.
 func ExpDeviceSize() *Expression {
 	return newFilterExpression(&expOpDEVICE_SIZE, nil, nil, nil, nil, nil)
 }
@@ -682,6 +695,9 @@ func ExpDeviceSize() *Expression {
 // ExpMemorySize creates expression that returns record size in memory. If server storage-engine is
 // not memory nor data-in-memory, then zero is returned. This expression usually evaluates
 // quickly because record meta data is cached in memory.
+//
+// Requires server version between 5.3 inclusive and 7.0 exclusive.
+// Use ExpRecordSize() for server version 7.0+.
 func ExpMemorySize() *Expression {
 	return newFilterExpression(&expOpMEMORY_SIZE, nil, nil, nil, nil, nil)
 }
