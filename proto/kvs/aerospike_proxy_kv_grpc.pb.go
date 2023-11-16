@@ -97,7 +97,7 @@ var About_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "kv.proto",
+	Metadata: "proto/kvs/aerospike_proxy_kv.proto",
 }
 
 // KVSClient is the client API for KVS service.
@@ -1147,7 +1147,7 @@ var KVS_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "kv.proto",
+	Metadata: "proto/kvs/aerospike_proxy_kv.proto",
 }
 
 // ScanClient is the client API for Scan service.
@@ -1332,7 +1332,7 @@ var Scan_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "kv.proto",
+	Metadata: "proto/kvs/aerospike_proxy_kv.proto",
 }
 
 // QueryClient is the client API for Query service.
@@ -1787,5 +1787,5 @@ var Query_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "kv.proto",
+	Metadata: "proto/kvs/aerospike_proxy_kv.proto",
 }
