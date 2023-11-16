@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = ".;auth";
+option go_package = "github.com/aerospike/aerospike-client-go/v6/proto/auth;auth";
 option java_package = "com.aerospike.proxy.client";
 
 // Proxy auth service
