@@ -137,7 +137,7 @@ func (interceptor *authInterceptor) login() Error {
 	}
 
 	claims := strings.Split(res.Token, ".")
-	decClaims, gerr := base64.RawStdEncoding.DecodeString(claims[1])
+	decClaims, gerr := base64.RawURLEncoding.DecodeString(claims[1])
 	if err != nil {
 		return newGrpcError(err, "Invalid token encoding. Expected base64.")
 	}
