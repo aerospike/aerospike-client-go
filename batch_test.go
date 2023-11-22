@@ -121,7 +121,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 				key1, _ := as.NewKey(ns, set, 1)
 				op1 := as.NewBatchWrite(nil, key1, as.PutOp(as.NewBin("bin1", "a")), as.PutOp(as.NewBin("bin2", "b")))
-				op3 := as.NewBatchRead(key1, []string{"bin2"})
+				op3 := as.NewBatchRead(nil, key1, []string{"bin2"})
 
 				key2, _ := as.NewKey(ns, set, 2)
 				op5 := as.NewBatchWrite(nil, key2, as.PutOp(as.NewBin("bin1", "a")))
@@ -175,7 +175,7 @@ var _ = gg.Describe("Aerospike", func() {
 					key1, _ := as.NewKey(ns, set, 1)
 					op1 := as.NewBatchWrite(bwPolicy, key1, as.PutOp(as.NewBin("bin1", "a")), as.PutOp(as.NewBin("bin2", "b")))
 					op2 := as.NewBatchDelete(bdPolicy, key1)
-					op3 := as.NewBatchRead(key1, []string{"bin2"})
+					op3 := as.NewBatchRead(nil, key1, []string{"bin2"})
 
 					brecs := []as.BatchRecordIfc{op1, op2, op3}
 					err := client.BatchOperate(bpolicy, brecs)
@@ -246,7 +246,7 @@ var _ = gg.Describe("Aerospike", func() {
 				var batchRecords []as.BatchRecordIfc
 				for i := 0; i < 20000; i++ {
 					key, _ := as.NewKey(*namespace, set, i)
-					batchRecords = append(batchRecords, as.NewBatchReadHeader(key))
+					batchRecords = append(batchRecords, as.NewBatchReadHeader(nil, key))
 				}
 				bp := as.NewBatchPolicy()
 				bp.RespondAllKeys = true
@@ -265,7 +265,7 @@ var _ = gg.Describe("Aerospike", func() {
 				var batchRecords []as.BatchRecordIfc
 				for i := 0; i < len(nativeClient.Cluster().GetNodes())*5500; i++ {
 					key, _ := as.NewKey(*namespace, set, i)
-					batchRecords = append(batchRecords, as.NewBatchReadHeader(key))
+					batchRecords = append(batchRecords, as.NewBatchReadHeader(nil, key))
 				}
 
 				err := client.BatchOperate(nil, batchRecords)
@@ -332,7 +332,7 @@ var _ = gg.Describe("Aerospike", func() {
 				for i, key := range keys {
 					op1 := as.NewBatchWrite(nil, key, as.PutOp(as.NewBin("bin1", "a")))
 					op2 := as.NewBatchWrite(nil, key, as.PutOp(as.NewBin("bin2", "b")))
-					op3 := as.NewBatchRead(key, []string{"bin2"})
+					op3 := as.NewBatchRead(nil, key, []string{"bin2"})
 
 					bpolicy.FilterExpression = as.ExpLess(
 						as.ExpIntBin("i"),
@@ -406,16 +406,19 @@ var _ = gg.Describe("Aerospike", func() {
 				))
 
 				batchRecords = append(batchRecords, as.NewBatchRead(
+					nil,
 					key1,
 					[]string{"bin1_str"},
 				))
 
 				batchRecords = append(batchRecords, as.NewBatchRead(
+					nil,
 					key2,
 					[]string{"bin1_str"},
 				))
 
 				batchRecords = append(batchRecords, as.NewBatchRead(
+					nil,
 					key3,
 					[]string{"bin1_str"},
 				))

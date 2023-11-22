@@ -510,7 +510,7 @@ func (clnt *ProxyClient) Exists(policy *BasePolicy, key *Key) (bool, Error) {
 func (clnt *ProxyClient) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, Error) {
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	for _, key := range keys {
-		batchRecordsIfc = append(batchRecordsIfc, NewBatchReadHeader(key))
+		batchRecordsIfc = append(batchRecordsIfc, NewBatchReadHeader(nil, key))
 	}
 
 	err := clnt.BatchOperate(policy, batchRecordsIfc)
@@ -577,7 +577,7 @@ func (clnt *ProxyClient) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	batchRecords := make([]*BatchRecord, 0, len(keys))
 	for _, key := range keys {
-		batchRead, batchRecord := newBatchRead(key, binNames)
+		batchRead, batchRecord := newBatchRead(nil, key, binNames)
 		batchRecordsIfc = append(batchRecordsIfc, batchRead)
 		batchRecords = append(batchRecords, batchRecord)
 	}
@@ -604,7 +604,7 @@ func (clnt *ProxyClient) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops .
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	batchRecords := make([]*BatchRecord, 0, len(keys))
 	for _, key := range keys {
-		batchRead, batchRecord := newBatchReadOps(key, ops)
+		batchRead, batchRecord := newBatchReadOps(nil, key, ops)
 		batchRecordsIfc = append(batchRecordsIfc, batchRead)
 		batchRecords = append(batchRecords, batchRecord)
 	}
@@ -650,7 +650,7 @@ func (clnt *ProxyClient) BatchGetComplex(policy *BatchPolicy, records []*BatchRe
 func (clnt *ProxyClient) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record, Error) {
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	for _, key := range keys {
-		batchRecordsIfc = append(batchRecordsIfc, NewBatchReadHeader(key))
+		batchRecordsIfc = append(batchRecordsIfc, NewBatchReadHeader(nil, key))
 	}
 
 	filteredOut, err := clnt.batchOperate(policy, batchRecordsIfc)

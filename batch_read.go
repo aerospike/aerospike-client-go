@@ -46,19 +46,20 @@ type BatchRead struct {
 }
 
 // NewBatchRead defines a key and bins to retrieve in a batch operation.
-func NewBatchRead(key *Key, binNames []string) *BatchRead {
-	// TODO: Add policy to this API signature
+func NewBatchRead(policy *BatchReadPolicy, key *Key, binNames []string) *BatchRead {
 	return &BatchRead{
 		BatchRecord: *newSimpleBatchRecord(key, false),
+		Policy:      policy,
 		BinNames:    binNames,
 		ReadAllBins: len(binNames) == 0,
 	}
 }
 
-// NewBatchRead defines a key and bins to retrieve in a batch operation.
-func newBatchRead(key *Key, binNames []string) (*BatchRead, *BatchRecord) {
+// newBatchRead defines a key and bins to retrieve in a batch operation.
+func newBatchRead(policy *BatchReadPolicy, key *Key, binNames []string) (*BatchRead, *BatchRecord) {
 	res := &BatchRead{
 		BatchRecord: *newSimpleBatchRecord(key, false),
+		Policy:      policy,
 		BinNames:    binNames,
 		ReadAllBins: len(binNames) == 0,
 	}
@@ -67,32 +68,22 @@ func newBatchRead(key *Key, binNames []string) (*BatchRead, *BatchRecord) {
 }
 
 // NewBatchReadOps defines a key and bins to retrieve in a batch operation, including expressions.
-func NewBatchReadOps(key *Key, binNames []string, ops []*Operation) *BatchRead {
-	// TODO: Add policy to this API signature and remove binNames,
-	// since binNames is mutually exclusive with ops parameter.
-	if len(binNames) > 0 && len(ops) > 0 {
-		panic("binNames and ops are mutually exclusive and only one can be used")
-	}
-
+func NewBatchReadOps(policy *BatchReadPolicy, key *Key, ops []*Operation) *BatchRead {
 	res := &BatchRead{
 		BatchRecord: *newSimpleBatchRecord(key, false),
-		BinNames:    binNames,
+		Policy:      policy,
 		Ops:         ops,
-	}
-
-	if len(binNames) == 0 {
-		res.ReadAllBins = true
 	}
 
 	return res
 }
 
 // NewBatchReadOps defines a key and bins to retrieve in a batch operation, including expressions.
-func newBatchReadOps(key *Key, ops []*Operation) (*BatchRead, *BatchRecord) {
-	// TODO: Add policy to this API signature and remove binNames,
+func newBatchReadOps(policy *BatchReadPolicy, key *Key, ops []*Operation) (*BatchRead, *BatchRecord) {
 	// since binNames is mutually exclusive with ops parameter.
 	res := &BatchRead{
 		BatchRecord: *newSimpleBatchRecord(key, false),
+		Policy:      policy,
 		Ops:         ops,
 	}
 
@@ -102,10 +93,10 @@ func newBatchReadOps(key *Key, ops []*Operation) (*BatchRead, *BatchRecord) {
 }
 
 // NewBatchReadHeader defines a key to retrieve the record headers only in a batch operation.
-func NewBatchReadHeader(key *Key) *BatchRead {
-	// TODO: Add policy to this API signature.
+func NewBatchReadHeader(policy *BatchReadPolicy, key *Key) *BatchRead {
 	return &BatchRead{
 		BatchRecord: *newSimpleBatchRecord(key, false),
+		Policy:      policy,
 		ReadAllBins: false,
 	}
 }

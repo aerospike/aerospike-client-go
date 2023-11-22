@@ -111,7 +111,7 @@ func (clnt *ProxyClient) BatchGetObjects(policy *BatchPolicy, keys []*Key, objec
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	batchRecords := make([]*BatchRecord, 0, len(keys))
 	for _, key := range keys {
-		batchRead, batchRecord := newBatchRead(key, binNames)
+		batchRead, batchRecord := newBatchRead(nil, key, binNames)
 		batchRecordsIfc = append(batchRecordsIfc, batchRead)
 		batchRecords = append(batchRecords, batchRecord)
 	}
