@@ -14,8 +14,6 @@
 
 package aerospike
 
-import "strings"
-
 // DropIndexTask is used to poll for long running create index completion.
 type DropIndexTask struct {
 	*baseTask
@@ -35,7 +33,7 @@ func NewDropIndexTask(cluster *Cluster, namespace string, indexName string) *Dro
 
 // IsDone queries all nodes for task completion status.
 func (tski *DropIndexTask) IsDone() (bool, Error) {
-	command := "sindex/" + tski.namespace + "/" + tski.indexName
+	command := "sindex-exists:ns=" + tski.namespace + ";indexname=" + tski.indexName
 	nodes := tski.cluster.GetNodes()
 	complete := false
 
@@ -46,7 +44,7 @@ func (tski *DropIndexTask) IsDone() (bool, Error) {
 		}
 
 		for _, response := range responseMap {
-			if strings.Contains(response, "FAIL:201") || strings.Contains(response, "ERROR:201") {
+			if response == "false" {
 				complete = true
 				continue
 			}
