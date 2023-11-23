@@ -755,9 +755,15 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 	cmd.begin()
 	fieldCount := 1
 	predSize := 0
-	if policy.FilterExpression != nil {
+
+	exp := policy.FilterExpression
+	if attr.filterExp != nil {
+		exp = attr.filterExp
+	}
+
+	if exp != nil {
 		var err Error
-		predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
+		predSize, err = cmd.estimateExpressionSize(exp)
 		if err != nil {
 			return err
 		}
@@ -826,7 +832,7 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 	cmd.writeBatchHeader(policy, fieldCount)
 
 	if policy.FilterExpression != nil {
-		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
+		if err := cmd.writeFilterExpression(exp, predSize); err != nil {
 			return err
 		}
 	}

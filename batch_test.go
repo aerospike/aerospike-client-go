@@ -111,6 +111,52 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(keyExists).To(gm.BeFalse())
 				}
 			})
+
+			gg.It("must return prioritize BatchDeletePolicy over BatchPolicy", func() {
+				set := randString(10)
+
+				var keys []*as.Key
+				for i := 0; i < 5; i++ {
+					key, _ := as.NewKey(ns, set, i)
+					if i == 0 {
+						keys = append(keys, key)
+					}
+					bin0 := as.NewBin("count", i)
+					err := client.PutBins(nil, key, bin0)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+				}
+
+				bdp := as.NewBatchDeletePolicy()
+				bdp.FilterExpression = as.ExpEq(
+					as.ExpIntBin("count"),
+					as.ExpIntVal(0))
+
+				bp := as.NewBatchPolicy()
+				bp.FilterExpression = as.ExpEq(
+					as.ExpIntBin("count"),
+					as.ExpIntVal(999))
+				records, err := client.BatchDelete(bp, bdp, keys)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(len(records)).To(gm.BeNumerically(">", 0))
+
+				for _, br := range records {
+					bri := br.BatchRec()
+					gm.Expect(bri.ResultCode).To(gm.Equal(types.ResultCode(0)))
+					gm.Expect(bri.Record).NotTo(gm.BeNil())
+				}
+
+				// scanning
+				rs, err := client.ScanAll(nil, ns, set)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				cnt := 0
+				for res := range rs.Results() {
+					gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+					gm.Expect(res.Record.Bins["count"]).ToNot(gm.Equal(0))
+					cnt++
+				}
+				gm.Expect(cnt).To(gm.Equal(4))
+			})
 		})
 
 		gg.Context("BatchOperate operations", func() {
