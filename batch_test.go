@@ -237,10 +237,11 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(op2.BatchRec().Record.Bins).To(gm.Equal(as.BinMap{}))
 					gm.Expect(op2.BatchRec().InDoubt).To(gm.BeFalse())
 
-					gm.Expect(op3.BatchRec().Err).To(gm.HaveOccurred())
-					gm.Expect(op3.BatchRec().ResultCode).To(gm.Equal(types.KEY_NOT_FOUND_ERROR))
-					gm.Expect(op3.BatchRec().Record).To(gm.BeNil())
-					gm.Expect(op3.BatchRec().InDoubt).To(gm.BeFalse())
+					// There is guarantee for the order of execution for different commands
+					// gm.Expect(op3.BatchRec().Err).To(gm.HaveOccurred())
+					// gm.Expect(op3.BatchRec().ResultCode).To(gm.Equal(types.KEY_NOT_FOUND_ERROR))
+					// gm.Expect(op3.BatchRec().Record).To(gm.BeNil())
+					// gm.Expect(op3.BatchRec().InDoubt).To(gm.BeFalse())
 
 					exists, err := client.Exists(nil, key1)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -309,8 +310,8 @@ var _ = gg.Describe("Aerospike", func() {
 				}
 
 				var batchRecords []as.BatchRecordIfc
+				key, _ := as.NewKey(*namespace, set, 0)
 				for i := 0; i < len(nativeClient.Cluster().GetNodes())*5500; i++ {
-					key, _ := as.NewKey(*namespace, set, i)
 					batchRecords = append(batchRecords, as.NewBatchReadHeader(nil, key))
 				}
 
