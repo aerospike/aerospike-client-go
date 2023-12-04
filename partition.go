@@ -45,6 +45,15 @@ func NewPartition(partitions *Partitions, key *Key, replica ReplicaPolicy, prevN
 	}
 }
 
+// NewPartitionForReplicaPolicy returns a partition for the stated replica policy
+func NewPartitionForReplicaPolicy(namespace string, replica ReplicaPolicy) *Partition {
+	return &Partition{
+		Namespace: namespace,
+		replica:   replica,
+		linearize: false,
+	}
+}
+
 // PartitionForWrite returns a partition for write purposes
 func PartitionForWrite(cluster *Cluster, policy *BasePolicy, key *Key) (*Partition, Error) {
 	// Must copy hashmap reference for copy on write semantics to work.
@@ -187,6 +196,24 @@ func (ptn *Partition) GetNodeWrite(cluster *Cluster) (*Node, Error) {
 	case RANDOM:
 		return ptn.getMasterNode(cluster)
 	}
+}
+
+func (ptn *Partition) GetNodeQuery(cluster *Cluster, partitions *Partitions, ps *PartitionStatus) (*Node, Error) {
+	ptn.partitions = partitions
+	ptn.PartitionId = ps.Id
+	ptn.sequence = ps.sequence
+	ptn.prevNode = ps.node
+
+	node, err := ptn.GetNodeRead(cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	ps.node = node
+	ps.sequence = ptn.sequence
+	ps.Retry = false
+
+	return node, nil
 }
 
 // PrepareRetryRead increases sequence number before read retries

@@ -98,6 +98,7 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 	var queryPolicy = as.NewQueryPolicy()
 
 	gg.It("must Query a specific element in list and get only relevant records back", func() {
+		// Only supported by server v7+
 		stm := as.NewStatement(ns, set)
 		for _, v := range []interface{}{1, "a", []byte{1, 3, 5}} {
 			stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, v))

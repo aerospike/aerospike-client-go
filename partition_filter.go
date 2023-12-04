@@ -29,12 +29,13 @@ import (
 // future scan/query using the same PartitionFilter instance will only return new records added
 // after the last record read (in digest order) in each partition in the previous scan/query.
 type PartitionFilter struct {
-	begin  int
-	count  int
-	digest []byte
-	// partitions encapsulates the cursor for the progress of the scan/query to be used for pagination.
-	partitions []*partitionStatus
-	done       bool
+	Begin  int
+	Count  int
+	Digest []byte
+	// Partitions encapsulates the cursor for the progress of the scan/query to be used for pagination.
+	Partitions []*PartitionStatus
+	Done       bool
+	retry      bool
 }
 
 // NewPartitionFilterAll creates a partition filter that
@@ -61,17 +62,17 @@ func NewPartitionFilterByRange(begin, count int) *PartitionFilter {
 // Note that digest order is not the same as userKey order. This method
 // only works for scan or query with nil filter.
 func NewPartitionFilterByKey(key *Key) *PartitionFilter {
-	return &PartitionFilter{begin: key.PartitionId(), count: 1, digest: key.Digest()}
+	return &PartitionFilter{Begin: key.PartitionId(), Count: 1, Digest: key.Digest()}
 }
 
 func newPartitionFilter(begin, count int) *PartitionFilter {
-	return &PartitionFilter{begin: begin, count: count}
+	return &PartitionFilter{Begin: begin, Count: count}
 }
 
 // IsDone returns - if using ScanPolicy.MaxRecords or QueryPolicy,MaxRecords -
 // if the previous paginated scans with this partition filter instance return all records?
 func (pf *PartitionFilter) IsDone() bool {
-	return pf.done
+	return pf.Done
 }
 
 // EncodeCursor encodes and returns the cursor for the partition filter.
@@ -79,7 +80,7 @@ func (pf *PartitionFilter) IsDone() bool {
 func (pf *PartitionFilter) EncodeCursor() ([]byte, Error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(pf.partitions)
+	err := enc.Encode(pf.Partitions)
 	if err != nil {
 		return nil, newError(types.PARAMETER_ERROR, err.Error())
 	}
@@ -92,26 +93,26 @@ func (pf *PartitionFilter) DecodeCursor(b []byte) Error {
 	buf := bytes.NewBuffer(b)
 	dec := gob.NewDecoder(buf)
 
-	var parts []*partitionStatus
+	var parts []*PartitionStatus
 	if err := dec.Decode(&parts); err != nil {
 		return newError(types.PARSE_ERROR, err.Error())
 	}
 
-	pf.partitions = parts
+	pf.Partitions = parts
 	return nil
 }
 
 func (pf *PartitionFilter) grpc() *kvs.PartitionFilter {
-	begin := uint32(pf.begin)
-	ps := make([]*kvs.PartitionStatus, len(pf.partitions))
-	for i := range pf.partitions {
-		ps[i] = pf.partitions[i].grpc()
+	begin := uint32(pf.Begin)
+	ps := make([]*kvs.PartitionStatus, len(pf.Partitions))
+	for i := range pf.Partitions {
+		ps[i] = pf.Partitions[i].grpc()
 	}
 
 	return &kvs.PartitionFilter{
 		Begin:             &begin,
-		Count:             uint32(pf.count),
-		Digest:            pf.digest,
+		Count:             uint32(pf.Count),
+		Digest:            pf.Digest,
 		PartitionStatuses: ps,
 		Retry:             true,
 	}

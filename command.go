@@ -2095,7 +2095,7 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, readAttr, writ
 	cmd.dataOffset = 14
 	cmd.WriteUint32(generation)
 	cmd.WriteUint32(policy.Expiration)
-	cmd.WriteInt32(0) // TODO: Server timeout
+	cmd.WriteInt32(0) // timeout
 	cmd.WriteInt16(int16(fieldCount))
 	cmd.WriteInt16(int16(operationCount))
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
@@ -2103,7 +2103,6 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, readAttr, writ
 
 // Header write for read commands.
 func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, infoAttr, fieldCount, operationCount int) {
-	// TODO: timeout argument
 	switch policy.ReadModeSC {
 	case ReadModeSCSession:
 	case ReadModeSCLinearize:
@@ -2132,8 +2131,7 @@ func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, infoAttr, 
 		cmd.dataBuffer[i] = 0
 	}
 	cmd.dataOffset = 22
-	// cmd.WriteInt32(int32(timeout))
-	cmd.WriteInt32(0)
+	cmd.WriteInt32(0) // timeout
 	cmd.WriteInt16(int16(fieldCount))
 	cmd.WriteInt16(int16(operationCount))
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
