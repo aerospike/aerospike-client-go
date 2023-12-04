@@ -640,12 +640,12 @@ var _ = gg.Describe("Aerospike", func() {
 						}
 						intList = append(intList, -1)
 						intList = append(intList, 0)
-						intList = append(intList, uint64(1))
+						intList = append(intList, int64(1))
 						intList = append(intList, math.MaxInt64-1)
 						intList = append(intList, math.MaxInt64)
-						intList = append(intList, uint64(math.MaxInt64+1))
-						intList = append(intList, uint64(math.MaxUint64-1))
-						intList = append(intList, uint64(math.MaxUint64))
+						// intList = append(intList, uint64(math.MaxInt64+1))
+						// intList = append(intList, uint64(math.MaxUint64-1))
+						// intList = append(intList, uint64(math.MaxUint64))
 						bin0 := as.NewBin("Aerospike0", intList)
 
 						bin1 := as.NewBin("Aerospike1", []interface{}{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
@@ -675,11 +675,11 @@ var _ = gg.Describe("Aerospike", func() {
 								1: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
 								// [3]int{0, 1, 2}:          []interface{}{"string", 12, nil},
 								// [3]string{"0", "1", "2"}: []interface{}{"string", 12, nil},
-								15:                        nil,
-								int8(math.MaxInt8):        int8(math.MaxInt8),
-								int64(math.MinInt64):      int64(math.MinInt64),
-								int64(math.MaxInt64):      int64(math.MaxInt64),
-								uint64(math.MaxUint64):    uint64(math.MaxUint64),
+								15:                   nil,
+								int8(math.MaxInt8):   int8(math.MaxInt8),
+								int64(math.MinInt64): int64(math.MinInt64),
+								int64(math.MaxInt64): int64(math.MaxInt64),
+								// uint64(math.MaxUint64):    uint64(math.MaxUint64),
 								float32(-math.MaxFloat32): float32(-math.MaxFloat32),
 								float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 								float32(math.MaxFloat32):  float32(math.MaxFloat32),
@@ -725,13 +725,13 @@ var _ = gg.Describe("Aerospike", func() {
 						})
 
 						bin2 := as.NewBin("Aerospike2", map[interface{}]interface{}{
-							15:                        nil,
-							"true":                    true,
-							"false":                   false,
-							int8(math.MaxInt8):        int8(math.MaxInt8),
-							int64(math.MinInt64):      int64(math.MinInt64),
-							int64(math.MaxInt64):      int64(math.MaxInt64),
-							uint64(math.MaxUint64):    uint64(math.MaxUint64),
+							15:                   nil,
+							"true":               true,
+							"false":              false,
+							int8(math.MaxInt8):   int8(math.MaxInt8),
+							int64(math.MinInt64): int64(math.MinInt64),
+							int64(math.MaxInt64): int64(math.MaxInt64),
+							// uint64(math.MaxUint64):    uint64(math.MaxUint64),
 							float32(-math.MaxFloat32): float32(-math.MaxFloat32),
 							float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 							float32(math.MaxFloat32):  float32(math.MaxFloat32),

@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 
 	"github.com/aerospike/aerospike-client-go/v6/types"
@@ -289,7 +290,10 @@ func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, Error) {
 	case 0xcf:
 		val := Buffer.BytesToInt64(upckr.buffer, upckr.offset)
 		upckr.offset += 8
-		return uint64(val), nil
+		if val <= math.MaxInt {
+			return int(val), nil
+		}
+		return int64(val), nil
 
 	case 0xd0:
 		r := int8(upckr.buffer[upckr.offset])

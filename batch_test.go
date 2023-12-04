@@ -290,9 +290,9 @@ var _ = gg.Describe("Aerospike", func() {
 		gg.Context("BatchOperate operations", func() {
 
 			gg.It("Should return the error for entire operation", func() {
+				key, _ := as.NewKey(*namespace, set, 0)
 				var batchRecords []as.BatchRecordIfc
 				for i := 0; i < 20000; i++ {
-					key, _ := as.NewKey(*namespace, set, i)
 					batchRecords = append(batchRecords, as.NewBatchReadHeader(nil, key))
 				}
 				bp := as.NewBatchPolicy()

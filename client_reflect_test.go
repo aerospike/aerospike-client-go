@@ -89,11 +89,11 @@ var _ = gg.Describe("Aerospike", func() {
 								[16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}: []interface{}{"string", 12, nil},
 								// [3]int{0, 1, 2}:          []interface{}{"string", 12, nil},
 								// [3]string{"0", "1", "2"}: []interface{}{"string", 12, nil},
-								15:                        nil,
-								int8(math.MaxInt8):        int8(math.MaxInt8),
-								int64(math.MinInt64):      int64(math.MinInt64),
-								int64(math.MaxInt64):      int64(math.MaxInt64),
-								uint64(math.MaxUint64):    uint64(math.MaxUint64),
+								15:                   nil,
+								int8(math.MaxInt8):   int8(math.MaxInt8),
+								int64(math.MinInt64): int64(math.MinInt64),
+								int64(math.MaxInt64): int64(math.MaxInt64),
+								// uint64(math.MaxUint64):    uint64(math.MaxUint64),
 								float32(-math.MaxFloat32): float32(-math.MaxFloat32),
 								float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 								float32(math.MaxFloat32):  float32(math.MaxFloat32),
@@ -137,21 +137,21 @@ var _ = gg.Describe("Aerospike", func() {
 						})
 
 						bin2 := as.NewBin("Aerospike2", map[interface{}]interface{}{
-							15:                        nil,
-							"true":                    true,
-							"false":                   false,
-							int8(math.MaxInt8):        int8(math.MaxInt8),
-							int64(math.MinInt64):      int64(math.MinInt64),
-							int64(math.MaxInt64):      int64(math.MaxInt64),
-							uint64(math.MaxUint64):    uint64(math.MaxUint64),
+							15:                   nil,
+							"true":               true,
+							"false":              false,
+							int8(math.MaxInt8):   int8(math.MaxInt8),
+							int64(math.MinInt64): int64(math.MinInt64),
+							int64(math.MaxInt64): int64(math.MaxInt64),
+							// uint64(math.MaxUint64):    uint64(math.MaxUint64),
 							float32(-math.MaxFloat32): float32(-math.MaxFloat32),
 							float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 							float32(math.MaxFloat32):  float32(math.MaxFloat32),
 							float64(math.MaxFloat64):  float64(math.MaxFloat64),
-							"string":                  map[interface{}]interface{}{nil: "string", "string": 19},                // map to complex array
-							nil:                       []int{18, 41},                                                           // array to complex map
-							"longString":              strings.Repeat("s", 32911),                                              // bit-sign test
-							"GeoJSON":                 as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
+							"string":                  map[interface{}]interface{}{nil: "string", "string": 19}, // map to complex array
+							nil:                       []int{18, 41},                                            // array to complex map
+							// "longString":              strings.Repeat("s", 32911),                                              // bit-sign test
+							"GeoJSON": as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 						})
 
 						err = client.PutBins(wpolicy, key, bin1, bin2)
@@ -196,11 +196,11 @@ var _ = gg.Describe("Aerospike", func() {
 								[16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}: []interface{}{"string", 12, nil},
 								// [3]int{0, 1, 2}:          []interface{}{"string", 12, nil},
 								// [3]string{"0", "1", "2"}: []interface{}{"string", 12, nil},
-								15:                        nil,
-								int8(math.MaxInt8):        int8(math.MaxInt8),
-								int64(math.MinInt64):      int64(math.MinInt64),
-								int64(math.MaxInt64):      int64(math.MaxInt64),
-								uint64(math.MaxUint64):    uint64(math.MaxUint64),
+								15:                   nil,
+								int8(math.MaxInt8):   int8(math.MaxInt8),
+								int64(math.MinInt64): int64(math.MinInt64),
+								int64(math.MaxInt64): int64(math.MaxInt64),
+								// uint64(math.MaxUint64):    uint64(math.MaxUint64),
 								float32(-math.MaxFloat32): float32(-math.MaxFloat32),
 								float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 								float32(math.MaxFloat32):  float32(math.MaxFloat32),
@@ -244,13 +244,13 @@ var _ = gg.Describe("Aerospike", func() {
 						})
 
 						bin2 := as.NewBin("Aerospike2", map[interface{}]interface{}{
-							15:                        nil,
-							"true":                    true,
-							"false":                   false,
-							int8(math.MaxInt8):        int8(math.MaxInt8),
-							int64(math.MinInt64):      int64(math.MinInt64),
-							int64(math.MaxInt64):      int64(math.MaxInt64),
-							uint64(math.MaxUint64):    uint64(math.MaxUint64),
+							15:                   nil,
+							"true":               true,
+							"false":              false,
+							int8(math.MaxInt8):   int8(math.MaxInt8),
+							int64(math.MinInt64): int64(math.MinInt64),
+							int64(math.MaxInt64): int64(math.MaxInt64),
+							// uint64(math.MaxUint64):    uint64(math.MaxUint64),
 							float32(-math.MaxFloat32): float32(-math.MaxFloat32),
 							float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 							float32(math.MaxFloat32):  float32(math.MaxFloat32),

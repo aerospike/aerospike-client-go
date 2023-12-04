@@ -318,7 +318,7 @@ var _ = gg.Describe("UDF/Query tests", func() {
 				math.MaxInt32,
 				math.MaxUint32,
 				math.MaxInt64,
-				// uint64(math.MaxUint64),// TODO: Wrong serialization on server side
+				uint64(math.MaxUint64), // This value is returned as a negative integer from the server
 				"",
 				"Hello, 世界",
 			}
@@ -338,8 +338,8 @@ var _ = gg.Describe("UDF/Query tests", func() {
 				int(math.MaxUint16),
 				int(math.MaxInt32),
 				int(math.MaxUint32),
-				uint64(math.MaxInt64), // TODO: Wrong serialization on server
-				// uint64(math.MaxUint64), // TODO: Wrong serialization on server side
+				math.MaxInt64,
+				int(-1),
 				"",
 				"Hello, 世界",
 			}
@@ -379,23 +379,23 @@ var _ = gg.Describe("UDF/Query tests", func() {
 			}
 
 			vExpected := map[interface{}]interface{}{
-				nil:                   nil,
-				math.MinInt64:         math.MinInt64,
-				math.MinInt32:         math.MinInt32,
-				math.MinInt16:         math.MinInt16,
-				math.MinInt8:          math.MinInt8,
-				-1:                    -1,
-				0:                     0,
-				1:                     1,
-				math.MaxInt8:          math.MaxInt8,
-				math.MaxUint8:         math.MaxUint8,
-				math.MaxInt16:         math.MaxInt16,
-				math.MaxUint16:        math.MaxUint16,
-				math.MaxInt32:         math.MaxInt32,
-				math.MaxUint32:        math.MaxUint32,
-				uint64(math.MaxInt64): uint64(math.MaxInt64),
-				"":                    "",
-				"Hello, 世界":           "Hello, 世界",
+				nil:            nil,
+				math.MinInt64:  math.MinInt64,
+				math.MinInt32:  math.MinInt32,
+				math.MinInt16:  math.MinInt16,
+				math.MinInt8:   math.MinInt8,
+				-1:             -1,
+				0:              0,
+				1:              1,
+				math.MaxInt8:   math.MaxInt8,
+				math.MaxUint8:  math.MaxUint8,
+				math.MaxInt16:  math.MaxInt16,
+				math.MaxUint16: math.MaxUint16,
+				math.MaxInt32:  math.MaxInt32,
+				math.MaxUint32: math.MaxUint32,
+				math.MaxInt64:  math.MaxInt64,
+				"":             "",
+				"Hello, 世界":    "Hello, 世界",
 			}
 
 			res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(v))
