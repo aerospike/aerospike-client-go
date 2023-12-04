@@ -21,8 +21,8 @@ import (
 	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 )
 
-// partitionStatus encapsulates the pagination status in partitions.
-type partitionStatus struct {
+// PartitionStatus encapsulates the pagination status in partitions.
+type PartitionStatus struct {
 	// BVal
 	BVal int64
 	// Id shows the partition Id.
@@ -33,16 +33,16 @@ type partitionStatus struct {
 	// for this partition.
 	Digest []byte
 
-	node         *Node
-	replicaIndex int
-	unavailable  bool
+	// the following fields are transient
+	node     *Node
+	sequence int
 }
 
-func newPartitionStatus(id int) *partitionStatus {
-	return &partitionStatus{Id: id, Retry: true}
+func newPartitionStatus(id int) *PartitionStatus {
+	return &PartitionStatus{Id: id, Retry: true}
 }
 
-func (ps *partitionStatus) String() string {
+func (ps *PartitionStatus) String() string {
 	r := 'F'
 	if ps.Retry {
 		r = 'T'
@@ -50,7 +50,7 @@ func (ps *partitionStatus) String() string {
 	return fmt.Sprintf("%04d:%c", ps.Id, r)
 }
 
-func (ps *partitionStatus) grpc() *kvs.PartitionStatus {
+func (ps *PartitionStatus) grpc() *kvs.PartitionStatus {
 	id := uint32(ps.Id)
 	bVal := ps.BVal
 	digest := ps.Digest

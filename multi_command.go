@@ -354,6 +354,10 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 				}
 			}
 
+			if !cmd.tracker.allowRecord(cmd.nodePartitions) {
+				continue
+			}
+
 			// If the channel is full and it blocks, we don't want this command to
 			// block forever, or panic in case the channel is closed in the meantime.
 			select {
@@ -374,6 +378,10 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			if err := multiObjectParser(cmd, obj, opCount, fieldCount, generation, expiration); err != nil {
 				err = newNodeError(cmd.node, err)
 				return false, err
+			}
+
+			if !cmd.tracker.allowRecord(cmd.nodePartitions) {
+				continue
 			}
 
 			// set the object to send

@@ -76,6 +76,7 @@ var _ = gg.Describe("Query operations on complex types", func() {
 	var queryPolicy = as.NewQueryPolicy()
 
 	gg.It("must Query a specific element in list and get only relevant records back", func() {
+		// Only supported by server v7+
 		stm := as.NewStatement(ns, set)
 		stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, 1))
 		recordset, err := client.Query(queryPolicy, stm)

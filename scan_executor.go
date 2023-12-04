@@ -30,6 +30,7 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 		if err != nil {
 			errs = chainErrors(err, errs)
 			recordset.sendError(errs)
+			tracker.partitionError()
 			return
 		}
 
@@ -51,6 +52,7 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 			errs = chainErrors(err, errs)
 			// Scan is complete.
 			if errs != nil {
+				tracker.partitionError()
 				recordset.sendError(errs)
 			}
 			return
