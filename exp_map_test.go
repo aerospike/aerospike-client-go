@@ -438,6 +438,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByKeyList(
+						as.MapReturnType.NONE,
 						as.ExpListVal(as.NewValue("test"), as.NewValue("test2")),
 						as.ExpMapBin("bin"),
 					),
@@ -455,6 +456,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByKeyRange(
+						as.MapReturnType.NONE,
 						as.ExpStringVal("test"),
 						nil,
 						as.ExpMapBin("bin"),
@@ -473,6 +475,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByKeyRelativeIndexRange(
+						as.MapReturnType.NONE,
 						as.ExpStringVal("test"),
 						as.ExpIntVal(0),
 						as.ExpMapBin("bin"),
@@ -491,6 +494,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByKeyRelativeIndexRangeCount(
+						as.MapReturnType.NONE,
 						as.ExpStringVal("test"),
 						as.ExpIntVal(0),
 						as.ExpIntVal(1),
@@ -510,6 +514,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByValue(
+						as.MapReturnType.NONE,
 						as.ExpIntVal(5),
 						as.ExpMapBin("bin"),
 					),
@@ -527,6 +532,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByValueList(
+						as.MapReturnType.NONE,
 						as.ExpListVal(as.NewValue("a"), as.NewValue(15)),
 						as.ExpMapBin("bin"),
 					),
@@ -544,6 +550,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByValueRange(
+						as.MapReturnType.NONE,
 						as.ExpIntVal(5),
 						as.ExpIntVal(15),
 						as.ExpMapBin("bin"),
@@ -579,6 +586,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByIndexRange(
+						as.MapReturnType.NONE,
 						as.ExpIntVal(0),
 						as.ExpMapBin("bin"),
 					),
@@ -596,6 +604,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByIndexRangeCount(
+						as.MapReturnType.NONE,
 						as.ExpIntVal(0),
 						as.ExpIntVal(1),
 						as.ExpMapBin("bin"),
@@ -631,6 +640,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByRankRange(
+						as.MapReturnType.NONE,
 						as.ExpIntVal(0),
 						as.ExpMapBin("bin"),
 					),
@@ -648,6 +658,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpMapSize(
 					as.ExpMapRemoveByRankRangeCount(
+						as.MapReturnType.NONE,
 						as.ExpIntVal(0),
 						as.ExpIntVal(1),
 						as.ExpMapBin("bin"),

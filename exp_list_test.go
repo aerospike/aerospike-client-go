@@ -351,6 +351,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpListSize(
 					as.ExpListRemoveByValue(
+						as.ListReturnTypeNone,
 						as.ExpIntVal(3),
 						as.ExpListBin("bin"),
 					),
@@ -368,6 +369,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpListSize(
 					as.ExpListRemoveByValueList(
+						as.ListReturnTypeNone,
 						as.ExpListVal(as.NewValue(1), as.NewValue(2)),
 						as.ExpListBin("bin"),
 					),
@@ -385,6 +387,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpListSize(
 					as.ExpListRemoveByValueRange(
+						as.ListReturnTypeNone,
 						as.ExpIntVal(1),
 						as.ExpIntVal(3),
 						as.ExpListBin("bin"),
@@ -403,6 +406,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpListSize(
 					as.ExpListRemoveByValueRelativeRankRange(
+						as.ListReturnTypeNone,
 						as.ExpIntVal(3),
 						as.ExpIntVal(1),
 						as.ExpListBin("bin"),
@@ -421,6 +425,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpListSize(
 					as.ExpListRemoveByValueRelativeRankRangeCount(
+						as.ListReturnTypeNone,
 						as.ExpIntVal(2),
 						as.ExpIntVal(1),
 						as.ExpIntVal(1),
@@ -457,6 +462,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpListSize(
 					as.ExpListRemoveByIndexRange(
+						as.ListReturnTypeNone,
 						as.ExpIntVal(2),
 						as.ExpListBin("bin"),
 					),
@@ -474,6 +480,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpListSize(
 					as.ExpListRemoveByIndexRangeCount(
+						as.ListReturnTypeNone,
 						as.ExpIntVal(2),
 						as.ExpIntVal(1),
 						as.ExpListBin("bin"),
@@ -492,6 +499,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpListSize(
 					as.ExpListRemoveByIndexRangeCount(
+						as.ListReturnTypeNone,
 						as.ExpIntVal(2),
 						as.ExpIntVal(1),
 						as.ExpListBin("bin"),
@@ -527,6 +535,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpListSize(
 					as.ExpListRemoveByRankRange(
+						as.ListReturnTypeNone,
 						as.ExpIntVal(2),
 						as.ExpListBin("bin"),
 					),
@@ -544,6 +553,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 			as.ExpEq(
 				as.ExpListSize(
 					as.ExpListRemoveByRankRangeCount(
+						as.ListReturnTypeNone,
 						as.ExpIntVal(2),
 						as.ExpIntVal(1),
 						as.ExpListBin("bin"),

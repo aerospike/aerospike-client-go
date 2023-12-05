@@ -121,14 +121,16 @@ func ExpMapRemoveByKey(
 }
 
 // ExpMapRemoveByKeyList creates an expression that removes map items identified by keys.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 func ExpMapRemoveByKeyList(
+	returnType MapReturnTypes,
 	keys *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveKeyList),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		keys,
 		cdtContextList(ctx),
 	}
@@ -138,7 +140,9 @@ func ExpMapRemoveByKeyList(
 // ExpMapRemoveByKeyRange creates an expression that removes map items identified by key range (keyBegin inclusive, keyEnd exclusive).
 // If keyBegin is nil, the range is less than keyEnd.
 // If keyEnd is nil, the range is greater than equal to keyBegin.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 func ExpMapRemoveByKeyRange(
+	returnType MapReturnTypes,
 	keyBegin *Expression,
 	keyEnd *Expression,
 	bin *Expression,
@@ -147,7 +151,7 @@ func ExpMapRemoveByKeyRange(
 	var args = []ExpressionArgument{
 		cdtContextList(ctx),
 		IntegerValue(cdtMapOpTypeRemoveByKeyInterval),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 	}
 	if keyBegin != nil {
 		args = append(args, keyBegin)
@@ -161,6 +165,7 @@ func ExpMapRemoveByKeyRange(
 }
 
 // ExpMapRemoveByKeyRelativeIndexRange creates an expression that removes map items nearest to key and greater by index.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 //
 // Examples for map [{0=17},{4=2},{5=15},{9=10}]:
 //
@@ -171,6 +176,7 @@ func ExpMapRemoveByKeyRange(
 // * (3,2) = [{9=10}]
 // * (3,-2) = [{0=17},{4=2},{5=15},{9=10}]
 func ExpMapRemoveByKeyRelativeIndexRange(
+	returnType MapReturnTypes,
 	key *Expression,
 	index *Expression,
 	bin *Expression,
@@ -178,7 +184,7 @@ func ExpMapRemoveByKeyRelativeIndexRange(
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveByKeyRelIndexRange),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		key,
 		index,
 		cdtContextList(ctx),
@@ -187,6 +193,7 @@ func ExpMapRemoveByKeyRelativeIndexRange(
 }
 
 // ExpMapRemoveByKeyRelativeIndexRangeCount creates an expression that removes map items nearest to key and greater by index with a count limit.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 //
 // Examples for map [{0=17},{4=2},{5=15},{9=10}]:
 //
@@ -197,6 +204,7 @@ func ExpMapRemoveByKeyRelativeIndexRange(
 // * (3,2,1) = [{9=10}]
 // * (3,-2,2) = [{0=17}]
 func ExpMapRemoveByKeyRelativeIndexRangeCount(
+	returnType MapReturnTypes,
 	key *Expression,
 	index *Expression,
 	count *Expression,
@@ -205,7 +213,7 @@ func ExpMapRemoveByKeyRelativeIndexRangeCount(
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveByKeyRelIndexRange),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		key,
 		index,
 		count,
@@ -215,14 +223,16 @@ func ExpMapRemoveByKeyRelativeIndexRangeCount(
 }
 
 // ExpMapRemoveByValue creates an expression that removes map items identified by value.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 func ExpMapRemoveByValue(
+	returnType MapReturnTypes,
 	value *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveByValue),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		value,
 		cdtContextList(ctx),
 	}
@@ -230,14 +240,16 @@ func ExpMapRemoveByValue(
 }
 
 // ExpMapRemoveByValueList creates an expression that removes map items identified by values.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 func ExpMapRemoveByValueList(
+	returnType MapReturnTypes,
 	values *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveValueList),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		values,
 		cdtContextList(ctx),
 	}
@@ -247,7 +259,9 @@ func ExpMapRemoveByValueList(
 // ExpMapRemoveByValueRange creates an expression that removes map items identified by value range (valueBegin inclusive, valueEnd exclusive).
 // If valueBegin is nil, the range is less than valueEnd.
 // If valueEnd is nil, the range is greater than equal to valueBegin.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 func ExpMapRemoveByValueRange(
+	returnType MapReturnTypes,
 	valueBegin *Expression,
 	valueEnd *Expression,
 	bin *Expression,
@@ -256,7 +270,7 @@ func ExpMapRemoveByValueRange(
 	args := []ExpressionArgument{
 		cdtContextList(ctx),
 		IntegerValue(cdtMapOpTypeRemoveByValueInterval),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 	}
 	if valueBegin != nil {
 		args = append(args, valueBegin)
@@ -270,6 +284,7 @@ func ExpMapRemoveByValueRange(
 }
 
 // ExpMapRemoveByValueRelativeRankRange creates an expression that removes map items nearest to value and greater by relative rank.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 //
 // Examples for map [{4=2},{9=10},{5=15},{0=17}]:
 //
@@ -277,6 +292,7 @@ func ExpMapRemoveByValueRange(
 // * (11,1) = [{0=17}]
 // * (11,-1) = [{9=10},{5=15},{0=17}]
 func ExpMapRemoveByValueRelativeRankRange(
+	returnType MapReturnTypes,
 	value *Expression,
 	rank *Expression,
 	bin *Expression,
@@ -284,7 +300,7 @@ func ExpMapRemoveByValueRelativeRankRange(
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveByValueRelRankRange),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		value,
 		rank,
 		cdtContextList(ctx),
@@ -293,6 +309,7 @@ func ExpMapRemoveByValueRelativeRankRange(
 }
 
 // ExpMapRemoveByValueRelativeRankRangeCount creates an expression that removes map items nearest to value and greater by relative rank with a count limit.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 //
 // Examples for map [{4=2},{9=10},{5=15},{0=17}]:
 //
@@ -300,6 +317,7 @@ func ExpMapRemoveByValueRelativeRankRange(
 // * (11,1,1) = [{0=17}]
 // * (11,-1,1) = [{9=10}]
 func ExpMapRemoveByValueRelativeRankRangeCount(
+	returnType MapReturnTypes,
 	value *Expression,
 	rank *Expression,
 	count *Expression,
@@ -308,7 +326,7 @@ func ExpMapRemoveByValueRelativeRankRangeCount(
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveByValueRelRankRange),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		value,
 		rank,
 		count,
@@ -333,14 +351,16 @@ func ExpMapRemoveByIndex(
 }
 
 // ExpMapRemoveByIndexRange creates an expression that removes map items starting at specified index to the end of map.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 func ExpMapRemoveByIndexRange(
+	returnType MapReturnTypes,
 	index *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveByIndexRange),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		index,
 		cdtContextList(ctx),
 	}
@@ -348,7 +368,9 @@ func ExpMapRemoveByIndexRange(
 }
 
 // ExpMapRemoveByIndexRangeCount creates an expression that removes "count" map items starting at specified index.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 func ExpMapRemoveByIndexRangeCount(
+	returnType MapReturnTypes,
 	index *Expression,
 	count *Expression,
 	bin *Expression,
@@ -356,7 +378,7 @@ func ExpMapRemoveByIndexRangeCount(
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveByIndexRange),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		index,
 		count,
 		cdtContextList(ctx),
@@ -380,14 +402,16 @@ func ExpMapRemoveByRank(
 }
 
 // ExpMapRemoveByRankRange creates an expression that removes map items starting at specified rank to the last ranked item.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 func ExpMapRemoveByRankRange(
+	returnType MapReturnTypes,
 	rank *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveByRankRange),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		rank,
 		cdtContextList(ctx),
 	}
@@ -395,7 +419,9 @@ func ExpMapRemoveByRankRange(
 }
 
 // ExpMapRemoveByRankRangeCount creates an expression that removes "count" map items starting at specified rank.
+// Valid returnType values are MapReturnType.NONE or MapReturnType.INVERTED.
 func ExpMapRemoveByRankRangeCount(
+	returnType MapReturnTypes,
 	rank *Expression,
 	count *Expression,
 	bin *Expression,
@@ -403,7 +429,7 @@ func ExpMapRemoveByRankRangeCount(
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(cdtMapOpTypeRemoveByRankRange),
-		IntegerValue(MapReturnType.NONE),
+		IntegerValue(returnType),
 		rank,
 		count,
 		cdtContextList(ctx),
@@ -423,7 +449,7 @@ func ExpMapSize(bin *Expression, ctx ...*CDTContext) *Expression {
 // ExpMapGetByKey creates an expression that selects map item identified by key and returns selected data
 // specified by returnType.
 func ExpMapGetByKey(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	valueType ExpType,
 	key *Expression,
 	bin *Expression,
@@ -443,7 +469,7 @@ func ExpMapGetByKey(
 // If keyEnd is nil, the range is greater than equal to keyBegin.
 // Expression returns selected data specified by returnType.
 func ExpMapGetByKeyRange(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	keyBegin *Expression,
 	keyEnd *Expression,
 	bin *Expression,
@@ -467,7 +493,7 @@ func ExpMapGetByKeyRange(
 
 // ExpMapGetByKeyList creates an expression that selects map items identified by keys and returns selected data specified by returnType
 func ExpMapGetByKeyList(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	keys *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
@@ -493,7 +519,7 @@ func ExpMapGetByKeyList(
 // * (3,2) = [{9=10}]
 // * (3,-2) = [{0=17},{4=2},{5=15},{9=10}]
 func ExpMapGetByKeyRelativeIndexRange(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	key *Expression,
 	index *Expression,
 	bin *Expression,
@@ -521,7 +547,7 @@ func ExpMapGetByKeyRelativeIndexRange(
 // * (3,2,1) = [{9=10}]
 // * (3,-2,2) = [{0=17}]
 func ExpMapGetByKeyRelativeIndexRangeCount(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	key *Expression,
 	index *Expression,
 	count *Expression,
@@ -542,7 +568,7 @@ func ExpMapGetByKeyRelativeIndexRangeCount(
 // ExpMapGetByValue creates an expression that selects map items identified by value and returns selected data
 // specified by returnType.
 func ExpMapGetByValue(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	value *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
@@ -562,7 +588,7 @@ func ExpMapGetByValue(
 //
 // Expression returns selected data specified by returnType.
 func ExpMapGetByValueRange(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	valueBegin *Expression,
 	valueEnd *Expression,
 	bin *Expression,
@@ -586,7 +612,7 @@ func ExpMapGetByValueRange(
 
 // ExpMapGetByValueList creates an expression that selects map items identified by values and returns selected data specified by returnType.
 func ExpMapGetByValueList(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	values *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
@@ -609,7 +635,7 @@ func ExpMapGetByValueList(
 // * (11,1) = [{0=17}]
 // * (11,-1) = [{9=10},{5=15},{0=17}]
 func ExpMapGetByValueRelativeRankRange(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	value *Expression,
 	rank *Expression,
 	bin *Expression,
@@ -634,7 +660,7 @@ func ExpMapGetByValueRelativeRankRange(
 // * (11,1,1) = [{0=17}]
 // * (11,-1,1) = [{9=10}]
 func ExpMapGetByValueRelativeRankRangeCount(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	value *Expression,
 	rank *Expression,
 	count *Expression,
@@ -654,7 +680,7 @@ func ExpMapGetByValueRelativeRankRangeCount(
 
 // ExpMapGetByIndex creates an expression that selects map item identified by index and returns selected data specified by returnType.
 func ExpMapGetByIndex(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	valueType ExpType,
 	index *Expression,
 	bin *Expression,
@@ -672,7 +698,7 @@ func ExpMapGetByIndex(
 // ExpMapGetByIndexRange creates an expression that selects map items starting at specified index to the end of map and returns selected
 // data specified by returnType.
 func ExpMapGetByIndexRange(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	index *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
@@ -689,7 +715,7 @@ func ExpMapGetByIndexRange(
 // ExpMapGetByIndexRangeCount creates an expression that selects "count" map items starting at specified index and returns selected data
 // specified by returnType.
 func ExpMapGetByIndexRangeCount(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	index *Expression,
 	count *Expression,
 	bin *Expression,
@@ -707,7 +733,7 @@ func ExpMapGetByIndexRangeCount(
 
 // ExpMapGetByRank creates an expression that selects map item identified by rank and returns selected data specified by returnType.
 func ExpMapGetByRank(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	valueType ExpType,
 	rank *Expression,
 	bin *Expression,
@@ -725,7 +751,7 @@ func ExpMapGetByRank(
 // ExpMapGetByRankRange creates an expression that selects map items starting at specified rank to the last ranked item and
 // returns selected data specified by returnType.
 func ExpMapGetByRankRange(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	rank *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
@@ -742,7 +768,7 @@ func ExpMapGetByRankRange(
 // ExpMapGetByRankRangeCount creates an expression that selects "count" map items starting at specified rank and returns selected
 // data specified by returnType.
 func ExpMapGetByRankRangeCount(
-	returnType mapReturnType,
+	returnType MapReturnTypes,
 	rank *Expression,
 	count *Expression,
 	bin *Expression,

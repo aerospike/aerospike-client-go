@@ -154,14 +154,16 @@ func ExpListSort(
 }
 
 // ExpListRemoveByValue creates an expression that removes list items identified by value.
+// Valid returnType values are ListReturnTypeNone or ListReturnTypeInverted.
 func ExpListRemoveByValue(
+	returnType ListReturnType,
 	value *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE),
-		IntegerValue(ListReturnTypeNone),
+		IntegerValue(returnType),
 		value,
 		cdtContextList(ctx),
 	}
@@ -169,14 +171,16 @@ func ExpListRemoveByValue(
 }
 
 // ExpListRemoveByValueList creates an expression that removes list items identified by values.
+// Valid returnType values are ListReturnTypeNone or ListReturnTypeInverted.
 func ExpListRemoveByValueList(
+	returnType ListReturnType,
 	values *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE_LIST),
-		IntegerValue(ListReturnTypeNone),
+		IntegerValue(returnType),
 		values,
 		cdtContextList(ctx),
 	}
@@ -186,7 +190,9 @@ func ExpListRemoveByValueList(
 // ExpListRemoveByValueRange creates an expression that removes list items identified by value range (valueBegin inclusive, valueEnd exclusive).
 // If valueBegin is nil, the range is less than valueEnd. If valueEnd is nil, the range is
 // greater than equal to valueBegin.
+// Valid returnType values are ListReturnTypeNone or ListReturnTypeInverted.
 func ExpListRemoveByValueRange(
+	returnType ListReturnType,
 	valueBegin *Expression,
 	valueEnd *Expression,
 	bin *Expression,
@@ -209,6 +215,7 @@ func ExpListRemoveByValueRange(
 }
 
 // ExpListRemoveByValueRelativeRankRange creates an expression that removes list items nearest to value and greater by relative rank.
+// Valid returnType values are ListReturnTypeNone or ListReturnTypeInverted.
 //
 // Examples for ordered list \[0, 4, 5, 9, 11, 15\]:
 //
@@ -220,6 +227,7 @@ func ExpListRemoveByValueRange(
 //	(3,3) = [11,15]
 //	(3,-3) = [0,4,5,9,11,15]
 func ExpListRemoveByValueRelativeRankRange(
+	returnType ListReturnType,
 	value *Expression,
 	rank *Expression,
 	bin *Expression,
@@ -227,7 +235,7 @@ func ExpListRemoveByValueRelativeRankRange(
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE),
-		IntegerValue(ListReturnTypeNone),
+		IntegerValue(returnType),
 		value,
 		rank,
 		cdtContextList(ctx),
@@ -236,6 +244,7 @@ func ExpListRemoveByValueRelativeRankRange(
 }
 
 // ExpListRemoveByValueRelativeRankRangeCount creates an expression that removes list items nearest to value and greater by relative rank with a count limit.
+// Valid returnType values are ListReturnTypeNone or ListReturnTypeInverted.
 //
 // Examples for ordered list \[0, 4, 5, 9, 11, 15\]:
 //
@@ -247,6 +256,7 @@ func ExpListRemoveByValueRelativeRankRange(
 //	(3,3,7) = [11,15]
 //	(3,-3,2) = []
 func ExpListRemoveByValueRelativeRankRangeCount(
+	returnType ListReturnType,
 	value *Expression,
 	rank *Expression,
 	count *Expression,
@@ -255,7 +265,7 @@ func ExpListRemoveByValueRelativeRankRangeCount(
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE),
-		IntegerValue(ListReturnTypeNone),
+		IntegerValue(returnType),
 		value,
 		rank,
 		count,
@@ -280,14 +290,16 @@ func ExpListRemoveByIndex(
 }
 
 // ExpListRemoveByIndexRange creates an expression that removes list items starting at specified index to the end of list.
+// Valid returnType values are ListReturnTypeNone or ListReturnTypeInverted.
 func ExpListRemoveByIndexRange(
+	returnType ListReturnType,
 	index *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_INDEX_RANGE),
-		IntegerValue(ListReturnTypeNone),
+		IntegerValue(returnType),
 		index,
 		cdtContextList(ctx),
 	}
@@ -295,7 +307,9 @@ func ExpListRemoveByIndexRange(
 }
 
 // ExpListRemoveByIndexRangeCount creates an expression that removes "count" list items starting at specified index.
+// Valid returnType values are ListReturnTypeNone or ListReturnTypeInverted.
 func ExpListRemoveByIndexRangeCount(
+	returnType ListReturnType,
 	index *Expression,
 	count *Expression,
 	bin *Expression,
@@ -303,7 +317,7 @@ func ExpListRemoveByIndexRangeCount(
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_INDEX_RANGE),
-		IntegerValue(ListReturnTypeNone),
+		IntegerValue(returnType),
 		index,
 		count,
 		cdtContextList(ctx),
@@ -327,14 +341,16 @@ func ExpListRemoveByRank(
 }
 
 // ExpListRemoveByRankRange creates an expression that removes list items starting at specified rank to the last ranked item.
+// Valid returnType values are ListReturnTypeNone or ListReturnTypeInverted.
 func ExpListRemoveByRankRange(
+	returnType ListReturnType,
 	rank *Expression,
 	bin *Expression,
 	ctx ...*CDTContext,
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_RANK_RANGE),
-		IntegerValue(ListReturnTypeNone),
+		IntegerValue(returnType),
 		rank,
 		cdtContextList(ctx),
 	}
@@ -342,7 +358,9 @@ func ExpListRemoveByRankRange(
 }
 
 // ExpListRemoveByRankRangeCount creates an expression that removes "count" list items starting at specified rank.
+// Valid returnType values are ListReturnTypeNone or ListReturnTypeInverted.
 func ExpListRemoveByRankRangeCount(
+	returnType ListReturnType,
 	rank *Expression,
 	count *Expression,
 	bin *Expression,
@@ -350,7 +368,7 @@ func ExpListRemoveByRankRangeCount(
 ) *Expression {
 	args := []ExpressionArgument{
 		IntegerValue(_CDT_LIST_REMOVE_BY_RANK_RANGE),
-		IntegerValue(ListReturnTypeNone),
+		IntegerValue(returnType),
 		rank,
 		count,
 		cdtContextList(ctx),
