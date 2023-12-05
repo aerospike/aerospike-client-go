@@ -69,12 +69,14 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 		// queries only work on indices
 		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"S"+"values", bin2.Name, as.STRING, as.ICT_MAPVALUES)
 
-		// queries only work on indices
-		createComplexIndex(wpolicy, ns, set, set+bin1.Name+"B", bin1.Name, as.BLOB, as.ICT_LIST)
-		// queries only work on indices
-		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"B"+"keys", bin2.Name, as.BLOB, as.ICT_MAPKEYS)
-		// queries only work on indices
-		createComplexIndex(wpolicy, ns, set, set+bin2.Name+"B"+"values", bin2.Name, as.BLOB, as.ICT_MAPVALUES)
+		if serverIsNewerThan("7") {
+			// queries only work on indices
+			createComplexIndex(wpolicy, ns, set, set+bin1.Name+"B", bin1.Name, as.BLOB, as.ICT_LIST)
+			// queries only work on indices
+			createComplexIndex(wpolicy, ns, set, set+bin2.Name+"B"+"keys", bin2.Name, as.BLOB, as.ICT_MAPKEYS)
+			// queries only work on indices
+			createComplexIndex(wpolicy, ns, set, set+bin2.Name+"B"+"values", bin2.Name, as.BLOB, as.ICT_MAPVALUES)
+		}
 	})
 
 	gg.AfterAll(func() {
@@ -90,14 +92,21 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 		dropIndex(nil, ns, set, set+bin2.Name+"S"+"keys")
 		dropIndex(nil, ns, set, set+bin2.Name+"S"+"values")
 
-		dropIndex(nil, ns, set, set+bin1.Name+"B")
-		dropIndex(nil, ns, set, set+bin2.Name+"B"+"keys")
-		dropIndex(nil, ns, set, set+bin2.Name+"B"+"values")
+		if serverIsNewerThan("7") {
+			dropIndex(nil, ns, set, set+bin1.Name+"B")
+			dropIndex(nil, ns, set, set+bin2.Name+"B"+"keys")
+			dropIndex(nil, ns, set, set+bin2.Name+"B"+"values")
+		}
 	})
 
 	var queryPolicy = as.NewQueryPolicy()
 
 	gg.It("must Query a specific element in list and get only relevant records back", func() {
+		if serverIsOlderThan("7") {
+			gg.Skip("Not supported on the servers prior to v7")
+			return
+		}
+
 		// Only supported by server v7+
 		stm := as.NewStatement(ns, set)
 		for _, v := range []interface{}{1, "a", []byte{1, 3, 5}} {
@@ -119,6 +128,10 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 	})
 
 	gg.It("must Query a specific non-existig element in list and get no records back", func() {
+		if serverIsOlderThan("7") {
+			gg.Skip("Not supported on the servers prior to v7")
+			return
+		}
 		stm := as.NewStatement(ns, set)
 		for _, v := range []interface{}{-1, "aaaa", []byte{0, 1, 255}} {
 			stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, v))
@@ -156,6 +169,10 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 	})
 
 	gg.It("must Query a specific non-existig key in map and get no records back", func() {
+		if serverIsOlderThan("7") {
+			gg.Skip("Not supported on the servers prior to v7")
+			return
+		}
 		stm := as.NewStatement(ns, set)
 		for _, v := range []interface{}{-1, "aaaa", []byte{255, 245, 5}} {
 			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, v))
@@ -173,6 +190,11 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 	})
 
 	gg.It("must Query a value in map and get only relevant records back", func() {
+		if serverIsOlderThan("7") {
+			gg.Skip("Not supported on the servers prior to v7")
+			return
+		}
+
 		stm := as.NewStatement(ns, set)
 		for _, v := range []interface{}{1, "a", []byte{1, 2, 3}} {
 			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, v))
@@ -193,6 +215,11 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 	})
 
 	gg.It("must Query a specific non-existig value in map and get no records back", func() {
+		if serverIsOlderThan("7") {
+			gg.Skip("Not supported on the servers prior to v7")
+			return
+		}
+
 		stm := as.NewStatement(ns, set)
 		for _, v := range []interface{}{-1, "aaaa", []byte{255, 255, 5}} {
 			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, v))

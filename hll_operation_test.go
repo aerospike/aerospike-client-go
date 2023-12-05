@@ -462,7 +462,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		for i := 0; i < len(keys); i++ {
 			record := expectSuccess(keys[i], as.GetBinOp(binName), as.HLLGetCountOp(binName))
 			result_list := record.Bins[binName].([]interface{})
-			hll := as.HLLValue(result_list[0].([]byte))
+			hll := result_list[0].(as.HLLValue)
 
 			gm.Expect(hll).NotTo(gm.BeNil())
 			hlls = append(hlls, hll)
@@ -540,7 +540,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 			as.HLLAddOp(as.DefaultHLLPolicy(), otherName, entries, index_bits, -1),
 			as.GetBinOp(otherName))
 		result_list := record.Bins[otherName].([]interface{})
-		hll := as.HLLValue(result_list[1].([]byte))
+		hll := result_list[1].(as.HLLValue)
 
 		hlls = append(hlls, hll)
 
@@ -645,7 +645,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 				as.GetBinOp(binName))
 
 			result_list := record.Bins[binName].([]interface{})
-			hlls = append(hlls, as.HLLValue(result_list[1].([]byte)))
+			hlls = append(hlls, result_list[1].(as.HLLValue))
 			expected_union_count += len(sub_vals)
 			vals = append(vals, sub_vals)
 		}
@@ -664,7 +664,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 		expectHLLCount(index_bits, union_count, expected_union_count)
 
-		union_hll := as.HLLValue(result_list[0].([]byte))
+		union_hll := result_list[0].(as.HLLValue)
 
 		record = expectSuccess(key,
 			as.PutOp(as.NewBin(binName, union_hll)),
@@ -685,7 +685,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 			record, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			hll := as.HLLValue(record.Bins[binName].([]byte))
+			hll := record.Bins[binName].(as.HLLValue)
 
 			client.Delete(nil, key)
 			client.PutBins(nil, key, as.NewBin(binName, hll))
@@ -738,7 +738,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 				as.GetBinOp(binName))
 
 			result_list := record.Bins[binName].([]interface{})
-			hlls = append(hlls, as.HLLValue(result_list[2].([]byte)))
+			hlls = append(hlls, result_list[2].(as.HLLValue))
 		}
 
 		// Keep record around win binName is removed.
@@ -820,7 +820,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 			resultList := record.Bins[binName].([]interface{})
 			var hlls []as.HLLValue
 
-			hlls = append(hlls, as.HLLValue(resultList[1].([]byte)))
+			hlls = append(hlls, resultList[1].(as.HLLValue))
 
 			record = expectSuccess(key,
 				as.HLLGetSimilarityOp(binName, hlls),
@@ -858,11 +858,11 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 			var hmhs []as.HLLValue
 			resultList := record.Bins[binName].([]interface{})
 
-			hlls = append(hlls, as.HLLValue(resultList[1].([]byte)))
+			hlls = append(hlls, resultList[1].(as.HLLValue))
 			hlls = append(hlls, hlls[0])
 
 			resultList = record.Bins[otherBinName].([]interface{})
-			hmhs = append(hmhs, as.HLLValue(resultList[1].([]byte)))
+			hmhs = append(hmhs, resultList[1].(as.HLLValue))
 			hmhs = append(hmhs, hmhs[0])
 
 			record = expectSuccess(key,
