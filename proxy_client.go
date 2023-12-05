@@ -604,7 +604,7 @@ func (clnt *ProxyClient) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops .
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	batchRecords := make([]*BatchRecord, 0, len(keys))
 	for _, key := range keys {
-		batchRead, batchRecord := newBatchReadOps(nil, key, ops)
+		batchRead, batchRecord := newBatchReadOps(nil, key, ops...)
 		batchRecordsIfc = append(batchRecordsIfc, batchRead)
 		batchRecords = append(batchRecords, batchRecord)
 	}
