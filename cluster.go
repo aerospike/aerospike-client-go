@@ -99,9 +99,6 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	}
 
 	clientPolicy := *policy
-	if policy.RackAware && len(policy.RackIds) <= 0 {
-		clientPolicy.RackIds = append(clientPolicy.RackIds, clientPolicy.RackId)
-	}
 
 	// Set a default Idle Timeout for the connection
 	if clientPolicy.IdleTimeout <= 0 {
