@@ -86,7 +86,7 @@ type ClientIfc interface {
 	Stats() (map[string]interface{}, Error)
 	String() string
 	Touch(policy *WritePolicy, key *Key) Error
-	Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) Error
+	Truncate(policy *InfoPolicy, namespace, set string, beforeLastUpdate *time.Time) Error
 	WarmUp(count int) (int, Error)
 
 	BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err Error)

@@ -1332,9 +1332,8 @@ func (clnt *Client) DropIndex(
 // write new records after the server call returns because new records will have last update times
 // greater than the truncate cutoff (set at the time of truncate call).
 // For more information, See https://www.aerospike.com/docs/reference/info#truncate
-func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) Error {
-	// TODO: Change WritePolicy to InfoPolicy in the signature
-	policy = clnt.getUsableWritePolicy(policy)
+func (clnt *Client) Truncate(policy *InfoPolicy, namespace, set string, beforeLastUpdate *time.Time) Error {
+	policy = clnt.getUsableInfoPolicy(policy)
 
 	node, err := clnt.cluster.GetRandomNode()
 	if err != nil {
@@ -1344,7 +1343,7 @@ func (clnt *Client) Truncate(policy *WritePolicy, namespace, set string, beforeL
 	node.tendConnLock.Lock()
 	defer node.tendConnLock.Unlock()
 
-	if err = node.initTendConn(policy.TotalTimeout); err != nil {
+	if err = node.initTendConn(policy.Timeout); err != nil {
 		return err
 	}
 

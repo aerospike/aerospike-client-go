@@ -1068,7 +1068,7 @@ func (clnt *ProxyClient) DropIndex(
 // write new records after the server call returns because new records will have last update times
 // greater than the truncate cutoff (set at the time of truncate call).
 // For more information, See https://www.aerospike.com/docs/reference/info#truncate
-func (clnt *ProxyClient) Truncate(policy *WritePolicy, namespace, set string, beforeLastUpdate *time.Time) Error {
+func (clnt *ProxyClient) Truncate(policy *InfoPolicy, namespace, set string, beforeLastUpdate *time.Time) Error {
 	panic("NOT SUPPORTED")
 }
 
