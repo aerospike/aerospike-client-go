@@ -1169,12 +1169,12 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 	case ParticleType.GEOJSON:
 		ncells := int(Buffer.BytesToInt16(buf, offset+1))
 		headerSize := 1 + 2 + (ncells * 8)
-		return string(buf[offset+headerSize : offset+length]), nil
+		return GeoJSONValue(string(buf[offset+headerSize : offset+length])), nil
 
 	case ParticleType.HLL:
 		newObj := make([]byte, length)
 		copy(newObj, buf[offset:offset+length])
-		return newObj, nil
+		return HLLValue(newObj), nil
 
 	case ParticleType.BLOB:
 		newObj := make([]byte, length)

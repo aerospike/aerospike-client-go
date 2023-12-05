@@ -62,15 +62,15 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 
 	gg.It("must Query a specific Region Containing a Point and get only relevant records back", func() {
 
-		regions := []string{
-			`{
+		regions := []as.GeoJSONValue{
+			as.NewGeoJSONValue(`{
 		    "type": "Polygon",
 		    "coordinates": [
 		        [[-122.500000, 37.000000],[-121.000000, 37.000000],
 		         [-121.000000, 38.080000],[-122.500000, 38.080000],
 		         [-122.500000, 37.000000]]
 		    ]
-		}`,
+		}`),
 			// 	`{
 			//     "type": "Polygon",
 			//     "coordinates": [
@@ -83,30 +83,30 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 
 		for i, ptsb := range regions {
 			key, _ := as.NewKey(ns, set, i)
-			bin := as.NewBin(binName, as.NewGeoJSONValue(ptsb))
+			bin := as.NewBin(binName, ptsb)
 			err := client.PutBins(wpolicy, key, bin)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		}
 
-		points := []string{
-			`{ "type": "Point", "coordinates": [-122.000000, 37.500000] }`,
-			`{ "type": "Point", "coordinates": [-121.700000, 37.800000] }`,
-			`{ "type": "Point", "coordinates": [-121.900000, 37.600000] }`,
-			`{ "type": "Point", "coordinates": [-121.800000, 37.700000] }`,
-			`{ "type": "Point", "coordinates": [-121.600000, 37.900000] }`,
-			`{ "type": "Point", "coordinates": [-121.500000, 38.000000] }`,
+		points := []as.GeoJSONValue{
+			as.GeoJSONValue(`{ "type": "Point", "coordinates": [-122.000000, 37.500000] }`),
+			as.GeoJSONValue(`{ "type": "Point", "coordinates": [-121.700000, 37.800000] }`),
+			as.GeoJSONValue(`{ "type": "Point", "coordinates": [-121.900000, 37.600000] }`),
+			as.GeoJSONValue(`{ "type": "Point", "coordinates": [-121.800000, 37.700000] }`),
+			as.GeoJSONValue(`{ "type": "Point", "coordinates": [-121.600000, 37.900000] }`),
+			as.GeoJSONValue(`{ "type": "Point", "coordinates": [-121.500000, 38.000000] }`),
 		}
 
 		for _, rgnsb := range points {
 			stm := as.NewStatement(ns, set)
-			stm.SetFilter(as.NewGeoWithinRegionFilter(binName, rgnsb))
+			stm.SetFilter(as.NewGeoWithinRegionFilter(binName, string(rgnsb)))
 			recordset, err := client.Query(nil, stm)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			count := 0
 			for res := range recordset.Results() {
 				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				gm.Expect(regions).To(gm.ContainElement(res.Record.Bins[binName].(string)))
+				gm.Expect(regions).To(gm.ContainElement(res.Record.Bins[binName].(as.GeoJSONValue)))
 				count++
 			}
 
@@ -117,7 +117,7 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 
 	gg.It("must Query a specific Point in Region and get only relevant records back", func() {
 
-		points := []string{}
+		points := []as.GeoJSONValue{}
 		for i := 0; i < size; i++ {
 			lng := -122.0 + (0.1 * float64(i))
 			lat := 37.5 + (0.1 * float64(i))
@@ -127,7 +127,7 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 			ptsb += fmt.Sprintf("%f", lat)
 			ptsb += "] }"
 
-			points = append(points, ptsb)
+			points = append(points, as.NewGeoJSONValue(ptsb))
 
 			key, _ := as.NewKey(ns, set, i)
 			bin := as.NewBin(binName, as.NewGeoJSONValue(ptsb))
@@ -152,7 +152,7 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 		count := 0
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			gm.Expect(points).To(gm.ContainElement(res.Record.Bins[binName].(string)))
+			gm.Expect(points).To(gm.ContainElement(res.Record.Bins[binName].(as.GeoJSONValue)))
 			count++
 		}
 
@@ -162,7 +162,7 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 
 	gg.It("must Query specific Points in Region denoted by a point and radius and get only relevant records back", func() {
 
-		points := []string{}
+		points := []as.GeoJSONValue{}
 		for i := 0; i < size; i++ {
 			lng := -122.0 + (0.1 * float64(i))
 			lat := 37.5 + (0.1 * float64(i))
@@ -172,7 +172,7 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 			ptsb += fmt.Sprintf("%f", lat)
 			ptsb += "] }"
 
-			points = append(points, ptsb)
+			points = append(points, as.NewGeoJSONValue(ptsb))
 
 			key, _ := as.NewKey(ns, set, i)
 			bin := as.NewBin(binName, as.NewGeoJSONValue(ptsb))
@@ -192,7 +192,7 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 		count := 0
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			gm.Expect(points).To(gm.ContainElement(res.Record.Bins[binName].(string)))
+			gm.Expect(points).To(gm.ContainElement(res.Record.Bins[binName].(as.GeoJSONValue)))
 			count++
 		}
 

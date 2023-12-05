@@ -326,13 +326,13 @@ var _ = gg.Describe("Expression Operations", func() {
 		gm.Expect(r.Bins).To(gm.Equal(as.BinMap{
 			binH: []interface{}{
 				nil,
-				[]uint8{0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				as.HLLValue([]uint8{0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}),
 			},
 			binC: []interface{}{
 				nil,
-				[]uint8{0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				as.HLLValue([]uint8{0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}),
 			},
-			expVar: []uint8{0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			expVar: as.HLLValue([]uint8{0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}),
 		}))
 
 		r, err = client.Operate(nil, keyA,
@@ -340,7 +340,7 @@ var _ = gg.Describe("Expression Operations", func() {
 		)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(r.Bins).To(gm.Equal(as.BinMap{
-			expVar: []uint8{0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			expVar: as.HLLValue([]uint8{0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}),
 		}))
 	})
 
