@@ -68,7 +68,7 @@ func newBatchRead(policy *BatchReadPolicy, key *Key, binNames []string) (*BatchR
 }
 
 // NewBatchReadOps defines a key and bins to retrieve in a batch operation, including expressions.
-func NewBatchReadOps(policy *BatchReadPolicy, key *Key, ops []*Operation) *BatchRead {
+func NewBatchReadOps(policy *BatchReadPolicy, key *Key, ops ...*Operation) *BatchRead {
 	res := &BatchRead{
 		BatchRecord: *newSimpleBatchRecord(key, false),
 		Policy:      policy,
