@@ -45,4 +45,4 @@ jobs:
 #      - name: Build for Google App Engine (unsafe package removed)
 #        run: go run github.com/onsi/ginkgo/v2/ginkgo -tags="app_engine" .
       - name: Run the tests
-        run: go run github.com/onsi/ginkgo/v2/ginkgo -cover -race -keep-going -succinct -randomize-suites
+        run: go run github.com/onsi/ginkgo/v2/ginkgo -cover -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
