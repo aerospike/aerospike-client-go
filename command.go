@@ -831,7 +831,7 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 	// fmt.Println("===================================================###", cmd.dataOffset)
 	cmd.writeBatchHeader(policy, fieldCount)
 
-	if policy.FilterExpression != nil {
+	if exp != nil {
 		if err := cmd.writeFilterExpression(exp, predSize); err != nil {
 			return err
 		}
