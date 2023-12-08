@@ -17,7 +17,7 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 
 // ReadModeSC is the read policy in SC (strong consistency) mode namespaces.
 // Determines SC read consistency options.

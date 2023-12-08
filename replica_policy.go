@@ -17,7 +17,7 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 
 // ReplicaPolicy defines type of node partition targeted by read commands.
 type ReplicaPolicy int

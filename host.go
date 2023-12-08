@@ -19,7 +19,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/aerospike/aerospike-client-go/v6/types"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 // Host name/port of database server.

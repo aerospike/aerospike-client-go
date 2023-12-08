@@ -17,8 +17,8 @@ package aerospike
 import (
 	"encoding/base64"
 
-	"github.com/aerospike/aerospike-client-go/v6/types"
-	ParticleType "github.com/aerospike/aerospike-client-go/v6/types/particle_type"
+	"github.com/aerospike/aerospike-client-go/v7/types"
+	ParticleType "github.com/aerospike/aerospike-client-go/v7/types/particle_type"
 )
 
 // ExpressionArgument is used for passing arguments to filter expressions.

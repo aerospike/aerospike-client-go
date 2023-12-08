@@ -17,7 +17,7 @@ package aerospike
 import (
 	"time"
 
-	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 )
 
 // ScanPolicy encapsulates parameters used in scan operations.

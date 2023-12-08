@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/aerospike/aerospike-client-go/v6/logger"
-	"github.com/aerospike/aerospike-client-go/v6/types"
+	"github.com/aerospike/aerospike-client-go/v7/logger"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 const (

@@ -24,7 +24,7 @@ import (
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	auth "github.com/aerospike/aerospike-client-go/v6/proto/auth"
+	auth "github.com/aerospike/aerospike-client-go/v7/proto/auth"
 )
 
 type authInterceptor struct {

@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/aerospike/aerospike-client-go/v6/types"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 func init() {

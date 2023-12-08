@@ -17,7 +17,7 @@ package aerospike
 import (
 	"fmt"
 
-	"github.com/aerospike/aerospike-client-go/v6/types"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 // BatchRead specifies the Key and bin names used in batch read commands

@@ -19,7 +19,7 @@ import (
 	"math"
 	"strings"
 
-	as "github.com/aerospike/aerospike-client-go/v6"
+	as "github.com/aerospike/aerospike-client-go/v7"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"

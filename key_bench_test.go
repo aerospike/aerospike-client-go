@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aerospike/aerospike-client-go/v6/pkg/ripemd160"
+	"github.com/aerospike/aerospike-client-go/v7/pkg/ripemd160"
 )
 
 var res = make([]byte, 20)

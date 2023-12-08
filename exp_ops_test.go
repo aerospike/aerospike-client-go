@@ -21,8 +21,8 @@ import (
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 
-	as "github.com/aerospike/aerospike-client-go/v6"
-	ast "github.com/aerospike/aerospike-client-go/v6/types"
+	as "github.com/aerospike/aerospike-client-go/v7"
+	ast "github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 const udfPredexpBody = `local function putBin(r,name,value)
@@ -56,8 +56,8 @@ end
 
 -- Set a particular bin only if record does not already exist.
 function writeUnique(r,name,value)
-    if not aerospike:exists(r) then 
-        aerospike:create(r) 
+    if not aerospike:exists(r) then
+        aerospike:create(r)
         r[name] = value
         aerospike:update(r)
     end
@@ -68,14 +68,14 @@ function writeWithValidation(r,name,value)
     if (value >= 1 and value <= 10) then
         putBin(r,name,value)
     else
-        error("1000:Invalid value") 
+        error("1000:Invalid value")
     end
 end
 
 -- Record contains two integer bins, name1 and name2.
 -- For name1 even integers, add value to existing name1 bin.
 -- For name1 integers with a multiple of 5, delete name2 bin.
--- For name1 integers with a multiple of 9, delete record. 
+-- For name1 integers with a multiple of 9, delete record.
 function processRecord(r,name1,name2,addValue)
     local v = r[name1]
 

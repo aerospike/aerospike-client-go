@@ -19,11 +19,11 @@ import (
 	"math/rand"
 	"reflect"
 
-	"github.com/aerospike/aerospike-client-go/v6/logger"
-	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
-	"github.com/aerospike/aerospike-client-go/v6/types"
+	"github.com/aerospike/aerospike-client-go/v7/logger"
+	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 
-	Buffer "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
+	Buffer "github.com/aerospike/aerospike-client-go/v7/utils/buffer"
 )
 
 type readCommand struct {

@@ -17,9 +17,9 @@ package aerospike
 import (
 	"fmt"
 
-	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
-	"github.com/aerospike/aerospike-client-go/v6/types"
-	xornd "github.com/aerospike/aerospike-client-go/v6/types/rand"
+	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
+	"github.com/aerospike/aerospike-client-go/v7/types"
+	xornd "github.com/aerospike/aerospike-client-go/v7/types/rand"
 )
 
 // Statement encapsulates query statement parameters.

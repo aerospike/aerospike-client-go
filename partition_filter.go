@@ -19,8 +19,8 @@ import (
 	"bytes"
 	"encoding/gob"
 
-	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
-	"github.com/aerospike/aerospike-client-go/v6/types"
+	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 // PartitionFilter is used in scan/queries. This filter is also used as a cursor.

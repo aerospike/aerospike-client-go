@@ -17,7 +17,7 @@ package atomic_test
 import (
 	"runtime"
 
-	"github.com/aerospike/aerospike-client-go/v6/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/v7/internal/atomic"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"

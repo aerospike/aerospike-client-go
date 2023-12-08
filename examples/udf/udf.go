@@ -21,8 +21,8 @@ import (
 	"bytes"
 	"log"
 
-	as "github.com/aerospike/aerospike-client-go/v6"
-	shared "github.com/aerospike/aerospike-client-go/v6/examples/shared"
+	as "github.com/aerospike/aerospike-client-go/v7"
+	shared "github.com/aerospike/aerospike-client-go/v7/examples/shared"
 )
 
 const udf = `
@@ -57,8 +57,8 @@ end
 
 -- Set a particular bin only if record does not already exist.
 function writeUnique(r,name,value)
-    if not aerospike:exists(r) then 
-        aerospike:create(r) 
+    if not aerospike:exists(r) then
+        aerospike:create(r)
         r[name] = value
         aerospike:update(r)
     end
@@ -69,14 +69,14 @@ function writeWithValidation(r,name,value)
     if (value >= 1 and value <= 10) then
         putBin(r,name,value)
     else
-        error("1000:Invalid value") 
+        error("1000:Invalid value")
     end
 end
 
 -- Record contains two integer bins, name1 and name2.
 -- For name1 even integers, add value to existing name1 bin.
 -- For name1 integers with a multiple of 5, delete name2 bin.
--- For name1 integers with a multiple of 9, delete record. 
+-- For name1 integers with a multiple of 9, delete record.
 function processRecord(r,name1,name2,addValue)
     local v = r[name1]
 

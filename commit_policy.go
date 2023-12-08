@@ -17,7 +17,7 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 
 // CommitLevel indicates the desired consistency guarantee when committing a transaction on the server.
 type CommitLevel int

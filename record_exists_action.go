@@ -14,7 +14,7 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 
 // RecordExistsAction determines how to handle writes when
 // the record already exists.

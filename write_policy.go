@@ -18,7 +18,7 @@ import (
 	"math"
 	"time"
 
-	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 )
 
 const (

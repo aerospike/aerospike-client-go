@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	iatomic "github.com/aerospike/aerospike-client-go/v6/internal/atomic"
+	iatomic "github.com/aerospike/aerospike-client-go/v7/internal/atomic"
 )
 
 // nodeStats keeps track of client's internal node statistics

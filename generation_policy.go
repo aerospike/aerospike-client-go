@@ -14,7 +14,7 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 
 // GenerationPolicy determines how to handle record writes based on record generation.
 type GenerationPolicy int

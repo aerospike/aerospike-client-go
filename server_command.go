@@ -17,9 +17,9 @@ package aerospike
 import (
 	"math/rand"
 
-	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
-	"github.com/aerospike/aerospike-client-go/v6/types"
-	Buffer "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
+	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
+	"github.com/aerospike/aerospike-client-go/v7/types"
+	Buffer "github.com/aerospike/aerospike-client-go/v7/utils/buffer"
 )
 
 type serverCommand struct {

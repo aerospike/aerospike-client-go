@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v6/logger"
-	"github.com/aerospike/aerospike-client-go/v6/types"
+	"github.com/aerospike/aerospike-client-go/v7/logger"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 // DefaultBufferSize specifies the initial size of the connection buffer when it is created.

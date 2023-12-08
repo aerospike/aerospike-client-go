@@ -21,8 +21,8 @@ import (
 	"strings"
 	"time"
 
-	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
-	"github.com/aerospike/aerospike-client-go/v6/types"
+	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 // ExecuteTask is used to poll for long running server execute job completion.

@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/aerospike/aerospike-client-go/v6/types"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 // Partitions represents a list of partitions

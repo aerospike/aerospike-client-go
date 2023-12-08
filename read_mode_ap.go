@@ -17,7 +17,7 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 
 // ReadModeAP is the read policy in AP (availability) mode namespaces.
 // It indicates how duplicates should be consulted in a read operation.

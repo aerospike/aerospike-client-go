@@ -25,9 +25,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	iatomic "github.com/aerospike/aerospike-client-go/v6/internal/atomic"
-	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
-	"github.com/aerospike/aerospike-client-go/v6/types"
+	iatomic "github.com/aerospike/aerospike-client-go/v7/internal/atomic"
+	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 // ProxyClient encapsulates an Aerospike cluster.

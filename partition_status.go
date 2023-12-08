@@ -18,7 +18,7 @@ package aerospike
 import (
 	"fmt"
 
-	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
+	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 )
 
 // PartitionStatus encapsulates the pagination status in partitions.

@@ -14,7 +14,7 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v6/types"
+import "github.com/aerospike/aerospike-client-go/v7/types"
 
 type queryObjectsCommand struct {
 	queryCommand
