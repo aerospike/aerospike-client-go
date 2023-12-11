@@ -1,5 +1,88 @@
 # Change History
 
+## December 11 2023: v7
+
+> [!CAUTION]
+> This is a breaking release. It is required to allow upgrading your programs to the Aerospike Server v7. This program upgrade process required as a prerequisite to upgrading your cluster, otherwise seemless cluster upgrade will not be possible. The changes and their rationale are documented in the following section.
+
+- **Breaking Changes**
+
+  - [CLIENT-2713] Handle Normalized Integers in Maps and Lists.
+    Aerospike Server v7 normalizes all positive integers in Maps and Lists into unsigned values for various efficiency reasons, and returns them as uint64. This effectively means that the type of positive `int64` values will be lost. Go client supported `uint64` types in lists and maps, and this change breaks that functionality by normalizing the values and removing the sign bits in case they are not needed. To support all versions of the server before and after the v7 consistently, the Go client will now behave like other Aerospike smart clients and automatically convert all unsigned int64 values inside maps and lists into signed values. This means a `math.MaxUint64` value in a List or Map will return as two's compliment: -1.
+    Example:
+
+    ```go
+      client.Put(wpolicy, key, BinMap{"map": map[any]any{"max": uint64(math.MaxUint64), "typed": uint64(0)}})
+    ```
+
+    will return as:
+
+  ```go
+      rec, err := client.Get(rpolicy, key)
+      // rec.Bins will be:
+      // BinMap{"map": map[any]any{"max": int64(-1), "typed": int64(0)}}
+  ```
+
+    This will break all code that used to cast `rec.Bins["map"].(map[any]any)["max].(uin64)`. As a result, all such code should cast to int64 and then convert back to `uint64` via a sign switch.
+    If you didn't use `uint64` values in Maps ans Lists, you should not be affected by this change.
+    All the test cases that depended on the old behavior have been adapted to the new behavior.
+  - [CLIENT-2319] Change ops parameter to variadic for consistency.
+
+      ```go
+        func NewBatchReadOps(key *Key, binNames []string, ops ...*Operation) *BatchRead {
+      ```
+
+      to
+
+      ```go
+        func NewBatchReadOps(policy *BatchReadPolicy, key *Key, ops ...*Operation) *BatchRead {
+      ```
+
+  - [CLIENT-2719] Typed `GeoJSON` and `HLL` deserialization.
+    The Go client would read GeoJSON and HLL values back as `string` and `[]byte` respectively. So if you read a record with bins of these types and wrote it directly back to the database, the type of these fields would be lost.
+    The new version addresses this issue, but could be a breaking change if you have code that casts the values to the old `string` and `[]byte`. You now need to cast these values to `GeoJSONValue` and `HLLValue` types respectively.
+  - [CLIENT-2484] Add `returnType` to supported `ExpMapRemoveBy*` and `ExpListRemoveBy*` methods.
+
+  - [CLIENT-2319] Revise BatchReadAPI and add BatchReadPolicy to the API.
+
+    Changes the following Public API:
+
+      ```go
+        func NewBatchRead(key *Key, binNames []string) *BatchRead {
+        func NewBatchReadOps(key *Key, binNames []string, ops ...*Operation) *BatchRead {
+        func NewBatchReadHeader(key *Key) *BatchRead {
+      ```
+
+      to
+
+      ```go
+        func NewBatchRead(policy *BatchReadPolicy, key *Key, binNames []string) *BatchRead {
+        func NewBatchReadOps(policy *BatchReadPolicy, key *Key, ops ...*Operation) *BatchRead {
+        func NewBatchReadHeader(policy *BatchReadPolicy, key *Key) *BatchRead {
+      ```
+
+  - Replace `WritePolicy` with `InfoPolicy` in `client.Truncate`.
+  - Remove the deprecated `ClientPolicy.RackId`. Use `Policy.RackIds` instead.
+
+- **New Features**
+
+  - [CLIENT-2712] [CLIENT-2710] Support read replica policy in scan/query.
+      This includes `PREFER_RACK` which allows scan/query to be directed at local rack nodes when possible.
+  - [CLIENT-2434] Use 'sindex-exists' command in `DropIndexTask`.
+  - [CLIENT-2573] Support `ExpRecordSize()`.
+  - [CLIENT-2588] SINDEX Support for 'Blob' Type Elements.
+
+- **Improvements**
+  - [CLIENT-2694] Use RawURLEncoding instead of RawStdEncoding in proxy authenticator.
+  - [CLIENT-2616] Update dependencies to the latest, require Go 1.21
+  - Remove HyperLogLog tests from the Github Actions suite
+  - Remove Go v1.18-v1.20 from the Github Actions Matrix
+  - Rename grpc proto definition files due to compiler limitations. Resolves #414
+
+- **Fixes**
+  - [CLIENT-2318] Fixes an issue where Expression in `BatchPolicy` takes precedence rather than `BatchDeletePolicy` in `BatchDelete`.
+
+
 ## November 1 2023: v6.14.1
 
   Hotfix.

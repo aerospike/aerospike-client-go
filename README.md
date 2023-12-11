@@ -5,7 +5,7 @@
 
 An Aerospike library for Go.
 
-This library is compatible with Go 1.19+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
+This library is compatible with Go 1.21+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
 
 Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go/v7?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v7).
 
@@ -13,7 +13,7 @@ You can refer to the test files for idiomatic use cases.
 
 Please refer to [`CHANGELOG.md`](CHANGELOG.md) for release notes, or if you encounter breaking changes.
 
-- [Usage](#Usage)
+- [Usage](#usage)
 - [Prerequisites](#Prerequisites)
 - [Installation](#Installation)
 - [Tweaking Performance](#Performance)
@@ -24,7 +24,6 @@ Please refer to [`CHANGELOG.md`](CHANGELOG.md) for release notes, or if you enco
 - [Tests](#Tests)
 - [Examples](#Examples)
   - [Tools](#Tools)
-
 
 ## Usage
 
@@ -85,7 +84,7 @@ Details about the API are available in the [`docs`](docs) directory.
 <a name="Prerequisites"></a>
 ## Prerequisites
 
-[Go](http://golang.org) version v1.12+ is required.
+[Go](http://golang.org) version v1.21+ is required.
 
 To install the latest stable version of Go, visit
 [http://golang.org/dl/](http://golang.org/dl/)
@@ -103,17 +102,17 @@ Supported operating systems:
 <a name="Installation"></a>
 ## Installation
 
-1. Install Go 1.16+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
-2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go```
-  * To update the client library: ```go get -u github.com/aerospike/aerospike-client-go```
+1. Install Go 1.21+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
+2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go/v7```
+  - To update the client library: ```go get -u github.com/aerospike/aerospike-client-go/v7```
 
-Using [gopkg.in](https://gopkg.in/) is also supported: `go get -u gopkg.in/aerospike/aerospike-client-go.v1`
+Using [gopkg.in](https://gopkg.in/) is also supported: `go get -u gopkg.in/aerospike/aerospike-client-go.v7`
 
 ### Some Hints:
 
- * To run a go program directly: ```go run <filename.go>```
- * to build:  ```go build -o <output> <filename.go>```
-  * example: ```go build -o benchmark tools/benchmark/benchmark.go```
+- To run a go program directly: ```go run <filename.go>```
+- to build:  ```go build -o <output> <filename.go>```
+- example: ```go build -o benchmark tools/benchmark/benchmark.go```
 
 <a name="Performance"></a>
 ## Performance Tweaking
