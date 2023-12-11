@@ -26,30 +26,18 @@
     This will break all code that used to cast `rec.Bins["map"].(map[any]any)["max].(uin64)`. As a result, all such code should cast to int64 and then convert back to `uint64` via a sign switch.
     If you didn't use `uint64` values in Maps ans Lists, you should not be affected by this change.
     All the test cases that depended on the old behavior have been adapted to the new behavior.
-  - [CLIENT-2319] Change ops parameter to variadic for consistency.
-
-      ```go
-        func NewBatchReadOps(key *Key, binNames []string, ops ...*Operation) *BatchRead {
-      ```
-
-      to
-
-      ```go
-        func NewBatchReadOps(policy *BatchReadPolicy, key *Key, ops ...*Operation) *BatchRead {
-      ```
-
   - [CLIENT-2719] Typed `GeoJSON` and `HLL` deserialization.
     The Go client would read GeoJSON and HLL values back as `string` and `[]byte` respectively. So if you read a record with bins of these types and wrote it directly back to the database, the type of these fields would be lost.
     The new version addresses this issue, but could be a breaking change if you have code that casts the values to the old `string` and `[]byte`. You now need to cast these values to `GeoJSONValue` and `HLLValue` types respectively.
   - [CLIENT-2484] Add `returnType` to supported `ExpMapRemoveBy*` and `ExpListRemoveBy*` methods.
 
-  - [CLIENT-2319] Revise BatchReadAPI and add BatchReadPolicy to the API.
+  - [CLIENT-2319] Revise BatchReadAPIs to accept BatchReadPolicy argument. `NewBatchReadOps` no longer takes `binNames` and changes ops parameter to variadic for consistency.
 
     Changes the following Public API:
 
       ```go
         func NewBatchRead(key *Key, binNames []string) *BatchRead {
-        func NewBatchReadOps(key *Key, binNames []string, ops ...*Operation) *BatchRead {
+        func NewBatchReadOps(key *Key, binNames []string, ops []*Operation) *BatchRead {
         func NewBatchReadHeader(key *Key) *BatchRead {
       ```
 
