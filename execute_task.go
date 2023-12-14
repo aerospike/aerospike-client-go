@@ -59,6 +59,11 @@ func newGRPCExecuteTask(clnt *ProxyClient, statement *Statement) *ExecuteTask {
 	}
 }
 
+// TaskId returns the task id that was sent to the server.
+func (etsk *ExecuteTask) TaskId() uint64 {
+	return etsk.taskID
+}
+
 // IsDone queries all nodes for task completion status.
 func (etsk *ExecuteTask) IsDone() (bool, Error) {
 	if etsk.clnt != nil {
