@@ -35,7 +35,7 @@ type PartitionFilter struct {
 	// Partitions encapsulates the cursor for the progress of the scan/query to be used for pagination.
 	Partitions []*PartitionStatus
 	Done       bool
-	retry      bool
+	Retry      bool
 }
 
 // NewPartitionFilterAll creates a partition filter that

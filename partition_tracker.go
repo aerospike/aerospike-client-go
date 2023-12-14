@@ -107,11 +107,11 @@ func newPartitionTracker(policy *MultiPolicy, filter *PartitionFilter, nodes []*
 
 	if len(filter.Partitions) == 0 {
 		filter.Partitions = pt.initPartitions(policy, filter.Count, filter.Digest)
-		filter.retry = true
+		filter.Retry = true
 	} else {
 		// Retry all partitions when maxRecords not specified.
 		if policy.MaxRecords <= 0 {
-			filter.retry = true
+			filter.Retry = true
 		}
 
 		// Reset replica sequence and last node used.
@@ -173,7 +173,7 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 	}
 
 	p := NewPartitionForReplicaPolicy(namespace, pt.replica)
-	retry := (pt.partitionFilter == nil || pt.partitionFilter.retry) && (pt.iteration == 1)
+	retry := (pt.partitionFilter == nil || pt.partitionFilter.Retry) && (pt.iteration == 1)
 
 	for _, part := range pt.partitions {
 		if retry || part.Retry {
@@ -212,7 +212,7 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 	// Global retry will be set to false if the scan/query completes normally and maxRecords
 	// is specified.
 	if pt.partitionFilter != nil {
-		pt.partitionFilter.retry = true
+		pt.partitionFilter.Retry = true
 	}
 
 	pt.recordCount = nil
@@ -311,7 +311,7 @@ func (pt *partitionTracker) isComplete(cluster *Cluster, policy *BasePolicy) (bo
 	if partsUnavailable == 0 {
 		if pt.maxRecords <= 0 {
 			if pt.partitionFilter != nil {
-				pt.partitionFilter.retry = false
+				pt.partitionFilter.Retry = false
 				pt.partitionFilter.Done = true
 			}
 		} else if pt.iteration > 1 {
@@ -320,7 +320,7 @@ func (pt *partitionTracker) isComplete(cluster *Cluster, policy *BasePolicy) (bo
 				// next iteration. If that node finally succeeds, the other original nodes still
 				// need to be retried if partition state is reused in the next scan/query command.
 				// Force retry on all node partitions.
-				pt.partitionFilter.retry = true
+				pt.partitionFilter.Retry = true
 				pt.partitionFilter.Done = false
 			}
 		} else {
@@ -339,7 +339,7 @@ func (pt *partitionTracker) isComplete(cluster *Cluster, policy *BasePolicy) (bo
 				}
 
 				if pt.partitionFilter != nil {
-					pt.partitionFilter.retry = false
+					pt.partitionFilter.Retry = false
 					pt.partitionFilter.Done = done
 				}
 			} else {
@@ -353,7 +353,7 @@ func (pt *partitionTracker) isComplete(cluster *Cluster, policy *BasePolicy) (bo
 				}
 
 				if pt.partitionFilter != nil {
-					pt.partitionFilter.retry = false
+					pt.partitionFilter.Retry = false
 					pt.partitionFilter.Done = (recordCount == 0)
 				}
 			}
@@ -438,7 +438,7 @@ func (pt *partitionTracker) markRetry(nodePartitions *nodePartitions) {
 func (pt *partitionTracker) partitionError() {
 	// Mark all partitions for retry on fatal errors.
 	if pt.partitionFilter != nil {
-		pt.partitionFilter.retry = true
+		pt.partitionFilter.Retry = true
 	}
 }
 
