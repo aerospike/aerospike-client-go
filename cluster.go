@@ -70,6 +70,15 @@ type Cluster struct {
 
 	// Password in hashed format in bytes.
 	password iatomic.SyncVal // []byte
+
+	clusterName string
+
+	metricsEnabled  bool
+	metricsListener MetricsListener
+
+	tranCount              iatomic.Int
+	retryCount             iatomic.Int
+	delayQueueTimeoutCount iatomic.Int
 }
 
 // NewCluster generates a Cluster instance.
@@ -162,6 +171,12 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	}
 
 	return newCluster, err
+}
+
+func (clstr *Cluster) enableMetrics(policy *MetricsPolicy) {
+	if clstr.metricsEnabled {
+		clstr.metricsListener.onDisable(clstr)
+	}
 }
 
 // String implements the stringer interface

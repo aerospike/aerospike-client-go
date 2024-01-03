@@ -110,6 +110,16 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 
 }
 
+// Metrics
+
+func (clnt *Client) EnableMetrics(policy *MetricsPolicy) {
+	clnt.cluster.enableMetrics(policy)
+}
+
+func (clnt *Client) DisableMetrics() {
+	clnt.cluster.disableMetrics()
+}
+
 //-------------------------------------------------------
 // Policy methods
 //-------------------------------------------------------
