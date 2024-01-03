@@ -1,4 +1,4 @@
-# Aerospike Go Client v6
+# Aerospike Go Client v7
 
 [![Aerospike Client Go](https://goreportcard.com/badge/github.com/aerospike/aerospike-client-go/v7)](https://goreportcard.com/report/github.com/aerospike/aerospike-client-go/v7)
 [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go/v7?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v7)
