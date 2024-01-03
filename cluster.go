@@ -179,6 +179,12 @@ func (clstr *Cluster) enableMetrics(policy *MetricsPolicy) {
 	}
 }
 
+func (clstr *Cluster) addTran() {
+	if clstr.metricsEnabled {
+		clstr.tranCount.GetAndIncrement()
+	}
+}
+
 // String implements the stringer interface
 func (clstr *Cluster) String() string {
 	return fmt.Sprintf("%v", clstr.GetNodes())
