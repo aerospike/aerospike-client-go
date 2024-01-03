@@ -72,8 +72,21 @@ func (mw *MetricsWriter) writeCluster(clstr *Cluster) error {
 }
 
 func (mw *MetricsWriter) writeNode(node *Node) {
-	mw.sb.WriteString('[')
+	mw.sb.WriteString("[")
 	mw.sb.WriteString(node.GetName())
+	mw.sb.WriteString(",")
+
+	host := node.GetHost()
+	mw.sb.WriteString(host.Name)
+	mw.sb.WriteString(",")
+	mw.sb.WriteString(string(host.Port))
+	mw.sb.WriteString(",")
+	// TODO: nodeStats doesn't match Java client's ConnectionStats
+	// mw.sb.WriteString(node.stats)
+	// TODO: node's async connection stats doesn't exist
+	mw.sb.WriteString(node.errorCount.String())
+	mw.sb.WriteString(",")
+	mw.sb.WriteString(node.)
 }
 
 // stdlib's runtime package doesn't have a way to measure CPU usage (as far as I know)
