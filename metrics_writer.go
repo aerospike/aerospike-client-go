@@ -86,7 +86,10 @@ func (mw *MetricsWriter) writeNode(node *Node) {
 	// TODO: node's async connection stats doesn't exist
 	mw.sb.WriteString(node.errorCount.String())
 	mw.sb.WriteString(",")
-	mw.sb.WriteString(node.)
+	// TODO: node doesn't have timeoutCount
+	mw.sb.WriteString("[")
+
+	max := LATENCY_NONE
 }
 
 // stdlib's runtime package doesn't have a way to measure CPU usage (as far as I know)
