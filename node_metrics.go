@@ -18,9 +18,16 @@ func newLatencyBuckets(latencyColumns int, latencyShift int) *LatencyBuckets {
 }
 
 type NodeMetrics struct {
-	latency []LatencyBuckets
+	latency []*LatencyBuckets
 }
 
 func newNodeMetrics(policy *MetricsPolicy) *NodeMetrics {
-	return newLatencyBuckets(policy.latencyColumns, policy.latencyShift)
+	max := LATENCY_NONE
+	latency := make([]*LatencyBuckets, max)
+	for i := 0; i < max; i++ {
+		latency[i] = newLatencyBuckets(policy.latencyColumns, policy.latencyShift)
+	}
+	return &NodeMetrics{
+		latency: latency,
+	}
 }
