@@ -37,11 +37,14 @@ type batchCommandOperate struct {
 }
 
 func newBatchCommandOperate(
+	cluster *Cluster,
 	node *Node,
 	batch *batchNode,
 	policy *BatchPolicy,
 	records []BatchRecordIfc,
 ) *batchCommandOperate {
+	cluster.addTran()
+
 	res := &batchCommandOperate{
 		batchCommand: batchCommand{
 			baseMultiCommand: *newMultiCommand(node, nil, true),

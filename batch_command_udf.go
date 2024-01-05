@@ -31,6 +31,7 @@ type batchCommandUDF struct {
 }
 
 func newBatchCommandUDF(
+	cluster *Cluster,
 	node *Node,
 	batch *batchNode,
 	policy *BatchPolicy,
@@ -41,6 +42,8 @@ func newBatchCommandUDF(
 	records []*BatchRecord,
 	attr *batchAttr,
 ) *batchCommandUDF {
+	cluster.addTran()
+
 	res := &batchCommandUDF{
 		batchCommand: batchCommand{
 			baseMultiCommand: *newMultiCommand(node, nil, false),

@@ -28,6 +28,7 @@ type batchCommandDelete struct {
 }
 
 func newBatchCommandDelete(
+	cluster *Cluster,
 	node *Node,
 	batch *batchNode,
 	policy *BatchPolicy,
@@ -35,6 +36,7 @@ func newBatchCommandDelete(
 	records []*BatchRecord,
 	attr *batchAttr,
 ) *batchCommandDelete {
+	cluster.addTran()
 	res := &batchCommandDelete{
 		batchCommand: batchCommand{
 			baseMultiCommand: *newMultiCommand(node, nil, false),

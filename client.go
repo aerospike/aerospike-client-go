@@ -454,9 +454,7 @@ func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, Error
 	}
 
 	// pass nil to make sure it will be cloned and prepared
-	cmd := newBatchCommandExists(nil, nil, policy, keys, existsArray)
-
-	clnt.cluster.addTran()
+	cmd := newBatchCommandExists(clnt.cluster, nil, nil, policy, keys, existsArray)
 
 	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if filteredOut > 0 {
@@ -530,9 +528,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 		return nil, err
 	}
 
-	cmd := newBatchCommandGet(nil, nil, policy, keys, binNames, nil, records, _INFO1_READ, false)
-
-	clnt.cluster.addTran()
+	cmd := newBatchCommandGet(clnt.cluster, nil, nil, policy, keys, binNames, nil, records, _INFO1_READ, false)
 
 	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
@@ -563,9 +559,7 @@ func (clnt *Client) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Op
 		return nil, err
 	}
 
-	cmd := newBatchCommandGet(nil, nil, policy, keys, nil, ops, records, _INFO1_READ, true)
-
-	clnt.cluster.addTran()
+	cmd := newBatchCommandGet(clnt.cluster, nil, nil, policy, keys, nil, ops, records, _INFO1_READ, true)
 
 	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
@@ -588,9 +582,7 @@ func (clnt *Client) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Op
 func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) Error {
 	policy = clnt.getUsableBatchPolicy(policy)
 
-	cmd := newBatchIndexCommandGet(nil, policy, records, true)
-
-	clnt.cluster.addTran()
+	cmd := newBatchIndexCommandGet(clnt.cluster, nil, policy, records, true)
 
 	batchNodes, err := newBatchIndexNodeList(clnt.cluster, policy, records)
 	if err != nil {
@@ -626,9 +618,7 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 		return nil, err
 	}
 
-	cmd := newBatchCommandGet(nil, nil, policy, keys, nil, nil, records, _INFO1_READ|_INFO1_NOBINDATA, false)
-
-	clnt.cluster.addTran()
+	cmd := newBatchCommandGet(clnt.cluster, nil, nil, policy, keys, nil, nil, records, _INFO1_READ|_INFO1_NOBINDATA, false)
 
 	filteredOut, err := clnt.batchExecute(policy, batchNodes, cmd)
 	if err != nil && !policy.AllowPartialResults {
@@ -665,9 +655,7 @@ func (clnt *Client) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePo
 		return nil, err
 	}
 
-	cmd := newBatchCommandDelete(nil, nil, policy, keys, records, attr)
-
-	clnt.cluster.addTran()
+	cmd := newBatchCommandDelete(clnt.cluster, nil, nil, policy, keys, records, attr)
 
 	_, err = clnt.batchExecute(policy, batchNodes, cmd)
 	return records, err
@@ -688,9 +676,7 @@ func (clnt *Client) BatchOperate(policy *BatchPolicy, records []BatchRecordIfc) 
 		return err
 	}
 
-	cmd := newBatchCommandOperate(nil, nil, policy, records)
-
-	clnt.cluster.addTran()
+	cmd := newBatchCommandOperate(clnt.cluster, nil, nil, policy, records)
 
 	_, err = clnt.batchExecute(policy, batchNodes, cmd)
 	return err
@@ -722,9 +708,7 @@ func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy,
 		return nil, err
 	}
 
-	cmd := newBatchCommandUDF(nil, nil, policy, keys, packageName, functionName, args, records, attr)
-
-	clnt.cluster.addTran()
+	cmd := newBatchCommandUDF(clnt.cluster, nil, nil, policy, keys, packageName, functionName, args, records, attr)
 
 	_, err = clnt.batchExecute(policy, batchNodes, cmd)
 	return records, err
@@ -783,7 +767,6 @@ func (clnt *Client) ScanPartitions(apolicy *ScanPolicy, partitionFilter *Partiti
 
 	// result recordset
 	res := newRecordset(policy.RecordQueueSize, 1)
-	clnt.cluster.addTran()
 	go clnt.scanPartitions(&policy, tracker, namespace, setName, res, binNames...)
 
 	return res, nil

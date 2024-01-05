@@ -19,6 +19,7 @@ type batchIndexCommandGet struct {
 }
 
 func newBatchIndexCommandGet(
+	cluster *Cluster,
 	batch *batchNode,
 	policy *BatchPolicy,
 	records []*BatchRead,
@@ -28,6 +29,8 @@ func newBatchIndexCommandGet(
 	if batch != nil {
 		node = batch.Node
 	}
+
+	cluster.addTran()
 
 	res := &batchIndexCommandGet{
 		batchCommandGet{
