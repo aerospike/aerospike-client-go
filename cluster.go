@@ -171,12 +171,16 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	return newCluster, err
 }
 
-func (clstr *Cluster) enableMetrics(policy *MetricsPolicy) {
+func (clstr *Cluster) enableMetrics(policy *MetricsPolicy) error {
 	if clstr.metricsEnabled {
-		clstr.metricsListener.onDisable(clstr)
+		// Disable the old metrics listener
+		err := clstr.metricsListener.onDisable(clstr)
+		if err != nil {
+			return err
+		}
 	}
 
-	var listener MetricsListener = *policy.listener
+	var listener MetricsListener = policy.listener
 
 	if listener == nil {
 		listener = &MetricsWriter{dir: policy.reportDir}
@@ -452,7 +456,7 @@ func (clstr *Cluster) tend() Error {
 	}
 
 	if clstr.metricsEnabled && clstr.tendCount%clstr.metricsPolicy.interval == 0 {
-		(*clstr.metricsListener).onSnapshot(clstr)
+		clstr.metricsListener.onSnapshot(clstr)
 	}
 
 	return nil
@@ -830,7 +834,7 @@ func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
 		})
 
 		if clstr.metricsEnabled {
-			err := (*clstr.metricsListener).onNodeClose(node)
+			err := clstr.metricsListener.onNodeClose(node)
 			if err != nil {
 				logger.Logger.Warn("Write metrics failed on " + node.name + ": " + err.Error())
 			}

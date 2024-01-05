@@ -112,10 +112,16 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 
 // Metrics
 
-func (clnt *Client) EnableMetrics(policy *MetricsPolicy) {
-	clnt.cluster.enableMetrics(policy)
+// Enable extended periodic cluster and node latency metrics.
+func (clnt *Client) EnableMetrics(policy *MetricsPolicy) error {
+	err := clnt.cluster.enableMetrics(policy)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
+// Disable extended periodic cluster and node latency metrics.
 func (clnt *Client) DisableMetrics() {
 	clnt.cluster.disableMetrics()
 }

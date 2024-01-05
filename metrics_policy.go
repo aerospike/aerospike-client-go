@@ -1,7 +1,7 @@
 package aerospike
 
 type MetricsPolicy struct {
-	listener       *MetricsListener
+	listener       MetricsListener
 	reportDir      string
 	interval       int
 	latencyColumns int
