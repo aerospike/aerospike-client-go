@@ -197,11 +197,15 @@ func (clstr *Cluster) enableMetrics(policy *MetricsPolicy) error {
 	clstr.metricsEnabled = true
 }
 
-func (clstr *Cluster) disableMetrics() {
+func (clstr *Cluster) disableMetrics() error {
 	if clstr.metricsEnabled {
 		clstr.metricsEnabled = false
-		clstr.metricsListener.onDisable(clstr)
+		err := clstr.metricsListener.onDisable(clstr)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (clstr *Cluster) addTran() {

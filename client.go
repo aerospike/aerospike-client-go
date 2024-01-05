@@ -122,8 +122,12 @@ func (clnt *Client) EnableMetrics(policy *MetricsPolicy) error {
 }
 
 // Disable extended periodic cluster and node latency metrics.
-func (clnt *Client) DisableMetrics() {
-	clnt.cluster.disableMetrics()
+func (clnt *Client) DisableMetrics() error {
+	err := clnt.cluster.disableMetrics()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 //-------------------------------------------------------
