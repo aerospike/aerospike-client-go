@@ -117,6 +117,10 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	return newNode
 }
 
+func (nd *Node) enableMetrics(policy *MetricsPolicy) {
+	nd.metrics = newNodeMetrics(policy)
+}
+
 // SupportsBatchAny returns true if the node supports the feature.
 func (nd *Node) SupportsBatchAny() bool {
 	return (nd.features & _SUPPORTS_BATCH_ANY) != 0

@@ -169,7 +169,3 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
-
-func (ns *nodeStats) String() String {
-
-}

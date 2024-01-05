@@ -24,7 +24,6 @@ type MetricsWriter struct {
 }
 
 func (mw *MetricsWriter) onEnable(clstr *Cluster, policy *MetricsPolicy) error {
-	// TODO: format time properly
 	mw.sb.Reset()
 	now := time.Now()
 
@@ -48,8 +47,7 @@ func (mw *MetricsWriter) onEnable(clstr *Cluster, policy *MetricsPolicy) error {
 	mw.sb.WriteString(" header(1)")
 	// TODO: need to update this
 	mw.sb.WriteString(" cluster[name,cpu,mem,tranCount,retryCount,node[]]")
-	mw.sb.WriteString(" node[name,address,port,syncConn,errors,timeouts,latency[]]")
-	mw.sb.WriteString(" conn[inUse,inPool,opened,closed]")
+	mw.sb.WriteString(" node[name,address,port,errors,latency[]]")
 	mw.sb.WriteString(" latency(")
 	mw.sb.WriteString(string(policy.latencyColumns))
 	mw.sb.WriteString(",")
@@ -72,24 +70,37 @@ func (mw *MetricsWriter) writeLine() error {
 	return nil
 }
 
-func (mw *MetricsWriter) onSnapshot(clstr *Cluster) {
+func (mw *MetricsWriter) onSnapshot(clstr *Cluster) error {
 	if mw.enabled {
-		mw.writeCluster(clstr)
+		err := mw.writeCluster(clstr)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (mw *MetricsWriter) onNodeClose(node *Node) {
+func (mw *MetricsWriter) onNodeClose(node *Node) error {
+	var err error = nil
 	if mw.enabled {
 		mw.sb.Reset()
-
+		mw.sb.WriteString(time.Now().Format(TIMESTAMP_FORMAT))
+		mw.sb.WriteString(" node")
+		mw.writeNode(node)
+		err = mw.writeLine()
 	}
+	return err
 }
 
-func (mw *MetricsWriter) onDisable(clstr *Cluster) {
+func (mw *MetricsWriter) onDisable(clstr *Cluster) error {
 	if mw.enabled {
 		mw.enabled = false
-		mw.writeCluster(clstr)
+		err := mw.writeCluster(clstr)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (mw *MetricsWriter) writeCluster(clstr *Cluster) error {

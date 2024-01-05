@@ -73,7 +73,7 @@ type Cluster struct {
 
 	metricsPolicy   *MetricsPolicy
 	metricsEnabled  bool
-	metricsListener *MetricsListener
+	metricsListener MetricsListener
 
 	tranCount  iatomic.Int
 	retryCount iatomic.Int
@@ -176,10 +176,10 @@ func (clstr *Cluster) enableMetrics(policy *MetricsPolicy) {
 		clstr.metricsListener.onDisable(clstr)
 	}
 
-	listener := policy.listener
+	var listener MetricsListener = *policy.listener
 
 	if listener == nil {
-		listener = newMetricsWriter(policy.reportDir)
+		listener = &MetricsWriter{dir: policy.reportDir}
 	}
 
 	clstr.metricsListener = listener
@@ -828,6 +828,13 @@ func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
 			delete(nodesMap, node.name)
 			return nodesMap, nil
 		})
+
+		if clstr.metricsEnabled {
+			err := (*clstr.metricsListener).onNodeClose(node)
+			if err != nil {
+				logger.Logger.Warn("Write metrics failed on " + node.name + ": " + err.Error())
+			}
+		}
 
 		node.Close()
 	}
