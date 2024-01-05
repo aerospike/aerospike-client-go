@@ -510,6 +510,12 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	nd.stats.ConnectionsAttempts.IncrementAndGet()
+
+	var begin time.Time
+	if nd.cluster.metricsEnabled {
+		begin = time.Now()
+	}
+
 	conn, err := NewConnection(&nd.cluster.clientPolicy, nd.host)
 	if err != nil {
 		nd.incrErrorCount()
@@ -517,6 +523,12 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 		nd.stats.ConnectionsFailed.IncrementAndGet()
 		return nil, err
 	}
+
+	if nd.cluster.metricsEnabled {
+		elapsed := time.Now().Sub(begin)
+		nd.metrics.addLatency(LATENCY_CONN, elapsed)
+	}
+
 	conn.node = nd
 
 	sessionInfo := nd.sessionInfo.Load().(*sessionInfo)
