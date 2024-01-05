@@ -12,19 +12,77 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
+const (
+	TIMESTAMP_FORMAT = "2006-01-02 03:04:05.000"
+)
+
 type MetricsWriter struct {
 	enabled bool
 	sb      strings.Builder
 	dir     string
+	file    *os.File
 }
 
-func (mw *MetricsWriter) onEnable(clstr *Cluster) {
+func (mw *MetricsWriter) onEnable(clstr *Cluster, policy *MetricsPolicy) error {
 	// TODO: format time properly
 	mw.sb.Reset()
 	now := time.Now()
 
-	os.Mkdir(mw.dir, 0755)
-	path := mw.dir + os.PathSeparator + "metrics-" + now.Format("")
+	err := os.Mkdir(mw.dir, 0644)
+	if err != nil {
+		return err
+	}
+
+	path := mw.dir + string(os.PathSeparator) + "metrics-" + now.Format("20060102030405") + ".log"
+
+	mw.file, err = os.OpenFile(path, os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+
+	mw.sb.Reset()
+
+	formatted_time := now.Format(TIMESTAMP_FORMAT)
+	mw.sb.WriteString(formatted_time)
+
+	mw.sb.WriteString(" header(1)")
+	// TODO: need to update this
+	mw.sb.WriteString(" cluster[name,cpu,mem,tranCount,retryCount,node[]]")
+	mw.sb.WriteString(" node[name,address,port,syncConn,errors,timeouts,latency[]]")
+	mw.sb.WriteString(" conn[inUse,inPool,opened,closed]")
+	mw.sb.WriteString(" latency(")
+	mw.sb.WriteString(string(policy.latencyColumns))
+	mw.sb.WriteString(",")
+	mw.sb.WriteString(string(policy.latencyShift))
+	mw.sb.WriteString(")")
+	mw.sb.WriteString("[type[l1,l2,l3...]]")
+	mw.writeLine()
+
+	mw.enabled = true
+
+	return nil
+}
+
+func (mw *MetricsWriter) writeLine() error {
+	mw.sb.WriteString("\n")
+	_, err := mw.file.WriteString(mw.sb.String())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (mw *MetricsWriter) onSnapshot(clstr *Cluster) {
+	if mw.enabled {
+		mw.writeCluster(clstr)
+	}
+}
+
+func (mw *MetricsWriter) onNodeClose(node *Node) {
+	if mw.enabled {
+		mw.sb.Reset()
+
+	}
 }
 
 func (mw *MetricsWriter) onDisable(clstr *Cluster) {
@@ -46,12 +104,12 @@ func (mw *MetricsWriter) writeCluster(clstr *Cluster) error {
 
 	// Formatting must match that of the Java client
 	// See https://aerospike.atlassian.net/wiki/spaces/~bnichols/pages/3122856433/Java+Client+Metrics
-	// TODO: format time properly
+
 	mw.sb.Reset()
-	mw.sb.WriteString(time.Now().String())
+	mw.sb.WriteString(time.Now().Format(TIMESTAMP_FORMAT))
 	mw.sb.WriteString(" cluster[")
-	mw.sb.WriteString(clstr.clusterName)
-	mw.sb.WriteString(",")
+
+	// TODO: cluster name is missing
 
 	cpu_rounded_down := int(cpu)
 	mw.sb.WriteString(string(cpu_rounded_down))
@@ -65,8 +123,7 @@ func (mw *MetricsWriter) writeCluster(clstr *Cluster) error {
 	mw.sb.WriteString(clstr.tranCount.String())
 	mw.sb.WriteString(",")
 	mw.sb.WriteString(clstr.retryCount.String())
-	mw.sb.WriteString(",")
-	mw.sb.WriteString(clstr.delayQueueTimeoutCount.String())
+	// TODO: cluster.delayQueue doesn't exist
 	mw.sb.WriteString(",[")
 	// TODO: cluster.eventLoops doesn't exist
 	mw.sb.WriteString("],[")
@@ -75,10 +132,12 @@ func (mw *MetricsWriter) writeCluster(clstr *Cluster) error {
 
 	for i, node := range nodes {
 		if i > 0 {
-			sb.WriteString(",")
+			mw.sb.WriteString(",")
 		}
-		writeNode(node)
+		mw.writeNode(node)
 	}
+
+	return nil
 }
 
 func (mw *MetricsWriter) writeNode(node *Node) {
@@ -91,8 +150,7 @@ func (mw *MetricsWriter) writeNode(node *Node) {
 	mw.sb.WriteString(",")
 	mw.sb.WriteString(string(host.Port))
 	mw.sb.WriteString(",")
-	// TODO: nodeStats doesn't match Java client's ConnectionStats
-	// mw.sb.WriteString(node.stats)
+	// TODO: node's connection stats doesn't exist
 	// TODO: node's async connection stats doesn't exist
 	mw.sb.WriteString(node.errorCount.String())
 	mw.sb.WriteString(",")
@@ -108,9 +166,17 @@ func (mw *MetricsWriter) writeNode(node *Node) {
 		mw.sb.WriteString(latency_bucket_names[i])
 		mw.sb.WriteString("[")
 
-		buckets := nm.
-			mw.sb.WriteString("]")
+		buckets := node.metrics.latency[i]
+		for i, bucket := range buckets.buckets {
+			if i > 0 {
+				mw.sb.WriteString(",")
+			}
+			mw.sb.WriteString(string(bucket.Get()))
+		}
+		mw.sb.WriteString("]")
 	}
+
+	mw.sb.WriteString("]]")
 }
 
 // stdlib's runtime package doesn't have a way to measure CPU usage (as far as I know)

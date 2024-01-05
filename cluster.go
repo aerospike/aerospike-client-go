@@ -71,15 +71,12 @@ type Cluster struct {
 	// Password in hashed format in bytes.
 	password iatomic.SyncVal // []byte
 
-	clusterName string
-
 	metricsPolicy   *MetricsPolicy
 	metricsEnabled  bool
 	metricsListener *MetricsListener
 
-	tranCount              iatomic.Int
-	retryCount             iatomic.Int
-	delayQueueTimeoutCount iatomic.Int
+	tranCount  iatomic.Int
+	retryCount iatomic.Int
 }
 
 // NewCluster generates a Cluster instance.
@@ -452,6 +449,10 @@ func (clstr *Cluster) tend() Error {
 		for _, node := range clstr.GetNodes() {
 			node.resetErrorCount()
 		}
+	}
+
+	if clstr.metricsEnabled && clstr.tendCount%clstr.metricsPolicy.interval == 0 {
+		(*clstr.metricsListener).onSnapshot(clstr)
 	}
 
 	return nil
