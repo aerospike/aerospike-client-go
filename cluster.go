@@ -214,6 +214,10 @@ func (clstr *Cluster) addTran() {
 	}
 }
 
+func (clstr *Cluster) addRetry() {
+	clstr.retryCount.GetAndIncrement()
+}
+
 // String implements the stringer interface
 func (clstr *Cluster) String() string {
 	return fmt.Sprintf("%v", clstr.GetNodes())

@@ -2614,6 +2614,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 					}
 				}
 			}
+
+			cmd.node.cluster.addRetry()
 		}
 
 		// NOTE: This is important to be after the prepareRetry block above
