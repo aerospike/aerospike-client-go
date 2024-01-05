@@ -15,6 +15,16 @@ import (
 type MetricsWriter struct {
 	enabled bool
 	sb      strings.Builder
+	dir     string
+}
+
+func (mw *MetricsWriter) onEnable(clstr *Cluster) {
+	// TODO: format time properly
+	mw.sb.Reset()
+	now := time.Now()
+
+	os.Mkdir(mw.dir, 0755)
+	path := mw.dir + os.PathSeparator + "metrics-" + now.Format("")
 }
 
 func (mw *MetricsWriter) onDisable(clstr *Cluster) {
@@ -90,6 +100,17 @@ func (mw *MetricsWriter) writeNode(node *Node) {
 	mw.sb.WriteString("[")
 
 	max := LATENCY_NONE
+	for i := 0; i < max; i++ {
+		if i > 0 {
+			mw.sb.WriteString(",")
+		}
+
+		mw.sb.WriteString(latency_bucket_names[i])
+		mw.sb.WriteString("[")
+
+		buckets := nm.
+			mw.sb.WriteString("]")
+	}
 }
 
 // stdlib's runtime package doesn't have a way to measure CPU usage (as far as I know)

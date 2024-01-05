@@ -75,6 +75,8 @@ type Node struct {
 	features int
 
 	active iatomic.Bool
+
+	metrics *NodeMetrics
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -107,6 +109,10 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	// this will reset to zero on first aggregation on the cluster,
 	// therefore will only be counted once.
 	newNode.stats.NodeAdded.IncrementAndGet()
+
+	if cluster.metricsEnabled {
+		newNode.metrics = newNodeMetrics(cluster.metricsPolicy)
+	}
 
 	return newNode
 }

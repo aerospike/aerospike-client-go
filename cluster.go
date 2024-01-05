@@ -73,8 +73,9 @@ type Cluster struct {
 
 	clusterName string
 
+	metricsPolicy   *MetricsPolicy
 	metricsEnabled  bool
-	metricsListener MetricsListener
+	metricsListener *MetricsListener
 
 	tranCount              iatomic.Int
 	retryCount             iatomic.Int
@@ -175,6 +176,29 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 func (clstr *Cluster) enableMetrics(policy *MetricsPolicy) {
 	if clstr.metricsEnabled {
+		clstr.metricsListener.onDisable(clstr)
+	}
+
+	listener := policy.listener
+
+	if listener == nil {
+		listener = newMetricsWriter(policy.reportDir)
+	}
+
+	clstr.metricsListener = listener
+	clstr.metricsPolicy = policy
+
+	for _, node := range clstr.GetNodes() {
+		node.enableMetrics(policy)
+	}
+
+	listener.onEnable(clstr, policy)
+	clstr.metricsEnabled = true
+}
+
+func (clstr *Cluster) disableMetrics() {
+	if clstr.metricsEnabled {
+		clstr.metricsEnabled = false
 		clstr.metricsListener.onDisable(clstr)
 	}
 }
