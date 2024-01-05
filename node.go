@@ -75,6 +75,8 @@ type Node struct {
 	features int
 
 	active iatomic.Bool
+
+	metrics *NodeMetrics
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -108,7 +110,15 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 	// therefore will only be counted once.
 	newNode.stats.NodeAdded.IncrementAndGet()
 
+	if cluster.metricsEnabled {
+		newNode.metrics = newNodeMetrics(cluster.metricsPolicy)
+	}
+
 	return newNode
+}
+
+func (nd *Node) enableMetrics(policy *MetricsPolicy) {
+	nd.metrics = newNodeMetrics(policy)
 }
 
 // SupportsBatchAny returns true if the node supports the feature.
@@ -500,6 +510,12 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	nd.stats.ConnectionsAttempts.IncrementAndGet()
+
+	var begin time.Time
+	if nd.cluster.metricsEnabled {
+		begin = time.Now()
+	}
+
 	conn, err := NewConnection(&nd.cluster.clientPolicy, nd.host)
 	if err != nil {
 		nd.incrErrorCount()
@@ -507,6 +523,12 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 		nd.stats.ConnectionsFailed.IncrementAndGet()
 		return nil, err
 	}
+
+	if nd.cluster.metricsEnabled {
+		elapsed := time.Now().Sub(begin)
+		nd.metrics.addLatency(LATENCY_CONN, elapsed)
+	}
+
 	conn.node = nd
 
 	sessionInfo := nd.sessionInfo.Load().(*sessionInfo)

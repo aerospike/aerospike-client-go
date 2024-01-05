@@ -134,6 +134,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, Error) {
 		logger.Logger.Debug("Connection to address `%s` failed to establish with error: %s", address, err.Error())
 		return nil, errToAerospikeErr(nil, err)
 	}
+
 	newConn.conn = conn
 	newConn.limitReader = &io.LimitedReader{R: conn, N: 0}
 

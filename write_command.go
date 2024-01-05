@@ -59,6 +59,8 @@ func newWriteCommand(cluster *Cluster,
 		operation:     operation,
 	}
 
+	cluster.addTran()
+
 	return newWriteCmd, nil
 }
 

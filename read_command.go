@@ -60,6 +60,8 @@ func newReadCommand(cluster *Cluster, policy *BasePolicy, key *Key, binNames []s
 		}
 	}
 
+	cluster.addTran()
+
 	return readCommand{
 		singleCommand: newSingleCommand(cluster, key, partition),
 		binNames:      binNames,

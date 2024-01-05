@@ -25,6 +25,9 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 	interval := policy.SleepBetweenRetries
 
 	var errs Error
+
+	clnt.cluster.addTran()
+
 	for {
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), namespace)
 		if err != nil {

@@ -74,6 +74,9 @@ func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time
 	for _, batchNode := range batchNodes {
 		command := ifc.cloneBatchCommand(batchNode)
 		command.setSequence(cmd.sequenceAP, cmd.sequenceSC)
+
+		cluster.addRetry()
+
 		if err := command.executeAt(command, cmd.policy.GetBasePolicy(), deadline, iteration, commandWasSent); err != nil {
 			ferr = chainErrors(err, ferr)
 			if !cmd.policy.AllowPartialResults {

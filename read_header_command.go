@@ -45,6 +45,8 @@ func newReadHeaderCommand(cluster *Cluster, policy *BasePolicy, key *Key) (readH
 		policy:        policy,
 	}
 
+	cluster.addTran()
+
 	return newReadHeaderCmd, nil
 }
 

@@ -49,6 +49,8 @@ func newTouchCommand(cluster *Cluster, policy *WritePolicy, key *Key) (touchComm
 		policy:        policy,
 	}
 
+	cluster.addTran()
+
 	return newTouchCmd, nil
 }
 

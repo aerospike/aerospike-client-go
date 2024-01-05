@@ -55,6 +55,7 @@ var batchObjectParser func(
 ) Error
 
 func newBatchCommandGet(
+	cluster *Cluster,
 	node *Node,
 	batch *batchNode,
 	policy *BatchPolicy,
@@ -65,6 +66,8 @@ func newBatchCommandGet(
 	readAttr int,
 	isOperation bool,
 ) *batchCommandGet {
+	cluster.addTran()
+
 	res := &batchCommandGet{
 		batchCommand: batchCommand{
 			baseMultiCommand: *newMultiCommand(node, nil, isOperation),

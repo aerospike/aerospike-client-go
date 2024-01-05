@@ -70,6 +70,13 @@ type Cluster struct {
 
 	// Password in hashed format in bytes.
 	password iatomic.SyncVal // []byte
+
+	metricsPolicy   *MetricsPolicy
+	metricsEnabled  bool
+	metricsListener MetricsListener
+
+	tranCount  iatomic.Int
+	retryCount iatomic.Int
 }
 
 // NewCluster generates a Cluster instance.
@@ -162,6 +169,53 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	}
 
 	return newCluster, err
+}
+
+func (clstr *Cluster) enableMetrics(policy *MetricsPolicy) error {
+	if clstr.metricsEnabled {
+		// Disable the old metrics listener
+		err := clstr.metricsListener.onDisable(clstr)
+		if err != nil {
+			return err
+		}
+	}
+
+	var listener MetricsListener = policy.listener
+
+	if listener == nil {
+		listener = &MetricsWriter{dir: policy.reportDir}
+	}
+
+	clstr.metricsListener = listener
+	clstr.metricsPolicy = policy
+
+	for _, node := range clstr.GetNodes() {
+		node.enableMetrics(policy)
+	}
+
+	listener.onEnable(clstr, policy)
+	clstr.metricsEnabled = true
+}
+
+func (clstr *Cluster) disableMetrics() error {
+	if clstr.metricsEnabled {
+		clstr.metricsEnabled = false
+		err := clstr.metricsListener.onDisable(clstr)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (clstr *Cluster) addTran() {
+	if clstr.metricsEnabled {
+		clstr.tranCount.GetAndIncrement()
+	}
+}
+
+func (clstr *Cluster) addRetry() {
+	clstr.retryCount.GetAndIncrement()
 }
 
 // String implements the stringer interface
@@ -407,6 +461,10 @@ func (clstr *Cluster) tend() Error {
 		for _, node := range clstr.GetNodes() {
 			node.resetErrorCount()
 		}
+	}
+
+	if clstr.metricsEnabled && clstr.tendCount%clstr.metricsPolicy.interval == 0 {
+		clstr.metricsListener.onSnapshot(clstr)
 	}
 
 	return nil
@@ -782,6 +840,13 @@ func (clstr *Cluster) removeNodes(nodesToRemove []*Node) {
 			delete(nodesMap, node.name)
 			return nodesMap, nil
 		})
+
+		if clstr.metricsEnabled {
+			err := clstr.metricsListener.onNodeClose(node)
+			if err != nil {
+				logger.Logger.Warn("Write metrics failed on " + node.name + ": " + err.Error())
+			}
+		}
 
 		node.Close()
 	}

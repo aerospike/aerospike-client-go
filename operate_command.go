@@ -28,6 +28,8 @@ type operateCommand struct {
 }
 
 func newOperateCommand(cluster *Cluster, policy *WritePolicy, key *Key, args operateArgs) (operateCommand, Error) {
+	cluster.addTran()
+
 	rdCommand, err := newReadCommand(cluster, &policy.BasePolicy, key, nil, args.partition)
 	if err != nil {
 		return operateCommand{}, err

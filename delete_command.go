@@ -48,6 +48,8 @@ func newDeleteCommand(cluster *Cluster, policy *WritePolicy, key *Key) (*deleteC
 		policy:        policy,
 	}
 
+	cluster.addTran()
+
 	return newDeleteCmd, nil
 }
 

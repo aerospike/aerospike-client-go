@@ -43,6 +43,8 @@ func newExistsCommand(cluster *Cluster, policy *BasePolicy, key *Key) (*existsCo
 		}
 	}
 
+	cluster.addTran()
+
 	return &existsCommand{
 		singleCommand: newSingleCommand(cluster, key, partition),
 		policy:        policy,

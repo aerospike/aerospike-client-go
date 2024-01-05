@@ -27,12 +27,15 @@ type batchCommandExists struct {
 }
 
 func newBatchCommandExists(
+	cluster *Cluster,
 	node *Node,
 	batch *batchNode,
 	policy *BatchPolicy,
 	keys []*Key,
 	existsArray []bool,
 ) *batchCommandExists {
+	cluster.addTran()
+
 	res := &batchCommandExists{
 		batchCommand: batchCommand{
 			baseMultiCommand: *newMultiCommand(node, nil, false),
