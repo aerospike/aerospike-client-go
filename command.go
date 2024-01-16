@@ -1690,6 +1690,8 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		fieldCount += 4
 	}
 
+	operationCount := 0
+
 	// Operations (used in query execute) and bin names (used in scan/query) are mutually exclusive.
 	if len(operations) > 0 {
 		if !background {
@@ -1704,23 +1706,18 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 				return err
 			}
 		}
+		operationCount = len(operations)
 	} else if len(statement.BinNames) > 0 && (isNew || statement.Filter == nil) {
 		for _, binName := range statement.BinNames {
 			cmd.estimateOperationSizeForBinName(binName)
 		}
+		operationCount = len(statement.BinNames)
 	}
 
 	//////////////////////////////////////////////////////////////////////////
 
 	if err := cmd.sizeBuffer(false); err != nil {
 		return err
-	}
-
-	operationCount := 0
-	if len(operations) > 0 {
-		operationCount = len(operations)
-	} else if statement.Filter == nil && len(statement.BinNames) > 0 {
-		operationCount = len(statement.BinNames)
 	}
 
 	if background {
@@ -1862,7 +1859,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 				return err
 			}
 		}
-	} else if len(statement.BinNames) > 0 && statement.Filter == nil {
+	} else if len(statement.BinNames) > 0 && (isNew || statement.Filter == nil) {
 		// scan binNames come last
 		for _, binName := range statement.BinNames {
 			cmd.writeOperationForBinName(binName, _READ)
