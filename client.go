@@ -974,10 +974,6 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 	ops ...*Operation,
 ) (*ExecuteTask, Error) {
 
-	if len(ops) == 0 {
-		return nil, ErrNoOperationsSpecified.err()
-	}
-
 	if len(statement.BinNames) > 0 {
 		return nil, ErrNoBinNamesAllowedInQueryExecute.err()
 	}
