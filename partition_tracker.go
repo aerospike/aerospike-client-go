@@ -95,9 +95,15 @@ func newPartitionTracker(policy *MultiPolicy, filter *PartitionFilter, nodes []*
 		panic(newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid partition range (%d,%d)", filter.Begin, filter.Begin+filter.Count)))
 	}
 
+	// This is required for proxy server since there are no nodes represented there
+	nodeCapacity := len(nodes)
+	if nodeCapacity <= 0 {
+		nodeCapacity = 1
+	}
+
 	pt := &partitionTracker{
 		partitionBegin:     filter.Begin,
-		nodeCapacity:       len(nodes),
+		nodeCapacity:       nodeCapacity,
 		nodeFilter:         nil,
 		replica:            policy.ReplicaPolicy,
 		partitionsCapacity: filter.Count,
@@ -299,11 +305,15 @@ func (pt *partitionTracker) allowRecord(np *nodePartitions) bool {
 	return false
 }
 
-func (pt *partitionTracker) isComplete(cluster *Cluster, policy *BasePolicy) (bool, Error) {
+func (pt *partitionTracker) isClusterComplete(cluster *Cluster, policy *BasePolicy) (bool, Error) {
+	return pt.isComplete(cluster.supportsPartitionQuery.Get(), policy, pt.nodePartitionsList)
+}
+
+func (pt *partitionTracker) isComplete(hasPartitionQuery bool, policy *BasePolicy, nodePartitionsList []*nodePartitions) (bool, Error) {
 	recordCount := int64(0)
 	partsUnavailable := 0
 
-	for _, np := range pt.nodePartitionsList {
+	for _, np := range nodePartitionsList {
 		recordCount += np.recordCount
 		partsUnavailable += np.partsUnavailable
 	}
@@ -325,13 +335,13 @@ func (pt *partitionTracker) isComplete(cluster *Cluster, policy *BasePolicy) (bo
 			}
 		} else {
 			// Cluster will be nil for the Proxy client
-			if cluster == nil || cluster.supportsPartitionQuery.Get() {
+			if hasPartitionQuery {
 				// Server version >= 6.0 will return all records for each node up to
 				// that node's max. If node's record count reached max, there still
 				// may be records available for that node.
 				done := true
 
-				for _, np := range pt.nodePartitionsList {
+				for _, np := range nodePartitionsList {
 					if np.recordCount+np.disallowedCount >= np.recordMax {
 						pt.markRetry(np)
 						done = false
@@ -346,7 +356,7 @@ func (pt *partitionTracker) isComplete(cluster *Cluster, policy *BasePolicy) (bo
 				// Servers version < 6.0 can return less records than max and still
 				// have more records for each node, so the node is only done if no
 				// records were retrieved for that node.
-				for _, np := range pt.nodePartitionsList {
+				for _, np := range nodePartitionsList {
 					if np.recordCount+np.disallowedCount > 0 {
 						pt.markRetry(np)
 					}
