@@ -116,7 +116,8 @@ func (stmt *Statement) prepare(returnData bool) {
 
 func (stmt *Statement) grpc(policy *QueryPolicy, ops []*Operation) *kvs.Statement {
 	IndexName := stmt.IndexName
-	TaskId := int64(stmt.TaskId)
+	// reset taskID every time
+	TaskId := xornd.Int64()
 	SetName := stmt.SetName
 
 	MaxRecords := uint64(policy.MaxRecords)
