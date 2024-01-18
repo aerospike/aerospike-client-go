@@ -304,8 +304,8 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 
 			gg.It("Overall command error should be reflected in API call error and not BatchRecord error", func() {
-				if *dbaas {
-					gg.Skip("Not supported in DBAAS environment")
+				if *dbaas || *proxy {
+					gg.Skip("Not supported in DBAAS or PROXY environments")
 				}
 
 				var batchRecords []as.BatchRecordIfc

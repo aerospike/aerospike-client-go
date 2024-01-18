@@ -32,8 +32,6 @@ type batchCommandOperate struct {
 	// pointer to the object that's going to be unmarshalled
 	objects      []*reflect.Value
 	objectsFound []bool
-
-	grpcEOS bool
 }
 
 func newBatchCommandOperate(
@@ -284,10 +282,7 @@ func (cmd *batchCommandOperate) ExecuteGRPC(clnt *ProxyClient) Error {
 			return res.Payload, e
 		}
 
-		if !res.HasNext {
-			cmd.grpcEOS = true
-			return res.Payload, nil
-		}
+		cmd.grpcEOS = !res.HasNext
 
 		return res.Payload, nil
 	}
