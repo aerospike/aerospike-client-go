@@ -50,6 +50,7 @@ func newGrpcScanPartitionCommand(
 	}
 	cmd.tracker = partitionTracker
 	cmd.terminationErrorType = types.SCAN_TERMINATED
+	cmd.nodePartitions = newNodePartitions(nil, _PARTITIONS)
 
 	return cmd
 }
@@ -127,6 +128,15 @@ func (cmd *grpcScanPartitionCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 		}
 
 		if !res.HasNext {
+			done, err := cmd.tracker.isComplete(false, &cmd.policy.BasePolicy, []*nodePartitions{cmd.nodePartitions})
+			if !cmd.recordset.IsActive() || done || err != nil {
+				// Query is complete.
+				if err != nil {
+					cmd.tracker.partitionError()
+					cmd.recordset.sendError(err)
+				}
+			}
+
 			return nil, errGRPCStreamEnd
 		}
 

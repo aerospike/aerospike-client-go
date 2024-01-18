@@ -70,7 +70,7 @@ func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitio
 			wg.Wait()
 		}
 
-		done, err := tracker.isComplete(clnt.Cluster(), &policy.BasePolicy)
+		done, err := tracker.isClusterComplete(clnt.Cluster(), &policy.BasePolicy)
 		if !rs.IsActive() || done || err != nil {
 			if err != nil {
 				tracker.partitionError()

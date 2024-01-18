@@ -18,7 +18,6 @@ import (
 	"math/rand"
 
 	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
-	"github.com/aerospike/aerospike-client-go/v6/types"
 )
 
 type grpcQueryPartitionCommand struct {
@@ -49,7 +48,8 @@ func newGrpcQueryPartitionCommand(
 		operations:       operations,
 	}
 	cmd.tracker = partitionTracker
-	cmd.terminationErrorType = types.QUERY_TERMINATED
+	cmd.terminationErrorType = statement.terminationError()
+	cmd.nodePartitions = newNodePartitions(nil, _PARTITIONS)
 
 	return cmd
 }
@@ -125,6 +125,15 @@ func (cmd *grpcQueryPartitionCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 		}
 
 		if !res.HasNext {
+			done, err := cmd.tracker.isComplete(false, &cmd.policy.BasePolicy, []*nodePartitions{cmd.nodePartitions})
+			if !cmd.recordset.IsActive() || done || err != nil {
+				// Query is complete.
+				if err != nil {
+					cmd.tracker.partitionError()
+					cmd.recordset.sendError(err)
+				}
+			}
+
 			return nil, errGRPCStreamEnd
 		}
 
