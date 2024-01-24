@@ -1535,7 +1535,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	var ctxSize int
 
 	filterExpression := policy.FilterExpression
-	if filterExpression == nil {
+	if filterExpression == nil && wpolicy != nil {
 		filterExpression = wpolicy.FilterExpression
 	}
 
