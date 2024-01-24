@@ -105,7 +105,7 @@ func (p *WritePolicy) grpc() *kvs.WritePolicy {
 	}
 }
 
-func (p *WritePolicy) grpc_exec() *kvs.BackgroundExecutePolicy {
+func (p *WritePolicy) grpc_exec(expr *Expression) *kvs.BackgroundExecutePolicy {
 	if p == nil {
 		return nil
 	}
@@ -120,13 +120,18 @@ func (p *WritePolicy) grpc_exec() *kvs.BackgroundExecutePolicy {
 	RespondAllOps := p.RespondPerEachOp
 	DurableDelete := p.DurableDelete
 
+	fe := expr
+	if fe == nil {
+		fe = p.FilterExpression
+	}
+
 	res := &kvs.BackgroundExecutePolicy{
 		Replica:      p.ReplicaPolicy.grpc(),
 		ReadModeAP:   p.ReadModeAP.grpc(),
 		ReadModeSC:   p.ReadModeSC.grpc(),
 		SendKey:      &SendKey,
 		Compress:     p.UseCompression,
-		Expression:   p.FilterExpression.grpc(),
+		Expression:   fe.grpc(),
 		TotalTimeout: &TotalTimeout,
 
 		Xdr: nil,
