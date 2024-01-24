@@ -109,7 +109,7 @@ func (cmd *serverCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 
 	execReq := &kvs.BackgroundExecuteRequest{
 		Statement:   cmd.statement.grpc(cmd.policy, cmd.operations),
-		WritePolicy: cmd.writePolicy.grpc_exec(),
+		WritePolicy: cmd.writePolicy.grpc_exec(cmd.policy.FilterExpression),
 	}
 
 	req := kvs.AerospikeRequestPayload{

@@ -1534,6 +1534,11 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	predSize := 0
 	var ctxSize int
 
+	filterExpression := policy.FilterExpression
+	if filterExpression == nil {
+		filterExpression = wpolicy.FilterExpression
+	}
+
 	isNew := false
 	if cmd.node != nil {
 		isNew = cmd.node.cluster.supportsPartitionQuery.Get()
@@ -1658,9 +1663,9 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		fieldCount++
 	}
 
-	if policy.FilterExpression != nil {
+	if filterExpression != nil {
 		var err Error
-		predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
+		predSize, err = cmd.estimateExpressionSize(filterExpression)
 		if err != nil {
 			return err
 		}
@@ -1831,8 +1836,8 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		cmd.writeFieldInt32(int32(policy.RecordsPerSecond), RECORDS_PER_SECOND)
 	}
 
-	if policy.FilterExpression != nil {
-		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
+	if filterExpression != nil {
+		if err := cmd.writeFilterExpression(filterExpression, predSize); err != nil {
 			return err
 		}
 	}
