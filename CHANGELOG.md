@@ -1,5 +1,33 @@
 # Change History
 
+## January 25 2024: v6.15.0
+
+  Backport fix release.
+
+- **New Features**
+  - [CLIENT-2712] [CLIENT-2710] Support read replica policy in scan/query.
+      This includes `PREFER_RACK` which allows scan/query to be directed at local rack nodes when possible.
+
+- **Fixes**
+  - [CLIENT-2759] Go proxy: Background query with Expression doesn't filter records
+    The filter expressions of wither policies will be used. Priority is with
+    the Query Policy for backwards compatibility.
+
+  - [CLIENT-2616] Update more dependencies to the latest.
+  - [CLIENT-2618] Support persistent map indexes.
+  - [CLIENT-2726] Proxy doesn't handle invalid filter expression error in query.
+  - [CLIENT-2725] QueryExecute (background query) doesn't work without operations.
+  - [CLIENT-2727] Go proxy: Query Pagination never complete.
+  - [CLIENT-2732] Go proxy: Not able to multiple query calls with the same statement.
+  - [CLIENT-2728] Fix an issue where Bin names were ignored if a FilterExpression was passed to the Query.
+  - [CLIENT-2318] Expression in `BatchPolicy` takes precedence rather than `BatchDeletePolicy`.
+  - [CLIENT-2434] Use 'sindex-exists' command in `DropIndexTask`.
+  - [CLIENT-2694] Use RawURLEncoding instead of RawStdEncoding in proxy authenticator.
+  - Rename grpc proto definition files due to compiler limitations. Resolves #414
+
+  - **Improvements**
+    - Format all the code in the repo
+
 ## November 1 2023: v6.14.1
 
   Hotfix.
