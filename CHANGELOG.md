@@ -1,11 +1,10 @@
 # Change History
 
-## January 18 2023: v7.1.0
+## January 25 2023: v7.1.0
 
 - **New Features**
   - Add `TaskId()` to `ExecuteTask`.
   - [CLIENT-2721] Make `PartitionFilter.Retry` public.
-
 
 - **Improvements**
 
@@ -18,6 +17,7 @@
   - [CLIENT-2727] Go proxy: Query Pagination never complete.
   - [CLIENT-2728] Fix an issue where Bin names were ignored if a FilterExpression was passed to the Query.
   - [CLIENT-2732] Go proxy: Not able to multiple query calls with the same statement.
+  - [CLIENT-2759] Go proxy: Background query with Expression doesn't filter records.
 
 ## December 11 2023: v7.0.0
 
