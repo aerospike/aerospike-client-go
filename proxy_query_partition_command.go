@@ -47,6 +47,7 @@ func newGrpcQueryPartitionCommand(
 		partitionFilter:  partitionFilter,
 		operations:       operations,
 	}
+	cmd.rawCDT = policy.RawCDT
 	cmd.tracker = partitionTracker
 	cmd.terminationErrorType = statement.terminationError()
 	cmd.nodePartitions = newNodePartitions(nil, _PARTITIONS)

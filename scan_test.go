@@ -21,6 +21,7 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go/v7"
 	ast "github.com/aerospike/aerospike-client-go/v7/types"
+	particleType "github.com/aerospike/aerospike-client-go/v7/types/particle_type"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -39,11 +40,13 @@ var _ = gg.Describe("Scan operations", func() {
 	const ldtElemCount = 10
 	bin1 := as.NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 	bin2 := as.NewBin("Aerospike2", randString(100))
+	bin3 := as.NewBin("map", map[string]int{"1": 1, "2": 2})
+	bin4 := as.NewBin("list", []int{1, 2, 3})
 	var keys map[string]*as.Key
 
 	// read all records from the channel and make sure all of them are returned
 	// if cancelCnt is set, it will cancel the scan after specified record count
-	var checkResults = func(recordset *as.Recordset, cancelCnt int, checkLDT bool) int {
+	var checkResults = func(recordset *as.Recordset, cancelCnt int, rawCDT bool) int {
 		counter := 0
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
@@ -52,18 +55,25 @@ var _ = gg.Describe("Scan operations", func() {
 
 			gm.Expect(exists).To(gm.Equal(true))
 			gm.Expect(key.Value().GetObject()).To(gm.Equal(rec.Key.Value().GetObject()))
-			gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-			gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-			ldt := res.Record.Bins["LDT"]
-			if checkLDT {
-				gm.Expect(ldt).NotTo(gm.BeNil())
-				gm.Expect(len(ldt.([]interface{}))).To(gm.Equal(ldtElemCount))
+			gm.Expect(res.Record.Bins[bin3.Name]).NotTo(gm.BeNil())
+			gm.Expect(res.Record.Bins[bin4.Name]).NotTo(gm.BeNil())
+			if rawCDT {
+				gm.Expect(res.Record.Bins[bin3.Name].(*as.RawBlobValue).ParticleType).To(gm.Equal(particleType.MAP))
+				gm.Expect(res.Record.Bins[bin4.Name].(*as.RawBlobValue).ParticleType).To(gm.Equal(particleType.LIST))
+
+				// rewrite the record to the database to see if the values are correctly written
+				err := client.Put(nil, res.Record.Key, res.Record.Bins)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 			} else {
-				gm.Expect(ldt).To(gm.BeNil())
-			}
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-			delete(keys, string(rec.Key.Digest()))
+				gm.Expect(res.Record.Bins[bin3.Name]).To(gm.Equal(map[interface{}]interface{}{"1": 1, "2": 2}))
+				gm.Expect(res.Record.Bins[bin4.Name]).To(gm.Equal([]interface{}{1, 2, 3}))
+
+				delete(keys, string(rec.Key.Digest()))
+			}
 
 			counter++
 			// cancel scan abruptly
@@ -84,7 +94,7 @@ var _ = gg.Describe("Scan operations", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			keys[string(key.Digest())] = key
-			err = client.PutBins(wpolicy, key, bin1, bin2)
+			err = client.PutBins(wpolicy, key, bin1, bin2, bin3, bin4)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		}
 	})
@@ -336,7 +346,7 @@ var _ = gg.Describe("Scan operations", func() {
 		gm.Expect(len(keys)).To(gm.Equal(0))
 	})
 
-	gg.It("must Scan and get all records back from all nodes sequnetially", func() {
+	gg.It("must Scan and get all records back from all nodes sequentially", func() {
 		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 
 		scanPolicy := as.NewScanPolicy()
@@ -346,6 +356,28 @@ var _ = gg.Describe("Scan operations", func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		checkResults(recordset, 0, false)
+
+		gm.Expect(len(keys)).To(gm.Equal(0))
+	})
+
+	gg.It("must Scan and get all records back in RawBlobValue when policy.RawCDT is set to true", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
+
+		scanPolicy := as.NewScanPolicy()
+		scanPolicy.MaxConcurrentNodes = 1
+		scanPolicy.RawCDT = true
+
+		recordset, err := client.ScanAll(scanPolicy, ns, set)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		checkResults(recordset, 0, scanPolicy.RawCDT)
+
+		scanPolicy.RawCDT = false
+
+		recordset, err = client.ScanAll(scanPolicy, ns, set)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		checkResults(recordset, 0, scanPolicy.RawCDT)
 
 		gm.Expect(len(keys)).To(gm.Equal(0))
 	})

@@ -48,6 +48,7 @@ func newGrpcScanPartitionCommand(
 		binNames:         binNames,
 		partitionFilter:  partitionFilter,
 	}
+	cmd.rawCDT = policy.RawCDT
 	cmd.tracker = partitionTracker
 	cmd.terminationErrorType = types.SCAN_TERMINATED
 	cmd.nodePartitions = newNodePartitions(nil, _PARTITIONS)

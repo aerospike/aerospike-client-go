@@ -41,6 +41,7 @@ func newScanPartitionCommand(
 		setName:          setName,
 		binNames:         binNames,
 	}
+	cmd.rawCDT = policy.RawCDT
 	cmd.terminationErrorType = types.SCAN_TERMINATED
 	cmd.tracker = tracker
 	cmd.nodePartitions = nodePartitions

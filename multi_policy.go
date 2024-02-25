@@ -52,6 +52,10 @@ type MultiPolicy struct {
 
 	// Indicates if bin data is retrieved. If false, only record digests are retrieved.
 	IncludeBinData bool //= true;
+
+	// RawCDT specifies that the value of the CDT fields (Maps and Lists) should not be unpacked/decoded.
+	// This is only used internally by Aerospike for Backup purposes and should not be used by 3rd parties.
+	RawCDT bool
 }
 
 // NewMultiPolicy initializes a MultiPolicy instance with default values.

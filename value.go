@@ -1139,7 +1139,70 @@ func (vl HLLValue) String() string {
 	return Buffer.BytesToHexString([]byte(vl))
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+// RawBlobValue encapsulates a CDT BLOB value.
+// Notice: Do not use this value, it is for internal aerospike use only.
+type RawBlobValue struct {
+	// ParticleType signifies the data
+	ParticleType int
+	// Data carries the data
+	Data []byte
+}
+
+// NewRawBlobValue generates a RawBlobValue instance for a CDT List or map using a particle type.
+func NewRawBlobValue(pt int, b []byte) *RawBlobValue {
+	data := make([]byte, len(b))
+	copy(data, b)
+	return &RawBlobValue{ParticleType: pt, Data: data}
+}
+
+// EstimateSize returns the size of the RawBlobValue in wire protocol.
+func (vl *RawBlobValue) EstimateSize() (int, Error) {
+	return len(vl.Data), nil
+}
+
+func (vl *RawBlobValue) write(cmd BufferEx) (int, Error) {
+	return cmd.Write(vl.Data)
+}
+
+func (vl *RawBlobValue) pack(cmd BufferEx) (int, Error) {
+	panic("UNREACHABLE")
+}
+
+// GetType returns wire protocol value type.
+func (vl *RawBlobValue) GetType() int {
+	return vl.ParticleType
+}
+
+// GetObject returns original value as an interface{}.
+func (vl *RawBlobValue) GetObject() interface{} {
+	return []byte(vl.Data)
+}
+
+// String implements Stringer interface.
+func (vl *RawBlobValue) String() string {
+	return Buffer.BytesToHexString(vl.Data)
+}
+
 //////////////////////////////////////////////////////////////////////////////
+
+func bytesToParticleRaw(ptype int, buf []byte, offset int, length int, raw bool) (interface{}, Error) {
+	switch ptype {
+	case ParticleType.MAP:
+		if raw {
+			return NewRawBlobValue(ptype, buf[offset:offset+length]), nil
+		}
+		return newUnpacker(buf, offset, length).UnpackMap()
+
+	case ParticleType.LIST:
+		if raw {
+			return NewRawBlobValue(ptype, buf[offset:offset+length]), nil
+		}
+		return newUnpacker(buf, offset, length).UnpackList()
+	}
+	return bytesToParticle(ptype, buf, offset, length)
+}
 
 func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}, Error) {
 
