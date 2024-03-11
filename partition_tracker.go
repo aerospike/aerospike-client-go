@@ -279,14 +279,16 @@ func (pt *partitionTracker) setDigest(nodePartitions *nodePartitions, key *Key) 
 	}
 }
 
-func (pt *partitionTracker) setLast(nodePartitions *nodePartitions, key *Key, bval int64) {
+func (pt *partitionTracker) setLast(nodePartitions *nodePartitions, key *Key, bval *int64) {
 	partitionId := key.PartitionId()
 	if partitionId-pt.partitionBegin < 0 {
 		panic(fmt.Sprintf("Partition mismatch: key.partitionId: %d, partitionBegin: %d", partitionId, pt.partitionBegin))
 	}
 	ps := pt.partitions[partitionId-pt.partitionBegin]
 	ps.Digest = key.digest[:]
-	ps.BVal = bval
+	if bval != nil {
+		ps.BVal = *bval
+	}
 
 	// nodePartitions is nil in Proxy client
 	if nodePartitions != nil {

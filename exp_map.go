@@ -809,7 +809,7 @@ func expMapAddWrite(
 	var returnType ExpType
 	if len(ctx) == 0 {
 		returnType = ExpTypeMAP
-	} else if (ctx[0].id & ctxTypeListIndex) == 0 {
+	} else if (ctx[0].Id & ctxTypeListIndex) == 0 {
 		returnType = ExpTypeMAP
 	} else {
 		returnType = ExpTypeLIST

@@ -34,7 +34,7 @@ type Statement struct {
 	// If not set, the server will determine the index from the filter's bin name.
 	IndexName string
 
-	// BinNames detemines bin names (optional)
+	// BinNames determines bin names (optional)
 	BinNames []string
 
 	// Filter determines query index filter (Optional).
@@ -51,7 +51,7 @@ type Statement struct {
 	TaskId uint64
 
 	// determines if the query should return data
-	returnData bool
+	ReturnData bool
 }
 
 // NewStatement initializes a new Statement instance.
@@ -60,7 +60,7 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 		Namespace:  ns,
 		SetName:    set,
 		BinNames:   binNames,
-		returnData: true,
+		ReturnData: true,
 		TaskId:     xornd.Uint64(),
 	}
 }
@@ -75,7 +75,8 @@ func (stmt *Statement) String() string {
 		stmt.packageName,
 		stmt.functionName,
 		stmt.functionArgs,
-		stmt.TaskId, stmt.returnData,
+		stmt.TaskId,
+		stmt.ReturnData,
 	)
 }
 
@@ -94,7 +95,7 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 	stmt.packageName = packageName
 	stmt.functionName = functionName
 	stmt.functionArgs = functionArgs
-	stmt.returnData = returnData
+	stmt.ReturnData = returnData
 }
 
 // IsScan determines is the Statement is a full namespace/set scan or a selective Query.
@@ -111,7 +112,7 @@ func (stmt *Statement) terminationError() types.ResultCode {
 
 // Always set the taskID client-side to a non-zero random value
 func (stmt *Statement) prepare(returnData bool) {
-	stmt.returnData = returnData
+	stmt.ReturnData = returnData
 }
 
 func (stmt *Statement) grpc(policy *QueryPolicy, ops []*Operation) *kvs.Statement {

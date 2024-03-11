@@ -1844,7 +1844,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 
 	if statement.functionName != "" {
 		cmd.writeFieldHeader(1, UDF_OP)
-		if statement.returnData {
+		if statement.ReturnData {
 			cmd.dataBuffer[cmd.dataOffset] = byte(1)
 		} else {
 			cmd.dataBuffer[cmd.dataOffset] = byte(2)

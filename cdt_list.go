@@ -219,12 +219,12 @@ func packCDTParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, para
 		size += n
 
 		for _, c := range ctx {
-			if n, err = packAInt64(packer, int64(c.id)); err != nil {
+			if n, err = packAInt64(packer, int64(c.Id)); err != nil {
 				return size + n, err
 			}
 			size += n
 
-			if n, err = c.value.pack(packer); err != nil {
+			if n, err = c.Value.pack(packer); err != nil {
 				return size + n, err
 			}
 			size += n
@@ -289,12 +289,12 @@ func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext
 		size += n
 
 		for _, c := range ctx {
-			if n, err = packAInt64(packer, int64(c.id)); err != nil {
+			if n, err = packAInt64(packer, int64(c.Id)); err != nil {
 				return size + n, err
 			}
 			size += n
 
-			if n, err = c.value.pack(packer); err != nil {
+			if n, err = c.Value.pack(packer); err != nil {
 				return size + n, err
 			}
 			size += n
@@ -368,24 +368,24 @@ func packCDTCreate(packer BufferEx, opType int16, ctx []*CDTContext, flag int, p
 
 	for i := 0; i < last; i++ {
 		c = ctx[i]
-		if n, err = packAInt64(packer, int64(c.id)); err != nil {
+		if n, err = packAInt64(packer, int64(c.Id)); err != nil {
 			return size + n, err
 		}
 		size += n
 
-		if n, err = c.value.pack(packer); err != nil {
+		if n, err = c.Value.pack(packer); err != nil {
 			return size + n, err
 		}
 		size += n
 	}
 
 	c = ctx[last]
-	if n, err = packAInt64(packer, int64(c.id|flag)); err != nil {
+	if n, err = packAInt64(packer, int64(c.Id|flag)); err != nil {
 		return size + n, err
 	}
 	size += n
 
-	if n, err = c.value.pack(packer); err != nil {
+	if n, err = c.Value.pack(packer); err != nil {
 		return size + n, err
 	}
 	size += n

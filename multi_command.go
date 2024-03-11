@@ -221,7 +221,8 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64) (*Key, Error)
 				return nil, err.setNode(cmd.node)
 			}
 		case BVAL_ARRAY:
-			*bval = Buffer.LittleBytesToInt64(cmd.dataBuffer, 1)
+			v := Buffer.LittleBytesToInt64(cmd.dataBuffer, 1)
+			bval = &v
 		}
 	}
 
@@ -291,8 +292,8 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 
-		var bval int64
-		key, err := cmd.parseKey(fieldCount, &bval)
+		var bval *int64
+		key, err := cmd.parseKey(fieldCount, bval)
 		if err != nil {
 			err = newNodeError(cmd.node, err)
 			return false, err
@@ -365,7 +366,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			// block forever, or panic in case the channel is closed in the meantime.
 			select {
 			// send back the result on the async channel
-			case cmd.recordset.records <- &Result{Record: newRecord(cmd.node, key, bins, generation, expiration), Err: nil}:
+			case cmd.recordset.records <- &Result{Record: newRecord(cmd.node, key, bins, generation, expiration), Err: nil, BVal: bval}:
 			case <-cmd.recordset.cancelled:
 				switch cmd.terminationErrorType {
 				case types.SCAN_TERMINATED:

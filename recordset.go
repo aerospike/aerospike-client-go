@@ -29,6 +29,7 @@ import (
 type Result struct {
 	Record *Record
 	Err    Error
+	BVal   *int64
 }
 
 // String implements the Stringer interface

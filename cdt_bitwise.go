@@ -481,12 +481,12 @@ func packCDTBitIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTCont
 		size += n
 
 		for _, c := range ctx {
-			if n, err = packAInt64(packer, int64(c.id)); err != nil {
+			if n, err = packAInt64(packer, int64(c.Id)); err != nil {
 				return size + n, err
 			}
 			size += n
 
-			if n, err = c.value.pack(packer); err != nil {
+			if n, err = c.Value.pack(packer); err != nil {
 				return size + n, err
 			}
 			size += n

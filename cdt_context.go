@@ -37,8 +37,8 @@ const (
 // An array of CTX identifies location of the list/map on multiple
 // levels on nesting.
 type CDTContext struct {
-	id    int
-	value Value
+	Id    int
+	Value Value
 }
 
 // CDTContextToBase64 converts a []*CDTContext into a base64 encoded string.
@@ -78,7 +78,7 @@ func Base64ToCDTContext(b64 string) ([]*CDTContext, Error) {
 
 	res := make([]*CDTContext, 0, len(list)/2)
 	for i := 0; i < len(list); i += 2 {
-		res = append(res, &CDTContext{id: list[i].(int), value: NewValue(list[i+1])})
+		res = append(res, &CDTContext{Id: list[i].(int), Value: NewValue(list[i+1])})
 	}
 
 	return res, nil
@@ -86,18 +86,18 @@ func Base64ToCDTContext(b64 string) ([]*CDTContext, Error) {
 
 // String implements the Stringer interface for CDTContext
 func (ctx *CDTContext) String() string {
-	return fmt.Sprintf("CDTContext{id: %d, value: %s}", ctx.id, ctx.value.String())
+	return fmt.Sprintf("CDTContext{id: %d, value: %s}", ctx.Id, ctx.Value.String())
 }
 
 func (ctx *CDTContext) pack(cmd BufferEx) (int, Error) {
 	size := 0
-	sz, err := packAInt64(cmd, int64(ctx.id))
+	sz, err := packAInt64(cmd, int64(ctx.Id))
 	size += sz
 	if err != nil {
 		return size, err
 	}
 
-	sz, err = ctx.value.pack(cmd)
+	sz, err = ctx.Value.pack(cmd)
 	size += sz
 
 	return size, err
