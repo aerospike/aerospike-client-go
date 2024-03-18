@@ -201,7 +201,7 @@ func ExpListRemoveByValueRange(
 	args := []ExpressionArgument{
 		cdtContextList(ctx),
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE_INTERVAL),
-		IntegerValue(ListReturnTypeNone),
+		IntegerValue(returnType),
 	}
 	if valueBegin != nil {
 		args = append(args, valueBegin)
