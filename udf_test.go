@@ -102,7 +102,14 @@ var _ = gg.Describe("UDF/Query tests", func() {
 		err = client.PutBins(wpolicy, key, bin1, bin2)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		wpolicy := as.NewWritePolicy(0, 1000)
+		nsup := nsupPeriod(ns)
+
+		var wpolicy *as.WritePolicy
+		if nsup > 0 {
+			wpolicy = as.NewWritePolicy(0, 1000)
+		} else {
+			wpolicy = as.NewWritePolicy(0, 0)
+		}
 		res, err := client.Execute(wpolicy, key, "udf1", "testFunc1", as.NewValue(2))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(res).To(gm.Equal(map[interface{}]interface{}{"status": "OK"}))
@@ -112,8 +119,10 @@ var _ = gg.Describe("UDF/Query tests", func() {
 		// read all data and make sure it is consistent
 		rec, err := client.Get(nil, key)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
-		gm.Expect(rec.Expiration).To(gm.BeNumerically("<=", 997))
-		gm.Expect(rec.Expiration).To(gm.BeNumerically(">", 900)) // give a bit of leeway for slow testing VMs
+		if nsup > 0 {
+			gm.Expect(rec.Expiration).To(gm.BeNumerically("<=", 997))
+			gm.Expect(rec.Expiration).To(gm.BeNumerically(">", 900)) // give a bit of leeway for slow testing VMs
+		}
 
 		gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
 		gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin1.Value.GetObject().(int) / 2))

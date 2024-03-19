@@ -404,6 +404,23 @@ const (
 	vsEqual versionStatus = "equal"
 )
 
+func nsupPeriod(ns string) int {
+	if *proxy || *dbaas {
+		return 0
+	}
+
+	var pattern = `(?P<v1>nsup-period=\d+)`
+	var vmeta = regexp.MustCompile(pattern)
+
+	vs := info(nativeClient, "namespace/"+ns)
+	server := findNamedMatches(vmeta, vs)
+
+	if len(server) > 0 {
+		return server[0]
+	}
+	return 0
+}
+
 func cmpServerVersion(v string) versionStatus {
 	var pattern = `(?P<v1>\d+)(\.(?P<v2>\d+)(\.(?P<v3>\d+)(\.(?P<v4>\d+))?)?)?.*`
 	var vmeta = regexp.MustCompile(pattern)
