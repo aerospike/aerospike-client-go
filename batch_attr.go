@@ -42,16 +42,15 @@ func newBatchAttrOps(rp *BatchPolicy, wp *BatchWritePolicy, ops []*Operation) {
 
 	for _, op := range ops {
 		switch op.opType {
+		case _READ_HEADER:
+			readHeader = true
+			hasRead = true
 		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ, _CDT_READ, _READ:
 			// _Read all bins if no bin is specified.
 			if op.binName == "" {
 				readAllBins = true
 			}
 			hasRead = true
-
-			if op.headerOnly {
-				readHeader = true
-			}
 
 		default:
 			hasWriteOp = true
@@ -141,15 +140,13 @@ func (ba *batchAttr) adjustRead(ops []*Operation) {
 
 	for _, op := range ops {
 		switch op.opType {
+		case _READ_HEADER:
+			readHeader = true
 		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ, _CDT_READ, _READ:
-			// _Read all bins if no bin is specified.
+			// Read all bins if no bin is specified.
 			if op.binName == "" {
 				readAllBins = true
 			}
-			if op.headerOnly {
-				readHeader = true
-			}
-
 		default:
 		}
 	}
@@ -232,16 +229,15 @@ func (ba *batchAttr) adjustWrite(ops []*Operation) {
 
 	for _, op := range ops {
 		switch op.opType {
+		case _READ_HEADER:
+			readHeader = true
+			hasRead = true
 		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ, _CDT_READ, _READ:
 			// _Read all bins if no bin is specified.
 			if op.binName == "" {
 				readAllBins = true
 			}
 			hasRead = true
-			if op.headerOnly {
-				readHeader = true
-				hasRead = true
-			}
 
 		default:
 		}

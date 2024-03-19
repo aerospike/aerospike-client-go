@@ -39,7 +39,7 @@ func newOperateArgs(
 	write := false
 	readBin := false
 	readHeader := false
-	respondAllOps := policy.RespondPerEachOp
+	respondAllOps := false
 
 	for _, operation := range operations {
 		switch operation.opType {
@@ -49,18 +49,16 @@ func newOperateArgs(
 			// Fall through to read.
 			fallthrough
 		case _CDT_READ, _READ:
-			if operation.headerOnly {
-				rattr |= _INFO1_READ
-				readHeader = true
-			} else {
-				rattr |= _INFO1_READ
+			rattr |= _INFO1_READ
 
-				// Read all bins if no bin is specified.
-				if len(operation.binName) == 0 {
-					rattr |= _INFO1_GET_ALL
-				}
-				readBin = true
+			// Read all bins if no bin is specified.
+			if len(operation.binName) == 0 {
+				rattr |= _INFO1_GET_ALL
 			}
+			readBin = true
+		case _READ_HEADER:
+			rattr |= _INFO1_READ
+			readHeader = true
 		case _BIT_MODIFY, _EXP_MODIFY, _HLL_MODIFY, _MAP_MODIFY:
 			// Map operations require respondAllOps to be true.
 			respondAllOps = true
@@ -79,7 +77,8 @@ func newOperateArgs(
 	}
 	res.readAttr = rattr
 
-	if respondAllOps {
+	// When GET_ALL is specified, RESPOND_ALL_OPS must be disabled.
+	if (respondAllOps || res.writePolicy.RespondPerEachOp) && (rattr&_INFO1_GET_ALL) == 0 {
 		wattr |= _INFO2_RESPOND_ALL_OPS
 	}
 	res.writeAttr = wattr

@@ -20,8 +20,9 @@ import (
 
 // OperationType determines operation type
 type OperationType struct {
-	op      byte
-	isWrite bool
+	op       byte
+	isWrite  bool
+	enumDist byte // make the values like enum to distinguish them from each other
 }
 
 type operationSubType *int
@@ -29,34 +30,33 @@ type operationSubType *int
 // Valid OperationType values that can be used to create custom Operations.
 // The names are self-explanatory.
 var (
-	_READ = OperationType{1, false}
-	// _READ_HEADER = OperationType{1, false}
-	_WRITE      = OperationType{2, true}
-	_CDT_READ   = OperationType{3, false}
-	_CDT_MODIFY = OperationType{4, true}
-	_MAP_READ   = OperationType{3, false}
-	_MAP_MODIFY = OperationType{4, true}
-	_ADD        = OperationType{5, true}
-	_EXP_READ   = OperationType{7, false}
-	_EXP_MODIFY = OperationType{8, true}
-	_APPEND     = OperationType{9, true}
-	_PREPEND    = OperationType{10, true}
-	_TOUCH      = OperationType{11, true}
-	_BIT_READ   = OperationType{12, false}
-	_BIT_MODIFY = OperationType{13, true}
-	_DELETE     = OperationType{14, true}
-	_HLL_READ   = OperationType{15, false}
-	_HLL_MODIFY = OperationType{16, true}
+	_READ        = OperationType{1, false, 0}
+	_READ_HEADER = OperationType{1, false, 1}
+	_WRITE       = OperationType{2, true, 2}
+	_CDT_READ    = OperationType{3, false, 3}
+	_CDT_MODIFY  = OperationType{4, true, 4}
+	_MAP_READ    = OperationType{3, false, 5}
+	_MAP_MODIFY  = OperationType{4, true, 6}
+	_ADD         = OperationType{5, true, 7}
+	_EXP_READ    = OperationType{7, false, 8}
+	_EXP_MODIFY  = OperationType{8, true, 9}
+	_APPEND      = OperationType{9, true, 10}
+	_PREPEND     = OperationType{10, true, 11}
+	_TOUCH       = OperationType{11, true, 12}
+	_BIT_READ    = OperationType{12, false, 13}
+	_BIT_MODIFY  = OperationType{13, true, 14}
+	_DELETE      = OperationType{14, true, 15}
+	_HLL_READ    = OperationType{15, false, 16}
+	_HLL_MODIFY  = OperationType{16, true, 17}
 )
 
 func (o *Operation) grpc_op_type() kvs.OperationType {
 	// case _READ: return  kvs.OperationType_READ
 	switch o.opType {
 	case _READ:
-		if o.headerOnly {
-			return kvs.OperationType_READ_HEADER
-		}
 		return kvs.OperationType_READ
+	case _READ_HEADER:
+		return kvs.OperationType_READ_HEADER
 	case _WRITE:
 		return kvs.OperationType_WRITE
 	case _CDT_READ:
@@ -112,9 +112,6 @@ type Operation struct {
 
 	// binValue (Optional) determines bin value used in operation.
 	binValue Value
-
-	// will be true ONLY for GetHeader() operation
-	headerOnly bool
 }
 
 // size returns the size of the operation on the wire protocol.
@@ -163,7 +160,7 @@ func GetOp() *Operation {
 
 // GetHeaderOp creates read record header database operation.
 func GetHeaderOp() *Operation {
-	return &Operation{opType: _READ, headerOnly: true, binValue: NewNullValue()}
+	return &Operation{opType: _READ_HEADER, binValue: NewNullValue()}
 }
 
 // PutOp creates set database operation.

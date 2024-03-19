@@ -2235,20 +2235,14 @@ func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interf
 }
 
 func (cmd *baseCommand) writeBatchReadOperations(ops []*Operation, readAttr int) (byte, Error) {
-	readBin := false
-	readHeader := false
-
 	for _, op := range ops {
 		switch op.opType {
+		case _READ_HEADER:
+			readAttr |= _INFO1_NOBINDATA
 		case _READ:
 			// Read all bins if no bin is specified.
 			if len(op.binName) == 0 {
 				readAttr |= _INFO1_GET_ALL
-			}
-			readBin = true
-
-			if op.headerOnly {
-				readHeader = true
 			}
 		default:
 		}
@@ -2257,9 +2251,6 @@ func (cmd *baseCommand) writeBatchReadOperations(ops []*Operation, readAttr int)
 		}
 	}
 
-	if readHeader && !readBin {
-		readAttr |= _INFO1_NOBINDATA
-	}
 	return byte(readAttr), nil
 }
 
