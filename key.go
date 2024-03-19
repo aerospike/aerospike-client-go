@@ -160,6 +160,7 @@ func (ky *Key) computeDigest() Error {
 
 // PartitionId returns the partition that the key belongs to.
 func (ky *Key) PartitionId() int {
+	// TODO: Convert to int16 later
 	// CAN'T USE MOD directly - mod will give negative numbers.
 	// First AND makes positive and negative correctly, then mod.
 	return int(Buffer.LittleBytesToInt32(ky.digest[:], 0)&0xFFFF) & (_PARTITIONS - 1)

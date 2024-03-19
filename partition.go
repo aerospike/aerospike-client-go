@@ -200,7 +200,7 @@ func (ptn *Partition) GetNodeWrite(cluster *Cluster) (*Node, Error) {
 
 func (ptn *Partition) GetNodeQuery(cluster *Cluster, partitions *Partitions, ps *PartitionStatus) (*Node, Error) {
 	ptn.partitions = partitions
-	ptn.PartitionId = ps.Id
+	ptn.PartitionId = int(ps.Id)
 	ptn.sequence = ps.sequence
 	ptn.prevNode = ps.node
 

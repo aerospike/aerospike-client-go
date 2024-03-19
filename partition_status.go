@@ -26,7 +26,7 @@ type PartitionStatus struct {
 	// BVal
 	BVal int64
 	// Id shows the partition Id.
-	Id int
+	Id int16
 	// Retry signifies if the partition requires a retry.
 	Retry bool
 	// Digest records the digest of the last key digest received from the server
@@ -39,7 +39,7 @@ type PartitionStatus struct {
 }
 
 func newPartitionStatus(id int) *PartitionStatus {
-	return &PartitionStatus{Id: id, Retry: true}
+	return &PartitionStatus{Id: int16(id), Retry: true}
 }
 
 func (ps *PartitionStatus) String() string {
