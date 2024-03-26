@@ -61,7 +61,8 @@ const (
 	_INFO2_DURABLE_DELETE int = (1 << 4)
 	// Create only. Fail if record already exists.
 	_INFO2_CREATE_ONLY int = (1 << 5)
-
+	// Treat as long query, but relax read consistency.
+	_INFO2_RELAX_AP_LONG_QUERY = (1 << 6)
 	// Return a result for every operation.
 	_INFO2_RESPOND_ALL_OPS int = (1 << 7)
 
@@ -374,7 +375,7 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) Error {
 		return err
 	}
 
-	cmd.writeHeaderRead(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
+	cmd.writeHeaderRead(policy, _INFO1_READ|_INFO1_GET_ALL, 0, 0, fieldCount, 0)
 	if err := cmd.writeKey(key, false); err != nil {
 		return err
 	}
@@ -421,7 +422,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 		if len(binNames) == 0 {
 			attr |= _INFO1_GET_ALL
 		}
-		cmd.writeHeaderRead(policy, attr, 0, fieldCount, len(binNames))
+		cmd.writeHeaderRead(policy, attr, 0, 0, fieldCount, len(binNames))
 
 		if err := cmd.writeKey(key, false); err != nil {
 			return err
@@ -1147,7 +1148,7 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 		readAttr |= _INFO1_READ_MODE_AP_ALL
 	}
 
-	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
+	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 0, fieldCount, 0)
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
@@ -1282,7 +1283,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 		readAttr |= _INFO1_READ_MODE_AP_ALL
 	}
 
-	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
+	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 0, fieldCount, 0)
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
@@ -1471,7 +1472,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	if len(binNames) > 0 {
 		operationCount = len(binNames)
 	}
-	cmd.writeHeaderRead(&policy.BasePolicy, readAttr, infoAttr, fieldCount, operationCount)
+	cmd.writeHeaderRead(&policy.BasePolicy, readAttr, 0, infoAttr, fieldCount, operationCount)
 
 	if namespace != nil {
 		cmd.writeFieldString(*namespace, NAMESPACE)
@@ -1731,17 +1732,21 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		cmd.writeHeaderWrite(wpolicy, _INFO2_WRITE, fieldCount, operationCount)
 	} else {
 		readAttr := _INFO1_READ | _INFO1_NOBINDATA
+		writeAttr := 0
+
 		if policy.IncludeBinData {
 			readAttr = _INFO1_READ
 		}
-		if policy.ShortQuery {
+		if policy.ShortQuery || policy.ExpectedDuration == SHORT {
 			readAttr |= _INFO1_SHORT_QUERY
+		} else if policy.ExpectedDuration == LONG_RELAX_AP {
+			writeAttr |= _INFO2_RELAX_AP_LONG_QUERY
 		}
 		infoAttr := 0
 		if isNew {
 			infoAttr = _INFO3_PARTITION_DONE
 		}
-		cmd.writeHeaderRead(&policy.BasePolicy, readAttr, infoAttr, fieldCount, operationCount)
+		cmd.writeHeaderRead(&policy.BasePolicy, readAttr, writeAttr, infoAttr, fieldCount, operationCount)
 	}
 
 	if statement.Namespace != "" {
@@ -2113,7 +2118,7 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, args *operateA
 }
 
 // Header write for read commands.
-func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, infoAttr, fieldCount, operationCount int) {
+func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, writeAttr, infoAttr, fieldCount, operationCount int) {
 	switch policy.ReadModeSC {
 	case ReadModeSCSession:
 	case ReadModeSCLinearize:
@@ -2135,7 +2140,7 @@ func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, infoAttr, 
 	// Write all header data except total size which must be written last.
 	cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
 	cmd.dataBuffer[9] = byte(readAttr)
-	cmd.dataBuffer[10] = 0
+	cmd.dataBuffer[10] = byte(writeAttr)
 	cmd.dataBuffer[11] = byte(infoAttr)
 
 	for i := 12; i < 18; i++ {
