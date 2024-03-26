@@ -409,7 +409,7 @@ func nsupPeriod(ns string) int {
 		return 0
 	}
 
-	var pattern = `(?P<v1>nsup-period=\d+)`
+	var pattern = `nsup-period=(?P<value>\d+)`
 	var vmeta = regexp.MustCompile(pattern)
 
 	vs := info(nativeClient, "namespace/"+ns)

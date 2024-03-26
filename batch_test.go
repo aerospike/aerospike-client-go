@@ -401,6 +401,110 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 		})
 
+		gg.Context("BatchRead operations with TTL", func() {
+			gg.BeforeEach(func() {
+				if *dbaas {
+					gg.Skip("Not supported in DBAAS environment")
+				}
+
+				if serverIsOlderThan("7") {
+					gg.Skip("Not supported in server before v7.1")
+				}
+			})
+
+			gg.It("Reset Read TTL", func() {
+				if nsupPeriod(ns) == 0 {
+					gg.Skip("Not supported with nsup-period == 0")
+				}
+
+				key, _ := as.NewKey(ns, set, "expirekey3")
+				bin := as.NewBin("expireBinName", "expirevalue")
+
+				// Specify that record expires 2 seconds after it's written.
+				writePolicy := as.NewWritePolicy(0, 2)
+				err := client.PutBins(writePolicy, key, bin)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				// Read the record before it expires and reset read ttl.
+				time.Sleep(1 * time.Second)
+				readPolicy := as.NewPolicy()
+				readPolicy.ReadTouchTTLPercent = 80
+				record, err := client.Get(readPolicy, key, bin.Name)
+				gm.Expect(record.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
+
+				// Read the record again, but don't reset read ttl.
+				time.Sleep(1 * time.Second)
+				readPolicy.ReadTouchTTLPercent = -1
+				record, err = client.Get(readPolicy, key, bin.Name)
+				gm.Expect(record.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
+
+				// Read the record after it expires, showing it's gone.
+				time.Sleep(2 * time.Second)
+				record, err = client.Get(nil, key, bin.Name)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(types.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue())
+			})
+
+			gg.It("BatchRead TTL", func() {
+				// WARNING: This test takes a long time to run due to sleeps.
+				// Define keys
+				key1, _ := as.NewKey(ns, set, 88888)
+				key2, _ := as.NewKey(ns, set, 88889)
+
+				// Write keys with ttl.
+				bwp := as.NewBatchWritePolicy()
+				bwp.Expiration = 10
+				bw1 := as.NewBatchWrite(bwp, key1, as.PutOp(as.NewBin("a", 1)))
+				bw2 := as.NewBatchWrite(bwp, key2, as.PutOp(as.NewBin("a", 1)))
+
+				list := []as.BatchRecordIfc{bw1, bw2}
+				err := client.BatchOperate(nil, list)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				// Read records before they expire and reset read ttl on one record.
+				time.Sleep(8 * time.Second)
+				brp1 := as.NewBatchReadPolicy()
+				brp1.ReadTouchTTLPercent = 80
+
+				brp2 := as.NewBatchReadPolicy()
+				brp2.ReadTouchTTLPercent = -1
+
+				br1 := as.NewBatchRead(brp1, key1, []string{"a"})
+				br2 := as.NewBatchRead(brp2, key2, []string{"a"})
+
+				list = []as.BatchRecordIfc{br1, br2}
+
+				err = client.BatchOperate(nil, list)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				gm.Expect(types.OK, br1.ResultCode)
+				gm.Expect(types.OK, br2.ResultCode)
+
+				// Read records again, but don't reset read ttl.
+				time.Sleep(3 * time.Second)
+				brp1.ReadTouchTTLPercent = -1
+				brp2.ReadTouchTTLPercent = -1
+
+				br1 = as.NewBatchRead(brp1, key1, []string{"a"})
+				br2 = as.NewBatchRead(brp2, key2, []string{"a"})
+
+				list = []as.BatchRecordIfc{br1, br2}
+
+				err = client.BatchOperate(nil, list)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				// Key 2 should have expired.
+				gm.Expect(types.OK, br1.ResultCode)
+				gm.Expect(types.KEY_NOT_FOUND_ERROR, br2.ResultCode)
+
+				// Read  record after it expires, showing it's gone.
+				time.Sleep(8 * time.Second)
+				err = client.BatchOperate(nil, list)
+				gm.Expect(types.KEY_NOT_FOUND_ERROR, br1.ResultCode)
+				gm.Expect(types.KEY_NOT_FOUND_ERROR, br2.ResultCode)
+			})
+		})
+
 		gg.Context("BatchUDF operations", func() {
 			gg.BeforeEach(func() {
 				if *dbaas {

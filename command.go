@@ -105,7 +105,8 @@ const (
 	_BATCH_MSG_READ   uint8 = 0x0
 	_BATCH_MSG_REPEAT uint8 = 0x1
 	_BATCH_MSG_INFO   uint8 = 0x2
-	_BATCH_MSG_WRITE  uint8 = 0xe
+	_BATCH_MSG_GEN    uint8 = 0x4
+	_BATCH_MSG_TTL    uint8 = 0x8
 
 	_MSG_TOTAL_HEADER_SIZE     uint8 = 30
 	_FIELD_HEADER_SIZE         uint8 = 5
@@ -517,7 +518,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, args *operateA
 		return err
 	}
 
-	cmd.writeHeaderReadWrite(policy, args.readAttr, args.writeAttr, fieldCount, len(args.operations))
+	cmd.writeHeaderReadWrite(policy, args, fieldCount)
 
 	if err := cmd.writeKey(key, policy.SendKey && args.hasWrite); err != nil {
 		return err
@@ -623,7 +624,7 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 			cmd.dataOffset++
 		} else {
 			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += 8 // header(4) + fielCount(2) + opCount(2) = 8
+			cmd.dataOffset += 12 // header(4) + ttl(4) + fielCount(2) + opCount(2) = 12
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 
@@ -786,7 +787,7 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 			cmd.dataOffset++
 		} else {
 			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += 8 // header(4) + fielCount(2) + opCount(2) = 8
+			cmd.dataOffset += 12 // header(4) + ttl(4) + fielCount(2) + opCount(2) = 12
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 
@@ -808,7 +809,7 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 						if !attr.hasWrite {
 							return newError(types.PARAMETER_ERROR, "batch operation is write but isWrite flag not set in attrs")
 						}
-						cmd.dataOffset += 6 // Extra write specific fields.
+						cmd.dataOffset += 2 // Extra write specific fields.
 					}
 
 					if err := cmd.estimateOperationSizeForOperation(op, true); err != nil {
@@ -816,7 +817,7 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 					}
 				}
 			} else if (attr.writeAttr & _INFO2_DELETE) != 0 {
-				cmd.dataOffset += 6 // Extra write specific fields.
+				cmd.dataOffset += 2 // Extra write specific fields.
 			}
 
 			prev = key
@@ -920,7 +921,7 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 			cmd.dataOffset++
 		} else {
 			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += 8 // header(4) + fielCount(2) + opCount(2) = 8
+			cmd.dataOffset += 12 // header(4) + ttl(4) + fieldCount(2) + opCount(2) = 12
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 
@@ -932,7 +933,7 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 				}
 			}
 
-			cmd.dataOffset += 6
+			cmd.dataOffset += 2 // gen(2) = 2
 			if sz, err := cmd.estimateUdfSize(packageName, functionName, &args); err != nil {
 				return err
 			} else {
@@ -1044,15 +1045,16 @@ func (cmd *baseCommand) writeBatchOperations(key *Key, ops []*Operation, attr *b
 }
 
 func (cmd *baseCommand) writeBatchRead(key *Key, attr *batchAttr, filter *Expression, opCount int) {
-	cmd.WriteByte(_BATCH_MSG_INFO)
+	cmd.WriteByte(_BATCH_MSG_INFO | _BATCH_MSG_TTL)
 	cmd.WriteByte(byte(attr.readAttr))
 	cmd.WriteByte(byte(attr.writeAttr))
 	cmd.WriteByte(byte(attr.infoAttr))
+	cmd.WriteUint32(attr.expiration)
 	cmd.writeBatchFieldsWithFilter(key, filter, 0, opCount)
 }
 
 func (cmd *baseCommand) writeBatchWrite(key *Key, attr *batchAttr, filter *Expression, fieldCount, opCount int) {
-	cmd.WriteByte(_BATCH_MSG_WRITE)
+	cmd.WriteByte(_BATCH_MSG_INFO | _BATCH_MSG_GEN | _BATCH_MSG_TTL)
 	cmd.WriteByte(byte(attr.readAttr))
 	cmd.WriteByte(byte(attr.writeAttr))
 	cmd.WriteByte(byte(attr.infoAttr))
@@ -2030,10 +2032,17 @@ func (cmd *baseCommand) writeHeaderWrite(policy *WritePolicy, writeAttr, fieldCo
 }
 
 // Header write for operate command.
-func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, readAttr, writeAttr, fieldCount, operationCount int) {
+func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, args *operateArgs, fieldCount int) {
 	// Set flags.
 	generation := uint32(0)
+	ttl := int64(policy.ReadTouchTTLPercent)
+	if args.hasWrite {
+		ttl = int64(policy.Expiration)
+	}
+	readAttr := args.readAttr
+	writeAttr := args.writeAttr
 	infoAttr := 0
+	operationCount := len(args.operations)
 
 	switch policy.RecordExistsAction {
 	case UPDATE:
@@ -2096,7 +2105,7 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, readAttr, writ
 	cmd.dataBuffer[13] = 0 // clear the result code
 	cmd.dataOffset = 14
 	cmd.WriteUint32(generation)
-	cmd.WriteUint32(policy.Expiration)
+	cmd.WriteInt32(int32(ttl))
 	cmd.WriteInt32(0) // timeout
 	cmd.WriteInt16(int16(fieldCount))
 	cmd.WriteInt16(int16(operationCount))
@@ -2129,10 +2138,11 @@ func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, infoAttr, 
 	cmd.dataBuffer[10] = 0
 	cmd.dataBuffer[11] = byte(infoAttr)
 
-	for i := 12; i < 22; i++ {
+	for i := 12; i < 18; i++ {
 		cmd.dataBuffer[i] = 0
 	}
-	cmd.dataOffset = 22
+	cmd.dataOffset = 18
+	cmd.WriteInt32(policy.ReadTouchTTLPercent)
 	cmd.WriteInt32(0) // timeout
 	cmd.WriteInt16(int16(fieldCount))
 	cmd.WriteInt16(int16(operationCount))
@@ -2163,11 +2173,12 @@ func (cmd *baseCommand) writeHeaderReadHeader(policy *BasePolicy, readAttr, fiel
 	cmd.dataBuffer[10] = byte(0)
 	cmd.dataBuffer[11] = byte(infoAttr)
 
-	for i := 12; i < 22; i++ {
+	for i := 12; i < 18; i++ {
 		cmd.dataBuffer[i] = 0
 	}
 
-	cmd.dataOffset = 22
+	cmd.dataOffset = 18
+	cmd.WriteInt32(policy.ReadTouchTTLPercent)
 	// cmd.WriteInt32(serverTimeout) // TODO: handle argument
 	cmd.WriteInt32(0)
 	cmd.WriteInt16(int16(fieldCount))

@@ -67,7 +67,7 @@ func (bw *BatchWrite) equals(obj BatchRecordIfc) bool {
 
 // Return wire protocol size. For internal use only.
 func (bw *BatchWrite) size(parentPolicy *BasePolicy) (int, Error) {
-	size := 6 // gen(2) + exp(4) = 6
+	size := 2 // gen(2) = 2
 
 	if bw.policy != nil {
 		if bw.policy.FilterExpression != nil {
