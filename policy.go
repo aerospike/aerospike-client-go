@@ -145,6 +145,10 @@ type BasePolicy struct {
 	// SendKey determines to whether send user defined key in addition to hash digest on both reads and writes.
 	// If the key is sent on a write, the key will be stored with the record on
 	// the server.
+	//
+	// If the key is sent on a read, the server will generate the hash digest from
+	// the key and validate that digest with the digest sent by the client. Unless
+	// this is the explicit intent of the developer, avoid sending the key on reads.
 	// The default is to not send the user defined key.
 	SendKey bool // = false
 

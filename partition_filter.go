@@ -57,10 +57,13 @@ func NewPartitionFilterByRange(begin, count int) *PartitionFilter {
 	return newPartitionFilter(begin, count)
 }
 
-// NewPartitionFilterByKey creates a partition filter that will return
-// records after key's digest in the partition containing the digest.
-// Note that digest order is not the same as userKey order. This method
-// only works for scan or query with nil filter.
+// NewPartitionFilterByKey returns records after the key's digest in the partition containing the digest.
+// Records in all other partitions are not included. The digest is used to determine
+// order and this is not the same as userKey order.
+//
+// This method only works for scan or query with nil filter (primary index query).
+// This method does not work for a secondary index query because the digest alone
+// is not sufficient to determine a cursor in a secondary index query.
 func NewPartitionFilterByKey(key *Key) *PartitionFilter {
 	return &PartitionFilter{Begin: key.PartitionId(), Count: 1, Digest: key.Digest()}
 }
