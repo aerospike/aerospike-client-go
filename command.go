@@ -620,7 +620,7 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 		cmd.dataOffset += len(key.digest) + 4
 
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.key().namespace == key.namespace && (prev.key().setName == key.setName) && record.equals(prev) {
+		if !policy.SendKey && prev != nil && prev.key().namespace == key.namespace && (prev.key().setName == key.setName) && record.equals(prev) {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.dataOffset++
 		} else {
@@ -672,10 +672,8 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 			return nil, newCommonError(err)
 		}
 
-		// fmt.Printf("key %d%s\n", index, hex.Dump(key.digest[:]))
-
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.key().namespace == key.namespace && prev.key().setName == key.setName && record.equals(prev) {
+		if !policy.SendKey && prev != nil && prev.key().namespace == key.namespace && prev.key().setName == key.setName && record.equals(prev) {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.WriteByte(_BATCH_MSG_REPEAT) // repeat
 		} else {
@@ -742,9 +740,6 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 	cmd.end()
 	cmd.markCompressed(policy)
 
-	// fmt.Printf("len: %d\n", len(cmd.dataBuffer[:cmd.dataOffset]))
-	// fmt.Printf("%s\n", hex.Dump(cmd.dataBuffer[:cmd.dataOffset]))
-
 	return attr, nil
 
 }
@@ -752,7 +747,6 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch *batchNode, binNames []string, ops []*Operation, attr *batchAttr) Error {
 	offsets := batch.offsets
 	max := len(batch.offsets)
-	// fmt.Println("@@@@@MAX", max)
 	// Estimate buffer size
 	cmd.begin()
 	fieldCount := 1
@@ -783,7 +777,7 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 		cmd.dataOffset += len(key.digest) + 4
 
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.namespace == key.namespace && (prev.setName == key.setName) {
+		if !attr.sendKey && prev != nil && prev.namespace == key.namespace && (prev.setName == key.setName) {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.dataOffset++
 		} else {
@@ -825,12 +819,10 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 		}
 	}
 
-	// fmt.Println("msg length estimate:", cmd.dataOffset)
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 
-	// fmt.Println("===================================================###", cmd.dataOffset)
 	cmd.writeBatchHeader(policy, fieldCount)
 
 	if exp != nil {
@@ -857,10 +849,8 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 			return newCommonError(err)
 		}
 
-		// fmt.Printf("key %d%s\n", index, hex.Dump(key.digest[:]))
-
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.namespace == key.namespace && prev.setName == key.setName {
+		if !attr.sendKey && prev != nil && prev.namespace == key.namespace && prev.setName == key.setName {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.WriteByte(_BATCH_MSG_REPEAT) // repeat
 		} else {
@@ -882,9 +872,6 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 	cmd.WriteUint32At(uint32(cmd.dataOffset)-uint32(_MSG_TOTAL_HEADER_SIZE)-4, fieldSizeOffset)
 	cmd.end()
 	cmd.markCompressed(policy)
-
-	// fmt.Printf("len: %d\n", len(cmd.dataBuffer[:cmd.dataOffset]))
-	// fmt.Printf("%s\n", hex.Dump(cmd.dataBuffer[:cmd.dataOffset]))
 
 	return nil
 }
@@ -917,7 +904,7 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 		cmd.dataOffset += len(key.digest) + 4
 
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.namespace == key.namespace && (prev.setName == key.setName) {
+		if !attr.sendKey && prev != nil && prev.namespace == key.namespace && (prev.setName == key.setName) {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.dataOffset++
 		} else {
@@ -945,12 +932,10 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 		}
 	}
 
-	// fmt.Println("msg length estimate:", cmd.dataOffset)
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 
-	// fmt.Println("===================================================###", cmd.dataOffset)
 	cmd.writeBatchHeader(policy, fieldCount)
 
 	if policy.FilterExpression != nil {
@@ -978,7 +963,7 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 		}
 
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.namespace == key.namespace && prev.setName == key.setName {
+		if !attr.sendKey && prev != nil && prev.namespace == key.namespace && prev.setName == key.setName {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.WriteByte(_BATCH_MSG_REPEAT) // repeat
 		} else {
