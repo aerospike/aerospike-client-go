@@ -24,12 +24,21 @@ import (
 type QueryPolicy struct {
 	MultiPolicy
 
-	// ShortQuery detemines wether query expected to return less than 100 records.
+	// Expected query duration. The server treats the query in different ways depending on the expected duration.
+	// This field is ignored for aggregation queries, background queries and server versions < 6.0.
+	//
+	// Default: LONG
+	ExpectedDuration QueryDuration
+
+	// ShortQuery determines wether query expected to return less than 100 records.
 	// If true, the server will optimize the query for a small record set.
 	// This field is ignored for aggregation queries, background queries
 	// and server versions 6.0+.
 	//
 	// Default: false
+	// This field is deprecated and will eventually be removed. Use ExpectedDuration instead.
+	// For backwards compatibility: If ShortQuery is true, the query is treated as a short query and
+	// ExpectedDuration is ignored. If shortQuery is false, ExpectedDuration is used defaults to {@link QueryDuration#LONG}.
 	ShortQuery bool
 }
 
@@ -59,7 +68,7 @@ func (qp *QueryPolicy) grpc() *kvs.QueryPolicy {
 	MaxConcurrentNodes := uint32(qp.MaxConcurrentNodes)
 	IncludeBinData := qp.IncludeBinData
 	FailOnClusterChange := false //qp.FailOnClusterChange
-	ShortQuery := qp.ShortQuery
+	ShortQuery := qp.ShortQuery || qp.ExpectedDuration == SHORT
 	InfoTimeout := uint32(qp.SocketTimeout / time.Millisecond)
 
 	return &kvs.QueryPolicy{

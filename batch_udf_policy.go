@@ -44,8 +44,7 @@ type BatchUDFPolicy struct {
 	DurableDelete bool
 
 	// SendKey determines to whether send user defined key in addition to hash digest on both reads and writes.
-	// If the key is sent on a write, the key will be stored with the record on
-	// the server.
+	// If true and the UDF writes a record, the key will be stored with the record on the server.
 	// The default is to not send the user defined key.
 	SendKey bool // = false
 }

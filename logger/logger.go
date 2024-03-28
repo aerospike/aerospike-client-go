@@ -50,6 +50,7 @@ type logger struct {
 var Logger = newLogger()
 
 func newLogger() *logger {
+	// TODO: Replace with slog
 	return &logger{
 		Logger: log.New(os.Stdout, "", log.LstdFlags),
 		level:  OFF,

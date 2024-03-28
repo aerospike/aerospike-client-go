@@ -61,7 +61,8 @@ const (
 	_INFO2_DURABLE_DELETE int = (1 << 4)
 	// Create only. Fail if record already exists.
 	_INFO2_CREATE_ONLY int = (1 << 5)
-
+	// Treat as long query, but relax read consistency.
+	_INFO2_RELAX_AP_LONG_QUERY = (1 << 6)
 	// Return a result for every operation.
 	_INFO2_RESPOND_ALL_OPS int = (1 << 7)
 
@@ -105,7 +106,8 @@ const (
 	_BATCH_MSG_READ   uint8 = 0x0
 	_BATCH_MSG_REPEAT uint8 = 0x1
 	_BATCH_MSG_INFO   uint8 = 0x2
-	_BATCH_MSG_WRITE  uint8 = 0xe
+	_BATCH_MSG_GEN    uint8 = 0x4
+	_BATCH_MSG_TTL    uint8 = 0x8
 
 	_MSG_TOTAL_HEADER_SIZE     uint8 = 30
 	_FIELD_HEADER_SIZE         uint8 = 5
@@ -373,7 +375,7 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) Error {
 		return err
 	}
 
-	cmd.writeHeaderRead(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
+	cmd.writeHeaderRead(policy, _INFO1_READ|_INFO1_GET_ALL, 0, 0, fieldCount, 0)
 	if err := cmd.writeKey(key, false); err != nil {
 		return err
 	}
@@ -420,7 +422,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 		if len(binNames) == 0 {
 			attr |= _INFO1_GET_ALL
 		}
-		cmd.writeHeaderRead(policy, attr, 0, fieldCount, len(binNames))
+		cmd.writeHeaderRead(policy, attr, 0, 0, fieldCount, len(binNames))
 
 		if err := cmd.writeKey(key, false); err != nil {
 			return err
@@ -517,7 +519,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, args *operateA
 		return err
 	}
 
-	cmd.writeHeaderReadWrite(policy, args.readAttr, args.writeAttr, fieldCount, len(args.operations))
+	cmd.writeHeaderReadWrite(policy, args, fieldCount)
 
 	if err := cmd.writeKey(key, policy.SendKey && args.hasWrite); err != nil {
 		return err
@@ -618,12 +620,12 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 		cmd.dataOffset += len(key.digest) + 4
 
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.key().namespace == key.namespace && (prev.key().setName == key.setName) && record.equals(prev) {
+		if !policy.SendKey && prev != nil && prev.key().namespace == key.namespace && (prev.key().setName == key.setName) && record.equals(prev) {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.dataOffset++
 		} else {
 			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += 8 // header(4) + fielCount(2) + opCount(2) = 8
+			cmd.dataOffset += 12 // header(4) + ttl(4) + fielCount(2) + opCount(2) = 12
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 
@@ -670,10 +672,8 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 			return nil, newCommonError(err)
 		}
 
-		// fmt.Printf("key %d%s\n", index, hex.Dump(key.digest[:]))
-
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.key().namespace == key.namespace && prev.key().setName == key.setName && record.equals(prev) {
+		if !policy.SendKey && prev != nil && prev.key().namespace == key.namespace && prev.key().setName == key.setName && record.equals(prev) {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.WriteByte(_BATCH_MSG_REPEAT) // repeat
 		} else {
@@ -740,9 +740,6 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 	cmd.end()
 	cmd.markCompressed(policy)
 
-	// fmt.Printf("len: %d\n", len(cmd.dataBuffer[:cmd.dataOffset]))
-	// fmt.Printf("%s\n", hex.Dump(cmd.dataBuffer[:cmd.dataOffset]))
-
 	return attr, nil
 
 }
@@ -750,7 +747,6 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch *batchNode, binNames []string, ops []*Operation, attr *batchAttr) Error {
 	offsets := batch.offsets
 	max := len(batch.offsets)
-	// fmt.Println("@@@@@MAX", max)
 	// Estimate buffer size
 	cmd.begin()
 	fieldCount := 1
@@ -781,12 +777,12 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 		cmd.dataOffset += len(key.digest) + 4
 
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.namespace == key.namespace && (prev.setName == key.setName) {
+		if !attr.sendKey && prev != nil && prev.namespace == key.namespace && (prev.setName == key.setName) {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.dataOffset++
 		} else {
 			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += 8 // header(4) + fielCount(2) + opCount(2) = 8
+			cmd.dataOffset += 12 // header(4) + ttl(4) + fielCount(2) + opCount(2) = 12
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 
@@ -808,7 +804,7 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 						if !attr.hasWrite {
 							return newError(types.PARAMETER_ERROR, "batch operation is write but isWrite flag not set in attrs")
 						}
-						cmd.dataOffset += 6 // Extra write specific fields.
+						cmd.dataOffset += 2 // Extra write specific fields.
 					}
 
 					if err := cmd.estimateOperationSizeForOperation(op, true); err != nil {
@@ -816,19 +812,17 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 					}
 				}
 			} else if (attr.writeAttr & _INFO2_DELETE) != 0 {
-				cmd.dataOffset += 6 // Extra write specific fields.
+				cmd.dataOffset += 2 // Extra write specific fields.
 			}
 
 			prev = key
 		}
 	}
 
-	// fmt.Println("msg length estimate:", cmd.dataOffset)
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 
-	// fmt.Println("===================================================###", cmd.dataOffset)
 	cmd.writeBatchHeader(policy, fieldCount)
 
 	if exp != nil {
@@ -855,10 +849,8 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 			return newCommonError(err)
 		}
 
-		// fmt.Printf("key %d%s\n", index, hex.Dump(key.digest[:]))
-
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.namespace == key.namespace && prev.setName == key.setName {
+		if !attr.sendKey && prev != nil && prev.namespace == key.namespace && prev.setName == key.setName {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.WriteByte(_BATCH_MSG_REPEAT) // repeat
 		} else {
@@ -880,9 +872,6 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 	cmd.WriteUint32At(uint32(cmd.dataOffset)-uint32(_MSG_TOTAL_HEADER_SIZE)-4, fieldSizeOffset)
 	cmd.end()
 	cmd.markCompressed(policy)
-
-	// fmt.Printf("len: %d\n", len(cmd.dataBuffer[:cmd.dataOffset]))
-	// fmt.Printf("%s\n", hex.Dump(cmd.dataBuffer[:cmd.dataOffset]))
 
 	return nil
 }
@@ -915,12 +904,12 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 		cmd.dataOffset += len(key.digest) + 4
 
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.namespace == key.namespace && (prev.setName == key.setName) {
+		if !attr.sendKey && prev != nil && prev.namespace == key.namespace && (prev.setName == key.setName) {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.dataOffset++
 		} else {
 			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += 8 // header(4) + fielCount(2) + opCount(2) = 8
+			cmd.dataOffset += 12 // header(4) + ttl(4) + fieldCount(2) + opCount(2) = 12
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 
@@ -932,7 +921,7 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 				}
 			}
 
-			cmd.dataOffset += 6
+			cmd.dataOffset += 2 // gen(2) = 2
 			if sz, err := cmd.estimateUdfSize(packageName, functionName, &args); err != nil {
 				return err
 			} else {
@@ -943,12 +932,10 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 		}
 	}
 
-	// fmt.Println("msg length estimate:", cmd.dataOffset)
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 
-	// fmt.Println("===================================================###", cmd.dataOffset)
 	cmd.writeBatchHeader(policy, fieldCount)
 
 	if policy.FilterExpression != nil {
@@ -976,7 +963,7 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 		}
 
 		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.namespace == key.namespace && prev.setName == key.setName {
+		if !attr.sendKey && prev != nil && prev.namespace == key.namespace && prev.setName == key.setName {
 			// Can set repeat previous namespace/bin names to save space.
 			cmd.WriteByte(_BATCH_MSG_REPEAT) // repeat
 		} else {
@@ -1044,15 +1031,16 @@ func (cmd *baseCommand) writeBatchOperations(key *Key, ops []*Operation, attr *b
 }
 
 func (cmd *baseCommand) writeBatchRead(key *Key, attr *batchAttr, filter *Expression, opCount int) {
-	cmd.WriteByte(_BATCH_MSG_INFO)
+	cmd.WriteByte(_BATCH_MSG_INFO | _BATCH_MSG_TTL)
 	cmd.WriteByte(byte(attr.readAttr))
 	cmd.WriteByte(byte(attr.writeAttr))
 	cmd.WriteByte(byte(attr.infoAttr))
+	cmd.WriteUint32(attr.expiration)
 	cmd.writeBatchFieldsWithFilter(key, filter, 0, opCount)
 }
 
 func (cmd *baseCommand) writeBatchWrite(key *Key, attr *batchAttr, filter *Expression, fieldCount, opCount int) {
-	cmd.WriteByte(_BATCH_MSG_WRITE)
+	cmd.WriteByte(_BATCH_MSG_INFO | _BATCH_MSG_GEN | _BATCH_MSG_TTL)
 	cmd.WriteByte(byte(attr.readAttr))
 	cmd.WriteByte(byte(attr.writeAttr))
 	cmd.WriteByte(byte(attr.infoAttr))
@@ -1145,7 +1133,7 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 		readAttr |= _INFO1_READ_MODE_AP_ALL
 	}
 
-	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
+	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 0, fieldCount, 0)
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
@@ -1280,7 +1268,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 		readAttr |= _INFO1_READ_MODE_AP_ALL
 	}
 
-	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
+	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 0, fieldCount, 0)
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
@@ -1469,7 +1457,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	if len(binNames) > 0 {
 		operationCount = len(binNames)
 	}
-	cmd.writeHeaderRead(&policy.BasePolicy, readAttr, infoAttr, fieldCount, operationCount)
+	cmd.writeHeaderRead(&policy.BasePolicy, readAttr, 0, infoAttr, fieldCount, operationCount)
 
 	if namespace != nil {
 		cmd.writeFieldString(*namespace, NAMESPACE)
@@ -1729,17 +1717,21 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		cmd.writeHeaderWrite(wpolicy, _INFO2_WRITE, fieldCount, operationCount)
 	} else {
 		readAttr := _INFO1_READ | _INFO1_NOBINDATA
+		writeAttr := 0
+
 		if policy.IncludeBinData {
 			readAttr = _INFO1_READ
 		}
-		if policy.ShortQuery {
+		if policy.ShortQuery || policy.ExpectedDuration == SHORT {
 			readAttr |= _INFO1_SHORT_QUERY
+		} else if policy.ExpectedDuration == LONG_RELAX_AP {
+			writeAttr |= _INFO2_RELAX_AP_LONG_QUERY
 		}
 		infoAttr := 0
 		if isNew {
 			infoAttr = _INFO3_PARTITION_DONE
 		}
-		cmd.writeHeaderRead(&policy.BasePolicy, readAttr, infoAttr, fieldCount, operationCount)
+		cmd.writeHeaderRead(&policy.BasePolicy, readAttr, writeAttr, infoAttr, fieldCount, operationCount)
 	}
 
 	if statement.Namespace != "" {
@@ -2030,10 +2022,17 @@ func (cmd *baseCommand) writeHeaderWrite(policy *WritePolicy, writeAttr, fieldCo
 }
 
 // Header write for operate command.
-func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, readAttr, writeAttr, fieldCount, operationCount int) {
+func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, args *operateArgs, fieldCount int) {
 	// Set flags.
 	generation := uint32(0)
+	ttl := int64(policy.ReadTouchTTLPercent)
+	if args.hasWrite {
+		ttl = int64(policy.Expiration)
+	}
+	readAttr := args.readAttr
+	writeAttr := args.writeAttr
 	infoAttr := 0
+	operationCount := len(args.operations)
 
 	switch policy.RecordExistsAction {
 	case UPDATE:
@@ -2096,7 +2095,7 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, readAttr, writ
 	cmd.dataBuffer[13] = 0 // clear the result code
 	cmd.dataOffset = 14
 	cmd.WriteUint32(generation)
-	cmd.WriteUint32(policy.Expiration)
+	cmd.WriteInt32(int32(ttl))
 	cmd.WriteInt32(0) // timeout
 	cmd.WriteInt16(int16(fieldCount))
 	cmd.WriteInt16(int16(operationCount))
@@ -2104,7 +2103,7 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, readAttr, writ
 }
 
 // Header write for read commands.
-func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, infoAttr, fieldCount, operationCount int) {
+func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, writeAttr, infoAttr, fieldCount, operationCount int) {
 	switch policy.ReadModeSC {
 	case ReadModeSCSession:
 	case ReadModeSCLinearize:
@@ -2126,13 +2125,14 @@ func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, infoAttr, 
 	// Write all header data except total size which must be written last.
 	cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
 	cmd.dataBuffer[9] = byte(readAttr)
-	cmd.dataBuffer[10] = 0
+	cmd.dataBuffer[10] = byte(writeAttr)
 	cmd.dataBuffer[11] = byte(infoAttr)
 
-	for i := 12; i < 22; i++ {
+	for i := 12; i < 18; i++ {
 		cmd.dataBuffer[i] = 0
 	}
-	cmd.dataOffset = 22
+	cmd.dataOffset = 18
+	cmd.WriteInt32(policy.ReadTouchTTLPercent)
 	cmd.WriteInt32(0) // timeout
 	cmd.WriteInt16(int16(fieldCount))
 	cmd.WriteInt16(int16(operationCount))
@@ -2163,11 +2163,12 @@ func (cmd *baseCommand) writeHeaderReadHeader(policy *BasePolicy, readAttr, fiel
 	cmd.dataBuffer[10] = byte(0)
 	cmd.dataBuffer[11] = byte(infoAttr)
 
-	for i := 12; i < 22; i++ {
+	for i := 12; i < 18; i++ {
 		cmd.dataBuffer[i] = 0
 	}
 
-	cmd.dataOffset = 22
+	cmd.dataOffset = 18
+	cmd.WriteInt32(policy.ReadTouchTTLPercent)
 	// cmd.WriteInt32(serverTimeout) // TODO: handle argument
 	cmd.WriteInt32(0)
 	cmd.WriteInt16(int16(fieldCount))
@@ -2575,6 +2576,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 1) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
+			if cmd.node != nil && cmd.node.cluster != nil {
+				cmd.node.cluster.maxRetriesExceededCount.GetAndIncrement()
+			}
 			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandWasSent).setNode(cmd.node)
 		}
 
@@ -2788,6 +2792,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	}
 
 	// execution timeout
+	if cmd.node != nil && cmd.node.cluster != nil {
+		cmd.node.cluster.totalTimeoutExceededCount.GetAndIncrement()
+	}
 	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 	return errChain
 }

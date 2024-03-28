@@ -101,7 +101,7 @@ func (ba *batchAttr) setRead(rp *BatchPolicy) {
 	case ReadModeSCAllowUnavailable:
 		ba.infoAttr = _INFO3_SC_READ_TYPE | _INFO3_SC_READ_RELAX
 	}
-	ba.expiration = 0
+	ba.expiration = uint32(rp.ReadTouchTTLPercent)
 	ba.generation = 0
 	ba.hasWrite = false
 	ba.sendKey = false
@@ -128,7 +128,7 @@ func (ba *batchAttr) setBatchRead(rp *BatchReadPolicy) {
 	case ReadModeSCAllowUnavailable:
 		ba.infoAttr = _INFO3_SC_READ_TYPE | _INFO3_SC_READ_RELAX
 	}
-	ba.expiration = 0
+	ba.expiration = uint32(rp.ReadTouchTTLPercent)
 	ba.generation = 0
 	ba.hasWrite = false
 	ba.sendKey = false

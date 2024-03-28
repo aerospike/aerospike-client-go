@@ -85,7 +85,7 @@ func (bu *BatchUDF) equals(obj BatchRecordIfc) bool {
 
 // Return wire protocol size. For internal use only.
 func (bu *BatchUDF) size(parentPolicy *BasePolicy) (int, Error) {
-	size := 6 // gen(2) + exp(4) = 6
+	size := 2 // gen(2) = 2
 
 	if bu.policy != nil {
 		if bu.policy.FilterExpression != nil {

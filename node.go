@@ -587,6 +587,7 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 func (nd *Node) putConnectionWithHint(conn *Connection, hint byte) bool {
 	conn.refresh()
 	if !nd.active.Get() || !nd.connections.Offer(conn, hint) {
+		nd.stats.ConnectionsPoolOverflow.IncrementAndGet()
 		conn.Close()
 		return false
 	}
@@ -948,6 +949,7 @@ func (nd *Node) errorCountWithinLimit() bool {
 // returns error if errorCount has gone above the threshold set in the policy
 func (nd *Node) validateErrorCount() Error {
 	if !nd.errorCountWithinLimit() {
+		nd.stats.CircuitBreakerHits.IncrementAndGet()
 		return newError(types.MAX_ERROR_RATE)
 	}
 	return nil

@@ -30,6 +30,7 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Aerospike", func() {
+	var nsup int
 
 	gg.BeforeEach(func() {
 		if *dbaas {
@@ -974,7 +975,15 @@ var _ = gg.Describe("Aerospike", func() {
 					resObjects = nil
 					objects = nil
 
-					wpolicy := as.NewWritePolicy(0, 500)
+					nsup = nsupPeriod(ns)
+
+					var wpolicy *as.WritePolicy
+					if nsup > 0 {
+						wpolicy = as.NewWritePolicy(0, 500)
+					} else {
+						wpolicy = as.NewWritePolicy(0, 0)
+					}
+
 					for i := 0; i < 100; i++ {
 						key, err = as.NewKey(ns, set, randString(50))
 						gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1019,7 +1028,9 @@ var _ = gg.Describe("Aerospike", func() {
 							gm.Expect(found[i]).To(gm.BeTrue())
 							resObj := resObjects[i].(*testObjectTagged)
 
-							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+							if nsup > 0 {
+								gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+							}
 							gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
 
 							objects[i].TTL = resObj.TTL
@@ -1143,7 +1154,6 @@ var _ = gg.Describe("Aerospike", func() {
 			var queryPolicy = as.NewQueryPolicy()
 
 			gg.Context("ScanObjects operations", func() {
-
 				type InnerStruct struct {
 					PersistNot      int    `as:"-"`
 					PersistAsInner1 int    `as:"inner1"`
@@ -1154,7 +1164,15 @@ var _ = gg.Describe("Aerospike", func() {
 				gg.BeforeEach(func() {
 					set = randString(50)
 
-					wp := as.NewWritePolicy(0, 500)
+					nsup = nsupPeriod(ns)
+
+					var wp *as.WritePolicy
+					if nsup > 0 {
+						wp = as.NewWritePolicy(0, 500)
+					} else {
+						wp = as.NewWritePolicy(0, 0)
+
+					}
 					for i := 1; i < 100; i++ {
 						key, err = as.NewKey(ns, set, randString(50))
 						gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1180,7 +1198,9 @@ var _ = gg.Describe("Aerospike", func() {
 						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">", 0))
 						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
 						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
-						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+						if nsup > 0 {
+							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+						}
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
 						testObj.Gen = resObj.Gen
@@ -1210,7 +1230,14 @@ var _ = gg.Describe("Aerospike", func() {
 				gg.BeforeEach(func() {
 					set = randString(50)
 
-					wp := as.NewWritePolicy(5, 500)
+					nsup = nsupPeriod(ns)
+
+					var wp *as.WritePolicy
+					if nsup > 0 {
+						wp = as.NewWritePolicy(5, 500)
+					} else {
+						wp = as.NewWritePolicy(5, 0)
+					}
 					for i := 1; i < 100; i++ {
 						key, err = as.NewKey(ns, set, randString(50))
 						gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1237,7 +1264,9 @@ var _ = gg.Describe("Aerospike", func() {
 						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically(">", 0))
 						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
 						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
-						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+						if nsup > 0 {
+							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+						}
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
 						testObj.Gen = resObj.Gen
@@ -1277,7 +1306,9 @@ var _ = gg.Describe("Aerospike", func() {
 						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically("<=", 70))
 						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
 						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
-						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+						if nsup > 0 {
+							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+						}
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
 						testObj.Gen = resObj.Gen
@@ -1320,7 +1351,9 @@ var _ = gg.Describe("Aerospike", func() {
 						gm.Expect(resObj.PersistAsInner1).To(gm.BeNumerically("<=", 70))
 						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
 						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
-						gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+						if nsup > 0 {
+							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+						}
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
 						testObj.Gen = resObj.Gen

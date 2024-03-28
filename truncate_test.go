@@ -95,8 +95,9 @@ var _ = gg.Describe("Truncate operations test", func() {
 		})
 
 		gg.It("must truncate only older records", func() {
-			time.Sleep(3 * time.Second)
+			time.Sleep(1 * time.Second)
 			t := time.Now()
+			time.Sleep(1 * time.Second)
 
 			gm.Expect(countRecords(ns, set)).To(gm.Equal(keyCount))
 

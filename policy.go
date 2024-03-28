@@ -92,6 +92,23 @@ type BasePolicy struct {
 	// (6 attempts. See ScanPolicy comments.)
 	MaxRetries int //= 2;
 
+	// ReadTouchTTLPercent determines how record TTL (time to live) is affected on reads. When enabled, the server can
+	// efficiently operate as a read-based LRU cache where the least recently used records are expired.
+	// The value is expressed as a percentage of the TTL sent on the most recent write such that a read
+	// within this interval of the record’s end of life will generate a touch.
+	//
+	// For example, if the most recent write had a TTL of 10 hours and read_touch_ttl_percent is set to
+	// 80, the next read within 8 hours of the record's end of life (equivalent to 2 hours after the most
+	// recent write) will result in a touch, resetting the TTL to another 10 hours.
+	//
+	// Values:
+	//
+	// 0 : Use server config default-read-touch-ttl-pct for the record's namespace/set.
+	// -1 : Do not reset record TTL on reads.
+	// 1 - 100 : Reset record TTL on reads when within this percentage of the most recent write TTL.
+	// Default: 0
+	ReadTouchTTLPercent int32
+
 	// SleepBetweenRtries determines the duration to sleep between retries.  Enter zero to skip sleep.
 	// This field is ignored when maxRetries is zero.
 	// This field is also ignored in async mode.
@@ -128,6 +145,10 @@ type BasePolicy struct {
 	// SendKey determines to whether send user defined key in addition to hash digest on both reads and writes.
 	// If the key is sent on a write, the key will be stored with the record on
 	// the server.
+	//
+	// If the key is sent on a read, the server will generate the hash digest from
+	// the key and validate that digest with the digest sent by the client. Unless
+	// this is the explicit intent of the developer, avoid sending the key on reads.
 	// The default is to not send the user defined key.
 	SendKey bool // = false
 
@@ -223,6 +244,7 @@ func (p *BasePolicy) compress() bool {
 }
 
 func (p *BasePolicy) grpc() *kvs.ReadPolicy {
+	// TODO: support ReadTouchTTLPercent in the future for the proxy client
 	return &kvs.ReadPolicy{
 		Replica:    p.ReplicaPolicy.grpc(),
 		ReadModeSC: p.ReadModeSC.grpc(),

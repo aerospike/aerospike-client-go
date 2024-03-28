@@ -22,6 +22,57 @@ import (
 
 const expMapMODULE int64 = 0
 
+// Map expression generator. See {@link com.aerospike.client.exp.Exp}.
+//
+// The bin expression argument in these methods can be a reference to a bin or the
+// result of another expression. Expressions that modify bin values are only used
+// for temporary expression evaluation and are not permanently applied to the bin.
+//
+// Map modify expressions return the bin's value. This value will be a map except
+// when the map is nested within a list. In that case, a list is returned for the
+// map modify expression.
+//
+// Valid map key types are:
+//
+// String
+// Integer
+// []byte
+//
+// The server will validate map key types in an upcoming release.
+//
+// All maps maintain an index and a rank.  The index is the item offset from the start of the map,
+// for both unordered and ordered maps.  The rank is the sorted index of the value component.
+// Map supports negative indexing for index and rank.
+//
+// Index examples:
+//
+// Index 0: First item in map.
+// Index 4: Fifth item in map.
+// Index -1: Last item in map.
+// Index -3: Third to last item in map.
+// Index 1 Count 2: Second and third items in map.
+// Index -3 Count 3: Last three items in map.
+// Index -5 Count 4: Range between fifth to last item to second to last item inclusive.
+//
+//
+// Rank examples:
+//
+// Rank 0: Item with lowest value rank in map.
+// Rank 4: Fifth lowest ranked item in map.
+// Rank -1: Item with highest ranked value in map.
+// Rank -3: Item with third highest ranked value in map.
+// Rank 1 Count 2: Second and third lowest ranked items in map.
+// Rank -3 Count 3: Top three ranked items in map.
+//
+//
+// Nested expressions are supported by optional CTX context arguments.  Example:
+//
+// bin = {key1={key11=9,key12=4}, key2={key21=3,key22=5}}
+// Set map value to 11 for map key "key21" inside of map key "key2".
+// Get size of map key2.
+// ExpMapSize(ExpMapBin("bin"), CtxMapKey(StringValue("key2"))
+// result = 2
+
 // ExpMapPut creates an expression that writes key/value item to map bin.
 func ExpMapPut(
 	policy *MapPolicy,

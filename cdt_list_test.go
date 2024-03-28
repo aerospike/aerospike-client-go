@@ -74,6 +74,19 @@ var _ = gg.Describe("CDT List Test", func() {
 		gm.Expect(sz.Bins[cdtBinName]).To(gm.Equal(100 * 2))
 	})
 
+	gg.It("should create a valid CDT List with persisted index", func() {
+		cdtBinName := "indexedList"
+		cdtList, err := client.Operate(wpolicy, key,
+			as.ListCreateWithIndexOp(cdtBinName, as.ListOrderOrdered, false),
+			as.ListAppendWithPolicyOp(as.DefaultListPolicy(), cdtBinName, 1, 2, 3, 4),
+			as.GetBinOp(cdtBinName),
+		)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(cdtList).ToNot(gm.BeNil())
+		gm.Expect(cdtList.Bins).ToNot(gm.BeNil())
+		gm.Expect(cdtList.Bins[cdtBinName]).To(gm.Equal([]interface{}{4, []interface{}{1, 2, 3, 4}}))
+	})
+
 	gg.Describe("CDT List Operations", func() {
 
 		const listSize = 10

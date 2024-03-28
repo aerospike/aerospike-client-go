@@ -131,6 +131,9 @@ func (h *singleConnectionHeap) DropIdleTail() bool {
 		h.tail = (h.tail + 1) % h.size
 		h.data[h.tail] = nil
 		h.full = false
+		if conn.node != nil {
+			conn.node.stats.ConnectionsIdleDropped.IncrementAndGet()
+		}
 		conn.Close()
 
 		return true
