@@ -34,7 +34,7 @@ type Statement struct {
 	// If not set, the server will determine the index from the filter's bin name.
 	IndexName string
 
-	// BinNames detemines bin names (optional)
+	// BinNames determines bin names (optional)
 	BinNames []string
 
 	// Filter determines query index filter (Optional).
