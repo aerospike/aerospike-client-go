@@ -1,5 +1,15 @@
 # Change History
 
+## April 10 2024: v6.15.1
+
+This release updates the dependencies to mitigate security issues.
+
+- **Fixes**
+  - [CLIENT-2869] Update modules. Fix Allocation of Resources Without Limits or Throttling for `golang.org/x/net/http2`.
+
+- **Improvements**
+  - Fixes a typo.
+
 ## January 25 2024: v6.15.0
 
   Backport fix release.
