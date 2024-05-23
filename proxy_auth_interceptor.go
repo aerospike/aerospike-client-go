@@ -139,14 +139,14 @@ func (interceptor *authInterceptor) login() Error {
 
 	claims := strings.Split(res.GetToken(), ".")
 	decClaims, gerr := base64.RawURLEncoding.DecodeString(claims[1])
-	if err != nil {
-		return newGrpcError(false, err, "Invalid token encoding. Expected base64.")
+	if gerr != nil {
+		return newGrpcError(false, gerr, "Invalid token encoding. Expected base64.")
 	}
 
 	tokenMap := make(map[string]interface{}, 8)
 	gerr = json.Unmarshal(decClaims, &tokenMap)
-	if err != nil {
-		return newGrpcError(false, err, "Invalid token encoding. Expected json.")
+	if gerr != nil {
+		return newGrpcError(false, gerr, "Invalid token encoding. Expected json.")
 	}
 
 	expiryToken, ok := tokenMap["exp"].(float64)
@@ -157,7 +157,6 @@ func (interceptor *authInterceptor) login() Error {
 	iat, ok := tokenMap["iat"].(float64)
 	if !ok {
 		return newGrpcError(false, err, "Invalid iat value. Expected float64.")
-
 	}
 
 	ttl := time.Duration(expiryToken-iat) * time.Second
