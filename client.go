@@ -1124,7 +1124,7 @@ func parseIndexErrorCode(response string) types.ResultCode {
 	var code = types.OK
 
 	list := strings.Split(response, ":")
-	if len(list) >= 2 && list[0] == "FAIL" {
+	if len(list) >= 2 && (list[0] == "FAIL" || list[0] == "ERROR") {
 		i, err := strconv.ParseInt(list[1], 10, 64)
 		if err == nil {
 			code = types.ResultCode(i)
@@ -1296,7 +1296,7 @@ func (clnt *Client) CreateComplexIndex(
 		return NewIndexTask(clnt.cluster, namespace, indexName), nil
 	}
 
-	if strings.HasPrefix(response, "FAIL:200") {
+	if parseIndexErrorCode(response) == types.INDEX_FOUND {
 		// Index has already been created.  Do not need to poll for completion.
 		return nil, newError(types.INDEX_FOUND)
 	}
@@ -1339,7 +1339,7 @@ func (clnt *Client) DropIndex(
 		return <-task.OnComplete()
 	}
 
-	if strings.HasPrefix(response, "FAIL:201") {
+	if parseIndexErrorCode(response) == types.INDEX_NOTFOUND {
 		// Index did not previously exist. Return without error.
 		return nil
 	}
