@@ -32,7 +32,7 @@ type batchCommandUDF struct {
 }
 
 func newBatchCommandUDF(
-	node *Node,
+	client clientIfc,
 	batch *batchNode,
 	policy *BatchPolicy,
 	batchUDFPolicy *BatchUDFPolicy,
@@ -43,18 +43,25 @@ func newBatchCommandUDF(
 	records []*BatchRecord,
 	attr *batchAttr,
 ) *batchCommandUDF {
+	var node *Node
+	if batch != nil {
+		node = batch.Node
+	}
+
 	res := &batchCommandUDF{
 		batchCommand: batchCommand{
+			client:           client,
 			baseMultiCommand: *newMultiCommand(node, nil, false),
 			policy:           policy,
 			batch:            batch,
 		},
-		keys:         keys,
-		records:      records,
-		packageName:  packageName,
-		functionName: functionName,
-		args:         args,
-		attr:         attr,
+		batchUDFPolicy: batchUDFPolicy,
+		keys:           keys,
+		records:        records,
+		packageName:    packageName,
+		functionName:   functionName,
+		args:           args,
+		attr:           attr,
 	}
 	return res
 }
@@ -176,7 +183,7 @@ func (cmd *batchCommandUDF) isRead() bool {
 	return !cmd.attr.hasWrite
 }
 
-func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
+func (cmd *batchCommandUDF) executeSingle(client clientIfc) Error {
 	for i, key := range cmd.keys {
 		policy := cmd.batchUDFPolicy.toWritePolicy(cmd.policy)
 		policy.RespondPerEachOp = true
@@ -206,7 +213,7 @@ func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
 
 func (cmd *batchCommandUDF) Execute() Error {
 	if len(cmd.keys) == 1 {
-		return cmd.executeSingle(cmd.node.cluster.client)
+		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
 }

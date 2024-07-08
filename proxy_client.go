@@ -723,7 +723,7 @@ func (clnt *ProxyClient) batchOperate(policy *BatchPolicy, records []BatchRecord
 		return 0, err
 	}
 
-	cmd := newBatchCommandOperate(clnt, nil, batchNode, policy, records)
+	cmd := newBatchCommandOperate(clnt, batchNode, policy, records)
 	return cmd.filteredOutCnt, cmd.ExecuteGRPC(clnt)
 }
 
@@ -900,7 +900,12 @@ func (clnt *ProxyClient) Execute(policy *WritePolicy, key *Key, packageName stri
 	if rec := command.GetRecord(); rec != nil && rec.Bins != nil {
 		return rec.Bins["SUCCESS"], nil
 	}
+
 	return nil, nil
+}
+
+func (clnt *ProxyClient) execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (*Record, Error) {
+	return nil, newError(types.UNSUPPORTED_FEATURE)
 }
 
 //----------------------------------------------------------

@@ -21,6 +21,7 @@ type batchIndexCommandGet struct {
 }
 
 func newBatchIndexCommandGet(
+	client clientIfc,
 	batch *batchNode,
 	policy *BatchPolicy,
 	records []*BatchRead,
@@ -34,6 +35,7 @@ func newBatchIndexCommandGet(
 	res := &batchIndexCommandGet{
 		batchCommandGet{
 			batchCommand: batchCommand{
+				client:           client,
 				baseMultiCommand: *newMultiCommand(node, nil, isOperation),
 				policy:           policy,
 				batch:            batch,
@@ -59,12 +61,12 @@ func (cmd *batchIndexCommandGet) writeBuffer(ifc command) Error {
 
 func (cmd *batchIndexCommandGet) Execute() Error {
 	if len(cmd.batch.offsets) == 1 {
-		return cmd.executeSingle(cmd.node.cluster.client)
+		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
 }
 
-func (cmd *batchIndexCommandGet) executeSingle(client *Client) Error {
+func (cmd *batchIndexCommandGet) executeSingle(client clientIfc) Error {
 	for i, br := range cmd.indexRecords {
 		var ops []*Operation
 		if br.headerOnly() {

@@ -25,7 +25,6 @@ import (
 
 type batchCommandOperate struct {
 	batchCommand
-	client ClientIfc
 
 	attr    *batchAttr
 	records []BatchRecordIfc
@@ -36,19 +35,23 @@ type batchCommandOperate struct {
 }
 
 func newBatchCommandOperate(
-	client ClientIfc,
-	node *Node,
+	client clientIfc,
 	batch *batchNode,
 	policy *BatchPolicy,
 	records []BatchRecordIfc,
 ) *batchCommandOperate {
+	var node *Node
+	if batch != nil {
+		node = batch.Node
+	}
+
 	res := &batchCommandOperate{
 		batchCommand: batchCommand{
+			client:           client,
 			baseMultiCommand: *newMultiCommand(node, nil, true),
 			policy:           policy,
 			batch:            batch,
 		},
-		client:  client,
 		records: records,
 	}
 	return res
@@ -228,7 +231,7 @@ func (cmd *batchCommandOperate) parseRecord(key *Key, opCount int, generation, e
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
-func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
+func (cmd *batchCommandOperate) executeSingle(client clientIfc) Error {
 	var res *Record
 	var err Error
 	for _, br := range cmd.records {
@@ -250,11 +253,9 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 			policy := cmd.client.getUsableBatchWritePolicy(br.Policy).toWritePolicy(cmd.policy)
 			policy.RespondPerEachOp = true
 			res, err = client.Operate(policy, br.Key, br.Ops...)
-			br.setRecord(res)
 		case *BatchDelete:
 			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicy(cmd.policy)
 			res, err = client.Operate(policy, br.Key, DeleteOp())
-			br.setRecord(res)
 		case *BatchUDF:
 			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicy(cmd.policy)
 			policy.RespondPerEachOp = true
@@ -287,7 +288,7 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 
 func (cmd *batchCommandOperate) Execute() Error {
 	if cmd.objects == nil && len(cmd.records) == 1 {
-		return cmd.executeSingle(cmd.node.cluster.client)
+		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
 }

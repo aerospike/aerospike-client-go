@@ -29,7 +29,7 @@ type batchCommandDelete struct {
 }
 
 func newBatchCommandDelete(
-	node *Node,
+	client clientIfc,
 	batch *batchNode,
 	policy *BatchPolicy,
 	batchDeletePolicy *BatchDeletePolicy,
@@ -37,8 +37,14 @@ func newBatchCommandDelete(
 	records []*BatchRecord,
 	attr *batchAttr,
 ) *batchCommandDelete {
+	var node *Node
+	if batch != nil {
+		node = batch.Node
+	}
+
 	res := &batchCommandDelete{
 		batchCommand: batchCommand{
+			client:           client,
 			baseMultiCommand: *newMultiCommand(node, nil, false),
 			policy:           policy,
 			batch:            batch,
@@ -168,7 +174,7 @@ func (cmd *batchCommandDelete) transactionType() transactionType {
 	return ttBatchWrite
 }
 
-func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
+func (cmd *batchCommandDelete) executeSingle(client clientIfc) Error {
 	policy := cmd.batchDeletePolicy.toWritePolicy(cmd.policy)
 	for i, key := range cmd.keys {
 		res, err := client.Operate(policy, key, DeleteOp())
@@ -197,7 +203,7 @@ func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
 
 func (cmd *batchCommandDelete) Execute() Error {
 	if len(cmd.keys) == 1 {
-		return cmd.executeSingle(cmd.node.cluster.client)
+		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
 }

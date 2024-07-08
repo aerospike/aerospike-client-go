@@ -27,14 +27,20 @@ type batchCommandExists struct {
 }
 
 func newBatchCommandExists(
-	node *Node,
+	client clientIfc,
 	batch *batchNode,
 	policy *BatchPolicy,
 	keys []*Key,
 	existsArray []bool,
 ) *batchCommandExists {
+	var node *Node
+	if batch != nil {
+		node = batch.Node
+	}
+
 	res := &batchCommandExists{
 		batchCommand: batchCommand{
+			client:           client,
 			baseMultiCommand: *newMultiCommand(node, nil, false),
 			policy:           policy,
 			batch:            batch,
@@ -110,7 +116,7 @@ func (cmd *batchCommandExists) transactionType() transactionType {
 	return ttBatchRead
 }
 
-func (cmd *batchCommandExists) executeSingle(client *Client) Error {
+func (cmd *batchCommandExists) executeSingle(client clientIfc) Error {
 	var err Error
 	for _, offset := range cmd.batch.offsets {
 		cmd.existsArray[offset], err = client.Exists(&cmd.policy.BasePolicy, cmd.keys[offset])
@@ -136,7 +142,7 @@ func (cmd *batchCommandExists) executeSingle(client *Client) Error {
 
 func (cmd *batchCommandExists) Execute() Error {
 	if len(cmd.batch.offsets) == 1 {
-		return cmd.executeSingle(cmd.node.cluster.client)
+		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
 }

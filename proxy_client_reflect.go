@@ -121,7 +121,7 @@ func (clnt *ProxyClient) BatchGetObjects(policy *BatchPolicy, keys []*Key, objec
 		return nil, err
 	}
 
-	cmd := newBatchCommandOperate(clnt, nil, batchNode, policy, batchRecordsIfc)
+	cmd := newBatchCommandOperate(clnt, batchNode, policy, batchRecordsIfc)
 
 	objectsFound := make([]bool, len(keys))
 	cmd.objects = objectsVal
@@ -133,7 +133,6 @@ func (clnt *ProxyClient) BatchGetObjects(policy *BatchPolicy, keys []*Key, objec
 	// }
 
 	return objectsFound, err
-
 }
 
 // ScanPartitionObjects Reads records in specified namespace, set and partition filter.

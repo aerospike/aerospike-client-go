@@ -28,12 +28,18 @@ type batcher interface {
 	generateBatchNodes(*Cluster) ([]*batchNode, Error)
 	setSequence(int, int)
 
-	executeSingle(*Client) Error
+	executeSingle(clientIfc) Error
+}
+
+type clientIfc interface {
+	ClientIfc
+	execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (*Record, Error)
 }
 
 type batchCommand struct {
 	baseMultiCommand
 
+	client     clientIfc
 	batch      *batchNode
 	policy     *BatchPolicy
 	sequenceAP int
