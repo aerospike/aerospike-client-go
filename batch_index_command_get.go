@@ -78,7 +78,7 @@ func (cmd *batchIndexCommandGet) executeSingle(client clientIfc) Error {
 		} else {
 			ops = br.Ops
 		}
-		res, err := client.Operate(cmd.policy.toWritePolicy(), br.Key, br.Ops...)
+		res, err := client.Operate(cmd.policy.toWritePolicy(), br.Key, ops...)
 		cmd.indexRecords[i].setRecord(res)
 		if err != nil {
 			cmd.indexRecords[i].setRawError(err)
