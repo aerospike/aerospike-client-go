@@ -152,3 +152,18 @@ func (vb *keyWriter) writeKey(val Value) Error {
 
 	return newError(types.PARAMETER_ERROR, "Key Generation Error. Value not supported: "+val.String())
 }
+
+func verifyKey(val Value) Error {
+	switch val.(type) {
+	case IntegerValue:
+		return nil
+	case LongValue:
+		return nil
+	case StringValue:
+		return nil
+	case BytesValue:
+		return nil
+	}
+
+	return newError(types.PARAMETER_ERROR, "Key Generation Error. Value not supported: "+val.String())
+}

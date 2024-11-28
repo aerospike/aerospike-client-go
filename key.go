@@ -112,10 +112,19 @@ func NewKey(namespace string, setName string, key interface{}) (*Key, Error) {
 // NewKeyWithDigest initializes a key from namespace, optional set name and user key.
 // The server handles record identifiers by digest only.
 func NewKeyWithDigest(namespace string, setName string, key interface{}, digest []byte) (*Key, Error) {
+	var userKey Value = nil
+	if key != nil {
+		userKey = NewValue(key)
+		// make sure the key type is valid
+		if err := verifyKey(userKey); err != nil {
+			return nil, err
+		}
+	}
+
 	newKey := &Key{
 		namespace: namespace,
 		setName:   setName,
-		userKey:   NewValue(key),
+		userKey:   userKey,
 	}
 
 	if err := newKey.SetDigest(digest); err != nil {
