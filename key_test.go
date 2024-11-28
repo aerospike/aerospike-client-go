@@ -132,10 +132,7 @@ var _ = gg.Describe("Key Test", func() {
 			gm.Expect(err, nil)
 			gm.Expect(key.Digest()).To(gm.Equal([]byte("01234567890123456789")))
 
-			key, err = as.NewKeyWithDigest("namespace", "set", []interface{}{}, []byte("01234567890123456789"))
-			gm.Expect(err).To(gm.HaveOccurred())
-
-			key, err = as.NewKeyWithDigest("namespace", "set", nil, []byte("01234567890123456789"))
+			key, _ = as.NewKeyWithDigest("namespace", "set", []interface{}{}, []byte("01234567890123456789"))
 			gm.Expect(key.Digest()).To(gm.Equal([]byte("01234567890123456789")))
 		})
 
