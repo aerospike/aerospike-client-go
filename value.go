@@ -1276,7 +1276,7 @@ func bytesToKeyValue(pType int, buf []byte, offset int, length int) (Value, Erro
 		return ListValue(v), nil
 
 	case ParticleType.NULL:
-		return NewNullValue(), nil
+		return nil, nil
 
 	default:
 		return nil, newError(types.PARSE_ERROR, fmt.Sprintf("ParticleType %d not recognized. Please file a github issue.", pType))

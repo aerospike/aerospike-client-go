@@ -78,14 +78,14 @@ func (bd *BatchDelete) size(parentPolicy *BasePolicy) (int, Error) {
 			}
 		}
 
-		if bd.Policy.SendKey || parentPolicy.SendKey {
+		if (bd.Policy.SendKey || parentPolicy.SendKey) && bd.Key.hasValueToSend() {
 			if sz, err := bd.Key.userKey.EstimateSize(); err != nil {
 				return -1, err
 			} else {
 				size += sz + int(_FIELD_HEADER_SIZE) + 1
 			}
 		}
-	} else if parentPolicy.SendKey {
+	} else if parentPolicy.SendKey && bd.Key.hasValueToSend() {
 		sz, err := bd.Key.userKey.EstimateSize()
 		if err != nil {
 			return -1, err

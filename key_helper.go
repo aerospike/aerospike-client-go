@@ -148,6 +148,8 @@ func (vb *keyWriter) writeKey(val Value) Error {
 	case BytesValue:
 		vb.Write(v)
 		return nil
+	case NullValue:
+		return nil
 	}
 
 	// TODO: Replace the error message with fmt.Sprintf("Key Generation Error. Value type not supported: %T", val)

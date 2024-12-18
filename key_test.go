@@ -124,6 +124,12 @@ var _ = gg.Describe("Key Test", func() {
 
 		// })
 
+		gg.It("null Key value should be handled correctly", func() {
+			key, _ := as.NewKeyWithDigest("namespace", "set", nil, []byte("01234567890123456789"))
+			gm.Expect(key.Digest()).To(gm.Equal([]byte("01234567890123456789")))
+			gm.Expect(key.HasValueToSend()).To(gm.BeFalse())
+		})
+
 		gg.It("for custom digest", func() {
 			// key, _ := as.NewKey("namespace", "set", []interface{}{})
 			// gm.Expect(hex.EncodeToString(key.Digest())).To(gm.Equal("2af0111192df4ca297232d1641ff52c2ce51ce2d"))

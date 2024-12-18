@@ -793,7 +793,7 @@ func (cmd *baseCommand) setBatchOperate(policy *BatchPolicy, keys []*Key, batch 
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 
-			if attr.sendKey {
+			if attr.sendKey && key.hasValueToSend() {
 				if sz, err := key.userKey.EstimateSize(); err != nil {
 					return err
 				} else {
@@ -920,7 +920,7 @@ func (cmd *baseCommand) setBatchUDF(policy *BatchPolicy, keys []*Key, batch *bat
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 
-			if attr.sendKey {
+			if attr.sendKey && key.hasValueToSend() {
 				if sz, err := key.userKey.EstimateSize(); err != nil {
 					return err
 				} else {
@@ -1054,7 +1054,7 @@ func (cmd *baseCommand) writeBatchWrite(key *Key, attr *batchAttr, filter *Expre
 	cmd.WriteUint16(uint16(attr.generation))
 	cmd.WriteUint32(attr.expiration)
 
-	if attr.sendKey {
+	if attr.sendKey && key.hasValueToSend() {
 		fieldCount++
 		cmd.writeBatchFieldsWithFilter(key, filter, fieldCount, opCount)
 		cmd.writeFieldValue(key.userKey, KEY)
@@ -1886,7 +1886,7 @@ func (cmd *baseCommand) estimateKeySize(key *Key, sendKey bool) (int, Error) {
 	cmd.dataOffset += int(_DIGEST_SIZE + _FIELD_HEADER_SIZE)
 	fieldCount++
 
-	if sendKey {
+	if sendKey && key.hasValueToSend() {
 		// field header size + key size
 		sz, err := key.userKey.EstimateSize()
 		if err != nil {
@@ -2190,7 +2190,7 @@ func (cmd *baseCommand) writeKey(key *Key, sendKey bool) Error {
 
 	cmd.writeFieldBytes(key.digest[:], DIGEST_RIPE)
 
-	if sendKey {
+	if sendKey && key.hasValueToSend() {
 		if err := cmd.writeFieldValue(key.userKey, KEY); err != nil {
 			return err
 		}

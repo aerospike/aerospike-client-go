@@ -50,3 +50,11 @@ func (nd *Node) ConnsCount() int {
 func (nd *Node) CloseConnections() {
 	nd.closeConnections()
 }
+
+func (k *Key) HasValueToSend() bool {
+	return k.hasValueToSend()
+}
+
+func (k *Key) RemoveValue() {
+	k.userKey = nil
+}

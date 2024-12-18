@@ -287,6 +287,44 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.Context("Put operations", func() {
 
+			gg.It("must support nil key values", func() {
+				wpolicy := as.NewWritePolicy(0, 0)
+				keyp, _ := as.NewKey(ns, set, 1)
+				key, _ := as.NewKeyWithDigest(ns, set, nil, keyp.Digest())
+				bin := as.NewBin("Aerospike", "value")
+
+				wpolicy.SendKey = true
+				err = client.PutBins(wpolicy, keyp, bin)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				err = client.PutBins(wpolicy, key, bin)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				wpolicy.SendKey = false
+				key.RemoveValue()
+				err = client.PutBins(wpolicy, key, bin)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				wpolicy.SendKey = true
+				key.RemoveValue()
+				err = client.PutBins(wpolicy, key, bin)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				// scan the record back and make sure the values
+				// for the key are correct and intact in the database
+				pf := as.NewPartitionFilterAll()
+				spolicy := as.NewScanPolicy()
+				spolicy.MaxRecords = 1
+
+				recordset, err := client.ScanPartitions(spolicy, pf, ns, set)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				for res := range recordset.Results() {
+					gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+					gm.Expect(res.Record.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject().(string)))
+					gm.Expect(res.Record.Key.Value()).To(gm.Equal(as.NewLongValue(1)))
+				}
+			})
+
 			gg.Context("Expiration values", func() {
 
 				gg.BeforeEach(func() {
