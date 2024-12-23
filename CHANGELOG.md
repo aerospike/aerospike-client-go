@@ -1,5 +1,12 @@
 # Change History
 
+## December 19 2024: v7.8.0
+
+  Minor fix release.
+
+- **Fixes**
+  - [CLIENT-3217] Do not send `nil` or `NullValue` as key to the server.
+
 ## November 29 2024: v7.7.3
 
   Minor fix release.

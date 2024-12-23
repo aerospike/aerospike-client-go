@@ -164,3 +164,8 @@ func (ky *Key) PartitionId() int {
 	// First AND makes positive and negative correctly, then mod.
 	return int(Buffer.LittleBytesToInt32(ky.digest[:], 0)&0xFFFF) & (_PARTITIONS - 1)
 }
+
+// returns true if the key has an associated value that can be sent to the server
+func (ky *Key) hasValueToSend() bool {
+	return ky.userKey != nil && ky.userKey != nullValue
+}
