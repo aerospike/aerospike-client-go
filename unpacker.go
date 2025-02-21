@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"reflect"
@@ -232,6 +233,29 @@ func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (interface{}, Error)
 	case ParticleType.GEOJSON:
 		val = NewGeoJSONValue(string(upckr.buffer[upckr.offset : upckr.offset+count]))
 
+	case ParticleType.PHP_BLOB:
+	PHP_BLOB_PARSER:
+		switch count {
+		case 4:
+			if bytes.Equal(upckr.buffer[upckr.offset:upckr.offset+count], []byte{0x62, 0x3A, 0x31, 0x3B}) {
+				val = true
+				break PHP_BLOB_PARSER
+			} else if bytes.Equal(upckr.buffer[upckr.offset:upckr.offset+count], []byte{0x62, 0x3A, 0x30, 0x3B}) {
+				val = false
+				break PHP_BLOB_PARSER
+			}
+			fallthrough
+		case 2:
+			if bytes.Equal(upckr.buffer[upckr.offset:upckr.offset+count], []byte{0x4E, 0x3B}) {
+				val = nil
+				break PHP_BLOB_PARSER
+			}
+			fallthrough
+		default:
+			newObj := make([]byte, count)
+			copy(newObj, upckr.buffer[upckr.offset:upckr.offset+count])
+			val = newObj
+		}
 	default:
 		return nil, newError(types.PARSE_ERROR, fmt.Sprintf("Error while unpacking BLOB. Type-header with code `%d` not recognized.", theType))
 	}
