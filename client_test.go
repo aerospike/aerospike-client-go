@@ -339,6 +339,44 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(exists).To(gm.BeFalse())
 			})
 
+			gg.It("must support policy values", func() {
+				key, err = as.NewKey(ns, set, 0)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				client.Delete(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				binMap := as.BinMap{
+					"Aerospike":  "value",
+					"Aerospike1": "value2",
+				}
+
+				err := client.Put(nil, key, binMap)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				exists, err := client.Exists(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(exists).To(gm.BeTrue())
+
+				binMap = as.BinMap{
+					"Aerospike":  "value",
+					"Aerospike1": "value2",
+					"Aerospike2": "value3",
+				}
+				wcmd, err := as.NewWriteCommand(nil, wpolicy, key, nil, binMap)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				err = wcmd.WriteBuffer(&wcmd)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				payload := wcmd.Buffer()
+
+				wp := as.NewWritePolicy(0, 0)
+				wp.GenerationPolicy = as.EXPECT_GEN_EQUAL
+				err = client.PutPayload(wp, key, payload)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(ast.GENERATION_ERROR)).To(gm.BeTrue())
+			})
+
 		})
 
 		gg.Context("Put operations", func() {

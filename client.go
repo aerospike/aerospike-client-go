@@ -307,10 +307,14 @@ func (clnt *Client) GetNodeNames() []string {
 
 // PutPayload writes the raw write/delete payload to the server.
 // The policy specifies the transaction timeout.
-// If the policy is nil, the default relevant policy will be used.
+// If the policy is nil, the default relevant policy will be used, but the message
+// header data regarding generation, expiration and others will not be touched.
+// Values for `policy.FilterExpression` or `policy.Txn` will always be ignored.
+// If `policy.Expiration` is set to `TTLDontUpdate`, the value will not be updated on the payload.
 func (clnt *Client) PutPayload(policy *WritePolicy, key *Key, payload []byte) Error {
+	ogPolicy := policy
 	policy = clnt.getUsableWritePolicy(policy)
-	command, err := newWritePayloadCommand(clnt.cluster, policy, key, payload)
+	command, err := newWritePayloadCommand(clnt.cluster, policy, ogPolicy, key, payload)
 	if err != nil {
 		return err
 	}

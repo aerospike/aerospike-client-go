@@ -26,13 +26,15 @@ var _ command = &writePayloadCommand{}
 type writePayloadCommand struct {
 	singleCommand
 
-	policy  *WritePolicy
-	payload []byte
+	policy   *WritePolicy
+	ogPolicy *WritePolicy
+	payload  []byte
 }
 
 func newWritePayloadCommand(
 	cluster *Cluster,
 	policy *WritePolicy,
+	ogPolicy *WritePolicy,
 	key *Key,
 	payload []byte,
 ) (writePayloadCommand, Error) {
@@ -49,6 +51,7 @@ func newWritePayloadCommand(
 	newWriteCmd := writePayloadCommand{
 		singleCommand: newSingleCommand(cluster, key, partition),
 		policy:        policy,
+		ogPolicy:      ogPolicy,
 		payload:       payload,
 	}
 
@@ -61,8 +64,67 @@ func (cmd *writePayloadCommand) getPolicy(ifc command) Policy {
 
 func (cmd *writePayloadCommand) writeBuffer(ifc command) Error {
 	cmd.dataBuffer = cmd.payload
+	cmd.applyPolicy()
 	cmd.dataOffset = len(cmd.payload)
 	return nil
+}
+
+// Header write for write commands.
+func (cmd *writePayloadCommand) applyPolicy() {
+	if cmd.ogPolicy == nil {
+		return
+	}
+
+	policy := cmd.ogPolicy
+
+	// Set flags.
+
+	generation := uint32(Buffer.BytesToInt32(cmd.dataBuffer, 14))
+	writeAttr := _INFO2_WRITE
+	readAttr := 0
+	infoAttr := 0
+
+	switch policy.RecordExistsAction {
+	case UPDATE:
+	case UPDATE_ONLY:
+		infoAttr |= _INFO3_UPDATE_ONLY
+	case REPLACE:
+		infoAttr |= _INFO3_CREATE_OR_REPLACE
+	case REPLACE_ONLY:
+		infoAttr |= _INFO3_REPLACE_ONLY
+	case CREATE_ONLY:
+		writeAttr |= _INFO2_CREATE_ONLY
+	}
+
+	switch policy.GenerationPolicy {
+	case NONE:
+	case EXPECT_GEN_EQUAL:
+		generation = policy.Generation
+		writeAttr |= _INFO2_GENERATION
+	case EXPECT_GEN_GT:
+		generation = policy.Generation
+		writeAttr |= _INFO2_GENERATION_GT
+	}
+
+	if policy.CommitLevel == COMMIT_MASTER {
+		infoAttr |= _INFO3_COMMIT_MASTER
+	}
+
+	if policy.DurableDelete {
+		writeAttr |= _INFO2_DURABLE_DELETE
+	}
+
+	// cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
+	cmd.dataBuffer[9] = byte(readAttr)
+	cmd.dataBuffer[10] = byte(writeAttr)
+	cmd.dataBuffer[11] = byte(infoAttr)
+	// cmd.dataBuffer[12] = byte(txnAttr)
+	cmd.dataBuffer[13] = 0 // clear the result code
+	cmd.dataOffset = 14
+	cmd.WriteUint32(generation)
+	if policy.Expiration != TTLDontUpdate {
+		cmd.WriteUint32(policy.Expiration)
+	}
 }
 
 func (cmd *writePayloadCommand) getNode(ifc command) (*Node, Error) {
