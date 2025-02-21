@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -1246,6 +1247,22 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 	case ParticleType.LDT:
 		return newUnpacker(buf, offset, length).unpackObjects()
 
+	case ParticleType.PHP_BLOB:
+		if length == 4 {
+			if bytes.Equal(buf[offset:offset+length], []byte{0x62, 0x3A, 0x31, 0x3B}) {
+				return true, nil
+			} else if bytes.Equal(buf[offset:offset+length], []byte{0x62, 0x3A, 0x30, 0x3B}) {
+				return false, nil
+			}
+		} else if length == 2 {
+			if bytes.Equal(buf[offset:offset+length], []byte{0x4E, 0x3B}) {
+				return nil, nil
+			}
+		}
+		// generic PHP_BLOB
+		newObj := make([]byte, length)
+		copy(newObj, buf[offset:offset+length])
+		return newObj, nil
 	}
 	return nil, nil
 }
