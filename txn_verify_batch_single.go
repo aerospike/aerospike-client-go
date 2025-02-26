@@ -141,7 +141,6 @@ func (cmd *batchSingleTxnVerifyCommand) parseResult(ifc command, conn *Connectio
 			logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
 			return err
 		}
-
 	}
 
 	if resultCode == 0 {
@@ -149,6 +148,8 @@ func (cmd *batchSingleTxnVerifyCommand) parseResult(ifc command, conn *Connectio
 	} else {
 		err := newError(resultCode)
 		err.setInDoubt(cmd.isRead(), cmd.commandSentCounter)
+
+		return err
 	}
 
 	return nil
