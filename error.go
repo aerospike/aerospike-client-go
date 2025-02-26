@@ -105,7 +105,7 @@ type AerospikeError struct {
 	// and changed the data. Only applies to commands that change data
 	InDoubt bool
 
-	// Iteration determies on which retry the error occurred
+	// Iteration determines on which retry the error occurred
 	Iteration int
 
 	// Includes stack frames for the error
@@ -217,7 +217,7 @@ func (ase *AerospikeError) iter(i int) Error {
 // IsInDoubt signifies that the write operation may have gone through on the server
 // but the client is not able to confirm that due an error.
 func (ase *AerospikeError) IsInDoubt() bool {
-	return ase.InDoubt
+	return ase != nil && ase.InDoubt
 }
 
 // Matches returns true if the error or any of its wrapped errors contains
@@ -294,6 +294,10 @@ func (ase *AerospikeError) Is(e error) bool {
 
 // Unwrap will return the error wrapped inside the error, or nil.
 func (ase *AerospikeError) Unwrap() error {
+	if ase == nil {
+		return nil
+	}
+
 	return ase.wrapped
 }
 
