@@ -15,9 +15,7 @@
 package aerospike
 
 import (
-	"bufio"
 	"errors"
-	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -143,7 +141,7 @@ func (nd *Node) Refresh(peers *peers) Error {
 	var infoMap map[string]string
 	commands := []string{"node", "peers-generation", "partition-generation"}
 	if nd.cluster.clientPolicy.RackAware {
-		commands = append(commands, "racks:")
+		commands = append(commands, "rack-ids")
 	}
 
 	infoMap, err := nd.RequestInfo(&nd.cluster.infoPolicy, commands...)
@@ -174,7 +172,7 @@ func (nd *Node) Refresh(peers *peers) Error {
 			return err
 		}
 		// Should not fail in other cases
-		logger.Logger.Warn("Updating node rack info failed with error: %s (racks: `%s`)", err, infoMap["racks:"])
+		logger.Logger.Warn("Updating node rack info failed with error: %s (rack-ids: `%s`)", err, infoMap["rack-ids"])
 	}
 
 	nd.failures.Set(0)
@@ -228,57 +226,31 @@ func (nd *Node) updateRackInfo(infoMap map[string]string) Error {
 		return nil
 	}
 
-	// Do not raise an error if the server does not support rackaware
-	if strings.HasPrefix(strings.ToUpper(infoMap["racks:"]), "ERROR") {
+	// Receive format: <ns1>:<rack1>;<ns2>:<rack2>...
+	rackIds := infoMap["rack-ids"]
+
+	// Do not panic if the server does not support rackaware
+	if len(rackIds) == 0 || strings.HasPrefix(strings.ToUpper(rackIds), "ERROR") {
 		return newError(types.UNSUPPORTED_FEATURE, "You have set the ClientPolicy.RackAware = true, but the server does not support this feature.")
 	}
 
-	ss := strings.Split(infoMap["racks:"], ";")
-	racks := map[string]int{}
-	for _, s := range ss {
-		in := bufio.NewReader(strings.NewReader(s))
-		_, err := in.ReadString('=')
+	rackPairs := strings.Split(rackIds, ";")
+	racks := make(map[string]int)
+	for i := range rackPairs {
+		// split at the last occurrence of `:` to ensure rack will be an integer
+		lastIdx := strings.LastIndex(rackPairs[i], ":")
+		if lastIdx < 0 {
+			return newError(types.PARSE_ERROR, "invalid rack value `%s`", rackPairs[i])
+		}
+
+		ns := rackPairs[i][:lastIdx]
+		rack := rackPairs[i][lastIdx+1:]
+
+		rackNo, err := strconv.Atoi(rack)
 		if err != nil {
 			return newErrorAndWrap(err, types.PARSE_ERROR)
 		}
-
-		ns, err := in.ReadString(':')
-		if err != nil {
-			return newErrorAndWrap(err, types.PARSE_ERROR)
-		}
-
-		for {
-			_, err = in.ReadString('_')
-			if err != nil {
-				return newErrorAndWrap(err, types.PARSE_ERROR)
-			}
-
-			rackStr, err := in.ReadString('=')
-			if err != nil {
-				return newErrorAndWrap(err, types.PARSE_ERROR)
-			}
-
-			rack, err := strconv.Atoi(rackStr[:len(rackStr)-1])
-			if err != nil {
-				return newErrorAndWrap(err, types.PARSE_ERROR)
-			}
-
-			nodesList, err := in.ReadString(':')
-			if err != nil && err != io.EOF {
-				return newErrorAndWrap(err, types.PARSE_ERROR)
-			}
-
-			nodes := strings.Split(strings.Trim(nodesList, ":"), ",")
-			for i := range nodes {
-				if nodes[i] == nd.name {
-					racks[ns[:len(ns)-1]] = rack
-				}
-			}
-
-			if err == io.EOF {
-				break
-			}
-		}
+		racks[ns] = rackNo
 	}
 
 	nd.racks.Set(racks)

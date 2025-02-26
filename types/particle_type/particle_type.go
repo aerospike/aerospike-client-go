@@ -17,17 +17,18 @@ package particleType
 // Server particle types. Unsupported types are commented out.
 const (
 	//revive:disable
-	NULL    = 0
-	INTEGER = 1
-	FLOAT   = 2
-	STRING  = 3
-	BLOB    = 4
-	DIGEST  = 6
-	BOOL    = 17
-	HLL     = 18
-	MAP     = 19
-	LIST    = 20
-	LDT     = 21
-	GEOJSON = 23
+	NULL     = 0
+	INTEGER  = 1
+	FLOAT    = 2
+	STRING   = 3
+	BLOB     = 4
+	DIGEST   = 6
+	PHP_BLOB = 11 // Had to reintroduce to support the old PHP7 client
+	BOOL     = 17
+	HLL      = 18
+	MAP      = 19
+	LIST     = 20
+	LDT      = 21
+	GEOJSON  = 23
 	//revive:enable
 )

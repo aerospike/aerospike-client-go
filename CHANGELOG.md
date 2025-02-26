@@ -1,5 +1,14 @@
 # Change History
 
+
+## February 26 2025: v7.9.0
+
+- **New Features**
+  - [CLIENT-3334] Support old PHP7 client encoded boolean and null values.
+
+- **Fixes**
+  - [CLIENT-3348] Parsing error during node rack update.
+
 ## December 19 2024: v7.8.0
 
   Minor fix release.
