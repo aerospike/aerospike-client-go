@@ -3605,7 +3605,6 @@ func (cmd *baseCommand) executeIter(ifc command, iter int) Error {
 func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) (errChain Error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
-
 	transStart := time.Now()
 
 	notFirstIteration := false
@@ -3690,6 +3689,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			continue
 		}
 
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+
 		// check if node has encountered too many errors
 		if err = cmd.node.validateErrorCount(); err != nil {
 			isClientTimeout = false
@@ -3703,7 +3704,16 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			continue
 		}
 
+		// TODO: Implement
+		var connAq time.Time
+		if metricsEnabled {
+			connAq = time.Now()
+		}
 		cmd.conn, err = ifc.getConnection(policy)
+		if metricsEnabled {
+			latency := time.Since(connAq)
+		}
+
 		if err != nil {
 			isClientTimeout = false
 
@@ -3732,8 +3742,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		// Assign the connection buffer to the command buffer
 		cmd.dataBuffer = cmd.conn.dataBuffer
 
+		// TODO: Implement metrics
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
+
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 
@@ -3769,6 +3781,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		// Send command.
 		cmd.commandWasSent = true
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
+		// TODO: Implement the sent metric duration here and pass the bytes sent
+
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 
@@ -3790,7 +3804,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		// Parse results.
+		// TODO: Implement parsing metric
 		err = ifc.parseResult(ifc, cmd.conn)
+
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 

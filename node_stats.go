@@ -19,6 +19,8 @@ import (
 	"sync"
 
 	iatomic "github.com/aerospike/aerospike-client-go/v8/internal/atomic"
+	amap "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 	hist "github.com/aerospike/aerospike-client-go/v8/types/histogram"
 )
 
@@ -90,6 +92,22 @@ type nodeStats struct {
 	BatchReadMetrics hist.SyncHistogram[uint64] `json:"batch-read-metrics"`
 	// Metrics for Batch commands containing writes
 	BatchWriteMetrics hist.SyncHistogram[uint64] `json:"batch-write-metrics"`
+
+	ErrorCounts     amap.Map[string, amap.Map[commandType, commandErrorMetric]] // namespace => per command errors
+	DetailedMetrics amap.Map[string, amap.Map[commandType, commandMetric]]      // namespace >= per command histograms
+}
+
+type commandErrorMetric struct {
+	ErrorCounts amap.Map[types.ResultCode, uint64]
+}
+
+type commandMetric struct {
+	ConnectionAq hist.SyncHistogram[uint64]
+	Transmission hist.SyncHistogram[uint64]
+	Parsing      hist.SyncHistogram[uint64]
+
+	BytesSent hist.SyncHistogram[uint64]
+	// BytesReceived hist.SyncHistogram[uint64]
 }
 
 func newNodeStats(policy *MetricsPolicy) *nodeStats {
