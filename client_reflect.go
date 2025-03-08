@@ -52,7 +52,7 @@ func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (e
 		}
 	}
 
-	binMap := marshal(obj)
+	binMap := MarshalToBinMap(obj)
 	command, err := newWriteCommand(clnt.cluster, policy, key, nil, binMap, _WRITE)
 	if err != nil {
 		return err

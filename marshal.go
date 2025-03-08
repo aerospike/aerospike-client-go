@@ -216,7 +216,7 @@ func structToMap(s reflect.Value) BinMap {
 	return binMap
 }
 
-func marshal(v interface{}) BinMap {
+func MarshalToBinMap(v interface{}) BinMap {
 	s := indirect(reflect.ValueOf(v))
 	return structToMap(s)
 }
