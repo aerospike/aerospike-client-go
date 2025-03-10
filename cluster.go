@@ -379,9 +379,11 @@ func (clstr *Cluster) aggregateNodeStats(nodeList []*Node) {
 	for _, node := range nodeList {
 		h := node.host.String()
 		if stats, exists := clstr.stats[h]; exists {
-			stats.aggregate(node.stats.getAndReset())
+			nr := node.stats.getAndReset()
+			stats.aggregate(nr)
 		} else {
-			clstr.stats[h] = node.stats.getAndReset()
+			nr := node.stats.getAndReset()
+			clstr.stats[h] = nr
 		}
 	}
 }
@@ -984,9 +986,6 @@ func (clstr *Cluster) MetricsEnabled() bool {
 // If the parameters for the histogram in the policy are the different from the one already
 // on the cluster, the metrics will be reset.
 func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
-	if policy == nil {
-		policy = DefaultMetricsPolicy()
-	}
 
 	clstr.metricsPolicy.Set(policy)
 	clstr.metricsEnabled.Store(true)
@@ -1002,6 +1001,49 @@ func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
 	for _, node := range clstr.GetNodes() {
 		node.stats.reshape(policy)
 	}
+}
+
+func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
+	var userLabels *Labels
+	if metricPolicy == nil && clstr.metricsPolicy.Get() != nil && clstr.metricsPolicy.Get().Labels != nil {
+		userLabels = clstr.metricsPolicy.Get().Labels
+	}
+
+	nodes := clstr.GetNodes()
+	labels := make([]map[string]string, 0)
+
+	// Add node labels
+	for node := range nodes {
+		entries := make(map[string]string)
+
+		// Merging user labels with node labels
+		if userLabels != nil && userLabels.Labels != nil {
+			for _, userLabel := range *userLabels.Labels {
+				for k, v := range userLabel {
+					entries[k] = v
+				}
+			}
+		}
+
+		// Reserved label names for the client
+		entries["node"] = nodes[node].GetName()
+		entries["host"] = nodes[node].host.String()
+		entries["cluster"] = clstr.clientPolicy.ClusterName
+
+		// Users are allowed to override app-id if they want to. Default is the user name.
+		// Users need to set the application id int the client policy.
+		entries["app-id"] = func() string {
+			if clstr.clientPolicy.ApplicationId != "" {
+				return clstr.clientPolicy.ApplicationId
+			} else {
+				return clstr.user
+			}
+		}()
+
+		labels = append(labels, entries)
+	}
+
+	return NewLabels(labels...)
 }
 
 // DisableMetrics disables the cluster command metrics gathering.

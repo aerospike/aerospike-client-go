@@ -50,6 +50,9 @@ type MetricsPolicy struct {
 	//
 	// Default: 2
 	LatencyBase int //= 2;
+
+	// Labels                  NewMetadataPolicy(map[string]string{"user":policy.User}, map[string]string{"cluster-name": policy.ClusterName}), }
+	Labels *Labels
 }
 
 func DefaultMetricsPolicy() *MetricsPolicy {
@@ -57,5 +60,27 @@ func DefaultMetricsPolicy() *MetricsPolicy {
 		HistogramType:  histogram.Logarithmic,
 		LatencyColumns: 24,
 		LatencyBase:    2,
+		Labels:         NewLabels(),
 	}
+}
+
+func DefaultMetricsPolicyWithLabels(pairs ...map[string]string) *MetricsPolicy {
+	labels := NewLabels(pairs...)
+	mp := *DefaultMetricsPolicy()
+
+	mp.Labels = labels
+
+	return &mp
+}
+
+func CopyMetricsPolicyWithLabels(mp *MetricsPolicy, pairs ...map[string]string) *MetricsPolicy {
+	mpCopy := *mp
+
+	if mpCopy.Labels == nil {
+		mpCopy.Labels = NewLabels(pairs...)
+	} else if mpCopy.Labels != nil && len(*mpCopy.Labels.Labels) == 0 {
+		mpCopy.Labels = NewLabels(pairs...)
+	}
+
+	return &mpCopy
 }

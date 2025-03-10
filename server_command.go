@@ -46,6 +46,12 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
+		}
+
 		if resultCode != 0 {
 			if resultCode == types.KEY_NOT_FOUND_ERROR {
 				return false, nil
@@ -93,4 +99,11 @@ func (cmd *serverCommand) isRead() bool {
 
 func (cmd *serverCommand) Execute() Error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *serverCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.namespace]++
+
+	return &response
 }

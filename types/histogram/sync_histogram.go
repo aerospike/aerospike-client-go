@@ -138,9 +138,14 @@ func (h *SyncHistogram[T]) CloneAndReset() *SyncHistogram[T] {
 
 func (h *SyncHistogram[T]) Merge(other *SyncHistogram[T]) error {
 	h.l.Lock()
-	other.l.RLock()
+
+	// It is possible to try to get lock on the same histogram in the same goroutine
+	// Making sure we don't deadlock
+	if locked := other.l.TryRLock(); locked {
+		defer other.l.RUnlock()
+	}
+
 	if h.base != other.base || h.htype != other.htype || len(h.Buckets) != len(other.Buckets) {
-		other.l.RUnlock()
 		h.l.Unlock()
 		return errors.New("Histograms to not match")
 	}
@@ -159,9 +164,7 @@ func (h *SyncHistogram[T]) Merge(other *SyncHistogram[T]) error {
 	for i := range h.Buckets {
 		h.Buckets[i] += other.Buckets[i]
 	}
-	other.l.RUnlock()
 	h.l.Unlock()
-
 	return nil
 }
 

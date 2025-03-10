@@ -54,6 +54,12 @@ func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) Error {
 		return newCustomNodeError(cmd.node, err.resultCode())
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, resultCode)
+	}
+
 	switch types.ResultCode(resultCode) {
 	case 0:
 		cmd.existed = true
@@ -79,4 +85,11 @@ func (cmd *deleteCommand) Execute() Error {
 
 func (cmd *deleteCommand) commandType() commandType {
 	return ttDelete
+}
+
+func (cmd *deleteCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace]++
+
+	return &response
 }

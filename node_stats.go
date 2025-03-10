@@ -18,7 +18,10 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/aerospike/aerospike-client-go/v8/types"
+
 	iatomic "github.com/aerospike/aerospike-client-go/v8/internal/atomic"
+	amap "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
 	hist "github.com/aerospike/aerospike-client-go/v8/types/histogram"
 )
 
@@ -26,8 +29,15 @@ import (
 // These statistics are aggregated once per tend in the cluster object
 // and then are served to the end-user.
 type nodeStats struct {
+	//(htype Type, base T, buckets int)
+	//hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
 	// TODO: Remove this lock and abstract it out using Generics
 	m sync.Mutex
+	// MetricsPolicy contains policy, default values for histograms, which are used on node_stats init time
+	metricPolicy *MetricsPolicy
+
+	// Labels sourced once at applications start and passed down to metrics when metrics are enabled
+	StatLabels *Labels `json:"labels,omitempty"`
 	// Attempts to open a connection (failed + successful)
 	ConnectionsAttempts iatomic.Int `json:"connections-attempts"`
 	// Successful attempts to open a connection
@@ -62,12 +72,10 @@ type nodeStats struct {
 	NodeAdded iatomic.Int `json:"node-added-count"`
 	// Total number of times nodes were removed from the client (not the same as actual nodes removed. Network disruptions between client and server may cause a node being dropped client-side)
 	NodeRemoved iatomic.Int `json:"node-removed-count"`
-
 	// Total number of command retries
 	TransactionRetryCount iatomic.Int `json:"transaction-retry-count"`
 	// Total number of command errors
 	TransactionErrorCount iatomic.Int `json:"transaction-error-count"`
-
 	// Metrics for Get commands
 	GetMetrics hist.SyncHistogram[uint64] `json:"get-metrics"`
 	// Metrics for GetHeader commands
@@ -90,6 +98,70 @@ type nodeStats struct {
 	BatchReadMetrics hist.SyncHistogram[uint64] `json:"batch-read-metrics"`
 	// Metrics for Batch commands containing writes
 	BatchWriteMetrics hist.SyncHistogram[uint64] `json:"batch-write-metrics"`
+	// Error counts for each command
+	DetailedResultCodeCounts amap.Map[string, *amap.Map[commandType, *commandResultCodeMetric]] `json:"detailed-resultcode-counts"`
+	// Detailed metrics for per namespace and per command type
+	DetailedMetrics amap.Map[string, *amap.Map[commandType, *commandMetric]] `json:"detailed-metrics"`
+}
+
+// commandResultCodeMetric keeps track of the ResonseCode counts for a given command
+type commandResultCodeMetric struct {
+	ResultCodeCounts amap.Map[types.ResultCode, uint64] `json:"resultcode-counts"`
+}
+
+// newCommandResultCodeMetric creates a new CommandErrorMetric object
+func (n *nodeStats) newCommandResultCodeMetric() *commandResultCodeMetric {
+	return &commandResultCodeMetric{
+		ResultCodeCounts: *amap.NewWithValue[types.ResultCode, uint64](0, 0),
+	}
+}
+
+func (n *nodeStats) newCommandResultCodeMetricWithValue(resultCode types.ResultCode) *commandResultCodeMetric {
+	return &commandResultCodeMetric{
+		ResultCodeCounts: *amap.NewWithValue[types.ResultCode, uint64](resultCode, 0),
+	}
+}
+
+// commandMetric keeps track of detailed metrics for a given command
+type commandMetric struct {
+	ConnectionAq  hist.SyncHistogram[uint64] `json:"connection-aq"`
+	Latency       hist.SyncHistogram[uint64] `json:"latency"`
+	Parsing       hist.SyncHistogram[uint64] `json:"parsing"`
+	BytesSent     hist.SyncHistogram[uint64] `json:"bytes-sent"`
+	BytesReceived hist.SyncHistogram[uint64] `json:"bytes-received"`
+}
+
+// newCommandMetric creates a new CommandMetric object
+func (n *nodeStats) newCommandMetric() *commandMetric {
+	return &commandMetric{
+		ConnectionAq:  *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		Latency:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		Parsing:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		BytesSent:     *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		BytesReceived: *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+	}
+}
+
+// // Update or insert Detailed error metrics
+func (n *nodeStats) updateOrInsert(ifc command, resultCode types.ResultCode) {
+	n.m.Lock()
+	defer n.m.Unlock()
+	for namespace := range *ifc.getNamespace() {
+		n.DetailedResultCodeCounts.UpdateOrInsertFn(namespace, func(a *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
+			a.UpdateOrInsertFn(ifc.commandType(), func(b *commandResultCodeMetric) *commandResultCodeMetric {
+				b.ResultCodeCounts.UpdateOrInsert(resultCode, func(c uint64) uint64 {
+					c++
+					return c
+				}, 0)
+				return b
+			}, func() *commandResultCodeMetric {
+				return n.newCommandResultCodeMetricWithValue(resultCode)
+			})
+			return a
+		}, func() *amap.Map[commandType, *commandResultCodeMetric] {
+			return amap.NewWithValue(ifc.commandType(), n.newCommandResultCodeMetricWithValue(resultCode))
+		})
+	}
 }
 
 func newNodeStats(policy *MetricsPolicy) *nodeStats {
@@ -98,17 +170,21 @@ func newNodeStats(policy *MetricsPolicy) *nodeStats {
 	}
 
 	return &nodeStats{
-		GetMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		GetHeaderMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		ExistsMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		PutMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		DeleteMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		OperateMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		QueryMetrics:      *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		ScanMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		UDFMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		BatchReadMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		BatchWriteMetrics: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		metricPolicy:             policy,
+		StatLabels:               NewLabels(),
+		GetMetrics:               *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		GetHeaderMetrics:         *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ExistsMetrics:            *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		PutMetrics:               *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		DeleteMetrics:            *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		OperateMetrics:           *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		QueryMetrics:             *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ScanMetrics:              *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		UDFMetrics:               *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BatchReadMetrics:         *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BatchWriteMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		DetailedResultCodeCounts: *amap.New[string, *amap.Map[commandType, *commandResultCodeMetric]](0),
+		DetailedMetrics:          *amap.New[string, *amap.Map[commandType, *commandMetric]](0),
 	}
 }
 
@@ -117,6 +193,8 @@ func (ns *nodeStats) getAndReset() *nodeStats {
 	ns.m.Lock()
 
 	res := &nodeStats{
+		metricPolicy:             ns.metricPolicy,
+		StatLabels:               NewLabels(),
 		ConnectionsAttempts:      ns.ConnectionsAttempts.CloneAndSet(0),
 		ConnectionsSuccessful:    ns.ConnectionsSuccessful.CloneAndSet(0),
 		ConnectionsFailed:        ns.ConnectionsFailed.CloneAndSet(0),
@@ -138,17 +216,19 @@ func (ns *nodeStats) getAndReset() *nodeStats {
 		TransactionRetryCount: ns.TransactionRetryCount.CloneAndSet(0),
 		TransactionErrorCount: ns.TransactionErrorCount.CloneAndSet(0),
 
-		GetMetrics:        *ns.GetMetrics.CloneAndReset(),
-		GetHeaderMetrics:  *ns.GetHeaderMetrics.CloneAndReset(),
-		ExistsMetrics:     *ns.ExistsMetrics.CloneAndReset(),
-		PutMetrics:        *ns.PutMetrics.CloneAndReset(),
-		DeleteMetrics:     *ns.DeleteMetrics.CloneAndReset(),
-		OperateMetrics:    *ns.OperateMetrics.CloneAndReset(),
-		QueryMetrics:      *ns.QueryMetrics.CloneAndReset(),
-		ScanMetrics:       *ns.ScanMetrics.CloneAndReset(),
-		UDFMetrics:        *ns.UDFMetrics.CloneAndReset(),
-		BatchReadMetrics:  *ns.BatchReadMetrics.CloneAndReset(),
-		BatchWriteMetrics: *ns.BatchWriteMetrics.CloneAndReset(),
+		GetMetrics:               *ns.GetMetrics.CloneAndReset(),
+		GetHeaderMetrics:         *ns.GetHeaderMetrics.CloneAndReset(),
+		ExistsMetrics:            *ns.ExistsMetrics.CloneAndReset(),
+		PutMetrics:               *ns.PutMetrics.CloneAndReset(),
+		DeleteMetrics:            *ns.DeleteMetrics.CloneAndReset(),
+		OperateMetrics:           *ns.OperateMetrics.CloneAndReset(),
+		QueryMetrics:             *ns.QueryMetrics.CloneAndReset(),
+		ScanMetrics:              *ns.ScanMetrics.CloneAndReset(),
+		UDFMetrics:               *ns.UDFMetrics.CloneAndReset(),
+		BatchReadMetrics:         *ns.BatchReadMetrics.CloneAndReset(),
+		BatchWriteMetrics:        *ns.BatchWriteMetrics.CloneAndReset(),
+		DetailedResultCodeCounts: *ns.cloneAndResetDetailedResultCodeCounts(),
+		DetailedMetrics:          *ns.cloneAndResetDetailedMetrics(),
 	}
 
 	ns.m.Unlock()
@@ -159,6 +239,8 @@ func (ns *nodeStats) clone() nodeStats {
 	ns.m.Lock()
 
 	res := nodeStats{
+		metricPolicy:             ns.metricPolicy,
+		StatLabels:               NewLabels(),
 		ConnectionsAttempts:      ns.ConnectionsAttempts.Clone(),
 		ConnectionsSuccessful:    ns.ConnectionsSuccessful.Clone(),
 		ConnectionsFailed:        ns.ConnectionsFailed.Clone(),
@@ -180,17 +262,19 @@ func (ns *nodeStats) clone() nodeStats {
 		TransactionRetryCount: ns.TransactionRetryCount.Clone(),
 		TransactionErrorCount: ns.TransactionErrorCount.Clone(),
 
-		GetMetrics:        *ns.GetMetrics.Clone(),
-		GetHeaderMetrics:  *ns.GetHeaderMetrics.Clone(),
-		ExistsMetrics:     *ns.ExistsMetrics.Clone(),
-		PutMetrics:        *ns.PutMetrics.Clone(),
-		DeleteMetrics:     *ns.DeleteMetrics.Clone(),
-		OperateMetrics:    *ns.OperateMetrics.Clone(),
-		QueryMetrics:      *ns.QueryMetrics.Clone(),
-		ScanMetrics:       *ns.ScanMetrics.Clone(),
-		UDFMetrics:        *ns.UDFMetrics.Clone(),
-		BatchReadMetrics:  *ns.BatchReadMetrics.Clone(),
-		BatchWriteMetrics: *ns.BatchWriteMetrics.Clone(),
+		GetMetrics:               *ns.GetMetrics.Clone(),
+		GetHeaderMetrics:         *ns.GetHeaderMetrics.Clone(),
+		ExistsMetrics:            *ns.ExistsMetrics.Clone(),
+		PutMetrics:               *ns.PutMetrics.Clone(),
+		DeleteMetrics:            *ns.DeleteMetrics.Clone(),
+		OperateMetrics:           *ns.OperateMetrics.Clone(),
+		QueryMetrics:             *ns.QueryMetrics.Clone(),
+		ScanMetrics:              *ns.ScanMetrics.Clone(),
+		UDFMetrics:               *ns.UDFMetrics.Clone(),
+		BatchReadMetrics:         *ns.BatchReadMetrics.Clone(),
+		BatchWriteMetrics:        *ns.BatchWriteMetrics.Clone(),
+		DetailedResultCodeCounts: *ns.cloneDetailedResultCodeCounts(),
+		DetailedMetrics:          *ns.cloneDetailedMetrics(),
 	}
 
 	ns.m.Unlock()
@@ -199,6 +283,8 @@ func (ns *nodeStats) clone() nodeStats {
 
 func (ns *nodeStats) reshape(policy *MetricsPolicy) {
 	ns.m.Lock()
+	ns.metricPolicy = policy
+	ns.StatLabels = NewLabels()
 	ns.GetMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 	ns.GetHeaderMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 	ns.ExistsMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
@@ -210,6 +296,8 @@ func (ns *nodeStats) reshape(policy *MetricsPolicy) {
 	ns.UDFMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 	ns.BatchReadMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 	ns.BatchWriteMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.reshapeDetailedResultCodeCounts()
+	ns.reshapeDetailedMetrics()
 	ns.m.Unlock()
 }
 
@@ -217,6 +305,7 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.m.Lock()
 	newStats.m.Lock()
 
+	ns.StatLabels = NewLabels()
 	ns.ConnectionsAttempts.AddAndGet(newStats.ConnectionsAttempts.Get())
 	ns.ConnectionsSuccessful.AddAndGet(newStats.ConnectionsSuccessful.Get())
 	ns.ConnectionsFailed.AddAndGet(newStats.ConnectionsFailed.Get())
@@ -249,6 +338,8 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.UDFMetrics.Merge(&newStats.UDFMetrics)
 	ns.BatchReadMetrics.Merge(&newStats.BatchReadMetrics)
 	ns.BatchWriteMetrics.Merge(&newStats.BatchWriteMetrics)
+	ns.mergeCommandResultCodeMetric(newStats)
+	ns.mergeDetailedMetrics(newStats)
 
 	newStats.m.Unlock()
 	ns.m.Unlock()
@@ -256,39 +347,41 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 
 func (ns nodeStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		ConnectionsAttempts      int `json:"connections-attempts"`
-		ConnectionsSuccessful    int `json:"connections-successful"`
-		ConnectionsFailed        int `json:"connections-failed"`
-		ConnectionsTimeoutErrors int `json:"connections-error-timeout"`
-		ConnectionsOtherErrors   int `json:"connections-error-other"`
-		CircuitBreakerHits       int `json:"circuit-breaker-hits"`
-		ConnectionsPoolEmpty     int `json:"connections-pool-empty"`
-		ConnectionsPoolOverflow  int `json:"connections-pool-overflow"`
-		ConnectionsIdleDropped   int `json:"connections-idle-dropped"`
-		ConnectionsOpen          int `json:"open-connections"`
-		ConnectionsClosed        int `json:"closed-connections"`
-		TendsTotal               int `json:"tends-total"`
-		TendsSuccessful          int `json:"tends-successful"`
-		TendsFailed              int `json:"tends-failed"`
-		PartitionMapUpdates      int `json:"partition-map-updates"`
-		NodeAdded                int `json:"node-added-count"`
-		NodeRemoved              int `json:"node-removed-count"`
-
-		RetryCount int `json:"transaction-retry-count"`
-		ErrorCount int `json:"transaction-error-count"`
-
-		GetMetrics        hist.SyncHistogram[uint64] `json:"get-metrics"`
-		GetHeaderMetrics  hist.SyncHistogram[uint64] `json:"get-header-metrics"`
-		ExistsMetrics     hist.SyncHistogram[uint64] `json:"exists-metrics"`
-		PutMetrics        hist.SyncHistogram[uint64] `json:"put-metrics"`
-		DeleteMetrics     hist.SyncHistogram[uint64] `json:"delete-metrics"`
-		OperateMetrics    hist.SyncHistogram[uint64] `json:"operate-metrics"`
-		QueryMetrics      hist.SyncHistogram[uint64] `json:"query-metrics"`
-		ScanMetrics       hist.SyncHistogram[uint64] `json:"scan-metrics"`
-		UDFMetrics        hist.SyncHistogram[uint64] `json:"udf-metrics"`
-		BatchReadMetrics  hist.SyncHistogram[uint64] `json:"batch-read-metrics"`
-		BatchWriteMetrics hist.SyncHistogram[uint64] `json:"batch-write-metrics"`
+		StatsLabels              []map[string]string                  `json:"labels,omitempty"`
+		ConnectionsAttempts      int                                  `json:"connections-attempts"`
+		ConnectionsSuccessful    int                                  `json:"connections-successful"`
+		ConnectionsFailed        int                                  `json:"connections-failed"`
+		ConnectionsTimeoutErrors int                                  `json:"connections-error-timeout"`
+		ConnectionsOtherErrors   int                                  `json:"connections-error-other"`
+		CircuitBreakerHits       int                                  `json:"circuit-breaker-hits"`
+		ConnectionsPoolEmpty     int                                  `json:"connections-pool-empty"`
+		ConnectionsPoolOverflow  int                                  `json:"connections-pool-overflow"`
+		ConnectionsIdleDropped   int                                  `json:"connections-idle-dropped"`
+		ConnectionsOpen          int                                  `json:"open-connections"`
+		ConnectionsClosed        int                                  `json:"closed-connections"`
+		TendsTotal               int                                  `json:"tends-total"`
+		TendsSuccessful          int                                  `json:"tends-successful"`
+		TendsFailed              int                                  `json:"tends-failed"`
+		PartitionMapUpdates      int                                  `json:"partition-map-updates"`
+		NodeAdded                int                                  `json:"node-added-count"`
+		NodeRemoved              int                                  `json:"node-removed-count"`
+		RetryCount               int                                  `json:"transaction-retry-count"`
+		ErrorCount               int                                  `json:"transaction-error-count"`
+		GetMetrics               hist.SyncHistogram[uint64]           `json:"get-metrics"`
+		GetHeaderMetrics         hist.SyncHistogram[uint64]           `json:"get-header-metrics"`
+		ExistsMetrics            hist.SyncHistogram[uint64]           `json:"exists-metrics"`
+		PutMetrics               hist.SyncHistogram[uint64]           `json:"put-metrics"`
+		DeleteMetrics            hist.SyncHistogram[uint64]           `json:"delete-metrics"`
+		OperateMetrics           hist.SyncHistogram[uint64]           `json:"operate-metrics"`
+		QueryMetrics             hist.SyncHistogram[uint64]           `json:"query-metrics"`
+		ScanMetrics              hist.SyncHistogram[uint64]           `json:"scan-metrics"`
+		UDFMetrics               hist.SyncHistogram[uint64]           `json:"udf-metrics"`
+		BatchReadMetrics         hist.SyncHistogram[uint64]           `json:"batch-read-metrics"`
+		BatchWriteMetrics        hist.SyncHistogram[uint64]           `json:"batch-write-metrics"`
+		ErrorCounts              map[string]map[string]map[string]int `json:"detailed-resultcode-counts"`
+		DetailedMetrics          map[string]map[string]*commandMetric `json:"detailed-metrics"`
 	}{
+		*ns.StatLabels.Labels,
 		ns.ConnectionsAttempts.Get(),
 		ns.ConnectionsSuccessful.Get(),
 		ns.ConnectionsFailed.Get(),
@@ -321,7 +414,42 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		ns.UDFMetrics,
 		ns.BatchReadMetrics,
 		ns.BatchWriteMetrics,
+		ns.marshalResultCodeCounts(),
+		ns.marshalDetailedMetrics(),
 	})
+}
+
+// Serializes DetailedMetrics for json encoding
+func (ns *nodeStats) marshalDetailedMetrics() map[string]map[string]*commandMetric {
+	result := make(map[string]map[string]*commandMetric)
+	for _, namespace := range ns.DetailedMetrics.Keys() {
+		commands := ns.DetailedMetrics.Get(namespace)
+		metrics := make(map[string]*commandMetric)
+		for _, ct := range commands.Keys() {
+			metrics[ct.String()] = commands.Get(ct)
+		}
+		result[namespace] = metrics
+	}
+	return result
+}
+
+// Serializes DetailedResultCodeCounts for json encoding
+func (ns *nodeStats) marshalResultCodeCounts() map[string]map[string]map[string]int {
+	result := make(map[string]map[string]map[string]int)
+	for _, namespace := range ns.DetailedResultCodeCounts.Keys() {
+		commands := ns.DetailedResultCodeCounts.Get(namespace)
+		commandMap := make(map[string]map[string]int)
+		for _, ct := range commands.Keys() {
+			resultCodes := ns.DetailedResultCodeCounts.Get(namespace).Get(ct)
+			resultCodeMap := make(map[string]int)
+			for _, rc := range resultCodes.ResultCodeCounts.Keys() {
+				resultCodeMap[rc.String()] = int(resultCodes.ResultCodeCounts.Get(rc))
+			}
+			commandMap[ct.String()] = resultCodeMap
+		}
+		result[namespace] = commandMap
+	}
+	return result
 }
 
 func (ns *nodeStats) UnmarshalJSON(data []byte) error {
@@ -347,17 +475,19 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 		RetryCount int `json:"transaction-retry-count"`
 		ErrorCount int `json:"transaction-error-count"`
 
-		GetMetrics        hist.SyncHistogram[uint64] `json:"get-metrics"`
-		GetHeaderMetrics  hist.SyncHistogram[uint64] `json:"get-header-metrics"`
-		ExistsMetrics     hist.SyncHistogram[uint64] `json:"exists-metrics"`
-		PutMetrics        hist.SyncHistogram[uint64] `json:"put-metrics"`
-		DeleteMetrics     hist.SyncHistogram[uint64] `json:"delete-metrics"`
-		OperateMetrics    hist.SyncHistogram[uint64] `json:"operate-metrics"`
-		QueryMetrics      hist.SyncHistogram[uint64] `json:"query-metrics"`
-		ScanMetrics       hist.SyncHistogram[uint64] `json:"scan-metrics"`
-		UDFMetrics        hist.SyncHistogram[uint64] `json:"udf-metrics"`
-		BatchReadMetrics  hist.SyncHistogram[uint64] `json:"batch-read-metrics"`
-		BatchWriteMetrics hist.SyncHistogram[uint64] `json:"batch-write-metrics"`
+		GetMetrics               hist.SyncHistogram[uint64]                                         `json:"get-metrics"`
+		GetHeaderMetrics         hist.SyncHistogram[uint64]                                         `json:"get-header-metrics"`
+		ExistsMetrics            hist.SyncHistogram[uint64]                                         `json:"exists-metrics"`
+		PutMetrics               hist.SyncHistogram[uint64]                                         `json:"put-metrics"`
+		DeleteMetrics            hist.SyncHistogram[uint64]                                         `json:"delete-metrics"`
+		OperateMetrics           hist.SyncHistogram[uint64]                                         `json:"operate-metrics"`
+		QueryMetrics             hist.SyncHistogram[uint64]                                         `json:"query-metrics"`
+		ScanMetrics              hist.SyncHistogram[uint64]                                         `json:"scan-metrics"`
+		UDFMetrics               hist.SyncHistogram[uint64]                                         `json:"udf-metrics"`
+		BatchReadMetrics         hist.SyncHistogram[uint64]                                         `json:"batch-read-metrics"`
+		BatchWriteMetrics        hist.SyncHistogram[uint64]                                         `json:"batch-write-metrics"`
+		DetailedResultCodeCounts amap.Map[string, *amap.Map[commandType, *commandResultCodeMetric]] `json:"detailed-resultcode-counts"`
+		DetailedMetrics          amap.Map[string, *amap.Map[commandType, *commandMetric]]           `json:"detailed-metrics"`
 	}{}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
@@ -396,6 +526,190 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 	ns.UDFMetrics = aux.UDFMetrics
 	ns.BatchReadMetrics = aux.BatchReadMetrics
 	ns.BatchWriteMetrics = aux.BatchWriteMetrics
+	ns.DetailedResultCodeCounts = aux.DetailedResultCodeCounts
+	ns.DetailedMetrics = aux.DetailedMetrics
 
 	return nil
+}
+
+// Clone returns a deep copy of the nodeStats DetailedMetrics object
+func (ns *nodeStats) cloneDetailedMetrics() *amap.Map[string, *amap.Map[commandType, *commandMetric]] {
+	cloned := amap.New[string, *amap.Map[commandType, *commandMetric]](0)
+
+	for _, namespace := range ns.DetailedMetrics.Keys() {
+		for _, command := range ns.DetailedMetrics.Get(namespace).Keys() {
+			cloned.UpdateOrInsertFn(namespace, func(clonedInner *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
+				clonedInner.UpdateOrInsertFn(command, func(clonedCommand *commandMetric) *commandMetric {
+					clonedCommand.ConnectionAq = *ns.DetailedMetrics.Get(namespace).Get(command).ConnectionAq.Clone()
+					clonedCommand.Latency = *ns.DetailedMetrics.Get(namespace).Get(command).Latency.Clone()
+					clonedCommand.Parsing = *ns.DetailedMetrics.Get(namespace).Get(command).Parsing.Clone()
+					clonedCommand.BytesSent = *ns.DetailedMetrics.Get(namespace).Get(command).BytesSent.Clone()
+					clonedCommand.BytesReceived = *ns.DetailedMetrics.Get(namespace).Get(command).BytesReceived.Clone()
+					return clonedCommand
+				}, func() *commandMetric {
+					return ns.newCommandMetric()
+				})
+				return clonedInner
+			}, func() *amap.Map[commandType, *commandMetric] {
+				return amap.NewWithValue(command, ns.newCommandMetric())
+			})
+		}
+	}
+
+	return cloned
+}
+
+// Clone returns a deep copy of the nodeStats DetailedResultCodes object
+func (ns *nodeStats) cloneDetailedResultCodeCounts() *amap.Map[string, *amap.Map[commandType, *commandResultCodeMetric]] {
+	cloned := amap.New[string, *amap.Map[commandType, *commandResultCodeMetric]](0)
+
+	for _, namespace := range ns.DetailedResultCodeCounts.Keys() {
+		for _, command := range ns.DetailedResultCodeCounts.Get(namespace).Keys() {
+			cloned.UpdateOrInsertFn(namespace, func(clonedInner *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
+				clonedInner.UpdateOrInsertFn(command, func(clonedCommand *commandResultCodeMetric) *commandResultCodeMetric {
+					clonedCommand.ResultCodeCounts = *ns.DetailedResultCodeCounts.Get(namespace).Get(command).ResultCodeCounts.CloneMap()
+					return clonedCommand
+				}, func() *commandResultCodeMetric {
+					return ns.newCommandResultCodeMetric()
+				})
+				return clonedInner
+			}, func() *amap.Map[commandType, *commandResultCodeMetric] {
+				return amap.NewWithValue(command, ns.newCommandResultCodeMetric())
+			})
+		}
+	}
+
+	return cloned
+}
+
+// Clone and reset returns a deep copy of the nodeStats DetailedMetrics object and resets the original
+func (n *nodeStats) cloneAndResetDetailedMetrics() *amap.Map[string, *amap.Map[commandType, *commandMetric]] {
+	cloned := amap.New[string, *amap.Map[commandType, *commandMetric]](0)
+
+	for _, namespace := range n.DetailedMetrics.Keys() {
+		for _, ct := range n.DetailedMetrics.Get(namespace).Keys() {
+			cloned.UpdateOrInsertFn(namespace, func(old *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
+				old.UpdateOrInsertFn(ct, func(od *commandMetric) *commandMetric {
+					od.ConnectionAq = *n.DetailedMetrics.Get(namespace).Get(ct).ConnectionAq.CloneAndReset()
+					od.Latency = *n.DetailedMetrics.Get(namespace).Get(ct).Latency.CloneAndReset()
+					od.Parsing = *n.DetailedMetrics.Get(namespace).Get(ct).Parsing.CloneAndReset()
+					od.BytesSent = *n.DetailedMetrics.Get(namespace).Get(ct).BytesSent.CloneAndReset()
+					od.BytesReceived = *n.DetailedMetrics.Get(namespace).Get(ct).BytesReceived.CloneAndReset()
+					return od
+				}, func() *commandMetric {
+					return n.newCommandMetric()
+				})
+				return old
+			}, func() *amap.Map[commandType, *commandMetric] {
+				return amap.NewWithValue(ct, n.newCommandMetric())
+			})
+		}
+	}
+
+	return cloned
+}
+
+// Clone and reset returns a deep copy of the nodeStats DetailedResultCodes object and resets the original
+func (n *nodeStats) cloneAndResetDetailedResultCodeCounts() *amap.Map[string, *amap.Map[commandType, *commandResultCodeMetric]] {
+	cloned := amap.New[string, *amap.Map[commandType, *commandResultCodeMetric]](0)
+
+	for _, namespace := range n.DetailedResultCodeCounts.Keys() {
+		for _, ct := range n.DetailedResultCodeCounts.Get(namespace).Keys() {
+			cloned.UpdateOrInsertFn(namespace, func(old *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
+				old.UpdateOrInsertFn(ct, func(od *commandResultCodeMetric) *commandResultCodeMetric {
+					od.ResultCodeCounts = *n.DetailedResultCodeCounts.Get(namespace).Get(ct).ResultCodeCounts.CloneAndResetMap()
+					return od
+				}, func() *commandResultCodeMetric {
+					return n.newCommandResultCodeMetric()
+				})
+				return old
+			}, func() *amap.Map[commandType, *commandResultCodeMetric] {
+				return amap.NewWithValue(ct, n.newCommandResultCodeMetric())
+			})
+		}
+	}
+
+	return cloned
+}
+
+// mergeDetailedMetrics merges detailed metrics from the incoming stats into the current stats.
+func (n *nodeStats) mergeDetailedMetrics(ns *nodeStats) {
+	// Going through all the metrics and merging source and target
+	for _, namespace := range ns.DetailedMetrics.Keys() {
+		nsCommandSource := ns.DetailedMetrics.Get(namespace)
+		for _, command := range nsCommandSource.Keys() {
+			// Merging namespace
+			n.DetailedMetrics.UpdateOrInsertFn(namespace, func(nNamespaceTarget *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
+				// Merging command
+				nNamespaceTarget.UpdateOrInsertFn(command, func(nCommandTarget *commandMetric) *commandMetric {
+					// Merging metrics
+					nCommandTarget.ConnectionAq.Merge(&nsCommandSource.Get(command).ConnectionAq)
+					nCommandTarget.Latency.Merge(&nsCommandSource.Get(command).Latency)
+					nCommandTarget.Parsing.Merge(&nsCommandSource.Get(command).Parsing)
+					nCommandTarget.BytesSent.Merge(&nsCommandSource.Get(command).BytesSent)
+					nCommandTarget.BytesReceived.Merge(&nsCommandSource.Get(command).BytesReceived)
+					return nCommandTarget
+				}, func() *commandMetric {
+					return n.newCommandMetric()
+				})
+				return nNamespaceTarget
+			}, func() *amap.Map[commandType, *commandMetric] {
+				return amap.NewWithValue(command, n.newCommandMetric())
+			})
+		}
+	}
+}
+
+// mergeCommandResultCodeMetric merges detailed error metrics from the incoming stats into the current stats.
+func (n *nodeStats) mergeCommandResultCodeMetric(ns *nodeStats) {
+	// Going through all the response codes and merging the source and target
+	for _, namespace := range ns.DetailedResultCodeCounts.Keys() {
+		for _, cp := range ns.DetailedResultCodeCounts.Get(namespace).Keys() {
+			nsResultCodes := ns.DetailedResultCodeCounts.Get(namespace).Get(cp)
+
+			for _, resultCode := range nsResultCodes.ResultCodeCounts.Keys() {
+				// Merging namespaces
+				delta := nsResultCodes.ResultCodeCounts.Get(resultCode)
+				n.DetailedResultCodeCounts.UpdateOrInsertFn(namespace, func(nNamespaceTarget *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
+					// Merging commands
+					nNamespaceTarget.UpdateOrInsertFn(cp, func(nCommandTarget *commandResultCodeMetric) *commandResultCodeMetric {
+						// Merging result code
+						nCommandTarget.ResultCodeCounts.UpdateOrInsert(resultCode, func(c uint64) uint64 {
+							return c + delta
+						}, 0)
+						return nCommandTarget
+					}, func() *commandResultCodeMetric {
+						return n.newCommandResultCodeMetricWithValue(resultCode)
+					})
+					return nNamespaceTarget
+				}, func() *amap.Map[commandType, *commandResultCodeMetric] {
+					return amap.NewWithValue(cp, n.newCommandResultCodeMetric())
+				})
+			}
+		}
+	}
+}
+
+// reshapeDetailedMetrics reshapes the detailed metrics as defined by `hist.SyncHistogram`
+func (n *nodeStats) reshapeDetailedMetrics() {
+	for _, namespace := range n.DetailedMetrics.Keys() {
+		for _, command := range n.DetailedMetrics.Get(namespace).Keys() {
+			n.DetailedMetrics.Get(namespace).Get(command).ConnectionAq.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			n.DetailedMetrics.Get(namespace).Get(command).Latency.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			n.DetailedMetrics.Get(namespace).Get(command).Parsing.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			n.DetailedMetrics.Get(namespace).Get(command).BytesSent.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			n.DetailedMetrics.Get(namespace).Get(command).BytesReceived.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+		}
+	}
+}
+
+// reshapeDetailedResultCodeCounts reshapes the detailed error metrics
+func (n *nodeStats) reshapeDetailedResultCodeCounts() {
+	for _, namespace := range n.DetailedResultCodeCounts.Keys() {
+		for _, command := range n.DetailedResultCodeCounts.Get(namespace).Keys() {
+			for _, resultCode := range n.DetailedResultCodeCounts.Get(namespace).Get(command).ResultCodeCounts.Keys() {
+				n.DetailedResultCodeCounts.Get(namespace).Get(command).ResultCodeCounts.Set(resultCode, 0)
+			}
+		}
+	}
 }

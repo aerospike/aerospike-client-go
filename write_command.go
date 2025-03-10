@@ -62,6 +62,12 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 		return newCustomNodeError(cmd.node, err.resultCode())
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, resultCode)
+	}
+
 	if resultCode != types.OK {
 		if resultCode == types.KEY_NOT_FOUND_ERROR {
 			return ErrKeyNotFound.err()
@@ -77,4 +83,11 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 
 func (cmd *writeCommand) Execute() Error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *writeCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace]++
+	
+	return &response
 }

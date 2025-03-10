@@ -88,6 +88,11 @@ func (cmd *txnBatchVerifyCommand) parseRecordResults(ifc command, receiveSize in
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
+		}
+
 		// The only valid server return codes are "ok" and "not found" and "filtered out".
 		// If other return codes are received, then abort the batch.
 		if resultCode != 0 && resultCode != types.KEY_NOT_FOUND_ERROR {
@@ -185,4 +190,12 @@ func (cmd *txnBatchVerifyCommand) Execute() Error {
 
 func (cmd *txnBatchVerifyCommand) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, false)
+}
+
+func (cmd *txnBatchVerifyCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, len(cmd.keys))
+	for _, key := range cmd.keys {
+		response[key.Namespace()]++
+	}
+	return &response
 }

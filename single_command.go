@@ -61,3 +61,10 @@ func (cmd *singleCommand) emptySocket(conn *Connection) Error {
 	}
 	return nil
 }
+
+func (cmd *singleCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace]++
+
+	return &response
+}

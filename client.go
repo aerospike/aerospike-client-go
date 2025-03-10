@@ -2005,11 +2005,13 @@ func (clnt *Client) DisableMetrics() {
 func (clnt *Client) Stats() (map[string]any, Error) {
 	resStats := clnt.cluster.statsCopy()
 
-	clusterStats := *newNodeStats(clnt.cluster.MetricsPolicy())
+	mp := clnt.cluster.MetricsPolicy()
+	clusterStats := *newNodeStats(mp)
 	for _, stats := range resStats {
 		clusterStats.aggregate(&stats)
 	}
 
+	clusterStats.StatLabels = clnt.cluster.getNodeLabels(mp)
 	resStats["cluster-aggregated-stats"] = clusterStats
 
 	b, err := json.Marshal(resStats)
