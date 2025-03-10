@@ -48,6 +48,12 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) Error {
 		return newCustomNodeError(cmd.node, err.resultCode())
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, resultCode)
+	}
+
 	switch resultCode {
 	case types.OK:
 		return nil
@@ -70,4 +76,11 @@ func (cmd *touchCommand) Execute() Error {
 
 func (cmd *touchCommand) commandType() commandType {
 	return ttPut
+}
+
+func (cmd *touchCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace] = 1
+
+	return &response
 }

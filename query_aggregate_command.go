@@ -63,6 +63,12 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
+		}
+
 		if resultCode != 0 {
 			if resultCode == types.KEY_NOT_FOUND_ERROR {
 				// consume the rest of the input buffer from the socket
@@ -152,4 +158,11 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 	}
 
 	return true, nil
+}
+
+func (cmd *queryAggregateCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.statement.Namespace]++
+
+	return &response
 }

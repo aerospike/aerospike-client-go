@@ -52,6 +52,12 @@ func (cmd *existsCommand) parseResult(ifc command, conn *Connection) Error {
 		return err
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, rp.resultCode)
+	}
+
 	switch rp.resultCode {
 	case types.OK:
 		cmd.exists = true
@@ -77,4 +83,11 @@ func (cmd *existsCommand) Execute() Error {
 
 func (cmd *existsCommand) commandType() commandType {
 	return ttExists
+}
+
+func (cmd *existsCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace]++
+
+	return &response
 }

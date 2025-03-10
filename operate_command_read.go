@@ -47,3 +47,10 @@ func (cmd *operateCommandRead) Execute() Error {
 func (cmd *operateCommandRead) commandType() commandType {
 	return ttOperate
 }
+
+func (cmd *operateCommandRead) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64)
+	response[cmd.key.namespace]++
+
+	return &response
+}

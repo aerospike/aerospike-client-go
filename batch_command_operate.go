@@ -162,6 +162,12 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 			continue
 		}
 
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
+		}
+
 		if resultCode == 0 {
 			if cmd.objects == nil {
 				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
@@ -300,4 +306,21 @@ func (cmd *batchCommandOperate) commandType() commandType {
 
 func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchOperateNodeListIfcRetry(cluster, cmd.policy, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
+}
+
+func (cmd *batchCommandOperate) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, len(cmd.records))
+	for _, br := range cmd.records {
+		switch br := br.(type) {
+		case *BatchRead:
+			response[br.Key.namespace]++
+		case *BatchWrite:
+			response[br.Key.namespace]++
+		case *BatchDelete:
+			response[br.Key.namespace]++
+		case *BatchUDF:
+			response[br.Key.namespace]++
+		}
+	}
+	return &response
 }

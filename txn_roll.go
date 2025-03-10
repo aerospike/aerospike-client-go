@@ -239,3 +239,4 @@ func (txr *TxnRoll) Close(writePolicy *WritePolicy, txnKey *Key) Error {
 
 	return nil
 }
+

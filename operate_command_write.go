@@ -49,6 +49,12 @@ func (cmd *operateCommandWrite) parseResult(ifc command, conn *Connection) Error
 		return err
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, rp.resultCode)
+	}
+
 	switch rp.resultCode {
 	case types.OK:
 		var err Error
@@ -76,4 +82,11 @@ func (cmd *operateCommandWrite) commandType() commandType {
 
 func (cmd *operateCommandWrite) GetRecord() *Record {
 	return cmd.record
+}
+
+func (cmd *operateCommandWrite) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace]++
+
+	return &response
 }

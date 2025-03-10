@@ -91,6 +91,12 @@ func (cmd *writePayloadCommand) parseResult(ifc command, conn *Connection) Error
 
 	resultCode := cmd.dataBuffer[13] & 0xFF
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, types.ResultCode(resultCode))
+	}
+
 	if resultCode != 0 {
 		if resultCode == byte(types.KEY_NOT_FOUND_ERROR) {
 			return ErrKeyNotFound.err()
@@ -113,4 +119,11 @@ func (cmd *writePayloadCommand) Execute() Error {
 
 func (cmd *writePayloadCommand) commandType() commandType {
 	return ttPut
+}
+
+func (cmd *writePayloadCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace]++
+
+	return &response
 }

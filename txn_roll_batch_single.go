@@ -88,6 +88,12 @@ func (cmd *batchSingleTxnRollCommand) parseResult(ifc command, conn *Connection)
 		return err
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, rp.resultCode)
+	}
+
 	if rp.resultCode == 0 {
 		cmd.record.ResultCode = types.OK
 	} else {

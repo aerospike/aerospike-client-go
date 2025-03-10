@@ -56,6 +56,12 @@ func (cmd *txnCloseCommand) parseResult(ifc command, conn *Connection) Error {
 		return newCustomNodeError(cmd.node, err.resultCode())
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, resultCode)
+	}
+
 	if resultCode == 0 || resultCode == types.KEY_NOT_FOUND_ERROR {
 		return nil
 	}
@@ -69,4 +75,11 @@ func (cmd *txnCloseCommand) Execute() Error {
 
 func (cmd *txnCloseCommand) onInDoubt() {
 	return
+}
+
+func (cmd *txnCloseCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace]++
+
+	return &response
 }

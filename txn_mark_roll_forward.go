@@ -52,6 +52,12 @@ func (cmd *txnMarkRollForwardCommand) parseResult(ifc command, conn *Connection)
 		return newCustomNodeError(cmd.node, err.resultCode())
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, resultCode)
+	}
+
 	if resultCode == 0 || resultCode == types.MRT_COMMITTED {
 		return nil
 	}
@@ -61,4 +67,11 @@ func (cmd *txnMarkRollForwardCommand) parseResult(ifc command, conn *Connection)
 
 func (cmd *txnMarkRollForwardCommand) Execute() Error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *txnMarkRollForwardCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace]++
+
+	return &response
 }

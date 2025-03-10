@@ -59,6 +59,12 @@ func (cmd *txnAddKeysCommand) parseResult(ifc command, conn *Connection) Error {
 	}
 	rp.parseTranDeadline(cmd.txn)
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, rp.resultCode)
+	}
+
 	if rp.resultCode != types.OK {
 		return newCustomNodeError(cmd.node, rp.resultCode)
 	}
@@ -68,4 +74,11 @@ func (cmd *txnAddKeysCommand) parseResult(ifc command, conn *Connection) Error {
 
 func (cmd *txnAddKeysCommand) Execute() Error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *txnAddKeysCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace]++
+
+	return &response
 }

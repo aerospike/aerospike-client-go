@@ -66,3 +66,10 @@ func (cmd *queryPartitionCommand) Execute() Error {
 	}
 	return err
 }
+
+func (cmd *queryPartitionCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.statement.Namespace]++
+
+	return &response
+}

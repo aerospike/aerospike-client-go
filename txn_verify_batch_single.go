@@ -126,6 +126,13 @@ func (cmd *batchSingleTxnVerifyCommand) parseResult(ifc command, conn *Connectio
 
 	headerLength := int(cmd.dataBuffer[8])
 	resultCode := types.ResultCode(cmd.dataBuffer[13] & 0xFF)
+
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, resultCode)
+	}
+
 	// generation := Buffer.BytesToUint32(cmd.dataBuffer, 14)
 	// expiration := types.TTL(Buffer.BytesToUint32(cmd.dataBuffer, 18))
 	// fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 26)) // almost certainly 0
@@ -171,4 +178,11 @@ func (cmd *batchSingleTxnVerifyCommand) Execute() Error {
 
 func (cmd *batchSingleTxnVerifyCommand) commandType() commandType {
 	return ttPut
+}
+
+func (cmd *batchSingleTxnVerifyCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace]++
+
+	return &response
 }

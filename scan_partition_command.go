@@ -77,3 +77,10 @@ func (cmd *scanPartitionCommand) Execute() Error {
 	}
 	return err
 }
+
+func (cmd *scanPartitionCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.namespace]++
+
+	return &response
+}

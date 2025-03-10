@@ -98,3 +98,10 @@ func (cmd *baseReadCommand) Execute() Error {
 func (cmd *baseReadCommand) commandType() commandType {
 	return ttGet
 }
+
+func (cmd *baseReadCommand) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, 1)
+	response[cmd.key.namespace] = 1
+
+	return &response
+}

@@ -72,18 +72,17 @@ func (cmd *batchCommandExists) writeBuffer(ifc command) Error {
 func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	//Parse each message response and add it to the result array
 	cmd.dataOffset = 0
-
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
 			return false, err
 		}
 
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
-		// generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
-		// expiration := types.TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
+
 		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
+
 		if len(cmd.keys) > batchIndex {
 			err := cmd.parseFieldsRead(fieldCount, cmd.keys[batchIndex])
 			if err != nil {
@@ -106,6 +105,12 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 		// If cmd is the end marker of the response, do not proceed further
 		if (int(info3) & _INFO3_LAST) == _INFO3_LAST {
 			return false, nil
+		}
+
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
 		}
 
 		if opCount > 0 {
@@ -162,4 +167,13 @@ func (cmd *batchCommandExists) Execute() Error {
 
 func (cmd *batchCommandExists) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, nil, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, false)
+}
+
+func (cmd *batchCommandExists) getNamespace() *map[string]uint64 {
+	response := make(map[string]uint64, len(cmd.keys))
+	for _, key := range cmd.keys {
+		response[key.namespace]++
+	}
+
+	return &response
 }

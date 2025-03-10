@@ -35,12 +35,20 @@ import (
 
 func isJsonObject(ifc interface{}) bool {
 	switch ifc := ifc.(type) {
-	case float64, float32, int, int64, uint64:
+	case float64, float32, int, int64, uint64, string:
 		return true
 	case []interface{}:
 		for _, v := range ifc {
 			switch v.(type) {
-			case float64, float32, int, int64, uint64:
+			case float64, float32, int, int64, uint64, string:
+				return true
+			case map[string]interface{}:
+				for _, v := range ifc {
+					if !isJsonObject(v) {
+						return false
+					}
+				}
+				return true
 			default:
 				return false
 			}

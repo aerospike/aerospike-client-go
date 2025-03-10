@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	amap "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
+
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	"github.com/aerospike/aerospike-client-go/v8/types/pool"
@@ -151,6 +153,38 @@ var (
 	buffPool = pool.NewTieredBufferPool(MinBufferSize, PoolCutOffBufferSize)
 )
 
+// Return string representation of command type.
+func (ct commandType) String() string {
+	switch ct {
+	case ttNone:
+		return "None"
+	case ttGet:
+		return "Get"
+	case ttGetHeader:
+		return "GetHeader"
+	case ttExists:
+		return "Exists"
+	case ttPut:
+		return "Put"
+	case ttDelete:
+		return "Delete"
+	case ttOperate:
+		return "Operate"
+	case ttQuery:
+		return "Query"
+	case ttScan:
+		return "Scan"
+	case ttUDF:
+		return "UDF"
+	case ttBatchRead:
+		return "BatchRead"
+	case ttBatchWrite:
+		return "BatchWrite"
+	default:
+		return fmt.Sprintf("commandType(%d)", int(ct))
+	}
+}
+
 // command interface describes all commands available
 type command interface {
 	getPolicy(ifc command) Policy
@@ -173,6 +207,8 @@ type command interface {
 	executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) Error
 
 	canPutConnBack() bool
+
+	getNamespace() *map[string]uint64
 
 	// Executes the command
 	Execute() Error
@@ -3605,7 +3641,6 @@ func (cmd *baseCommand) executeIter(ifc command, iter int) Error {
 func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) (errChain Error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
-
 	transStart := time.Now()
 
 	notFirstIteration := false
@@ -3613,7 +3648,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	loopCount := 0
 
 	var err Error
-
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
 		cmd.commandSentCounter++
@@ -3675,7 +3709,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		if policy.TotalTimeout > 0 && time.Now().After(deadline) {
 			break
 		}
-
 		// set command node, so when you return a record it has the node
 		cmd.node, err = ifc.getNode(ifc)
 		if cmd.node == nil || !cmd.node.IsActive() || err != nil {
@@ -3690,6 +3723,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			continue
 		}
 
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+
 		// check if node has encountered too many errors
 		if err = cmd.node.validateErrorCount(); err != nil {
 			isClientTimeout = false
@@ -3703,7 +3738,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			continue
 		}
 
-		cmd.conn, err = ifc.getConnection(policy)
+		if metricsEnabled {
+			start := time.Now()
+			cmd.conn, err = ifc.getConnection(policy)
+			// Capture connection acquire time.
+			cmd.applyDetailedMetricsConnectionAq(ifc, start)
+		} else {
+			cmd.conn, err = ifc.getConnection(policy)
+		}
+
 		if err != nil {
 			isClientTimeout = false
 
@@ -3734,6 +3777,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
+
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 
@@ -3768,7 +3812,17 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 		// Send command.
 		cmd.commandWasSent = true
-		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
+		var dataReceived int
+		if metricsEnabled {
+			start := time.Now()
+			dataSent := len(cmd.dataBuffer[:cmd.dataOffset])
+			dataReceived, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
+			// Capture sent bytes and transmission time.
+			cmd.applyDetailedMetricsDataSizeAndLatency(ifc, dataSent, dataReceived, start)
+		} else {
+			_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
+		}
+
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 
@@ -3790,7 +3844,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		// Parse results.
-		err = ifc.parseResult(ifc, cmd.conn)
+		if metricsEnabled {
+			start := time.Now()
+			err = ifc.parseResult(ifc, cmd.conn)
+			// Capture timing for parsing results.
+			cmd.applyDetailedMetricsParsing(ifc, start)
+		} else {
+			err = ifc.parseResult(ifc, cmd.conn)
+		}
+
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 
@@ -3947,6 +4009,7 @@ func applyMetrics(tt commandType, metrics *nodeStats, s time.Time) {
 	}
 }
 
+// TODO: This is not used anywhere. Remove?
 func (cmd *baseCommand) parseVersion(fieldCount int) *uint64 {
 	var version *uint64
 
@@ -3964,4 +4027,73 @@ func (cmd *baseCommand) parseVersion(fieldCount int) *uint64 {
 		cmd.dataOffset += int(size)
 	}
 	return version
+}
+
+// applyDetailedMetricsParsing updates the detailed metrics for parsing time.
+func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.Time) {
+	if cmd.node != nil && cmd.node.cluster != nil && cmd.node.cluster.MetricsEnabled() {
+		end := uint64(time.Since(startTime).Microseconds())
+		for namespace := range *ifc.getNamespace() {
+			if namespace != "" {
+				cmd.node.stats.DetailedMetrics.UpdateOrInsertFn(namespace, func(a *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
+					a.UpdateOrInsertFn(ifc.commandType(), func(b *commandMetric) *commandMetric {
+						b.Parsing.Add(end)
+						return b
+					}, func() *commandMetric {
+						return cmd.node.stats.newCommandMetric()
+					})
+					return a
+				}, func() *amap.Map[commandType, *commandMetric] {
+					return amap.NewWithValue(ifc.commandType(), cmd.node.stats.newCommandMetric())
+				})
+			}
+		}
+	}
+}
+
+// applyDetailedMetricsConnectionAq updates the detailed metrics for connection acquire time.
+func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime time.Time) {
+	if cmd.node != nil && cmd.node.cluster != nil && cmd.node.cluster.MetricsEnabled() {
+		end := uint64(time.Since(startTime).Microseconds())
+		for namespace := range *ifc.getNamespace() {
+			if namespace != "" {
+				cmd.node.stats.DetailedMetrics.UpdateOrInsertFn(namespace, func(a *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
+					a.UpdateOrInsertFn(ifc.commandType(), func(b *commandMetric) *commandMetric {
+						b.ConnectionAq.Add(end)
+						return b
+					}, func() *commandMetric {
+						return cmd.node.stats.newCommandMetric()
+					})
+					return a
+				}, func() *amap.Map[commandType, *commandMetric] {
+					return amap.NewWithValue(ifc.commandType(), cmd.node.stats.newCommandMetric())
+				})
+			}
+		}
+	}
+}
+
+// applyDetailedMetricsDataSizeAndLatency updates the detailed metrics for bytes sent and transmission time.
+func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatency(ifc command, bytesSent int, bytesReceived int, startTime time.Time) {
+	if cmd.node != nil && cmd.node.cluster != nil && cmd.node.cluster.MetricsEnabled() {
+		end := uint64(time.Since(startTime).Microseconds())
+		for namespace := range *ifc.getNamespace() {
+			if namespace != "" {
+				cmd.node.stats.DetailedMetrics.UpdateOrInsertFn(namespace, func(a *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
+					a.UpdateOrInsertFn(ifc.commandType(), func(b *commandMetric) *commandMetric {
+						b.BytesReceived.Add(uint64(bytesReceived))
+						b.BytesSent.Add(uint64(bytesSent))
+						b.Latency.Add(end)
+						return b
+					}, func() *commandMetric {
+						return cmd.node.stats.newCommandMetric()
+					})
+					return a
+				}, func() *amap.Map[commandType, *commandMetric] {
+					return amap.NewWithValue(ifc.commandType(), cmd.node.stats.newCommandMetric())
+				})
+			}
+		}
+
+	}
 }
