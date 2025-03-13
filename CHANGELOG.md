@@ -1,5 +1,13 @@
 # Change History
 
+## March 13 2025: v6.16.0
+
+  Minor backported fix release.
+
+- **Fixes**
+  - [CLIENT-3156] Fix an issue where rack policy always returns the master node. Resolves #455
+  - [CLIENT-3348] Parsing error during node rack update.
+
 ## April 10 2024: v6.15.1
 
 This release updates the dependencies to mitigate security issues.

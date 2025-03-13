@@ -166,7 +166,7 @@ var _ = gg.Describe("Aerospike", func() {
 				c, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
 				gm.Expect(err).NotTo(gm.HaveOccurred())
 
-				info := info(c, "racks:")
+				info := info(c, "rack-ids")
 				if strings.HasPrefix(strings.ToUpper(info), "ERROR") {
 					gg.Skip("Skipping RackAware test since it is not supported on this cluster...")
 				}
