@@ -564,7 +564,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 		return nil, ErrConnectionPoolEmpty.err()
 	}
 
-	if err = conn.SetTimeout(totalTimeout, socketTimeout); err != nil {
+	if err = conn.setTimeout(totalTimeout, socketTimeout); err != nil {
 		nd.stats.ConnectionsFailed.IncrementAndGet()
 
 		// Do not put back into pool.
@@ -744,7 +744,7 @@ func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection)) (
 		}
 
 		// Set timeout for tend conn
-		if err = (*conn).SetTimeout(timeout, timeout); err != nil {
+		if err = (*conn).setTimeout(timeout, timeout); err != nil {
 			return
 		}
 

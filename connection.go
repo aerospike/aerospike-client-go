@@ -173,7 +173,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, Error) {
 	newConn.limitReader = &io.LimitedReader{R: conn, N: 0}
 
 	// set timeout at the last possible moment
-	if err := newConn.SetTimeout(timeout, timeout); err != nil {
+	if err := newConn.setTimeout(timeout, timeout); err != nil {
 		newConn.Close()
 		return nil, err
 	}
@@ -417,7 +417,16 @@ func (ctn *Connection) updateDeadline() Error {
 }
 
 // SetTimeout sets connection timeout for both read and write operations.
-func (ctn *Connection) SetTimeout(totalTimeout, socketTimeout time.Duration) Error {
+func (ctn *Connection) setTimeout(totalTimeout, socketTimeout time.Duration) Error {
+	var deadline time.Time
+	if totalTimeout > 0 {
+		deadline = time.Now().Add(totalTimeout)
+	}
+	return ctn.SetTimeout(deadline, socketTimeout)
+}
+
+// SetTimeout sets connection timeout for both read and write operations.
+func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duration) Error {
 	now := time.Now()
 	ctn.socketTimeout = _DEFAULT_TIMEOUT
 	ctn.deadline = time.Time{}
@@ -427,10 +436,10 @@ func (ctn *Connection) SetTimeout(totalTimeout, socketTimeout time.Duration) Err
 	}
 
 	// keep the deadline.IsZero() == true if totalTimeout is not set
-	if totalTimeout > 0 {
-		ctn.deadline = now.Add(totalTimeout)
+	if !deadline.IsZero() {
+		ctn.deadline = deadline
 		if socketTimeout <= 0 {
-			ctn.socketTimeout = totalTimeout
+			ctn.socketTimeout = deadline.Sub(now)
 		}
 	}
 	return nil

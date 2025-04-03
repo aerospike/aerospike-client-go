@@ -93,7 +93,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 
 	lcmd.writeSize()
 
-	conn.SetTimeout(policy.LoginTimeout, policy.LoginTimeout)
+	conn.setTimeout(policy.LoginTimeout, policy.LoginTimeout)
 
 	if _, err := conn.Write(lcmd.dataBuffer[:lcmd.dataOffset]); err != nil {
 		return err
