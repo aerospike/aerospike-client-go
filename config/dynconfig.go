@@ -1,0 +1,250 @@
+// Copyright 2014-2022 Aerospike, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package dynconfig
+
+import "time"
+
+// Package dynconfig provides a configuration provider interface and structures
+// for loading and managing dynamic configurations in a system.
+// It includes static and dynamic configurations for various components such as
+// client, read, write, query, scan, batch operations, transactions, and metrics.
+// The configurations are defined using YAML tags for easy serialization and
+// deserialization.
+type ConfigProvider interface {
+	LoadConfig(dsn string) *Config
+}
+
+// ----------------------------------------------------------------
+// Structures used to serialize and deserialize the configuration
+// ----------------------------------------------------------------
+type Config struct {
+	Static  *StaticConfig  `yaml:"static"`
+	Dynamic *DynamicConfig `yaml:"dynamic"`
+}
+
+type StaticConfig struct {
+	Client *Client `yaml:"client"`
+}
+
+type DynamicConfig struct {
+	Client      *Client      `yaml:"client"`
+	Read        *Read        `yaml:"read"`
+	Write       *Write       `yaml:"write"`
+	Query       *Query       `yaml:"query"`
+	Scan        *Scan        `yaml:"scan"`
+	BatchRead   *BatchRead   `yaml:"batch_read"`
+	BatchWrite  *BatchWrite  `yaml:"batch_write"`
+	BatchUdf    *BatchUdf    `yaml:"batch_udf"`
+	BatchDelete *BatchDelete `yaml:"batch_delete"`
+	TxnRoll     *TxnRoll     `yaml:"txn_roll"`
+	TxnVerify   *TxnVerify   `yaml:"txn_verify"`
+	Metrics     *Metrics     `yaml:"metrics"`
+}
+
+type Client struct {
+	// static config
+	ConfigInterval        *int `yaml:"config_interval"`
+	ConnectionQueueSize   *int `yaml:"connection_queue_size"`
+	MinConnectionsPerNode *int `yaml:"min_connections_per_node"`
+
+	// dynamic config
+	Timeout             *Duration `yaml:"timeout"`
+	ErrorRateWindow     *int      `yaml:"error_rate_window"`
+	MaxErrorRate        *int      `yaml:"max_error_rate"`
+	LoginTimeout        *int      `yaml:"login_timeout"`
+	RackAware           *bool     `yaml:"rack_aware"`
+	RackIds             *[]int    `yaml:"rack_ids"`
+	TendInterval        *int      `yaml:"tend_interval"`
+	UseServiceAlternate *bool     `yaml:"use_service_alternate"`
+}
+
+type Read struct {
+	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
+	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
+	Replica             *Replica    `yaml:"replica"`
+	SleepBetweenRetries *Duration   `yaml:"sleep_between_retries"`
+	SocketTimeout       *Duration   `yaml:"socket_timeout"`
+	TotalTimeout        *Duration   `yaml:"total_timeout"`
+	MaxRetries          *int        `yaml:"max_retries"`
+}
+
+type Write struct {
+	Replica             *Replica  `yaml:"replica"`
+	SendKey             *bool     `yaml:"send_key"`
+	SleepBetweenRetries *Duration `yaml:"sleep_between_retries"`
+	SocketTimeout       *Duration `yaml:"socket_timeout"`
+	TotalTimeout        *Duration `yaml:"total_timeout"`
+	MaxRetries          *int      `yaml:"max_retries"`
+	DurableDelete       *bool     `yaml:"durable_delete"`
+}
+
+type Query struct {
+	ReadModeAp          *ReadModeAp    `yaml:"read_mode_ap"`
+	ReadModeSc          *ReadModeSc    `yaml:"read_mode_sc"`
+	Replica             *Replica       `yaml:"replica"`
+	SleepBetweenRetries *Duration      `yaml:"sleep_between_retries"`
+	SocketTimeout       *Duration      `yaml:"socket_timeout"`
+	TotalTimeout        *Duration      `yaml:"total_timeout"`
+	MaxRetries          *int           `yaml:"max_retries"`
+	IncludeBinData      *bool          `yaml:"include_bin_data"`
+	RecordQueueSize     *int           `yaml:"record_queue_size"`
+	ExpectedDuration    *QueryDuration `yaml:"expected_duration"`
+}
+
+type Scan struct {
+	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
+	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
+	Replica             *Replica    `yaml:"replica"`
+	SleepBetweenRetries *Duration   `yaml:"sleep_between_retries"`
+	SocketTimeout       *Duration   `yaml:"socket_timeout"`
+	TimeoutDelay        *int        `yaml:"timeout_delay"`
+	TotalTimeout        *Duration   `yaml:"total_timeout"`
+	MaxRetries          *int        `yaml:"max_retries"`
+	ConcurrentNodes     *int        `yaml:"concurrent_nodes"`
+	MaxConcurrentNodes  *int        `yaml:"max_concurrent_nodes"`
+}
+
+type BatchRead struct {
+	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
+	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
+	Replica             *Replica    `yaml:"replica"`
+	SleepBetweenRetries *Duration   `yaml:"sleep_between_retries"`
+	SocketTimeout       *Duration   `yaml:"socket_timeout"`
+	TotalTimeout        *Duration   `yaml:"total_timeout"`
+	MaxRetries          *int        `yaml:"max_retries"`
+	MaxConcurrentThread *int        `yaml:"max_concurrent_thread"`
+	AllowInline         *bool       `yaml:"allow_inline"`
+	AllowInlineSSD      *bool       `yaml:"allow_inline_ssd"`
+	RespondAllKeys      *bool       `yaml:"respond_all_keys"`
+}
+
+type BatchWrite struct {
+	Replica             *Replica  `yaml:"replica"`
+	SleepBetweenRetries *Duration `yaml:"sleep_between_retries"`
+	SocketTimeout       *Duration `yaml:"socket_timeout"`
+	TotalTimeout        *Duration `yaml:"total_timeout"`
+	MaxRetries          *int      `yaml:"max_retries"`
+	DurableDelete       *bool     `yaml:"durable_delete"`
+	SendKey             *bool     `yaml:"send_key"`
+	MaxConcurrentThread *int      `yaml:"max_concurrent_thread"`
+	AllowInline         *bool     `yaml:"allow_inline"`
+	AllowInlineSSD      *bool     `yaml:"allow_inline_ssd"`
+	RespondAllKeys      *bool     `yaml:"respond_all_keys"`
+}
+
+type BatchUdf struct {
+	DurableDelete *bool `yaml:"durable_delete"`
+	SendKey       *bool `yaml:"send_key"`
+}
+
+type BatchDelete struct {
+	DurableDelete *bool `yaml:"durable_delete"`
+	SendKey       *bool `yaml:"send_key"`
+}
+
+type TxnRoll struct {
+	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
+	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
+	Replica             *Replica    `yaml:"replica"`
+	SleepBetweenRetries *Duration   `yaml:"sleep_between_retries"`
+	SocketTimeout       *Duration   `yaml:"socket_timeout"`
+	TotalTimeout        *Duration   `yaml:"total_timeout"`
+	MaxRetries          *int        `yaml:"max_retries"`
+	AllowInline         *bool       `yaml:"allow_inline"`
+	AllowInlineSSD      *bool       `yaml:"allow_inline_ssd"`
+	RespondAllKeys      *bool       `yaml:"respond_all_keys"`
+}
+
+type TxnVerify struct {
+	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
+	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
+	Replica             *Replica    `yaml:"replica"`
+	SleepBetweenRetries *Duration   `yaml:"sleep_between_retries"`
+	SocketTimeout       *Duration   `yaml:"socket_timeout"`
+	TotalTimeout        *Duration   `yaml:"total_timeout"`
+	MaxRetries          *int        `yaml:"max_retries"`
+	AllowInline         *bool       `yaml:"allow_inline"`
+	AllowInlineSSD      *bool       `yaml:"allow_inline_ssd"`
+	RespondAllKeys      *bool       `yaml:"respond_all_keys"`
+}
+
+type Metrics struct {
+	Enable         *bool `yaml:"enable"`
+	LatencyColumns *int  `yaml:"latency_columns"`
+	LatencyBase    *int  `yaml:"latency_base"`
+}
+
+// ----------------------------------------------------------------
+// Enum types
+// ----------------------------------------------------------------
+type ReadModeAp int
+
+const (
+	ONE ReadModeAp = iota
+	ALL
+)
+
+var readModeAp = map[ReadModeAp]string{
+	ONE: "ONE",
+	ALL: "ALL",
+}
+
+type ReadModeSc int
+
+const (
+	SESSION ReadModeSc = iota
+	LINEARIZE
+	ALLOWREPLICA
+	ALLOWUNAVAILABLE
+)
+
+var readModeSc = map[ReadModeSc]string{
+	SESSION:          "SESSION",
+	LINEARIZE:        "LINEARIZE",
+	ALLOWREPLICA:     "ALLOW_REPLICA",
+	ALLOWUNAVAILABLE: "ALLOW_UNAVAILABLE",
+}
+
+type Replica int
+
+const (
+	MASTER Replica = iota
+	MASTER_PROLES
+	SEQUENCE
+	PREFER_RACK
+)
+
+var replica = map[Replica]string{
+	MASTER:        "MASTER",
+	MASTER_PROLES: "MASTER_PROLES",
+	SEQUENCE:      "SEQUENCE",
+	PREFER_RACK:   "PREFER_RACK",
+}
+
+type QueryDuration int
+
+const (
+	LONG QueryDuration = iota
+	SHORT
+	LONG_RELAX_AP
+)
+
+var queryDuration = map[QueryDuration]string{
+	LONG:          "LONG",
+	SHORT:         "SHORT",
+	LONG_RELAX_AP: "LONG_RELAX_AP",
+}
+
+type Duration time.Duration

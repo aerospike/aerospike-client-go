@@ -14,7 +14,11 @@
 
 package aerospike
 
-import "time"
+import (
+	"time"
+
+	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
+)
 
 // Transaction policy fields used to batch roll forward/backward records on
 // commit or abort. Used a placeholder for now as there are no additional fields beyond BatchPolicy.
@@ -34,4 +38,98 @@ func NewTxnRollPolicy() *TxnRollPolicy {
 	return &TxnRollPolicy{
 		BatchPolicy: mp,
 	}
+}
+
+func NewTxnRollPolicyOrDefaultFromCache(dynConfig *DynConfig) *TxnRollPolicy {
+	if dynConfig == nil {
+		return NewTxnRollPolicy()
+	}
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	return dynConfig.mappedPolicies.Get(pc.TXN_ROLL_POLICY).(*TxnRollPolicy)
+}
+
+func copyTxnRollPolicy(src *TxnRollPolicy) *TxnRollPolicy {
+	response := NewTxnRollPolicy()
+
+	response.Txn = src.Txn
+	response.FilterExpression = src.FilterExpression
+	response.ReadModeAP = src.ReadModeAP
+	response.ReadModeSC = src.ReadModeSC
+	response.TotalTimeout = src.TotalTimeout
+	response.SocketTimeout = src.SocketTimeout
+	response.MaxRetries = src.MaxRetries
+	response.ReadTouchTTLPercent = src.ReadTouchTTLPercent
+	response.SleepBetweenRetries = src.SleepBetweenRetries
+	response.SleepMultiplier = src.SleepMultiplier
+	response.ExitFastOnExhaustedConnectionPool = src.ExitFastOnExhaustedConnectionPool
+	response.SendKey = src.SendKey
+	response.UseCompression = src.UseCompression
+	response.ReplicaPolicy = src.ReplicaPolicy
+
+	return response
+}
+
+// applyConfigToTxnRollPolicy applies the dynamic configuration and generates a new policy.
+func applyConfigToTxnRollPolicy(policy *TxnRollPolicy, dynConfig *DynConfig) *TxnRollPolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.getConfigIfNotInitialized()
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	if policy == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.mappedPolicies.Get(pc.TXN_ROLL_POLICY).(*TxnRollPolicy)
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.TxnRoll != nil {
+		// Dynamic configuration is exists for policy in question.
+		var responseTxnRollPolicy *TxnRollPolicy
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		responseTxnRollPolicy = copyTxnRollPolicy(policy)
+		responseTxnRollPolicy = mapDynamicTxnRollPolicy(responseTxnRollPolicy, dynConfig)
+
+		return responseTxnRollPolicy
+	} else {
+		return policy
+	}
+}
+
+func mapDynamicTxnRollPolicy(policy *TxnRollPolicy, dynConfig *DynConfig) *TxnRollPolicy {
+	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.TxnRoll != nil {
+		if dynConfig.config.Dynamic.TxnRoll.ReadModeAp != nil {
+			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.TxnRoll.ReadModeAp)
+		}
+		if dynConfig.config.Dynamic.TxnRoll.ReadModeSc != nil {
+			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnRoll.ReadModeSc)
+		}
+		if dynConfig.config.Dynamic.TxnRoll.Replica != nil {
+			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnRoll.Replica)
+		}
+		if dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries != nil {
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries)
+		}
+		if dynConfig.config.Dynamic.TxnRoll.SocketTimeout != nil {
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SocketTimeout)
+		}
+		if dynConfig.config.Dynamic.TxnRoll.TotalTimeout != nil {
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.TotalTimeout)
+		}
+		if dynConfig.config.Dynamic.TxnRoll.MaxRetries != nil {
+			policy.MaxRetries = *dynConfig.config.Dynamic.TxnRoll.MaxRetries
+		}
+		if dynConfig.config.Dynamic.TxnRoll.RespondAllKeys != nil {
+			policy.RespondAllKeys = *dynConfig.config.Dynamic.TxnRoll.RespondAllKeys
+		}
+	}
+
+	return policy
 }

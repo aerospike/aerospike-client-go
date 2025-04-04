@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 	"github.com/aerospike/aerospike-client-go/v8/types/histogram"
 )
 
@@ -76,4 +78,93 @@ func DefaultMetricsPolicyWithLabels(pairs ...map[string]string) *MetricsPolicy {
 	mp.Labels = labels
 
 	return &mp
+}
+
+// copyMetricsPolicy creates a new BasePolicy instance and copies the values from the source policy.
+func copyMetricsPolicy(src *MetricsPolicy) *MetricsPolicy {
+	if src == nil {
+		return nil
+	}
+
+	response := DefaultMetricsPolicy()
+
+	response.HistogramType = src.HistogramType
+	response.LatencyColumns = src.LatencyColumns
+	response.LatencyBase = src.LatencyBase
+
+	return response
+}
+
+// metricsSyncCallBack is a callback function that is called when the dynamic configuration changes.
+// Changes will only be made if the there is a discrepancy between the current configuration and the new configuration.
+func metricsSyncCallBack(config *dynconfig.Config, client *Client) {
+	// Metrics are not enabled but configuration is set to enable metrics
+	if client != nil && !client.MetricsEnabled() && config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil && *config.Dynamic.Metrics.Enable {
+		client.cluster.EnableMetrics(applyConfigToMetricsPolicyNoLock(nil, client.dynConfig))
+	} else if client != nil && client.MetricsEnabled() && config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil && !*config.Dynamic.Metrics.Enable {
+		// Metrics are enabled but configuration is set to disable metrics
+		client.cluster.DisableMetrics()
+	}
+}
+
+// applyConfigToMetricsPolicyCore implements the configuration logic without locking.
+func applyConfigToMetricsPolicyCore(policy *MetricsPolicy, dynConfig *DynConfig) *MetricsPolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.getConfigIfNotInitialized()
+
+	if config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil {
+		var responsePolicy *MetricsPolicy
+		if policy != nil {
+			// Copy the existing policy to preserve custom settings.
+			responsePolicy = copyMetricsPolicy(policy)
+			responsePolicy = mapDynamicMetricsPolicy(responsePolicy, dynConfig)
+
+			// If we have found entry in cache no need to map again return it.
+			return responsePolicy
+		} else {
+			// Passed in policy is nil, fetch mapped default policy from cache.
+			responsePolicy = dynConfig.mappedPolicies.Get(pc.METRICS_POLICY).(*MetricsPolicy)
+
+			// If we have found entry in cache no need to map again return it.
+			return responsePolicy
+		}
+	} else {
+		return policy
+	}
+}
+
+// applyConfigToMetricsPolicy acquires a read lock before applying configuration.
+func applyConfigToMetricsPolicy(policy *MetricsPolicy, dynConfig *DynConfig) *MetricsPolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+	return applyConfigToMetricsPolicyCore(policy, dynConfig)
+}
+
+// applyConfigToMetricsPolicyNoLock applies configuration logic without any locking.
+func applyConfigToMetricsPolicyNoLock(policy *MetricsPolicy, dynConfig *DynConfig) *MetricsPolicy {
+	return applyConfigToMetricsPolicyCore(policy, dynConfig)
+}
+
+func mapDynamicMetricsPolicy(policy *MetricsPolicy, dynConfig *DynConfig) *MetricsPolicy {
+	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.Metrics != nil {
+		if dynConfig.config.Dynamic.Metrics.LatencyColumns != nil {
+			policy.LatencyColumns = *dynConfig.config.Dynamic.Metrics.LatencyColumns
+		}
+		if dynConfig.config.Dynamic.Metrics.LatencyBase != nil {
+			policy.LatencyBase = *dynConfig.config.Dynamic.Metrics.LatencyBase
+		}
+	}
+
+	return policy
 }

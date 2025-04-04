@@ -44,7 +44,7 @@ import (
 // If a tag is marked with `-`, it will not be sent to the database at all.
 // Note: Tag `as` can be replaced with any other user-defined tag via the function `SetAerospikeTag`.
 func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err Error) {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -66,7 +66,7 @@ func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (e
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) Error {
-	policy = clnt.getUsablePolicy(policy)
+	policy = clnt.getUsablePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := policy.Txn.prepareRead(key.namespace); err != nil {
@@ -90,7 +90,7 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) Err
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) getObjectDirect(policy *BasePolicy, key *Key, rval *reflect.Value) Error {
-	policy = clnt.getUsablePolicy(policy)
+	policy = clnt.getUsablePolicyWithConfig(policy)
 
 	binNames := objectMappings.getFields(rval.Type())
 	command, err := newReadCommand(clnt.cluster, policy, key, binNames)
@@ -108,7 +108,7 @@ func (clnt *Client) getObjectDirect(policy *BasePolicy, key *Key, rval *reflect.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err Error) {
-	policy = clnt.getUsableBatchPolicy(policy)
+	policy = clnt.getUsableBatchPolicyWithConfig(policy)
 
 	// check the size of  key and objects
 	if len(keys) != len(objects) {
@@ -162,7 +162,7 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 // If the policy is nil, the default relevant policy will be used.
 // This method is only supported by Aerospike 4.9+ servers.
 func (clnt *Client) ScanPartitionObjects(apolicy *ScanPolicy, objChan interface{}, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
-	policy := *clnt.getUsableScanPolicy(apolicy)
+	policy := *clnt.getUsableScanPolicyWithConfig(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
@@ -196,7 +196,7 @@ func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, nam
 // scanNodePartitions reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) scanNodePartitionsObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
-	policy := *clnt.getUsableScanPolicy(apolicy)
+	policy := *clnt.getUsableScanPolicyWithConfig(apolicy)
 
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
 
@@ -226,7 +226,7 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 // This method is only supported by Aerospike 4.9+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryPartitionObjects(policy *QueryPolicy, statement *Statement, objChan interface{}, partitionFilter *PartitionFilter) (*Recordset, Error) {
-	policy = clnt.getUsableQueryPolicy(policy)
+	policy = clnt.getUsableQueryPolicyWithConfig(policy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
@@ -261,7 +261,7 @@ func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objC
 }
 
 func (clnt *Client) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
-	policy = clnt.getUsableQueryPolicy(policy)
+	policy = clnt.getUsableQueryPolicyWithConfig(policy)
 
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
 

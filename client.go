@@ -26,17 +26,25 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/aerospike/aerospike-client-go/v8/config/provider"
+	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 const unreachable = "UNREACHABLE"
 
+// AEROSPIKE_CLIENT_CONFIG_URL is the environment variable that can be set to
+// load the Aerospike client configuration from a URL.
+var AEROSPIKE_CLIENT_CONFIG_URL = os.Getenv("AEROSPIKE_CLIENT_CONFIG_URL")
+
 // Client encapsulates an Aerospike cluster.
 // All database operations are available against this object.
 type Client struct {
 	cluster *Cluster
 
+	// Dynamic configuration
+	dynConfig *DynConfig
 	// DefaultPolicy is used for all read commands without a specific policy.
 	DefaultPolicy *BasePolicy
 	// DefaultBatchPolicy is the default parent policy used in batch read commands. Base policy fields
@@ -106,31 +114,41 @@ func NewClientWithPolicy(policy *ClientPolicy, hostname string, port int) (*Clie
 // It is recommended to call the client.WarmUp() method right after connecting to the database
 // to fill up the connection pool to the required service level.
 func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, Error) {
-	if policy == nil {
-		policy = NewClientPolicy()
-	}
+	// Start dynamic configuration watcher
+	dynConfig := newDynConfigWithCallBack(policy, metricsSyncCallBack)
 
-	cluster, err := NewCluster(policy, hosts)
-	if err != nil && policy.FailIfNotConnected {
+	// Get updated client updatedPolicy with dynamic configuration
+	updatedPolicy := getUsableClientPolicyWithConfig(policy, dynConfig)
+
+	cluster, err := NewCluster(updatedPolicy, hosts)
+	if err != nil && updatedPolicy.FailIfNotConnected {
 		logger.Logger.Debug("Failed to connect to host(s): %v; error: %s", hosts, err)
 		return nil, err
 	}
 
 	client := &Client{
 		cluster:                  cluster,
-		DefaultPolicy:            NewPolicy(),
-		DefaultBatchPolicy:       NewBatchPolicy(),
-		DefaultBatchReadPolicy:   NewBatchReadPolicy(),
-		DefaultBatchWritePolicy:  NewBatchWritePolicy(),
-		DefaultBatchDeletePolicy: NewBatchDeletePolicy(),
-		DefaultBatchUDFPolicy:    NewBatchUDFPolicy(),
-		DefaultWritePolicy:       NewWritePolicy(0, 0),
-		DefaultScanPolicy:        NewScanPolicy(),
-		DefaultQueryPolicy:       NewQueryPolicy(),
+		dynConfig:                dynConfig,
+		DefaultPolicy:            NewPolicyOrDefaultFromCache(dynConfig),
+		DefaultBatchPolicy:       NewBatchPolicyOrDefaultFromCache(dynConfig),
+		DefaultBatchReadPolicy:   NewBatchReadPolicyOrDefaultFromCache(dynConfig),
+		DefaultBatchWritePolicy:  NewBatchWritePolicyOrDefaultFromCache(dynConfig),
+		DefaultBatchDeletePolicy: NewBatchDeletePolicyOrDefaultFromCache(dynConfig),
+		DefaultBatchUDFPolicy:    NewBatchUdfPolicyOrDefaultFromCache(dynConfig),
+		DefaultWritePolicy:       NewWritePolicyOrDefaultFromCache(dynConfig),
+		DefaultScanPolicy:        NewScanPolicyOrDefaultFromCache(dynConfig),
+		DefaultQueryPolicy:       NewQueryPolicyOrDefaultFromCache(dynConfig),
 		DefaultAdminPolicy:       NewAdminPolicy(),
 		DefaultInfoPolicy:        NewInfoPolicy(),
-		DefaultTxnVerifyPolicy:   NewTxnVerifyPolicy(),
-		DefaultTxnRollPolicy:     NewTxnRollPolicy(),
+		DefaultTxnVerifyPolicy:   NewTxnVerifyPolicyOrDefaultFromCache(dynConfig),
+		DefaultTxnRollPolicy:     NewTxnRollPolicyOrDefaultFromCache(dynConfig),
+	}
+
+	if dynConfig != nil {
+		dynConfig.client = client
+		// Running the callback function to load functionalities dependent on
+		// the instance of client.
+		dynConfig.runCallBack()
 	}
 
 	runtime.SetFinalizer(client, clientFinalizer)
@@ -143,47 +161,110 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 
 // GetDefaultPolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultPolicy() *BasePolicy {
-	return clnt.DefaultPolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultPolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.READ_POLICY).(*BasePolicy)
+	}
 }
 
 // GetDefaultBatchPolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultBatchPolicy() *BatchPolicy {
-	return clnt.DefaultBatchPolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultBatchPolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.BATCH_POLICY).(*BatchPolicy)
+	}
 }
 
 // GetDefaultBatchWritePolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultBatchWritePolicy() *BatchWritePolicy {
-	return clnt.DefaultBatchWritePolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultBatchWritePolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.BATCH_WRITE_POLICY).(*BatchWritePolicy)
+	}
 }
 
 // GetDefaultBatchReadPolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultBatchReadPolicy() *BatchReadPolicy {
-	return clnt.DefaultBatchReadPolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultBatchReadPolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.BATCH_READ_POLICY).(*BatchReadPolicy)
+	}
 }
 
 // GetDefaultBatchDeletePolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultBatchDeletePolicy() *BatchDeletePolicy {
-	return clnt.DefaultBatchDeletePolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultBatchDeletePolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.BATCH_DELETE_POLICY).(*BatchDeletePolicy)
+	}
 }
 
 // GetDefaultBatchUDFPolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultBatchUDFPolicy() *BatchUDFPolicy {
-	return clnt.DefaultBatchUDFPolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultBatchUDFPolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.BATCH_UDF_POLICY).(*BatchUDFPolicy)
+	}
 }
 
 // GetDefaultWritePolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultWritePolicy() *WritePolicy {
-	return clnt.DefaultWritePolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultWritePolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.WRITE_POLICY).(*WritePolicy)
+	}
 }
 
 // GetDefaultScanPolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultScanPolicy() *ScanPolicy {
-	return clnt.DefaultScanPolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultScanPolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.SCAN_POLICY).(*ScanPolicy)
+	}
 }
 
 // GetDefaultQueryPolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultQueryPolicy() *QueryPolicy {
-	return clnt.DefaultQueryPolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultQueryPolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.QUERY_POLICY).(*QueryPolicy)
+	}
 }
 
 // GetDefaultAdminPolicy returns corresponding default policy from the client
@@ -198,57 +279,71 @@ func (clnt *Client) GetDefaultInfoPolicy() *InfoPolicy {
 
 // GetDefaultTxnVerifyPolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultTxnVerifyPolicy() *TxnVerifyPolicy {
-	return clnt.DefaultTxnVerifyPolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultTxnVerifyPolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.TXN_VERIFY_POLICY).(*TxnVerifyPolicy)
+	}
 }
 
 // GetDefaultTxnRollPolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultTxnRollPolicy() *TxnRollPolicy {
-	return clnt.DefaultTxnRollPolicy
+	if clnt.dynConfig == nil {
+		return clnt.DefaultTxnRollPolicy
+	} else {
+		clnt.dynConfig.lock.RLock()
+		defer clnt.dynConfig.lock.RUnlock()
+
+		return clnt.dynConfig.mappedPolicies.Get(pc.TXN_ROLL_POLICY).(*TxnRollPolicy)
+	}
 }
 
 // SetDefaultPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultPolicy(policy *BasePolicy) {
-	clnt.DefaultPolicy = policy
+	clnt.DefaultPolicy = applyConfigToBasePolicy(policy, clnt.dynConfig)
 }
 
 // SetDefaultBatchPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultBatchPolicy(policy *BatchPolicy) {
-	clnt.DefaultBatchPolicy = policy
+	clnt.DefaultBatchPolicy = applyConfigToBatchPolicy(policy, clnt.dynConfig)
 }
 
 // SetDefaultBatchWritePolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultBatchWritePolicy(policy *BatchWritePolicy) {
-	clnt.DefaultBatchWritePolicy = policy
+	clnt.DefaultBatchWritePolicy = applyConfigToBatchWritePolicy(policy, clnt.dynConfig)
 }
 
 // SetDefaultBatchReadPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultBatchReadPolicy(policy *BatchReadPolicy) {
-	clnt.DefaultBatchReadPolicy = policy
+	clnt.DefaultBatchReadPolicy = applyConfigToBatchReadPolicy(policy, clnt.dynConfig)
 }
 
 // SetDefaultBatchDeletePolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultBatchDeletePolicy(policy *BatchDeletePolicy) {
-	clnt.DefaultBatchDeletePolicy = policy
+	clnt.DefaultBatchDeletePolicy = applyConfigToBatchDeletePolicy(policy, clnt.dynConfig)
 }
 
 // SetDefaultBatchUDFPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultBatchUDFPolicy(policy *BatchUDFPolicy) {
-	clnt.DefaultBatchUDFPolicy = policy
+	clnt.DefaultBatchUDFPolicy = applyConfigToBatchUDFPolicy(policy, clnt.dynConfig)
 }
 
 // SetDefaultWritePolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultWritePolicy(policy *WritePolicy) {
-	clnt.DefaultWritePolicy = policy
+	clnt.DefaultWritePolicy = applyConfigToWritePolicy(policy, clnt.dynConfig)
 }
 
 // SetDefaultScanPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultScanPolicy(policy *ScanPolicy) {
-	clnt.DefaultScanPolicy = policy
+	clnt.DefaultScanPolicy = applyConfigToScanPolicy(policy, clnt.dynConfig)
 }
 
 // SetDefaultQueryPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultQueryPolicy(policy *QueryPolicy) {
-	clnt.DefaultQueryPolicy = policy
+	clnt.DefaultQueryPolicy = applyConfigToQueryPolicy(policy, clnt.dynConfig)
 }
 
 // SetDefaultAdminPolicy sets corresponding default policy on the client
@@ -263,12 +358,12 @@ func (clnt *Client) SetDefaultInfoPolicy(policy *InfoPolicy) {
 
 // SetDefaultTxnVerifyPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultTxnVerifyPolicy(policy *TxnVerifyPolicy) {
-	clnt.DefaultTxnVerifyPolicy = policy
+	clnt.DefaultTxnVerifyPolicy = applyConfigToTxnVerifyPolicy(policy, clnt.dynConfig)
 }
 
 // SetDefaultTxnRollPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultTxnRollPolicy(policy *TxnRollPolicy) {
-	clnt.DefaultTxnRollPolicy = policy
+	clnt.DefaultTxnRollPolicy = applyConfigToTxnRollPolicy(policy, clnt.dynConfig)
 }
 
 //-------------------------------------------------------
@@ -309,7 +404,7 @@ func (clnt *Client) GetNodeNames() []string {
 // The policy specifies the transaction timeout.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) PutPayload(policy *WritePolicy, key *Key, payload []byte) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 	command, err := newWritePayloadCommand(clnt.cluster, policy, key, payload)
 	if err != nil {
 		return err
@@ -323,7 +418,7 @@ func (clnt *Client) PutPayload(policy *WritePolicy, key *Key, payload []byte) Er
 // handled when the record already exists.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Put(policy *WritePolicy, key *Key, binMap BinMap) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -345,7 +440,7 @@ func (clnt *Client) Put(policy *WritePolicy, key *Key, binMap BinMap) Error {
 // This method avoids using the BinMap allocation and iteration and is lighter on GC.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -371,7 +466,7 @@ func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
 // This call only works for string and []byte values.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Append(policy *WritePolicy, key *Key, binMap BinMap) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -389,7 +484,7 @@ func (clnt *Client) Append(policy *WritePolicy, key *Key, binMap BinMap) Error {
 
 // AppendBins works the same as Append, but avoids BinMap allocation and iteration.
 func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -411,7 +506,7 @@ func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) Erro
 // This call works only for string and []byte values.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Prepend(policy *WritePolicy, key *Key, binMap BinMap) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -429,7 +524,7 @@ func (clnt *Client) Prepend(policy *WritePolicy, key *Key, binMap BinMap) Error 
 
 // PrependBins works the same as Prepend, but avoids BinMap allocation and iteration.
 func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -455,7 +550,7 @@ func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) Err
 // This call only works for integer values.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Add(policy *WritePolicy, key *Key, binMap BinMap) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -473,7 +568,7 @@ func (clnt *Client) Add(policy *WritePolicy, key *Key, binMap BinMap) Error {
 
 // AddBins works the same as Add, but avoids BinMap allocation and iteration.
 func (clnt *Client) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -497,7 +592,7 @@ func (clnt *Client) AddBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
 // The policy specifies the command timeout.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Delete(policy *WritePolicy, key *Key) (bool, Error) {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -524,7 +619,7 @@ func (clnt *Client) Delete(policy *WritePolicy, key *Key) (bool, Error) {
 // If the record does not exist, it can't be created because the server deletes empty records.
 // If the record doesn't exist, it will return an error.
 func (clnt *Client) Touch(policy *WritePolicy, key *Key) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -548,7 +643,7 @@ func (clnt *Client) Touch(policy *WritePolicy, key *Key) Error {
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Exists(policy *BasePolicy, key *Key) (bool, Error) {
-	policy = clnt.getUsablePolicy(policy)
+	policy = clnt.getUsablePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := policy.Txn.prepareRead(key.namespace); err != nil {
@@ -570,7 +665,7 @@ func (clnt *Client) Exists(policy *BasePolicy, key *Key) (bool, Error) {
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, Error) {
-	policy = clnt.getUsableBatchPolicy(policy)
+	policy = clnt.getUsableBatchPolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := policy.Txn.prepareReadForKeys(keys); err != nil {
@@ -609,7 +704,7 @@ func (clnt *Client) BatchExists(policy *BatchPolicy, keys []*Key) ([]bool, Error
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Get(policy *BasePolicy, key *Key, binNames ...string) (*Record, Error) {
-	policy = clnt.getUsablePolicy(policy)
+	policy = clnt.getUsablePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := policy.Txn.prepareRead(key.namespace); err != nil {
@@ -633,7 +728,7 @@ func (clnt *Client) Get(policy *BasePolicy, key *Key, binNames ...string) (*Reco
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, Error) {
-	policy = clnt.getUsablePolicy(policy)
+	policy = clnt.getUsablePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := policy.Txn.prepareRead(key.namespace); err != nil {
@@ -662,7 +757,7 @@ func (clnt *Client) GetHeader(policy *BasePolicy, key *Key) (*Record, Error) {
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...string) ([]*Record, Error) {
-	policy = clnt.getUsableBatchPolicy(policy)
+	policy = clnt.getUsableBatchPolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := policy.Txn.prepareReadForKeys(keys); err != nil {
@@ -703,7 +798,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 //
 // If a batch request to a node fails, the entire batch is cancelled.
 func (clnt *Client) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Operation) ([]*Record, Error) {
-	policy = clnt.getUsableBatchPolicy(policy)
+	policy = clnt.getUsableBatchPolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := policy.Txn.prepareReadForKeys(keys); err != nil {
@@ -740,7 +835,7 @@ func (clnt *Client) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Op
 // The policy can be used to specify timeouts and maximum concurrent goroutines.
 // This method requires Aerospike Server version >= 3.6.0.
 func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) Error {
-	policy = clnt.getUsableBatchPolicy(policy)
+	policy = clnt.getUsableBatchPolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := policy.Txn.prepareBatchReads(records); err != nil {
@@ -773,7 +868,7 @@ func (clnt *Client) BatchGetComplex(policy *BatchPolicy, records []*BatchRead) E
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record, Error) {
-	policy = clnt.getUsableBatchPolicy(policy)
+	policy = clnt.getUsableBatchPolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := policy.Txn.prepareReadForKeys(keys); err != nil {
@@ -808,8 +903,8 @@ func (clnt *Client) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record,
 //
 // Requires server version 6.0+
 func (clnt *Client) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePolicy, keys []*Key) ([]*BatchRecord, Error) {
-	policy = clnt.getUsableBatchPolicy(policy)
-	deletePolicy = clnt.getUsableBatchDeletePolicy(deletePolicy)
+	policy = clnt.getUsableBatchPolicyWithConfig(policy)
+	deletePolicy = clnt.getUsableBatchDeletePolicyWithConfig(deletePolicy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKeys(clnt.cluster, policy, keys); err != nil {
@@ -845,7 +940,7 @@ func (clnt *Client) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePo
 //
 // Requires server version 6.0+
 func (clnt *Client) BatchOperate(policy *BatchPolicy, records []BatchRecordIfc) Error {
-	policy = clnt.getUsableBatchPolicy(policy)
+	policy = clnt.getUsableBatchPolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKeysFromRecords(clnt.cluster, policy, records); err != nil {
@@ -875,8 +970,8 @@ func (clnt *Client) BatchOperate(policy *BatchPolicy, records []BatchRecordIfc) 
 //
 // Requires server version 6.0+
 func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy, keys []*Key, packageName string, functionName string, args ...Value) ([]*BatchRecord, Error) {
-	policy = clnt.getUsableBatchPolicy(policy)
-	udfPolicy = clnt.getUsableBatchUDFPolicy(udfPolicy)
+	policy = clnt.getUsableBatchPolicyWithConfig(policy)
+	udfPolicy = clnt.getUsableBatchUDFPolicyWithConfig(udfPolicy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKeys(clnt.cluster, policy, keys); err != nil {
@@ -915,7 +1010,7 @@ func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy,
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operation) (*Record, Error) {
 	// TODO: Remove this method in the next major release.
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 	args, err := newOperateArgs(clnt.cluster, policy, key, operations)
 	if err != nil {
 		return nil, err
@@ -969,7 +1064,7 @@ func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operat
 // If the policy is nil, the default relevant policy will be used.
 // This method is only supported by Aerospike 4.9+ servers.
 func (clnt *Client) ScanPartitions(apolicy *ScanPolicy, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
-	policy := *clnt.getUsableScanPolicy(apolicy)
+	policy := *clnt.getUsableScanPolicyWithConfig(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
@@ -1001,7 +1096,7 @@ func (clnt *Client) ScanAll(apolicy *ScanPolicy, namespace string, setName strin
 // scanNodePartitions reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) scanNodePartitions(apolicy *ScanPolicy, node *Node, namespace string, setName string, binNames ...string) (*Recordset, Error) {
-	policy := *clnt.getUsableScanPolicy(apolicy)
+	policy := *clnt.getUsableScanPolicyWithConfig(apolicy)
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
 
 	// result recordset
@@ -1030,7 +1125,7 @@ func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, 
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) RegisterUDFFromFile(policy *WritePolicy, clientPath string, serverPath string, language Language) (*RegisterTask, Error) {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 	udfBody, err := os.ReadFile(clientPath)
 	if err != nil {
 		return nil, newCommonError(err)
@@ -1047,7 +1142,7 @@ func (clnt *Client) RegisterUDFFromFile(policy *WritePolicy, clientPath string, 
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath string, language Language) (*RegisterTask, Error) {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 	content := base64.StdEncoding.EncodeToString(udfBody)
 
 	var strCmd bytes.Buffer
@@ -1105,7 +1200,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask, Error) {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 	var strCmd bytes.Buffer
 	// errors are to remove errcheck warnings
 	// they will always be nil as stated in golang docs
@@ -1130,7 +1225,7 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, Error) {
-	policy = clnt.getUsablePolicy(policy)
+	policy = clnt.getUsablePolicyWithConfig(policy)
 
 	var strCmd bytes.Buffer
 	// errors are to remove errcheck warnings
@@ -1203,7 +1298,7 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 }
 
 func (clnt *Client) execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (*Record, Error) {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -1240,13 +1335,12 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 	statement *Statement,
 	ops ...*Operation,
 ) (*ExecuteTask, Error) {
-
 	if len(statement.BinNames) > 0 {
 		return nil, ErrNoBinNamesAllowedInQueryExecute.err()
 	}
 
-	policy = clnt.getUsableQueryPolicy(policy)
-	writePolicy = clnt.getUsableWritePolicy(writePolicy)
+	policy = clnt.getUsableQueryPolicyWithConfig(policy)
+	writePolicy = clnt.getUsableWritePolicyWithConfig(writePolicy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
@@ -1280,7 +1374,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	functionName string,
 	functionArgs ...Value,
 ) (*ExecuteTask, Error) {
-	policy = clnt.getUsableQueryPolicy(policy)
+	policy = clnt.getUsableQueryPolicyWithConfig(policy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
@@ -1315,7 +1409,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 	functionName string,
 	functionArgs ...Value,
 ) (*ExecuteTask, Error) {
-	policy = clnt.getUsableQueryPolicy(policy)
+	policy = clnt.getUsableQueryPolicyWithConfig(policy)
 
 	if node == nil {
 		return nil, ErrClusterIsEmpty.err()
@@ -1366,8 +1460,8 @@ var infoErrRegexp = regexp.MustCompile(`(?i)(fail|error)((:|=)(?P<code>[0-9]+))?
 func parseInfoErrorCode(response string) Error {
 	match := infoErrRegexp.FindStringSubmatch(response)
 
-	var code = types.SERVER_ERROR
-	var message = response
+	code := types.SERVER_ERROR
+	message := response
 
 	if len(match) > 0 {
 		for i, name := range infoErrRegexp.SubexpNames() {
@@ -1401,7 +1495,7 @@ func parseInfoErrorCode(response string) Error {
 // This method is only supported by Aerospike 4.9+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, partitionFilter *PartitionFilter) (*Recordset, Error) {
-	policy = clnt.getUsableQueryPolicy(policy)
+	policy = clnt.getUsableQueryPolicyWithConfig(policy)
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, ErrClusterIsEmpty.err()
@@ -1443,7 +1537,7 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 }
 
 func (clnt *Client) queryNodePartitions(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
-	policy = clnt.getUsableQueryPolicy(policy)
+	policy = clnt.getUsableQueryPolicyWithConfig(policy)
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
 
 	// result recordset
@@ -1469,12 +1563,12 @@ func (clnt *Client) Commit(txn *Txn) (CommitStatus, Error) {
 	default:
 		fallthrough
 	case TxnStateOpen:
-		if err := tr.Verify(&clnt.GetDefaultTxnVerifyPolicy().BatchPolicy, &clnt.GetDefaultTxnRollPolicy().BatchPolicy); err != nil {
+		if err := tr.Verify(&clnt.getUsableTxnVerifyPolicyWithConfig(nil).BatchPolicy, &clnt.getUsableTxnRollPolicyWithConfig(nil).BatchPolicy); err != nil {
 			return CommitStatusUnverified, err
 		}
-		return tr.Commit(&clnt.GetDefaultTxnRollPolicy().BatchPolicy)
+		return tr.Commit(&clnt.getUsableTxnRollPolicyWithConfig(nil).BatchPolicy)
 	case TxnStateVerified:
-		return tr.Commit(&clnt.GetDefaultTxnRollPolicy().BatchPolicy)
+		return tr.Commit(&clnt.getUsableTxnRollPolicyWithConfig(nil).BatchPolicy)
 	case TxnStateCommitted:
 		return CommitStatusAlreadyCommitted, nil
 	case TxnStateAborted:
@@ -1493,7 +1587,7 @@ func (clnt *Client) Abort(txn *Txn) (AbortStatus, Error) {
 	case TxnStateOpen:
 		fallthrough
 	case TxnStateVerified:
-		return tr.Abort(&clnt.GetDefaultTxnRollPolicy().BatchPolicy)
+		return tr.Abort(&clnt.getUsableTxnRollPolicyWithConfig(nil).BatchPolicy)
 	case TxnStateCommitted:
 		return AbortStatusAlreadyCommitted, newError(types.TXN_ALREADY_COMMITTED, "Transaction already committed")
 	case TxnStateAborted:
@@ -1519,7 +1613,7 @@ func (clnt *Client) CreateIndex(
 	binName string,
 	indexType IndexType,
 ) (*IndexTask, Error) {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 	return clnt.CreateComplexIndex(policy, namespace, setName, indexName, binName, indexType, ICT_DEFAULT)
 }
 
@@ -1540,7 +1634,7 @@ func (clnt *Client) CreateComplexIndex(
 	indexCollectionType IndexCollectionType,
 	ctx ...*CDTContext,
 ) (*IndexTask, Error) {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 
 	var strCmd bytes.Buffer
 	strCmd.WriteString("sindex-create:ns=")
@@ -1607,7 +1701,7 @@ func (clnt *Client) DropIndex(
 	setName string,
 	indexName string,
 ) Error {
-	policy = clnt.getUsableWritePolicy(policy)
+	policy = clnt.getUsableWritePolicyWithConfig(policy)
 	var strCmd bytes.Buffer
 	strCmd.WriteString("sindex-delete:ns=")
 	strCmd.WriteString(namespace)
@@ -1994,15 +2088,25 @@ func (clnt *Client) MetricsEnabled() bool {
 }
 
 // EnableMetrics enables the cluster command metrics gathering.
-// If the parameters for the histogram in the policy are the different from the one already
+// If the parameters for the histogram in the policy are different from the one already
 // on the cluster, the metrics will be reset.
 func (clnt *Client) EnableMetrics(policy *MetricsPolicy) {
-	clnt.cluster.EnableMetrics(policy)
+	if clnt.dynConfig == nil ||
+		clnt.dynConfig.config == nil ||
+		clnt.dynConfig.config.Dynamic == nil ||
+		clnt.dynConfig.config.Dynamic.Metrics == nil {
+
+		clnt.cluster.EnableMetrics(policy)
+	}
 }
 
 // DisableMetrics disables the cluster command metrics gathering.
 func (clnt *Client) DisableMetrics() {
-	clnt.cluster.DisableMetrics()
+	if clnt.dynConfig != nil {
+		logger.Logger.Warn("Dynamic configuration is enabled. Metrics cannot be disabled via the client API.")
+	} else {
+		clnt.cluster.DisableMetrics()
+	}
 }
 
 // Stats returns internal statistics regarding the inner state of the client and the cluster.
@@ -2062,108 +2166,159 @@ func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[
 	return node.RequestInfo(&policy, command)
 }
 
-//-------------------------------------------------------
+// -------------------------------------------------------
 // Policy Methods
-//-------------------------------------------------------
-
-func (clnt *Client) getUsablePolicy(policy *BasePolicy) *BasePolicy {
+// -------------------------------------------------------
+func (clnt *Client) getUsablePolicyWithConfig(policy *BasePolicy) *BasePolicy {
 	if policy == nil {
-		if clnt.DefaultPolicy != nil {
-			return clnt.DefaultPolicy
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultPolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewPolicy()
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToBasePolicy(nil, clnt.dynConfig)
 		}
-		return NewPolicy()
 	}
-	return policy
+	// Merge policy with dynamic config
+	return applyConfigToBasePolicy(policy, clnt.dynConfig)
 }
 
-func (clnt *Client) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
+func (clnt *Client) getUsableBatchPolicyWithConfig(policy *BatchPolicy) *BatchPolicy {
 	if policy == nil {
-		if clnt.DefaultBatchPolicy != nil {
-			return clnt.DefaultBatchPolicy
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultBatchPolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewBatchPolicy()
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToBatchPolicy(nil, clnt.dynConfig)
 		}
-		return NewBatchPolicy()
 	}
-	return policy
+	return applyConfigToBatchPolicy(policy, clnt.dynConfig)
 }
 
-func (clnt *Client) getUsableBaseBatchWritePolicy(policy *BatchPolicy) *BatchPolicy {
+func (clnt *Client) getUsableBatchReadPolicyWithConfig(policy *BatchReadPolicy) *BatchReadPolicy {
 	if policy == nil {
-		if clnt.DefaultBatchPolicy != nil {
-			return clnt.DefaultBatchPolicy
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultBatchReadPolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewBatchReadPolicy()
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToBatchReadPolicy(nil, clnt.dynConfig)
 		}
-		return NewBatchPolicy()
 	}
-	return policy
+	return applyConfigToBatchReadPolicy(policy, clnt.dynConfig)
 }
 
-func (clnt *Client) getUsableBatchReadPolicy(policy *BatchReadPolicy) *BatchReadPolicy {
+func (clnt *Client) getUsableBatchWritePolicyWithConfig(policy *BatchWritePolicy) *BatchWritePolicy {
 	if policy == nil {
-		if clnt.DefaultBatchReadPolicy != nil {
-			return clnt.DefaultBatchReadPolicy
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultBatchWritePolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewBatchWritePolicy()
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToBatchWritePolicy(nil, clnt.dynConfig)
 		}
-		return NewBatchReadPolicy()
 	}
-	return policy
+	return applyConfigToBatchWritePolicy(policy, clnt.dynConfig)
 }
 
-func (clnt *Client) getUsableBatchWritePolicy(policy *BatchWritePolicy) *BatchWritePolicy {
+func (clnt *Client) getUsableBatchDeletePolicyWithConfig(policy *BatchDeletePolicy) *BatchDeletePolicy {
 	if policy == nil {
-		if clnt.DefaultBatchWritePolicy != nil {
-			return clnt.DefaultBatchWritePolicy
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultBatchDeletePolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewBatchDeletePolicy()
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToBatchDeletePolicy(nil, clnt.dynConfig)
 		}
-		return NewBatchWritePolicy()
+
 	}
-	return policy
+	return applyConfigToBatchDeletePolicy(policy, clnt.dynConfig)
 }
 
-func (clnt *Client) getUsableBatchDeletePolicy(policy *BatchDeletePolicy) *BatchDeletePolicy {
+func (clnt *Client) getUsableBatchUDFPolicyWithConfig(policy *BatchUDFPolicy) *BatchUDFPolicy {
 	if policy == nil {
-		if clnt.DefaultBatchDeletePolicy != nil {
-			return clnt.DefaultBatchDeletePolicy
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultBatchUDFPolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewBatchUDFPolicy()
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToBatchUDFPolicy(nil, clnt.dynConfig)
 		}
-		return NewBatchDeletePolicy()
 	}
-	return policy
+	return applyConfigToBatchUDFPolicy(policy, clnt.dynConfig)
 }
 
-func (clnt *Client) getUsableBatchUDFPolicy(policy *BatchUDFPolicy) *BatchUDFPolicy {
+func (clnt *Client) getUsableWritePolicyWithConfig(policy *WritePolicy) *WritePolicy {
 	if policy == nil {
-		if clnt.DefaultBatchUDFPolicy != nil {
-			return clnt.DefaultBatchUDFPolicy
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultWritePolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewWritePolicy(0, 0)
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToWritePolicy(nil, clnt.dynConfig)
 		}
-		return NewBatchUDFPolicy()
 	}
-	return policy
+
+	// Merge policy with dynamic config
+	return applyConfigToWritePolicy(policy, clnt.dynConfig)
 }
 
-func (clnt *Client) getUsableWritePolicy(policy *WritePolicy) *WritePolicy {
+func (clnt *Client) getUsableScanPolicyWithConfig(policy *ScanPolicy) *ScanPolicy {
 	if policy == nil {
-		if clnt.DefaultWritePolicy != nil {
-			return clnt.DefaultWritePolicy
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultScanPolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewScanPolicy()
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToScanPolicy(nil, clnt.dynConfig)
 		}
-		return NewWritePolicy(0, 0)
 	}
-	return policy
+
+	// Merge policy with dynamic config
+	return applyConfigToScanPolicy(policy, clnt.dynConfig)
 }
 
-func (clnt *Client) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
+func (clnt *Client) getUsableQueryPolicyWithConfig(policy *QueryPolicy) *QueryPolicy {
 	if policy == nil {
-		if clnt.DefaultScanPolicy != nil {
-			return clnt.DefaultScanPolicy
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultQueryPolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewQueryPolicy()
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToQueryPolicy(nil, clnt.dynConfig)
 		}
-		return NewScanPolicy()
 	}
-	return policy
-}
 
-func (clnt *Client) getUsableQueryPolicy(policy *QueryPolicy) *QueryPolicy {
-	if policy == nil {
-		if clnt.DefaultQueryPolicy != nil {
-			return clnt.DefaultQueryPolicy
-		}
-		return NewQueryPolicy()
-	}
-	return policy
+	// Merge policy with dynamic config
+	return applyConfigToQueryPolicy(policy, clnt.dynConfig)
 }
 
 func (clnt *Client) getUsableAdminPolicy(policy *AdminPolicy) *AdminPolicy {
@@ -2184,6 +2339,50 @@ func (clnt *Client) getUsableInfoPolicy(policy *InfoPolicy) *InfoPolicy {
 		return NewInfoPolicy()
 	}
 	return policy
+}
+
+func (clnt *Client) getUsableTxnRollPolicyWithConfig(policy *TxnRollPolicy) *TxnRollPolicy {
+	if policy == nil {
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultTxnRollPolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewTxnRollPolicy()
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToTxnRollPolicy(nil, clnt.dynConfig)
+		}
+	}
+
+	// Merge policy with dynamic config
+	return applyConfigToTxnRollPolicy(policy, clnt.dynConfig)
+}
+
+func (clnt *Client) getUsableTxnVerifyPolicyWithConfig(policy *TxnVerifyPolicy) *TxnVerifyPolicy {
+	if policy == nil {
+		if clnt.dynConfig == nil {
+			if defaultPolicy := clnt.DefaultTxnVerifyPolicy; defaultPolicy != nil {
+				return defaultPolicy
+			} else {
+				return NewTxnVerifyPolicy()
+			}
+		} else {
+			// Fetch merged policy from cache
+			return applyConfigToTxnVerifyPolicy(nil, clnt.dynConfig)
+		}
+	}
+
+	// Merge policy with dynamic config
+	return applyConfigToTxnVerifyPolicy(policy, clnt.dynConfig)
+}
+
+func getUsableClientPolicyWithConfig(policy *ClientPolicy, dynConfig *DynConfig) *ClientPolicy {
+	if policy == nil {
+		return applyConfigToClientPolicy(NewClientPolicy(), dynConfig)
+	}
+
+	return applyConfigToClientPolicy(policy, dynConfig)
 }
 
 //-------------------------------------------------------

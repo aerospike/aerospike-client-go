@@ -17,6 +17,8 @@
 
 package aerospike
 
+import dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+
 // ReadModeAP is the read policy in AP (availability) mode namespaces.
 // It indicates how duplicates should be consulted in a read operation.
 // Only makes a difference during migrations and only applicable in AP mode.
@@ -30,3 +32,14 @@ const (
 	// the read operation.
 	ReadModeAPAll
 )
+
+func mapReadModeAPToReadModeAP(readModeAP dynconfig.ReadModeAp) ReadModeAP {
+	switch readModeAP {
+	case dynconfig.ONE:
+		return ReadModeAPOne
+	case dynconfig.ALL:
+		return ReadModeAPAll
+	default:
+		return ReadModeAPOne
+	}
+}

@@ -14,6 +14,10 @@
 
 package aerospike
 
+import (
+	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
+)
+
 // BatchWritePolicy attributes used in batch write commands.
 type BatchWritePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -93,6 +97,17 @@ func NewBatchWritePolicy() *BatchWritePolicy {
 	}
 }
 
+func NewBatchWritePolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchWritePolicy {
+	if dynConfig == nil {
+		return NewBatchWritePolicy()
+	}
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	return dynConfig.mappedPolicies.Get(pc.BATCH_WRITE_POLICY).(*BatchWritePolicy)
+}
+
 func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 	wp := bp.toWritePolicy()
 
@@ -110,4 +125,97 @@ func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 	}
 
 	return wp
+}
+
+func (bwp *BatchWritePolicy) toWritePolicyWithConfig(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
+	var wp *WritePolicy
+	if dynConfig == nil {
+		wp = bp.toWritePolicy()
+	} else {
+		dynConfig.lock.RLock()
+		defer dynConfig.lock.RUnlock()
+
+		wp = dynConfig.mappedPolicies.Get(pc.BATCH_PARENT_WRITE_POLICY).(*WritePolicy)
+	}
+
+	if bwp != nil {
+		if bwp.FilterExpression != nil {
+			wp.FilterExpression = bwp.FilterExpression
+		}
+		wp.RecordExistsAction = bwp.RecordExistsAction
+		wp.CommitLevel = bwp.CommitLevel
+		wp.GenerationPolicy = bwp.GenerationPolicy
+		wp.Generation = bwp.Generation
+		wp.Expiration = bwp.Expiration
+		wp.DurableDelete = bwp.DurableDelete
+		wp.SendKey = bwp.SendKey
+	}
+
+	return wp
+}
+
+// copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+func copyBatchWritePolicy(src *BatchWritePolicy) *BatchWritePolicy {
+	if src == nil {
+		return nil
+	}
+
+	response := NewBatchWritePolicy()
+
+	response.FilterExpression = src.FilterExpression
+	response.FilterExpression = src.FilterExpression
+	response.CommitLevel = src.CommitLevel
+	response.GenerationPolicy = src.GenerationPolicy
+	response.Generation = src.Generation
+	response.Expiration = src.Expiration
+	response.DurableDelete = src.DurableDelete
+	response.OnLockingOnly = src.OnLockingOnly
+	response.SendKey = src.SendKey
+
+	return response
+}
+
+// applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy
+func applyConfigToBatchWritePolicy(policy *BatchWritePolicy, dynConfig *DynConfig) *BatchWritePolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.getConfigIfNotInitialized()
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	if policy == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.mappedPolicies.Get(pc.BATCH_WRITE_POLICY).(*BatchWritePolicy)
+	}
+	if config != nil && config.Dynamic != nil && config.Dynamic.BatchWrite != nil {
+		// Dynamic configuration is exists for policy in question.
+		var responsePolicy *BatchWritePolicy
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		responsePolicy = copyBatchWritePolicy(policy)
+		responsePolicy = mapDynamicBatchWritePolicy(responsePolicy, dynConfig)
+
+		return responsePolicy
+	} else {
+		return policy
+	}
+}
+
+func mapDynamicBatchWritePolicy(policy *BatchWritePolicy, dynConfig *DynConfig) *BatchWritePolicy {
+	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.BatchWrite != nil {
+		if dynConfig.config.Dynamic.BatchWrite.DurableDelete != nil {
+			policy.DurableDelete = *dynConfig.config.Dynamic.BatchWrite.DurableDelete
+		}
+		if dynConfig.config.Dynamic.BatchWrite.SendKey != nil {
+			policy.SendKey = *dynConfig.config.Dynamic.BatchWrite.SendKey
+		}
+	}
+
+	return policy
 }

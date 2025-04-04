@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"time"
+
+	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 // Policy Interface
@@ -188,6 +190,17 @@ func NewPolicy() *BasePolicy {
 	}
 }
 
+func NewPolicyOrDefaultFromCache(dynConfig *DynConfig) *BasePolicy {
+	if dynConfig == nil {
+		return NewPolicy()
+	}
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	return dynConfig.mappedPolicies.Get(pc.READ_POLICY).(*BasePolicy)
+}
+
 var _ Policy = &BasePolicy{}
 
 // GetBasePolicy returns embedded BasePolicy in all types that embed this struct.
@@ -204,4 +217,85 @@ func (p *BasePolicy) deadline() time.Time {
 
 func (p *BasePolicy) compress() bool {
 	return p.UseCompression
+}
+
+// copyBasePolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+func copyBasePolicy(src *BasePolicy) *BasePolicy {
+	response := NewPolicy()
+
+	response.Txn = src.Txn
+	response.FilterExpression = src.FilterExpression
+	response.ReadModeAP = src.ReadModeAP
+	response.ReadModeSC = src.ReadModeSC
+	response.TotalTimeout = src.TotalTimeout
+	response.SocketTimeout = src.SocketTimeout
+	response.MaxRetries = src.MaxRetries
+	response.ReadTouchTTLPercent = src.ReadTouchTTLPercent
+	response.SleepBetweenRetries = src.SleepBetweenRetries
+	response.SleepMultiplier = src.SleepMultiplier
+	response.ExitFastOnExhaustedConnectionPool = src.ExitFastOnExhaustedConnectionPool
+	response.SendKey = src.SendKey
+	response.UseCompression = src.UseCompression
+	response.ReplicaPolicy = src.ReplicaPolicy
+
+	return response
+}
+
+// applyConfigToBasePolicy applies the dynamic configuration and generates a new policy
+func applyConfigToBasePolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.getConfigIfNotInitialized()
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	if policy == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.mappedPolicies.Get(pc.READ_POLICY).(*BasePolicy)
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.Read != nil {
+		// Dynamic configuration exists for policy in question.
+		var responsePolicy *BasePolicy
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		responsePolicy = copyBasePolicy(policy)
+		responsePolicy = mapDynamicReadPolicy(responsePolicy, dynConfig)
+
+		return responsePolicy
+	} else {
+		return policy
+	}
+}
+
+func mapDynamicReadPolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy {
+	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.Read != nil {
+		if dynConfig.config.Dynamic.Read.ReadModeAp != nil {
+			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Read.ReadModeAp)
+		}
+		if dynConfig.config.Dynamic.Read.ReadModeSc != nil {
+			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Read.ReadModeSc)
+		}
+		if dynConfig.config.Dynamic.Read.TotalTimeout != nil {
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Read.TotalTimeout)
+		}
+		if dynConfig.config.Dynamic.Read.SocketTimeout != nil {
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Read.SocketTimeout)
+		}
+		if dynConfig.config.Dynamic.Read.MaxRetries != nil {
+			policy.MaxRetries = *dynConfig.config.Dynamic.Read.MaxRetries
+		}
+		if dynConfig.config.Dynamic.Read.SleepBetweenRetries != nil {
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Read.SleepBetweenRetries)
+		}
+		if dynConfig.config.Dynamic.Read.Replica != nil {
+			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Read.Replica)
+		}
+	}
+
+	return policy
 }

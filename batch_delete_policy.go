@@ -14,6 +14,8 @@
 
 package aerospike
 
+import pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
+
 // BatchDeletePolicy is used in batch delete commands.
 type BatchDeletePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -58,6 +60,17 @@ func NewBatchDeletePolicy() *BatchDeletePolicy {
 	}
 }
 
+func NewBatchDeletePolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchDeletePolicy {
+	if dynConfig == nil {
+		return NewBatchDeletePolicy()
+	}
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	return dynConfig.mappedPolicies.Get(pc.BATCH_DELETE_POLICY).(*BatchDeletePolicy)
+}
+
 func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 	wp := bp.toWritePolicy()
 
@@ -72,4 +85,104 @@ func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 		wp.SendKey = bdp.SendKey
 	}
 	return wp
+}
+
+func (bdp *BatchDeletePolicy) toWritePolicyWithConfig(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
+	wp := bp.toWritePolicy()
+
+	if bdp != nil {
+		if bdp.FilterExpression != nil {
+			wp.FilterExpression = bdp.FilterExpression
+		}
+		wp.CommitLevel = bdp.CommitLevel
+		wp.GenerationPolicy = bdp.GenerationPolicy
+		wp.Generation = bdp.Generation
+		wp.DurableDelete = bdp.DurableDelete
+		wp.SendKey = bdp.SendKey
+	}
+
+	// In Case dynConfig is not initialized or running return the policy before
+	// merge
+	if dynConfig == nil {
+		return wp
+	}
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	config := dynConfig.config
+	if config != nil && config.Dynamic.BatchDelete != nil {
+		if config.Dynamic.BatchDelete.DurableDelete != nil {
+			wp.DurableDelete = *config.Dynamic.BatchDelete.DurableDelete
+		}
+		if config.Dynamic.BatchDelete.SendKey != nil {
+			wp.SendKey = *config.Dynamic.BatchDelete.SendKey
+		}
+	}
+
+	return wp
+}
+
+// copyBatchDeletePolicy creates a new BasePolicy instance and copies the values from the source BatchDeletePolicy.
+func copyBatchDeletePolicy(src *BatchDeletePolicy) *BatchDeletePolicy {
+	if src == nil {
+		return nil
+	}
+
+	response := NewBatchDeletePolicy()
+
+	response.FilterExpression = src.FilterExpression
+	response.FilterExpression = src.FilterExpression
+	response.CommitLevel = src.CommitLevel
+	response.GenerationPolicy = src.GenerationPolicy
+	response.Generation = src.Generation
+	response.DurableDelete = src.DurableDelete
+	response.SendKey = src.SendKey
+
+	return response
+}
+
+// applyConfigToBatchDeletePolicy applies the dynamic configuration and generates a new policy
+func applyConfigToBatchDeletePolicy(policy *BatchDeletePolicy, dynConfig *DynConfig) *BatchDeletePolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.getConfigIfNotInitialized()
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	if policy == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.mappedPolicies.Get(pc.BATCH_DELETE_POLICY).(*BatchDeletePolicy)
+	}
+	if config != nil && config.Dynamic != nil && config.Dynamic.BatchDelete != nil {
+		// Dynamic configuration is exists for policy in question.
+		var responsePolicy *BatchDeletePolicy
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		responsePolicy = copyBatchDeletePolicy(policy)
+		responsePolicy = mapDynamicBatchDeletePolicy(responsePolicy, dynConfig)
+
+		return responsePolicy
+	} else {
+		return policy
+	}
+}
+
+func mapDynamicBatchDeletePolicy(policy *BatchDeletePolicy, dynConfig *DynConfig) *BatchDeletePolicy {
+	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.BatchDelete != nil {
+		if dynConfig.config.Dynamic.BatchDelete.DurableDelete != nil {
+			policy.DurableDelete = *dynConfig.config.Dynamic.BatchDelete.DurableDelete
+		}
+		if dynConfig.config.Dynamic.BatchDelete.SendKey != nil {
+			policy.SendKey = *dynConfig.config.Dynamic.BatchDelete.SendKey
+		}
+	}
+
+	return policy
 }

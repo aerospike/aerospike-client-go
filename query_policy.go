@@ -14,6 +14,12 @@
 
 package aerospike
 
+import (
+	"time"
+
+	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
+)
+
 // QueryPolicy encapsulates parameters for policy attributes used in query operations.
 //
 // Inherited Policy fields Policy.Txn are ignored in query commands.
@@ -55,4 +61,109 @@ func NewQueryPolicy() *QueryPolicy {
 	return &QueryPolicy{
 		MultiPolicy: *NewMultiPolicy(),
 	}
+}
+
+func NewQueryPolicyOrDefaultFromCache(dynConfig *DynConfig) *QueryPolicy {
+	if dynConfig == nil {
+		return NewQueryPolicy()
+	}
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	return dynConfig.mappedPolicies.Get(pc.QUERY_POLICY).(*QueryPolicy)
+}
+
+// copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+func copyQueryPolicy(src *QueryPolicy) *QueryPolicy {
+	if src == nil {
+		return nil
+	}
+
+	response := NewQueryPolicy()
+
+	response.Txn = src.Txn
+	response.FilterExpression = src.FilterExpression
+	response.ReadModeAP = src.ReadModeAP
+	response.ReadModeSC = src.ReadModeSC
+	response.TotalTimeout = src.TotalTimeout
+	response.SocketTimeout = src.SocketTimeout
+	response.MaxRetries = src.MaxRetries
+	response.ReadTouchTTLPercent = src.ReadTouchTTLPercent
+	response.SleepBetweenRetries = src.SleepBetweenRetries
+	response.SleepMultiplier = src.SleepMultiplier
+	response.ExitFastOnExhaustedConnectionPool = src.ExitFastOnExhaustedConnectionPool
+	response.SendKey = src.SendKey
+	response.UseCompression = src.UseCompression
+	response.ReplicaPolicy = src.ReplicaPolicy
+	response.IncludeBinData = src.IncludeBinData
+	response.ExpectedDuration = src.ExpectedDuration
+
+	return response
+}
+
+// applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy.
+func applyConfigToQueryPolicy(policy *QueryPolicy, dynConfig *DynConfig) *QueryPolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.getConfigIfNotInitialized()
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	if policy == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.mappedPolicies.Get(pc.QUERY_POLICY).(*QueryPolicy)
+
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.Query != nil {
+		// Dynamic configuration is exists for policy in question.
+		var responsePolicy *QueryPolicy
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		responsePolicy = copyQueryPolicy(policy)
+		responsePolicy = mapDynamicQueryPolicy(responsePolicy, dynConfig)
+
+		return responsePolicy
+	} else {
+		return policy
+	}
+}
+
+func mapDynamicQueryPolicy(policy *QueryPolicy, dynConfig *DynConfig) *QueryPolicy {
+	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.Query != nil {
+		if dynConfig.config.Dynamic.Query.ReadModeAp != nil {
+			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Query.ReadModeAp)
+		}
+		if dynConfig.config.Dynamic.Query.ReadModeSc != nil {
+			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Query.ReadModeSc)
+		}
+		if dynConfig.config.Dynamic.Query.TotalTimeout != nil {
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout)
+		}
+		if dynConfig.config.Dynamic.Query.SocketTimeout != nil {
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Query.SocketTimeout)
+		}
+		if dynConfig.config.Dynamic.Query.MaxRetries != nil {
+			policy.MaxRetries = *dynConfig.config.Dynamic.Query.MaxRetries
+		}
+		if dynConfig.config.Dynamic.Query.SleepBetweenRetries != nil {
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Query.SleepBetweenRetries)
+		}
+		if dynConfig.config.Dynamic.Query.Replica != nil {
+			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Query.Replica)
+		}
+		if dynConfig.config.Dynamic.Query.IncludeBinData != nil {
+			policy.IncludeBinData = *dynConfig.config.Dynamic.Query.IncludeBinData
+		}
+		if dynConfig.config.Dynamic.Query.ExpectedDuration != nil {
+			policy.ExpectedDuration = mapQueryDuration(*dynConfig.config.Dynamic.Query.ExpectedDuration)
+		}
+	}
+
+	return policy
 }

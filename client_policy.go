@@ -17,6 +17,8 @@ package aerospike
 import (
 	"crypto/tls"
 	"time"
+
+	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 // ClientPolicy encapsulates parameters for client policy command.
@@ -178,6 +180,8 @@ type ClientPolicy struct {
 	// Application id is used to identify application so that client operations can be correlated
 	// with server side metrics.
 	ApplicationId string
+	// Determianes the interval for checking for configuration changes using configProvider.
+	ConfigInterval time.Duration // = 5
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.
@@ -196,6 +200,7 @@ func NewClientPolicy() *ClientPolicy {
 		MaxErrorRate:                100,
 		ErrorRateWindow:             1,
 		SeedOnlyCluster:             false,
+		ConfigInterval:              time.Second * 5,
 	}
 }
 
@@ -237,4 +242,128 @@ func (cp *ClientPolicy) peersString() string {
 		return "peers-clear-alt"
 	}
 	return "peers-clear-std"
+}
+
+// copyClientPolicy creates a new BasePolicy instance and copies the values from the source policy.
+func copyClientPolicy(src *ClientPolicy) *ClientPolicy {
+	if src == nil {
+		return nil
+	}
+
+	response := NewClientPolicy()
+
+	response.AuthMode = src.AuthMode
+	response.User = src.User
+	response.Password = src.Password
+	response.ClusterName = src.ClusterName
+	response.Timeout = src.Timeout
+	response.IdleTimeout = src.IdleTimeout
+	response.LoginTimeout = src.LoginTimeout
+	response.ConnectionQueueSize = src.ConnectionQueueSize
+	response.MinConnectionsPerNode = src.MinConnectionsPerNode
+	response.MaxErrorRate = src.MaxErrorRate
+	response.ErrorRateWindow = src.ErrorRateWindow
+	response.LimitConnectionsToQueueSize = src.LimitConnectionsToQueueSize
+	response.OpeningConnectionThreshold = src.OpeningConnectionThreshold
+	response.FailIfNotConnected = src.FailIfNotConnected
+	response.TendInterval = src.TendInterval
+	response.IpMap = *(&src.IpMap)
+	response.UseServicesAlternate = src.UseServicesAlternate
+	response.RackAware = src.RackAware
+	response.RackIds = *(&src.RackIds)
+	response.TlsConfig = src.TlsConfig
+	response.IgnoreOtherSubnetAliases = src.IgnoreOtherSubnetAliases
+	response.SeedOnlyCluster = src.SeedOnlyCluster
+	response.ConfigInterval = src.ConfigInterval
+
+	return response
+}
+
+func mapDynamicClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientPolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.Client.Timeout != nil {
+		policy.Timeout = time.Duration(*dynConfig.config.Dynamic.Client.Timeout)
+	}
+	if dynConfig.config.Dynamic.Client.ErrorRateWindow != nil {
+		policy.ErrorRateWindow = *dynConfig.config.Dynamic.Client.ErrorRateWindow
+	}
+	if dynConfig.config.Dynamic.Client.MaxErrorRate != nil {
+		policy.MaxErrorRate = *dynConfig.config.Dynamic.Client.MaxErrorRate
+	}
+	if dynConfig.config.Dynamic.Client.LoginTimeout != nil {
+		policy.LoginTimeout = time.Duration(*dynConfig.config.Dynamic.Client.LoginTimeout)
+	}
+	if dynConfig.config.Dynamic.Client.RackAware != nil {
+		policy.RackAware = *dynConfig.config.Dynamic.Client.RackAware
+	}
+	if dynConfig.config.Dynamic.Client.RackIds != nil {
+		policy.RackIds = *dynConfig.config.Dynamic.Client.RackIds
+	}
+	if dynConfig.config.Dynamic.Client.TendInterval != nil {
+		policy.TendInterval = time.Duration(*dynConfig.config.Dynamic.Client.TendInterval)
+	}
+	if dynConfig.config.Dynamic.Client.UseServiceAlternate != nil {
+		policy.UseServicesAlternate = *dynConfig.config.Dynamic.Client.UseServiceAlternate
+	}
+
+	return policy
+}
+
+func mapStaticClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientPolicy {
+	if dynConfig.config == nil || dynConfig.config.Static == nil {
+		return policy
+	}
+
+	if dynConfig.config.Static.Client != nil {
+		if dynConfig.config.Static.Client.ConfigInterval != nil {
+			policy.ConfigInterval = time.Duration(*dynConfig.config.Static.Client.ConfigInterval)
+		}
+		if dynConfig.config.Static.Client.ConnectionQueueSize != nil {
+			policy.ConnectionQueueSize = *dynConfig.config.Static.Client.ConnectionQueueSize
+		}
+		if dynConfig.config.Static.Client.MinConnectionsPerNode != nil {
+			policy.MinConnectionsPerNode = *dynConfig.config.Static.Client.MinConnectionsPerNode
+		}
+	}
+
+	return policy
+}
+
+// applyConfigToClientPolicy applies the dynamic configuration and generates a new policy.
+func applyConfigToClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientPolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.getConfigIfNotInitialized()
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	if config != nil && ((config.Dynamic != nil && config.Dynamic.Client != nil) || (config.Static != nil && config.Static.Client != nil)) {
+		// Dynamic configuration is exists for policy in question.
+		var responsePolicy *ClientPolicy
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		if policy != nil {
+			// Copy the existing policy to preserve any custom settings.
+			responsePolicy = copyClientPolicy(policy)
+			// Static configuration
+			responsePolicy = mapStaticClientPolicy(responsePolicy, dynConfig)
+			// Dynamic configuration
+			responsePolicy = mapDynamicClientPolicy(responsePolicy, dynConfig)
+
+			return responsePolicy
+		} else {
+			// Passed in policy is nil, fetch mapped default policy from cache.
+			responsePolicy = dynConfig.mappedPolicies.Get(pc.CLIENT_POLICY).(*ClientPolicy)
+
+			// If we have found entry in cache no need to map again return it.
+			return responsePolicy
+		}
+	}  else {
+		return policy
+	}
 }

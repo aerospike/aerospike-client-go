@@ -14,6 +14,12 @@
 
 package aerospike
 
+import (
+	"time"
+
+	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
+)
+
 // ScanPolicy encapsulates parameters used in scan operations.
 //
 // Inherited Policy fields Policy.Txn are ignored in scan commands.
@@ -41,4 +47,107 @@ func NewScanPolicy() *ScanPolicy {
 	return &ScanPolicy{
 		MultiPolicy: mp,
 	}
+}
+
+func NewScanPolicyOrDefaultFromCache(dynConfig *DynConfig) *ScanPolicy {
+	if dynConfig == nil {
+		return NewScanPolicy()
+	}
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	return dynConfig.mappedPolicies.Get(pc.SCAN_POLICY).(*ScanPolicy)
+}
+
+// copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+func copyScanPolicy(src *ScanPolicy) *ScanPolicy {
+	if src == nil {
+		return nil
+	}
+
+	response := NewScanPolicy()
+
+	response.Txn = src.Txn
+	response.FilterExpression = src.FilterExpression
+	response.ReadModeAP = src.ReadModeAP
+	response.ReadModeSC = src.ReadModeSC
+	response.TotalTimeout = src.TotalTimeout
+	response.SocketTimeout = src.SocketTimeout
+	response.MaxRetries = src.MaxRetries
+	response.ReadTouchTTLPercent = src.ReadTouchTTLPercent
+	response.SleepBetweenRetries = src.SleepBetweenRetries
+	response.SleepMultiplier = src.SleepMultiplier
+	response.ExitFastOnExhaustedConnectionPool = src.ExitFastOnExhaustedConnectionPool
+	response.SendKey = src.SendKey
+	response.UseCompression = src.UseCompression
+	response.ReplicaPolicy = src.ReplicaPolicy
+	response.IncludeBinData = src.IncludeBinData
+
+	return response
+}
+
+// applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy.
+func applyConfigToScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.config
+
+	if config == nil && !dynConfig.configInitialized.Load() {
+		// On initial load it is possible that the config is not yet loaded. This will kick things off to make sure
+		// config is loaded.
+		dynConfig.loadConfig()
+		config = dynConfig.config
+	}
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	if policy == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.mappedPolicies.Get(pc.SCAN_POLICY).(*ScanPolicy)
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.Scan != nil {
+		// Dynamic configuration is exists for policy in question.
+		var responsePolicy *ScanPolicy
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		responsePolicy = copyScanPolicy(policy)
+		responsePolicy = mapDynamicScanPolicy(responsePolicy, dynConfig)
+
+		return responsePolicy
+	} else {
+		return policy
+	}
+}
+
+func mapDynamicScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPolicy {
+	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.Scan != nil {
+		if dynConfig.config.Dynamic.Scan.ReadModeAp != nil {
+			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Scan.ReadModeAp)
+		}
+		if dynConfig.config.Dynamic.Scan.ReadModeSc != nil {
+			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Scan.ReadModeSc)
+		}
+		if dynConfig.config.Dynamic.Scan.TotalTimeout != nil {
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout)
+		}
+		if dynConfig.config.Dynamic.Scan.SocketTimeout != nil {
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.SocketTimeout)
+		}
+		if dynConfig.config.Dynamic.Scan.MaxRetries != nil {
+			policy.MaxRetries = *dynConfig.config.Dynamic.Scan.MaxRetries
+		}
+		if dynConfig.config.Dynamic.Scan.SleepBetweenRetries != nil {
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Scan.SleepBetweenRetries)
+		}
+		if dynConfig.config.Dynamic.Scan.Replica != nil {
+			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Scan.Replica)
+		}
+	}
+	return policy
 }

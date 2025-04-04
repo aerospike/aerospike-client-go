@@ -1254,7 +1254,7 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 			case _BRT_BATCH_READ:
 				br := record.(*BatchRead)
 
-				attr.setBatchRead(client.getUsableBatchReadPolicy(br.Policy))
+				attr.setBatchRead(client.getUsableBatchReadPolicyWithConfig(br.Policy))
 				if len(br.BinNames) > 0 {
 					if err := cmd.writeBatchBinNames(key, txn, ver, br.BinNames, attr, attr.filterExp); err != nil {
 						return nil, err
@@ -1272,7 +1272,7 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 			case _BRT_BATCH_WRITE:
 				bw := record.(*BatchWrite)
 
-				attr.setBatchWrite(client.getUsableBatchWritePolicy(bw.Policy))
+				attr.setBatchWrite(client.getUsableBatchWritePolicyWithConfig(bw.Policy))
 				attr.adjustWrite(bw.Ops)
 				if err := cmd.writeBatchOperations(key, txn, ver, bw.Ops, attr, attr.filterExp); err != nil {
 					return nil, err
@@ -1281,7 +1281,7 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 			case _BRT_BATCH_UDF:
 				bu := record.(*BatchUDF)
 
-				attr.setBatchUDF(client.getUsableBatchUDFPolicy(bu.Policy))
+				attr.setBatchUDF(client.getUsableBatchUDFPolicyWithConfig(bu.Policy))
 				cmd.writeBatchWrite(key, txn, ver, attr, attr.filterExp, 3, 0)
 				cmd.writeFieldString(bu.PackageName, UDF_PACKAGE_NAME)
 				cmd.writeFieldString(bu.FunctionName, UDF_FUNCTION)
@@ -1290,7 +1290,7 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 			case _BRT_BATCH_DELETE:
 				bd := record.(*BatchDelete)
 
-				attr.setBatchDelete(client.getUsableBatchDeletePolicy(bd.Policy))
+				attr.setBatchDelete(client.getUsableBatchDeletePolicyWithConfig(bd.Policy))
 				cmd.writeBatchWrite(key, txn, ver, attr, attr.filterExp, 0, 0)
 			}
 			prev = record
@@ -1437,7 +1437,7 @@ func (cmd *baseCommand) setBatchOperateReadOffsets(
 			cmd.WriteByte(_BATCH_MSG_REPEAT) // repeat
 		} else {
 			// Write full message.
-			attr.setBatchRead(client.getUsableBatchReadPolicy(record.Policy))
+			attr.setBatchRead(client.getUsableBatchReadPolicyWithConfig(record.Policy))
 			if len(record.BinNames) > 0 {
 				if err := cmd.writeBatchBinNames(key, txn, ver, record.BinNames, attr, attr.filterExp); err != nil {
 					return nil, err

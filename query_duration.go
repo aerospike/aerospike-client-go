@@ -17,6 +17,8 @@
 
 package aerospike
 
+import dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+
 // QueryDuration defines the expected query duration. The server treats the query in different ways depending on the expected duration.
 // This enum is ignored for aggregation queries, background queries and server versions < 6.0.
 type QueryDuration int
@@ -46,3 +48,16 @@ const (
 	// This value is treated exactly like LONG for server versions < 7.1.
 	LONG_RELAX_AP
 )
+
+func mapQueryDuration(expectedDuration dynconfig.QueryDuration) QueryDuration {
+	switch expectedDuration {
+	case dynconfig.LONG:
+		return LONG
+	case dynconfig.SHORT:
+		return SHORT
+	case dynconfig.LONG_RELAX_AP:
+		return LONG_RELAX_AP
+	default:
+		return SHORT
+	}
+}

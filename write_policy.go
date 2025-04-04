@@ -16,6 +16,9 @@ package aerospike
 
 import (
 	"math"
+	"time"
+
+	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 const (
@@ -102,4 +105,110 @@ func NewWritePolicy(generation, expiration uint32) *WritePolicy {
 	res.MaxRetries = 0
 
 	return res
+}
+
+func NewWritePolicyOrDefaultFromCache(dynConfig *DynConfig) *WritePolicy {
+	if dynConfig == nil {
+		return NewWritePolicy(0, 0)
+	}
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	return dynConfig.mappedPolicies.Get(pc.WRITE_POLICY).(*WritePolicy)
+}
+
+// copyWritePolicy creates a new WritePolicy instance and copies the values from the source WritePolicy.
+func copyWritePolicy(src *WritePolicy) *WritePolicy {
+	if src == nil {
+		return nil
+	}
+
+	response := NewWritePolicy(0, 0)
+
+	response.Txn = src.Txn
+	response.FilterExpression = src.FilterExpression
+	response.ReadModeAP = src.ReadModeAP
+	response.ReadModeSC = src.ReadModeSC
+	response.TotalTimeout = src.TotalTimeout
+	response.SocketTimeout = src.SocketTimeout
+	response.MaxRetries = src.MaxRetries
+	response.ReadTouchTTLPercent = src.ReadTouchTTLPercent
+	response.SleepBetweenRetries = src.SleepBetweenRetries
+	response.SleepMultiplier = src.SleepMultiplier
+	response.ExitFastOnExhaustedConnectionPool = src.ExitFastOnExhaustedConnectionPool
+	response.SendKey = src.SendKey
+	response.UseCompression = src.UseCompression
+	response.ReplicaPolicy = src.ReplicaPolicy
+	response.RecordExistsAction = src.RecordExistsAction
+	response.GenerationPolicy = src.GenerationPolicy
+	response.CommitLevel = src.CommitLevel
+	response.Generation = src.Generation
+	response.Expiration = src.Expiration
+	response.RespondPerEachOp = src.RespondPerEachOp
+	response.DurableDelete = src.DurableDelete
+	response.OnLockingOnly = src.OnLockingOnly
+
+	return response
+}
+
+// applyConfigToWritePolicy applies the dynamic configuration and generates a new policy
+func applyConfigToWritePolicy(policy *WritePolicy, dynConfig *DynConfig) *WritePolicy {
+	// If dynamic config is not set, return the policy as is.
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.getConfigIfNotInitialized()
+
+	dynConfig.lock.RLock()
+	defer dynConfig.lock.RUnlock()
+
+	// If no policy is passed in, we don't need to map. Just returned what is in mapped cache already.
+	if policy == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.mappedPolicies.Get(pc.WRITE_POLICY).(*WritePolicy)
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.Write != nil {
+		// Dynamic configuration is exists for policy in question.
+		var responsePolicy *WritePolicy
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		responsePolicy = copyWritePolicy(policy)
+		responsePolicy = mapDynamicWritePolicy(responsePolicy, dynConfig)
+
+		return responsePolicy
+	} else {
+		return policy
+	}
+}
+
+func mapDynamicWritePolicy(policy *WritePolicy, dynConfig *DynConfig) *WritePolicy {
+	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.Write != nil {
+		if dynConfig.config.Dynamic.Write.Replica != nil {
+			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Write.Replica)
+		}
+		if dynConfig.config.Dynamic.Write.SendKey != nil {
+			policy.SendKey = *dynConfig.config.Dynamic.Write.SendKey
+		}
+		if dynConfig.config.Dynamic.Write.SleepBetweenRetries != nil {
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Write.SleepBetweenRetries)
+		}
+		if dynConfig.config.Dynamic.Write.SocketTimeout != nil {
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Write.SocketTimeout)
+		}
+		if dynConfig.config.Dynamic.Write.TotalTimeout != nil {
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Write.TotalTimeout)
+		}
+		if dynConfig.config.Dynamic.Write.MaxRetries != nil {
+			policy.MaxRetries = *dynConfig.config.Dynamic.Write.MaxRetries
+		}
+		if dynConfig.config.Dynamic.Write.DurableDelete != nil {
+			policy.DurableDelete = *dynConfig.config.Dynamic.Write.DurableDelete
+		}
+	}
+
+	return policy
 }
