@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/KeanuRo/aerospike-client-go/types"
 )
 
 // Partition encapsulates partition information.

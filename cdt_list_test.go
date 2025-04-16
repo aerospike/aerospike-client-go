@@ -20,8 +20,8 @@ import (
 	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 
-	as "github.com/aerospike/aerospike-client-go"
-	ast "github.com/aerospike/aerospike-client-go/types"
+	as "github.com/KeanuRo/aerospike-client-go"
+	ast "github.com/KeanuRo/aerospike-client-go/types"
 )
 
 var _ = gg.Describe("CDT List Test", func() {

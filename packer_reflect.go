@@ -1,3 +1,4 @@
+//go:build !as_performance
 // +build !as_performance
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -20,7 +21,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/KeanuRo/aerospike-client-go/types"
 )
 
 func init() {

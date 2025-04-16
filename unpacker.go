@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"reflect"
 
-	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
-	"github.com/aerospike/aerospike-client-go/types"
+	ParticleType "github.com/KeanuRo/aerospike-client-go/internal/particle_type"
+	"github.com/KeanuRo/aerospike-client-go/types"
 
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	Buffer "github.com/KeanuRo/aerospike-client-go/utils/buffer"
 )
 
 type unpacker struct {

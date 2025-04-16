@@ -15,9 +15,9 @@
 package aerospike
 
 import (
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/KeanuRo/aerospike-client-go/types"
 
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	Buffer "github.com/KeanuRo/aerospike-client-go/utils/buffer"
 )
 
 // guarantee deleteCommand implements command interface
