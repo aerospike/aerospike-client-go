@@ -59,24 +59,3 @@ func newRecord(node *Node, key *Key, bins BinMap, generation, expiration uint32)
 func (rc *Record) String() string {
 	return fmt.Sprintf("%s %v", rc.Key, rc.Bins)
 }
-
-func (rc *Record) FreeBins() {
-	if rc.Bins == nil {
-		return
-	}
-
-	for k := range rc.Bins {
-		m, ok := rc.Bins[k].(map[interface{}]interface{})
-		if ok {
-			for j := range m {
-				delete(m, j)
-			}
-			resultPool.Put(m)
-		}
-
-		delete(rc.Bins, k)
-	}
-
-	binMapPool.Put(rc.Bins)
-	rc.Bins = nil
-}

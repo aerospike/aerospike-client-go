@@ -35,6 +35,8 @@ type readCommand struct {
 	object *reflect.Value
 
 	replicaSequence int
+
+	withPool bool
 }
 
 // this method uses reflection.
@@ -210,7 +212,11 @@ func (cmd *readCommand) parseRecord(
 	}
 
 	if opCount > 0 {
-		bins = binMapPool.Get().(BinMap)
+		if cmd.withPool {
+			bins = binMapPool.Get().(BinMap)
+		} else {
+			bins = make(BinMap, opCount)
+		}
 	}
 
 	for i := 0; i < opCount; i++ {
@@ -223,10 +229,6 @@ func (cmd *readCommand) parseRecord(
 		particleBytesSize := opSize - (4 + nameSize)
 		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
 		receiveOffset += particleBytesSize
-
-		if bins == nil {
-			bins = binMapPool.Get().(BinMap)
-		}
 
 		if isOperate {
 			// for operate list command results

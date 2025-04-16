@@ -17,11 +17,9 @@ package aerospike
 import (
 	"errors"
 	"fmt"
-	"reflect"
-	"sync"
-
 	ParticleType "github.com/KeanuRo/aerospike-client-go/internal/particle_type"
 	"github.com/KeanuRo/aerospike-client-go/types"
+	"reflect"
 
 	Buffer "github.com/KeanuRo/aerospike-client-go/utils/buffer"
 )
@@ -30,12 +28,6 @@ type unpacker struct {
 	buffer []byte
 	offset int
 	length int
-}
-
-var resultPool = sync.Pool{
-	New: func() interface{} {
-		return make(map[interface{}]interface{}, 8)
-	},
 }
 
 func newUnpacker(buffer []byte, offset int, length int) *unpacker {
