@@ -358,6 +358,21 @@ func (clnt *Client) Get(policy *BasePolicy, key *Key, binNames ...string) (*Reco
 	return command.GetRecord(), nil
 }
 
+func (clnt *Client) GetWithPool(policy *BasePolicy, key *Key, binNames ...string) (*Record, error) {
+	policy = clnt.getUsablePolicy(policy)
+
+	command, err := newReadCommand(clnt.cluster, policy, key, binNames, nil)
+	if err != nil {
+		return nil, err
+	}
+	command.withPool = true
+
+	if err := command.Execute(); err != nil {
+		return nil, err
+	}
+	return command.GetRecord(), nil
+}
+
 // GetHeader reads a record generation and expiration only for specified key.
 // Bins are not read.
 // The policy can be used to specify timeouts.

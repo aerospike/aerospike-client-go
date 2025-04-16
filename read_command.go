@@ -227,7 +227,7 @@ func (cmd *readCommand) parseRecord(
 		receiveOffset += 4 + 4 + nameSize
 
 		particleBytesSize := opSize - (4 + nameSize)
-		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
+		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize, cmd.withPool)
 		receiveOffset += particleBytesSize
 
 		if isOperate {

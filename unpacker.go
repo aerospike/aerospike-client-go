@@ -20,14 +20,22 @@ import (
 	ParticleType "github.com/KeanuRo/aerospike-client-go/internal/particle_type"
 	"github.com/KeanuRo/aerospike-client-go/types"
 	"reflect"
+	"sync"
 
 	Buffer "github.com/KeanuRo/aerospike-client-go/utils/buffer"
 )
 
 type unpacker struct {
-	buffer []byte
-	offset int
-	length int
+	buffer   []byte
+	offset   int
+	length   int
+	withPool bool
+}
+
+var resultPool = sync.Pool{
+	New: func() interface{} {
+		return make(map[interface{}]interface{}, 8)
+	},
 }
 
 func newUnpacker(buffer []byte, offset int, length int) *unpacker {
@@ -100,7 +108,8 @@ func (upckr *unpacker) unpackList(count int) ([]interface{}, error) {
 	return out, nil
 }
 
-func (upckr *unpacker) UnpackMap() (interface{}, error) {
+func (upckr *unpacker) UnpackMap(withPool bool) (interface{}, error) {
+	upckr.withPool = withPool
 	if upckr.length <= 0 {
 		return nil, nil
 	}
@@ -118,14 +127,22 @@ func (upckr *unpacker) UnpackMap() (interface{}, error) {
 		count = int(Buffer.BytesToUint32(upckr.buffer, upckr.offset))
 		upckr.offset += 4
 	} else {
-		return resultPool.Get().(map[interface{}]interface{}), nil
+		if upckr.withPool {
+			return resultPool.Get().(map[interface{}]interface{}), nil
+		} else {
+			return make(map[interface{}]interface{}), nil
+		}
 	}
 	return upckr.unpackMap(count)
 }
 
 func (upckr *unpacker) unpackMap(count int) (interface{}, error) {
 	if count <= 0 {
-		return resultPool.Get().(map[interface{}]interface{}), nil
+		if upckr.withPool {
+			return resultPool.Get().(map[interface{}]interface{}), nil
+		} else {
+			return make(map[interface{}]interface{}), nil
+		}
 	}
 
 	if upckr.isMapCDT() {
@@ -135,7 +152,12 @@ func (upckr *unpacker) unpackMap(count int) (interface{}, error) {
 }
 
 func (upckr *unpacker) unpackMapNormal(count int) (map[interface{}]interface{}, error) {
-	out := resultPool.Get().(map[interface{}]interface{})
+	var out map[interface{}]interface{}
+	if upckr.withPool {
+		out = resultPool.Get().(map[interface{}]interface{})
+	} else {
+		out = make(map[interface{}]interface{}, count)
+	}
 
 	for i := 0; i < count; i++ {
 		key, err := upckr.unpackObject(true)

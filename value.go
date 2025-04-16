@@ -1137,7 +1137,7 @@ func (vl HLLValue) String() string {
 
 //////////////////////////////////////////////////////////////////////////////
 
-func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}, error) {
+func bytesToParticle(ptype int, buf []byte, offset int, length int, withPool bool) (interface{}, error) {
 
 	switch ptype {
 	case ParticleType.INTEGER:
@@ -1157,7 +1157,7 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}
 		return Buffer.BytesToBool(buf, offset, length), nil
 
 	case ParticleType.MAP:
-		return newUnpacker(buf, offset, length).UnpackMap()
+		return newUnpacker(buf, offset, length).UnpackMap(withPool)
 
 	case ParticleType.LIST:
 		return newUnpacker(buf, offset, length).UnpackList()
