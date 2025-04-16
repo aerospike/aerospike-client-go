@@ -30,9 +30,9 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	"github.com/aerospike/aerospike-client-go/internal/atomic"
-	"github.com/aerospike/aerospike-client-go/logger"
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/v4/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/v4/logger"
+	"github.com/aerospike/aerospike-client-go/v4/types"
 )
 
 // Client encapsulates an Aerospike cluster.
@@ -1510,6 +1510,13 @@ func (clnt *Client) Stats() (map[string]interface{}, error) {
 	}
 
 	res["open-connections"] = clusterStats.ConnectionsOpen
+	nodeCount := len(clnt.cluster.GetNodes())
+	res["total-nodes"] = nodeCount
+
+	aggstats := res["cluster-aggregated-stats"].(map[string]interface{})
+	aggstats["exceeded-max-retries"] = clnt.cluster.maxRetriesExceededCount.Get()
+	aggstats["exceeded-total-timeout"] = clnt.cluster.totalTimeoutExceededCount.Get()
+	aggstats["total-nodes"] = nodeCount
 
 	return res, nil
 }
@@ -1561,40 +1568,54 @@ func (clnt *Client) batchExecute(policy *BatchPolicy, batchNodes []*batchNode, c
 
 	wg.Add(len(batchNodes))
 	if policy.ConcurrentNodes <= 0 {
-		for _, batchNode := range batchNodes {
-			newCmd := cmd.cloneBatchCommand(batchNode)
-			go func(cmd command) {
+		for i := range batchNodes {
+			bNode := batchNodes[i]
+			newCmd := cmd.cloneBatchCommand(bNode)
+			go func(cmd batcher, batchNode *batchNode) {
 				defer wg.Done()
-				err := cmd.Execute()
+				var err error
+				if policy.DirectGetThreshold > 0 && len(batchNode.offsets) <= policy.DirectGetThreshold {
+					// run direct get commands instead
+					err = newCmd.directGet(clnt)
+				} else {
+					err = cmd.Execute()
+				}
 				errm.Lock()
 				if err != nil {
 					errs = append(errs, err)
 				}
 				filteredOut += cmd.(batcher).filteredOut()
 				errm.Unlock()
-			}(newCmd)
+			}(newCmd, bNode)
 		}
 	} else {
 		sem := semaphore.NewWeighted(int64(policy.ConcurrentNodes))
 		ctx := context.Background()
 
-		for _, batchNode := range batchNodes {
+		for i := range batchNodes {
 			if err := sem.Acquire(ctx, 1); err != nil {
 				logger.Logger.Error("Constraint Semaphore failed for Batch: %s", err.Error())
 			}
 
-			newCmd := cmd.cloneBatchCommand(batchNode)
-			go func(cmd command) {
+			bNode := batchNodes[i]
+			newCmd := cmd.cloneBatchCommand(bNode)
+			go func(cmd batcher, batchNode *batchNode) {
 				defer sem.Release(1)
 				defer wg.Done()
-				err := cmd.Execute()
+				var err error
+				if policy.DirectGetThreshold > 0 && len(batchNode.offsets) <= policy.DirectGetThreshold {
+					// run direct get commands instead
+					err = newCmd.directGet(clnt)
+				} else {
+					err = cmd.Execute()
+				}
 				errm.Lock()
 				if err != nil {
 					errs = append(errs, err)
 				}
 				filteredOut += cmd.(batcher).filteredOut()
 				errm.Unlock()
-			}(newCmd)
+			}(newCmd, bNode)
 		}
 	}
 

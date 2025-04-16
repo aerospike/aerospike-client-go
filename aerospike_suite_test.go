@@ -29,11 +29,11 @@ import (
 	"testing"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go"
-	asl "github.com/aerospike/aerospike-client-go/logger"
-	ast "github.com/aerospike/aerospike-client-go/types"
+	as "github.com/aerospike/aerospike-client-go/v4"
+	asl "github.com/aerospike/aerospike-client-go/v4/logger"
+	ast "github.com/aerospike/aerospike-client-go/v4/types"
 
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
 

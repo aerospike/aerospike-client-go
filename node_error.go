@@ -17,7 +17,7 @@ package aerospike
 import (
 	"fmt"
 
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/v4/types"
 )
 
 // NodeError is a type to encapsulate the node that the error occurred in.

@@ -14,7 +14,7 @@
 
 package aerospike
 
-import xornd "github.com/aerospike/aerospike-client-go/types/rand"
+import xornd "github.com/aerospike/aerospike-client-go/v4/types/rand"
 
 // Statement encapsulates query statement parameters.
 type Statement struct {
@@ -80,30 +80,31 @@ func (stmt *Statement) SetFilter(filter *Filter) error {
 //
 // Example: (c >= 11 and c <= 20) or (d > 3 and (d < 5)
 //
-//  stmt.SetPredExp(
-//    NewPredExpIntegerValue(11),
-//    NewPredExpIntegerBin("c"),
-//    NewPredExpIntegerGreaterEq(),
-//    NewPredExpIntegerValue(20),
-//    NewPredExpIntegerBin("c"),
-//    NewPredExpIntegerLessEq(),
-//    NewPredExpAnd(2),
-//    NewPredExpIntegerValue(3),
-//    NewPredExpIntegerBin("d"),
-//    NewPredExpIntegerGreater(),
-//    NewPredExpIntegerValue(5),
-//    NewPredExpIntegerBin("d"),
-//    NewPredExpIntegerLess(),
-//    NewPredExpAnd(2),
-//    NewPredExpOr(2)
-//  );
+//	stmt.SetPredExp(
+//	  NewPredExpIntegerValue(11),
+//	  NewPredExpIntegerBin("c"),
+//	  NewPredExpIntegerGreaterEq(),
+//	  NewPredExpIntegerValue(20),
+//	  NewPredExpIntegerBin("c"),
+//	  NewPredExpIntegerLessEq(),
+//	  NewPredExpAnd(2),
+//	  NewPredExpIntegerValue(3),
+//	  NewPredExpIntegerBin("d"),
+//	  NewPredExpIntegerGreater(),
+//	  NewPredExpIntegerValue(5),
+//	  NewPredExpIntegerBin("d"),
+//	  NewPredExpIntegerLess(),
+//	  NewPredExpAnd(2),
+//	  NewPredExpOr(2)
+//	);
 //
-//  // Record last update time > 2017-01-15
-//  stmt.SetPredExp(
-//    NewIntegerValue(time.Date(2017, 0, 15, 0, 0, 0, 0, time.UTC).UnixNano()),
-//    NewPredExpRecLastUpdate(),
-//    NewPredExpIntegerGreater(),
-//  );
+//	// Record last update time > 2017-01-15
+//	stmt.SetPredExp(
+//	  NewIntegerValue(time.Date(2017, 0, 15, 0, 0, 0, 0, time.UTC).UnixNano()),
+//	  NewPredExpRecLastUpdate(),
+//	  NewPredExpIntegerGreater(),
+//	);
+//
 // NOTE: This feature is deprecated on Aerospike servers and will be removed in the future.
 // It has been replaced by FilterExpressions.
 func (stmt *Statement) SetPredExp(predexp ...PredExp) error {

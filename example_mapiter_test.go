@@ -19,11 +19,11 @@ import (
 	"log"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go/v4"
 )
 
 /*
-	myMapStringTime
+myMapStringTime
 */
 var _ as.MapIter = myMapStringTime(map[string]time.Time{})
 

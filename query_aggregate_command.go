@@ -1,3 +1,4 @@
+//go:build !app_engine
 // +build !app_engine
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -19,9 +20,9 @@ package aerospike
 import (
 	"fmt"
 
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/v4/types"
 
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	Buffer "github.com/aerospike/aerospike-client-go/v4/utils/buffer"
 	lua "github.com/yuin/gopher-lua"
 )
 

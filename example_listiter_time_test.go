@@ -19,11 +19,11 @@ import (
 	"log"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go/v4"
 )
 
 /*
-	myListTime
+myListTime
 */
 var _ as.ListIter = myListTime([]time.Time{})
 

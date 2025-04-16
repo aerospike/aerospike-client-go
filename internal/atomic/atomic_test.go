@@ -17,7 +17,7 @@ package atomic_test
 import (
 	"testing"
 
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
 

@@ -17,7 +17,7 @@ package aerospike
 import (
 	"fmt"
 
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/v4/types"
 )
 
 // ScanPolicy encapsulates parameters used in scan operations.

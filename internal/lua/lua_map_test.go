@@ -1,3 +1,4 @@
+//go:build !app_engine
 // +build !app_engine
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -19,10 +20,10 @@ package lua_test
 import (
 	lua "github.com/yuin/gopher-lua"
 
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 
-	ilua "github.com/aerospike/aerospike-client-go/internal/lua"
+	ilua "github.com/aerospike/aerospike-client-go/v4/internal/lua"
 )
 
 var _ = gg.Describe("Lua Map API Test", func() {

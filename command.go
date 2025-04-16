@@ -23,11 +23,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/logger"
-	"github.com/aerospike/aerospike-client-go/types"
+	"github.com/aerospike/aerospike-client-go/v4/logger"
+	"github.com/aerospike/aerospike-client-go/v4/types"
 
-	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	ParticleType "github.com/aerospike/aerospike-client-go/v4/types/particle_type"
+	Buffer "github.com/aerospike/aerospike-client-go/v4/utils/buffer"
 )
 
 const (
@@ -446,6 +446,7 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 			cmd.writeOperationForBinName(binNames[i], _READ)
 		}
 		cmd.end()
+		return nil
 	}
 	return cmd.setReadForKeyOnly(policy, key)
 }
@@ -2055,6 +2056,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 				err = types.NewAerospikeError(ae.ResultCode(), fmt.Sprintf("command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`. (last error: %s)", err.Error()))
 			}
 
+			if cmd.node != nil && cmd.node.cluster != nil {
+				cmd.node.cluster.maxRetriesExceededCount.GetAndIncrement()
+			}
 			return setInDoubt(err, isRead, commandSentCounter)
 		}
 
@@ -2227,6 +2231,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 	}
 
 	// execution timeout
+	if cmd.node != nil && cmd.node.cluster != nil {
+		cmd.node.cluster.totalTimeoutExceededCount.GetAndIncrement()
+	}
 	return types.ErrTimeout
 }
 

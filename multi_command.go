@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/aerospike/aerospike-client-go/types"
-	xrand "github.com/aerospike/aerospike-client-go/types/rand"
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	"github.com/aerospike/aerospike-client-go/v4/types"
+	xrand "github.com/aerospike/aerospike-client-go/v4/types/rand"
+	Buffer "github.com/aerospike/aerospike-client-go/v4/utils/buffer"
 )
 
 type baseMultiCommand struct {

@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	as "github.com/aerospike/aerospike-client-go"
-	shared "github.com/aerospike/aerospike-client-go/examples/shared"
+	as "github.com/aerospike/aerospike-client-go/v4"
+	shared "github.com/aerospike/aerospike-client-go/v4/examples/shared"
 )
 
 func main() {

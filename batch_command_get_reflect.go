@@ -1,3 +1,4 @@
+//go:build !as_performance
 // +build !as_performance
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -20,7 +21,7 @@ import (
 	"errors"
 	"reflect"
 
-	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
+	Buffer "github.com/aerospike/aerospike-client-go/v4/utils/buffer"
 )
 
 // if this file is included in the build, it will include this method

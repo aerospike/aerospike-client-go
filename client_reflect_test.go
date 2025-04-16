@@ -1,3 +1,4 @@
+//go:build !as_performance
 // +build !as_performance
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -20,10 +21,10 @@ import (
 	"math"
 	"strings"
 
-	as "github.com/aerospike/aerospike-client-go"
-	ast "github.com/aerospike/aerospike-client-go/types"
+	as "github.com/aerospike/aerospike-client-go/v4"
+	ast "github.com/aerospike/aerospike-client-go/v4/types"
 
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
 

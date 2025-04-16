@@ -1,3 +1,4 @@
+//go:build !as_performance
 // +build !as_performance
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -19,9 +20,9 @@ package aerospike_test
 import (
 	"encoding/hex"
 
-	as "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go/v4"
 
-	gg "github.com/onsi/ginkgo"
+	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
 
