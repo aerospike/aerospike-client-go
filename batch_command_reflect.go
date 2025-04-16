@@ -1,4 +1,3 @@
-//go:build !as_performance
 // +build !as_performance
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -20,7 +19,7 @@ package aerospike
 import (
 	"reflect"
 
-	Buffer "github.com/aerospike/aerospike-client-go/v4/utils/buffer"
+	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 // this function will only be set if the performance flag is not passed for build

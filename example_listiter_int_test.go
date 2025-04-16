@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"log"
 
-	as "github.com/aerospike/aerospike-client-go/v4"
+	as "github.com/aerospike/aerospike-client-go"
 )
 
 /*
-myListInt
+	myListInt
 */
 var _ as.ListIter = myListInt([]int{})
 

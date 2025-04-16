@@ -15,7 +15,7 @@
 package aerospike
 
 import (
-	gg "github.com/onsi/ginkgo/v2"
+	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 )
 

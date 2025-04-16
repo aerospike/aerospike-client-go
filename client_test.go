@@ -23,11 +23,11 @@ import (
 	"strings"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go/v4"
-	ast "github.com/aerospike/aerospike-client-go/v4/types"
-	asub "github.com/aerospike/aerospike-client-go/v4/utils/buffer"
+	as "github.com/aerospike/aerospike-client-go"
+	ast "github.com/aerospike/aerospike-client-go/types"
+	asub "github.com/aerospike/aerospike-client-go/utils/buffer"
 
-	gg "github.com/onsi/ginkgo/v2"
+	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 )
 
@@ -962,7 +962,6 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.Context("Batch Get operations", func() {
 			bin := as.NewBin("Aerospike", rand.Int())
-			bin2Name := bin.Name + "2"
 			const keyCount = 2048
 
 			gg.BeforeEach(func() {
@@ -988,18 +987,15 @@ var _ = gg.Describe("Aerospike", func() {
 						exList = append(exList, e)
 						keys = append(keys, key)
 
-						bin2 := as.NewBin(bin2Name, i)
-
 						// if key shouldExist == true, put it in the DB
 						if e.shouldExist {
-							err = client.PutBins(wpolicy, key, bin, binRedundant, bin2)
+							err = client.PutBins(wpolicy, key, bin, binRedundant)
 							gm.Expect(err).ToNot(gm.HaveOccurred())
 
 							// make sure they exists in the DB
 							rec, err := client.Get(rpolicy, key)
 							gm.Expect(err).ToNot(gm.HaveOccurred())
 							gm.Expect(rec.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
-							gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 							gm.Expect(rec.Bins[binRedundant.Name]).To(gm.Equal(binRedundant.Value.GetObject()))
 						} else {
 							// make sure they exists in the DB
@@ -1022,7 +1018,6 @@ var _ = gg.Describe("Aerospike", func() {
 					for idx, rec := range brecords {
 						if exList[idx].shouldExist {
 							gm.Expect(rec.Record.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
-							gm.Expect(rec.Record.Bins[bin2Name]).To(gm.Equal(idx))
 							gm.Expect(rec.Record.Key).To(gm.Equal(keys[idx]))
 						} else {
 							gm.Expect(rec.Record).To(gm.BeNil())
@@ -1035,14 +1030,13 @@ var _ = gg.Describe("Aerospike", func() {
 					for idx, rec := range records {
 						if exList[idx].shouldExist {
 							gm.Expect(rec.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
-							gm.Expect(rec.Bins[bin2Name]).To(gm.Equal(idx))
 							gm.Expect(rec.Key).To(gm.Equal(keys[idx]))
 						} else {
 							gm.Expect(rec).To(gm.BeNil())
 						}
 					}
 
-					records, err = client.BatchGet(bpolicy, keys, bin.Name, bin2Name)
+					records, err = client.BatchGet(bpolicy, keys, bin.Name)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 					gm.Expect(len(records)).To(gm.Equal(len(keys)))
 					for idx, rec := range records {
@@ -1050,7 +1044,6 @@ var _ = gg.Describe("Aerospike", func() {
 							// only bin1 has been requested
 							gm.Expect(rec.Bins[binRedundant.Name]).To(gm.BeNil())
 							gm.Expect(rec.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
-							gm.Expect(rec.Bins[bin2Name]).To(gm.Equal(idx))
 							gm.Expect(rec.Key).To(gm.Equal(keys[idx]))
 						} else {
 							gm.Expect(rec).To(gm.BeNil())
@@ -1060,7 +1053,6 @@ var _ = gg.Describe("Aerospike", func() {
 
 				gg.It(fmt.Sprintf("must return the records with same ordering as keys via Batch Complex Protocol. AllowInline: %v", useInline), func() {
 					binRedundant := as.NewBin("Redundant", "Redundant")
-					bin2Name := bin.Name + "2"
 
 					type existence struct {
 						key         *as.Key
@@ -1077,18 +1069,15 @@ var _ = gg.Describe("Aerospike", func() {
 						exList = append(exList, e)
 						keys = append(keys, key)
 
-						bin2 := as.NewBin(bin2Name, i)
-
 						// if key shouldExist == true, put it in the DB
 						if e.shouldExist {
-							err = client.PutBins(wpolicy, key, bin, binRedundant, bin2)
+							err = client.PutBins(wpolicy, key, bin, binRedundant)
 							gm.Expect(err).ToNot(gm.HaveOccurred())
 
 							// make sure they exists in the DB
 							rec, err := client.Get(rpolicy, key)
 							gm.Expect(err).ToNot(gm.HaveOccurred())
 							gm.Expect(rec.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
-							gm.Expect(rec.Bins[bin2Name]).To(gm.Equal(bin2.Value.GetObject()))
 							gm.Expect(rec.Bins[binRedundant.Name]).To(gm.Equal(binRedundant.Value.GetObject()))
 						} else {
 							// make sure they exists in the DB
@@ -1111,7 +1100,6 @@ var _ = gg.Describe("Aerospike", func() {
 					for idx, rec := range brecords {
 						if exList[idx].shouldExist {
 							gm.Expect(rec.Record.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
-							gm.Expect(rec.Record.Bins[bin2Name]).To(gm.Equal(idx))
 							gm.Expect(rec.Record.Key).To(gm.Equal(keys[idx]))
 						} else {
 							gm.Expect(rec.Record).To(gm.BeNil())
@@ -1123,7 +1111,7 @@ var _ = gg.Describe("Aerospike", func() {
 						brecords[i] = &as.BatchRead{
 							Key:         keys[i],
 							ReadAllBins: false,
-							BinNames:    []string{bin.Name, "Redundant", bin2Name},
+							BinNames:    []string{"Aerospike", "Redundant"},
 						}
 					}
 					bpolicy.AllowInline = useInline
@@ -1132,7 +1120,6 @@ var _ = gg.Describe("Aerospike", func() {
 					for idx, rec := range brecords {
 						if exList[idx].shouldExist {
 							gm.Expect(rec.Record.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
-							gm.Expect(rec.Record.Bins[bin2Name]).To(gm.Equal(idx))
 							gm.Expect(rec.Record.Key).To(gm.Equal(keys[idx]))
 						} else {
 							gm.Expect(rec.Record).To(gm.BeNil())
@@ -1189,7 +1176,6 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.Context("Batch Get Header operations", func() {
 			bin := as.NewBin("Aerospike", rand.Int())
-			bin2Name := bin.Name + "2"
 			const keyCount = 1024
 
 			gg.BeforeEach(func() {
@@ -1213,11 +1199,9 @@ var _ = gg.Describe("Aerospike", func() {
 						exList = append(exList, e)
 						keys = append(keys, key)
 
-						bin2 := as.NewBin(bin2Name, i)
-
 						// if key shouldExist == true, put it in the DB
 						if e.shouldExist {
-							err = client.PutBins(wpolicy, key, bin, bin2)
+							err = client.PutBins(wpolicy, key, bin)
 							gm.Expect(err).ToNot(gm.HaveOccurred())
 
 							// update generation
@@ -1238,7 +1222,6 @@ var _ = gg.Describe("Aerospike", func() {
 					for idx, rec := range records {
 						if exList[idx].shouldExist {
 							gm.Expect(rec.Bins[bin.Name]).To(gm.BeNil())
-							gm.Expect(rec.Bins[bin2Name]).To(gm.BeNil())
 							gm.Expect(rec.Generation).To(gm.Equal(uint32(2)))
 						} else {
 							gm.Expect(rec).To(gm.BeNil())

@@ -12,16 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types_test
+package particleType
 
-import (
-	"testing"
-
-	gg "github.com/onsi/ginkgo"
-	gm "github.com/onsi/gomega"
+// Server particle types. Unsupported types are commented out.
+const (
+	//revive:disable
+	NULL    = 0
+	INTEGER = 1
+	FLOAT   = 2
+	STRING  = 3
+	BLOB    = 4
+	DIGEST  = 6
+	BOOL    = 17
+	HLL     = 18
+	MAP     = 19
+	LIST    = 20
+	LDT     = 21
+	GEOJSON = 23
+	//revive:enable
 )
-
-func TestTypes(t *testing.T) {
-	gm.RegisterFailHandler(gg.Fail)
-	gg.RunSpecs(t, "Aerospike Client Library Types Suite")
-}

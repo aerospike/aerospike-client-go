@@ -26,9 +26,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	iatomic "github.com/aerospike/aerospike-client-go/v4/internal/atomic"
-	"github.com/aerospike/aerospike-client-go/v4/logger"
-	"github.com/aerospike/aerospike-client-go/v4/types"
+	iatomic "github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 // Cluster encapsulates the aerospike cluster nodes and manages
@@ -56,9 +56,6 @@ type Cluster struct {
 	clientPolicy        ClientPolicy
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
-
-	maxRetriesExceededCount   iatomic.Int // number of times the commands on this cluster were exceeded the specifiedmax retries
-	totalTimeoutExceededCount iatomic.Int // number of times the commands on this cluster were exceeded the specified total timeout
 
 	nodeIndex    uint64 // only used via atomic operations
 	replicaIndex uint64 // only used via atomic operations

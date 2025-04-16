@@ -14,7 +14,7 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v4/types"
+import "github.com/aerospike/aerospike-client-go/types"
 
 type queryPartitionObjectsCommand queryCommand
 

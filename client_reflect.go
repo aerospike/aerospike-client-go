@@ -1,4 +1,3 @@
-//go:build !as_performance
 // +build !as_performance
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -21,8 +20,8 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/aerospike/aerospike-client-go/v4/internal/atomic"
-	"github.com/aerospike/aerospike-client-go/v4/types"
+	"github.com/aerospike/aerospike-client-go/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 // PutObject writes record bin(s) to the server.
@@ -31,14 +30,14 @@ import (
 // If the policy is nil, the default relevant policy will be used.
 // A struct can be tagged to influence the way the object is put in the database:
 //
-//	 type Person struct {
-//			TTL uint32 `asm:"ttl"`
-//			RecGen uint32 `asm:"gen"`
-//			Name string `as:"name"`
-//	 		Address string `as:"desc,omitempty"`
-//	 		Age uint8 `as:",omitempty"`
-//	 		Password string `as:"-"`
-//	 }
+//  type Person struct {
+//		TTL uint32 `asm:"ttl"`
+//		RecGen uint32 `asm:"gen"`
+//		Name string `as:"name"`
+//  		Address string `as:"desc,omitempty"`
+//  		Age uint8 `as:",omitempty"`
+//  		Password string `as:"-"`
+//  }
 //
 // Tag `as:` denotes Aerospike fields. The first value will be the alias for the field.
 // `,omitempty` (without any spaces between the comma and the word) will act like the
@@ -74,22 +73,6 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) err
 	}
 
 	command.object = &rval
-	return command.Execute()
-}
-
-// getObjectDirect reads a record for specified key and puts the result into the provided object.
-// The policy can be used to specify timeouts.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) getObjectDirect(policy *BasePolicy, key *Key, rval *reflect.Value) error {
-	policy = clnt.getUsablePolicy(policy)
-
-	binNames := objectMappings.getFields(rval.Type())
-	command, err := newReadCommand(clnt.cluster, policy, key, binNames, nil)
-	if err != nil {
-		return err
-	}
-
-	command.object = rval
 	return command.Execute()
 }
 

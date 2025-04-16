@@ -1,4 +1,3 @@
-//go:build !app_engine
 // +build !app_engine
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -20,7 +19,7 @@ package lua_test
 import (
 	"testing"
 
-	gg "github.com/onsi/ginkgo/v2"
+	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 )
 

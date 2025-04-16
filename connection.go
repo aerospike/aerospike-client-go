@@ -25,8 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v4/logger"
-	"github.com/aerospike/aerospike-client-go/v4/types"
+	"github.com/aerospike/aerospike-client-go/logger"
+	"github.com/aerospike/aerospike-client-go/types"
 )
 
 // DefaultBufferSize specifies the initial size of the connection buffer when it is created.
@@ -75,28 +75,10 @@ func connectionFinalizer(c *Connection) {
 }
 
 func errToTimeoutErr(conn *Connection, err error) error {
-	switch e := err.(type) {
-	case net.Error:
-		if e.Timeout() {
-			if conn != nil && conn.node != nil {
-				atomic.AddInt64(&conn.node.stats.ConnectionsTimeoutErrors, 1)
-			}
-		}
+	if err, ok := err.(net.Error); ok && err.Timeout() {
 		return types.ErrTimeout
-	case types.AerospikeError:
-		if e.ResultCode() == types.TIMEOUT {
-			if conn != nil && conn.node != nil {
-				atomic.AddInt64(&conn.node.stats.ConnectionsTimeoutErrors, 1)
-			}
-		}
-		return e
-	default:
-		if conn != nil && conn.node != nil {
-			atomic.AddInt64(&conn.node.stats.ConnectionsOtherErrors, 1)
-		}
-
-		return err
 	}
+	return err
 }
 
 // newConnection creates a connection on the network and returns the pointer
@@ -198,11 +180,9 @@ func (ctn *Connection) Write(buf []byte) (total int, err error) {
 		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	}
 
-	// the line should happen before .Close()
-	err = errToTimeoutErr(ctn, err)
 	ctn.Close()
 
-	return total, err
+	return total, errToTimeoutErr(ctn, err)
 }
 
 // Read reads from connection buffer to the provided slice.
@@ -241,11 +221,9 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, err error) {
 		atomic.AddInt64(&ctn.node.stats.ConnectionsFailed, 1)
 	}
 
-	// the line should happen before .Close()
-	err = errToTimeoutErr(ctn, err)
 	ctn.Close()
 
-	return total, err
+	return total, errToTimeoutErr(ctn, err)
 }
 
 // IsConnected returns true if the connection is not closed yet.

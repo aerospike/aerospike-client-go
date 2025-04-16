@@ -1,4 +1,3 @@
-//go:build !app_engine
 // +build !app_engine
 
 // Copyright 2014-2021 Aerospike, Inc.
@@ -18,7 +17,7 @@
 package lua
 
 import (
-	"github.com/aerospike/aerospike-client-go/v4/logger"
+	"github.com/aerospike/aerospike-client-go/logger"
 	lua "github.com/yuin/gopher-lua"
 )
 

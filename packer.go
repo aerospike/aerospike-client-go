@@ -22,10 +22,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v4/types"
-	ParticleType "github.com/aerospike/aerospike-client-go/v4/types/particle_type"
+	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
+	"github.com/aerospike/aerospike-client-go/types"
 
-	Buffer "github.com/aerospike/aerospike-client-go/v4/utils/buffer"
+	Buffer "github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 var packObjectReflect func(BufferEx, interface{}, bool) (int, error)

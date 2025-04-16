@@ -18,11 +18,11 @@ import (
 	"math"
 	"reflect"
 
-	gg "github.com/onsi/ginkgo/v2"
+	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 
-	ParticleType "github.com/aerospike/aerospike-client-go/v4/types/particle_type"
-	"github.com/aerospike/aerospike-client-go/v4/utils/buffer"
+	ParticleType "github.com/aerospike/aerospike-client-go/internal/particle_type"
+	"github.com/aerospike/aerospike-client-go/utils/buffer"
 )
 
 type testBLOB struct {

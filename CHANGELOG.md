@@ -1,47 +1,6 @@
 # Change History
 
 
-## July 11 2023: v4.7.1
-
-  - Move the v4 version to its own `v4` branch due to go modules enforcement.
-
-## July 10 2023: v4.7.0
-  Minor maintenance release. 
-
-  * **Improvements**
-
-    - Upgraded lua and gomega dependencies to the latest versions.
-    - Move particle type back from internal to types.
-    
-
-## March 30 2023: v4.6.1
-  Hotfix release. We recommend updating to this version if you are using v4.6.0.
-
-  * **Fixes**
-
-    - [CLIENT-2268] Fix memory issue with the v4.6.0 release due to a miscaptured pointer in closure.
-    - Set `BatchPolicy.DirectGetThreshold = 0` by default, disabling the feature unless manually enabled.
-
-## March 24 2023: v4.6.0
-  NOTICE: This version has a major bug if the `BatchPolicy.DirectGetThreshold` is set to values larger than 0. Update to v4.6.1 if you are using Batch commands.
-
-  Major feature release. We recommend testing your app vigorously before deploying this version if yoiu depend on batch requests.
-
-  * **New Features**
-
-    - [CLIENT-2238] Convert batch calls with just a few keys per node in sub-batches to sequential Get requests. If the number keys for a sub-batch to a node is equal or less then the value set in `BatchPolicy.DirectGetThreshold`, the client use direct get instead of batch commands to reduce the load/latency on the server.
-    - [CLIENT-2240] Add more client statistics.  
-      - Adds the following statistics:
-        - "circuit-breaker-hits": Number of times circuit breaker was hit
-        - "connections-error-other": Connection errors other than timeouts
-        - "connections-error-timeout": Connection Timeout errors
-        - "connections-idle-dropped": The connection was idle and dropped
-        - "connections-pool-overflow": The command offered the connection to the pool, but the pool was full and the connection was closed
-        - "exceeded-max-retries": Number of transactions where exceeded maximum number of retries specified in the policy
-        - "exceeded-total-timeout": Number of transactions that exceeded the specified total timeout
-        - "total-nodes": Total number of nodes in the cluster
-
-
 ## May 28 2021: v4.5.2
   Minor fix release.
 
@@ -256,7 +215,7 @@
 
   * **New Features**
 
-    - Adds support for Relaxed Strong Consistency mode. `ClientPolicy.LinearizeRead = true` has been removed and should be replaced with `policy.ReadModeSC = as.ReadModeSCLinearize`.
+    - Adds support for Relaxed Strong Consistency mode.
     - Adds support for whitelists in Roles.
 
 ## May 28 2020: v2.12.0

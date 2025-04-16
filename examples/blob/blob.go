@@ -15,7 +15,7 @@
 package main
 
 import (
-	as "github.com/aerospike/aerospike-client-go/v4"
+	as "github.com/aerospike/aerospike-client-go"
 )
 
 // Person is a custom data type to be converted to a blob

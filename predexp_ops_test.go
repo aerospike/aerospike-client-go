@@ -17,11 +17,11 @@ package aerospike_test
 import (
 	"sync"
 
-	gg "github.com/onsi/ginkgo/v2"
+	gg "github.com/onsi/ginkgo"
 	gm "github.com/onsi/gomega"
 
-	as "github.com/aerospike/aerospike-client-go/v4"
-	ast "github.com/aerospike/aerospike-client-go/v4/types"
+	as "github.com/aerospike/aerospike-client-go"
+	ast "github.com/aerospike/aerospike-client-go/types"
 )
 
 const udfPredexpBody = `local function putBin(r,name,value)

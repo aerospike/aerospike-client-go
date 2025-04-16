@@ -22,7 +22,7 @@ import (
 
 	_ "net/http/pprof"
 
-	as "github.com/aerospike/aerospike-client-go/v4"
+	as "github.com/aerospike/aerospike-client-go"
 )
 
 func makeDataForBatchGetBench(set string, bins []*as.Bin) {
