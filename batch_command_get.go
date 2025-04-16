@@ -209,7 +209,7 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expir
 		if err := cmd.readBytes(particleBytesSize); err != nil {
 			return nil, err
 		}
-		value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
+		value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize, false)
 		if err != nil {
 			return nil, err
 		}

@@ -73,7 +73,7 @@ func batchParseObject(
 			err = newNodeError(cmd.node, err)
 			return err
 		}
-		value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
+		value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize, false)
 		if err != nil {
 			err = newNodeError(cmd.node, err)
 			return err

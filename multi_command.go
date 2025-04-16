@@ -308,7 +308,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 				if err = cmd.readBytes(particleBytesSize); err != nil {
 					return false, newNodeError(cmd.node, err)
 				}
-				value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
+				value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize, false)
 				if err != nil {
 					return false, newNodeError(cmd.node, err)
 				}

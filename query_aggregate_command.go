@@ -129,7 +129,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 				err = newNodeError(cmd.node, err)
 				return false, err
 			}
-			value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
+			value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize, false)
 			if err != nil {
 				err = newNodeError(cmd.node, err)
 				return false, err
