@@ -2,7 +2,7 @@
 
 
 ## May 28 2021: v4.5.2
-  Minor fix release.
+  Minor fix release. 
 
   * **Fixes**
 
