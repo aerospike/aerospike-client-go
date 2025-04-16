@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 
 	ParticleType "github.com/KeanuRo/aerospike-client-go/internal/particle_type"
 	"github.com/KeanuRo/aerospike-client-go/types"
@@ -29,6 +30,12 @@ type unpacker struct {
 	buffer []byte
 	offset int
 	length int
+}
+
+var resultPool = sync.Pool{
+	New: func() interface{} {
+		return make(map[interface{}]interface{}, 8)
+	},
 }
 
 func newUnpacker(buffer []byte, offset int, length int) *unpacker {
@@ -119,14 +126,14 @@ func (upckr *unpacker) UnpackMap() (interface{}, error) {
 		count = int(Buffer.BytesToUint32(upckr.buffer, upckr.offset))
 		upckr.offset += 4
 	} else {
-		return make(map[interface{}]interface{}), nil
+		return resultPool.Get().(map[interface{}]interface{}), nil
 	}
 	return upckr.unpackMap(count)
 }
 
 func (upckr *unpacker) unpackMap(count int) (interface{}, error) {
 	if count <= 0 {
-		return make(map[interface{}]interface{}), nil
+		return resultPool.Get().(map[interface{}]interface{}), nil
 	}
 
 	if upckr.isMapCDT() {
@@ -136,7 +143,7 @@ func (upckr *unpacker) unpackMap(count int) (interface{}, error) {
 }
 
 func (upckr *unpacker) unpackMapNormal(count int) (map[interface{}]interface{}, error) {
-	out := make(map[interface{}]interface{}, count)
+	out := resultPool.Get().(map[interface{}]interface{})
 
 	for i := 0; i < count; i++ {
 		key, err := upckr.unpackObject(true)

@@ -210,7 +210,7 @@ func (cmd *readCommand) parseRecord(
 	}
 
 	if opCount > 0 {
-		bins = make(BinMap, opCount)
+		bins = binMapPool.Get().(BinMap)
 	}
 
 	for i := 0; i < opCount; i++ {
@@ -225,7 +225,7 @@ func (cmd *readCommand) parseRecord(
 		receiveOffset += particleBytesSize
 
 		if bins == nil {
-			bins = make(BinMap, opCount)
+			bins = binMapPool.Get().(BinMap)
 		}
 
 		if isOperate {
