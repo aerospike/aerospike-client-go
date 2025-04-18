@@ -14,16 +14,8 @@
 
 package aerospike
 
-import "sync"
-
 // BinMap is used to define a map of bin names to values.
 type BinMap map[string]interface{}
-
-var binMapPool = sync.Pool{
-	New: func() interface{} {
-		return make(BinMap, 16)
-	},
-}
 
 // Bin encapsulates a field name/value pair.
 type Bin struct {

@@ -19,10 +19,8 @@ import (
 	"fmt"
 	ParticleType "github.com/KeanuRo/aerospike-client-go/internal/particle_type"
 	"github.com/KeanuRo/aerospike-client-go/types"
-	"reflect"
-	"sync"
-
 	Buffer "github.com/KeanuRo/aerospike-client-go/utils/buffer"
+	"reflect"
 )
 
 type unpacker struct {
@@ -32,17 +30,12 @@ type unpacker struct {
 	withPool bool
 }
 
-var resultPool = sync.Pool{
-	New: func() interface{} {
-		return make(map[interface{}]interface{}, 8)
-	},
-}
-
-func newUnpacker(buffer []byte, offset int, length int) *unpacker {
+func newUnpacker(buffer []byte, offset int, length int, withPool bool) *unpacker {
 	return &unpacker{
-		buffer: buffer,
-		offset: offset,
-		length: length,
+		buffer:   buffer,
+		offset:   offset,
+		length:   length,
+		withPool: withPool,
 	}
 }
 
@@ -72,6 +65,10 @@ func (upckr *unpacker) UnpackList() ([]interface{}, error) {
 
 func (upckr *unpacker) unpackList(count int) ([]interface{}, error) {
 	if count == 0 {
+		if upckr.withPool {
+			return listPool.Get().([]interface{}), nil
+		}
+
 		return make([]interface{}, 0), nil
 	}
 
@@ -93,7 +90,13 @@ func (upckr *unpacker) unpackList(count int) ([]interface{}, error) {
 		}
 	}
 
-	out := make([]interface{}, 0, count)
+	var out []interface{}
+	if upckr.withPool {
+		out = listPool.Get().([]interface{})
+	} else {
+		out = make([]interface{}, 0, count)
+	}
+
 	if size == count {
 		out = append(out, val)
 	}
@@ -108,8 +111,7 @@ func (upckr *unpacker) unpackList(count int) ([]interface{}, error) {
 	return out, nil
 }
 
-func (upckr *unpacker) UnpackMap(withPool bool) (interface{}, error) {
-	upckr.withPool = withPool
+func (upckr *unpacker) UnpackMap() (interface{}, error) {
 	if upckr.length <= 0 {
 		return nil, nil
 	}
@@ -128,7 +130,7 @@ func (upckr *unpacker) UnpackMap(withPool bool) (interface{}, error) {
 		upckr.offset += 4
 	} else {
 		if upckr.withPool {
-			return resultPool.Get().(map[interface{}]interface{}), nil
+			return mapPool.Get().(map[interface{}]interface{}), nil
 		} else {
 			return make(map[interface{}]interface{}), nil
 		}
@@ -139,7 +141,7 @@ func (upckr *unpacker) UnpackMap(withPool bool) (interface{}, error) {
 func (upckr *unpacker) unpackMap(count int) (interface{}, error) {
 	if count <= 0 {
 		if upckr.withPool {
-			return resultPool.Get().(map[interface{}]interface{}), nil
+			return mapPool.Get().(map[interface{}]interface{}), nil
 		} else {
 			return make(map[interface{}]interface{}), nil
 		}
@@ -154,7 +156,7 @@ func (upckr *unpacker) unpackMap(count int) (interface{}, error) {
 func (upckr *unpacker) unpackMapNormal(count int) (map[interface{}]interface{}, error) {
 	var out map[interface{}]interface{}
 	if upckr.withPool {
-		out = resultPool.Get().(map[interface{}]interface{})
+		out = mapPool.Get().(map[interface{}]interface{})
 	} else {
 		out = make(map[interface{}]interface{}, count)
 	}

@@ -1157,10 +1157,10 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int, withPool boo
 		return Buffer.BytesToBool(buf, offset, length), nil
 
 	case ParticleType.MAP:
-		return newUnpacker(buf, offset, length).UnpackMap(withPool)
+		return newUnpacker(buf, offset, length, withPool).UnpackMap()
 
 	case ParticleType.LIST:
-		return newUnpacker(buf, offset, length).UnpackList()
+		return newUnpacker(buf, offset, length, withPool).UnpackList()
 
 	case ParticleType.GEOJSON:
 		ncells := int(Buffer.BytesToInt16(buf, offset+1))
@@ -1178,7 +1178,7 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int, withPool boo
 		return newObj, nil
 
 	case ParticleType.LDT:
-		return newUnpacker(buf, offset, length).unpackObjects()
+		return newUnpacker(buf, offset, length, withPool).unpackObjects()
 
 	}
 	return nil, nil
@@ -1202,7 +1202,7 @@ func bytesToKeyValue(pType int, buf []byte, offset int, length int) (Value, erro
 		return NewBytesValue(bytes), nil
 
 	case ParticleType.LIST:
-		v, err := newUnpacker(buf, offset, length).UnpackList()
+		v, err := newUnpacker(buf, offset, length, false).UnpackList()
 		if err != nil {
 			return nil, err
 		}
