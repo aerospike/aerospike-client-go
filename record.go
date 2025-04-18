@@ -68,15 +68,28 @@ func (rc *Record) FreeBins() {
 	for k := range rc.Bins {
 		m, ok := rc.Bins[k].(map[interface{}]interface{})
 		if ok {
-			for j := range m {
-				delete(m, j)
-			}
-			resultPool.Put(m)
+			freeMap(m)
 		}
-
 		delete(rc.Bins, k)
 	}
 
 	binMapPool.Put(rc.Bins)
 	rc.Bins = nil
+}
+
+func freeMap(m map[interface{}]interface{}) {
+	if m == nil {
+		return
+	}
+
+	for k, v := range m {
+		innerMap, ok := v.(map[interface{}]interface{})
+		if ok {
+			freeMap(innerMap)
+		}
+
+		delete(m, k)
+	}
+
+	resultPool.Put(m)
 }
