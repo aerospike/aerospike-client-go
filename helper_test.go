@@ -14,6 +14,12 @@
 
 package aerospike
 
+import "time"
+
+func DefaultTimeout() time.Duration {
+	return _DEFAULT_TIMEOUT
+}
+
 func ParseInfoErrorCode(response string) Error {
 	return parseInfoErrorCode(response)
 }
@@ -49,4 +55,9 @@ func (nd *Node) ConnsCount() int {
 // CloseConnections closes all the node connections
 func (nd *Node) CloseConnections() {
 	nd.closeConnections()
+}
+
+func (ctn *Connection) UpdateDeadline() (time.Time, time.Time, time.Duration, Error) {
+	err := ctn.updateDeadline()
+	return ctn.deadline, ctn.socketDeadline, ctn.socketTimeout, err
 }

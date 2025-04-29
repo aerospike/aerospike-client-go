@@ -64,8 +64,9 @@ type Connection struct {
 	node *Node
 
 	// timeouts
-	socketTimeout time.Duration
-	deadline      time.Time
+	socketTimeout  time.Duration
+	deadline       time.Time
+	socketDeadline time.Time // this is not strictly required, but is used in testing
 
 	// duration after which connection is considered idle
 	idleTimeout  time.Duration
@@ -172,7 +173,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, Error) {
 	newConn.limitReader = &io.LimitedReader{R: conn, N: 0}
 
 	// set timeout at the last possible moment
-	if err := newConn.SetTimeout(time.Now().Add(timeout), timeout); err != nil {
+	if err := newConn.SetTimeout(timeout, timeout); err != nil {
 		newConn.Close()
 		return nil, err
 	}
@@ -379,33 +380,33 @@ func (ctn *Connection) IsConnected() bool {
 // the function will return a TIMEOUT error.
 func (ctn *Connection) updateDeadline() Error {
 	now := time.Now()
-	var socketDeadline time.Time
+	ctn.socketDeadline = now.Add(_DEFAULT_TIMEOUT)
 	if ctn.deadline.IsZero() {
 		if ctn.socketTimeout > 0 {
-			socketDeadline = now.Add(ctn.socketTimeout)
+			ctn.socketDeadline = now.Add(ctn.socketTimeout)
 		}
 	} else {
-		if now.After(ctn.deadline) {
+		if !ctn.deadline.IsZero() && now.After(ctn.deadline) {
 			return newError(types.TIMEOUT)
 		}
-		if ctn.socketTimeout == 0 {
-			socketDeadline = ctn.deadline
+		if ctn.socketTimeout <= 0 {
+			ctn.socketDeadline = ctn.deadline
 		} else {
 			tDeadline := now.Add(ctn.socketTimeout)
 			if tDeadline.After(ctn.deadline) {
-				socketDeadline = ctn.deadline
+				ctn.socketDeadline = ctn.deadline
 			} else {
-				socketDeadline = tDeadline
+				ctn.socketDeadline = tDeadline
 			}
 		}
 
 		// floor to a millisecond to avoid too short timeouts
-		if socketDeadline.Sub(now) < time.Millisecond {
-			socketDeadline = now.Add(time.Millisecond)
+		if ctn.socketDeadline.Sub(now) < time.Millisecond {
+			ctn.socketDeadline = now.Add(time.Millisecond)
 		}
 	}
 
-	if err := ctn.conn.SetDeadline(socketDeadline); err != nil {
+	if err := ctn.conn.SetDeadline(ctn.socketDeadline); err != nil {
 		if ctn.node != nil {
 			ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 		}
@@ -416,10 +417,22 @@ func (ctn *Connection) updateDeadline() Error {
 }
 
 // SetTimeout sets connection timeout for both read and write operations.
-func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duration) Error {
-	ctn.deadline = deadline
-	ctn.socketTimeout = socketTimeout
+func (ctn *Connection) SetTimeout(totalTimeout, socketTimeout time.Duration) Error {
+	now := time.Now()
+	ctn.socketTimeout = _DEFAULT_TIMEOUT
+	ctn.deadline = time.Time{}
 
+	if socketTimeout > 0 {
+		ctn.socketTimeout = socketTimeout
+	}
+
+	// keep the deadline.IsZero() == true if totalTimeout is not set
+	if totalTimeout > 0 {
+		ctn.deadline = now.Add(totalTimeout)
+		if socketTimeout <= 0 {
+			ctn.socketTimeout = totalTimeout
+		}
+	}
 	return nil
 }
 

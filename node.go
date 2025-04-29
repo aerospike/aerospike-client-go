@@ -414,7 +414,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err Erro
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
-		conn, err = nd.getConnection(deadline, timeout)
+		conn, err = nd.getConnection(timeout, timeout)
 		if err == nil && conn != nil {
 			return conn, nil
 		}
@@ -436,7 +436,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err Erro
 
 // getConnection gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
-func (nd *Node) getConnection(deadline time.Time, timeout time.Duration) (conn *Connection, err Error) {
+func (nd *Node) getConnection(deadline, timeout time.Duration) (conn *Connection, err Error) {
 	return nd.getConnectionWithHint(deadline, timeout, 0)
 }
 
@@ -539,7 +539,7 @@ func (nd *Node) makeConnectionForPool(hint byte) {
 
 // getConnectionWithHint gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
-func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration, hint byte) (conn *Connection, err Error) {
+func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte) (conn *Connection, err Error) {
 	if !nd.active.Get() {
 		return nil, ErrServerNotAvailable.err()
 	}
@@ -564,7 +564,7 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 		return nil, ErrConnectionPoolEmpty.err()
 	}
 
-	if err = conn.SetTimeout(deadline, timeout); err != nil {
+	if err = conn.SetTimeout(totalTimeout, socketTimeout); err != nil {
 		nd.stats.ConnectionsFailed.IncrementAndGet()
 
 		// Do not put back into pool.
@@ -726,7 +726,6 @@ func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection)) (
 		if timeout <= 0 {
 			timeout = _DEFAULT_TIMEOUT
 		}
-		deadline := time.Now().Add(timeout)
 
 		// if the tend connection is invalid, establish a new connection first
 		if *conn == nil || !(*conn).IsConnected() {
@@ -745,7 +744,7 @@ func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection)) (
 		}
 
 		// Set timeout for tend conn
-		if err = (*conn).SetTimeout(deadline, timeout); err != nil {
+		if err = (*conn).SetTimeout(timeout, timeout); err != nil {
 			return
 		}
 

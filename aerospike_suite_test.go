@@ -63,6 +63,7 @@ var (
 	clientPolicy *as.ClientPolicy
 	client       as.ClientIfc
 	nativeClient *as.Client
+	dbHosts      []*as.Host
 )
 
 func initTestVars() {
@@ -102,8 +103,6 @@ func initTestVars() {
 	tlsConfig = initTLS()
 	clientPolicy.TlsConfig = tlsConfig
 	clientPolicy.UseServicesAlternate = *UseServicesAlternate
-
-	var dbHosts []*as.Host
 
 	if len(strings.TrimSpace(*hosts)) > 0 {
 		dbHosts, err = as.NewHosts(strings.Split(*hosts, ",")...)
