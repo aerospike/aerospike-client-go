@@ -187,50 +187,10 @@ var _ Policy = &BasePolicy{}
 // GetBasePolicy returns embedded BasePolicy in all types that embed this struct.
 func (p *BasePolicy) GetBasePolicy() *BasePolicy { return p }
 
-// socketTimeout validates and then calculates the timeout to be used for the socket
-// based on Timeout and SocketTimeout values.
-func (p *BasePolicy) socketTimeout() time.Duration {
-	if p.TotalTimeout == 0 && p.SocketTimeout == 0 {
-		return 0
-	} else if p.TotalTimeout > 0 && p.SocketTimeout == 0 {
-		return p.TotalTimeout
-	} else if p.TotalTimeout == 0 && p.SocketTimeout > 0 {
-		return p.SocketTimeout
-	} else if p.TotalTimeout > 0 && p.SocketTimeout > 0 {
-		if p.SocketTimeout < p.TotalTimeout {
-			return p.SocketTimeout
-		}
-	}
-	return p.TotalTimeout
-}
-
-func (p *BasePolicy) timeout() time.Duration {
-	if p.TotalTimeout == 0 && p.SocketTimeout == 0 {
-		return 0
-	} else if p.TotalTimeout > 0 && p.SocketTimeout == 0 {
-		return p.TotalTimeout
-	} else if p.TotalTimeout == 0 && p.SocketTimeout > 0 {
-		return p.SocketTimeout
-	} else if p.TotalTimeout > 0 && p.SocketTimeout > 0 {
-		if p.SocketTimeout < p.TotalTimeout {
-			return p.SocketTimeout
-		}
-	}
-	return p.TotalTimeout
-}
-
 func (p *BasePolicy) deadline() time.Time {
 	var deadline time.Time
-	if p != nil {
-		if p.TotalTimeout > 0 {
-			deadline = time.Now().Add(p.TotalTimeout)
-		} else if p.SocketTimeout > 0 {
-			if p.MaxRetries > 0 {
-				deadline = time.Now().Add(time.Duration(p.MaxRetries) * p.SocketTimeout)
-			} else {
-				deadline = time.Now().Add(p.SocketTimeout)
-			}
-		}
+	if p != nil && p.TotalTimeout > 0 {
+		deadline = time.Now().Add(p.TotalTimeout)
 	}
 
 	return deadline

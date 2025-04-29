@@ -93,11 +93,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 
 	lcmd.writeSize()
 
-	var deadline time.Time
-	if policy.LoginTimeout > 0 {
-		deadline = time.Now().Add(policy.Timeout)
-	}
-	conn.SetTimeout(deadline, policy.LoginTimeout)
+	conn.setTimeout(policy.LoginTimeout, policy.LoginTimeout)
 
 	if _, err := conn.Write(lcmd.dataBuffer[:lcmd.dataOffset]); err != nil {
 		return err
