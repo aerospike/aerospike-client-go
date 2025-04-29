@@ -1,6 +1,11 @@
 # Change History
 
 
+## April 29 2025: v7.10.0
+
+- **Fixes**
+  - [CLIENT-3379] Setting TotalTimeout to 0 causes Scan / Query to fail (timeout)
+
 ## February 26 2025: v7.9.0
 
 - **New Features**
