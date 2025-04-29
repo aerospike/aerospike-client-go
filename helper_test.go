@@ -14,6 +14,12 @@
 
 package aerospike
 
+import "time"
+
+func DefaultTimeout() time.Duration {
+	return _DEFAULT_TIMEOUT
+}
+
 func ParseInfoErrorCode(response string) Error {
 	return parseInfoErrorCode(response)
 }
@@ -57,4 +63,9 @@ func (k *Key) HasValueToSend() bool {
 
 func (k *Key) RemoveValue() {
 	k.userKey = nil
+}
+
+func (ctn *Connection) UpdateDeadline() (time.Time, time.Time, time.Duration, Error) {
+	err := ctn.updateDeadline()
+	return ctn.deadline, ctn.socketDeadline, ctn.socketTimeout, err
 }

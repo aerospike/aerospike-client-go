@@ -396,7 +396,7 @@ func (acmd *AdminCommand) executeCommand(conn *Connection, policy *AdminPolicy) 
 		timeout = policy.Timeout
 	}
 
-	if err := conn.SetTimeout(time.Now().Add(timeout), timeout); err != nil {
+	if err := conn.setTimeout(timeout, timeout); err != nil {
 		return err
 	}
 
@@ -426,7 +426,7 @@ func (acmd *AdminCommand) readUsers(conn *Connection, policy *AdminPolicy) ([]*U
 		timeout = policy.Timeout
 	}
 
-	if err := conn.SetTimeout(time.Now().Add(timeout), timeout); err != nil {
+	if err := conn.setTimeout(timeout, timeout); err != nil {
 		return nil, err
 	}
 
@@ -579,7 +579,7 @@ func (acmd *AdminCommand) readRoles(conn *Connection, policy *AdminPolicy) ([]*R
 		timeout = policy.Timeout
 	}
 
-	if err := conn.SetTimeout(time.Now().Add(timeout), timeout); err != nil {
+	if err := conn.setTimeout(timeout, timeout); err != nil {
 		return nil, err
 	}
 
