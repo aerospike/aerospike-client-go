@@ -33,7 +33,7 @@ func (fltr *Filter) grpc() *kvs.Filter {
 var simpleCancelFunc = func() {}
 
 func (p *InfoPolicy) grpcDeadlineContext() (context.Context, context.CancelFunc) {
-	timeout := p.timeout()
+	timeout := p.Timeout
 	if timeout <= 0 {
 		return context.Background(), simpleCancelFunc
 
@@ -110,7 +110,7 @@ func (p *BasePolicy) grpc() *kvs.ReadPolicy {
 }
 
 func (p *BasePolicy) grpcDeadlineContext() (context.Context, context.CancelFunc) {
-	timeout := p.timeout()
+	timeout := p.TotalTimeout
 	if timeout <= 0 {
 		return context.Background(), simpleCancelFunc
 
