@@ -547,25 +547,61 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 }
 
 // Clone returns a deep copy of the nodeStats DetailedMetrics object
+// func (ns *nodeStats) cloneDetailedMetrics() *amap.Map[string, *amap.Map[commandType, *commandMetric]] {
+// 	cloned := amap.New[string, *amap.Map[commandType, *commandMetric]](0)
+
+// 	for _, namespace := range ns.DetailedMetrics.Keys() {
+// 		for _, command := range ns.DetailedMetrics.Get(namespace).Keys() {
+// 			cloned.UpdateOrInsertFn(namespace, func(clonedInner *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
+// 				clonedInner.UpdateOrInsertFn(command, func(clonedCommand *commandMetric) *commandMetric {
+// 					clonedCommand.ConnectionAq = *ns.DetailedMetrics.Get(namespace).Get(command).ConnectionAq.Clone()
+// 					clonedCommand.Latency = *ns.DetailedMetrics.Get(namespace).Get(command).Latency.Clone()
+// 					clonedCommand.Parsing = *ns.DetailedMetrics.Get(namespace).Get(command).Parsing.Clone()
+// 					clonedCommand.BytesSent = *ns.DetailedMetrics.Get(namespace).Get(command).BytesSent.Clone()
+// 					return clonedCommand
+// 				}, func() *commandMetric {
+// 					return ns.newCommandMetric()
+// 				})
+// 				return clonedInner
+// 			}, func() *amap.Map[commandType, *commandMetric] {
+// 				return amap.NewWithValue(command, ns.newCommandMetric())
+// 			})
+// 		}
+// 	}
+
+//		return cloned
+//	}
 func (ns *nodeStats) cloneDetailedMetrics() *amap.Map[string, *amap.Map[commandType, *commandMetric]] {
+	// allocate the top‐level map once
 	cloned := amap.New[string, *amap.Map[commandType, *commandMetric]](0)
 
+	// iterate each namespace
 	for _, namespace := range ns.DetailedMetrics.Keys() {
-		for _, command := range ns.DetailedMetrics.Get(namespace).Keys() {
-			cloned.UpdateOrInsertFn(namespace, func(clonedInner *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
-				clonedInner.UpdateOrInsertFn(command, func(clonedCommand *commandMetric) *commandMetric {
-					clonedCommand.ConnectionAq = *ns.DetailedMetrics.Get(namespace).Get(command).ConnectionAq.Clone()
-					clonedCommand.Latency = *ns.DetailedMetrics.Get(namespace).Get(command).Latency.Clone()
-					clonedCommand.Parsing = *ns.DetailedMetrics.Get(namespace).Get(command).Parsing.Clone()
-					clonedCommand.BytesSent = *ns.DetailedMetrics.Get(namespace).Get(command).BytesSent.Clone()
-					return clonedCommand
-				}, func() *commandMetric {
-					return ns.newCommandMetric()
-				})
-				return clonedInner
-			}, func() *amap.Map[commandType, *commandMetric] {
-				return amap.NewWithValue(command, ns.newCommandMetric())
-			})
+		srcCmdMap := ns.DetailedMetrics.Get(namespace)
+
+		// iterate each commandType in that namespace
+		for _, cmdType := range srcCmdMap.Keys() {
+			srcMetric := srcCmdMap.Get(cmdType)
+
+			// get-or-create inner map for this namespace
+			tgtCmdMap := cloned.Get(namespace)
+			if tgtCmdMap == nil {
+				tgtCmdMap = amap.New[commandType, *commandMetric](0)
+				cloned.Set(namespace, tgtCmdMap)
+			}
+
+			// get-or-create the commandMetric
+			tgtMetric := tgtCmdMap.Get(cmdType)
+			if tgtMetric == nil {
+				tgtMetric = ns.newCommandMetric()
+				tgtCmdMap.Set(cmdType, tgtMetric)
+			}
+
+			// clone each field
+			tgtMetric.ConnectionAq = *srcMetric.ConnectionAq.Clone()
+			tgtMetric.Latency = *srcMetric.Latency.Clone()
+			tgtMetric.Parsing = *srcMetric.Parsing.Clone()
+			tgtMetric.BytesSent = *srcMetric.BytesSent.Clone()
 		}
 	}
 
@@ -573,22 +609,49 @@ func (ns *nodeStats) cloneDetailedMetrics() *amap.Map[string, *amap.Map[commandT
 }
 
 // Clone returns a deep copy of the nodeStats DetailedResultCodes object
+// func (ns *nodeStats) cloneDetailedResultCodeCounts() *amap.Map[string, *amap.Map[commandType, *commandResultCodeMetric]] {
+// 	cloned := amap.New[string, *amap.Map[commandType, *commandResultCodeMetric]](0)
+
+// 	for _, namespace := range ns.DetailedResultCodeCounts.Keys() {
+// 		for _, command := range ns.DetailedResultCodeCounts.Get(namespace).Keys() {
+// 			cloned.UpdateOrInsertFn(namespace, func(clonedInner *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
+// 				clonedInner.UpdateOrInsertFn(command, func(clonedCommand *commandResultCodeMetric) *commandResultCodeMetric {
+// 					clonedCommand.ResultCodeCounts = *ns.DetailedResultCodeCounts.Get(namespace).Get(command).ResultCodeCounts.CloneMap()
+// 					return clonedCommand
+// 				}, func() *commandResultCodeMetric {
+// 					return ns.newCommandResultCodeMetric()
+// 				})
+// 				return clonedInner
+// 			}, func() *amap.Map[commandType, *commandResultCodeMetric] {
+// 				return amap.NewWithValue(command, ns.newCommandResultCodeMetric())
+// 			})
+// 		}
+// 	}
+
+//		return cloned
+//	}
 func (ns *nodeStats) cloneDetailedResultCodeCounts() *amap.Map[string, *amap.Map[commandType, *commandResultCodeMetric]] {
 	cloned := amap.New[string, *amap.Map[commandType, *commandResultCodeMetric]](0)
 
 	for _, namespace := range ns.DetailedResultCodeCounts.Keys() {
-		for _, command := range ns.DetailedResultCodeCounts.Get(namespace).Keys() {
-			cloned.UpdateOrInsertFn(namespace, func(clonedInner *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
-				clonedInner.UpdateOrInsertFn(command, func(clonedCommand *commandResultCodeMetric) *commandResultCodeMetric {
-					clonedCommand.ResultCodeCounts = *ns.DetailedResultCodeCounts.Get(namespace).Get(command).ResultCodeCounts.CloneMap()
-					return clonedCommand
-				}, func() *commandResultCodeMetric {
-					return ns.newCommandResultCodeMetric()
-				})
-				return clonedInner
-			}, func() *amap.Map[commandType, *commandResultCodeMetric] {
-				return amap.NewWithValue(command, ns.newCommandResultCodeMetric())
-			})
+		srcInner := ns.DetailedResultCodeCounts.Get(namespace)
+
+		for _, ct := range srcInner.Keys() {
+			srcMetric := srcInner.Get(ct)
+
+			tgtInner := cloned.Get(namespace)
+			if tgtInner == nil {
+				tgtInner = amap.New[commandType, *commandResultCodeMetric](0)
+				cloned.Set(namespace, tgtInner)
+			}
+
+			tgtMetric := tgtInner.Get(ct)
+			if tgtMetric == nil {
+				tgtMetric = ns.newCommandResultCodeMetric()
+				tgtInner.Set(ct, tgtMetric)
+			}
+
+			tgtMetric.ResultCodeCounts = *srcMetric.ResultCodeCounts.CloneMap()
 		}
 	}
 
@@ -596,25 +659,67 @@ func (ns *nodeStats) cloneDetailedResultCodeCounts() *amap.Map[string, *amap.Map
 }
 
 // Clone and reset returns a deep copy of the nodeStats DetailedMetrics object and resets the original
+// func (n *nodeStats) cloneAndResetDetailedMetrics() *amap.Map[string, *amap.Map[commandType, *commandMetric]] {
+// 	cloned := amap.New[string, *amap.Map[commandType, *commandMetric]](0)
+
+// 	for _, namespace := range n.DetailedMetrics.Keys() {
+// 		for _, ct := range n.DetailedMetrics.Get(namespace).Keys() {
+// 			cloned.UpdateOrInsertFn(namespace, func(old *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
+// 				old.UpdateOrInsertFn(ct, func(od *commandMetric) *commandMetric {
+// 					od.ConnectionAq = *n.DetailedMetrics.Get(namespace).Get(ct).ConnectionAq.CloneAndReset()
+// 					od.Latency = *n.DetailedMetrics.Get(namespace).Get(ct).Latency.CloneAndReset()
+// 					od.Parsing = *n.DetailedMetrics.Get(namespace).Get(ct).Parsing.CloneAndReset()
+// 					od.BytesSent = *n.DetailedMetrics.Get(namespace).Get(ct).BytesSent.CloneAndReset()
+// 					return od
+// 				}, func() *commandMetric {
+// 					return n.newCommandMetric()
+// 				})
+// 				return old
+// 			}, func() *amap.Map[commandType, *commandMetric] {
+// 				return amap.NewWithValue(ct, n.newCommandMetric())
+// 			})
+// 		}
+// 	}
+
+//		return cloned
+//	}
 func (n *nodeStats) cloneAndResetDetailedMetrics() *amap.Map[string, *amap.Map[commandType, *commandMetric]] {
+	// one allocation for the top-level map
 	cloned := amap.New[string, *amap.Map[commandType, *commandMetric]](0)
 
+	// walk every namespace
 	for _, namespace := range n.DetailedMetrics.Keys() {
-		for _, ct := range n.DetailedMetrics.Get(namespace).Keys() {
-			cloned.UpdateOrInsertFn(namespace, func(old *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
-				old.UpdateOrInsertFn(ct, func(od *commandMetric) *commandMetric {
-					od.ConnectionAq = *n.DetailedMetrics.Get(namespace).Get(ct).ConnectionAq.CloneAndReset()
-					od.Latency = *n.DetailedMetrics.Get(namespace).Get(ct).Latency.CloneAndReset()
-					od.Parsing = *n.DetailedMetrics.Get(namespace).Get(ct).Parsing.CloneAndReset()
-					od.BytesSent = *n.DetailedMetrics.Get(namespace).Get(ct).BytesSent.CloneAndReset()
-					return od
-				}, func() *commandMetric {
-					return n.newCommandMetric()
-				})
-				return old
-			}, func() *amap.Map[commandType, *commandMetric] {
-				return amap.NewWithValue(ct, n.newCommandMetric())
-			})
+		srcCmdMap := n.DetailedMetrics.Get(namespace)
+
+		// walk every commandType in that namespace
+		for _, cmdType := range srcCmdMap.Keys() {
+			srcMetric := srcCmdMap.Get(cmdType)
+
+			// clone+reset each metric (allocates inside CloneAndReset)
+			connClone := srcMetric.ConnectionAq.CloneAndReset()
+			latencyClone := srcMetric.Latency.CloneAndReset()
+			parsingClone := srcMetric.Parsing.CloneAndReset()
+			bytesClone := srcMetric.BytesSent.CloneAndReset()
+
+			// get-or-create inner map for this namespace
+			tgtCmdMap := cloned.Get(namespace)
+			if tgtCmdMap == nil {
+				tgtCmdMap = amap.New[commandType, *commandMetric](0)
+				cloned.Set(namespace, tgtCmdMap)
+			}
+
+			// get-or-create the commandMetric
+			tgtMetric := tgtCmdMap.Get(cmdType)
+			if tgtMetric == nil {
+				tgtMetric = n.newCommandMetric()
+				tgtCmdMap.Set(cmdType, tgtMetric)
+			}
+
+			// overwrite its fields with the cloned-and-reset values
+			tgtMetric.ConnectionAq = *connClone
+			tgtMetric.Latency = *latencyClone
+			tgtMetric.Parsing = *parsingClone
+			tgtMetric.BytesSent = *bytesClone
 		}
 	}
 
@@ -626,18 +731,26 @@ func (n *nodeStats) cloneAndResetDetailedResultCodeCounts() *amap.Map[string, *a
 	cloned := amap.New[string, *amap.Map[commandType, *commandResultCodeMetric]](0)
 
 	for _, namespace := range n.DetailedResultCodeCounts.Keys() {
-		for _, ct := range n.DetailedResultCodeCounts.Get(namespace).Keys() {
-			cloned.UpdateOrInsertFn(namespace, func(old *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
-				old.UpdateOrInsertFn(ct, func(od *commandResultCodeMetric) *commandResultCodeMetric {
-					od.ResultCodeCounts = *n.DetailedResultCodeCounts.Get(namespace).Get(ct).ResultCodeCounts.CloneAndResetMap()
-					return od
-				}, func() *commandResultCodeMetric {
-					return n.newCommandResultCodeMetric()
-				})
-				return old
-			}, func() *amap.Map[commandType, *commandResultCodeMetric] {
-				return amap.NewWithValue(ct, n.newCommandResultCodeMetric())
-			})
+		srcInner := n.DetailedResultCodeCounts.Get(namespace)
+
+		for _, ct := range srcInner.Keys() {
+			srcMetric := srcInner.Get(ct)
+
+			resetMap := srcMetric.ResultCodeCounts.CloneAndResetMap()
+
+			tgtInner := cloned.Get(namespace)
+			if tgtInner == nil {
+				tgtInner = amap.New[commandType, *commandResultCodeMetric](0)
+				cloned.Set(namespace, tgtInner)
+			}
+
+			tgtMetric := tgtInner.Get(ct)
+			if tgtMetric == nil {
+				tgtMetric = n.newCommandResultCodeMetric()
+				tgtInner.Set(ct, tgtMetric)
+			}
+
+			tgtMetric.ResultCodeCounts = *resetMap
 		}
 	}
 
@@ -646,56 +759,61 @@ func (n *nodeStats) cloneAndResetDetailedResultCodeCounts() *amap.Map[string, *a
 
 // mergeDetailedMetrics merges detailed metrics from the incoming stats into the current stats.
 func (n *nodeStats) mergeDetailedMetrics(ns *nodeStats) {
-	// Going through all the metrics and merging source and target
 	for _, namespace := range ns.DetailedMetrics.Keys() {
-		nsCommandSource := ns.DetailedMetrics.Get(namespace)
-		for _, command := range nsCommandSource.Keys() {
-			// Merging namespace
-			n.DetailedMetrics.UpdateOrInsertFn(namespace, func(nNamespaceTarget *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
-				// Merging command
-				nNamespaceTarget.UpdateOrInsertFn(command, func(nCommandTarget *commandMetric) *commandMetric {
-					// Merging metrics
-					nCommandTarget.ConnectionAq.Merge(&nsCommandSource.Get(command).ConnectionAq)
-					nCommandTarget.Latency.Merge(&nsCommandSource.Get(command).Latency)
-					nCommandTarget.Parsing.Merge(&nsCommandSource.Get(command).Parsing)
-					nCommandTarget.BytesSent.Merge(&nsCommandSource.Get(command).BytesSent)
-					return nCommandTarget
-				}, func() *commandMetric {
-					return n.newCommandMetric()
-				})
-				return nNamespaceTarget
-			}, func() *amap.Map[commandType, *commandMetric] {
-				return amap.NewWithValue(command, n.newCommandMetric())
-			})
+		srcCmdMap := ns.DetailedMetrics.Get(namespace)
+
+		tgtCmdMap := n.DetailedMetrics.Get(namespace)
+		if tgtCmdMap == nil {
+			tgtCmdMap = amap.New[commandType, *commandMetric](0)
+			n.DetailedMetrics.Set(namespace, tgtCmdMap)
+		}
+
+		for _, cmdType := range srcCmdMap.Keys() {
+			srcMetric := srcCmdMap.Get(cmdType)
+
+			tgtMetric := tgtCmdMap.Get(cmdType)
+			if tgtMetric == nil {
+				tgtMetric = n.newCommandMetric()
+				tgtCmdMap.Set(cmdType, tgtMetric)
+			}
+
+			tgtMetric.ConnectionAq.Merge(&srcMetric.ConnectionAq)
+			tgtMetric.Latency.Merge(&srcMetric.Latency)
+			tgtMetric.Parsing.Merge(&srcMetric.Parsing)
+			tgtMetric.BytesSent.Merge(&srcMetric.BytesSent)
 		}
 	}
 }
 
 // mergeCommandResultCodeMetric merges detailed error metrics from the incoming stats into the current stats.
 func (n *nodeStats) mergeCommandResultCodeMetric(ns *nodeStats) {
-	// Going through all the response codes and merging the source and target
 	for _, namespace := range ns.DetailedResultCodeCounts.Keys() {
-		for _, cp := range ns.DetailedResultCodeCounts.Get(namespace).Keys() {
-			nsResultCodes := ns.DetailedResultCodeCounts.Get(namespace).Get(cp)
+		srcNSMap := ns.DetailedResultCodeCounts.Get(namespace)
 
-			for _, resultCode := range nsResultCodes.ResultCodeCounts.Keys() {
-				// Merging namespaces
-				delta := nsResultCodes.ResultCodeCounts.Get(resultCode)
-				n.DetailedResultCodeCounts.UpdateOrInsertFn(namespace, func(nNamespaceTarget *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
-					// Merging commands
-					nNamespaceTarget.UpdateOrInsertFn(cp, func(nCommandTarget *commandResultCodeMetric) *commandResultCodeMetric {
-						// Merging result code
-						nCommandTarget.ResultCodeCounts.UpdateOrInsert(resultCode, func(c uint64) uint64 {
-							return c + delta
-						}, 0)
-						return nCommandTarget
-					}, func() *commandResultCodeMetric {
-						return n.newCommandResultCodeMetricWithValue(resultCode)
-					})
-					return nNamespaceTarget
-				}, func() *amap.Map[commandType, *commandResultCodeMetric] {
-					return amap.NewWithValue(cp, n.newCommandResultCodeMetric())
-				})
+		// get-or-create the target inner map for this namespace
+		tgtNSMap := n.DetailedResultCodeCounts.Get(namespace)
+		if tgtNSMap == nil {
+			tgtNSMap = amap.New[commandType, *commandResultCodeMetric](0)
+			n.DetailedResultCodeCounts.Set(namespace, tgtNSMap)
+		}
+
+		// for each commandType in that namespace
+		for _, cp := range srcNSMap.Keys() {
+			srcMetric := srcNSMap.Get(cp)
+
+			tgtMetric := tgtNSMap.Get(cp)
+			if tgtMetric == nil {
+				tgtMetric = n.newCommandResultCodeMetric()
+				tgtNSMap.Set(cp, tgtMetric)
+			}
+
+			for _, resultCode := range srcMetric.ResultCodeCounts.Keys() {
+				delta := srcMetric.ResultCodeCounts.Get(resultCode)
+				if cur := tgtMetric.ResultCodeCounts.Get(resultCode); cur > 0 {
+					tgtMetric.ResultCodeCounts.Set(resultCode, cur+delta)
+				} else {
+					tgtMetric.ResultCodeCounts.Set(resultCode, delta)
+				}
 			}
 		}
 	}

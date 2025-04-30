@@ -9,15 +9,17 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
-// fakeCommand implements the minimal parts of command used by applyDetailedMetricsDataSizeAndLatency.
 type fakeCommand struct {
-	namespace string
-	ct        commandType
+	namespace  string
+	namespaces []string
+	ct         commandType
 }
 
 func (fc fakeCommand) getNamespaces() *map[string]uint64 {
-	result := make(map[string]uint64, 1)
-	result[fc.namespace]++
+	result := make(map[string]uint64, 0)
+	for _, namespace := range fc.namespaces {
+		result[namespace]++
+	}
 
 	return &result
 }
@@ -115,27 +117,55 @@ func newStub() (*baseCommand, fakeCommand) {
 	return cmd, fcmd
 }
 
+func newStubWithNamespaces() (*baseCommand, fakeCommand) {
+	mp := DefaultMetricsPolicy()
+	nodeStats := newNodeStats(mp)
+	me.Store(true)
+	// setup a fake node and baseCommand with metrics enabled.
+	node := &Node{
+		cluster: &Cluster{
+			metricsEnabled: me,
+		},
+		stats: *nodeStats,
+	}
+
+	// baseCommand to be used for the benchmark.
+	cmd := &baseCommand{
+		node: node,
+	}
+
+	// Use a non-empty namespace and a command type (for example, ttGet).
+	fcmd := fakeCommand{
+		namespaces: []string{"test", "testTwo", "testThree", "testFour", "testFive", "testSix"},
+		ct:         ttGet,
+	}
+	return cmd, fcmd
+}
+
 var me atomic.Bool
 
 func BenchmarkApplyDetailedMetricsDataSizeAndLatency(b *testing.B) {
-	cmd, fcmd := newStub()
+	b.StopTimer()
+	cmd, fcmd := newStubWithNamespaces()
 
 	// bytesSent value to simulate.
-	bytesReceived := 100
 	bytesSent := 100
-	cmd.applyDetailedMetricsDataSizeAndLatency(fcmd, bytesSent, bytesReceived, time.Now())
-
+	b.StartTimer()
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		// Call the function under test.
-		cmd.applyDetailedMetricsDataSizeAndLatency(fcmd, bytesSent, bytesReceived, time.Now())
+		cmd.applyDetailedMetricsDataSizeAndLatency(fcmd, bytesSent, time.Now())
 	}
 }
 
 func BenchmarkApplyDetailedConnectionAq(b *testing.B) {
+	b.StopTimer()
 	cmd, fcmd := newStub()
 
+	b.StartTimer()
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		// Call the function under test.
 		cmd.applyDetailedMetricsConnectionAq(fcmd, time.Now())
@@ -143,9 +173,12 @@ func BenchmarkApplyDetailedConnectionAq(b *testing.B) {
 }
 
 func BenchmarkApplyDetailedParsing(b *testing.B) {
+	b.StopTimer()
 	cmd, fcmd := newStub()
 
+	b.StartTimer()
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		// Call the function under test.
 		cmd.applyDetailedMetricsParsing(fcmd, time.Now())
@@ -153,6 +186,7 @@ func BenchmarkApplyDetailedParsing(b *testing.B) {
 }
 
 func BenchmarkCommandMergeCommandResultCodeMetrics(b *testing.B) {
+	b.StopTimer()
 	mp := DefaultMetricsPolicy()
 	targetNodeStats := newNodeStats(mp)
 	sourceNodeStats := newNodeStats(mp)
@@ -161,13 +195,16 @@ func BenchmarkCommandMergeCommandResultCodeMetrics(b *testing.B) {
 	sourceNodeStats.updateOrInsert(fakeCommand{namespace: "testTwo", ct: ttPut}, types.ResultCode(0))
 	sourceNodeStats.updateOrInsert(fakeCommand{namespace: "testThree", ct: ttExists}, types.ResultCode(0))
 
+	b.StartTimer()
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		targetNodeStats.mergeCommandResultCodeMetric(sourceNodeStats)
 	}
 }
 
 func BenchmarkCommandMergeDetailMetrics(b *testing.B) {
+	b.StopTimer()
 	policy := DefaultMetricsPolicy()
 	sourceNodeStats := newNodeStats(policy)
 	targetNodeStats := newNodeStats(policy)
@@ -195,6 +232,8 @@ func BenchmarkCommandMergeDetailMetrics(b *testing.B) {
 	}
 
 	b.StartTimer()
+	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		// Merge incoming detailed metrics into target.
 		targetNodeStats.mergeDetailedMetrics(sourceNodeStats)
@@ -202,6 +241,7 @@ func BenchmarkCommandMergeDetailMetrics(b *testing.B) {
 }
 
 func BenchmarkCloneDetailedMetrics(b *testing.B) {
+	b.StopTimer()
 	policy := DefaultMetricsPolicy()
 
 	ns := newNodeStats(policy)
@@ -226,7 +266,9 @@ func BenchmarkCloneDetailedMetrics(b *testing.B) {
 	ns.DetailedMetrics.Get(testNamespace).Get(ttGet).Parsing.Add(uint64(now.UnixNano()))
 	ns.DetailedMetrics.Get(testNamespace).Get(ttGet).ConnectionAq.Add(5)
 
+	b.StartTimer()
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		cloned := ns.cloneDetailedMetrics()
 		// Use cloned in some trivial way to prevent compiler optimizations.
@@ -237,9 +279,9 @@ func BenchmarkCloneDetailedMetrics(b *testing.B) {
 }
 
 func BenchmarkCloneAndResetDetailedResultCodeCounts(b *testing.B) {
+	b.StopTimer()
 	policy := DefaultMetricsPolicy()
 	ns := newNodeStats(policy)
-
 	ns.DetailedResultCodeCounts.UpdateOrInsertFn("test", func(inner *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
 		inner.UpdateOrInsertFn(ttGet, func(metric *commandResultCodeMetric) *commandResultCodeMetric {
 			metric.ResultCodeCounts.UpdateOrInsert(types.ResultCode(0), func(val uint64) uint64 {
@@ -254,7 +296,9 @@ func BenchmarkCloneAndResetDetailedResultCodeCounts(b *testing.B) {
 		return amap.NewWithValue(ttGet, ns.newCommandResultCodeMetricWithValue(types.ResultCode(0)))
 	})
 
+	b.StartTimer()
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		cloned := ns.cloneAndResetDetailedResultCodeCounts()
 		if cloned.Length() == 0 {
