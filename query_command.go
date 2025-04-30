@@ -61,9 +61,10 @@ func (cmd *queryCommand) Execute() Error {
 	return err
 }
 
-func (cmd *queryCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.statement.Namespace]++
+func (cmd *queryCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *queryCommand) getNamespace() *string {
+	return &cmd.statement.Namespace
 }

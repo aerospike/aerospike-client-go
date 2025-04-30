@@ -118,9 +118,10 @@ func (cmd *executeCommand) GetRecord() *Record {
 	return cmd.record
 }
 
-func (cmd *executeCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.key.namespace]++
+func (cmd *executeCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *executeCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

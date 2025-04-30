@@ -51,10 +51,13 @@ type MetricsPolicy struct {
 	// Default: 2
 	LatencyBase int //= 2;
 
-	// Labels                  NewMetadataPolicy(map[string]string{"user":policy.User}, map[string]string{"cluster-name": policy.ClusterName}), }
+	// User provided labels which will appended to the metrics on export. This
+	// information is used downstream by metrics aggregetators to group/identify metrics
+	// collected by the client.
 	Labels *Labels
 }
 
+// NewMetricsPolicy creates a new MetricsPolicy with predefined set of default parameters.
 func DefaultMetricsPolicy() *MetricsPolicy {
 	return &MetricsPolicy{
 		HistogramType:  histogram.Logarithmic,
@@ -64,6 +67,8 @@ func DefaultMetricsPolicy() *MetricsPolicy {
 	}
 }
 
+// DefaultMetricsPolicyWithLabels creates a new MetricsPolicy with the provided labels.
+// The labels are used to identify the metrics collected by the client.
 func DefaultMetricsPolicyWithLabels(pairs ...map[string]string) *MetricsPolicy {
 	labels := NewLabels(pairs...)
 	mp := *DefaultMetricsPolicy()
@@ -71,16 +76,4 @@ func DefaultMetricsPolicyWithLabels(pairs ...map[string]string) *MetricsPolicy {
 	mp.Labels = labels
 
 	return &mp
-}
-
-func CopyMetricsPolicyWithLabels(mp *MetricsPolicy, pairs ...map[string]string) *MetricsPolicy {
-	mpCopy := *mp
-
-	if mpCopy.Labels == nil {
-		mpCopy.Labels = NewLabels(pairs...)
-	} else if mpCopy.Labels != nil && len(*mpCopy.Labels.Labels) == 0 {
-		mpCopy.Labels = NewLabels(pairs...)
-	}
-
-	return &mpCopy
 }

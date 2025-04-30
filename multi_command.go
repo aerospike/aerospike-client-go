@@ -501,9 +501,10 @@ func (cmd *baseMultiCommand) execute(ifc command) Error {
 	return cmd.baseCommand.execute(ifc)
 }
 
-func (cmd *baseMultiCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.namespace]++
+func (cmd *baseMultiCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *baseMultiCommand) getNamespace() *string {
+	return &cmd.namespace
 }

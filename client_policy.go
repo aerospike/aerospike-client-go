@@ -162,6 +162,8 @@ type ClientPolicy struct {
 	// retained despite connection failures.
 	SeedOnlyCluster bool // = false
 
+	// Application id is used to identify application so that client operations can be correlated
+	// with server side metrics.
 	ApplicationId string
 }
 

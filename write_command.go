@@ -85,9 +85,10 @@ func (cmd *writeCommand) Execute() Error {
 	return cmd.execute(cmd)
 }
 
-func (cmd *writeCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.key.namespace]++
-	
-	return &response
+func (cmd *writeCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
+
+func (cmd *writeCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

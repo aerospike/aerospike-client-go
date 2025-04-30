@@ -87,9 +87,10 @@ func (cmd *deleteCommand) commandType() commandType {
 	return ttDelete
 }
 
-func (cmd *deleteCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.key.namespace]++
+func (cmd *deleteCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *deleteCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

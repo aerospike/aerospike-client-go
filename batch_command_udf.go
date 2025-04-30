@@ -230,10 +230,14 @@ func (cmd *batchCommandUDF) generateBatchNodes(cluster *Cluster) ([]*batchNode, 
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, nil, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, false)
 }
 
-func (cmd *batchCommandUDF) getNamespace() *map[string]uint64 {
+func (cmd *batchCommandUDF) getNamespaces() *map[string]uint64 {
 	response := make(map[string]uint64, len(cmd.keys))
 	for _, key := range cmd.keys {
 		response[key.namespace]++
 	}
 	return &response
+}
+
+func (cmd *batchCommandUDF) getNamespace() *string {
+	return nil
 }

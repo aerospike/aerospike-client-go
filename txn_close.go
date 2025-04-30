@@ -77,9 +77,10 @@ func (cmd *txnCloseCommand) onInDoubt() {
 	return
 }
 
-func (cmd *txnCloseCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.key.namespace]++
+func (cmd *txnCloseCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *txnCloseCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

@@ -125,9 +125,10 @@ func (cmd *writePayloadCommand) commandType() commandType {
 	return ttPut
 }
 
-func (cmd *writePayloadCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.key.namespace]++
+func (cmd *writePayloadCommand) getnamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *writePayloadCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

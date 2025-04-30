@@ -101,9 +101,10 @@ func (cmd *serverCommand) Execute() Error {
 	return cmd.execute(cmd)
 }
 
-func (cmd *serverCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.namespace]++
+func (cmd *serverCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *serverCommand) getNamespace() *string {
+	return &cmd.namespace
 }

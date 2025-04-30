@@ -255,10 +255,14 @@ func (cmd *batchIndexCommandGet) parseRecord(key *Key, opCount int, generation, 
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
-func (cmd *batchIndexCommandGet) getNamespace() *map[string]uint64 {
+func (cmd *batchIndexCommandGet) getNamespaces() *map[string]uint64 {
 	response := make(map[string]uint64, len(cmd.records))
 	for _, br := range cmd.records {
 		response[br.Key.namespace]++
 	}
 	return &response
+}
+
+func (cmd *batchIndexCommandGet) getNamespace() *string {
+	return nil
 }
