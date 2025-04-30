@@ -220,10 +220,14 @@ func (cmd *batchCommandDelete) generateBatchNodes(cluster *Cluster) ([]*batchNod
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, nil, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, false)
 }
 
-func (cmd *batchCommandDelete) getNamespace() *map[string]uint64 {
+func (cmd *batchCommandDelete) getNamespaces() *map[string]uint64 {
 	response := make(map[string]uint64, len(cmd.keys))
 	for _, key := range cmd.keys {
 		response[key.namespace]++
 	}
 	return &response
+}
+
+func (cmd *batchCommandDelete) getNamespace() *string {
+	return nil
 }

@@ -101,9 +101,10 @@ func (cmd *baseWriteCommand) parseHeader() (types.ResultCode, Error) {
 	return rp.resultCode, nil
 }
 
-func (cmd *baseWriteCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64)
-	response[cmd.key.namespace] = 1
+func (cmd *baseWriteCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *baseWriteCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

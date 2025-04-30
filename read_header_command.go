@@ -82,9 +82,10 @@ func (cmd *readHeaderCommand) commandType() commandType {
 	return ttGetHeader
 }
 
-func (cmd *readHeaderCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.key.namespace]++
+func (cmd *readHeaderCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *readHeaderCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

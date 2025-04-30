@@ -15,11 +15,15 @@ type fakeCommand struct {
 	ct        commandType
 }
 
-func (fc fakeCommand) getNamespace() *map[string]uint64 {
+func (fc fakeCommand) getNamespaces() *map[string]uint64 {
 	result := make(map[string]uint64, 1)
 	result[fc.namespace]++
 
 	return &result
+}
+
+func (fc fakeCommand) getNamespace() *string {
+	return nil
 }
 
 func (fc fakeCommand) commandType() commandType {
@@ -194,5 +198,67 @@ func BenchmarkCommandMergeDetailMetrics(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Merge incoming detailed metrics into target.
 		targetNodeStats.mergeDetailedMetrics(sourceNodeStats)
+	}
+}
+
+func BenchmarkCloneDetailedMetrics(b *testing.B) {
+	policy := DefaultMetricsPolicy()
+
+	ns := newNodeStats(policy)
+
+	const testNamespace = "test"
+	sampleMap := amap.New[commandType, *commandMetric](0)
+	sampleMap.UpdateOrInsertFn(ttGet, func(old *commandMetric) *commandMetric {
+		return old
+	}, func() *commandMetric {
+		return ns.newCommandMetric()
+	})
+	// Insert the sample map under the test namespace.
+	ns.DetailedMetrics.UpdateOrInsertFn(testNamespace, func(old *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
+		return old
+	}, func() *amap.Map[commandType, *commandMetric] {
+		return sampleMap
+	})
+
+	now := time.Now()
+	ns.DetailedMetrics.Get(testNamespace).Get(ttGet).Latency.Add(uint64(now.UnixNano()))
+	ns.DetailedMetrics.Get(testNamespace).Get(ttGet).BytesSent.Add(1024)
+	ns.DetailedMetrics.Get(testNamespace).Get(ttGet).Parsing.Add(uint64(now.UnixNano()))
+	ns.DetailedMetrics.Get(testNamespace).Get(ttGet).ConnectionAq.Add(5)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cloned := ns.cloneDetailedMetrics()
+		// Use cloned in some trivial way to prevent compiler optimizations.
+		if cloned == nil || cloned.Length() == 0 {
+			b.Fatal("cloned DetailedMetrics is nil or empty")
+		}
+	}
+}
+
+func BenchmarkCloneAndResetDetailedResultCodeCounts(b *testing.B) {
+	policy := DefaultMetricsPolicy()
+	ns := newNodeStats(policy)
+
+	ns.DetailedResultCodeCounts.UpdateOrInsertFn("test", func(inner *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
+		inner.UpdateOrInsertFn(ttGet, func(metric *commandResultCodeMetric) *commandResultCodeMetric {
+			metric.ResultCodeCounts.UpdateOrInsert(types.ResultCode(0), func(val uint64) uint64 {
+				return val + 1
+			}, 0)
+			return metric
+		}, func() *commandResultCodeMetric {
+			return ns.newCommandResultCodeMetricWithValue(types.ResultCode(0))
+		})
+		return inner
+	}, func() *amap.Map[commandType, *commandResultCodeMetric] {
+		return amap.NewWithValue(ttGet, ns.newCommandResultCodeMetricWithValue(types.ResultCode(0)))
+	})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cloned := ns.cloneAndResetDetailedResultCodeCounts()
+		if cloned.Length() == 0 {
+			b.Fatal("cloned DetailedResultCodeCounts is empty")
+		}
 	}
 }

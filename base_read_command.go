@@ -99,9 +99,10 @@ func (cmd *baseReadCommand) commandType() commandType {
 	return ttGet
 }
 
-func (cmd *baseReadCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.key.namespace] = 1
+func (cmd *baseReadCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *baseReadCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

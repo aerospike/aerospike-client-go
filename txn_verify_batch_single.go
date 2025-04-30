@@ -180,9 +180,10 @@ func (cmd *batchSingleTxnVerifyCommand) commandType() commandType {
 	return ttPut
 }
 
-func (cmd *batchSingleTxnVerifyCommand) getNamespace() *map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.key.namespace]++
+func (cmd *batchSingleTxnVerifyCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
 
-	return &response
+func (cmd *batchSingleTxnVerifyCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

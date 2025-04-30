@@ -124,21 +124,19 @@ func (n *nodeStats) newCommandResultCodeMetricWithValue(resultCode types.ResultC
 
 // commandMetric keeps track of detailed metrics for a given command
 type commandMetric struct {
-	ConnectionAq  hist.SyncHistogram[uint64] `json:"connection-aq"`
-	Latency       hist.SyncHistogram[uint64] `json:"latency"`
-	Parsing       hist.SyncHistogram[uint64] `json:"parsing"`
-	BytesSent     hist.SyncHistogram[uint64] `json:"bytes-sent"`
-	BytesReceived hist.SyncHistogram[uint64] `json:"bytes-received"`
+	ConnectionAq hist.SyncHistogram[uint64] `json:"connection-aq"`
+	Latency      hist.SyncHistogram[uint64] `json:"latency"`
+	Parsing      hist.SyncHistogram[uint64] `json:"parsing"`
+	BytesSent    hist.SyncHistogram[uint64] `json:"bytes-sent"`
 }
 
 // newCommandMetric creates a new CommandMetric object
 func (n *nodeStats) newCommandMetric() *commandMetric {
 	return &commandMetric{
-		ConnectionAq:  *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		Latency:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		Parsing:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		BytesSent:     *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		BytesReceived: *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		ConnectionAq: *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		Latency:      *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		Parsing:      *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		BytesSent:    *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
 	}
 }
 
@@ -146,22 +144,38 @@ func (n *nodeStats) newCommandMetric() *commandMetric {
 func (n *nodeStats) updateOrInsert(ifc command, resultCode types.ResultCode) {
 	n.m.Lock()
 	defer n.m.Unlock()
-	for namespace := range *ifc.getNamespace() {
-		n.DetailedResultCodeCounts.UpdateOrInsertFn(namespace, func(a *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
-			a.UpdateOrInsertFn(ifc.commandType(), func(b *commandResultCodeMetric) *commandResultCodeMetric {
-				b.ResultCodeCounts.UpdateOrInsert(resultCode, func(c uint64) uint64 {
-					c++
-					return c
-				}, 0)
-				return b
-			}, func() *commandResultCodeMetric {
-				return n.newCommandResultCodeMetricWithValue(resultCode)
-			})
+	namespaces := ifc.getNamespaces()
+	if namespaces != nil {
+		for namespace := range *namespaces {
+			n.updateDetailedResultCodeCounts(namespace, ifc, resultCode)
+		}
+	} else {
+		namespace := *ifc.getNamespace()
+		n.updateDetailedResultCodeCounts(namespace, ifc, resultCode)
+	}
+
+}
+
+func (n *nodeStats) updateDetailedResultCodeCounts(namespace string, ifc command, resultCode types.ResultCode) {
+	n.DetailedResultCodeCounts.UpdateOrInsertFn(namespace,
+		func(a *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
+			a.UpdateOrInsertFn(ifc.commandType(),
+				func(b *commandResultCodeMetric) *commandResultCodeMetric {
+					b.ResultCodeCounts.UpdateOrInsert(resultCode,
+						func(c uint64) uint64 {
+							return c + 1
+						},
+						0)
+					return b
+				},
+				func() *commandResultCodeMetric {
+					return n.newCommandResultCodeMetricWithValue(resultCode)
+				})
 			return a
-		}, func() *amap.Map[commandType, *commandResultCodeMetric] {
+		},
+		func() *amap.Map[commandType, *commandResultCodeMetric] {
 			return amap.NewWithValue(ifc.commandType(), n.newCommandResultCodeMetricWithValue(resultCode))
 		})
-	}
 }
 
 func newNodeStats(policy *MetricsPolicy) *nodeStats {
@@ -544,7 +558,6 @@ func (ns *nodeStats) cloneDetailedMetrics() *amap.Map[string, *amap.Map[commandT
 					clonedCommand.Latency = *ns.DetailedMetrics.Get(namespace).Get(command).Latency.Clone()
 					clonedCommand.Parsing = *ns.DetailedMetrics.Get(namespace).Get(command).Parsing.Clone()
 					clonedCommand.BytesSent = *ns.DetailedMetrics.Get(namespace).Get(command).BytesSent.Clone()
-					clonedCommand.BytesReceived = *ns.DetailedMetrics.Get(namespace).Get(command).BytesReceived.Clone()
 					return clonedCommand
 				}, func() *commandMetric {
 					return ns.newCommandMetric()
@@ -594,7 +607,6 @@ func (n *nodeStats) cloneAndResetDetailedMetrics() *amap.Map[string, *amap.Map[c
 					od.Latency = *n.DetailedMetrics.Get(namespace).Get(ct).Latency.CloneAndReset()
 					od.Parsing = *n.DetailedMetrics.Get(namespace).Get(ct).Parsing.CloneAndReset()
 					od.BytesSent = *n.DetailedMetrics.Get(namespace).Get(ct).BytesSent.CloneAndReset()
-					od.BytesReceived = *n.DetailedMetrics.Get(namespace).Get(ct).BytesReceived.CloneAndReset()
 					return od
 				}, func() *commandMetric {
 					return n.newCommandMetric()
@@ -647,7 +659,6 @@ func (n *nodeStats) mergeDetailedMetrics(ns *nodeStats) {
 					nCommandTarget.Latency.Merge(&nsCommandSource.Get(command).Latency)
 					nCommandTarget.Parsing.Merge(&nsCommandSource.Get(command).Parsing)
 					nCommandTarget.BytesSent.Merge(&nsCommandSource.Get(command).BytesSent)
-					nCommandTarget.BytesReceived.Merge(&nsCommandSource.Get(command).BytesReceived)
 					return nCommandTarget
 				}, func() *commandMetric {
 					return n.newCommandMetric()
@@ -698,7 +709,6 @@ func (n *nodeStats) reshapeDetailedMetrics() {
 			n.DetailedMetrics.Get(namespace).Get(command).Latency.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
 			n.DetailedMetrics.Get(namespace).Get(command).Parsing.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
 			n.DetailedMetrics.Get(namespace).Get(command).BytesSent.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			n.DetailedMetrics.Get(namespace).Get(command).BytesReceived.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
 		}
 	}
 }

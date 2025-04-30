@@ -308,7 +308,7 @@ func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNo
 	return newBatchOperateNodeListIfcRetry(cluster, cmd.policy, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
 }
 
-func (cmd *batchCommandOperate) getNamespace() *map[string]uint64 {
+func (cmd *batchCommandOperate) getNamespaces() *map[string]uint64 {
 	response := make(map[string]uint64, len(cmd.records))
 	for _, br := range cmd.records {
 		switch br := br.(type) {
@@ -323,4 +323,8 @@ func (cmd *batchCommandOperate) getNamespace() *map[string]uint64 {
 		}
 	}
 	return &response
+}
+
+func (cmd *batchCommandOperate) getNamespace() *string {
+	return nil
 }

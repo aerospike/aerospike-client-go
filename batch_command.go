@@ -137,3 +137,11 @@ func (cmd *batchCommand) cloneBatchCommand(batch *batchNode) batcher {
 func (cmd *batchCommand) writeBuffer(ifc command) Error {
 	panic(unreachable)
 }
+
+func (cmd *batchCommand) getNamespaces() *map[string]uint64 {
+	return nil
+}
+
+func (cmd *batchCommand) getNamespace() *string {
+	return &cmd.namespace
+}
