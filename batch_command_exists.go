@@ -78,7 +78,8 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 		}
 
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
-
+		// generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
+		// expiration := types.TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
 		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
