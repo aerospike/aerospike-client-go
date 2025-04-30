@@ -3818,7 +3818,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			dataSent := len(cmd.dataBuffer[:cmd.dataOffset])
 			_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 			// Capture sent bytes and transmission time.
-			cmd.applyDetailedMetricsDataSizeAndLatency(ifc, dataSent, start)
+			cmd.applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc, dataSent, start)
 		} else {
 			_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 		}
@@ -4117,8 +4117,8 @@ func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime 
 	}
 }
 
-// applyDetailedMetricsDataSizeAndLatency updates the detailed metrics for bytes sent and transmission time.
-func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatency(ifc command, bytesSent int, startTime time.Time) {
+// applyDetailedMetricsDataSizeAndLatencyOnWrite updates the detailed metrics for bytes sent and transmission time.
+func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc command, bytesSent int, startTime time.Time) {
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
 	dm := &cmd.node.stats.DetailedMetrics

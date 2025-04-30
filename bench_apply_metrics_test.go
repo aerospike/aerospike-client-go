@@ -155,7 +155,7 @@ func BenchmarkApplyDetailedMetricsDataSizeAndLatency(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		// Call the function under test.
-		cmd.applyDetailedMetricsDataSizeAndLatency(fcmd, bytesSent, time.Now())
+		cmd.applyDetailedMetricsDataSizeAndLatencyOnWrite(fcmd, bytesSent, time.Now())
 	}
 }
 
