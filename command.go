@@ -4031,104 +4031,130 @@ func (cmd *baseCommand) parseVersion(fieldCount int) *uint64 {
 
 // applyDetailedMetricsParsing updates the detailed metrics for parsing time.
 func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.Time) {
-	if cmd.node != nil && cmd.node.cluster != nil && cmd.node.cluster.MetricsEnabled() {
-		end := uint64(time.Since(startTime).Microseconds())
-		namespaces := ifc.getNamespaces()
-		if namespaces != nil {
-			for namespace := range *namespaces {
-				if namespace != "" {
-					applyParsingHelper(cmd, ifc, namespace, end)
-				}
-			}
-		} else {
-			namespace := ifc.getNamespace()
-			if *namespace != "" {
-				applyParsingHelper(cmd, ifc, *namespace, end)
-			}
-		}
+	if cmd.node == nil || cmd.node.cluster == nil || !cmd.node.cluster.MetricsEnabled() {
+		return
 	}
-}
 
-func applyParsingHelper(cmd *baseCommand, ifc command, namespace string, end uint64) {
-	cmd.node.stats.DetailedMetrics.UpdateOrInsertFn(namespace, func(a *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
-		a.UpdateOrInsertFn(ifc.commandType(), func(b *commandMetric) *commandMetric {
-			b.Parsing.Add(end)
-			return b
-		}, func() *commandMetric {
-			return cmd.node.stats.newCommandMetric()
-		})
-		return a
-	}, func() *amap.Map[commandType, *commandMetric] {
-		return amap.NewWithValue(ifc.commandType(), cmd.node.stats.newCommandMetric())
-	})
+	end := uint64(time.Since(startTime).Microseconds())
+	ct := ifc.commandType()
+	dm := &cmd.node.stats.DetailedMetrics
+
+	if nsMap := ifc.getNamespaces(); nsMap != nil {
+		for ns := range *nsMap {
+			if ns == "" {
+				continue
+			}
+			inner := dm.Get(ns)
+			if inner == nil {
+				inner = amap.New[commandType, *commandMetric](0)
+				dm.Set(ns, inner)
+			}
+			cm := inner.Get(ct)
+			if cm == nil {
+				cm = cmd.node.stats.newCommandMetric()
+				inner.Set(ct, cm)
+			}
+			cm.Parsing.Add(end)
+		}
+	} else if single := ifc.getNamespace(); *single != "" {
+		ns := *single
+
+		inner := dm.Get(ns)
+		if inner == nil {
+			inner = amap.New[commandType, *commandMetric](0)
+			dm.Set(ns, inner)
+		}
+
+		cm := inner.Get(ct)
+		if cm == nil {
+			cm = cmd.node.stats.newCommandMetric()
+			inner.Set(ct, cm)
+		}
+
+		cm.Parsing.Add(end)
+	}
 }
 
 // applyDetailedMetricsConnectionAq updates the detailed metrics for connection acquire time.
 func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime time.Time) {
-	if cmd.node != nil && cmd.node.cluster != nil && cmd.node.cluster.MetricsEnabled() {
-		end := uint64(time.Since(startTime).Microseconds())
-		namespaces := ifc.getNamespaces()
-		if namespaces != nil {
-			for namespace := range *namespaces {
-				if namespace != "" {
-					applyConnectionAqHelper(cmd, ifc, namespace, end)
-				}
-			}
-		} else {
-			namespace := *ifc.getNamespace()
-			if namespace != "" {
-				applyConnectionAqHelper(cmd, ifc, namespace, end)
-			}
-		}
-	}
-}
+	end := uint64(time.Since(startTime).Microseconds())
+	ct := ifc.commandType()
+	dm := &cmd.node.stats.DetailedMetrics
 
-func applyConnectionAqHelper(cmd *baseCommand, ifc command, namespace string, end uint64) {
-	cmd.node.stats.DetailedMetrics.UpdateOrInsertFn(namespace, func(a *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
-		a.UpdateOrInsertFn(ifc.commandType(), func(b *commandMetric) *commandMetric {
-			b.ConnectionAq.Add(end)
-			return b
-		}, func() *commandMetric {
-			return cmd.node.stats.newCommandMetric()
-		})
-		return a
-	}, func() *amap.Map[commandType, *commandMetric] {
-		return amap.NewWithValue(ifc.commandType(), cmd.node.stats.newCommandMetric())
-	})
+	if nsMap := ifc.getNamespaces(); nsMap != nil {
+		for ns := range *nsMap {
+			if ns == "" {
+				continue
+			}
+			inner := dm.Get(ns)
+			if inner == nil {
+				inner = amap.New[commandType, *commandMetric](0)
+				dm.Set(ns, inner)
+			}
+
+			cm := inner.Get(ct)
+			if cm == nil {
+				cm = cmd.node.stats.newCommandMetric()
+				inner.Set(ct, cm)
+			}
+
+			cm.ConnectionAq.Add(end)
+		}
+	} else if single := ifc.getNamespace(); *single != "" {
+		inner := dm.Get(*single)
+		if inner == nil {
+			inner = amap.New[commandType, *commandMetric](0)
+			dm.Set(*single, inner)
+		}
+
+		cm := inner.Get(ct)
+		if cm == nil {
+			cm = cmd.node.stats.newCommandMetric()
+			inner.Set(ct, cm)
+		}
+
+		cm.ConnectionAq.Add(end)
+	}
 }
 
 // applyDetailedMetricsDataSizeAndLatency updates the detailed metrics for bytes sent and transmission time.
 func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatency(ifc command, bytesSent int, startTime time.Time) {
-	if cmd.node != nil && cmd.node.cluster != nil && cmd.node.cluster.MetricsEnabled() {
-		end := uint64(time.Since(startTime).Microseconds())
-		namespaces := ifc.getNamespaces()
-		if namespaces != nil {
-			for namespace := range *namespaces {
-				if namespace != "" {
-					applyDetailedMetricsDataSizeAndLatencyHelper(cmd, ifc, namespace, end, bytesSent)
+	end := uint64(time.Since(startTime).Microseconds())
+	ct := ifc.commandType()
+	dm := &cmd.node.stats.DetailedMetrics
+
+	if nsMap := ifc.getNamespaces(); nsMap != nil {
+		for ns := range *nsMap {
+			if ns != "" {
+				//upsert(ns)
+				inner := dm.Get(ns)
+				if inner == nil {
+					inner = amap.New[commandType, *commandMetric](1)
+					dm.Set(ns, inner)
 				}
-			}
-		} else {
-			namespace := ifc.getNamespace()
-			if *namespace != "" {
-				applyDetailedMetricsDataSizeAndLatencyHelper(cmd, ifc, *namespace, end, bytesSent)
+				cm := inner.Get(ct)
+				if cm == nil {
+					cm = cmd.node.stats.newCommandMetric()
+					inner.Set(ct, cm)
+				}
+				cm.BytesSent.Add(uint64(bytesSent))
+				cm.Latency.Add(end)
 			}
 		}
+	} else if singleNS := ifc.getNamespace(); *singleNS != "" {
+		if *singleNS != "" {
+			inner := dm.Get(*singleNS)
+			if inner == nil {
+				inner = amap.New[commandType, *commandMetric](1)
+				dm.Set(*singleNS, inner)
+			}
+			cm := inner.Get(ct)
+			if cm == nil {
+				cm = cmd.node.stats.newCommandMetric()
+				inner.Set(ct, cm)
+			}
+			cm.BytesSent.Add(uint64(bytesSent))
+			cm.Latency.Add(end)
+		}
 	}
-}
-
-func applyDetailedMetricsDataSizeAndLatencyHelper(cmd *baseCommand, ifc command, namespace string, end uint64, bytesSent int) {
-	// Update the detailed metrics for bytes sent and transmission time.
-	cmd.node.stats.DetailedMetrics.UpdateOrInsertFn(namespace, func(a *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
-		a.UpdateOrInsertFn(ifc.commandType(), func(b *commandMetric) *commandMetric {
-			b.BytesSent.Add(uint64(bytesSent))
-			b.Latency.Add(end)
-			return b
-		}, func() *commandMetric {
-			return cmd.node.stats.newCommandMetric()
-		})
-		return a
-	}, func() *amap.Map[commandType, *commandMetric] {
-		return amap.NewWithValue(ifc.commandType(), cmd.node.stats.newCommandMetric())
-	})
 }

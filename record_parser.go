@@ -29,7 +29,6 @@ type recordParser struct {
 	expiration  uint32
 	fieldCount  int
 	opCount     int
-	receiveSize int
 
 	cmd *baseCommand
 }
@@ -90,7 +89,6 @@ func newRecordParser(cmd *baseCommand) (*recordParser, Error) {
 	rp.cmd.dataOffset += 2
 	rp.opCount = int(Buffer.BytesToUint16(rp.cmd.dataBuffer, rp.cmd.dataOffset))
 	rp.cmd.dataOffset += 2
-	rp.receiveSize = int(receiveSize)
 
 	return rp, nil
 }
