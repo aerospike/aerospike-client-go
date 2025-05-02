@@ -82,7 +82,7 @@ func (cmd *readHeaderCommand) commandType() commandType {
 	return ttGetHeader
 }
 
-func (cmd *readHeaderCommand) getNamespaces() *map[string]uint64 {
+func (cmd *readHeaderCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

@@ -99,7 +99,7 @@ func (cmd *baseReadCommand) commandType() commandType {
 	return ttGet
 }
 
-func (cmd *baseReadCommand) getNamespaces() *map[string]uint64 {
+func (cmd *baseReadCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

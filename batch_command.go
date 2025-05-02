@@ -138,7 +138,7 @@ func (cmd *batchCommand) writeBuffer(ifc command) Error {
 	panic(unreachable)
 }
 
-func (cmd *batchCommand) getNamespaces() *map[string]uint64 {
+func (cmd *batchCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

@@ -82,7 +82,7 @@ func (cmd *scanPartitionObjectsCommand) Execute() Error {
 	return err
 }
 
-func (cmd *scanPartitionObjectsCommand) getNamespaces() *map[string]uint64 {
+func (cmd *scanPartitionObjectsCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

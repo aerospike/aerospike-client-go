@@ -97,7 +97,7 @@ func (cmd *readCommand) Execute() Error {
 	return cmd.execute(cmd)
 }
 
-func (cmd *readCommand) getNamespaces() *map[string]uint64 {
+func (cmd *readCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

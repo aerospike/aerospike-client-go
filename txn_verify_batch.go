@@ -192,12 +192,12 @@ func (cmd *txnBatchVerifyCommand) generateBatchNodes(cluster *Cluster) ([]*batch
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, false)
 }
 
-func (cmd *txnBatchVerifyCommand) getNamespaces() *map[string]uint64 {
+func (cmd *txnBatchVerifyCommand) getNamespaces() map[string]uint64 {
 	response := make(map[string]uint64, len(cmd.keys))
 	for _, key := range cmd.keys {
 		response[key.Namespace()]++
 	}
-	return &response
+	return response
 }
 
 func (cmd *txnBatchVerifyCommand) getNamespace() *string {

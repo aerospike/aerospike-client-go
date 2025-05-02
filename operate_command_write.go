@@ -84,7 +84,7 @@ func (cmd *operateCommandWrite) GetRecord() *Record {
 	return cmd.record
 }
 
-func (cmd *operateCommandWrite) getNamespaces() *map[string]uint64 {
+func (cmd *operateCommandWrite) getNamespaces() map[string]uint64 {
 	return nil
 }
 

@@ -180,7 +180,7 @@ func (cmd *batchSingleTxnVerifyCommand) commandType() commandType {
 	return ttPut
 }
 
-func (cmd *batchSingleTxnVerifyCommand) getNamespaces() *map[string]uint64 {
+func (cmd *batchSingleTxnVerifyCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

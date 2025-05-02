@@ -10,89 +10,90 @@ import (
 )
 
 type fakeCommand struct {
+	baseCommand
 	namespace  string
 	namespaces []string
 	ct         commandType
 }
 
-func (fc fakeCommand) getNamespaces() *map[string]uint64 {
-	result := make(map[string]uint64, 0)
+func (fc *fakeCommand) getNamespaces() map[string]uint64 {
+	result := make(map[string]uint64, len(fc.namespaces))
 	for _, namespace := range fc.namespaces {
 		result[namespace]++
 	}
 
-	return &result
+	return result
 }
 
-func (fc fakeCommand) getNamespace() *string {
+func (fc *fakeCommand) getNamespace() *string {
 	return nil
 }
 
-func (fc fakeCommand) commandType() commandType {
+func (fc *fakeCommand) commandType() commandType {
 	return fc.ct
 }
 
-func (fn fakeCommand) Execute() Error {
+func (fn *fakeCommand) Execute() Error {
 	return nil
 }
 
-func (fn fakeCommand) getPolicy(ifc command) Policy {
+func (fn *fakeCommand) getPolicy(ifc command) Policy {
 	return nil
 }
 
-func (fn fakeCommand) writeBuffer(ifc command) Error {
+func (fn *fakeCommand) writeBuffer(ifc command) Error {
 	return nil
 }
 
-func (fn fakeCommand) getNode(ifc command) (*Node, Error) {
+func (fn *fakeCommand) getNode(ifc command) (*Node, Error) {
 	return nil, nil
 }
 
-func (fn fakeCommand) getConnection(policy Policy) (*Connection, Error) {
+func (fn *fakeCommand) getConnection(policy Policy) (*Connection, Error) {
 	return nil, nil
 }
 
-func (fn fakeCommand) putConnection(conn *Connection) {
+func (fn *fakeCommand) putConnection(conn *Connection) {
 
 }
 
-func (fn fakeCommand) parseResult(ifc command, conn *Connection) Error {
+func (fn *fakeCommand) parseResult(ifc command, conn *Connection) Error {
 	return nil
 }
 
-func (fn fakeCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
+func (fn *fakeCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	return false, nil
 }
 
-func (fn fakeCommand) prepareRetry(ifc command, isTimeout bool) bool {
+func (fn *fakeCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return false
 }
 
-func (fn fakeCommand) isRead() bool {
+func (fn *fakeCommand) isRead() bool {
 	return false
 }
 
-func (fn fakeCommand) onInDoubt() {
+func (fn *fakeCommand) onInDoubt() {
 
 }
 
-func (fn fakeCommand) execute(ifc command) Error {
+func (fn *fakeCommand) execute(ifc command) Error {
 	return nil
 }
 
-func (fn fakeCommand) executeIter(ifc command, iter int) Error {
+func (fn *fakeCommand) executeIter(ifc command, iter int) Error {
 	return nil
 }
 
-func (fn fakeCommand) executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) Error {
+func (fn *fakeCommand) executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) Error {
 	return nil
 }
 
-func (fn fakeCommand) canPutConnBack() bool {
+func (fn *fakeCommand) canPutConnBack() bool {
 	return false
 }
 
-func newStub() (*baseCommand, fakeCommand) {
+func newStub() *fakeCommand {
 	mp := DefaultMetricsPolicy()
 	nodeStats := newNodeStats(mp)
 	me.Store(true)
@@ -105,19 +106,20 @@ func newStub() (*baseCommand, fakeCommand) {
 	}
 
 	// baseCommand to be used for the benchmark.
-	cmd := &baseCommand{
+	cmd := baseCommand{
 		node: node,
 	}
 
 	// Use a non-empty namespace and a command type (for example, ttGet).
 	fcmd := fakeCommand{
-		namespace: "test",
-		ct:        ttGet,
+		baseCommand: cmd,
+		namespace:   "test",
+		ct:          ttGet,
 	}
-	return cmd, fcmd
+	return &fcmd
 }
 
-func newStubWithNamespaces() (*baseCommand, fakeCommand) {
+func newStubWithNamespaces() *fakeCommand {
 	mp := DefaultMetricsPolicy()
 	nodeStats := newNodeStats(mp)
 	me.Store(true)
@@ -130,23 +132,25 @@ func newStubWithNamespaces() (*baseCommand, fakeCommand) {
 	}
 
 	// baseCommand to be used for the benchmark.
-	cmd := &baseCommand{
+	cmd := baseCommand{
 		node: node,
 	}
 
 	// Use a non-empty namespace and a command type (for example, ttGet).
 	fcmd := fakeCommand{
-		namespaces: []string{"test", "testTwo", "testThree", "testFour", "testFive", "testSix"},
-		ct:         ttGet,
+		baseCommand: cmd,
+		namespaces:  []string{"test", "testTwo", "testThree", "testFour", "testFive", "testSix"},
+		ct:          ttGet,
 	}
-	return cmd, fcmd
+	return &fcmd
 }
 
 var me atomic.Bool
 
 func BenchmarkApplyDetailedMetricsDataSizeAndLatency(b *testing.B) {
 	b.StopTimer()
-	cmd, fcmd := newStubWithNamespaces()
+	fcmd := newStubWithNamespaces()
+	//fcmd := newFakeCmdSingle()
 
 	// bytesSent value to simulate.
 	bytesSent := 100
@@ -155,33 +159,34 @@ func BenchmarkApplyDetailedMetricsDataSizeAndLatency(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		// Call the function under test.
-		cmd.applyDetailedMetricsDataSizeAndLatencyOnWrite(fcmd, bytesSent, time.Now())
+		fcmd.applyDetailedMetricsDataSizeAndLatencyOnWrite(fcmd, bytesSent, time.Now())
 	}
 }
 
 func BenchmarkApplyDetailedConnectionAq(b *testing.B) {
 	b.StopTimer()
-	cmd, fcmd := newStub()
+	fcmd := newStub()
 
 	b.StartTimer()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		// Call the function under test.
-		cmd.applyDetailedMetricsConnectionAq(fcmd, time.Now())
+		fcmd.applyDetailedMetricsConnectionAq(fcmd, time.Now())
 	}
 }
 
 func BenchmarkApplyDetailedParsing(b *testing.B) {
 	b.StopTimer()
-	cmd, fcmd := newStub()
+	fcmd := newStub()
 
 	b.StartTimer()
 	b.ResetTimer()
 	b.ReportAllocs()
+	bytesReceived := 100
 	for i := 0; i < b.N; i++ {
 		// Call the function under test.
-		cmd.applyDetailedMetricsParsing(fcmd, time.Now())
+		fcmd.applyDetailedMetricsParsing(fcmd, time.Now(), int64(bytesReceived))
 	}
 }
 
@@ -191,9 +196,9 @@ func BenchmarkCommandMergeCommandResultCodeMetrics(b *testing.B) {
 	targetNodeStats := newNodeStats(mp)
 	sourceNodeStats := newNodeStats(mp)
 
-	sourceNodeStats.updateOrInsert(fakeCommand{namespace: "test", ct: ttGet}, types.ResultCode(0))
-	sourceNodeStats.updateOrInsert(fakeCommand{namespace: "testTwo", ct: ttPut}, types.ResultCode(0))
-	sourceNodeStats.updateOrInsert(fakeCommand{namespace: "testThree", ct: ttExists}, types.ResultCode(0))
+	sourceNodeStats.updateOrInsert(&fakeCommand{namespace: "test", ct: ttGet}, types.ResultCode(0))
+	sourceNodeStats.updateOrInsert(&fakeCommand{namespace: "testTwo", ct: ttPut}, types.ResultCode(0))
+	sourceNodeStats.updateOrInsert(&fakeCommand{namespace: "testThree", ct: ttExists}, types.ResultCode(0))
 
 	b.StartTimer()
 	b.ResetTimer()
@@ -304,5 +309,23 @@ func BenchmarkCloneAndResetDetailedResultCodeCounts(b *testing.B) {
 		if cloned.Length() == 0 {
 			b.Fatal("cloned DetailedResultCodeCounts is empty")
 		}
+	}
+}
+
+type fakeCmdSingle struct {
+	fakeCommand
+}
+
+func (fc *fakeCmdSingle) getNamespaces() map[string]uint64 {
+	return nil
+}
+
+func (fc *fakeCmdSingle) getNamespace() *string {
+	return &fc.namespace
+}
+
+func newFakeCmdSingle() *fakeCmdSingle {
+	return &fakeCmdSingle{
+		fakeCommand: *newStub(),
 	}
 }

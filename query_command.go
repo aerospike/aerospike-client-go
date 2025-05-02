@@ -61,7 +61,7 @@ func (cmd *queryCommand) Execute() Error {
 	return err
 }
 
-func (cmd *queryCommand) getNamespaces() *map[string]uint64 {
+func (cmd *queryCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

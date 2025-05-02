@@ -78,11 +78,11 @@ func (cmd *touchCommand) commandType() commandType {
 	return ttPut
 }
 
-func (cmd *touchCommand) getNamespaces() *map[string]uint64 {
+func (cmd *touchCommand) getNamespaces() map[string]uint64 {
 	response := make(map[string]uint64, 1)
 	response[cmd.key.namespace] = 1
 
-	return &response
+	return response
 }
 
 func (cmd *touchCommand) getNamespace() *string {

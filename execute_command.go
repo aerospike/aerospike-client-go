@@ -118,7 +118,7 @@ func (cmd *executeCommand) GetRecord() *Record {
 	return cmd.record
 }
 
-func (cmd *executeCommand) getNamespaces() *map[string]uint64 {
+func (cmd *executeCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

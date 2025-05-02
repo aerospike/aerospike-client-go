@@ -76,7 +76,7 @@ func (cmd *txnAddKeysCommand) Execute() Error {
 	return cmd.execute(cmd)
 }
 
-func (cmd *txnAddKeysCommand) getNamespaces() *map[string]uint64 {
+func (cmd *txnAddKeysCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

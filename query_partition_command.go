@@ -67,7 +67,7 @@ func (cmd *queryPartitionCommand) Execute() Error {
 	return err
 }
 
-func (cmd *queryPartitionCommand) getNamespaces() *map[string]uint64 {
+func (cmd *queryPartitionCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

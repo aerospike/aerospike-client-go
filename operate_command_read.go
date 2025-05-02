@@ -48,7 +48,7 @@ func (cmd *operateCommandRead) commandType() commandType {
 	return ttOperate
 }
 
-func (cmd *operateCommandRead) getNamespaces() *map[string]uint64 {
+func (cmd *operateCommandRead) getNamespaces() map[string]uint64 {
 	return nil
 }
 
