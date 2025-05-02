@@ -768,7 +768,7 @@ func (nd *Node) requestRawInfo(policy *InfoPolicy, name ...string) (response *in
 			conn.Close()
 		}
 	})
-	return response, nil
+	return response, err
 }
 
 // RequestStats returns statistics for the specified node as a map
