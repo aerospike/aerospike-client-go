@@ -63,7 +63,7 @@ func (cmd *singleCommand) emptySocket(conn *Connection) Error {
 }
 
 
-func (cmd *singleCommand) getNamespaces() *map[string]uint64 {
+func (cmd *singleCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

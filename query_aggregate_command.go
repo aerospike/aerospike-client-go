@@ -160,7 +160,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 	return true, nil
 }
 
-func (cmd *queryAggregateCommand) getNamespaces() *map[string]uint64 {
+func (cmd *queryAggregateCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

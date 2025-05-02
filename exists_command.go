@@ -85,7 +85,7 @@ func (cmd *existsCommand) commandType() commandType {
 	return ttExists
 }
 
-func (cmd *existsCommand) getNamespaces() *map[string]uint64 {
+func (cmd *existsCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

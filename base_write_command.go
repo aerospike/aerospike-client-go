@@ -101,7 +101,7 @@ func (cmd *baseWriteCommand) parseHeader() (types.ResultCode, Error) {
 	return rp.resultCode, nil
 }
 
-func (cmd *baseWriteCommand) getNamespaces() *map[string]uint64 {
+func (cmd *baseWriteCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

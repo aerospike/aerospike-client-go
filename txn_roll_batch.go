@@ -211,13 +211,13 @@ func (cmd *batchTxnRollCommand) generateBatchNodes(cluster *Cluster) ([]*batchNo
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, cmd.attr.hasWrite)
 }
 
-func (cmd *batchTxnRollCommand) getNamespaces() *map[string]uint64 {
+func (cmd *batchTxnRollCommand) getNamespaces() map[string]uint64 {
 	response := make(map[string]uint64, len(cmd.keys))
 	for _, key := range cmd.keys {
 		response[key.Namespace()]++
 	}
 
-	return &response
+	return response
 }
 
 func (cmd *batchTxnRollCommand) getNamespace() *string {

@@ -208,7 +208,7 @@ type command interface {
 
 	canPutConnBack() bool
 
-	getNamespaces() *map[string]uint64
+	getNamespaces() map[string]uint64
 	getNamespace() *string
 
 	// Executes the command
@@ -3815,8 +3815,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		cmd.commandWasSent = true
 		if metricsEnabled {
 			start := time.Now()
-			dataSent := len(cmd.dataBuffer[:cmd.dataOffset])
-			_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
+			var dataSent int
+			dataSent, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 			// Capture sent bytes and transmission time.
 			cmd.applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc, dataSent, start)
 		} else {
@@ -3847,8 +3847,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		if metricsEnabled {
 			start := time.Now()
 			err = ifc.parseResult(ifc, cmd.conn)
-			// Capture timing for parsing results.
-			cmd.applyDetailedMetricsParsing(ifc, start)
+			dataReceived := cmd.conn.totalReceived
+			logger.Logger.Debug("Node " + cmd.node.String() + ": " + fmt.Sprintf("Received %d bytes", dataReceived) + ", command type: " + ifc.commandType().String())
+			// Capture timing for parsing results and total bytes received from the server.
+			cmd.applyDetailedMetricsParsing(ifc, start, dataReceived)
 		} else {
 			err = ifc.parseResult(ifc, cmd.conn)
 		}
@@ -4030,7 +4032,7 @@ func (cmd *baseCommand) parseVersion(fieldCount int) *uint64 {
 }
 
 // applyDetailedMetricsParsing updates the detailed metrics for parsing time.
-func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.Time) {
+func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.Time, dataReceived int64) {
 	if cmd.node == nil || cmd.node.cluster == nil || !cmd.node.cluster.MetricsEnabled() {
 		return
 	}
@@ -4039,24 +4041,7 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 	ct := ifc.commandType()
 	dm := &cmd.node.stats.DetailedMetrics
 
-	if nsMap := ifc.getNamespaces(); nsMap != nil {
-		for ns := range *nsMap {
-			if ns == "" {
-				continue
-			}
-			inner := dm.Get(ns)
-			if inner == nil {
-				inner = amap.New[commandType, *commandMetric](0)
-				dm.Set(ns, inner)
-			}
-			cm := inner.Get(ct)
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				inner.Set(ct, cm)
-			}
-			cm.Parsing.Add(end)
-		}
-	} else if single := ifc.getNamespace(); *single != "" {
+	if single := ifc.getNamespace(); single != nil {
 		ns := *single
 
 		inner := dm.Get(ns)
@@ -4072,6 +4057,25 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 		}
 
 		cm.Parsing.Add(end)
+		cm.BytesReceived.Add(uint64(dataReceived))
+	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
+		for ns := range nsMap {
+			if ns == "" {
+				continue
+			}
+			inner := dm.Get(ns)
+			if inner == nil {
+				inner = amap.New[commandType, *commandMetric](0)
+				dm.Set(ns, inner)
+			}
+			cm := inner.Get(ct)
+			if cm == nil {
+				cm = cmd.node.stats.newCommandMetric()
+				inner.Set(ct, cm)
+			}
+			cm.Parsing.Add(end)
+			cm.BytesReceived.Add(uint64(dataReceived))
+		}
 	}
 }
 
@@ -4081,8 +4085,22 @@ func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime 
 	ct := ifc.commandType()
 	dm := &cmd.node.stats.DetailedMetrics
 
-	if nsMap := ifc.getNamespaces(); nsMap != nil {
-		for ns := range *nsMap {
+	if single := ifc.getNamespace(); single != nil {
+		inner := dm.Get(*single)
+		if inner == nil {
+			inner = amap.New[commandType, *commandMetric](0)
+			dm.Set(*single, inner)
+		}
+
+		cm := inner.Get(ct)
+		if cm == nil {
+			cm = cmd.node.stats.newCommandMetric()
+			inner.Set(ct, cm)
+		}
+
+		cm.ConnectionAq.Add(end)
+	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
+		for ns := range nsMap {
 			if ns == "" {
 				continue
 			}
@@ -4100,20 +4118,6 @@ func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime 
 
 			cm.ConnectionAq.Add(end)
 		}
-	} else if single := ifc.getNamespace(); *single != "" {
-		inner := dm.Get(*single)
-		if inner == nil {
-			inner = amap.New[commandType, *commandMetric](0)
-			dm.Set(*single, inner)
-		}
-
-		cm := inner.Get(ct)
-		if cm == nil {
-			cm = cmd.node.stats.newCommandMetric()
-			inner.Set(ct, cm)
-		}
-
-		cm.ConnectionAq.Add(end)
 	}
 }
 
@@ -4122,9 +4126,23 @@ func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc comman
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
 	dm := &cmd.node.stats.DetailedMetrics
-
-	if nsMap := ifc.getNamespaces(); nsMap != nil {
-		for ns := range *nsMap {
+	if singleNS := ifc.getNamespace(); singleNS != nil {
+		if *singleNS != "" {
+			inner := dm.Get(*singleNS)
+			if inner == nil {
+				inner = amap.New[commandType, *commandMetric](1)
+				dm.Set(*singleNS, inner)
+			}
+			cm := inner.Get(ct)
+			if cm == nil {
+				cm = cmd.node.stats.newCommandMetric()
+				inner.Set(ct, cm)
+			}
+			cm.BytesSent.Add(uint64(bytesSent))
+			cm.Latency.Add(end)
+		}
+	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
+		for ns := range nsMap {
 			if ns != "" {
 				//upsert(ns)
 				inner := dm.Get(ns)
@@ -4140,21 +4158,6 @@ func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc comman
 				cm.BytesSent.Add(uint64(bytesSent))
 				cm.Latency.Add(end)
 			}
-		}
-	} else if singleNS := ifc.getNamespace(); *singleNS != "" {
-		if *singleNS != "" {
-			inner := dm.Get(*singleNS)
-			if inner == nil {
-				inner = amap.New[commandType, *commandMetric](1)
-				dm.Set(*singleNS, inner)
-			}
-			cm := inner.Get(ct)
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				inner.Set(ct, cm)
-			}
-			cm.BytesSent.Add(uint64(bytesSent))
-			cm.Latency.Add(end)
 		}
 	}
 }

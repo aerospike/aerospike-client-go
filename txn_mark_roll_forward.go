@@ -69,7 +69,7 @@ func (cmd *txnMarkRollForwardCommand) Execute() Error {
 	return cmd.execute(cmd)
 }
 
-func (cmd *txnMarkRollForwardCommand) getNamespaces() *map[string]uint64 {
+func (cmd *txnMarkRollForwardCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

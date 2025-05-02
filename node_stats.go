@@ -111,19 +111,21 @@ type commandResultCodeMetric struct {
 
 // commandMetric keeps track of detailed metrics for a given command
 type commandMetric struct {
-	ConnectionAq hist.SyncHistogram[uint64] `json:"connection-aq"`
-	Latency      hist.SyncHistogram[uint64] `json:"latency"`
-	Parsing      hist.SyncHistogram[uint64] `json:"parsing"`
-	BytesSent    hist.SyncHistogram[uint64] `json:"bytes-sent"`
+	ConnectionAq  hist.SyncHistogram[uint64] `json:"connection-aq"`
+	Latency       hist.SyncHistogram[uint64] `json:"latency"`
+	Parsing       hist.SyncHistogram[uint64] `json:"parsing"`
+	BytesSent     hist.SyncHistogram[uint64] `json:"bytes-sent"`
+	BytesReceived hist.SyncHistogram[uint64] `json:"bytes-received"`
 }
 
 // newCommandMetric creates a new CommandMetric object
 func (n *nodeStats) newCommandMetric() *commandMetric {
 	return &commandMetric{
-		ConnectionAq: *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		Latency:      *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		Parsing:      *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		BytesSent:    *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		ConnectionAq:  *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		Latency:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		Parsing:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		BytesSent:     *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		BytesReceived: *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
 	}
 }
 
@@ -542,6 +544,7 @@ func (ns *nodeStats) cloneDetailedMetrics() *amap.Map[string, *amap.Map[commandT
 			tgtMetric.Latency = *srcMetric.Latency.Clone()
 			tgtMetric.Parsing = *srcMetric.Parsing.Clone()
 			tgtMetric.BytesSent = *srcMetric.BytesSent.Clone()
+			tgtMetric.BytesReceived = *srcMetric.BytesReceived.Clone()
 		}
 	}
 
@@ -595,6 +598,7 @@ func (n *nodeStats) cloneAndResetDetailedMetrics() *amap.Map[string, *amap.Map[c
 			latencyClone := srcMetric.Latency.CloneAndReset()
 			parsingClone := srcMetric.Parsing.CloneAndReset()
 			bytesClone := srcMetric.BytesSent.CloneAndReset()
+			bytesReceivedClone := srcMetric.BytesReceived.CloneAndReset()
 
 			// get-or-create inner map for this namespace
 			tgtCmdMap := cloned.Get(namespace)
@@ -615,6 +619,7 @@ func (n *nodeStats) cloneAndResetDetailedMetrics() *amap.Map[string, *amap.Map[c
 			tgtMetric.Latency = *latencyClone
 			tgtMetric.Parsing = *parsingClone
 			tgtMetric.BytesSent = *bytesClone
+			tgtMetric.BytesReceived = *bytesReceivedClone
 		}
 	}
 
@@ -676,6 +681,7 @@ func (n *nodeStats) mergeDetailedMetrics(ns *nodeStats) {
 			tgtMetric.Latency.Merge(&srcMetric.Latency)
 			tgtMetric.Parsing.Merge(&srcMetric.Parsing)
 			tgtMetric.BytesSent.Merge(&srcMetric.BytesSent)
+			tgtMetric.BytesReceived.Merge(&srcMetric.BytesReceived)
 		}
 	}
 }
@@ -722,6 +728,7 @@ func (n *nodeStats) reshapeDetailedMetrics() {
 			n.DetailedMetrics.Get(namespace).Get(command).Latency.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
 			n.DetailedMetrics.Get(namespace).Get(command).Parsing.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
 			n.DetailedMetrics.Get(namespace).Get(command).BytesSent.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			n.DetailedMetrics.Get(namespace).Get(command).BytesReceived.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
 		}
 	}
 }
@@ -741,36 +748,47 @@ func (n *nodeStats) reshapeDetailedResultCodeCounts() {
 func (n *nodeStats) updateOrInsert(ifc command, resultCode types.ResultCode) {
 	n.m.Lock()
 	defer n.m.Unlock()
-	namespaces := ifc.getNamespaces()
-	if namespaces != nil {
-		for namespace := range *namespaces {
-			n.updateDetailedResultCodeCounts(namespace, ifc, resultCode)
+	namespace := ifc.getNamespace()
+	if namespace != nil {
+		inner := n.DetailedResultCodeCounts.Get(*namespace)
+		if inner == nil {
+			inner = amap.New[commandType, *commandResultCodeMetric](0)
+			n.DetailedResultCodeCounts.Set(*namespace, inner)
+		}
+
+		ct := ifc.commandType()
+		m := inner.Get(ct)
+		if m == nil {
+			m = n.newCommandResultCodeMetricWithValue(resultCode)
+			inner.Set(ct, m)
+		}
+
+		if cur := m.ResultCodeCounts.Get(resultCode); cur > 0 {
+			m.ResultCodeCounts.Set(resultCode, cur+1)
+		} else {
+			m.ResultCodeCounts.Set(resultCode, 1)
 		}
 	} else {
-		namespace := *ifc.getNamespace()
-		n.updateDetailedResultCodeCounts(namespace, ifc, resultCode)
-	}
+		namespaces := ifc.getNamespaces()
+		for namespace := range namespaces {
+			inner := n.DetailedResultCodeCounts.Get(namespace)
+			if inner == nil {
+				inner = amap.New[commandType, *commandResultCodeMetric](0)
+				n.DetailedResultCodeCounts.Set(namespace, inner)
+			}
 
-}
+			ct := ifc.commandType()
+			m := inner.Get(ct)
+			if m == nil {
+				m = n.newCommandResultCodeMetricWithValue(resultCode)
+				inner.Set(ct, m)
+			}
 
-// Update or insert result code counts for a specific namespace and command type
-func (n *nodeStats) updateDetailedResultCodeCounts(namespace string, ifc command, resultCode types.ResultCode) {
-	inner := n.DetailedResultCodeCounts.Get(namespace)
-	if inner == nil {
-		inner = amap.New[commandType, *commandResultCodeMetric](0)
-		n.DetailedResultCodeCounts.Set(namespace, inner)
-	}
-
-	ct := ifc.commandType()
-	m := inner.Get(ct)
-	if m == nil {
-		m = n.newCommandResultCodeMetricWithValue(resultCode)
-		inner.Set(ct, m)
-	}
-
-	if cur := m.ResultCodeCounts.Get(resultCode); cur > 0 {
-		m.ResultCodeCounts.Set(resultCode, cur+1)
-	} else {
-		m.ResultCodeCounts.Set(resultCode, 1)
+			if cur := m.ResultCodeCounts.Get(resultCode); cur > 0 {
+				m.ResultCodeCounts.Set(resultCode, cur+1)
+			} else {
+				m.ResultCodeCounts.Set(resultCode, 1)
+			}
+		}
 	}
 }

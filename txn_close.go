@@ -77,7 +77,7 @@ func (cmd *txnCloseCommand) onInDoubt() {
 	return
 }
 
-func (cmd *txnCloseCommand) getNamespaces() *map[string]uint64 {
+func (cmd *txnCloseCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 

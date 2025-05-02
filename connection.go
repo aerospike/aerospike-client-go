@@ -71,7 +71,8 @@ type Connection struct {
 	idleDeadline time.Time
 
 	// connection object
-	conn net.Conn
+	conn          net.Conn
+	totalReceived int64
 
 	// histogram to adjust the buff size to optimal value over time
 	buffHist             *histogram.Log2
@@ -253,8 +254,10 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 
 		if !ctn.compressed {
 			r, err = ctn.conn.Read(buf[total:length])
+			ctn.totalReceived += int64(r)
 		} else {
 			r, err = ctn.inflater.Read(buf[total:length])
+			ctn.totalReceived += int64(length - total)
 			if err == io.EOF && total+r == length {
 				ctn.compressed = false
 				err = ctn.inflater.Close()
@@ -460,6 +463,7 @@ func (ctn *Connection) willBeIdleIn(tendInterval time.Duration) bool {
 
 // refresh extends the idle deadline of the connection.
 func (ctn *Connection) refresh() {
+	ctn.totalReceived = 0
 	now := time.Now()
 	ctn.idleDeadline = now.Add(ctn.idleTimeout)
 	if ctn.inflater != nil {

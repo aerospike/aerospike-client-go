@@ -101,7 +101,7 @@ func (cmd *serverCommand) Execute() Error {
 	return cmd.execute(cmd)
 }
 
-func (cmd *serverCommand) getNamespaces() *map[string]uint64 {
+func (cmd *serverCommand) getNamespaces() map[string]uint64 {
 	return nil
 }
 
