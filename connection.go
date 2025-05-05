@@ -49,7 +49,7 @@ var (
 	// MinBufferSize specifies the smallest buffer size that would be allocated for connections. Smaller buffer
 	// requests will allocate at least this amount of memory. This protects against allocating too many small
 	// buffers that would require reallocation and putting pressure on the GC.
-	MinBufferSize = 8 * 1024 // 16 KiB
+	MinBufferSize = 8 * 1024 // 8 KiB
 )
 
 // Connection represents a connection with a timeout.
