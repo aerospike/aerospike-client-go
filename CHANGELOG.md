@@ -1,5 +1,10 @@
 # Change History
 
+## May 5 2025: v8.2.2
+
+- **Fixes**
+  - [CLIENT-3438] Adding `err` to return in `Node.requestRawInfo`.
+
 ## April 14 2025: v8.2.1
 
 - **Improvements**
