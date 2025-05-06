@@ -129,6 +129,19 @@ type ClientPolicy struct {
 	// This feature is recommended instead of using the client-side IpMap above.
 	//
 	// "services-alternate" is available with Aerospike Server versions >= 3.7.1.
+	//
+	// Info command to use whether UserServicesAlternate is true or false:
+	//
+	// If false, use:
+	// IP address: service-clear-std
+	// TLS IP address: service-tls-std
+	// Peers addresses: peers-clear-std
+	// Peers TLS addresses: peers-tls-std
+	// If true, use:
+	// IP address: service-clear-alt
+	// TLS IP address: service-tls-alt
+	// Peers addresses: peers-clear-alt
+	// Peers TLS addresses: peers-tls-alt
 	UseServicesAlternate bool // false
 
 	// RackAware directs the client to update rack information on intervals.
