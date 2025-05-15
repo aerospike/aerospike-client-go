@@ -60,11 +60,9 @@ func isJsonObject(ifc interface{}) bool {
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Aerospike", func() {
-
 	var actualClusterName string
 
 	gg.Describe("Client InfoErrorParser", func() {
-
 		gg.It("must parse InfoError response strings", func() {
 			type t struct {
 				r    string
@@ -93,13 +91,10 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err.(*as.AerospikeError).Msg()).To(gm.Equal(r.err))
 				gm.Expect(err.Matches(r.code)).To(gm.BeTrue())
 			}
-
 		})
-
 	})
 
 	gg.Describe("Client Management", func() {
-
 		dbHost := as.NewHost(*host, *port)
 		dbHost.TLSName = *nodeTLSName
 
@@ -131,6 +126,8 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(nodeStats["partition-map-updates"].(float64)).To(gm.BeNumerically(">=", 1))
 					gm.Expect(nodeStats["tends-successful"].(float64)).To(gm.BeNumerically(">", 1))
 					gm.Expect(nodeStats["tends-total"].(float64)).To(gm.BeNumerically(">", 1))
+
+					gm.Expect(isJsonObject(nodeStats["node-stats"].(map[string]map[string]int))).To(gm.BeTrue())
 				}
 			}
 
@@ -189,7 +186,6 @@ var _ = gg.Describe("Aerospike", func() {
 		})
 
 		gg.Context("Rackaware", func() {
-
 			gg.It("must connect to the cluster in rackaware mode, and set the RackId = 0, and still get master node for all keys", func() {
 				cpolicy := *clientPolicy
 				cpolicy.User = *user
@@ -262,8 +258,8 @@ var _ = gg.Describe("Aerospike", func() {
 	gg.Describe("Client-side limitations", func() {
 		gg.Context("Bin size limit of 15 bytes should be respected on", func() {
 			const longBinName = "binNameLongerThan15Bytes"
-			var ns = *namespace
-			var set = randString(50)
+			ns := *namespace
+			set := randString(50)
 			key, err = as.NewKey(ns, set, randString(50))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
@@ -447,12 +443,12 @@ var _ = gg.Describe("Aerospike", func() {
 	gg.Describe("Data operations on native types", func() {
 		// connection data
 		var err error
-		var ns = *namespace
-		var set = randString(50)
+		ns := *namespace
+		set := randString(50)
 		var key *as.Key
-		var wpolicy = as.NewWritePolicy(0, 0)
-		var rpolicy = as.NewPolicy()
-		var bpolicy = as.NewBatchPolicy()
+		wpolicy := as.NewWritePolicy(0, 0)
+		rpolicy := as.NewPolicy()
+		bpolicy := as.NewBatchPolicy()
 		var rec *as.Record
 
 		if *useReplicas {
@@ -465,7 +461,6 @@ var _ = gg.Describe("Aerospike", func() {
 		})
 
 		gg.Context("PutPayload operations", func() {
-
 			gg.It("must put a record", func() {
 				key, err = as.NewKey(ns, set, 0)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -523,13 +518,10 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(exists).To(gm.BeFalse())
 			})
-
 		})
 
 		gg.Context("Put operations", func() {
-
 			gg.Context("Expiration values", func() {
-
 				gg.It("must return 30d if set to TTLServerDefault", func() {
 					wpolicy := as.NewWritePolicy(0, as.TTLServerDefault)
 					bin := as.NewBin("Aerospike", "value")
@@ -545,7 +537,6 @@ var _ = gg.Describe("Aerospike", func() {
 					default:
 						gm.Expect(rec.Expiration).To(gm.Equal(uint32(defaultTTL)))
 					}
-
 				})
 
 				gg.It("must return TTLDontExpire if set to TTLDontExpire", func() {
@@ -757,7 +748,6 @@ var _ = gg.Describe("Aerospike", func() {
 						}
 						return as.NewBin("Aerospike2", int(math.MinInt64)),
 							as.NewBin("Aerospike3", uint(math.MaxInt64))
-
 					}()
 
 					err = client.PutBins(wpolicy, key, bin1, bin2, bin3)
@@ -882,7 +872,6 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 
 			gg.Context("Bins with complex types", func() {
-
 				gg.Context("Bins with BLOB type", func() {
 					gg.It("must save and retrieve Bins with AerospikeBlobs type", func() {
 						person := &testBLOB{name: "SomeDude"}
@@ -896,7 +885,6 @@ var _ = gg.Describe("Aerospike", func() {
 				})
 
 				gg.Context("Bins with LIST type", func() {
-
 					gg.It("must save a key with Array Types", func() {
 						// All int types and sizes should be encoded into an int64,
 						// unless if they are of type uint64, which always encodes to uint64
@@ -983,11 +971,9 @@ var _ = gg.Describe("Aerospike", func() {
 						arraysEqual(rec.Bins[bin9.Name], bin9.Value.GetObject())
 						arraysEqual(rec.Bins[bin10.Name], bin10.Value.GetObject())
 					})
-
 				}) // context list
 
 				gg.Context("Bins with MAP type", func() {
-
 					gg.It("must save a key with Array Types", func() {
 						// complex type, consisting different maps
 						bin1 := as.NewBin("Aerospike1", map[interface{}]interface{}{
@@ -1023,11 +1009,8 @@ var _ = gg.Describe("Aerospike", func() {
 						mapsEqual(rec.Bins[bin1.Name], bin1.Value.GetObject())
 						mapsEqual(rec.Bins[bin2.Name], bin2.Value.GetObject())
 					})
-
 				}) // context map
-
 			}) // context complex types
-
 		}) // put context
 
 		gg.Context("Get operations", func() {
@@ -1076,7 +1059,6 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(rec.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject().(string) + appbin.Value.GetObject().(string)))
 			})
-
 		}) // append context
 
 		gg.Context("Prepend operations", func() {
@@ -1106,7 +1088,6 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(rec.Bins[bin.Name]).To(gm.Equal(appbin.Value.GetObject().(string) + bin.Value.GetObject().(string)))
 			})
-
 		}) // prepend context
 
 		gg.Context("Add operations", func() {
@@ -1136,7 +1117,6 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(rec.Bins[bin.Name]).To(gm.Equal(addBin.Value.GetObject().(int) + bin.Value.GetObject().(int)))
 			})
-
 		}) // add context
 
 		gg.Context("Delete operations", func() {
@@ -1168,7 +1148,6 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(existed).To(gm.Equal(false))
 			})
-
 		}) // Delete context
 
 		gg.Context("Touch operations", func() {
@@ -1214,7 +1193,6 @@ var _ = gg.Describe("Aerospike", func() {
 					}
 				}
 			})
-
 		}) // Touch context
 
 		gg.Context("Exists operations", func() {
@@ -1242,12 +1220,11 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(exists).To(gm.Equal(true))
 			})
-
 		}) // Exists context
 
 		gg.Context("Batch Exists operations", func() {
 			bin := as.NewBin("Aerospike", rand.Intn(math.MaxInt16))
-			var keyCount = []int{1, 2048}
+			keyCount := []int{1, 2048}
 
 			gg.BeforeEach(func() {
 			})
@@ -1285,12 +1262,11 @@ var _ = gg.Describe("Aerospike", func() {
 					})
 				}
 			}
-
 		}) // Batch Exists context
 
 		gg.Context("Batch Get operations", func() {
 			bin := as.NewBin("Aerospike", rand.Int())
-			var keyCount = []int{1, 2048}
+			keyCount := []int{1, 2048}
 
 			gg.BeforeEach(func() {
 			})
@@ -1505,7 +1481,6 @@ var _ = gg.Describe("Aerospike", func() {
 								gm.Expect(rec.Record).To(gm.BeNil())
 							}
 						}
-
 					})
 				}
 			}
@@ -1532,11 +1507,9 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(rec.Generation).To(gm.BeNumerically(">", generation))
 				gm.Expect(rec.Bins[bin.Name]).To(gm.BeNil())
 			})
-
 		}) // GetHeader context
 
 		gg.Context("BatchOperate", func() {
-
 			gg.It("must execute BatchGetOperate with Operations", func() {
 				const listSize = 10
 				const cdtBinName = "cdtBin"
@@ -1629,7 +1602,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 		gg.Context("Batch Get Header operations", func() {
 			bin := as.NewBin("Aerospike", rand.Int())
-			var keyCount = []int{1, 1024}
+			keyCount := []int{1, 1024}
 
 			gg.BeforeEach(func() {
 			})
@@ -1949,17 +1922,12 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject().(int) + 2))
 				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject().(string) + "aa"))
 				gm.Expect(rec.Generation).To(gm.Equal(uint32(3)))
-
 			})
-
 		}) // GetHeader context
-
 	})
 
 	gg.Describe("Commands Test", func() {
-
 		gg.Context("XDR Filter", func() {
-
 			gg.BeforeEach(func() {
 				if !xdrEnabled() {
 					gg.Skip("XDR Filter Tests are not supported in the Community Edition, or when the server is not configured for XDR")
@@ -1991,9 +1959,6 @@ var _ = gg.Describe("Aerospike", func() {
 				err := client.SetXDRFilter(nil, "test", "test", nil)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 			})
-
 		}) // gg.Context
-
 	}) // Describe
-
 })

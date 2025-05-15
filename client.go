@@ -1240,7 +1240,6 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 	statement *Statement,
 	ops ...*Operation,
 ) (*ExecuteTask, Error) {
-
 	if len(statement.BinNames) > 0 {
 		return nil, ErrNoBinNamesAllowedInQueryExecute.err()
 	}
@@ -1366,8 +1365,8 @@ var infoErrRegexp = regexp.MustCompile(`(?i)(fail|error)((:|=)(?P<code>[0-9]+))?
 func parseInfoErrorCode(response string) Error {
 	match := infoErrRegexp.FindStringSubmatch(response)
 
-	var code = types.SERVER_ERROR
-	var message = response
+	code := types.SERVER_ERROR
+	message := response
 
 	if len(match) > 0 {
 		for i, name := range infoErrRegexp.SubexpNames() {
@@ -2033,6 +2032,19 @@ func (clnt *Client) Stats() (map[string]any, Error) {
 	aggstats := res["cluster-aggregated-stats"].(map[string]any)
 	aggstats["exceeded-max-retries"] = clnt.cluster.maxRetriesExceededCount.Get()
 	aggstats["exceeded-total-timeout"] = clnt.cluster.totalTimeoutExceededCount.Get()
+
+	allNodeStats := map[string]map[string]int{}
+	for _, node := range clnt.cluster.GetNodes() {
+		ns := map[string]int{}
+		ns["open-connections"] = node.stats.ConnectionsOpen.Get()
+		ns["failed-connections"] = node.stats.ConnectionsFailed.Get()
+		ns["connections-error-timeout"] = node.stats.ConnectionsTimeoutErrors.Get()
+		ns["connections-pool-empty"] = node.stats.ConnectionsPoolEmpty.Get()
+		ns["transaction-error-count"] = node.stats.TransactionErrorCount.Get()
+		ns["transaction-retry-count"] = node.stats.TransactionRetryCount.Get()
+		allNodeStats[node.GetHost().String()] = ns
+	}
+	res["node-stats"] = allNodeStats
 
 	return res, nil
 }
