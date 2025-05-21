@@ -210,6 +210,23 @@ func (rcs *Recordset) sendError(err Error) {
 }
 
 // Records implements an iterator over the Recordset.
+// This is a more idiomatic approach to the iterator pattern in getting the
+// results back from the recordset, and doesn't require the user to write the
+// ugly select in their code.
+// Result contains a Record and an error reference.
+//
+// Example:
+//
+//	recordset, err := client.ScanAll(nil, namespace, set)
+//	handleError(err)
+//	for rec, err := range recordset.Records() {
+//	  if err != nil {
+//	    // handle error here
+//	  } else {
+//	    // process record here
+//	    fmt.Println(rec.Bins)
+//	  }
+//	}
 func (rcs *Recordset) Records() iter.Seq2[*Record, Error] {
 	return func(yield func(*Record, Error) bool) {
 		for res := range rcs.records {
