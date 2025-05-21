@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -87,7 +89,7 @@ func (cmd *deleteCommand) commandType() commandType {
 	return ttDelete
 }
 
-func (cmd *deleteCommand) getNamespaces() map[string]uint64 {
+func (cmd *deleteCommand) getNamespaces() iter.Seq2[string, uint64] {
 	return nil
 }
 

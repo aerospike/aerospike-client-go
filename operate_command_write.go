@@ -14,7 +14,11 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v8/types"
+import (
+	"iter"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
+)
 
 type operateCommandWrite struct {
 	baseWriteCommand
@@ -84,7 +88,7 @@ func (cmd *operateCommandWrite) GetRecord() *Record {
 	return cmd.record
 }
 
-func (cmd *operateCommandWrite) getNamespaces() map[string]uint64 {
+func (cmd *operateCommandWrite) getNamespaces() iter.Seq2[string, uint64] {
 	return nil
 }
 

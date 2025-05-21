@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "iter"
+
 type queryPartitionCommand queryCommand
 
 func newQueryPartitionCommand(
@@ -67,7 +69,7 @@ func (cmd *queryPartitionCommand) Execute() Error {
 	return err
 }
 
-func (cmd *queryPartitionCommand) getNamespaces() map[string]uint64 {
+func (cmd *queryPartitionCommand) getNamespaces() iter.Seq2[string, uint64] {
 	return nil
 }
 

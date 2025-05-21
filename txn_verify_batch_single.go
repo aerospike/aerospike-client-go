@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"iter"
 
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -180,7 +181,7 @@ func (cmd *batchSingleTxnVerifyCommand) commandType() commandType {
 	return ttPut
 }
 
-func (cmd *batchSingleTxnVerifyCommand) getNamespaces() map[string]uint64 {
+func (cmd *batchSingleTxnVerifyCommand) getNamespaces() iter.Seq2[string, uint64] {
 	return nil
 }
 

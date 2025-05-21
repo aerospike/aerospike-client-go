@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"iter"
 	"time"
 
 	amap "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
@@ -208,7 +209,7 @@ type command interface {
 
 	canPutConnBack() bool
 
-	getNamespaces() map[string]uint64
+	getNamespaces() iter.Seq2[string, uint64]
 	getNamespace() *string
 
 	// Executes the command
@@ -4141,8 +4142,8 @@ func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc comman
 			cm.BytesSent.Add(uint64(bytesSent))
 			cm.Latency.Add(end)
 		}
-	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
-		for ns := range nsMap {
+	} else if nsIter := ifc.getNamespaces(); nsIter != nil { // allocation happens
+		for ns := range nsIter {
 			if ns != "" {
 				//upsert(ns)
 				inner := dm.Get(ns)

@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -69,7 +71,7 @@ func (cmd *txnMarkRollForwardCommand) Execute() Error {
 	return cmd.execute(cmd)
 }
 
-func (cmd *txnMarkRollForwardCommand) getNamespaces() map[string]uint64 {
+func (cmd *txnMarkRollForwardCommand) getNamespaces() iter.Seq2[string, uint64] {
 	return nil
 }
 

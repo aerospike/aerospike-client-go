@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
 
@@ -62,8 +64,7 @@ func (cmd *singleCommand) emptySocket(conn *Connection) Error {
 	return nil
 }
 
-
-func (cmd *singleCommand) getNamespaces() map[string]uint64 {
+func (cmd *singleCommand) getNamespaces() iter.Seq2[string, uint64] {
 	return nil
 }
 

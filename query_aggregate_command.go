@@ -18,6 +18,7 @@ package aerospike
 
 import (
 	"fmt"
+	"iter"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 
@@ -160,7 +161,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 	return true, nil
 }
 
-func (cmd *queryAggregateCommand) getNamespaces() map[string]uint64 {
+func (cmd *queryAggregateCommand) getNamespaces() iter.Seq2[string, uint64] {
 	return nil
 }
 
