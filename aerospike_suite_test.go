@@ -148,6 +148,9 @@ func initTestVars() {
 		p.ReplicaPolicy = as.MASTER_PROLES
 		client.SetDefaultPolicy(p)
 	}
+
+	// make sure the metrics code runs in all tests
+	client.EnableMetrics(nil)
 }
 
 func TestMain(m *testing.M) {

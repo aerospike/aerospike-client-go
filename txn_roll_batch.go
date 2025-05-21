@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"iter"
 	"reflect"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -211,15 +212,18 @@ func (cmd *batchTxnRollCommand) generateBatchNodes(cluster *Cluster) ([]*batchNo
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, cmd.attr.hasWrite)
 }
 
-func (cmd *batchTxnRollCommand) getNamespaces() map[string]uint64 {
-	response := make(map[string]uint64, len(cmd.keys))
-	for _, key := range cmd.keys {
-		response[key.Namespace()]++
-	}
-
-	return response
+func (cmd *batchTxnRollCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return cmd.nsIter
 }
 
 func (cmd *batchTxnRollCommand) getNamespace() *string {
 	return nil
+}
+
+func (cmd *batchTxnRollCommand) nsIter(yield func(string, uint64) bool) {
+	for _, key := range cmd.keys {
+		if !yield(key.namespace, 1) {
+			return
+		}
+	}
 }

@@ -1,6 +1,7 @@
 package aerospike
 
 import (
+	"iter"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,13 +17,16 @@ type fakeCommand struct {
 	ct         commandType
 }
 
-func (fc *fakeCommand) getNamespaces() map[string]uint64 {
-	result := make(map[string]uint64, len(fc.namespaces))
-	for _, namespace := range fc.namespaces {
-		result[namespace]++
-	}
+func (fc *fakeCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return fc.nsIter
+}
 
-	return result
+func (fc *fakeCommand) nsIter(yield func(string, uint64) bool) {
+	for i := range fc.namespaces {
+		if !yield(fc.namespaces[i], 1) {
+			return
+		}
+	}
 }
 
 func (fc *fakeCommand) getNamespace() *string {
@@ -150,7 +154,9 @@ var me atomic.Bool
 func BenchmarkApplyDetailedMetricsDataSizeAndLatency(b *testing.B) {
 	b.StopTimer()
 	fcmd := newStubWithNamespaces()
-	//fcmd := newFakeCmdSingle()
+	// fcmd := newFakeCmdSingle()
+
+	now := time.Now()
 
 	// bytesSent value to simulate.
 	bytesSent := 100
@@ -159,7 +165,7 @@ func BenchmarkApplyDetailedMetricsDataSizeAndLatency(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		// Call the function under test.
-		fcmd.applyDetailedMetricsDataSizeAndLatencyOnWrite(fcmd, bytesSent, time.Now())
+		fcmd.applyDetailedMetricsDataSizeAndLatencyOnWrite(fcmd, bytesSent, now)
 	}
 }
 
@@ -316,7 +322,7 @@ type fakeCmdSingle struct {
 	fakeCommand
 }
 
-func (fc *fakeCmdSingle) getNamespaces() map[string]uint64 {
+func (fc *fakeCmdSingle) getNamespaces() iter.Seq2[string, uint64] {
 	return nil
 }
 

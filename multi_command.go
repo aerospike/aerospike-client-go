@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"iter"
 	"math/rand"
 	"reflect"
 
@@ -501,7 +502,7 @@ func (cmd *baseMultiCommand) execute(ifc command) Error {
 	return cmd.baseCommand.execute(ifc)
 }
 
-func (cmd *baseMultiCommand) getNamespaces() map[string]uint64 {
+func (cmd *baseMultiCommand) getNamespaces() iter.Seq2[string, uint64] {
 	return nil
 }
 

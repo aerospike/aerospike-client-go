@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"iter"
 	"reflect"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -99,7 +100,7 @@ func (cmd *baseReadCommand) commandType() commandType {
 	return ttGet
 }
 
-func (cmd *baseReadCommand) getNamespaces() map[string]uint64 {
+func (cmd *baseReadCommand) getNamespaces() iter.Seq2[string, uint64] {
 	return nil
 }
 

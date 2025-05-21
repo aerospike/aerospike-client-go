@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -78,11 +80,8 @@ func (cmd *touchCommand) commandType() commandType {
 	return ttPut
 }
 
-func (cmd *touchCommand) getNamespaces() map[string]uint64 {
-	response := make(map[string]uint64, 1)
-	response[cmd.key.namespace] = 1
-
-	return response
+func (cmd *touchCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
 }
 
 func (cmd *touchCommand) getNamespace() *string {
