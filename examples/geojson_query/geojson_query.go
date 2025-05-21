@@ -81,9 +81,9 @@ func runExample(client *as.Client) {
 	shared.PanicOnError(err)
 
 	count := 0
-	for res := range recordset.Results() {
-		shared.PanicOnError(res.Err)
-		log.Println(res.Record.Bins)
+	for rec, err := range recordset.Records() {
+		shared.PanicOnError(err)
+		log.Println(rec.Bins)
 		count++
 	}
 

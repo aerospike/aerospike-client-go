@@ -53,8 +53,8 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 	countResults := func(rs *as.Recordset) int {
 		count := 0
 
-		for res := range rs.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+		for _, err := range rs.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			count += 1
 		}
 

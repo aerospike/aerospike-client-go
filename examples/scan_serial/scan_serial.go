@@ -55,13 +55,12 @@ func runExample(client *as.Client) {
 		recordset, err := client.ScanNode(policy, node, *shared.Namespace, *shared.Set)
 		shared.PanicOnError(err)
 
-		for res := range recordset.Results() {
-			if res.Err != nil {
+		for rec, err := range recordset.Records() {
+			if err != nil {
 				// if there was an error, stop
 				shared.PanicOnError(err)
 			}
 
-			rec := res.Record
 			metrics, exists := setMap[rec.Key.SetName()]
 
 			if !exists {

@@ -888,9 +888,9 @@ var _ = gg.Describe("CDT Map Test", func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{"b": map[any]any{"k": map[any]any{1: "k"}}}))
 
-		for res := range sets.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			_, err = client.Delete(nil, res.Record.Key)
+		for rec, err := range sets.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			_, err = client.Delete(nil, rec.Key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		}
 
@@ -906,9 +906,9 @@ var _ = gg.Describe("CDT Map Test", func() {
 
 		sets, err = client.ScanAll(nil, ns, set)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
-		for res := range sets.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			_, err = client.Delete(nil, res.Record.Key)
+		for rec, err := range sets.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			_, err = client.Delete(nil, rec.Key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		}
 	})

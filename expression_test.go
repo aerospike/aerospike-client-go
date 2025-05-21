@@ -141,8 +141,8 @@ var _ = gg.Describe("Expression Filters", func() {
 			qpolicy.FilterExpression = as.ExpIntVal(8)
 			recordset, err := client.Query(qpolicy, stm)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).To(gm.HaveOccurred())
+			for _, err := range recordset.Records() {
+				gm.Expect(err).To(gm.HaveOccurred())
 			}
 		})
 
@@ -158,8 +158,8 @@ var _ = gg.Describe("Expression Filters", func() {
 			// only takes mod 8 and 9, should be 2 pre decade or 80 total.
 
 			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			for _, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
@@ -174,8 +174,8 @@ var _ = gg.Describe("Expression Filters", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			for _, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
@@ -199,8 +199,8 @@ var _ = gg.Describe("Expression Filters", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			for _, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
@@ -231,8 +231,8 @@ var _ = gg.Describe("Expression Filters", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			for _, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
@@ -252,8 +252,8 @@ var _ = gg.Describe("Expression Filters", func() {
 	countResults := func(rs *as.Recordset) int {
 		count := 0
 
-		for res := range rs.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+		for _, err := range rs.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			count += 1
 		}
 
@@ -817,8 +817,8 @@ var _ = gg.Describe("Expression Filters", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				count := 0
-				for res := range rs.Results() {
-					gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				for _, err := range rs.Records() {
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 					count += 1
 				}
 				gm.Expect(count).To(gm.Equal(1))

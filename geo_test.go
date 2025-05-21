@@ -97,9 +97,9 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			count := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				gm.Expect(regions).To(gm.ContainElement(res.Record.Bins[binName].(as.GeoJSONValue)))
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(regions).To(gm.ContainElement(rec.Bins[binName].(as.GeoJSONValue)))
 				count++
 			}
 
@@ -143,9 +143,9 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		count := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			gm.Expect(points).To(gm.ContainElement(res.Record.Bins[binName].(as.GeoJSONValue)))
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(points).To(gm.ContainElement(rec.Bins[binName].(as.GeoJSONValue)))
 			count++
 		}
 
@@ -183,9 +183,9 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		count := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			gm.Expect(points).To(gm.ContainElement(res.Record.Bins[binName].(as.GeoJSONValue)))
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(points).To(gm.ContainElement(rec.Bins[binName].(as.GeoJSONValue)))
 			count++
 		}
 

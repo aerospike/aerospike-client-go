@@ -71,9 +71,8 @@ var _ = gg.Describe("Query operations with Context", func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		cnt := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			list := rec.Bins[bin1Name].([]any)
 			received := list[len(list)-1].(int)
 

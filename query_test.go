@@ -67,9 +67,8 @@ var _ = gg.Describe("Query operations", func() {
 	// read all records from the channel and make sure all of them are returned
 	var checkResults = func(recordset *as.Recordset, cancelCnt int) {
 		counter := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			key, exists := keys[string(rec.Key.Digest())]
 
@@ -142,16 +141,16 @@ var _ = gg.Describe("Query operations", func() {
 			recordset, err := client.QueryNode(queryPolicy, node, stm)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-				key, exists := keys[string(res.Record.Key.Digest())]
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				key, exists := keys[string(rec.Key.Digest())]
 
 				gm.Expect(exists).To(gm.Equal(true))
-				gm.Expect(key.Value().GetObject()).To(gm.Equal(res.Record.Key.Value().GetObject()))
-				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+				gm.Expect(key.Value().GetObject()).To(gm.Equal(rec.Key.Value().GetObject()))
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-				delete(keys, string(res.Record.Key.Digest()))
+				delete(keys, string(rec.Key.Digest()))
 
 				counter++
 			}
@@ -175,15 +174,15 @@ var _ = gg.Describe("Query operations", func() {
 			recordset, err := client.QueryPartitions(queryPolicy, stm, pf)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
 				// the key itself should not be returned
-				gm.Expect(bytes.Equal(rkey.Digest(), res.Record.Key.Digest())).To(gm.BeFalse())
+				gm.Expect(bytes.Equal(rkey.Digest(), rec.Key.Digest())).To(gm.BeFalse())
 
-				delete(keys, string(res.Record.Key.Digest()))
+				delete(keys, string(rec.Key.Digest()))
 
 				counter++
 			}
@@ -209,14 +208,14 @@ var _ = gg.Describe("Query operations", func() {
 			recordset, err := client.QueryPartitions(queryPolicy, stm, pf)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
-				gm.Expect(res.Record.Bins[bin7.Name]).To(gm.BeNumerically(">=", 1))
-				gm.Expect(res.Record.Bins[bin7.Name]).To(gm.BeNumerically("<=", 2))
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+				gm.Expect(rec.Bins[bin7.Name]).To(gm.BeNumerically(">=", 1))
+				gm.Expect(rec.Bins[bin7.Name]).To(gm.BeNumerically("<=", 2))
 
-				delete(keys, string(res.Record.Key.Digest()))
+				delete(keys, string(rec.Key.Digest()))
 
 				counter++
 			}
@@ -240,12 +239,12 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.QueryPartitions(queryPolicy, stm, pf)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-			gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-			gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).NotTo(gm.HaveOccurred())
+			gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+			gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-			delete(keys, string(res.Record.Key.Digest()))
+			delete(keys, string(rec.Key.Digest()))
 
 			counter++
 		}
@@ -261,9 +260,9 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.QueryPartitions(queryPolicy, stm, pf)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).To(gm.HaveOccurred())
-			gm.Expect(res.Err.Matches(ast.INDEX_NOTFOUND)).To(gm.BeTrue())
+		for _, err := range recordset.Records() {
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.INDEX_NOTFOUND)).To(gm.BeTrue())
 		}
 	})
 
@@ -279,12 +278,12 @@ var _ = gg.Describe("Query operations", func() {
 			recordset, err := client.QueryPartitions(queryPolicy, stm, pf)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-				delete(keys, string(res.Record.Key.Digest()))
+				delete(keys, string(rec.Key.Digest()))
 
 				counter++
 
@@ -302,8 +301,8 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.Query(queryPolicy, stm)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).To(gm.HaveOccurred())
+		for _, err := range recordset.Records() {
+			gm.Expect(err).To(gm.HaveOccurred())
 		}
 	})
 
@@ -337,9 +336,8 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.Query(qp, stm)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			key, exists := keys[string(rec.Key.Digest())]
 
@@ -370,9 +368,8 @@ var _ = gg.Describe("Query operations", func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		cnt := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			cnt++
 			_, exists := keys[string(rec.Key.Digest())]
 			gm.Expect(exists).To(gm.Equal(true))
@@ -398,9 +395,8 @@ var _ = gg.Describe("Query operations", func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		cnt := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			results := rec.Bins["SUCCESS"].(map[any]any)
 			gm.Expect(results["bin4"]).To(gm.Equal("constValue"))
 			// gm.Expect(results["bin5"]).To(gm.Equal(-1))
@@ -427,9 +423,8 @@ var _ = gg.Describe("Query operations", func() {
 
 		recs := []any{}
 		// consume recordset and check errors
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(rec).ToNot(gm.BeNil())
 			recs = append(recs, rec.Bins[bin3.Name])
 		}
@@ -455,9 +450,8 @@ var _ = gg.Describe("Query operations", func() {
 
 		recs := []any{}
 		// consume recordset and check errors
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(rec).ToNot(gm.BeNil())
 			recs = append(recs, rec.Bins[bin3.Name])
 			gm.Expect(rec.Bins[bin7.Name]).To(gm.Equal(bin7.Value.GetObject().(int)))
@@ -478,8 +472,8 @@ var _ = gg.Describe("Query operations", func() {
 		rs, err := client.Query(queryPolicy, stm)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		cnt := 0
-		for res := range rs.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+		for _, err := range rs.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			cnt++
 		}
 		gm.Expect(cnt).To(gm.Equal(0))
@@ -514,9 +508,8 @@ var _ = gg.Describe("Query operations", func() {
 
 		recs := []any{}
 		// consume recordset and check errors
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(rec).ToNot(gm.BeNil())
 			recs = append(recs, rec.Bins[bin3.Name])
 			gm.Expect(rec.Bins[bin7.Name]).To(gm.Equal(bin7.Value.GetObject().(int)))
@@ -536,9 +529,9 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.Query(queryPolicy, stm)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).To(gm.HaveOccurred())
-			gm.Expect(res.Err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+		for _, err := range recordset.Records() {
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
 		}
 	})
 

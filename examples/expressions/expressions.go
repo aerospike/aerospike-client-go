@@ -63,13 +63,13 @@ func testKeyRegex(client *as.Client) {
 		log.Fatalln(err.Error())
 	}
 
-	for res := range rs.Results() {
-		if res.Err != nil {
+	for rec, err := range rs.Records() {
+		if err != nil {
 			log.Fatalln(err.Error())
 		}
-		log.Println(res.Record)
-		if !strings.Contains(strings.ToLower(res.Record.Key.Value().GetObject().(string)), "apple") {
-			log.Fatalf("Wrong key returned: %s. Expected to include 'apple' (case-insensitive)", res.Record.Key.Value())
+		log.Println(rec)
+		if !strings.Contains(strings.ToLower(rec.Key.Value().GetObject().(string)), "apple") {
+			log.Fatalf("Wrong key returned: %s. Expected to include 'apple' (case-insensitive)", rec.Key.Value())
 		}
 	}
 }

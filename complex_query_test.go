@@ -107,9 +107,8 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				rec := res.Record
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				cnt++
 				_, exists := keys[string(rec.Key.Digest())]
 				gm.Expect(exists).To(gm.Equal(true))
@@ -131,8 +130,8 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			for _, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
@@ -148,9 +147,8 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				rec := res.Record
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				cnt++
 				_, exists := keys[string(rec.Key.Digest())]
 				gm.Expect(exists).To(gm.Equal(true))
@@ -172,8 +170,8 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			for _, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 
@@ -194,9 +192,8 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-				rec := res.Record
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				cnt++
 				_, exists := keys[string(rec.Key.Digest())]
 				gm.Expect(exists).To(gm.Equal(true))
@@ -219,8 +216,8 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cnt := 0
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			for _, err := range recordset.Records() {
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				cnt++
 			}
 

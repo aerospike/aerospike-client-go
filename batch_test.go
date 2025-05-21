@@ -205,9 +205,9 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				cnt := 0
-				for res := range rs.Results() {
-					gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-					gm.Expect(res.Record.Bins["count"]).ToNot(gm.Equal(0))
+				for rec, err := range rs.Records() {
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					gm.Expect(rec.Bins["count"]).ToNot(gm.Equal(0))
 					cnt++
 				}
 				gm.Expect(cnt).To(gm.Equal(4))

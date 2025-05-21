@@ -375,8 +375,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 			gg.It("Scan", func() {
 				rs, _ := client.ScanAll(nil, ns, set, longBinName)
-				for res := range rs.Results() {
-					err := res.Err
+				for _, err := range rs.Records() {
 					gm.Expect(err).To(gm.HaveOccurred())
 					gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 				}
@@ -384,8 +383,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 			gg.It("ScanPartitions", func() {
 				rs, _ := client.ScanPartitions(nil, nil, ns, set, longBinName)
-				for res := range rs.Results() {
-					err := res.Err
+				for _, err := range rs.Records() {
 					gm.Expect(err).To(gm.HaveOccurred())
 					gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 				}
@@ -393,8 +391,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 			gg.It("ScanNode", func() {
 				rs, _ := client.ScanNode(nil, nil, ns, set, longBinName)
-				for res := range rs.Results() {
-					err := res.Err
+				for _, err := range rs.Records() {
 					gm.Expect(err).To(gm.HaveOccurred())
 					gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 				}
@@ -402,8 +399,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 			gg.It("ScanNode", func() {
 				rs, _ := client.ScanNode(nil, nil, ns, set, longBinName)
-				for res := range rs.Results() {
-					err := res.Err
+				for _, err := range rs.Records() {
 					gm.Expect(err).To(gm.HaveOccurred())
 					gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 				}
@@ -413,8 +409,7 @@ var _ = gg.Describe("Aerospike", func() {
 				stm := as.NewStatement(ns, set)
 				stm.BinNames = []string{longBinName}
 				rs, _ := client.Query(nil, stm)
-				for res := range rs.Results() {
-					err := res.Err
+				for _, err := range rs.Records() {
 					gm.Expect(err).To(gm.HaveOccurred())
 					gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 				}
@@ -424,8 +419,7 @@ var _ = gg.Describe("Aerospike", func() {
 				stm := as.NewStatement(ns, set)
 				stm.BinNames = []string{longBinName}
 				rs, _ := client.QueryPartitions(nil, stm, nil)
-				for res := range rs.Results() {
-					err := res.Err
+				for _, err := range rs.Records() {
 					gm.Expect(err).To(gm.HaveOccurred())
 					gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 				}
@@ -435,8 +429,7 @@ var _ = gg.Describe("Aerospike", func() {
 				stm := as.NewStatement(ns, set)
 				stm.BinNames = []string{longBinName}
 				rs, _ := client.QueryNode(nil, nil, stm)
-				for res := range rs.Results() {
-					err := res.Err
+				for _, err := range rs.Records() {
 					gm.Expect(err).To(gm.HaveOccurred())
 					gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 				}
