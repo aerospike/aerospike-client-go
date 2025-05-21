@@ -62,16 +62,16 @@ func Benchmark_BytesValue(b *testing.B) {
 
 func Benchmark_ListValue(b *testing.B) {
 	b.N = 1e6
-	value := []interface{}{
+	value := []any{
 		rand.Int63(),
 		strings.Repeat("s", 100),
-		[]interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
-		map[interface{}]interface{}{
+		[]any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+		map[any]any{
 			rand.Int63(): rand.Int63(),
 			nil:          1,
 			"s":          491871,
 			15892987:     strings.Repeat("s", 100),
-			"s2":         []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+			"s2":         []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 		},
 	}
 	for i := 0; i < b.N; i++ {
@@ -81,16 +81,16 @@ func Benchmark_ListValue(b *testing.B) {
 
 func Benchmark_JsonMapValue(b *testing.B) {
 	b.N = 1e6
-	value := map[string]interface{}{
+	value := map[string]any{
 		strings.Repeat("a", 16): rand.Int63(),
 		strings.Repeat("b", 16): strings.Repeat("s", 100),
-		strings.Repeat("c", 16): []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
-		strings.Repeat("d", 16): map[interface{}]interface{}{
+		strings.Repeat("c", 16): []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+		strings.Repeat("d", 16): map[any]any{
 			rand.Int63(): rand.Int63(),
 			nil:          1,
 			"s":          491871,
 			15892987:     strings.Repeat("s", 100),
-			"s2":         []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+			"s2":         []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 		},
 	}
 	for i := 0; i < b.N; i++ {
@@ -100,16 +100,16 @@ func Benchmark_JsonMapValue(b *testing.B) {
 
 func Benchmark_IfcMapValue(b *testing.B) {
 	b.N = 1e6
-	value := map[interface{}]interface{}{
+	value := map[any]any{
 		strings.Repeat("a", 16): rand.Int63(),
 		strings.Repeat("b", 16): strings.Repeat("s", 100),
-		strings.Repeat("c", 16): []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
-		strings.Repeat("d", 16): map[interface{}]interface{}{
+		strings.Repeat("c", 16): []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+		strings.Repeat("d", 16): map[any]any{
 			rand.Int63(): rand.Int63(),
 			nil:          1,
 			"s":          491871,
 			15892987:     strings.Repeat("s", 100),
-			"s2":         []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+			"s2":         []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 		},
 	}
 	for i := 0; i < b.N; i++ {

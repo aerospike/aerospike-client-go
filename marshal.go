@@ -66,7 +66,7 @@ func SetAerospikeTag(tag string) {
 	aerospikeTag = tag
 }
 
-func valueToInterface(f reflect.Value) interface{} {
+func valueToInterface(f reflect.Value) any {
 	// get to the core value
 	for f.Kind() == reflect.Ptr {
 		if f.IsNil() {
@@ -102,7 +102,7 @@ func valueToInterface(f reflect.Value) interface{} {
 			return nil
 		}
 
-		newMap := make(map[interface{}]interface{}, f.Len())
+		newMap := make(map[any]any, f.Len())
 		for _, mk := range f.MapKeys() {
 			newMap[valueToInterface(mk)] = valueToInterface(f.MapIndex(mk))
 		}
@@ -117,7 +117,7 @@ func valueToInterface(f reflect.Value) interface{} {
 			return f.Bytes()
 		}
 		// convert to primitives recursively
-		newSlice := make([]interface{}, f.Len(), f.Cap())
+		newSlice := make([]any, f.Len(), f.Cap())
 		for i := 0; i < len(newSlice); i++ {
 			newSlice[i] = valueToInterface(f.Index(i))
 		}
@@ -216,7 +216,7 @@ func structToMap(s reflect.Value) BinMap {
 	return binMap
 }
 
-func marshal(v interface{}) BinMap {
+func marshal(v any) BinMap {
 	s := indirect(reflect.ValueOf(v))
 	return structToMap(s)
 }

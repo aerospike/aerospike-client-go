@@ -74,7 +74,7 @@ var _ = gg.Describe("Query operations with Context", func() {
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 			rec := res.Record
-			list := rec.Bins[bin1Name].([]interface{})
+			list := rec.Bins[bin1Name].([]any)
 			received := list[len(list)-1].(int)
 
 			gm.Expect(received < begin || received > end).To(gm.BeFalse())

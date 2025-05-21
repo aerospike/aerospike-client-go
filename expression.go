@@ -812,7 +812,7 @@ func ExpValueArrayVal(val ValueArray) *Expression {
 }
 
 // ExpListValueVal creates a List bin Value
-func ExpListValueVal(val ...interface{}) *Expression {
+func ExpListValueVal(val ...any) *Expression {
 	return newFilterExpression(
 		&expOpQUOTED,
 		NewListValue(val),

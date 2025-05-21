@@ -34,8 +34,8 @@ var _ = gg.Describe("Complex Index operations test", func() {
 
 		const keyCount = 1000
 
-		valueList := []interface{}{1, 2, 3, "a", "ab", "abc"}
-		valueMap := map[interface{}]interface{}{"a": "b", 0: 1, 1: "a", "b": 2}
+		valueList := []any{1, 2, 3, "a", "ab", "abc"}
+		valueMap := map[any]any{"a": "b", 0: 1, 1: "a", "b": 2}
 
 		bin1 := as.NewBin("Aerospike1", valueList)
 		bin2 := as.NewBin("Aerospike2", valueMap)

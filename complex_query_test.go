@@ -32,8 +32,8 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 
 	const keyCount = 1000
 
-	valueList := []interface{}{1, 2, 3, "a", "ab", "abc", []byte{1}, []byte{2, 3}, []byte{1, 3, 5}}
-	valueMap := map[interface{}]interface{}{"a": "b", 0: 1, 1: "a", "b": 2, 6: []byte{1, 2, 3}}
+	valueList := []any{1, 2, 3, "a", "ab", "abc", []byte{1}, []byte{2, 3}, []byte{1, 3, 5}}
+	valueMap := map[any]any{"a": "b", 0: 1, 1: "a", "b": 2, 6: []byte{1, 2, 3}}
 
 	bin1 := as.NewBin("List", valueList)
 	bin2 := as.NewBin("Map", valueMap)
@@ -101,7 +101,7 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 
 		// Only supported by server v7+
 		stm := as.NewStatement(ns, set)
-		for _, v := range []interface{}{1, "a", []byte{1, 3, 5}} {
+		for _, v := range []any{1, "a", []byte{1, 3, 5}} {
 			stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, v))
 			recordset, err := client.Query(queryPolicy, stm)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -125,7 +125,7 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 			return
 		}
 		stm := as.NewStatement(ns, set)
-		for _, v := range []interface{}{-1, "aaaa", []byte{0, 1, 255}} {
+		for _, v := range []any{-1, "aaaa", []byte{0, 1, 255}} {
 			stm.SetFilter(as.NewContainsFilter(bin1.Name, as.ICT_LIST, v))
 			recordset, err := client.Query(queryPolicy, stm)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -142,7 +142,7 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 
 	gg.It("must Query a key in map and get only relevant records back", func() {
 		stm := as.NewStatement(ns, set)
-		for _, v := range []interface{}{1, "a"} {
+		for _, v := range []any{1, "a"} {
 			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, v))
 			recordset, err := client.Query(queryPolicy, stm)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -166,7 +166,7 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 			return
 		}
 		stm := as.NewStatement(ns, set)
-		for _, v := range []interface{}{-1, "aaaa", []byte{255, 245, 5}} {
+		for _, v := range []any{-1, "aaaa", []byte{255, 245, 5}} {
 			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPKEYS, v))
 			recordset, err := client.Query(queryPolicy, stm)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -188,7 +188,7 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 		}
 
 		stm := as.NewStatement(ns, set)
-		for _, v := range []interface{}{1, "a", []byte{1, 2, 3}} {
+		for _, v := range []any{1, "a", []byte{1, 2, 3}} {
 			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, v))
 			recordset, err := client.Query(queryPolicy, stm)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -213,7 +213,7 @@ var _ = gg.Describe("Query operations on complex types", gg.Ordered, func() {
 		}
 
 		stm := as.NewStatement(ns, set)
-		for _, v := range []interface{}{-1, "aaaa", []byte{255, 255, 5}} {
+		for _, v := range []any{-1, "aaaa", []byte{255, 255, 5}} {
 			stm.SetFilter(as.NewContainsFilter(bin2.Name, as.ICT_MAPVALUES, v))
 			recordset, err := client.Query(queryPolicy, stm)
 			gm.Expect(err).ToNot(gm.HaveOccurred())

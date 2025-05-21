@@ -81,12 +81,12 @@ func panicOnError(err error) {
 	}
 }
 
-func printOK(format string, a ...interface{}) {
+func printOK(format string, a ...any) {
 	fmt.Printf("ok: "+format+"\n", a...)
 	os.Exit(0)
 }
 
-func printError(format string, a ...interface{}) {
+func printError(format string, a ...any) {
 	fmt.Printf("error: "+format+"\n", a...)
 	os.Exit(1)
 }

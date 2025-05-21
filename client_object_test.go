@@ -74,7 +74,7 @@ var _ = gg.Describe("Aerospike", func() {
 				TTL uint32 `asm:"ttl"`
 				Gen uint32 `asm:"gen"`
 
-				Nil  interface{}
+				Nil  any
 				NilP *int
 
 				Bool  bool
@@ -115,28 +115,28 @@ var _ = gg.Describe("Aerospike", func() {
 				String  string
 				StringP *string
 
-				Interface interface{}
-				// InterfaceP interface{}
-				InterfacePP *interface{}
+				Interface any
+				// InterfaceP any
+				InterfacePP *any
 
 				ByteArray     []byte
 				ArrByteArray  [][]byte
-				Array         [3]interface{}
+				Array         [3]any
 				SliceString   []string
 				SliceFloat64  []float64
-				SliceInt      []interface{}
-				Slice         []interface{}
+				SliceInt      []any
+				Slice         []any
 				ArrayOfMaps   [1]map[int]string
 				SliceOfMaps   []map[int]string
-				ArrayOfSlices [1][]interface{}
-				SliceOfSlices [][]interface{}
-				ArrayOfArrays [1][1]interface{}
-				SliceOfArrays [][1]interface{}
+				ArrayOfSlices [1][]any
+				SliceOfSlices [][]any
+				ArrayOfArrays [1][1]any
+				SliceOfArrays [][1]any
 
 				ArrayOfStructs [1]SomeStruct
 				SliceOfStructs []SomeStruct
 
-				Map           map[interface{}]interface{}
+				Map           map[any]any
 				MapOfMaps     map[string]map[int64]byte
 				MapOfSlices   map[string][]byte
 				MapOfArrays   map[string][3]byte
@@ -203,8 +203,8 @@ var _ = gg.Describe("Aerospike", func() {
 				TTL uint32 `asm:"ttl"`
 				Gen uint32 `asm:"gen"`
 
-				Nil  interface{} `as:"nil"`
-				NilP *int        `as:"nilp"`
+				Nil  any  `as:"nil"`
+				NilP *int `as:"nilp"`
 
 				Bool  bool  `as:"bool"`
 				BoolP *bool `as:"boolp"`
@@ -244,33 +244,33 @@ var _ = gg.Describe("Aerospike", func() {
 				String  string  `as:"string"`
 				StringP *string `as:"stringp"`
 
-				Interface interface{} `as:"interface"`
-				// InterfaceP interface{}  `as:"// interface"`
-				InterfacePP *interface{} `as:"interfacepp"`
+				Interface any `as:"interface"`
+				// InterfaceP any  `as:"// interface"`
+				InterfacePP *any `as:"interfacepp"`
 
-				ByteArray    []byte         `as:"bytearray"`
-				ArrByteArray [][]byte       `as:"arrbytearray"`
-				Array        [3]interface{} `as:"array"`
-				SliceString  []string       `as:"slicestring"`
-				SliceFloat64 []float64      `as:"slicefloat64"`
-				SliceInt     []interface{}  `as:"sliceint"`
-				Slice        []interface{}  `as:"slice"`
+				ByteArray    []byte    `as:"bytearray"`
+				ArrByteArray [][]byte  `as:"arrbytearray"`
+				Array        [3]any    `as:"array"`
+				SliceString  []string  `as:"slicestring"`
+				SliceFloat64 []float64 `as:"slicefloat64"`
+				SliceInt     []any     `as:"sliceint"`
+				Slice        []any     `as:"slice"`
 
 				ArrayOfMaps    [1]map[int]string `as:"arrayOfMaps"`
 				SliceOfMaps    []map[int]string  `as:"sliceOfMaps"`
-				ArrayOfSlices  [1][]interface{}  `as:"arrayOfSlices"`
-				SliceOfSlices  [][]interface{}   `as:"sliceOfSlices"`
-				ArrayOfArrays  [1][1]interface{} `as:"arrayOfArrays"`
-				SliceOfArrays  [][1]interface{}  `as:"sliceOfArrays"`
+				ArrayOfSlices  [1][]any          `as:"arrayOfSlices"`
+				SliceOfSlices  [][]any           `as:"sliceOfSlices"`
+				ArrayOfArrays  [1][1]any         `as:"arrayOfArrays"`
+				SliceOfArrays  [][1]any          `as:"sliceOfArrays"`
 				ArrayOfStructs [1]SomeStruct     `as:"ArrayOfStructs"`
 				SliceOfStructs []SomeStruct      `as:"SliceOfStructs"`
 
-				Map           map[interface{}]interface{} `as:"map"`
-				MapOfMaps     map[string]map[int64]byte   `as:"mapOfMaps"`
-				MapOfSlices   map[string][]byte           `as:"mapOfSlices"`
-				MapOfArrays   map[string][3]byte          `as:"MapOfArrays"`
-				MapOfStructs  map[string]SomeStruct       `as:"mapOfStructs"`
-				MapOfPStructs map[string]*SomeStruct      `as:"mapOfPStructs"`
+				Map           map[any]any               `as:"map"`
+				MapOfMaps     map[string]map[int64]byte `as:"mapOfMaps"`
+				MapOfSlices   map[string][]byte         `as:"mapOfSlices"`
+				MapOfArrays   map[string][3]byte        `as:"MapOfArrays"`
+				MapOfStructs  map[string]SomeStruct     `as:"mapOfStructs"`
+				MapOfPStructs map[string]*SomeStruct    `as:"mapOfPStructs"`
 
 				CustomBool    SomeBool    `as:"custombool"`
 				CustomBoolP   *SomeBool   `as:"customboolp"`
@@ -343,7 +343,7 @@ var _ = gg.Describe("Aerospike", func() {
 				f32p := float32(math.MaxFloat32)
 				f64p := math.MaxFloat64
 				str := "pointer to a string"
-				iface := interface{}("a string")
+				iface := any("a string")
 
 				ctbl := SomeBool(true)
 				ctb := SomeByte(100)
@@ -410,21 +410,21 @@ var _ = gg.Describe("Aerospike", func() {
 
 					ByteArray:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
 					ArrByteArray:   [][]byte{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}},
-					Array:          [3]interface{}{1, "string", nil},
+					Array:          [3]any{1, "string", nil},
 					SliceString:    []string{"string1", "string2", "string3"},
 					SliceFloat64:   []float64{1.1, 2.2, 3.3, 4.4},
-					SliceInt:       []interface{}{1, 2, 3},
-					Slice:          []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
+					SliceInt:       []any{1, 2, 3},
+					Slice:          []any{1, "string", []byte{1, 11, 111}, nil, true},
 					ArrayOfMaps:    [1]map[int]string{{1: "str"}},
 					SliceOfMaps:    []map[int]string{{1: "str"}},
-					ArrayOfSlices:  [1][]interface{}{{1, 2, 3}},
-					SliceOfSlices:  [][]interface{}{{1, 2, 3}, {4, 5, 6}},
-					ArrayOfArrays:  [1][1]interface{}{{1}},
-					SliceOfArrays:  [][1]interface{}{{1}, {2}, {3}},
+					ArrayOfSlices:  [1][]any{{1, 2, 3}},
+					SliceOfSlices:  [][]any{{1, 2, 3}, {4, 5, 6}},
+					ArrayOfArrays:  [1][1]any{{1}},
+					SliceOfArrays:  [][1]any{{1}, {2}, {3}},
 					ArrayOfStructs: [1]SomeStruct{{A: 1, Self: &SomeStruct{A: 1}}},
 					SliceOfStructs: []SomeStruct{{A: 1, Self: &SomeStruct{A: 1}}},
 
-					Map:           map[interface{}]interface{}{1: "string", "string": nil /*nil: map[interface{}]interface{}{"1": ip}, true: false*/},
+					Map:           map[any]any{1: "string", "string": nil /*nil: map[any]any{"1": ip}, true: false*/},
 					MapOfMaps:     map[string]map[int64]byte{"1": {1: 1, 2: 2}},
 					MapOfSlices:   map[string][]byte{"1": {1, 2}, "2": {3, 4}},
 					MapOfArrays:   map[string][3]byte{"1": {1, 2, 3}, "2": {3, 4, 5}},
@@ -493,7 +493,7 @@ var _ = gg.Describe("Aerospike", func() {
 				f32p := float32(math.MaxFloat32)
 				f64p := math.MaxFloat64
 				str := "pointer to a string"
-				iface := interface{}("a string")
+				iface := any("a string")
 
 				ctbl := SomeBool(true)
 				ctb := SomeByte(100)
@@ -560,21 +560,21 @@ var _ = gg.Describe("Aerospike", func() {
 
 					ByteArray:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9},
 					ArrByteArray:   [][]byte{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}},
-					Array:          [3]interface{}{1, "string", nil},
+					Array:          [3]any{1, "string", nil},
 					SliceString:    []string{"string1", "string2", "string3"},
 					SliceFloat64:   []float64{1.1, 2.2, 3.3, 4.4},
-					SliceInt:       []interface{}{1, 2, 3},
-					Slice:          []interface{}{1, "string", []byte{1, 11, 111}, nil, true},
+					SliceInt:       []any{1, 2, 3},
+					Slice:          []any{1, "string", []byte{1, 11, 111}, nil, true},
 					ArrayOfMaps:    [1]map[int]string{{1: "str"}},
 					SliceOfMaps:    []map[int]string{{1: "str"}},
-					ArrayOfSlices:  [1][]interface{}{{1, 2, 3}},
-					SliceOfSlices:  [][]interface{}{{1, 2, 3}, {4, 5, 6}},
-					ArrayOfArrays:  [1][1]interface{}{{1}},
-					SliceOfArrays:  [][1]interface{}{{1}, {2}, {3}},
+					ArrayOfSlices:  [1][]any{{1, 2, 3}},
+					SliceOfSlices:  [][]any{{1, 2, 3}, {4, 5, 6}},
+					ArrayOfArrays:  [1][1]any{{1}},
+					SliceOfArrays:  [][1]any{{1}, {2}, {3}},
 					ArrayOfStructs: [1]SomeStruct{{A: 1, Self: &SomeStruct{A: 1}}},
 					SliceOfStructs: []SomeStruct{{A: 1, Self: &SomeStruct{A: 1}}},
 
-					Map:           map[interface{}]interface{}{1: "string", "string": nil /*nil: map[interface{}]interface{}{"1": ip}, true: false*/},
+					Map:           map[any]any{1: "string", "string": nil /*nil: map[any]any{"1": ip}, true: false*/},
 					MapOfMaps:     map[string]map[int64]byte{"1": {1: 1, 2: 2}},
 					MapOfSlices:   map[string][]byte{"1": {1, 2}, "2": {3, 4}},
 					MapOfArrays:   map[string][3]byte{"1": {1, 2, 3}, "2": {3, 4, 5}},
@@ -687,7 +687,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 					rec, err := client.Get(nil, key)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
-					gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{"name": t.Name, "desc": t.Description, "Age": 31, "inner": map[interface{}]interface{}{"v1": 0, "v2": ""}}))
+					gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{"name": t.Name, "desc": t.Description, "Age": 31, "inner": map[any]any{"v1": 0, "v2": ""}}))
 
 					key, _ = as.NewKey(ns, set, randString(50))
 
@@ -702,7 +702,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 					rec, err = client.Get(nil, key)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
-					gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{"name": t.Name, "inner": map[interface{}]interface{}{"v1": 0, "v2": ""}}))
+					gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{"name": t.Name, "inner": map[any]any{"v1": 0, "v2": ""}}))
 				})
 
 				gg.It("must save an object with the most complex structure possible and retrieve it via BatchGetObject", func() {
@@ -732,7 +732,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 					// get the same object via BatchGetObject
 					resObj = &testObject{}
-					found, err := client.BatchGetObjects(nil, []*as.Key{key}, []interface{}{resObj})
+					found, err := client.BatchGetObjects(nil, []*as.Key{key}, []any{resObj})
 					gm.Expect(len(found)).To(gm.Equal(1))
 					gm.Expect(found[0]).To(gm.BeTrue())
 					gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -799,11 +799,11 @@ var _ = gg.Describe("Aerospike", func() {
 
 					gm.Expect(rec.Bins).To(gm.Equal(
 						as.BinMap{
-							"b":        []interface{}{"a", "b", "c"},
+							"b":        []any{"a", "b", "c"},
 							"fld1":     2,
 							"fldbytes": []byte{1, 2, 3, 4},
-							"istruct": map[interface{}]interface{}{
-								"b":      []interface{}{"d", "e", "f", "g"},
+							"istruct": map[any]any{
+								"b":      []any{"d", "e", "f", "g"},
 								"inner1": 11,
 							},
 						}))
@@ -811,7 +811,7 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(len(rec.Bins)).To(gm.Equal(4))
 					gm.Expect(rec.Bins["DontPersist"]).To(gm.BeNil())
 					gm.Expect(rec.Bins["fld1"]).To(gm.Equal(2))
-					innerStruct := rec.Bins["istruct"].(map[interface{}]interface{})
+					innerStruct := rec.Bins["istruct"].(map[any]any)
 					gm.Expect(len(innerStruct)).To(gm.Equal(2))
 					gm.Expect(innerStruct["PersistNot"]).To(gm.BeNil())
 					gm.Expect(innerStruct["inner1"]).To(gm.Equal(11))
@@ -852,7 +852,7 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(len(rec.Bins)).To(gm.Equal(2))
 					gm.Expect(rec.Bins["DontPersist"]).To(gm.BeNil())
 					gm.Expect(rec.Bins["fld1"]).To(gm.Equal(2))
-					innerStruct := rec.Bins["IStruct"].(map[interface{}]interface{})
+					innerStruct := rec.Bins["IStruct"].(map[any]any)
 					gm.Expect(len(innerStruct)).To(gm.Equal(1))
 					gm.Expect(innerStruct["PersistNot"]).To(gm.BeNil())
 					gm.Expect(innerStruct["inner1"]).To(gm.Equal(11))
@@ -884,8 +884,8 @@ var _ = gg.Describe("Aerospike", func() {
 					rec, err := client.Get(nil, key)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 					gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{
-						"Map":  map[interface{}]interface{}{1: "Apple", 2: "Orange"},
-						"List": []interface{}{"Apple", "Orange"},
+						"Map":  map[any]any{1: "Apple", 2: "Orange"},
+						"List": []any{"Apple", "Orange"},
 					}))
 
 					err = client.GetObject(nil, key, &o1)
@@ -958,7 +958,7 @@ var _ = gg.Describe("Aerospike", func() {
 			gg.Context("BatchGetObjects operations", func() {
 
 				var keys []*as.Key
-				var resObjects []interface{}
+				var resObjects []any
 				var objects []*testObjectTagged
 
 				gg.BeforeEach(func() {
@@ -1004,7 +1004,7 @@ var _ = gg.Describe("Aerospike", func() {
 					_, err = client.BatchGetObjects(nil, nil, nil)
 					gm.Expect(err).To(gm.HaveOccurred())
 
-					_, err = client.BatchGetObjects(nil, []*as.Key{}, []interface{}{})
+					_, err = client.BatchGetObjects(nil, []*as.Key{}, []any{})
 					gm.Expect(err).To(gm.HaveOccurred())
 				})
 
@@ -1012,7 +1012,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 					cdtBinName := "orderedMap"
 
-					items := map[interface{}]interface{}{
+					items := map[any]any{
 						"Charlie": 55,
 						"Jim":     98,
 						"John":    76,
@@ -1106,14 +1106,14 @@ var _ = gg.Describe("Aerospike", func() {
 						i        = 10
 						f        = 3.14
 						valArray = []as.Value{as.NewValue(i), as.NewValue(str)}
-						list     = []interface{}{i, str}
-						m        = map[interface{}]interface{}{"int": i, "string": str}
-						json     = map[string]interface{}{"int": i, "string": str}
+						list     = []any{i, str}
+						m        = map[any]any{"int": i, "string": str}
+						json     = map[string]any{"int": i, "string": str}
 					)
 
 					cases := []struct {
 						in  as.Value
-						out interface{}
+						out any
 					}{
 						{in: as.NewNullValue(), out: nil},
 						{in: as.NewInfinityValue(), out: nil},

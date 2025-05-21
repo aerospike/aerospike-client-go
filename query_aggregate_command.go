@@ -29,7 +29,7 @@ type queryAggregateCommand struct {
 	queryCommand
 
 	luaInstance *lua.LState
-	inputChan   chan interface{}
+	inputChan   chan any
 }
 
 func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryAggregateCommand {

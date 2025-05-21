@@ -37,7 +37,7 @@ func Path() string {
 // LuaPool is the global LState pool
 var LuaPool = types.NewPool(64)
 
-func newInstance(params ...interface{}) interface{} {
+func newInstance(params ...any) any {
 	L := lua.NewState()
 
 	registerLuaAerospikeType(L)
@@ -58,7 +58,7 @@ func newInstance(params ...interface{}) interface{} {
 	return L
 }
 
-func finalizeInstance(instance interface{}) {
+func finalizeInstance(instance any) {
 	if instance != nil {
 		instance.(*lua.LState).Close()
 	}

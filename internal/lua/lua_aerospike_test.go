@@ -29,7 +29,7 @@ import (
 var _ = gg.Describe("Lua Aerospike API Test", func() {
 
 	// code vs result
-	testMatrix := map[string]interface{}{
+	testMatrix := map[string]any{
 		"aerospike.log(1, 'Warn')": nil,
 		"warn('Warn %d', 1)":       nil,
 

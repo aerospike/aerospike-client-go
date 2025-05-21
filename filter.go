@@ -32,7 +32,7 @@ type Filter struct {
 
 // NewEqualFilter creates a new equality filter instance for query.
 // Value can be an integer, string or a blob (byte array). Byte arrays are only supported on server v7+.
-func NewEqualFilter(binName string, value interface{}, ctx ...*CDTContext) *Filter {
+func NewEqualFilter(binName string, value any, ctx ...*CDTContext) *Filter {
 	val := NewValue(value)
 	return NewFilter(binName, ICT_DEFAULT, val.GetType(), val, val, ctx)
 }
@@ -47,7 +47,7 @@ func NewRangeFilter(binName string, begin int64, end int64, ctx ...*CDTContext) 
 
 // NewContainsFilter creates a contains filter for query on collection index.
 // Value can be an integer, string or a blob (byte array). Byte arrays are only supported on server v7+.
-func NewContainsFilter(binName string, indexCollectionType IndexCollectionType, value interface{}, ctx ...*CDTContext) *Filter {
+func NewContainsFilter(binName string, indexCollectionType IndexCollectionType, value any, ctx ...*CDTContext) *Filter {
 	v := NewValue(value)
 	return NewFilter(binName, indexCollectionType, v.GetType(), v, v, ctx)
 }

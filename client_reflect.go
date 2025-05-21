@@ -43,7 +43,7 @@ import (
 // Tag `asm:` denotes Aerospike Meta fields, and includes ttl and generation values.
 // If a tag is marked with `-`, it will not be sent to the database at all.
 // Note: Tag `as` can be replaced with any other user-defined tag via the function `SetAerospikeTag`.
-func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (err Error) {
+func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj any) (err Error) {
 	policy = clnt.getUsableWritePolicy(policy)
 
 	if policy.Txn != nil {
@@ -65,7 +65,7 @@ func (clnt *Client) PutObject(policy *WritePolicy, key *Key, obj interface{}) (e
 // GetObject reads a record for specified key and puts the result into the provided object.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) Error {
+func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj any) Error {
 	policy = clnt.getUsablePolicy(policy)
 
 	if policy.Txn != nil {
@@ -107,7 +107,7 @@ func (clnt *Client) getObjectDirect(policy *BasePolicy, key *Key, rval *reflect.
 // If a key is not found, the positional object will not change, and the positional found boolean will be false.
 // The policy can be used to specify timeouts.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []interface{}) (found []bool, err Error) {
+func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []any) (found []bool, err Error) {
 	policy = clnt.getUsableBatchPolicy(policy)
 
 	// check the size of  key and objects
@@ -161,7 +161,7 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 // If partitionFilter is nil, all partitions will be scanned.
 // If the policy is nil, the default relevant policy will be used.
 // This method is only supported by Aerospike 4.9+ servers.
-func (clnt *Client) ScanPartitionObjects(apolicy *ScanPolicy, objChan interface{}, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *Client) ScanPartitionObjects(apolicy *ScanPolicy, objChan any, partitionFilter *PartitionFilter, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	nodes := clnt.cluster.GetNodes()
@@ -189,13 +189,13 @@ func (clnt *Client) ScanPartitionObjects(apolicy *ScanPolicy, objChan interface{
 // If the policy's concurrentNodes is specified, each server node will be read in
 // parallel. Otherwise, server nodes are read sequentially.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *Client) ScanAllObjects(apolicy *ScanPolicy, objChan any, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	return clnt.ScanPartitionObjects(apolicy, objChan, nil, namespace, setName, binNames...)
 }
 
 // scanNodePartitions reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodePartitionsObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *Client) scanNodePartitionsObjects(apolicy *ScanPolicy, node *Node, objChan any, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	policy := *clnt.getUsableScanPolicy(apolicy)
 
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
@@ -214,7 +214,7 @@ func (clnt *Client) scanNodePartitionsObjects(apolicy *ScanPolicy, node *Node, o
 // If the policy is nil, the default relevant policy will be used.
 // The resulting records will be marshalled into the objChan.
 // objChan will be closed after all the records are read.
-func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
+func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan any, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	return clnt.scanNodePartitionsObjects(apolicy, node, objChan, namespace, setName, binNames...)
 }
 
@@ -225,7 +225,7 @@ func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan int
 //
 // This method is only supported by Aerospike 4.9+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryPartitionObjects(policy *QueryPolicy, statement *Statement, objChan interface{}, partitionFilter *PartitionFilter) (*Recordset, Error) {
+func (clnt *Client) QueryPartitionObjects(policy *QueryPolicy, statement *Statement, objChan any, partitionFilter *PartitionFilter) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	nodes := clnt.cluster.GetNodes()
@@ -256,11 +256,11 @@ func (clnt *Client) QueryPartitionObjects(policy *QueryPolicy, statement *Statem
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objChan interface{}) (*Recordset, Error) {
+func (clnt *Client) QueryObjects(policy *QueryPolicy, statement *Statement, objChan any) (*Recordset, Error) {
 	return clnt.QueryPartitionObjects(policy, statement, objChan, nil)
 }
 
-func (clnt *Client) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
+func (clnt *Client) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan any) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
@@ -279,6 +279,6 @@ func (clnt *Client) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, 
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
+func (clnt *Client) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan any) (*Recordset, Error) {
 	return clnt.queryNodePartitionsObjects(policy, node, statement, objChan)
 }

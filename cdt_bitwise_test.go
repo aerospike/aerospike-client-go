@@ -33,7 +33,7 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
 	var cdtBinName string
 
-	var assertEquals = func(e string, v1, v2 interface{}) {
+	var assertEquals = func(e string, v1, v2 any) {
 		gm.Expect(v1).To(gm.Equal(v2), e)
 	}
 
