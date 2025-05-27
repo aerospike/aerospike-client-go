@@ -29,7 +29,7 @@ type ConfigProvider interface {
 // ----------------------------------------------------------------
 // Structures used to serialize and deserialize the configuration
 // ----------------------------------------------------------------
-type Config struct {
+type Config map[string]struct {
 	Static  *StaticConfig  `yaml:"static"`
 	Dynamic *DynamicConfig `yaml:"dynamic"`
 }
@@ -189,6 +189,10 @@ type Metrics struct {
 // ----------------------------------------------------------------
 // Enum types
 // ----------------------------------------------------------------
+
+// TODO(Khosrow): Deal with the circular dependencies to remove the redefinition of these types.
+// The subtypes can also be their own types instead of map to validate their own input
+
 type ReadModeAp int
 
 const (
@@ -247,4 +251,5 @@ var queryDuration = map[QueryDuration]string{
 	LONG_RELAX_AP: "LONG_RELAX_AP",
 }
 
+// TODO: Fix the circular dependency issue
 type Duration time.Duration

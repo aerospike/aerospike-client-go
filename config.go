@@ -17,6 +17,7 @@ package aerospike
 import (
 	"net/url"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,18 +29,22 @@ import (
 )
 
 type DynConfig struct {
-	lock               sync.RWMutex
-	config             *dynconfig.Config
-	wgConfig           sync.WaitGroup
+	lock sync.RWMutex
+
+	config   *dynconfig.Config
+	wgConfig sync.WaitGroup
+
 	configInitialized  *atomic.Bool
 	clientPolicy       *ClientPolicy
 	client             *Client
 	configProvider     dynconfig.ConfigProvider
 	configWatchChannel chan struct{}
 	mappedPolicies     *pc.PolicyCache
-	metricsCallback    func(config *dynconfig.Config, client *Client)
-	scheme             string
-	dsn                string
+
+	metricsCallback func(config *dynconfig.Config, client *Client)
+
+	scheme string
+	dsn    string
 }
 
 // TODO: not used consider removing
@@ -51,7 +56,7 @@ func newDynConfig(policy *ClientPolicy) *DynConfig {
 
 func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Config, client *Client)) *DynConfig {
 	// Dynamic configuration is not enabled if the config URL is empty.
-	if AEROSPIKE_CLIENT_CONFIG_URL == "" {
+	if strings.TrimSpace(AEROSPIKE_CLIENT_CONFIG_URL) == "" {
 		return nil
 	}
 	if policy == nil {

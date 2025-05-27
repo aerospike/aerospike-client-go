@@ -66,25 +66,8 @@ func copyScanPolicy(src *ScanPolicy) *ScanPolicy {
 		return nil
 	}
 
-	response := NewScanPolicy()
-
-	response.Txn = src.Txn
-	response.FilterExpression = src.FilterExpression
-	response.ReadModeAP = src.ReadModeAP
-	response.ReadModeSC = src.ReadModeSC
-	response.TotalTimeout = src.TotalTimeout
-	response.SocketTimeout = src.SocketTimeout
-	response.MaxRetries = src.MaxRetries
-	response.ReadTouchTTLPercent = src.ReadTouchTTLPercent
-	response.SleepBetweenRetries = src.SleepBetweenRetries
-	response.SleepMultiplier = src.SleepMultiplier
-	response.ExitFastOnExhaustedConnectionPool = src.ExitFastOnExhaustedConnectionPool
-	response.SendKey = src.SendKey
-	response.UseCompression = src.UseCompression
-	response.ReplicaPolicy = src.ReplicaPolicy
-	response.IncludeBinData = src.IncludeBinData
-
-	return response
+	response := *src
+	return &response
 }
 
 // applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy.

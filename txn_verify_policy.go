@@ -53,24 +53,12 @@ func NewTxnVerifyPolicyOrDefaultFromCache(dynConfig *DynConfig) *TxnVerifyPolicy
 }
 
 func copyTxnVerifyPolicy(src *TxnVerifyPolicy) *TxnVerifyPolicy {
-	response := NewTxnVerifyPolicy()
+	if src == nil {
+		return nil
+	}
 
-	response.Txn = src.Txn
-	response.FilterExpression = src.FilterExpression
-	response.ReadModeAP = src.ReadModeAP
-	response.ReadModeSC = src.ReadModeSC
-	response.TotalTimeout = src.TotalTimeout
-	response.SocketTimeout = src.SocketTimeout
-	response.MaxRetries = src.MaxRetries
-	response.ReadTouchTTLPercent = src.ReadTouchTTLPercent
-	response.SleepBetweenRetries = src.SleepBetweenRetries
-	response.SleepMultiplier = src.SleepMultiplier
-	response.ExitFastOnExhaustedConnectionPool = src.ExitFastOnExhaustedConnectionPool
-	response.SendKey = src.SendKey
-	response.UseCompression = src.UseCompression
-	response.ReplicaPolicy = src.ReplicaPolicy
-
-	return response
+	response := *src
+	return &response
 }
 
 // applyConfigToTxnRollPolicy applies the dynamic configuration and generates a new policy.

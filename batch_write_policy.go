@@ -160,19 +160,8 @@ func copyBatchWritePolicy(src *BatchWritePolicy) *BatchWritePolicy {
 		return nil
 	}
 
-	response := NewBatchWritePolicy()
-
-	response.FilterExpression = src.FilterExpression
-	response.FilterExpression = src.FilterExpression
-	response.CommitLevel = src.CommitLevel
-	response.GenerationPolicy = src.GenerationPolicy
-	response.Generation = src.Generation
-	response.Expiration = src.Expiration
-	response.DurableDelete = src.DurableDelete
-	response.OnLockingOnly = src.OnLockingOnly
-	response.SendKey = src.SendKey
-
-	return response
+	response := *src
+	return &response
 }
 
 // applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy

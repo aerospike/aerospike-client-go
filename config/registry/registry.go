@@ -26,14 +26,18 @@ var (
 )
 
 // Register registers a config provider by name.
-func Register(name string, provider dynconfig.ConfigProvider) {
+func Register(driverType string, provider dynconfig.ConfigProvider) {
 	if provider == nil {
-		panic("provider is nil")
+		panic("Config provider cannot be nil")
 	}
 
 	ConfigProvidersMu.Lock()
 	defer ConfigProvidersMu.Unlock()
-	ConfigProviders[name] = provider
+
+	if _, found := ConfigProviders[driverType]; found {
+		panic("Config provider " + driverType + " is already registered")
+	}
+	ConfigProviders[driverType] = provider
 }
 
 // Get retrieves a config provider by name.

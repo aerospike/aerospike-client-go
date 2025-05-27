@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/aerospike/aerospike-client-go/v8/config/provider"
@@ -45,6 +46,7 @@ type Client struct {
 
 	// Dynamic configuration
 	dynConfig *DynConfig
+
 	// DefaultPolicy is used for all read commands without a specific policy.
 	DefaultPolicy *BasePolicy
 	// DefaultBatchPolicy is the default parent policy used in batch read commands. Base policy fields
@@ -74,6 +76,36 @@ type Client struct {
 	// Default transaction policy when rolling the transaction records forward (commit)
 	// or back (abort) in a batch.
 	DefaultTxnRollPolicy *TxnRollPolicy
+
+	// DefaultPolicy is used for all read commands without a specific policy.
+	dynDefaultPolicy atomic.Pointer[BasePolicy]
+	// DynamicBatchPolicy is the default parent policy used in batch read commands. Base policy fields]
+	// include socketTimeout, totalTimeout, maxRetries, etc...
+	dynDefaultBatchPolicy atomic.Pointer[BatchPolicy]
+	// DynamicBatchReadPolicy is the default read policy used in batch operate commands.
+	dynDefaultBatchReadPolicy atomic.Pointer[BatchReadPolicy]
+	// DynamicBatchWritePolicy is the default write policy used in batch operate commands.
+	// Write policy fields include generation, expiration, durableDelete, etc...
+	dynDefaultBatchWritePolicy atomic.Pointer[BatchWritePolicy]
+	// DynamicBatchDeletePolicy is the default delete policy used in batch delete commands.
+	dynDefaultBatchDeletePolicy atomic.Pointer[BatchDeletePolicy]
+	// DynamicBatchUDFPolicy is the default user defined function policy used in batch UDF execute commands.
+	dynDefaultBatchUDFPolicy atomic.Pointer[BatchUDFPolicy]
+	// DynamicWritePolicy is used for all write commands without a specific policy.
+	dynDefaultWritePolicy atomic.Pointer[WritePolicy]
+	// DynamicScanPolicy is used for all scan commands without a specific policy.
+	dynDefaultScanPolicy atomic.Pointer[ScanPolicy]
+	// DynamicQueryPolicy is used for all query commands without a specific policy.
+	dynDefaultQueryPolicy atomic.Pointer[QueryPolicy]
+	// DynamicAdminPolicy is used for all security commands without a specific policy.
+	dynDefaultAdminPolicy atomic.Pointer[AdminPolicy]
+	// DynamicInfoPolicy is used for all info commands without a specific policy.
+	dynDefaultInfoPolicy atomic.Pointer[InfoPolicy]
+	// Dynamic transaction policy when verifying record versions in a batch on a commit.
+	dynDefaultTxnVerifyPolicy atomic.Pointer[TxnVerifyPolicy]
+	// Dynamic transaction policy when rolling the transaction records forward (commit)
+	// or back (abort) in a batch.
+	dynDefaultTxnRollPolicy atomic.Pointer[TxnRollPolicy]
 }
 
 func clientFinalizer(f *Client) {
@@ -129,20 +161,34 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	client := &Client{
 		cluster:                  cluster,
 		dynConfig:                dynConfig,
-		DefaultPolicy:            NewPolicyOrDefaultFromCache(dynConfig),
-		DefaultBatchPolicy:       NewBatchPolicyOrDefaultFromCache(dynConfig),
-		DefaultBatchReadPolicy:   NewBatchReadPolicyOrDefaultFromCache(dynConfig),
-		DefaultBatchWritePolicy:  NewBatchWritePolicyOrDefaultFromCache(dynConfig),
-		DefaultBatchDeletePolicy: NewBatchDeletePolicyOrDefaultFromCache(dynConfig),
-		DefaultBatchUDFPolicy:    NewBatchUdfPolicyOrDefaultFromCache(dynConfig),
-		DefaultWritePolicy:       NewWritePolicyOrDefaultFromCache(dynConfig),
-		DefaultScanPolicy:        NewScanPolicyOrDefaultFromCache(dynConfig),
-		DefaultQueryPolicy:       NewQueryPolicyOrDefaultFromCache(dynConfig),
+		DefaultPolicy:            NewPolicy(),
+		DefaultBatchPolicy:       NewBatchPolicy(),
+		DefaultBatchReadPolicy:   NewBatchReadPolicy(),
+		DefaultBatchWritePolicy:  NewBatchWritePolicy(),
+		DefaultBatchDeletePolicy: NewBatchDeletePolicy(),
+		DefaultBatchUDFPolicy:    NewBatchUDFPolicy(),
+		DefaultWritePolicy:       NewWritePolicy(0, 0),
+		DefaultScanPolicy:        NewScanPolicy(),
+		DefaultQueryPolicy:       NewQueryPolicy(),
 		DefaultAdminPolicy:       NewAdminPolicy(),
 		DefaultInfoPolicy:        NewInfoPolicy(),
-		DefaultTxnVerifyPolicy:   NewTxnVerifyPolicyOrDefaultFromCache(dynConfig),
-		DefaultTxnRollPolicy:     NewTxnRollPolicyOrDefaultFromCache(dynConfig),
+		DefaultTxnVerifyPolicy:   NewTxnVerifyPolicy(),
+		DefaultTxnRollPolicy:     NewTxnRollPolicy(),
 	}
+
+	client.dynDefaultPolicy.Store(NewPolicy())
+	client.dynDefaultBatchPolicy.Store(NewBatchPolicy())
+	client.dynDefaultBatchReadPolicy.Store(NewBatchReadPolicy())
+	client.dynDefaultBatchWritePolicy.Store(NewBatchWritePolicy())
+	client.dynDefaultBatchDeletePolicy.Store(NewBatchDeletePolicy())
+	client.dynDefaultBatchUDFPolicy.Store(NewBatchUDFPolicy())
+	client.dynDefaultWritePolicy.Store(NewWritePolicy(0, 0))
+	client.dynDefaultScanPolicy.Store(NewScanPolicy())
+	client.dynDefaultQueryPolicy.Store(NewQueryPolicy())
+	client.dynDefaultAdminPolicy.Store(NewAdminPolicy())
+	client.dynDefaultInfoPolicy.Store(NewInfoPolicy())
+	client.dynDefaultTxnVerifyPolicy.Store(NewTxnVerifyPolicy())
+	client.dynDefaultTxnRollPolicy.Store(NewTxnRollPolicy())
 
 	if dynConfig != nil {
 		dynConfig.client = client
@@ -2361,16 +2407,7 @@ func (clnt *Client) getUsableTxnRollPolicyWithConfig(policy *TxnRollPolicy) *Txn
 
 func (clnt *Client) getUsableTxnVerifyPolicyWithConfig(policy *TxnVerifyPolicy) *TxnVerifyPolicy {
 	if policy == nil {
-		if clnt.dynConfig == nil {
-			if defaultPolicy := clnt.DefaultTxnVerifyPolicy; defaultPolicy != nil {
-				return defaultPolicy
-			} else {
-				return NewTxnVerifyPolicy()
-			}
-		} else {
-			// Fetch merged policy from cache
-			return applyConfigToTxnVerifyPolicy(nil, clnt.dynConfig)
-		}
+		return clnt.dynDefaultTxnVerifyPolicy.Load()
 	}
 
 	// Merge policy with dynamic config

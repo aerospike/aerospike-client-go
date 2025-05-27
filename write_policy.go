@@ -124,32 +124,8 @@ func copyWritePolicy(src *WritePolicy) *WritePolicy {
 		return nil
 	}
 
-	response := NewWritePolicy(0, 0)
-
-	response.Txn = src.Txn
-	response.FilterExpression = src.FilterExpression
-	response.ReadModeAP = src.ReadModeAP
-	response.ReadModeSC = src.ReadModeSC
-	response.TotalTimeout = src.TotalTimeout
-	response.SocketTimeout = src.SocketTimeout
-	response.MaxRetries = src.MaxRetries
-	response.ReadTouchTTLPercent = src.ReadTouchTTLPercent
-	response.SleepBetweenRetries = src.SleepBetweenRetries
-	response.SleepMultiplier = src.SleepMultiplier
-	response.ExitFastOnExhaustedConnectionPool = src.ExitFastOnExhaustedConnectionPool
-	response.SendKey = src.SendKey
-	response.UseCompression = src.UseCompression
-	response.ReplicaPolicy = src.ReplicaPolicy
-	response.RecordExistsAction = src.RecordExistsAction
-	response.GenerationPolicy = src.GenerationPolicy
-	response.CommitLevel = src.CommitLevel
-	response.Generation = src.Generation
-	response.Expiration = src.Expiration
-	response.RespondPerEachOp = src.RespondPerEachOp
-	response.DurableDelete = src.DurableDelete
-	response.OnLockingOnly = src.OnLockingOnly
-
-	return response
+	response := *src
+	return &response
 }
 
 // applyConfigToWritePolicy applies the dynamic configuration and generates a new policy

@@ -135,17 +135,8 @@ func copyBatchUDFPolicy(src *BatchUDFPolicy) *BatchUDFPolicy {
 		return nil
 	}
 
-	response := NewBatchUDFPolicy()
-
-	response.FilterExpression = src.FilterExpression
-	response.FilterExpression = src.FilterExpression
-	response.CommitLevel = src.CommitLevel
-	response.Expiration = src.Expiration
-	response.DurableDelete = src.DurableDelete
-	response.OnLockingOnly = src.OnLockingOnly
-	response.SendKey = src.SendKey
-
-	return response
+	response := *src
+	return &response
 }
 
 // applyConfigToBatchUDFPolicy applies the dynamic configuration and generates a new policy

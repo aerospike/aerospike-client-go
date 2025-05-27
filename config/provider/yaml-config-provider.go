@@ -71,7 +71,9 @@ func (yc *YamlConfigProvider) LoadConfig(dsn string) *dynconfig.Config {
 		data, err := os.ReadFile(filePath)
 		if err != nil {
 			logger.Logger.Error("Failed to read file %s. Error: %v", filePath, err)
+			return nil
 		}
+
 		var config dynconfig.Config
 		if err := yaml.Unmarshal(data, &config); err != nil {
 			logger.Logger.Error("Failed to serialize file %s to object. Error: %v", filePath, err)

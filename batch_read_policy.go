@@ -116,14 +116,8 @@ func copyBatchReadPolicy(src *BatchReadPolicy) *BatchReadPolicy {
 		return nil
 	}
 
-	response := NewBatchReadPolicy()
-
-	response.FilterExpression = src.FilterExpression
-	response.ReadModeAP = src.ReadModeAP
-	response.ReadModeSC = src.ReadModeSC
-	response.ReadTouchTTLPercent = src.ReadTouchTTLPercent
-
-	return response
+	response := *src
+	return &response
 }
 
 // applyConfigToBatchReadPolicy applies the dynamic configuration and generates a new policy.

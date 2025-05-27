@@ -129,17 +129,8 @@ func copyBatchDeletePolicy(src *BatchDeletePolicy) *BatchDeletePolicy {
 		return nil
 	}
 
-	response := NewBatchDeletePolicy()
-
-	response.FilterExpression = src.FilterExpression
-	response.FilterExpression = src.FilterExpression
-	response.CommitLevel = src.CommitLevel
-	response.GenerationPolicy = src.GenerationPolicy
-	response.Generation = src.Generation
-	response.DurableDelete = src.DurableDelete
-	response.SendKey = src.SendKey
-
-	return response
+	response := *src
+	return &response
 }
 
 // applyConfigToBatchDeletePolicy applies the dynamic configuration and generates a new policy

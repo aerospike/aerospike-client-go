@@ -250,33 +250,8 @@ func copyClientPolicy(src *ClientPolicy) *ClientPolicy {
 		return nil
 	}
 
-	response := NewClientPolicy()
-
-	response.AuthMode = src.AuthMode
-	response.User = src.User
-	response.Password = src.Password
-	response.ClusterName = src.ClusterName
-	response.Timeout = src.Timeout
-	response.IdleTimeout = src.IdleTimeout
-	response.LoginTimeout = src.LoginTimeout
-	response.ConnectionQueueSize = src.ConnectionQueueSize
-	response.MinConnectionsPerNode = src.MinConnectionsPerNode
-	response.MaxErrorRate = src.MaxErrorRate
-	response.ErrorRateWindow = src.ErrorRateWindow
-	response.LimitConnectionsToQueueSize = src.LimitConnectionsToQueueSize
-	response.OpeningConnectionThreshold = src.OpeningConnectionThreshold
-	response.FailIfNotConnected = src.FailIfNotConnected
-	response.TendInterval = src.TendInterval
-	response.IpMap = *(&src.IpMap)
-	response.UseServicesAlternate = src.UseServicesAlternate
-	response.RackAware = src.RackAware
-	response.RackIds = *(&src.RackIds)
-	response.TlsConfig = src.TlsConfig
-	response.IgnoreOtherSubnetAliases = src.IgnoreOtherSubnetAliases
-	response.SeedOnlyCluster = src.SeedOnlyCluster
-	response.ConfigInterval = src.ConfigInterval
-
-	return response
+	response := *src
+	return &response
 }
 
 func mapDynamicClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientPolicy {
@@ -363,7 +338,7 @@ func applyConfigToClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *Clie
 			// If we have found entry in cache no need to map again return it.
 			return responsePolicy
 		}
-	}  else {
+	} else {
 		return policy
 	}
 }

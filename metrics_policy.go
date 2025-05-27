@@ -86,13 +86,8 @@ func copyMetricsPolicy(src *MetricsPolicy) *MetricsPolicy {
 		return nil
 	}
 
-	response := DefaultMetricsPolicy()
-
-	response.HistogramType = src.HistogramType
-	response.LatencyColumns = src.LatencyColumns
-	response.LatencyBase = src.LatencyBase
-
-	return response
+	response := *src
+	return &response
 }
 
 // metricsSyncCallBack is a callback function that is called when the dynamic configuration changes.
