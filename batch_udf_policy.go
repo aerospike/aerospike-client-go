@@ -14,8 +14,6 @@
 
 package aerospike
 
-import pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
-
 // BatchUDFPolicy attributes used in batch UDF execute commands.
 type BatchUDFPolicy struct {
 	// Optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -73,10 +71,7 @@ func NewBatchUdfPolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchUDFPolicy {
 		return NewBatchUDFPolicy()
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.BATCH_UDF_POLICY).(*BatchUDFPolicy)
+	return dynConfig.client.dynDefaultBatchUDFPolicy.Load()
 }
 
 func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
@@ -113,9 +108,6 @@ func (bup *BatchUDFPolicy) toWritePolicyWithConfig(bp *BatchPolicy, dynConfig *D
 		return wp
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	config := dynConfig.config
 	if config != nil && config.Dynamic.BatchUdf != nil {
 		if config.Dynamic.BatchUdf.DurableDelete != nil {
@@ -147,12 +139,9 @@ func applyConfigToBatchUDFPolicy(policy *BatchUDFPolicy, dynConfig *DynConfig) *
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.BATCH_UDF_POLICY).(*BatchUDFPolicy)
+		return dynConfig.client.dynDefaultBatchUDFPolicy.Load()
 	}
 	if config != nil && config.Dynamic != nil && config.Dynamic.BatchUdf != nil {
 		// Dynamic configuration is exists for policy in question.
@@ -168,7 +157,7 @@ func applyConfigToBatchUDFPolicy(policy *BatchUDFPolicy, dynConfig *DynConfig) *
 }
 
 func mapDynamicBatchUdfPolicy(policy *BatchUDFPolicy, dynConfig *DynConfig) *BatchUDFPolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 

@@ -28,7 +28,7 @@ func BenchmarkApplyConfigToClientPolicy(b *testing.B) {
 	// Create a dummy dynamic configuration. Adjust the configuration fields as needed.
 	// In this example we pass nil for mappedPolicies and a minimal dynconfig.Config.
 	cfg := &dynconfig.Config{}
-	dynCfg := NewDynConfigForTest(nil, cfg)
+	dynCfg := NewDynConfigForTest(cfg)
 
 	// Ensure the function runs once before benchmarking.
 	_ = applyConfigToClientPolicy(cp, dynCfg)
@@ -52,7 +52,7 @@ func BenchmarkApplyConfigToClientPolicyWithDynamicAndStaticConfig(b *testing.B) 
 		},
 		Dynamic: &dynconfig.DynamicConfig{
 			Client: &dynconfig.Client{
-				Timeout:             func() *dynconfig.Duration { i := dynconfig.Duration(1000 * time.Millisecond); return &i }(),
+				Timeout:             func() *int { i := int(1000 * time.Millisecond); return &i }(),
 				ErrorRateWindow:     func() *int { i := 5; return &i }(),
 				MaxErrorRate:        func() *int { i := 10; return &i }(),
 				LoginTimeout:        func() *int { i := 1000; return &i }(),
@@ -64,7 +64,7 @@ func BenchmarkApplyConfigToClientPolicyWithDynamicAndStaticConfig(b *testing.B) 
 		},
 	}
 
-	dynCfg := NewDynConfigForTest(nil, cfg)
+	dynCfg := NewDynConfigForTest(cfg)
 
 	_ = applyConfigToClientPolicy(cp, dynCfg)
 

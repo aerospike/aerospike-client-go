@@ -17,8 +17,6 @@ package aerospike
 import (
 	"math"
 	"time"
-
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 const (
@@ -112,10 +110,7 @@ func NewWritePolicyOrDefaultFromCache(dynConfig *DynConfig) *WritePolicy {
 		return NewWritePolicy(0, 0)
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.WRITE_POLICY).(*WritePolicy)
+	return dynConfig.client.dynDefaultWritePolicy.Load()
 }
 
 // copyWritePolicy creates a new WritePolicy instance and copies the values from the source WritePolicy.
@@ -137,13 +132,10 @@ func applyConfigToWritePolicy(policy *WritePolicy, dynConfig *DynConfig) *WriteP
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	// If no policy is passed in, we don't need to map. Just returned what is in mapped cache already.
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.WRITE_POLICY).(*WritePolicy)
+		return dynConfig.client.dynDefaultWritePolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.Write != nil {
 		// Dynamic configuration is exists for policy in question.
 		var responsePolicy *WritePolicy
@@ -158,7 +150,7 @@ func applyConfigToWritePolicy(policy *WritePolicy, dynConfig *DynConfig) *WriteP
 }
 
 func mapDynamicWritePolicy(policy *WritePolicy, dynConfig *DynConfig) *WritePolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 
@@ -170,13 +162,13 @@ func mapDynamicWritePolicy(policy *WritePolicy, dynConfig *DynConfig) *WritePoli
 			policy.SendKey = *dynConfig.config.Dynamic.Write.SendKey
 		}
 		if dynConfig.config.Dynamic.Write.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Write.SleepBetweenRetries)
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Write.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Write.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Write.SocketTimeout)
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Write.SocketTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.Write.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Write.TotalTimeout)
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Write.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Write.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.Write.MaxRetries

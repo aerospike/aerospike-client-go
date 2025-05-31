@@ -18,7 +18,6 @@ import (
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -44,16 +43,16 @@ var _ = Describe("ApplyConfigToBatchReadPolicy", func() {
 								r := dynconfig.MASTER
 								return &r
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 1)
+							SleepBetweenRetries: func() *int {
+								d := int(1 * time.Second)
 								return &d
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := int(3 * time.Second)
 								return &d
 							}(),
-							TotalTimeout: func() *dynconfig.Duration {
-								r := dynconfig.Duration(time.Second * 15)
+							TotalTimeout: func() *int {
+								r := int(15 * time.Second)
 								return &r
 							}(),
 							MaxRetries:          func() *int { r := 5; return &r }(),
@@ -86,10 +85,10 @@ var _ = Describe("ApplyConfigToBatchReadPolicy", func() {
 
 	Context("when applying batch read config to a write policy", func() {
 		It("should update the write policy values based on the batch read dynamic config", func() {
-			dynamicDefaultPolicy := make(map[pc.PolicyT]any, 0)
-			dynamicDefaultPolicy[pc.BATCH_PARENT_WRITE_POLICY] = NewWritePolicy(0, 0)
 			// Create the full configuration.
-			config := NewDynConfigForTest(pc.NewPolicyCacheWithData(nil, dynamicDefaultPolicy), &dynconfig.Config{})
+			config := NewDynConfigForTest(&dynconfig.Config{})
+			config.client = &Client{dynConfig: config}
+			config.client.dynDefaultWritePolicy.Store(NewWritePolicy(0, 0))
 
 			// Create an initial BatchPolicy (used for write operations).
 			batchPolicy := NewBatchPolicy()

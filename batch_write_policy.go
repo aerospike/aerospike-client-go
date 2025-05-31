@@ -14,10 +14,6 @@
 
 package aerospike
 
-import (
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
-)
-
 // BatchWritePolicy attributes used in batch write commands.
 type BatchWritePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -102,10 +98,7 @@ func NewBatchWritePolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchWritePoli
 		return NewBatchWritePolicy()
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.BATCH_WRITE_POLICY).(*BatchWritePolicy)
+	return dynConfig.client.dynDefaultBatchWritePolicy.Load()
 }
 
 func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
@@ -132,10 +125,7 @@ func (bwp *BatchWritePolicy) toWritePolicyWithConfig(bp *BatchPolicy, dynConfig 
 	if dynConfig == nil {
 		wp = bp.toWritePolicy()
 	} else {
-		dynConfig.lock.RLock()
-		defer dynConfig.lock.RUnlock()
-
-		wp = dynConfig.mappedPolicies.Get(pc.BATCH_PARENT_WRITE_POLICY).(*WritePolicy)
+		wp = dynConfig.client.dynDefaultWritePolicy.Load()
 	}
 
 	if bwp != nil {
@@ -172,12 +162,9 @@ func applyConfigToBatchWritePolicy(policy *BatchWritePolicy, dynConfig *DynConfi
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.BATCH_WRITE_POLICY).(*BatchWritePolicy)
+		return dynConfig.client.dynDefaultBatchWritePolicy.Load()
 	}
 	if config != nil && config.Dynamic != nil && config.Dynamic.BatchWrite != nil {
 		// Dynamic configuration is exists for policy in question.
@@ -193,7 +180,7 @@ func applyConfigToBatchWritePolicy(policy *BatchWritePolicy, dynConfig *DynConfi
 }
 
 func mapDynamicBatchWritePolicy(policy *BatchWritePolicy, dynConfig *DynConfig) *BatchWritePolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 

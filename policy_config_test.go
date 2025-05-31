@@ -39,20 +39,20 @@ var _ = Describe("ApplyConfigToBasePolicy", func() {
 								d := dynconfig.LINEARIZE
 								return &d
 							}(),
-							TotalTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 5)
+							TotalTimeout: func() *int {
+								d := 5
 								return &d
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := 3
 								return &d
 							}(),
 							MaxRetries: func() *int {
 								d := 3
 								return &d
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 2)
+							SleepBetweenRetries: func() *int {
+								d := 2
 								return &d
 							}(),
 							Replica: func() *dynconfig.Replica {
@@ -71,10 +71,10 @@ var _ = Describe("ApplyConfigToBasePolicy", func() {
 			Expect(policy).NotTo(BeNil())
 			Expect(policy.ReadModeAP).To(Equal(ReadModeAPOne))
 			Expect(policy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(int(policy.TotalTimeout.Milliseconds())).To(Equal(1000))
-			Expect(int(policy.SocketTimeout.Seconds())).To(Equal(30))
+			Expect(policy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
+			Expect(policy.SocketTimeout).To(Equal(30 * time.Second))
+			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
 			Expect(policy.MaxRetries).To(Equal(2))
-			Expect(int(policy.SleepBetweenRetries.Milliseconds())).To(Equal(1))
 			Expect(policy.SendKey).To(BeFalse())
 			Expect(policy.ReplicaPolicy).To(Equal(SEQUENCE))
 			Expect(policy.UseCompression).To(BeFalse())
@@ -86,10 +86,10 @@ var _ = Describe("ApplyConfigToBasePolicy", func() {
 			Expect(updatedPolicy).NotTo(BeNil())
 			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPAll))
 			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCLinearize))
-			Expect(int(updatedPolicy.TotalTimeout.Milliseconds())).To(Equal(5000))
-			Expect(int(updatedPolicy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(5 * time.Millisecond))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
-			Expect(int(updatedPolicy.SleepBetweenRetries.Milliseconds())).To(Equal(2000))
 			Expect(updatedPolicy.SendKey).To(BeFalse())
 			Expect(updatedPolicy.UseCompression).To(BeFalse())
 			Expect(updatedPolicy.ReplicaPolicy).To(Equal(PREFER_RACK))
@@ -103,16 +103,12 @@ var _ = Describe("ApplyConfigToBasePolicy", func() {
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Read: &dynconfig.Read{
-							TotalTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 5)
+							SocketTimeout: func() *int {
+								d := 3
 								return &d
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
-								return &d
-							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 2)
+							SleepBetweenRetries: func() *int {
+								d := 2
 								return &d
 							}(),
 							Replica: func() *dynconfig.Replica {
@@ -130,10 +126,10 @@ var _ = Describe("ApplyConfigToBasePolicy", func() {
 			// Verify defaults.
 			Expect(mapReadModeAPToReadModeAP(dynconfig.ONE)).To(Equal(ReadModeAPOne))
 			Expect(mapReadModeSCToReadModeSC(dynconfig.LINEARIZE)).To(Equal(ReadModeSCLinearize))
-			Expect(int(policy.TotalTimeout.Milliseconds())).To(Equal(1000))
-			Expect(int(policy.SocketTimeout.Seconds())).To(Equal(30))
+			Expect(policy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
+			Expect(policy.SocketTimeout).To(Equal(30 * time.Second))
+			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
 			Expect(policy.MaxRetries).To(Equal(2))
-			Expect(int(policy.SleepBetweenRetries.Milliseconds())).To(Equal(1))
 			Expect(policy.SendKey).To(BeFalse())
 			Expect(policy.ReplicaPolicy).To(Equal(SEQUENCE))
 			Expect(policy.UseCompression).To(BeFalse())
@@ -143,11 +139,11 @@ var _ = Describe("ApplyConfigToBasePolicy", func() {
 
 			// Validate that the selected fields were updated.
 			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(int(updatedPolicy.TotalTimeout.Milliseconds())).To(Equal(5000))
-			Expect(int(updatedPolicy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
 			// MaxRetries should remain at default since it wasn't set in the config.
 			Expect(updatedPolicy.MaxRetries).To(Equal(2))
-			Expect(int(updatedPolicy.SleepBetweenRetries.Milliseconds())).To(Equal(2000))
 			Expect(updatedPolicy.SendKey).To(BeFalse())
 			Expect(updatedPolicy.UseCompression).To(BeFalse())
 			Expect(updatedPolicy.ReplicaPolicy).To(Equal(PREFER_RACK))

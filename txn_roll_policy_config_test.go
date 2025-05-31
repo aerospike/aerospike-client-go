@@ -42,16 +42,16 @@ var _ = Describe("ApplyConfigToTxnRollPolicy", func() {
 								r := dynconfig.MASTER_PROLES
 								return &r
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 1)
+							SleepBetweenRetries: func() *int {
+								d := 1
 								return &d
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := 3
 								return &d
 							}(),
-							TotalTimeout: func() *dynconfig.Duration {
-								r := dynconfig.Duration(time.Second * 15)
+							TotalTimeout: func() *int {
+								r := 15
 								return &r
 							}(),
 							MaxRetries: func() *int {
@@ -83,9 +83,9 @@ var _ = Describe("ApplyConfigToTxnRollPolicy", func() {
 			Expect(policy.ReadModeAP).To(Equal(ReadModeAPOne))
 			Expect(policy.ReadModeSC).To(Equal(ReadModeSCSession))
 			Expect(policy.ReplicaPolicy).To(Equal(MASTER))
-			Expect(int(policy.SleepBetweenRetries.Seconds())).To(Equal(1))
-			Expect(int(policy.SocketTimeout.Seconds())).To(Equal(3))
-			Expect(int(policy.TotalTimeout.Seconds())).To(Equal(10))
+			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Second))
+			Expect(policy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(policy.TotalTimeout).To(Equal(10 * time.Second))
 			Expect(policy.MaxRetries).To(Equal(5))
 			Expect(policy.AllowInline).To(BeTrue())
 			Expect(policy.RespondAllKeys).To(BeTrue())
@@ -97,10 +97,10 @@ var _ = Describe("ApplyConfigToTxnRollPolicy", func() {
 			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPAll))
 			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCLinearize))
 			Expect(updatedPolicy.ReplicaPolicy).To(Equal(MASTER_PROLES))
-			Expect(int(updatedPolicy.TotalTimeout.Seconds())).To(Equal(15))
-			Expect(int(updatedPolicy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(15 * time.Second))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(1 * time.Second))
 			Expect(updatedPolicy.MaxRetries).To(Equal(5))
-			Expect(int(updatedPolicy.SleepBetweenRetries.Seconds())).To(Equal(1))
 			Expect(updatedPolicy.SendKey).To(BeFalse())
 		})
 	})
@@ -124,17 +124,13 @@ var _ = Describe("ApplyConfigToTxnRollPolicy", func() {
 								r := dynconfig.MASTER_PROLES
 								return &r
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 1)
+							SleepBetweenRetries: func() *int {
+								d := 1
 								return &d
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := 3
 								return &d
-							}(),
-							TotalTimeout: func() *dynconfig.Duration {
-								r := dynconfig.Duration(time.Second * 15)
-								return &r
 							}(),
 							MaxRetries: func() *int {
 								r := 5
@@ -164,9 +160,9 @@ var _ = Describe("ApplyConfigToTxnRollPolicy", func() {
 			Expect(policy.ReadModeAP).To(Equal(ReadModeAPOne))
 			Expect(policy.ReadModeSC).To(Equal(ReadModeSCSession))
 			Expect(policy.ReplicaPolicy).To(Equal(MASTER))
-			Expect(int(policy.SleepBetweenRetries.Seconds())).To(Equal(1))
-			Expect(int(policy.SocketTimeout.Seconds())).To(Equal(3))
-			Expect(int(policy.TotalTimeout.Seconds())).To(Equal(10))
+			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Second))
+			Expect(policy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(policy.TotalTimeout).To(Equal(10 * time.Second))
 			Expect(policy.MaxRetries).To(Equal(5))
 			Expect(policy.AllowInline).To(BeTrue())
 			Expect(policy.RespondAllKeys).To(BeTrue())
@@ -177,9 +173,10 @@ var _ = Describe("ApplyConfigToTxnRollPolicy", func() {
 			// Validate applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())
 			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCAllowUnavailable))
-			Expect(int(updatedPolicy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(1 * time.Second))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(10 * time.Second))
 			Expect(updatedPolicy.MaxRetries).To(Equal(5))
-			Expect(int(updatedPolicy.SleepBetweenRetries.Seconds())).To(Equal(1))
 			Expect(updatedPolicy.SendKey).To(BeFalse())
 			Expect(updatedPolicy.ReplicaPolicy).To(Equal(MASTER_PROLES))
 		})

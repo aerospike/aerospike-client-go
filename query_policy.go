@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"time"
-
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 // QueryPolicy encapsulates parameters for policy attributes used in query operations.
@@ -68,10 +66,7 @@ func NewQueryPolicyOrDefaultFromCache(dynConfig *DynConfig) *QueryPolicy {
 		return NewQueryPolicy()
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.QUERY_POLICY).(*QueryPolicy)
+	return dynConfig.client.dynDefaultQueryPolicy.Load()
 }
 
 // copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
@@ -92,12 +87,9 @@ func applyConfigToQueryPolicy(policy *QueryPolicy, dynConfig *DynConfig) *QueryP
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.QUERY_POLICY).(*QueryPolicy)
+		return dynConfig.client.dynDefaultQueryPolicy.Load()
 
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.Query != nil {
 		// Dynamic configuration is exists for policy in question.
@@ -113,7 +105,7 @@ func applyConfigToQueryPolicy(policy *QueryPolicy, dynConfig *DynConfig) *QueryP
 }
 
 func mapDynamicQueryPolicy(policy *QueryPolicy, dynConfig *DynConfig) *QueryPolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 
@@ -125,16 +117,16 @@ func mapDynamicQueryPolicy(policy *QueryPolicy, dynConfig *DynConfig) *QueryPoli
 			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Query.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.Query.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout)
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.Query.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Query.SocketTimeout)
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Query.SocketTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.Query.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.Query.MaxRetries
 		}
 		if dynConfig.config.Dynamic.Query.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Query.SleepBetweenRetries)
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Query.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Query.Replica != nil {
 			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Query.Replica)

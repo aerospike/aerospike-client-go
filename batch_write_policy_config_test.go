@@ -18,7 +18,6 @@ import (
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -36,16 +35,16 @@ var _ = Describe("ApplyConfigToBatchWritePolicy", func() {
 								r := dynconfig.MASTER
 								return &r
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 1)
+							SleepBetweenRetries: func() *int {
+								d := int(time.Second * 1)
 								return &d
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := int(time.Second * 3)
 								return &d
 							}(),
-							TotalTimeout: func() *dynconfig.Duration {
-								r := dynconfig.Duration(time.Second * 15)
+							TotalTimeout: func() *int {
+								r := int(time.Second * 15)
 								return &r
 							}(),
 							MaxRetries: func() *int {
@@ -103,21 +102,20 @@ var _ = Describe("ApplyConfigToBatchWritePolicy", func() {
 
 	Context("when applying batch write config to a write policy", func() {
 		It("should update the write policy values based on the batch write dynamic config", func() {
-			dynamicDefaultPolicy := make(map[pc.PolicyT]any, 0)
-			dynamicDefaultPolicy[pc.BATCH_PARENT_WRITE_POLICY] = NewWritePolicy(0, 0)
-
 			// Create the full configuration.
-			config := NewDynConfigForTest(pc.NewPolicyCacheWithData(nil, dynamicDefaultPolicy), &dynconfig.Config{})
+			config := NewDynConfigForTest(&dynconfig.Config{})
+			config.client = &Client{dynConfig: config}
+			config.client.dynDefaultWritePolicy.Store(NewWritePolicy(0, 0))
 
 			// Check defaults for BatchPolicy (used for write operations).
 			batchPolicy := NewBatchPolicy()
 			Expect(batchPolicy).NotTo(BeNil())
 			Expect(batchPolicy.ReadModeAP).To(Equal(ReadModeAPOne))
 			Expect(batchPolicy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(int(batchPolicy.TotalTimeout.Milliseconds())).To(Equal(1000))
-			Expect(int(batchPolicy.SocketTimeout.Seconds())).To(Equal(30))
+			Expect(batchPolicy.TotalTimeout).To(Equal(1 * time.Second))
+			Expect(batchPolicy.SocketTimeout).To(Equal(30 * time.Second))
 			Expect(batchPolicy.MaxRetries).To(Equal(2))
-			Expect(int(batchPolicy.SleepBetweenRetries.Milliseconds())).To(Equal(1))
+			Expect(batchPolicy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
 			Expect(batchPolicy.ReplicaPolicy).To(Equal(SEQUENCE))
 			Expect(batchPolicy.SendKey).To(BeFalse())
 			Expect(batchPolicy.UseCompression).To(BeFalse())
@@ -129,10 +127,10 @@ var _ = Describe("ApplyConfigToBatchWritePolicy", func() {
 			updatedWritePolicy := writePolicy.toWritePolicyWithConfig(batchPolicy, config)
 			Expect(updatedWritePolicy).NotTo(BeNil())
 			Expect(updatedWritePolicy.ReplicaPolicy).To(Equal(SEQUENCE))
-			Expect(int(updatedWritePolicy.TotalTimeout.Seconds())).To(Equal(1))
-			Expect(int(updatedWritePolicy.SocketTimeout.Seconds())).To(Equal(30))
+			Expect(updatedWritePolicy.TotalTimeout).To(Equal(1 * time.Second))
+			Expect(updatedWritePolicy.SocketTimeout).To(Equal(30 * time.Second))
 			Expect(updatedWritePolicy.MaxRetries).To(Equal(0))
-			Expect(int(updatedWritePolicy.SleepBetweenRetries.Milliseconds())).To(BeNumerically(">", 0))
+			Expect(int(updatedWritePolicy.SleepBetweenRetries)).To(BeNumerically(">", 0))
 			Expect(updatedWritePolicy.SendKey).To(BeFalse())
 		})
 	})

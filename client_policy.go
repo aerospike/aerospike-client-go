@@ -17,8 +17,6 @@ package aerospike
 import (
 	"crypto/tls"
 	"time"
-
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 // ClientPolicy encapsulates parameters for client policy command.
@@ -181,7 +179,7 @@ type ClientPolicy struct {
 	// with server side metrics.
 	ApplicationId string
 	// Determianes the interval for checking for configuration changes using configProvider.
-	ConfigInterval time.Duration // = 5
+	ConfigInterval time.Duration // = 5 second
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.
@@ -259,29 +257,34 @@ func mapDynamicClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientP
 		return policy
 	}
 
-	if dynConfig.config.Dynamic.Client.Timeout != nil {
-		policy.Timeout = time.Duration(*dynConfig.config.Dynamic.Client.Timeout)
-	}
-	if dynConfig.config.Dynamic.Client.ErrorRateWindow != nil {
-		policy.ErrorRateWindow = *dynConfig.config.Dynamic.Client.ErrorRateWindow
-	}
-	if dynConfig.config.Dynamic.Client.MaxErrorRate != nil {
-		policy.MaxErrorRate = *dynConfig.config.Dynamic.Client.MaxErrorRate
-	}
-	if dynConfig.config.Dynamic.Client.LoginTimeout != nil {
-		policy.LoginTimeout = time.Duration(*dynConfig.config.Dynamic.Client.LoginTimeout)
-	}
-	if dynConfig.config.Dynamic.Client.RackAware != nil {
-		policy.RackAware = *dynConfig.config.Dynamic.Client.RackAware
-	}
-	if dynConfig.config.Dynamic.Client.RackIds != nil {
-		policy.RackIds = *dynConfig.config.Dynamic.Client.RackIds
-	}
-	if dynConfig.config.Dynamic.Client.TendInterval != nil {
-		policy.TendInterval = time.Duration(*dynConfig.config.Dynamic.Client.TendInterval)
-	}
-	if dynConfig.config.Dynamic.Client.UseServiceAlternate != nil {
-		policy.UseServicesAlternate = *dynConfig.config.Dynamic.Client.UseServiceAlternate
+	if dynConfig.config.Dynamic.Client != nil {
+		if dynConfig.config.Dynamic.Client.IdleTimeout != nil {
+			policy.IdleTimeout = time.Duration(time.Duration(*dynConfig.config.Dynamic.Client.IdleTimeout).Seconds())
+		}
+		if dynConfig.config.Dynamic.Client.Timeout != nil {
+			policy.Timeout = time.Duration(time.Duration(*dynConfig.config.Dynamic.Client.Timeout).Seconds())
+		}
+		if dynConfig.config.Dynamic.Client.ErrorRateWindow != nil {
+			policy.ErrorRateWindow = *dynConfig.config.Dynamic.Client.ErrorRateWindow
+		}
+		if dynConfig.config.Dynamic.Client.MaxErrorRate != nil {
+			policy.MaxErrorRate = *dynConfig.config.Dynamic.Client.MaxErrorRate
+		}
+		if dynConfig.config.Dynamic.Client.LoginTimeout != nil {
+			policy.LoginTimeout = time.Duration(time.Duration(*dynConfig.config.Dynamic.Client.LoginTimeout).Seconds())
+		}
+		if dynConfig.config.Dynamic.Client.RackAware != nil {
+			policy.RackAware = *dynConfig.config.Dynamic.Client.RackAware
+		}
+		if dynConfig.config.Dynamic.Client.RackIds != nil {
+			policy.RackIds = *dynConfig.config.Dynamic.Client.RackIds
+		}
+		if dynConfig.config.Dynamic.Client.TendInterval != nil {
+			policy.TendInterval = time.Duration(*dynConfig.config.Dynamic.Client.TendInterval) * time.Second
+		}
+		if dynConfig.config.Dynamic.Client.UseServiceAlternate != nil {
+			policy.UseServicesAlternate = *dynConfig.config.Dynamic.Client.UseServiceAlternate
+		}
 	}
 
 	return policy
@@ -294,7 +297,7 @@ func mapStaticClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientPo
 
 	if dynConfig.config.Static.Client != nil {
 		if dynConfig.config.Static.Client.ConfigInterval != nil {
-			policy.ConfigInterval = time.Duration(*dynConfig.config.Static.Client.ConfigInterval)
+			policy.ConfigInterval = time.Duration(*dynConfig.config.Static.Client.ConfigInterval) * time.Second
 		}
 		if dynConfig.config.Static.Client.ConnectionQueueSize != nil {
 			policy.ConnectionQueueSize = *dynConfig.config.Static.Client.ConnectionQueueSize
@@ -315,9 +318,6 @@ func applyConfigToClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *Clie
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if config != nil && ((config.Dynamic != nil && config.Dynamic.Client != nil) || (config.Static != nil && config.Static.Client != nil)) {
 		// Dynamic configuration is exists for policy in question.
 		var responsePolicy *ClientPolicy
@@ -333,7 +333,7 @@ func applyConfigToClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *Clie
 			return responsePolicy
 		} else {
 			// Passed in policy is nil, fetch mapped default policy from cache.
-			responsePolicy = dynConfig.mappedPolicies.Get(pc.CLIENT_POLICY).(*ClientPolicy)
+			responsePolicy = dynConfig.client.dynDefaultClientPolicy.Load()
 
 			// If we have found entry in cache no need to map again return it.
 			return responsePolicy

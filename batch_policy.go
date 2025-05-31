@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"time"
-
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 // BatchPolicy encapsulates parameters for policy attributes used in write operations.
@@ -112,10 +110,7 @@ func NewBatchPolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchPolicy {
 		return NewBatchPolicy()
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.BATCH_POLICY).(*BatchPolicy)
+	return dynConfig.client.dynDefaultBatchPolicy.Load()
 }
 
 // NewReadBatchPolicy initializes a new BatchPolicy instance for reads.
@@ -156,12 +151,9 @@ func applyConfigToBatchPolicy(policy *BatchPolicy, dynConfig *DynConfig) *BatchP
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.BATCH_POLICY).(*BatchPolicy)
+		return dynConfig.client.dynDefaultBatchPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.BatchRead != nil {
 		// Dynamic configuration exists for policy in question.
 		var responsePolicy *BatchPolicy
@@ -176,7 +168,7 @@ func applyConfigToBatchPolicy(policy *BatchPolicy, dynConfig *DynConfig) *BatchP
 }
 
 func mapDynamicBatchPolicy(policy *BatchPolicy, dynConfig *DynConfig) *BatchPolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 
@@ -188,16 +180,16 @@ func mapDynamicBatchPolicy(policy *BatchPolicy, dynConfig *DynConfig) *BatchPoli
 			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.BatchRead.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout)
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchRead.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout)
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.BatchRead.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.BatchRead.MaxRetries
 		}
 		if dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries)
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchRead.AllowInline != nil {
 			policy.AllowInline = *dynConfig.config.Dynamic.BatchRead.AllowInline

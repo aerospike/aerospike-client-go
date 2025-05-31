@@ -15,7 +15,7 @@
 package aerospike
 
 import (
-	policy_cache "github.com/aerospike/aerospike-client-go/v8/internal/cache"
+	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
@@ -111,6 +111,8 @@ var _ = gg.Describe("Default Policies", func() {
 	gg.Context("when DynConfig is not nil (policy cache is populated)", func() {
 		var dynCfg *DynConfig
 		gg.BeforeEach(func() {
+			config := &dynconfig.Config{}
+			dynCfg = NewDynConfigForTest(config)
 			dummyClientPolicy := NewClientPolicy()
 			dummyBatchPolicy := NewBatchPolicy()
 			dummyBatchReadPolicy := NewBatchReadPolicy()
@@ -124,26 +126,23 @@ var _ = gg.Describe("Default Policies", func() {
 			dummyTxnRollPolicy := NewTxnRollPolicy()
 			dummyBasePolicy := NewPolicy()
 
-			pcache := policy_cache.NewPolicyCache()
-			pcache.Set(policy_cache.CLIENT_POLICY, dummyClientPolicy)
-			pcache.Set(policy_cache.BATCH_POLICY, dummyBatchPolicy)
-			pcache.Set(policy_cache.BATCH_READ_POLICY, dummyBatchReadPolicy)
-			pcache.Set(policy_cache.BATCH_WRITE_POLICY, dummyBatchWritePolicy)
-			pcache.Set(policy_cache.BATCH_DELETE_POLICY, dummyBatchDeletePolicy)
-			pcache.Set(policy_cache.BATCH_UDF_POLICY, dummyBatchUDFPolicy)
-			pcache.Set(policy_cache.WRITE_POLICY, dummyWritePolicy)
-			pcache.Set(policy_cache.SCAN_POLICY, dummyScanPolicy)
-			pcache.Set(policy_cache.QUERY_POLICY, dummyQueryPolicy)
-			pcache.Set(policy_cache.TXN_VERIFY_POLICY, dummyTxnVerifyPolicy)
-			pcache.Set(policy_cache.TXN_ROLL_POLICY, dummyTxnRollPolicy)
-			pcache.Set(policy_cache.READ_POLICY, dummyBasePolicy)
-
-			dynCfg = &DynConfig{
-				mappedPolicies: pcache,
-			}
 			client = &Client{
 				dynConfig: dynCfg,
 			}
+			client.dynDefaultClientPolicy.Store(dummyClientPolicy)
+			client.dynDefaultBatchPolicy.Store(dummyBatchPolicy)
+			client.dynDefaultBatchReadPolicy.Store(dummyBatchReadPolicy)
+			client.dynDefaultBatchWritePolicy.Store(dummyBatchWritePolicy)
+			client.dynDefaultBatchDeletePolicy.Store(dummyBatchDeletePolicy)
+			client.dynDefaultBatchUDFPolicy.Store(dummyBatchUDFPolicy)
+			client.dynDefaultWritePolicy.Store(dummyWritePolicy)
+			client.dynDefaultScanPolicy.Store(dummyScanPolicy)
+			client.dynDefaultQueryPolicy.Store(dummyQueryPolicy)
+			client.dynDefaultTxnVerifyPolicy.Store(dummyTxnVerifyPolicy)
+			client.dynDefaultTxnRollPolicy.Store(dummyTxnRollPolicy)
+			client.dynDefaultPolicy.Store(dummyBasePolicy)
+
+			dynCfg.client = client
 		})
 
 		gg.It("GetDefaultPolicy should fetch policy from cache", func() {

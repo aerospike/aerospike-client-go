@@ -43,16 +43,16 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 								r := dynconfig.PREFER_RACK
 								return &r
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 2)
+							SleepBetweenRetries: func() *int {
+								d := 2
 								return &d
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := 3
 								return &d
 							}(),
-							TotalTimeout: func() *dynconfig.Duration {
-								r := dynconfig.Duration(5000 * time.Millisecond)
+							TotalTimeout: func() *int {
+								r := 5000
 								return &r
 							}(),
 							MaxRetries:         func() *int { r := 3; return &r }(),
@@ -70,10 +70,10 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 			Expect(policy).NotTo(BeNil())
 			Expect(policy.ReadModeAP).To(Equal(ReadModeAPOne))
 			Expect(policy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(int(policy.TotalTimeout.Milliseconds())).To(Equal(0))
-			Expect(int(policy.SocketTimeout.Seconds())).To(Equal(30))
+			Expect(policy.TotalTimeout).To(Equal(0 * time.Second))
+			Expect(policy.SocketTimeout).To(Equal(30 * time.Second))
 			Expect(policy.MaxRetries).To(Equal(5))
-			Expect(int(policy.SleepBetweenRetries.Milliseconds())).To(Equal(1))
+			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
 			Expect(policy.SleepMultiplier).To(Equal(1.0))
 			Expect(policy.IncludeBinData).To(BeTrue())
 			Expect(policy.SendKey).To(BeFalse())
@@ -87,10 +87,10 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 			Expect(updatedPolicy).NotTo(BeNil())
 			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPOne))
 			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(int(updatedPolicy.TotalTimeout.Milliseconds())).To(Equal(5000))
-			Expect(int(updatedPolicy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Second))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
-			Expect(int(updatedPolicy.SleepBetweenRetries.Seconds())).To(Equal(2))
+			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
 			Expect(updatedPolicy.SleepMultiplier).To(Equal(1.0))
 			Expect(updatedPolicy.IncludeBinData).To(BeTrue())
 			Expect(updatedPolicy.SendKey).To(BeFalse())
@@ -117,16 +117,16 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 								r := dynconfig.ALLOWUNAVAILABLE
 								return &r
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 2)
+							SleepBetweenRetries: func() *int {
+								d := 2
 								return &d
 							}(),
-							TotalTimeout: func() *dynconfig.Duration {
-								r := dynconfig.Duration(5000 * time.Millisecond)
+							TotalTimeout: func() *int {
+								r := 5000
 								return &r
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := 3
 								return &d
 							}(),
 							MaxRetries:         func() *int { r := 3; return &r }(),
@@ -144,10 +144,10 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 			Expect(policy).NotTo(BeNil())
 			Expect(policy.ReadModeAP).To(Equal(ReadModeAPOne))
 			Expect(policy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(int(policy.TotalTimeout.Milliseconds())).To(Equal(0))
-			Expect(int(policy.SocketTimeout.Seconds())).To(Equal(30))
+			Expect(policy.TotalTimeout).To(Equal(0 * time.Second))
+			Expect(policy.SocketTimeout).To(Equal(30 * time.Second))
 			Expect(policy.MaxRetries).To(Equal(5))
-			Expect(int(policy.SleepBetweenRetries.Milliseconds())).To(Equal(1))
+			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
 			Expect(policy.SleepMultiplier).To(Equal(1.0))
 			Expect(policy.IncludeBinData).To(BeTrue())
 			Expect(policy.SendKey).To(BeFalse())
@@ -159,9 +159,10 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 			// Apply the configuration.
 			updatedPolicy := applyConfigToScanPolicy(policy, config)
 			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(int(updatedPolicy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Second))
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
-			Expect(int(updatedPolicy.SleepBetweenRetries.Milliseconds())).To(Equal(2000))
+			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
 			// Even if only select fields are configured, SendKey gets overridden.
 			Expect(updatedPolicy.SendKey).To(BeFalse())
 			Expect(updatedPolicy.ReplicaPolicy).To(Equal(SEQUENCE))

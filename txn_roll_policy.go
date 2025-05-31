@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"time"
-
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 // Transaction policy fields used to batch roll forward/backward records on
@@ -45,10 +43,7 @@ func NewTxnRollPolicyOrDefaultFromCache(dynConfig *DynConfig) *TxnRollPolicy {
 		return NewTxnRollPolicy()
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.TXN_ROLL_POLICY).(*TxnRollPolicy)
+	return dynConfig.client.dynDefaultTxnRollPolicy.Load()
 }
 
 func copyTxnRollPolicy(src *TxnRollPolicy) *TxnRollPolicy {
@@ -68,12 +63,9 @@ func applyConfigToTxnRollPolicy(policy *TxnRollPolicy, dynConfig *DynConfig) *Tx
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.TXN_ROLL_POLICY).(*TxnRollPolicy)
+		return dynConfig.client.dynDefaultTxnRollPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.TxnRoll != nil {
 		// Dynamic configuration is exists for policy in question.
 		var responseTxnRollPolicy *TxnRollPolicy
@@ -88,7 +80,7 @@ func applyConfigToTxnRollPolicy(policy *TxnRollPolicy, dynConfig *DynConfig) *Tx
 }
 
 func mapDynamicTxnRollPolicy(policy *TxnRollPolicy, dynConfig *DynConfig) *TxnRollPolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 
@@ -103,13 +95,13 @@ func mapDynamicTxnRollPolicy(policy *TxnRollPolicy, dynConfig *DynConfig) *TxnRo
 			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnRoll.Replica)
 		}
 		if dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries)
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries) * time.Second
 		}
 		if dynConfig.config.Dynamic.TxnRoll.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SocketTimeout)
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SocketTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.TxnRoll.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.TotalTimeout)
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.TotalTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.TxnRoll.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.TxnRoll.MaxRetries

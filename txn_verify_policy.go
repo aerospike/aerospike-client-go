@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"time"
-
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 // Transaction policy fields used to batch verify record versions on commit.
@@ -46,10 +44,7 @@ func NewTxnVerifyPolicyOrDefaultFromCache(dynConfig *DynConfig) *TxnVerifyPolicy
 		return NewTxnVerifyPolicy()
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.TXN_VERIFY_POLICY).(*TxnVerifyPolicy)
+	return dynConfig.client.dynDefaultTxnVerifyPolicy.Load()
 }
 
 func copyTxnVerifyPolicy(src *TxnVerifyPolicy) *TxnVerifyPolicy {
@@ -69,12 +64,9 @@ func applyConfigToTxnVerifyPolicy(policy *TxnVerifyPolicy, dynConfig *DynConfig)
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.TXN_VERIFY_POLICY).(*TxnVerifyPolicy)
+		return dynConfig.client.dynDefaultTxnVerifyPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.TxnVerify != nil {
 		// Dynamic configuration is exists for policy in question.
 		var responsePolicy *TxnVerifyPolicy
@@ -89,7 +81,7 @@ func applyConfigToTxnVerifyPolicy(policy *TxnVerifyPolicy, dynConfig *DynConfig)
 }
 
 func mapDynamicTxnVerifyPolicy(policy *TxnVerifyPolicy, dynConfig *DynConfig) *TxnVerifyPolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 
@@ -101,16 +93,16 @@ func mapDynamicTxnVerifyPolicy(policy *TxnVerifyPolicy, dynConfig *DynConfig) *T
 			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnVerify.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.TxnVerify.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.TotalTimeout)
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.TotalTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.TxnVerify.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SocketTimeout)
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SocketTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.TxnVerify.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.TxnVerify.MaxRetries
 		}
 		if dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries)
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries) * time.Second
 		}
 		if dynConfig.config.Dynamic.TxnVerify.Replica != nil {
 			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnVerify.Replica)

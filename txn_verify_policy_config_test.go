@@ -43,16 +43,16 @@ var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
 								r := dynconfig.MASTER
 								return &r
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Millisecond * 1)
+							SleepBetweenRetries: func() *int {
+								d := 1
 								return &d
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := 3
 								return &d
 							}(),
-							TotalTimeout: func() *dynconfig.Duration {
-								r := dynconfig.Duration(time.Second * 20)
+							TotalTimeout: func() *int {
+								r := 20
 								return &r
 							}(),
 							MaxRetries:     func() *int { r := 5; return &r }(),
@@ -69,10 +69,10 @@ var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
 
 			// Check defaults.
 			Expect(policy).NotTo(BeNil())
-			Expect(int(policy.TotalTimeout.Milliseconds())).To(Equal(10_000))
-			Expect(int(policy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(policy.TotalTimeout).To(Equal(10 * time.Second))
+			Expect(policy.SocketTimeout).To(Equal(3 * time.Second))
 			Expect(policy.MaxRetries).To(Equal(5))
-			Expect(int(policy.SleepBetweenRetries.Milliseconds())).To(Equal(1_000))
+			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Second))
 			Expect(policy.SendKey).To(BeFalse())
 
 			// Apply the configuration.
@@ -83,9 +83,9 @@ var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
 			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPAll))
 			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCLinearize))
 			Expect(updatedPolicy.ReplicaPolicy).To(Equal(MASTER))
-			Expect(int(updatedPolicy.SleepBetweenRetries.Milliseconds())).To(Equal(1))
-			Expect(int(updatedPolicy.SocketTimeout.Seconds())).To(Equal(3))
-			Expect(int(updatedPolicy.TotalTimeout.Seconds())).To(Equal(20))
+			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(1 * time.Second))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(20 * time.Second))
 			Expect(updatedPolicy.MaxRetries).To(Equal(5))
 			Expect(updatedPolicy.AllowInline).To(BeTrue())
 			Expect(updatedPolicy.RespondAllKeys).To(BeTrue())
@@ -111,16 +111,16 @@ var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
 								r := dynconfig.MASTER
 								return &r
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Millisecond * 1)
+							SleepBetweenRetries: func() *int {
+								d := 1_000
 								return &d
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := 3_000
 								return &d
 							}(),
-							TotalTimeout: func() *dynconfig.Duration {
-								r := dynconfig.Duration(time.Second * 20)
+							TotalTimeout: func() *int {
+								r := 20_000
 								return &r
 							}(),
 							// Intentionally leave out MaxRetries and AllowInline.
@@ -142,10 +142,10 @@ var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
 
 			// Check defaults.
 			Expect(policy).NotTo(BeNil())
-			Expect(int(policy.TotalTimeout.Milliseconds())).To(Equal(10_000))
-			Expect(int(policy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(policy.TotalTimeout).To(Equal(10 * time.Second))
+			Expect(policy.SocketTimeout).To(Equal(3 * time.Second))
 			Expect(policy.MaxRetries).To(Equal(5))
-			Expect(int(policy.SleepBetweenRetries.Milliseconds())).To(Equal(1_000))
+			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Second))
 			Expect(policy.SendKey).To(BeFalse())
 
 			// Apply the configuration.
@@ -153,9 +153,10 @@ var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
 
 			// Validate the applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(int(updatedPolicy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3_000 * time.Second))
 			Expect(updatedPolicy.MaxRetries).To(Equal(5)) // unchanged
-			Expect(int(updatedPolicy.SleepBetweenRetries.Milliseconds())).To(Equal(1))
+			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(1_000 * time.Second))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(20_000 * time.Second))
 			Expect(updatedPolicy.SendKey).To(BeFalse())
 			Expect(updatedPolicy.ReplicaPolicy).To(Equal(MASTER))
 		})

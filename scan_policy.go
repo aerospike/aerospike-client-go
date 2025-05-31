@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"time"
-
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 // ScanPolicy encapsulates parameters used in scan operations.
@@ -54,10 +52,7 @@ func NewScanPolicyOrDefaultFromCache(dynConfig *DynConfig) *ScanPolicy {
 		return NewScanPolicy()
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.SCAN_POLICY).(*ScanPolicy)
+	return dynConfig.client.dynDefaultScanPolicy.Load()
 }
 
 // copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
@@ -85,12 +80,9 @@ func applyConfigToScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPoli
 		config = dynConfig.config
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.SCAN_POLICY).(*ScanPolicy)
+		return dynConfig.client.dynDefaultScanPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.Scan != nil {
 		// Dynamic configuration is exists for policy in question.
 		var responsePolicy *ScanPolicy
@@ -105,7 +97,7 @@ func applyConfigToScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPoli
 }
 
 func mapDynamicScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 
@@ -117,16 +109,16 @@ func mapDynamicScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPolicy 
 			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Scan.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.Scan.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout)
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.Scan.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.SocketTimeout)
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.SocketTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.Scan.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.Scan.MaxRetries
 		}
 		if dynConfig.config.Dynamic.Scan.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Scan.SleepBetweenRetries)
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Scan.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Scan.Replica != nil {
 			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Scan.Replica)

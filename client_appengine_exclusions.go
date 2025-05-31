@@ -47,7 +47,7 @@ func SetLuaPath(lpath string) {
 func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, Error) {
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, true)
 
-	policy = clnt.getUsableQueryPolicyWithConfig(policy)
+	policy = clnt.getUsableQueryPolicy(policy)
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {

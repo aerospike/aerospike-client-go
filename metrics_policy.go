@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 	"github.com/aerospike/aerospike-client-go/v8/types/histogram"
 )
 
@@ -121,7 +120,7 @@ func applyConfigToMetricsPolicyCore(policy *MetricsPolicy, dynConfig *DynConfig)
 			return responsePolicy
 		} else {
 			// Passed in policy is nil, fetch mapped default policy from cache.
-			responsePolicy = dynConfig.mappedPolicies.Get(pc.METRICS_POLICY).(*MetricsPolicy)
+			responsePolicy = dynConfig.client.dynDefaultMetricsPolicy.Load()
 
 			// If we have found entry in cache no need to map again return it.
 			return responsePolicy
@@ -137,8 +136,6 @@ func applyConfigToMetricsPolicy(policy *MetricsPolicy, dynConfig *DynConfig) *Me
 		return policy
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
 	return applyConfigToMetricsPolicyCore(policy, dynConfig)
 }
 
@@ -148,7 +145,7 @@ func applyConfigToMetricsPolicyNoLock(policy *MetricsPolicy, dynConfig *DynConfi
 }
 
 func mapDynamicMetricsPolicy(policy *MetricsPolicy, dynConfig *DynConfig) *MetricsPolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 

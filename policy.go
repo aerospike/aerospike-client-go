@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"time"
-
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 )
 
 // Policy Interface
@@ -195,10 +193,7 @@ func NewPolicyOrDefaultFromCache(dynConfig *DynConfig) *BasePolicy {
 		return NewPolicy()
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.READ_POLICY).(*BasePolicy)
+	return dynConfig.client.dynDefaultPolicy.Load()
 }
 
 var _ Policy = &BasePolicy{}
@@ -237,12 +232,9 @@ func applyConfigToBasePolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePoli
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.READ_POLICY).(*BasePolicy)
+		return dynConfig.client.dynDefaultPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.Read != nil {
 		// Dynamic configuration exists for policy in question.
 		var responsePolicy *BasePolicy
@@ -257,7 +249,7 @@ func applyConfigToBasePolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePoli
 }
 
 func mapDynamicReadPolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 
@@ -269,16 +261,16 @@ func mapDynamicReadPolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy 
 			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Read.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.Read.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Read.TotalTimeout)
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Read.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Read.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Read.SocketTimeout)
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Read.SocketTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.Read.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.Read.MaxRetries
 		}
 		if dynConfig.config.Dynamic.Read.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Read.SleepBetweenRetries)
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Read.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Read.Replica != nil {
 			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Read.Replica)

@@ -14,10 +14,6 @@
 
 package aerospike
 
-import (
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
-)
-
 // BatchReadPolicy attributes used in batch read commands.
 type BatchReadPolicy struct {
 	// FilterExpression is the optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -63,11 +59,7 @@ func NewBatchReadPolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchReadPolicy
 		return NewBatchReadPolicy()
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.BATCH_READ_POLICY).(*BatchReadPolicy)
-
+	return dynConfig.client.dynDefaultBatchReadPolicy.Load()
 }
 
 func (brp *BatchReadPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
@@ -91,10 +83,7 @@ func (brp *BatchReadPolicy) ToWritePolicyWithConfig(bp *BatchPolicy, dynConfig *
 	if dynConfig == nil {
 		wp = bp.toWritePolicy()
 	} else {
-		dynConfig.lock.RLock()
-		defer dynConfig.lock.RUnlock()
-
-		wp = dynConfig.mappedPolicies.Get(pc.BATCH_PARENT_WRITE_POLICY).(*WritePolicy)
+		wp = dynConfig.client.dynDefaultWritePolicy.Load()
 	}
 
 	if brp != nil {
@@ -128,12 +117,9 @@ func applyConfigToBatchReadPolicy(policy *BatchReadPolicy, dynConfig *DynConfig)
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.BATCH_READ_POLICY).(*BatchReadPolicy)
+		return dynConfig.client.dynDefaultBatchReadPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.BatchRead != nil {
 		// Dynamic configuration is exists for policy in question.
 		var responsePolicy *BatchReadPolicy
@@ -149,7 +135,7 @@ func applyConfigToBatchReadPolicy(policy *BatchReadPolicy, dynConfig *DynConfig)
 }
 
 func mapDynamicBatchReadPolicy(policy *BatchReadPolicy, dynConfig *DynConfig) *BatchReadPolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 

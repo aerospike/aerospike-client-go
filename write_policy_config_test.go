@@ -1,5 +1,5 @@
 // Copyright 2014-2022 Aerospike, Inc.
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -36,12 +36,12 @@ var _ = Describe("WritePolicy Config", func() {
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Write: &dynconfig.Write{
-							TotalTimeout: func() *dynconfig.Duration {
-								r := dynconfig.Duration(5000 * time.Millisecond)
+							TotalTimeout: func() *int {
+								r := 5000
 								return &r
 							}(),
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := 3
 								return &d
 							}(),
 							MaxRetries: func() *int {
@@ -52,8 +52,8 @@ var _ = Describe("WritePolicy Config", func() {
 								r := true
 								return &r
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 2)
+							SleepBetweenRetries: func() *int {
+								d := 2
 								return &d
 							}(),
 							SendKey: func() *bool {
@@ -76,22 +76,22 @@ var _ = Describe("WritePolicy Config", func() {
 		It("should update all fields from the configuration", func() {
 			// Check default values of initial policy.
 			Expect(policy).ToNot(BeNil())
-			Expect(int(policy.TotalTimeout.Milliseconds())).To(Equal(1000))
-			Expect(int(policy.SocketTimeout.Seconds())).To(Equal(30))
+			Expect(policy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
+			Expect(policy.SocketTimeout).To(Equal(30 * time.Second))
 			Expect(policy.MaxRetries).To(Equal(0))
 			Expect(policy.DurableDelete).To(BeFalse())
-			Expect(int(policy.SleepBetweenRetries.Milliseconds())).To(Equal(1))
+			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
 			Expect(policy.SendKey).To(BeFalse())
 
 			updatedPolicy := applyConfigToWritePolicy(policy, config)
 
 			// Validate the updated policy.
 			Expect(updatedPolicy).ToNot(BeNil())
-			Expect(int(updatedPolicy.TotalTimeout.Milliseconds())).To(Equal(5000))
-			Expect(int(updatedPolicy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Millisecond))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
 			Expect(updatedPolicy.DurableDelete).To(BeTrue())
-			Expect(int(updatedPolicy.SleepBetweenRetries.Milliseconds())).To(Equal(2000))
+			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
 			Expect(updatedPolicy.SendKey).To(BeTrue())
 			Expect(updatedPolicy.ReplicaPolicy).To(Equal(PREFER_RACK))
 		})
@@ -103,8 +103,8 @@ var _ = Describe("WritePolicy Config", func() {
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Write: &dynconfig.Write{
-							SocketTimeout: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 3)
+							SocketTimeout: func() *int {
+								d := 3
 								return &d
 							}(),
 							MaxRetries: func() *int {
@@ -115,8 +115,8 @@ var _ = Describe("WritePolicy Config", func() {
 								r := true
 								return &r
 							}(),
-							SleepBetweenRetries: func() *dynconfig.Duration {
-								d := dynconfig.Duration(time.Second * 2)
+							SleepBetweenRetries: func() *int {
+								d := 2
 								return &d
 							}(),
 							SendKey: func() *bool {
@@ -138,11 +138,11 @@ var _ = Describe("WritePolicy Config", func() {
 		It("should update only select fields while leaving defaults intact", func() {
 			// Check default values of initial policy.
 			Expect(policy).ToNot(BeNil())
-			Expect(int(policy.TotalTimeout.Milliseconds())).To(Equal(1000))
-			Expect(int(policy.SocketTimeout.Seconds())).To(Equal(30))
+			Expect(policy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
+			Expect(policy.SocketTimeout).To(Equal(30 * time.Second))
 			Expect(policy.MaxRetries).To(Equal(0))
 			Expect(policy.DurableDelete).To(BeFalse())
-			Expect(int(policy.SleepBetweenRetries.Milliseconds())).To(Equal(1))
+			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
 			Expect(policy.SendKey).To(BeFalse())
 
 			updatedPolicy := applyConfigToWritePolicy(policy, config)
@@ -150,10 +150,11 @@ var _ = Describe("WritePolicy Config", func() {
 			// Validate the updated policy.
 			Expect(updatedPolicy).ToNot(BeNil())
 			// TotalTimeout remains unchanged
-			Expect(int(updatedPolicy.SocketTimeout.Seconds())).To(Equal(3))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
 			Expect(updatedPolicy.DurableDelete).To(BeTrue())
-			Expect(int(updatedPolicy.SleepBetweenRetries.Milliseconds())).To(Equal(2000))
+			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
 			Expect(updatedPolicy.SendKey).To(BeFalse())
 			Expect(updatedPolicy.ReplicaPolicy).To(Equal(PREFER_RACK))
 		})

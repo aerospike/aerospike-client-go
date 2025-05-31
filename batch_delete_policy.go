@@ -14,8 +14,6 @@
 
 package aerospike
 
-import pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
-
 // BatchDeletePolicy is used in batch delete commands.
 type BatchDeletePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -65,10 +63,7 @@ func NewBatchDeletePolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchDeletePo
 		return NewBatchDeletePolicy()
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
-	return dynConfig.mappedPolicies.Get(pc.BATCH_DELETE_POLICY).(*BatchDeletePolicy)
+	return dynConfig.client.dynDefaultBatchDeletePolicy.Load()
 }
 
 func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
@@ -107,9 +102,6 @@ func (bdp *BatchDeletePolicy) toWritePolicyWithConfig(bp *BatchPolicy, dynConfig
 		return wp
 	}
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	config := dynConfig.config
 	if config != nil && config.Dynamic.BatchDelete != nil {
 		if config.Dynamic.BatchDelete.DurableDelete != nil {
@@ -141,12 +133,9 @@ func applyConfigToBatchDeletePolicy(policy *BatchDeletePolicy, dynConfig *DynCon
 
 	config := dynConfig.getConfigIfNotInitialized()
 
-	dynConfig.lock.RLock()
-	defer dynConfig.lock.RUnlock()
-
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
-		return dynConfig.mappedPolicies.Get(pc.BATCH_DELETE_POLICY).(*BatchDeletePolicy)
+		return dynConfig.client.dynDefaultBatchDeletePolicy.Load()
 	}
 	if config != nil && config.Dynamic != nil && config.Dynamic.BatchDelete != nil {
 		// Dynamic configuration is exists for policy in question.
@@ -162,7 +151,7 @@ func applyConfigToBatchDeletePolicy(policy *BatchDeletePolicy, dynConfig *DynCon
 }
 
 func mapDynamicBatchDeletePolicy(policy *BatchDeletePolicy, dynConfig *DynConfig) *BatchDeletePolicy {
-	if dynConfig.config == nil && dynConfig.config.Dynamic == nil {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
 

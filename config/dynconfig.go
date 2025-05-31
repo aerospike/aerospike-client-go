@@ -14,8 +14,6 @@
 
 package dynconfig
 
-import "time"
-
 // Package dynconfig provides a configuration provider interface and structures
 // for loading and managing dynamic configurations in a system.
 // It includes static and dynamic configurations for various components such as
@@ -29,7 +27,7 @@ type ConfigProvider interface {
 // ----------------------------------------------------------------
 // Structures used to serialize and deserialize the configuration
 // ----------------------------------------------------------------
-type Config map[string]struct {
+type Config struct {
 	Static  *StaticConfig  `yaml:"static"`
 	Dynamic *DynamicConfig `yaml:"dynamic"`
 }
@@ -60,43 +58,44 @@ type Client struct {
 	MinConnectionsPerNode *int `yaml:"min_connections_per_node"`
 
 	// dynamic config
-	Timeout             *Duration `yaml:"timeout"`
-	ErrorRateWindow     *int      `yaml:"error_rate_window"`
-	MaxErrorRate        *int      `yaml:"max_error_rate"`
-	LoginTimeout        *int      `yaml:"login_timeout"`
-	RackAware           *bool     `yaml:"rack_aware"`
-	RackIds             *[]int    `yaml:"rack_ids"`
-	TendInterval        *int      `yaml:"tend_interval"`
-	UseServiceAlternate *bool     `yaml:"use_service_alternate"`
+	IdleTimeout         *int   `yaml:"max_socket_idle"`
+	Timeout             *int   `yaml:"timeout"`
+	ErrorRateWindow     *int   `yaml:"error_rate_window"`
+	MaxErrorRate        *int   `yaml:"max_error_rate"`
+	LoginTimeout        *int   `yaml:"login_timeout"`
+	RackAware           *bool  `yaml:"rack_aware"`
+	RackIds             *[]int `yaml:"rack_ids"`
+	TendInterval        *int   `yaml:"tend_interval"`
+	UseServiceAlternate *bool  `yaml:"use_service_alternate"`
 }
 
 type Read struct {
 	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
 	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
 	Replica             *Replica    `yaml:"replica"`
-	SleepBetweenRetries *Duration   `yaml:"sleep_between_retries"`
-	SocketTimeout       *Duration   `yaml:"socket_timeout"`
-	TotalTimeout        *Duration   `yaml:"total_timeout"`
+	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
+	SocketTimeout       *int        `yaml:"socket_timeout"`
+	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
 }
 
 type Write struct {
-	Replica             *Replica  `yaml:"replica"`
-	SendKey             *bool     `yaml:"send_key"`
-	SleepBetweenRetries *Duration `yaml:"sleep_between_retries"`
-	SocketTimeout       *Duration `yaml:"socket_timeout"`
-	TotalTimeout        *Duration `yaml:"total_timeout"`
-	MaxRetries          *int      `yaml:"max_retries"`
-	DurableDelete       *bool     `yaml:"durable_delete"`
+	Replica             *Replica `yaml:"replica"`
+	SendKey             *bool    `yaml:"send_key"`
+	SleepBetweenRetries *int     `yaml:"sleep_between_retries"`
+	SocketTimeout       *int     `yaml:"socket_timeout"`
+	TotalTimeout        *int     `yaml:"total_timeout"`
+	MaxRetries          *int     `yaml:"max_retries"`
+	DurableDelete       *bool    `yaml:"durable_delete"`
 }
 
 type Query struct {
 	ReadModeAp          *ReadModeAp    `yaml:"read_mode_ap"`
 	ReadModeSc          *ReadModeSc    `yaml:"read_mode_sc"`
 	Replica             *Replica       `yaml:"replica"`
-	SleepBetweenRetries *Duration      `yaml:"sleep_between_retries"`
-	SocketTimeout       *Duration      `yaml:"socket_timeout"`
-	TotalTimeout        *Duration      `yaml:"total_timeout"`
+	SleepBetweenRetries *int           `yaml:"sleep_between_retries"`
+	SocketTimeout       *int           `yaml:"socket_timeout"`
+	TotalTimeout        *int           `yaml:"total_timeout"`
 	MaxRetries          *int           `yaml:"max_retries"`
 	IncludeBinData      *bool          `yaml:"include_bin_data"`
 	RecordQueueSize     *int           `yaml:"record_queue_size"`
@@ -107,10 +106,10 @@ type Scan struct {
 	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
 	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
 	Replica             *Replica    `yaml:"replica"`
-	SleepBetweenRetries *Duration   `yaml:"sleep_between_retries"`
-	SocketTimeout       *Duration   `yaml:"socket_timeout"`
+	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
+	SocketTimeout       *int        `yaml:"socket_timeout"`
 	TimeoutDelay        *int        `yaml:"timeout_delay"`
-	TotalTimeout        *Duration   `yaml:"total_timeout"`
+	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
 	ConcurrentNodes     *int        `yaml:"concurrent_nodes"`
 	MaxConcurrentNodes  *int        `yaml:"max_concurrent_nodes"`
@@ -120,9 +119,9 @@ type BatchRead struct {
 	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
 	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
 	Replica             *Replica    `yaml:"replica"`
-	SleepBetweenRetries *Duration   `yaml:"sleep_between_retries"`
-	SocketTimeout       *Duration   `yaml:"socket_timeout"`
-	TotalTimeout        *Duration   `yaml:"total_timeout"`
+	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
+	SocketTimeout       *int        `yaml:"socket_timeout"`
+	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
 	MaxConcurrentThread *int        `yaml:"max_concurrent_thread"`
 	AllowInline         *bool       `yaml:"allow_inline"`
@@ -131,17 +130,17 @@ type BatchRead struct {
 }
 
 type BatchWrite struct {
-	Replica             *Replica  `yaml:"replica"`
-	SleepBetweenRetries *Duration `yaml:"sleep_between_retries"`
-	SocketTimeout       *Duration `yaml:"socket_timeout"`
-	TotalTimeout        *Duration `yaml:"total_timeout"`
-	MaxRetries          *int      `yaml:"max_retries"`
-	DurableDelete       *bool     `yaml:"durable_delete"`
-	SendKey             *bool     `yaml:"send_key"`
-	MaxConcurrentThread *int      `yaml:"max_concurrent_thread"`
-	AllowInline         *bool     `yaml:"allow_inline"`
-	AllowInlineSSD      *bool     `yaml:"allow_inline_ssd"`
-	RespondAllKeys      *bool     `yaml:"respond_all_keys"`
+	Replica             *Replica `yaml:"replica"`
+	SleepBetweenRetries *int     `yaml:"sleep_between_retries"`
+	SocketTimeout       *int     `yaml:"socket_timeout"`
+	TotalTimeout        *int     `yaml:"total_timeout"`
+	MaxRetries          *int     `yaml:"max_retries"`
+	DurableDelete       *bool    `yaml:"durable_delete"`
+	SendKey             *bool    `yaml:"send_key"`
+	MaxConcurrentThread *int     `yaml:"max_concurrent_thread"`
+	AllowInline         *bool    `yaml:"allow_inline"`
+	AllowInlineSSD      *bool    `yaml:"allow_inline_ssd"`
+	RespondAllKeys      *bool    `yaml:"respond_all_keys"`
 }
 
 type BatchUdf struct {
@@ -158,9 +157,9 @@ type TxnRoll struct {
 	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
 	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
 	Replica             *Replica    `yaml:"replica"`
-	SleepBetweenRetries *Duration   `yaml:"sleep_between_retries"`
-	SocketTimeout       *Duration   `yaml:"socket_timeout"`
-	TotalTimeout        *Duration   `yaml:"total_timeout"`
+	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
+	SocketTimeout       *int        `yaml:"socket_timeout"`
+	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
 	AllowInline         *bool       `yaml:"allow_inline"`
 	AllowInlineSSD      *bool       `yaml:"allow_inline_ssd"`
@@ -171,9 +170,9 @@ type TxnVerify struct {
 	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
 	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
 	Replica             *Replica    `yaml:"replica"`
-	SleepBetweenRetries *Duration   `yaml:"sleep_between_retries"`
-	SocketTimeout       *Duration   `yaml:"socket_timeout"`
-	TotalTimeout        *Duration   `yaml:"total_timeout"`
+	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
+	SocketTimeout       *int        `yaml:"socket_timeout"`
+	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
 	AllowInline         *bool       `yaml:"allow_inline"`
 	AllowInlineSSD      *bool       `yaml:"allow_inline_ssd"`
@@ -250,6 +249,3 @@ var queryDuration = map[QueryDuration]string{
 	SHORT:         "SHORT",
 	LONG_RELAX_AP: "LONG_RELAX_AP",
 }
-
-// TODO: Fix the circular dependency issue
-type Duration time.Duration

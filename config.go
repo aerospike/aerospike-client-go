@@ -24,7 +24,6 @@ import (
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 	registry "github.com/aerospike/aerospike-client-go/v8/config/registry"
-	pc "github.com/aerospike/aerospike-client-go/v8/internal/cache"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
@@ -35,11 +34,9 @@ type DynConfig struct {
 	wgConfig sync.WaitGroup
 
 	configInitialized  *atomic.Bool
-	clientPolicy       *ClientPolicy
-	client             *Client
+	client             *Client // Reference to the client to use for callbacks and cached policies.
 	configProvider     dynconfig.ConfigProvider
 	configWatchChannel chan struct{}
-	mappedPolicies     *pc.PolicyCache
 
 	metricsCallback func(config *dynconfig.Config, client *Client)
 
@@ -72,17 +69,15 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 	provider, _ := registry.Get(parsedUrl.Scheme)
 
 	dynConfig := &DynConfig{
-		clientPolicy:       policy,
 		configWatchChannel: make(chan struct{}),
 		configInitialized:  &atomic.Bool{},
 		metricsCallback:    fn,
 		scheme:             parsedUrl.Scheme,
 		dsn:                parsedUrl.Path,
 		configProvider:     provider,
-		mappedPolicies:     pc.NewPolicyCache(),
 	}
 	dynConfig.wgConfig.Add(1)
-	go dynConfig.watchConfig()
+	go dynConfig.watchConfig(policy.ConfigInterval)
 
 	return dynConfig
 }
@@ -121,7 +116,6 @@ func (dc *DynConfig) runCallBack() {
 func (dc *DynConfig) providerLoadConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
 	if loadedConfig != nil {
-		dc.mappedPolicies.PruneDynamic()
 		dc.config.Dynamic = loadedConfig.Dynamic // This is updating the entire dynamic config object
 
 		if dc.config.Dynamic == nil {
@@ -146,54 +140,42 @@ func (dc *DynConfig) initConfig() {
 }
 
 func (dc *DynConfig) hydrateStaticPolicyFromConfig() {
-	if dc.mappedPolicies.Static == nil {
-		dc.mappedPolicies.Static = make(map[pc.PolicyT]any, 0)
-	}
-	dc.mappedPolicies.Static[pc.CLIENT_POLICY] = dc.generateStaticClientPolicy()
+	dc.client.dynDefaultClientPolicy.Store(dc.generateStaticClientPolicy())
 }
 
 func (dc *DynConfig) hydrateDynamicPolicyFromConfig() {
-	if dc.mappedPolicies.Dynamic == nil {
-		dc.mappedPolicies.Dynamic = make(map[pc.PolicyT]any, 0)
-	}
-	dc.mappedPolicies.Dynamic[pc.CLIENT_POLICY] = dc.generateDynamicClientPolicy()
-	dc.mappedPolicies.Dynamic[pc.READ_POLICY] = dc.generateDynamicReadPolicy()
-	dc.mappedPolicies.Dynamic[pc.WRITE_POLICY] = dc.generateDynamicWritePolicy()
-	dc.mappedPolicies.Dynamic[pc.QUERY_POLICY] = dc.generateDynamicQueryPolicy()
-	dc.mappedPolicies.Dynamic[pc.SCAN_POLICY] = dc.generateDynamicScanPolicy()
-	dc.mappedPolicies.Dynamic[pc.BATCH_POLICY] = dc.generateDynamicBatchPolicy()
-	dc.mappedPolicies.Dynamic[pc.BATCH_READ_POLICY] = dc.generateDynamicBatchReadPolicy()
-	dc.mappedPolicies.Dynamic[pc.BATCH_WRITE_POLICY] = dc.generateDynamicBatchWritePolicy()
-	dc.mappedPolicies.Dynamic[pc.BATCH_PARENT_WRITE_POLICY] = dc.generateDynamicBatchPolicy()
-	dc.mappedPolicies.Dynamic[pc.BATCH_UDF_POLICY] = dc.generateDynamicBatchUdfPolicy()
-	dc.mappedPolicies.Dynamic[pc.BATCH_DELETE_POLICY] = dc.generateDynamicBatchDeletePolicy()
-	dc.mappedPolicies.Dynamic[pc.TXN_ROLL_POLICY] = dc.generateDynamicTxnRollPolicy()
-	dc.mappedPolicies.Dynamic[pc.TXN_VERIFY_POLICY] = dc.generateDynamicTxnVerifyPolicy()
-	dc.mappedPolicies.Dynamic[pc.METRICS_POLICY] = dc.generateDynamicMetricsPolicy()
+	dc.client.dynDefaultClientPolicy.Store(dc.generateDynamicClientPolicy())
+	dc.client.dynDefaultPolicy.Store(dc.generateDynamicReadPolicy())
+	dc.client.dynDefaultWritePolicy.Store(dc.generateDynamicWritePolicy())
+	dc.client.dynDefaultQueryPolicy.Store(dc.generateDynamicQueryPolicy())
+	dc.client.dynDefaultScanPolicy.Store(dc.generateDynamicScanPolicy())
+	dc.client.dynDefaultBatchPolicy.Store(dc.generateDynamicBatchPolicy())
+	dc.client.dynDefaultBatchReadPolicy.Store(dc.generateDynamicBatchReadPolicy())
+	dc.client.dynDefaultBatchWritePolicy.Store(dc.generateDynamicBatchWritePolicy())
+	dc.client.dynDefaultBatchUDFPolicy.Store(dc.generateDynamicBatchUdfPolicy())
+	dc.client.dynDefaultBatchDeletePolicy.Store(dc.generateDynamicBatchDeletePolicy())
+	dc.client.dynDefaultTxnRollPolicy.Store(dc.generateDynamicTxnRollPolicy())
+	dc.client.dynDefaultTxnVerifyPolicy.Store(dc.generateDynamicTxnVerifyPolicy())
+	dc.client.dynDefaultMetricsPolicy.Store(dc.generateDynamicMetricsPolicy())
 }
 
 func (dc *DynConfig) generateStaticClientPolicy() *ClientPolicy {
 	policy := NewClientPolicy()
 
-	if dc.config != nil && dc.config.Static != nil {
-		if dc.config.Static.Client != nil {
-			policy = mapStaticClientPolicy(policy, dc)
-		}
-	}
+	policy = mapStaticClientPolicy(policy, dc)
 
 	return policy
 }
 
 func (dc *DynConfig) generateDynamicClientPolicy() *ClientPolicy {
-	policy := NewClientPolicy()
-
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.Client != nil {
-			// Need to apply static and dynamic values
-			policy = mapStaticClientPolicy(policy, dc)
-			policy = mapDynamicClientPolicy(policy, dc)
-		}
+	// Loading current client policy since static fields are set at init time
+	// We need to merge and preserve static and dynamic values.
+	policy := dc.client.dynDefaultClientPolicy.Load()
+	if policy == nil {
+		policy = NewClientPolicy()
 	}
+
+	policy = mapDynamicClientPolicy(policy, dc)
 
 	return policy
 }
@@ -201,12 +183,7 @@ func (dc *DynConfig) generateDynamicClientPolicy() *ClientPolicy {
 func (dc *DynConfig) generateDynamicWritePolicy() *WritePolicy {
 	policy := NewWritePolicy(0, 0)
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.Write != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicWritePolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicWritePolicy(policy, dc)
 
 	return policy
 }
@@ -214,12 +191,7 @@ func (dc *DynConfig) generateDynamicWritePolicy() *WritePolicy {
 func (dc *DynConfig) generateDynamicReadPolicy() *BasePolicy {
 	policy := NewPolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.Read != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicReadPolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicReadPolicy(policy, dc)
 
 	return policy
 }
@@ -227,12 +199,7 @@ func (dc *DynConfig) generateDynamicReadPolicy() *BasePolicy {
 func (dc *DynConfig) generateDynamicQueryPolicy() *QueryPolicy {
 	policy := NewQueryPolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.Query != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicQueryPolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicQueryPolicy(policy, dc)
 
 	return policy
 }
@@ -240,12 +207,7 @@ func (dc *DynConfig) generateDynamicQueryPolicy() *QueryPolicy {
 func (dc *DynConfig) generateDynamicScanPolicy() *ScanPolicy {
 	policy := NewScanPolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.Scan != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicScanPolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicScanPolicy(policy, dc)
 
 	return policy
 }
@@ -253,12 +215,7 @@ func (dc *DynConfig) generateDynamicScanPolicy() *ScanPolicy {
 func (dc *DynConfig) generateDynamicBatchWritePolicy() *BatchWritePolicy {
 	policy := NewBatchWritePolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.BatchWrite != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicBatchWritePolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicBatchWritePolicy(policy, dc)
 
 	return policy
 }
@@ -266,12 +223,7 @@ func (dc *DynConfig) generateDynamicBatchWritePolicy() *BatchWritePolicy {
 func (dc *DynConfig) generateDynamicBatchReadPolicy() *BatchReadPolicy {
 	policy := NewBatchReadPolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.BatchRead != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicBatchReadPolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicBatchReadPolicy(policy, dc)
 
 	return policy
 }
@@ -279,12 +231,7 @@ func (dc *DynConfig) generateDynamicBatchReadPolicy() *BatchReadPolicy {
 func (dc *DynConfig) generateDynamicTxnRollPolicy() *TxnRollPolicy {
 	policy := NewTxnRollPolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.TxnRoll != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicTxnRollPolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicTxnRollPolicy(policy, dc)
 
 	return policy
 }
@@ -292,12 +239,7 @@ func (dc *DynConfig) generateDynamicTxnRollPolicy() *TxnRollPolicy {
 func (dc *DynConfig) generateDynamicTxnVerifyPolicy() *TxnVerifyPolicy {
 	policy := NewTxnVerifyPolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.TxnVerify != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicTxnVerifyPolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicTxnVerifyPolicy(policy, dc)
 
 	return policy
 }
@@ -305,12 +247,7 @@ func (dc *DynConfig) generateDynamicTxnVerifyPolicy() *TxnVerifyPolicy {
 func (dc *DynConfig) generateDynamicBatchDeletePolicy() *BatchDeletePolicy {
 	policy := NewBatchDeletePolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.BatchDelete != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicBatchDeletePolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicBatchDeletePolicy(policy, dc)
 
 	return policy
 }
@@ -318,12 +255,7 @@ func (dc *DynConfig) generateDynamicBatchDeletePolicy() *BatchDeletePolicy {
 func (dc *DynConfig) generateDynamicBatchUdfPolicy() *BatchUDFPolicy {
 	policy := NewBatchUDFPolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.BatchUdf != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicBatchUdfPolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicBatchUdfPolicy(policy, dc)
 
 	return policy
 }
@@ -331,12 +263,7 @@ func (dc *DynConfig) generateDynamicBatchUdfPolicy() *BatchUDFPolicy {
 func (dc *DynConfig) generateDynamicBatchPolicy() *BatchPolicy {
 	policy := NewBatchPolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.BatchRead != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicBatchPolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicBatchPolicy(policy, dc)
 
 	return policy
 }
@@ -344,33 +271,28 @@ func (dc *DynConfig) generateDynamicBatchPolicy() *BatchPolicy {
 func (dc *DynConfig) generateDynamicMetricsPolicy() *MetricsPolicy {
 	policy := DefaultMetricsPolicy()
 
-	if dc.config != nil && dc.config.Dynamic != nil {
-		if dc.config.Dynamic.Metrics != nil {
-			// Need to apply static and dynamic values
-			policy = mapDynamicMetricsPolicy(policy, dc)
-		}
-	}
+	policy = mapDynamicMetricsPolicy(policy, dc)
 
 	return policy
 }
 
 // ----------------------------------------------------------------
-// Main watch goroutine for the config provider. This will
+// Main watch goroutine for the config provider
 // ----------------------------------------------------------------
-func (dc *DynConfig) watchConfig() {
+func (dc *DynConfig) watchConfig(interval time.Duration) {
 	logger.Logger.Info("Starting the config watch goroutine...")
 
 	defer func() {
 		// TODO: Add exponential backoff here to resource starvation
 		if r := recover(); r != nil {
 			logger.Logger.Error("Watch config goroutine crashed: %s", debug.Stack())
-			go dc.watchConfig()
+			go dc.watchConfig(interval)
 		}
 	}()
 
 	defer dc.wgConfig.Done()
 
-	configInterval := max(dc.clientPolicy.ConfigInterval, 10*time.Millisecond)
+	configInterval := max(interval, 10*time.Millisecond)
 Loop:
 	for {
 		// If the config is not initialized, load it once. This is
@@ -379,10 +301,10 @@ Loop:
 			logger.Logger.Debug("Initializing configuration...")
 			tm := time.Now()
 			dc.loadConfig()
-			if configDuration := time.Since(tm); configDuration > dc.clientPolicy.ConfigInterval {
+			if configDuration := time.Since(tm); configDuration > interval {
 				logger.Logger.Warn("Reload took %s, but your requested ConfigInterval is %s. "+
 					"Reload is slower than the interval and may fall behind changes.",
-					configDuration, dc.clientPolicy.ConfigInterval)
+					configDuration, interval)
 			}
 		}
 
@@ -393,7 +315,7 @@ Loop:
 		case <-time.After(configInterval):
 			tm := time.Now()
 			dc.loadConfig()
-			if configDuration := time.Since(tm); configDuration > dc.clientPolicy.ConfigInterval {
+			if configDuration := time.Since(tm); configDuration > interval {
 				logger.Logger.Warn("Watching took %s.", configDuration)
 			}
 		}
@@ -418,9 +340,8 @@ func (dc *DynConfig) getConfigIfNotInitialized() *dynconfig.Config {
 // Testing functions
 // ----------------------------------------------------------------
 
-func NewDynConfigForTest(mapped *pc.PolicyCache, config *dynconfig.Config) *DynConfig {
+func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
 	return &DynConfig{
-		mappedPolicies: mapped,
-		config:         config,
+		config: config,
 	}
 }
