@@ -114,7 +114,7 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 								return &r
 							}(),
 							ReadModeSc: func() *dynconfig.ReadModeSc {
-								r := dynconfig.ALLOWUNAVAILABLE
+								r := dynconfig.ALLOW_UNAVAILABLE
 								return &r
 							}(),
 							SleepBetweenRetries: func() *int {

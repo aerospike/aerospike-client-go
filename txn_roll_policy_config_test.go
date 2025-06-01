@@ -117,7 +117,7 @@ var _ = Describe("ApplyConfigToTxnRollPolicy", func() {
 								return &r
 							}(),
 							ReadModeSc: func() *dynconfig.ReadModeSc {
-								r := dynconfig.ALLOWUNAVAILABLE
+								r := dynconfig.ALLOW_UNAVAILABLE
 								return &r
 							}(),
 							Replica: func() *dynconfig.Replica {

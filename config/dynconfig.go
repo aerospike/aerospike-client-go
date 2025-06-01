@@ -14,6 +14,13 @@
 
 package dynconfig
 
+import (
+	"fmt"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
 // Package dynconfig provides a configuration provider interface and structures
 // for loading and managing dynamic configurations in a system.
 // It includes static and dynamic configurations for various components such as
@@ -199,7 +206,7 @@ const (
 	ALL
 )
 
-var readModeAp = map[ReadModeAp]string{
+var ReadModeApYaml = map[ReadModeAp]string{
 	ONE: "ONE",
 	ALL: "ALL",
 }
@@ -209,15 +216,15 @@ type ReadModeSc int
 const (
 	SESSION ReadModeSc = iota
 	LINEARIZE
-	ALLOWREPLICA
-	ALLOWUNAVAILABLE
+	ALLOW_REPLICA
+	ALLOW_UNAVAILABLE
 )
 
-var readModeSc = map[ReadModeSc]string{
-	SESSION:          "SESSION",
-	LINEARIZE:        "LINEARIZE",
-	ALLOWREPLICA:     "ALLOW_REPLICA",
-	ALLOWUNAVAILABLE: "ALLOW_UNAVAILABLE",
+var ReadModeScYaml = map[ReadModeSc]string{
+	SESSION:           "SESSION",
+	LINEARIZE:         "LINEARIZE",
+	ALLOW_REPLICA:     "ALLOW_REPLICA",
+	ALLOW_UNAVAILABLE: "ALLOW_UNAVAILABLE",
 }
 
 type Replica int
@@ -229,7 +236,7 @@ const (
 	PREFER_RACK
 )
 
-var replica = map[Replica]string{
+var ReplicaYaml = map[Replica]string{
 	MASTER:        "MASTER",
 	MASTER_PROLES: "MASTER_PROLES",
 	SEQUENCE:      "SEQUENCE",
@@ -244,8 +251,80 @@ const (
 	LONG_RELAX_AP
 )
 
-var queryDuration = map[QueryDuration]string{
-	LONG:          "LONG",
-	SHORT:         "SHORT",
-	LONG_RELAX_AP: "LONG_RELAX_AP",
+// ----------------------------------------------------------------
+// UnmarshalYAML methods for enum types
+// ----------------------------------------------------------------
+
+func (r *ReadModeAp) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	if err := value.Decode(&s); err != nil {
+		return err
+	}
+	switch strings.ToUpper(s) {
+	case "ONE":
+		*r = ONE
+	case "ALL":
+		*r = ALL
+	default:
+		return fmt.Errorf("invalid ReadModeAp value: %s", s)
+	}
+	return nil
+}
+
+func (r *ReadModeSc) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	if err := value.Decode(&s); err != nil {
+		return err
+	}
+	switch strings.ToUpper(s) {
+	case "SESSION":
+		*r = SESSION
+	case "LINEARIZE":
+		*r = LINEARIZE
+	case "ALLOW_REPLICA":
+		*r = ALLOW_REPLICA
+	case "ALLOW_UNAVAILABLE":
+		*r = ALLOW_UNAVAILABLE
+	default:
+		return fmt.Errorf("invalid ReadModeSc value: %s", s)
+	}
+	return nil
+}
+
+func (r *Replica) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	if err := value.Decode(&s); err != nil {
+		return err
+	}
+	switch strings.ToUpper(s) {
+	case "MASTER":
+		*r = MASTER
+	case "MASTER_PROLES":
+		*r = MASTER_PROLES
+	case "SEQUENCE":
+		*r = SEQUENCE
+	case "PREFER_RACK":
+		*r = PREFER_RACK
+	default:
+		return fmt.Errorf("invalid Replica value: %s", s)
+	}
+	return nil
+}
+
+func (r *QueryDuration) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	if err := value.Decode(&s); err != nil {
+		return err
+	}
+	switch strings.ToUpper(s) {
+	case "LONG":
+		*r = LONG
+	case "SHORT":
+		*r = SHORT
+	case "LONG_RELAX_AP":
+		*r = LONG_RELAX_AP
+	default:
+		return fmt.Errorf("invalid QueryDuration value: %s", s)
+	}
+	return nil
 }

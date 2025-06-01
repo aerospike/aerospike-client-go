@@ -84,14 +84,3 @@ func (yc *YamlConfigProvider) LoadConfig(dsn string) *dynconfig.Config {
 
 	return nil
 }
-
-type Duration time.Duration
-
-func (d *Duration) UnmarshalYAML(b []byte) error {
-	var value int64
-	if err := yaml.Unmarshal(b, &value); err != nil {
-		return err
-	}
-	*d = Duration(time.Duration(value))
-	return nil
-}
