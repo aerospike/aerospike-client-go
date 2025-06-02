@@ -76,35 +76,40 @@ type Client struct {
 	// or back (abort) in a batch.
 	DefaultTxnRollPolicy *TxnRollPolicy
 
-	//
+	// Policies used for dynamic configuration updates.
+	// ClientPolicy is used to update the client configuration.
 	dynDefaultClientPolicy atomic.Pointer[ClientPolicy]
 	// DefaultPolicy is used for all read commands without a specific policy.
 	dynDefaultPolicy atomic.Pointer[BasePolicy]
+	// DynamicScanPolicy is used for all scan commands without a specific policy.
+	dynDefaultScanPolicy atomic.Pointer[ScanPolicy]
+	// DynamicQueryPolicy is used for all query commands without a specific policy.
+	dynDefaultQueryPolicy atomic.Pointer[QueryPolicy]
 	// DynamicBatchPolicy is the default parent policy used in batch read commands. Base policy fields]
 	// include socketTimeout, totalTimeout, maxRetries, etc...
 	dynDefaultBatchPolicy atomic.Pointer[BatchPolicy]
-	// DynamicBatchReadPolicy is the default read policy used in batch operate commands.
-	dynDefaultBatchReadPolicy atomic.Pointer[BatchReadPolicy]
-	// DynamicBatchWritePolicy is the default write policy used in batch operate commands.
 	// Write policy fields include generation, expiration, durableDelete, etc...
 	dynDefaultBatchWritePolicy atomic.Pointer[BatchWritePolicy]
+	// include socketTimeout, totalTimeout, maxRetries, etc...
+	// DynamicBatchReadPolicy is the default read policy used in batch operate commands.
+	dynDefaultBatchReadPolicy atomic.Pointer[BatchReadPolicy]
 	// DynamicBatchDeletePolicy is the default delete policy used in batch delete commands.
 	dynDefaultBatchDeletePolicy atomic.Pointer[BatchDeletePolicy]
 	// DynamicBatchUDFPolicy is the default user defined function policy used in batch UDF execute commands.
 	dynDefaultBatchUDFPolicy atomic.Pointer[BatchUDFPolicy]
 	// DynamicWritePolicy is used for all write commands without a specific policy.
 	dynDefaultWritePolicy atomic.Pointer[WritePolicy]
-	// DynamicScanPolicy is used for all scan commands without a specific policy.
-	dynDefaultScanPolicy atomic.Pointer[ScanPolicy]
-	// DynamicQueryPolicy is used for all query commands without a specific policy.
-	dynDefaultQueryPolicy atomic.Pointer[QueryPolicy]
 	// Dynamic transaction policy when verifying record versions in a batch on a commit.
 	dynDefaultTxnVerifyPolicy atomic.Pointer[TxnVerifyPolicy]
 	// Dynamic transaction policy when rolling the transaction records forward (commit)
 	// or back (abort) in a batch.
 	dynDefaultTxnRollPolicy atomic.Pointer[TxnRollPolicy]
-
+	// DynamicMetricsPolicy is used for all metrics commands without a specific policy.
 	dynDefaultMetricsPolicy atomic.Pointer[MetricsPolicy]
+	// DynamicBasePolicy is used for all commands without a specific policy when running batch operations.
+	dynDefaultBatchReadBasePolicy atomic.Pointer[BasePolicy]
+	// DynamicBasePolicy is used for all commands without a specific policy when running batch operations.
+	dynDefaultBatchWriteBasePolicy atomic.Pointer[BasePolicy]
 }
 
 func clientFinalizer(f *Client) {
@@ -175,22 +180,11 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 		DefaultTxnRollPolicy:     NewTxnRollPolicy(),
 	}
 
-	client.dynDefaultPolicy.Store(NewPolicy())
-	client.dynDefaultBatchPolicy.Store(NewBatchPolicy())
-	client.dynDefaultBatchReadPolicy.Store(NewBatchReadPolicy())
-	client.dynDefaultBatchWritePolicy.Store(NewBatchWritePolicy())
-	client.dynDefaultBatchDeletePolicy.Store(NewBatchDeletePolicy())
-	client.dynDefaultBatchUDFPolicy.Store(NewBatchUDFPolicy())
-	client.dynDefaultWritePolicy.Store(NewWritePolicy(0, 0))
-	client.dynDefaultScanPolicy.Store(NewScanPolicy())
-	client.dynDefaultQueryPolicy.Store(NewQueryPolicy())
-	client.dynDefaultTxnVerifyPolicy.Store(NewTxnVerifyPolicy())
-	client.dynDefaultTxnRollPolicy.Store(NewTxnRollPolicy())
-
 	if dynConfig != nil {
 		// Running the callback function to load functionalities dependent on
 		// the instance of client.
 		dynConfig.client = client
+		dynConfig.updateCachedPolicies()
 		dynConfig.runCallBack()
 	}
 
@@ -2181,73 +2175,130 @@ func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[
 // Policy Methods
 // -------------------------------------------------------
 func (clnt *Client) getUsablePolicy(policy *BasePolicy) *BasePolicy {
-	if policy == nil {
-		return clnt.dynDefaultPolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToBasePolicy(policy, clnt.dynConfig)
 	}
-	// Merge policy with dynamic config
-	return applyConfigToBasePolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultPolicy != nil {
+		return clnt.DefaultPolicy
+	}
+	return clnt.dynDefaultPolicy.Load()
 }
 
 func (clnt *Client) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
-	if policy == nil {
-		return clnt.dynDefaultBatchPolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToBatchPolicy(policy, clnt.dynConfig)
 	}
-	return applyConfigToBatchPolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultBatchPolicy != nil {
+		return clnt.DefaultBatchPolicy
+	}
+	return clnt.dynDefaultBatchPolicy.Load()
 }
 
 func (clnt *Client) getUsableBatchReadPolicy(policy *BatchReadPolicy) *BatchReadPolicy {
-	if policy == nil {
-		return clnt.dynDefaultBatchReadPolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToBatchReadPolicy(policy, clnt.dynConfig)
 	}
-	return applyConfigToBatchReadPolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultBatchReadPolicy != nil {
+		return clnt.DefaultBatchReadPolicy
+	}
+	return clnt.dynDefaultBatchReadPolicy.Load()
+
 }
 
 func (clnt *Client) getUsableBatchWritePolicy(policy *BatchWritePolicy) *BatchWritePolicy {
-	if policy == nil {
-		return clnt.dynDefaultBatchWritePolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToBatchWritePolicy(policy, clnt.dynConfig)
 	}
-	return applyConfigToBatchWritePolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultBatchWritePolicy != nil {
+		return clnt.DefaultBatchWritePolicy
+	}
+	return clnt.dynDefaultBatchWritePolicy.Load()
 }
 
 func (clnt *Client) getUsableBatchDeletePolicy(policy *BatchDeletePolicy) *BatchDeletePolicy {
-	if policy == nil {
-		return clnt.dynDefaultBatchDeletePolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToBatchDeletePolicy(policy, clnt.dynConfig)
 	}
-	return applyConfigToBatchDeletePolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultBatchDeletePolicy != nil {
+		return clnt.DefaultBatchDeletePolicy
+	}
+	return clnt.dynDefaultBatchDeletePolicy.Load()
 }
 
 func (clnt *Client) getUsableBatchUDFPolicy(policy *BatchUDFPolicy) *BatchUDFPolicy {
-	if policy == nil {
-		return clnt.dynDefaultBatchUDFPolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToBatchUDFPolicy(policy, clnt.dynConfig)
 	}
-	return applyConfigToBatchUDFPolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultBatchUDFPolicy != nil {
+		return clnt.DefaultBatchUDFPolicy
+	}
+	return clnt.dynDefaultBatchUDFPolicy.Load()
 }
 
 func (clnt *Client) getUsableWritePolicy(policy *WritePolicy) *WritePolicy {
-	if policy == nil {
-		return clnt.dynDefaultWritePolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToWritePolicy(policy, clnt.dynConfig)
 	}
-
-	// Merge policy with dynamic config
-	return applyConfigToWritePolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultWritePolicy != nil {
+		return clnt.DefaultWritePolicy
+	}
+	return clnt.dynDefaultWritePolicy.Load()
 }
 
 func (clnt *Client) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
-	if policy == nil {
-		return clnt.dynDefaultScanPolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToScanPolicy(policy, clnt.dynConfig)
 	}
-
-	// Merge policy with dynamic config
-	return applyConfigToScanPolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultScanPolicy != nil {
+		return clnt.DefaultScanPolicy
+	}
+	return clnt.dynDefaultScanPolicy.Load()
 }
 
 func (clnt *Client) getUsableQueryPolicy(policy *QueryPolicy) *QueryPolicy {
-	if policy == nil {
-		return clnt.dynDefaultQueryPolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToQueryPolicy(policy, clnt.dynConfig)
 	}
-
-	// Merge policy with dynamic config
-	return applyConfigToQueryPolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultQueryPolicy != nil {
+		return clnt.DefaultQueryPolicy
+	}
+	return clnt.dynDefaultQueryPolicy.Load()
 }
 
 func (clnt *Client) getUsableAdminPolicy(policy *AdminPolicy) *AdminPolicy {
@@ -2271,21 +2322,31 @@ func (clnt *Client) getUsableInfoPolicy(policy *InfoPolicy) *InfoPolicy {
 }
 
 func (clnt *Client) getUsableTxnRollPolicy(policy *TxnRollPolicy) *TxnRollPolicy {
-	if policy == nil {
-		return clnt.dynDefaultTxnRollPolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToTxnRollPolicy(policy, clnt.dynConfig)
 	}
-
-	// Merge policy with dynamic config
-	return applyConfigToTxnRollPolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultTxnRollPolicy != nil {
+		return clnt.DefaultTxnRollPolicy
+	}
+	return clnt.dynDefaultTxnRollPolicy.Load()
 }
 
 func (clnt *Client) getUsableTxnVerifyPolicy(policy *TxnVerifyPolicy) *TxnVerifyPolicy {
-	if policy == nil {
-		return clnt.dynDefaultTxnVerifyPolicy.Load()
+	if policy != nil {
+		// Merge policy with dynamic config
+		return applyConfigToTxnVerifyPolicy(policy, clnt.dynConfig)
 	}
-
-	// Merge policy with dynamic config
-	return applyConfigToTxnVerifyPolicy(policy, clnt.dynConfig)
+	// Make sure to handle the case where the user is setting Default....Policy policy and
+	// dynConfig is nil. Essentially, we do not want to treat cache as default
+	// when dynConfig is nil. Separation of concerns.
+	if clnt.dynConfig == nil && clnt.DefaultTxnVerifyPolicy != nil {
+		return clnt.DefaultTxnVerifyPolicy
+	}
+	return clnt.dynDefaultTxnVerifyPolicy.Load()
 }
 
 func getUsableClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientPolicy {

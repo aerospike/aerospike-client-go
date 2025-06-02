@@ -102,8 +102,8 @@ var _ = Describe("ApplyConfigToQueryPolicy", func() {
 			Expect(updatedPolicy).NotTo(BeNil())
 			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPAll))
 			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCLinearize))
-			Expect(updatedPolicy.TotalTimeout).To(Equal(3000 * time.Second))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(3000 * time.Millisecond))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
 			// Note: Some tests change MaxRetries; full config changes it to 3.
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
 			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
@@ -164,8 +164,8 @@ var _ = Describe("ApplyConfigToQueryPolicy", func() {
 
 			// Validate that the specified fields were updated.
 			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(updatedPolicy.TotalTimeout).To(Equal(5 * time.Second))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(5 * time.Millisecond))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
 			// MaxRetries should remain unchanged (default = 5) since it was not set.
 			Expect(updatedPolicy.MaxRetries).To(Equal(5))
 			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))

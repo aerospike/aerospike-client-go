@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "time"
+
 // BatchReadPolicy attributes used in batch read commands.
 type BatchReadPolicy struct {
 	// FilterExpression is the optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -62,28 +64,11 @@ func NewBatchReadPolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchReadPolicy
 	return dynConfig.client.dynDefaultBatchReadPolicy.Load()
 }
 
-func (brp *BatchReadPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+func (brp *BatchReadPolicy) ToWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 
-	if brp != nil {
-		if brp.FilterExpression != nil {
-			wp.FilterExpression = brp.FilterExpression
-		}
-
-		wp.ReadModeAP = brp.ReadModeAP
-		wp.ReadModeSC = brp.ReadModeSC
-		wp.ReadTouchTTLPercent = brp.ReadTouchTTLPercent
-	}
-	return wp
-}
-
-func (brp *BatchReadPolicy) ToWritePolicyWithConfig(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
-	var wp *WritePolicy
-
-	if dynConfig == nil {
-		wp = bp.toWritePolicy()
-	} else {
-		wp = dynConfig.client.dynDefaultWritePolicy.Load()
+	if dynConfig != nil {
+		wp.BasePolicy = *dynConfig.client.dynDefaultBatchReadBasePolicy.Load()
 	}
 
 	if brp != nil {
@@ -145,6 +130,38 @@ func mapDynamicBatchReadPolicy(policy *BatchReadPolicy, dynConfig *DynConfig) *B
 		}
 		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
 			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+		}
+	}
+
+	return policy
+}
+
+func mapDynamicBatchReadToBasePolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.BatchRead != nil {
+		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
+			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+		}
+		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
+			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+		}
+		if dynConfig.config.Dynamic.BatchRead.TotalTimeout != nil {
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchRead.SocketTimeout != nil {
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchRead.MaxRetries != nil {
+			policy.MaxRetries = *dynConfig.config.Dynamic.BatchRead.MaxRetries
+		}
+		if dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries != nil {
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchRead.Replica != nil {
+			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchRead.Replica)
 		}
 	}
 

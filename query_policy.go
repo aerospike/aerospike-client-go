@@ -117,10 +117,10 @@ func mapDynamicQueryPolicy(policy *QueryPolicy, dynConfig *DynConfig) *QueryPoli
 			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Query.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.Query.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout) * time.Second
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Query.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Query.SocketTimeout) * time.Second
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Query.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Query.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.Query.MaxRetries

@@ -109,10 +109,10 @@ func mapDynamicScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPolicy 
 			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Scan.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.Scan.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout) * time.Second
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Scan.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.SocketTimeout) * time.Second
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Scan.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.Scan.MaxRetries
@@ -122,6 +122,9 @@ func mapDynamicScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPolicy 
 		}
 		if dynConfig.config.Dynamic.Scan.Replica != nil {
 			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Scan.Replica)
+		}
+		if dynConfig.config.Dynamic.Scan.MaxConcurrentNodes != nil {
+			policy.MaxConcurrentNodes = *dynConfig.config.Dynamic.Scan.MaxConcurrentNodes
 		}
 	}
 	return policy

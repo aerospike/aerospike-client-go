@@ -259,10 +259,10 @@ func mapDynamicClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientP
 
 	if dynConfig.config.Dynamic.Client != nil {
 		if dynConfig.config.Dynamic.Client.IdleTimeout != nil {
-			policy.IdleTimeout = time.Duration(time.Duration(*dynConfig.config.Dynamic.Client.IdleTimeout).Seconds())
+			policy.IdleTimeout = time.Duration(*dynConfig.config.Dynamic.Client.IdleTimeout) * time.Second
 		}
 		if dynConfig.config.Dynamic.Client.Timeout != nil {
-			policy.Timeout = time.Duration(time.Duration(*dynConfig.config.Dynamic.Client.Timeout).Seconds())
+			policy.Timeout = time.Duration(*dynConfig.config.Dynamic.Client.Timeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Client.ErrorRateWindow != nil {
 			policy.ErrorRateWindow = *dynConfig.config.Dynamic.Client.ErrorRateWindow
@@ -271,7 +271,7 @@ func mapDynamicClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientP
 			policy.MaxErrorRate = *dynConfig.config.Dynamic.Client.MaxErrorRate
 		}
 		if dynConfig.config.Dynamic.Client.LoginTimeout != nil {
-			policy.LoginTimeout = time.Duration(time.Duration(*dynConfig.config.Dynamic.Client.LoginTimeout).Seconds())
+			policy.LoginTimeout = time.Duration(*dynConfig.config.Dynamic.Client.LoginTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Client.RackAware != nil {
 			policy.RackAware = *dynConfig.config.Dynamic.Client.RackAware
@@ -280,7 +280,7 @@ func mapDynamicClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientP
 			policy.RackIds = *dynConfig.config.Dynamic.Client.RackIds
 		}
 		if dynConfig.config.Dynamic.Client.TendInterval != nil {
-			policy.TendInterval = time.Duration(*dynConfig.config.Dynamic.Client.TendInterval) * time.Second
+			policy.TendInterval = time.Duration(*dynConfig.config.Dynamic.Client.TendInterval) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Client.UseServiceAlternate != nil {
 			policy.UseServicesAlternate = *dynConfig.config.Dynamic.Client.UseServiceAlternate

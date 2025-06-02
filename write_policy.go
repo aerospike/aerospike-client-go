@@ -165,7 +165,7 @@ func mapDynamicWritePolicy(policy *WritePolicy, dynConfig *DynConfig) *WritePoli
 			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Write.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Write.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Write.SocketTimeout) * time.Second
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Write.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Write.TotalTimeout != nil {
 			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Write.TotalTimeout) * time.Millisecond

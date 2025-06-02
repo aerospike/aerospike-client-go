@@ -118,7 +118,6 @@ type Scan struct {
 	TimeoutDelay        *int        `yaml:"timeout_delay"`
 	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
-	ConcurrentNodes     *int        `yaml:"concurrent_nodes"`
 	MaxConcurrentNodes  *int        `yaml:"max_concurrent_nodes"`
 }
 

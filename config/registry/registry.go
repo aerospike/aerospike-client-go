@@ -20,6 +20,11 @@ import (
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 )
 
+const (
+	DSN_REGEX_PATTERN = `^\s*([A-Za-z][A-Za-z0-9+.-]*://)?(.*)$`
+	DEFAULT_SCHEMA    = "file://"
+)
+
 var (
 	ConfigProvidersMu sync.RWMutex
 	ConfigProviders   = make(map[string]dynconfig.ConfigProvider)

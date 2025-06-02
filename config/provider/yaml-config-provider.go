@@ -15,7 +15,6 @@
 package provider
 
 import (
-	"net/url"
 	"os"
 	"time"
 
@@ -25,7 +24,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const driverName = "file"
+const driverName = "file://"
 
 type YamlConfigProvider struct {
 	configFilePath string
@@ -48,14 +47,7 @@ func NewYamlConfigProviderWithPath(configFilePath string) dynconfig.ConfigProvid
 }
 
 // LoadConfig loads the configuration from a YAML file specified by the DSN.
-func (yc *YamlConfigProvider) LoadConfig(dsn string) *dynconfig.Config {
-	parsedUrl, err := url.Parse(dsn)
-	if err != nil {
-		logger.Logger.Error("Failed to parse config URL %s. Error: %v", dsn, err)
-		return nil
-	}
-
-	filePath := parsedUrl.Path
+func (yc *YamlConfigProvider) LoadConfig(filePath string) *dynconfig.Config {
 	// Get the file info
 	info, err := os.Stat(filePath)
 	if err != nil {

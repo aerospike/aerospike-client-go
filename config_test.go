@@ -52,6 +52,7 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 					dynConfig: dc,
 				}
 				dc.initConfig()
+				dc.updateCachedPolicies()
 			})
 
 			gg.It("should update dc.config.Dynamic with Defaults", func() {
@@ -109,6 +110,7 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 
 				// Call initConfig to update dc.config and rehydrate dynamic cache.
 				dc.initConfig()
+				dc.updateCachedPolicies()
 			})
 
 			gg.It("should clear the cache and update dc.config.Dynamic based on loaded config", func() {
@@ -209,7 +211,7 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 					dynConfig: dc,
 				}
 				dc.client.dynDefaultPolicy.Store(&BasePolicy{TotalTimeout: 1 * time.Second})
-				
+
 				dc.providerLoadConfig()
 			})
 

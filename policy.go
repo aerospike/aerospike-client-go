@@ -264,7 +264,7 @@ func mapDynamicReadPolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy 
 			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Read.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Read.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Read.SocketTimeout) * time.Second
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Read.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Read.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.Read.MaxRetries

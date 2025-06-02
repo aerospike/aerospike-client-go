@@ -183,7 +183,7 @@ func mapDynamicBatchPolicy(policy *BatchPolicy, dynConfig *DynConfig) *BatchPoli
 			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchRead.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Second
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchRead.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.BatchRead.MaxRetries

@@ -44,15 +44,15 @@ var _ = Describe("ApplyConfigToBatchReadPolicy", func() {
 								return &r
 							}(),
 							SleepBetweenRetries: func() *int {
-								d := int(1 * time.Second)
+								d := 1
 								return &d
 							}(),
 							SocketTimeout: func() *int {
-								d := int(3 * time.Second)
+								d := 3
 								return &d
 							}(),
 							TotalTimeout: func() *int {
-								r := int(15 * time.Second)
+								r := 15
 								return &r
 							}(),
 							MaxRetries:          func() *int { r := 5; return &r }(),
@@ -86,9 +86,46 @@ var _ = Describe("ApplyConfigToBatchReadPolicy", func() {
 	Context("when applying batch read config to a write policy", func() {
 		It("should update the write policy values based on the batch read dynamic config", func() {
 			// Create the full configuration.
-			config := NewDynConfigForTest(&dynconfig.Config{})
+
+			config := &DynConfig{
+				config: &dynconfig.Config{
+					Dynamic: &dynconfig.DynamicConfig{
+						BatchRead: &dynconfig.BatchRead{
+							ReadModeAp: func() *dynconfig.ReadModeAp {
+								r := dynconfig.ALL
+								return &r
+							}(),
+							ReadModeSc: func() *dynconfig.ReadModeSc {
+								r := dynconfig.ALLOW_UNAVAILABLE
+								return &r
+							}(),
+							Replica: func() *dynconfig.Replica {
+								r := dynconfig.MASTER
+								return &r
+							}(),
+							SleepBetweenRetries: func() *int {
+								d := 1
+								return &d
+							}(),
+							SocketTimeout: func() *int {
+								d := 3
+								return &d
+							}(),
+							TotalTimeout: func() *int {
+								r := 15
+								return &r
+							}(),
+							MaxRetries:          func() *int { r := 5; return &r }(),
+							MaxConcurrentThread: func() *int { r := 5; return &r }(),
+							AllowInline:         func() *bool { r := true; return &r }(),
+							RespondAllKeys:      func() *bool { r := true; return &r }(),
+						},
+					},
+				},
+			}
+
 			config.client = &Client{dynConfig: config}
-			config.client.dynDefaultWritePolicy.Store(NewWritePolicy(0, 0))
+			config.updateCachedPolicies()
 
 			// Create an initial BatchPolicy (used for write operations).
 			batchPolicy := NewBatchPolicy()
@@ -99,18 +136,34 @@ var _ = Describe("ApplyConfigToBatchReadPolicy", func() {
 			Expect(batchPolicy.ReadModeSC).To(Equal(ReadModeSCSession))
 			Expect(batchPolicy.ReadTouchTTLPercent).To(Equal(int32(0)))
 
-			batchReadPolicy := NewBatchReadPolicy()
-			updatedWritePolicy := batchReadPolicy.ToWritePolicyWithConfig(batchPolicy, config)
+			// Apply configuration to BatchPolicy.
+			batchPolicy = config.client.dynDefaultBatchPolicy.Load()
+
+			// Validate the loaded policy.
+			Expect(batchPolicy.ReadModeAP).To(Equal(ReadModeAPAll))
+			Expect(batchPolicy.ReadModeSC).To(Equal(ReadModeSCAllowUnavailable))
+			Expect(batchPolicy.TotalTimeout).To(Equal(15 * time.Millisecond))
+			Expect(batchPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
+			Expect(batchPolicy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
+			Expect(batchPolicy.MaxRetries).To(Equal(5))
+			Expect(batchPolicy.ReplicaPolicy).To(Equal(SEQUENCE))
+			Expect(batchPolicy.SendKey).To(BeFalse())
+			Expect(batchPolicy.UseCompression).To(BeFalse())
+			Expect(batchPolicy.AllowInline).To(BeTrue())
+
+			// Apply the dynamic configuration to the BatchPolicy.
+			batchReadPolicy := config.client.dynDefaultBatchReadPolicy.Load()
+			updatedWritePolicy := batchReadPolicy.ToWritePolicy(batchPolicy, config)
 
 			// Validate applied configuration.
 			Expect(updatedWritePolicy).NotTo(BeNil())
-			Expect(updatedWritePolicy.ReadModeAP).To(Equal(ReadModeAPOne))
-			Expect(updatedWritePolicy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(updatedWritePolicy.ReplicaPolicy).To(Equal(SEQUENCE))
-			Expect(int(updatedWritePolicy.TotalTimeout.Seconds())).To(Equal(1))
-			Expect(int(updatedWritePolicy.SocketTimeout.Seconds())).To(Equal(30))
-			Expect(updatedWritePolicy.MaxRetries).To(Equal(0))
-			Expect(int(updatedWritePolicy.SleepBetweenRetries.Milliseconds())).To(BeNumerically(">", 0))
+			Expect(updatedWritePolicy.ReadModeAP).To(Equal(ReadModeAPAll))
+			Expect(updatedWritePolicy.ReadModeSC).To(Equal(ReadModeSCAllowUnavailable))
+			Expect(updatedWritePolicy.ReplicaPolicy).To(Equal(MASTER))
+			Expect(updatedWritePolicy.TotalTimeout).To(Equal(15 * time.Millisecond))
+			Expect(updatedWritePolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
+			Expect(updatedWritePolicy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
+			Expect(updatedWritePolicy.MaxRetries).To(Equal(5))
 			Expect(updatedWritePolicy.SendKey).To(BeFalse())
 		})
 	})

@@ -88,7 +88,7 @@ var _ = Describe("WritePolicy Config", func() {
 			// Validate the updated policy.
 			Expect(updatedPolicy).ToNot(BeNil())
 			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Millisecond))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
 			Expect(updatedPolicy.DurableDelete).To(BeTrue())
 			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
@@ -151,7 +151,7 @@ var _ = Describe("WritePolicy Config", func() {
 			Expect(updatedPolicy).ToNot(BeNil())
 			// TotalTimeout remains unchanged
 			Expect(updatedPolicy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
 			Expect(updatedPolicy.DurableDelete).To(BeTrue())
 			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))

@@ -18,7 +18,7 @@
 package aerospike
 
 import (
-	"strconv"
+	"fmt"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 )
@@ -44,6 +44,6 @@ func mapReadModeAPToReadModeAP(readModeAP dynconfig.ReadModeAp) ReadModeAP {
 	case dynconfig.ALL:
 		return ReadModeAPAll
 	default:
-		panic("unknown ReadModeAP value: " + strconv.Itoa(int(readModeAP)))
+		panic(fmt.Sprintf("Unknown ReadModeAP value: %v", readModeAP))
 	}
 }

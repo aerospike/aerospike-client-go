@@ -15,7 +15,8 @@
 package aerospike
 
 import (
-	"net/url"
+	"fmt"
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -44,11 +45,11 @@ type DynConfig struct {
 	dsn    string
 }
 
-// TODO: not used consider removing
-func newDynConfig(policy *ClientPolicy) *DynConfig {
-	dynConfig := newDynConfigWithCallBack(policy, nil)
-
-	return dynConfig
+func dsnPattern() *regexp.Regexp {
+	// ^\s*                                    skip any leading spaces or tabs
+	// ([A-Za-z][A-Za-z0-9+.-]*://)?           optionally capture scheme:// (RFC-style)
+	// (.*)                                    capture the rest of the line verbatim
+	return regexp.MustCompile(registry.DSN_REGEX_PATTERN)
 }
 
 func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Config, client *Client)) *DynConfig {
@@ -59,21 +60,34 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 	if policy == nil {
 		policy = NewClientPolicy()
 	}
+	re := dsnPattern()
+	parts := re.FindStringSubmatch(AEROSPIKE_CLIENT_CONFIG_URL)
 
-	parsedUrl, err := url.Parse(AEROSPIKE_CLIENT_CONFIG_URL)
-	if err != nil {
-		logger.Logger.Error("Failed to parse config URL %s. Error: %v", AEROSPIKE_CLIENT_CONFIG_URL, err)
+	if len(parts) < 2 {
+		logger.Logger.Error("Invalid config URL %s. Expected format: [scheme://dsn] | [file path]", AEROSPIKE_CLIENT_CONFIG_URL)
+		return nil
 	}
+	var schema string
+	if parts[1] == "" {
+		schema = registry.DEFAULT_SCHEMA
+	} else {
+		schema = parts[1]
+	}
+	urlPath := parts[2]
 
 	// At this point in time we should have at least one configuration provider in the registry.
-	provider, _ := registry.Get(parsedUrl.Scheme)
+	provider, _ := registry.Get(schema)
+	if provider == nil {
+		logger.Logger.Error("No configuration provider found for scheme %s.", schema)
+		return nil
+	}
 
 	dynConfig := &DynConfig{
 		configWatchChannel: make(chan struct{}),
 		configInitialized:  &atomic.Bool{},
 		metricsCallback:    fn,
-		scheme:             parsedUrl.Scheme,
-		dsn:                parsedUrl.Path,
+		scheme:             schema,
+		dsn:                urlPath,
 		configProvider:     provider,
 	}
 	dynConfig.wgConfig.Add(1)
@@ -134,9 +148,18 @@ func (dc *DynConfig) initConfig() {
 	if loadedConfig != nil {
 		dc.config = loadedConfig // This is updating the entire config object
 	}
+}
 
-	dc.hydrateStaticPolicyFromConfig()
-	dc.hydrateDynamicPolicyFromConfig()
+func (dc *DynConfig) updateCachedPolicies() {
+	// This function is called to update the cached policies in the client.
+	// It is used to ensure that the policies are updated when the config changes.
+
+	if dc.client != nil {
+		dc.hydrateStaticPolicyFromConfig()
+		dc.hydrateDynamicPolicyFromConfig()
+	} else {
+		panic(fmt.Errorf("Client is not set in DynConfig, cannot update cached policies"))
+	}
 }
 
 func (dc *DynConfig) hydrateStaticPolicyFromConfig() {
@@ -157,6 +180,8 @@ func (dc *DynConfig) hydrateDynamicPolicyFromConfig() {
 	dc.client.dynDefaultTxnRollPolicy.Store(dc.generateDynamicTxnRollPolicy())
 	dc.client.dynDefaultTxnVerifyPolicy.Store(dc.generateDynamicTxnVerifyPolicy())
 	dc.client.dynDefaultMetricsPolicy.Store(dc.generateDynamicMetricsPolicy())
+	dc.client.dynDefaultBatchReadBasePolicy.Store(dc.generateDynamicBatchReadBasePolicy())
+	dc.client.dynDefaultBatchWriteBasePolicy.Store(dc.generateDynamicBatchWriteBasePolicy())
 }
 
 func (dc *DynConfig) generateStaticClientPolicy() *ClientPolicy {
@@ -184,6 +209,22 @@ func (dc *DynConfig) generateDynamicWritePolicy() *WritePolicy {
 	policy := NewWritePolicy(0, 0)
 
 	policy = mapDynamicWritePolicy(policy, dc)
+
+	return policy
+}
+
+func (dc *DynConfig) generateDynamicBatchReadBasePolicy() *BasePolicy {
+	policy := NewPolicy()
+
+	policy = mapDynamicBatchReadToBasePolicy(policy, dc)
+
+	return policy
+}
+
+func (dc *DynConfig) generateDynamicBatchWriteBasePolicy() *BasePolicy {
+	policy := NewPolicy()
+
+	policy = mapDynamicBatchWriteToBasePolicy(policy, dc)
 
 	return policy
 }
@@ -292,7 +333,7 @@ func (dc *DynConfig) watchConfig(interval time.Duration) {
 
 	defer dc.wgConfig.Done()
 
-	configInterval := max(interval, 10*time.Millisecond)
+	configInterval := max(interval, 1*time.Second)
 Loop:
 	for {
 		// If the config is not initialized, load it once. This is

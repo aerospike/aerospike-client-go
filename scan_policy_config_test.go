@@ -56,7 +56,6 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 								return &r
 							}(),
 							MaxRetries:         func() *int { r := 3; return &r }(),
-							ConcurrentNodes:    func() *int { r := 200; return &r }(),
 							MaxConcurrentNodes: func() *int { r := 5; return &r }(),
 						},
 					},
@@ -87,15 +86,15 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 			Expect(updatedPolicy).NotTo(BeNil())
 			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPOne))
 			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Second))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Millisecond))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
 			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
 			Expect(updatedPolicy.SleepMultiplier).To(Equal(1.0))
 			Expect(updatedPolicy.IncludeBinData).To(BeTrue())
 			Expect(updatedPolicy.SendKey).To(BeFalse())
 			Expect(updatedPolicy.UseCompression).To(BeFalse())
-			Expect(updatedPolicy.MaxConcurrentNodes).To(Equal(0))
+			Expect(updatedPolicy.MaxConcurrentNodes).To(Equal(5))
 			Expect(updatedPolicy.RecordQueueSize).To(Equal(50))
 			Expect(updatedPolicy.RecordsPerSecond).To(Equal(0))
 			Expect(updatedPolicy.ReplicaPolicy).To(Equal(PREFER_RACK))
@@ -130,7 +129,6 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 								return &d
 							}(),
 							MaxRetries:         func() *int { r := 3; return &r }(),
-							ConcurrentNodes:    func() *int { r := 200; return &r }(),
 							MaxConcurrentNodes: func() *int { r := 5; return &r }(),
 						},
 					},
@@ -159,8 +157,8 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 			// Apply the configuration.
 			updatedPolicy := applyConfigToScanPolicy(policy, config)
 			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
-			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Second))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
+			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Millisecond))
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
 			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
 			// Even if only select fields are configured, SendKey gets overridden.

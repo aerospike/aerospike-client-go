@@ -95,13 +95,13 @@ func mapDynamicTxnRollPolicy(policy *TxnRollPolicy, dynConfig *DynConfig) *TxnRo
 			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnRoll.Replica)
 		}
 		if dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries) * time.Second
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnRoll.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SocketTimeout) * time.Second
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnRoll.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.TotalTimeout) * time.Second
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnRoll.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.TxnRoll.MaxRetries

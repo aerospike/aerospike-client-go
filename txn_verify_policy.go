@@ -93,16 +93,16 @@ func mapDynamicTxnVerifyPolicy(policy *TxnVerifyPolicy, dynConfig *DynConfig) *T
 			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnVerify.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.TxnVerify.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.TotalTimeout) * time.Second
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnVerify.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SocketTimeout) * time.Second
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnVerify.MaxRetries != nil {
 			policy.MaxRetries = *dynConfig.config.Dynamic.TxnVerify.MaxRetries
 		}
 		if dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries) * time.Second
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnVerify.Replica != nil {
 			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnVerify.Replica)

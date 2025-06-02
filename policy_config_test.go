@@ -87,7 +87,7 @@ var _ = Describe("ApplyConfigToBasePolicy", func() {
 			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPAll))
 			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCLinearize))
 			Expect(updatedPolicy.TotalTimeout).To(Equal(5 * time.Millisecond))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
 			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
 			Expect(updatedPolicy.MaxRetries).To(Equal(3))
 			Expect(updatedPolicy.SendKey).To(BeFalse())
@@ -140,7 +140,7 @@ var _ = Describe("ApplyConfigToBasePolicy", func() {
 			// Validate that the selected fields were updated.
 			Expect(updatedPolicy).NotTo(BeNil())
 			Expect(updatedPolicy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Second))
+			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
 			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
 			// MaxRetries should remain at default since it wasn't set in the config.
 			Expect(updatedPolicy.MaxRetries).To(Equal(2))

@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "time"
+
 // BatchWritePolicy attributes used in batch write commands.
 type BatchWritePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -101,31 +103,11 @@ func NewBatchWritePolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchWritePoli
 	return dynConfig.client.dynDefaultBatchWritePolicy.Load()
 }
 
-func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 
-	if bwp != nil {
-		if bwp.FilterExpression != nil {
-			wp.FilterExpression = bwp.FilterExpression
-		}
-		wp.RecordExistsAction = bwp.RecordExistsAction
-		wp.CommitLevel = bwp.CommitLevel
-		wp.GenerationPolicy = bwp.GenerationPolicy
-		wp.Generation = bwp.Generation
-		wp.Expiration = bwp.Expiration
-		wp.DurableDelete = bwp.DurableDelete
-		wp.SendKey = bwp.SendKey
-	}
-
-	return wp
-}
-
-func (bwp *BatchWritePolicy) toWritePolicyWithConfig(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
-	var wp *WritePolicy
-	if dynConfig == nil {
-		wp = bp.toWritePolicy()
-	} else {
-		wp = dynConfig.client.dynDefaultWritePolicy.Load()
+	if dynConfig != nil {
+		wp.BasePolicy = *dynConfig.client.dynDefaultBatchWriteBasePolicy.Load()
 	}
 
 	if bwp != nil {
@@ -190,6 +172,32 @@ func mapDynamicBatchWritePolicy(policy *BatchWritePolicy, dynConfig *DynConfig) 
 		}
 		if dynConfig.config.Dynamic.BatchWrite.SendKey != nil {
 			policy.SendKey = *dynConfig.config.Dynamic.BatchWrite.SendKey
+		}
+	}
+
+	return policy
+}
+
+func mapDynamicBatchWriteToBasePolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return policy
+	}
+
+	if dynConfig.config.Dynamic.BatchWrite != nil {
+		if dynConfig.config.Dynamic.BatchWrite.TotalTimeout != nil {
+			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchWrite.TotalTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchWrite.SocketTimeout != nil {
+			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchWrite.SocketTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchWrite.MaxRetries != nil {
+			policy.MaxRetries = *dynConfig.config.Dynamic.BatchWrite.MaxRetries
+		}
+		if dynConfig.config.Dynamic.BatchWrite.SleepBetweenRetries != nil {
+			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchWrite.SleepBetweenRetries) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchWrite.Replica != nil {
+			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchWrite.Replica)
 		}
 	}
 
