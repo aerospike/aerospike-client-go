@@ -29,12 +29,12 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Scan operations", func() {
-
 	// connection data
 	var ns = *namespace
 	var set = randString(50)
 	var wpolicy = as.NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
+	var scanPolicy = as.NewScanPolicy()
 
 	const keyCount = 1000
 	const ldtElemCount = 10
@@ -127,6 +127,14 @@ var _ = gg.Describe("Scan operations", func() {
 		return counter
 	}
 
+	var getMasterPartitionIds = func(length int) []int {
+		partitionIds := make([]int, length)
+		for i := range partitionIds {
+			partitionIds[i] = rand.Intn(4096)
+		}
+		return partitionIds
+	}
+
 	gg.BeforeEach(func() {
 		keys = make(map[string]*as.Key, keyCount)
 		set = randString(50)
@@ -139,8 +147,6 @@ var _ = gg.Describe("Scan operations", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		}
 	})
-
-	var scanPolicy = as.NewScanPolicy()
 
 	gg.It("must Scan and paginate to get all records back from all partitions concurrently", func() {
 		gm.Expect(len(keys)).To(gm.Equal(keyCount))
@@ -313,6 +319,44 @@ var _ = gg.Describe("Scan operations", func() {
 			}
 		}
 		gm.Expect(len(keys)).To(gm.BeNumerically(">", 0))
+	})
+
+	gg.It("must Scan and get all partition records back for a specified partitions", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
+		previousReplicaValue := scanPolicy.ReplicaPolicy
+
+		// Making sure that the replica policy is set back to original value
+		defer func() {
+			scanPolicy.ReplicaPolicy = previousReplicaValue
+		}()
+
+		for i := 5; i < 1000; i++ {
+			scanPolicy.ReplicaPolicy = as.MASTER
+			partitions := getMasterPartitionIds(i)
+			counter := 0
+
+			pf, _ := as.NewPartitionFilterSelectPartitions(partitions)
+			recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			for res := range recordset.Results() {
+				rec := res.Record
+				key, exists := keys[string(rec.Key.Digest())]
+
+				gm.Expect(exists).To(gm.Equal(true))
+				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
+
+				gm.Expect(key.Value().GetObject()).To(gm.Equal(rec.Key.Value().GetObject()))
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+
+				counter++
+
+				gm.Expect(counter).To(gm.BeNumerically(">", 0))
+				gm.Expect(counter).To(gm.BeNumerically("<", keyCount))
+			}
+		}
 	})
 
 	gg.It("must Scan and get all records back for a specified node using Results() channel", func() {
