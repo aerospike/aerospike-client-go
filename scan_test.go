@@ -324,15 +324,18 @@ var _ = gg.Describe("Scan operations", func() {
 	gg.It("must Scan and get all partition records back for a specified partitions", func() {
 		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 		previousReplicaValue := scanPolicy.ReplicaPolicy
+		previousMaxRecordsValue := scanPolicy.MaxRecords
 
 		// Making sure that the replica policy is set back to original value
 		defer func() {
 			scanPolicy.ReplicaPolicy = previousReplicaValue
+			scanPolicy.MaxRecords = previousMaxRecordsValue
 		}()
 
 		for i := 5; i < 1000; i++ {
 			scanPolicy.ReplicaPolicy = as.MASTER
 			partitions := getMasterPartitionIds(i)
+			scanPolicy.MaxRecords = 1
 			counter := 0
 
 			pf, _ := as.NewPartitionFilterSelectPartitions(partitions)

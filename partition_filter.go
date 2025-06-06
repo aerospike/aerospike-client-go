@@ -84,7 +84,10 @@ func NewPartitionFilterSelectPartitions(partitionIds []int) (*PartitionFilter, e
 	}
 	partitionCount := maxPartitionId - minPartitionId
 	partitionFilter := newPartitionFilter(minPartitionId, partitionCount)
-	slices.Sort(partitionIds)
+
+	sortedPartitions := make([]int, len(partitionIds))
+	copy(sortedPartitions, partitionIds)
+	slices.Sort(sortedPartitions)
 
 	partsAll := make([]*PartitionStatus, partitionCount+1)
 	// initialize all partitions
@@ -92,7 +95,7 @@ func NewPartitionFilterSelectPartitions(partitionIds []int) (*PartitionFilter, e
 		partsAll[i] = nil
 	}
 
-	for _, value := range partitionIds {
+	for _, value := range sortedPartitions {
 		index := value - minPartitionId
 		partsAll[index] = newPartitionStatus(value)
 	}
