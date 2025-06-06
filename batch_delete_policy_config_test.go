@@ -90,7 +90,7 @@ var _ = Describe("ApplyConfigToBatchDeletePolicy", func() {
 			Expect(batchPolicy.ReadTouchTTLPercent).To(Equal(int32(0)))
 
 			batchDeletePolicy := NewBatchDeletePolicy()
-			updatedWritePolicy := batchDeletePolicy.toWritePolicyWithConfig(batchPolicy, config)
+			updatedWritePolicy := batchDeletePolicy.toWritePolicy(batchPolicy, config)
 
 			// Validate applied configuration.
 			Expect(updatedWritePolicy).NotTo(BeNil())

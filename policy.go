@@ -230,7 +230,7 @@ func applyConfigToBasePolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePoli
 		return policy
 	}
 
-	config := dynConfig.getConfigIfNotInitialized()
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.

@@ -259,10 +259,10 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 			policy.RespondPerEachOp = true
 			res, err = client.Operate(policy, br.Key, br.Ops...)
 		case *BatchDelete:
-			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicyWithConfig(cmd.policy, client.dynConfig)
+			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
 			res, err = client.Operate(policy, br.Key, DeleteOp())
 		case *BatchUDF:
-			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicyWithConfig(cmd.policy, client.dynConfig)
+			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
 			policy.RespondPerEachOp = true
 			res, err = client.execute(policy, br.Key, br.PackageName, br.FunctionName, br.FunctionArgs...)
 		}

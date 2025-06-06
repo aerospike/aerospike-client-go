@@ -66,23 +66,7 @@ func NewBatchDeletePolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchDeletePo
 	return dynConfig.client.dynDefaultBatchDeletePolicy.Load()
 }
 
-func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
-	wp := bp.toWritePolicy()
-
-	if bdp != nil {
-		if bdp.FilterExpression != nil {
-			wp.FilterExpression = bdp.FilterExpression
-		}
-		wp.CommitLevel = bdp.CommitLevel
-		wp.GenerationPolicy = bdp.GenerationPolicy
-		wp.Generation = bdp.Generation
-		wp.DurableDelete = bdp.DurableDelete
-		wp.SendKey = bdp.SendKey
-	}
-	return wp
-}
-
-func (bdp *BatchDeletePolicy) toWritePolicyWithConfig(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
+func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 
 	if bdp != nil {
@@ -131,7 +115,7 @@ func applyConfigToBatchDeletePolicy(policy *BatchDeletePolicy, dynConfig *DynCon
 		return policy
 	}
 
-	config := dynConfig.getConfigIfNotInitialized()
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.

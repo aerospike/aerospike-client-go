@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"runtime/debug"
@@ -103,13 +104,9 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 func (dc *DynConfig) loadConfig() {
 	dc.lock.Lock()
 	defer dc.lock.Unlock()
-	registry.ConfigProvidersMu.Lock()
-	defer registry.ConfigProvidersMu.Unlock()
 
 	if !dc.configInitialized.Load() && dc.configProvider != nil {
-		logger.Logger.Debug("Initializing configuration...")
 		dc.initConfig()
-		dc.configInitialized.Store(true)
 	} else {
 		dc.providerLoadConfig()
 	}
@@ -130,14 +127,23 @@ func (dc *DynConfig) runCallBack() {
 func (dc *DynConfig) providerLoadConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
 	if loadedConfig != nil {
-		dc.config.Dynamic = loadedConfig.Dynamic // This is updating the entire dynamic config object
-
 		if dc.config.Dynamic == nil {
 			logger.Logger.Warn("Dynamic configuration is enabled and configuration is empty. Configuration will load default policy values.")
 		}
 
+		dc.config.Dynamic = loadedConfig.Dynamic // This is updating the entire dynamic config object
+
 		dc.hydrateDynamicPolicyFromConfig()
 		logger.Logger.Debug("Dynamic configuration updated internal state from provider.")
+		if logger.Logger.IsLogLevelEnabled(logger.DEBUG) {
+			// Log the configuration in debug mode
+			configJSON, err := json.Marshal(dc.config)
+			if err != nil {
+				logger.Logger.Error("Failed to marshal config to JSON: %v", err)
+			} else {
+				logger.Logger.Debug("Updated dynamic configuration: '%s'", string(configJSON))
+			}
+		}
 	}
 }
 
@@ -147,6 +153,23 @@ func (dc *DynConfig) initConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
 	if loadedConfig != nil {
 		dc.config = loadedConfig // This is updating the entire config object
+
+		if dc.client != nil {
+			dc.hydrateStaticPolicyFromConfig()
+			dc.hydrateDynamicPolicyFromConfig()
+		}
+
+		dc.configInitialized.Store(true)
+		logger.Logger.Debug("Dynamic configuration initialized...")
+		if logger.Logger.IsLogLevelEnabled(logger.DEBUG) {
+			// Log the configuration in debug mode
+			configJSON, err := json.Marshal(dc.config)
+			if err != nil {
+				logger.Logger.Error("Failed to marshal config to JSON: %v", err)
+			} else {
+				logger.Logger.Debug("Updated dynamic configuration: '%s'", string(configJSON))
+			}
+		}
 	}
 }
 
@@ -182,6 +205,7 @@ func (dc *DynConfig) hydrateDynamicPolicyFromConfig() {
 	dc.client.dynDefaultMetricsPolicy.Store(dc.generateDynamicMetricsPolicy())
 	dc.client.dynDefaultBatchReadBasePolicy.Store(dc.generateDynamicBatchReadBasePolicy())
 	dc.client.dynDefaultBatchWriteBasePolicy.Store(dc.generateDynamicBatchWriteBasePolicy())
+
 }
 
 func (dc *DynConfig) generateStaticClientPolicy() *ClientPolicy {
@@ -206,7 +230,14 @@ func (dc *DynConfig) generateDynamicClientPolicy() *ClientPolicy {
 }
 
 func (dc *DynConfig) generateDynamicWritePolicy() *WritePolicy {
-	policy := NewWritePolicy(0, 0)
+	var policy *WritePolicy
+	if dc.client != nil && dc.client.DefaultWritePolicy != nil {
+		// Not going go make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyWritePolicy(dc.client.DefaultWritePolicy)
+	} else {
+		policy = NewWritePolicy(0, 0)
+	}
 
 	policy = mapDynamicWritePolicy(policy, dc)
 
@@ -214,7 +245,14 @@ func (dc *DynConfig) generateDynamicWritePolicy() *WritePolicy {
 }
 
 func (dc *DynConfig) generateDynamicBatchReadBasePolicy() *BasePolicy {
-	policy := NewPolicy()
+	var policy *BasePolicy
+	if dc.client != nil && dc.client.DefaultBatchReadPolicy != nil {
+		// Not going go make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyBasePolicy(&dc.client.DefaultBatchPolicy.BasePolicy)
+	} else {
+		policy = NewPolicy()
+	}
 
 	policy = mapDynamicBatchReadToBasePolicy(policy, dc)
 
@@ -222,7 +260,14 @@ func (dc *DynConfig) generateDynamicBatchReadBasePolicy() *BasePolicy {
 }
 
 func (dc *DynConfig) generateDynamicBatchWriteBasePolicy() *BasePolicy {
-	policy := NewPolicy()
+	var policy *BasePolicy
+	if dc.client != nil && dc.client.DefaultBatchWritePolicy != nil {
+		// Not going go make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyBasePolicy(&dc.client.DefaultBatchPolicy.BasePolicy)
+	} else {
+		policy = NewPolicy()
+	}
 
 	policy = mapDynamicBatchWriteToBasePolicy(policy, dc)
 
@@ -230,7 +275,14 @@ func (dc *DynConfig) generateDynamicBatchWriteBasePolicy() *BasePolicy {
 }
 
 func (dc *DynConfig) generateDynamicReadPolicy() *BasePolicy {
-	policy := NewPolicy()
+	var policy *BasePolicy
+	if dc.client != nil && dc.client.DefaultPolicy != nil {
+		// Not going to make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyBasePolicy(dc.client.DefaultPolicy)
+	} else {
+		policy = NewPolicy()
+	}
 
 	policy = mapDynamicReadPolicy(policy, dc)
 
@@ -238,7 +290,15 @@ func (dc *DynConfig) generateDynamicReadPolicy() *BasePolicy {
 }
 
 func (dc *DynConfig) generateDynamicQueryPolicy() *QueryPolicy {
-	policy := NewQueryPolicy()
+	var policy *QueryPolicy
+	if dc.client != nil && dc.client.DefaultQueryPolicy != nil {
+		// Not going to make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyQueryPolicy(dc.client.DefaultQueryPolicy)
+	} else {
+		// If no default query policy is set, create a new one.
+		policy = NewQueryPolicy()
+	}
 
 	policy = mapDynamicQueryPolicy(policy, dc)
 
@@ -246,7 +306,15 @@ func (dc *DynConfig) generateDynamicQueryPolicy() *QueryPolicy {
 }
 
 func (dc *DynConfig) generateDynamicScanPolicy() *ScanPolicy {
-	policy := NewScanPolicy()
+	var policy *ScanPolicy
+	if dc.client != nil && dc.client.DefaultScanPolicy != nil {
+		// Not going to make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyScanPolicy(dc.client.DefaultScanPolicy)
+	} else {
+		// If no default scan policy is set, create a new one.
+		policy = NewScanPolicy()
+	}
 
 	policy = mapDynamicScanPolicy(policy, dc)
 
@@ -254,7 +322,15 @@ func (dc *DynConfig) generateDynamicScanPolicy() *ScanPolicy {
 }
 
 func (dc *DynConfig) generateDynamicBatchWritePolicy() *BatchWritePolicy {
-	policy := NewBatchWritePolicy()
+	var policy *BatchWritePolicy
+	if dc.client != nil && dc.client.DefaultBatchWritePolicy != nil {
+		// Not going to make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyBatchWritePolicy(dc.client.DefaultBatchWritePolicy)
+	} else {
+		// If no default batch write policy is set, create a new one.
+		policy = NewBatchWritePolicy()
+	}
 
 	policy = mapDynamicBatchWritePolicy(policy, dc)
 
@@ -262,7 +338,15 @@ func (dc *DynConfig) generateDynamicBatchWritePolicy() *BatchWritePolicy {
 }
 
 func (dc *DynConfig) generateDynamicBatchReadPolicy() *BatchReadPolicy {
-	policy := NewBatchReadPolicy()
+	var policy *BatchReadPolicy
+	if dc.client != nil && dc.client.DefaultBatchReadPolicy != nil {
+		// Not going to make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyBatchReadPolicy(dc.client.DefaultBatchReadPolicy)
+	} else {
+		// If no default batch read policy is set, create a new one.
+		policy = NewBatchReadPolicy()
+	}
 
 	policy = mapDynamicBatchReadPolicy(policy, dc)
 
@@ -270,7 +354,15 @@ func (dc *DynConfig) generateDynamicBatchReadPolicy() *BatchReadPolicy {
 }
 
 func (dc *DynConfig) generateDynamicTxnRollPolicy() *TxnRollPolicy {
-	policy := NewTxnRollPolicy()
+	var policy *TxnRollPolicy
+	if dc.client != nil && dc.client.DefaultTxnRollPolicy != nil {
+		// Not going to make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyTxnRollPolicy(dc.client.DefaultTxnRollPolicy)
+	} else {
+		// If no default txn roll policy is set, create a new one.
+		policy = NewTxnRollPolicy()
+	}
 
 	policy = mapDynamicTxnRollPolicy(policy, dc)
 
@@ -278,7 +370,15 @@ func (dc *DynConfig) generateDynamicTxnRollPolicy() *TxnRollPolicy {
 }
 
 func (dc *DynConfig) generateDynamicTxnVerifyPolicy() *TxnVerifyPolicy {
-	policy := NewTxnVerifyPolicy()
+	var policy *TxnVerifyPolicy
+	if dc.client != nil && dc.client.DefaultTxnVerifyPolicy != nil {
+		// Not going to make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyTxnVerifyPolicy(dc.client.DefaultTxnVerifyPolicy)
+	} else {
+		// If no default txn verify policy is set, create a new one.
+		policy = NewTxnVerifyPolicy()
+	}
 
 	policy = mapDynamicTxnVerifyPolicy(policy, dc)
 
@@ -286,7 +386,15 @@ func (dc *DynConfig) generateDynamicTxnVerifyPolicy() *TxnVerifyPolicy {
 }
 
 func (dc *DynConfig) generateDynamicBatchDeletePolicy() *BatchDeletePolicy {
-	policy := NewBatchDeletePolicy()
+	var policy *BatchDeletePolicy
+	if dc.client != nil && dc.client.DefaultBatchDeletePolicy != nil {
+		// Not going to make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyBatchDeletePolicy(dc.client.DefaultBatchDeletePolicy)
+	} else {
+		// If no default batch delete policy is set, create a new one.
+		policy = NewBatchDeletePolicy()
+	}
 
 	policy = mapDynamicBatchDeletePolicy(policy, dc)
 
@@ -294,7 +402,15 @@ func (dc *DynConfig) generateDynamicBatchDeletePolicy() *BatchDeletePolicy {
 }
 
 func (dc *DynConfig) generateDynamicBatchUdfPolicy() *BatchUDFPolicy {
-	policy := NewBatchUDFPolicy()
+	var policy *BatchUDFPolicy
+	if dc.client != nil && dc.client.DefaultBatchUDFPolicy != nil {
+		// Not going to make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyBatchUDFPolicy(dc.client.DefaultBatchUDFPolicy)
+	} else {
+		// If no default batch udf policy is set, create a new one.
+		policy = NewBatchUDFPolicy()
+	}
 
 	policy = mapDynamicBatchUdfPolicy(policy, dc)
 
@@ -302,7 +418,15 @@ func (dc *DynConfig) generateDynamicBatchUdfPolicy() *BatchUDFPolicy {
 }
 
 func (dc *DynConfig) generateDynamicBatchPolicy() *BatchPolicy {
-	policy := NewBatchPolicy()
+	var policy *BatchPolicy
+	if dc.client != nil && dc.client.DefaultBatchPolicy != nil {
+		// Not going to make changes to policy user has set but will create a copy of it
+		// and apply dynamic configuration to it. The copy of the merged policy will be returned
+		policy = copyBatchPolicy(dc.client.DefaultBatchPolicy)
+	} else {
+		// If no default batch policy is set, create a new one.
+		policy = NewBatchPolicy()
+	}
 
 	policy = mapDynamicBatchPolicy(policy, dc)
 
@@ -336,19 +460,6 @@ func (dc *DynConfig) watchConfig(interval time.Duration) {
 	configInterval := max(interval, 1*time.Second)
 Loop:
 	for {
-		// If the config is not initialized, load it once. This is
-		// important for the first time the config is loaded.
-		if !dc.configInitialized.Load() {
-			logger.Logger.Debug("Initializing configuration...")
-			tm := time.Now()
-			dc.loadConfig()
-			if configDuration := time.Since(tm); configDuration > interval {
-				logger.Logger.Warn("Reload took %s, but your requested ConfigInterval is %s. "+
-					"Reload is slower than the interval and may fall behind changes.",
-					configDuration, interval)
-			}
-		}
-
 		select {
 		case <-dc.configWatchChannel:
 			logger.Logger.Debug("Watch config channel closed. Stopping watch goroutine.")
@@ -363,8 +474,8 @@ Loop:
 	}
 }
 
-// getConfigIfNotInitialized is used to get the config if it is not initialized yet.
-func (dc *DynConfig) getConfigIfNotInitialized() *dynconfig.Config {
+// getConfigIfNotLoadedOrInitialized is used to get the config if it is not initialized yet.
+func (dc *DynConfig) getConfigIfNotLoadedOrInitialized() *dynconfig.Config {
 	config := dc.config
 
 	if config == nil && !dc.configInitialized.Load() {

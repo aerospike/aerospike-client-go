@@ -107,7 +107,7 @@ func applyConfigToMetricsPolicyCore(policy *MetricsPolicy, dynConfig *DynConfig)
 		return policy
 	}
 
-	config := dynConfig.getConfigIfNotInitialized()
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
 	if config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil {
 		var responsePolicy *MetricsPolicy

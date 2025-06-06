@@ -183,6 +183,9 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	if dynConfig != nil {
 		// Running the callback function to load functionalities dependent on
 		// the instance of client.
+		dynConfig.lock.Lock()
+		defer dynConfig.lock.Unlock()
+
 		dynConfig.client = client
 		dynConfig.updateCachedPolicies()
 		dynConfig.runCallBack()
@@ -201,7 +204,8 @@ func (clnt *Client) GetDefaultPolicy() *BasePolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultPolicy
 	} else {
-		return clnt.dynDefaultPolicy.Load()
+		response := *clnt.dynDefaultPolicy.Load()
+		return &response
 	}
 }
 
@@ -210,8 +214,8 @@ func (clnt *Client) GetDefaultBatchPolicy() *BatchPolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultBatchPolicy
 	} else {
-
-		return clnt.dynDefaultBatchPolicy.Load()
+		response := *clnt.dynDefaultBatchPolicy.Load()
+		return &response
 	}
 }
 
@@ -220,7 +224,8 @@ func (clnt *Client) GetDefaultBatchWritePolicy() *BatchWritePolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultBatchWritePolicy
 	} else {
-		return clnt.dynDefaultBatchWritePolicy.Load()
+		response := *clnt.dynDefaultBatchWritePolicy.Load()
+		return &response
 	}
 }
 
@@ -229,7 +234,8 @@ func (clnt *Client) GetDefaultBatchReadPolicy() *BatchReadPolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultBatchReadPolicy
 	} else {
-		return clnt.dynDefaultBatchReadPolicy.Load()
+		response := *clnt.dynDefaultBatchReadPolicy.Load()
+		return &response
 	}
 }
 
@@ -238,7 +244,8 @@ func (clnt *Client) GetDefaultBatchDeletePolicy() *BatchDeletePolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultBatchDeletePolicy
 	} else {
-		return clnt.dynDefaultBatchDeletePolicy.Load()
+		response := *clnt.dynDefaultBatchDeletePolicy.Load()
+		return &response
 	}
 }
 
@@ -247,7 +254,8 @@ func (clnt *Client) GetDefaultBatchUDFPolicy() *BatchUDFPolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultBatchUDFPolicy
 	} else {
-		return clnt.dynDefaultBatchUDFPolicy.Load()
+		response := *clnt.dynDefaultBatchUDFPolicy.Load()
+		return &response
 	}
 }
 
@@ -256,7 +264,8 @@ func (clnt *Client) GetDefaultWritePolicy() *WritePolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultWritePolicy
 	} else {
-		return clnt.dynDefaultWritePolicy.Load()
+		response := *clnt.dynDefaultWritePolicy.Load()
+		return &response
 	}
 }
 
@@ -265,7 +274,8 @@ func (clnt *Client) GetDefaultScanPolicy() *ScanPolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultScanPolicy
 	} else {
-		return clnt.dynDefaultScanPolicy.Load()
+		response := *clnt.dynDefaultScanPolicy.Load()
+		return &response
 	}
 }
 
@@ -274,7 +284,8 @@ func (clnt *Client) GetDefaultQueryPolicy() *QueryPolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultQueryPolicy
 	} else {
-		return clnt.dynDefaultQueryPolicy.Load()
+		response := *clnt.dynDefaultQueryPolicy.Load()
+		return &response
 	}
 }
 
@@ -293,7 +304,8 @@ func (clnt *Client) GetDefaultTxnVerifyPolicy() *TxnVerifyPolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultTxnVerifyPolicy
 	} else {
-		return clnt.dynDefaultTxnVerifyPolicy.Load()
+		response := *clnt.dynDefaultTxnVerifyPolicy.Load()
+		return &response
 	}
 }
 
@@ -302,7 +314,8 @@ func (clnt *Client) GetDefaultTxnRollPolicy() *TxnRollPolicy {
 	if clnt.dynConfig == nil {
 		return clnt.DefaultTxnRollPolicy
 	} else {
-		return clnt.dynDefaultTxnRollPolicy.Load()
+		response := *clnt.dynDefaultTxnRollPolicy.Load()
+		return &response
 	}
 }
 

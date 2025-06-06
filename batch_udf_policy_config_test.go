@@ -90,7 +90,7 @@ var _ = Describe("ApplyConfigToBatchUDFPolicy", func() {
 			Expect(batchPolicy.ReadTouchTTLPercent).To(Equal(int32(0)))
 
 			batchUdfPolicy := NewBatchUDFPolicy()
-			updatedWritePolicy := batchUdfPolicy.toWritePolicyWithConfig(batchPolicy, config)
+			updatedWritePolicy := batchUdfPolicy.toWritePolicy(batchPolicy, config)
 
 			// Validate applied configuration.
 			Expect(updatedWritePolicy).NotTo(BeNil())

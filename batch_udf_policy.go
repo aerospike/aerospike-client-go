@@ -74,22 +74,7 @@ func NewBatchUdfPolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchUDFPolicy {
 	return dynConfig.client.dynDefaultBatchUDFPolicy.Load()
 }
 
-func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
-	wp := bp.toWritePolicy()
-
-	if bup != nil {
-		if bup.FilterExpression != nil {
-			wp.FilterExpression = bup.FilterExpression
-		}
-		wp.CommitLevel = bup.CommitLevel
-		wp.Expiration = bup.Expiration
-		wp.DurableDelete = bup.DurableDelete
-		wp.SendKey = bup.SendKey
-	}
-	return wp
-}
-
-func (bup *BatchUDFPolicy) toWritePolicyWithConfig(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
+func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 
 	if bup != nil {
@@ -137,7 +122,7 @@ func applyConfigToBatchUDFPolicy(policy *BatchUDFPolicy, dynConfig *DynConfig) *
 		return policy
 	}
 
-	config := dynConfig.getConfigIfNotInitialized()
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.

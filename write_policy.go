@@ -130,7 +130,7 @@ func applyConfigToWritePolicy(policy *WritePolicy, dynConfig *DynConfig) *WriteP
 		return policy
 	}
 
-	config := dynConfig.getConfigIfNotInitialized()
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
 	// If no policy is passed in, we don't need to map. Just returned what is in mapped cache already.
 	if policy == nil {

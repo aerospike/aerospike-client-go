@@ -316,7 +316,7 @@ func applyConfigToClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *Clie
 		return policy
 	}
 
-	config := dynConfig.getConfigIfNotInitialized()
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
 	if config != nil && ((config.Dynamic != nil && config.Dynamic.Client != nil) || (config.Static != nil && config.Static.Client != nil)) {
 		// Dynamic configuration is exists for policy in question.

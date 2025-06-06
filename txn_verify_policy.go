@@ -62,7 +62,7 @@ func applyConfigToTxnVerifyPolicy(policy *TxnVerifyPolicy, dynConfig *DynConfig)
 		return policy
 	}
 
-	config := dynConfig.getConfigIfNotInitialized()
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
 	if policy == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.

@@ -16,6 +16,7 @@ package provider
 
 import (
 	"os"
+	"strings"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -27,8 +28,7 @@ import (
 const driverName = "file://"
 
 type YamlConfigProvider struct {
-	configFilePath string
-	oldModTime     time.Time
+	oldModTime time.Time
 }
 
 // Register the YamlConfigProvider with the configuration provider registry
@@ -37,12 +37,12 @@ func init() {
 }
 
 func NewYamlConfigProvider() dynconfig.ConfigProvider {
-	return &YamlConfigProvider{}
+	return &YamlConfigProvider{oldModTime: time.Time{}}
 }
 
 func NewYamlConfigProviderWithPath(configFilePath string) dynconfig.ConfigProvider {
 	return &YamlConfigProvider{
-		configFilePath: configFilePath,
+		oldModTime: time.Time{},
 	}
 }
 
@@ -51,7 +51,7 @@ func (yc *YamlConfigProvider) LoadConfig(filePath string) *dynconfig.Config {
 	// Get the file info
 	info, err := os.Stat(filePath)
 	if err != nil {
-		logger.Logger.Error("Failed to stat file %s. Error: %v", filePath, err)
+		logger.Logger.Error("File %s could not be found. Error: %v", filePath, err)
 		return nil
 	}
 
@@ -59,7 +59,6 @@ func (yc *YamlConfigProvider) LoadConfig(filePath string) *dynconfig.Config {
 	// Compare to previously stored modTime
 	if modTime.After(yc.oldModTime) {
 		yc.oldModTime = modTime
-
 		data, err := os.ReadFile(filePath)
 		if err != nil {
 			logger.Logger.Error("Failed to read file %s. Error: %v", filePath, err)
@@ -68,10 +67,12 @@ func (yc *YamlConfigProvider) LoadConfig(filePath string) *dynconfig.Config {
 
 		var config dynconfig.Config
 		if err := yaml.Unmarshal(data, &config); err != nil {
-			logger.Logger.Error("Failed to serialize file %s to object. Error: %v", filePath, err)
+			logger.Logger.Error("Failed to serialize file %s to object. Error: %s",
+				filePath, strings.ReplaceAll(err.Error(), "\n", " "))
+			return nil
+		} else {
+			return &config
 		}
-
-		return &config
 	}
 
 	return nil
