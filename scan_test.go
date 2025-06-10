@@ -48,29 +48,28 @@ var _ = gg.Describe("Scan operations", func() {
 	// if cancelCnt is set, it will cancel the scan after specified record count
 	var checkResults = func(recordset *as.Recordset, cancelCnt int, rawCDT bool) int {
 		counter := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			key, exists := keys[string(rec.Key.Digest())]
 
 			gm.Expect(exists).To(gm.Equal(true))
 			gm.Expect(key.Value().GetObject()).To(gm.Equal(rec.Key.Value().GetObject()))
 
-			gm.Expect(res.Record.Bins[bin3.Name]).NotTo(gm.BeNil())
-			gm.Expect(res.Record.Bins[bin4.Name]).NotTo(gm.BeNil())
+			gm.Expect(rec.Bins[bin3.Name]).NotTo(gm.BeNil())
+			gm.Expect(rec.Bins[bin4.Name]).NotTo(gm.BeNil())
 			if rawCDT {
-				gm.Expect(res.Record.Bins[bin3.Name].(*as.RawBlobValue).ParticleType).To(gm.Equal(particleType.MAP))
-				gm.Expect(res.Record.Bins[bin4.Name].(*as.RawBlobValue).ParticleType).To(gm.Equal(particleType.LIST))
+				gm.Expect(rec.Bins[bin3.Name].(*as.RawBlobValue).ParticleType).To(gm.Equal(particleType.MAP))
+				gm.Expect(rec.Bins[bin4.Name].(*as.RawBlobValue).ParticleType).To(gm.Equal(particleType.LIST))
 
 				// rewrite the record to the database to see if the values are correctly written
-				err := client.Put(nil, res.Record.Key, res.Record.Bins)
+				err := client.Put(nil, rec.Key, rec.Bins)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 			} else {
 				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
 				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-				gm.Expect(res.Record.Bins[bin3.Name]).To(gm.Equal(map[interface{}]interface{}{"1": 1, "2": 2}))
-				gm.Expect(res.Record.Bins[bin4.Name]).To(gm.Equal([]interface{}{1, 2, 3}))
+				gm.Expect(rec.Bins[bin3.Name]).To(gm.Equal(map[interface{}]interface{}{"1": 1, "2": 2}))
+				gm.Expect(rec.Bins[bin4.Name]).To(gm.Equal([]interface{}{1, 2, 3}))
 
 				delete(keys, string(rec.Key.Digest()))
 			}
@@ -275,15 +274,15 @@ var _ = gg.Describe("Scan operations", func() {
 			recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
 				// the key itself should not be returned
-				gm.Expect(bytes.Equal(rkey.Digest(), res.Record.Key.Digest())).To(gm.BeFalse())
+				gm.Expect(bytes.Equal(rkey.Digest(), rec.Key.Digest())).To(gm.BeFalse())
 
-				delete(keys, string(res.Record.Key.Digest()))
+				delete(keys, string(rec.Key.Digest()))
 
 				counter++
 			}
@@ -305,12 +304,12 @@ var _ = gg.Describe("Scan operations", func() {
 			recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-				delete(keys, string(res.Record.Key.Digest()))
+				delete(keys, string(rec.Key.Digest()))
 
 				counter++
 
@@ -343,12 +342,11 @@ var _ = gg.Describe("Scan operations", func() {
 
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			for res := range recordset.Results() {
-				rec := res.Record
+			for rec, err := range recordset.Records() {
 				key, exists := keys[string(rec.Key.Digest())]
 
 				gm.Expect(exists).To(gm.Equal(true))
-				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
+				gm.Expect(err).NotTo(gm.HaveOccurred())
 
 				gm.Expect(key.Value().GetObject()).To(gm.Equal(rec.Key.Value().GetObject()))
 				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
@@ -370,16 +368,16 @@ var _ = gg.Describe("Scan operations", func() {
 			recordset, err := client.ScanNode(scanPolicy, node, ns, set)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			for res := range recordset.Results() {
-				gm.Expect(res.Err).NotTo(gm.HaveOccurred())
-				key, exists := keys[string(res.Record.Key.Digest())]
+			for rec, err := range recordset.Records() {
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				key, exists := keys[string(rec.Key.Digest())]
 
 				gm.Expect(exists).To(gm.Equal(true))
-				gm.Expect(key.Value().GetObject()).To(gm.Equal(res.Record.Key.Value().GetObject()))
-				gm.Expect(res.Record.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
-				gm.Expect(res.Record.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+				gm.Expect(key.Value().GetObject()).To(gm.Equal(rec.Key.Value().GetObject()))
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-				delete(keys, string(res.Record.Key.Digest()))
+				delete(keys, string(rec.Key.Digest()))
 
 				counter++
 			}
@@ -434,16 +432,15 @@ var _ = gg.Describe("Scan operations", func() {
 		recordset, err := client.ScanAll(sp, ns, set)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
-			rec := res.Record
+		for rec, err := range recordset.Records() {
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			key, exists := keys[string(rec.Key.Digest())]
 
 			gm.Expect(exists).To(gm.Equal(true))
 			gm.Expect(key.Value().GetObject()).To(gm.Equal(rec.Key.Value().GetObject()))
 			gm.Expect(len(rec.Bins)).To(gm.Equal(0))
 
-			delete(keys, string(res.Record.Key.Digest()))
+			delete(keys, string(rec.Key.Digest()))
 		}
 
 		gm.Expect(len(keys)).To(gm.Equal(0))
@@ -504,9 +501,9 @@ var _ = gg.Describe("Scan operations", func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
 		counter := 0
-		for res := range recordset.Results() {
-			gm.Expect(res.Err).To(gm.HaveOccurred())
-			gm.Expect(res.Err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+		for _, err := range recordset.Records() {
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
 		}
 
 		gm.Expect(counter).To(gm.Equal(0))
