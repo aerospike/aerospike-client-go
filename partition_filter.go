@@ -18,6 +18,8 @@ package aerospike
 import (
 	"bytes"
 	"encoding/gob"
+	"slices"
+	"strconv"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
@@ -65,6 +67,41 @@ func NewPartitionFilterByRange(begin, count int) *PartitionFilter {
 // is not sufficient to determine a cursor in a secondary index query.
 func NewPartitionFilterByKey(key *Key) *PartitionFilter {
 	return &PartitionFilter{Begin: key.PartitionId(), Count: 1, Digest: key.Digest()}
+}
+
+func NewPartitionFilterSelectPartitions(partitionIds []int) (*PartitionFilter, error) {
+	minPartitionId := _PARTITIONS
+	maxPartitionId := 0
+
+	// Need to find min and max partition ids to know what the range or partitions is
+	for _, id := range partitionIds {
+		if id < 0 || id >= _PARTITIONS {
+			return nil, newError(types.PARAMETER_ERROR, "Partition id out of range: %d", strconv.Itoa(id))
+		}
+
+		minPartitionId = min(minPartitionId, id)
+		maxPartitionId = max(maxPartitionId, id)
+	}
+	partitionCount := maxPartitionId - minPartitionId
+	partitionFilter := newPartitionFilter(minPartitionId, partitionCount)
+
+	sortedPartitions := make([]int, len(partitionIds))
+	copy(sortedPartitions, partitionIds)
+	slices.Sort(sortedPartitions)
+
+	partsAll := make([]*PartitionStatus, partitionCount+1)
+	// initialize all partitions
+	for i := range partsAll {
+		partsAll[i] = nil
+	}
+
+	for _, value := range sortedPartitions {
+		index := value - minPartitionId
+		partsAll[index] = newPartitionStatus(value)
+	}
+
+	partitionFilter.Partitions = partsAll
+	return partitionFilter, nil
 }
 
 func newPartitionFilter(begin, count int) *PartitionFilter {
