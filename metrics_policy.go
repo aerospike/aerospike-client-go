@@ -80,12 +80,12 @@ func DefaultMetricsPolicyWithLabels(pairs ...map[string]string) *MetricsPolicy {
 }
 
 // copyMetricsPolicy creates a new BasePolicy instance and copies the values from the source policy.
-func copyMetricsPolicy(src *MetricsPolicy) *MetricsPolicy {
-	if src == nil {
+func (mp *MetricsPolicy) copy() *MetricsPolicy {
+	if mp == nil {
 		return nil
 	}
 
-	response := *src
+	response := *mp
 	return &response
 }
 
@@ -94,69 +94,47 @@ func copyMetricsPolicy(src *MetricsPolicy) *MetricsPolicy {
 func metricsSyncCallBack(config *dynconfig.Config, client *Client) {
 	// Metrics are not enabled but configuration is set to enable metrics
 	if client != nil && !client.MetricsEnabled() && config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil && *config.Dynamic.Metrics.Enable {
-		client.cluster.EnableMetrics(applyConfigToMetricsPolicyNoLock(nil, client.dynConfig))
+		client.cluster.EnableMetrics(client.dynDefaultMetricsPolicy.Load())
 	} else if client != nil && client.MetricsEnabled() && config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil && !*config.Dynamic.Metrics.Enable {
 		// Metrics are enabled but configuration is set to disable metrics
 		client.cluster.DisableMetrics()
 	}
 }
 
-// applyConfigToMetricsPolicyCore implements the configuration logic without locking.
-func applyConfigToMetricsPolicyCore(policy *MetricsPolicy, dynConfig *DynConfig) *MetricsPolicy {
+// patchDynamic implements the configuration logic without locking.
+func (mp *MetricsPolicy) patchDynamic(dynConfig *DynConfig) *MetricsPolicy {
 	if dynConfig == nil {
-		return policy
+		return mp
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
 	if config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil {
-		var responsePolicy *MetricsPolicy
-		if policy != nil {
+		if mp != nil {
 			// Copy the existing policy to preserve custom settings.
-			responsePolicy = copyMetricsPolicy(policy)
-			responsePolicy = mapDynamicMetricsPolicy(responsePolicy, dynConfig)
-
-			// If we have found entry in cache no need to map again return it.
-			return responsePolicy
+			return mp.copy().mapDynamic(dynConfig)
 		} else {
 			// Passed in policy is nil, fetch mapped default policy from cache.
-			responsePolicy = dynConfig.client.dynDefaultMetricsPolicy.Load()
-
-			// If we have found entry in cache no need to map again return it.
-			return responsePolicy
+			return dynConfig.client.dynDefaultMetricsPolicy.Load()
 		}
 	} else {
-		return policy
+		return mp
 	}
 }
 
-// applyConfigToMetricsPolicy acquires a read lock before applying configuration.
-func applyConfigToMetricsPolicy(policy *MetricsPolicy, dynConfig *DynConfig) *MetricsPolicy {
-	if dynConfig == nil {
-		return policy
-	}
-
-	return applyConfigToMetricsPolicyCore(policy, dynConfig)
-}
-
-// applyConfigToMetricsPolicyNoLock applies configuration logic without any locking.
-func applyConfigToMetricsPolicyNoLock(policy *MetricsPolicy, dynConfig *DynConfig) *MetricsPolicy {
-	return applyConfigToMetricsPolicyCore(policy, dynConfig)
-}
-
-func mapDynamicMetricsPolicy(policy *MetricsPolicy, dynConfig *DynConfig) *MetricsPolicy {
+func (mp *MetricsPolicy) mapDynamic(dynConfig *DynConfig) *MetricsPolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return mp
 	}
 
 	if dynConfig.config.Dynamic.Metrics != nil {
 		if dynConfig.config.Dynamic.Metrics.LatencyColumns != nil {
-			policy.LatencyColumns = *dynConfig.config.Dynamic.Metrics.LatencyColumns
+			mp.LatencyColumns = *dynConfig.config.Dynamic.Metrics.LatencyColumns
 		}
 		if dynConfig.config.Dynamic.Metrics.LatencyBase != nil {
-			policy.LatencyBase = *dynConfig.config.Dynamic.Metrics.LatencyBase
+			mp.LatencyBase = *dynConfig.config.Dynamic.Metrics.LatencyBase
 		}
 	}
 
-	return policy
+	return mp
 }

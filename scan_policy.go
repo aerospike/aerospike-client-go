@@ -47,7 +47,7 @@ func NewScanPolicy() *ScanPolicy {
 	}
 }
 
-func NewScanPolicyOrDefaultFromCache(dynConfig *DynConfig) *ScanPolicy {
+func NewDynamicScanPolicy(dynConfig *DynConfig) *ScanPolicy {
 	if dynConfig == nil {
 		return NewScanPolicy()
 	}
@@ -56,19 +56,19 @@ func NewScanPolicyOrDefaultFromCache(dynConfig *DynConfig) *ScanPolicy {
 }
 
 // copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
-func copyScanPolicy(src *ScanPolicy) *ScanPolicy {
-	if src == nil {
+func (sp *ScanPolicy) copy() *ScanPolicy {
+	if sp == nil {
 		return nil
 	}
 
-	response := *src
+	response := *sp
 	return &response
 }
 
 // applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy.
-func applyConfigToScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPolicy {
+func (sp *ScanPolicy) patchDynamic(dynConfig *DynConfig) *ScanPolicy {
 	if dynConfig == nil {
-		return policy
+		return sp
 	}
 
 	config := dynConfig.config
@@ -80,52 +80,48 @@ func applyConfigToScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPoli
 		config = dynConfig.config
 	}
 
-	if policy == nil {
+	if sp == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultScanPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.Scan != nil {
 		// Dynamic configuration is exists for policy in question.
-		var responsePolicy *ScanPolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responsePolicy = copyScanPolicy(policy)
-		responsePolicy = mapDynamicScanPolicy(responsePolicy, dynConfig)
-
-		return responsePolicy
+		return sp.copy().mapDynamic(dynConfig)
 	} else {
-		return policy
+		return sp
 	}
 }
 
-func mapDynamicScanPolicy(policy *ScanPolicy, dynConfig *DynConfig) *ScanPolicy {
+func (sp *ScanPolicy) mapDynamic(dynConfig *DynConfig) *ScanPolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return sp
 	}
 
 	if dynConfig.config.Dynamic.Scan != nil {
 		if dynConfig.config.Dynamic.Scan.ReadModeAp != nil {
-			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Scan.ReadModeAp)
+			sp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Scan.ReadModeAp)
 		}
 		if dynConfig.config.Dynamic.Scan.ReadModeSc != nil {
-			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Scan.ReadModeSc)
+			sp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Scan.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.Scan.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout) * time.Millisecond
+			sp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Scan.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.SocketTimeout) * time.Millisecond
+			sp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Scan.MaxRetries != nil {
-			policy.MaxRetries = *dynConfig.config.Dynamic.Scan.MaxRetries
+			sp.MaxRetries = *dynConfig.config.Dynamic.Scan.MaxRetries
 		}
 		if dynConfig.config.Dynamic.Scan.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Scan.SleepBetweenRetries) * time.Millisecond
+			sp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Scan.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Scan.Replica != nil {
-			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Scan.Replica)
+			sp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Scan.Replica)
 		}
 		if dynConfig.config.Dynamic.Scan.MaxConcurrentNodes != nil {
-			policy.MaxConcurrentNodes = *dynConfig.config.Dynamic.Scan.MaxConcurrentNodes
+			sp.MaxConcurrentNodes = *dynConfig.config.Dynamic.Scan.MaxConcurrentNodes
 		}
 	}
-	return policy
+	return sp
 }

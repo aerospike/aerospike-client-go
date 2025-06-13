@@ -96,7 +96,7 @@ var _ = Describe("ApplyConfigToQueryPolicy", func() {
 			Expect(int(policy.ExpectedDuration)).To(Equal(LONG))
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToQueryPolicy(policy, config)
+			updatedPolicy := policy.pathDynamic(config)
 
 			// Validate the applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())
@@ -160,7 +160,7 @@ var _ = Describe("ApplyConfigToQueryPolicy", func() {
 			Expect(int(policy.ExpectedDuration)).To(Equal(LONG))
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToQueryPolicy(policy, config)
+			updatedPolicy := policy.pathDynamic(config)
 
 			// Validate that the specified fields were updated.
 			Expect(updatedPolicy).NotTo(BeNil())

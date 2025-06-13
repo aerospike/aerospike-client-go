@@ -38,7 +38,7 @@ func NewTxnRollPolicy() *TxnRollPolicy {
 	}
 }
 
-func NewTxnRollPolicyOrDefaultFromCache(dynConfig *DynConfig) *TxnRollPolicy {
+func NewDynamicTxnRollPolicy(dynConfig *DynConfig) *TxnRollPolicy {
 	if dynConfig == nil {
 		return NewTxnRollPolicy()
 	}
@@ -46,70 +46,70 @@ func NewTxnRollPolicyOrDefaultFromCache(dynConfig *DynConfig) *TxnRollPolicy {
 	return dynConfig.client.dynDefaultTxnRollPolicy.Load()
 }
 
-func copyTxnRollPolicy(src *TxnRollPolicy) *TxnRollPolicy {
-	if src == nil {
+func (trp *TxnRollPolicy) copy() *TxnRollPolicy {
+	if trp == nil {
 		return nil
 	}
 
-	response := *src
+	response := *trp
 	return &response
 }
 
-// applyConfigToTxnRollPolicy applies the dynamic configuration and generates a new policy.
-func applyConfigToTxnRollPolicy(policy *TxnRollPolicy, dynConfig *DynConfig) *TxnRollPolicy {
+// patchDynamic applies the dynamic configuration and generates a new policy.
+func (trp *TxnRollPolicy) patchDynamic(dynConfig *DynConfig) *TxnRollPolicy {
 	if dynConfig == nil {
-		return policy
+		return trp
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if policy == nil {
+	if trp == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultTxnRollPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.TxnRoll != nil {
 		// Dynamic configuration is exists for policy in question.
 		var responseTxnRollPolicy *TxnRollPolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responseTxnRollPolicy = copyTxnRollPolicy(policy)
-		responseTxnRollPolicy = mapDynamicTxnRollPolicy(responseTxnRollPolicy, dynConfig)
+		responseTxnRollPolicy = trp.copy()
+		responseTxnRollPolicy = responseTxnRollPolicy.mapDynamic(dynConfig)
 
 		return responseTxnRollPolicy
 	} else {
-		return policy
+		return trp
 	}
 }
 
-func mapDynamicTxnRollPolicy(policy *TxnRollPolicy, dynConfig *DynConfig) *TxnRollPolicy {
+func (trp *TxnRollPolicy) mapDynamic(dynConfig *DynConfig) *TxnRollPolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return trp
 	}
 
 	if dynConfig.config.Dynamic.TxnRoll != nil {
 		if dynConfig.config.Dynamic.TxnRoll.ReadModeAp != nil {
-			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.TxnRoll.ReadModeAp)
+			trp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.TxnRoll.ReadModeAp)
 		}
 		if dynConfig.config.Dynamic.TxnRoll.ReadModeSc != nil {
-			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnRoll.ReadModeSc)
+			trp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnRoll.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.TxnRoll.Replica != nil {
-			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnRoll.Replica)
+			trp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnRoll.Replica)
 		}
 		if dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries) * time.Millisecond
+			trp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnRoll.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SocketTimeout) * time.Millisecond
+			trp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnRoll.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.TotalTimeout) * time.Millisecond
+			trp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnRoll.MaxRetries != nil {
-			policy.MaxRetries = *dynConfig.config.Dynamic.TxnRoll.MaxRetries
+			trp.MaxRetries = *dynConfig.config.Dynamic.TxnRoll.MaxRetries
 		}
 		if dynConfig.config.Dynamic.TxnRoll.RespondAllKeys != nil {
-			policy.RespondAllKeys = *dynConfig.config.Dynamic.TxnRoll.RespondAllKeys
+			trp.RespondAllKeys = *dynConfig.config.Dynamic.TxnRoll.RespondAllKeys
 		}
 	}
 
-	return policy
+	return trp
 }

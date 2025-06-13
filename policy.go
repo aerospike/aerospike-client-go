@@ -188,7 +188,7 @@ func NewPolicy() *BasePolicy {
 	}
 }
 
-func NewPolicyOrDefaultFromCache(dynConfig *DynConfig) *BasePolicy {
+func NewDynamicPolicy(dynConfig *DynConfig) *BasePolicy {
 	if dynConfig == nil {
 		return NewPolicy()
 	}
@@ -215,67 +215,63 @@ func (p *BasePolicy) compress() bool {
 }
 
 // copyBasePolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
-func copyBasePolicy(src *BasePolicy) *BasePolicy {
-	if src == nil {
+func (bp *BasePolicy) copy() *BasePolicy {
+	if bp == nil {
 		return nil
 	}
 
-	response := *src
+	response := *bp
 	return &response
 }
 
-// applyConfigToBasePolicy applies the dynamic configuration and generates a new policy
-func applyConfigToBasePolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy {
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (bp *BasePolicy) patchDynamic(dynConfig *DynConfig) *BasePolicy {
 	if dynConfig == nil {
-		return policy
+		return bp
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if policy == nil {
+	if bp == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.Read != nil {
 		// Dynamic configuration exists for policy in question.
-		var responsePolicy *BasePolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responsePolicy = copyBasePolicy(policy)
-		responsePolicy = mapDynamicReadPolicy(responsePolicy, dynConfig)
-
-		return responsePolicy
+		return bp.copy().mapDynamic(dynConfig)
 	} else {
-		return policy
+		return bp
 	}
 }
 
-func mapDynamicReadPolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy {
+func (bp *BasePolicy) mapDynamic(dynConfig *DynConfig) *BasePolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return bp
 	}
 
 	if dynConfig.config.Dynamic.Read != nil {
 		if dynConfig.config.Dynamic.Read.ReadModeAp != nil {
-			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Read.ReadModeAp)
+			bp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Read.ReadModeAp)
 		}
 		if dynConfig.config.Dynamic.Read.ReadModeSc != nil {
-			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Read.ReadModeSc)
+			bp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Read.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.Read.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Read.TotalTimeout) * time.Millisecond
+			bp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Read.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Read.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Read.SocketTimeout) * time.Millisecond
+			bp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Read.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Read.MaxRetries != nil {
-			policy.MaxRetries = *dynConfig.config.Dynamic.Read.MaxRetries
+			bp.MaxRetries = *dynConfig.config.Dynamic.Read.MaxRetries
 		}
 		if dynConfig.config.Dynamic.Read.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Read.SleepBetweenRetries) * time.Millisecond
+			bp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Read.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Read.Replica != nil {
-			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Read.Replica)
+			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Read.Replica)
 		}
 	}
 
-	return policy
+	return bp
 }

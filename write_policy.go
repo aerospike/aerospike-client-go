@@ -105,7 +105,7 @@ func NewWritePolicy(generation, expiration uint32) *WritePolicy {
 	return res
 }
 
-func NewWritePolicyOrDefaultFromCache(dynConfig *DynConfig) *WritePolicy {
+func NewDynamicWritePolicy(dynConfig *DynConfig) *WritePolicy {
 	if dynConfig == nil {
 		return NewWritePolicy(0, 0)
 	}
@@ -114,69 +114,65 @@ func NewWritePolicyOrDefaultFromCache(dynConfig *DynConfig) *WritePolicy {
 }
 
 // copyWritePolicy creates a new WritePolicy instance and copies the values from the source WritePolicy.
-func copyWritePolicy(src *WritePolicy) *WritePolicy {
-	if src == nil {
+func (wp *WritePolicy) copy() *WritePolicy {
+	if wp == nil {
 		return nil
 	}
 
-	response := *src
+	response := *wp
 	return &response
 }
 
-// applyConfigToWritePolicy applies the dynamic configuration and generates a new policy
-func applyConfigToWritePolicy(policy *WritePolicy, dynConfig *DynConfig) *WritePolicy {
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (wp *WritePolicy) patchDynamic(dynConfig *DynConfig) *WritePolicy {
 	// If dynamic config is not set, return the policy as is.
 	if dynConfig == nil {
-		return policy
+		return wp
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
 	// If no policy is passed in, we don't need to map. Just returned what is in mapped cache already.
-	if policy == nil {
+	if wp == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultWritePolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.Write != nil {
 		// Dynamic configuration is exists for policy in question.
-		var responsePolicy *WritePolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responsePolicy = copyWritePolicy(policy)
-		responsePolicy = mapDynamicWritePolicy(responsePolicy, dynConfig)
-
-		return responsePolicy
+		return wp.copy().mapDynamic(dynConfig)
 	} else {
-		return policy
+		return wp
 	}
 }
 
-func mapDynamicWritePolicy(policy *WritePolicy, dynConfig *DynConfig) *WritePolicy {
+func (wp *WritePolicy) mapDynamic(dynConfig *DynConfig) *WritePolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return wp
 	}
 
 	if dynConfig.config.Dynamic.Write != nil {
 		if dynConfig.config.Dynamic.Write.Replica != nil {
-			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Write.Replica)
+			wp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Write.Replica)
 		}
 		if dynConfig.config.Dynamic.Write.SendKey != nil {
-			policy.SendKey = *dynConfig.config.Dynamic.Write.SendKey
+			wp.SendKey = *dynConfig.config.Dynamic.Write.SendKey
 		}
 		if dynConfig.config.Dynamic.Write.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Write.SleepBetweenRetries) * time.Millisecond
+			wp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Write.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Write.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Write.SocketTimeout) * time.Millisecond
+			wp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Write.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Write.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Write.TotalTimeout) * time.Millisecond
+			wp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Write.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Write.MaxRetries != nil {
-			policy.MaxRetries = *dynConfig.config.Dynamic.Write.MaxRetries
+			wp.MaxRetries = *dynConfig.config.Dynamic.Write.MaxRetries
 		}
 		if dynConfig.config.Dynamic.Write.DurableDelete != nil {
-			policy.DurableDelete = *dynConfig.config.Dynamic.Write.DurableDelete
+			wp.DurableDelete = *dynConfig.config.Dynamic.Write.DurableDelete
 		}
 	}
 
-	return policy
+	return wp
 }

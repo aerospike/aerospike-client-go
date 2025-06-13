@@ -74,7 +74,7 @@ var _ = Describe("ApplyConfigToBatchReadPolicy", func() {
 			Expect(policy.ReadTouchTTLPercent).To(Equal(int32(0)))
 
 			// Apply configuration.
-			updatedPolicy := applyConfigToBatchReadPolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())

@@ -51,7 +51,7 @@ var _ = Describe("ApplyConfigToBatchDeletePolicy", func() {
 			Expect(policy.SendKey).To(BeFalse())
 
 			// Apply configuration.
-			updatedPolicy := applyConfigToBatchDeletePolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())

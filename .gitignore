@@ -28,3 +28,4 @@ docker-compose.yml
 golangci.yml
 cover*.out
 .vscode/settings.json
+ginkgo.report

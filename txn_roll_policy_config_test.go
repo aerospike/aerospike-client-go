@@ -90,7 +90,7 @@ var _ = Describe("ApplyConfigToTxnRollPolicy", func() {
 			Expect(policy.AllowInline).To(BeTrue())
 			Expect(policy.RespondAllKeys).To(BeTrue())
 
-			updatedPolicy := applyConfigToTxnRollPolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())
@@ -168,7 +168,7 @@ var _ = Describe("ApplyConfigToTxnRollPolicy", func() {
 			Expect(policy.RespondAllKeys).To(BeTrue())
 
 			// Apply configuration.
-			updatedPolicy := applyConfigToTxnRollPolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())

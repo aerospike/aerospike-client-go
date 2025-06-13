@@ -31,11 +31,11 @@ func BenchmarkApplyConfigToClientPolicy(b *testing.B) {
 	dynCfg := NewDynConfigForTest(cfg)
 
 	// Ensure the function runs once before benchmarking.
-	_ = applyConfigToClientPolicy(cp, dynCfg)
+	_ = cp.patchDynamic(dynCfg)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = applyConfigToClientPolicy(cp, dynCfg)
+		_ = cp.patchDynamic(dynCfg)
 	}
 }
 
@@ -66,10 +66,10 @@ func BenchmarkApplyConfigToClientPolicyWithDynamicAndStaticConfig(b *testing.B) 
 
 	dynCfg := NewDynConfigForTest(cfg)
 
-	_ = applyConfigToClientPolicy(cp, dynCfg)
+	_ = cp.patchDynamic(dynCfg)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = applyConfigToClientPolicy(cp, dynCfg)
+		_ = cp.patchDynamic(dynCfg)
 	}
 }

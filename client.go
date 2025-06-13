@@ -321,7 +321,7 @@ func (clnt *Client) GetDefaultTxnRollPolicy() *TxnRollPolicy {
 
 // SetDefaultPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultPolicy(policy *BasePolicy) {
-	clnt.DefaultPolicy = applyConfigToBasePolicy(policy, clnt.dynConfig)
+	clnt.DefaultPolicy = policy.patchDynamic(clnt.dynConfig)
 }
 
 // SetDefaultBatchPolicy sets corresponding default policy on the client
@@ -331,37 +331,37 @@ func (clnt *Client) SetDefaultBatchPolicy(policy *BatchPolicy) {
 
 // SetDefaultBatchWritePolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultBatchWritePolicy(policy *BatchWritePolicy) {
-	clnt.DefaultBatchWritePolicy = applyConfigToBatchWritePolicy(policy, clnt.dynConfig)
+	clnt.DefaultBatchWritePolicy = policy.patchDynamic(clnt.dynConfig)
 }
 
 // SetDefaultBatchReadPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultBatchReadPolicy(policy *BatchReadPolicy) {
-	clnt.DefaultBatchReadPolicy = applyConfigToBatchReadPolicy(policy, clnt.dynConfig)
+	clnt.DefaultBatchReadPolicy = policy.patchDynamic(clnt.dynConfig)
 }
 
 // SetDefaultBatchDeletePolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultBatchDeletePolicy(policy *BatchDeletePolicy) {
-	clnt.DefaultBatchDeletePolicy = applyConfigToBatchDeletePolicy(policy, clnt.dynConfig)
+	clnt.DefaultBatchDeletePolicy = policy.patchDynamic(clnt.dynConfig)
 }
 
 // SetDefaultBatchUDFPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultBatchUDFPolicy(policy *BatchUDFPolicy) {
-	clnt.DefaultBatchUDFPolicy = applyConfigToBatchUDFPolicy(policy, clnt.dynConfig)
+	clnt.DefaultBatchUDFPolicy = policy.patchDynamic(clnt.dynConfig)
 }
 
 // SetDefaultWritePolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultWritePolicy(policy *WritePolicy) {
-	clnt.DefaultWritePolicy = applyConfigToWritePolicy(policy, clnt.dynConfig)
+	clnt.DefaultWritePolicy = policy.patchDynamic(clnt.dynConfig)
 }
 
 // SetDefaultScanPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultScanPolicy(policy *ScanPolicy) {
-	clnt.DefaultScanPolicy = applyConfigToScanPolicy(policy, clnt.dynConfig)
+	clnt.DefaultScanPolicy = policy.patchDynamic(clnt.dynConfig)
 }
 
 // SetDefaultQueryPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultQueryPolicy(policy *QueryPolicy) {
-	clnt.DefaultQueryPolicy = applyConfigToQueryPolicy(policy, clnt.dynConfig)
+	clnt.DefaultQueryPolicy = policy.pathDynamic(clnt.dynConfig)
 }
 
 // SetDefaultAdminPolicy sets corresponding default policy on the client
@@ -376,12 +376,12 @@ func (clnt *Client) SetDefaultInfoPolicy(policy *InfoPolicy) {
 
 // SetDefaultTxnVerifyPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultTxnVerifyPolicy(policy *TxnVerifyPolicy) {
-	clnt.DefaultTxnVerifyPolicy = applyConfigToTxnVerifyPolicy(policy, clnt.dynConfig)
+	clnt.DefaultTxnVerifyPolicy = policy.patchDynamic(clnt.dynConfig)
 }
 
 // SetDefaultTxnRollPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultTxnRollPolicy(policy *TxnRollPolicy) {
-	clnt.DefaultTxnRollPolicy = applyConfigToTxnRollPolicy(policy, clnt.dynConfig)
+	clnt.DefaultTxnRollPolicy = policy.patchDynamic(clnt.dynConfig)
 }
 
 //-------------------------------------------------------
@@ -2190,7 +2190,7 @@ func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[
 func (clnt *Client) getUsablePolicy(policy *BasePolicy) *BasePolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToBasePolicy(policy, clnt.dynConfig)
+		return policy.patchDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default
@@ -2218,7 +2218,7 @@ func (clnt *Client) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
 func (clnt *Client) getUsableBatchReadPolicy(policy *BatchReadPolicy) *BatchReadPolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToBatchReadPolicy(policy, clnt.dynConfig)
+		return policy.patchDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default
@@ -2233,7 +2233,7 @@ func (clnt *Client) getUsableBatchReadPolicy(policy *BatchReadPolicy) *BatchRead
 func (clnt *Client) getUsableBatchWritePolicy(policy *BatchWritePolicy) *BatchWritePolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToBatchWritePolicy(policy, clnt.dynConfig)
+		return policy.patchDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default
@@ -2247,7 +2247,7 @@ func (clnt *Client) getUsableBatchWritePolicy(policy *BatchWritePolicy) *BatchWr
 func (clnt *Client) getUsableBatchDeletePolicy(policy *BatchDeletePolicy) *BatchDeletePolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToBatchDeletePolicy(policy, clnt.dynConfig)
+		return policy.patchDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default
@@ -2261,7 +2261,7 @@ func (clnt *Client) getUsableBatchDeletePolicy(policy *BatchDeletePolicy) *Batch
 func (clnt *Client) getUsableBatchUDFPolicy(policy *BatchUDFPolicy) *BatchUDFPolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToBatchUDFPolicy(policy, clnt.dynConfig)
+		return policy.patchDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default
@@ -2275,7 +2275,7 @@ func (clnt *Client) getUsableBatchUDFPolicy(policy *BatchUDFPolicy) *BatchUDFPol
 func (clnt *Client) getUsableWritePolicy(policy *WritePolicy) *WritePolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToWritePolicy(policy, clnt.dynConfig)
+		return policy.patchDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default
@@ -2289,7 +2289,7 @@ func (clnt *Client) getUsableWritePolicy(policy *WritePolicy) *WritePolicy {
 func (clnt *Client) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToScanPolicy(policy, clnt.dynConfig)
+		return policy.patchDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default
@@ -2303,7 +2303,7 @@ func (clnt *Client) getUsableScanPolicy(policy *ScanPolicy) *ScanPolicy {
 func (clnt *Client) getUsableQueryPolicy(policy *QueryPolicy) *QueryPolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToQueryPolicy(policy, clnt.dynConfig)
+		return policy.pathDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default
@@ -2337,7 +2337,7 @@ func (clnt *Client) getUsableInfoPolicy(policy *InfoPolicy) *InfoPolicy {
 func (clnt *Client) getUsableTxnRollPolicy(policy *TxnRollPolicy) *TxnRollPolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToTxnRollPolicy(policy, clnt.dynConfig)
+		return policy.patchDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default
@@ -2351,7 +2351,8 @@ func (clnt *Client) getUsableTxnRollPolicy(policy *TxnRollPolicy) *TxnRollPolicy
 func (clnt *Client) getUsableTxnVerifyPolicy(policy *TxnVerifyPolicy) *TxnVerifyPolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToTxnVerifyPolicy(policy, clnt.dynConfig)
+
+		return policy.patchDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default
@@ -2364,10 +2365,10 @@ func (clnt *Client) getUsableTxnVerifyPolicy(policy *TxnVerifyPolicy) *TxnVerify
 
 func getUsableClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientPolicy {
 	if policy == nil {
-		return applyConfigToClientPolicy(NewClientPolicy(), dynConfig)
+		return NewClientPolicy().patchDynamic(dynConfig)
 	}
 
-	return applyConfigToClientPolicy(policy, dynConfig)
+	return policy.patchDynamic(dynConfig)
 }
 
 //-------------------------------------------------------

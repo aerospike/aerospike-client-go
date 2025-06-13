@@ -56,7 +56,7 @@ func NewBatchReadPolicy() *BatchReadPolicy {
 	}
 }
 
-func NewBatchReadPolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchReadPolicy {
+func NewDynamicBatchReadPolicy(dynConfig *DynConfig) *BatchReadPolicy {
 	if dynConfig == nil {
 		return NewBatchReadPolicy()
 	}
@@ -85,85 +85,81 @@ func (brp *BatchReadPolicy) ToWritePolicy(bp *BatchPolicy, dynConfig *DynConfig)
 }
 
 // copyBAtchReadPolicy creates a new BasePolicy instance and copies the values from the source BatchReadPolicy.
-func copyBatchReadPolicy(src *BatchReadPolicy) *BatchReadPolicy {
-	if src == nil {
+func (brp *BatchReadPolicy) copy() *BatchReadPolicy {
+	if brp == nil {
 		return nil
 	}
 
-	response := *src
+	response := *brp
 	return &response
 }
 
-// applyConfigToBatchReadPolicy applies the dynamic configuration and generates a new policy.
-func applyConfigToBatchReadPolicy(policy *BatchReadPolicy, dynConfig *DynConfig) *BatchReadPolicy {
+// patchDynamic applies the dynamic configuration and generates a new policy.
+func (brp *BatchReadPolicy) patchDynamic(dynConfig *DynConfig) *BatchReadPolicy {
 	if dynConfig == nil {
-		return policy
+		return brp
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if policy == nil {
+	if brp == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultBatchReadPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.BatchRead != nil {
 		// Dynamic configuration is exists for policy in question.
-		var responsePolicy *BatchReadPolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
 		// Copy the existing write policy to preserve any custom settings.
-		responsePolicy = copyBatchReadPolicy(policy)
-		responsePolicy = mapDynamicBatchReadPolicy(responsePolicy, dynConfig)
-
-		return responsePolicy
+		return brp.copy().mapDynamic(dynConfig)
 	} else {
-		return policy
+		return brp
 	}
 }
 
-func mapDynamicBatchReadPolicy(policy *BatchReadPolicy, dynConfig *DynConfig) *BatchReadPolicy {
+func (brp *BatchReadPolicy) mapDynamic(dynConfig *DynConfig) *BatchReadPolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return brp
 	}
 
 	if dynConfig.config.Dynamic.BatchRead != nil {
 		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
-			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+			brp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
 		}
 		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
-			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+			brp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
 		}
 	}
 
-	return policy
+	return brp
 }
 
-func mapDynamicBatchReadToBasePolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy {
+func (brp *BasePolicy) mapConfigBatchReadToBasePolicy(dynConfig *DynConfig) *BasePolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return brp
 	}
 
 	if dynConfig.config.Dynamic.BatchRead != nil {
 		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
-			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+			brp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
 		}
 		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
-			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+			brp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.BatchRead.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
+			brp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchRead.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
+			brp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchRead.MaxRetries != nil {
-			policy.MaxRetries = *dynConfig.config.Dynamic.BatchRead.MaxRetries
+			brp.MaxRetries = *dynConfig.config.Dynamic.BatchRead.MaxRetries
 		}
 		if dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
+			brp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchRead.Replica != nil {
-			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchRead.Replica)
+			brp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchRead.Replica)
 		}
 	}
 
-	return policy
+	return brp
 }

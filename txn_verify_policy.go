@@ -39,7 +39,7 @@ func NewTxnVerifyPolicy() *TxnVerifyPolicy {
 	}
 }
 
-func NewTxnVerifyPolicyOrDefaultFromCache(dynConfig *DynConfig) *TxnVerifyPolicy {
+func NewDynamicTxnVerifyPolicy(dynConfig *DynConfig) *TxnVerifyPolicy {
 	if dynConfig == nil {
 		return NewTxnVerifyPolicy()
 	}
@@ -47,70 +47,70 @@ func NewTxnVerifyPolicyOrDefaultFromCache(dynConfig *DynConfig) *TxnVerifyPolicy
 	return dynConfig.client.dynDefaultTxnVerifyPolicy.Load()
 }
 
-func copyTxnVerifyPolicy(src *TxnVerifyPolicy) *TxnVerifyPolicy {
-	if src == nil {
+func (tvp *TxnVerifyPolicy) copy() *TxnVerifyPolicy {
+	if tvp == nil {
 		return nil
 	}
 
-	response := *src
+	response := *tvp
 	return &response
 }
 
 // applyConfigToTxnRollPolicy applies the dynamic configuration and generates a new policy.
-func applyConfigToTxnVerifyPolicy(policy *TxnVerifyPolicy, dynConfig *DynConfig) *TxnVerifyPolicy {
+func (tvp *TxnVerifyPolicy) patchDynamic(dynConfig *DynConfig) *TxnVerifyPolicy {
 	if dynConfig == nil {
-		return policy
+		return tvp
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if policy == nil {
+	if tvp == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultTxnVerifyPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.TxnVerify != nil {
 		// Dynamic configuration is exists for policy in question.
 		var responsePolicy *TxnVerifyPolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responsePolicy = copyTxnVerifyPolicy(policy)
-		responsePolicy = mapDynamicTxnVerifyPolicy(responsePolicy, dynConfig)
+		responsePolicy = tvp.copy()
+		responsePolicy = responsePolicy.mapDynamic(dynConfig)
 
 		return responsePolicy
 	} else {
-		return policy
+		return tvp
 	}
 }
 
-func mapDynamicTxnVerifyPolicy(policy *TxnVerifyPolicy, dynConfig *DynConfig) *TxnVerifyPolicy {
+func (tvp *TxnVerifyPolicy) mapDynamic(dynConfig *DynConfig) *TxnVerifyPolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return tvp
 	}
 
 	if dynConfig.config.Dynamic.TxnVerify != nil {
 		if dynConfig.config.Dynamic.TxnVerify.ReadModeAp != nil {
-			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.TxnVerify.ReadModeAp)
+			tvp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.TxnVerify.ReadModeAp)
 		}
 		if dynConfig.config.Dynamic.TxnVerify.ReadModeSc != nil {
-			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnVerify.ReadModeSc)
+			tvp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnVerify.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.TxnVerify.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.TotalTimeout) * time.Millisecond
+			tvp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnVerify.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SocketTimeout) * time.Millisecond
+			tvp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnVerify.MaxRetries != nil {
-			policy.MaxRetries = *dynConfig.config.Dynamic.TxnVerify.MaxRetries
+			tvp.MaxRetries = *dynConfig.config.Dynamic.TxnVerify.MaxRetries
 		}
 		if dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries) * time.Millisecond
+			tvp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.TxnVerify.Replica != nil {
-			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnVerify.Replica)
+			tvp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnVerify.Replica)
 		}
 		if dynConfig.config.Dynamic.TxnVerify.MaxRetries != nil {
-			policy.MaxRetries = *dynConfig.config.Dynamic.TxnVerify.MaxRetries
+			tvp.MaxRetries = *dynConfig.config.Dynamic.TxnVerify.MaxRetries
 		}
 	}
 
-	return policy
+	return tvp
 }

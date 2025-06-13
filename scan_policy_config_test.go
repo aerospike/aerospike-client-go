@@ -82,7 +82,7 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 			Expect(policy.RecordsPerSecond).To(Equal(0))
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToScanPolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 			Expect(updatedPolicy).NotTo(BeNil())
 			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPOne))
 			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCSession))
@@ -155,7 +155,7 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 			Expect(policy.RecordsPerSecond).To(Equal(0))
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToScanPolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 			Expect(updatedPolicy).NotTo(BeNil())
 			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
 			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Millisecond))

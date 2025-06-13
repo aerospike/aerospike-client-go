@@ -46,7 +46,7 @@ var _ = Describe("ApplyConfigToMetricsPolicy", func() {
 			Expect(int(policy.LatencyColumns)).To(Equal(int(24)))
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToMetricsPolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())
@@ -78,7 +78,7 @@ var _ = Describe("ApplyConfigToMetricsPolicy", func() {
 			Expect(int(policy.LatencyColumns)).To(Equal(int(24)))
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToMetricsPolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())

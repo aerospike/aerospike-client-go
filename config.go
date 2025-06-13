@@ -46,11 +46,23 @@ type DynConfig struct {
 	dsn    string
 }
 
-func dsnPattern() *regexp.Regexp {
+func parseDsn(inputDsn string) map[string]string {
 	// ^\s*                                    skip any leading spaces or tabs
 	// ([A-Za-z][A-Za-z0-9+.-]*://)?           optionally capture scheme:// (RFC-style)
 	// (.*)                                    capture the rest of the line verbatim
-	return regexp.MustCompile(registry.DSN_REGEX_PATTERN)
+	re := regexp.MustCompile(registry.DSN_REGEX_PATTERN)
+	match := re.FindStringSubmatch(inputDsn)
+	if match == nil {
+		return nil
+	}
+
+	result := make(map[string]string)
+	for i, name := range re.SubexpNames() {
+		if i > 0 && name != "" {
+			result[name] = match[i]
+		}
+	}
+	return result
 }
 
 func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Config, client *Client)) *DynConfig {
@@ -61,20 +73,20 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 	if policy == nil {
 		policy = NewClientPolicy()
 	}
-	re := dsnPattern()
-	parts := re.FindStringSubmatch(AEROSPIKE_CLIENT_CONFIG_URL)
 
+	parts := parseDsn(AEROSPIKE_CLIENT_CONFIG_URL)
 	if len(parts) < 2 {
 		logger.Logger.Error("Invalid config URL %s. Expected format: [scheme://dsn] | [file path]", AEROSPIKE_CLIENT_CONFIG_URL)
 		return nil
 	}
+
 	var schema string
-	if parts[1] == "" {
-		schema = registry.DEFAULT_SCHEMA
+	if parts[registry.DSN_SCHEME] == "" {
+		schema = registry.DEFAULT_SCHEME
 	} else {
-		schema = parts[1]
+		schema = parts[registry.DSN_SCHEME]
 	}
-	urlPath := parts[2]
+	urlPath := parts[registry.DSN_PATH]
 
 	// At this point in time we should have at least one configuration provider in the registry.
 	provider, _ := registry.Get(schema)
@@ -91,6 +103,8 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 		dsn:                urlPath,
 		configProvider:     provider,
 	}
+	dynConfig.initConfig()
+
 	dynConfig.wgConfig.Add(1)
 	go dynConfig.watchConfig(policy.ConfigInterval)
 
@@ -205,13 +219,12 @@ func (dc *DynConfig) hydrateDynamicPolicyFromConfig() {
 	dc.client.dynDefaultMetricsPolicy.Store(dc.generateDynamicMetricsPolicy())
 	dc.client.dynDefaultBatchReadBasePolicy.Store(dc.generateDynamicBatchReadBasePolicy())
 	dc.client.dynDefaultBatchWriteBasePolicy.Store(dc.generateDynamicBatchWriteBasePolicy())
-
 }
 
 func (dc *DynConfig) generateStaticClientPolicy() *ClientPolicy {
 	policy := NewClientPolicy()
 
-	policy = mapStaticClientPolicy(policy, dc)
+	policy = policy.mapStatic(dc)
 
 	return policy
 }
@@ -224,7 +237,7 @@ func (dc *DynConfig) generateDynamicClientPolicy() *ClientPolicy {
 		policy = NewClientPolicy()
 	}
 
-	policy = mapDynamicClientPolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -234,12 +247,12 @@ func (dc *DynConfig) generateDynamicWritePolicy() *WritePolicy {
 	if dc.client != nil && dc.client.DefaultWritePolicy != nil {
 		// Not going go make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyWritePolicy(dc.client.DefaultWritePolicy)
+		policy = dc.client.DefaultWritePolicy.copy()
 	} else {
 		policy = NewWritePolicy(0, 0)
 	}
 
-	policy = mapDynamicWritePolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -249,12 +262,12 @@ func (dc *DynConfig) generateDynamicBatchReadBasePolicy() *BasePolicy {
 	if dc.client != nil && dc.client.DefaultBatchReadPolicy != nil {
 		// Not going go make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyBasePolicy(&dc.client.DefaultBatchPolicy.BasePolicy)
+		policy = dc.client.DefaultBatchPolicy.BasePolicy.copy()
 	} else {
 		policy = NewPolicy()
 	}
 
-	policy = mapDynamicBatchReadToBasePolicy(policy, dc)
+	policy = policy.mapConfigBatchReadToBasePolicy(dc)
 
 	return policy
 }
@@ -264,12 +277,12 @@ func (dc *DynConfig) generateDynamicBatchWriteBasePolicy() *BasePolicy {
 	if dc.client != nil && dc.client.DefaultBatchWritePolicy != nil {
 		// Not going go make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyBasePolicy(&dc.client.DefaultBatchPolicy.BasePolicy)
+		policy = dc.client.DefaultBatchPolicy.BasePolicy.copy()
 	} else {
 		policy = NewPolicy()
 	}
 
-	policy = mapDynamicBatchWriteToBasePolicy(policy, dc)
+	policy = policy.mapConfigBatchWriteToBasePolicy(dc)
 
 	return policy
 }
@@ -279,12 +292,12 @@ func (dc *DynConfig) generateDynamicReadPolicy() *BasePolicy {
 	if dc.client != nil && dc.client.DefaultPolicy != nil {
 		// Not going to make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyBasePolicy(dc.client.DefaultPolicy)
+		policy = dc.client.DefaultPolicy.copy()
 	} else {
 		policy = NewPolicy()
 	}
 
-	policy = mapDynamicReadPolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -294,13 +307,13 @@ func (dc *DynConfig) generateDynamicQueryPolicy() *QueryPolicy {
 	if dc.client != nil && dc.client.DefaultQueryPolicy != nil {
 		// Not going to make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyQueryPolicy(dc.client.DefaultQueryPolicy)
+		policy = dc.client.DefaultQueryPolicy.copy()
 	} else {
 		// If no default query policy is set, create a new one.
 		policy = NewQueryPolicy()
 	}
 
-	policy = mapDynamicQueryPolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -310,13 +323,13 @@ func (dc *DynConfig) generateDynamicScanPolicy() *ScanPolicy {
 	if dc.client != nil && dc.client.DefaultScanPolicy != nil {
 		// Not going to make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyScanPolicy(dc.client.DefaultScanPolicy)
+		policy = dc.client.DefaultScanPolicy.copy()
 	} else {
 		// If no default scan policy is set, create a new one.
 		policy = NewScanPolicy()
 	}
 
-	policy = mapDynamicScanPolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -326,13 +339,13 @@ func (dc *DynConfig) generateDynamicBatchWritePolicy() *BatchWritePolicy {
 	if dc.client != nil && dc.client.DefaultBatchWritePolicy != nil {
 		// Not going to make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyBatchWritePolicy(dc.client.DefaultBatchWritePolicy)
+		policy = dc.client.DefaultBatchWritePolicy.copy()
 	} else {
 		// If no default batch write policy is set, create a new one.
 		policy = NewBatchWritePolicy()
 	}
 
-	policy = mapDynamicBatchWritePolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -342,13 +355,13 @@ func (dc *DynConfig) generateDynamicBatchReadPolicy() *BatchReadPolicy {
 	if dc.client != nil && dc.client.DefaultBatchReadPolicy != nil {
 		// Not going to make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyBatchReadPolicy(dc.client.DefaultBatchReadPolicy)
+		policy = dc.client.DefaultBatchReadPolicy.copy()
 	} else {
 		// If no default batch read policy is set, create a new one.
 		policy = NewBatchReadPolicy()
 	}
 
-	policy = mapDynamicBatchReadPolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -358,13 +371,13 @@ func (dc *DynConfig) generateDynamicTxnRollPolicy() *TxnRollPolicy {
 	if dc.client != nil && dc.client.DefaultTxnRollPolicy != nil {
 		// Not going to make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyTxnRollPolicy(dc.client.DefaultTxnRollPolicy)
+		policy = dc.client.DefaultTxnRollPolicy.copy()
 	} else {
 		// If no default txn roll policy is set, create a new one.
 		policy = NewTxnRollPolicy()
 	}
 
-	policy = mapDynamicTxnRollPolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -374,13 +387,13 @@ func (dc *DynConfig) generateDynamicTxnVerifyPolicy() *TxnVerifyPolicy {
 	if dc.client != nil && dc.client.DefaultTxnVerifyPolicy != nil {
 		// Not going to make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyTxnVerifyPolicy(dc.client.DefaultTxnVerifyPolicy)
+		policy = dc.client.DefaultTxnVerifyPolicy.copy()
 	} else {
 		// If no default txn verify policy is set, create a new one.
 		policy = NewTxnVerifyPolicy()
 	}
 
-	policy = mapDynamicTxnVerifyPolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -390,13 +403,13 @@ func (dc *DynConfig) generateDynamicBatchDeletePolicy() *BatchDeletePolicy {
 	if dc.client != nil && dc.client.DefaultBatchDeletePolicy != nil {
 		// Not going to make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyBatchDeletePolicy(dc.client.DefaultBatchDeletePolicy)
+		policy = dc.client.DefaultBatchDeletePolicy.copy()
 	} else {
 		// If no default batch delete policy is set, create a new one.
 		policy = NewBatchDeletePolicy()
 	}
 
-	policy = mapDynamicBatchDeletePolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -406,13 +419,13 @@ func (dc *DynConfig) generateDynamicBatchUdfPolicy() *BatchUDFPolicy {
 	if dc.client != nil && dc.client.DefaultBatchUDFPolicy != nil {
 		// Not going to make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyBatchUDFPolicy(dc.client.DefaultBatchUDFPolicy)
+		policy = dc.client.DefaultBatchUDFPolicy.copy()
 	} else {
 		// If no default batch udf policy is set, create a new one.
 		policy = NewBatchUDFPolicy()
 	}
 
-	policy = mapDynamicBatchUdfPolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -436,7 +449,7 @@ func (dc *DynConfig) generateDynamicBatchPolicy() *BatchPolicy {
 func (dc *DynConfig) generateDynamicMetricsPolicy() *MetricsPolicy {
 	policy := DefaultMetricsPolicy()
 
-	policy = mapDynamicMetricsPolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }
@@ -447,17 +460,36 @@ func (dc *DynConfig) generateDynamicMetricsPolicy() *MetricsPolicy {
 func (dc *DynConfig) watchConfig(interval time.Duration) {
 	logger.Logger.Info("Starting the config watch goroutine...")
 
+	// If the config is not loaded, we will use the default interval.
+	// If the config is loaded, we will use the interval from the config.
+	// This allows the config to be updated dynamically without restarting the client.
+	dc.lock.RLock()
+	var mergedConfigInterval time.Duration
+	// Handle the condition where dynamic config is eneabled but config was not loaded becuase
+	// the file could not be found or the url is not valid. In that case we will use the interval passed
+	// in or use the default interval of 1 second.
+	if dc.config == nil {
+		mergedConfigInterval = interval
+	} else {
+		// If the config is already loaded, use the interval from the config.
+		if dc.config.Static != nil && dc.config.Static.Client != nil && dc.config.Static.Client.ConfigInterval != nil {
+			mergedConfigInterval = time.Duration(*dc.config.Static.Client.ConfigInterval) * time.Millisecond
+		} else {
+			mergedConfigInterval = interval
+		}
+	}
+	dc.lock.RUnlock()
+
 	defer func() {
 		// TODO: Add exponential backoff here to resource starvation
 		if r := recover(); r != nil {
 			logger.Logger.Error("Watch config goroutine crashed: %s", debug.Stack())
-			go dc.watchConfig(interval)
+			go dc.watchConfig(mergedConfigInterval)
 		}
 	}()
-
 	defer dc.wgConfig.Done()
 
-	configInterval := max(interval, 1*time.Second)
+	configInterval := max(mergedConfigInterval, 1*time.Second)
 Loop:
 	for {
 		select {
@@ -466,6 +498,7 @@ Loop:
 			break Loop
 		case <-time.After(configInterval):
 			tm := time.Now()
+			fmt.Printf("Config interval set to: %s\n", configInterval.String())
 			dc.loadConfig()
 			if configDuration := time.Since(tm); configDuration > interval {
 				logger.Logger.Warn("Watching took %s.", configDuration)

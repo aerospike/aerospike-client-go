@@ -66,7 +66,7 @@ func NewBatchUDFPolicy() *BatchUDFPolicy {
 	}
 }
 
-func NewBatchUdfPolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchUDFPolicy {
+func NewDynamicBatchUdfPolicy(dynConfig *DynConfig) *BatchUDFPolicy {
 	if dynConfig == nil {
 		return NewBatchUDFPolicy()
 	}
@@ -107,53 +107,49 @@ func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) 
 }
 
 // copyBatchUDFPolicy creates a new BasePolicy instance and copies the values from the source BatchUDFPolicy.
-func copyBatchUDFPolicy(src *BatchUDFPolicy) *BatchUDFPolicy {
-	if src == nil {
+func (bup *BatchUDFPolicy) copy() *BatchUDFPolicy {
+	if bup == nil {
 		return nil
 	}
 
-	response := *src
+	response := *bup
 	return &response
 }
 
-// applyConfigToBatchUDFPolicy applies the dynamic configuration and generates a new policy
-func applyConfigToBatchUDFPolicy(policy *BatchUDFPolicy, dynConfig *DynConfig) *BatchUDFPolicy {
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (bup *BatchUDFPolicy) patchDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
 	if dynConfig == nil {
-		return policy
+		return bup
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if policy == nil {
+	if bup == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultBatchUDFPolicy.Load()
 	}
 	if config != nil && config.Dynamic != nil && config.Dynamic.BatchUdf != nil {
 		// Dynamic configuration is exists for policy in question.
-		var responsePolicy *BatchUDFPolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responsePolicy = copyBatchUDFPolicy(policy)
-		responsePolicy = mapDynamicBatchUdfPolicy(responsePolicy, dynConfig)
-
-		return responsePolicy
+		return bup.copy().mapDynamic(dynConfig)
 	} else {
-		return policy
+		return bup
 	}
 }
 
-func mapDynamicBatchUdfPolicy(policy *BatchUDFPolicy, dynConfig *DynConfig) *BatchUDFPolicy {
+func (bup *BatchUDFPolicy) mapDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return bup
 	}
 
 	if dynConfig.config.Dynamic.BatchUdf != nil {
 		if dynConfig.config.Dynamic.BatchUdf.DurableDelete != nil {
-			policy.DurableDelete = *dynConfig.config.Dynamic.BatchUdf.DurableDelete
+			bup.DurableDelete = *dynConfig.config.Dynamic.BatchUdf.DurableDelete
 		}
 		if dynConfig.config.Dynamic.BatchUdf.SendKey != nil {
-			policy.SendKey = *dynConfig.config.Dynamic.BatchUdf.SendKey
+			bup.SendKey = *dynConfig.config.Dynamic.BatchUdf.SendKey
 		}
 	}
 
-	return policy
+	return bup
 }

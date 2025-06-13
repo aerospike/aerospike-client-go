@@ -80,7 +80,7 @@ var _ = Describe("ApplyConfigToBasePolicy", func() {
 			Expect(policy.UseCompression).To(BeFalse())
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToBasePolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())
@@ -135,7 +135,7 @@ var _ = Describe("ApplyConfigToBasePolicy", func() {
 			Expect(policy.UseCompression).To(BeFalse())
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToBasePolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate that the selected fields were updated.
 			Expect(updatedPolicy).NotTo(BeNil())

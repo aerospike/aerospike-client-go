@@ -58,7 +58,7 @@ func NewBatchDeletePolicy() *BatchDeletePolicy {
 	}
 }
 
-func NewBatchDeletePolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchDeletePolicy {
+func NewDynamicBatchDeletePolicy(dynConfig *DynConfig) *BatchDeletePolicy {
 	if dynConfig == nil {
 		return NewBatchDeletePolicy()
 	}
@@ -99,54 +99,50 @@ func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfi
 	return wp
 }
 
-// copyBatchDeletePolicy creates a new BasePolicy instance and copies the values from the source BatchDeletePolicy.
-func copyBatchDeletePolicy(src *BatchDeletePolicy) *BatchDeletePolicy {
-	if src == nil {
+// copy creates a new BasePolicy instance and copies the values from the source BatchDeletePolicy.
+func (bd *BatchDeletePolicy) copy() *BatchDeletePolicy {
+	if bd == nil {
 		return nil
 	}
 
-	response := *src
+	response := *bd
 	return &response
 }
 
-// applyConfigToBatchDeletePolicy applies the dynamic configuration and generates a new policy
-func applyConfigToBatchDeletePolicy(policy *BatchDeletePolicy, dynConfig *DynConfig) *BatchDeletePolicy {
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (bdp *BatchDeletePolicy) patchDynamic(dynConfig *DynConfig) *BatchDeletePolicy {
 	if dynConfig == nil {
-		return policy
+		return bdp
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if policy == nil {
+	if bdp == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultBatchDeletePolicy.Load()
 	}
 	if config != nil && config.Dynamic != nil && config.Dynamic.BatchDelete != nil {
 		// Dynamic configuration is exists for policy in question.
-		var responsePolicy *BatchDeletePolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responsePolicy = copyBatchDeletePolicy(policy)
-		responsePolicy = mapDynamicBatchDeletePolicy(responsePolicy, dynConfig)
-
-		return responsePolicy
+		return bdp.copy().mapDynamic(dynConfig)
 	} else {
-		return policy
+		return bdp
 	}
 }
 
-func mapDynamicBatchDeletePolicy(policy *BatchDeletePolicy, dynConfig *DynConfig) *BatchDeletePolicy {
+func (bdp *BatchDeletePolicy) mapDynamic(dynConfig *DynConfig) *BatchDeletePolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return bdp
 	}
 
 	if dynConfig.config.Dynamic.BatchDelete != nil {
 		if dynConfig.config.Dynamic.BatchDelete.DurableDelete != nil {
-			policy.DurableDelete = *dynConfig.config.Dynamic.BatchDelete.DurableDelete
+			bdp.DurableDelete = *dynConfig.config.Dynamic.BatchDelete.DurableDelete
 		}
 		if dynConfig.config.Dynamic.BatchDelete.SendKey != nil {
-			policy.SendKey = *dynConfig.config.Dynamic.BatchDelete.SendKey
+			bdp.SendKey = *dynConfig.config.Dynamic.BatchDelete.SendKey
 		}
 	}
 
-	return policy
+	return bdp
 }

@@ -95,7 +95,7 @@ func NewBatchWritePolicy() *BatchWritePolicy {
 	}
 }
 
-func NewBatchWritePolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchWritePolicy {
+func NewDynamicBatchWritePolicy(dynConfig *DynConfig) *BatchWritePolicy {
 	if dynConfig == nil {
 		return NewBatchWritePolicy()
 	}
@@ -127,41 +127,37 @@ func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig
 }
 
 // copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
-func copyBatchWritePolicy(src *BatchWritePolicy) *BatchWritePolicy {
-	if src == nil {
+func (bwp *BatchWritePolicy) copy() *BatchWritePolicy {
+	if bwp == nil {
 		return nil
 	}
 
-	response := *src
+	response := *bwp
 	return &response
 }
 
 // applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy
-func applyConfigToBatchWritePolicy(policy *BatchWritePolicy, dynConfig *DynConfig) *BatchWritePolicy {
+func (bwp *BatchWritePolicy) patchDynamic(dynConfig *DynConfig) *BatchWritePolicy {
 	if dynConfig == nil {
-		return policy
+		return bwp
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if policy == nil {
+	if bwp == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultBatchWritePolicy.Load()
 	}
 	if config != nil && config.Dynamic != nil && config.Dynamic.BatchWrite != nil {
 		// Dynamic configuration is exists for policy in question.
-		var responsePolicy *BatchWritePolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responsePolicy = copyBatchWritePolicy(policy)
-		responsePolicy = mapDynamicBatchWritePolicy(responsePolicy, dynConfig)
-
-		return responsePolicy
+		return bwp.copy().mapDynamic(dynConfig)
 	} else {
-		return policy
+		return bwp
 	}
 }
 
-func mapDynamicBatchWritePolicy(policy *BatchWritePolicy, dynConfig *DynConfig) *BatchWritePolicy {
+func (policy *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
 		return policy
 	}
@@ -178,28 +174,28 @@ func mapDynamicBatchWritePolicy(policy *BatchWritePolicy, dynConfig *DynConfig) 
 	return policy
 }
 
-func mapDynamicBatchWriteToBasePolicy(policy *BasePolicy, dynConfig *DynConfig) *BasePolicy {
+func (bp *BasePolicy) mapConfigBatchWriteToBasePolicy(dynConfig *DynConfig) *BasePolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return bp
 	}
 
 	if dynConfig.config.Dynamic.BatchWrite != nil {
 		if dynConfig.config.Dynamic.BatchWrite.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchWrite.TotalTimeout) * time.Millisecond
+			bp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchWrite.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchWrite.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchWrite.SocketTimeout) * time.Millisecond
+			bp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchWrite.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchWrite.MaxRetries != nil {
-			policy.MaxRetries = *dynConfig.config.Dynamic.BatchWrite.MaxRetries
+			bp.MaxRetries = *dynConfig.config.Dynamic.BatchWrite.MaxRetries
 		}
 		if dynConfig.config.Dynamic.BatchWrite.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchWrite.SleepBetweenRetries) * time.Millisecond
+			bp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchWrite.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchWrite.Replica != nil {
-			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchWrite.Replica)
+			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchWrite.Replica)
 		}
 	}
 
-	return policy
+	return bp
 }

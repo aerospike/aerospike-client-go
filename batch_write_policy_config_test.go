@@ -91,7 +91,7 @@ var _ = Describe("ApplyConfigToBatchWritePolicy", func() {
 			Expect(policy.SendKey).To(BeFalse())
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToBatchWritePolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())

@@ -51,7 +51,7 @@ var _ = Describe("ApplyConfigToBatchUDFPolicy", func() {
 			Expect(policy.SendKey).To(BeFalse())
 
 			// Apply configuration.
-			updatedPolicy := applyConfigToBatchUDFPolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())

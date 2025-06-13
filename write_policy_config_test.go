@@ -83,7 +83,7 @@ var _ = Describe("WritePolicy Config", func() {
 			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
 			Expect(policy.SendKey).To(BeFalse())
 
-			updatedPolicy := applyConfigToWritePolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the updated policy.
 			Expect(updatedPolicy).ToNot(BeNil())
@@ -145,7 +145,7 @@ var _ = Describe("WritePolicy Config", func() {
 			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
 			Expect(policy.SendKey).To(BeFalse())
 
-			updatedPolicy := applyConfigToWritePolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the updated policy.
 			Expect(updatedPolicy).ToNot(BeNil())

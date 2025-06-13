@@ -76,7 +76,7 @@ var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
 			Expect(policy.SendKey).To(BeFalse())
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToTxnVerifyPolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())
@@ -149,7 +149,7 @@ var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
 			Expect(policy.SendKey).To(BeFalse())
 
 			// Apply the configuration.
-			updatedPolicy := applyConfigToTxnVerifyPolicy(policy, config)
+			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
 			Expect(updatedPolicy).NotTo(BeNil())

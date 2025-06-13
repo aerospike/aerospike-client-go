@@ -61,7 +61,7 @@ type DynamicConfig struct {
 type Client struct {
 	// static config
 	ConfigInterval        *int `yaml:"config_interval"`
-	ConnectionQueueSize   *int `yaml:"connection_queue_size"`
+	ConnectionQueueSize   *int `yaml:"max_connections_per_node"`
 	MinConnectionsPerNode *int `yaml:"min_connections_per_node"`
 
 	// dynamic config

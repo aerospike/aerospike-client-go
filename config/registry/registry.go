@@ -21,8 +21,10 @@ import (
 )
 
 const (
-	DSN_REGEX_PATTERN = `^\s*([A-Za-z][A-Za-z0-9+.-]*://)?(.*)$`
-	DEFAULT_SCHEMA    = "file://"
+	DSN_REGEX_PATTERN = `^\s*(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*://)?(?P<path>.*)$`
+	DEFAULT_SCHEME    = "file://"
+	DSN_SCHEME        = "scheme"
+	DSN_PATH          = "path"
 )
 
 var (

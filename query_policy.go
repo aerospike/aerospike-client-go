@@ -61,7 +61,7 @@ func NewQueryPolicy() *QueryPolicy {
 	}
 }
 
-func NewQueryPolicyOrDefaultFromCache(dynConfig *DynConfig) *QueryPolicy {
+func NewDynamicQueryPolicy(dynConfig *DynConfig) *QueryPolicy {
 	if dynConfig == nil {
 		return NewQueryPolicy()
 	}
@@ -70,74 +70,70 @@ func NewQueryPolicyOrDefaultFromCache(dynConfig *DynConfig) *QueryPolicy {
 }
 
 // copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
-func copyQueryPolicy(src *QueryPolicy) *QueryPolicy {
-	if src == nil {
+func (qp *QueryPolicy) copy() *QueryPolicy {
+	if qp == nil {
 		return nil
 	}
 
-	response := *src
+	response := *qp
 	return &response
 }
 
 // applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy.
-func applyConfigToQueryPolicy(policy *QueryPolicy, dynConfig *DynConfig) *QueryPolicy {
+func (qp *QueryPolicy) pathDynamic(dynConfig *DynConfig) *QueryPolicy {
 	if dynConfig == nil {
-		return policy
+		return qp
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if policy == nil {
+	if qp == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultQueryPolicy.Load()
 
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.Query != nil {
 		// Dynamic configuration is exists for policy in question.
-		var responsePolicy *QueryPolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responsePolicy = copyQueryPolicy(policy)
-		responsePolicy = mapDynamicQueryPolicy(responsePolicy, dynConfig)
-
-		return responsePolicy
+		return qp.copy().mapDynamic(dynConfig)
 	} else {
-		return policy
+		return qp
 	}
 }
 
-func mapDynamicQueryPolicy(policy *QueryPolicy, dynConfig *DynConfig) *QueryPolicy {
+func (qp *QueryPolicy) mapDynamic(dynConfig *DynConfig) *QueryPolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return qp
 	}
 
 	if dynConfig.config.Dynamic.Query != nil {
 		if dynConfig.config.Dynamic.Query.ReadModeAp != nil {
-			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Query.ReadModeAp)
+			qp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Query.ReadModeAp)
 		}
 		if dynConfig.config.Dynamic.Query.ReadModeSc != nil {
-			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Query.ReadModeSc)
+			qp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Query.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.Query.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout) * time.Millisecond
+			qp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Query.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Query.SocketTimeout) * time.Millisecond
+			qp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Query.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Query.MaxRetries != nil {
-			policy.MaxRetries = *dynConfig.config.Dynamic.Query.MaxRetries
+			qp.MaxRetries = *dynConfig.config.Dynamic.Query.MaxRetries
 		}
 		if dynConfig.config.Dynamic.Query.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Query.SleepBetweenRetries) * time.Millisecond
+			qp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Query.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.Query.Replica != nil {
-			policy.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Query.Replica)
+			qp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Query.Replica)
 		}
 		if dynConfig.config.Dynamic.Query.IncludeBinData != nil {
-			policy.IncludeBinData = *dynConfig.config.Dynamic.Query.IncludeBinData
+			qp.IncludeBinData = *dynConfig.config.Dynamic.Query.IncludeBinData
 		}
 		if dynConfig.config.Dynamic.Query.ExpectedDuration != nil {
-			policy.ExpectedDuration = mapQueryDuration(*dynConfig.config.Dynamic.Query.ExpectedDuration)
+			qp.ExpectedDuration = mapQueryDuration(*dynConfig.config.Dynamic.Query.ExpectedDuration)
 		}
 	}
 
-	return policy
+	return qp
 }
