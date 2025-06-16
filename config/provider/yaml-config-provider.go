@@ -16,6 +16,8 @@ package provider
 
 import (
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,7 +27,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const driverName = "file://"
+const (
+	DRIVER_NAME           = "file://"
+	VERSION_REGEX_PATTERN = `(?m)^(?P<version>version):\s*(?P<value>.+)$`
+)
 
 type YamlConfigProvider struct {
 	oldModTime time.Time
@@ -33,7 +38,7 @@ type YamlConfigProvider struct {
 
 // Register the YamlConfigProvider with the configuration provider registry
 func init() {
-	registry.Register(driverName, NewYamlConfigProvider())
+	registry.Register(DRIVER_NAME, NewYamlConfigProvider())
 }
 
 func NewYamlConfigProvider() dynconfig.ConfigProvider {
@@ -43,6 +48,26 @@ func NewYamlConfigProvider() dynconfig.ConfigProvider {
 func NewYamlConfigProviderWithPath(configFilePath string) dynconfig.ConfigProvider {
 	return &YamlConfigProvider{
 		oldModTime: time.Time{},
+	}
+}
+
+// containsVersion checks if the provided YAML data contains a version field.
+// Since the file is a yaml file and yaml spec does not dictate
+// order of fields we have to read the whole file and check for the version field.
+func (yc *YamlConfigProvider) containsVersion(data []byte) bool {
+	content, err := strconv.Unquote(string(data))
+	if err != nil {
+		// fallback to raw data if not quoted
+		content = string(data)
+	}
+	re := regexp.MustCompile(VERSION_REGEX_PATTERN)
+
+	matches := re.FindStringSubmatch(content)
+	if matches == nil {
+		logger.Logger.Warn("`version` is missing in provided configuration")
+		return false
+	} else {
+		return true
 	}
 }
 
@@ -62,6 +87,12 @@ func (yc *YamlConfigProvider) LoadConfig(filePath string) *dynconfig.Config {
 		data, err := os.ReadFile(filePath)
 		if err != nil {
 			logger.Logger.Error("Failed to read file %s. Error: %v", filePath, err)
+			return nil
+		}
+
+		// Validate if the file contains a version. Will not attempt to serialize
+		// the file into config if the version is not present.
+		if !yc.containsVersion(data) {
 			return nil
 		}
 

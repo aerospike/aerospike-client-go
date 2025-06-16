@@ -35,6 +35,7 @@ type ConfigProvider interface {
 // Structures used to serialize and deserialize the configuration
 // ----------------------------------------------------------------
 type Config struct {
+	Version *string        `yaml:"version"`
 	Static  *StaticConfig  `yaml:"static"`
 	Dynamic *DynamicConfig `yaml:"dynamic"`
 }
