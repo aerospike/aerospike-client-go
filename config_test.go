@@ -80,6 +80,10 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 					},
 				}
 				dummyCfg := &dynconfig.Config{
+					Version: func() *string {
+						d := "1.0.0"
+						return &d
+					}(),
 					Dynamic: dummyDyn,
 				}
 				fakeProvider := &fakeConfigProvider{config: dummyCfg}
@@ -186,6 +190,10 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 					},
 				}
 				dummyCfg := &dynconfig.Config{
+					Version: func() *string {
+						d := "1.0.0"
+						return &d
+					}(),
 					Dynamic: dummyDyn,
 				}
 				fakeProvider := &fakeConfigProvider{config: dummyCfg}

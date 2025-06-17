@@ -144,7 +144,7 @@ func (dc *DynConfig) runCallBack() {
 // config is used.
 func (dc *DynConfig) providerLoadConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
-	if loadedConfig != nil && dc.isValid(loadedConfig) {
+	if loadedConfig != nil {
 		if dc.config.Dynamic == nil {
 			logger.Logger.Warn("Dynamic configuration is enabled and configuration is empty. Configuration will load default policy values.")
 		}
@@ -169,7 +169,7 @@ func (dc *DynConfig) providerLoadConfig() {
 // hydrates the static and dynamic policies. It also clears the cache to ensure that the new config is used.
 func (dc *DynConfig) initConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
-	if loadedConfig != nil && dc.isValid(loadedConfig) {
+	if loadedConfig != nil {
 		dc.config = loadedConfig // This is updating the entire config object
 
 		if dc.client != nil {
@@ -522,30 +522,6 @@ func (dc *DynConfig) getConfigIfNotLoadedOrInitialized() *dynconfig.Config {
 	}
 
 	return config
-}
-
-// isValid checks if the config version is supported.
-func (dc *DynConfig) isValid(config *dynconfig.Config) bool {
-	if config.Version == nil || *config.Version == "" {
-		logger.Logger.Warn(
-			"Dynamic configuration version is not set or empty. Supported versions are: %v",
-			supportedVersions,
-		)
-
-		return false
-	}
-
-	if _, ok := supportedVersions[*config.Version]; !ok {
-		logger.Logger.Warn(
-			"Unsupported dynamic configuration version: '%s'. Supported versions are: %v",
-			*config.Version,
-			supportedVersions,
-		)
-
-		return false
-	} else {
-		return true
-	}
 }
 
 // ----------------------------------------------------------------
