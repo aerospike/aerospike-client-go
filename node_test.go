@@ -299,7 +299,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 				// sleep again until all connections are all idle
 				<-time.After(2 * clientPolicy.IdleTimeout)
-				gm.Expect(node.ConnsCount()).To(gm.Equal(clientPolicy.MinConnectionsPerNode + 1)) // min + 1 reserved for tend
+				gm.Expect(node.ConnsCount()).To(gm.BeNumerically(">=", clientPolicy.MinConnectionsPerNode+1)) // min + 1 reserved for tend
 			})
 
 			gg.It("must delay the connection from becoming idle if it is put back in the queue", func() {

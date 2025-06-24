@@ -31,6 +31,8 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
+const MAX_SOCKET_IDLE_TRIM_DEFAULT_SECS int = 55
+
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
 type Cluster struct {
@@ -79,6 +81,12 @@ type Cluster struct {
 
 	// Password in hashed format in bytes.
 	password iatomic.SyncVal[[]byte]
+
+	// Maximum socket idle to validate connections in command.
+	maxSocketIdleTran iatomic.SyncVal[*time.Duration]
+
+	// Maximum socket idle to validate connections in command.
+	maxSocketIdleTrim iatomic.SyncVal[*time.Duration]
 }
 
 // NewCluster generates a Cluster instance.
@@ -109,11 +117,6 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 	clientPolicy := *policy
 
-	// Set a default Idle Timeout for the connection
-	if clientPolicy.IdleTimeout <= 0 {
-		clientPolicy.IdleTimeout = 55 * time.Second
-	}
-
 	newCluster := &Cluster{
 		infoPolicy:  InfoPolicy{Timeout: policy.Timeout},
 		tendChannel: make(chan struct{}),
@@ -129,6 +132,18 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		supportsPartitionQuery: *iatomic.NewBool(false),
 	}
 	newCluster.clientPolicy.Store(&clientPolicy)
+
+	if policy.IdleTimeout <= 0 {
+		tranDuration := 0 * time.Second
+		trimDuration := time.Duration(MAX_SOCKET_IDLE_TRIM_DEFAULT_SECS) * time.Second
+		newCluster.maxSocketIdleTran.Set(&tranDuration)
+		newCluster.maxSocketIdleTrim.Set(&trimDuration)
+	} else {
+		tranDuration := policy.IdleTimeout * time.Second
+		trimDuration := tranDuration
+		newCluster.maxSocketIdleTran.Set(&tranDuration)
+		newCluster.maxSocketIdleTrim.Set(&trimDuration)
+	}
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
 
@@ -1062,4 +1077,18 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 // DisableMetrics disables the cluster command metrics gathering.
 func (clstr *Cluster) DisableMetrics() {
 	clstr.metricsEnabled.Store(false)
+}
+
+func (clstr *Cluster) isConnCurrentTran(lastUsed *time.Time) bool {
+	transDuration := *clstr.maxSocketIdleTran.Get()
+	if transDuration == 0 || time.Since(*lastUsed) >= transDuration {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (clstr *Cluster) isConnCurrentTrim(lastUsed *time.Time) bool {
+	trimDuration := *clstr.maxSocketIdleTrim.Get()
+	return time.Since(*lastUsed) <= trimDuration
 }

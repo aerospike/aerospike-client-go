@@ -76,6 +76,8 @@ type nodeStats struct {
 	TransactionRetryCount iatomic.Int `json:"transaction-retry-count"`
 	// Total number of command errors
 	TransactionErrorCount iatomic.Int `json:"transaction-error-count"`
+	// Total number of connections recovered from the pool
+	ConnectionsRecovered iatomic.Int `json:"connections-recovered"`
 	// Metrics for Get commands
 	GetMetrics hist.SyncHistogram[uint64] `json:"get-metrics"`
 	// Metrics for GetHeader commands
@@ -186,6 +188,7 @@ func (ns *nodeStats) getAndReset() *nodeStats {
 		ConnectionsIdleDropped:   ns.ConnectionsIdleDropped.CloneAndSet(0),
 		ConnectionsOpen:          ns.ConnectionsOpen.CloneAndSet(0),
 		ConnectionsClosed:        ns.ConnectionsClosed.CloneAndSet(0),
+		ConnectionsRecovered:     ns.ConnectionsRecovered.CloneAndSet(0),
 		TendsTotal:               ns.TendsTotal.CloneAndSet(0),
 		TendsSuccessful:          ns.TendsSuccessful.CloneAndSet(0),
 		TendsFailed:              ns.TendsFailed.CloneAndSet(0),
@@ -232,6 +235,7 @@ func (ns *nodeStats) clone() nodeStats {
 		ConnectionsIdleDropped:   ns.ConnectionsIdleDropped.Clone(),
 		ConnectionsOpen:          ns.ConnectionsOpen.Clone(),
 		ConnectionsClosed:        ns.ConnectionsClosed.Clone(),
+		ConnectionsRecovered:     ns.ConnectionsRecovered.Clone(),
 		TendsTotal:               ns.TendsTotal.Clone(),
 		TendsSuccessful:          ns.TendsSuccessful.Clone(),
 		TendsFailed:              ns.TendsFailed.Clone(),
@@ -297,6 +301,7 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.ConnectionsIdleDropped.AddAndGet(newStats.ConnectionsIdleDropped.Get())
 	ns.ConnectionsOpen.AddAndGet(newStats.ConnectionsOpen.Get())
 	ns.ConnectionsClosed.AddAndGet(newStats.ConnectionsClosed.Get())
+	ns.ConnectionsRecovered.AddAndGet(newStats.ConnectionsRecovered.Get())
 	ns.TendsTotal.AddAndGet(newStats.TendsTotal.Get())
 	ns.TendsSuccessful.AddAndGet(newStats.TendsSuccessful.Get())
 	ns.TendsFailed.AddAndGet(newStats.TendsFailed.Get())
@@ -339,6 +344,7 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		ConnectionsIdleDropped   int                                  `json:"connections-idle-dropped"`
 		ConnectionsOpen          int                                  `json:"open-connections"`
 		ConnectionsClosed        int                                  `json:"closed-connections"`
+		ConnectionsRecovered     int `json:"connections-recovered"`
 		TendsTotal               int                                  `json:"tends-total"`
 		TendsSuccessful          int                                  `json:"tends-successful"`
 		TendsFailed              int                                  `json:"tends-failed"`
@@ -373,6 +379,7 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		ns.ConnectionsIdleDropped.Get(),
 		ns.ConnectionsOpen.Get(),
 		ns.ConnectionsClosed.Get(),
+		ns.ConnectionsRecovered.Get(),
 		ns.TendsTotal.Get(),
 		ns.TendsSuccessful.Get(),
 		ns.TendsFailed.Get(),
@@ -445,6 +452,7 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 		ConnectionsIdleDropped   int `json:"connections-idle-dropped"`
 		ConnectionsOpen          int `json:"open-connections"`
 		ConnectionsClosed        int `json:"closed-connections"`
+		ConnectionsRecovered     int `json:"connections-recovered"`
 		TendsTotal               int `json:"tends-total"`
 		TendsSuccessful          int `json:"tends-successful"`
 		TendsFailed              int `json:"tends-failed"`

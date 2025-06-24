@@ -170,6 +170,11 @@ type BasePolicy struct {
 	// to the node containing the key's master partition.
 	// Default to sending read commands to the node containing the key's master partition.
 	ReplicaPolicy ReplicaPolicy
+
+	// Delay milliseconds after socket read timeout in an attempt to recover the socket
+	// in the background.  Processing continues on the original command and the user
+	// is still notified at the original command timeout.
+	TimeoutDelay time.Duration // = 0
 }
 
 // NewPolicy generates a new BasePolicy instance with default values.

@@ -3864,6 +3864,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 			if networkError(err) {
 				isTimeout := errors.Is(err, ErrTimeout)
+				isSocketTimeout := errors.Is(err, ErrSocketTimeout)
 				isClientTimeout = isTimeout
 				if !isTimeout {
 					if deviceOverloadError(err) {
@@ -3871,9 +3872,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 					}
 				}
 
-				// IO errors are considered temporary anomalies. Retry.
-				// Close socket to flush out possible garbage. Do not put back in pool.
-				cmd.conn.Close()
+				if isSocketTimeout && policy.TimeoutDelay > 0 {
+					// Do not close connection immediately, but give it a chance to recover
+					applyConnectionRecoveredMetrics(cmd.node)
+					continue
+				} else {
+					// IO errors are considered temporary anomalies. Retry.
+					// Close socket to flush out possible garbage. Do not put back in pool.
+					cmd.conn.Close()
+				}
 
 				logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 
@@ -3959,7 +3966,7 @@ func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 }
 
 func networkError(err Error) bool {
-	return err.Matches(types.NETWORK_ERROR, types.TIMEOUT)
+	return err.Matches(types.NETWORK_ERROR, types.TIMEOUT, types.SOCKET_TIMEOUT)
 }
 
 func deviceOverloadError(err Error) bool {
@@ -3981,6 +3988,12 @@ func applyTransactionErrorMetrics(node *Node) {
 func applyTransactionRetryMetrics(node *Node) {
 	if node != nil {
 		node.stats.TransactionRetryCount.GetAndIncrement()
+	}
+}
+
+func applyConnectionRecoveredMetrics(node *Node) {
+	if node != nil {
+		node.stats.ConnectionsRecovered.GetAndIncrement()
 	}
 }
 

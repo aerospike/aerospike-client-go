@@ -17,8 +17,10 @@ package aerospike
 import (
 	"compress/zlib"
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
+	"os"
 	"runtime"
 	"strconv"
 	"sync"
@@ -95,6 +97,10 @@ type Connection struct {
 	limitReader *io.LimitedReader
 
 	closer sync.Once
+
+	// Used to track the last time the connection was used. This is used to determine
+	// if the connection is idle/timeout and should be closed.
+	lastUsed time.Time
 }
 
 // makes sure that the connection is closed eventually, even if it is not consumed
@@ -115,7 +121,11 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 			if conn != nil && conn.node != nil {
 				conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
 			}
-			aerr = newErrorAndWrap(err, types.TIMEOUT)
+			if errors.Is(terr, os.ErrDeadlineExceeded) {
+				aerr = newErrorAndWrap(err, types.SOCKET_TIMEOUT)
+			} else {
+				aerr = newErrorAndWrap(err, types.TIMEOUT)
+			}
 		} else {
 			aerr = newErrorAndWrap(err, types.NETWORK_ERROR)
 		}
@@ -156,6 +166,7 @@ func newConnection(address string, timeout time.Duration) (*Connection, Error) {
 	newConn.conn = conn
 	newConn.limitReader = &io.LimitedReader{R: conn, N: 0}
 
+	newConn.lastUsed = time.Now()
 	// set timeout at the last possible moment
 	if err := newConn.setTimeout(timeout, timeout); err != nil {
 		newConn.Close()
@@ -213,6 +224,7 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
 // Write writes the slice to the connection buffer.
 func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 	var err error
+	ctn.updateLastUsed()
 
 	// make sure all bytes are written
 	// Don't worry about the loop, timeout has been set elsewhere
@@ -244,6 +256,7 @@ func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 // Read reads from connection buffer to the provided slice.
 func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 	var err error
+	ctn.updateLastUsed()
 
 	// if all bytes are not read, retry until successful
 	// Don't worry about the loop; we've already set the timeout elsewhere
@@ -366,6 +379,9 @@ func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duratio
 
 // Close closes the connection
 func (ctn *Connection) Close() {
+	// Resetting lastUsed to zero time
+	ctn.lastUsed = time.Time{}
+
 	ctn.closer.Do(func() {
 		if ctn != nil && ctn.conn != nil {
 			// deregister
@@ -385,6 +401,7 @@ func (ctn *Connection) Close() {
 			ctn.dataBuffer = nil
 			ctn.origDataBuffer = nil
 			ctn.node = nil
+			ctn.updateLastUsed()
 		}
 	})
 }
@@ -392,6 +409,7 @@ func (ctn *Connection) Close() {
 // Login will send authentication information to the server.
 func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessionInfo *sessionInfo) Error {
 	// need to authenticate
+	ctn.updateLastUsed()
 	if policy.RequiresAuthentication() {
 		var err Error
 		command := newLoginCommand(ctn.dataBuffer)
@@ -451,6 +469,7 @@ func (ctn *Connection) Login(policy *ClientPolicy) Error {
 // RequestInfo gets info values by name from the specified connection.
 // Timeout should already be set on the connection.
 func (ctn *Connection) RequestInfo(names ...string) (map[string]string, Error) {
+	ctn.updateLastUsed()
 	info, err := newInfo(ctn, names...)
 	if err != nil {
 		return nil, err
@@ -486,6 +505,7 @@ func (ctn *Connection) willBeIdleIn(tendInterval time.Duration) bool {
 // refresh extends the idle deadline of the connection.
 func (ctn *Connection) refresh() {
 	ctn.totalReceived = 0
+	ctn.updateLastUsed()
 	now := time.Now()
 	ctn.idleDeadline = now.Add(ctn.idleTimeout)
 	if ctn.inflater != nil {
@@ -526,6 +546,16 @@ func (ctn *Connection) initInflater(enabled bool, length int) Error {
 		ctn.inflater = r
 	}
 	return nil
+}
+
+// setLastUsed sets the last used time of the connection.
+func (ctn *Connection) getLastUsed() *time.Time {
+	return &ctn.lastUsed
+}
+
+// setLastUsed sets the last used time of the connection.
+func (ctn *Connection) updateLastUsed() {
+	ctn.lastUsed = time.Now()
 }
 
 // KeepConnection decides if a connection should be kept

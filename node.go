@@ -373,7 +373,7 @@ func (nd *Node) refreshFailed(e Error) {
 // a fresh connection or exhaust the queue.
 func (nd *Node) dropIdleConnections() {
 	if nd.cluster != nil {
-		nd.connections.DropIdle(nd.cluster.clientPolicy.Load().TendInterval)
+		nd.connections.DropIdle(nd.cluster.clientPolicy.Load().TendInterval, *nd.cluster.maxSocketIdleTrim.Get())
 	}
 }
 
@@ -412,7 +412,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err Erro
 // getConnection gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
 func (nd *Node) getConnection(deadline, timeout time.Duration) (conn *Connection, err Error) {
-	return nd.getConnectionWithHint(deadline, timeout, 0)
+	return nd.getConnectionWithHint(deadline, timeout, 0, 0)
 }
 
 // newConnectionAllowed will tentatively check if the client is allowed to make a new connection
@@ -515,7 +515,7 @@ func (nd *Node) makeConnectionForPool(hint byte) {
 
 // getConnectionWithHint gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
-func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte) (conn *Connection, err Error) {
+func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte, timeoutDelay time.Duration) (conn *Connection, err Error) {
 	if !nd.active.Get() {
 		return nil, ErrServerNotAvailable.err()
 	}
@@ -525,6 +525,13 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 		if conn.IsConnected() {
 			break
 		}
+
+		if nd.cluster.isConnCurrentTran(conn.getLastUsed()) {
+			conn.setTimeout(totalTimeout, socketTimeout)
+
+			return conn, nil
+		}
+
 		conn.Close()
 		conn = nil
 	}
@@ -636,6 +643,10 @@ func (nd *Node) String() string {
 
 func (nd *Node) closeConnections() {
 	for conn := nd.connections.Poll(0); conn != nil; conn = nd.connections.Poll(0) {
+		if conn == nil || nd.cluster.isConnCurrentTrim(conn.getLastUsed()) {
+			break // TODO might need to consider continuing here if we want to close all connections
+		}
+
 		conn.Close()
 	}
 

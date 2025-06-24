@@ -39,6 +39,8 @@ func newRecordParser(cmd *baseCommand) (*recordParser, Error) {
 		cmd: cmd,
 	}
 
+	rp.cmd.conn.updateLastUsed()
+
 	// Read proto and check if compressed
 	if _, err := rp.cmd.conn.Read(rp.cmd.dataBuffer, 8); err != nil {
 		logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())

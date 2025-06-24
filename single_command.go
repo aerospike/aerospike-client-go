@@ -38,7 +38,7 @@ func newSingleCommand(cluster *Cluster, key *Key, partition *Partition) singleCo
 }
 
 func (cmd *singleCommand) getConnection(policy Policy) (*Connection, Error) {
-	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().TotalTimeout, policy.GetBasePolicy().SocketTimeout, cmd.key.digest[0])
+	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().TotalTimeout, policy.GetBasePolicy().SocketTimeout, cmd.key.digest[0], policy.GetBasePolicy().TimeoutDelay)
 }
 
 func (cmd *singleCommand) putConnection(conn *Connection) {
