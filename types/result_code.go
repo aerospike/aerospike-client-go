@@ -21,7 +21,7 @@ import "fmt"
 type ResultCode int
 
 const (
-	// Socket_timeout devines a socket timeout error.
+	// Socket_timeout defines a socket timeout error.
 	SOCKET_TIMEOUT = -25
 
 	// Multi-record transaction failed
@@ -368,13 +368,13 @@ func ResultCodeToString(resultCode ResultCode) string {
 		return "no response was received from the server"
 
 	case NETWORK_ERROR:
-		return "network error. Checked the wrapped error for detail"
+		return "network error. Check the wrapped error for detail"
 
 	case SOCKET_TIMEOUT:
-		return "socket timeout. Checked the wrapped error for detail"
+		return "socket timeout. Check the wrapped error for detail"
 
 	case COMMON_ERROR:
-		return "common, none-aerospike error. Checked the wrapped error for detail"
+		return "common, none-aerospike error. Check the wrapped error for detail"
 
 	case MAX_RETRIES_EXCEEDED:
 		return "Max retries exceeded"
