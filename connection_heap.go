@@ -128,11 +128,6 @@ func (h *singleConnectionHeap) DropIdleTail(maxSocketIdleTrim time.Duration) boo
 			return false
 		}
 
-		// todo: Same logic is in Cluster.isConnCurrentTrim
-		if time.Since(*conn.getLastUsed()) <= maxSocketIdleTrim {
-			return false
-		}
-
 		h.tail = (h.tail + 1) % h.size
 		h.data[h.tail] = nil
 		h.full = false

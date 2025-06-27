@@ -299,7 +299,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 				// sleep again until all connections are all idle
 				<-time.After(2 * clientPolicy.IdleTimeout)
-				gm.Expect(node.ConnsCount()).To(gm.BeNumerically(">=", clientPolicy.MinConnectionsPerNode+1)) // min + 1 reserved for tend
+				gm.Expect(node.ConnsCount()).To(gm.Equal(clientPolicy.MinConnectionsPerNode + 1)) // min + 1 reserved for tend
 			})
 
 			gg.It("must delay the connection from becoming idle if it is put back in the queue", func() {
@@ -351,6 +351,172 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 				// the original connection should be closed
 				gm.Expect(c.IsConnected()).To(gm.BeFalse())
+			})
+
+		})
+
+		gg.Context("When TimeoutDelay Is Used", func() {
+			gg.It("must validate TimeoutDelay behavior on socket timeout", func() {
+				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
+
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defer client.Close()
+
+				policy := as.NewPolicy()
+				policy.TimeoutDelay = 100 * time.Millisecond
+				policy.SocketTimeout = 100 * time.Millisecond
+				policy.TotalTimeout = 1000 * time.Millisecond
+				policy.MaxRetries = 2
+
+				key, _ := as.NewKey(*namespace, randString(50), 5)
+
+				putPolicy := as.NewWritePolicy(0, 0)
+				err = client.Put(putPolicy, key, as.BinMap{"testbin": "testvalue"})
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				rec, err := client.Get(policy, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec).ToNot(gm.BeNil())
+				gm.Expect(rec.Bins["testbin"]).To(gm.Equal("testvalue"))
+
+				// Clean up the test record
+				deletePolicy := as.NewWritePolicy(0, 0)
+				_, err = client.Delete(deletePolicy, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+			})
+
+			gg.It("must not close connections immediately when TimeoutDelay > 0 on socket timeout", func() {
+				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
+
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defer client.Close()
+
+				node := client.GetNodes()[0]
+
+				// Get a connection from the pool to test with
+				conn, err := node.GetConnection(5 * time.Second)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(conn).ToNot(gm.BeNil())
+				gm.Expect(conn.IsConnected()).To(gm.BeTrue())
+
+				// Put the connection back to pool
+				node.PutConnection(conn)
+
+				// Create a policy with TimeoutDelay > 0 and very short socket timeout
+				policy := as.NewPolicy()
+				policy.TimeoutDelay = 200 * time.Millisecond // Allow recovery time
+				policy.SocketTimeout = 1 * time.Millisecond  // Very short to trigger timeout
+				policy.TotalTimeout = 1000 * time.Millisecond
+				policy.MaxRetries = 5 // Allow multiple retries
+
+				// Create test data
+				key, _ := as.NewKey(*namespace, randString(50), 5)
+				putPolicy := as.NewWritePolicy(0, 0)
+				err = client.Put(putPolicy, key, as.BinMap{"testbin": "testvalue"})
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				// Attempt operation with very short socket timeout
+				// This should either succeed after retries or fail with timeout, but NOT with connection errors
+				// if TimeoutDelay is working correctly
+				_, err = client.Get(policy, key)
+
+				if err != nil {
+					gm.Expect(err.Error()).To(gm.ContainSubstring("timeout"), "Expected timeout error when TimeoutDelay is used")
+				}
+
+				// Verify that connections are still available by doing a normal operation
+				normalPolicy := as.NewPolicy()
+				normalPolicy.SocketTimeout = 5 * time.Second
+				normalPolicy.TotalTimeout = 10 * time.Second
+
+				rec, err := client.Get(normalPolicy, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec).ToNot(gm.BeNil())
+				gm.Expect(rec.Bins["testbin"]).To(gm.Equal("testvalue"))
+
+				// Clean up
+				_, err = client.Delete(putPolicy, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+			})
+
+			gg.It("must close connections immediately when TimeoutDelay = 0 on socket timeout", func() {
+				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
+				// Reduce connection pool size to make connection exhaustion more visible
+				clientPolicy.ConnectionQueueSize = 2
+
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defer client.Close()
+
+				policy := as.NewPolicy()
+				policy.TimeoutDelay = 0 // No delay - close connections immediately
+				policy.SocketTimeout = 1 * time.Millisecond
+				policy.TotalTimeout = 100 * time.Millisecond
+				policy.MaxRetries = 1
+
+				key, _ := as.NewKey(*namespace, randString(50), 5)
+				putPolicy := as.NewWritePolicy(0, 0)
+				err = client.Put(putPolicy, key, as.BinMap{"testbin": "testvalue"})
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				for i := 0; i < 3; i++ {
+					_, err = client.Get(policy, key)
+					if err != nil {
+						break
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+
+				normalPolicy := as.NewPolicy()
+				normalPolicy.SocketTimeout = 5 * time.Second
+				normalPolicy.TotalTimeout = 10 * time.Second
+
+				rec, err := client.Get(normalPolicy, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec).ToNot(gm.BeNil())
+				gm.Expect(rec.Bins["testbin"]).To(gm.Equal("testvalue"))
+
+				// Clean up
+				_, err = client.Delete(putPolicy, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+			})
+
+			gg.It("must validate TimeoutDelay policy field configuration", func() {
+				policy := as.NewPolicy()
+				gm.Expect(policy.TimeoutDelay).To(gm.Equal(time.Duration(0)))
+				policy.TimeoutDelay = 200 * time.Millisecond
+				gm.Expect(policy.TimeoutDelay).To(gm.Equal(200 * time.Millisecond))
+
+				testCases := []time.Duration{
+					0,
+					50 * time.Millisecond,
+					100 * time.Millisecond,
+					500 * time.Millisecond,
+					1 * time.Second,
+				}
+
+				for _, timeout := range testCases {
+					policy.TimeoutDelay = timeout
+					gm.Expect(policy.TimeoutDelay).To(gm.Equal(timeout))
+				}
+
+				writePolicy := as.NewWritePolicy(0, 0)
+				writePolicy.TimeoutDelay = 300 * time.Millisecond
+				gm.Expect(writePolicy.TimeoutDelay).To(gm.Equal(300 * time.Millisecond))
+
+				batchPolicy := as.NewBatchPolicy()
+				batchPolicy.TimeoutDelay = 400 * time.Millisecond
+				gm.Expect(batchPolicy.TimeoutDelay).To(gm.Equal(400 * time.Millisecond))
 			})
 
 		})

@@ -85,7 +85,7 @@ type Cluster struct {
 	// Maximum socket idle to validate connections in command.
 	maxSocketIdleTran iatomic.SyncVal[*time.Duration]
 
-	// Maximum socket idle to validate connections in command.
+	// Maximum socket idle to trim peak connections to min connections.
 	maxSocketIdleTrim iatomic.SyncVal[*time.Duration]
 }
 
@@ -133,7 +133,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	}
 	newCluster.clientPolicy.Store(&clientPolicy)
 
-	if policy.IdleTimeout <= 0 {
+	if policy.IdleTimeout == 0 {
 		tranDuration := 0 * time.Second
 		trimDuration := time.Duration(MAX_SOCKET_IDLE_TRIM_DEFAULT_SECS) * time.Second
 		newCluster.maxSocketIdleTran.Set(&tranDuration)
