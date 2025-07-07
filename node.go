@@ -909,17 +909,47 @@ func (nd *Node) resetErrorCount() {
 	nd.errorCount.Set(0)
 }
 
-// checks if the errorCount is within set limits
-func (nd *Node) errorCountWithinLimit() bool {
-	clusterClientPolicy := nd.cluster.clientPolicy.Load()
-	return clusterClientPolicy.MaxErrorRate <= 0 || nd.errorCount.Get() <= clusterClientPolicy.MaxErrorRate
-}
-
+// Circuit breaker with backoff for maxErrorRate.
+// When maxErrorRate is hit, break for one errorRateWindow.
+// On next window, check if half maxErrorRate is met; if not, reset, otherwise keep circuit open.
+// validateErrorCount checks the error count against the maxErrorRate
 // returns error if errorCount has gone above the threshold set in the policy
 func (nd *Node) validateErrorCount() Error {
-	if !nd.errorCountWithinLimit() {
+	maxErrorRate := nd.cluster.clientPolicy.MaxErrorRate
+	errorRateWindow := nd.cluster.clientPolicy.ErrorRateWindow
+	if maxErrorRate <= 0 {
+		return nil
+	}
+
+	errCount := abs(nd.errorCount.Get())
+	if errCount > maxErrorRate {
 		nd.stats.CircuitBreakerHits.IncrementAndGet()
-		return newError(types.MAX_ERROR_RATE)
+
+		window := nd.failures.Get()
+		circuitOpenWindow := -nd.errorCount.Get()
+
+		if circuitOpenWindow > 0 {
+			// circuit is already open, check if window has advanced
+			if int(window)-circuitOpenWindow >= errorRateWindow {
+				// new window, check if errorcount is less than half maxErrorRate
+				realErrCount := nd.errorCount.Get() * -1 // restore positive value
+				if realErrCount < maxErrorRate/2 {
+					nd.resetErrorCount()
+					return nil
+				} else {
+					// keep circuit open, update open window
+					nd.errorCount.Set(-int(window))
+					return newError(types.MAX_ERROR_RATE)
+				}
+			} else {
+				// still in backoff window, keep circuit open
+				return newError(types.MAX_ERROR_RATE)
+			}
+		} else {
+			// circuit just opened, mark with negative window
+			nd.errorCount.Set(-int(window))
+			return newError(types.MAX_ERROR_RATE)
+		}
 	}
 	return nil
 }
@@ -937,4 +967,19 @@ func (nd *Node) PartitionGeneration() int {
 // RebalanceGeneration returns node's Rebalance Generation
 func (nd *Node) RebalanceGeneration() int {
 	return nd.rebalanceGeneration.Get()
+}
+
+// Testing helpers
+// IncrementFailures increments the failures count for the node.
+func (node *Node) GetErrorCount() int {
+	return node.errorCount.Get()
+}
+
+// Abs returns the absolute value of the given integer type.
+func abs[T ~int | ~int8 | ~int16 | ~int32 | ~int64](x T) T {
+	if x < 0 {
+		return -x
+	}
+
+	return x
 }
