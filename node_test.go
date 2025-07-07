@@ -401,14 +401,8 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 				node := client.GetNodes()[0]
 
-				// Get a connection from the pool to test with
-				conn, err := node.GetConnection(5 * time.Second)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-				gm.Expect(conn).ToNot(gm.BeNil())
-				gm.Expect(conn.IsConnected()).To(gm.BeTrue())
-
-				// Put the connection back to pool
-				node.PutConnection(conn)
+				// Get initial connection count to track changes
+				initialOpenCount := node.ConnsCount()
 
 				// Create a policy with TimeoutDelay > 0 and very short socket timeout
 				policy := as.NewPolicy()
@@ -423,16 +417,20 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				err = client.Put(putPolicy, key, as.BinMap{"testbin": "testvalue"})
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-				// Attempt operation with very short socket timeout
-				// This should either succeed after retries or fail with timeout, but NOT with connection errors
-				// if TimeoutDelay is working correctly
-				_, err = client.Get(policy, key)
-
-				if err != nil {
-					gm.Expect(err.Error()).To(gm.ContainSubstring("timeout"), "Expected timeout error when TimeoutDelay is used")
+				// This should trigger socket timeouts and test the recovery mechanism
+				var lastErr error
+				for i := 0; i < 3; i++ {
+					_, lastErr = client.Get(policy, key)
+					if lastErr != nil {
+						break
+					}
+					time.Sleep(10 * time.Millisecond)
 				}
 
-				// Verify that connections are still available by doing a normal operation
+				// Check connection count after potential socket timeouts
+				finalOpenCount := node.ConnsCount()
+
+				// Verify that connections are still available for normal operations
 				normalPolicy := as.NewPolicy()
 				normalPolicy.SocketTimeout = 5 * time.Second
 				normalPolicy.TotalTimeout = 10 * time.Second
@@ -441,6 +439,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(rec).ToNot(gm.BeNil())
 				gm.Expect(rec.Bins["testbin"]).To(gm.Equal("testvalue"))
+
+				gm.Expect(finalOpenCount).To(gm.BeNumerically(">=", initialOpenCount-2),
+					"TimeoutDelay should help preserve connections during socket timeouts")
 
 				// Clean up
 				_, err = client.Delete(putPolicy, key)

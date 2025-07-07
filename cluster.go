@@ -83,10 +83,10 @@ type Cluster struct {
 	password iatomic.SyncVal[[]byte]
 
 	// Maximum socket idle to validate connections in command.
-	maxSocketIdleTran iatomic.SyncVal[*time.Duration]
+	maxSocketIdleTran iatomic.SyncVal[time.Duration]
 
 	// Maximum socket idle to trim peak connections to min connections.
-	maxSocketIdleTrim iatomic.SyncVal[*time.Duration]
+	maxSocketIdleTrim iatomic.SyncVal[time.Duration]
 }
 
 // NewCluster generates a Cluster instance.
@@ -136,13 +136,13 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	if policy.IdleTimeout == 0 {
 		tranDuration := 0 * time.Second
 		trimDuration := time.Duration(MAX_SOCKET_IDLE_TRIM_DEFAULT_SECS) * time.Second
-		newCluster.maxSocketIdleTran.Set(&tranDuration)
-		newCluster.maxSocketIdleTrim.Set(&trimDuration)
+		newCluster.maxSocketIdleTran.Set(tranDuration)
+		newCluster.maxSocketIdleTrim.Set(trimDuration)
 	} else {
 		tranDuration := policy.IdleTimeout * time.Second
 		trimDuration := tranDuration
-		newCluster.maxSocketIdleTran.Set(&tranDuration)
-		newCluster.maxSocketIdleTrim.Set(&trimDuration)
+		newCluster.maxSocketIdleTran.Set(tranDuration)
+		newCluster.maxSocketIdleTrim.Set(trimDuration)
 	}
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
@@ -1080,7 +1080,7 @@ func (clstr *Cluster) DisableMetrics() {
 }
 
 func (clstr *Cluster) isConnCurrentTran(lastUsed *time.Time) bool {
-	transDuration := *clstr.maxSocketIdleTran.Get()
+	transDuration := clstr.maxSocketIdleTran.Get()
 	if transDuration == 0 || time.Since(*lastUsed) >= transDuration {
 		return true
 	} else {
@@ -1089,6 +1089,6 @@ func (clstr *Cluster) isConnCurrentTran(lastUsed *time.Time) bool {
 }
 
 func (clstr *Cluster) isConnCurrentTrim(lastUsed *time.Time) bool {
-	trimDuration := *clstr.maxSocketIdleTrim.Get()
+	trimDuration := clstr.maxSocketIdleTrim.Get()
 	return time.Since(*lastUsed) <= trimDuration
 }

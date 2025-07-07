@@ -344,7 +344,7 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		ConnectionsIdleDropped   int                                  `json:"connections-idle-dropped"`
 		ConnectionsOpen          int                                  `json:"open-connections"`
 		ConnectionsClosed        int                                  `json:"closed-connections"`
-		ConnectionsRecovered     int `json:"connections-recovered"`
+		ConnectionsRecovered     int                                  `json:"connections-recovered"`
 		TendsTotal               int                                  `json:"tends-total"`
 		TendsSuccessful          int                                  `json:"tends-successful"`
 		TendsFailed              int                                  `json:"tends-failed"`
