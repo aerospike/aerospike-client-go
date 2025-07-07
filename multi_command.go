@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"iter"
 	"math/rand"
 	"reflect"
 
@@ -339,6 +340,12 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
+		}
+
 		if resultCode != 0 && resultCode != types.PARTITION_UNAVAILABLE {
 			if resultCode == types.KEY_NOT_FOUND_ERROR || resultCode == types.FILTERED_OUT {
 				return false, nil
@@ -493,4 +500,12 @@ func (cmd *baseMultiCommand) execute(ifc command) Error {
 	****************************************************************************/
 
 	return cmd.baseCommand.execute(ifc)
+}
+
+func (cmd *baseMultiCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *baseMultiCommand) getNamespace() *string {
+	return &cmd.namespace
 }

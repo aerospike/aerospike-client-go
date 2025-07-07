@@ -15,6 +15,7 @@
 package atomic
 
 import (
+	"maps"
 	"sync"
 )
 
@@ -29,6 +30,14 @@ func New[K comparable, V any](length int) *Map[K, V] {
 	return &Map[K, V]{
 		m: make(map[K]V, length),
 	}
+}
+
+// New generates a new Map instance with initial entry.
+func NewWithValue[K comparable, V any](k K, v V) *Map[K, V] {
+	value := New[K, V](0)
+	value.m[k] = v
+
+	return value
 }
 
 // Exists atomically checks if a key exists in the map
@@ -75,10 +84,43 @@ func (m *Map[K, V]) Length() int {
 func (m *Map[K, V]) Clone() map[K]V {
 	m.mutex.RLock()
 	res := make(map[K]V, len(m.m))
-	for k, v := range m.m {
-		res[k] = v
-	}
+
+	maps.Copy(m.m, res)
+
 	m.mutex.RUnlock()
+
+	return res
+}
+
+// CloneMap copies the map and returns the copy.
+func (m *Map[K, V]) CloneMap() *Map[K, V] {
+	m.mutex.RLock()
+	res := New[K, V](len(m.m))
+	res.mutex.Lock()
+
+	// Using deep copy
+	maps.Copy(res.m, m.m)
+
+	res.mutex.Unlock()
+	m.mutex.RUnlock()
+
+	return res
+}
+
+// CloneAndResetMap copies the map and resets the original map.
+func (m *Map[K, V]) CloneAndResetMap() *Map[K, V] {
+	m.mutex.Lock()
+	res := New[K, V](len(m.m))
+	res.mutex.Lock()
+
+	// Using deep copy
+	maps.Copy(res.m, m.m)
+
+	// Reset the original map
+	m.m = make(map[K]V, len(m.m))
+
+	res.mutex.Unlock()
+	m.mutex.Unlock()
 
 	return res
 }
@@ -142,4 +184,37 @@ func MapAllF[K comparable, V any, U any](m *Map[K, V], f func(map[K]V) U) U {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return f(m.m)
+}
+
+// UpdateOrInsert will update the value if it exists, otherwise it will insert the default value.
+func (mp *Map[K, V]) UpdateOrInsert(key K, updateFn func(V) V, defaultVal V) V {
+	mp.mutex.Lock()
+	defer mp.mutex.Unlock()
+
+	if currentVal, exists := mp.m[key]; exists {
+		newVal := updateFn(currentVal)
+		mp.m[key] = newVal
+		return newVal
+	} else {
+		newVal := updateFn(defaultVal)
+		mp.m[key] = newVal
+		return newVal
+	}
+}
+
+// UpdateOrInsert will update the value if it exists, otherwise it will insert the default value.
+func (mp *Map[K, V]) UpdateOrInsertFn(key K, updateFn func(V) V, defaultValFn func() V) V {
+	mp.mutex.Lock()
+	defer mp.mutex.Unlock()
+
+	if currentVal, exists := mp.m[key]; exists {
+		newVal := updateFn(currentVal)
+		mp.m[key] = newVal
+		return newVal
+	} else {
+		defaultVal := defaultValFn()
+		newVal := updateFn(defaultVal)
+		mp.m[key] = newVal
+		return newVal
+	}
 }

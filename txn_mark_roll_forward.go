@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -52,6 +54,12 @@ func (cmd *txnMarkRollForwardCommand) parseResult(ifc command, conn *Connection)
 		return newCustomNodeError(cmd.node, err.resultCode())
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, resultCode)
+	}
+
 	if resultCode == 0 || resultCode == types.MRT_COMMITTED {
 		return nil
 	}
@@ -61,4 +69,13 @@ func (cmd *txnMarkRollForwardCommand) parseResult(ifc command, conn *Connection)
 
 func (cmd *txnMarkRollForwardCommand) Execute() Error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *txnMarkRollForwardCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *txnMarkRollForwardCommand) getNamespace() *string {
+	return &cmd.key.namespace
+
 }

@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
@@ -81,11 +83,13 @@ func (cmd *batchCommandDelete) parseRecordResults(ifc command, receiveSize int) 
 			return false, err
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
+
 		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
 		expiration := types.TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
 		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
+
 		err := cmd.parseFieldsWrite(resultCode, fieldCount, cmd.keys[batchIndex])
 		if err != nil {
 			return false, err
@@ -110,6 +114,12 @@ func (cmd *batchCommandDelete) parseRecordResults(ifc command, receiveSize int) 
 		// If cmd is the end marker of the response, do not proceed further
 		if (info3 & _INFO3_LAST) == _INFO3_LAST {
 			return false, nil
+		}
+
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
 		}
 
 		if resultCode == 0 {
@@ -210,4 +220,20 @@ func (cmd *batchCommandDelete) Execute() Error {
 
 func (cmd *batchCommandDelete) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, nil, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, false)
+}
+
+func (cmd *batchCommandDelete) getNamespaces() iter.Seq2[string, uint64] {
+	return cmd.nsIter
+}
+
+func (cmd *batchCommandDelete) getNamespace() *string {
+	return nil
+}
+
+func (cmd *batchCommandDelete) nsIter(yield func(string, uint64) bool) {
+	for _, key := range cmd.keys {
+		if !yield(key.namespace, 1) {
+			return
+		}
+	}
 }

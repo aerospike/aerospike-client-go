@@ -174,6 +174,10 @@ type ClientPolicy struct {
 	// Peers nodes for the cluster are not discovered and seed nodes are
 	// retained despite connection failures.
 	SeedOnlyCluster bool // = false
+
+	// Application id is used to identify application so that client operations can be correlated
+	// with server side metrics.
+	ApplicationId string
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.

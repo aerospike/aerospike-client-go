@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -49,6 +51,12 @@ func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) Error {
 		return err
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, rp.resultCode)
+	}
+
 	if rp.resultCode == 0 {
 		cmd.record = newRecord(cmd.node, cmd.key, nil, rp.generation, rp.expiration)
 	} else {
@@ -74,4 +82,12 @@ func (cmd *readHeaderCommand) Execute() Error {
 
 func (cmd *readHeaderCommand) commandType() commandType {
 	return ttGetHeader
+}
+
+func (cmd *readHeaderCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *readHeaderCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

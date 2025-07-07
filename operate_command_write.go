@@ -14,7 +14,11 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v8/types"
+import (
+	"iter"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
+)
 
 type operateCommandWrite struct {
 	baseWriteCommand
@@ -49,6 +53,12 @@ func (cmd *operateCommandWrite) parseResult(ifc command, conn *Connection) Error
 		return err
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, rp.resultCode)
+	}
+
 	switch rp.resultCode {
 	case types.OK:
 		var err Error
@@ -76,4 +86,12 @@ func (cmd *operateCommandWrite) commandType() commandType {
 
 func (cmd *operateCommandWrite) GetRecord() *Record {
 	return cmd.record
+}
+
+func (cmd *operateCommandWrite) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *operateCommandWrite) getNamespace() *string {
+	return &cmd.key.namespace
 }

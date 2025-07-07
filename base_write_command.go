@@ -14,7 +14,11 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v8/types"
+import (
+	"iter"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
+)
 
 // guarantee baseWriteCommand implements command interface
 var _ command = &baseWriteCommand{}
@@ -99,4 +103,12 @@ func (cmd *baseWriteCommand) parseHeader() (types.ResultCode, Error) {
 	}
 
 	return rp.resultCode, nil
+}
+
+func (cmd *baseWriteCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *baseWriteCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

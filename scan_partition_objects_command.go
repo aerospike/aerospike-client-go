@@ -14,7 +14,11 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v8/types"
+import (
+	"iter"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
+)
 
 type scanPartitionObjectsCommand struct {
 	baseMultiCommand
@@ -80,4 +84,12 @@ func (cmd *scanPartitionObjectsCommand) Execute() Error {
 		}
 	}
 	return err
+}
+
+func (cmd *scanPartitionObjectsCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *scanPartitionObjectsCommand) getNamespace() *string {
+	return &cmd.namespace
 }

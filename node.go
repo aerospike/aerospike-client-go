@@ -159,7 +159,6 @@ func (nd *Node) Refresh(peers *peers) Error {
 		nd.refreshFailed(err)
 		return err
 	}
-
 	if err = nd.verifyPartitionGeneration(infoMap); err != nil {
 		nd.refreshFailed(err)
 		return err

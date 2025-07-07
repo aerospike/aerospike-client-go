@@ -50,12 +50,30 @@ type MetricsPolicy struct {
 	//
 	// Default: 2
 	LatencyBase int //= 2;
+
+	// User provided labels which will appended to the metrics on export. This
+	// information is used downstream by metrics aggregetators to group/identify metrics
+	// collected by the client.
+	Labels *Labels
 }
 
+// NewMetricsPolicy creates a new MetricsPolicy with predefined set of default parameters.
 func DefaultMetricsPolicy() *MetricsPolicy {
 	return &MetricsPolicy{
 		HistogramType:  histogram.Logarithmic,
 		LatencyColumns: 24,
 		LatencyBase:    2,
+		Labels:         NewLabels(),
 	}
+}
+
+// DefaultMetricsPolicyWithLabels creates a new MetricsPolicy with the provided labels.
+// The labels are used to identify the metrics collected by the client.
+func DefaultMetricsPolicyWithLabels(pairs ...map[string]string) *MetricsPolicy {
+	labels := NewLabels(pairs...)
+	mp := *DefaultMetricsPolicy()
+
+	mp.Labels = labels
+
+	return &mp
 }

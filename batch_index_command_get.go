@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
@@ -132,6 +134,12 @@ func (cmd *batchIndexCommandGet) parseRecordResults(ifc command, receiveSize int
 			return false, err
 		}
 
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
+		}
+
 		if resultCode != 0 {
 			if resultCode == types.FILTERED_OUT {
 				cmd.filteredOutCnt++
@@ -247,4 +255,20 @@ func (cmd *batchIndexCommandGet) parseRecord(key *Key, opCount int, generation, 
 	}
 
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
+}
+
+func (cmd *batchIndexCommandGet) getNamespaces() iter.Seq2[string, uint64] {
+	return cmd.nsIter
+}
+
+func (cmd *batchIndexCommandGet) getNamespace() *string {
+	return nil
+}
+
+func (cmd *batchIndexCommandGet) nsIter(yield func(string, uint64) bool) {
+	for _, br := range cmd.records {
+		if !yield(br.Key.namespace, 1) {
+			return
+		}
+	}
 }

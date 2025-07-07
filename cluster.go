@@ -379,9 +379,11 @@ func (clstr *Cluster) aggregateNodeStats(nodeList []*Node) {
 	for _, node := range nodeList {
 		h := node.host.String()
 		if stats, exists := clstr.stats[h]; exists {
-			stats.aggregate(node.stats.getAndReset())
+			nr := node.stats.getAndReset()
+			stats.aggregate(nr)
 		} else {
-			clstr.stats[h] = node.stats.getAndReset()
+			nr := node.stats.getAndReset()
+			clstr.stats[h] = nr
 		}
 	}
 }
@@ -483,6 +485,7 @@ func (clstr *Cluster) waitTillStabilized() Error {
 	}
 }
 
+// TODO: Not used anywhere. Consider removing
 func (clstr *Cluster) findAlias(alias *Host) *Node {
 	return clstr.aliases.Get(*alias)
 }
@@ -595,6 +598,7 @@ func (clstr *Cluster) findNodeName(list []*Node, name string) bool {
 	return false
 }
 
+// TODO: Not used anywhere. Consider removing
 func (clstr *Cluster) addAlias(host *Host, node *Node) {
 	if host != nil && node != nil {
 		clstr.aliases.Set(*host, node)
@@ -883,10 +887,10 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 		done <- false
 	}()
 
-	dealine := time.After(timeout)
+	deadLine := time.After(timeout)
 	for {
 		select {
-		case <-dealine:
+		case <-deadLine:
 			return false, ErrTimeout.err()
 		case <-done:
 			return res, err
@@ -894,9 +898,9 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 	}
 }
 
-// WaitUntillMigrationIsFinished will block until all
+// WaitUntilMigrationIsFinished will block until all
 // migration operations in the cluster all finished.
-func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) Error {
+func (clstr *Cluster) WaitUntilMigrationIsFinished(timeout time.Duration) Error {
 	if timeout <= 0 {
 		timeout = _NO_TIMEOUT
 	}
@@ -913,9 +917,9 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) Error
 		}
 	}()
 
-	dealine := time.After(timeout)
+	deadLine := time.After(timeout)
 	select {
-	case <-dealine:
+	case <-deadLine:
 		return ErrTimeout.err()
 	case err := <-done:
 		return err
@@ -1002,6 +1006,49 @@ func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
 	for _, node := range clstr.GetNodes() {
 		node.stats.reshape(policy)
 	}
+}
+
+func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
+	var userLabels *Labels
+	if metricPolicy == nil && clstr.metricsPolicy.Get() != nil && clstr.metricsPolicy.Get().Labels != nil {
+		userLabels = clstr.metricsPolicy.Get().Labels
+	}
+
+	nodes := clstr.GetNodes()
+	labels := make([]map[string]string, 0)
+
+	// Add node labels
+	for node := range nodes {
+		entries := make(map[string]string)
+		var app_id string
+		if clstr.clientPolicy.ApplicationId != "" {
+			app_id = clstr.clientPolicy.ApplicationId
+		} else {
+			app_id = clstr.user
+		}
+
+		// Merging user labels with node labels
+		if userLabels != nil && userLabels.Labels != nil {
+			for _, userLabel := range *userLabels.Labels {
+				for k, v := range userLabel {
+					entries[k] = v
+				}
+			}
+		}
+
+		// Reserved label names for the client
+		entries["node"] = nodes[node].GetName()
+		entries["host"] = nodes[node].host.String()
+		entries["cluster"] = clstr.clientPolicy.ClusterName
+
+		// Users are allowed to override app-id if they want to. Default is the user name.
+		// Users need to set the application id int the client policy.
+		entries["app-id"] = app_id
+
+		labels = append(labels, entries)
+	}
+
+	return NewLabels(labels...)
 }
 
 // DisableMetrics disables the cluster command metrics gathering.

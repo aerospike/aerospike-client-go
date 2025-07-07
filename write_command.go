@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -62,6 +64,12 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 		return newCustomNodeError(cmd.node, err.resultCode())
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, resultCode)
+	}
+
 	if resultCode != types.OK {
 		if resultCode == types.KEY_NOT_FOUND_ERROR {
 			return ErrKeyNotFound.err()
@@ -77,4 +85,12 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 
 func (cmd *writeCommand) Execute() Error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *writeCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *writeCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

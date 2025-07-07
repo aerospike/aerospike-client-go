@@ -24,11 +24,11 @@ import (
 
 // Task interface defines methods for asynchronous tasks.
 type recordParser struct {
-	resultCode types.ResultCode
-	generation uint32
-	expiration uint32
-	fieldCount int
-	opCount    int
+	resultCode  types.ResultCode
+	generation  uint32
+	expiration  uint32
+	fieldCount  int
+	opCount     int
 
 	cmd *baseCommand
 }

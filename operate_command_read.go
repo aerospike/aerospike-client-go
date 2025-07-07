@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "iter"
+
 type operateCommandRead struct {
 	readCommand
 
@@ -46,4 +48,12 @@ func (cmd *operateCommandRead) Execute() Error {
 
 func (cmd *operateCommandRead) commandType() commandType {
 	return ttOperate
+}
+
+func (cmd *operateCommandRead) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *operateCommandRead) getNamespace() *string {
+	return &cmd.key.namespace
 }
