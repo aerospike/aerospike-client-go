@@ -18,14 +18,14 @@ import (
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo/v2"
+	gm "github.com/onsi/gomega"
 )
 
-var _ = Describe("ApplyConfigToBatchWritePolicy", func() {
+var _ = gg.Describe("ApplyConfigToBatchWritePolicy", func() {
 
-	Context("when applying full configuration to batch write policy", func() {
-		It("should update the policy values based on the dynamic config", func() {
+	gg.Context("when applying full configuration to batch write policy", func() {
+		gg.It("should update the policy values based on the dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
 				config: &dynconfig.Config{
@@ -80,28 +80,28 @@ var _ = Describe("ApplyConfigToBatchWritePolicy", func() {
 			policy := NewBatchWritePolicy()
 
 			// Check defaults.
-			Expect(policy).NotTo(BeNil())
-			Expect(policy.RecordExistsAction).To(Equal(UPDATE))
-			Expect(policy.GenerationPolicy).To(Equal(NONE))
-			Expect(policy.CommitLevel).To(Equal(COMMIT_ALL))
-			Expect(policy.Generation).To(Equal(uint32(0)))
-			Expect(policy.Expiration).To(Equal(uint32(0)))
-			Expect(policy.DurableDelete).To(BeFalse())
-			Expect(policy.OnLockingOnly).To(BeFalse())
-			Expect(policy.SendKey).To(BeFalse())
+			gm.Expect(policy).NotTo(gm.BeNil())
+			gm.Expect(policy.RecordExistsAction).To(gm.Equal(UPDATE))
+			gm.Expect(policy.GenerationPolicy).To(gm.Equal(NONE))
+			gm.Expect(policy.CommitLevel).To(gm.Equal(COMMIT_ALL))
+			gm.Expect(policy.Generation).To(gm.Equal(uint32(0)))
+			gm.Expect(policy.Expiration).To(gm.Equal(uint32(0)))
+			gm.Expect(policy.DurableDelete).To(gm.BeFalse())
+			gm.Expect(policy.OnLockingOnly).To(gm.BeFalse())
+			gm.Expect(policy.SendKey).To(gm.BeFalse())
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
-			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(updatedPolicy.DurableDelete).To(BeFalse())
-			Expect(updatedPolicy.SendKey).To(BeFalse())
+			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
+			gm.Expect(updatedPolicy.DurableDelete).To(gm.BeFalse())
+			gm.Expect(updatedPolicy.SendKey).To(gm.BeFalse())
 		})
 	})
 
-	Context("when applying batch write config to a write policy", func() {
-		It("should update the write policy values based on the batch write dynamic config", func() {
+	gg.Context("when applying batch write config to a write policy", func() {
+		gg.It("should update the write policy values based on the batch write dynamic config", func() {
 			config := &DynConfig{
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
@@ -189,32 +189,32 @@ var _ = Describe("ApplyConfigToBatchWritePolicy", func() {
 			batchPolicy := NewBatchPolicy()
 
 			//Verify defaults
-			Expect(batchPolicy).NotTo(BeNil())
-			Expect(batchPolicy.ReadModeAP).To(Equal(ReadModeAPOne))
-			Expect(batchPolicy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(batchPolicy.TotalTimeout).To(Equal(1 * time.Second))
-			Expect(batchPolicy.SocketTimeout).To(Equal(30 * time.Second))
-			Expect(batchPolicy.MaxRetries).To(Equal(2))
-			Expect(batchPolicy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
-			Expect(batchPolicy.ReplicaPolicy).To(Equal(SEQUENCE))
-			Expect(batchPolicy.SendKey).To(BeFalse())
-			Expect(batchPolicy.UseCompression).To(BeFalse())
-			Expect(batchPolicy.AllowInline).To(BeTrue())
+			gm.Expect(batchPolicy).NotTo(gm.BeNil())
+			gm.Expect(batchPolicy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
+			gm.Expect(batchPolicy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
+			gm.Expect(batchPolicy.TotalTimeout).To(gm.Equal(1 * time.Second))
+			gm.Expect(batchPolicy.SocketTimeout).To(gm.Equal(30 * time.Second))
+			gm.Expect(batchPolicy.MaxRetries).To(gm.Equal(2))
+			gm.Expect(batchPolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(batchPolicy.ReplicaPolicy).To(gm.Equal(SEQUENCE))
+			gm.Expect(batchPolicy.SendKey).To(gm.BeFalse())
+			gm.Expect(batchPolicy.UseCompression).To(gm.BeFalse())
+			gm.Expect(batchPolicy.AllowInline).To(gm.BeTrue())
 
 			// Load the dynamic default batch policy.
 			batchPolicy = config.client.dynDefaultBatchPolicy.Load()
 
 			// Validate the loaded policy.
-			Expect(batchPolicy.ReadModeAP).To(Equal(ReadModeAPAll))
-			Expect(batchPolicy.ReadModeSC).To(Equal(ReadModeSCAllowUnavailable))
-			Expect(batchPolicy.TotalTimeout).To(Equal(15 * time.Millisecond))
-			Expect(batchPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
-			Expect(batchPolicy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
-			Expect(batchPolicy.MaxRetries).To(Equal(5))
-			Expect(batchPolicy.ReplicaPolicy).To(Equal(SEQUENCE))
-			Expect(batchPolicy.SendKey).To(BeFalse())
-			Expect(batchPolicy.UseCompression).To(BeFalse())
-			Expect(batchPolicy.AllowInline).To(BeTrue())
+			gm.Expect(batchPolicy.ReadModeAP).To(gm.Equal(ReadModeAPAll))
+			gm.Expect(batchPolicy.ReadModeSC).To(gm.Equal(ReadModeSCAllowUnavailable))
+			gm.Expect(batchPolicy.TotalTimeout).To(gm.Equal(15 * time.Millisecond))
+			gm.Expect(batchPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
+			gm.Expect(batchPolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(batchPolicy.MaxRetries).To(gm.Equal(5))
+			gm.Expect(batchPolicy.ReplicaPolicy).To(gm.Equal(SEQUENCE))
+			gm.Expect(batchPolicy.SendKey).To(gm.BeFalse())
+			gm.Expect(batchPolicy.UseCompression).To(gm.BeFalse())
+			gm.Expect(batchPolicy.AllowInline).To(gm.BeTrue())
 
 			// Load the dynamic default batch write policy.
 			writePolicy := config.client.dynDefaultBatchWritePolicy.Load()
@@ -222,13 +222,13 @@ var _ = Describe("ApplyConfigToBatchWritePolicy", func() {
 			// Apply configuration to convert to a write policy.
 			updatedWritePolicy := writePolicy.toWritePolicy(batchPolicy, config)
 
-			Expect(updatedWritePolicy).NotTo(BeNil())
-			Expect(updatedWritePolicy.ReplicaPolicy).To(Equal(MASTER_PROLES))
-			Expect(updatedWritePolicy.TotalTimeout).To(Equal(15 * time.Millisecond))
-			Expect(updatedWritePolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
-			Expect(updatedWritePolicy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
-			Expect(updatedWritePolicy.MaxRetries).To(Equal(5))
-			Expect(updatedWritePolicy.SendKey).To(BeTrue())
+			gm.Expect(updatedWritePolicy).NotTo(gm.BeNil())
+			gm.Expect(updatedWritePolicy.ReplicaPolicy).To(gm.Equal(MASTER_PROLES))
+			gm.Expect(updatedWritePolicy.TotalTimeout).To(gm.Equal(15 * time.Millisecond))
+			gm.Expect(updatedWritePolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
+			gm.Expect(updatedWritePolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(updatedWritePolicy.MaxRetries).To(gm.Equal(5))
+			gm.Expect(updatedWritePolicy.SendKey).To(gm.BeTrue())
 		})
 	})
 })

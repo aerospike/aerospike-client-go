@@ -16,14 +16,14 @@ package aerospike
 
 import (
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo/v2"
+	gm "github.com/onsi/gomega"
 )
 
-var _ = Describe("ApplyConfigToMetricsPolicy", func() {
+var _ = gg.Describe("ApplyConfigToMetricsPolicy", func() {
 
-	Context("when applying full configuration", func() {
-		It("updates the policy values based on the dynamic config", func() {
+	gg.Context("when applying full configuration", func() {
+		gg.It("updates the policy values based on the dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
 				config: &dynconfig.Config{
@@ -41,22 +41,22 @@ var _ = Describe("ApplyConfigToMetricsPolicy", func() {
 			policy := DefaultMetricsPolicy()
 
 			// Check defaults.
-			Expect(policy).NotTo(BeNil())
-			Expect(int(policy.LatencyBase)).To(Equal(int(2)))
-			Expect(int(policy.LatencyColumns)).To(Equal(int(24)))
+			gm.Expect(policy).NotTo(gm.BeNil())
+			gm.Expect(int(policy.LatencyBase)).To(gm.Equal(int(2)))
+			gm.Expect(int(policy.LatencyColumns)).To(gm.Equal(int(24)))
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
-			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(int(updatedPolicy.LatencyBase)).To(Equal(int(3)))
-			Expect(int(updatedPolicy.LatencyColumns)).To(Equal(int(3)))
+			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
+			gm.Expect(int(updatedPolicy.LatencyBase)).To(gm.Equal(int(3)))
+			gm.Expect(int(updatedPolicy.LatencyColumns)).To(gm.Equal(int(3)))
 		})
 	})
 
-	Context("when applying configuration with select fields", func() {
-		It("updates only the specified fields and leaves others unchanged", func() {
+	gg.Context("when applying configuration with select fields", func() {
+		gg.It("updates only the specified fields and leaves others unchanged", func() {
 			// Create the full configuration.
 			config := &DynConfig{
 				config: &dynconfig.Config{
@@ -73,16 +73,16 @@ var _ = Describe("ApplyConfigToMetricsPolicy", func() {
 			policy := DefaultMetricsPolicy()
 
 			// Check defaults.
-			Expect(policy).NotTo(BeNil())
-			Expect(int(policy.LatencyBase)).To(Equal(int(2)))
-			Expect(int(policy.LatencyColumns)).To(Equal(int(24)))
+			gm.Expect(policy).NotTo(gm.BeNil())
+			gm.Expect(int(policy.LatencyBase)).To(gm.Equal(int(2)))
+			gm.Expect(int(policy.LatencyColumns)).To(gm.Equal(int(24)))
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
-			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(int(updatedPolicy.LatencyColumns)).To(Equal(int(3)))
+			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
+			gm.Expect(int(updatedPolicy.LatencyColumns)).To(gm.Equal(int(3)))
 		})
 	})
 })

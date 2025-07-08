@@ -19,18 +19,18 @@ import (
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo/v2"
+	gm "github.com/onsi/gomega"
 )
 
-var _ = Describe("WritePolicy Config", func() {
+var _ = gg.Describe("WritePolicy Config", func() {
 	var (
 		config *DynConfig
 		policy *WritePolicy
 	)
 
-	Context("when applying complete write configuration", func() {
-		BeforeEach(func() {
+	gg.Context("when applying complete write configuration", func() {
+		gg.BeforeEach(func() {
 			// Create the full config.
 			config = &DynConfig{
 				config: &dynconfig.Config{
@@ -73,32 +73,32 @@ var _ = Describe("WritePolicy Config", func() {
 			policy = NewWritePolicy(0, 0)
 		})
 
-		It("should update all fields from the configuration", func() {
+		gg.It("should update all fields from the configuration", func() {
 			// Check default values of initial policy.
-			Expect(policy).ToNot(BeNil())
-			Expect(policy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
-			Expect(policy.SocketTimeout).To(Equal(30 * time.Second))
-			Expect(policy.MaxRetries).To(Equal(0))
-			Expect(policy.DurableDelete).To(BeFalse())
-			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
-			Expect(policy.SendKey).To(BeFalse())
+			gm.Expect(policy).ToNot(gm.BeNil())
+			gm.Expect(policy.TotalTimeout).To(gm.Equal(1_000 * time.Millisecond))
+			gm.Expect(policy.SocketTimeout).To(gm.Equal(30 * time.Second))
+			gm.Expect(policy.MaxRetries).To(gm.Equal(0))
+			gm.Expect(policy.DurableDelete).To(gm.BeFalse())
+			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(policy.SendKey).To(gm.BeFalse())
 
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the updated policy.
-			Expect(updatedPolicy).ToNot(BeNil())
-			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Millisecond))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
-			Expect(updatedPolicy.MaxRetries).To(Equal(3))
-			Expect(updatedPolicy.DurableDelete).To(BeTrue())
-			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
-			Expect(updatedPolicy.SendKey).To(BeTrue())
-			Expect(updatedPolicy.ReplicaPolicy).To(Equal(PREFER_RACK))
+			gm.Expect(updatedPolicy).ToNot(gm.BeNil())
+			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(5000 * time.Millisecond))
+			gm.Expect(updatedPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
+			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(3))
+			gm.Expect(updatedPolicy.DurableDelete).To(gm.BeTrue())
+			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(2 * time.Millisecond))
+			gm.Expect(updatedPolicy.SendKey).To(gm.BeTrue())
+			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(PREFER_RACK))
 		})
 	})
 
-	Context("when applying configuration with select fields", func() {
-		BeforeEach(func() {
+	gg.Context("when applying configuration with select fields", func() {
+		gg.BeforeEach(func() {
 			config = &DynConfig{
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
@@ -135,28 +135,28 @@ var _ = Describe("WritePolicy Config", func() {
 			policy = NewWritePolicy(0, 0)
 		})
 
-		It("should update only select fields while leaving defaults intact", func() {
+		gg.It("should update only select fields while leaving defaults intact", func() {
 			// Check default values of initial policy.
-			Expect(policy).ToNot(BeNil())
-			Expect(policy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
-			Expect(policy.SocketTimeout).To(Equal(30 * time.Second))
-			Expect(policy.MaxRetries).To(Equal(0))
-			Expect(policy.DurableDelete).To(BeFalse())
-			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
-			Expect(policy.SendKey).To(BeFalse())
+			gm.Expect(policy).ToNot(gm.BeNil())
+			gm.Expect(policy.TotalTimeout).To(gm.Equal(1_000 * time.Millisecond))
+			gm.Expect(policy.SocketTimeout).To(gm.Equal(30 * time.Second))
+			gm.Expect(policy.MaxRetries).To(gm.Equal(0))
+			gm.Expect(policy.DurableDelete).To(gm.BeFalse())
+			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(policy.SendKey).To(gm.BeFalse())
 
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the updated policy.
-			Expect(updatedPolicy).ToNot(BeNil())
+			gm.Expect(updatedPolicy).ToNot(gm.BeNil())
 			// TotalTimeout remains unchanged
-			Expect(updatedPolicy.TotalTimeout).To(Equal(1_000 * time.Millisecond))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
-			Expect(updatedPolicy.MaxRetries).To(Equal(3))
-			Expect(updatedPolicy.DurableDelete).To(BeTrue())
-			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
-			Expect(updatedPolicy.SendKey).To(BeFalse())
-			Expect(updatedPolicy.ReplicaPolicy).To(Equal(PREFER_RACK))
+			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(1_000 * time.Millisecond))
+			gm.Expect(updatedPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
+			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(3))
+			gm.Expect(updatedPolicy.DurableDelete).To(gm.BeTrue())
+			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(2 * time.Millisecond))
+			gm.Expect(updatedPolicy.SendKey).To(gm.BeFalse())
+			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(PREFER_RACK))
 		})
 	})
 })

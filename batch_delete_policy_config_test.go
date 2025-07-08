@@ -16,14 +16,14 @@ package aerospike
 
 import (
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo/v2"
+	gm "github.com/onsi/gomega"
 )
 
-var _ = Describe("ApplyConfigToBatchDeletePolicy", func() {
+var _ = gg.Describe("ApplyConfigToBatchDeletePolicy", func() {
 
-	Context("when applying full configuration to batch delete policy", func() {
-		It("should update the policy values based on the dynamic config", func() {
+	gg.Context("when applying full configuration to batch delete policy", func() {
+		gg.It("should update the policy values based on the dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
 				config: &dynconfig.Config{
@@ -46,22 +46,22 @@ var _ = Describe("ApplyConfigToBatchDeletePolicy", func() {
 			policy := NewBatchDeletePolicy()
 
 			// Verify defaults.
-			Expect(policy).NotTo(BeNil())
-			Expect(policy.DurableDelete).To(BeFalse())
-			Expect(policy.SendKey).To(BeFalse())
+			gm.Expect(policy).NotTo(gm.BeNil())
+			gm.Expect(policy.DurableDelete).To(gm.BeFalse())
+			gm.Expect(policy.SendKey).To(gm.BeFalse())
 
 			// Apply configuration.
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate applied configuration.
-			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(updatedPolicy.DurableDelete).To(BeTrue())
-			Expect(updatedPolicy.DurableDelete).To(BeTrue())
+			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
+			gm.Expect(updatedPolicy.DurableDelete).To(gm.BeTrue())
+			gm.Expect(updatedPolicy.SendKey).To(gm.BeTrue())
 		})
 	})
 
-	Context("when applying batch read config to a write policy", func() {
-		It("should update the write policy values based on the batch delete dynamic config", func() {
+	gg.Context("when applying batch read config to a write policy", func() {
+		gg.It("should update the write policy values based on the batch delete dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
 				config: &dynconfig.Config{
@@ -84,18 +84,18 @@ var _ = Describe("ApplyConfigToBatchDeletePolicy", func() {
 			batchPolicy := NewBatchPolicy()
 
 			// Verify defaults.
-			Expect(batchPolicy).NotTo(BeNil())
-			Expect(batchPolicy.ReadModeAP).To(Equal(ReadModeAPOne))
-			Expect(batchPolicy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(batchPolicy.ReadTouchTTLPercent).To(Equal(int32(0)))
+			gm.Expect(batchPolicy).NotTo(gm.BeNil())
+			gm.Expect(batchPolicy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
+			gm.Expect(batchPolicy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
+			gm.Expect(batchPolicy.ReadTouchTTLPercent).To(gm.Equal(int32(0)))
 
 			batchDeletePolicy := NewBatchDeletePolicy()
 			updatedWritePolicy := batchDeletePolicy.toWritePolicy(batchPolicy, config)
 
 			// Validate applied configuration.
-			Expect(updatedWritePolicy).NotTo(BeNil())
-			Expect(updatedWritePolicy.DurableDelete).To(BeTrue())
-			Expect(updatedWritePolicy.SendKey).To(BeTrue())
+			gm.Expect(updatedWritePolicy).NotTo(gm.BeNil())
+			gm.Expect(updatedWritePolicy.DurableDelete).To(gm.BeTrue())
+			gm.Expect(updatedWritePolicy.SendKey).To(gm.BeTrue())
 		})
 	})
 })

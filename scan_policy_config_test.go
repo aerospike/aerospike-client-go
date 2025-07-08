@@ -18,14 +18,14 @@ import (
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo/v2"
+	gm "github.com/onsi/gomega"
 )
 
-var _ = Describe("ApplyConfigToScanPolicy", func() {
+var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 
-	Context("when applying full configuration", func() {
-		It("should update all policy values based on the dynamic config", func() {
+	gg.Context("when applying full configuration", func() {
+		gg.It("should update all policy values based on the dynamic config", func() {
 			// Create the full configuration for scan policies.
 			config := &DynConfig{
 				config: &dynconfig.Config{
@@ -66,43 +66,43 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 			policy := NewScanPolicy()
 
 			// Validate default values.
-			Expect(policy).NotTo(BeNil())
-			Expect(policy.ReadModeAP).To(Equal(ReadModeAPOne))
-			Expect(policy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(policy.TotalTimeout).To(Equal(0 * time.Second))
-			Expect(policy.SocketTimeout).To(Equal(30 * time.Second))
-			Expect(policy.MaxRetries).To(Equal(5))
-			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
-			Expect(policy.SleepMultiplier).To(Equal(1.0))
-			Expect(policy.IncludeBinData).To(BeTrue())
-			Expect(policy.SendKey).To(BeFalse())
-			Expect(policy.UseCompression).To(BeFalse())
-			Expect(policy.MaxConcurrentNodes).To(Equal(0))
-			Expect(policy.RecordQueueSize).To(Equal(50))
-			Expect(policy.RecordsPerSecond).To(Equal(0))
+			gm.Expect(policy).NotTo(gm.BeNil())
+			gm.Expect(policy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
+			gm.Expect(policy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
+			gm.Expect(policy.TotalTimeout).To(gm.Equal(0 * time.Second))
+			gm.Expect(policy.SocketTimeout).To(gm.Equal(30 * time.Second))
+			gm.Expect(policy.MaxRetries).To(gm.Equal(5))
+			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(policy.SleepMultiplier).To(gm.Equal(1.0))
+			gm.Expect(policy.IncludeBinData).To(gm.BeTrue())
+			gm.Expect(policy.SendKey).To(gm.BeFalse())
+			gm.Expect(policy.UseCompression).To(gm.BeFalse())
+			gm.Expect(policy.MaxConcurrentNodes).To(gm.Equal(0))
+			gm.Expect(policy.RecordQueueSize).To(gm.Equal(50))
+			gm.Expect(policy.RecordsPerSecond).To(gm.Equal(0))
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
-			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPOne))
-			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Millisecond))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
-			Expect(updatedPolicy.MaxRetries).To(Equal(3))
-			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
-			Expect(updatedPolicy.SleepMultiplier).To(Equal(1.0))
-			Expect(updatedPolicy.IncludeBinData).To(BeTrue())
-			Expect(updatedPolicy.SendKey).To(BeFalse())
-			Expect(updatedPolicy.UseCompression).To(BeFalse())
-			Expect(updatedPolicy.MaxConcurrentNodes).To(Equal(5))
-			Expect(updatedPolicy.RecordQueueSize).To(Equal(50))
-			Expect(updatedPolicy.RecordsPerSecond).To(Equal(0))
-			Expect(updatedPolicy.ReplicaPolicy).To(Equal(PREFER_RACK))
+			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
+			gm.Expect(updatedPolicy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
+			gm.Expect(updatedPolicy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
+			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(5000 * time.Millisecond))
+			gm.Expect(updatedPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
+			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(3))
+			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(2 * time.Millisecond))
+			gm.Expect(updatedPolicy.SleepMultiplier).To(gm.Equal(1.0))
+			gm.Expect(updatedPolicy.IncludeBinData).To(gm.BeTrue())
+			gm.Expect(updatedPolicy.SendKey).To(gm.BeFalse())
+			gm.Expect(updatedPolicy.UseCompression).To(gm.BeFalse())
+			gm.Expect(updatedPolicy.MaxConcurrentNodes).To(gm.Equal(5))
+			gm.Expect(updatedPolicy.RecordQueueSize).To(gm.Equal(50))
+			gm.Expect(updatedPolicy.RecordsPerSecond).To(gm.Equal(0))
+			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(PREFER_RACK))
 		})
 	})
 
-	Context("when applying configuration with select fields", func() {
-		It("should update only the specified configuration fields and leave the rest unchanged", func() {
+	gg.Context("when applying configuration with select fields", func() {
+		gg.It("should update only the specified configuration fields and leave the rest unchanged", func() {
 			// Create a configuration with only a subset of scan fields.
 			config := &DynConfig{
 				config: &dynconfig.Config{
@@ -139,31 +139,31 @@ var _ = Describe("ApplyConfigToScanPolicy", func() {
 			policy := NewScanPolicy()
 
 			// Validate default values.
-			Expect(policy).NotTo(BeNil())
-			Expect(policy.ReadModeAP).To(Equal(ReadModeAPOne))
-			Expect(policy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(policy.TotalTimeout).To(Equal(0 * time.Second))
-			Expect(policy.SocketTimeout).To(Equal(30 * time.Second))
-			Expect(policy.MaxRetries).To(Equal(5))
-			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
-			Expect(policy.SleepMultiplier).To(Equal(1.0))
-			Expect(policy.IncludeBinData).To(BeTrue())
-			Expect(policy.SendKey).To(BeFalse())
-			Expect(policy.UseCompression).To(BeFalse())
-			Expect(policy.MaxConcurrentNodes).To(Equal(0))
-			Expect(policy.RecordQueueSize).To(Equal(50))
-			Expect(policy.RecordsPerSecond).To(Equal(0))
+			gm.Expect(policy).NotTo(gm.BeNil())
+			gm.Expect(policy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
+			gm.Expect(policy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
+			gm.Expect(policy.TotalTimeout).To(gm.Equal(0 * time.Second))
+			gm.Expect(policy.SocketTimeout).To(gm.Equal(30 * time.Second))
+			gm.Expect(policy.MaxRetries).To(gm.Equal(5))
+			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(policy.SleepMultiplier).To(gm.Equal(1.0))
+			gm.Expect(policy.IncludeBinData).To(gm.BeTrue())
+			gm.Expect(policy.SendKey).To(gm.BeFalse())
+			gm.Expect(policy.UseCompression).To(gm.BeFalse())
+			gm.Expect(policy.MaxConcurrentNodes).To(gm.Equal(0))
+			gm.Expect(policy.RecordQueueSize).To(gm.Equal(50))
+			gm.Expect(policy.RecordsPerSecond).To(gm.Equal(0))
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
-			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
-			Expect(updatedPolicy.TotalTimeout).To(Equal(5000 * time.Millisecond))
-			Expect(updatedPolicy.MaxRetries).To(Equal(3))
-			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(2 * time.Millisecond))
+			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
+			gm.Expect(updatedPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
+			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(5000 * time.Millisecond))
+			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(3))
+			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(2 * time.Millisecond))
 			// Even if only select fields are configured, SendKey gets overridden.
-			Expect(updatedPolicy.SendKey).To(BeFalse())
-			Expect(updatedPolicy.ReplicaPolicy).To(Equal(SEQUENCE))
+			gm.Expect(updatedPolicy.SendKey).To(gm.BeFalse())
+			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(SEQUENCE))
 		})
 	})
 })

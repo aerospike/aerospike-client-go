@@ -18,14 +18,14 @@ import (
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo/v2"
+	gm "github.com/onsi/gomega"
 )
 
-var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
+var _ = gg.Describe("ApplyConfigToTxnVerifyPolicy", func() {
 
-	Context("when applying full configuration", func() {
-		It("updates the policy values based on the dynamic config", func() {
+	gg.Context("when applying full configuration", func() {
+		gg.It("updates the policy values based on the dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
 				config: &dynconfig.Config{
@@ -68,32 +68,32 @@ var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
 			policy := NewTxnVerifyPolicy()
 
 			// Check defaults.
-			Expect(policy).NotTo(BeNil())
-			Expect(policy.TotalTimeout).To(Equal(10 * time.Second))
-			Expect(policy.SocketTimeout).To(Equal(3 * time.Second))
-			Expect(policy.MaxRetries).To(Equal(5))
-			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Second))
-			Expect(policy.SendKey).To(BeFalse())
+			gm.Expect(policy).NotTo(gm.BeNil())
+			gm.Expect(policy.TotalTimeout).To(gm.Equal(10 * time.Second))
+			gm.Expect(policy.SocketTimeout).To(gm.Equal(3 * time.Second))
+			gm.Expect(policy.MaxRetries).To(gm.Equal(5))
+			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Second))
+			gm.Expect(policy.SendKey).To(gm.BeFalse())
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
-			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPAll))
-			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCLinearize))
-			Expect(updatedPolicy.ReplicaPolicy).To(Equal(MASTER))
-			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
-			Expect(updatedPolicy.TotalTimeout).To(Equal(20 * time.Millisecond))
-			Expect(updatedPolicy.MaxRetries).To(Equal(5))
-			Expect(updatedPolicy.AllowInline).To(BeTrue())
-			Expect(updatedPolicy.RespondAllKeys).To(BeTrue())
+			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
+			gm.Expect(updatedPolicy.ReadModeAP).To(gm.Equal(ReadModeAPAll))
+			gm.Expect(updatedPolicy.ReadModeSC).To(gm.Equal(ReadModeSCLinearize))
+			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(MASTER))
+			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(updatedPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
+			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(20 * time.Millisecond))
+			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(5))
+			gm.Expect(updatedPolicy.AllowInline).To(gm.BeTrue())
+			gm.Expect(updatedPolicy.RespondAllKeys).To(gm.BeTrue())
 		})
 	})
 
-	Context("when applying configuration with select fields", func() {
-		It("updates only the specified fields and leaves others unchanged", func() {
+	gg.Context("when applying configuration with select fields", func() {
+		gg.It("updates only the specified fields and leaves others unchanged", func() {
 			// Create a configuration with select fields (omitting some values like MaxRetries).
 			config := &DynConfig{
 				config: &dynconfig.Config{
@@ -141,24 +141,24 @@ var _ = Describe("ApplyConfigToTxnVerifyPolicy", func() {
 			policy := NewTxnVerifyPolicy()
 
 			// Check defaults.
-			Expect(policy).NotTo(BeNil())
-			Expect(policy.TotalTimeout).To(Equal(10 * time.Second))
-			Expect(policy.SocketTimeout).To(Equal(3 * time.Second))
-			Expect(policy.MaxRetries).To(Equal(5))
-			Expect(policy.SleepBetweenRetries).To(Equal(1 * time.Second))
-			Expect(policy.SendKey).To(BeFalse())
+			gm.Expect(policy).NotTo(gm.BeNil())
+			gm.Expect(policy.TotalTimeout).To(gm.Equal(10 * time.Second))
+			gm.Expect(policy.SocketTimeout).To(gm.Equal(3 * time.Second))
+			gm.Expect(policy.MaxRetries).To(gm.Equal(5))
+			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Second))
+			gm.Expect(policy.SendKey).To(gm.BeFalse())
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
-			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(updatedPolicy.SocketTimeout).To(Equal(3_000 * time.Millisecond))
-			Expect(updatedPolicy.MaxRetries).To(Equal(5)) // unchanged
-			Expect(updatedPolicy.SleepBetweenRetries).To(Equal(1_000 * time.Millisecond))
-			Expect(updatedPolicy.TotalTimeout).To(Equal(20_000 * time.Millisecond))
-			Expect(updatedPolicy.SendKey).To(BeFalse())
-			Expect(updatedPolicy.ReplicaPolicy).To(Equal(MASTER))
+			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
+			gm.Expect(updatedPolicy.SocketTimeout).To(gm.Equal(3_000 * time.Millisecond))
+			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(5)) // unchanged
+			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(1_000 * time.Millisecond))
+			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(20_000 * time.Millisecond))
+			gm.Expect(updatedPolicy.SendKey).To(gm.BeFalse())
+			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(MASTER))
 		})
 	})
 })

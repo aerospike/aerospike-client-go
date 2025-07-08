@@ -18,14 +18,14 @@ import (
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	gg "github.com/onsi/ginkgo/v2"
+	gm "github.com/onsi/gomega"
 )
 
-var _ = Describe("ApplyConfigToBatchReadPolicy", func() {
+var _ = gg.Describe("ApplyConfigToBatchReadPolicy", func() {
 
-	Context("when applying full configuration to batch read policy", func() {
-		It("should update the policy values based on the dynamic config", func() {
+	gg.Context("when applying full configuration to batch read policy", func() {
+		gg.It("should update the policy values based on the dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
 				config: &dynconfig.Config{
@@ -68,23 +68,23 @@ var _ = Describe("ApplyConfigToBatchReadPolicy", func() {
 			policy := NewBatchReadPolicy()
 
 			// Verify defaults.
-			Expect(policy).NotTo(BeNil())
-			Expect(policy.ReadModeAP).To(Equal(ReadModeAPOne))
-			Expect(policy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(policy.ReadTouchTTLPercent).To(Equal(int32(0)))
+			gm.Expect(policy).NotTo(gm.BeNil())
+			gm.Expect(policy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
+			gm.Expect(policy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
+			gm.Expect(policy.ReadTouchTTLPercent).To(gm.Equal(int32(0)))
 
 			// Apply configuration.
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate applied configuration.
-			Expect(updatedPolicy).NotTo(BeNil())
-			Expect(updatedPolicy.ReadModeAP).To(Equal(ReadModeAPOne))
-			Expect(updatedPolicy.ReadModeSC).To(Equal(ReadModeSCAllowUnavailable))
+			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
+			gm.Expect(updatedPolicy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
+			gm.Expect(updatedPolicy.ReadModeSC).To(gm.Equal(ReadModeSCAllowUnavailable))
 		})
 	})
 
-	Context("when applying batch read config to a write policy", func() {
-		It("should update the write policy values based on the batch read dynamic config", func() {
+	gg.Context("when applying batch read config to a write policy", func() {
+		gg.It("should update the write policy values based on the batch read dynamic config", func() {
 			// Create the full configuration.
 
 			config := &DynConfig{
@@ -131,40 +131,40 @@ var _ = Describe("ApplyConfigToBatchReadPolicy", func() {
 			batchPolicy := NewBatchPolicy()
 
 			// Verify defaults.
-			Expect(batchPolicy).NotTo(BeNil())
-			Expect(batchPolicy.ReadModeAP).To(Equal(ReadModeAPOne))
-			Expect(batchPolicy.ReadModeSC).To(Equal(ReadModeSCSession))
-			Expect(batchPolicy.ReadTouchTTLPercent).To(Equal(int32(0)))
+			gm.Expect(batchPolicy).NotTo(gm.BeNil())
+			gm.Expect(batchPolicy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
+			gm.Expect(batchPolicy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
+			gm.Expect(batchPolicy.ReadTouchTTLPercent).To(gm.Equal(int32(0)))
 
 			// Apply configuration to BatchPolicy.
 			batchPolicy = config.client.dynDefaultBatchPolicy.Load()
 
 			// Validate the loaded policy.
-			Expect(batchPolicy.ReadModeAP).To(Equal(ReadModeAPAll))
-			Expect(batchPolicy.ReadModeSC).To(Equal(ReadModeSCAllowUnavailable))
-			Expect(batchPolicy.TotalTimeout).To(Equal(15 * time.Millisecond))
-			Expect(batchPolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
-			Expect(batchPolicy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
-			Expect(batchPolicy.MaxRetries).To(Equal(5))
-			Expect(batchPolicy.ReplicaPolicy).To(Equal(SEQUENCE))
-			Expect(batchPolicy.SendKey).To(BeFalse())
-			Expect(batchPolicy.UseCompression).To(BeFalse())
-			Expect(batchPolicy.AllowInline).To(BeTrue())
+			gm.Expect(batchPolicy.ReadModeAP).To(gm.Equal(ReadModeAPAll))
+			gm.Expect(batchPolicy.ReadModeSC).To(gm.Equal(ReadModeSCAllowUnavailable))
+			gm.Expect(batchPolicy.TotalTimeout).To(gm.Equal(15 * time.Millisecond))
+			gm.Expect(batchPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
+			gm.Expect(batchPolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(batchPolicy.MaxRetries).To(gm.Equal(5))
+			gm.Expect(batchPolicy.ReplicaPolicy).To(gm.Equal(SEQUENCE))
+			gm.Expect(batchPolicy.SendKey).To(gm.BeFalse())
+			gm.Expect(batchPolicy.UseCompression).To(gm.BeFalse())
+			gm.Expect(batchPolicy.AllowInline).To(gm.BeTrue())
 
 			// Apply the dynamic configuration to the BatchPolicy.
 			batchReadPolicy := config.client.dynDefaultBatchReadPolicy.Load()
 			updatedWritePolicy := batchReadPolicy.ToWritePolicy(batchPolicy, config)
 
 			// Validate applied configuration.
-			Expect(updatedWritePolicy).NotTo(BeNil())
-			Expect(updatedWritePolicy.ReadModeAP).To(Equal(ReadModeAPAll))
-			Expect(updatedWritePolicy.ReadModeSC).To(Equal(ReadModeSCAllowUnavailable))
-			Expect(updatedWritePolicy.ReplicaPolicy).To(Equal(MASTER))
-			Expect(updatedWritePolicy.TotalTimeout).To(Equal(15 * time.Millisecond))
-			Expect(updatedWritePolicy.SocketTimeout).To(Equal(3 * time.Millisecond))
-			Expect(updatedWritePolicy.SleepBetweenRetries).To(Equal(1 * time.Millisecond))
-			Expect(updatedWritePolicy.MaxRetries).To(Equal(5))
-			Expect(updatedWritePolicy.SendKey).To(BeFalse())
+			gm.Expect(updatedWritePolicy).NotTo(gm.BeNil())
+			gm.Expect(updatedWritePolicy.ReadModeAP).To(gm.Equal(ReadModeAPAll))
+			gm.Expect(updatedWritePolicy.ReadModeSC).To(gm.Equal(ReadModeSCAllowUnavailable))
+			gm.Expect(updatedWritePolicy.ReplicaPolicy).To(gm.Equal(MASTER))
+			gm.Expect(updatedWritePolicy.TotalTimeout).To(gm.Equal(15 * time.Millisecond))
+			gm.Expect(updatedWritePolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
+			gm.Expect(updatedWritePolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(updatedWritePolicy.MaxRetries).To(gm.Equal(5))
+			gm.Expect(updatedWritePolicy.SendKey).To(gm.BeFalse())
 		})
 	})
 })

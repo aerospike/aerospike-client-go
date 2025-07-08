@@ -178,6 +178,7 @@ type ClientPolicy struct {
 	// Application id is used to identify application so that client operations can be correlated
 	// with server side metrics.
 	ApplicationId string
+
 	// Determianes the interval for checking for configuration changes using configProvider.
 	ConfigInterval time.Duration // = 5 second
 }

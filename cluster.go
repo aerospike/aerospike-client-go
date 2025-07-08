@@ -1021,13 +1021,14 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 
 	nodes := clstr.GetNodes()
 	labels := make([]map[string]string, 0)
-
+	clientPolicy := clstr.clientPolicy.Get()
 	// Add node labels
 	for node := range nodes {
 		entries := make(map[string]string)
 		var app_id string
-		if clstr.clientPolicy.ApplicationId != "" {
-			app_id = clstr.clientPolicy.ApplicationId
+
+		if clientPolicy.ApplicationId != "" {
+			app_id = clientPolicy.ApplicationId
 		} else {
 			app_id = clstr.user
 		}
@@ -1044,7 +1045,7 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 		// Reserved label names for the client
 		entries["node"] = nodes[node].GetName()
 		entries["host"] = nodes[node].host.String()
-		entries["cluster"] = clstr.clientPolicy.ClusterName
+		entries["cluster"] = clientPolicy.ClusterName
 
 		// Users are allowed to override app-id if they want to. Default is the user name.
 		// Users need to set the application id int the client policy.
