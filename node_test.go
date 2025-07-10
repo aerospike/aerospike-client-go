@@ -361,58 +361,51 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 		var err error
 		var client *as.Client
 		var maxErrorRate int
+		var errRateWindow int
 
 		dbHost := as.NewHost(*host, *port)
 		dbHost.TLSName = *nodeTLSName
 
 		gg.BeforeEach(func() {
-			// use the same client for all
+			maxErrorRate = 100
+			errRateWindow = 2
+
+			clientPolicy = as.NewClientPolicy()
+			clientPolicy.TlsConfig = tlsConfig
+			clientPolicy.IdleTimeout = 1000 * time.Millisecond
+			clientPolicy.User = *user
+			clientPolicy.Password = *password
+			clientPolicy.MaxErrorRate = maxErrorRate * errRateWindow
+			clientPolicy.ErrorRateWindow = errRateWindow
+
 			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
-		gg.BeforeEach(func() {
-			maxErrorRate = 10
-
-			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+		gg.AfterEach(func() {
+			if client != nil {
+				client.Close()
+			}
 		})
 
 		gg.Context("When Circuit Breaker is Used", func() {
 
 			gg.It("should trip the circuit breaker when error count exceeds maxErrorRate", func() {
-				clientPolicy = as.NewClientPolicy()
-				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.IdleTimeout = 1000 * time.Millisecond
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.MaxErrorRate = maxErrorRate
-				clientPolicy.ErrorRateWindow = 2
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				node := client.GetNodes()[0]
-				defer client.Close()
 
 				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
+
 				err := node.ValidateErrorCount()
 				gm.Expect(err).ToNot(gm.BeNil())
 				gm.Expect(err.Matches(types.MAX_ERROR_RATE)).To(gm.BeTrue())
 			})
 
 			gg.It("should set errorCount negative when circuit is open", func() {
-				clientPolicy = as.NewClientPolicy()
-				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.IdleTimeout = 1000 * time.Millisecond
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.MaxErrorRate = maxErrorRate
-				clientPolicy.ErrorRateWindow = 2
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				node := client.GetNodes()[0]
-				defer client.Close()
 
-				for i := 0; i < maxErrorRate+1; i++ {
+				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
 				node.SetFailures(5)
@@ -421,22 +414,13 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			})
 
 			gg.It("should remain open in the same window", func() {
-				clientPolicy = as.NewClientPolicy()
-				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.IdleTimeout = 1000 * time.Millisecond
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.MaxErrorRate = maxErrorRate
-				clientPolicy.ErrorRateWindow = 2
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				node := client.GetNodes()[0]
-				defer client.Close()
 
-				for i := 0; i < maxErrorRate+1; i++ {
+				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
 
-				node.SetFailures(11)
+				node.SetFailures(clientPolicy.MaxErrorRate + 1)
 				_ = node.ValidateErrorCount()
 				err := node.ValidateErrorCount()
 				gm.Expect(err).ToNot(gm.BeNil())
@@ -444,19 +428,10 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			})
 
 			gg.It("should stay open after advancing window if errorCount is still high", func() {
-				clientPolicy = as.NewClientPolicy()
-				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.IdleTimeout = 1000 * time.Millisecond
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.MaxErrorRate = maxErrorRate
-				clientPolicy.ErrorRateWindow = 2
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				node := client.GetNodes()[0]
-				defer client.Close()
 
-				failedWindow := 11
-				for i := 0; i < maxErrorRate+1; i++ {
+				failedWindow := clientPolicy.MaxErrorRate + 1
+				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
 
@@ -470,19 +445,10 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			})
 
 			gg.It("should stay open and update window after second window advance if errorCount is still high", func() {
-				clientPolicy = as.NewClientPolicy()
-				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.IdleTimeout = 1000 * time.Millisecond
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.MaxErrorRate = maxErrorRate
-				clientPolicy.ErrorRateWindow = 2
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				node := client.GetNodes()[0]
-				defer client.Close()
 
-				failedWindow := 11
-				for i := 0; i < maxErrorRate+1; i++ {
+				failedWindow := clientPolicy.MaxErrorRate + 1
+				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
 				node.SetFailures(failedWindow)
@@ -495,23 +461,15 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			})
 
 			gg.It("should close circuit when errorCount is less than half maxErrorRate after window advance", func() {
-				clientPolicy = as.NewClientPolicy()
-				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.IdleTimeout = 1000 * time.Millisecond
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.MaxErrorRate = maxErrorRate
-				clientPolicy.ErrorRateWindow = 2
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 				node := client.GetNodes()[0]
-				defer client.Close()
-
-				for i := 0; i < maxErrorRate+1; i++ {
+				errorCount := (clientPolicy.MaxErrorRate + 1) / 2
+				failures := clientPolicy.MaxErrorRate + 1
+				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
 				_ = node.ValidateErrorCount()
-				node.SetErrorCount(-4) // less than maxErrorRate/2 (which is 5)
-				node.SetFailures(3)
+				node.SetErrorCount(errorCount - 4) // less than maxErrorRate/2 (which is 5)
+				node.SetFailures(failures)
 				err := node.ValidateErrorCount()
 				gm.Expect(err).To(gm.BeNil())
 				gm.Expect(node.GetErrorCount()).ToNot(gm.Equal(0))

@@ -28,6 +28,11 @@ import (
 )
 
 const (
+	MAX_ERROR_RATE_MIN_VALUE = 100
+	ERROR_RATE_MIN_VALUE     = 1
+)
+
+const (
 	_PARTITIONS = 4096
 )
 
@@ -915,42 +920,46 @@ func (nd *Node) resetErrorCount() {
 // validateErrorCount checks the error count against the maxErrorRate
 // returns error if errorCount has gone above the threshold set in the policy
 func (nd *Node) validateErrorCount() Error {
-	maxErrorRate := nd.cluster.clientPolicy.MaxErrorRate
-	errorRateWindow := nd.cluster.clientPolicy.ErrorRateWindow
+	// maxErrorRate is the maximum number of errors allowed in a window
+	// errorRateWindow is the time window in which the errors are counted
+	maxErrorRate := max(nd.cluster.clientPolicy.MaxErrorRate, MAX_ERROR_RATE_MIN_VALUE)
+	errorRateWindow := max(nd.cluster.clientPolicy.ErrorRateWindow, ERROR_RATE_MIN_VALUE)
+	currentErrorCount := nd.errorCount.Get()
+	currentWindow := nd.failures.Get()
+
 	if maxErrorRate <= 0 {
 		return nil
 	}
 
-	errCount := abs(nd.errorCount.Get())
-	if errCount > maxErrorRate {
+	absErrorCount := abs(currentErrorCount)
+	if absErrorCount > maxErrorRate {
 		nd.stats.CircuitBreakerHits.IncrementAndGet()
 
-		window := nd.failures.Get()
-		circuitOpenWindow := -nd.errorCount.Get()
-
+		circuitOpenWindow := -currentErrorCount
 		if circuitOpenWindow > 0 {
-			// circuit is already open, check if window has advanced
-			if int(window)-circuitOpenWindow >= errorRateWindow {
-				// new window, check if errorcount is less than half maxErrorRate
-				realErrCount := nd.errorCount.Get() * -1 // restore positive value
-				if realErrCount < maxErrorRate/2 {
+			// Circuit is already open
+			if int(currentWindow)-circuitOpenWindow >= errorRateWindow {
+				// New window reached
+				realErrorCount := currentErrorCount * -1
+				if realErrorCount < maxErrorRate/2 {
 					nd.resetErrorCount()
+
 					return nil
 				} else {
-					// keep circuit open, update open window
-					nd.errorCount.Set(-int(window))
+					nd.errorCount.Set(-int(currentWindow))
+
 					return newError(types.MAX_ERROR_RATE)
 				}
 			} else {
-				// still in backoff window, keep circuit open
 				return newError(types.MAX_ERROR_RATE)
 			}
 		} else {
-			// circuit just opened, mark with negative window
-			nd.errorCount.Set(-int(window))
+			nd.errorCount.Set(-int(currentWindow))
+			// Capture all atomic values at once
 			return newError(types.MAX_ERROR_RATE)
 		}
 	}
+
 	return nil
 }
 
