@@ -983,3 +983,15 @@ func abs[T ~int | ~int8 | ~int16 | ~int32 | ~int64](x T) T {
 
 	return x
 }
+
+//-------------------------------------------------------
+// Test helpers
+//-------------------------------------------------------
+
+func (nd *Node) setFailures(newValue int) {
+	nd.failures.Set(newValue)
+}
+
+func (nd *Node) setErrorCount(newValue int) {
+	nd.errorCount.Set(newValue)
+}

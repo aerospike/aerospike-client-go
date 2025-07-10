@@ -113,6 +113,18 @@ func (ctn *Connection) UpdateDeadline() (time.Time, time.Time, time.Duration, Er
 	return ctn.deadline, ctn.socketDeadline, ctn.socketTimeout, err
 }
 
-func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
-	return newDynConfigForTest(config)
+func (node *Node) ValidateErrorCount() Error {
+	return node.validateErrorCount()
+}
+
+func (node *Node) IncrementErrorCount() {
+	node.incrErrorCount()
+}
+
+func (node *Node) SetFailures(value int) {
+	node.setFailures(value)
+}
+
+func (node *Node) SetErrorCount(value int) {
+	node.setErrorCount(value)
 }
