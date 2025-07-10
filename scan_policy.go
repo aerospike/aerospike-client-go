@@ -47,15 +47,7 @@ func NewScanPolicy() *ScanPolicy {
 	}
 }
 
-func NewDynamicScanPolicy(dynConfig *DynConfig) *ScanPolicy {
-	if dynConfig == nil {
-		return NewScanPolicy()
-	}
-
-	return dynConfig.client.dynDefaultScanPolicy.Load()
-}
-
-// copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+// copy creates a new BasePolicy instance and copies the values from the source BasePolicy.
 func (sp *ScanPolicy) copy() *ScanPolicy {
 	if sp == nil {
 		return nil

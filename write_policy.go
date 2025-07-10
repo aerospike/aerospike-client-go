@@ -105,15 +105,7 @@ func NewWritePolicy(generation, expiration uint32) *WritePolicy {
 	return res
 }
 
-func NewDynamicWritePolicy(dynConfig *DynConfig) *WritePolicy {
-	if dynConfig == nil {
-		return NewWritePolicy(0, 0)
-	}
-
-	return dynConfig.client.dynDefaultWritePolicy.Load()
-}
-
-// copyWritePolicy creates a new WritePolicy instance and copies the values from the source WritePolicy.
+// copy creates a new WritePolicy instance and copies the values from the source WritePolicy.
 func (wp *WritePolicy) copy() *WritePolicy {
 	if wp == nil {
 		return nil

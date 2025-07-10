@@ -38,14 +38,7 @@ func NewTxnRollPolicy() *TxnRollPolicy {
 	}
 }
 
-func NewDynamicTxnRollPolicy(dynConfig *DynConfig) *TxnRollPolicy {
-	if dynConfig == nil {
-		return NewTxnRollPolicy()
-	}
-
-	return dynConfig.client.dynDefaultTxnRollPolicy.Load()
-}
-
+// copy creates a new TxnRollPolicy instance and copies the values from the source TxnRollPolicy.
 func (trp *TxnRollPolicy) copy() *TxnRollPolicy {
 	if trp == nil {
 		return nil

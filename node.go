@@ -74,7 +74,7 @@ type Node struct {
 
 // NewNode initializes a server node with connection parameters.
 func newNode(cluster *Cluster, nv *nodeValidator) *Node {
-	clusterClientPolicy := *cluster.clientPolicy.Get()
+	clusterClientPolicy := cluster.clientPolicy.Load()
 	newNode := &Node{
 		cluster: cluster,
 		name:    nv.name,
@@ -141,7 +141,7 @@ func (nd *Node) Refresh(peers *peers) Error {
 
 	var infoMap map[string]string
 	commands := []string{"node", "peers-generation", "partition-generation"}
-	if nd.cluster.clientPolicy.Get().RackAware {
+	if clientPolicy := nd.cluster.clientPolicy.Load(); clientPolicy != nil && clientPolicy.RackAware {
 		commands = append(commands, "rack-ids")
 	}
 
@@ -194,7 +194,7 @@ func (nd *Node) Refresh(peers *peers) Error {
 // refreshSessionToken refreshes the session token if it has been expired
 func (nd *Node) refreshSessionToken() (err Error) {
 	// no session token to refresh
-	clusterClientPolicy := *nd.cluster.clientPolicy.Get()
+	clusterClientPolicy := nd.cluster.clientPolicy.Load()
 	if !clusterClientPolicy.RequiresAuthentication() {
 		return nil
 	}
@@ -209,7 +209,7 @@ func (nd *Node) refreshSessionToken() (err Error) {
 
 	nd.usingTendConn(clusterClientPolicy.LoginTimeout, func(conn *Connection) {
 		command := newLoginCommand(conn.dataBuffer)
-		if err = command.login(&clusterClientPolicy, conn, nd.cluster.Password()); err != nil {
+		if err = command.login(clusterClientPolicy, conn, nd.cluster.Password()); err != nil {
 			// force new connections to use default creds until a new valid session token is acquired
 			nd.resetSessionInfo()
 			// Socket not authenticated. Do not put back into pool.
@@ -223,7 +223,7 @@ func (nd *Node) refreshSessionToken() (err Error) {
 }
 
 func (nd *Node) updateRackInfo(infoMap map[string]string) Error {
-	if !nd.cluster.clientPolicy.Get().RackAware {
+	if !nd.cluster.clientPolicy.Load().RackAware {
 		return nil
 	}
 
@@ -355,7 +355,7 @@ func (nd *Node) refreshFailed(e Error) {
 	nd.peersGeneration.Set(-1)
 	nd.partitionGeneration.Set(-1)
 
-	if nd.cluster.clientPolicy.Get().RackAware {
+	if nd.cluster.clientPolicy.Load().RackAware {
 		nd.rebalanceGeneration.Set(-1)
 	}
 
@@ -373,7 +373,7 @@ func (nd *Node) refreshFailed(e Error) {
 // a fresh connection or exhaust the queue.
 func (nd *Node) dropIdleConnections() {
 	if nd.cluster != nil {
-		nd.connections.DropIdle(nd.cluster.clientPolicy.Get().TendInterval)
+		nd.connections.DropIdle(nd.cluster.clientPolicy.Load().TendInterval)
 	}
 }
 
@@ -422,7 +422,7 @@ func (nd *Node) newConnectionAllowed() Error {
 	if !nd.active.Get() {
 		return ErrServerNotAvailable.err()
 	}
-	clusterClientPolicy := *nd.cluster.clientPolicy.Get()
+	clusterClientPolicy := nd.cluster.clientPolicy.Load()
 	// if connection count is limited and enough connections are already created, don't create a new one
 	cc := nd.connectionCount.IncrementAndGet()
 	defer nd.connectionCount.DecrementAndGet()
@@ -448,7 +448,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 		return nil, ErrServerNotAvailable.err()
 	}
 
-	clusterClientPolicy := *nd.cluster.clientPolicy.Get()
+	clusterClientPolicy := nd.cluster.clientPolicy.Load()
 	// if connection count is limited and enough connections are already created, don't create a new one
 	cc := nd.connectionCount.IncrementAndGet()
 	if clusterClientPolicy.LimitConnectionsToQueueSize && cc > clusterClientPolicy.ConnectionQueueSize {
@@ -472,7 +472,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	nd.stats.ConnectionsAttempts.IncrementAndGet()
-	conn, err := NewConnection(&clusterClientPolicy, nd.host)
+	conn, err := NewConnection(clusterClientPolicy, nd.host)
 	if err != nil {
 		nd.incrErrorCount()
 		nd.connectionCount.DecrementAndGet()
@@ -483,7 +483,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 
 	sessionInfo := nd.sessionInfo.Get()
 	// need to authenticate
-	if err = conn.login(&clusterClientPolicy, nd.cluster.Password(), sessionInfo); err != nil {
+	if err = conn.login(clusterClientPolicy, nd.cluster.Password(), sessionInfo); err != nil {
 		// increment node errors if authentication hit a network error
 		if networkError(err) {
 			nd.incrErrorCount()
@@ -886,7 +886,7 @@ func (nd *Node) WarmUp(count int) (int, Error) {
 // fillMinCounts will fill the connection pool to the minimum required
 // by the ClientPolicy.MinConnectionsPerNode
 func (nd *Node) fillMinConns() (int, Error) {
-	clusterClientPolicy := *nd.cluster.clientPolicy.Get()
+	clusterClientPolicy := nd.cluster.clientPolicy.Load()
 	if clusterClientPolicy.MinConnectionsPerNode > 0 {
 		toFill := clusterClientPolicy.MinConnectionsPerNode - nd.connectionCount.Get()
 		if toFill > 0 {
@@ -899,7 +899,7 @@ func (nd *Node) fillMinConns() (int, Error) {
 // Increments error count for the node. If errorCount goes above the threshold,
 // the node will not accept any more requests until the next window.
 func (nd *Node) incrErrorCount() {
-	if nd.cluster.clientPolicy.Get().MaxErrorRate > 0 {
+	if clientPolicy := nd.cluster.clientPolicy.Load(); clientPolicy != nil && clientPolicy.MaxErrorRate > 0 {
 		nd.errorCount.GetAndIncrement()
 	}
 }
@@ -911,7 +911,7 @@ func (nd *Node) resetErrorCount() {
 
 // checks if the errorCount is within set limits
 func (nd *Node) errorCountWithinLimit() bool {
-	clusterClientPolicy := *nd.cluster.clientPolicy.Get()
+	clusterClientPolicy := nd.cluster.clientPolicy.Load()
 	return clusterClientPolicy.MaxErrorRate <= 0 || nd.errorCount.Get() <= clusterClientPolicy.MaxErrorRate
 }
 

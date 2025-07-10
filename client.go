@@ -326,7 +326,7 @@ func (clnt *Client) SetDefaultPolicy(policy *BasePolicy) {
 
 // SetDefaultBatchPolicy sets corresponding default policy on the client
 func (clnt *Client) SetDefaultBatchPolicy(policy *BatchPolicy) {
-	clnt.DefaultBatchPolicy = applyConfigToBatchPolicy(policy, clnt.dynConfig)
+	clnt.DefaultBatchPolicy = policy.patchDynamic(clnt.dynConfig)
 }
 
 // SetDefaultBatchWritePolicy sets corresponding default policy on the client
@@ -2204,7 +2204,7 @@ func (clnt *Client) getUsablePolicy(policy *BasePolicy) *BasePolicy {
 func (clnt *Client) getUsableBatchPolicy(policy *BatchPolicy) *BatchPolicy {
 	if policy != nil {
 		// Merge policy with dynamic config
-		return applyConfigToBatchPolicy(policy, clnt.dynConfig)
+		return policy.patchDynamic(clnt.dynConfig)
 	}
 	// Make sure to handle the case where the user is setting Default....Policy policy and
 	// dynConfig is nil. Essentially, we do not want to treat cache as default

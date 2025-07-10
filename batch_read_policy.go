@@ -14,8 +14,6 @@
 
 package aerospike
 
-import "time"
-
 // BatchReadPolicy attributes used in batch read commands.
 type BatchReadPolicy struct {
 	// FilterExpression is the optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -56,15 +54,7 @@ func NewBatchReadPolicy() *BatchReadPolicy {
 	}
 }
 
-func NewDynamicBatchReadPolicy(dynConfig *DynConfig) *BatchReadPolicy {
-	if dynConfig == nil {
-		return NewBatchReadPolicy()
-	}
-
-	return dynConfig.client.dynDefaultBatchReadPolicy.Load()
-}
-
-func (brp *BatchReadPolicy) ToWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
+func (brp *BatchReadPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 
 	if dynConfig != nil {
@@ -126,38 +116,6 @@ func (brp *BatchReadPolicy) mapDynamic(dynConfig *DynConfig) *BatchReadPolicy {
 		}
 		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
 			brp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
-		}
-	}
-
-	return brp
-}
-
-func (brp *BasePolicy) mapConfigBatchReadToBasePolicy(dynConfig *DynConfig) *BasePolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return brp
-	}
-
-	if dynConfig.config.Dynamic.BatchRead != nil {
-		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
-			brp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
-		}
-		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
-			brp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
-		}
-		if dynConfig.config.Dynamic.BatchRead.TotalTimeout != nil {
-			brp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
-		}
-		if dynConfig.config.Dynamic.BatchRead.SocketTimeout != nil {
-			brp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
-		}
-		if dynConfig.config.Dynamic.BatchRead.MaxRetries != nil {
-			brp.MaxRetries = *dynConfig.config.Dynamic.BatchRead.MaxRetries
-		}
-		if dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries != nil {
-			brp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
-		}
-		if dynConfig.config.Dynamic.BatchRead.Replica != nil {
-			brp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchRead.Replica)
 		}
 	}
 

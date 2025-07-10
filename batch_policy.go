@@ -105,14 +105,6 @@ func NewBatchPolicy() *BatchPolicy {
 	}
 }
 
-func NewBatchPolicyOrDefaultFromCache(dynConfig *DynConfig) *BatchPolicy {
-	if dynConfig == nil {
-		return NewBatchPolicy()
-	}
-
-	return dynConfig.client.dynDefaultBatchPolicy.Load()
-}
-
 // NewReadBatchPolicy initializes a new BatchPolicy instance for reads.
 func NewReadBatchPolicy() *BatchPolicy {
 	return NewBatchPolicy()
@@ -133,74 +125,74 @@ func (p *BatchPolicy) toWritePolicy() *WritePolicy {
 	return wp
 }
 
-// copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
-func copyBatchPolicy(src *BatchPolicy) *BatchPolicy {
-	if src == nil {
+// copy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+func (p *BatchPolicy) copy() *BatchPolicy {
+	if p == nil {
 		return nil
 	}
 
-	response := *src
+	response := *p
 	return &response
 }
 
-// applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy
-func applyConfigToBatchPolicy(policy *BatchPolicy, dynConfig *DynConfig) *BatchPolicy {
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (p *BatchPolicy) patchDynamic(dynConfig *DynConfig) *BatchPolicy {
 	if dynConfig == nil {
-		return policy
+		return p
 	}
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if policy == nil {
+	if p == nil {
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultBatchPolicy.Load()
 	} else if config != nil && config.Dynamic != nil && config.Dynamic.BatchRead != nil {
 		// Dynamic configuration exists for policy in question.
 		var responsePolicy *BatchPolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responsePolicy = copyBatchPolicy(policy)
-		responsePolicy = mapDynamicBatchPolicy(responsePolicy, dynConfig)
+		responsePolicy = p.copy()
+		responsePolicy = responsePolicy.mapDynamic(dynConfig)
 
 		return responsePolicy
 	} else {
-		return policy
+		return p
 	}
 }
 
-func mapDynamicBatchPolicy(policy *BatchPolicy, dynConfig *DynConfig) *BatchPolicy {
+func (p *BatchPolicy) mapDynamic(dynConfig *DynConfig) *BatchPolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return p
 	}
 
 	if dynConfig.config.Dynamic.BatchRead != nil {
 		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
-			policy.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+			p.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
 		}
 		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
-			policy.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+			p.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
 		}
 		if dynConfig.config.Dynamic.BatchRead.TotalTimeout != nil {
-			policy.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
+			p.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchRead.SocketTimeout != nil {
-			policy.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
+			p.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchRead.MaxRetries != nil {
-			policy.MaxRetries = *dynConfig.config.Dynamic.BatchRead.MaxRetries
+			p.MaxRetries = *dynConfig.config.Dynamic.BatchRead.MaxRetries
 		}
 		if dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries != nil {
-			policy.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
+			p.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
 		}
 		if dynConfig.config.Dynamic.BatchRead.AllowInline != nil {
-			policy.AllowInline = *dynConfig.config.Dynamic.BatchRead.AllowInline
+			p.AllowInline = *dynConfig.config.Dynamic.BatchRead.AllowInline
 		}
 		if dynConfig.config.Dynamic.BatchRead.AllowInlineSSD != nil {
-			policy.AllowInlineSSD = *dynConfig.config.Dynamic.BatchRead.AllowInlineSSD
+			p.AllowInlineSSD = *dynConfig.config.Dynamic.BatchRead.AllowInlineSSD
 		}
 		if dynConfig.config.Dynamic.BatchRead.RespondAllKeys != nil {
-			policy.RespondAllKeys = *dynConfig.config.Dynamic.BatchRead.RespondAllKeys
+			p.RespondAllKeys = *dynConfig.config.Dynamic.BatchRead.RespondAllKeys
 		}
 	}
 
-	return policy
+	return p
 }

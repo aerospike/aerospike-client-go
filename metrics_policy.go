@@ -79,7 +79,7 @@ func DefaultMetricsPolicyWithLabels(pairs ...map[string]string) *MetricsPolicy {
 	return &mp
 }
 
-// copyMetricsPolicy creates a new BasePolicy instance and copies the values from the source policy.
+// copy creates a new BasePolicy instance and copies the values from the source policy.
 func (mp *MetricsPolicy) copy() *MetricsPolicy {
 	if mp == nil {
 		return nil

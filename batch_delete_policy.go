@@ -58,14 +58,6 @@ func NewBatchDeletePolicy() *BatchDeletePolicy {
 	}
 }
 
-func NewDynamicBatchDeletePolicy(dynConfig *DynConfig) *BatchDeletePolicy {
-	if dynConfig == nil {
-		return NewBatchDeletePolicy()
-	}
-
-	return dynConfig.client.dynDefaultBatchDeletePolicy.Load()
-}
-
 func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 

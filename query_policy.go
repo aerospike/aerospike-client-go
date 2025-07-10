@@ -61,15 +61,7 @@ func NewQueryPolicy() *QueryPolicy {
 	}
 }
 
-func NewDynamicQueryPolicy(dynConfig *DynConfig) *QueryPolicy {
-	if dynConfig == nil {
-		return NewQueryPolicy()
-	}
-
-	return dynConfig.client.dynDefaultQueryPolicy.Load()
-}
-
-// copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+// copy creates a new BasePolicy instance and copies the values from the source BasePolicy.
 func (qp *QueryPolicy) copy() *QueryPolicy {
 	if qp == nil {
 		return nil

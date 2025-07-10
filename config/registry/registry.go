@@ -15,9 +15,8 @@
 package configregistry
 
 import (
-	"sync"
-
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+	atomic "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
 )
 
 const (
@@ -28,8 +27,7 @@ const (
 )
 
 var (
-	ConfigProvidersMu sync.RWMutex
-	ConfigProviders   = make(map[string]dynconfig.ConfigProvider)
+	ConfigProviders = atomic.New[string, dynconfig.ConfigProvider](0)
 )
 
 // Register registers a config provider by name.
@@ -38,20 +36,18 @@ func Register(driverType string, provider dynconfig.ConfigProvider) {
 		panic("Config provider cannot be nil")
 	}
 
-	ConfigProvidersMu.Lock()
-	defer ConfigProvidersMu.Unlock()
-
-	if _, found := ConfigProviders[driverType]; found {
+	if config := ConfigProviders.Get(driverType); config != nil {
 		panic("Config provider " + driverType + " is already registered")
 	}
-	ConfigProviders[driverType] = provider
+
+	ConfigProviders.Set(driverType, provider)
 }
 
 // Get retrieves a config provider by name.
 func Get(name string) (dynconfig.ConfigProvider, bool) {
-	ConfigProvidersMu.RLock()
-	defer ConfigProvidersMu.RUnlock()
-	provider, ok := ConfigProviders[name]
+	if provider := ConfigProviders.Get(name); provider != nil {
+		return provider, true
+	}
 
-	return provider, ok
+	return nil, false
 }

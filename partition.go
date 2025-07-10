@@ -250,7 +250,7 @@ func (ptn *Partition) getRackNode(cluster *Cluster) (*Node, Error) {
 	replicas := ptn.partitions.Replicas
 
 	// Try to find a node on the same rack first:
-	for _, rackId := range cluster.clientPolicy.Get().RackIds {
+	for _, rackId := range cluster.clientPolicy.Load().RackIds {
 		seq := ptn.sequence
 		for range replicas {
 			index := seq % len(replicas)

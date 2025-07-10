@@ -153,7 +153,7 @@ var _ = gg.Describe("ApplyConfigToBatchReadPolicy", func() {
 
 			// Apply the dynamic configuration to the BatchPolicy.
 			batchReadPolicy := config.client.dynDefaultBatchReadPolicy.Load()
-			updatedWritePolicy := batchReadPolicy.ToWritePolicy(batchPolicy, config)
+			updatedWritePolicy := batchReadPolicy.toWritePolicy(batchPolicy, config)
 
 			// Validate applied configuration.
 			gm.Expect(updatedWritePolicy).NotTo(gm.BeNil())

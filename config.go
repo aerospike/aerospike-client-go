@@ -271,7 +271,7 @@ func (dc *DynConfig) generateDynamicBatchReadBasePolicy() *BasePolicy {
 		policy = NewPolicy()
 	}
 
-	policy = policy.mapConfigBatchReadToBasePolicy(dc)
+	policy = policy.mapDynamicBatchRead(dc)
 
 	return policy
 }
@@ -286,7 +286,7 @@ func (dc *DynConfig) generateDynamicBatchWriteBasePolicy() *BasePolicy {
 		policy = NewPolicy()
 	}
 
-	policy = policy.mapConfigBatchWriteToBasePolicy(dc)
+	policy = policy.mapDynamicBatchWrite(dc)
 
 	return policy
 }
@@ -439,13 +439,13 @@ func (dc *DynConfig) generateDynamicBatchPolicy() *BatchPolicy {
 	if dc.client != nil && dc.client.DefaultBatchPolicy != nil {
 		// Not going to make changes to policy user has set but will create a copy of it
 		// and apply dynamic configuration to it. The copy of the merged policy will be returned
-		policy = copyBatchPolicy(dc.client.DefaultBatchPolicy)
+		policy = dc.client.DefaultBatchPolicy.copy()
 	} else {
 		// If no default batch policy is set, create a new one.
 		policy = NewBatchPolicy()
 	}
 
-	policy = mapDynamicBatchPolicy(policy, dc)
+	policy = policy.mapDynamic(dc)
 
 	return policy
 }

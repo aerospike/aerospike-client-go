@@ -14,8 +14,6 @@
 
 package aerospike
 
-import "time"
-
 // BatchWritePolicy attributes used in batch write commands.
 type BatchWritePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -95,14 +93,6 @@ func NewBatchWritePolicy() *BatchWritePolicy {
 	}
 }
 
-func NewDynamicBatchWritePolicy(dynConfig *DynConfig) *BatchWritePolicy {
-	if dynConfig == nil {
-		return NewBatchWritePolicy()
-	}
-
-	return dynConfig.client.dynDefaultBatchWritePolicy.Load()
-}
-
 func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 
@@ -126,7 +116,7 @@ func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig
 	return wp
 }
 
-// copyQueryPolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+// copy creates a new BasePolicy instance and copies the values from the source BasePolicy.
 func (bwp *BatchWritePolicy) copy() *BatchWritePolicy {
 	if bwp == nil {
 		return nil
@@ -157,45 +147,19 @@ func (bwp *BatchWritePolicy) patchDynamic(dynConfig *DynConfig) *BatchWritePolic
 	}
 }
 
-func (policy *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy {
+func (bwp *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy {
 	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return policy
+		return bwp
 	}
 
 	if dynConfig.config.Dynamic.BatchWrite != nil {
 		if dynConfig.config.Dynamic.BatchWrite.DurableDelete != nil {
-			policy.DurableDelete = *dynConfig.config.Dynamic.BatchWrite.DurableDelete
+			bwp.DurableDelete = *dynConfig.config.Dynamic.BatchWrite.DurableDelete
 		}
 		if dynConfig.config.Dynamic.BatchWrite.SendKey != nil {
-			policy.SendKey = *dynConfig.config.Dynamic.BatchWrite.SendKey
+			bwp.SendKey = *dynConfig.config.Dynamic.BatchWrite.SendKey
 		}
 	}
 
-	return policy
-}
-
-func (bp *BasePolicy) mapConfigBatchWriteToBasePolicy(dynConfig *DynConfig) *BasePolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
-		return bp
-	}
-
-	if dynConfig.config.Dynamic.BatchWrite != nil {
-		if dynConfig.config.Dynamic.BatchWrite.TotalTimeout != nil {
-			bp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchWrite.TotalTimeout) * time.Millisecond
-		}
-		if dynConfig.config.Dynamic.BatchWrite.SocketTimeout != nil {
-			bp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchWrite.SocketTimeout) * time.Millisecond
-		}
-		if dynConfig.config.Dynamic.BatchWrite.MaxRetries != nil {
-			bp.MaxRetries = *dynConfig.config.Dynamic.BatchWrite.MaxRetries
-		}
-		if dynConfig.config.Dynamic.BatchWrite.SleepBetweenRetries != nil {
-			bp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchWrite.SleepBetweenRetries) * time.Millisecond
-		}
-		if dynConfig.config.Dynamic.BatchWrite.Replica != nil {
-			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchWrite.Replica)
-		}
-	}
-
-	return bp
+	return bwp
 }

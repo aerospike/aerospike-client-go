@@ -66,14 +66,6 @@ func NewBatchUDFPolicy() *BatchUDFPolicy {
 	}
 }
 
-func NewDynamicBatchUdfPolicy(dynConfig *DynConfig) *BatchUDFPolicy {
-	if dynConfig == nil {
-		return NewBatchUDFPolicy()
-	}
-
-	return dynConfig.client.dynDefaultBatchUDFPolicy.Load()
-}
-
 func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 
@@ -106,7 +98,7 @@ func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) 
 	return wp
 }
 
-// copyBatchUDFPolicy creates a new BasePolicy instance and copies the values from the source BatchUDFPolicy.
+// copy creates a new BasePolicy instance and copies the values from the source BatchUDFPolicy.
 func (bup *BatchUDFPolicy) copy() *BatchUDFPolicy {
 	if bup == nil {
 		return nil

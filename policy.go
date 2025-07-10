@@ -188,33 +188,25 @@ func NewPolicy() *BasePolicy {
 	}
 }
 
-func NewDynamicPolicy(dynConfig *DynConfig) *BasePolicy {
-	if dynConfig == nil {
-		return NewPolicy()
-	}
-
-	return dynConfig.client.dynDefaultPolicy.Load()
-}
-
 var _ Policy = &BasePolicy{}
 
 // GetBasePolicy returns embedded BasePolicy in all types that embed this struct.
-func (p *BasePolicy) GetBasePolicy() *BasePolicy { return p }
+func (bp *BasePolicy) GetBasePolicy() *BasePolicy { return bp }
 
-func (p *BasePolicy) deadline() time.Time {
+func (bp *BasePolicy) deadline() time.Time {
 	var deadline time.Time
-	if p != nil && p.TotalTimeout > 0 {
-		deadline = time.Now().Add(p.TotalTimeout)
+	if bp != nil && bp.TotalTimeout > 0 {
+		deadline = time.Now().Add(bp.TotalTimeout)
 	}
 
 	return deadline
 }
 
-func (p *BasePolicy) compress() bool {
-	return p.UseCompression
+func (bp *BasePolicy) compress() bool {
+	return bp.UseCompression
 }
 
-// copyBasePolicy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+// copy creates a new BasePolicy instance and copies the values from the source BasePolicy.
 func (bp *BasePolicy) copy() *BasePolicy {
 	if bp == nil {
 		return nil
@@ -270,6 +262,64 @@ func (bp *BasePolicy) mapDynamic(dynConfig *DynConfig) *BasePolicy {
 		}
 		if dynConfig.config.Dynamic.Read.Replica != nil {
 			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Read.Replica)
+		}
+	}
+
+	return bp
+}
+
+func (bp *BasePolicy) mapDynamicBatchWrite(dynConfig *DynConfig) *BasePolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return bp
+	}
+
+	if dynConfig.config.Dynamic.BatchWrite != nil {
+		if dynConfig.config.Dynamic.BatchWrite.TotalTimeout != nil {
+			bp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchWrite.TotalTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchWrite.SocketTimeout != nil {
+			bp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchWrite.SocketTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchWrite.MaxRetries != nil {
+			bp.MaxRetries = *dynConfig.config.Dynamic.BatchWrite.MaxRetries
+		}
+		if dynConfig.config.Dynamic.BatchWrite.SleepBetweenRetries != nil {
+			bp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchWrite.SleepBetweenRetries) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchWrite.Replica != nil {
+			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchWrite.Replica)
+		}
+	}
+
+	return bp
+}
+
+func (bp *BasePolicy) mapDynamicBatchRead(dynConfig *DynConfig) *BasePolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return bp
+	}
+
+	if dynConfig.config.Dynamic.BatchRead != nil {
+		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
+			bp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+		}
+		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
+			bp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+		}
+		if dynConfig.config.Dynamic.BatchRead.TotalTimeout != nil {
+			bp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchRead.SocketTimeout != nil {
+			bp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchRead.MaxRetries != nil {
+			bp.MaxRetries = *dynConfig.config.Dynamic.BatchRead.MaxRetries
+		}
+		if dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries != nil {
+			bp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.BatchRead.Replica != nil {
+			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchRead.Replica)
 		}
 	}
 

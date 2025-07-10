@@ -39,14 +39,7 @@ func NewTxnVerifyPolicy() *TxnVerifyPolicy {
 	}
 }
 
-func NewDynamicTxnVerifyPolicy(dynConfig *DynConfig) *TxnVerifyPolicy {
-	if dynConfig == nil {
-		return NewTxnVerifyPolicy()
-	}
-
-	return dynConfig.client.dynDefaultTxnVerifyPolicy.Load()
-}
-
+// copy creates a new TxnVerifyPolicy instance and copies the values from the source TxnVerifyPolicy.
 func (tvp *TxnVerifyPolicy) copy() *TxnVerifyPolicy {
 	if tvp == nil {
 		return nil
@@ -56,7 +49,7 @@ func (tvp *TxnVerifyPolicy) copy() *TxnVerifyPolicy {
 	return &response
 }
 
-// applyConfigToTxnRollPolicy applies the dynamic configuration and generates a new policy.
+// patchDynamic applies the dynamic configuration and generates a new policy.
 func (tvp *TxnVerifyPolicy) patchDynamic(dynConfig *DynConfig) *TxnVerifyPolicy {
 	if dynConfig == nil {
 		return tvp

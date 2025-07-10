@@ -57,7 +57,7 @@ type Cluster struct {
 	// Hints for best node for a partition
 	partitionWriteMap iatomic.TypedVal[partitionMap] //partitionMap
 
-	clientPolicy        iatomic.SyncVal[*ClientPolicy]
+	clientPolicy        atomic.Pointer[ClientPolicy]
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
 
@@ -128,7 +128,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 		supportsPartitionQuery: *iatomic.NewBool(false),
 	}
-	newCluster.clientPolicy.Set(&clientPolicy)
+	newCluster.clientPolicy.Store(&clientPolicy)
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
 
@@ -159,7 +159,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 	// start up cluster maintenance go routine
 	newCluster.wgTend.Add(1)
-	go newCluster.clusterBoss(newCluster.clientPolicy.Get())
+	go newCluster.clusterBoss(newCluster.clientPolicy.Load())
 
 	if err == nil {
 		logger.Logger.Debug("New cluster initialized and ready to be used...")
@@ -183,7 +183,7 @@ func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Logger.Error("Cluster tend goroutine crashed: %s", debug.Stack())
-			go clstr.clusterBoss(clstr.clientPolicy.Get())
+			go clstr.clusterBoss(clstr.clientPolicy.Load())
 		}
 	}()
 
@@ -207,11 +207,11 @@ Loop:
 				logger.Logger.Warn(err.Error())
 			}
 
-			tendInterval := clstr.clientPolicy.Get().TendInterval
+			clientPolicy := clstr.clientPolicy.Load()
 			// Tending took longer than requested tend interval.
 			// Tending is too slow for the cluster, and may be falling behind schedule.
-			if tendDuration := time.Since(tm); tendDuration > tendInterval {
-				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, tendInterval)
+			if tendDuration := time.Since(tm); tendDuration > clientPolicy.TendInterval {
+				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clientPolicy.TendInterval)
 			}
 		}
 	}
@@ -250,7 +250,7 @@ func (clstr *Cluster) tend() Error {
 
 	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
-	if len(nodes) == 0 || (clstr.clientPolicy.Get().SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
+	if clientPolicy := clstr.clientPolicy.Load(); len(nodes) == 0 || (clientPolicy != nil && clientPolicy.SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
 		logger.Logger.Info("No nodes available; seeding...")
 		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
 			return err
@@ -289,7 +289,7 @@ func (clstr *Cluster) tend() Error {
 
 		seq.Do(_peer.hosts, func(host *Host) error {
 			// attempt connection to the host
-			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.Get().SeedOnlyCluster}
+			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.Load().SeedOnlyCluster}
 			if err := nv.validateNode(clstr, host); err != nil {
 				logger.Logger.Warn("Add node `%s` failed: `%s`", host, err)
 				return nil
@@ -362,7 +362,7 @@ func (clstr *Cluster) tend() Error {
 
 	clstr.aggregateNodeStats(clstr.GetNodes())
 
-	clusterClientPolicy := *clstr.clientPolicy.Get()
+	clusterClientPolicy := *clstr.clientPolicy.Load()
 	// Reset connection error window for all nodes every connErrorWindow tend iterations.
 	if clusterClientPolicy.MaxErrorRate > 0 && clstr.tendCount%clusterClientPolicy.ErrorRateWindow == 0 {
 		for _, node := range clstr.GetNodes() {
@@ -473,7 +473,7 @@ func (clstr *Cluster) waitTillStabilized() Error {
 		doneCh <- err
 	}()
 
-	clusterClientPolicy := *clstr.clientPolicy.Get()
+	clusterClientPolicy := clstr.clientPolicy.Load()
 	select {
 	case <-time.After(clusterClientPolicy.Timeout):
 		if clusterClientPolicy.FailIfNotConnected {
@@ -542,7 +542,7 @@ func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
 
 	logger.Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
-	clusterClientPolicy := *clstr.clientPolicy.Get()
+	clusterClientPolicy := clstr.clientPolicy.Load()
 	// Add all nodes at once to avoid copying entire array multiple times.
 	for i, seed := range seedArray {
 		go func(index int, seed *Host) {
@@ -612,7 +612,7 @@ func (clstr *Cluster) addAlias(host *Host, node *Node) {
 func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 	removeList := []*Node{}
 
-	if clstr.clientPolicy.Get().SeedOnlyCluster {
+	if clstr.clientPolicy.Load().SeedOnlyCluster {
 		// Don't remove any node even if its bad or inactive.
 		return removeList
 	}
@@ -692,7 +692,7 @@ func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
 	defer clstr.updateClusterFeatures()
 
 	clstr.nodes.Update(func(nodes []*Node) ([]*Node, error) {
-		if clstr.clientPolicy.Get().SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
+		if clientPolicy := clstr.clientPolicy.Load(); clientPolicy!= nil && clientPolicy.SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
 			// Don't add new nodes.
 			return nodes, nil
 		}
@@ -942,14 +942,16 @@ func (clstr *Cluster) Password() (res []byte) {
 func (clstr *Cluster) changePassword(user string, password string, hash []byte) {
 	// change password ONLY if the user is the same
 	if clstr.user == user {
-		clstr.clientPolicy.Get().Password = password
+		clientPolicy := *clstr.clientPolicy.Load()
+		clientPolicy.Password = password
+		clstr.clientPolicy.Store(&clientPolicy)
 		clstr.password.Set(hash)
 	}
 }
 
 // ClientPolicy returns the client policy that is currently used with the cluster.
 func (clstr *Cluster) ClientPolicy() (res ClientPolicy) {
-	returnPolicy := *clstr.clientPolicy.Get()
+	returnPolicy := *clstr.clientPolicy.Load()
 	return returnPolicy
 }
 
@@ -1021,7 +1023,7 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 
 	nodes := clstr.GetNodes()
 	labels := make([]map[string]string, 0)
-	clientPolicy := clstr.clientPolicy.Get()
+	clientPolicy := clstr.clientPolicy.Load()
 	// Add node labels
 	for node := range nodes {
 		entries := make(map[string]string)
