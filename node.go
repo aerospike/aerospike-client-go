@@ -929,19 +929,13 @@ func (nd *Node) resetErrorCount() {
 // On next window, check if half maxErrorRate is met; if not, reset, otherwise keep circuit open
 // and lower the threshold by half.
 func (nd *Node) validateErrorCount() Error {
-	// maxErrorRate is the maximum number of errors allowed in a window
-	// errorRateWindow is the time window in which the errors are counted
-	// errorRateWindow:= max(nd.cluster.clientPolicy.ErrorRateWindow, ERROR_RATE_MIN_VALUE)
-	// The value for maxErrorRate has to fall within the ratio of errorRateWindow:maxErrorRate, where the ratio is set to be 1:100.
-	// maxErrorRate := min(nd.cluster.clientPolicy.MaxErrorRate, MAX_ERROR_RATE_MIN_VALUE*errorRateWindow)
-	errorRateWindow, maxErrorRate := nd.cluster.clientPolicy.ensureErrorRates()
+	// If nd.cluster.clientPolicy.MaxErrorRate is 0, no circuit breaker is needed
+	if nd.cluster.clientPolicy.MaxErrorRate <= 0 {
+		return nil
+	}
 
 	currentErrorCount := nd.errorCount.Get()
 	currentTendCount := nd.getCurrentTendCount()
-
-	if maxErrorRate <= 0 {
-		return nil
-	}
 
 	// Calculate the appropriate threshold based on circuit breaker state
 	var currentThreshold int
@@ -952,8 +946,8 @@ func (nd *Node) validateErrorCount() Error {
 		consecutiveWindows := nd.circuitBreakerWindows.Get()
 
 		// Calculate progressively halved threshold
-		// Start with maxErrorRate/2, then /4, /8, /16, etc.
-		currentThreshold = maxErrorRate / 2
+		// Start with nd.cluster.clientPolicy.MaxErrorRate/2, then /4, /8, /16, etc.
+		currentThreshold = nd.cluster.clientPolicy.MaxErrorRate / 2
 		for i := 1; i < consecutiveWindows; i++ {
 			currentThreshold = currentThreshold / 2
 			if currentThreshold < 1 {
@@ -962,8 +956,8 @@ func (nd *Node) validateErrorCount() Error {
 			}
 		}
 	} else {
-		// Circuit is not active. Use maxErrorRate set though policy
-		currentThreshold = maxErrorRate
+		// Circuit is not active. Use nd.cluster.clientPolicy.MaxErrorRate set though policy
+		currentThreshold = nd.cluster.clientPolicy.MaxErrorRate
 	}
 
 	if currentErrorCount > currentThreshold {
@@ -972,7 +966,7 @@ func (nd *Node) validateErrorCount() Error {
 		if circuitOpenTendCount >= 0 {
 			// Circuit is already open. Check if enough windows have passed
 			tendWindowsElapsed := currentTendCount - circuitOpenTendCount
-			if tendWindowsElapsed >= errorRateWindow {
+			if tendWindowsElapsed >= nd.cluster.clientPolicy.ErrorRateWindow {
 				// New evaluation window reached
 				realErrorCount := currentErrorCount
 
@@ -1029,15 +1023,6 @@ func (node *Node) GetErrorCount() int {
 	return node.errorCount.Get()
 }
 
-// Abs returns the absolute value of the given integer type.
-func abs[T ~int | ~int8 | ~int16 | ~int32 | ~int64](x T) T {
-	if x < 0 {
-		return -x
-	}
-
-	return x
-}
-
 //-------------------------------------------------------
 // Test helpers
 //-------------------------------------------------------
@@ -1067,10 +1052,9 @@ func (nd *Node) getCurrentEvaluationWindow() int {
 	}
 
 	currentTendCount := nd.getCurrentTendCount()
-	errorRateWindow, _ := nd.cluster.clientPolicy.ensureErrorRates()
 
 	if currentTendCount >= circuitOpenTendCount {
-		return (currentTendCount - circuitOpenTendCount) / errorRateWindow
+		return (currentTendCount - circuitOpenTendCount) / nd.cluster.clientPolicy.ErrorRateWindow
 	}
 
 	return 0
@@ -1085,10 +1069,9 @@ func (nd *Node) shouldResetCircuitBreaker() bool {
 	}
 
 	currentTendCount := nd.getCurrentTendCount()
-	errorRateWindow, _ := nd.cluster.clientPolicy.ensureErrorRates()
 
 	tendWindowsElapsed := currentTendCount - circuitOpenTendCount
-	return tendWindowsElapsed >= errorRateWindow
+	return tendWindowsElapsed >= nd.cluster.clientPolicy.ErrorRateWindow
 }
 
 // isCircuitBreakerActive returns true if the circuit breaker is currently active
