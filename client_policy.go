@@ -331,3 +331,18 @@ func (policy *ClientPolicy) patchDynamic(dynConfig *DynConfig) *ClientPolicy {
 		return policy
 	}
 }
+
+// maxErrorRate is the maximum number of errors allowed in a window
+// errorRateWindow is the time window in which the errors are counted
+// errorRateWindow:= max(nd.cluster.clientPolicy.ErrorRateWindow, ERROR_RATE_MIN_VALUE)
+// The value for maxErrorRate has to fall within the ratio of errorRateWindow:maxErrorRate, where the ratio is set to be 1:100.
+// maxErrorRate := min(nd.cluster.clientPolicy.MaxErrorRate, MAX_ERROR_RATE_MIN_VALUE*errorRateWindow)
+func (cp *ClientPolicy) ensureErrorRates() (int, int) {
+	var errorRateWindow, maxErrorRate int
+	errorRateWindow = max(cp.ErrorRateWindow, ERROR_RATE_MIN_VALUE)
+
+	// The max error rate needs to be a value that falls within the ratio of errorRateWindow:maxErrorRate, where the ratio is set to be 1:100.
+	maxErrorRate = min(errorRateWindow*MAX_ERROR_RATE_MIN_VALUE, cp.MaxErrorRate)
+
+	return errorRateWindow, maxErrorRate
+}

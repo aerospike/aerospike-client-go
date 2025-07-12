@@ -393,6 +393,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			gg.It("should trip the circuit breaker when error count exceeds maxErrorRate", func() {
 				node := client.GetNodes()[0]
 
+				// Add enough errors to exceed maxErrorRate
 				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
@@ -400,79 +401,176 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				err := node.ValidateErrorCount()
 				gm.Expect(err).ToNot(gm.BeNil())
 				gm.Expect(err.Matches(types.MAX_ERROR_RATE)).To(gm.BeTrue())
+				gm.Expect(node.IsCircuitBreakerActive()).To(gm.BeTrue())
+				gm.Expect(node.GetCircuitBreakerWindows()).To(gm.Equal(1))
 			})
 
-			gg.It("should set errorCount negative when circuit is open", func() {
+			gg.It("should reset errorCount when circuit opens", func() {
 				node := client.GetNodes()[0]
 
+				// Add enough errors to exceed maxErrorRate
 				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
-				node.SetFailures(5)
+
 				_ = node.ValidateErrorCount()
-				gm.Expect(node.GetErrorCount()).To(gm.BeNumerically("<", 0))
+				// After circuit opens, error count should be reset to 0 for new window
+				gm.Expect(node.GetErrorCount()).To(gm.Equal(0))
+				gm.Expect(node.IsCircuitBreakerActive()).To(gm.BeTrue())
 			})
 
 			gg.It("should remain open in the same window", func() {
 				node := client.GetNodes()[0]
 
+				// Add enough errors to exceed maxErrorRate
 				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
 
-				node.SetFailures(clientPolicy.MaxErrorRate + 1)
 				_ = node.ValidateErrorCount()
+				gm.Expect(node.IsCircuitBreakerActive()).To(gm.BeTrue())
+
+				// Add enough errors to exceed maxErrorRate
+				for i := 0; i < clientPolicy.MaxErrorRate / 2 +1; i++ {
+					node.IncrementErrorCount()
+				}
+				// Should remain open in same window (no tend advancement)
 				err := node.ValidateErrorCount()
 				gm.Expect(err).ToNot(gm.BeNil())
 				gm.Expect(err.Matches(types.MAX_ERROR_RATE)).To(gm.BeTrue())
 			})
 
-			gg.It("should stay open after advancing window if errorCount is still high", func() {
+			gg.It("should advance window and stay open if errorCount is still high", func() {
 				node := client.GetNodes()[0]
 
-				failedWindow := clientPolicy.MaxErrorRate + 1
+				// Add enough errors to exceed maxErrorRate
 				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
 
-				node.SetFailures(failedWindow)
 				_ = node.ValidateErrorCount()
-				node.SetFailures(failedWindow + 1) // advance the window
+				gm.Expect(node.IsCircuitBreakerActive()).To(gm.BeTrue())
+				gm.Expect(node.GetCircuitBreakerWindows()).To(gm.Equal(1))
+
+				// Add errors above threshold for window 1 (maxErrorRate/2 = 100)
+				for i := 0; i < clientPolicy.MaxErrorRate/2+1; i++ {
+					node.IncrementErrorCount()
+				}
+
+				// Advance tend count to trigger new window
+				node.SimulateTendAdvancement(errRateWindow)
+
 				err := node.ValidateErrorCount()
 				gm.Expect(err).ToNot(gm.BeNil())
 				gm.Expect(err.Matches(types.MAX_ERROR_RATE)).To(gm.BeTrue())
-
+				gm.Expect(node.GetCircuitBreakerWindows()).To(gm.Equal(2))
 			})
 
-			gg.It("should stay open and update window after second window advance if errorCount is still high", func() {
+			gg.It("should implement progressive backoff with halving thresholds", func() {
 				node := client.GetNodes()[0]
 
-				failedWindow := clientPolicy.MaxErrorRate + 1
+				// Initial circuit open
 				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
-				node.SetFailures(failedWindow)
 				_ = node.ValidateErrorCount()
-				node.SetFailures(failedWindow)
-				_ = node.ValidateErrorCount()
+				gm.Expect(node.GetCircuitBreakerWindows()).To(gm.Equal(1))
+
+				// Window 1: threshold = maxErrorRate/2 = 100
+				// Add errors just above threshold
+				for i := 0; i < clientPolicy.MaxErrorRate/2+1; i++ {
+					node.IncrementErrorCount()
+				}
+				node.SimulateTendAdvancement(errRateWindow)
 				err := node.ValidateErrorCount()
 				gm.Expect(err).ToNot(gm.BeNil())
-				gm.Expect(err.Matches(types.MAX_ERROR_RATE)).To(gm.BeTrue())
+				gm.Expect(node.GetCircuitBreakerWindows()).To(gm.Equal(2))
+
+				// Window 2: threshold = maxErrorRate/4 = 50
+				// Add errors just above threshold
+				for i := 0; i < clientPolicy.MaxErrorRate/4+1; i++ {
+					node.IncrementErrorCount()
+				}
+				node.SimulateTendAdvancement(errRateWindow)
+				err = node.ValidateErrorCount()
+				gm.Expect(err).ToNot(gm.BeNil())
+				gm.Expect(node.GetCircuitBreakerWindows()).To(gm.Equal(3))
+
+				// Window 3: threshold = maxErrorRate/8 = 25
+				// Add very few errors (below threshold)
+				for i := 0; i < 5; i++ {
+					node.IncrementErrorCount()
+				}
+				node.SimulateTendAdvancement(errRateWindow)
+				err = node.ValidateErrorCount()
+				gm.Expect(err).To(gm.BeNil())
+				gm.Expect(node.IsCircuitBreakerActive()).To(gm.BeFalse())
+				gm.Expect(node.GetCircuitBreakerWindows()).To(gm.Equal(0))
 			})
 
-			gg.It("should close circuit when errorCount is less than half maxErrorRate after window advance", func() {
+			gg.It("should close circuit when errorCount is less than progressive threshold", func() {
 				node := client.GetNodes()[0]
-				errorCount := (clientPolicy.MaxErrorRate + 1) / 2
-				failures := clientPolicy.MaxErrorRate + 1
+
+				// Add enough errors to exceed maxErrorRate
 				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
 					node.IncrementErrorCount()
 				}
 				_ = node.ValidateErrorCount()
-				node.SetErrorCount(errorCount - 4) // less than maxErrorRate/2 (which is 5)
-				node.SetFailures(failures)
+				gm.Expect(node.IsCircuitBreakerActive()).To(gm.BeTrue())
+
+				// Add very few errors (less than maxErrorRate/2 = 100)
+				for i := 0; i < 10; i++ {
+					node.IncrementErrorCount()
+				}
+
+				// Advance tend count to trigger new window
+				node.SimulateTendAdvancement(errRateWindow)
+
 				err := node.ValidateErrorCount()
 				gm.Expect(err).To(gm.BeNil())
-				gm.Expect(node.GetErrorCount()).ToNot(gm.Equal(0))
+				gm.Expect(node.IsCircuitBreakerActive()).To(gm.BeFalse())
+				gm.Expect(node.GetCircuitBreakerWindows()).To(gm.Equal(0))
+			})
+
+			gg.It("should provide correct evaluation window information", func() {
+				node := client.GetNodes()[0]
+
+				// Initially no circuit breaker
+				gm.Expect(node.GetCurrentEvaluationWindow()).To(gm.Equal(-1))
+				gm.Expect(node.ShouldResetCircuitBreaker()).To(gm.BeFalse())
+
+				// Trip circuit breaker
+				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
+					node.IncrementErrorCount()
+				}
+				_ = node.ValidateErrorCount()
+
+				// Should be in window 0 initially
+				gm.Expect(node.GetCurrentEvaluationWindow()).To(gm.Equal(0))
+				gm.Expect(node.ShouldResetCircuitBreaker()).To(gm.BeFalse())
+
+				// Advance tend count to trigger window evaluation
+				node.SimulateTendAdvancement(errRateWindow)
+				gm.Expect(node.GetCurrentEvaluationWindow()).To(gm.Equal(1))
+				gm.Expect(node.ShouldResetCircuitBreaker()).To(gm.BeTrue())
+			})
+
+			gg.It("should reset circuit breaker on normal error count", func() {
+				node := client.GetNodes()[0]
+
+				// Trip circuit breaker
+				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
+					node.IncrementErrorCount()
+				}
+				_ = node.ValidateErrorCount()
+				gm.Expect(node.IsCircuitBreakerActive()).To(gm.BeTrue())
+
+				// Reset error count to normal levels
+				node.SetErrorCount(10)
+				err := node.ValidateErrorCount()
+				gm.Expect(err).To(gm.BeNil())
+				gm.Expect(node.IsCircuitBreakerActive()).To(gm.BeFalse())
+				gm.Expect(node.GetCircuitBreakerWindows()).To(gm.Equal(0))
 			})
 		})
 	})

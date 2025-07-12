@@ -128,3 +128,37 @@ func (node *Node) SetFailures(value int) {
 func (node *Node) SetErrorCount(value int) {
 	node.setErrorCount(value)
 }
+
+func (clstr *Cluster) GetTendCount() int {
+	return clstr.tendCount.Get()
+}
+
+func (clstr *Cluster) SetTendCount(value int) {
+	clstr.tendCount.Set(value)
+}
+
+func (node *Node) GetCluster() *Cluster {
+	return node.cluster
+}
+
+func (node *Node) SimulateTendAdvancement(count int) {
+	for i := 0; i < count; i++ {
+		node.cluster.tendCount.IncrementAndGet()
+	}
+}
+
+func (node *Node) ShouldResetCircuitBreaker() bool {
+	return node.shouldResetCircuitBreaker()
+}
+
+func (node *Node) IsCircuitBreakerActive() bool {
+	return node.isCircuitBreakerActive()
+}
+
+func (nd *Node) GetCircuitBreakerWindows() int {
+	return nd.getCircuitBreakerWindows()
+}
+
+func (node *Node) GetCurrentEvaluationWindow() int {
+	return node.getCurrentEvaluationWindow()
+}
