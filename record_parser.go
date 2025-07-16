@@ -65,6 +65,7 @@ func newRecordParser(cmd *baseCommand) (*recordParser, Error) {
 
 	// Read remaining message bytes.
 	receiveSize := int((sz & 0xFFFFFFFFFFFF))
+	//rp.cmd.receiveSize = receiveSize
 
 	if receiveSize > 0 {
 		if err := rp.cmd.sizeBufferSz(receiveSize, false); err != nil {

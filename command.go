@@ -212,6 +212,8 @@ type command interface {
 	getNamespaces() iter.Seq2[string, uint64]
 	getNamespace() *string
 
+	salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node)
+
 	// Executes the command
 	Execute() Error
 }
@@ -243,6 +245,8 @@ type baseCommand struct {
 
 	commandSentCounter int
 	commandWasSent     bool
+
+	receiveSize int
 }
 
 //--------------------------------------------------
@@ -3875,6 +3879,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				if isSocketTimeout && policy.TimeoutDelay > 0 {
 					// Do not close connection immediately, but give it a chance to recover
 					applyConnectionRecoveredMetrics(cmd.node)
+					go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
 					continue
 				} else {
 					// IO errors are considered temporary anomalies. Retry.
