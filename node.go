@@ -373,7 +373,7 @@ func (nd *Node) refreshFailed(e Error) {
 // a fresh connection or exhaust the queue.
 func (nd *Node) dropIdleConnections() {
 	if nd.cluster != nil {
-		nd.connections.DropIdle(nd.cluster.clientPolicy.Load().TendInterval, nd.cluster.maxSocketIdleTrim.Get())
+		nd.connections.DropIdle(nd.cluster.clientPolicy.Load().TendInterval)
 	}
 }
 
@@ -526,23 +526,6 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 			break
 		}
 
-		if nd.cluster.isConnCurrentTran(conn.getLastUsed()) {
-			conn.setTimeout(totalTimeout, socketTimeout)
-
-			return conn, nil
-		}
-
-		// If timeoutDelay > 0, check if this connection had a recent socket timeout
-		// and should be given a chance to recover instead of being closed immediately
-		if timeoutDelay > 0 && nd.shouldAttemptConnectionRecovery(conn, timeoutDelay) {
-			// Try to reestablish the connection timeout and give it another chance
-			if err := conn.setTimeout(totalTimeout, socketTimeout); err == nil {
-				nd.stats.ConnectionsRecovered.IncrementAndGet()
-
-				return conn, nil
-			}
-		}
-
 		conn.Close()
 		conn = nil
 	}
@@ -561,14 +544,6 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 	if err = conn.setTimeout(totalTimeout, socketTimeout); err != nil {
 		nd.stats.ConnectionsFailed.IncrementAndGet()
 
-		// Check if this is a socket timeout error and timeoutDelay is configured
-		if timeoutDelay > 0 && errors.Is(err, ErrSocketTimeout) {
-			// Instead of closing immediately, put connection back for potential recovery
-			nd.stats.ConnectionsRecovered.IncrementAndGet()
-			nd.putConnectionWithHint(conn, hint)
-			return nil, err
-		}
-
 		// Do not put back into pool for other types of errors.
 		conn.Close()
 		return nil, err
@@ -577,19 +552,6 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 	conn.refresh()
 
 	return conn, nil
-}
-
-// shouldAttemptConnectionRecovery determines if a connection that appears disconnected
-// should be given a chance to recover based on recent socket timeout conditions
-func (nd *Node) shouldAttemptConnectionRecovery(conn *Connection, timeoutDelay time.Duration) bool {
-	if conn == nil {
-		return false
-	}
-
-	// Using timeoutDealy as recovery window.
-	// TODO: we could us a more sophisticated logic to determine if the connection is recoverable. For instance
-	// part of the user should be able to configure the recovery window.
-	return conn.getLastUsed().After(time.Now().Add(-timeoutDelay))
 }
 
 // PutConnection puts back a connection to the pool.
@@ -675,10 +637,6 @@ func (nd *Node) String() string {
 
 func (nd *Node) closeConnections() {
 	for conn := nd.connections.Poll(0); conn != nil; conn = nd.connections.Poll(0) {
-		if conn == nil || nd.cluster.isConnCurrentTrim(conn.getLastUsed()) {
-			break // TODO might need to consider continuing here if we want to close all connections
-		}
-
 		conn.Close()
 	}
 

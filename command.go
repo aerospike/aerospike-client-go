@@ -246,7 +246,7 @@ type baseCommand struct {
 	commandSentCounter int
 	commandWasSent     bool
 
-	receiveSize int
+	receiveSize int64
 }
 
 //--------------------------------------------------
@@ -3838,10 +3838,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			if deviceOverloadError(err) {
 				cmd.node.incrErrorCount()
 			}
+			// try to salvage the connection
+			if cmd.conn.salvageConnection {
+				go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+			} else {
+				// IO errors are considered temporary anomalies. Retry.
+				// Close socket to flush out possible garbage. Do not put back in pool.
+				cmd.conn.Close()
+			}
 
-			// IO errors are considered temporary anomalies. Retry.
-			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.conn.Close()
 			cmd.conn = nil
 
 			logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
@@ -3868,7 +3873,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 			if networkError(err) {
 				isTimeout := errors.Is(err, ErrTimeout)
-				isSocketTimeout := errors.Is(err, ErrSocketTimeout)
 				isClientTimeout = isTimeout
 				if !isTimeout {
 					if deviceOverloadError(err) {
@@ -3876,9 +3880,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 					}
 				}
 
-				if isSocketTimeout && policy.TimeoutDelay > 0 {
+				if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 					// Do not close connection immediately, but give it a chance to recover
-					applyConnectionRecoveredMetrics(cmd.node)
 					go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
 					continue
 				} else {
@@ -3971,7 +3974,7 @@ func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 }
 
 func networkError(err Error) bool {
-	return err.Matches(types.NETWORK_ERROR, types.TIMEOUT, types.SOCKET_TIMEOUT)
+	return err.Matches(types.NETWORK_ERROR, types.TIMEOUT)
 }
 
 func deviceOverloadError(err Error) bool {

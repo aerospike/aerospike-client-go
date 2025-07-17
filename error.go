@@ -376,7 +376,6 @@ var (
 	ErrTooManyOpeningConnections       = newConstError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "too many connections are trying to open at once. This value is controlled via ClientPolicy.OpeningConnectionThreshold")
 	ErrTimeout                         = newConstError(types.TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
 	ErrNetTimeout                      = newConstError(types.TIMEOUT, "network timeout")
-	ErrSocketTimeout                   = newConstError(types.SOCKET_TIMEOUT, "socket timeout")
 	ErrUDFBadResponse                  = newConstError(types.UDF_BAD_RESPONSE, "invalid UDF return value")
 	ErrNoOperationsSpecified           = newConstError(types.INVALID_COMMAND, "no operations were passed to QueryExecute")
 	ErrNoBinNamesAllowedInQueryExecute = newConstError(types.INVALID_COMMAND, "`Statement.BinNames` must be empty for QueryExecute")

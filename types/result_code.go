@@ -21,9 +21,6 @@ import "fmt"
 type ResultCode int
 
 const (
-	// Socket_timeout defines a socket timeout error.
-	SOCKET_TIMEOUT = -25
-
 	// Multi-record transaction failed
 	// Multi-record transaction commit called, but the transaction was already aborted.
 	TXN_ALREADY_ABORTED ResultCode = -24
@@ -370,9 +367,6 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case NETWORK_ERROR:
 		return "network error. Check the wrapped error for detail"
 
-	case SOCKET_TIMEOUT:
-		return "socket timeout. Check the wrapped error for detail"
-
 	case COMMON_ERROR:
 		return "common, none-aerospike error. Check the wrapped error for detail"
 
@@ -688,8 +682,6 @@ func (rc ResultCode) String() string {
 		return "NO_RESPONSE"
 	case NETWORK_ERROR:
 		return "NETWORK_ERROR"
-	case SOCKET_TIMEOUT:
-		return "SOCKET_TIMEOUT"
 	case COMMON_ERROR:
 		return "COMMON_ERROR"
 	case MAX_RETRIES_EXCEEDED:

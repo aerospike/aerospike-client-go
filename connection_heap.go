@@ -112,7 +112,7 @@ func (h *singleConnectionHeap) Poll() (res *Connection) {
 
 // DropIdleTail closes idle connection in tail.
 // It will return true if tail connection was idle and dropped
-func (h *singleConnectionHeap) DropIdleTail(maxSocketIdleTrim time.Duration) bool {
+func (h *singleConnectionHeap) DropIdleTail() bool {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
@@ -283,7 +283,7 @@ func (h *connectionHeap) Poll(hint byte) (res *Connection) {
 // DropIdle closes all idle connections.
 // It will only drop connections if there are
 // at least ClientPolicy.MinConnectionPerNode available
-func (h *connectionHeap) DropIdle(tendInterval time.Duration, maxSocketIdleTrim time.Duration) {
+func (h *connectionHeap) DropIdle(tendInterval time.Duration) {
 	// decide how many conns are allowed to drop
 	// in minSize is 0, up to all connection can
 	// be closed if idle
@@ -293,7 +293,7 @@ func (h *connectionHeap) DropIdle(tendInterval time.Duration, maxSocketIdleTrim 
 	if excessCount > 0 {
 	MAIN_LOOP:
 		for i := 0; i < len(h.heaps); i++ {
-			for h.heaps[i].DropIdleTail(maxSocketIdleTrim) {
+			for h.heaps[i].DropIdleTail() {
 				excessCount--
 				if excessCount == 0 {
 					excessDropped = true

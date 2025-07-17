@@ -24,11 +24,11 @@ import (
 
 // Task interface defines methods for asynchronous tasks.
 type recordParser struct {
-	resultCode  types.ResultCode
-	generation  uint32
-	expiration  uint32
-	fieldCount  int
-	opCount     int
+	resultCode types.ResultCode
+	generation uint32
+	expiration uint32
+	fieldCount int
+	opCount    int
 
 	cmd *baseCommand
 }
@@ -38,8 +38,6 @@ func newRecordParser(cmd *baseCommand) (*recordParser, Error) {
 	rp := &recordParser{
 		cmd: cmd,
 	}
-
-	rp.cmd.conn.updateLastUsed()
 
 	// Read proto and check if compressed
 	if _, err := rp.cmd.conn.Read(rp.cmd.dataBuffer, 8); err != nil {
@@ -65,7 +63,7 @@ func newRecordParser(cmd *baseCommand) (*recordParser, Error) {
 
 	// Read remaining message bytes.
 	receiveSize := int((sz & 0xFFFFFFFFFFFF))
-	//rp.cmd.receiveSize = receiveSize
+	//rp.cmd.receiveSize = int64(receiveSize)
 
 	if receiveSize > 0 {
 		if err := rp.cmd.sizeBufferSz(receiveSize, false); err != nil {

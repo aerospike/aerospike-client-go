@@ -15,12 +15,14 @@
 package aerospike
 
 import (
+	"bufio"
 	"fmt"
 	"iter"
 	"math/rand"
 	"reflect"
 	"time"
 
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
@@ -160,7 +162,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 			}
 
 			// getting compressed received size
-			cmd.receiveSize = receiveSize
+			cmd.receiveSize += int64(receiveSize)
 
 			// read the first 8 bytes
 			cmd.bc.reset(8)
@@ -169,7 +171,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 			}
 		} else {
 			// getting un-compressed received size
-			cmd.receiveSize = receiveSize
+			cmd.receiveSize += int64(receiveSize)
 		}
 
 		// Validate header to make sure we are at the beginning of a message
@@ -518,5 +520,17 @@ func (cmd *baseMultiCommand) getNamespace() *string {
 }
 
 func (cmd *baseMultiCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
-	
+	logger.Logger.Debug("TimeoutDelay enabled. Salvaging connection for node %s", node.GetName())
+	conn.deadline = time.Now().Add(timeoutDelay)
+	reader := bufio.NewReader(conn.conn)
+	discardedCount := int(cmd.receiveSize - conn.totalReceived)
+
+	if discarded, err := reader.Discard(discardedCount); err != nil {
+		if discarded < discardedCount {
+			conn.Close()
+			return
+		}
+	}
+
+	node.PutConnection(conn)
 }

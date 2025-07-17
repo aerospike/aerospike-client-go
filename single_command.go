@@ -47,7 +47,6 @@ func (cmd *singleCommand) getConnection(policy Policy) (*Connection, Error) {
 func (cmd *singleCommand) putConnection(conn *Connection) {
 	cmd.node.putConnectionWithHint(conn, cmd.key.digest[0])
 }
-
 func (cmd *singleCommand) emptySocket(conn *Connection) Error {
 	// There should not be any more bytes.
 	// Empty the socket to be safe.
@@ -76,18 +75,26 @@ func (cmd *singleCommand) getNamespace() *string {
 }
 
 func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
-	logger.Logger.Info("Salvaging connection for node %s", node.GetName())
+	logger.Logger.Debug("TimeoutDelay enabled. Salvaging connection for node %s", node.GetName())
 	conn.deadline = time.Now().Add(timeoutDelay)
 	reader := bufio.NewReader(conn.conn)
-	discardedCount := cmd.receiveSize - int(conn.totalReceived)
+	discardedCount := int(conn.totalReceived - cmd.receiveSize)
 
-	if discarded, err := reader.Discard(discardedCount); err != nil {
-		if discarded < discardedCount {
-			// If we could not discard all bytes, close the connection.
-			conn.Close()
-			return
+	for discardedCount > 0 {
+		var discarded int
+		var err error
+		if discarded, err = reader.Discard(discardedCount); err != nil {
+			if discarded < discardedCount {
+				conn.Close()
+				return
+			}
 		}
+		discardedCount -= discarded
 	}
 
 	node.PutConnection(conn)
+	conn.refresh()
+
+	// Record connection recovery metrics
+	applyConnectionRecoveredMetrics(cmd.node)
 }
