@@ -14,7 +14,11 @@
 
 package aerospike
 
-import "time"
+import (
+	"time"
+
+	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+)
 
 func DefaultTimeout() time.Duration {
 	return _DEFAULT_TIMEOUT
@@ -107,4 +111,8 @@ func (cmd *deleteCommand) Buffer() []byte {
 func (ctn *Connection) UpdateDeadline() (time.Time, time.Time, time.Duration, Error) {
 	err := ctn.updateDeadline()
 	return ctn.deadline, ctn.socketDeadline, ctn.socketTimeout, err
+}
+
+func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
+	return newDynConfigForTest(config)
 }

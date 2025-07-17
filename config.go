@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"runtime/debug"
@@ -80,7 +79,7 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 
 	parts := parseDsn(AEROSPIKE_CLIENT_CONFIG_URL)
 	if len(parts) < 2 {
-		logger.Logger.Error("Invalid config URL %s. Expected format: [scheme://dsn] | [file path]", AEROSPIKE_CLIENT_CONFIG_URL)
+		logger.Logger.Warn("Invalid config URL %s. Expected format: [scheme://dsn] | [file path]", AEROSPIKE_CLIENT_CONFIG_URL)
 		return nil
 	}
 
@@ -95,7 +94,7 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 	// At this point in time we should have at least one configuration provider in the registry.
 	provider, _ := registry.Get(schema)
 	if provider == nil {
-		logger.Logger.Error("No configuration provider found for scheme %s.", schema)
+		logger.Logger.Warn("No configuration provider found for scheme %s.", schema)
 		return nil
 	}
 
@@ -153,15 +152,6 @@ func (dc *DynConfig) providerLoadConfig() {
 
 		dc.hydrateDynamicPolicyFromConfig()
 		logger.Logger.Debug("Dynamic configuration updated internal state from provider.")
-		if logger.Logger.IsLogLevelEnabled(logger.DEBUG) {
-			// Log the configuration in debug mode
-			configJSON, err := json.Marshal(dc.config)
-			if err != nil {
-				logger.Logger.Error("Failed to marshal config to JSON: %v", err)
-			} else {
-				logger.Logger.Debug("Updated dynamic configuration: '%s'", string(configJSON))
-			}
-		}
 	}
 }
 
@@ -179,15 +169,6 @@ func (dc *DynConfig) initConfig() {
 
 		dc.configInitialized.Store(true)
 		logger.Logger.Debug("Dynamic configuration initialized...")
-		if logger.Logger.IsLogLevelEnabled(logger.DEBUG) {
-			// Log the configuration in debug mode
-			configJSON, err := json.Marshal(dc.config)
-			if err != nil {
-				logger.Logger.Error("Failed to marshal config to JSON: %v", err)
-			} else {
-				logger.Logger.Debug("Updated dynamic configuration: '%s'", string(configJSON))
-			}
-		}
 	}
 }
 
@@ -487,7 +468,7 @@ func (dc *DynConfig) watchConfig(interval time.Duration) {
 	defer func() {
 		// TODO: Add exponential backoff here to resource starvation
 		if r := recover(); r != nil {
-			logger.Logger.Error("Watch config goroutine crashed: %s", debug.Stack())
+			logger.Logger.Warn("Watch config goroutine crashed: %s", debug.Stack())
 			go dc.watchConfig(mergedConfigInterval)
 		}
 	}()
@@ -528,7 +509,7 @@ func (dc *DynConfig) getConfigIfNotLoadedOrInitialized() *dynconfig.Config {
 // Testing functions
 // ----------------------------------------------------------------
 
-func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
+func newDynConfigForTest(config *dynconfig.Config) *DynConfig {
 	return &DynConfig{
 		config: config,
 	}

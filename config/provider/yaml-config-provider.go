@@ -76,7 +76,7 @@ func (yc *YamlConfigProvider) LoadConfig(filePath string) *dynconfig.Config {
 	// Get the file info
 	info, err := os.Stat(filePath)
 	if err != nil {
-		logger.Logger.Error("File %s could not be found. Error: %v", filePath, err)
+		logger.Logger.Warn("File %s could not be found. Error: %v", filePath, err)
 		return nil
 	}
 
@@ -86,7 +86,7 @@ func (yc *YamlConfigProvider) LoadConfig(filePath string) *dynconfig.Config {
 		yc.oldModTime = modTime
 		data, err := os.ReadFile(filePath)
 		if err != nil {
-			logger.Logger.Error("Failed to read file %s. Error: %v", filePath, err)
+			logger.Logger.Warn("Failed to read file %s. Error: %v", filePath, err)
 			return nil
 		}
 
@@ -98,7 +98,7 @@ func (yc *YamlConfigProvider) LoadConfig(filePath string) *dynconfig.Config {
 
 		var config dynconfig.Config
 		if err := yaml.Unmarshal(data, &config); err != nil {
-			logger.Logger.Error("Failed to serialize file %s to object. Error: %s",
+			logger.Logger.Warn("Failed to serialize file %s to object. Error: %s",
 				filePath, strings.ReplaceAll(err.Error(), "\n", " "))
 			return nil
 		} else {

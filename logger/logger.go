@@ -57,10 +57,6 @@ func newLogger() *logger {
 	}
 }
 
-func (lgr *logger) IsLogLevelEnabled(level LogPriority) bool {
-	return lgr.level == level
-}
-
 // SetLogger sets the *log.Logger object where log messages should be sent to.
 // This method is not goroutine-safe, and is not designed to be accessed
 // from multiple goroutines.
