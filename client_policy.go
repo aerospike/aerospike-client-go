@@ -341,7 +341,8 @@ func (cp *ClientPolicy) ensureErrorRates() {
 	var errorRateWindow, maxErrorRate int
 	errorRateWindow = max(cp.ErrorRateWindow, ERROR_RATE_MIN_VALUE)
 
-	if errorRateWindow*MAX_ERROR_RATE_MIN_VALUE <= maxErrorRate {
+	// MaxErrorRate set by user must be within the ratio of 1:100 of ErrorRateWindow to MaxErrorRate.
+	if errorRateWindow*MAX_ERROR_RATE_MIN_VALUE >= cp.MaxErrorRate {
 		maxErrorRate = cp.MaxErrorRate
 	} else {
 		logger.Logger.Warn(

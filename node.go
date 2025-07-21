@@ -70,12 +70,13 @@ type Node struct {
 	failures            iatomic.Int
 	partitionChanged    iatomic.Bool
 	errorCount          iatomic.Int
+	maxErrorCount       iatomic.Int
 	rebalanceGeneration iatomic.Int
 
-	// Track consecutive circuit breaker windows for progressive halving
-	circuitBreakerWindows iatomic.Int
-	// Track the tend count when circuit opened for proper window detection
-	circuitOpenTendCount iatomic.Int
+	// // Track consecutive circuit breaker windows for progressive halving
+	// circuitBreakerWindows iatomic.Int
+	// // Track the tend count when circuit opened for proper window detection
+	// circuitOpenTendCount iatomic.Int
 
 	features int
 
@@ -96,18 +97,17 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).
-		connections:           *newConnectionHeap(clusterClientPolicy.MinConnectionsPerNode, clusterClientPolicy.ConnectionQueueSize),
-		connectionCount:       *iatomic.NewInt(0),
-		peersGeneration:       *iatomic.NewInt(-1),
-		partitionGeneration:   *iatomic.NewInt(-2),
-		referenceCount:        *iatomic.NewInt(0),
-		failures:              *iatomic.NewInt(0),
-		active:                *iatomic.NewBool(true),
-		partitionChanged:      *iatomic.NewBool(false),
-		errorCount:            *iatomic.NewInt(0),
-		rebalanceGeneration:   *iatomic.NewInt(-1),
-		circuitBreakerWindows: *iatomic.NewInt(0),
-		circuitOpenTendCount:  *iatomic.NewInt(-1),
+		connections:         *newConnectionHeap(clusterClientPolicy.MinConnectionsPerNode, clusterClientPolicy.ConnectionQueueSize),
+		connectionCount:     *iatomic.NewInt(0),
+		peersGeneration:     *iatomic.NewInt(-1),
+		partitionGeneration: *iatomic.NewInt(-2),
+		referenceCount:      *iatomic.NewInt(0),
+		failures:            *iatomic.NewInt(0),
+		active:              *iatomic.NewBool(true),
+		partitionChanged:    *iatomic.NewBool(false),
+		errorCount:          *iatomic.NewInt(0),
+		maxErrorCount:       *iatomic.NewInt(cluster.clientPolicy.MaxErrorRate),
+		rebalanceGeneration: *iatomic.NewInt(-1),
 	}
 
 	newNode.aliases.Set(nv.aliases)
@@ -919,8 +919,6 @@ func (nd *Node) incrErrorCount() {
 // Resets the error count and circuit breaker windows
 func (nd *Node) resetErrorCount() {
 	nd.errorCount.Set(0)
-	nd.circuitBreakerWindows.Set(0)
-	nd.circuitOpenTendCount.Set(-1)
 }
 
 // validateErrorCount checks the error count against the maxErrorRate
@@ -929,77 +927,28 @@ func (nd *Node) resetErrorCount() {
 // On next window, check if half maxErrorRate is met; if not, reset, otherwise keep circuit open
 // and lower the threshold by half.
 func (nd *Node) validateErrorCount() Error {
-	// If nd.cluster.clientPolicy.MaxErrorRate is 0, no circuit breaker is needed
-	if nd.cluster.clientPolicy.MaxErrorRate <= 0 {
+	nodeMaxErrorCount := nd.maxErrorCount.Get()
+	nodeErrorCount := nd.errorCount.Get()
+
+	// Error rate is not breached, reset maxErrorCount to the policy value
+	if nodeErrorCount <= nodeMaxErrorCount {
+		nd.resetErrorCount()
+
+		nd.maxErrorCount.Set(nd.cluster.clientPolicy.MaxErrorRate)
+
 		return nil
-	}
-
-	currentErrorCount := nd.errorCount.Get()
-	currentTendCount := nd.getCurrentTendCount()
-
-	// Calculate the appropriate threshold based on circuit breaker state
-	var currentThreshold int
-	circuitOpenTendCount := nd.circuitOpenTendCount.Get()
-
-	if circuitOpenTendCount >= 0 {
-		// Circuit is already open - use progressive threshold
-		consecutiveWindows := nd.circuitBreakerWindows.Get()
-
-		// Calculate progressively halved threshold
-		// Start with nd.cluster.clientPolicy.MaxErrorRate/2, then /4, /8, /16, etc.
-		currentThreshold = nd.cluster.clientPolicy.MaxErrorRate / 2
-		for i := 1; i < consecutiveWindows; i++ {
-			currentThreshold = currentThreshold / 2
-			if currentThreshold < 1 {
-				currentThreshold = 1
-				break
-			}
-		}
 	} else {
-		// Circuit is not active. Use nd.cluster.clientPolicy.MaxErrorRate set though policy
-		currentThreshold = nd.cluster.clientPolicy.MaxErrorRate
-	}
+		// Error rate was breached. Next error rate will be halved.
+		nd.resetErrorCount()
 
-	if currentErrorCount > currentThreshold {
-		nd.stats.CircuitBreakerHits.IncrementAndGet()
-
-		if circuitOpenTendCount >= 0 {
-			// Circuit is already open. Check if enough windows have passed
-			tendWindowsElapsed := currentTendCount - circuitOpenTendCount
-			if tendWindowsElapsed >= nd.cluster.clientPolicy.ErrorRateWindow {
-				// New evaluation window reached
-				realErrorCount := currentErrorCount
-
-				if realErrorCount < currentThreshold {
-					// Circuit can close - reset counters
-					nd.resetErrorCount()
-					nd.circuitBreakerWindows.Set(0)
-					nd.circuitOpenTendCount.Set(-1)
-					return nil
-				} else {
-					// Circuit stays open. Increment consecutive windows and start new window
-					nd.circuitBreakerWindows.IncrementAndGet()
-					nd.circuitOpenTendCount.Set(currentTendCount)
-					nd.errorCount.Set(0)
-					return newError(types.MAX_ERROR_RATE)
-				}
-			} else {
-				// Still in same window - circuit remains open
-				return newError(types.MAX_ERROR_RATE)
-			}
+		if nodeMaxErrorCount >= 2 {
+			nd.maxErrorCount.Set(nodeMaxErrorCount / 2)
 		} else {
-			// Circuit is opening for first time
-			nd.circuitBreakerWindows.Set(1)
-			nd.circuitOpenTendCount.Set(currentTendCount)
-			nd.errorCount.Set(0)
-			return newError(types.MAX_ERROR_RATE)
+			nd.maxErrorCount.Set(1)
 		}
-	}
 
-	// Error count is within normal range. Reset circuit breaker windows
-	nd.circuitBreakerWindows.Set(0)
-	nd.circuitOpenTendCount.Set(-1)
-	return nil
+		return newError(types.MAX_ERROR_RATE)
+	}
 }
 
 // PeersGeneration returns node's Peers Generation
@@ -1015,71 +964,4 @@ func (nd *Node) PartitionGeneration() int {
 // RebalanceGeneration returns node's Rebalance Generation
 func (nd *Node) RebalanceGeneration() int {
 	return nd.rebalanceGeneration.Get()
-}
-
-// Testing helpers
-// IncrementFailures increments the failures count for the node.
-func (node *Node) GetErrorCount() int {
-	return node.errorCount.Get()
-}
-
-//-------------------------------------------------------
-// Test helpers
-//-------------------------------------------------------
-
-func (nd *Node) setFailures(newValue int) {
-	nd.failures.Set(newValue)
-}
-
-func (nd *Node) setErrorCount(newValue int) {
-	nd.errorCount.Set(newValue)
-}
-
-// getCurrentTendCount returns the current tend count from the cluster
-func (nd *Node) getCurrentTendCount() int {
-	// Access the cluster's tend count - this is incremented on each tend iteration
-	// Note: This is not thread-safe in the original code, but since tends happen
-	// sequentially in the cluster boss goroutine, this should be safe to read
-	return nd.cluster.tendCount.Get()
-}
-
-// GetCurrentEvaluationWindow returns the current evaluation window number
-// Returns -1 if circuit breaker is not active
-func (nd *Node) getCurrentEvaluationWindow() int {
-	circuitOpenTendCount := nd.circuitOpenTendCount.Get()
-	if circuitOpenTendCount < 0 {
-		return -1 // Circuit breaker not active
-	}
-
-	currentTendCount := nd.getCurrentTendCount()
-
-	if currentTendCount >= circuitOpenTendCount {
-		return (currentTendCount - circuitOpenTendCount) / nd.cluster.clientPolicy.ErrorRateWindow
-	}
-
-	return 0
-}
-
-// shouldResetCircuitBreaker returns true if the circuit breaker should be reset
-// This happens when enough windows have elapsed to evaluate closing the circuit
-func (nd *Node) shouldResetCircuitBreaker() bool {
-	circuitOpenTendCount := nd.circuitOpenTendCount.Get()
-	if circuitOpenTendCount < 0 {
-		return false // Circuit breaker not active
-	}
-
-	currentTendCount := nd.getCurrentTendCount()
-
-	tendWindowsElapsed := currentTendCount - circuitOpenTendCount
-	return tendWindowsElapsed >= nd.cluster.clientPolicy.ErrorRateWindow
-}
-
-// isCircuitBreakerActive returns true if the circuit breaker is currently active
-func (nd *Node) isCircuitBreakerActive() bool {
-	return nd.circuitOpenTendCount.Get() >= 0
-}
-
-// getCircuitBreakerWindows returns the consecutive circuit breaker windows count.
-func (nd *Node) getCircuitBreakerWindows() int {
-	return nd.circuitBreakerWindows.Get()
 }

@@ -121,14 +121,6 @@ func (node *Node) IncrementErrorCount() {
 	node.incrErrorCount()
 }
 
-func (node *Node) SetFailures(value int) {
-	node.setFailures(value)
-}
-
-func (node *Node) SetErrorCount(value int) {
-	node.setErrorCount(value)
-}
-
 func (clstr *Cluster) GetTendCount() int {
 	return clstr.tendCount.Get()
 }
@@ -147,18 +139,10 @@ func (node *Node) SimulateTendAdvancement(count int) {
 	}
 }
 
-func (node *Node) ShouldResetCircuitBreaker() bool {
-	return node.shouldResetCircuitBreaker()
+func (node *Node) SetMaxErrorCount(value int) {
+	node.maxErrorCount.Set(value)
 }
 
-func (node *Node) IsCircuitBreakerActive() bool {
-	return node.isCircuitBreakerActive()
-}
-
-func (nd *Node) GetCircuitBreakerWindows() int {
-	return nd.getCircuitBreakerWindows()
-}
-
-func (node *Node) GetCurrentEvaluationWindow() int {
-	return node.getCurrentEvaluationWindow()
+func (node *Node) GetErrorCount() int {
+	return node.errorCount.Get()
 }
