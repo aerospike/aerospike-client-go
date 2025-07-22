@@ -73,11 +73,6 @@ type Node struct {
 	maxErrorCount       iatomic.Int
 	rebalanceGeneration iatomic.Int
 
-	// // Track consecutive circuit breaker windows for progressive halving
-	// circuitBreakerWindows iatomic.Int
-	// // Track the tend count when circuit opened for proper window detection
-	// circuitOpenTendCount iatomic.Int
-
 	features int
 
 	active iatomic.Bool
