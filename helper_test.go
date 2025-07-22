@@ -121,24 +121,6 @@ func (node *Node) IncrementErrorCount() {
 	node.incrErrorCount()
 }
 
-func (clstr *Cluster) GetTendCount() int {
-	return clstr.tendCount.Get()
-}
-
-func (clstr *Cluster) SetTendCount(value int) {
-	clstr.tendCount.Set(value)
-}
-
-func (node *Node) GetCluster() *Cluster {
-	return node.cluster
-}
-
-func (node *Node) SimulateTendAdvancement(count int) {
-	for i := 0; i < count; i++ {
-		node.cluster.tendCount.IncrementAndGet()
-	}
-}
-
 func (node *Node) SetMaxErrorCount(value int) {
 	node.maxErrorCount.Set(value)
 }

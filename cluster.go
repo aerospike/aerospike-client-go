@@ -70,7 +70,7 @@ type Cluster struct {
 	wgTend      sync.WaitGroup
 	tendChannel chan struct{}
 	closed      iatomic.Bool
-	tendCount   iatomic.Int
+	tendCount   int
 
 	supportsPartitionQuery iatomic.Bool // whether all nodes in the cluster support query by partition.
 
@@ -340,7 +340,7 @@ func (clstr *Cluster) tend() Error {
 	clstr.addNodes(peers.nodes())
 
 	// add to the number of successful tends
-	clstr.tendCount.IncrementAndGet()
+	clstr.tendCount++
 
 	// update all partitions in one go
 	updatePartitionMap := seq.Any(clstr.GetNodes(), func(node *Node) bool {
@@ -364,7 +364,7 @@ func (clstr *Cluster) tend() Error {
 
 	clusterClientPolicy := *clstr.clientPolicy.Load()
 	// Reset connection error window for all nodes every connErrorWindow tend iterations.
-	if clusterClientPolicy.MaxErrorRate > 0 && clstr.tendCount.Get()%clusterClientPolicy.ErrorRateWindow == 0 {
+	if clusterClientPolicy.MaxErrorRate > 0 && clstr.tendCount%clusterClientPolicy.ErrorRateWindow == 0 {
 		for _, node := range clstr.GetNodes() {
 			node.resetErrorCount()
 		}
