@@ -468,7 +468,7 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				err = node.ValidateErrorCount()
 				gm.Expect(err).ToNot(gm.BeNil())
 
-				// Should still require 2 errors to breach
+				// Should not breach with just 1 error (threshold is 1, so 1 <= 1 should pass)
 				node.IncrementErrorCount()
 				err = node.ValidateErrorCount()
 				gm.Expect(err).To(gm.BeNil())
@@ -486,12 +486,17 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 				node := disabledClient.GetNodes()[0]
 
-				// Add many errors
+				// When MaxErrorRate is 0, IncrementErrorCount doesn't actually increment
+				// So we need to verify that ValidateErrorCount always passes, even after
+				// calling IncrementErrorCount many times
 				for i := 0; i < 1000; i++ {
 					node.IncrementErrorCount()
 				}
 
-				// Circuit breaker should not trip
+				// Verify error count remains 0 because MaxErrorRate is 0
+				gm.Expect(node.GetErrorCount()).To(gm.Equal(0))
+
+				// Circuit breaker should not trip because errors aren't being counted
 				err = node.ValidateErrorCount()
 				gm.Expect(err).To(gm.BeNil())
 			})
