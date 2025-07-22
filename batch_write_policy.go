@@ -93,8 +93,12 @@ func NewBatchWritePolicy() *BatchWritePolicy {
 	}
 }
 
-func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
+
+	if dynConfig != nil {
+		wp.BasePolicy = *dynConfig.client.dynDefaultBatchWriteBasePolicy.Load()
+	}
 
 	if bwp != nil {
 		if bwp.FilterExpression != nil {
@@ -110,4 +114,52 @@ func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 	}
 
 	return wp
+}
+
+// copy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+func (bwp *BatchWritePolicy) copy() *BatchWritePolicy {
+	if bwp == nil {
+		return nil
+	}
+
+	response := *bwp
+	return &response
+}
+
+// applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy
+func (bwp *BatchWritePolicy) patchDynamic(dynConfig *DynConfig) *BatchWritePolicy {
+	if dynConfig == nil {
+		return bwp
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if bwp == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultBatchWritePolicy.Load()
+	}
+	if config != nil && config.Dynamic != nil && config.Dynamic.BatchWrite != nil {
+		// Dynamic configuration is exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		return bwp.copy().mapDynamic(dynConfig)
+	} else {
+		return bwp
+	}
+}
+
+func (bwp *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return bwp
+	}
+
+	if dynConfig.config.Dynamic.BatchWrite != nil {
+		if dynConfig.config.Dynamic.BatchWrite.DurableDelete != nil {
+			bwp.DurableDelete = *dynConfig.config.Dynamic.BatchWrite.DurableDelete
+		}
+		if dynConfig.config.Dynamic.BatchWrite.SendKey != nil {
+			bwp.SendKey = *dynConfig.config.Dynamic.BatchWrite.SendKey
+		}
+	}
+
+	return bwp
 }

@@ -58,7 +58,7 @@ func NewBatchDeletePolicy() *BatchDeletePolicy {
 	}
 }
 
-func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 
 	if bdp != nil {
@@ -71,5 +71,70 @@ func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 		wp.DurableDelete = bdp.DurableDelete
 		wp.SendKey = bdp.SendKey
 	}
+
+	// In Case dynConfig is not initialized or running return the policy before
+	// merge
+	if dynConfig == nil {
+		return wp
+	}
+
+	config := dynConfig.config
+	if config != nil && config.Dynamic.BatchDelete != nil {
+		if config.Dynamic.BatchDelete.DurableDelete != nil {
+			wp.DurableDelete = *config.Dynamic.BatchDelete.DurableDelete
+		}
+		if config.Dynamic.BatchDelete.SendKey != nil {
+			wp.SendKey = *config.Dynamic.BatchDelete.SendKey
+		}
+	}
+
 	return wp
+}
+
+// copy creates a new BasePolicy instance and copies the values from the source BatchDeletePolicy.
+func (bd *BatchDeletePolicy) copy() *BatchDeletePolicy {
+	if bd == nil {
+		return nil
+	}
+
+	response := *bd
+	return &response
+}
+
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (bdp *BatchDeletePolicy) patchDynamic(dynConfig *DynConfig) *BatchDeletePolicy {
+	if dynConfig == nil {
+		return bdp
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if bdp == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultBatchDeletePolicy.Load()
+	}
+	if config != nil && config.Dynamic != nil && config.Dynamic.BatchDelete != nil {
+		// Dynamic configuration is exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		return bdp.copy().mapDynamic(dynConfig)
+	} else {
+		return bdp
+	}
+}
+
+func (bdp *BatchDeletePolicy) mapDynamic(dynConfig *DynConfig) *BatchDeletePolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return bdp
+	}
+
+	if dynConfig.config.Dynamic.BatchDelete != nil {
+		if dynConfig.config.Dynamic.BatchDelete.DurableDelete != nil {
+			bdp.DurableDelete = *dynConfig.config.Dynamic.BatchDelete.DurableDelete
+		}
+		if dynConfig.config.Dynamic.BatchDelete.SendKey != nil {
+			bdp.SendKey = *dynConfig.config.Dynamic.BatchDelete.SendKey
+		}
+	}
+
+	return bdp
 }

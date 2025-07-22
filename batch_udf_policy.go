@@ -66,7 +66,7 @@ func NewBatchUDFPolicy() *BatchUDFPolicy {
 	}
 }
 
-func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 
 	if bup != nil {
@@ -78,5 +78,70 @@ func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 		wp.DurableDelete = bup.DurableDelete
 		wp.SendKey = bup.SendKey
 	}
+
+	// In Case dynConfig is not initialized or running return the policy before
+	// merge
+	if dynConfig == nil {
+		return wp
+	}
+
+	config := dynConfig.config
+	if config != nil && config.Dynamic.BatchUdf != nil {
+		if config.Dynamic.BatchUdf.DurableDelete != nil {
+			wp.DurableDelete = *config.Dynamic.BatchUdf.DurableDelete
+		}
+		if config.Dynamic.BatchUdf.SendKey != nil {
+			wp.SendKey = *config.Dynamic.BatchUdf.SendKey
+		}
+	}
+
 	return wp
+}
+
+// copy creates a new BasePolicy instance and copies the values from the source BatchUDFPolicy.
+func (bup *BatchUDFPolicy) copy() *BatchUDFPolicy {
+	if bup == nil {
+		return nil
+	}
+
+	response := *bup
+	return &response
+}
+
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (bup *BatchUDFPolicy) patchDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
+	if dynConfig == nil {
+		return bup
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if bup == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultBatchUDFPolicy.Load()
+	}
+	if config != nil && config.Dynamic != nil && config.Dynamic.BatchUdf != nil {
+		// Dynamic configuration is exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		return bup.copy().mapDynamic(dynConfig)
+	} else {
+		return bup
+	}
+}
+
+func (bup *BatchUDFPolicy) mapDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return bup
+	}
+
+	if dynConfig.config.Dynamic.BatchUdf != nil {
+		if dynConfig.config.Dynamic.BatchUdf.DurableDelete != nil {
+			bup.DurableDelete = *dynConfig.config.Dynamic.BatchUdf.DurableDelete
+		}
+		if dynConfig.config.Dynamic.BatchUdf.SendKey != nil {
+			bup.SendKey = *dynConfig.config.Dynamic.BatchUdf.SendKey
+		}
+	}
+
+	return bup
 }

@@ -178,6 +178,9 @@ type ClientPolicy struct {
 	// Application id is used to identify application so that client operations can be correlated
 	// with server side metrics.
 	ApplicationId string
+
+	// Determianes the interval for checking for configuration changes using configProvider.
+	ConfigInterval time.Duration // = 5 second
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.
@@ -196,6 +199,7 @@ func NewClientPolicy() *ClientPolicy {
 		MaxErrorRate:                100,
 		ErrorRateWindow:             1,
 		SeedOnlyCluster:             false,
+		ConfigInterval:              time.Second * 5,
 	}
 }
 
@@ -237,4 +241,93 @@ func (cp *ClientPolicy) peersString() string {
 		return "peers-clear-alt"
 	}
 	return "peers-clear-std"
+}
+
+// copyClientPolicy creates a new BasePolicy instance and copies the values from the source policy.
+func (cp *ClientPolicy) copy() *ClientPolicy {
+	if cp == nil {
+		return nil
+	}
+
+	response := *cp
+	return &response
+}
+
+func (cp *ClientPolicy) mapDynamic(dynConfig *DynConfig) *ClientPolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return cp
+	}
+
+	if dynConfig.config.Dynamic.Client != nil {
+		if dynConfig.config.Dynamic.Client.IdleTimeout != nil {
+			cp.IdleTimeout = time.Duration(*dynConfig.config.Dynamic.Client.IdleTimeout) * time.Second
+		}
+		if dynConfig.config.Dynamic.Client.Timeout != nil {
+			cp.Timeout = time.Duration(*dynConfig.config.Dynamic.Client.Timeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.Client.ErrorRateWindow != nil {
+			cp.ErrorRateWindow = *dynConfig.config.Dynamic.Client.ErrorRateWindow
+		}
+		if dynConfig.config.Dynamic.Client.MaxErrorRate != nil {
+			cp.MaxErrorRate = *dynConfig.config.Dynamic.Client.MaxErrorRate
+		}
+		if dynConfig.config.Dynamic.Client.LoginTimeout != nil {
+			cp.LoginTimeout = time.Duration(*dynConfig.config.Dynamic.Client.LoginTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.Client.RackAware != nil {
+			cp.RackAware = *dynConfig.config.Dynamic.Client.RackAware
+		}
+		if dynConfig.config.Dynamic.Client.RackIds != nil {
+			cp.RackIds = *dynConfig.config.Dynamic.Client.RackIds
+		}
+		if dynConfig.config.Dynamic.Client.TendInterval != nil {
+			cp.TendInterval = time.Duration(*dynConfig.config.Dynamic.Client.TendInterval) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.Client.UseServiceAlternate != nil {
+			cp.UseServicesAlternate = *dynConfig.config.Dynamic.Client.UseServiceAlternate
+		}
+	}
+
+	return cp
+}
+
+func (cp *ClientPolicy) mapStatic(dynConfig *DynConfig) *ClientPolicy {
+	if dynConfig.config == nil || dynConfig.config.Static == nil {
+		return cp
+	}
+
+	if dynConfig.config.Static.Client != nil {
+		if dynConfig.config.Static.Client.ConfigInterval != nil {
+			cp.ConfigInterval = time.Duration(*dynConfig.config.Static.Client.ConfigInterval) * time.Second
+		}
+		if dynConfig.config.Static.Client.ConnectionQueueSize != nil {
+			cp.ConnectionQueueSize = *dynConfig.config.Static.Client.ConnectionQueueSize
+		}
+		if dynConfig.config.Static.Client.MinConnectionsPerNode != nil {
+			cp.MinConnectionsPerNode = *dynConfig.config.Static.Client.MinConnectionsPerNode
+		}
+	}
+
+	return cp
+}
+
+// patchDynamic applies the dynamic configuration and generates a new policy.
+func (policy *ClientPolicy) patchDynamic(dynConfig *DynConfig) *ClientPolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if config != nil && ((config.Dynamic != nil && config.Dynamic.Client != nil) || (config.Static != nil && config.Static.Client != nil)) {
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		if policy != nil {
+			return policy.copy().mapStatic(dynConfig).mapDynamic(dynConfig)
+		} else {
+			// Passed in policy is nil, fetch mapped default policy from cache.
+			return dynConfig.client.dynDefaultClientPolicy.Load()
+		}
+	} else {
+		return policy
+	}
 }

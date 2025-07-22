@@ -57,7 +57,7 @@ type Cluster struct {
 	// Hints for best node for a partition
 	partitionWriteMap iatomic.TypedVal[partitionMap] //partitionMap
 
-	clientPolicy        ClientPolicy
+	clientPolicy        atomic.Pointer[ClientPolicy]
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
 
@@ -115,9 +115,8 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	}
 
 	newCluster := &Cluster{
-		clientPolicy: clientPolicy,
-		infoPolicy:   InfoPolicy{Timeout: policy.Timeout},
-		tendChannel:  make(chan struct{}),
+		infoPolicy:  InfoPolicy{Timeout: policy.Timeout},
+		tendChannel: make(chan struct{}),
 
 		seeds:    *iatomic.NewSyncVal(hosts),
 		aliases:  *sm.New[Host, *Node](16),
@@ -129,6 +128,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 		supportsPartitionQuery: *iatomic.NewBool(false),
 	}
+	newCluster.clientPolicy.Store(&clientPolicy)
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
 
@@ -159,7 +159,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 	// start up cluster maintenance go routine
 	newCluster.wgTend.Add(1)
-	go newCluster.clusterBoss(&newCluster.clientPolicy)
+	go newCluster.clusterBoss(newCluster.clientPolicy.Load())
 
 	if err == nil {
 		logger.Logger.Debug("New cluster initialized and ready to be used...")
@@ -183,7 +183,7 @@ func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Logger.Error("Cluster tend goroutine crashed: %s", debug.Stack())
-			go clstr.clusterBoss(&clstr.clientPolicy)
+			go clstr.clusterBoss(clstr.clientPolicy.Load())
 		}
 	}()
 
@@ -207,10 +207,11 @@ Loop:
 				logger.Logger.Warn(err.Error())
 			}
 
+			clientPolicy := clstr.clientPolicy.Load()
 			// Tending took longer than requested tend interval.
 			// Tending is too slow for the cluster, and may be falling behind schedule.
-			if tendDuration := time.Since(tm); tendDuration > clstr.clientPolicy.TendInterval {
-				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clstr.clientPolicy.TendInterval)
+			if tendDuration := time.Since(tm); tendDuration > clientPolicy.TendInterval {
+				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clientPolicy.TendInterval)
 			}
 		}
 	}
@@ -249,7 +250,7 @@ func (clstr *Cluster) tend() Error {
 
 	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
-	if len(nodes) == 0 || (clstr.clientPolicy.SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
+	if clientPolicy := clstr.clientPolicy.Load(); len(nodes) == 0 || (clientPolicy != nil && clientPolicy.SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
 		logger.Logger.Info("No nodes available; seeding...")
 		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
 			return err
@@ -288,7 +289,7 @@ func (clstr *Cluster) tend() Error {
 
 		seq.Do(_peer.hosts, func(host *Host) error {
 			// attempt connection to the host
-			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.SeedOnlyCluster}
+			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.Load().SeedOnlyCluster}
 			if err := nv.validateNode(clstr, host); err != nil {
 				logger.Logger.Warn("Add node `%s` failed: `%s`", host, err)
 				return nil
@@ -361,8 +362,9 @@ func (clstr *Cluster) tend() Error {
 
 	clstr.aggregateNodeStats(clstr.GetNodes())
 
+	clusterClientPolicy := *clstr.clientPolicy.Load()
 	// Reset connection error window for all nodes every connErrorWindow tend iterations.
-	if clstr.clientPolicy.MaxErrorRate > 0 && clstr.tendCount%clstr.clientPolicy.ErrorRateWindow == 0 {
+	if clusterClientPolicy.MaxErrorRate > 0 && clstr.tendCount%clusterClientPolicy.ErrorRateWindow == 0 {
 		for _, node := range clstr.GetNodes() {
 			node.resetErrorCount()
 		}
@@ -471,14 +473,15 @@ func (clstr *Cluster) waitTillStabilized() Error {
 		doneCh <- err
 	}()
 
+	clusterClientPolicy := clstr.clientPolicy.Load()
 	select {
-	case <-time.After(clstr.clientPolicy.Timeout):
-		if clstr.clientPolicy.FailIfNotConnected {
+	case <-time.After(clusterClientPolicy.Timeout):
+		if clusterClientPolicy.FailIfNotConnected {
 			clstr.Close()
 		}
 		return ErrTimeout.err()
 	case err := <-doneCh:
-		if err != nil && clstr.clientPolicy.FailIfNotConnected {
+		if err != nil && clusterClientPolicy.FailIfNotConnected {
 			clstr.Close()
 		}
 		return err
@@ -539,11 +542,12 @@ func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
 
 	logger.Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
+	clusterClientPolicy := clstr.clientPolicy.Load()
 	// Add all nodes at once to avoid copying entire array multiple times.
 	for i, seed := range seedArray {
 		go func(index int, seed *Host) {
 			nodesToAdd := make(nodesToAddT, 128)
-			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.SeedOnlyCluster}
+			nv := nodeValidator{seedOnlyCluster: clusterClientPolicy.SeedOnlyCluster}
 			err := nv.seedNodes(clstr, seed, nodesToAdd)
 			if err != nil {
 				logger.Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
@@ -571,7 +575,7 @@ L:
 			if seedCount <= 0 {
 				break L
 			}
-		case <-time.After(clstr.clientPolicy.Timeout):
+		case <-time.After(clusterClientPolicy.Timeout):
 			// time is up, no seeds found
 			break L
 		}
@@ -608,7 +612,7 @@ func (clstr *Cluster) addAlias(host *Host, node *Node) {
 func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 	removeList := []*Node{}
 
-	if clstr.clientPolicy.SeedOnlyCluster {
+	if clstr.clientPolicy.Load().SeedOnlyCluster {
 		// Don't remove any node even if its bad or inactive.
 		return removeList
 	}
@@ -688,7 +692,7 @@ func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
 	defer clstr.updateClusterFeatures()
 
 	clstr.nodes.Update(func(nodes []*Node) ([]*Node, error) {
-		if clstr.clientPolicy.SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
+		if clientPolicy := clstr.clientPolicy.Load(); clientPolicy!= nil && clientPolicy.SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
 			// Don't add new nodes.
 			return nodes, nil
 		}
@@ -938,14 +942,17 @@ func (clstr *Cluster) Password() (res []byte) {
 func (clstr *Cluster) changePassword(user string, password string, hash []byte) {
 	// change password ONLY if the user is the same
 	if clstr.user == user {
-		clstr.clientPolicy.Password = password
+		clientPolicy := *clstr.clientPolicy.Load()
+		clientPolicy.Password = password
+		clstr.clientPolicy.Store(&clientPolicy)
 		clstr.password.Set(hash)
 	}
 }
 
 // ClientPolicy returns the client policy that is currently used with the cluster.
 func (clstr *Cluster) ClientPolicy() (res ClientPolicy) {
-	return clstr.clientPolicy
+	returnPolicy := *clstr.clientPolicy.Load()
+	return returnPolicy
 }
 
 // WarmUp fills the connection pool with connections for all nodes.
@@ -1016,13 +1023,14 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 
 	nodes := clstr.GetNodes()
 	labels := make([]map[string]string, 0)
-
+	clientPolicy := clstr.clientPolicy.Load()
 	// Add node labels
 	for node := range nodes {
 		entries := make(map[string]string)
 		var app_id string
-		if clstr.clientPolicy.ApplicationId != "" {
-			app_id = clstr.clientPolicy.ApplicationId
+
+		if clientPolicy.ApplicationId != "" {
+			app_id = clientPolicy.ApplicationId
 		} else {
 			app_id = clstr.user
 		}
@@ -1039,7 +1047,7 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 		// Reserved label names for the client
 		entries["node"] = nodes[node].GetName()
 		entries["host"] = nodes[node].host.String()
-		entries["cluster"] = clstr.clientPolicy.ClusterName
+		entries["cluster"] = clientPolicy.ClusterName
 
 		// Users are allowed to override app-id if they want to. Default is the user name.
 		// Users need to set the application id int the client policy.

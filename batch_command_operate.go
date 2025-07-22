@@ -253,16 +253,16 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 			} else if len(ops) == 0 {
 				ops = append(ops, GetOp())
 			}
-			res, err = client.Operate(cmd.client.getUsableBatchReadPolicy(br.Policy).toWritePolicy(cmd.policy), br.Key, ops...)
+			res, err = client.Operate(cmd.client.getUsableBatchReadPolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig), br.Key, ops...)
 		case *BatchWrite:
-			policy := cmd.client.getUsableBatchWritePolicy(br.Policy).toWritePolicy(cmd.policy)
+			policy := cmd.client.getUsableBatchWritePolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
 			policy.RespondPerEachOp = true
 			res, err = client.Operate(policy, br.Key, br.Ops...)
 		case *BatchDelete:
-			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicy(cmd.policy)
+			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
 			res, err = client.Operate(policy, br.Key, DeleteOp())
 		case *BatchUDF:
-			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicy(cmd.policy)
+			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
 			policy.RespondPerEachOp = true
 			res, err = client.execute(policy, br.Key, br.PackageName, br.FunctionName, br.FunctionArgs...)
 		}

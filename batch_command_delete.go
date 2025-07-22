@@ -185,7 +185,7 @@ func (cmd *batchCommandDelete) commandType() commandType {
 }
 
 func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
-	policy := cmd.batchDeletePolicy.toWritePolicy(cmd.policy)
+	policy := cmd.batchDeletePolicy.toWritePolicy(cmd.policy, client.dynConfig)
 	for i, key := range cmd.keys {
 		res, err := client.Operate(policy, key, DeleteOp())
 		cmd.records[i].setRecord(res)

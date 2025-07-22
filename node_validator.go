@@ -75,7 +75,8 @@ func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nod
 }
 
 func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) Error {
-	if clusterNodes := cluster.GetNodes(); cluster.clientPolicy.IgnoreOtherSubnetAliases && len(clusterNodes) > 0 {
+	clientPolicy := cluster.clientPolicy.Load()
+	if clusterNodes := cluster.GetNodes(); clientPolicy != nil && clientPolicy.IgnoreOtherSubnetAliases && len(clusterNodes) > 0 {
 		masterHostname := clusterNodes[0].host.Name
 		ip, ipnet, err := net.ParseCIDR(masterHostname + "/24")
 		if err != nil {
@@ -143,7 +144,7 @@ func (ndv *nodeValidator) setAliases(host *Host) Error {
 }
 
 func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
-	clientPolicy := cluster.clientPolicy
+	clientPolicy := *cluster.clientPolicy.Load()
 	clientPolicy.Timeout /= 2
 
 	conn, err := NewConnection(&clientPolicy, alias)
