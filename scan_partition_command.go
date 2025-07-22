@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"iter"
+	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
@@ -88,4 +89,9 @@ func (cmd *scanPartitionCommand) getNamespaces() iter.Seq2[string, uint64] {
 
 func (cmd *scanPartitionCommand) getNamespace() *string {
 	return &cmd.namespace
+}
+
+func (cmd *scanPartitionCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+	// TODO: implement scan and query commands later
+	conn.Close()
 }

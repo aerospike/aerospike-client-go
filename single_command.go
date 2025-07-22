@@ -19,7 +19,6 @@ import (
 	"iter"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v8/logger"
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
 
@@ -75,7 +74,7 @@ func (cmd *singleCommand) getNamespace() *string {
 }
 
 func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
-	logger.Logger.Debug("TimeoutDelay enabled. Salvaging connection for node %s", node.GetName())
+	// logger.Logger.Debug("TimeoutDelay enabled. Salvaging connection for node %s", node.GetName())
 	conn.deadline = time.Now().Add(timeoutDelay)
 	reader := bufio.NewReader(conn.conn)
 	discardedCount := int(conn.totalReceived - cmd.receiveSize)
