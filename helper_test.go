@@ -128,3 +128,7 @@ func (node *Node) SetMaxErrorCount(value int) {
 func (node *Node) GetErrorCount() int {
 	return node.errorCount.Get()
 }
+
+func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
+	return newDynConfigForTest(config)
+}

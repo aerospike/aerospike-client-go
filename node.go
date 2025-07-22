@@ -101,7 +101,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		active:              *iatomic.NewBool(true),
 		partitionChanged:    *iatomic.NewBool(false),
 		errorCount:          *iatomic.NewInt(0),
-		maxErrorCount:       *iatomic.NewInt(cluster.clientPolicy.MaxErrorRate),
+		maxErrorCount:       *iatomic.NewInt(cluster.clientPolicy.Load().MaxErrorRate),
 		rebalanceGeneration: *iatomic.NewInt(-1),
 	}
 
@@ -929,7 +929,7 @@ func (nd *Node) validateErrorCount() Error {
 	if nodeErrorCount <= nodeMaxErrorCount {
 		nd.resetErrorCount()
 
-		nd.maxErrorCount.Set(nd.cluster.clientPolicy.MaxErrorRate)
+		nd.maxErrorCount.Set(nd.cluster.clientPolicy.Load().MaxErrorRate)
 
 		return nil
 	} else {
