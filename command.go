@@ -2486,6 +2486,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	binNameSize := 0
 	predSize := 0
 	var ctxSize int
+	var expressionSize int
 
 	filterExpression := policy.FilterExpression
 	if filterExpression == nil && wpolicy != nil {
@@ -2575,6 +2576,20 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			if ctxSize > 0 {
 				cmd.dataOffset += int(_FIELD_HEADER_SIZE) + ctxSize
 				fieldCount++
+			}
+		}
+
+		if statement.Filter.indexName != "" {
+			cmd.dataOffset += int(_FIELD_HEADER_SIZE) + len(statement.Filter.indexName)
+			fieldCount++
+		}
+		if statement.Filter.expression != nil {
+			if size, err := statement.Filter.expression.size(); err == nil && size > 0 {
+				expressionSize = size
+				cmd.dataOffset += int(_FIELD_HEADER_SIZE) + size
+				fieldCount++
+			} else if err != nil {
+				return newCommonError(err)
 			}
 		}
 	}
@@ -2750,6 +2765,17 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			if _, err = statement.Filter.packCtx(cmd); err != nil {
 				return newCommonError(err)
 			}
+		}
+
+		if statement.Filter.indexName != "" {
+			cmd.writeFieldString(statement.Filter.indexName, INDEX_NAME)
+		}
+
+		if expressionSize > 0 {
+			cmd.writeFieldHeader(expressionSize, INDEX_EXPRESSION)
+			if _, err = statement.Filter.expression.pack(cmd); err != nil {
+				return newCommonError(err)
+			} 
 		}
 	}
 
