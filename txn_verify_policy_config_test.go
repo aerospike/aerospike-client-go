@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"sync/atomic"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -28,6 +29,7 @@ var _ = gg.Describe("ApplyConfigToTxnVerifyPolicy", func() {
 		gg.It("updates the policy values based on the dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						TxnVerify: &dynconfig.TxnVerify{
@@ -63,6 +65,7 @@ var _ = gg.Describe("ApplyConfigToTxnVerifyPolicy", func() {
 					},
 				},
 			}
+			
 
 			// Create an initial TxnVerifyPolicy.
 			policy := NewTxnVerifyPolicy()
@@ -96,6 +99,7 @@ var _ = gg.Describe("ApplyConfigToTxnVerifyPolicy", func() {
 		gg.It("updates only the specified fields and leaves others unchanged", func() {
 			// Create a configuration with select fields (omitting some values like MaxRetries).
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						TxnVerify: &dynconfig.TxnVerify{

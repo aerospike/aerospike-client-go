@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/v8/logger"
+
 // BatchUDFPolicy attributes used in batch UDF execute commands.
 type BatchUDFPolicy struct {
 	// Optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -136,10 +138,18 @@ func (bup *BatchUDFPolicy) mapDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
 
 	if dynConfig.config.Dynamic.BatchUdf != nil {
 		if dynConfig.config.Dynamic.BatchUdf.DurableDelete != nil {
-			bup.DurableDelete = *dynConfig.config.Dynamic.BatchUdf.DurableDelete
+			configValue := *dynConfig.config.Dynamic.BatchUdf.DurableDelete
+			bup.DurableDelete = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("DurableDelete set to %t", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.BatchUdf.SendKey != nil {
-			bup.SendKey = *dynConfig.config.Dynamic.BatchUdf.SendKey
+			configValue := *dynConfig.config.Dynamic.BatchUdf.SendKey
+			bup.SendKey = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SendKey set to %t", configValue)
+			}
 		}
 	}
 

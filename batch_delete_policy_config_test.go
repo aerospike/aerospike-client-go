@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"sync/atomic"
+
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -26,6 +28,7 @@ var _ = gg.Describe("ApplyConfigToBatchDeletePolicy", func() {
 		gg.It("should update the policy values based on the dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						BatchDelete: &dynconfig.BatchDelete{
@@ -64,6 +67,7 @@ var _ = gg.Describe("ApplyConfigToBatchDeletePolicy", func() {
 		gg.It("should update the write policy values based on the batch delete dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						BatchDelete: &dynconfig.BatchDelete{

@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"sync/atomic"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -28,6 +29,7 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 		gg.It("should update all policy values based on the dynamic config", func() {
 			// Create the full configuration for scan policies.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Scan: &dynconfig.Scan{
@@ -105,6 +107,7 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 		gg.It("should update only the specified configuration fields and leave the rest unchanged", func() {
 			// Create a configuration with only a subset of scan fields.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Scan: &dynconfig.Scan{

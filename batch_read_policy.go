@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/v8/logger"
+
 // BatchReadPolicy attributes used in batch read commands.
 type BatchReadPolicy struct {
 	// FilterExpression is the optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -112,10 +114,18 @@ func (brp *BatchReadPolicy) mapDynamic(dynConfig *DynConfig) *BatchReadPolicy {
 
 	if dynConfig.config.Dynamic.BatchRead != nil {
 		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
-			brp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+			brp.ReadModeAP = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
-			brp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+			brp.ReadModeSC = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			}
 		}
 	}
 

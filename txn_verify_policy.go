@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 // Transaction policy fields used to batch verify record versions on commit.
@@ -80,28 +82,60 @@ func (tvp *TxnVerifyPolicy) mapDynamic(dynConfig *DynConfig) *TxnVerifyPolicy {
 
 	if dynConfig.config.Dynamic.TxnVerify != nil {
 		if dynConfig.config.Dynamic.TxnVerify.ReadModeAp != nil {
-			tvp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.TxnVerify.ReadModeAp)
+			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.TxnVerify.ReadModeAp)
+			tvp.ReadModeAP = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnVerify.ReadModeSc != nil {
-			tvp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnVerify.ReadModeSc)
+			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnVerify.ReadModeSc)
+			tvp.ReadModeSC = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnVerify.TotalTimeout != nil {
-			tvp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.TotalTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.TxnVerify.TotalTimeout) * time.Millisecond
+			tvp.TotalTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnVerify.SocketTimeout != nil {
-			tvp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SocketTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.TxnVerify.SocketTimeout) * time.Millisecond
+			tvp.SocketTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnVerify.MaxRetries != nil {
-			tvp.MaxRetries = *dynConfig.config.Dynamic.TxnVerify.MaxRetries
+			configValue := *dynConfig.config.Dynamic.TxnVerify.MaxRetries
+			tvp.MaxRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries != nil {
-			tvp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.TxnVerify.SleepBetweenRetries) * time.Millisecond
+			tvp.SleepBetweenRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnVerify.Replica != nil {
-			tvp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnVerify.Replica)
+			configValue := mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnVerify.Replica)
+			tvp.ReplicaPolicy = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnVerify.MaxRetries != nil {
-			tvp.MaxRetries = *dynConfig.config.Dynamic.TxnVerify.MaxRetries
+			configValue := *dynConfig.config.Dynamic.TxnVerify.MaxRetries
+			tvp.MaxRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.TxnVerify.TimeoutDelay != nil {
 			tvp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.TxnVerify.TimeoutDelay) * time.Millisecond

@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"sync/atomic"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -28,6 +29,7 @@ var _ = gg.Describe("ApplyConfigToBatchWritePolicy", func() {
 		gg.It("should update the policy values based on the dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						BatchWrite: &dynconfig.BatchWrite{
@@ -103,6 +105,7 @@ var _ = gg.Describe("ApplyConfigToBatchWritePolicy", func() {
 	gg.Context("when applying batch write config to a write policy", func() {
 		gg.It("should update the write policy values based on the batch write dynamic config", func() {
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						BatchWrite: &dynconfig.BatchWrite{

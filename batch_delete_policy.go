@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/v8/logger"
+
 // BatchDeletePolicy is used in batch delete commands.
 type BatchDeletePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -129,10 +131,18 @@ func (bdp *BatchDeletePolicy) mapDynamic(dynConfig *DynConfig) *BatchDeletePolic
 
 	if dynConfig.config.Dynamic.BatchDelete != nil {
 		if dynConfig.config.Dynamic.BatchDelete.DurableDelete != nil {
-			bdp.DurableDelete = *dynConfig.config.Dynamic.BatchDelete.DurableDelete
+			configValue := *dynConfig.config.Dynamic.BatchDelete.DurableDelete
+			bdp.DurableDelete = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("DurableDelete set to %t", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.BatchDelete.SendKey != nil {
-			bdp.SendKey = *dynConfig.config.Dynamic.BatchDelete.SendKey
+			configValue := *dynConfig.config.Dynamic.BatchDelete.SendKey
+			bdp.SendKey = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SendKey set to %t", configValue)
+			}
 		}
 	}
 

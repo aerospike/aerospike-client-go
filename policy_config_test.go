@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"sync/atomic"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -28,6 +29,7 @@ var _ = gg.Describe("ApplyConfigToBasePolicy", func() {
 		gg.It("should update all policy values based on the dynamic config", func() {
 			// Create a dummy configuration
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Read: &dynconfig.Read{
@@ -100,6 +102,7 @@ var _ = gg.Describe("ApplyConfigToBasePolicy", func() {
 		gg.It("should update only the specified configuration fields and leave the rest unchanged", func() {
 			// Create a dummy configuration with only a subset of fields.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Read: &dynconfig.Read{

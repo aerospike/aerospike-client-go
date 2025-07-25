@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyrigh 2014-2022 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -151,7 +151,7 @@ func (dc *DynConfig) providerLoadConfig() {
 		dc.config.Dynamic = loadedConfig.Dynamic // This is updating the entire dynamic config object
 
 		dc.hydrateDynamicPolicyFromConfig()
-		logger.Logger.Debug("Dynamic configuration updated internal state from provider.")
+		logger.Logger.Info("Dynamic configuration updated internal state from provider.")
 	}
 }
 
@@ -168,7 +168,7 @@ func (dc *DynConfig) initConfig() {
 		}
 
 		dc.configInitialized.Store(true)
-		logger.Logger.Debug("Dynamic configuration initialized...")
+		logger.Logger.Info("Dynamic configuration initialized...")
 	}
 }
 

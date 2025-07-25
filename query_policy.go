@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 // QueryPolicy encapsulates parameters for policy attributes used in query operations.
@@ -99,31 +101,67 @@ func (qp *QueryPolicy) mapDynamic(dynConfig *DynConfig) *QueryPolicy {
 
 	if dynConfig.config.Dynamic.Query != nil {
 		if dynConfig.config.Dynamic.Query.ReadModeAp != nil {
-			qp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Query.ReadModeAp)
+			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Query.ReadModeAp)
+			qp.ReadModeAP = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Query.ReadModeSc != nil {
-			qp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Query.ReadModeSc)
+			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Query.ReadModeSc)
+			qp.ReadModeSC = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Query.TotalTimeout != nil {
-			qp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout) * time.Millisecond
+			qp.TotalTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Query.SocketTimeout != nil {
-			qp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Query.SocketTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.Query.SocketTimeout) * time.Millisecond
+			qp.SocketTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Query.MaxRetries != nil {
-			qp.MaxRetries = *dynConfig.config.Dynamic.Query.MaxRetries
+			configValue := *dynConfig.config.Dynamic.Query.MaxRetries
+			qp.MaxRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.Query.SleepBetweenRetries != nil {
-			qp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Query.SleepBetweenRetries) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.Query.SleepBetweenRetries) * time.Millisecond
+			qp.SleepBetweenRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Query.Replica != nil {
-			qp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Query.Replica)
+			configValue := mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Query.Replica)
+			qp.ReplicaPolicy = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Query.IncludeBinData != nil {
-			qp.IncludeBinData = *dynConfig.config.Dynamic.Query.IncludeBinData
+			configValue := *dynConfig.config.Dynamic.Query.IncludeBinData
+			qp.IncludeBinData = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("IncludeBinData set to %t", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.Query.ExpectedDuration != nil {
-			qp.ExpectedDuration = mapQueryDuration(*dynConfig.config.Dynamic.Query.ExpectedDuration)
+			configValue := mapQueryDuration(*dynConfig.config.Dynamic.Query.ExpectedDuration)
+			qp.ExpectedDuration = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ExpectedDuration set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Query.TimeoutDelay != nil {
 			qp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Query.TimeoutDelay) * time.Millisecond

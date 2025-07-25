@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 // Transaction policy fields used to batch roll forward/backward records on
@@ -79,28 +81,60 @@ func (trp *TxnRollPolicy) mapDynamic(dynConfig *DynConfig) *TxnRollPolicy {
 
 	if dynConfig.config.Dynamic.TxnRoll != nil {
 		if dynConfig.config.Dynamic.TxnRoll.ReadModeAp != nil {
-			trp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.TxnRoll.ReadModeAp)
+			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.TxnRoll.ReadModeAp)
+			trp.ReadModeAP = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.ReadModeSc != nil {
-			trp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnRoll.ReadModeSc)
+			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnRoll.ReadModeSc)
+			trp.ReadModeSC = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.Replica != nil {
-			trp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnRoll.Replica)
+			configValue := mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnRoll.Replica)
+			trp.ReplicaPolicy = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries != nil {
-			trp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries) * time.Millisecond
+			trp.SleepBetweenRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.SocketTimeout != nil {
-			trp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.SocketTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.TxnRoll.SocketTimeout) * time.Millisecond
+			trp.SocketTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.TotalTimeout != nil {
-			trp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.TxnRoll.TotalTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.TxnRoll.TotalTimeout) * time.Millisecond
+			trp.TotalTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.MaxRetries != nil {
-			trp.MaxRetries = *dynConfig.config.Dynamic.TxnRoll.MaxRetries
+			configValue := *dynConfig.config.Dynamic.TxnRoll.MaxRetries
+			trp.MaxRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.RespondAllKeys != nil {
-			trp.RespondAllKeys = *dynConfig.config.Dynamic.TxnRoll.RespondAllKeys
+			configValue := *dynConfig.config.Dynamic.TxnRoll.RespondAllKeys
+			trp.RespondAllKeys = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("RespondAllKeys set to %t", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.TimeoutDelay != nil {
 			trp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.TxnRoll.TimeoutDelay) * time.Millisecond

@@ -262,31 +262,67 @@ func (cp *ClientPolicy) mapDynamic(dynConfig *DynConfig) *ClientPolicy {
 
 	if dynConfig.config.Dynamic.Client != nil {
 		if dynConfig.config.Dynamic.Client.IdleTimeout != nil {
-			cp.IdleTimeout = time.Duration(*dynConfig.config.Dynamic.Client.IdleTimeout) * time.Second
+			configValue := time.Duration(*dynConfig.config.Dynamic.Client.IdleTimeout) * time.Second	
+			cp.IdleTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("IdleTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Client.Timeout != nil {
-			cp.Timeout = time.Duration(*dynConfig.config.Dynamic.Client.Timeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.Client.Timeout) * time.Millisecond 
+			cp.Timeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("Timeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Client.ErrorRateWindow != nil {
-			cp.ErrorRateWindow = *dynConfig.config.Dynamic.Client.ErrorRateWindow
+			configValue := *dynConfig.config.Dynamic.Client.ErrorRateWindow
+			cp.ErrorRateWindow = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ErrorRateWindow set to %d", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.Client.MaxErrorRate != nil {
-			cp.MaxErrorRate = *dynConfig.config.Dynamic.Client.MaxErrorRate
+			configValue := *dynConfig.config.Dynamic.Client.MaxErrorRate
+			cp.MaxErrorRate = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("MaxErrorRate set to %d", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.Client.LoginTimeout != nil {
-			cp.LoginTimeout = time.Duration(*dynConfig.config.Dynamic.Client.LoginTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.Client.LoginTimeout) * time.Millisecond
+			cp.LoginTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("LoginTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Client.RackAware != nil {
-			cp.RackAware = *dynConfig.config.Dynamic.Client.RackAware
+			configValue := *dynConfig.config.Dynamic.Client.RackAware
+			cp.RackAware = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("RackAware set to %t", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.Client.RackIds != nil {
-			cp.RackIds = *dynConfig.config.Dynamic.Client.RackIds
+			configValue := *dynConfig.config.Dynamic.Client.RackIds
+			cp.RackIds = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("RackIds set to %v", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.Client.TendInterval != nil {
-			cp.TendInterval = time.Duration(*dynConfig.config.Dynamic.Client.TendInterval) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.Client.TendInterval) * time.Millisecond
+			cp.TendInterval = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("TendInterval set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Client.UseServiceAlternate != nil {
-			cp.UseServicesAlternate = *dynConfig.config.Dynamic.Client.UseServiceAlternate
+			configValue := *dynConfig.config.Dynamic.Client.UseServiceAlternate
+			cp.UseServicesAlternate = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("UseServicesAlternate set to %t", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.Client.ApplicationId != nil {
 			cp.ApplicationId = *dynConfig.config.Dynamic.Client.ApplicationId

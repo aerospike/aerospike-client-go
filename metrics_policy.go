@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types/histogram"
 )
 
@@ -129,10 +130,18 @@ func (mp *MetricsPolicy) mapDynamic(dynConfig *DynConfig) *MetricsPolicy {
 
 	if dynConfig.config.Dynamic.Metrics != nil {
 		if dynConfig.config.Dynamic.Metrics.LatencyColumns != nil {
-			mp.LatencyColumns = *dynConfig.config.Dynamic.Metrics.LatencyColumns
+			configValue := *dynConfig.config.Dynamic.Metrics.LatencyColumns
+			mp.LatencyColumns = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("LatencyColumns set to %d", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.Metrics.LatencyBase != nil {
-			mp.LatencyBase = *dynConfig.config.Dynamic.Metrics.LatencyBase
+			configValue := *dynConfig.config.Dynamic.Metrics.LatencyBase
+			mp.LatencyBase = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("LatencyBase set to %d", configValue)
+			}
 		}
 	}
 

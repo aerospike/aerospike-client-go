@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/v8/logger"
+
 // BatchWritePolicy attributes used in batch write commands.
 type BatchWritePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -154,10 +156,18 @@ func (bwp *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy 
 
 	if dynConfig.config.Dynamic.BatchWrite != nil {
 		if dynConfig.config.Dynamic.BatchWrite.DurableDelete != nil {
-			bwp.DurableDelete = *dynConfig.config.Dynamic.BatchWrite.DurableDelete
+			configValue := *dynConfig.config.Dynamic.BatchWrite.DurableDelete
+			bwp.DurableDelete = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("DurableDelete set to %t", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.BatchWrite.SendKey != nil {
-			bwp.SendKey = *dynConfig.config.Dynamic.BatchWrite.SendKey
+			configValue := *dynConfig.config.Dynamic.BatchWrite.SendKey
+			bwp.SendKey = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SendKey set to %t", configValue)
+			}
 		}
 	}
 

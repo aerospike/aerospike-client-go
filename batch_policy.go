@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 // BatchPolicy encapsulates parameters for policy attributes used in write operations.
@@ -166,31 +168,67 @@ func (p *BatchPolicy) mapDynamic(dynConfig *DynConfig) *BatchPolicy {
 
 	if dynConfig.config.Dynamic.BatchRead != nil {
 		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
-			p.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+			p.ReadModeAP = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
-			p.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+			p.ReadModeSC = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.BatchRead.TotalTimeout != nil {
-			p.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
+			p.TotalTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.BatchRead.SocketTimeout != nil {
-			p.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
+			p.SocketTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.BatchRead.MaxRetries != nil {
-			p.MaxRetries = *dynConfig.config.Dynamic.BatchRead.MaxRetries
+			configValue := *dynConfig.config.Dynamic.BatchRead.MaxRetries
+			p.MaxRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries != nil {
-			p.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
+			p.SleepBetweenRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.BatchRead.AllowInline != nil {
-			p.AllowInline = *dynConfig.config.Dynamic.BatchRead.AllowInline
+			configValue := *dynConfig.config.Dynamic.BatchRead.AllowInline
+			p.AllowInline = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("AllowInline set to %t", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.BatchRead.AllowInlineSSD != nil {
-			p.AllowInlineSSD = *dynConfig.config.Dynamic.BatchRead.AllowInlineSSD
+			configValue := *dynConfig.config.Dynamic.BatchRead.AllowInlineSSD
+			p.AllowInlineSSD = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("AllowInlineSSD set to %t", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.BatchRead.RespondAllKeys != nil {
-			p.RespondAllKeys = *dynConfig.config.Dynamic.BatchRead.RespondAllKeys
+			configValue := *dynConfig.config.Dynamic.BatchRead.RespondAllKeys
+			p.RespondAllKeys = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("RespondAllKeys set to %t", configValue)
+			}
 		}
 	}
 

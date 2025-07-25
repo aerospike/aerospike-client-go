@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 // ScanPolicy encapsulates parameters used in scan operations.
@@ -91,28 +93,60 @@ func (sp *ScanPolicy) mapDynamic(dynConfig *DynConfig) *ScanPolicy {
 
 	if dynConfig.config.Dynamic.Scan != nil {
 		if dynConfig.config.Dynamic.Scan.ReadModeAp != nil {
-			sp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Scan.ReadModeAp)
+			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Scan.ReadModeAp)
+			sp.ReadModeAP = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Scan.ReadModeSc != nil {
-			sp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Scan.ReadModeSc)
+			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Scan.ReadModeSc)
+			sp.ReadModeSC = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Scan.TotalTimeout != nil {
-			sp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout) * time.Millisecond
+			sp.TotalTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Scan.SocketTimeout != nil {
-			sp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Scan.SocketTimeout) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.Scan.SocketTimeout) * time.Millisecond
+			sp.SocketTimeout = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Scan.MaxRetries != nil {
-			sp.MaxRetries = *dynConfig.config.Dynamic.Scan.MaxRetries
+			configValue := *dynConfig.config.Dynamic.Scan.MaxRetries
+			sp.MaxRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.Scan.SleepBetweenRetries != nil {
-			sp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Scan.SleepBetweenRetries) * time.Millisecond
+			configValue := time.Duration(*dynConfig.config.Dynamic.Scan.SleepBetweenRetries) * time.Millisecond
+			sp.SleepBetweenRetries = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Scan.Replica != nil {
-			sp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Scan.Replica)
+			configValue := mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Scan.Replica)
+			sp.ReplicaPolicy = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			}
 		}
 		if dynConfig.config.Dynamic.Scan.MaxConcurrentNodes != nil {
-			sp.MaxConcurrentNodes = *dynConfig.config.Dynamic.Scan.MaxConcurrentNodes
+			configValue := *dynConfig.config.Dynamic.Scan.MaxConcurrentNodes
+			sp.MaxConcurrentNodes = configValue
+			if dynConfig.configInitialized.Load() {
+				logger.Logger.Info("MaxConcurrentNodes set to %d", configValue)
+			}
 		}
 		if dynConfig.config.Dynamic.Scan.TimeoutDelay != nil {
 			sp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Scan.TimeoutDelay) * time.Millisecond
