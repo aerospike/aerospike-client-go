@@ -1522,18 +1522,6 @@ func (clnt *Client) CreateIndex(
 	policy = clnt.getUsableWritePolicy(policy)
 	return clnt.createIndex(policy, namespace, setName, indexName, binName, indexType, ICT_DEFAULT, nil)
 }
-/*
-func (clnt *Client) createIndex(
-    policy *WritePolicy,
-	namespace string,
-	setName string,
-	indexName string,
-	binName string,
-	indexType IndexType,
-	indexCollectionType IndexCollectionType,
-	expression *Expression,
-	ctx ...*CDTContext,
-*/
 
 // CreateComplexIndex creates a secondary index, with the ability to put indexes
 // on bin containing complex data types, e.g: Maps and Lists.
