@@ -23,6 +23,8 @@ jobs:
         run: go version
       - name: Set up Aerospike Database
         uses: reugn/github-action-aerospike@v1
+        with:
+          server-version: 8.1.0.0-rc4_1
       - name: Test Lua Code
         run: go run github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites internal/lua
       - name: Test types package
