@@ -92,20 +92,6 @@ func (sp *ScanPolicy) mapDynamic(dynConfig *DynConfig) *ScanPolicy {
 	}
 
 	if dynConfig.config.Dynamic.Scan != nil {
-		if dynConfig.config.Dynamic.Scan.ReadModeAp != nil {
-			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Scan.ReadModeAp)
-			sp.ReadModeAP = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
-			}
-		}
-		if dynConfig.config.Dynamic.Scan.ReadModeSc != nil {
-			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Scan.ReadModeSc)
-			sp.ReadModeSC = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
-			}
-		}
 		if dynConfig.config.Dynamic.Scan.TotalTimeout != nil {
 			configValue := time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout) * time.Millisecond
 			sp.TotalTimeout = configValue

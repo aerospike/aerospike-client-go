@@ -100,20 +100,6 @@ func (qp *QueryPolicy) mapDynamic(dynConfig *DynConfig) *QueryPolicy {
 	}
 
 	if dynConfig.config.Dynamic.Query != nil {
-		if dynConfig.config.Dynamic.Query.ReadModeAp != nil {
-			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Query.ReadModeAp)
-			qp.ReadModeAP = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
-			}
-		}
-		if dynConfig.config.Dynamic.Query.ReadModeSc != nil {
-			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Query.ReadModeSc)
-			qp.ReadModeSC = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
-			}
-		}
 		if dynConfig.config.Dynamic.Query.TotalTimeout != nil {
 			configValue := time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout) * time.Millisecond
 			qp.TotalTimeout = configValue

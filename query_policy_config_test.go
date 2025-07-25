@@ -33,14 +33,6 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Query: &dynconfig.Query{
-							ReadModeAp: func() *dynconfig.ReadModeAp {
-								d := dynconfig.ALL
-								return &d
-							}(),
-							ReadModeSc: func() *dynconfig.ReadModeSc {
-								d := dynconfig.LINEARIZE
-								return &d
-							}(),
 							TotalTimeout: func() *int {
 								d := 3000
 								return &d
@@ -83,8 +75,6 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 
 			// Check defaults.
 			gm.Expect(policy).NotTo(gm.BeNil())
-			gm.Expect(policy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
-			gm.Expect(policy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
 			gm.Expect(policy.TotalTimeout).To(gm.Equal(0 * time.Millisecond))
 			// SocketTimeout is in seconds.
 			gm.Expect(policy.SocketTimeout).To(gm.Equal(30 * time.Second))
@@ -102,8 +92,6 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 
 			// Validate the applied configuration.
 			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
-			gm.Expect(updatedPolicy.ReadModeAP).To(gm.Equal(ReadModeAPAll))
-			gm.Expect(updatedPolicy.ReadModeSC).To(gm.Equal(ReadModeSCLinearize))
 			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(3000 * time.Millisecond))
 			gm.Expect(updatedPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
 			// Note: Some tests change MaxRetries; full config changes it to 3.
@@ -151,8 +139,6 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 
 			// Check defaults.
 			gm.Expect(policy).NotTo(gm.BeNil())
-			gm.Expect(policy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
-			gm.Expect(policy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
 			gm.Expect(policy.TotalTimeout).To(gm.Equal(0 * time.Second))
 			gm.Expect(policy.SocketTimeout).To(gm.Equal(30 * time.Second))
 			gm.Expect(policy.MaxRetries).To(gm.Equal(5))

@@ -101,8 +101,6 @@ type Write struct {
 }
 
 type Query struct {
-	ReadModeAp          *ReadModeAp    `yaml:"read_mode_ap"`
-	ReadModeSc          *ReadModeSc    `yaml:"read_mode_sc"`
 	Replica             *Replica       `yaml:"replica"`
 	SleepBetweenRetries *int           `yaml:"sleep_between_retries"`
 	SocketTimeout       *int           `yaml:"socket_timeout"`
@@ -115,15 +113,13 @@ type Query struct {
 }
 
 type Scan struct {
-	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
-	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
-	Replica             *Replica    `yaml:"replica"`
-	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
-	SocketTimeout       *int        `yaml:"socket_timeout"`
-	TotalTimeout        *int        `yaml:"total_timeout"`
-	MaxRetries          *int        `yaml:"max_retries"`
-	MaxConcurrentNodes  *int        `yaml:"max_concurrent_nodes"`
-	TimeoutDelay        *int        `yaml:"timeout_delay"`
+	Replica             *Replica `yaml:"replica"`
+	SleepBetweenRetries *int     `yaml:"sleep_between_retries"`
+	SocketTimeout       *int     `yaml:"socket_timeout"`
+	TimeoutDelay        *int     `yaml:"timeout_delay"`
+	TotalTimeout        *int     `yaml:"total_timeout"`
+	MaxRetries          *int     `yaml:"max_retries"`
+	MaxConcurrentNodes  *int     `yaml:"max_concurrent_nodes"`
 }
 
 type BatchRead struct {
