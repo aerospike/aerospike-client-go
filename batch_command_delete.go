@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	"iter"
-	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
@@ -237,8 +236,4 @@ func (cmd *batchCommandDelete) nsIter(yield func(string, uint64) bool) {
 			return
 		}
 	}
-}
-
-func (cmd *batchCommandDelete) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
-	cmd.baseMultiCommand.salvageConn(timeoutDelay, conn, node)
 }

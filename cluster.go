@@ -109,6 +109,11 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 	clientPolicy := *policy
 
+	// Set a default Idle Timeout for the connection
+	if clientPolicy.IdleTimeout <= 0 {
+		clientPolicy.IdleTimeout = 55 * time.Second
+	}
+
 	newCluster := &Cluster{
 		infoPolicy:  InfoPolicy{Timeout: policy.Timeout},
 		tendChannel: make(chan struct{}),

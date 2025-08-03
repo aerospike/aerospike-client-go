@@ -379,8 +379,6 @@ func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duratio
 
 // Close closes the connection
 func (ctn *Connection) Close() {
-	// Resetting lastUsed to zero time
-
 	ctn.closer.Do(func() {
 		if ctn != nil && ctn.conn != nil {
 			// deregister

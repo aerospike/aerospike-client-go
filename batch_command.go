@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	"iter"
-	"time"
 )
 
 type batcher interface {
@@ -149,8 +148,4 @@ func (cmd *batchCommand) getNamespaces() iter.Seq2[string, uint64] {
 
 func (cmd *batchCommand) getNamespace() *string {
 	return &cmd.namespace
-}
-
-func (cmd *batchCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
-	cmd.baseMultiCommand.salvageConn(timeoutDelay, conn, node)
 }

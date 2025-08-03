@@ -16,6 +16,7 @@ package aerospike_test
 
 import (
 	"errors"
+	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
 
@@ -180,6 +181,176 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				for _, c := range cList {
 					gm.Expect(c.IsConnected()).To(gm.BeTrue())
 				}
+			})
+
+		})
+
+		gg.Context("When Idle Timeout Is Used", func() {
+
+			gg.It("must reuse connections before they become idle", func() {
+				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
+				clientPolicy.IdleTimeout = 1000 * time.Millisecond
+				// clientPolicy.TendInterval = time.Hour
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
+
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defer client.Close()
+
+				node := client.GetNodes()[0]
+
+				// get a few connections at once
+				var conns []*as.Connection
+				for i := 0; i < 4; i++ {
+					// gg.By(fmt.Sprintf("Retrieving conns i=%d", i))
+					c, err := node.GetConnection(0)
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+					gm.Expect(c).NotTo(gm.BeNil())
+					gm.Expect(c.IsConnected()).To(gm.BeTrue())
+
+					conns = append(conns, c)
+				}
+
+				// return them to the pool
+				for _, c := range conns {
+					node.PutConnection(c)
+				}
+
+				start := time.Now()
+				estimatedDeadline := start.Add(clientPolicy.IdleTimeout)
+				deadlineThreshold := clientPolicy.IdleTimeout / 10
+
+				// make sure the same connections are all retrieved again
+				checkCount := 0
+				for time.Until(estimatedDeadline) > deadlineThreshold {
+					checkCount++
+					// gg.By(fmt.Sprintf("Retrieving conns2 checkCount=%d", checkCount))
+					var conns2 []*as.Connection
+					for i := 0; i < len(conns); i++ {
+						c, err := node.GetConnection(0)
+						gm.Expect(err).NotTo(gm.HaveOccurred())
+						gm.Expect(c).NotTo(gm.BeNil())
+						gm.Expect(c.IsConnected()).To(gm.BeTrue())
+						gm.Expect(conns).To(gm.ContainElement(c))
+						gm.Expect(conns2).NotTo(gm.ContainElement(c))
+
+						conns2 = append(conns2, c)
+					}
+
+					// just put them in the pool
+					for _, c := range conns2 {
+						node.PutConnection(c)
+					}
+
+					time.Sleep(time.Millisecond)
+				}
+
+				// we should be called lots of times
+				gm.Expect(checkCount).To(gm.BeNumerically(">", 500))
+
+				// sleep again until all connections are all idle
+				<-time.After(2 * clientPolicy.IdleTimeout)
+
+				// get connections again, making sure they are all new
+				var conns3 []*as.Connection
+				for i := 0; i < len(conns); i++ {
+					// gg.By(fmt.Sprintf("Retrieving conns3 i=%d", i))
+					c, err := node.GetConnection(0)
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+					gm.Expect(c).NotTo(gm.BeNil())
+					gm.Expect(c.IsConnected()).To(gm.BeTrue())
+
+					gm.Expect(conns).NotTo(gm.ContainElement(c))
+					gm.Expect(conns3).NotTo(gm.ContainElement(c))
+
+					conns3 = append(conns3, c)
+				}
+
+				// refresh and return them to the pool
+				for _, c := range conns {
+					gm.Expect(c.IsConnected()).To(gm.BeFalse())
+				}
+
+				// don't forget to close connections
+				for _, c := range conns3 {
+					c.Close()
+				}
+			})
+
+			gg.It("must maintain a minimum number of connections per client policy even if idle", func() {
+				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
+				clientPolicy.IdleTimeout = 2000 * time.Millisecond
+				clientPolicy.MinConnectionsPerNode = 5
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
+
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defer client.Close()
+
+				client.WarmUp(10)
+
+				node := client.GetNodes()[0]
+
+				gm.Expect(node.ConnsCount()).To(gm.BeNumerically(">=", 10))
+
+				// sleep again until all connections are all idle
+				<-time.After(2 * clientPolicy.IdleTimeout)
+				gm.Expect(node.ConnsCount()).To(gm.Equal(clientPolicy.MinConnectionsPerNode + 1)) // min + 1 reserved for tend
+			})
+
+			gg.It("must delay the connection from becoming idle if it is put back in the queue", func() {
+				clientPolicy := as.NewClientPolicy()
+				clientPolicy.TlsConfig = tlsConfig
+				clientPolicy.IdleTimeout = 1000 * time.Millisecond
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
+
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defer client.Close()
+
+				node := client.GetNodes()[0]
+
+				deadlineThreshold := clientPolicy.IdleTimeout / 10
+
+				// gg.By("Retrieving c")
+				c, err := node.GetConnection(0)
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				gm.Expect(c).NotTo(gm.BeNil())
+				gm.Expect(c.IsConnected()).To(gm.BeTrue())
+				node.PutConnection(c)
+
+				// continuously refresh the connection just before it goes idle
+				for i := 0; i < 5; i++ {
+					time.Sleep(clientPolicy.IdleTimeout - deadlineThreshold)
+					// gg.By(fmt.Sprintf("Retrieving c2 i=%d", i))
+
+					c2, err := node.GetConnection(0)
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+					gm.Expect(c2).NotTo(gm.BeNil())
+					gm.Expect(c2).To(gm.Equal(c))
+					gm.Expect(c2.IsConnected()).To(gm.BeTrue())
+
+					node.PutConnection(c2)
+				}
+
+				// wait about the required time to become idle
+				<-time.After(2 * clientPolicy.IdleTimeout)
+
+				// we should get a new connection
+				c3, err := node.GetConnection(0)
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				gm.Expect(c3).NotTo(gm.BeNil())
+				defer node.InvalidateConnection(c3)
+				gm.Expect(c3).ToNot(gm.Equal(c))
+				gm.Expect(c3.IsConnected()).To(gm.BeTrue())
+
+				// the original connection should be closed
+				gm.Expect(c.IsConnected()).To(gm.BeFalse())
 			})
 
 		})

@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"bufio"
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
@@ -3839,7 +3840,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				cmd.node.incrErrorCount()
 			}
 			// try to salvage the connection
-			if cmd.conn.salvageConnection {
+			if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 				go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
 			} else {
 				// IO errors are considered temporary anomalies. Retry.
@@ -4182,4 +4183,29 @@ func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc comman
 			}
 		}
 	}
+}
+
+func (cmd *baseCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+	// logger.Logger.Debug("TimeoutDelay enabled. Salvaging connection for node %s", node.GetName())
+	conn.deadline = time.Now().Add(timeoutDelay)
+	reader := bufio.NewReader(conn.conn)
+	discardedCount := int(cmd.receiveSize - conn.totalReceived)
+
+	for discardedCount > 0 {
+		var discarded int
+		var err error
+		if discarded, err = reader.Discard(discardedCount); err != nil {
+			if discarded < discardedCount {
+				conn.Close()
+				return
+			}
+		}
+		discardedCount -= discarded
+	}
+
+	conn.refresh()
+	node.PutConnection(conn)
+
+	// Record connection recovery metrics
+	applyConnectionRecoveredMetrics(node)
 }
