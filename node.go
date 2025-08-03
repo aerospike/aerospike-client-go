@@ -101,7 +101,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		active:              *iatomic.NewBool(true),
 		partitionChanged:    *iatomic.NewBool(false),
 		errorCount:          *iatomic.NewInt(0),
-		maxErrorCount:       *iatomic.NewInt(cluster.clientPolicy.Load().MaxErrorRate),
+		maxErrorCount:       *iatomic.NewInt(cluster.maxErrorCount.Get()),
 		rebalanceGeneration: *iatomic.NewInt(-1),
 	}
 
@@ -923,20 +923,29 @@ func (nd *Node) resetErrorCount() {
 // and lower the threshold by half.
 func (nd *Node) validateErrorCount() Error {
 	nodeMaxErrorCount := nd.maxErrorCount.Get()
+	clusterMaxErrorCount := nd.cluster.maxErrorCount.Get()
 	nodeErrorCount := nd.errorCount.Get()
 
 	// Error rate is not breached, reset maxErrorCount to the policy value
 	if nodeErrorCount <= nodeMaxErrorCount {
 		nd.resetErrorCount()
 
-		nd.maxErrorCount.Set(nd.cluster.clientPolicy.Load().MaxErrorRate)
+		// Doubling the maxErrorCount till it reaches the cluster maxErrorCount
+		if nodeErrorCount != clusterMaxErrorCount {
+			max := nodeMaxErrorCount * 2
+			if max <= clusterMaxErrorCount {
+				nd.maxErrorCount.Set(max)
+			} else {
+				nd.maxErrorCount.Set(clusterMaxErrorCount)
+			}
+		}
 
 		return nil
 	} else {
 		// Error rate was breached. Next error rate will be halved.
 		nd.resetErrorCount()
 
-		if nodeMaxErrorCount >= 2 {
+		if nodeMaxErrorCount >= 4 {
 			nd.maxErrorCount.Set(nodeMaxErrorCount / 2)
 		} else {
 			nd.maxErrorCount.Set(1)
