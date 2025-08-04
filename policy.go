@@ -268,6 +268,9 @@ func (bp *BasePolicy) mapDynamic(dynConfig *DynConfig) *BasePolicy {
 		if dynConfig.config.Dynamic.Read.Replica != nil {
 			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Read.Replica)
 		}
+		if dynConfig.config.Dynamic.Read.TimeoutDelay != nil {
+			bp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Read.TimeoutDelay) * time.Millisecond
+		}
 	}
 
 	return bp
@@ -293,6 +296,9 @@ func (bp *BasePolicy) mapDynamicBatchWrite(dynConfig *DynConfig) *BasePolicy {
 		}
 		if dynConfig.config.Dynamic.BatchWrite.Replica != nil {
 			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchWrite.Replica)
+		}
+		if dynConfig.config.Dynamic.BatchWrite.TimeoutDelay != nil {
+			bp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.BatchWrite.TimeoutDelay) * time.Millisecond
 		}
 	}
 
@@ -325,6 +331,9 @@ func (bp *BasePolicy) mapDynamicBatchRead(dynConfig *DynConfig) *BasePolicy {
 		}
 		if dynConfig.config.Dynamic.BatchRead.Replica != nil {
 			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchRead.Replica)
+		}
+		if dynConfig.config.Dynamic.BatchRead.TimeoutDelay != nil {
+			bp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.BatchRead.TimeoutDelay) * time.Millisecond
 		}
 	}
 

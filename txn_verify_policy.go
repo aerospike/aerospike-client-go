@@ -103,6 +103,9 @@ func (tvp *TxnVerifyPolicy) mapDynamic(dynConfig *DynConfig) *TxnVerifyPolicy {
 		if dynConfig.config.Dynamic.TxnVerify.MaxRetries != nil {
 			tvp.MaxRetries = *dynConfig.config.Dynamic.TxnVerify.MaxRetries
 		}
+		if dynConfig.config.Dynamic.TxnVerify.TimeoutDelay != nil {
+			tvp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.TxnVerify.TimeoutDelay) * time.Millisecond
+		}
 	}
 
 	return tvp

@@ -85,6 +85,7 @@ type Read struct {
 	SocketTimeout       *int        `yaml:"socket_timeout"`
 	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
+	TimeoutDelay        *int        `yaml:"timeout_delay"`
 }
 
 type Write struct {
@@ -95,6 +96,7 @@ type Write struct {
 	TotalTimeout        *int     `yaml:"total_timeout"`
 	MaxRetries          *int     `yaml:"max_retries"`
 	DurableDelete       *bool    `yaml:"durable_delete"`
+	TimeoutDelay        *int        `yaml:"timeout_delay"`
 }
 
 type Query struct {
@@ -108,6 +110,7 @@ type Query struct {
 	IncludeBinData      *bool          `yaml:"include_bin_data"`
 	RecordQueueSize     *int           `yaml:"record_queue_size"`
 	ExpectedDuration    *QueryDuration `yaml:"expected_duration"`
+	TimeoutDelay        *int        `yaml:"timeout_delay"`
 }
 
 type Scan struct {
@@ -116,10 +119,10 @@ type Scan struct {
 	Replica             *Replica    `yaml:"replica"`
 	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
 	SocketTimeout       *int        `yaml:"socket_timeout"`
-	TimeoutDelay        *int        `yaml:"timeout_delay"`
 	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
 	MaxConcurrentNodes  *int        `yaml:"max_concurrent_nodes"`
+	TimeoutDelay        *int        `yaml:"timeout_delay"`
 }
 
 type BatchRead struct {
@@ -134,6 +137,7 @@ type BatchRead struct {
 	AllowInline         *bool       `yaml:"allow_inline"`
 	AllowInlineSSD      *bool       `yaml:"allow_inline_ssd"`
 	RespondAllKeys      *bool       `yaml:"respond_all_keys"`
+	TimeoutDelay        *int        `yaml:"timeout_delay"`
 }
 
 type BatchWrite struct {
@@ -148,6 +152,7 @@ type BatchWrite struct {
 	AllowInline         *bool    `yaml:"allow_inline"`
 	AllowInlineSSD      *bool    `yaml:"allow_inline_ssd"`
 	RespondAllKeys      *bool    `yaml:"respond_all_keys"`
+	TimeoutDelay        *int        `yaml:"timeout_delay"`
 }
 
 type BatchUdf struct {
@@ -171,6 +176,7 @@ type TxnRoll struct {
 	AllowInline         *bool       `yaml:"allow_inline"`
 	AllowInlineSSD      *bool       `yaml:"allow_inline_ssd"`
 	RespondAllKeys      *bool       `yaml:"respond_all_keys"`
+	TimeoutDelay        *int        `yaml:"timeout_delay"`
 }
 
 type TxnVerify struct {
@@ -184,6 +190,7 @@ type TxnVerify struct {
 	AllowInline         *bool       `yaml:"allow_inline"`
 	AllowInlineSSD      *bool       `yaml:"allow_inline_ssd"`
 	RespondAllKeys      *bool       `yaml:"respond_all_keys"`
+	TimeoutDelay        *int        `yaml:"timeout_delay"`
 }
 
 type Metrics struct {

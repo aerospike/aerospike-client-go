@@ -114,6 +114,9 @@ func (sp *ScanPolicy) mapDynamic(dynConfig *DynConfig) *ScanPolicy {
 		if dynConfig.config.Dynamic.Scan.MaxConcurrentNodes != nil {
 			sp.MaxConcurrentNodes = *dynConfig.config.Dynamic.Scan.MaxConcurrentNodes
 		}
+		if dynConfig.config.Dynamic.Scan.TimeoutDelay != nil {
+			sp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Scan.TimeoutDelay) * time.Millisecond
+		}
 	}
 	return sp
 }
