@@ -28,17 +28,20 @@ type Version struct {
 	Major, Minor, Patch, Build int
 }
 
-// NewVersion creates a new Version from a semantic version string
-func NewVersion(versionStr string) (*Version, error) {
+// Pattern to match semantic version: major.minor.patch.build
+var pattern = `^(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?(?:\.(?P<build>\d+))?(?:-(?P<suffix>.+))?$`
+var regex = regexp.MustCompile(pattern)
+
+/*
+^(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?(?:\.(?P<build>\d+))?(?:-(?P<suffix>.+))?$
+*/
+// Parse creates a new Version from a semantic version string
+func Parse(versionStr string) (*Version, error) {
 	// Since it is common for versions in go to have 'v' prefixed, remove any leading 'v' prefix
 	// just in case the version string is prefixed with 'v'. However, having said that
 	// it is unlikely that the version string will have 'v' prefixed since the version is
 	// coming from the server. This can be in handy if version is used in other contexts.
 	versionStr = strings.TrimPrefix(versionStr, "v")
-
-	// Pattern to match semantic version: major.minor.patch.build
-	pattern := `^(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?(?:\.(?P<build>\d+))?(?:-[0-9A-Za-z.-]+)?$`
-	regex := regexp.MustCompile(pattern)
 
 	matches := regex.FindStringSubmatch(versionStr)
 	if matches == nil {
@@ -56,21 +59,21 @@ func NewVersion(versionStr string) (*Version, error) {
 		case "major":
 			major, err := strconv.Atoi(matches[i])
 			if err != nil {
-				version.Major = 0
+				return nil, fmt.Errorf("invalid %s version number: %s in %s", field, matches[i], versionStr)
 			} else {
 				version.Major = major
 			}
 		case "minor":
 			minor, err := strconv.Atoi(matches[i])
 			if err != nil {
-				version.Minor = 0
+				return nil, fmt.Errorf("invalid %s version number: %s in %s", field, matches[i], versionStr)
 			} else {
 				version.Minor = minor
 			}
 		case "patch":
 			patch, err := strconv.Atoi(matches[i])
 			if err != nil {
-				version.Patch = 0
+				return nil, fmt.Errorf("invalid %s version number: %s in %s", field, matches[i], versionStr)
 			} else {
 				version.Patch = patch
 			}

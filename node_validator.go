@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	internal "github.com/aerospike/aerospike-client-go/v8/internal/version"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
@@ -50,7 +50,7 @@ type nodeValidator struct {
 	sessionInfo *sessionInfo
 
 	features int
-	version  internal.Version
+	version  version.Version
 }
 
 func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nodesToAddT) Error {
@@ -236,7 +236,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 	// If build does not exist we assume the server is not using semantic versioning.
 	// This is done for backward compatibility with older servers
 	if serverVersionString, exists := infoMap["build"]; exists {
-		if version, err := internal.NewVersion(serverVersionString); err != nil {
+		if version, err := version.Parse(serverVersionString); err != nil {
 			return newCommonError(err, fmt.Sprintf("Node %s %s version is invalid: %s", nodeName, alias.String(), serverVersionString))
 		} else {
 			ndv.version = *version

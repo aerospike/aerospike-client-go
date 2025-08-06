@@ -1821,11 +1821,11 @@ func (clnt *Client) CreateUser(policy *AdminPolicy, user string, password string
 }
 
 // CreatePKIUser creates a new user PKI user with roles. PKI users are authenticated via TLS and a certificate instead of a password.
-// WARNING: This function should only be called for server versions 8.1+
+// Supported by Aerospike Server v8.1+ Enterprise.
 func (clnt *Client) CreatePKIUser(policy *AdminPolicy, user string, roles []string) Error {
 	policy = clnt.getUsableAdminPolicy(policy)
 	noPassword := "nopassword"
-	serverMinVersion, _ := internal.NewVersion("8.1.0.0")
+	serverMinVersion, _ := internal.Parse("8.1.0.0")
 
 	hash, err := hashPassword(noPassword)
 	if err != nil {
