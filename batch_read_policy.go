@@ -116,15 +116,15 @@ func (brp *BatchReadPolicy) mapDynamic(dynConfig *DynConfig) *BatchReadPolicy {
 		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
 			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
 			brp.ReadModeAP = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("ReadModeAP set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
 			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
 			brp.ReadModeSC = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("ReadModeSC set to %s", configValue.String())
 			}
 		}
 	}

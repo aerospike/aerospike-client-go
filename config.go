@@ -45,8 +45,9 @@ type DynConfig struct {
 
 	metricsCallback func(config *dynconfig.Config, client *Client)
 
-	scheme string
-	dsn    string
+	scheme    string
+	dsn       string
+	logUpdate *atomic.Bool
 }
 
 func parseDsn(inputDsn string) map[string]string {
@@ -105,7 +106,9 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 		scheme:             schema,
 		dsn:                urlPath,
 		configProvider:     provider,
+		logUpdate:          &atomic.Bool{},
 	}
+	dynConfig.logUpdate.Store(false)
 	dynConfig.initConfig()
 
 	dynConfig.wgConfig.Add(1)
@@ -144,6 +147,8 @@ func (dc *DynConfig) runCallBack() {
 func (dc *DynConfig) providerLoadConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
 	if loadedConfig != nil {
+		// If the config is updated we need to log changes
+		dc.logUpdate.Store(true)
 		if dc.config.Dynamic == nil {
 			logger.Logger.Warn("Dynamic configuration is enabled and configuration is empty. Configuration will load default policy values.")
 		}
@@ -151,6 +156,8 @@ func (dc *DynConfig) providerLoadConfig() {
 		dc.config.Dynamic = loadedConfig.Dynamic // This is updating the entire dynamic config object
 
 		dc.hydrateDynamicPolicyFromConfig()
+		// Once policies are hydrated we can turn logging off
+		dc.logUpdate.Store(false)
 		logger.Logger.Info("Dynamic configuration updated internal state from provider.")
 	}
 }
@@ -168,6 +175,7 @@ func (dc *DynConfig) initConfig() {
 		}
 
 		dc.configInitialized.Store(true)
+		dc.logUpdate.Store(false)
 		logger.Logger.Info("Dynamic configuration initialized...")
 	}
 }

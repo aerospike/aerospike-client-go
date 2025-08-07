@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"maps"
 	"fmt"
 	"net"
 	"runtime/debug"
@@ -1054,13 +1055,7 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 		}
 
 		// Merging user labels with node labels
-		if userLabels != nil && userLabels.Labels != nil {
-			for _, userLabel := range *userLabels.Labels {
-				for k, v := range userLabel {
-					entries[k] = v
-				}
-			}
-		}
+		maps.Copy(entries, userLabels.Labels)
 
 		// Reserved label names for the client
 		entries["node"] = nodes[node].GetName()

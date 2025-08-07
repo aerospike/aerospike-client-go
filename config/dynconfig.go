@@ -191,9 +191,10 @@ type TxnVerify struct {
 }
 
 type Metrics struct {
-	Enable         *bool `yaml:"enable"`
-	LatencyColumns *int  `yaml:"latency_columns"`
-	LatencyBase    *int  `yaml:"latency_base"`
+	Enable         *bool              `yaml:"enable"`
+	LatencyColumns *int               `yaml:"latency_columns"`
+	LatencyBase    *int               `yaml:"latency_base"`
+	Labels         *map[string]string `yaml:"labels"`
 }
 
 // ----------------------------------------------------------------

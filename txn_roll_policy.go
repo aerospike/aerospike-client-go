@@ -83,57 +83,57 @@ func (trp *TxnRollPolicy) mapDynamic(dynConfig *DynConfig) *TxnRollPolicy {
 		if dynConfig.config.Dynamic.TxnRoll.ReadModeAp != nil {
 			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.TxnRoll.ReadModeAp)
 			trp.ReadModeAP = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("ReadModeAP set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.ReadModeSc != nil {
 			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.TxnRoll.ReadModeSc)
 			trp.ReadModeSC = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("ReadModeSC set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.Replica != nil {
 			configValue := mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.TxnRoll.Replica)
 			trp.ReplicaPolicy = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("ReplicaPolicy set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries != nil {
 			configValue := time.Duration(*dynConfig.config.Dynamic.TxnRoll.SleepBetweenRetries) * time.Millisecond
 			trp.SleepBetweenRetries = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("SleepBetweenRetries set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.SocketTimeout != nil {
 			configValue := time.Duration(*dynConfig.config.Dynamic.TxnRoll.SocketTimeout) * time.Millisecond
 			trp.SocketTimeout = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("SocketTimeout set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.TotalTimeout != nil {
 			configValue := time.Duration(*dynConfig.config.Dynamic.TxnRoll.TotalTimeout) * time.Millisecond
 			trp.TotalTimeout = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("TotalTimeout set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.MaxRetries != nil {
 			configValue := *dynConfig.config.Dynamic.TxnRoll.MaxRetries
 			trp.MaxRetries = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("MaxRetries set to %d", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("MaxRetries set to %d", configValue)
 			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.RespondAllKeys != nil {
 			configValue := *dynConfig.config.Dynamic.TxnRoll.RespondAllKeys
 			trp.RespondAllKeys = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("RespondAllKeys set to %t", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("RespondAllKeys set to %t", configValue)
 			}
 		}
 		if dynConfig.config.Dynamic.TxnRoll.TimeoutDelay != nil {

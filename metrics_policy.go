@@ -132,15 +132,22 @@ func (mp *MetricsPolicy) mapDynamic(dynConfig *DynConfig) *MetricsPolicy {
 		if dynConfig.config.Dynamic.Metrics.LatencyColumns != nil {
 			configValue := *dynConfig.config.Dynamic.Metrics.LatencyColumns
 			mp.LatencyColumns = configValue
-			if dynConfig.configInitialized.Load() {
+			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("LatencyColumns set to %d", configValue)
 			}
 		}
 		if dynConfig.config.Dynamic.Metrics.LatencyBase != nil {
 			configValue := *dynConfig.config.Dynamic.Metrics.LatencyBase
 			mp.LatencyBase = configValue
-			if dynConfig.configInitialized.Load() {
+			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("LatencyBase set to %d", configValue)
+			}
+		}
+		if dynConfig.config.Dynamic.Metrics.Labels != nil {
+			configValue := *dynConfig.config.Dynamic.Metrics.Labels
+			mp.Labels = NewLabels(configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("Labels set to %+v", configValue)
 			}
 		}
 	}

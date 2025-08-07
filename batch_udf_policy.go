@@ -140,15 +140,15 @@ func (bup *BatchUDFPolicy) mapDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
 		if dynConfig.config.Dynamic.BatchUdf.DurableDelete != nil {
 			configValue := *dynConfig.config.Dynamic.BatchUdf.DurableDelete
 			bup.DurableDelete = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("DurableDelete set to %t", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("DurableDelete set to %t", configValue)
 			}
 		}
 		if dynConfig.config.Dynamic.BatchUdf.SendKey != nil {
 			configValue := *dynConfig.config.Dynamic.BatchUdf.SendKey
 			bup.SendKey = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("SendKey set to %t", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("SendKey set to %t", configValue)
 			}
 		}
 	}

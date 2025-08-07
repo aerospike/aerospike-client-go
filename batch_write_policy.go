@@ -158,15 +158,15 @@ func (bwp *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy 
 		if dynConfig.config.Dynamic.BatchWrite.DurableDelete != nil {
 			configValue := *dynConfig.config.Dynamic.BatchWrite.DurableDelete
 			bwp.DurableDelete = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("DurableDelete set to %t", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("DurableDelete set to %t", configValue)
 			}
 		}
 		if dynConfig.config.Dynamic.BatchWrite.SendKey != nil {
 			configValue := *dynConfig.config.Dynamic.BatchWrite.SendKey
 			bwp.SendKey = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("SendKey set to %t", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("SendKey set to %t", configValue)
 			}
 		}
 	}

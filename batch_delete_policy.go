@@ -133,15 +133,15 @@ func (bdp *BatchDeletePolicy) mapDynamic(dynConfig *DynConfig) *BatchDeletePolic
 		if dynConfig.config.Dynamic.BatchDelete.DurableDelete != nil {
 			configValue := *dynConfig.config.Dynamic.BatchDelete.DurableDelete
 			bdp.DurableDelete = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("DurableDelete set to %t", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("DurableDelete set to %t", configValue)
 			}
 		}
 		if dynConfig.config.Dynamic.BatchDelete.SendKey != nil {
 			configValue := *dynConfig.config.Dynamic.BatchDelete.SendKey
 			bdp.SendKey = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("SendKey set to %t", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("SendKey set to %t", configValue)
 			}
 		}
 	}

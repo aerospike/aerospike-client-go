@@ -332,7 +332,7 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 
 func (ns nodeStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		StatsLabels              []map[string]string                  `json:"labels,omitempty"`
+		StatsLabels              map[string]string                    `json:"labels,omitempty"`
 		ConnectionsAttempts      int                                  `json:"connections-attempts"`
 		ConnectionsSuccessful    int                                  `json:"connections-successful"`
 		ConnectionsFailed        int                                  `json:"connections-failed"`
@@ -367,7 +367,7 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		ErrorCounts              map[string]map[string]map[string]int `json:"detailed-resultcode-counts"`
 		DetailedMetrics          map[string]map[string]*commandMetric `json:"detailed-metrics"`
 	}{
-		*ns.StatLabels.Labels,
+		ns.StatLabels.Labels,
 		ns.ConnectionsAttempts.Get(),
 		ns.ConnectionsSuccessful.Get(),
 		ns.ConnectionsFailed.Get(),

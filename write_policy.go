@@ -148,50 +148,50 @@ func (wp *WritePolicy) mapDynamic(dynConfig *DynConfig) *WritePolicy {
 		if dynConfig.config.Dynamic.Write.Replica != nil {
 			configValue := mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Write.Replica)
 			wp.ReplicaPolicy = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("ReplicaPolicy set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.Write.SendKey != nil {
 			configValue := *dynConfig.config.Dynamic.Write.SendKey
 			wp.SendKey = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("SendKey set to %t", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("SendKey set to %t", configValue)
 			}
 		}
 		if dynConfig.config.Dynamic.Write.SleepBetweenRetries != nil {
 			configValue := time.Duration(*dynConfig.config.Dynamic.Write.SleepBetweenRetries) * time.Millisecond
 			wp.SleepBetweenRetries = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("SleepBetweenRetries set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.Write.SocketTimeout != nil {
 			configValue := time.Duration(*dynConfig.config.Dynamic.Write.SocketTimeout) * time.Millisecond
 			wp.SocketTimeout = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("SocketTimeout set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.Write.TotalTimeout != nil {
 			configValue := time.Duration(*dynConfig.config.Dynamic.Write.TotalTimeout) * time.Millisecond
 			wp.TotalTimeout = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("TotalTimeout set to %s", configValue.String())
 			}
 		}
 		if dynConfig.config.Dynamic.Write.MaxRetries != nil {
 			configValue := *dynConfig.config.Dynamic.Write.MaxRetries
 			wp.MaxRetries = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("MaxRetries set to %d", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("MaxRetries set to %d", configValue)
 			}
 		}
 		if dynConfig.config.Dynamic.Write.DurableDelete != nil {
 			configValue := *dynConfig.config.Dynamic.Write.DurableDelete
 			wp.DurableDelete = configValue
-			if dynConfig.configInitialized.Load() {
-				logger.Logger.Info("DurableDelete set to %t", configValue)
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("DurableDelete set to %t", configValue)
 			}
 		}
 		if dynConfig.config.Dynamic.Write.TimeoutDelay != nil {
