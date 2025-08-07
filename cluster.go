@@ -79,6 +79,9 @@ type Cluster struct {
 
 	// Password in hashed format in bytes.
 	password iatomic.SyncVal[[]byte]
+
+	// Cluster max error count for the nodes
+	maxErrorCount iatomic.Int
 }
 
 // NewCluster generates a Cluster instance.
@@ -128,6 +131,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 		supportsPartitionQuery: *iatomic.NewBool(false),
 	}
+	newCluster.maxErrorCount.Set(policy.MaxErrorRate)
 	newCluster.clientPolicy.Store(&clientPolicy)
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
@@ -692,7 +696,7 @@ func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
 	defer clstr.updateClusterFeatures()
 
 	clstr.nodes.Update(func(nodes []*Node) ([]*Node, error) {
-		if clientPolicy := clstr.clientPolicy.Load(); clientPolicy!= nil && clientPolicy.SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
+		if clientPolicy := clstr.clientPolicy.Load(); clientPolicy != nil && clientPolicy.SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
 			// Don't add new nodes.
 			return nodes, nil
 		}

@@ -28,6 +28,11 @@ import (
 )
 
 const (
+	MAX_ERROR_RATE_MIN_VALUE = 100
+	ERROR_RATE_MIN_VALUE     = 1
+)
+
+const (
 	_PARTITIONS = 4096
 )
 
@@ -65,6 +70,7 @@ type Node struct {
 	failures            iatomic.Int
 	partitionChanged    iatomic.Bool
 	errorCount          iatomic.Int
+	maxErrorCount       iatomic.Int
 	rebalanceGeneration iatomic.Int
 
 	features int
@@ -95,6 +101,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		active:              *iatomic.NewBool(true),
 		partitionChanged:    *iatomic.NewBool(false),
 		errorCount:          *iatomic.NewInt(0),
+		maxErrorCount:       *iatomic.NewInt(cluster.maxErrorCount.Get()),
 		rebalanceGeneration: *iatomic.NewInt(-1),
 	}
 
@@ -904,24 +911,48 @@ func (nd *Node) incrErrorCount() {
 	}
 }
 
-// Resets the error count
+// Resets the error count and circuit breaker windows
 func (nd *Node) resetErrorCount() {
 	nd.errorCount.Set(0)
 }
 
-// checks if the errorCount is within set limits
-func (nd *Node) errorCountWithinLimit() bool {
-	clusterClientPolicy := nd.cluster.clientPolicy.Load()
-	return clusterClientPolicy.MaxErrorRate <= 0 || nd.errorCount.Get() <= clusterClientPolicy.MaxErrorRate
-}
-
+// validateErrorCount checks the error count against the maxErrorRate
 // returns error if errorCount has gone above the threshold set in the policy
+// When maxErrorRate is hit, break for one errorRateWindow.
+// On next window, check if half maxErrorRate is met; if not, reset, otherwise keep circuit open
+// and lower the threshold by half.
 func (nd *Node) validateErrorCount() Error {
-	if !nd.errorCountWithinLimit() {
-		nd.stats.CircuitBreakerHits.IncrementAndGet()
+	nodeMaxErrorCount := nd.maxErrorCount.Get()
+	clusterMaxErrorCount := nd.cluster.maxErrorCount.Get()
+	nodeErrorCount := nd.errorCount.Get()
+
+	// Error rate is not breached, reset maxErrorCount to the policy value
+	if nodeErrorCount <= nodeMaxErrorCount {
+		nd.resetErrorCount()
+
+		// Doubling the maxErrorCount till it reaches the cluster maxErrorCount
+		if nodeErrorCount != clusterMaxErrorCount {
+			max := nodeMaxErrorCount * 2
+			if max <= clusterMaxErrorCount {
+				nd.maxErrorCount.Set(max)
+			} else {
+				nd.maxErrorCount.Set(clusterMaxErrorCount)
+			}
+		}
+
+		return nil
+	} else {
+		// Error rate was breached. Next error rate will be halved.
+		nd.resetErrorCount()
+
+		if nodeMaxErrorCount >= 4 {
+			nd.maxErrorCount.Set(nodeMaxErrorCount / 2)
+		} else {
+			nd.maxErrorCount.Set(1)
+		}
+
 		return newError(types.MAX_ERROR_RATE)
 	}
-	return nil
 }
 
 // PeersGeneration returns node's Peers Generation

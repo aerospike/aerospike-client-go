@@ -17,6 +17,8 @@ package aerospike
 import (
 	"crypto/tls"
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 // ClientPolicy encapsulates parameters for client policy command.
@@ -330,4 +332,28 @@ func (policy *ClientPolicy) patchDynamic(dynConfig *DynConfig) *ClientPolicy {
 	} else {
 		return policy
 	}
+}
+
+// maxErrorRate is the maximum number of errors allowed in a window
+// errorRateWindow is the time window in which the errors are counted
+// The value for maxErrorRate has to fall within the ratio of errorRateWindow:maxErrorRate, where the ratio is set to be 1:100.
+// Returning calling policy to support chaining.
+func (cp *ClientPolicy) ensureErrorRates() *ClientPolicy {
+	var errorRateWindow, maxErrorRate int
+	errorRateWindow = max(cp.ErrorRateWindow, ERROR_RATE_MIN_VALUE)
+
+	// MaxErrorRate set by user must be within the ratio of 1:100 of ErrorRateWindow to MaxErrorRate.
+	if errorRateWindow*MAX_ERROR_RATE_MIN_VALUE >= cp.MaxErrorRate {
+		maxErrorRate = cp.MaxErrorRate
+	} else {
+		logger.Logger.Warn(
+			"Invalid circuit breaker configuration: MaxErrorRate: %d, ErrorRateWindow: %d, ratio: %.2f. The ratio (MaxErrorRate/ErrorRateWindow) must be between 1 and 100. Resetting to defaults - MaxErrorRate: %d and ErrorRateWindow: %d",
+			cp.MaxErrorRate, errorRateWindow, float64(cp.MaxErrorRate)/float64(errorRateWindow), MAX_ERROR_RATE_MIN_VALUE, ERROR_RATE_MIN_VALUE)
+		maxErrorRate = MAX_ERROR_RATE_MIN_VALUE
+	}
+
+	cp.ErrorRateWindow = errorRateWindow
+	cp.MaxErrorRate = maxErrorRate
+
+	return cp
 }

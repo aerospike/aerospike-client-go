@@ -2365,10 +2365,10 @@ func (clnt *Client) getUsableTxnVerifyPolicy(policy *TxnVerifyPolicy) *TxnVerify
 
 func getUsableClientPolicy(policy *ClientPolicy, dynConfig *DynConfig) *ClientPolicy {
 	if policy == nil {
-		return NewClientPolicy().patchDynamic(dynConfig)
+		return NewClientPolicy().patchDynamic(dynConfig).ensureErrorRates()
 	}
 
-	return policy.patchDynamic(dynConfig)
+	return policy.patchDynamic(dynConfig).ensureErrorRates()
 }
 
 //-------------------------------------------------------
