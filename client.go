@@ -1632,7 +1632,7 @@ func (clnt *Client) CreateIndex(
 	indexType IndexType,
 ) (*IndexTask, Error) {
 	policy = clnt.getUsableWritePolicy(policy)
-	return clnt.CreateComplexIndex(policy, namespace, setName, indexName, binName, indexType, ICT_DEFAULT)
+	return clnt.createIndex(policy, namespace, setName, indexName, binName, indexType, ICT_DEFAULT, nil)
 }
 
 // CreateComplexIndex creates a secondary index, with the ability to put indexes
@@ -1650,6 +1650,39 @@ func (clnt *Client) CreateComplexIndex(
 	binName string,
 	indexType IndexType,
 	indexCollectionType IndexCollectionType,
+	ctx ...*CDTContext,
+) (*IndexTask, Error) {
+	return clnt.createIndex(policy, namespace, setName, indexName, binName, indexType, indexCollectionType, nil, ctx...)
+}
+
+// CreateIndexWithExpression creates a secondary index with expressions.
+// This asynchronous server call will return before the command is complete.
+// The user can optionally wait for command completion by using the returned
+// IndexTask instance.
+// This method is only supported by Aerospike 3+ servers.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) CreateIndexWithExpression(
+	policy *WritePolicy,
+	namespace string,
+	setName string,
+	indexName string,
+	indexType IndexType,
+	indexCollectionType IndexCollectionType,
+	expression *Expression,
+) (*IndexTask, Error) {
+	policy = clnt.getUsableWritePolicy(policy)
+	return clnt.createIndex(policy, namespace, setName, indexName, "", indexType, indexCollectionType, expression)
+}
+
+// createIndex is a helper function to create a secondary index used by other CreateIndex external methods.
+func (clnt *Client) createIndex(policy *WritePolicy,
+	namespace string,
+	setName string,
+	indexName string,
+	binName string,
+	indexType IndexType,
+	indexCollectionType IndexCollectionType,
+	expression *Expression,
 	ctx ...*CDTContext,
 ) (*IndexTask, Error) {
 	policy = clnt.getUsableWritePolicy(policy)
@@ -1685,16 +1718,31 @@ func (clnt *Client) CreateComplexIndex(
 		strCmd.WriteString(s)
 	}
 
+	if expression != nil {
+		if size, err := expression.size(); err == nil && size > 0 {
+			b64, err := expression.Base64()
+			if err != nil {
+				return nil, err
+			}
+			strCmd.WriteString(";exp=")
+			strCmd.WriteString(b64)
+		}
+	}
+
 	if indexCollectionType != ICT_DEFAULT {
 		strCmd.WriteString(";indextype=")
 		strCmd.WriteString(ictToString(indexCollectionType))
 	}
 
-	strCmd.WriteString(";indexdata=")
-	strCmd.WriteString(binName)
-	strCmd.WriteString(",")
-	strCmd.WriteString(string(indexType))
+	if binName != "" {
+		strCmd.WriteString(";indexdata=")
+		strCmd.WriteString(binName)
+		strCmd.WriteString(",")
+	} else {
+		strCmd.WriteString(";type=")
+	}
 
+	strCmd.WriteString(string(indexType))
 	// Send index command to one node. That node will distribute the command to other nodes.
 	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
 	if err != nil {

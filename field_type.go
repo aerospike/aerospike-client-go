@@ -36,6 +36,7 @@ const (
 	INDEX_NAME           FieldType = 21
 	INDEX_RANGE          FieldType = 22
 	INDEX_CONTEXT        FieldType = 23
+	INDEX_EXPRESSION     FieldType = 24
 	INDEX_TYPE           FieldType = 26
 	UDF_PACKAGE_NAME     FieldType = 30
 	UDF_FUNCTION         FieldType = 31
