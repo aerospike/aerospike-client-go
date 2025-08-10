@@ -102,6 +102,16 @@ func NewContainsRangeFilter(binName string, indexCollectionType IndexCollectionT
 	return newFilter(binName, "", indexCollectionType, vBegin.GetType(), vBegin, vEnd, ctx, nil)
 }
 
+// NewContainsRangeWithExpressionFilter creates a contains filter for query on ranges of data in a collection index with an expression.
+func NewContainsRangeWithExpressionFilter(expression *Expression, collectionType IndexCollectionType, begin, end Value) *Filter {
+	return newFilter("", "", collectionType, ParticleType.INTEGER, begin, end, nil, expression)
+}
+
+// NewContainsRangeWithIndexNameFilter creates a contains filter for query on ranges of data in a collection index with an index name.
+func NewContainsRangeWithIndexNameFilter(indexName string, collectionType IndexCollectionType, begin, end Value) *Filter {
+	return newFilter("", indexName, collectionType, ParticleType.INTEGER, begin, end, nil, nil)
+}
+
 // NewGeoWithinRegionFilter creates a geospatial "within region" filter for query.
 // Argument must be a valid GeoJSON region.
 func NewGeoWithinRegionFilter(binName, region string, ctx ...*CDTContext) *Filter {
