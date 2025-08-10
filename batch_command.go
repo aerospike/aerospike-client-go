@@ -15,7 +15,12 @@
 package aerospike
 
 import (
+	"fmt"
 	"iter"
+	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
+	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
 
 type batcher interface {
@@ -148,4 +153,125 @@ func (cmd *batchCommand) getNamespaces() iter.Seq2[string, uint64] {
 
 func (cmd *batchCommand) getNamespace() *string {
 	return &cmd.namespace
+}
+
+func (cmd *batchCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+	if err := cmd.parseSalvageConn(conn, timeoutDelay); err != nil {
+		return
+	}
+
+	conn.refresh()
+	node.PutConnection(conn)
+
+	// Record connection recovery metrics
+	applyConnectionRecoveredMetrics(node)
+}
+
+func (cmd *batchCommand) parseSalvageConn(conn *Connection, timeoutDelay time.Duration) Error {
+	status := true
+	var err Error
+
+	cmd.bc = newBufferedConn(conn, 0)
+	for status {
+		// Make sure the underlying connection is not nil
+		// if not nil then we are not going to attempt to parse the connection
+		if !conn.IsConnected() {
+			return nil
+		}
+		if err = cmd.bc.conn.initInflater(false, 0); err != nil {
+			return newError(types.PARSE_ERROR, "Error setting up zlib inflater:", err.Error()).setNode(cmd.node)
+		}
+		cmd.bc.reset(8)
+
+		// Read header. If we can't read the header, then we can't parse or get how much
+		// data we need to read and discard
+		if cmd.dataBuffer, err = cmd.bc.read(8); err != nil {
+			return nil
+		}
+
+		proto := Buffer.BytesToInt64(cmd.dataBuffer, 0)
+		receiveSize := int(proto & 0xFFFFFFFFFFFF)
+		if receiveSize <= 0 {
+			continue
+		}
+
+		if compressedSize := cmd.compressedSize(); compressedSize > 0 {
+			cmd.bc.reset(8)
+			// Read header.
+			if cmd.dataBuffer, err = cmd.bc.read(8); err != nil {
+				return err
+			}
+
+			receiveSize = int(Buffer.BytesToInt64(cmd.dataBuffer, 0)) - 8
+			if err = cmd.conn.initInflater(true, compressedSize-8); err != nil {
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize-8, err.Error())).setNode(cmd.node)
+			}
+
+			// getting compressed received size
+			cmd.receiveSize = int64(receiveSize)
+
+			// read the first 8 bytes
+			cmd.bc.reset(8)
+			if cmd.dataBuffer, err = cmd.bc.read(8); err != nil {
+				return err
+			}
+		} else {
+			// getting un-compressed received size
+			cmd.receiveSize = int64(receiveSize)
+		}
+
+		// Validate header to make sure we are at the beginning of a message
+		proto = Buffer.BytesToInt64(cmd.dataBuffer, 0)
+		if err = cmd.validateHeader(proto); err != nil {
+			return err
+		}
+
+		if receiveSize > 0 {
+			if status, err = cmd.salvageConnParseRecord(receiveSize); err != nil {
+				return err
+			}
+			if !cmd.discardData(conn, timeoutDelay) {
+				return newError(types.NETWORK_ERROR, "Failed to discard data from connection")
+			}
+
+		} else {
+			status = false
+		}
+	}
+
+	// if the buffer has been resized, put it back so that it will be reassigned to the connection.
+	cmd.dataBuffer = cmd.bc.buf()
+
+	return nil
+}
+
+func (cmd *baseMultiCommand) salvageConnParseRecord(receiveSize int) (bool, Error) {
+	// Read/parse remaining message bytes one record at a time.
+	cmd.dataOffset = 0
+
+	for cmd.dataOffset < receiveSize {
+		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
+			err = newNodeError(cmd.node, err)
+			return false, err
+		}
+		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
+
+		if resultCode != 0 && resultCode != types.PARTITION_UNAVAILABLE {
+			if resultCode == types.KEY_NOT_FOUND_ERROR || resultCode == types.FILTERED_OUT {
+				return false, nil
+			}
+			err := newError(resultCode)
+			err = newNodeError(cmd.node, err)
+			return false, err
+		}
+
+		info3 := int(cmd.dataBuffer[3])
+
+		// If cmd is the end marker of the response, do not proceed further
+		if (info3 & _INFO3_LAST) == _INFO3_LAST {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }

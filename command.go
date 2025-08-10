@@ -4185,8 +4185,7 @@ func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc comman
 	}
 }
 
-func (cmd *baseCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
-	// logger.Logger.Debug("TimeoutDelay enabled. Salvaging connection for node %s", node.GetName())
+func (cmd *baseCommand) discardData(conn *Connection, timeoutDelay time.Duration) bool {
 	conn.deadline = time.Now().Add(timeoutDelay)
 	reader := bufio.NewReader(conn.conn)
 	discardedCount := int(cmd.receiveSize - conn.totalReceived)
@@ -4197,15 +4196,11 @@ func (cmd *baseCommand) salvageConn(timeoutDelay time.Duration, conn *Connection
 		if discarded, err = reader.Discard(discardedCount); err != nil {
 			if discarded < discardedCount {
 				conn.Close()
-				return
+				return false
 			}
 		}
 		discardedCount -= discarded
 	}
 
-	conn.refresh()
-	node.PutConnection(conn)
-
-	// Record connection recovery metrics
-	applyConnectionRecoveredMetrics(node)
+	return true
 }

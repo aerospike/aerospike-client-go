@@ -493,6 +493,7 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 	ns.ConnectionsIdleDropped.Set(aux.ConnectionsIdleDropped)
 	ns.ConnectionsOpen.Set(aux.ConnectionsOpen)
 	ns.ConnectionsClosed.Set(aux.ConnectionsClosed)
+	ns.ConnectionsRecovered.Set(aux.ConnectionsRecovered)
 	ns.TendsTotal.Set(aux.TendsTotal)
 	ns.TendsSuccessful.Set(aux.TendsSuccessful)
 	ns.TendsFailed.Set(aux.TendsFailed)

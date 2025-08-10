@@ -19,6 +19,7 @@ import (
 	"iter"
 	"math/rand"
 	"reflect"
+	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
@@ -159,7 +160,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 			}
 
 			// getting compressed received size
-			cmd.receiveSize += int64(receiveSize)
+			cmd.receiveSize = int64(receiveSize)
 
 			// read the first 8 bytes
 			cmd.bc.reset(8)
@@ -168,7 +169,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 			}
 		} else {
 			// getting un-compressed received size
-			cmd.receiveSize += int64(receiveSize)
+			cmd.receiveSize = int64(receiveSize)
 		}
 
 		// Validate header to make sure we are at the beginning of a message
@@ -514,4 +515,8 @@ func (cmd *baseMultiCommand) getNamespaces() iter.Seq2[string, uint64] {
 
 func (cmd *baseMultiCommand) getNamespace() *string {
 	return &cmd.namespace
+}
+
+func (cmd *baseMultiCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+	conn.Close()
 }

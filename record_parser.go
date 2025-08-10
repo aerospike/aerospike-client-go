@@ -65,6 +65,7 @@ func newRecordParser(cmd *baseCommand) (*recordParser, Error) {
 	receiveSize := int((sz & 0xFFFFFFFFFFFF))
 
 	if receiveSize > 0 {
+		cmd.receiveSize = int64(receiveSize)
 		if err := rp.cmd.sizeBufferSz(receiveSize, false); err != nil {
 			return rp, err
 		}

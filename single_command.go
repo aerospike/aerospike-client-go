@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"iter"
+	"time"
 
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
@@ -69,4 +70,16 @@ func (cmd *singleCommand) getNamespaces() iter.Seq2[string, uint64] {
 
 func (cmd *singleCommand) getNamespace() *string {
 	return &cmd.key.namespace
+}
+
+func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+	if !cmd.discardData(conn, timeoutDelay) {
+		return
+	}
+
+	conn.refresh()
+	node.PutConnection(conn)
+
+	// Record connection recovery metrics
+	applyConnectionRecoveredMetrics(node)
 }

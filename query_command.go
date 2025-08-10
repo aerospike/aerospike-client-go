@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	"iter"
-	"time"
 )
 
 type queryCommand struct {
@@ -72,9 +71,4 @@ func (cmd *queryCommand) getNamespaces() iter.Seq2[string, uint64] {
 
 func (cmd *queryCommand) getNamespace() *string {
 	return &cmd.statement.Namespace
-}
-
-func (cmd *queryCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
-	// TODO: implement scan and query commands later
-	conn.Close()
 }

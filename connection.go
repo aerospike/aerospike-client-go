@@ -121,11 +121,10 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 			if conn != nil && conn.node != nil {
 				conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
 			}
-			// If the connection is not salvageable, close it.
 			if errors.Is(terr, os.ErrDeadlineExceeded) {
 				conn.salvageConnection = true
 			}
-
+			// If the connection is not salvageable, close it.
 			aerr = newErrorAndWrap(err, types.TIMEOUT)
 		} else {
 			aerr = newErrorAndWrap(err, types.NETWORK_ERROR)
@@ -246,8 +245,9 @@ func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 		ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 	}
 
-	// the line should happen before .Close()
-	ctn.Close()
+	if !ctn.salvageConnection {
+		ctn.Close()
+	}
 
 	return total, aerr
 }
