@@ -29,12 +29,9 @@ type Version struct {
 }
 
 // Pattern to match semantic version: major.minor.patch.build
-var pattern = `^(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?(?:\.(?P<build>\d+))?(?:-(?P<suffix>.+))?$`
+var pattern = `^(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?(?:\.(?P<build>\d+))?(?:[-_\.~]*?(?P<suffix>.+))?$`
 var regex = regexp.MustCompile(pattern)
 
-/*
-^(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?(?:\.(?P<build>\d+))?(?:-(?P<suffix>.+))?$
-*/
 // Parse creates a new Version from a semantic version string
 func Parse(versionStr string) (*Version, error) {
 	// Since it is common for versions in go to have 'v' prefixed, remove any leading 'v' prefix

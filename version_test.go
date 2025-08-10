@@ -80,18 +80,14 @@ var _ = Describe("Version", func() {
 				},
 				Entry("empty string", ""),
 				Entry("non-numeric", "abc"),
-				Entry("too many components", "1.2.3.4.5"),
 				Entry("non-numeric major", "a.2.3.4"),
 				Entry("non-numeric minor", "1.a.3.4"),
 				Entry("non-numeric patch", "1.2.b.4"),
-				Entry("non-numeric build", "1.2.3.c"),
 				Entry("double dots", "1..3.4"),
-				Entry("trailing dot", "1.2.3."),
 				Entry("leading dot", ".1.2.3"),
 				Entry("negative major", "-1.2.3.4"),
 				Entry("negative minor", "1.-2.3.4"),
 				Entry("negative patch", "1.2.-3.4"),
-				Entry("negative build", "1.2.3.-4"),
 				Entry("negative build", "8"),
 				Entry("negative build", "8.1"),
 			)
@@ -309,7 +305,12 @@ var _ = Describe("Version", func() {
 				Entry("build difference", "8.0.1.1", "8.0.1.0", "greater"),
 				Entry("same versions", "8.0.1.0", "8.0.1.0", "equal"),
 				Entry("partial vs full", "8.1.0", "8.0.5.10", "greater"),
-				Entry("partial vs full", "8.0.1.0-beta", "8.0.1.0", "equal"),
+				Entry("partial vs full with suffixes", "8.0.1.0-beta", "8.0.1.0", "equal"),
+				Entry("partial vs full with suffix no separator", "8.1.1.5ksjdfklsjdfkljf", "8.1.1.5", "equal"),
+				Entry("partial vs full with suffix using `_` separator", "8.1.0.0_ksjdfklsjdfkljf", "8.1.0.0", "equal"),
+				Entry("partial vs full with suffix using `-` separator", "8.1.0.0-ksjdfklsjdfkljf", "8.1.0.0", "equal"),
+				Entry("partial vs full with suffix using `.` separator", "8.1.0.0.ksjdfklsjdfkljf", "8.1.0.0", "equal"),
+				Entry("partial vs full with suffix and missing build", "8.1.0_ksjdfklsjdfkl892734897234290283jf", "8.1.0.0", "equal"),
 			)
 		})
 	})
