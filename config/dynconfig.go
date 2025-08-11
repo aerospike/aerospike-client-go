@@ -66,15 +66,16 @@ type Client struct {
 	MinConnectionsPerNode *int `yaml:"min_connections_per_node"`
 
 	// dynamic config
-	IdleTimeout         *int   `yaml:"max_socket_idle"`
-	Timeout             *int   `yaml:"timeout"`
-	ErrorRateWindow     *int   `yaml:"error_rate_window"`
-	MaxErrorRate        *int   `yaml:"max_error_rate"`
-	LoginTimeout        *int   `yaml:"login_timeout"`
-	RackAware           *bool  `yaml:"rack_aware"`
-	RackIds             *[]int `yaml:"rack_ids"`
-	TendInterval        *int   `yaml:"tend_interval"`
-	UseServiceAlternate *bool  `yaml:"use_service_alternate"`
+	IdleTimeout         *int    `yaml:"max_socket_idle"`
+	Timeout             *int    `yaml:"timeout"`
+	ErrorRateWindow     *int    `yaml:"error_rate_window"`
+	MaxErrorRate        *int    `yaml:"max_error_rate"`
+	LoginTimeout        *int    `yaml:"login_timeout"`
+	RackAware           *bool   `yaml:"rack_aware"`
+	RackIds             *[]int  `yaml:"rack_ids"`
+	TendInterval        *int    `yaml:"tend_interval"`
+	UseServiceAlternate *bool   `yaml:"use_service_alternate"`
+	ApplicationId       *string `yaml:"app_id"`
 }
 
 type Read struct {

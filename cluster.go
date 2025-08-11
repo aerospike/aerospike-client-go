@@ -31,6 +31,8 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
+const aesModule = "github.com/aerospike/aerospike-client-go/v8"
+
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
 type Cluster struct {
@@ -82,10 +84,16 @@ type Cluster struct {
 
 	// Cluster max error count for the nodes
 	maxErrorCount iatomic.Int
+
+	// User agent id
+	// Leaving this at cluster level since cluster is visible to nodes
+	// which will need this information when sending user-agent to the server.
+	userAgentId string // e.g. v8.0.0, v8.1.0, etc."
 }
 
 // NewCluster generates a Cluster instance.
 func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
+
 	// Validate the policy params
 	if policy.MinConnectionsPerNode > policy.ConnectionQueueSize {
 		panic("minimum number of connections specified in the ClientPolicy is bigger than total connection pool size")
@@ -130,6 +138,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		password: *iatomic.NewSyncVal[[]byte](nil),
 
 		supportsPartitionQuery: *iatomic.NewBool(false),
+		userAgentId:            getLibraryVersion(aesModule),
 	}
 	newCluster.maxErrorCount.Set(policy.MaxErrorRate)
 	newCluster.clientPolicy.Store(&clientPolicy)
@@ -1066,4 +1075,27 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 // DisableMetrics disables the cluster command metrics gathering.
 func (clstr *Cluster) DisableMetrics() {
 	clstr.metricsEnabled.Store(false)
+}
+
+//-------------------------------------------------------
+// Utility Functions
+//-------------------------------------------------------
+
+// getLibraryVersion returns the version of the aerospike client library.
+func getLibraryVersion(modulePath string) string {
+	// golang idiomatic module version is "(devel)" if not set.
+	defaultVersion := "(devel)"
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return defaultVersion
+	}
+
+	for _, dep := range info.Deps {
+		if dep.Path == modulePath {
+			return dep.Version
+		}
+	}
+
+	return defaultVersion
 }

@@ -15,7 +15,9 @@
 package aerospike
 
 import (
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -449,8 +451,7 @@ func (nd *Node) newConnectionAllowed() Error {
 	return nil
 }
 
-// newConnection will make a new connection for the node.
-func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
+func (nd *Node) newConnectionWithDetail(overrideThreshold bool, isTendConn bool) (*Connection, Error) {
 	if !nd.active.Get() {
 		return nil, ErrServerNotAvailable.err()
 	}
@@ -505,7 +506,21 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	nd.stats.ConnectionsSuccessful.IncrementAndGet()
 	conn.setIdleTimeout(clusterClientPolicy.IdleTimeout)
 
+	if isTendConn {
+		err = nd.sendUserAgentId(conn)
+		if err != nil {
+			// If setting user agent failed, we still return the connection
+			// as it is already authenticated and usable.
+			logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
+		}
+	}
+
 	return conn, nil
+}
+
+// newConnection will make a new connection for the node.
+func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
+	return nd.newConnectionWithDetail(overrideThreshold, false)
 }
 
 // makeConnectionForPool will try to open a connection until deadline.
@@ -715,7 +730,7 @@ func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection)) (
 			if nd.connectionCount.Get() == 0 {
 				// if there are no connections in the pool, create a new connection synchronously.
 				// this will make sure the initial tend will get a connection without multiple retries.
-				*conn, err = nd.newConnection(true)
+				*conn, err = nd.newConnectionWithDetail(true, true)
 			} else {
 				*conn, err = nd.GetConnection(timeout)
 			}
@@ -968,4 +983,30 @@ func (nd *Node) PartitionGeneration() int {
 // RebalanceGeneration returns node's Rebalance Generation
 func (nd *Node) RebalanceGeneration() int {
 	return nd.rebalanceGeneration.Get()
+}
+
+func (nd *Node) sendUserAgentId(conn *Connection) Error {
+	var appId string
+	clientPolicy := nd.cluster.clientPolicy.Load()
+	if clientPolicy.ApplicationId != "" {
+		appId = clientPolicy.ApplicationId
+	} else if nd.cluster.user != "" {
+		appId = nd.cluster.user
+	} else {
+		appId = "not-set"
+	}
+
+	// Source user-agent payload
+	// Format: "1,go-<version>,<application-id>"
+	userAgentId := fmt.Sprintf("1,go-%s,%s", nd.cluster.userAgentId, appId)
+	userAgentCommand := fmt.Sprintf("user-agent-set:value=%s", base64.StdEncoding.EncodeToString([]byte(userAgentId)))
+
+	command := []string{userAgentCommand}
+
+	_, err := conn.RequestInfo(command...)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
