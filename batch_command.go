@@ -156,13 +156,17 @@ func (cmd *batchCommand) getNamespace() *string {
 }
 
 func (cmd *batchCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+	if !conn.IsConnected() {
+		// Nothing to salvage
+		return
+	}
 	if err := cmd.parseSalvageConn(conn, timeoutDelay); err != nil {
+		// if we get to this point we do not want to salvage the connection
 		return
 	}
 
 	conn.refresh()
 	node.PutConnection(conn)
-
 	// Record connection recovery metrics
 	applyConnectionRecoveredMetrics(node)
 }
@@ -175,9 +179,6 @@ func (cmd *batchCommand) parseSalvageConn(conn *Connection, timeoutDelay time.Du
 	for status {
 		// Make sure the underlying connection is not nil
 		// if not nil then we are not going to attempt to parse the connection
-		if !conn.IsConnected() {
-			return nil
-		}
 		if err = cmd.bc.conn.initInflater(false, 0); err != nil {
 			return newError(types.PARSE_ERROR, "Error setting up zlib inflater:", err.Error()).setNode(cmd.node)
 		}

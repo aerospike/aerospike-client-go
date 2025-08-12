@@ -73,7 +73,12 @@ func (cmd *singleCommand) getNamespace() *string {
 }
 
 func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+	if !conn.IsConnected() {
+		// Nothing to salvage
+		return
+	}
 	if !cmd.discardData(conn, timeoutDelay) {
+		// if we get to this point we do not want to salvage the connection
 		return
 	}
 
