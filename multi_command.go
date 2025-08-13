@@ -131,6 +131,7 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 
 	cmd.bc = newBufferedConn(conn, 0)
 	for status {
+		cmd.status = _STATE_PARSING_RESPONSE
 		if err = cmd.conn.initInflater(false, 0); err != nil {
 			return newError(types.PARSE_ERROR, "Error setting up zlib inflater:", err.Error()).setNode(cmd.node)
 		}
@@ -366,6 +367,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 
 		// If cmd is the end marker of the response, do not proceed further
 		if (info3 & _INFO3_LAST) == _INFO3_LAST {
+			cmd.status = _STATE_PARSING_RESPONSE_DONE
 			return false, nil
 		}
 

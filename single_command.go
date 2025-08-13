@@ -73,12 +73,14 @@ func (cmd *singleCommand) getNamespace() *string {
 }
 
 func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
-	if !conn.IsConnected() {
-		// Nothing to salvage
+	if !conn.IsConnected() && cmd.status != _STATE_PARSING_RESPONSE {
 		return
 	}
-	if !cmd.discardData(conn, timeoutDelay) {
-		// if we get to this point we do not want to salvage the connection
+
+	cmd.discardData(conn, timeoutDelay)
+
+	if cmd.status == _STATE_PARSING_RESPONSE_ERROR {
+		conn.Close()
 		return
 	}
 

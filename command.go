@@ -134,6 +134,14 @@ const (
 	_AS_MSG_TYPE_COMPRESSED    int64 = 4
 )
 
+type status uint8
+
+const (
+	_STATE_PARSING_RESPONSE status = iota
+	_STATE_PARSING_RESPONSE_DONE
+	_STATE_PARSING_RESPONSE_ERROR
+)
+
 type commandType int
 
 const (
@@ -248,6 +256,7 @@ type baseCommand struct {
 	commandWasSent     bool
 
 	receiveSize int64
+	status      status
 }
 
 //--------------------------------------------------
@@ -4185,7 +4194,7 @@ func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc comman
 	}
 }
 
-func (cmd *baseCommand) discardData(conn *Connection, timeoutDelay time.Duration) bool {
+func (cmd *baseCommand) discardData(conn *Connection, timeoutDelay time.Duration) {
 	conn.deadline = time.Now().Add(timeoutDelay)
 	reader := bufio.NewReader(conn.conn)
 	discardedCount := int(cmd.receiveSize - conn.totalReceived)
@@ -4195,12 +4204,9 @@ func (cmd *baseCommand) discardData(conn *Connection, timeoutDelay time.Duration
 		var err error
 		if discarded, err = reader.Discard(discardedCount); err != nil {
 			if discarded < discardedCount {
-				conn.Close()
-				return false
+				cmd.status = _STATE_PARSING_RESPONSE_ERROR
 			}
 		}
 		discardedCount -= discarded
 	}
-
-	return true
 }
