@@ -43,14 +43,14 @@ func NewEqualFilter(binName string, value interface{}, ctx ...*CDTContext) *Filt
 // Value can be an integer, string or a blob (byte array). Byte arrays are only supported on server v7+.
 func NewEqualWithExpressionFilter(expression *Expression, value interface{}) *Filter {
 	v := NewValue(value)
-	return newFilter("", "", ICT_DEFAULT, ParticleType.INTEGER, v, v, nil, expression)
+	return newFilter("", "", ICT_DEFAULT, v.GetType(), v, v, nil, expression)
 }
 
 // NewEqualWithIndexNameFilter creates an equality filter for query with an index name.
 // Value can be an integer, string or a blob (byte array). Byte arrays are only supported on server v7+.
 func NewEqualWithIndexNameFilter(indexName string, value interface{}) *Filter {
 	v := NewValue(value)
-	return newFilter("", indexName, ICT_DEFAULT, ParticleType.INTEGER, v, v, nil, nil)
+	return newFilter("", indexName, ICT_DEFAULT, v.GetType(), v, v, nil, nil)
 }
 
 // NewRangeFilter creates a range filter for query.
@@ -64,15 +64,17 @@ func NewRangeFilter(binName string, begin int64, end int64, ctx ...*CDTContext) 
 // NewRangeWithExpressionFilter creates a range filter for query with an expression.
 // Range arguments must be int64 values.
 // String ranges are not supported.
-func NewRangeWithExpressionFilter(expression *Expression, begin Value, end Value) *Filter {
-	return newFilter("", "", ICT_DEFAULT, ParticleType.INTEGER, begin, end, nil, expression)
+func NewRangeWithExpressionFilter(expression *Expression, begin int64, end int64) *Filter {
+	vBegin, vEnd := NewValue(begin), NewValue(end)
+	return newFilter("", "", ICT_DEFAULT, vBegin.GetType(), vBegin, vEnd, nil, expression)
 }
 
 // NewRangeWithIndexNameFilter creates a range filter for query with an index name.
 // Range arguments must be int64 values.
 // String ranges are not supported.
-func NewRangeWithIndexNameFilter(indexName string, begin Value, end Value) *Filter {
-	return newFilter("", indexName, ICT_DEFAULT, ParticleType.INTEGER, begin, end, nil, nil)
+func NewRangeWithIndexNameFilter(indexName string, begin int64, end int64) *Filter {
+	vBegin, vEnd := NewValue(begin), NewValue(end)
+	return newFilter("", indexName, ICT_DEFAULT, vBegin.GetType(), vBegin, vEnd, nil, nil)
 }
 
 // NewContainsFilter creates a contains filter for query on collection index.
@@ -103,13 +105,15 @@ func NewContainsRangeFilter(binName string, indexCollectionType IndexCollectionT
 }
 
 // NewContainsRangeWithExpressionFilter creates a contains filter for query on ranges of data in a collection index with an expression.
-func NewContainsRangeWithExpressionFilter(expression *Expression, collectionType IndexCollectionType, begin, end Value) *Filter {
-	return newFilter("", "", collectionType, ParticleType.INTEGER, begin, end, nil, expression)
+func NewContainsRangeWithExpressionFilter(expression *Expression, collectionType IndexCollectionType, begin, end int64) *Filter {
+	vBegin, vEnd := NewValue(begin), NewValue(end)
+	return newFilter("", "", collectionType, vBegin.GetType(), vBegin, vEnd, nil, expression)
 }
 
 // NewContainsRangeWithIndexNameFilter creates a contains filter for query on ranges of data in a collection index with an index name.
-func NewContainsRangeWithIndexNameFilter(indexName string, collectionType IndexCollectionType, begin, end Value) *Filter {
-	return newFilter("", indexName, collectionType, ParticleType.INTEGER, begin, end, nil, nil)
+func NewContainsRangeWithIndexNameFilter(indexName string, collectionType IndexCollectionType, begin, end int64) *Filter {
+	vBegin, vEnd := NewValue(begin), NewValue(end)
+	return newFilter("", indexName, collectionType, vBegin.GetType(), vBegin, vEnd, nil, nil)
 }
 
 // NewGeoWithinRegionFilter creates a geospatial "within region" filter for query.
