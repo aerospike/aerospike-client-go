@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"bufio"
 	"iter"
 	"time"
 
@@ -73,20 +74,25 @@ func (cmd *singleCommand) getNamespace() *string {
 }
 
 func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
-	if !conn.IsConnected() && cmd.status != _STATE_PARSING_RESPONSE {
-		return
+	conn.deadline = time.Now().Add(timeoutDelay)
+	reader := bufio.NewReader(conn.conn)
+	discardedCount := int(cmd.receiveSize - conn.totalReceived)
+
+	for discardedCount > 0 {
+		var discarded int
+		var err error
+		if discarded, err = reader.Discard(discardedCount); err != nil {
+			if discarded < discardedCount {
+				conn.Close()
+				return
+			}
+		}
+		discardedCount -= discarded
 	}
 
-	cmd.discardData(conn, timeoutDelay)
-
-	if cmd.status == _STATE_PARSING_RESPONSE_ERROR {
-		conn.Close()
-		return
-	}
-
-	conn.refresh()
 	node.PutConnection(conn)
+	conn.refresh()
 
 	// Record connection recovery metrics
-	applyConnectionRecoveredMetrics(node)
+	applyConnectionRecoveredMetrics(cmd.node)
 }
