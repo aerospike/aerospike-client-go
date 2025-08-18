@@ -273,6 +273,4 @@ func (cmd *baseMultiCommand) salvageConnParseRecord(receiveSize int) {
 			return
 		}
 	}
-
-	return
 }
