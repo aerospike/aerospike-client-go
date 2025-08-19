@@ -90,8 +90,8 @@ func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connecti
 		discardedCount -= discarded
 	}
 
-	node.PutConnection(conn)
 	conn.refresh()
+	node.PutConnection(conn)
 
 	// Record connection recovery metrics
 	applyConnectionRecoveredMetrics(cmd.node)

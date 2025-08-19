@@ -245,10 +245,6 @@ func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 		ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 	}
 
-	if !ctn.salvageConnection {
-		ctn.Close()
-	}
-
 	return total, aerr
 }
 
