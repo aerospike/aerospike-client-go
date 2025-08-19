@@ -88,7 +88,7 @@ type Cluster struct {
 	// User agent id
 	// Leaving this at cluster level since cluster is visible to nodes
 	// which will need this information when sending user-agent to the server.
-	userAgentId string // e.g. v8.0.0, v8.1.0, etc."
+	clientModuleVersion string // e.g. v8.0.0, v8.1.0, etc."
 }
 
 // NewCluster generates a Cluster instance.
@@ -138,7 +138,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		password: *iatomic.NewSyncVal[[]byte](nil),
 
 		supportsPartitionQuery: *iatomic.NewBool(false),
-		userAgentId:            getLibraryVersion(aesModule),
+		clientModuleVersion:    getLibraryVersion(aesModule),
 	}
 	newCluster.maxErrorCount.Set(policy.MaxErrorRate)
 	newCluster.clientPolicy.Store(&clientPolicy)

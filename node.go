@@ -451,7 +451,8 @@ func (nd *Node) newConnectionAllowed() Error {
 	return nil
 }
 
-func (nd *Node) newConnectionWithDetail(overrideThreshold bool, isTendConn bool) (*Connection, Error) {
+// newConnection will make a new connection for the node.
+func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	if !nd.active.Get() {
 		return nil, ErrServerNotAvailable.err()
 	}
@@ -506,21 +507,22 @@ func (nd *Node) newConnectionWithDetail(overrideThreshold bool, isTendConn bool)
 	nd.stats.ConnectionsSuccessful.IncrementAndGet()
 	conn.setIdleTimeout(clusterClientPolicy.IdleTimeout)
 
-	if isTendConn {
-		err = nd.sendUserAgentId(conn)
-		if err != nil {
-			// If setting user agent failed, we still return the connection
-			// as it is already authenticated and usable.
-			logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
-		}
-	}
-
 	return conn, nil
 }
 
-// newConnection will make a new connection for the node.
-func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
-	return nd.newConnectionWithDetail(overrideThreshold, false)
+func (nd *Node) newTendConnection() (*Connection, Error) {
+	conn, err := nd.newConnection(true)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := nd.sendUserAgentId(conn); err != nil {
+		// If setting user agent failed, we still return the connection
+		// as it is already authenticated and usable.
+		logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
+	}
+
+	return conn, nil
 }
 
 // makeConnectionForPool will try to open a connection until deadline.
@@ -730,7 +732,7 @@ func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection)) (
 			if nd.connectionCount.Get() == 0 {
 				// if there are no connections in the pool, create a new connection synchronously.
 				// this will make sure the initial tend will get a connection without multiple retries.
-				*conn, err = nd.newConnectionWithDetail(true, true)
+				*conn, err = nd.newTendConnection()
 			} else {
 				*conn, err = nd.GetConnection(timeout)
 			}
@@ -998,7 +1000,7 @@ func (nd *Node) sendUserAgentId(conn *Connection) Error {
 
 	// Source user-agent payload
 	// Format: "1,go-<version>,<application-id>"
-	userAgentId := fmt.Sprintf("1,go-%s,%s", nd.cluster.userAgentId, appId)
+	userAgentId := fmt.Sprintf("1,go-%s,%s", nd.cluster.clientModuleVersion, appId)
 	userAgentCommand := fmt.Sprintf("user-agent-set:value=%s", base64.StdEncoding.EncodeToString([]byte(userAgentId)))
 
 	command := []string{userAgentCommand}
