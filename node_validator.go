@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
@@ -49,6 +50,7 @@ type nodeValidator struct {
 	sessionInfo *sessionInfo
 
 	features int
+	version  version.Version
 }
 
 func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nodesToAddT) Error {
@@ -176,7 +178,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 
 	hasClusterName := len(clientPolicy.ClusterName) > 0
 
-	infoKeys := []string{"node", "partition-generation", "features"}
+	infoKeys := []string{"node", "partition-generation", "build", "features"}
 	if hasClusterName {
 		infoKeys = append(infoKeys, "cluster-name")
 	}
@@ -228,6 +230,17 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 	// cluster that is running server version < 4.9.
 	if (ndv.features & _SUPPORTS_PARTITION_SCAN) == 0 {
 		return newError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is version < 4.9. This client supports server versions >= 4.9", nodeName, alias.String()))
+	}
+
+	// check if the serverVersion, aka server version, is a valid semantic version.
+	// If build does not exist we assume the server is not using semantic versioning.
+	// This is done for backward compatibility with older servers
+	if serverVersionString, exists := infoMap["build"]; exists {
+		if version, err := version.Parse(serverVersionString); err != nil {
+			return newCommonError(err, fmt.Sprintf("Node %s %s version is invalid: %s", nodeName, alias.String(), serverVersionString))
+		} else {
+			ndv.version = *version
+		}
 	}
 
 	// check if the host is a load-balancer

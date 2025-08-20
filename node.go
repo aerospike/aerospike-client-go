@@ -23,6 +23,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	iatomic "github.com/aerospike/aerospike-client-go/v8/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
@@ -76,6 +77,8 @@ type Node struct {
 	features int
 
 	active iatomic.Bool
+
+	version version.Version
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -87,6 +90,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		host:    nv.primaryHost,
 
 		features: nv.features,
+		version:  nv.version,
 
 		stats: *newNodeStats(cluster.MetricsPolicy()),
 

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	_ "github.com/aerospike/aerospike-client-go/v8/config/provider"
+	internal "github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
@@ -1865,6 +1866,40 @@ func (clnt *Client) CreateUser(policy *AdminPolicy, user string, password string
 	})
 
 	return err
+}
+
+// CreatePKIUser creates a new user PKI user with roles. PKI users are authenticated via TLS and a certificate instead of a password.
+// Supported by Aerospike Server v8.1+ Enterprise.
+func (clnt *Client) CreatePKIUser(policy *AdminPolicy, user string, roles []string) Error {
+	policy = clnt.getUsableAdminPolicy(policy)
+	noPassword := "nopassword"
+	serverMinVersion, _ := internal.Parse("8.1.0.0")
+
+	hash, err := hashPassword(noPassword)
+	if err != nil {
+		return err
+	}
+
+	// prepare the node.tendConn
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return err
+	}
+	// Check server version to ensure it supports PKI users.
+	if node.version.IsSmaller(serverMinVersion) {
+		return newCommonError(nil, fmt.Sprintf("Node version %s is less than required minimum version %s", node.version.String(), serverMinVersion))
+	}
+
+	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+		command := NewAdminCommand(nil)
+		err = command.createUser(conn, policy, user, hash, roles)
+	})
+
+	if err != nil {
+		return newError(err.resultCode(), fmt.Sprintf("PKI user creation failed: %s", err.Error()))
+	}
+
+	return nil
 }
 
 // DropUser removes a user from the cluster.

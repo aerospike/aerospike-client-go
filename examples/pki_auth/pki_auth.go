@@ -14,7 +14,6 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-
 package main
 
 import (
@@ -40,6 +39,12 @@ var serverCertDir = flag.String("serverCertDir", "", "Server certificate dir.")
 var clientCertFile = flag.String("clientCertFile", "", "Client Cert File")
 var clientKeyFile = flag.String("clientKeyFile", "", "Client Key File")
 
+type testUser struct {
+	username string
+	password string
+	authType as.AuthMode
+}
+
 func printParams() {
 	log.Printf("hosts:\t\t%s", *host)
 	log.Printf("port:\t\t%d", *port)
@@ -56,8 +61,94 @@ func main() {
 	}
 
 	printParams()
+	log.Println("Creating PKI auth client...")
+
+	testUsers := map[string]testUser{
+		"pki":      {username: "testuser", password: "", authType: as.AuthModePKI},
+		"internal": {username: "testusersec", password: "testpass", authType: as.AuthModeInternal},
+	}
+
+	client, err := initializeClient(testUsers["pki"], initializeClientPolicyPKI)
+	if err != nil {
+		log.Fatalln("Failed to connect to the server cluster: ", err)
+	}
+
+	log.Println("Connection successful using PKI auth. Discovered nodes:", client.Cluster().GetNodes())
+
+	adminPolicy := as.NewAdminPolicy()
+
+	// Delete users if they already exist
+	if roles, err := client.QueryUsers(adminPolicy); err != nil {
+		log.Fatalln("Failed to fetch roles for users")
+	} else {
+		for _, role := range roles {
+			for _, user := range testUsers {
+				if role.User == user.username {
+					client.DropUser(adminPolicy, user.username)
+				}
+			}
+		}
+	}
+
+	user := testUsers["pki"]
+	// Create a PKI user example
+	if err := client.CreatePKIUser(adminPolicy, user.username, []string{"read-write"}); err != nil {
+		log.Fatalln("Failed to create user ", user.username)
+	}
+
+	// Fetch users and make sure PKI user was created
+	if roles, err := client.QueryUsers(adminPolicy); err != nil {
+		log.Fatalln("Failed to fetch roles for user ", user.username)
+	} else {
+		for _, role := range roles {
+			if role.User == user.username {
+				log.Printf("Role: %s, Permissions: %v", role.User, role.Roles)
+			}
+		}
+	}
+
+	user = testUsers["internal"]
+	// Create a internal auth user example
+	if err := client.CreateUser(adminPolicy, user.username, user.password, []string{"read-write"}); err != nil {
+		log.Fatalln("Failed to create user ", user.username)
+	}
+
+	// Fetch users and make sure PKI user was created
+	if roles, err := client.QueryUsers(adminPolicy); err != nil {
+		log.Fatalln("Failed to fetch roles for user ", user.username)
+	} else {
+		for _, role := range roles {
+			if role.User == user.username {
+				log.Printf("Role: %s, Permissions: %v", role.User, role.Roles)
+			}
+		}
+	}
+
+	// Closing the client connection
+	client.Close()
+
+	log.Println("Creating internal auth client...")
+	client, err = initializeClient(testUsers["internal"], initializeClientPolicyInternal)
+	if err != nil {
+		log.Fatalln("Failed to connect to the server cluster: ", err)
+	}
+
+	log.Println("Connection successful using username and password auth. Discovered nodes:", client.Cluster().GetNodes())
+
+	client.Close()
+	log.Println("Create PKI finished successfully.")
+}
+
+func initializeClient(testUser testUser, fn func(testUser, []tls.Certificate, *x509.CertPool) *as.ClientPolicy) (*as.Client, as.Error) {
 	serverCertPool, clientCertPool := readCertificates(*serverCertDir, *clientCertFile, *clientKeyFile)
 
+	clientPolicy := fn(testUser, clientCertPool, serverCertPool)
+
+	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+	return client, err
+}
+
+func initializeClientPolicyPKI(testUser testUser, clientCertPool []tls.Certificate, serverCertPool *x509.CertPool) *as.ClientPolicy {
 	clientPolicy := as.NewClientPolicy()
 
 	if len(*tlsName) > 0 || *encryptOnly == true {
@@ -73,14 +164,30 @@ func main() {
 		clientPolicy.TlsConfig = tlsConfig
 	}
 
-	client, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
-	if err != nil {
-		log.Fatalln("Failed to connect to the server cluster: ", err)
+	clientPolicy.AuthMode = testUser.authType
+	return clientPolicy
+}
+
+func initializeClientPolicyInternal(testUser testUser, clientCertPool []tls.Certificate, serverCertPool *x509.CertPool) *as.ClientPolicy {
+	clientPolicy := as.NewClientPolicy()
+	clientPolicy.User = testUser.username
+	clientPolicy.Password = testUser.password
+
+	if len(*tlsName) > 0 || *encryptOnly == true {
+		// Setup TLS Config
+		tlsConfig := &tls.Config{
+			Certificates:             clientCertPool,
+			RootCAs:                  serverCertPool,
+			InsecureSkipVerify:       *encryptOnly,
+			PreferServerCipherSuites: true,
+		}
+		tlsConfig.BuildNameToCertificate()
+
+		clientPolicy.TlsConfig = tlsConfig
 	}
 
-	log.Println("Connection successful. Discovered nodes:", client.Cluster().GetNodes())
-
-	log.Println("Example finished successfully.")
+	clientPolicy.AuthMode = testUser.authType
+	return clientPolicy
 }
 
 func readCertificates(serverCertDir string, clientCertFile, clientKeyFile string) (serverPool *x509.CertPool, clientPool []tls.Certificate) {
