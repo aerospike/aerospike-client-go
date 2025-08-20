@@ -132,3 +132,7 @@ func (node *Node) GetErrorCount() int {
 func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
 	return newDynConfigForTest(config)
 }
+
+func (host *Host) Equals(other *Host) bool {
+	return host.equals(other)
+}

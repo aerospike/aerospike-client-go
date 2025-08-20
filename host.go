@@ -50,6 +50,26 @@ func (h *Host) equals(other *Host) bool {
 	return h.Name == other.Name && h.Port == other.Port
 }
 
+// IsLocalhost returns true if the host name or IP address represents localhost.
+// This includes "localhost", IPv4 loopback addresses (127.x.x.x), and IPv6 loopback (::1).
+func (h *Host) IsLocalhost() bool {
+	// Check for common localhost string
+	if h.Name == "localhost" {
+		return true
+	}
+
+	// Parse as IP address
+	ip := net.ParseIP(h.Name)
+	if ip != nil {
+		return ip.IsLoopback()
+	}
+
+	// If not a valid IP, it might be a hostname that we can't determine
+	// without DNS resolution, so we return false for non-IP hostnames
+	// other than "localhost"
+	return false
+}
+
 // NewHosts initializes new host instances by a passed slice of addresses.
 func NewHosts(addresses ...string) ([]*Host, Error) {
 	aerospikeHosts := make([]*Host, 0, len(addresses))

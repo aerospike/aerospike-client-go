@@ -21,21 +21,23 @@ import (
 )
 
 type peers struct {
-	_peers       map[string]*peer
-	_hosts       map[Host]struct{}
-	_nodes       map[string]*Node
-	refreshCount atomic.Int
-	genChanged   atomic.Bool
+	_peers         map[string]*peer
+	_hosts         map[Host]struct{}
+	_nodes         map[string]*Node
+	_nodesToRemove []*Node
+	refreshCount   atomic.Int
+	genChanged     atomic.Bool
 
 	mutex sync.RWMutex
 }
 
 func newPeers(peerCapacity int, addCapacity int) *peers {
 	return &peers{
-		_peers:     make(map[string]*peer, peerCapacity),
-		_hosts:     make(map[Host]struct{}, addCapacity),
-		_nodes:     make(map[string]*Node, addCapacity),
-		genChanged: *atomic.NewBool(true),
+		_peers:         make(map[string]*peer, peerCapacity),
+		_hosts:         make(map[Host]struct{}, addCapacity),
+		_nodes:         make(map[string]*Node, addCapacity),
+		_nodesToRemove: make([]*Node, 0),
+		genChanged:     *atomic.NewBool(true),
 	}
 }
 
@@ -71,7 +73,6 @@ func (ps *peers) appendPeers(peers []*peer) {
 	for _, peer := range peers {
 		ps._peers[peer.nodeName] = peer
 	}
-
 }
 
 func (ps *peers) peers() []*peer {
@@ -92,7 +93,8 @@ func (ps *peers) nodes() map[string]*Node {
 }
 
 type peer struct {
-	nodeName string
-	tlsName  string
-	hosts    []*Host
+	nodeName    string
+	tlsName     string
+	hosts       []*Host
+	replaceNode *Node
 }
