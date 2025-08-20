@@ -102,6 +102,9 @@ func (trp *TxnRollPolicy) mapDynamic(dynConfig *DynConfig) *TxnRollPolicy {
 		if dynConfig.config.Dynamic.TxnRoll.RespondAllKeys != nil {
 			trp.RespondAllKeys = *dynConfig.config.Dynamic.TxnRoll.RespondAllKeys
 		}
+		if dynConfig.config.Dynamic.TxnRoll.TimeoutDelay != nil {
+			trp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.TxnRoll.TimeoutDelay) * time.Millisecond
+		}
 	}
 
 	return trp

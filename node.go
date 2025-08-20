@@ -419,7 +419,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err Erro
 // getConnection gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
 func (nd *Node) getConnection(deadline, timeout time.Duration) (conn *Connection, err Error) {
-	return nd.getConnectionWithHint(deadline, timeout, 0)
+	return nd.getConnectionWithHint(deadline, timeout, 0, 0)
 }
 
 // newConnectionAllowed will tentatively check if the client is allowed to make a new connection
@@ -522,7 +522,7 @@ func (nd *Node) makeConnectionForPool(hint byte) {
 
 // getConnectionWithHint gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
-func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte) (conn *Connection, err Error) {
+func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte, timeoutDelay time.Duration) (conn *Connection, err Error) {
 	if !nd.active.Get() {
 		return nil, ErrServerNotAvailable.err()
 	}
@@ -532,6 +532,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 		if conn.IsConnected() {
 			break
 		}
+
 		conn.Close()
 		conn = nil
 	}
@@ -550,7 +551,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 	if err = conn.setTimeout(totalTimeout, socketTimeout); err != nil {
 		nd.stats.ConnectionsFailed.IncrementAndGet()
 
-		// Do not put back into pool.
+		// Do not put back into pool for other types of errors.
 		conn.Close()
 		return nil, err
 	}

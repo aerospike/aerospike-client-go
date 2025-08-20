@@ -164,6 +164,9 @@ func (wp *WritePolicy) mapDynamic(dynConfig *DynConfig) *WritePolicy {
 		if dynConfig.config.Dynamic.Write.DurableDelete != nil {
 			wp.DurableDelete = *dynConfig.config.Dynamic.Write.DurableDelete
 		}
+		if dynConfig.config.Dynamic.Write.TimeoutDelay != nil {
+			wp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Write.TimeoutDelay) * time.Millisecond
+		}
 	}
 
 	return wp

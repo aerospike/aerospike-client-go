@@ -212,6 +212,8 @@ type command interface {
 	getNamespaces() iter.Seq2[string, uint64]
 	getNamespace() *string
 
+	salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node)
+
 	// Executes the command
 	Execute() Error
 }
@@ -243,6 +245,8 @@ type baseCommand struct {
 
 	commandSentCounter int
 	commandWasSent     bool
+
+	receiveSize int64
 }
 
 //--------------------------------------------------
@@ -3860,10 +3864,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			if deviceOverloadError(err) {
 				cmd.node.incrErrorCount()
 			}
+			// try to salvage the connection
+			if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
+				go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+			} else {
+				// IO errors are considered temporary anomalies. Retry.
+				// Close socket to flush out possible garbage. Do not put back in pool.
+				cmd.conn.Close()
+			}
 
-			// IO errors are considered temporary anomalies. Retry.
-			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.conn.Close()
 			cmd.conn = nil
 
 			logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
@@ -3897,9 +3906,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 					}
 				}
 
-				// IO errors are considered temporary anomalies. Retry.
-				// Close socket to flush out possible garbage. Do not put back in pool.
-				cmd.conn.Close()
+				if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
+					// Do not close connection immediately, but give it a chance to recover
+					go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+					continue
+				} else {
+					// IO errors are considered temporary anomalies. Retry.
+					// Close socket to flush out possible garbage. Do not put back in pool.
+					cmd.conn.Close()
+				}
 
 				logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 
@@ -4007,6 +4022,12 @@ func applyTransactionErrorMetrics(node *Node) {
 func applyTransactionRetryMetrics(node *Node) {
 	if node != nil {
 		node.stats.TransactionRetryCount.GetAndIncrement()
+	}
+}
+
+func applyConnectionRecoveredMetrics(node *Node) {
+	if node != nil {
+		node.stats.ConnectionsRecovered.GetAndIncrement()
 	}
 }
 

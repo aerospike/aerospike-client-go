@@ -125,6 +125,9 @@ func (qp *QueryPolicy) mapDynamic(dynConfig *DynConfig) *QueryPolicy {
 		if dynConfig.config.Dynamic.Query.ExpectedDuration != nil {
 			qp.ExpectedDuration = mapQueryDuration(*dynConfig.config.Dynamic.Query.ExpectedDuration)
 		}
+		if dynConfig.config.Dynamic.Query.TimeoutDelay != nil {
+			qp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Query.TimeoutDelay) * time.Millisecond
+		}
 	}
 
 	return qp

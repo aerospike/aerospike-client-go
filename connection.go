@@ -17,8 +17,10 @@ package aerospike
 import (
 	"compress/zlib"
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
+	"os"
 	"runtime"
 	"strconv"
 	"sync"
@@ -95,6 +97,10 @@ type Connection struct {
 	limitReader *io.LimitedReader
 
 	closer sync.Once
+
+	// Used to track the last time the connection was used. This is used to determine
+	// if the connection is idle/timeout and should be closed.
+	salvageConnection bool
 }
 
 // makes sure that the connection is closed eventually, even if it is not consumed
@@ -115,6 +121,10 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 			if conn != nil && conn.node != nil {
 				conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
 			}
+			if errors.Is(terr, os.ErrDeadlineExceeded) {
+				conn.salvageConnection = true
+			}
+			// If the connection is not salvageable, close it.
 			aerr = newErrorAndWrap(err, types.TIMEOUT)
 		} else {
 			aerr = newErrorAndWrap(err, types.NETWORK_ERROR)
@@ -235,9 +245,6 @@ func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 		ctn.node.stats.ConnectionsFailed.IncrementAndGet()
 	}
 
-	// the line should happen before .Close()
-	ctn.Close()
-
 	return total, aerr
 }
 
@@ -284,7 +291,9 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 	}
 
 	// the line should happen before .Close()
-	ctn.Close()
+	if !ctn.salvageConnection {
+		ctn.Close()
+	}
 
 	return total, aerr
 }
@@ -485,6 +494,7 @@ func (ctn *Connection) willBeIdleIn(tendInterval time.Duration) bool {
 
 // refresh extends the idle deadline of the connection.
 func (ctn *Connection) refresh() {
+	ctn.salvageConnection = false
 	ctn.totalReceived = 0
 	now := time.Now()
 	ctn.idleDeadline = now.Add(ctn.idleTimeout)

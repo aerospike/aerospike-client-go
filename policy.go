@@ -170,6 +170,11 @@ type BasePolicy struct {
 	// to the node containing the key's master partition.
 	// Default to sending read commands to the node containing the key's master partition.
 	ReplicaPolicy ReplicaPolicy
+
+	// Delay milliseconds after socket read timeout in an attempt to recover the socket
+	// in the background.  Processing continues on the original command and the user
+	// is still notified at the original command timeout.
+	TimeoutDelay time.Duration // = 0
 }
 
 // NewPolicy generates a new BasePolicy instance with default values.
@@ -263,6 +268,9 @@ func (bp *BasePolicy) mapDynamic(dynConfig *DynConfig) *BasePolicy {
 		if dynConfig.config.Dynamic.Read.Replica != nil {
 			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Read.Replica)
 		}
+		if dynConfig.config.Dynamic.Read.TimeoutDelay != nil {
+			bp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Read.TimeoutDelay) * time.Millisecond
+		}
 	}
 
 	return bp
@@ -288,6 +296,9 @@ func (bp *BasePolicy) mapDynamicBatchWrite(dynConfig *DynConfig) *BasePolicy {
 		}
 		if dynConfig.config.Dynamic.BatchWrite.Replica != nil {
 			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchWrite.Replica)
+		}
+		if dynConfig.config.Dynamic.BatchWrite.TimeoutDelay != nil {
+			bp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.BatchWrite.TimeoutDelay) * time.Millisecond
 		}
 	}
 
@@ -320,6 +331,9 @@ func (bp *BasePolicy) mapDynamicBatchRead(dynConfig *DynConfig) *BasePolicy {
 		}
 		if dynConfig.config.Dynamic.BatchRead.Replica != nil {
 			bp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.BatchRead.Replica)
+		}
+		if dynConfig.config.Dynamic.BatchRead.TimeoutDelay != nil {
+			bp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.BatchRead.TimeoutDelay) * time.Millisecond
 		}
 	}
 

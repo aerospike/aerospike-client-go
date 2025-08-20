@@ -29,7 +29,7 @@ type BatchWrite struct {
 	Ops []*Operation
 }
 
-// NewBatchWrite initializesa policy, batch key and read/write operations.
+// NewBatchWrite initializes policy, batch key and read/write operations.
 // ANy GetOp() is not allowed because it returns a variable number of bins and
 // makes it difficult (sometimes impossible) to lineup operations with results. Instead,
 // use GetBinOp(string) for each bin name.
