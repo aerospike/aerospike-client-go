@@ -142,6 +142,11 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 			return nil, newError(types.PARAMETER_ERROR, "External Authentication requires TLS configuration to be set, because it sends clear password on the wire.")
 		}
 
+		// If PKI authentication is used and user is attempting to set password, return an error
+		if policy.AuthMode == AuthModePKI && (policy.User != "" || policy.Password != "") {
+			return nil, newError(types.FORBIDDEN_PASSWORD, "Password authentication is disabled for PKI-only users. Please authenticate using your certificate.")
+		}
+
 		newCluster.user = policy.User
 		hashedPass, err := hashPassword(policy.Password)
 		if err != nil {
