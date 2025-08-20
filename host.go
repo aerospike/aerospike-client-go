@@ -47,7 +47,10 @@ func (h *Host) String() string {
 
 // Implements stringer interface
 func (h *Host) equals(other *Host) bool {
-	return h.Name == other.Name && h.Port == other.Port
+	if other == nil {
+		return false
+	}
+	return h.Name == other.Name && h.Port == other.Port && h.TLSName == other.TLSName
 }
 
 // IsLocalhost returns true if the host name or IP address represents localhost.
