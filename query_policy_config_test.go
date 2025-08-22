@@ -30,45 +30,46 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 			// Create a dummy configuration in dynconfig.
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
-				config: &dynconfig.Config{
-					Dynamic: &dynconfig.DynamicConfig{
-						Query: &dynconfig.Query{
-							TotalTimeout: func() *int {
-								d := 3000
-								return &d
-							}(),
-							SocketTimeout: func() *int {
-								d := 3
-								return &d
-							}(),
-							MaxRetries: func() *int {
-								d := 3
-								return &d
-							}(),
-							SleepBetweenRetries: func() *int {
-								d := 2
-								return &d
-							}(),
-							Replica: func() *dynconfig.Replica {
-								d := dynconfig.PREFER_RACK
-								return &d
-							}(),
-							IncludeBinData: func() *bool {
-								d := false
-								return &d
-							}(),
-							RecordQueueSize: func() *int {
-								d := 50
-								return &d
-							}(),
-							ExpectedDuration: func() *dynconfig.QueryDuration {
-								d := dynconfig.SHORT
-								return &d
-							}(),
-						},
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
+			}
+			config.config.Store(&dynconfig.Config{
+				Dynamic: &dynconfig.DynamicConfig{
+					Query: &dynconfig.Query{
+						TotalTimeout: func() *int {
+							d := 3000
+							return &d
+						}(),
+						SocketTimeout: func() *int {
+							d := 3
+							return &d
+						}(),
+						MaxRetries: func() *int {
+							d := 3
+							return &d
+						}(),
+						SleepBetweenRetries: func() *int {
+							d := 2
+							return &d
+						}(),
+						Replica: func() *dynconfig.Replica {
+							d := dynconfig.PREFER_RACK
+							return &d
+						}(),
+						IncludeBinData: func() *bool {
+							d := false
+							return &d
+						}(),
+						RecordQueueSize: func() *int {
+							d := 50
+							return &d
+						}(),
+						ExpectedDuration: func() *dynconfig.QueryDuration {
+							d := dynconfig.SHORT
+							return &d
+						}(),
 					},
 				},
-			}
+			})
 
 			// Create an initial QueryPolicy.
 			policy := NewQueryPolicy()
@@ -110,29 +111,30 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 			// Create a dummy configuration in dynconfig with only a subset of fields.
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
-				config: &dynconfig.Config{
-					Dynamic: &dynconfig.DynamicConfig{
-						Query: &dynconfig.Query{
-							TotalTimeout: func() *int {
-								d := 5
-								return &d
-							}(),
-							SocketTimeout: func() *int {
-								d := 3
-								return &d
-							}(),
-							SleepBetweenRetries: func() *int {
-								d := 2
-								return &d
-							}(),
-							Replica: func() *dynconfig.Replica {
-								r := dynconfig.PREFER_RACK
-								return &r
-							}(),
-						},
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
+			}
+			config.config.Store(&dynconfig.Config{
+				Dynamic: &dynconfig.DynamicConfig{
+					Query: &dynconfig.Query{
+						TotalTimeout: func() *int {
+							d := 5
+							return &d
+						}(),
+						SocketTimeout: func() *int {
+							d := 3
+							return &d
+						}(),
+						SleepBetweenRetries: func() *int {
+							d := 2
+							return &d
+						}(),
+						Replica: func() *dynconfig.Replica {
+							r := dynconfig.PREFER_RACK
+							return &r
+						}(),
 					},
 				},
-			}
+			})
 
 			// Create an initial QueryPolicy.
 			policy := NewQueryPolicy()

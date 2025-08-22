@@ -330,7 +330,7 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.m.Unlock()
 }
 
-func (ns *nodeStats) MarshalJSON() ([]byte, error) {
+func (ns nodeStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		StatsLabels              []map[string]string                  `json:"labels,omitempty"`
 		ConnectionsAttempts      int                                  `json:"connections-attempts"`

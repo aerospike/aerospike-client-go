@@ -29,53 +29,54 @@ var _ = gg.Describe("ApplyConfigToTxnRollPolicy", func() {
 			// Create the full configuration.
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
-				config: &dynconfig.Config{
-					Dynamic: &dynconfig.DynamicConfig{
-						TxnRoll: &dynconfig.TxnRoll{
-							ReadModeAp: func() *dynconfig.ReadModeAp {
-								r := dynconfig.ALL
-								return &r
-							}(),
-							ReadModeSc: func() *dynconfig.ReadModeSc {
-								r := dynconfig.LINEARIZE
-								return &r
-							}(),
-							Replica: func() *dynconfig.Replica {
-								r := dynconfig.MASTER_PROLES
-								return &r
-							}(),
-							SleepBetweenRetries: func() *int {
-								d := 1
-								return &d
-							}(),
-							SocketTimeout: func() *int {
-								d := 3
-								return &d
-							}(),
-							TotalTimeout: func() *int {
-								r := 15
-								return &r
-							}(),
-							MaxRetries: func() *int {
-								r := 5
-								return &r
-							}(),
-							AllowInline: func() *bool {
-								r := true
-								return &r
-							}(),
-							AllowInlineSSD: func() *bool {
-								r := true
-								return &r
-							}(),
-							RespondAllKeys: func() *bool {
-								r := true
-								return &r
-							}(),
-						},
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
+			}
+			config.config.Store(&dynconfig.Config{
+				Dynamic: &dynconfig.DynamicConfig{
+					TxnRoll: &dynconfig.TxnRoll{
+						ReadModeAp: func() *dynconfig.ReadModeAp {
+							r := dynconfig.ALL
+							return &r
+						}(),
+						ReadModeSc: func() *dynconfig.ReadModeSc {
+							r := dynconfig.LINEARIZE
+							return &r
+						}(),
+						Replica: func() *dynconfig.Replica {
+							r := dynconfig.MASTER_PROLES
+							return &r
+						}(),
+						SleepBetweenRetries: func() *int {
+							d := 1
+							return &d
+						}(),
+						SocketTimeout: func() *int {
+							d := 3
+							return &d
+						}(),
+						TotalTimeout: func() *int {
+							r := 15
+							return &r
+						}(),
+						MaxRetries: func() *int {
+							r := 5
+							return &r
+						}(),
+						AllowInline: func() *bool {
+							r := true
+							return &r
+						}(),
+						AllowInlineSSD: func() *bool {
+							r := true
+							return &r
+						}(),
+						RespondAllKeys: func() *bool {
+							r := true
+							return &r
+						}(),
 					},
 				},
-			}
+			})
 
 			// Create an initial TxnRollPolicy.
 			policy := NewTxnRollPolicy()
@@ -112,49 +113,50 @@ var _ = gg.Describe("ApplyConfigToTxnRollPolicy", func() {
 			// Create a configuration with all fields as in full config.
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
-				config: &dynconfig.Config{
-					Dynamic: &dynconfig.DynamicConfig{
-						TxnRoll: &dynconfig.TxnRoll{
-							ReadModeAp: func() *dynconfig.ReadModeAp {
-								r := dynconfig.ALL
-								return &r
-							}(),
-							ReadModeSc: func() *dynconfig.ReadModeSc {
-								r := dynconfig.ALLOW_UNAVAILABLE
-								return &r
-							}(),
-							Replica: func() *dynconfig.Replica {
-								r := dynconfig.MASTER_PROLES
-								return &r
-							}(),
-							SleepBetweenRetries: func() *int {
-								d := 1
-								return &d
-							}(),
-							SocketTimeout: func() *int {
-								d := 3
-								return &d
-							}(),
-							MaxRetries: func() *int {
-								r := 5
-								return &r
-							}(),
-							AllowInline: func() *bool {
-								r := true
-								return &r
-							}(),
-							AllowInlineSSD: func() *bool {
-								r := true
-								return &r
-							}(),
-							RespondAllKeys: func() *bool {
-								r := true
-								return &r
-							}(),
-						},
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
+			}
+			config.config.Store(&dynconfig.Config{
+				Dynamic: &dynconfig.DynamicConfig{
+					TxnRoll: &dynconfig.TxnRoll{
+						ReadModeAp: func() *dynconfig.ReadModeAp {
+							r := dynconfig.ALL
+							return &r
+						}(),
+						ReadModeSc: func() *dynconfig.ReadModeSc {
+							r := dynconfig.ALLOW_UNAVAILABLE
+							return &r
+						}(),
+						Replica: func() *dynconfig.Replica {
+							r := dynconfig.MASTER_PROLES
+							return &r
+						}(),
+						SleepBetweenRetries: func() *int {
+							d := 1
+							return &d
+						}(),
+						SocketTimeout: func() *int {
+							d := 3
+							return &d
+						}(),
+						MaxRetries: func() *int {
+							r := 5
+							return &r
+						}(),
+						AllowInline: func() *bool {
+							r := true
+							return &r
+						}(),
+						AllowInlineSSD: func() *bool {
+							r := true
+							return &r
+						}(),
+						RespondAllKeys: func() *bool {
+							r := true
+							return &r
+						}(),
 					},
 				},
-			}
+			})
 
 			// Create an initial TxnRollPolicy.
 			policy := NewTxnRollPolicy()

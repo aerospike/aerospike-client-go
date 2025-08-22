@@ -30,41 +30,42 @@ var _ = gg.Describe("ApplyConfigToBasePolicy", func() {
 			// Create a dummy configuration
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
-				config: &dynconfig.Config{
-					Dynamic: &dynconfig.DynamicConfig{
-						Read: &dynconfig.Read{
-							ReadModeAp: func() *dynconfig.ReadModeAp {
-								d := dynconfig.ALL
-								return &d
-							}(),
-							ReadModeSc: func() *dynconfig.ReadModeSc {
-								d := dynconfig.LINEARIZE
-								return &d
-							}(),
-							TotalTimeout: func() *int {
-								d := 5
-								return &d
-							}(),
-							SocketTimeout: func() *int {
-								d := 3
-								return &d
-							}(),
-							MaxRetries: func() *int {
-								d := 3
-								return &d
-							}(),
-							SleepBetweenRetries: func() *int {
-								d := 2
-								return &d
-							}(),
-							Replica: func() *dynconfig.Replica {
-								d := dynconfig.PREFER_RACK
-								return &d
-							}(),
-						},
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
+			}
+			config.config.Store(&dynconfig.Config{
+				Dynamic: &dynconfig.DynamicConfig{
+					Read: &dynconfig.Read{
+						ReadModeAp: func() *dynconfig.ReadModeAp {
+							d := dynconfig.ALL
+							return &d
+						}(),
+						ReadModeSc: func() *dynconfig.ReadModeSc {
+							d := dynconfig.LINEARIZE
+							return &d
+						}(),
+						TotalTimeout: func() *int {
+							d := 5
+							return &d
+						}(),
+						SocketTimeout: func() *int {
+							d := 3
+							return &d
+						}(),
+						MaxRetries: func() *int {
+							d := 3
+							return &d
+						}(),
+						SleepBetweenRetries: func() *int {
+							d := 2
+							return &d
+						}(),
+						Replica: func() *dynconfig.Replica {
+							d := dynconfig.PREFER_RACK
+							return &d
+						}(),
 					},
 				},
-			}
+			})
 
 			// Create an initial base policy.
 			policy := NewPolicy()
@@ -103,25 +104,26 @@ var _ = gg.Describe("ApplyConfigToBasePolicy", func() {
 			// Create a dummy configuration with only a subset of fields.
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
-				config: &dynconfig.Config{
-					Dynamic: &dynconfig.DynamicConfig{
-						Read: &dynconfig.Read{
-							SocketTimeout: func() *int {
-								d := 3
-								return &d
-							}(),
-							SleepBetweenRetries: func() *int {
-								d := 2
-								return &d
-							}(),
-							Replica: func() *dynconfig.Replica {
-								d := dynconfig.PREFER_RACK
-								return &d
-							}(),
-						},
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
+			}
+			config.config.Store(&dynconfig.Config{
+				Dynamic: &dynconfig.DynamicConfig{
+					Read: &dynconfig.Read{
+						SocketTimeout: func() *int {
+							d := 3
+							return &d
+						}(),
+						SleepBetweenRetries: func() *int {
+							d := 2
+							return &d
+						}(),
+						Replica: func() *dynconfig.Replica {
+							d := dynconfig.PREFER_RACK
+							return &d
+						}(),
 					},
 				},
-			}
+			})
 
 			// Create an initial base policy.
 			policy := NewPolicy()

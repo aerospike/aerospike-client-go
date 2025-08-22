@@ -33,6 +33,7 @@ var supportedVersions = map[string]struct{}{
 }
 
 type DynConfig struct {
+	lock     sync.Mutex
 	config   atomic.Pointer[dynconfig.Config]
 	wgConfig sync.WaitGroup
 
@@ -120,6 +121,8 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 // ----------------------------------------------------------------
 
 func (dc *DynConfig) loadConfig() {
+	dc.lock.Lock()
+	defer dc.lock.Unlock()
 
 	if !dc.configInitialized.Load() && dc.configProvider != nil {
 		dc.initConfig()

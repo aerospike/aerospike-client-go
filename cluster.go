@@ -127,7 +127,7 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 	newCluster := &Cluster{
 		infoPolicy:   InfoPolicy{Timeout: loadedPolicy.Timeout},
 		tendChannel:  make(chan struct{}),
-		clientPolicy: policy, // Store the pointer to atomic.Pointer for sharing
+		clientPolicy: policy,
 
 		seeds:    *iatomic.NewSyncVal(hosts),
 		aliases:  *sm.New[Host, *Node](16),
@@ -176,7 +176,7 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 
 	// start up cluster maintenance go routine
 	newCluster.wgTend.Add(1)
-	go newCluster.clusterBoss(newCluster.clientPolicy.Load())
+	go newCluster.clusterBoss()
 
 	if err == nil {
 		logger.Logger.Debug("New cluster initialized and ready to be used...")
@@ -194,19 +194,20 @@ func (clstr *Cluster) String() string {
 
 // Maintains the cluster on intervals.
 // All clean up code for cluster is here as well.
-func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
+func (clstr *Cluster) clusterBoss() {
+	policy := clstr.clientPolicy.Load()
 	logger.Logger.Info("Starting the cluster tend goroutine...")
 
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Logger.Error("Cluster tend goroutine crashed: %s", debug.Stack())
-			go clstr.clusterBoss(clstr.clientPolicy.Load())
+			go clstr.clusterBoss()
 		}
 	}()
 
 	defer clstr.wgTend.Done()
 
-	tendInterval := policy.TendInterval
+	tendInterval := clstr.clientPolicy.Load().TendInterval
 	if tendInterval <= 10*time.Millisecond {
 		tendInterval = 10 * time.Millisecond
 	}
@@ -224,11 +225,11 @@ Loop:
 				logger.Logger.Warn(err.Error())
 			}
 
-			clientPolicy := clstr.clientPolicy.Load()
+			// clientPolicy := clstr.clientPolicy.Load()
 			// Tending took longer than requested tend interval.
 			// Tending is too slow for the cluster, and may be falling behind schedule.
-			if tendDuration := time.Since(tm); tendDuration > clientPolicy.TendInterval {
-				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clientPolicy.TendInterval)
+			if tendDuration := time.Since(tm); tendDuration > policy.TendInterval {
+				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, policy.TendInterval)
 			}
 		}
 	}

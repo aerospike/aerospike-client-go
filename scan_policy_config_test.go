@@ -30,31 +30,32 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 			// Create the full configuration for scan policies.
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
-				config: &dynconfig.Config{
-					Dynamic: &dynconfig.DynamicConfig{
-						Scan: &dynconfig.Scan{
-							Replica: func() *dynconfig.Replica {
-								r := dynconfig.PREFER_RACK
-								return &r
-							}(),
-							SleepBetweenRetries: func() *int {
-								d := 2
-								return &d
-							}(),
-							SocketTimeout: func() *int {
-								d := 3
-								return &d
-							}(),
-							TotalTimeout: func() *int {
-								r := 5000
-								return &r
-							}(),
-							MaxRetries:         func() *int { r := 3; return &r }(),
-							MaxConcurrentNodes: func() *int { r := 5; return &r }(),
-						},
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
+			}
+			config.config.Store(&dynconfig.Config{
+				Dynamic: &dynconfig.DynamicConfig{
+					Scan: &dynconfig.Scan{
+						Replica: func() *dynconfig.Replica {
+							r := dynconfig.PREFER_RACK
+							return &r
+						}(),
+						SleepBetweenRetries: func() *int {
+							d := 2
+							return &d
+						}(),
+						SocketTimeout: func() *int {
+							d := 3
+							return &d
+						}(),
+						TotalTimeout: func() *int {
+							r := 5000
+							return &r
+						}(),
+						MaxRetries:         func() *int { r := 3; return &r }(),
+						MaxConcurrentNodes: func() *int { r := 5; return &r }(),
 					},
 				},
-			}
+			})
 
 			// Create an initial ScanPolicy.
 			policy := NewScanPolicy()
@@ -96,27 +97,28 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 			// Create a configuration with only a subset of scan fields.
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
-				config: &dynconfig.Config{
-					Dynamic: &dynconfig.DynamicConfig{
-						Scan: &dynconfig.Scan{
-							SleepBetweenRetries: func() *int {
-								d := 2
-								return &d
-							}(),
-							TotalTimeout: func() *int {
-								r := 5000
-								return &r
-							}(),
-							SocketTimeout: func() *int {
-								d := 3
-								return &d
-							}(),
-							MaxRetries:         func() *int { r := 3; return &r }(),
-							MaxConcurrentNodes: func() *int { r := 5; return &r }(),
-						},
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
+			}
+			config.config.Store(&dynconfig.Config{
+				Dynamic: &dynconfig.DynamicConfig{
+					Scan: &dynconfig.Scan{
+						SleepBetweenRetries: func() *int {
+							d := 2
+							return &d
+						}(),
+						TotalTimeout: func() *int {
+							r := 5000
+							return &r
+						}(),
+						SocketTimeout: func() *int {
+							d := 3
+							return &d
+						}(),
+						MaxRetries:         func() *int { r := 3; return &r }(),
+						MaxConcurrentNodes: func() *int { r := 5; return &r }(),
 					},
 				},
-			}
+			})
 
 			// Create an initial ScanPolicy.
 			policy := NewScanPolicy()

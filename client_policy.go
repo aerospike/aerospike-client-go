@@ -386,6 +386,8 @@ func (policy *ClientPolicy) patchDynamic(dynConfig *DynConfig) *ClientPolicy {
 // The value for maxErrorRate has to fall within the ratio of errorRateWindow:maxErrorRate, where the ratio is set to be 1:100.
 // Returning calling policy to support chaining.
 func (cp *ClientPolicy) ensureErrorRates() *ClientPolicy {
+	// Returning a copy to avoid modifying the original policy and avoiding potential race conditions.
+	returnPolicy := cp.copy()
 	var errorRateWindow, maxErrorRate int
 	errorRateWindow = max(cp.ErrorRateWindow, ERROR_RATE_MIN_VALUE)
 
@@ -399,8 +401,8 @@ func (cp *ClientPolicy) ensureErrorRates() *ClientPolicy {
 		maxErrorRate = MAX_ERROR_RATE_MIN_VALUE
 	}
 
-	cp.ErrorRateWindow = errorRateWindow
-	cp.MaxErrorRate = maxErrorRate
+	returnPolicy.ErrorRateWindow = errorRateWindow
+	returnPolicy.MaxErrorRate = maxErrorRate
 
-	return cp
+	return returnPolicy
 }
