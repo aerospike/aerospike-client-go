@@ -256,76 +256,82 @@ func (cp *ClientPolicy) copy() *ClientPolicy {
 }
 
 func (cp *ClientPolicy) mapDynamic(dynConfig *DynConfig) *ClientPolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config.Load()
+	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return cp
 	}
 
-	if dynConfig.config.Dynamic.Client != nil {
-		if dynConfig.config.Dynamic.Client.IdleTimeout != nil {
-			configValue := time.Duration(*dynConfig.config.Dynamic.Client.IdleTimeout) * time.Second	
+	if currentConfig.Dynamic.Client != nil {
+		if currentConfig.Dynamic.Client.IdleTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Client.IdleTimeout) * time.Second
 			cp.IdleTimeout = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("IdleTimeout set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.Client.Timeout != nil {
-			configValue := time.Duration(*dynConfig.config.Dynamic.Client.Timeout) * time.Millisecond 
+		if currentConfig.Dynamic.Client.Timeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Client.Timeout) * time.Millisecond
 			cp.Timeout = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("Timeout set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.Client.ErrorRateWindow != nil {
-			configValue := *dynConfig.config.Dynamic.Client.ErrorRateWindow
+		if currentConfig.Dynamic.Client.ErrorRateWindow != nil {
+			configValue := *currentConfig.Dynamic.Client.ErrorRateWindow
 			cp.ErrorRateWindow = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("ErrorRateWindow set to %d", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.Client.MaxErrorRate != nil {
-			configValue := *dynConfig.config.Dynamic.Client.MaxErrorRate
+		if currentConfig.Dynamic.Client.MaxErrorRate != nil {
+			configValue := *currentConfig.Dynamic.Client.MaxErrorRate
 			cp.MaxErrorRate = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("MaxErrorRate set to %d", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.Client.LoginTimeout != nil {
-			configValue := time.Duration(*dynConfig.config.Dynamic.Client.LoginTimeout) * time.Millisecond
+		if currentConfig.Dynamic.Client.LoginTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Client.LoginTimeout) * time.Millisecond
 			cp.LoginTimeout = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("LoginTimeout set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.Client.RackAware != nil {
-			configValue := *dynConfig.config.Dynamic.Client.RackAware
+		if currentConfig.Dynamic.Client.RackAware != nil {
+			configValue := *currentConfig.Dynamic.Client.RackAware
 			cp.RackAware = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("RackAware set to %t", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.Client.RackIds != nil {
-			configValue := *dynConfig.config.Dynamic.Client.RackIds
+		if currentConfig.Dynamic.Client.RackIds != nil {
+			configValue := *currentConfig.Dynamic.Client.RackIds
 			cp.RackIds = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("RackIds set to %v", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.Client.TendInterval != nil {
-			configValue := time.Duration(*dynConfig.config.Dynamic.Client.TendInterval) * time.Millisecond
+		if currentConfig.Dynamic.Client.TendInterval != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Client.TendInterval) * time.Millisecond
 			cp.TendInterval = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("TendInterval set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.Client.UseServiceAlternate != nil {
-			configValue := *dynConfig.config.Dynamic.Client.UseServiceAlternate
+		if currentConfig.Dynamic.Client.UseServiceAlternate != nil {
+			configValue := *currentConfig.Dynamic.Client.UseServiceAlternate
 			cp.UseServicesAlternate = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("UseServicesAlternate set to %t", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.Client.ApplicationId != nil {
-			cp.ApplicationId = *dynConfig.config.Dynamic.Client.ApplicationId
+		if currentConfig.Dynamic.Client.ApplicationId != nil {
+			configValue := *currentConfig.Dynamic.Client.ApplicationId
+			cp.ApplicationId = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ApplicationId set to %s", configValue)
+			}
 		}
 	}
 
@@ -333,19 +339,21 @@ func (cp *ClientPolicy) mapDynamic(dynConfig *DynConfig) *ClientPolicy {
 }
 
 func (cp *ClientPolicy) mapStatic(dynConfig *DynConfig) *ClientPolicy {
-	if dynConfig.config == nil || dynConfig.config.Static == nil {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config.Load()
+	if currentConfig == nil || currentConfig.Static == nil {
 		return cp
 	}
 
-	if dynConfig.config.Static.Client != nil {
-		if dynConfig.config.Static.Client.ConfigInterval != nil {
-			cp.ConfigInterval = time.Duration(*dynConfig.config.Static.Client.ConfigInterval) * time.Second
+	if currentConfig.Static.Client != nil {
+		if currentConfig.Static.Client.ConfigInterval != nil {
+			cp.ConfigInterval = time.Duration(*currentConfig.Static.Client.ConfigInterval) * time.Second
 		}
-		if dynConfig.config.Static.Client.ConnectionQueueSize != nil {
-			cp.ConnectionQueueSize = *dynConfig.config.Static.Client.ConnectionQueueSize
+		if currentConfig.Static.Client.ConnectionQueueSize != nil {
+			cp.ConnectionQueueSize = *currentConfig.Static.Client.ConnectionQueueSize
 		}
-		if dynConfig.config.Static.Client.MinConnectionsPerNode != nil {
-			cp.MinConnectionsPerNode = *dynConfig.config.Static.Client.MinConnectionsPerNode
+		if currentConfig.Static.Client.MinConnectionsPerNode != nil {
+			cp.MinConnectionsPerNode = *currentConfig.Static.Client.MinConnectionsPerNode
 		}
 	}
 
@@ -366,7 +374,7 @@ func (policy *ClientPolicy) patchDynamic(dynConfig *DynConfig) *ClientPolicy {
 			return policy.copy().mapStatic(dynConfig).mapDynamic(dynConfig)
 		} else {
 			// Passed in policy is nil, fetch mapped default policy from cache.
-			return dynConfig.client.dynDefaultClientPolicy.Load()
+			return (*dynConfig.client.dynDefaultClientPolicy).Load()
 		}
 	} else {
 		return policy

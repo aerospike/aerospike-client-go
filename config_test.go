@@ -57,7 +57,7 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 
 			gg.It("should update dc.config.Dynamic with Defaults", func() {
 				defaultDynamic := dc.client.dynDefaultPolicy.Load()
-				gm.Expect(dc.client.dynDefaultClientPolicy.Load()).ToNot(gm.BeNil())
+				gm.Expect((*dc.client.dynDefaultClientPolicy).Load()).ToNot(gm.BeNil())
 				gm.Expect(defaultDynamic).ToNot(gm.BeNil())
 
 				// Making sure config has not been updated if LoadConfig() invoked from configProvider is nil.

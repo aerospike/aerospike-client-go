@@ -162,69 +162,71 @@ func (p *BatchPolicy) patchDynamic(dynConfig *DynConfig) *BatchPolicy {
 }
 
 func (p *BatchPolicy) mapDynamic(dynConfig *DynConfig) *BatchPolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config.Load()
+	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return p
 	}
 
-	if dynConfig.config.Dynamic.BatchRead != nil {
-		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
-			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+	if currentConfig.Dynamic.BatchRead != nil {
+		if currentConfig.Dynamic.BatchRead.ReadModeAp != nil {
+			configValue := mapReadModeAPToReadModeAP(*currentConfig.Dynamic.BatchRead.ReadModeAp)
 			p.ReadModeAP = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Debug("ReadModeAP set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
-			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+		if currentConfig.Dynamic.BatchRead.ReadModeSc != nil {
+			configValue := mapReadModeSCToReadModeSC(*currentConfig.Dynamic.BatchRead.ReadModeSc)
 			p.ReadModeSC = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Debug("ReadModeSC set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.BatchRead.TotalTimeout != nil {
-			configValue := time.Duration(*dynConfig.config.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
+		if currentConfig.Dynamic.BatchRead.TotalTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
 			p.TotalTimeout = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Debug("TotalTimeout set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.BatchRead.SocketTimeout != nil {
-			configValue := time.Duration(*dynConfig.config.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
+		if currentConfig.Dynamic.BatchRead.SocketTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
 			p.SocketTimeout = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Debug("SocketTimeout set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.BatchRead.MaxRetries != nil {
-			configValue := *dynConfig.config.Dynamic.BatchRead.MaxRetries
+		if currentConfig.Dynamic.BatchRead.MaxRetries != nil {
+			configValue := *currentConfig.Dynamic.BatchRead.MaxRetries
 			p.MaxRetries = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Debug("MaxRetries set to %d", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries != nil {
-			configValue := time.Duration(*dynConfig.config.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
+		if currentConfig.Dynamic.BatchRead.SleepBetweenRetries != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
 			p.SleepBetweenRetries = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Debug("SleepBetweenRetries set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.BatchRead.AllowInline != nil {
-			configValue := *dynConfig.config.Dynamic.BatchRead.AllowInline
+		if currentConfig.Dynamic.BatchRead.AllowInline != nil {
+			configValue := *currentConfig.Dynamic.BatchRead.AllowInline
 			p.AllowInline = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Debug("AllowInline set to %t", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.BatchRead.AllowInlineSSD != nil {
-			configValue := *dynConfig.config.Dynamic.BatchRead.AllowInlineSSD
+		if currentConfig.Dynamic.BatchRead.AllowInlineSSD != nil {
+			configValue := *currentConfig.Dynamic.BatchRead.AllowInlineSSD
 			p.AllowInlineSSD = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Debug("AllowInlineSSD set to %t", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.BatchRead.RespondAllKeys != nil {
-			configValue := *dynConfig.config.Dynamic.BatchRead.RespondAllKeys
+		if currentConfig.Dynamic.BatchRead.RespondAllKeys != nil {
+			configValue := *currentConfig.Dynamic.BatchRead.RespondAllKeys
 			p.RespondAllKeys = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Debug("RespondAllKeys set to %t", configValue)

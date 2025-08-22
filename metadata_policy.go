@@ -1,21 +1,16 @@
 package aerospike
 
-import "maps"
-
-type Labels struct {
-	Labels map[string]string // Labels is a slice of maps, where each map represents a set of labels.
-}
+// The reason this is a slice of maps is because we are carrying multiple sets of labels
+// one for each node in the cluster.
+type Labels []map[string]string
 
 func NewLabels(pairs ...map[string]string) *Labels {
-	labels := make(map[string]string, 0)
+	labels := make(Labels, 0)
 	for _, pairMap := range pairs {
-		if pairMap != nil || len(pairMap) > 0 {
-			maps.Copy(labels, pairMap)
+		if len(pairMap) > 0 {
+			labels = append(labels, pairMap)
 		}
 	}
 
-	mp := Labels{
-		Labels: labels,
-	}
-	return &mp
+	return &labels
 }

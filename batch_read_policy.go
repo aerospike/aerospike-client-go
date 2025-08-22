@@ -108,23 +108,25 @@ func (brp *BatchReadPolicy) patchDynamic(dynConfig *DynConfig) *BatchReadPolicy 
 }
 
 func (brp *BatchReadPolicy) mapDynamic(dynConfig *DynConfig) *BatchReadPolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config.Load()
+	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return brp
 	}
 
-	if dynConfig.config.Dynamic.BatchRead != nil {
-		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
-			configValue := mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+	if currentConfig.Dynamic.BatchRead != nil {
+		if currentConfig.Dynamic.BatchRead.ReadModeAp != nil {
+			configValue := mapReadModeAPToReadModeAP(*currentConfig.Dynamic.BatchRead.ReadModeAp)
 			brp.ReadModeAP = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("ReadModeAP set to %s", configValue.String())
+				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
-			configValue := mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+		if currentConfig.Dynamic.BatchRead.ReadModeSc != nil {
+			configValue := mapReadModeSCToReadModeSC(*currentConfig.Dynamic.BatchRead.ReadModeSc)
 			brp.ReadModeSC = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("ReadModeSC set to %s", configValue.String())
+				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
 			}
 		}
 	}

@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"sync/atomic"
+
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -127,9 +129,10 @@ var _ = gg.Describe("Default Policies", func() {
 			dummyBasePolicy := NewPolicy()
 
 			client = &Client{
-				dynConfig: dynCfg,
+				dynConfig:              dynCfg,
+				dynDefaultClientPolicy: &atomic.Pointer[ClientPolicy]{},
 			}
-			client.dynDefaultClientPolicy.Store(dummyClientPolicy)
+			(*client.dynDefaultClientPolicy).Store(dummyClientPolicy)
 			client.dynDefaultBatchPolicy.Store(dummyBatchPolicy)
 			client.dynDefaultBatchReadPolicy.Store(dummyBatchReadPolicy)
 			client.dynDefaultBatchWritePolicy.Store(dummyBatchWritePolicy)

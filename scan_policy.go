@@ -65,13 +65,13 @@ func (sp *ScanPolicy) patchDynamic(dynConfig *DynConfig) *ScanPolicy {
 		return sp
 	}
 
-	config := dynConfig.config
+	config := dynConfig.config.Load()
 
 	if config == nil && !dynConfig.logUpdate.Load() {
 		// On initial load it is possible that the config is not yet loaded. This will kick things off to make sure
 		// config is loaded.
 		dynConfig.loadConfig()
-		config = dynConfig.config
+		config = dynConfig.config.Load()
 	}
 
 	if sp == nil {
@@ -87,55 +87,61 @@ func (sp *ScanPolicy) patchDynamic(dynConfig *DynConfig) *ScanPolicy {
 }
 
 func (sp *ScanPolicy) mapDynamic(dynConfig *DynConfig) *ScanPolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config.Load()
+	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return sp
 	}
 
-	if dynConfig.config.Dynamic.Scan != nil {
-		if dynConfig.config.Dynamic.Scan.TotalTimeout != nil {
-			configValue := time.Duration(*dynConfig.config.Dynamic.Scan.TotalTimeout) * time.Millisecond
+	if currentConfig.Dynamic.Scan != nil {
+		if currentConfig.Dynamic.Scan.TotalTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Scan.TotalTimeout) * time.Millisecond
 			sp.TotalTimeout = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("TotalTimeout set to %s", configValue.String())
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.Scan.SocketTimeout != nil {
-			configValue := time.Duration(*dynConfig.config.Dynamic.Scan.SocketTimeout) * time.Millisecond
+		if currentConfig.Dynamic.Scan.SocketTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Scan.SocketTimeout) * time.Millisecond
 			sp.SocketTimeout = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("SocketTimeout set to %s", configValue.String())
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.Scan.MaxRetries != nil {
-			configValue := *dynConfig.config.Dynamic.Scan.MaxRetries
+		if currentConfig.Dynamic.Scan.MaxRetries != nil {
+			configValue := *currentConfig.Dynamic.Scan.MaxRetries
 			sp.MaxRetries = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("MaxRetries set to %d", configValue)
+				logger.Logger.Info("MaxRetries set to %d", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.Scan.SleepBetweenRetries != nil {
-			configValue := time.Duration(*dynConfig.config.Dynamic.Scan.SleepBetweenRetries) * time.Millisecond
+		if currentConfig.Dynamic.Scan.SleepBetweenRetries != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Scan.SleepBetweenRetries) * time.Millisecond
 			sp.SleepBetweenRetries = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("SleepBetweenRetries set to %s", configValue.String())
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.Scan.Replica != nil {
-			configValue := mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Scan.Replica)
+		if currentConfig.Dynamic.Scan.Replica != nil {
+			configValue := mapReplicaToReplicaPolicy(*currentConfig.Dynamic.Scan.Replica)
 			sp.ReplicaPolicy = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("ReplicaPolicy set to %s", configValue.String())
+				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
 			}
 		}
-		if dynConfig.config.Dynamic.Scan.MaxConcurrentNodes != nil {
-			configValue := *dynConfig.config.Dynamic.Scan.MaxConcurrentNodes
+		if currentConfig.Dynamic.Scan.MaxConcurrentNodes != nil {
+			configValue := *currentConfig.Dynamic.Scan.MaxConcurrentNodes
 			sp.MaxConcurrentNodes = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("MaxConcurrentNodes set to %d", configValue)
+				logger.Logger.Info("MaxConcurrentNodes set to %d", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.Scan.TimeoutDelay != nil {
-			sp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Scan.TimeoutDelay) * time.Millisecond
+		if currentConfig.Dynamic.Scan.TimeoutDelay != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Scan.TimeoutDelay) * time.Millisecond
+			sp.TimeoutDelay = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TimeoutDelay set to %s", configValue.String())
+			}
 		}
 	}
 	return sp

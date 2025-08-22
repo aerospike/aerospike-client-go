@@ -150,23 +150,25 @@ func (bwp *BatchWritePolicy) patchDynamic(dynConfig *DynConfig) *BatchWritePolic
 }
 
 func (bwp *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config.Load()
+	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return bwp
 	}
 
-	if dynConfig.config.Dynamic.BatchWrite != nil {
-		if dynConfig.config.Dynamic.BatchWrite.DurableDelete != nil {
-			configValue := *dynConfig.config.Dynamic.BatchWrite.DurableDelete
+	if currentConfig.Dynamic.BatchWrite != nil {
+		if currentConfig.Dynamic.BatchWrite.DurableDelete != nil {
+			configValue := *currentConfig.Dynamic.BatchWrite.DurableDelete
 			bwp.DurableDelete = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("DurableDelete set to %t", configValue)
+				logger.Logger.Info("DurableDelete set to %t", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.BatchWrite.SendKey != nil {
-			configValue := *dynConfig.config.Dynamic.BatchWrite.SendKey
+		if currentConfig.Dynamic.BatchWrite.SendKey != nil {
+			configValue := *currentConfig.Dynamic.BatchWrite.SendKey
 			bwp.SendKey = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("SendKey set to %t", configValue)
+				logger.Logger.Info("SendKey set to %t", configValue)
 			}
 		}
 	}

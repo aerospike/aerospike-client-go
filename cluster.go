@@ -15,8 +15,8 @@
 package aerospike
 
 import (
-	"maps"
 	"fmt"
+	"maps"
 	"net"
 	"runtime/debug"
 	"sync"
@@ -60,7 +60,7 @@ type Cluster struct {
 	// Hints for best node for a partition
 	partitionWriteMap iatomic.TypedVal[partitionMap] //partitionMap
 
-	clientPolicy        atomic.Pointer[ClientPolicy]
+	clientPolicy        *atomic.Pointer[ClientPolicy]
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
 
@@ -93,23 +93,23 @@ type Cluster struct {
 }
 
 // NewCluster generates a Cluster instance.
-func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
-
+func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, Error) {
+	loadedPolicy := policy.Load()
 	// Validate the policy params
-	if policy.MinConnectionsPerNode > policy.ConnectionQueueSize {
+	if loadedPolicy.MinConnectionsPerNode > loadedPolicy.ConnectionQueueSize {
 		panic("minimum number of connections specified in the ClientPolicy is bigger than total connection pool size")
 	}
 
 	// Default TLS names when TLS enabled.
 	newHosts := make([]*Host, 0, len(hosts))
-	if policy.TlsConfig != nil && !policy.TlsConfig.InsecureSkipVerify {
-		useClusterName := len(policy.ClusterName) > 0
+	if loadedPolicy.TlsConfig != nil && !loadedPolicy.TlsConfig.InsecureSkipVerify {
+		useClusterName := len(loadedPolicy.ClusterName) > 0
 
 		for _, host := range hosts {
 			nh := *host
 			if nh.TLSName == "" {
 				if useClusterName {
-					nh.TLSName = policy.ClusterName
+					nh.TLSName = loadedPolicy.ClusterName
 				} else {
 					nh.TLSName = host.Name
 				}
@@ -119,16 +119,15 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		hosts = newHosts
 	}
 
-	clientPolicy := *policy
-
 	// Set a default Idle Timeout for the connection
-	if clientPolicy.IdleTimeout <= 0 {
-		clientPolicy.IdleTimeout = 55 * time.Second
+	if loadedPolicy.IdleTimeout <= 0 {
+		loadedPolicy.IdleTimeout = 55 * time.Second
 	}
 
 	newCluster := &Cluster{
-		infoPolicy:  InfoPolicy{Timeout: policy.Timeout},
-		tendChannel: make(chan struct{}),
+		infoPolicy:   InfoPolicy{Timeout: loadedPolicy.Timeout},
+		tendChannel:  make(chan struct{}),
+		clientPolicy: policy, // Store the pointer to atomic.Pointer for sharing
 
 		seeds:    *iatomic.NewSyncVal(hosts),
 		aliases:  *sm.New[Host, *Node](16),
@@ -141,24 +140,23 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		supportsPartitionQuery: *iatomic.NewBool(false),
 		clientModuleVersion:    getLibraryVersion(aesModule),
 	}
-	newCluster.maxErrorCount.Set(policy.MaxErrorRate)
-	newCluster.clientPolicy.Store(&clientPolicy)
+	newCluster.maxErrorCount.Set(loadedPolicy.MaxErrorRate)
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
 
 	// setup auth info for cluster
-	if policy.RequiresAuthentication() {
-		if policy.AuthMode == AuthModeExternal && policy.TlsConfig == nil {
+	if loadedPolicy.RequiresAuthentication() {
+		if loadedPolicy.AuthMode == AuthModeExternal && loadedPolicy.TlsConfig == nil {
 			return nil, newError(types.PARAMETER_ERROR, "External Authentication requires TLS configuration to be set, because it sends clear password on the wire.")
 		}
 
 		// If PKI authentication is used and user is attempting to set password, return an error
-		if policy.AuthMode == AuthModePKI && (policy.User != "" || policy.Password != "") {
+		if loadedPolicy.AuthMode == AuthModePKI && (loadedPolicy.User != "" || loadedPolicy.Password != "") {
 			return nil, newError(types.FORBIDDEN_PASSWORD, "Password authentication is disabled for PKI-only users. Please authenticate using your certificate.")
 		}
 
-		newCluster.user = policy.User
-		hashedPass, err := hashPassword(policy.Password)
+		newCluster.user = loadedPolicy.User
+		hashedPass, err := hashPassword(loadedPolicy.Password)
 		if err != nil {
 			return nil, err
 		}
@@ -169,7 +167,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	err := newCluster.waitTillStabilized()
 
 	// apply policy rules
-	if policy.FailIfNotConnected && !newCluster.IsConnected() {
+	if loadedPolicy.FailIfNotConnected && !newCluster.IsConnected() {
 		if err != nil {
 			return nil, err
 		}
@@ -1034,10 +1032,12 @@ func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
 	}
 }
 
-func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
+func (clstr *Cluster) getNodeLabels() *Labels {
 	var userLabels *Labels
-	if metricPolicy == nil && clstr.metricsPolicy.Get() != nil && clstr.metricsPolicy.Get().Labels != nil {
+	if clstr.metricsPolicy.Get() != nil && clstr.metricsPolicy.Get().Labels != nil {
 		userLabels = clstr.metricsPolicy.Get().Labels
+	} else {
+		userLabels = NewLabels()
 	}
 
 	nodes := clstr.GetNodes()
@@ -1055,7 +1055,9 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 		}
 
 		// Merging user labels with node labels
-		maps.Copy(entries, userLabels.Labels)
+		for _, labelMap := range *userLabels {
+			maps.Copy(entries, labelMap)
+		}
 
 		// Reserved label names for the client
 		entries["node"] = nodes[node].GetName()

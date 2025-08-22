@@ -87,8 +87,8 @@ func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) 
 		return wp
 	}
 
-	config := dynConfig.config
-	if config != nil && config.Dynamic.BatchUdf != nil {
+	config := dynConfig.config.Load()
+	if config != nil && config.Dynamic != nil && config.Dynamic.BatchUdf != nil {
 		if config.Dynamic.BatchUdf.DurableDelete != nil {
 			wp.DurableDelete = *config.Dynamic.BatchUdf.DurableDelete
 		}
@@ -132,23 +132,25 @@ func (bup *BatchUDFPolicy) patchDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
 }
 
 func (bup *BatchUDFPolicy) mapDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config.Load()
+	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return bup
 	}
 
-	if dynConfig.config.Dynamic.BatchUdf != nil {
-		if dynConfig.config.Dynamic.BatchUdf.DurableDelete != nil {
-			configValue := *dynConfig.config.Dynamic.BatchUdf.DurableDelete
+	if currentConfig.Dynamic.BatchUdf != nil {
+		if currentConfig.Dynamic.BatchUdf.DurableDelete != nil {
+			configValue := *currentConfig.Dynamic.BatchUdf.DurableDelete
 			bup.DurableDelete = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("DurableDelete set to %t", configValue)
+				logger.Logger.Info("DurableDelete set to %t", configValue)
 			}
 		}
-		if dynConfig.config.Dynamic.BatchUdf.SendKey != nil {
-			configValue := *dynConfig.config.Dynamic.BatchUdf.SendKey
+		if currentConfig.Dynamic.BatchUdf.SendKey != nil {
+			configValue := *currentConfig.Dynamic.BatchUdf.SendKey
 			bup.SendKey = configValue
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Debug("SendKey set to %t", configValue)
+				logger.Logger.Info("SendKey set to %t", configValue)
 			}
 		}
 	}
