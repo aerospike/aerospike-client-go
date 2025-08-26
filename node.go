@@ -48,6 +48,7 @@ type Node struct {
 	cluster     *Cluster
 	name        string
 	host        *Host
+	hostName    string
 	aliases     iatomic.TypedVal[[]*Host]
 	stats       nodeStats
 	sessionInfo iatomic.TypedVal[*sessionInfo]

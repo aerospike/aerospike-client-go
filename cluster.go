@@ -304,11 +304,6 @@ func (clstr *Cluster) tend() Error {
 				logger.Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", _peer.nodeName, nv.name, host)
 			}
 
-			if clstr.peerExists(peers, _peer) {
-				// Node already exists. Do not even try to connect to hosts.
-				return seq.Break
-			}
-
 			// Create new node.
 			node := clstr.createNode(&nv)
 			peers.addNode(nv.name, node)
@@ -428,6 +423,7 @@ func (clstr *Cluster) statsCopy() map[string]nodeStats {
 
 func (clstr *Cluster) peerExists(peers *peers, peer *peer) bool {
 	node := clstr.findNodeByName(peer.nodeName)
+
 	if node != nil {
 		if node.failures.Get() <= 0 || node.host.IsLocalhost() {
 			// If the node does not have cluster tend errors or is localhost,
@@ -437,12 +433,20 @@ func (clstr *Cluster) peerExists(peers *peers, peer *peer) bool {
 		}
 
 		for _, host := range peer.hosts {
-			if host.equals(node.host) {
-				// Main node host is also the same as one of the peer hosts.
-				// Peer should not be added.
-				node.referenceCount.IncrementAndGet()
-				return true
+			if host.Port == node.host.Port {
+				if host.Name == node.host.Name || (node.hostName != "" && host.Name == node.hostName) {
+					// Main node host is also the same as one of the peer hosts.
+					// Peer should not be added.
+					if host.IsLocalhost() {
+						node.hostName = host.Name
+					}
+					node.referenceCount.IncrementAndGet()
+
+					logger.Logger.Debug("Peer node `%s` matches existing node `%s` by host `%s`.", peer.nodeName, node.name, host)
+					return true
+				}
 			}
+
 		}
 		peer.replaceNode = node
 	}
