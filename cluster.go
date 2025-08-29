@@ -312,6 +312,12 @@ func (clstr *Cluster) tend() Error {
 			})
 
 			if _peer.replaceNode != nil {
+				// Preventing duplicate entries.
+				for _, entry := range peers._nodesToRemove {
+					if entry.Equals(_peer.replaceNode) {
+						return seq.Break
+					}
+				}
 				peers._nodesToRemove = append(peers._nodesToRemove, _peer.replaceNode)
 			}
 			return seq.Break
