@@ -31,6 +31,8 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
+const aesModule = "github.com/aerospike/aerospike-client-go/v8"
+
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
 type Cluster struct {
@@ -57,7 +59,7 @@ type Cluster struct {
 	// Hints for best node for a partition
 	partitionWriteMap iatomic.TypedVal[partitionMap] //partitionMap
 
-	clientPolicy        ClientPolicy
+	clientPolicy        atomic.Pointer[ClientPolicy]
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
 
@@ -79,10 +81,19 @@ type Cluster struct {
 
 	// Password in hashed format in bytes.
 	password iatomic.SyncVal[[]byte]
+
+	// Cluster max error count for the nodes
+	maxErrorCount iatomic.Int
+
+	// User agent id
+	// Leaving this at cluster level since cluster is visible to nodes
+	// which will need this information when sending user-agent to the server.
+	clientModuleVersion string // e.g. v8.0.0, v8.1.0, etc."
 }
 
 // NewCluster generates a Cluster instance.
 func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
+
 	// Validate the policy params
 	if policy.MinConnectionsPerNode > policy.ConnectionQueueSize {
 		panic("minimum number of connections specified in the ClientPolicy is bigger than total connection pool size")
@@ -115,9 +126,8 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	}
 
 	newCluster := &Cluster{
-		clientPolicy: clientPolicy,
-		infoPolicy:   InfoPolicy{Timeout: policy.Timeout},
-		tendChannel:  make(chan struct{}),
+		infoPolicy:  InfoPolicy{Timeout: policy.Timeout},
+		tendChannel: make(chan struct{}),
 
 		seeds:    *iatomic.NewSyncVal(hosts),
 		aliases:  *sm.New[Host, *Node](16),
@@ -128,7 +138,10 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		password: *iatomic.NewSyncVal[[]byte](nil),
 
 		supportsPartitionQuery: *iatomic.NewBool(false),
+		clientModuleVersion:    getLibraryVersion(aesModule),
 	}
+	newCluster.maxErrorCount.Set(policy.MaxErrorRate)
+	newCluster.clientPolicy.Store(&clientPolicy)
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
 
@@ -136,6 +149,11 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	if policy.RequiresAuthentication() {
 		if policy.AuthMode == AuthModeExternal && policy.TlsConfig == nil {
 			return nil, newError(types.PARAMETER_ERROR, "External Authentication requires TLS configuration to be set, because it sends clear password on the wire.")
+		}
+
+		// If PKI authentication is used and user is attempting to set password, return an error
+		if policy.AuthMode == AuthModePKI && (policy.User != "" || policy.Password != "") {
+			return nil, newError(types.FORBIDDEN_PASSWORD, "Password authentication is disabled for PKI-only users. Please authenticate using your certificate.")
 		}
 
 		newCluster.user = policy.User
@@ -159,7 +177,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 	// start up cluster maintenance go routine
 	newCluster.wgTend.Add(1)
-	go newCluster.clusterBoss(&newCluster.clientPolicy)
+	go newCluster.clusterBoss(newCluster.clientPolicy.Load())
 
 	if err == nil {
 		logger.Logger.Debug("New cluster initialized and ready to be used...")
@@ -183,7 +201,7 @@ func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Logger.Error("Cluster tend goroutine crashed: %s", debug.Stack())
-			go clstr.clusterBoss(&clstr.clientPolicy)
+			go clstr.clusterBoss(clstr.clientPolicy.Load())
 		}
 	}()
 
@@ -207,10 +225,11 @@ Loop:
 				logger.Logger.Warn(err.Error())
 			}
 
+			clientPolicy := clstr.clientPolicy.Load()
 			// Tending took longer than requested tend interval.
 			// Tending is too slow for the cluster, and may be falling behind schedule.
-			if tendDuration := time.Since(tm); tendDuration > clstr.clientPolicy.TendInterval {
-				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clstr.clientPolicy.TendInterval)
+			if tendDuration := time.Since(tm); tendDuration > clientPolicy.TendInterval {
+				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clientPolicy.TendInterval)
 			}
 		}
 	}
@@ -249,7 +268,7 @@ func (clstr *Cluster) tend() Error {
 
 	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
-	if len(nodes) == 0 || (clstr.clientPolicy.SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
+	if clientPolicy := clstr.clientPolicy.Load(); len(nodes) == 0 || (clientPolicy != nil && clientPolicy.SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
 		logger.Logger.Info("No nodes available; seeding...")
 		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
 			return err
@@ -288,7 +307,7 @@ func (clstr *Cluster) tend() Error {
 
 		seq.Do(_peer.hosts, func(host *Host) error {
 			// attempt connection to the host
-			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.SeedOnlyCluster}
+			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.Load().SeedOnlyCluster}
 			if err := nv.validateNode(clstr, host); err != nil {
 				logger.Logger.Warn("Add node `%s` failed: `%s`", host, err)
 				return nil
@@ -361,8 +380,9 @@ func (clstr *Cluster) tend() Error {
 
 	clstr.aggregateNodeStats(clstr.GetNodes())
 
+	clusterClientPolicy := *clstr.clientPolicy.Load()
 	// Reset connection error window for all nodes every connErrorWindow tend iterations.
-	if clstr.clientPolicy.MaxErrorRate > 0 && clstr.tendCount%clstr.clientPolicy.ErrorRateWindow == 0 {
+	if clusterClientPolicy.MaxErrorRate > 0 && clstr.tendCount%clusterClientPolicy.ErrorRateWindow == 0 {
 		for _, node := range clstr.GetNodes() {
 			node.resetErrorCount()
 		}
@@ -379,9 +399,11 @@ func (clstr *Cluster) aggregateNodeStats(nodeList []*Node) {
 	for _, node := range nodeList {
 		h := node.host.String()
 		if stats, exists := clstr.stats[h]; exists {
-			stats.aggregate(node.stats.getAndReset())
+			nr := node.stats.getAndReset()
+			stats.aggregate(nr)
 		} else {
-			clstr.stats[h] = node.stats.getAndReset()
+			nr := node.stats.getAndReset()
+			clstr.stats[h] = nr
 		}
 	}
 }
@@ -469,20 +491,22 @@ func (clstr *Cluster) waitTillStabilized() Error {
 		doneCh <- err
 	}()
 
+	clusterClientPolicy := clstr.clientPolicy.Load()
 	select {
-	case <-time.After(clstr.clientPolicy.Timeout):
-		if clstr.clientPolicy.FailIfNotConnected {
+	case <-time.After(clusterClientPolicy.Timeout):
+		if clusterClientPolicy.FailIfNotConnected {
 			clstr.Close()
 		}
 		return ErrTimeout.err()
 	case err := <-doneCh:
-		if err != nil && clstr.clientPolicy.FailIfNotConnected {
+		if err != nil && clusterClientPolicy.FailIfNotConnected {
 			clstr.Close()
 		}
 		return err
 	}
 }
 
+// TODO: Not used anywhere. Consider removing
 func (clstr *Cluster) findAlias(alias *Host) *Node {
 	return clstr.aliases.Get(*alias)
 }
@@ -536,11 +560,12 @@ func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
 
 	logger.Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
+	clusterClientPolicy := clstr.clientPolicy.Load()
 	// Add all nodes at once to avoid copying entire array multiple times.
 	for i, seed := range seedArray {
 		go func(index int, seed *Host) {
 			nodesToAdd := make(nodesToAddT, 128)
-			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.SeedOnlyCluster}
+			nv := nodeValidator{seedOnlyCluster: clusterClientPolicy.SeedOnlyCluster}
 			err := nv.seedNodes(clstr, seed, nodesToAdd)
 			if err != nil {
 				logger.Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
@@ -568,7 +593,7 @@ L:
 			if seedCount <= 0 {
 				break L
 			}
-		case <-time.After(clstr.clientPolicy.Timeout):
+		case <-time.After(clusterClientPolicy.Timeout):
 			// time is up, no seeds found
 			break L
 		}
@@ -595,6 +620,7 @@ func (clstr *Cluster) findNodeName(list []*Node, name string) bool {
 	return false
 }
 
+// TODO: Not used anywhere. Consider removing
 func (clstr *Cluster) addAlias(host *Host, node *Node) {
 	if host != nil && node != nil {
 		clstr.aliases.Set(*host, node)
@@ -604,7 +630,7 @@ func (clstr *Cluster) addAlias(host *Host, node *Node) {
 func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 	removeList := []*Node{}
 
-	if clstr.clientPolicy.SeedOnlyCluster {
+	if clstr.clientPolicy.Load().SeedOnlyCluster {
 		// Don't remove any node even if its bad or inactive.
 		return removeList
 	}
@@ -684,7 +710,7 @@ func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
 	defer clstr.updateClusterFeatures()
 
 	clstr.nodes.Update(func(nodes []*Node) ([]*Node, error) {
-		if clstr.clientPolicy.SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
+		if clientPolicy := clstr.clientPolicy.Load(); clientPolicy != nil && clientPolicy.SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
 			// Don't add new nodes.
 			return nodes, nil
 		}
@@ -883,10 +909,10 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 		done <- false
 	}()
 
-	dealine := time.After(timeout)
+	deadLine := time.After(timeout)
 	for {
 		select {
-		case <-dealine:
+		case <-deadLine:
 			return false, ErrTimeout.err()
 		case <-done:
 			return res, err
@@ -894,9 +920,9 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 	}
 }
 
-// WaitUntillMigrationIsFinished will block until all
+// WaitUntilMigrationIsFinished will block until all
 // migration operations in the cluster all finished.
-func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) Error {
+func (clstr *Cluster) WaitUntilMigrationIsFinished(timeout time.Duration) Error {
 	if timeout <= 0 {
 		timeout = _NO_TIMEOUT
 	}
@@ -913,9 +939,9 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) Error
 		}
 	}()
 
-	dealine := time.After(timeout)
+	deadLine := time.After(timeout)
 	select {
-	case <-dealine:
+	case <-deadLine:
 		return ErrTimeout.err()
 	case err := <-done:
 		return err
@@ -934,14 +960,17 @@ func (clstr *Cluster) Password() (res []byte) {
 func (clstr *Cluster) changePassword(user string, password string, hash []byte) {
 	// change password ONLY if the user is the same
 	if clstr.user == user {
-		clstr.clientPolicy.Password = password
+		clientPolicy := *clstr.clientPolicy.Load()
+		clientPolicy.Password = password
+		clstr.clientPolicy.Store(&clientPolicy)
 		clstr.password.Set(hash)
 	}
 }
 
 // ClientPolicy returns the client policy that is currently used with the cluster.
 func (clstr *Cluster) ClientPolicy() (res ClientPolicy) {
-	return clstr.clientPolicy
+	returnPolicy := *clstr.clientPolicy.Load()
+	return returnPolicy
 }
 
 // WarmUp fills the connection pool with connections for all nodes.
@@ -1004,7 +1033,74 @@ func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
 	}
 }
 
+func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
+	var userLabels *Labels
+	if metricPolicy == nil && clstr.metricsPolicy.Get() != nil && clstr.metricsPolicy.Get().Labels != nil {
+		userLabels = clstr.metricsPolicy.Get().Labels
+	}
+
+	nodes := clstr.GetNodes()
+	labels := make([]map[string]string, 0)
+	clientPolicy := clstr.clientPolicy.Load()
+	// Add node labels
+	for node := range nodes {
+		entries := make(map[string]string)
+		var app_id string
+
+		if clientPolicy.ApplicationId != "" {
+			app_id = clientPolicy.ApplicationId
+		} else {
+			app_id = clstr.user
+		}
+
+		// Merging user labels with node labels
+		if userLabels != nil && userLabels.Labels != nil {
+			for _, userLabel := range *userLabels.Labels {
+				for k, v := range userLabel {
+					entries[k] = v
+				}
+			}
+		}
+
+		// Reserved label names for the client
+		entries["node"] = nodes[node].GetName()
+		entries["host"] = nodes[node].host.String()
+		entries["cluster"] = clientPolicy.ClusterName
+
+		// Users are allowed to override app-id if they want to. Default is the user name.
+		// Users need to set the application id int the client policy.
+		entries["app-id"] = app_id
+
+		labels = append(labels, entries)
+	}
+
+	return NewLabels(labels...)
+}
+
 // DisableMetrics disables the cluster command metrics gathering.
 func (clstr *Cluster) DisableMetrics() {
 	clstr.metricsEnabled.Store(false)
+}
+
+//-------------------------------------------------------
+// Utility Functions
+//-------------------------------------------------------
+
+// getLibraryVersion returns the version of the aerospike client library.
+func getLibraryVersion(modulePath string) string {
+	// golang idiomatic module version is "(devel)" if not set.
+	defaultVersion := "(devel)"
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return defaultVersion
+	}
+
+	for _, dep := range info.Deps {
+		if dep.Path == modulePath {
+			return dep.Version
+		}
+	}
+
+	return defaultVersion
 }

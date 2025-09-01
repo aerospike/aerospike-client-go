@@ -14,6 +14,10 @@
 
 package aerospike
 
+import (
+	"time"
+)
+
 // QueryPolicy encapsulates parameters for policy attributes used in query operations.
 //
 // Inherited Policy fields Policy.Txn are ignored in query commands.
@@ -55,4 +59,76 @@ func NewQueryPolicy() *QueryPolicy {
 	return &QueryPolicy{
 		MultiPolicy: *NewMultiPolicy(),
 	}
+}
+
+// copy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+func (qp *QueryPolicy) copy() *QueryPolicy {
+	if qp == nil {
+		return nil
+	}
+
+	response := *qp
+	return &response
+}
+
+// applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy.
+func (qp *QueryPolicy) pathDynamic(dynConfig *DynConfig) *QueryPolicy {
+	if dynConfig == nil {
+		return qp
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if qp == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultQueryPolicy.Load()
+
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.Query != nil {
+		// Dynamic configuration is exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		return qp.copy().mapDynamic(dynConfig)
+	} else {
+		return qp
+	}
+}
+
+func (qp *QueryPolicy) mapDynamic(dynConfig *DynConfig) *QueryPolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return qp
+	}
+
+	if dynConfig.config.Dynamic.Query != nil {
+		if dynConfig.config.Dynamic.Query.ReadModeAp != nil {
+			qp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.Query.ReadModeAp)
+		}
+		if dynConfig.config.Dynamic.Query.ReadModeSc != nil {
+			qp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.Query.ReadModeSc)
+		}
+		if dynConfig.config.Dynamic.Query.TotalTimeout != nil {
+			qp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Query.TotalTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.Query.SocketTimeout != nil {
+			qp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Query.SocketTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.Query.MaxRetries != nil {
+			qp.MaxRetries = *dynConfig.config.Dynamic.Query.MaxRetries
+		}
+		if dynConfig.config.Dynamic.Query.SleepBetweenRetries != nil {
+			qp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Query.SleepBetweenRetries) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.Query.Replica != nil {
+			qp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Query.Replica)
+		}
+		if dynConfig.config.Dynamic.Query.IncludeBinData != nil {
+			qp.IncludeBinData = *dynConfig.config.Dynamic.Query.IncludeBinData
+		}
+		if dynConfig.config.Dynamic.Query.ExpectedDuration != nil {
+			qp.ExpectedDuration = mapQueryDuration(*dynConfig.config.Dynamic.Query.ExpectedDuration)
+		}
+		if dynConfig.config.Dynamic.Query.TimeoutDelay != nil {
+			qp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Query.TimeoutDelay) * time.Millisecond
+		}
+	}
+
+	return qp
 }

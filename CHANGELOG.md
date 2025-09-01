@@ -1,5 +1,23 @@
 # Change History
 
+## August 29 2025: v8.3.0
+
+- **Improvements**
+  - [CLIENT-3420] Update txn_verify_policy.go
+  - [CLIENT-3445] Updated docs for `UseServicesAlternate`
+  - [CLIENT-3406] Adding ability to pick select partition in PartitionFilter
+  - [CLIENT-3439] Provide user-level metrics for applications using Aerospike
+  - [CLIENT-3365] Support ability to dynamically change config parameters at runtime
+  - [CLIENT-3452] Circuit breaker progressive back off
+  - [CLIENT-3590] Support Secondary index on an expression
+  - [CLIENT-3615] Added missing filters for NewContainsRange
+  - [CLIENT-2226] Changes for timeoutDelay
+  - [CLIENT-3577] Support creating a PKI user without a password
+  - [CLIENT-3586] Support server-side logging of Client type and Client version (User-agent feature)
+- **Fixes**
+  - [CLIENT-3665] Fix api and added extensive tests
+  - [CLIENT-3571] Changes to handle errors for PKI users
+
 ## May 5 2025: v8.2.2
 
 - **Fixes**

@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"math"
+	"time"
 )
 
 const (
@@ -102,4 +103,71 @@ func NewWritePolicy(generation, expiration uint32) *WritePolicy {
 	res.MaxRetries = 0
 
 	return res
+}
+
+// copy creates a new WritePolicy instance and copies the values from the source WritePolicy.
+func (wp *WritePolicy) copy() *WritePolicy {
+	if wp == nil {
+		return nil
+	}
+
+	response := *wp
+	return &response
+}
+
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (wp *WritePolicy) patchDynamic(dynConfig *DynConfig) *WritePolicy {
+	// If dynamic config is not set, return the policy as is.
+	if dynConfig == nil {
+		return wp
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	// If no policy is passed in, we don't need to map. Just returned what is in mapped cache already.
+	if wp == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultWritePolicy.Load()
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.Write != nil {
+		// Dynamic configuration is exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		return wp.copy().mapDynamic(dynConfig)
+	} else {
+		return wp
+	}
+}
+
+func (wp *WritePolicy) mapDynamic(dynConfig *DynConfig) *WritePolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return wp
+	}
+
+	if dynConfig.config.Dynamic.Write != nil {
+		if dynConfig.config.Dynamic.Write.Replica != nil {
+			wp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Write.Replica)
+		}
+		if dynConfig.config.Dynamic.Write.SendKey != nil {
+			wp.SendKey = *dynConfig.config.Dynamic.Write.SendKey
+		}
+		if dynConfig.config.Dynamic.Write.SleepBetweenRetries != nil {
+			wp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Write.SleepBetweenRetries) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.Write.SocketTimeout != nil {
+			wp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Write.SocketTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.Write.TotalTimeout != nil {
+			wp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Write.TotalTimeout) * time.Millisecond
+		}
+		if dynConfig.config.Dynamic.Write.MaxRetries != nil {
+			wp.MaxRetries = *dynConfig.config.Dynamic.Write.MaxRetries
+		}
+		if dynConfig.config.Dynamic.Write.DurableDelete != nil {
+			wp.DurableDelete = *dynConfig.config.Dynamic.Write.DurableDelete
+		}
+		if dynConfig.config.Dynamic.Write.TimeoutDelay != nil {
+			wp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Write.TimeoutDelay) * time.Millisecond
+		}
+	}
+
+	return wp
 }

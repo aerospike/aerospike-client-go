@@ -26,7 +26,7 @@ import (
 var aeroerr = newError(types.PARSE_ERROR, "Error parsing peers list.")
 
 func parsePeers(cluster *Cluster, node *Node) (*peerListParser, Error) {
-	cmd := cluster.clientPolicy.peersString()
+	cmd := cluster.clientPolicy.Load().peersString()
 
 	info, err := node.RequestInfo(&cluster.infoPolicy, cmd)
 	if err != nil {

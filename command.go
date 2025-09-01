@@ -20,7 +20,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"iter"
 	"time"
+
+	amap "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
 
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -151,6 +154,38 @@ var (
 	buffPool = pool.NewTieredBufferPool(MinBufferSize, PoolCutOffBufferSize)
 )
 
+// Return string representation of command type.
+func (ct commandType) String() string {
+	switch ct {
+	case ttNone:
+		return "None"
+	case ttGet:
+		return "Get"
+	case ttGetHeader:
+		return "GetHeader"
+	case ttExists:
+		return "Exists"
+	case ttPut:
+		return "Put"
+	case ttDelete:
+		return "Delete"
+	case ttOperate:
+		return "Operate"
+	case ttQuery:
+		return "Query"
+	case ttScan:
+		return "Scan"
+	case ttUDF:
+		return "UDF"
+	case ttBatchRead:
+		return "BatchRead"
+	case ttBatchWrite:
+		return "BatchWrite"
+	default:
+		return fmt.Sprintf("commandType(%d)", int(ct))
+	}
+}
+
 // command interface describes all commands available
 type command interface {
 	getPolicy(ifc command) Policy
@@ -173,6 +208,11 @@ type command interface {
 	executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) Error
 
 	canPutConnBack() bool
+
+	getNamespaces() iter.Seq2[string, uint64]
+	getNamespace() *string
+
+	salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node)
 
 	// Executes the command
 	Execute() Error
@@ -205,6 +245,8 @@ type baseCommand struct {
 
 	commandSentCounter int
 	commandWasSent     bool
+
+	receiveSize int64
 }
 
 //--------------------------------------------------
@@ -2448,6 +2490,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	binNameSize := 0
 	predSize := 0
 	var ctxSize int
+	var expressionSize int
 
 	filterExpression := policy.FilterExpression
 	if filterExpression == nil && wpolicy != nil {
@@ -2537,6 +2580,20 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			if ctxSize > 0 {
 				cmd.dataOffset += int(_FIELD_HEADER_SIZE) + ctxSize
 				fieldCount++
+			}
+		}
+
+		if statement.Filter.indexName != "" {
+			cmd.dataOffset += int(_FIELD_HEADER_SIZE) + len(statement.Filter.indexName)
+			fieldCount++
+		}
+		if statement.Filter.expression != nil {
+			if size, err := statement.Filter.expression.size(); err == nil && size > 0 {
+				expressionSize = size
+				cmd.dataOffset += int(_FIELD_HEADER_SIZE) + size
+				fieldCount++
+			} else if err != nil {
+				return newCommonError(err)
 			}
 		}
 	}
@@ -2712,6 +2769,17 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			if _, err = statement.Filter.packCtx(cmd); err != nil {
 				return newCommonError(err)
 			}
+		}
+
+		if statement.Filter.indexName != "" {
+			cmd.writeFieldString(statement.Filter.indexName, INDEX_NAME)
+		}
+
+		if expressionSize > 0 {
+			cmd.writeFieldHeader(expressionSize, INDEX_EXPRESSION)
+			if _, err = statement.Filter.expression.pack(cmd); err != nil {
+				return newCommonError(err)
+			} 
 		}
 	}
 
@@ -3605,7 +3673,6 @@ func (cmd *baseCommand) executeIter(ifc command, iter int) Error {
 func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) (errChain Error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
-
 	transStart := time.Now()
 
 	notFirstIteration := false
@@ -3613,7 +3680,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	loopCount := 0
 
 	var err Error
-
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
 		cmd.commandSentCounter++
@@ -3675,7 +3741,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		if policy.TotalTimeout > 0 && time.Now().After(deadline) {
 			break
 		}
-
 		// set command node, so when you return a record it has the node
 		cmd.node, err = ifc.getNode(ifc)
 		if cmd.node == nil || !cmd.node.IsActive() || err != nil {
@@ -3690,6 +3755,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			continue
 		}
 
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+
 		// check if node has encountered too many errors
 		if err = cmd.node.validateErrorCount(); err != nil {
 			isClientTimeout = false
@@ -3703,7 +3770,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			continue
 		}
 
-		cmd.conn, err = ifc.getConnection(policy)
+		if metricsEnabled {
+			start := time.Now()
+			cmd.conn, err = ifc.getConnection(policy)
+			// Capture connection acquire time.
+			cmd.applyDetailedMetricsConnectionAq(ifc, start)
+		} else {
+			cmd.conn, err = ifc.getConnection(policy)
+		}
+
 		if err != nil {
 			isClientTimeout = false
 
@@ -3734,6 +3809,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
+
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 
@@ -3768,7 +3844,16 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 		// Send command.
 		cmd.commandWasSent = true
-		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
+		if metricsEnabled {
+			start := time.Now()
+			var dataSent int
+			dataSent, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
+			// Capture sent bytes and transmission time.
+			cmd.applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc, dataSent, start)
+		} else {
+			_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
+		}
+
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 
@@ -3779,10 +3864,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			if deviceOverloadError(err) {
 				cmd.node.incrErrorCount()
 			}
+			// try to salvage the connection
+			if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
+				go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+			} else {
+				// IO errors are considered temporary anomalies. Retry.
+				// Close socket to flush out possible garbage. Do not put back in pool.
+				cmd.conn.Close()
+			}
 
-			// IO errors are considered temporary anomalies. Retry.
-			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.conn.Close()
 			cmd.conn = nil
 
 			logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
@@ -3790,7 +3880,17 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		// Parse results.
-		err = ifc.parseResult(ifc, cmd.conn)
+		if metricsEnabled {
+			start := time.Now()
+			err = ifc.parseResult(ifc, cmd.conn)
+			dataReceived := cmd.conn.totalReceived
+			logger.Logger.Debug("Node " + cmd.node.String() + ": " + fmt.Sprintf("Received %d bytes", dataReceived) + ", command type: " + ifc.commandType().String())
+			// Capture timing for parsing results and total bytes received from the server.
+			cmd.applyDetailedMetricsParsing(ifc, start, dataReceived)
+		} else {
+			err = ifc.parseResult(ifc, cmd.conn)
+		}
+
 		if err != nil {
 			applyTransactionErrorMetrics(cmd.node)
 
@@ -3806,9 +3906,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 					}
 				}
 
-				// IO errors are considered temporary anomalies. Retry.
-				// Close socket to flush out possible garbage. Do not put back in pool.
-				cmd.conn.Close()
+				if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
+					// Do not close connection immediately, but give it a chance to recover
+					go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+					continue
+				} else {
+					// IO errors are considered temporary anomalies. Retry.
+					// Close socket to flush out possible garbage. Do not put back in pool.
+					cmd.conn.Close()
+				}
 
 				logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 
@@ -3919,6 +4025,12 @@ func applyTransactionRetryMetrics(node *Node) {
 	}
 }
 
+func applyConnectionRecoveredMetrics(node *Node) {
+	if node != nil {
+		node.stats.ConnectionsRecovered.GetAndIncrement()
+	}
+}
+
 func applyMetrics(tt commandType, metrics *nodeStats, s time.Time) {
 	d := uint64(time.Since(s).Microseconds())
 	switch tt {
@@ -3947,6 +4059,7 @@ func applyMetrics(tt commandType, metrics *nodeStats, s time.Time) {
 	}
 }
 
+// TODO: This is not used anywhere. Remove?
 func (cmd *baseCommand) parseVersion(fieldCount int) *uint64 {
 	var version *uint64
 
@@ -3964,4 +4077,135 @@ func (cmd *baseCommand) parseVersion(fieldCount int) *uint64 {
 		cmd.dataOffset += int(size)
 	}
 	return version
+}
+
+// applyDetailedMetricsParsing updates the detailed metrics for parsing time.
+func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.Time, dataReceived int64) {
+	if cmd.node == nil || cmd.node.cluster == nil || !cmd.node.cluster.MetricsEnabled() {
+		return
+	}
+
+	end := uint64(time.Since(startTime).Microseconds())
+	ct := ifc.commandType()
+	dm := &cmd.node.stats.DetailedMetrics
+
+	if single := ifc.getNamespace(); single != nil {
+		ns := *single
+
+		inner := dm.Get(ns)
+		if inner == nil {
+			inner = amap.New[commandType, *commandMetric](0)
+			dm.Set(ns, inner)
+		}
+
+		cm := inner.Get(ct)
+		if cm == nil {
+			cm = cmd.node.stats.newCommandMetric()
+			inner.Set(ct, cm)
+		}
+
+		cm.Parsing.Add(end)
+		cm.BytesReceived.Add(uint64(dataReceived))
+	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
+		for ns := range nsMap {
+			if ns == "" {
+				continue
+			}
+			inner := dm.Get(ns)
+			if inner == nil {
+				inner = amap.New[commandType, *commandMetric](0)
+				dm.Set(ns, inner)
+			}
+			cm := inner.Get(ct)
+			if cm == nil {
+				cm = cmd.node.stats.newCommandMetric()
+				inner.Set(ct, cm)
+			}
+			cm.Parsing.Add(end)
+			cm.BytesReceived.Add(uint64(dataReceived))
+		}
+	}
+}
+
+// applyDetailedMetricsConnectionAq updates the detailed metrics for connection acquire time.
+func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime time.Time) {
+	end := uint64(time.Since(startTime).Microseconds())
+	ct := ifc.commandType()
+	dm := &cmd.node.stats.DetailedMetrics
+
+	if single := ifc.getNamespace(); single != nil {
+		inner := dm.Get(*single)
+		if inner == nil {
+			inner = amap.New[commandType, *commandMetric](0)
+			dm.Set(*single, inner)
+		}
+
+		cm := inner.Get(ct)
+		if cm == nil {
+			cm = cmd.node.stats.newCommandMetric()
+			inner.Set(ct, cm)
+		}
+
+		cm.ConnectionAq.Add(end)
+	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
+		for ns := range nsMap {
+			if ns == "" {
+				continue
+			}
+			inner := dm.Get(ns)
+			if inner == nil {
+				inner = amap.New[commandType, *commandMetric](0)
+				dm.Set(ns, inner)
+			}
+
+			cm := inner.Get(ct)
+			if cm == nil {
+				cm = cmd.node.stats.newCommandMetric()
+				inner.Set(ct, cm)
+			}
+
+			cm.ConnectionAq.Add(end)
+		}
+	}
+}
+
+// applyDetailedMetricsDataSizeAndLatencyOnWrite updates the detailed metrics for bytes sent and transmission time.
+func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc command, bytesSent int, startTime time.Time) {
+	end := uint64(time.Since(startTime).Microseconds())
+	ct := ifc.commandType()
+	dm := &cmd.node.stats.DetailedMetrics
+	if singleNS := ifc.getNamespace(); singleNS != nil {
+		if *singleNS != "" {
+			inner := dm.Get(*singleNS)
+			if inner == nil {
+				inner = amap.New[commandType, *commandMetric](1)
+				dm.Set(*singleNS, inner)
+			}
+			cm := inner.Get(ct)
+			if cm == nil {
+				cm = cmd.node.stats.newCommandMetric()
+				inner.Set(ct, cm)
+			}
+			cm.BytesSent.Add(uint64(bytesSent))
+			cm.Latency.Add(end)
+		}
+	} else if nsIter := ifc.getNamespaces(); nsIter != nil { // allocation happens
+		for ns := range nsIter {
+			if ns != "" {
+				//upsert(ns)
+				inner := dm.Get(ns)
+				if inner == nil {
+					inner = amap.New[commandType, *commandMetric](1)
+					dm.Set(ns, inner)
+				}
+				cm := inner.Get(ct)
+				if cm == nil {
+					cm = cmd.node.stats.newCommandMetric()
+					inner.Set(ct, cm)
+				}
+				cm.BytesSent.Add(uint64(bytesSent))
+				cm.Latency.Add(end)
+			}
+		}
+	}
 }

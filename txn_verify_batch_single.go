@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"iter"
 
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -126,6 +127,13 @@ func (cmd *batchSingleTxnVerifyCommand) parseResult(ifc command, conn *Connectio
 
 	headerLength := int(cmd.dataBuffer[8])
 	resultCode := types.ResultCode(cmd.dataBuffer[13] & 0xFF)
+
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, resultCode)
+	}
+
 	// generation := Buffer.BytesToUint32(cmd.dataBuffer, 14)
 	// expiration := types.TTL(Buffer.BytesToUint32(cmd.dataBuffer, 18))
 	// fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 26)) // almost certainly 0
@@ -171,4 +179,12 @@ func (cmd *batchSingleTxnVerifyCommand) Execute() Error {
 
 func (cmd *batchSingleTxnVerifyCommand) commandType() commandType {
 	return ttPut
+}
+
+func (cmd *batchSingleTxnVerifyCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *batchSingleTxnVerifyCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"iter"
 	"reflect"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -90,6 +91,12 @@ func (cmd *batchTxnRollCommand) parseRecordResults(ifc command, receiveSize int)
 			return false, err
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
+
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
+		}
 
 		// The only valid server return codes are "ok" and "not found" and "filtered out".
 		// If other return codes are received, then abort the batch.
@@ -203,4 +210,20 @@ func (cmd *batchTxnRollCommand) Execute() Error {
 
 func (cmd *batchTxnRollCommand) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, cmd.attr.hasWrite)
+}
+
+func (cmd *batchTxnRollCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return cmd.nsIter
+}
+
+func (cmd *batchTxnRollCommand) getNamespace() *string {
+	return nil
+}
+
+func (cmd *batchTxnRollCommand) nsIter(yield func(string, uint64) bool) {
+	for _, key := range cmd.keys {
+		if !yield(key.namespace, 1) {
+			return
+		}
+	}
 }

@@ -54,8 +54,12 @@ func NewBatchReadPolicy() *BatchReadPolicy {
 	}
 }
 
-func (brp *BatchReadPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+func (brp *BatchReadPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
+
+	if dynConfig != nil {
+		wp.BasePolicy = *dynConfig.client.dynDefaultBatchReadBasePolicy.Load()
+	}
 
 	if brp != nil {
 		if brp.FilterExpression != nil {
@@ -66,5 +70,54 @@ func (brp *BatchReadPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 		wp.ReadModeSC = brp.ReadModeSC
 		wp.ReadTouchTTLPercent = brp.ReadTouchTTLPercent
 	}
+
 	return wp
+}
+
+// copyBAtchReadPolicy creates a new BasePolicy instance and copies the values from the source BatchReadPolicy.
+func (brp *BatchReadPolicy) copy() *BatchReadPolicy {
+	if brp == nil {
+		return nil
+	}
+
+	response := *brp
+	return &response
+}
+
+// patchDynamic applies the dynamic configuration and generates a new policy.
+func (brp *BatchReadPolicy) patchDynamic(dynConfig *DynConfig) *BatchReadPolicy {
+	if dynConfig == nil {
+		return brp
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if brp == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultBatchReadPolicy.Load()
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.BatchRead != nil {
+		// Dynamic configuration is exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		// Copy the existing write policy to preserve any custom settings.
+		return brp.copy().mapDynamic(dynConfig)
+	} else {
+		return brp
+	}
+}
+
+func (brp *BatchReadPolicy) mapDynamic(dynConfig *DynConfig) *BatchReadPolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return brp
+	}
+
+	if dynConfig.config.Dynamic.BatchRead != nil {
+		if dynConfig.config.Dynamic.BatchRead.ReadModeAp != nil {
+			brp.ReadModeAP = mapReadModeAPToReadModeAP(*dynConfig.config.Dynamic.BatchRead.ReadModeAp)
+		}
+		if dynConfig.config.Dynamic.BatchRead.ReadModeSc != nil {
+			brp.ReadModeSC = mapReadModeSCToReadModeSC(*dynConfig.config.Dynamic.BatchRead.ReadModeSc)
+		}
+	}
+
+	return brp
 }

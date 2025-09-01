@@ -106,7 +106,14 @@ func (acmd *AdminCommand) setPassword(conn *Connection, policy *AdminPolicy, use
 	acmd.writeHeader(_SET_PASSWORD, 2)
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeFieldBytes(_PASSWORD, password)
-	return acmd.executeCommand(conn, policy)
+	err := acmd.executeCommand(conn, policy)
+
+	// Handling the case for PKI user password change
+	if err != nil && err.Matches(types.FORBIDDEN_PASSWORD) {
+		return newError(types.FORBIDDEN_PASSWORD, "PKI user password not changeable")
+	}
+
+	return err
 }
 
 func (acmd *AdminCommand) changePassword(conn *Connection, policy *AdminPolicy, user string, oldPass, newPass []byte) Error {
@@ -114,7 +121,14 @@ func (acmd *AdminCommand) changePassword(conn *Connection, policy *AdminPolicy, 
 	acmd.writeFieldStr(_USER, user)
 	acmd.writeFieldBytes(_OLD_PASSWORD, oldPass)
 	acmd.writeFieldBytes(_PASSWORD, newPass)
-	return acmd.executeCommand(conn, policy)
+	err := acmd.executeCommand(conn, policy)
+
+	// Handling the case for PKI user password change
+	if err != nil && err.Matches(types.FORBIDDEN_PASSWORD) {
+		return newError(types.FORBIDDEN_PASSWORD, "PKI user password not changeable")
+	}
+
+	return err
 }
 
 func (acmd *AdminCommand) grantRoles(conn *Connection, policy *AdminPolicy, user string, roles []string) Error {

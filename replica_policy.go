@@ -17,6 +17,12 @@
 
 package aerospike
 
+import (
+	"fmt"
+
+	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+)
+
 // ReplicaPolicy defines type of node partition targeted by read commands.
 type ReplicaPolicy int
 
@@ -46,3 +52,18 @@ const (
 	// in order to function properly.
 	PREFER_RACK
 )
+
+func mapReplicaToReplicaPolicy(replica dynconfig.Replica) ReplicaPolicy {
+	switch replica {
+	case dynconfig.MASTER:
+		return MASTER
+	case dynconfig.MASTER_PROLES:
+		return MASTER_PROLES
+	case dynconfig.SEQUENCE:
+		return SEQUENCE
+	case dynconfig.PREFER_RACK:
+		return PREFER_RACK
+	default:
+		panic(fmt.Sprintf("Unknown ReplicaPolicy: %v", replica))
+	}
+}

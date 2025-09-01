@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 	"github.com/aerospike/aerospike-client-go/v8/types/histogram"
 )
 
@@ -50,12 +51,90 @@ type MetricsPolicy struct {
 	//
 	// Default: 2
 	LatencyBase int //= 2;
+
+	// User provided labels which will appended to the metrics on export. This
+	// information is used downstream by metrics aggregetators to group/identify metrics
+	// collected by the client.
+	Labels *Labels
 }
 
+// NewMetricsPolicy creates a new MetricsPolicy with predefined set of default parameters.
 func DefaultMetricsPolicy() *MetricsPolicy {
 	return &MetricsPolicy{
 		HistogramType:  histogram.Logarithmic,
 		LatencyColumns: 24,
 		LatencyBase:    2,
+		Labels:         NewLabels(),
 	}
+}
+
+// DefaultMetricsPolicyWithLabels creates a new MetricsPolicy with the provided labels.
+// The labels are used to identify the metrics collected by the client.
+func DefaultMetricsPolicyWithLabels(pairs ...map[string]string) *MetricsPolicy {
+	labels := NewLabels(pairs...)
+	mp := *DefaultMetricsPolicy()
+
+	mp.Labels = labels
+
+	return &mp
+}
+
+// copy creates a new BasePolicy instance and copies the values from the source policy.
+func (mp *MetricsPolicy) copy() *MetricsPolicy {
+	if mp == nil {
+		return nil
+	}
+
+	response := *mp
+	return &response
+}
+
+// metricsSyncCallBack is a callback function that is called when the dynamic configuration changes.
+// Changes will only be made if the there is a discrepancy between the current configuration and the new configuration.
+func metricsSyncCallBack(config *dynconfig.Config, client *Client) {
+	// Metrics are not enabled but configuration is set to enable metrics
+	if client != nil && !client.MetricsEnabled() && config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil && *config.Dynamic.Metrics.Enable {
+		client.cluster.EnableMetrics(client.dynDefaultMetricsPolicy.Load())
+	} else if client != nil && client.MetricsEnabled() && config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil && !*config.Dynamic.Metrics.Enable {
+		// Metrics are enabled but configuration is set to disable metrics
+		client.cluster.DisableMetrics()
+	}
+}
+
+// patchDynamic implements the configuration logic without locking.
+func (mp *MetricsPolicy) patchDynamic(dynConfig *DynConfig) *MetricsPolicy {
+	if dynConfig == nil {
+		return mp
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil {
+		if mp != nil {
+			// Copy the existing policy to preserve custom settings.
+			return mp.copy().mapDynamic(dynConfig)
+		} else {
+			// Passed in policy is nil, fetch mapped default policy from cache.
+			return dynConfig.client.dynDefaultMetricsPolicy.Load()
+		}
+	} else {
+		return mp
+	}
+}
+
+func (mp *MetricsPolicy) mapDynamic(dynConfig *DynConfig) *MetricsPolicy {
+	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+		return mp
+	}
+
+	if dynConfig.config.Dynamic.Metrics != nil {
+		if dynConfig.config.Dynamic.Metrics.LatencyColumns != nil {
+			mp.LatencyColumns = *dynConfig.config.Dynamic.Metrics.LatencyColumns
+		}
+		if dynConfig.config.Dynamic.Metrics.LatencyBase != nil {
+			mp.LatencyBase = *dynConfig.config.Dynamic.Metrics.LatencyBase
+		}
+	}
+
+	return mp
 }

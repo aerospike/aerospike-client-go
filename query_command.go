@@ -14,6 +14,10 @@
 
 package aerospike
 
+import (
+	"iter"
+)
+
 type queryCommand struct {
 	baseMultiCommand
 
@@ -59,4 +63,12 @@ func (cmd *queryCommand) Execute() Error {
 		cmd.recordset.sendError(err)
 	}
 	return err
+}
+
+func (cmd *queryCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *queryCommand) getNamespace() *string {
+	return &cmd.statement.Namespace
 }
