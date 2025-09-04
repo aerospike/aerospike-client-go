@@ -60,7 +60,7 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 		SetName:    set,
 		BinNames:   binNames,
 		ReturnData: true,
-		TaskId:     rand.Uint64(),
+		TaskId:     0,
 	}
 }
 
@@ -112,4 +112,23 @@ func (stmt *Statement) terminationError() types.ResultCode {
 // Always set the taskID client-side to a non-zero random value
 func (stmt *Statement) prepare(returnData bool) {
 	stmt.ReturnData = returnData
+}
+
+func (stmt *Statement) prepareTaskId() uint64 {
+	// If TaskId is 0, set it to a new random value and return the same statement.
+	// This also means that that the taskId was never set by the user.
+	// If TaskId is non-zero, it means that the user set it manually.
+	// In that case, we make a copy of the statement and set a new random taskId on the copy.
+	// This way we don't modify the original statement that the user provided.
+	// This is important because the user might want to reuse the same statement for multiple queries.
+	// However the control of the taskId is now with the client library and not the user.
+	// Important to remember is that the server will reject queries that have already been executed and the result is not
+	// available yet.
+	if stmt.TaskId == 0 {
+		taskId := rand.Uint64()
+
+		return taskId
+	}
+
+	return stmt.TaskId
 }
