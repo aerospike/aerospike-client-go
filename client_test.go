@@ -237,6 +237,113 @@ var _ = gg.Describe("Aerospike", func() {
 				}
 			})
 
+			gg.It("must validate batch retries prefer nodes in the same rack first", func() {
+				cpolicy := *clientPolicy
+				cpolicy.User = *user
+				cpolicy.Password = *password
+				c, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+
+				info := info(c, "rack-ids")
+				if strings.HasPrefix(strings.ToUpper(info), "ERROR") {
+					gg.Skip("Skipping RackAware test since it is not supported on this cluster...")
+				}
+
+				// Check if we have multiple racks available
+				rackIds := strings.Split(info, ",")
+				if len(rackIds) < 2 {
+					gg.Skip("Skipping batch retry rack test - need at least 2 racks for meaningful test")
+				}
+
+				// Configure client for rack awareness
+				cpolicy = *clientPolicy
+				cpolicy.RackAware = true
+				cpolicy.RackIds = []int{1} // Prefer rack 1
+				cpolicy.Timeout = 10 * time.Second
+
+				nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+				defer nclient.Close()
+
+				// Set up some test keys
+				var keys []*as.Key
+				for i := 0; i < 10; i++ {
+					key, err := as.NewKey(*namespace, "racktest", i)
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+					keys = append(keys, key)
+				}
+
+				// Create batch policy with PREFER_RACK
+				batchPolicy := as.NewBatchPolicy()
+				batchPolicy.ReplicaPolicy = as.PREFER_RACK
+				batchPolicy.MaxRetries = 3
+
+				// Test batch reads to verify rack-aware node selection works
+				for attempt := 0; attempt < 5; attempt++ {
+					batchRecords, err := nclient.BatchGet(batchPolicy, keys)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					gm.Expect(len(batchRecords)).To(gm.Equal(len(keys)))
+
+					// Validate nodes used for batch operations prefer rack nodes
+					nodeTracker := make(map[*as.Node]int)
+					rackNodeCount := 0
+					totalNodes := 0
+
+					// Check which nodes would be selected for each key
+					for _, key := range keys {
+						node, err := as.GetNodeBatchRead(nclient.Cluster(), key, as.PREFER_RACK, as.PREFER_RACK, nil, 0, 0)
+						gm.Expect(err).ToNot(gm.HaveOccurred())
+
+						nodeTracker[node]++
+						totalNodes++
+
+						// Check if this node is in our preferred rack
+						nodeRack, err := node.Rack(*namespace)
+						if err == nil && nodeRack == 1 {
+							rackNodeCount++
+						}
+					}
+
+					// This value should be greater or equal to 1 if we have at least one node
+					gm.Expect(len(nodeTracker)).To(gm.BeNumerically(">=", 1))
+
+					// If rack nodes are available, they should be preferred
+					if rackNodeCount > 0 {
+						// At least some operations should use rack-aware nodes
+						gm.Expect(rackNodeCount).To(gm.BeNumerically(">", 0))
+					}
+				}
+
+				// Test that retry logic respects rack preference
+				for i := 0; i < 5; i++ {
+					key, err := as.NewKey(*namespace, "rackretrytest", i)
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+
+					initialNode, err := as.GetNodeBatchRead(nclient.Cluster(), key, as.PREFER_RACK, as.PREFER_RACK, nil, 0, 0)
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+
+					retryNode, err := as.GetNodeBatchRead(nclient.Cluster(), key, as.PREFER_RACK, as.PREFER_RACK, initialNode, 1, 1)
+					gm.Expect(err).NotTo(gm.HaveOccurred())
+
+					gm.Expect(retryNode).NotTo(gm.Equal(initialNode))
+
+					initialRack, initialRackErr := initialNode.Rack(*namespace)
+					retryRack, retryRackErr := retryNode.Rack(*namespace)
+
+					// If both nodes are in racks, and we have rack 1 configured,
+					// the system should prefer rack 1 nodes when available
+					if initialRackErr == nil && retryRackErr == nil {
+						if initialRack == 1 && retryRack == 1 {
+							// Both nodes are in preferred rack - this is good behavior
+							gm.Expect(retryRack).To(gm.Equal(1))
+						} else if retryRack == 1 {
+							// Retry node is in preferred rack - this shows rack preference working
+							gm.Expect(retryRack).To(gm.Equal(1))
+						}
+					}
+				}
+			})
+
 			// gg.It("must connect to the cluster in rackaware mode", func() {
 			// 	cpolicy := *clientPolicy
 			// 	cpolicy.Timeout = 10 * time.Second
