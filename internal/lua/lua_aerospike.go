@@ -53,11 +53,11 @@ func luaAerospikeLog(L *lua.LState) int {
 
 	switch level {
 	case 1:
-		logger.Logger.Warn(str)
+		logger.Logger.Warn("%s", str)
 	case 2:
-		logger.Logger.Info(str)
+		logger.Logger.Info("%s", str)
 	case 3, 4:
-		logger.Logger.Debug(str)
+		logger.Logger.Debug("%s", str)
 	}
 
 	return 0

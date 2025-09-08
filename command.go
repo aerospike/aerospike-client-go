@@ -2779,7 +2779,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			cmd.writeFieldHeader(expressionSize, INDEX_EXPRESSION)
 			if _, err = statement.Filter.expression.pack(cmd); err != nil {
 				return newCommonError(err)
-			} 
+			}
 		}
 	}
 
@@ -3800,7 +3800,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				// the command to increase the iteration count.
 				cmd.commandSentCounter--
 			}
-			logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
+			logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
 			continue
 		}
 
@@ -3875,7 +3875,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 			cmd.conn = nil
 
-			logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
+			logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
 			continue
 		}
 
@@ -3884,7 +3884,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			start := time.Now()
 			err = ifc.parseResult(ifc, cmd.conn)
 			dataReceived := cmd.conn.totalReceived
-			logger.Logger.Debug("Node " + cmd.node.String() + ": " + fmt.Sprintf("Received %d bytes", dataReceived) + ", command type: " + ifc.commandType().String())
+			logger.Logger.Debug("Node %s: Received %d bytes, command type: %s", cmd.node.String(), dataReceived, ifc.commandType().String())
 			// Capture timing for parsing results and total bytes received from the server.
 			cmd.applyDetailedMetricsParsing(ifc, start, dataReceived)
 		} else {
@@ -3916,7 +3916,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 					cmd.conn.Close()
 				}
 
-				logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
+				logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
 
 				// retry only for non-streaming commands
 				if !cmd.oneShot {
