@@ -313,12 +313,9 @@ func (clstr *Cluster) tend() Error {
 
 			if _peer.replaceNode != nil {
 				// Preventing duplicate entries.
-				for _, entry := range peers._nodesToRemove {
-					if entry.Equals(_peer.replaceNode) {
-						return seq.Break
-					}
+				if !peers.containsNodeToRemove(_peer.replaceNode) {
+					peers.addNodesToRemove(_peer.replaceNode)
 				}
-				peers._nodesToRemove = append(peers._nodesToRemove, _peer.replaceNode)
 			}
 			return seq.Break
 		})
@@ -338,11 +335,15 @@ func (clstr *Cluster) tend() Error {
 		clstr.findNodesToRemove(peers)
 
 		// Remove nodes in a batch.
-		for i := range peers._nodesToRemove {
-			logger.Logger.Debug("The following nodes will be removed: %s", peers._nodesToRemove[i])
+		nodesToRemove := peers.getNodesToRemove()
+		for i := range nodesToRemove {
+			logger.Logger.Debug("The following nodes will be removed: %s", nodesToRemove[i])
 		}
-		clstr.removeNodes(peers._nodesToRemove)
-		clstr.aggregateNodeStats(peers._nodesToRemove)
+		clstr.removeNodes(nodesToRemove)
+		clstr.aggregateNodeStats(nodesToRemove)
+
+		// Clear the removal list after processing
+		peers.clearNodesToRemove()
 	}
 
 	// Add nodes in a batch.
@@ -645,7 +646,6 @@ func (clstr *Cluster) addAlias(host *Host, node *Node) {
 
 func (clstr *Cluster) findNodesToRemove(peers *peers) {
 	refreshCount := peers.refreshCount.Get()
-	removeList := peers._nodesToRemove
 
 	if clstr.clientPolicy.Load().SeedOnlyCluster {
 		// Don't remove any node even if its bad or inactive.
@@ -657,7 +657,9 @@ func (clstr *Cluster) findNodesToRemove(peers *peers) {
 	for _, node := range nodes {
 		if !node.IsActive() {
 			// Inactive nodes must be removed.
-			removeList = append(removeList, node)
+			if !peers.containsNodeToRemove(node) {
+				peers.addNodesToRemove(node)
+			}
 			continue
 		}
 
@@ -666,7 +668,9 @@ func (clstr *Cluster) findNodesToRemove(peers *peers) {
 			// All node info requests failed and this node had 5 consecutive failures.
 			// Remove node.  If no nodes are left, seeds will be tried in next cluster
 			// tend iteration.
-			removeList = append(removeList, node)
+			if !peers.containsNodeToRemove(node) {
+				peers.addNodesToRemove(node)
+			}
 			continue
 		}
 
@@ -679,11 +683,15 @@ func (clstr *Cluster) findNodesToRemove(peers *peers) {
 				if !clstr.findNodeInPartitionMap(node) {
 					// Node doesn't have any partitions mapped to it.
 					// There is no point in keeping it in the cluster.
-					removeList = append(removeList, node)
+					if !peers.containsNodeToRemove(node) {
+						peers.addNodesToRemove(node)
+					}
 				}
 			} else {
 				// Node not responding. Remove it.
-				removeList = append(removeList, node)
+				if !peers.containsNodeToRemove(node) {
+					peers.addNodesToRemove(node)
+				}
 			}
 		}
 	}
