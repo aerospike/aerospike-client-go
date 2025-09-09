@@ -378,7 +378,6 @@ var (
 	ErrNetTimeout                      = newConstError(types.TIMEOUT, "network timeout")
 	ErrUDFBadResponse                  = newConstError(types.UDF_BAD_RESPONSE, "invalid UDF return value")
 	ErrNoOperationsSpecified           = newConstError(types.INVALID_COMMAND, "no operations were passed to QueryExecute")
-	ErrNoBinNamesAllowedInQueryExecute = newConstError(types.INVALID_COMMAND, "`Statement.BinNames` must be empty for QueryExecute")
 	ErrFilteredOut                     = newConstError(types.FILTERED_OUT)
 	ErrPartitionScanQueryNotSupported  = newConstError(types.PARAMETER_ERROR, "partition Scans/Queries are not supported by all nodes in this cluster")
 	ErrScanTerminated                  = newConstError(types.SCAN_TERMINATED)
