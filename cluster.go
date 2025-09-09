@@ -341,9 +341,6 @@ func (clstr *Cluster) tend() Error {
 		}
 		clstr.removeNodes(nodesToRemove)
 		clstr.aggregateNodeStats(nodesToRemove)
-
-		// Clear the removal list after processing
-		peers.clearNodesToRemove()
 	}
 
 	// Add nodes in a batch.

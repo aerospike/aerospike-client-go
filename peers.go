@@ -134,14 +134,6 @@ func (ps *peers) containsNodeToRemove(node *Node) bool {
 	return false
 }
 
-// clearNodesToRemove resets the removal list (call after processing)
-func (ps *peers) clearNodesToRemove() {
-	ps.mutex.Lock()
-	defer ps.mutex.Unlock()
-
-	ps._nodesToRemove = ps._nodesToRemove[:0]
-}
-
 type peer struct {
 	nodeName    string
 	tlsName     string
