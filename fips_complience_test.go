@@ -27,6 +27,8 @@ var _ = Describe("FIPS Compliance", func() {
 	Describe("FIPS mode", func() {
 		BeforeEach(func() {
 			// Check if FIPS environment is configured
+			// This is only used when testing locally
+			// and user might have not set right env variables
 			godebug := os.Getenv("GODEBUG")
 			if godebug == "" || (!strings.Contains(godebug, "fips140=on") && !strings.Contains(godebug, "fips140=only")) {
 				Skip("FIPS test skipped: set GODEBUG=fips140=on or GODEBUG=fips140=only to run")
