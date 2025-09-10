@@ -311,11 +311,9 @@ func (clstr *Cluster) tend() Error {
 				node.refreshPartitions(peers, partMap, true)
 			})
 
-			if _peer.replaceNode != nil {
-				// Preventing duplicate entries.
-				if !peers.containsNodeToRemove(_peer.replaceNode) {
+			// Preventing duplicate entries.
+			if _peer.replaceNode != nil && !peers.containsNodeToRemove(_peer.replaceNode) {
 					peers.addNodesToRemove(_peer.replaceNode)
-				}
 			}
 			return seq.Break
 		})
