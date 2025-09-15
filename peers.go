@@ -22,7 +22,7 @@ import (
 
 type peers struct {
 	_peers         map[string]*peer
-	_hosts         map[Host]struct{}
+	_hosts         map[Host]struct{} // TODO: remove this since we are not using it
 	_nodes         map[string]*Node
 	_nodesToRemove []*Node
 	refreshCount   atomic.Int
@@ -44,6 +44,8 @@ func newPeers(peerCapacity int, addCapacity int) *peers {
 
 // todo: not used anywhere. Consider removing
 // hostExists checks if a host exists in the hosts map
+// TODO: remove this since we are not using it
+// hostExists checks if a host exists in the peers
 func (ps *peers) hostExists(host Host) bool {
 	ps.mutex.RLock()
 	defer ps.mutex.RUnlock()
@@ -51,8 +53,8 @@ func (ps *peers) hostExists(host Host) bool {
 	return exists
 }
 
-// todo: not used anywhere. Consider removing
-// addHost adds a host to the hosts map
+// TODO: remove this since we are not using it
+// addHost adds a host to the peers
 func (ps *peers) addHost(host Host) {
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
@@ -60,12 +62,14 @@ func (ps *peers) addHost(host Host) {
 }
 
 // addNode adds a node to the nodes map
+// addNode adds a node to the peers
 func (ps *peers) addNode(name string, node *Node) {
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
 	ps._nodes[name] = node
 }
 
+// nodeByName returns a node by name
 // nodeByName returns a node by name
 func (ps *peers) nodeByName(name string) *Node {
 	ps.mutex.RLock()
@@ -74,6 +78,7 @@ func (ps *peers) nodeByName(name string) *Node {
 }
 
 // appendPeers adds a list of peers to the peers map
+// appendPears appends peers to the peers
 func (ps *peers) appendPeers(peers []*peer) {
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
@@ -84,6 +89,7 @@ func (ps *peers) appendPeers(peers []*peer) {
 }
 
 // peers returns a copy of peers for safe iteration
+// peers returns the peers
 func (ps *peers) peers() []*peer {
 	ps.mutex.RLock()
 	defer ps.mutex.RUnlock()
@@ -96,6 +102,7 @@ func (ps *peers) peers() []*peer {
 }
 
 // nodes returns a copy of nodes for safe iteration
+// nodes returns the nodes
 func (ps *peers) nodes() map[string]*Node {
 	ps.mutex.RLock()
 	defer ps.mutex.RUnlock()
@@ -134,6 +141,7 @@ func (ps *peers) containsNodeToRemove(node *Node) bool {
 	return false
 }
 
+// peer is a peer of a node
 type peer struct {
 	nodeName    string
 	tlsName     string
