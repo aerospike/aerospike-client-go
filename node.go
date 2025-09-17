@@ -520,10 +520,13 @@ func (nd *Node) newTendConnection() (*Connection, Error) {
 		return nil, err
 	}
 
-	if err := nd.sendUserAgentId(conn); err != nil {
-		// If setting user agent failed, we still return the connection
-		// as it is already authenticated and usable.
-		logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
+	serverMinVersion, _ := version.Parse("8.1.0.0")
+	if nd.version.IsGreaterOrEqual(serverMinVersion) {
+		if err := nd.sendUserAgentId(conn); err != nil {
+			// If setting user agent failed, we still return the connection
+			// as it is already authenticated and usable.
+			logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
+		}
 	}
 
 	return conn, nil
