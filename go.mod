@@ -1,6 +1,6 @@
 module github.com/aerospike/aerospike-client-go/v8
 
-go 1.23.0
+go 1.25.1
 
 require (
 	github.com/onsi/ginkgo/v2 v2.22.2
