@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package dynconfig provides a configuration provider interface and structures
+// for loading and managing dynamic configurations in a system.
+//
+// It includes static and dynamic configurations for various components such as
+// client, read, write, query, scan, batch operations, transactions, and metrics.
+// The configurations are defined using YAML tags for easy serialization and
+// deserialization.
 package dynconfig
 
 import (
@@ -21,12 +28,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Package dynconfig provides a configuration provider interface and structures
-// for loading and managing dynamic configurations in a system.
-// It includes static and dynamic configurations for various components such as
-// client, read, write, query, scan, batch operations, transactions, and metrics.
-// The configurations are defined using YAML tags for easy serialization and
-// deserialization.
+// ConfigProvider represents a configuration provider.
 type ConfigProvider interface {
 	LoadConfig(dsn string) *Config
 }
@@ -34,6 +36,7 @@ type ConfigProvider interface {
 // ----------------------------------------------------------------
 // Structures used to serialize and deserialize the configuration
 // ----------------------------------------------------------------
+
 type Config struct {
 	Version *string        `yaml:"version"`
 	Static  *StaticConfig  `yaml:"static"`
@@ -97,7 +100,7 @@ type Write struct {
 	TotalTimeout        *int     `yaml:"total_timeout"`
 	MaxRetries          *int     `yaml:"max_retries"`
 	DurableDelete       *bool    `yaml:"durable_delete"`
-	TimeoutDelay        *int        `yaml:"timeout_delay"`
+	TimeoutDelay        *int     `yaml:"timeout_delay"`
 }
 
 type Query struct {
@@ -111,7 +114,7 @@ type Query struct {
 	IncludeBinData      *bool          `yaml:"include_bin_data"`
 	RecordQueueSize     *int           `yaml:"record_queue_size"`
 	ExpectedDuration    *QueryDuration `yaml:"expected_duration"`
-	TimeoutDelay        *int        `yaml:"timeout_delay"`
+	TimeoutDelay        *int           `yaml:"timeout_delay"`
 }
 
 type Scan struct {
@@ -153,7 +156,7 @@ type BatchWrite struct {
 	AllowInline         *bool    `yaml:"allow_inline"`
 	AllowInlineSSD      *bool    `yaml:"allow_inline_ssd"`
 	RespondAllKeys      *bool    `yaml:"respond_all_keys"`
-	TimeoutDelay        *int        `yaml:"timeout_delay"`
+	TimeoutDelay        *int     `yaml:"timeout_delay"`
 }
 
 type BatchUdf struct {
