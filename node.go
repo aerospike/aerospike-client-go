@@ -192,7 +192,7 @@ func (nd *Node) Refresh(peers *peers) Error {
 
 	nd.failures.Set(0)
 	peers.refreshCount.IncrementAndGet()
-	// nd.referenceCount.IncrementAndGet()
+	nd.referenceCount.IncrementAndGet()
 	nd.stats.TendsSuccessful.IncrementAndGet()
 
 	if err = nd.refreshSessionToken(); err != nil {
