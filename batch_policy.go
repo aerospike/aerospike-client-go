@@ -163,7 +163,7 @@ func (p *BatchPolicy) patchDynamic(dynConfig *DynConfig) *BatchPolicy {
 
 func (p *BatchPolicy) mapDynamic(dynConfig *DynConfig) *BatchPolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return p
 	}

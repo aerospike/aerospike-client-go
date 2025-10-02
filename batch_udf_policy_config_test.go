@@ -30,21 +30,21 @@ var _ = gg.Describe("ApplyConfigToBatchUDFPolicy", func() {
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
-			}
-			config.config.Store(&dynconfig.Config{
-				Dynamic: &dynconfig.DynamicConfig{
-					BatchUdf: &dynconfig.BatchUdf{
-						DurableDelete: func() *bool {
-							r := true
-							return &r
-						}(),
-						SendKey: func() *bool {
-							r := true
-							return &r
-						}(),
+				config: &dynconfig.Config{
+					Dynamic: &dynconfig.DynamicConfig{
+						BatchUdf: &dynconfig.BatchUdf{
+							DurableDelete: func() *bool {
+								r := true
+								return &r
+							}(),
+							SendKey: func() *bool {
+								r := true
+								return &r
+							}(),
+						},
 					},
 				},
-			})
+			}
 
 			// Create an initial BatchReadPolicy.
 			policy := NewBatchUDFPolicy()
@@ -70,21 +70,21 @@ var _ = gg.Describe("ApplyConfigToBatchUDFPolicy", func() {
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
-			}
-			config.config.Store(&dynconfig.Config{
-				Dynamic: &dynconfig.DynamicConfig{
-					BatchUdf: &dynconfig.BatchUdf{
-						DurableDelete: func() *bool {
-							r := true
-							return &r
-						}(),
-						SendKey: func() *bool {
-							r := true
-							return &r
-						}(),
+				config: &dynconfig.Config{
+					Dynamic: &dynconfig.DynamicConfig{
+						BatchUdf: &dynconfig.BatchUdf{
+							DurableDelete: func() *bool {
+								r := true
+								return &r
+							}(),
+							SendKey: func() *bool {
+								r := true
+								return &r
+							}(),
+						},
 					},
 				},
-			})
+			}
 
 			// Create an initial BatchPolicy (used for write operations).
 			batchPolicy := NewBatchPolicy()

@@ -127,7 +127,7 @@ func (mp *MetricsPolicy) patchDynamic(dynConfig *DynConfig) *MetricsPolicy {
 
 func (mp *MetricsPolicy) mapDynamic(dynConfig *DynConfig) *MetricsPolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return mp
 	}

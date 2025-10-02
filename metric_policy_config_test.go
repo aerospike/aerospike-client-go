@@ -30,16 +30,16 @@ var _ = gg.Describe("ApplyConfigToMetricsPolicy", func() {
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
-			}
-			config.config.Store(&dynconfig.Config{
-				Dynamic: &dynconfig.DynamicConfig{
-					Metrics: &dynconfig.Metrics{
-						Enable:         func() *bool { r := true; return &r }(),
-						LatencyBase:    func() *int { r := 3; return &r }(),
-						LatencyColumns: func() *int { r := 3; return &r }(),
+				config: &dynconfig.Config{
+					Dynamic: &dynconfig.DynamicConfig{
+						Metrics: &dynconfig.Metrics{
+							Enable:         func() *bool { r := true; return &r }(),
+							LatencyBase:    func() *int { r := 3; return &r }(),
+							LatencyColumns: func() *int { r := 3; return &r }(),
+						},
 					},
 				},
-			})
+			}
 
 			// Create an initial TxnVerifyPolicy.
 			policy := DefaultMetricsPolicy()
@@ -65,15 +65,15 @@ var _ = gg.Describe("ApplyConfigToMetricsPolicy", func() {
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
-			}
-			config.config.Store(&dynconfig.Config{
-				Dynamic: &dynconfig.DynamicConfig{
-					Metrics: &dynconfig.Metrics{
-						Enable:         func() *bool { r := true; return &r }(),
-						LatencyColumns: func() *int { r := 3; return &r }(),
+				config: &dynconfig.Config{
+					Dynamic: &dynconfig.DynamicConfig{
+						Metrics: &dynconfig.Metrics{
+							Enable:         func() *bool { r := true; return &r }(),
+							LatencyColumns: func() *int { r := 3; return &r }(),
+						},
 					},
 				},
-			})
+			}
 
 			// Create an initial TxnVerifyPolicy.
 			policy := DefaultMetricsPolicy()

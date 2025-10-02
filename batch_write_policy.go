@@ -151,7 +151,7 @@ func (bwp *BatchWritePolicy) patchDynamic(dynConfig *DynConfig) *BatchWritePolic
 
 func (bwp *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return bwp
 	}

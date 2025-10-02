@@ -141,7 +141,7 @@ func (wp *WritePolicy) patchDynamic(dynConfig *DynConfig) *WritePolicy {
 
 func (wp *WritePolicy) mapDynamic(dynConfig *DynConfig) *WritePolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return wp
 	}

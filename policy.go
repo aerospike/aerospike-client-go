@@ -245,7 +245,7 @@ func (bp *BasePolicy) patchDynamic(dynConfig *DynConfig) *BasePolicy {
 
 func (bp *BasePolicy) mapDynamic(dynConfig *DynConfig) *BasePolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return bp
 	}
@@ -314,7 +314,7 @@ func (bp *BasePolicy) mapDynamic(dynConfig *DynConfig) *BasePolicy {
 
 func (bp *BasePolicy) mapDynamicBatchWrite(dynConfig *DynConfig) *BasePolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return bp
 	}
@@ -369,7 +369,7 @@ func (bp *BasePolicy) mapDynamicBatchWrite(dynConfig *DynConfig) *BasePolicy {
 
 func (bp *BasePolicy) mapDynamicBatchRead(dynConfig *DynConfig) *BasePolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return bp
 	}

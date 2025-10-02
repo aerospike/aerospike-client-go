@@ -47,8 +47,8 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 					configProvider:    fakeProvider,
 					configInitialized: &atomic.Bool{},
 					logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
+					config:            &dynconfig.Config{},
 				}
-				dc.config.Store(&dynconfig.Config{})
 				dc.client = &Client{
 					dynConfig: dc,
 				}
@@ -105,11 +105,10 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 					configInitialized: &atomic.Bool{},
 					logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 					dsn:               dsn,
+					config: &dynconfig.Config{
+						Dynamic: oldDyn,
+					},
 				}
-				dc.config.Store(&dynconfig.Config{
-					Dynamic: oldDyn,
-				})
-
 				dc.client = &Client{
 					dynConfig: dc,
 				}
@@ -123,8 +122,8 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 
 			gg.It("should clear the cache and update dc.config.Dynamic based on loaded config", func() {
 				// dc.config.Dynamic should be updated.
-				gm.Expect(dc.config.Load().Dynamic).ToNot(gm.BeNil())
-				readCfg := dc.config.Load().Dynamic.Read
+				gm.Expect(dc.config.Dynamic).ToNot(gm.BeNil())
+				readCfg := dc.config.Dynamic.Read
 				gm.Expect(readCfg).ToNot(gm.BeNil())
 				// Ensuring the new value is set in the config as well.
 				gm.Expect(*readCfg.TotalTimeout).To(gm.Equal(int(newTimeout)))
@@ -157,10 +156,10 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 					configInitialized: &atomic.Bool{},
 					logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 					dsn:               dsn,
+					config: &dynconfig.Config{
+						Dynamic: prevDyn,
+					},
 				}
-				dc.config.Store(&dynconfig.Config{
-					Dynamic: prevDyn,
-				})
 				dc.client = &Client{
 					dynConfig: dc,
 				}
@@ -171,9 +170,9 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 			})
 
 			gg.It("should NOT update dc.config.Dynamic nor the dynamic cache", func() {
-				gm.Expect(dc.config.Load().Dynamic).ToNot(gm.BeNil())
+				gm.Expect(dc.config.Dynamic).ToNot(gm.BeNil())
 				expected := int(2 * time.Second)
-				gm.Expect(*dc.config.Load().Dynamic.Read.TotalTimeout).To(gm.Equal(expected))
+				gm.Expect(*dc.config.Dynamic.Read.TotalTimeout).To(gm.Equal(expected))
 
 				policy := dc.client.dynDefaultPolicy.Load()
 				// The cached policy remains with its old value.
@@ -208,18 +207,18 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 					configInitialized: &atomic.Bool{},
 					logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 					dsn:               dsn,
-				}
-				// Start with an old dynamic configuration.
-				dc.config.Store(&dynconfig.Config{
-					Dynamic: &dynconfig.DynamicConfig{
-						Read: &dynconfig.Read{
-							TotalTimeout: func() *int {
-								d := int(1 * time.Second)
-								return &d
-							}(),
+					config: &dynconfig.Config{
+						Dynamic: &dynconfig.DynamicConfig{
+							Read: &dynconfig.Read{
+								TotalTimeout: func() *int {
+									d := int(1 * time.Second)
+									return &d
+								}(),
+							},
 						},
 					},
-				})
+				}
+				// Start with an old dynamic configuration.
 
 				dc.client = &Client{
 					dynConfig: dc,
@@ -231,8 +230,8 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 			})
 
 			gg.It("should update dc.config.Dynamic and rehydrate the dynamic cache", func() {
-				gm.Expect(dc.config.Load().Dynamic).ToNot(gm.BeNil())
-				readCfg := dc.config.Load().Dynamic.Read
+				gm.Expect(dc.config.Dynamic).ToNot(gm.BeNil())
+				readCfg := dc.config.Dynamic.Read
 				gm.Expect(readCfg).ToNot(gm.BeNil())
 				gm.Expect(*readCfg.TotalTimeout).To(gm.Equal(int(time.Duration(newTimeout))))
 

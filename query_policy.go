@@ -96,7 +96,7 @@ func (qp *QueryPolicy) pathDynamic(dynConfig *DynConfig) *QueryPolicy {
 
 func (qp *QueryPolicy) mapDynamic(dynConfig *DynConfig) *QueryPolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return qp
 	}

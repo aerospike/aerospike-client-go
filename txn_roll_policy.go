@@ -76,7 +76,7 @@ func (trp *TxnRollPolicy) patchDynamic(dynConfig *DynConfig) *TxnRollPolicy {
 
 func (trp *TxnRollPolicy) mapDynamic(dynConfig *DynConfig) *TxnRollPolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return trp
 	}

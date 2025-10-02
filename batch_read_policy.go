@@ -109,7 +109,7 @@ func (brp *BatchReadPolicy) patchDynamic(dynConfig *DynConfig) *BatchReadPolicy 
 
 func (brp *BatchReadPolicy) mapDynamic(dynConfig *DynConfig) *BatchReadPolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return brp
 	}

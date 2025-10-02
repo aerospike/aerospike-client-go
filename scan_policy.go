@@ -65,13 +65,13 @@ func (sp *ScanPolicy) patchDynamic(dynConfig *DynConfig) *ScanPolicy {
 		return sp
 	}
 
-	config := dynConfig.config.Load()
+	config := dynConfig.config
 
 	if config == nil && !dynConfig.logUpdate.Load() {
 		// On initial load it is possible that the config is not yet loaded. This will kick things off to make sure
 		// config is loaded.
 		dynConfig.loadConfig()
-		config = dynConfig.config.Load()
+		config = dynConfig.config
 	}
 
 	if sp == nil {
@@ -88,7 +88,7 @@ func (sp *ScanPolicy) patchDynamic(dynConfig *DynConfig) *ScanPolicy {
 
 func (sp *ScanPolicy) mapDynamic(dynConfig *DynConfig) *ScanPolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return sp
 	}

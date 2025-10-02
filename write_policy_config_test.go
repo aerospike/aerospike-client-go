@@ -36,41 +36,41 @@ var _ = gg.Describe("WritePolicy Config", func() {
 			config = &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
-			}
-			config.config.Store(&dynconfig.Config{
-				Dynamic: &dynconfig.DynamicConfig{
-					Write: &dynconfig.Write{
-						TotalTimeout: func() *int {
-							r := 5000
-							return &r
-						}(),
-						SocketTimeout: func() *int {
-							d := 3
-							return &d
-						}(),
-						MaxRetries: func() *int {
-							r := 3
-							return &r
-						}(),
-						DurableDelete: func() *bool {
-							r := true
-							return &r
-						}(),
-						SleepBetweenRetries: func() *int {
-							d := 2
-							return &d
-						}(),
-						SendKey: func() *bool {
-							r := true
-							return &r
-						}(),
-						Replica: func() *dynconfig.Replica {
-							r := dynconfig.PREFER_RACK
-							return &r
-						}(),
+				config: &dynconfig.Config{
+					Dynamic: &dynconfig.DynamicConfig{
+						Write: &dynconfig.Write{
+							TotalTimeout: func() *int {
+								r := 5000
+								return &r
+							}(),
+							SocketTimeout: func() *int {
+								d := 3
+								return &d
+							}(),
+							MaxRetries: func() *int {
+								r := 3
+								return &r
+							}(),
+							DurableDelete: func() *bool {
+								r := true
+								return &r
+							}(),
+							SleepBetweenRetries: func() *int {
+								d := 2
+								return &d
+							}(),
+							SendKey: func() *bool {
+								r := true
+								return &r
+							}(),
+							Replica: func() *dynconfig.Replica {
+								r := dynconfig.PREFER_RACK
+								return &r
+							}(),
+						},
 					},
 				},
-			})
+			}
 
 			// Create an initial WritePolicy.
 			policy = NewWritePolicy(0, 0)
@@ -105,37 +105,37 @@ var _ = gg.Describe("WritePolicy Config", func() {
 			config = &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
-			}
-			config.config.Store(&dynconfig.Config{
-				Dynamic: &dynconfig.DynamicConfig{
-					Write: &dynconfig.Write{
-						SocketTimeout: func() *int {
-							d := 3
-							return &d
-						}(),
-						MaxRetries: func() *int {
-							r := 3
-							return &r
-						}(),
-						DurableDelete: func() *bool {
-							r := true
-							return &r
-						}(),
-						SleepBetweenRetries: func() *int {
-							d := 2
-							return &d
-						}(),
-						SendKey: func() *bool {
-							r := false
-							return &r
-						}(),
-						Replica: func() *dynconfig.Replica {
-							r := dynconfig.PREFER_RACK
-							return &r
-						}(),
+				config: &dynconfig.Config{
+					Dynamic: &dynconfig.DynamicConfig{
+						Write: &dynconfig.Write{
+							SocketTimeout: func() *int {
+								d := 3
+								return &d
+							}(),
+							MaxRetries: func() *int {
+								r := 3
+								return &r
+							}(),
+							DurableDelete: func() *bool {
+								r := true
+								return &r
+							}(),
+							SleepBetweenRetries: func() *int {
+								d := 2
+								return &d
+							}(),
+							SendKey: func() *bool {
+								r := false
+								return &r
+							}(),
+							Replica: func() *dynconfig.Replica {
+								r := dynconfig.PREFER_RACK
+								return &r
+							}(),
+						},
 					},
 				},
-			})
+			}
 
 			policy = NewWritePolicy(0, 0)
 		})

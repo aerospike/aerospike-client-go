@@ -257,7 +257,7 @@ func (cp *ClientPolicy) copy() *ClientPolicy {
 
 func (cp *ClientPolicy) mapDynamic(dynConfig *DynConfig) *ClientPolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return cp
 	}
@@ -340,7 +340,7 @@ func (cp *ClientPolicy) mapDynamic(dynConfig *DynConfig) *ClientPolicy {
 
 func (cp *ClientPolicy) mapStatic(dynConfig *DynConfig) *ClientPolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Static == nil {
 		return cp
 	}

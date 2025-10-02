@@ -87,7 +87,7 @@ func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) 
 		return wp
 	}
 
-	config := dynConfig.config.Load()
+	config := dynConfig.config
 	if config != nil && config.Dynamic != nil && config.Dynamic.BatchUdf != nil {
 		if config.Dynamic.BatchUdf.DurableDelete != nil {
 			wp.DurableDelete = *config.Dynamic.BatchUdf.DurableDelete
@@ -133,7 +133,7 @@ func (bup *BatchUDFPolicy) patchDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
 
 func (bup *BatchUDFPolicy) mapDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
 	// Atomically load config to avoid race conditions
-	currentConfig := dynConfig.config.Load()
+	currentConfig := dynConfig.config
 	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return bup
 	}

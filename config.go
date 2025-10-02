@@ -143,7 +143,7 @@ func (dc *DynConfig) loadConfig() {
 
 func (dc *DynConfig) runCallBack() {
 	// Atomically load config for safe access
-	currentConfig := dc.config.Load()
+	currentConfig := dc.config
 	if dc.metricsCallback != nil && currentConfig != nil && currentConfig.Dynamic != nil && currentConfig.Dynamic.Metrics != nil {
 		dc.metricsCallback(currentConfig, dc.client)
 	}
@@ -159,7 +159,7 @@ func (dc *DynConfig) providerLoadConfig() {
 		dc.logUpdate.Store(true)
 
 		// Atomically load current config
-		currentConfig := dc.config.Load()
+		currentConfig := dc.config
 		if currentConfig != nil && currentConfig.Dynamic == nil {
 			logger.Logger.Warn("Dynamic configuration is enabled and configuration is empty. Configuration will load default policy values.")
 		}
@@ -170,10 +170,10 @@ func (dc *DynConfig) providerLoadConfig() {
 				Static:  currentConfig.Static, // Keep existing static config
 				Dynamic: loadedConfig.Dynamic, // Use new dynamic config
 			}
-			dc.config.Store(newConfig) // Atomically store new config
+			dc.config = newConfig // Atomically store new config
 		} else {
 			// If no current config, store the loaded config directly
-			dc.config.Store(loadedConfig)
+			dc.config = loadedConfig
 		}
 
 		dc.hydrateDynamicPolicyFromConfig()
@@ -188,7 +188,7 @@ func (dc *DynConfig) providerLoadConfig() {
 func (dc *DynConfig) initConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
 	if loadedConfig != nil {
-		dc.config.Store(loadedConfig) // Atomically store the config
+		dc.config = loadedConfig // Atomically store the config
 
 		if dc.client != nil {
 			dc.hydrateStaticPolicyFromConfig()
@@ -481,7 +481,7 @@ func (dc *DynConfig) watchConfig(ctx context.Context, interval time.Duration) {
 	// Handle the condition where dynamic config is enabled but config was not loaded because
 	// the file could not be found or the url is not valid. In that case we will use the interval passed
 	// in or use the default interval of 1 second.
-	currentConfig := dc.config.Load() // Atomically load config
+	currentConfig := dc.config // Atomically load config
 	if currentConfig == nil {
 		mergedConfigInterval = interval
 	} else {
@@ -520,13 +520,13 @@ Loop:
 
 // getConfigIfNotLoadedOrInitialized is used to get the config if it is not initialized yet.
 func (dc *DynConfig) getConfigIfNotLoadedOrInitialized() *dynconfig.Config {
-	config := dc.config.Load() // Atomically load config
+	config := dc.config
 
 	if config == nil && !dc.configInitialized.Load() {
 		// On initial load it is possible that the config is not yet loaded. This will kick things off to make sure
 		// config is loaded.
 		dc.loadConfig()
-		config = dc.config.Load() // Atomically load again after potential update
+		config = dc.config
 	}
 
 	return config

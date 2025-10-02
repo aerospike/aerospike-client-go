@@ -2202,7 +2202,7 @@ func (clnt *Client) EnableMetrics(policy *MetricsPolicy) {
 	}
 
 	// Atomically load config to avoid race conditions
-	currentConfig := clnt.dynConfig.config.Load()
+	currentConfig := clnt.dynConfig.config
 	if currentConfig == nil ||
 		currentConfig.Dynamic == nil ||
 		currentConfig.Dynamic.Metrics == nil {

@@ -31,41 +31,41 @@ var _ = gg.Describe("ApplyConfigToBatchReadPolicy", func() {
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
-			}
-			config.config.Store(&dynconfig.Config{
-				Dynamic: &dynconfig.DynamicConfig{
-					BatchRead: &dynconfig.BatchRead{
-						ReadModeAp: func() *dynconfig.ReadModeAp {
-							r := dynconfig.ONE
-							return &r
-						}(),
-						ReadModeSc: func() *dynconfig.ReadModeSc {
-							r := dynconfig.ALLOW_UNAVAILABLE
-							return &r
-						}(),
-						Replica: func() *dynconfig.Replica {
-							r := dynconfig.MASTER
-							return &r
-						}(),
-						SleepBetweenRetries: func() *int {
-							d := 1
-							return &d
-						}(),
-						SocketTimeout: func() *int {
-							d := 3
-							return &d
-						}(),
-						TotalTimeout: func() *int {
-							r := 15
-							return &r
-						}(),
-						MaxRetries:          func() *int { r := 5; return &r }(),
-						MaxConcurrentThread: func() *int { r := 5; return &r }(),
-						AllowInline:         func() *bool { r := true; return &r }(),
-						RespondAllKeys:      func() *bool { r := true; return &r }(),
+				config: &dynconfig.Config{
+					Dynamic: &dynconfig.DynamicConfig{
+						BatchRead: &dynconfig.BatchRead{
+							ReadModeAp: func() *dynconfig.ReadModeAp {
+								r := dynconfig.ONE
+								return &r
+							}(),
+							ReadModeSc: func() *dynconfig.ReadModeSc {
+								r := dynconfig.ALLOW_UNAVAILABLE
+								return &r
+							}(),
+							Replica: func() *dynconfig.Replica {
+								r := dynconfig.MASTER
+								return &r
+							}(),
+							SleepBetweenRetries: func() *int {
+								d := 1
+								return &d
+							}(),
+							SocketTimeout: func() *int {
+								d := 3
+								return &d
+							}(),
+							TotalTimeout: func() *int {
+								r := 15
+								return &r
+							}(),
+							MaxRetries:          func() *int { r := 5; return &r }(),
+							MaxConcurrentThread: func() *int { r := 5; return &r }(),
+							AllowInline:         func() *bool { r := true; return &r }(),
+							RespondAllKeys:      func() *bool { r := true; return &r }(),
+						},
 					},
 				},
-			})
+			}
 
 			// Create an initial BatchReadPolicy.
 			policy := NewBatchReadPolicy()
@@ -92,41 +92,41 @@ var _ = gg.Describe("ApplyConfigToBatchReadPolicy", func() {
 			config := &DynConfig{
 				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
 				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
-			}
-			config.config.Store(&dynconfig.Config{
-				Dynamic: &dynconfig.DynamicConfig{
-					BatchRead: &dynconfig.BatchRead{
-						ReadModeAp: func() *dynconfig.ReadModeAp {
-							r := dynconfig.ALL
-							return &r
-						}(),
-						ReadModeSc: func() *dynconfig.ReadModeSc {
-							r := dynconfig.ALLOW_UNAVAILABLE
-							return &r
-						}(),
-						Replica: func() *dynconfig.Replica {
-							r := dynconfig.MASTER
-							return &r
-						}(),
-						SleepBetweenRetries: func() *int {
-							d := 1
-							return &d
-						}(),
-						SocketTimeout: func() *int {
-							d := 3
-							return &d
-						}(),
-						TotalTimeout: func() *int {
-							r := 15
-							return &r
-						}(),
-						MaxRetries:          func() *int { r := 5; return &r }(),
-						MaxConcurrentThread: func() *int { r := 5; return &r }(),
-						AllowInline:         func() *bool { r := true; return &r }(),
-						RespondAllKeys:      func() *bool { r := true; return &r }(),
+				config: &dynconfig.Config{
+					Dynamic: &dynconfig.DynamicConfig{
+						BatchRead: &dynconfig.BatchRead{
+							ReadModeAp: func() *dynconfig.ReadModeAp {
+								r := dynconfig.ALL
+								return &r
+							}(),
+							ReadModeSc: func() *dynconfig.ReadModeSc {
+								r := dynconfig.ALLOW_UNAVAILABLE
+								return &r
+							}(),
+							Replica: func() *dynconfig.Replica {
+								r := dynconfig.MASTER
+								return &r
+							}(),
+							SleepBetweenRetries: func() *int {
+								d := 1
+								return &d
+							}(),
+							SocketTimeout: func() *int {
+								d := 3
+								return &d
+							}(),
+							TotalTimeout: func() *int {
+								r := 15
+								return &r
+							}(),
+							MaxRetries:          func() *int { r := 5; return &r }(),
+							MaxConcurrentThread: func() *int { r := 5; return &r }(),
+							AllowInline:         func() *bool { r := true; return &r }(),
+							RespondAllKeys:      func() *bool { r := true; return &r }(),
+						},
 					},
 				},
-			})
+			}
 
 			config.client = &Client{dynConfig: config}
 			config.client.dynDefaultClientPolicy = &atomic.Pointer[ClientPolicy]{}

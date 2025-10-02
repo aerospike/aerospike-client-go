@@ -80,7 +80,7 @@ func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfi
 		return wp
 	}
 
-	config := dynConfig.config.Load()
+	config := dynConfig.config
 	if config != nil && config.Dynamic != nil && config.Dynamic.BatchDelete != nil {
 		if config.Dynamic.BatchDelete.DurableDelete != nil {
 			wp.DurableDelete = *config.Dynamic.BatchDelete.DurableDelete
@@ -125,7 +125,7 @@ func (bdp *BatchDeletePolicy) patchDynamic(dynConfig *DynConfig) *BatchDeletePol
 }
 
 func (bdp *BatchDeletePolicy) mapDynamic(dynConfig *DynConfig) *BatchDeletePolicy {
-	config := dynConfig.config.Load()
+	config := dynConfig.config
 	if config == nil || config.Dynamic == nil {
 		return bdp
 	}
