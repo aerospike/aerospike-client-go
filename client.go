@@ -392,6 +392,7 @@ func (clnt *Client) SetDefaultTxnRollPolicy(policy *TxnRollPolicy) {
 // Close closes all client connections to database server nodes.
 func (clnt *Client) Close() {
 	clnt.cluster.Close()
+	clnt.dynConfig.Close()
 }
 
 // IsConnected determines if the client is ready to talk to the database server cluster.
