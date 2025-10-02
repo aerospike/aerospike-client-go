@@ -28,6 +28,7 @@ import (
 	"time"
 
 	_ "github.com/aerospike/aerospike-client-go/v8/config/provider"
+	internal "github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
@@ -391,6 +392,7 @@ func (clnt *Client) SetDefaultTxnRollPolicy(policy *TxnRollPolicy) {
 // Close closes all client connections to database server nodes.
 func (clnt *Client) Close() {
 	clnt.cluster.Close()
+	clnt.dynConfig.Close()
 }
 
 // IsConnected determines if the client is ready to talk to the database server cluster.
@@ -1356,6 +1358,7 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 	if len(statement.BinNames) > 0 {
 		return nil, ErrNoBinNamesAllowedInQueryExecute.err()
 	}
+	taskId := statement.prepareTaskId()
 
 	policy = clnt.getUsableQueryPolicy(policy)
 	writePolicy = clnt.getUsableWritePolicy(writePolicy)
@@ -1369,13 +1372,13 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 
 	var errs Error
 	for i := range nodes {
-		command := newServerCommand(nodes[i], policy, writePolicy, statement, statement.TaskId, ops)
+		command := newServerCommand(nodes[i], policy, writePolicy, statement, ops)
 		if err := command.Execute(); err != nil {
 			errs = chainErrors(err, errs)
 		}
 	}
 
-	return NewExecuteTask(clnt.cluster, statement), errs
+	return NewExecuteTask(clnt.cluster, statement, taskId), errs
 }
 
 // ExecuteUDF applies user defined function on records that match the statement filter.
@@ -1393,6 +1396,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	functionArgs ...Value,
 ) (*ExecuteTask, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
+	taskId := statement.prepareTaskId()
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
@@ -1403,13 +1407,13 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 
 	var errs Error
 	for i := range nodes {
-		command := newServerCommand(nodes[i], policy, nil, statement, statement.TaskId, nil)
+		command := newServerCommand(nodes[i], policy, nil, statement, nil)
 		if err := command.Execute(); err != nil {
 			errs = chainErrors(err, errs)
 		}
 	}
 
-	return NewExecuteTask(clnt.cluster, statement), errs
+	return NewExecuteTask(clnt.cluster, statement, taskId), errs
 }
 
 // ExecuteUDFNode applies user defined function on records that match the statement filter on the specified node.
@@ -1428,6 +1432,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 	functionArgs ...Value,
 ) (*ExecuteTask, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
+	taskId := statement.prepareTaskId()
 
 	if node == nil {
 		return nil, ErrClusterIsEmpty.err()
@@ -1435,10 +1440,10 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
-	command := newServerCommand(node, policy, nil, statement, statement.TaskId, nil)
+	command := newServerCommand(node, policy, nil, statement, nil)
 	err := command.Execute()
 
-	return NewExecuteTask(clnt.cluster, statement), err
+	return NewExecuteTask(clnt.cluster, statement, taskId), err
 }
 
 // SetXDRFilter sets XDR filter for given datacenter name and namespace. The expression filter indicates
@@ -1865,6 +1870,40 @@ func (clnt *Client) CreateUser(policy *AdminPolicy, user string, password string
 	})
 
 	return err
+}
+
+// CreatePKIUser creates a new user PKI user with roles. PKI users are authenticated via TLS and a certificate instead of a password.
+// Supported by Aerospike Server v8.1+ Enterprise.
+func (clnt *Client) CreatePKIUser(policy *AdminPolicy, user string, roles []string) Error {
+	policy = clnt.getUsableAdminPolicy(policy)
+	noPassword := "nopassword"
+	serverMinVersion, _ := internal.Parse("8.1.0.0")
+
+	hash, err := hashPassword(noPassword)
+	if err != nil {
+		return err
+	}
+
+	// prepare the node.tendConn
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return err
+	}
+	// Check server version to ensure it supports PKI users.
+	if node.version.IsSmaller(serverMinVersion) {
+		return newCommonError(nil, fmt.Sprintf("Node version %s is less than required minimum version %s", node.version.String(), serverMinVersion))
+	}
+
+	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+		command := NewAdminCommand(nil)
+		err = command.createUser(conn, policy, user, hash, roles)
+	})
+
+	if err != nil {
+		return newError(err.resultCode(), fmt.Sprintf("PKI user creation failed: %s", err.Error()))
+	}
+
+	return nil
 }
 
 // DropUser removes a user from the cluster.

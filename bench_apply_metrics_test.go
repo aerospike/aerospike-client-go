@@ -97,6 +97,10 @@ func (fn *fakeCommand) canPutConnBack() bool {
 	return false
 }
 
+func (fn *fakeCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+
+}
+
 func newStub() *fakeCommand {
 	mp := DefaultMetricsPolicy()
 	nodeStats := newNodeStats(mp)

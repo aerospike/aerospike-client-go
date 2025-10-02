@@ -365,10 +365,10 @@ func ResultCodeToString(resultCode ResultCode) string {
 		return "no response was received from the server"
 
 	case NETWORK_ERROR:
-		return "network error. Checked the wrapped error for detail"
+		return "network error. Check the wrapped error for detail"
 
 	case COMMON_ERROR:
-		return "common, none-aerospike error. Checked the wrapped error for detail"
+		return "common, none-aerospike error. Check the wrapped error for detail"
 
 	case MAX_RETRIES_EXCEEDED:
 		return "Max retries exceeded"

@@ -24,11 +24,11 @@ import (
 
 // Task interface defines methods for asynchronous tasks.
 type recordParser struct {
-	resultCode  types.ResultCode
-	generation  uint32
-	expiration  uint32
-	fieldCount  int
-	opCount     int
+	resultCode types.ResultCode
+	generation uint32
+	expiration uint32
+	fieldCount int
+	opCount    int
 
 	cmd *baseCommand
 }
@@ -65,6 +65,7 @@ func newRecordParser(cmd *baseCommand) (*recordParser, Error) {
 	receiveSize := int((sz & 0xFFFFFFFFFFFF))
 
 	if receiveSize > 0 {
+		cmd.receiveSize = int64(receiveSize)
 		if err := rp.cmd.sizeBufferSz(receiveSize, false); err != nil {
 			return rp, err
 		}

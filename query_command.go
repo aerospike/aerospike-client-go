@@ -14,7 +14,9 @@
 
 package aerospike
 
-import "iter"
+import (
+	"iter"
+)
 
 type queryCommand struct {
 	baseMultiCommand

@@ -5,22 +5,38 @@ name: Aerospike Go Client Tests
 
 env:
   AEROSPIKE_HOSTS: "127.0.0.1:3000"
+  GODEBUG: fips140=only
+  GOFIPS140: latest
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         go-version:
-          - 1.23
+          - 1.25.1
         server-version:
-          - 8.1.0.0-rc4_1
+          - 8.1.0.0
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: "Setup Go ${{ matrix.go-version }}"
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: "${{ matrix.go-version }}"
           cache: true
+      - name: Fetch dependencies
+        env:
+          GODEBUG: fips140=on
+        run: |
+          # Install all dependencies
+          go mod download
+
+          # Install ginkgo CLI and gocovmerge for testing
+          go install github.com/onsi/ginkgo/v2/ginkgo@v2.22.2
+          go mod download github.com/wadey/gocovmerge
+
+          # Vendor the dependencies
+          go mod vendor
+
       - name: Display Go version
         run: go version
       - name: Set up Aerospike Database
@@ -28,29 +44,38 @@ jobs:
         with:
           server-version: ${{ matrix.server-version }}
       - name: Test Lua Code
-        run: go run github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites internal/lua
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites internal/lua
       - name: Test types package
-        run: go run github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites types
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites types
       - name: Test pkg tests
-        run: go run github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites pkg
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites pkg
       - name: Build Benchmark tool
-        run: cd tools/benchmark | go build -tags as_proxy -o benchmark .
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: cd tools/benchmark | go build -mod=vendor -tags as_proxy -o benchmark .
       - name: Build asinfo tool
-        run: cd tools/asinfo | go build -o asinfo .
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: cd tools/asinfo | go build -mod=vendor -o asinfo .
       - name: Build cli tool
-        run: cd tools/cli | go build -o cli .
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: cd tools/cli | go build -mod=vendor -o cli .
       - name: Build example files
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
       - name: Build with Reflection code removed
-        run: go run github.com/onsi/ginkgo/v2/ginkgo build -tags="as_performance" .
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo build -tags="as_performance" .
       - name: Build for Google App Engine (unsafe package removed)
-        run: go run github.com/onsi/ginkgo/v2/ginkgo build -tags="app_engine" .
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo build -tags="app_engine" .
       - name: Run the tests
-        run: go run github.com/onsi/ginkgo/v2/ginkgo -coverprofile=./cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
-      - name: Download gocovmerge
-        run: go mod download github.com/wadey/gocovmerge
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -coverprofile=./cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
       - name: Combine Cover Profiles
-        run: go run github.com/wadey/gocovmerge cover_*.out > cover_all.out
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/wadey/gocovmerge cover_*.out > cover_all.out
       - name: Check Code Coverage
         uses: vladopajic/go-test-coverage@v2
         with:

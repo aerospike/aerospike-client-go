@@ -288,6 +288,9 @@ func (cp *ClientPolicy) mapDynamic(dynConfig *DynConfig) *ClientPolicy {
 		if dynConfig.config.Dynamic.Client.UseServiceAlternate != nil {
 			cp.UseServicesAlternate = *dynConfig.config.Dynamic.Client.UseServiceAlternate
 		}
+		if dynConfig.config.Dynamic.Client.ApplicationId != nil {
+			cp.ApplicationId = *dynConfig.config.Dynamic.Client.ApplicationId
+		}
 	}
 
 	return cp

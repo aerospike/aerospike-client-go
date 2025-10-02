@@ -124,7 +124,6 @@ func (h *singleConnectionHeap) DropIdleTail() bool {
 	// if heap is not empty
 	if h.full || (h.tail != h.head) {
 		conn := h.data[(h.tail+1)%h.size]
-
 		if conn.IsConnected() && !conn.isIdle() {
 			return false
 		}

@@ -19,6 +19,7 @@ import (
 	"iter"
 	"math/rand"
 	"reflect"
+	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
@@ -114,7 +115,7 @@ func (cmd *baseMultiCommand) prepareRetry(ifc command, isTimeout bool) bool {
 }
 
 func (cmd *baseMultiCommand) getConnection(policy Policy) (*Connection, Error) {
-	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().TotalTimeout, policy.GetBasePolicy().SocketTimeout, byte(rand.Int63()&0xff))
+	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().TotalTimeout, policy.GetBasePolicy().SocketTimeout, byte(rand.Int63()&0xff), policy.GetBasePolicy().TimeoutDelay)
 }
 
 func (cmd *baseMultiCommand) putConnection(conn *Connection) {
@@ -158,11 +159,17 @@ func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {
 				return newError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize-8, err.Error())).setNode(cmd.node)
 			}
 
+			// getting compressed received size
+			cmd.receiveSize = int64(receiveSize)
+
 			// read the first 8 bytes
 			cmd.bc.reset(8)
 			if cmd.dataBuffer, err = cmd.bc.read(8); err != nil {
 				return err
 			}
+		} else {
+			// getting un-compressed received size
+			cmd.receiveSize = int64(receiveSize)
 		}
 
 		// Validate header to make sure we are at the beginning of a message
@@ -508,4 +515,8 @@ func (cmd *baseMultiCommand) getNamespaces() iter.Seq2[string, uint64] {
 
 func (cmd *baseMultiCommand) getNamespace() *string {
 	return &cmd.namespace
+}
+
+func (cmd *baseMultiCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+	conn.Close()
 }

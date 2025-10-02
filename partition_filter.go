@@ -73,17 +73,30 @@ func NewPartitionFilterSelectPartitions(partitionIds []int) (*PartitionFilter, e
 	minPartitionId := _PARTITIONS
 	maxPartitionId := 0
 
-	// Need to find min and max partition ids to know what the range or partitions is
-	for _, id := range partitionIds {
-		if id < 0 || id >= _PARTITIONS {
-			return nil, newError(types.PARAMETER_ERROR, "Partition id out of range: %d", strconv.Itoa(id))
+	var partitionFilter *PartitionFilter
+	var partitionCount int
+	if len(partitionIds) == 0 {
+		return nil, newError(types.PARAMETER_ERROR, "Partition ids is empty")
+	} else if len(partitionIds) == 1 {
+		if partitionIds[0] < 0 || partitionIds[0] >= _PARTITIONS {
+			return nil, newError(types.PARAMETER_ERROR, "Partition id out of range: %d", strconv.Itoa(partitionIds[0]))
 		}
+		partitionCount = len(partitionIds)
+		partitionFilter = newPartitionFilter(partitionIds[0], partitionCount)
+		minPartitionId = partitionIds[0]
+	} else {
+		// Need to find min and max partition ids to know what the range or partitions is
+		for _, id := range partitionIds {
+			if id < 0 || id >= _PARTITIONS {
+				return nil, newError(types.PARAMETER_ERROR, "Partition id out of range: %d", strconv.Itoa(id))
+			}
 
-		minPartitionId = min(minPartitionId, id)
-		maxPartitionId = max(maxPartitionId, id)
+			minPartitionId = min(minPartitionId, id)
+			maxPartitionId = max(maxPartitionId, id)
+		}
+		partitionCount = maxPartitionId - minPartitionId
+		partitionFilter = newPartitionFilter(minPartitionId, partitionCount)
 	}
-	partitionCount := maxPartitionId - minPartitionId
-	partitionFilter := newPartitionFilter(minPartitionId, partitionCount)
 
 	sortedPartitions := make([]int, len(partitionIds))
 	copy(sortedPartitions, partitionIds)

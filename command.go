@@ -212,6 +212,8 @@ type command interface {
 	getNamespaces() iter.Seq2[string, uint64]
 	getNamespace() *string
 
+	salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node)
+
 	// Executes the command
 	Execute() Error
 }
@@ -243,6 +245,8 @@ type baseCommand struct {
 
 	commandSentCounter int
 	commandWasSent     bool
+
+	receiveSize int64
 }
 
 //--------------------------------------------------
@@ -2775,7 +2779,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			cmd.writeFieldHeader(expressionSize, INDEX_EXPRESSION)
 			if _, err = statement.Filter.expression.pack(cmd); err != nil {
 				return newCommonError(err)
-			} 
+			}
 		}
 	}
 
@@ -3796,7 +3800,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				// the command to increase the iteration count.
 				cmd.commandSentCounter--
 			}
-			logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
+			logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
 			continue
 		}
 
@@ -3860,13 +3864,18 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			if deviceOverloadError(err) {
 				cmd.node.incrErrorCount()
 			}
+			// try to salvage the connection
+			if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
+				go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+			} else {
+				// IO errors are considered temporary anomalies. Retry.
+				// Close socket to flush out possible garbage. Do not put back in pool.
+				cmd.conn.Close()
+			}
 
-			// IO errors are considered temporary anomalies. Retry.
-			// Close socket to flush out possible garbage. Do not put back in pool.
-			cmd.conn.Close()
 			cmd.conn = nil
 
-			logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
+			logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
 			continue
 		}
 
@@ -3875,7 +3884,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			start := time.Now()
 			err = ifc.parseResult(ifc, cmd.conn)
 			dataReceived := cmd.conn.totalReceived
-			logger.Logger.Debug("Node " + cmd.node.String() + ": " + fmt.Sprintf("Received %d bytes", dataReceived) + ", command type: " + ifc.commandType().String())
+			logger.Logger.Debug("Node %s: Received %d bytes, command type: %s", cmd.node.String(), dataReceived, ifc.commandType().String())
 			// Capture timing for parsing results and total bytes received from the server.
 			cmd.applyDetailedMetricsParsing(ifc, start, dataReceived)
 		} else {
@@ -3897,11 +3906,17 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 					}
 				}
 
-				// IO errors are considered temporary anomalies. Retry.
-				// Close socket to flush out possible garbage. Do not put back in pool.
-				cmd.conn.Close()
+				if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
+					// Do not close connection immediately, but give it a chance to recover
+					go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
+					continue
+				} else {
+					// IO errors are considered temporary anomalies. Retry.
+					// Close socket to flush out possible garbage. Do not put back in pool.
+					cmd.conn.Close()
+				}
 
-				logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
+				logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
 
 				// retry only for non-streaming commands
 				if !cmd.oneShot {
@@ -4007,6 +4022,12 @@ func applyTransactionErrorMetrics(node *Node) {
 func applyTransactionRetryMetrics(node *Node) {
 	if node != nil {
 		node.stats.TransactionRetryCount.GetAndIncrement()
+	}
+}
+
+func applyConnectionRecoveredMetrics(node *Node) {
+	if node != nil {
+		node.stats.ConnectionsRecovered.GetAndIncrement()
 	}
 }
 

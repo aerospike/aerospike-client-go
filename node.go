@@ -15,7 +15,9 @@
 package aerospike
 
 import (
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +25,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	iatomic "github.com/aerospike/aerospike-client-go/v8/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
@@ -77,6 +80,8 @@ type Node struct {
 	features int
 
 	active iatomic.Bool
+
+	version version.Version
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -88,6 +93,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		host:    nv.primaryHost,
 
 		features: nv.features,
+		version:  nv.version,
 
 		stats: *newNodeStats(cluster.MetricsPolicy()),
 
@@ -420,7 +426,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err Erro
 // getConnection gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
 func (nd *Node) getConnection(deadline, timeout time.Duration) (conn *Connection, err Error) {
-	return nd.getConnectionWithHint(deadline, timeout, 0)
+	return nd.getConnectionWithHint(deadline, timeout, 0, 0)
 }
 
 // newConnectionAllowed will tentatively check if the client is allowed to make a new connection
@@ -509,6 +515,24 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	return conn, nil
 }
 
+func (nd *Node) newTendConnection() (*Connection, Error) {
+	conn, err := nd.newConnection(true)
+	if err != nil {
+		return nil, err
+	}
+
+	serverMinVersion, _ := version.Parse("8.1.0.0")
+	if nd.version.IsGreaterOrEqual(serverMinVersion) {
+		if err := nd.sendUserAgentId(conn); err != nil {
+			// If setting user agent failed, we still return the connection
+			// as it is already authenticated and usable.
+			logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
+		}
+	}
+
+	return conn, nil
+}
+
 // makeConnectionForPool will try to open a connection until deadline.
 // if no deadline is defined, it will only try for _DEFAULT_TIMEOUT.
 func (nd *Node) makeConnectionForPool(hint byte) {
@@ -523,7 +547,7 @@ func (nd *Node) makeConnectionForPool(hint byte) {
 
 // getConnectionWithHint gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
-func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte) (conn *Connection, err Error) {
+func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte, timeoutDelay time.Duration) (conn *Connection, err Error) {
 	if !nd.active.Get() {
 		return nil, ErrServerNotAvailable.err()
 	}
@@ -533,6 +557,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 		if conn.IsConnected() {
 			break
 		}
+
 		conn.Close()
 		conn = nil
 	}
@@ -551,7 +576,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 	if err = conn.setTimeout(totalTimeout, socketTimeout); err != nil {
 		nd.stats.ConnectionsFailed.IncrementAndGet()
 
-		// Do not put back into pool.
+		// Do not put back into pool for other types of errors.
 		conn.Close()
 		return nil, err
 	}
@@ -716,7 +741,7 @@ func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection)) (
 			if nd.connectionCount.Get() == 0 {
 				// if there are no connections in the pool, create a new connection synchronously.
 				// this will make sure the initial tend will get a connection without multiple retries.
-				*conn, err = nd.newConnection(true)
+				*conn, err = nd.newTendConnection()
 			} else {
 				*conn, err = nd.GetConnection(timeout)
 			}
@@ -969,4 +994,30 @@ func (nd *Node) PartitionGeneration() int {
 // RebalanceGeneration returns node's Rebalance Generation
 func (nd *Node) RebalanceGeneration() int {
 	return nd.rebalanceGeneration.Get()
+}
+
+func (nd *Node) sendUserAgentId(conn *Connection) Error {
+	var appId string
+	clientPolicy := nd.cluster.clientPolicy.Load()
+	if clientPolicy.ApplicationId != "" {
+		appId = clientPolicy.ApplicationId
+	} else if nd.cluster.user != "" {
+		appId = nd.cluster.user
+	} else {
+		appId = "not-set"
+	}
+
+	// Source user-agent payload
+	// Format: "1,go-<version>,<application-id>"
+	userAgentId := fmt.Sprintf("1,go-%s,%s", nd.cluster.clientModuleVersion, appId)
+	userAgentCommand := fmt.Sprintf("user-agent-set:value=%s", base64.StdEncoding.EncodeToString([]byte(userAgentId)))
+
+	command := []string{userAgentCommand}
+
+	_, err := conn.RequestInfo(command...)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

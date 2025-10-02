@@ -17,6 +17,7 @@ package aerospike
 import (
 	"iter"
 )
+
 type batcher interface {
 	command
 

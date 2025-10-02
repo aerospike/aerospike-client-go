@@ -31,6 +31,8 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
+const aesModule = "github.com/aerospike/aerospike-client-go/v8"
+
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
 type Cluster struct {
@@ -82,10 +84,16 @@ type Cluster struct {
 
 	// Cluster max error count for the nodes
 	maxErrorCount iatomic.Int
+
+	// User agent id
+	// Leaving this at cluster level since cluster is visible to nodes
+	// which will need this information when sending user-agent to the server.
+	clientModuleVersion string // e.g. v8.0.0, v8.1.0, etc."
 }
 
 // NewCluster generates a Cluster instance.
 func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
+
 	// Validate the policy params
 	if policy.MinConnectionsPerNode > policy.ConnectionQueueSize {
 		panic("minimum number of connections specified in the ClientPolicy is bigger than total connection pool size")
@@ -130,6 +138,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		password: *iatomic.NewSyncVal[[]byte](nil),
 
 		supportsPartitionQuery: *iatomic.NewBool(false),
+		clientModuleVersion:    getLibraryVersion(aesModule),
 	}
 	newCluster.maxErrorCount.Set(policy.MaxErrorRate)
 	newCluster.clientPolicy.Store(&clientPolicy)
@@ -140,6 +149,11 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	if policy.RequiresAuthentication() {
 		if policy.AuthMode == AuthModeExternal && policy.TlsConfig == nil {
 			return nil, newError(types.PARAMETER_ERROR, "External Authentication requires TLS configuration to be set, because it sends clear password on the wire.")
+		}
+
+		// If PKI authentication is used and user is attempting to set password, return an error
+		if policy.AuthMode == AuthModePKI && (policy.User != "" || policy.Password != "") {
+			return nil, newError(types.FORBIDDEN_PASSWORD, "Password authentication is disabled for PKI-only users. Please authenticate using your certificate.")
 		}
 
 		newCluster.user = policy.User
@@ -208,7 +222,7 @@ Loop:
 		case <-time.After(tendInterval):
 			tm := time.Now()
 			if err := clstr.tend(); err != nil {
-				logger.Logger.Warn(err.Error())
+				logger.Logger.Warn("%s", err.Error())
 			}
 
 			clientPolicy := clstr.clientPolicy.Load()
@@ -487,7 +501,7 @@ func (clstr *Cluster) waitTillStabilized() Error {
 					default:
 					}
 				}
-				logger.Logger.Warn(err.Error())
+				logger.Logger.Warn("%s", err.Error())
 			}
 
 			// Check to see if cluster has changed since the last Tend().
@@ -1098,4 +1112,27 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 // DisableMetrics disables the cluster command metrics gathering.
 func (clstr *Cluster) DisableMetrics() {
 	clstr.metricsEnabled.Store(false)
+}
+
+//-------------------------------------------------------
+// Utility Functions
+//-------------------------------------------------------
+
+// getLibraryVersion returns the version of the aerospike client library.
+func getLibraryVersion(modulePath string) string {
+	// golang idiomatic module version is "(devel)" if not set.
+	defaultVersion := "(devel)"
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return defaultVersion
+	}
+
+	for _, dep := range info.Deps {
+		if dep.Path == modulePath {
+			return dep.Version
+		}
+	}
+
+	return defaultVersion
 }
