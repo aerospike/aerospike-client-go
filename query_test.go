@@ -542,6 +542,75 @@ var _ = gg.Describe("Query operations", func() {
 		}
 	})
 
+	gg.It("must not return server errors when QueryExecute is called with BinNames populated", func() {
+		// Create a statement with specific bin names
+		stm := as.NewStatement(ns, set, bin1.Name, bin3.Name, bin4.Name)
+		stm.SetFilter(as.NewEqualFilter(bin6.Name, 1))
+
+		bin8 := as.NewBin("Aerospike8", "BinNamesTest")
+
+		tsk, err := client.QueryExecute(queryPolicy, nil, stm, as.PutOp(bin8))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(tsk).ToNot(gm.BeNil())
+
+		completionErr := <-tsk.OnComplete()
+		gm.Expect(completionErr).To(gm.BeNil())
+
+		// Verify the operation was successful by reading back the records
+		// and checking that the new bin was added
+		verifyStm := as.NewStatement(ns, set)
+		verifyStm.SetFilter(as.NewEqualFilter(bin6.Name, 1))
+
+		recordset, err := client.Query(queryPolicy, verifyStm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		foundRecords := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			rec := res.Record
+			gm.Expect(rec).ToNot(gm.BeNil())
+
+			gm.Expect(rec.Bins[bin8.Name]).To(gm.Equal(bin8.Value.GetObject()))
+			foundRecords++
+		}
+
+		// Ensure we found the expected number of records
+		gm.Expect(foundRecords).To(gm.Equal(keyCount))
+	})
+
+	gg.It("must not return server errors when QueryExecute is called with BinNames in scan mode (no filter)", func() {
+		// Create a statement with specific bin names but NO filter (scan mode)
+		stm := as.NewStatement(ns, set, bin1.Name, bin2.Name, bin3.Name)
+
+		bin9 := as.NewBin("Aerospike9", "ScanBinNamesTest")
+
+		tsk, err := client.QueryExecute(queryPolicy, nil, stm, as.PutOp(bin9))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(tsk).ToNot(gm.BeNil())
+
+		completionErr := <-tsk.OnComplete()
+		gm.Expect(completionErr).To(gm.BeNil())
+
+		// Verify the operation was successful by scanning back all records
+		verifyStm := as.NewStatement(ns, set)
+
+		recordset, err := client.Query(queryPolicy, verifyStm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		foundRecords := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			rec := res.Record
+			gm.Expect(rec).ToNot(gm.BeNil())
+
+			gm.Expect(rec.Bins[bin9.Name]).To(gm.Equal(bin9.Value.GetObject()))
+			foundRecords++
+		}
+
+		// Ensure we found all records in the set
+		gm.Expect(foundRecords).To(gm.Equal(keyCount))
+	})
+
 	gg.It("must allow reusing the same statement for multiple QueryExecute calls without errors", func() {
 		stm := as.NewStatement(ns, set)
 		stm.SetFilter(as.NewEqualFilter(bin6.Name, 1))

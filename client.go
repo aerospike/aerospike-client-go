@@ -1355,13 +1355,10 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 	statement *Statement,
 	ops ...*Operation,
 ) (*ExecuteTask, Error) {
-	if len(statement.BinNames) > 0 {
-		return nil, ErrNoBinNamesAllowedInQueryExecute.err()
-	}
-	taskId := statement.prepareTaskId()
-
 	policy = clnt.getUsableQueryPolicy(policy)
 	writePolicy = clnt.getUsableWritePolicy(writePolicy)
+
+	taskId := statement.prepareTaskId()
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
