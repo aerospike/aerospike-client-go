@@ -384,7 +384,7 @@ func (ctn *Connection) Close() {
 			}
 
 			if err := ctn.conn.Close(); err != nil {
-				logger.Logger.Warn(err.Error())
+				logger.Logger.Warn("%s", err.Error())
 			}
 			ctn.conn = nil
 

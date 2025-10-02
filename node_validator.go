@@ -82,7 +82,7 @@ func (ndv *nodeValidator) validateNode(cluster *Cluster, host *Host) Error {
 		masterHostname := clusterNodes[0].host.Name
 		ip, ipnet, err := net.ParseCIDR(masterHostname + "/24")
 		if err != nil {
-			logger.Logger.Error(err.Error())
+			logger.Logger.Error("%s", err.Error())
 			return newError(types.NO_AVAILABLE_CONNECTIONS_TO_NODE, "Failed parsing hostname...")
 		}
 

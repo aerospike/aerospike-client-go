@@ -130,5 +130,7 @@ func (node *Node) GetErrorCount() int {
 }
 
 func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
-	return newDynConfigForTest(config)
+	return &DynConfig{
+		config: config,
+	}
 }

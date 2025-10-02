@@ -222,7 +222,7 @@ Loop:
 		case <-time.After(tendInterval):
 			tm := time.Now()
 			if err := clstr.tend(); err != nil {
-				logger.Logger.Warn(err.Error())
+				logger.Logger.Warn("%s", err.Error())
 			}
 
 			// clientPolicy := clstr.clientPolicy.Load()
@@ -475,7 +475,7 @@ func (clstr *Cluster) waitTillStabilized() Error {
 					default:
 					}
 				}
-				logger.Logger.Warn(err.Error())
+				logger.Logger.Warn("%s", err.Error())
 			}
 
 			// Check to see if cluster has changed since the last Tend().

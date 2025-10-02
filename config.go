@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"runtime/debug"
@@ -33,14 +34,14 @@ var supportedVersions = map[string]struct{}{
 }
 
 type DynConfig struct {
-	lock     sync.Mutex
-	config   atomic.Pointer[dynconfig.Config]
-	wgConfig sync.WaitGroup
+	lock sync.RWMutex
 
-	configInitialized  *atomic.Bool
-	client             *Client // Reference to the client to use for callbacks and cached policies.
-	configProvider     dynconfig.ConfigProvider
-	configWatchChannel chan struct{}
+	config *dynconfig.Config
+	cancel context.CancelFunc
+
+	configInitialized *atomic.Bool
+	client            *Client // Reference to the client to use for callbacks and cached policies.
+	configProvider    dynconfig.ConfigProvider
 
 	metricsCallback func(config *dynconfig.Config, client *Client)
 
@@ -98,22 +99,28 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 		return nil
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	dynConfig := &DynConfig{
-		configWatchChannel: make(chan struct{}),
-		configInitialized:  &atomic.Bool{},
-		metricsCallback:    fn,
-		scheme:             schema,
-		dsn:                urlPath,
-		configProvider:     provider,
-		logUpdate:          &atomic.Bool{},
+		configInitialized: &atomic.Bool{},
+		metricsCallback:   fn,
+		scheme:            schema,
+		dsn:               urlPath,
+		configProvider:    provider,
+		cancel:            cancel,
 	}
 	dynConfig.logUpdate.Store(false)
 	dynConfig.initConfig()
 
-	dynConfig.wgConfig.Add(1)
-	go dynConfig.watchConfig(policy.ConfigInterval)
+	go dynConfig.watchConfig(ctx, policy.ConfigInterval)
 
 	return dynConfig
+}
+
+// Close closes the dynamic configuration watcher.
+func (dc *DynConfig) Close() {
+	if dc != nil && dc.cancel != nil {
+		dc.cancel()
+	}
 }
 
 // ----------------------------------------------------------------
@@ -464,14 +471,14 @@ func (dc *DynConfig) generateDynamicMetricsPolicy() *MetricsPolicy {
 // ----------------------------------------------------------------
 // Main watch goroutine for the config provider
 // ----------------------------------------------------------------
-func (dc *DynConfig) watchConfig(interval time.Duration) {
+func (dc *DynConfig) watchConfig(ctx context.Context, interval time.Duration) {
 	logger.Logger.Info("Starting the config watch goroutine...")
 
 	// If the config is not loaded, we will use the default interval.
 	// If the config is loaded, we will use the interval from the config.
 	// This allows the config to be updated dynamically without restarting the client.
 	var mergedConfigInterval time.Duration
-	// Handle the condition where dynamic config is eneabled but config was not loaded becuase
+	// Handle the condition where dynamic config is enabled but config was not loaded because
 	// the file could not be found or the url is not valid. In that case we will use the interval passed
 	// in or use the default interval of 1 second.
 	currentConfig := dc.config.Load() // Atomically load config
@@ -490,17 +497,16 @@ func (dc *DynConfig) watchConfig(interval time.Duration) {
 		// TODO: Add exponential backoff here to resource starvation
 		if r := recover(); r != nil {
 			logger.Logger.Warn("Watch config goroutine crashed: %s", debug.Stack())
-			go dc.watchConfig(mergedConfigInterval)
+			go dc.watchConfig(ctx, mergedConfigInterval)
 		}
 	}()
-	defer dc.wgConfig.Done()
 
 	configInterval := max(mergedConfigInterval, 1*time.Second)
 Loop:
 	for {
 		select {
-		case <-dc.configWatchChannel:
-			logger.Logger.Debug("Watch config channel closed. Stopping watch goroutine.")
+		case <-ctx.Done():
+			logger.Logger.Debug("Stopping config watch goroutine.")
 			break Loop
 		case <-time.After(configInterval):
 			tm := time.Now()
@@ -524,16 +530,4 @@ func (dc *DynConfig) getConfigIfNotLoadedOrInitialized() *dynconfig.Config {
 	}
 
 	return config
-}
-
-// ----------------------------------------------------------------
-// Testing functions
-// ----------------------------------------------------------------
-
-func newDynConfigForTest(config *dynconfig.Config) *DynConfig {
-	dc := &DynConfig{}
-	if config != nil {
-		dc.config.Store(config)
-	}
-	return dc
 }
