@@ -300,7 +300,7 @@ func (clstr *Cluster) tend() Error {
 
 	// find the first host that connects
 	seq.ParDo(peers.peers(), func(_peer *peer) {
-		if clstr.peerExists(peers, _peer.nodeName) {
+		if clstr.peerExists(peers, _peer) {
 			// Node already exists. Do not even try to connect to hosts.
 			return
 		}
@@ -318,17 +318,17 @@ func (clstr *Cluster) tend() Error {
 				logger.Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", _peer.nodeName, nv.name, host)
 			}
 
-			if clstr.peerExists(peers, nv.name) {
-				// Node already exists. Do not even try to connect to hosts.
-				return seq.Break
-			}
-
 			// Create new node.
 			node := clstr.createNode(&nv)
 			peers.addNode(nv.name, node)
 			partMap.InitDoVal(clstr.getPartitions().clone, func(partMap partitionMap) {
 				node.refreshPartitions(peers, partMap, true)
 			})
+
+			// Preventing duplicate entries.
+			if _peer.replaceNode != nil && !peers.containsNodeToRemove(_peer.replaceNode) {
+					peers.addNodesToRemove(_peer.replaceNode)
+			}
 			return seq.Break
 		})
 	})
@@ -344,14 +344,15 @@ func (clstr *Cluster) tend() Error {
 
 	if peers.genChanged.Get() {
 		// Handle nodes changes determined from refreshes.
-		removeList := clstr.findNodesToRemove(peers.refreshCount.Get())
+		clstr.findNodesToRemove(peers)
 
 		// Remove nodes in a batch.
-		for i := range removeList {
-			logger.Logger.Debug("The following nodes will be removed: %s", removeList[i])
+		nodesToRemove := peers.getNodesToRemove()
+		for i := range nodesToRemove {
+			logger.Logger.Debug("The following nodes will be removed: %s", nodesToRemove[i])
 		}
-		clstr.removeNodes(removeList)
-		clstr.aggregateNodeStats(removeList)
+		clstr.removeNodes(nodesToRemove)
+		clstr.aggregateNodeStats(nodesToRemove)
 	}
 
 	// Add nodes in a batch.
@@ -436,16 +437,41 @@ func (clstr *Cluster) statsCopy() map[string]nodeStats {
 	return res
 }
 
-func (clstr *Cluster) peerExists(peers *peers, nodeName string) bool {
-	node := clstr.findNodeByName(nodeName)
+func (clstr *Cluster) peerExists(peers *peers, peer *peer) bool {
+	node := clstr.findNodeByName(peer.nodeName)
+
 	if node != nil {
-		node.referenceCount.IncrementAndGet()
-		return true
+		if node.failures.Get() <= 0 || node.host.IsLocalhost() {
+			// If the node does not have cluster tend errors or is localhost,
+			// reject new peer as the IP address does not need to change.
+			node.referenceCount.IncrementAndGet()
+			return true
+		}
+
+		for _, host := range peer.hosts {
+			if host.Port == node.host.Port {
+				if host.Name == node.host.Name || (node.hostName != "" && host.Name == node.hostName) {
+					// Main node host is also the same as one of the peer hosts.
+					// Peer should not be added.
+					if host.IsLocalhost() {
+						node.hostName = host.Name
+					}
+					node.referenceCount.IncrementAndGet()
+
+					logger.Logger.Debug("Peer node `%s` matches existing node `%s` by host `%s`.", peer.nodeName, node.name, host)
+					return true
+				}
+			}
+
+		}
+		peer.replaceNode = node
 	}
 
-	node = peers.nodeByName(nodeName)
+	node = peers.nodeByName(peer.nodeName)
 	if node != nil {
 		node.referenceCount.IncrementAndGet()
+		peer.replaceNode = nil
+
 		return true
 	}
 
@@ -627,12 +653,12 @@ func (clstr *Cluster) addAlias(host *Host, node *Node) {
 	}
 }
 
-func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
-	removeList := []*Node{}
+func (clstr *Cluster) findNodesToRemove(peers *peers) {
+	refreshCount := peers.refreshCount.Get()
 
 	if clstr.clientPolicy.Load().SeedOnlyCluster {
 		// Don't remove any node even if its bad or inactive.
-		return removeList
+		return
 	}
 
 	nodes := clstr.GetNodes()
@@ -640,7 +666,9 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 	for _, node := range nodes {
 		if !node.IsActive() {
 			// Inactive nodes must be removed.
-			removeList = append(removeList, node)
+			if !peers.containsNodeToRemove(node) {
+				peers.addNodesToRemove(node)
+			}
 			continue
 		}
 
@@ -649,7 +677,9 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 			// All node info requests failed and this node had 5 consecutive failures.
 			// Remove node.  If no nodes are left, seeds will be tried in next cluster
 			// tend iteration.
-			removeList = append(removeList, node)
+			if !peers.containsNodeToRemove(node) {
+				peers.addNodesToRemove(node)
+			}
 			continue
 		}
 
@@ -662,16 +692,18 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 				if !clstr.findNodeInPartitionMap(node) {
 					// Node doesn't have any partitions mapped to it.
 					// There is no point in keeping it in the cluster.
-					removeList = append(removeList, node)
+					if !peers.containsNodeToRemove(node) {
+						peers.addNodesToRemove(node)
+					}
 				}
 			} else {
 				// Node not responding. Remove it.
-				removeList = append(removeList, node)
+				if !peers.containsNodeToRemove(node) {
+					peers.addNodesToRemove(node)
+				}
 			}
 		}
 	}
-
-	return removeList
 }
 
 func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {

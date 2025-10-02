@@ -134,3 +134,7 @@ func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
 		config: config,
 	}
 }
+
+func (host *Host) Equals(other *Host) bool {
+	return host.equals(other)
+}
