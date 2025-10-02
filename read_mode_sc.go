@@ -18,6 +18,7 @@
 package aerospike
 
 import (
+	"fmt"
 	"strconv"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -45,6 +46,22 @@ const (
 	ReadModeSCAllowUnavailable
 )
 
+// String returns the string representation of ReadModeSC
+func (rm ReadModeSC) String() string {
+	switch rm {
+	case ReadModeSCSession:
+		return "SESSION"
+	case ReadModeSCLinearize:
+		return "LINEARIZE"
+	case ReadModeSCAllowReplica:
+		return "ALLOW_REPLICA"
+	case ReadModeSCAllowUnavailable:
+		return "ALLOW_UNAVAILABLE"
+	default:
+		return fmt.Sprintf("Unknown ReadModeSC(%d)", int(rm))
+	}
+}
+
 func mapReadModeSCToReadModeSC(readModeSC dynconfig.ReadModeSc) ReadModeSC {
 	switch readModeSC {
 	case dynconfig.SESSION:
@@ -56,6 +73,6 @@ func mapReadModeSCToReadModeSC(readModeSC dynconfig.ReadModeSc) ReadModeSC {
 	case dynconfig.ALLOW_UNAVAILABLE:
 		return ReadModeSCAllowUnavailable
 	default:
-		panic("unknown ReadModeC value: " + strconv.Itoa(int(readModeSC)))
+		panic("unknown ReadModeSC value: " + strconv.Itoa(int(readModeSC)))
 	}
 }

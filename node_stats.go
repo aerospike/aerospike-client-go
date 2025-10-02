@@ -367,7 +367,7 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		ErrorCounts              map[string]map[string]map[string]int `json:"detailed-resultcode-counts"`
 		DetailedMetrics          map[string]map[string]*commandMetric `json:"detailed-metrics"`
 	}{
-		*ns.StatLabels.Labels,
+		*ns.StatLabels,
 		ns.ConnectionsAttempts.Get(),
 		ns.ConnectionsSuccessful.Get(),
 		ns.ConnectionsFailed.Get(),

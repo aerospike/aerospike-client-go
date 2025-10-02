@@ -17,6 +17,8 @@ package aerospike
 import (
 	"math"
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 const (
@@ -138,34 +140,68 @@ func (wp *WritePolicy) patchDynamic(dynConfig *DynConfig) *WritePolicy {
 }
 
 func (wp *WritePolicy) mapDynamic(dynConfig *DynConfig) *WritePolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return wp
 	}
 
-	if dynConfig.config.Dynamic.Write != nil {
-		if dynConfig.config.Dynamic.Write.Replica != nil {
-			wp.ReplicaPolicy = mapReplicaToReplicaPolicy(*dynConfig.config.Dynamic.Write.Replica)
+	if currentConfig.Dynamic.Write != nil {
+		if currentConfig.Dynamic.Write.Replica != nil {
+			configValue := mapReplicaToReplicaPolicy(*currentConfig.Dynamic.Write.Replica)
+			wp.ReplicaPolicy = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			}
 		}
-		if dynConfig.config.Dynamic.Write.SendKey != nil {
-			wp.SendKey = *dynConfig.config.Dynamic.Write.SendKey
+		if currentConfig.Dynamic.Write.SendKey != nil {
+			configValue := *currentConfig.Dynamic.Write.SendKey
+			wp.SendKey = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SendKey set to %t", configValue)
+			}
 		}
-		if dynConfig.config.Dynamic.Write.SleepBetweenRetries != nil {
-			wp.SleepBetweenRetries = time.Duration(*dynConfig.config.Dynamic.Write.SleepBetweenRetries) * time.Millisecond
+		if currentConfig.Dynamic.Write.SleepBetweenRetries != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Write.SleepBetweenRetries) * time.Millisecond
+			wp.SleepBetweenRetries = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
 		}
-		if dynConfig.config.Dynamic.Write.SocketTimeout != nil {
-			wp.SocketTimeout = time.Duration(*dynConfig.config.Dynamic.Write.SocketTimeout) * time.Millisecond
+		if currentConfig.Dynamic.Write.SocketTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Write.SocketTimeout) * time.Millisecond
+			wp.SocketTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			}
 		}
-		if dynConfig.config.Dynamic.Write.TotalTimeout != nil {
-			wp.TotalTimeout = time.Duration(*dynConfig.config.Dynamic.Write.TotalTimeout) * time.Millisecond
+		if currentConfig.Dynamic.Write.TotalTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Write.TotalTimeout) * time.Millisecond
+			wp.TotalTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			}
 		}
-		if dynConfig.config.Dynamic.Write.MaxRetries != nil {
-			wp.MaxRetries = *dynConfig.config.Dynamic.Write.MaxRetries
+		if currentConfig.Dynamic.Write.MaxRetries != nil {
+			configValue := *currentConfig.Dynamic.Write.MaxRetries
+			wp.MaxRetries = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
 		}
-		if dynConfig.config.Dynamic.Write.DurableDelete != nil {
-			wp.DurableDelete = *dynConfig.config.Dynamic.Write.DurableDelete
+		if currentConfig.Dynamic.Write.DurableDelete != nil {
+			configValue := *currentConfig.Dynamic.Write.DurableDelete
+			wp.DurableDelete = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("DurableDelete set to %t", configValue)
+			}
 		}
-		if dynConfig.config.Dynamic.Write.TimeoutDelay != nil {
-			wp.TimeoutDelay = time.Duration(*dynConfig.config.Dynamic.Write.TimeoutDelay) * time.Millisecond
+		if currentConfig.Dynamic.Write.TimeoutDelay != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Write.TimeoutDelay) * time.Millisecond
+			wp.TimeoutDelay = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TimeoutDelay set to %s", configValue.String())
+			}
 		}
 	}
 

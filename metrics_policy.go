@@ -15,7 +15,10 @@
 package aerospike
 
 import (
+	"strings"
+
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types/histogram"
 )
 
@@ -93,9 +96,9 @@ func (mp *MetricsPolicy) copy() *MetricsPolicy {
 // Changes will only be made if the there is a discrepancy between the current configuration and the new configuration.
 func metricsSyncCallBack(config *dynconfig.Config, client *Client) {
 	// Metrics are not enabled but configuration is set to enable metrics
-	if client != nil && !client.MetricsEnabled() && config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil && *config.Dynamic.Metrics.Enable {
+	if client != nil && !client.MetricsEnabled() && config.Dynamic.Metrics.Enable != nil && *config.Dynamic.Metrics.Enable {
 		client.cluster.EnableMetrics(client.dynDefaultMetricsPolicy.Load())
-	} else if client != nil && client.MetricsEnabled() && config != nil && config.Dynamic != nil && config.Dynamic.Metrics != nil && !*config.Dynamic.Metrics.Enable {
+	} else if client != nil && client.MetricsEnabled() && !*config.Dynamic.Metrics.Enable {
 		// Metrics are enabled but configuration is set to disable metrics
 		client.cluster.DisableMetrics()
 	}
@@ -123,16 +126,37 @@ func (mp *MetricsPolicy) patchDynamic(dynConfig *DynConfig) *MetricsPolicy {
 }
 
 func (mp *MetricsPolicy) mapDynamic(dynConfig *DynConfig) *MetricsPolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return mp
 	}
 
-	if dynConfig.config.Dynamic.Metrics != nil {
-		if dynConfig.config.Dynamic.Metrics.LatencyColumns != nil {
-			mp.LatencyColumns = *dynConfig.config.Dynamic.Metrics.LatencyColumns
+	if currentConfig.Dynamic.Metrics != nil {
+		if currentConfig.Dynamic.Metrics.LatencyColumns != nil {
+			configValue := *currentConfig.Dynamic.Metrics.LatencyColumns
+			mp.LatencyColumns = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("LatencyColumns set to %d", configValue)
+			}
 		}
-		if dynConfig.config.Dynamic.Metrics.LatencyBase != nil {
-			mp.LatencyBase = *dynConfig.config.Dynamic.Metrics.LatencyBase
+		if currentConfig.Dynamic.Metrics.LatencyBase != nil {
+			configValue := *currentConfig.Dynamic.Metrics.LatencyBase
+			mp.LatencyBase = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("LatencyBase set to %d", configValue)
+			}
+		}
+		if currentConfig.Dynamic.Metrics.Labels != nil {
+			configValue := *currentConfig.Dynamic.Metrics.Labels
+			mp.Labels = NewLabels(configValue)
+			if dynConfig.logUpdate.Load() {
+				var labelPairs []string
+				for key, value := range configValue {
+					labelPairs = append(labelPairs, key+":"+value)
+				}
+				logger.Logger.Info("Labels set to %s", strings.Join(labelPairs, ", "))
+			}
 		}
 	}
 

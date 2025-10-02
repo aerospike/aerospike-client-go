@@ -79,7 +79,7 @@ type Client struct {
 
 	// Policies used for dynamic configuration updates.
 	// ClientPolicy is used to update the client configuration.
-	dynDefaultClientPolicy atomic.Pointer[ClientPolicy]
+	dynDefaultClientPolicy *atomic.Pointer[ClientPolicy]
 	// DefaultPolicy is used for all read commands without a specific policy.
 	dynDefaultPolicy atomic.Pointer[BasePolicy]
 	// DynamicScanPolicy is used for all scan commands without a specific policy.
@@ -154,11 +154,13 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	// Start dynamic configuration watcher
 	dynConfig := newDynConfigWithCallBack(policy, metricsSyncCallBack)
 
-	// Get updated client updatedPolicy with dynamic configuration
-	updatedPolicy := getUsableClientPolicy(policy, dynConfig)
+	// Get updated client policy with dynamic configuration and store atomically
+	// Need this since cluster needs to have updated client policy during creation.
+	clientPolicy := &atomic.Pointer[ClientPolicy]{}
+	clientPolicy.Store(getUsableClientPolicy(policy, dynConfig))
 
-	cluster, err := NewCluster(updatedPolicy, hosts)
-	if err != nil && updatedPolicy.FailIfNotConnected {
+	cluster, err := NewCluster(clientPolicy, hosts)
+	if err != nil && clientPolicy.Load().FailIfNotConnected {
 		logger.Logger.Debug("Failed to connect to host(s): %v; error: %s", hosts, err)
 		return nil, err
 	}
@@ -184,10 +186,8 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 	if dynConfig != nil {
 		// Running the callback function to load functionalities dependent on
 		// the instance of client.
-		dynConfig.lock.Lock()
-		defer dynConfig.lock.Unlock()
-
 		dynConfig.client = client
+		client.dynDefaultClientPolicy = clientPolicy
 		dynConfig.updateCachedPolicies()
 		dynConfig.runCallBack()
 	}
@@ -2193,10 +2193,16 @@ func (clnt *Client) MetricsEnabled() bool {
 // If the parameters for the histogram in the policy are different from the one already
 // on the cluster, the metrics will be reset.
 func (clnt *Client) EnableMetrics(policy *MetricsPolicy) {
-	if clnt.dynConfig == nil ||
-		clnt.dynConfig.config == nil ||
-		clnt.dynConfig.config.Dynamic == nil ||
-		clnt.dynConfig.config.Dynamic.Metrics == nil {
+	if clnt.dynConfig == nil {
+		clnt.cluster.EnableMetrics(policy)
+		return
+	}
+
+	// Atomically load config to avoid race conditions
+	currentConfig := clnt.dynConfig.config
+	if currentConfig == nil ||
+		currentConfig.Dynamic == nil ||
+		currentConfig.Dynamic.Metrics == nil {
 
 		clnt.cluster.EnableMetrics(policy)
 	}
@@ -2221,7 +2227,7 @@ func (clnt *Client) Stats() (map[string]any, Error) {
 		clusterStats.aggregate(&stats)
 	}
 
-	clusterStats.StatLabels = clnt.cluster.getNodeLabels(mp)
+	clusterStats.StatLabels = clnt.cluster.getNodeLabels()
 	resStats["cluster-aggregated-stats"] = clusterStats
 
 	b, err := json.Marshal(resStats)

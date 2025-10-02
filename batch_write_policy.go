@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/v8/logger"
+
 // BatchWritePolicy attributes used in batch write commands.
 type BatchWritePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -148,16 +150,26 @@ func (bwp *BatchWritePolicy) patchDynamic(dynConfig *DynConfig) *BatchWritePolic
 }
 
 func (bwp *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy {
-	if dynConfig.config == nil || dynConfig.config.Dynamic == nil {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
 		return bwp
 	}
 
-	if dynConfig.config.Dynamic.BatchWrite != nil {
-		if dynConfig.config.Dynamic.BatchWrite.DurableDelete != nil {
-			bwp.DurableDelete = *dynConfig.config.Dynamic.BatchWrite.DurableDelete
+	if currentConfig.Dynamic.BatchWrite != nil {
+		if currentConfig.Dynamic.BatchWrite.DurableDelete != nil {
+			configValue := *currentConfig.Dynamic.BatchWrite.DurableDelete
+			bwp.DurableDelete = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("DurableDelete set to %t", configValue)
+			}
 		}
-		if dynConfig.config.Dynamic.BatchWrite.SendKey != nil {
-			bwp.SendKey = *dynConfig.config.Dynamic.BatchWrite.SendKey
+		if currentConfig.Dynamic.BatchWrite.SendKey != nil {
+			configValue := *currentConfig.Dynamic.BatchWrite.SendKey
+			bwp.SendKey = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SendKey set to %t", configValue)
+			}
 		}
 	}
 

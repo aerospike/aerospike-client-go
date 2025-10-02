@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"sync/atomic"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -33,6 +34,8 @@ var _ = gg.Describe("WritePolicy Config", func() {
 		gg.BeforeEach(func() {
 			// Create the full config.
 			config = &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Write: &dynconfig.Write{
@@ -100,6 +103,8 @@ var _ = gg.Describe("WritePolicy Config", func() {
 	gg.Context("when applying configuration with select fields", func() {
 		gg.BeforeEach(func() {
 			config = &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Write: &dynconfig.Write{

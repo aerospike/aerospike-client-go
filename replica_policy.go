@@ -53,6 +53,24 @@ const (
 	PREFER_RACK
 )
 
+// String returns the string representation of ReadModeAP
+func (r ReplicaPolicy) String() string {
+	switch r {
+	case MASTER:
+		return "MASTER"
+	case MASTER_PROLES:
+		return "MASTER_PROLES"
+	case RANDOM:
+		return "RANDOM"
+	case SEQUENCE:
+		return "SEQUENCE"
+	case PREFER_RACK:
+		return "PREFER_RACK"
+	default:
+		return fmt.Sprintf("Unknown ReplicaPolicy(%d)", int(r))
+	}
+}
+
 func mapReplicaToReplicaPolicy(replica dynconfig.Replica) ReplicaPolicy {
 	switch replica {
 	case dynconfig.MASTER:

@@ -37,6 +37,18 @@ const (
 	ReadModeAPAll
 )
 
+// String returns the string representation of ReadModeAP
+func (rm ReadModeAP) String() string {
+	switch rm {
+	case ReadModeAPOne:
+		return "ONE"
+	case ReadModeAPAll:
+		return "ALL"
+	default:
+		return fmt.Sprintf("Unknown ReadModeAP(%d)", int(rm))
+	}
+}
+
 func mapReadModeAPToReadModeAP(readModeAP dynconfig.ReadModeAp) ReadModeAP {
 	switch readModeAP {
 	case dynconfig.ONE:
