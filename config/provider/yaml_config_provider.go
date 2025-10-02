@@ -45,6 +45,12 @@ func NewYamlConfigProvider() dynconfig.ConfigProvider {
 	return &YamlConfigProvider{oldModTime: time.Time{}}
 }
 
+func NewYamlConfigProviderWithPath(configFilePath string) dynconfig.ConfigProvider {
+	return &YamlConfigProvider{
+		oldModTime: time.Time{},
+	}
+}
+
 // containsVersion checks if the provided YAML data contains a version field.
 // Since the file is a yaml file and yaml spec does not dictate
 // order of fields we have to read the whole file and check for the version field.
