@@ -327,7 +327,7 @@ func (clstr *Cluster) tend() Error {
 
 			// Preventing duplicate entries.
 			if _peer.replaceNode != nil && !peers.containsNodeToRemove(_peer.replaceNode) {
-					peers.addNodesToRemove(_peer.replaceNode)
+				peers.addNodesToRemove(_peer.replaceNode)
 			}
 			return seq.Break
 		})
@@ -343,9 +343,6 @@ func (clstr *Cluster) tend() Error {
 	})
 
 	if peers.genChanged.Get() {
-		// Handle nodes changes determined from refreshes.
-		removeList := clstr.findNodesToRemove(peers)
-
 		// Remove nodes in a batch.
 		nodesToRemove := peers.getNodesToRemove()
 		for i := range nodesToRemove {
@@ -653,9 +650,8 @@ func (clstr *Cluster) addAlias(host *Host, node *Node) {
 	}
 }
 
-func (clstr *Cluster) findNodesToRemove(_peers *peers) []*Node {
-	refreshCount := _peers.refreshCount.Get()
-	removeList := []*Node{}
+func (clstr *Cluster) findNodesToRemove(peers *peers) {
+	refreshCount := peers.refreshCount.Get()
 
 	if clstr.clientPolicy.Load().SeedOnlyCluster {
 		// Don't remove any node even if its bad or inactive.
@@ -702,7 +698,7 @@ func (clstr *Cluster) findNodesToRemove(_peers *peers) []*Node {
 				}
 				// If node is orphan, it can be removed if it has no references and no peers.
 				if node.referenceCount.Get() == 0 && node.peersCount.Get() == 0 && node.isOrphan.Get() {
-					removeList = append(removeList, node)
+					peers.addNodesToRemove(node)
 				}
 			} else {
 				// Node not responding. Remove it.
