@@ -81,7 +81,8 @@ type Node struct {
 
 	active iatomic.Bool
 
-	version version.Version
+	version  version.Version
+	isOrphan iatomic.Bool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -334,10 +335,15 @@ func (nd *Node) refreshPeers(peers *peers) {
 		return
 	}
 
-	peers.appendPeers(peerParser.peers)
+	// If node has no peers, it is suspected to be orphan
+	// if !nd.isOrphan.Get() {
+	if len(peerParser.peers) > 0 {
+		peers.refreshCount.IncrementAndGet()
+		peers.appendPeers(peerParser.peers)
+	}
+
 	nd.peersGeneration.Set(int(peerParser.generation()))
 	nd.peersCount.Set(len(peers.peers()))
-	peers.refreshCount.IncrementAndGet()
 }
 
 func (nd *Node) refreshPartitions(peers *peers, partitions partitionMap, freshlyAdded bool) {

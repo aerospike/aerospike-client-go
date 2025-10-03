@@ -327,7 +327,7 @@ func (clstr *Cluster) tend() Error {
 
 			// Preventing duplicate entries.
 			if _peer.replaceNode != nil && !peers.containsNodeToRemove(_peer.replaceNode) {
-					peers.addNodesToRemove(_peer.replaceNode)
+				peers.addNodesToRemove(_peer.replaceNode)
 			}
 			return seq.Break
 		})
@@ -343,9 +343,6 @@ func (clstr *Cluster) tend() Error {
 	})
 
 	if peers.genChanged.Get() {
-		// Handle nodes changes determined from refreshes.
-		clstr.findNodesToRemove(peers)
-
 		// Remove nodes in a batch.
 		nodesToRemove := peers.getNodesToRemove()
 		for i := range nodesToRemove {
@@ -662,8 +659,11 @@ func (clstr *Cluster) findNodesToRemove(peers *peers) {
 	}
 
 	nodes := clstr.GetNodes()
-
+	var numberOfOrphans int64
 	for _, node := range nodes {
+		if node.isOrphan.Get() {
+			numberOfOrphans++
+		}
 		if !node.IsActive() {
 			// Inactive nodes must be removed.
 			if !peers.containsNodeToRemove(node) {
@@ -695,6 +695,10 @@ func (clstr *Cluster) findNodesToRemove(peers *peers) {
 					if !peers.containsNodeToRemove(node) {
 						peers.addNodesToRemove(node)
 					}
+				}
+				// If node is orphan, it can be removed if it has no references and no peers.
+				if node.referenceCount.Get() == 0 && node.peersCount.Get() == 0 && node.isOrphan.Get() {
+					peers.addNodesToRemove(node)
 				}
 			} else {
 				// Node not responding. Remove it.
