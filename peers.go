@@ -15,23 +15,27 @@
 package aerospike
 
 import (
+	"sync"
+
 	"github.com/aerospike/aerospike-client-go/v8/internal/atomic"
 	sm "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
 )
 
 type peers struct {
 	_peers         sm.Map[string, *peer]
-	_nodes         sm.Map[string, *Node]
+	_nodes         map[string]*Node
 	_nodesToRemove sm.Map[string, *Node]
 	refreshCount   atomic.Int
 	genChanged     atomic.Bool
+
+	mutex sync.RWMutex
 }
 
 // newPeers creates a new peers object
 func newPeers(peerCapacity int, addCapacity int) *peers {
 	return &peers{
 		_peers:         *sm.New[string, *peer](peerCapacity),
-		_nodes:         *sm.New[string, *Node](addCapacity),
+		_nodes:         make(map[string]*Node, addCapacity),
 		_nodesToRemove: *sm.New[string, *Node](addCapacity),
 		genChanged:     *atomic.NewBool(true),
 	}
@@ -39,15 +43,18 @@ func newPeers(peerCapacity int, addCapacity int) *peers {
 
 // addNode adds a node to the nodes map
 func (ps *peers) addNode(name string, node *Node) {
-	ps._nodes.Set(name, node)
+	ps.mutex.Lock()
+	defer ps.mutex.Unlock()
+	ps._nodes[name] = node
 }
 
 // nodeByName returns a node by name
 func (ps *peers) nodeByName(name string) *Node {
-	return ps._nodes.Get(name)
+	ps.mutex.RLock()
+	defer ps.mutex.RUnlock()
+	return ps._nodes[name]
 }
 
-// appendPeers adds a list of peers to the peers map
 // appendPears appends peers to the peers
 func (ps *peers) appendPeers(peers []*peer) {
 	for _, peer := range peers {
@@ -68,7 +75,9 @@ func (ps *peers) peers() []*peer {
 
 // nodes returns a copy of nodes for safe iteration
 func (ps *peers) nodes() map[string]*Node {
-	return ps._nodes.Clone()
+	ps.mutex.RLock()
+	defer ps.mutex.RUnlock()
+	return ps._nodes
 }
 
 // addNodesToRemove adds a node to the removal list
