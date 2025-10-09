@@ -85,7 +85,7 @@ func (m *Map[K, V]) Clone() map[K]V {
 	m.mutex.RLock()
 	res := make(map[K]V, len(m.m))
 
-	maps.Copy(m.m, res)
+	maps.Copy(res, m.m)
 
 	m.mutex.RUnlock()
 
@@ -217,12 +217,4 @@ func (mp *Map[K, V]) UpdateOrInsertFn(key K, updateFn func(V) V, defaultValFn fu
 		mp.m[key] = newVal
 		return newVal
 	}
-}
-
-// AsRef returns a pointer to the internal map. Use with caution.
-func (mp *Map[K, V]) AsRef() *map[K]V {
-	mp.mutex.RLock()
-	defer mp.mutex.RUnlock()
-
-	return &mp.m
 }

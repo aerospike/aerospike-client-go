@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+
 	"github.com/aerospike/aerospike-client-go/v8/internal/atomic"
 	sm "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
 )
@@ -68,7 +69,7 @@ func (ps *peers) peers() []*peer {
 
 // nodes returns a copy of nodes for safe iteration
 func (ps *peers) nodes() map[string]*Node {
-	return *ps._nodes.AsRef()
+	return ps._nodes.Clone()
 }
 
 // addNodesToRemove adds a node to the removal list
