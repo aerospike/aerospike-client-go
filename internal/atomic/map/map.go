@@ -218,3 +218,11 @@ func (mp *Map[K, V]) UpdateOrInsertFn(key K, updateFn func(V) V, defaultValFn fu
 		return newVal
 	}
 }
+
+// AsRef returns a pointer to the internal map. Use with caution.
+func (mp *Map[K, V]) AsRef() *map[K]V {
+	mp.mutex.RLock()
+	defer mp.mutex.RUnlock()
+
+	return &mp.m
+}
