@@ -3871,6 +3871,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
 				cmd.conn.Close()
+				cmd.conn = nil
 			}
 
 			cmd.conn = nil
@@ -3914,6 +3915,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 					// IO errors are considered temporary anomalies. Retry.
 					// Close socket to flush out possible garbage. Do not put back in pool.
 					cmd.conn.Close()
+					cmd.conn = nil
 				}
 
 				logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
