@@ -90,6 +90,7 @@ func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connecti
 		if discarded, err = reader.Discard(discardedCount); err != nil {
 			if discarded < discardedCount {
 				conn.Close()
+				cmd.conn = nil
 				return
 			}
 		}
