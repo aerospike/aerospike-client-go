@@ -343,6 +343,8 @@ func (clstr *Cluster) tend() Error {
 	})
 
 	if peers.genChanged.Get() {
+		clstr.findNodesToRemove(peers)
+
 		// Remove nodes in a batch.
 		nodesToRemove := peers.getNodesToRemove()
 		for i := range nodesToRemove {
