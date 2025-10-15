@@ -139,10 +139,11 @@ func (h *SyncHistogram[T]) CloneAndReset() *SyncHistogram[T] {
 func (h *SyncHistogram[T]) Merge(other *SyncHistogram[T]) error {
 	h.l.Lock()
 	other.l.RLock()
+
 	if h.base != other.base || h.htype != other.htype || len(h.Buckets) != len(other.Buckets) {
 		other.l.RUnlock()
 		h.l.Unlock()
-		return errors.New("Histograms to not match")
+		return errors.New("histograms do not match")
 	}
 
 	if other.Min < h.Min || h.Min == 0 {
@@ -161,7 +162,6 @@ func (h *SyncHistogram[T]) Merge(other *SyncHistogram[T]) error {
 	}
 	other.l.RUnlock()
 	h.l.Unlock()
-
 	return nil
 }
 

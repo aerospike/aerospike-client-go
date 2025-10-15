@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -52,6 +54,12 @@ func (cmd *existsCommand) parseResult(ifc command, conn *Connection) Error {
 		return err
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, rp.resultCode)
+	}
+
 	switch rp.resultCode {
 	case types.OK:
 		cmd.exists = true
@@ -77,4 +85,12 @@ func (cmd *existsCommand) Execute() Error {
 
 func (cmd *existsCommand) commandType() commandType {
 	return ttExists
+}
+
+func (cmd *existsCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *existsCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

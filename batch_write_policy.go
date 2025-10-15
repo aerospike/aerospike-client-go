@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/v8/logger"
+
 // BatchWritePolicy attributes used in batch write commands.
 type BatchWritePolicy struct {
 	// FilterExpression is optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -93,8 +95,12 @@ func NewBatchWritePolicy() *BatchWritePolicy {
 	}
 }
 
-func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
+
+	if dynConfig != nil {
+		wp.BasePolicy = *dynConfig.client.dynDefaultBatchWriteBasePolicy.Load()
+	}
 
 	if bwp != nil {
 		if bwp.FilterExpression != nil {
@@ -110,4 +116,62 @@ func (bwp *BatchWritePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 	}
 
 	return wp
+}
+
+// copy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+func (bwp *BatchWritePolicy) copy() *BatchWritePolicy {
+	if bwp == nil {
+		return nil
+	}
+
+	response := *bwp
+	return &response
+}
+
+// applyConfigToQueryPolicy applies the dynamic configuration and generates a new policy
+func (bwp *BatchWritePolicy) patchDynamic(dynConfig *DynConfig) *BatchWritePolicy {
+	if dynConfig == nil {
+		return bwp
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if bwp == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultBatchWritePolicy.Load()
+	}
+	if config != nil && config.Dynamic != nil && config.Dynamic.BatchWrite != nil {
+		// Dynamic configuration is exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		return bwp.copy().mapDynamic(dynConfig)
+	} else {
+		return bwp
+	}
+}
+
+func (bwp *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
+		return bwp
+	}
+
+	if currentConfig.Dynamic.BatchWrite != nil {
+		if currentConfig.Dynamic.BatchWrite.DurableDelete != nil {
+			configValue := *currentConfig.Dynamic.BatchWrite.DurableDelete
+			bwp.DurableDelete = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("DurableDelete set to %t", configValue)
+			}
+		}
+		if currentConfig.Dynamic.BatchWrite.SendKey != nil {
+			configValue := *currentConfig.Dynamic.BatchWrite.SendKey
+			bwp.SendKey = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SendKey set to %t", configValue)
+			}
+		}
+	}
+
+	return bwp
 }

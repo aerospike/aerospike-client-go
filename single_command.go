@@ -15,6 +15,10 @@
 package aerospike
 
 import (
+	"bufio"
+	"iter"
+	"time"
+
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
 
@@ -36,13 +40,12 @@ func newSingleCommand(cluster *Cluster, key *Key, partition *Partition) singleCo
 }
 
 func (cmd *singleCommand) getConnection(policy Policy) (*Connection, Error) {
-	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().TotalTimeout, policy.GetBasePolicy().SocketTimeout, cmd.key.digest[0])
+	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().TotalTimeout, policy.GetBasePolicy().SocketTimeout, cmd.key.digest[0], policy.GetBasePolicy().TimeoutDelay)
 }
 
 func (cmd *singleCommand) putConnection(conn *Connection) {
 	cmd.node.putConnectionWithHint(conn, cmd.key.digest[0])
 }
-
 func (cmd *singleCommand) emptySocket(conn *Connection) Error {
 	// There should not be any more bytes.
 	// Empty the socket to be safe.
@@ -60,4 +63,36 @@ func (cmd *singleCommand) emptySocket(conn *Connection) Error {
 		}
 	}
 	return nil
+}
+
+func (cmd *singleCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *singleCommand) getNamespace() *string {
+	return &cmd.key.namespace
+}
+
+func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+	conn.deadline = time.Now().Add(timeoutDelay)
+	reader := bufio.NewReader(conn.conn)
+	discardedCount := int(cmd.receiveSize - conn.totalReceived)
+
+	for discardedCount > 0 {
+		var discarded int
+		var err error
+		if discarded, err = reader.Discard(discardedCount); err != nil {
+			if discarded < discardedCount {
+				conn.Close()
+				return
+			}
+		}
+		discardedCount -= discarded
+	}
+
+	conn.refresh()
+	node.PutConnection(conn)
+
+	// Record connection recovery metrics
+	applyConnectionRecoveredMetrics(cmd.node)
 }

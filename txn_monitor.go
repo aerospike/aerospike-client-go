@@ -157,7 +157,7 @@ func (tm *TxnMonitor) copyTimeoutPolicy(policy *BasePolicy) *WritePolicy {
 	// wp.ConnectTimeout = policy.ConnectTimeout
 	wp.SocketTimeout = policy.SocketTimeout
 	wp.TotalTimeout = policy.TotalTimeout
-	// wp.TimeoutDelay = policy.TimeoutDelay
+	wp.TimeoutDelay = policy.TimeoutDelay
 	wp.MaxRetries = policy.MaxRetries
 	wp.SleepBetweenRetries = policy.SleepBetweenRetries
 	wp.UseCompression = policy.UseCompression

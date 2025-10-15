@@ -16,6 +16,7 @@ package aerospike_test
 
 import (
 	"bytes"
+	"errors"
 	"math"
 	"math/rand"
 
@@ -29,12 +30,12 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Scan operations", func() {
-
 	// connection data
 	var ns = *namespace
 	var set = randString(50)
 	var wpolicy = as.NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
+	var scanPolicy = as.NewScanPolicy()
 
 	const keyCount = 1000
 	const ldtElemCount = 10
@@ -126,6 +127,14 @@ var _ = gg.Describe("Scan operations", func() {
 		return counter
 	}
 
+	var getMasterPartitionIds = func(length int) []int {
+		partitionIds := make([]int, length)
+		for i := range partitionIds {
+			partitionIds[i] = rand.Intn(4096)
+		}
+		return partitionIds
+	}
+
 	gg.BeforeEach(func() {
 		keys = make(map[string]*as.Key, keyCount)
 		set = randString(50)
@@ -138,8 +147,6 @@ var _ = gg.Describe("Scan operations", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		}
 	})
-
-	var scanPolicy = as.NewScanPolicy()
 
 	gg.It("must Scan and paginate to get all records back from all partitions concurrently", func() {
 		gm.Expect(len(keys)).To(gm.Equal(keyCount))
@@ -314,6 +321,46 @@ var _ = gg.Describe("Scan operations", func() {
 		gm.Expect(len(keys)).To(gm.BeNumerically(">", 0))
 	})
 
+	gg.It("must Scan and get all partition records back for a specified partitions", func() {
+		gm.Expect(len(keys)).To(gm.Equal(keyCount))
+		previousReplicaValue := scanPolicy.ReplicaPolicy
+		previousMaxRecordsValue := scanPolicy.MaxRecords
+
+		// Making sure that the replica policy is set back to original value
+		defer func() {
+			scanPolicy.ReplicaPolicy = previousReplicaValue
+			scanPolicy.MaxRecords = previousMaxRecordsValue
+		}()
+
+		for i := 5; i < 1000; i++ {
+			scanPolicy.ReplicaPolicy = as.MASTER
+			partitions := getMasterPartitionIds(i)
+			scanPolicy.MaxRecords = 1
+			counter := 0
+
+			pf, _ := as.NewPartitionFilterSelectPartitions(partitions)
+			recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
+
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			for rec, err := range recordset.Records() {
+				key, exists := keys[string(rec.Key.Digest())]
+
+				gm.Expect(exists).To(gm.Equal(true))
+				gm.Expect(err).NotTo(gm.HaveOccurred())
+
+				gm.Expect(key.Value().GetObject()).To(gm.Equal(rec.Key.Value().GetObject()))
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
+
+				counter++
+
+				gm.Expect(counter).To(gm.BeNumerically(">", 0))
+				gm.Expect(counter).To(gm.BeNumerically("<", keyCount))
+			}
+		}
+	})
+
 	gg.It("must Scan and get all records back for a specified node using Results() channel", func() {
 		gm.Expect(len(keys)).To(gm.Equal(keyCount))
 
@@ -461,5 +508,89 @@ var _ = gg.Describe("Scan operations", func() {
 		}
 
 		gm.Expect(counter).To(gm.Equal(0))
+	})
+
+	gg.It("must return error for out of range partition IDs", func() {
+		// Test negative partition ID
+		_, err := as.NewPartitionFilterSelectPartitions([]int{-1})
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR})).To(gm.BeTrue())
+		gm.Expect(err.Error()).To(gm.ContainSubstring("Partition id out of range"))
+
+		// Test partition ID >= 4096
+		_, err = as.NewPartitionFilterSelectPartitions([]int{4096})
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR})).To(gm.BeTrue())
+		gm.Expect(err.Error()).To(gm.ContainSubstring("Partition id out of range"))
+
+		// Test partition ID way above range
+		_, err = as.NewPartitionFilterSelectPartitions([]int{10000})
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR})).To(gm.BeTrue())
+		gm.Expect(err.Error()).To(gm.ContainSubstring("Partition id out of range"))
+
+		// Test multiple partition IDs with one out of range
+		_, err = as.NewPartitionFilterSelectPartitions([]int{100, 200, -5})
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR})).To(gm.BeTrue())
+		gm.Expect(err.Error()).To(gm.ContainSubstring("Partition id out of range"))
+
+		// Test multiple partition IDs with one at upper boundary
+		_, err = as.NewPartitionFilterSelectPartitions([]int{100, 200, 4095, 4096})
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR})).To(gm.BeTrue())
+		gm.Expect(err.Error()).To(gm.ContainSubstring("Partition id out of range"))
+	})
+
+	gg.It("must handle single partition ID correctly", func() {
+		// Test with partition ID 1 (should succeed)
+		pf, err := as.NewPartitionFilterSelectPartitions([]int{1})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(pf).ToNot(gm.BeNil())
+
+		// Test with partition ID 0 (should succeed)
+		pf, err = as.NewPartitionFilterSelectPartitions([]int{0})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(pf).ToNot(gm.BeNil())
+
+		// Test with partition ID 4095 (maximum valid, should succeed)
+		pf, err = as.NewPartitionFilterSelectPartitions([]int{4095})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(pf).ToNot(gm.BeNil())
+
+		// Test scanning with single partition ID
+		_, err = as.NewPartitionFilterSelectPartitions([]int{1})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		// Test scanning with single partition ID
+		_, err = as.NewPartitionFilterSelectPartitions([]int{5})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		recordset, err := client.ScanPartitions(scanPolicy, pf, ns, set)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(recordset).ToNot(gm.BeNil())
+
+		// Just ensure we can iterate (may be empty depending on data distribution)
+		for rec, err := range recordset.Records() {
+			if err != nil {
+				// If there's an error, it shouldn't be a parameter error
+				gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeFalse())
+				break
+			}
+			gm.Expect(rec).ToNot(gm.BeNil())
+		}
+	})
+
+	gg.It("must return error for empty partition ID list", func() {
+		_, err := as.NewPartitionFilterSelectPartitions([]int{})
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR})).To(gm.BeTrue())
+		gm.Expect(err.Error()).To(gm.ContainSubstring("Partition ids is empty"))
+
+		// Also test with nil slice
+		_, err = as.NewPartitionFilterSelectPartitions(nil)
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(errors.Is(err, &as.AerospikeError{ResultCode: ast.PARAMETER_ERROR})).To(gm.BeTrue())
+		gm.Expect(err.Error()).To(gm.ContainSubstring("Partition ids is empty"))
 	})
 })

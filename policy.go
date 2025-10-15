@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 // Policy Interface
@@ -170,6 +172,11 @@ type BasePolicy struct {
 	// to the node containing the key's master partition.
 	// Default to sending read commands to the node containing the key's master partition.
 	ReplicaPolicy ReplicaPolicy
+
+	// Delay milliseconds after socket read timeout in an attempt to recover the socket
+	// in the background.  Processing continues on the original command and the user
+	// is still notified at the original command timeout.
+	TimeoutDelay time.Duration // = 0
 }
 
 // NewPolicy generates a new BasePolicy instance with default values.
@@ -191,17 +198,240 @@ func NewPolicy() *BasePolicy {
 var _ Policy = &BasePolicy{}
 
 // GetBasePolicy returns embedded BasePolicy in all types that embed this struct.
-func (p *BasePolicy) GetBasePolicy() *BasePolicy { return p }
+func (bp *BasePolicy) GetBasePolicy() *BasePolicy { return bp }
 
-func (p *BasePolicy) deadline() time.Time {
+func (bp *BasePolicy) deadline() time.Time {
 	var deadline time.Time
-	if p != nil && p.TotalTimeout > 0 {
-		deadline = time.Now().Add(p.TotalTimeout)
+	if bp != nil && bp.TotalTimeout > 0 {
+		deadline = time.Now().Add(bp.TotalTimeout)
 	}
 
 	return deadline
 }
 
-func (p *BasePolicy) compress() bool {
-	return p.UseCompression
+func (bp *BasePolicy) compress() bool {
+	return bp.UseCompression
+}
+
+// copy creates a new BasePolicy instance and copies the values from the source BasePolicy.
+func (bp *BasePolicy) copy() *BasePolicy {
+	if bp == nil {
+		return nil
+	}
+
+	response := *bp
+	return &response
+}
+
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (bp *BasePolicy) patchDynamic(dynConfig *DynConfig) *BasePolicy {
+	if dynConfig == nil {
+		return bp
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if bp == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultPolicy.Load()
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.Read != nil {
+		// Dynamic configuration exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		return bp.copy().mapDynamic(dynConfig)
+	} else {
+		return bp
+	}
+}
+
+func (bp *BasePolicy) mapDynamic(dynConfig *DynConfig) *BasePolicy {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
+		return bp
+	}
+
+	if currentConfig.Dynamic.Read != nil {
+		if currentConfig.Dynamic.Read.ReadModeAp != nil {
+			configValue := mapReadModeAPToReadModeAP(*currentConfig.Dynamic.Read.ReadModeAp)
+			bp.ReadModeAP = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Read.ReadModeSc != nil {
+			configValue := mapReadModeSCToReadModeSC(*currentConfig.Dynamic.Read.ReadModeSc)
+			bp.ReadModeSC = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Read.TotalTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Read.TotalTimeout) * time.Millisecond
+			bp.TotalTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Read.SocketTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Read.SocketTimeout) * time.Millisecond
+			bp.SocketTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Read.MaxRetries != nil {
+			configValue := *currentConfig.Dynamic.Read.MaxRetries
+			bp.MaxRetries = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
+		}
+		if currentConfig.Dynamic.Read.SleepBetweenRetries != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Read.SleepBetweenRetries) * time.Millisecond
+			bp.SleepBetweenRetries = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Read.Replica != nil {
+			configValue := mapReplicaToReplicaPolicy(*currentConfig.Dynamic.Read.Replica)
+			bp.ReplicaPolicy = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Read.TimeoutDelay != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Read.TimeoutDelay) * time.Millisecond
+			bp.TimeoutDelay = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TimeoutDelay set to %s", configValue.String())
+			}
+		}
+	}
+
+	return bp
+}
+
+func (bp *BasePolicy) mapDynamicBatchWrite(dynConfig *DynConfig) *BasePolicy {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
+		return bp
+	}
+
+	if currentConfig.Dynamic.BatchWrite != nil {
+		if currentConfig.Dynamic.BatchWrite.TotalTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchWrite.TotalTimeout) * time.Millisecond
+			bp.TotalTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchWrite.SocketTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchWrite.SocketTimeout) * time.Millisecond
+			bp.SocketTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchWrite.MaxRetries != nil {
+			configValue := *currentConfig.Dynamic.BatchWrite.MaxRetries
+			bp.MaxRetries = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
+		}
+		if currentConfig.Dynamic.BatchWrite.SleepBetweenRetries != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchWrite.SleepBetweenRetries) * time.Millisecond
+			bp.SleepBetweenRetries = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchWrite.Replica != nil {
+			configValue := mapReplicaToReplicaPolicy(*currentConfig.Dynamic.BatchWrite.Replica)
+			bp.ReplicaPolicy = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchWrite.TimeoutDelay != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchWrite.TimeoutDelay) * time.Millisecond
+			bp.TimeoutDelay = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TimeoutDelay set to %s", configValue.String())
+			}
+		}
+	}
+
+	return bp
+}
+
+func (bp *BasePolicy) mapDynamicBatchRead(dynConfig *DynConfig) *BasePolicy {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
+		return bp
+	}
+
+	if currentConfig.Dynamic.BatchRead != nil {
+		if currentConfig.Dynamic.BatchRead.ReadModeAp != nil {
+			configValue := mapReadModeAPToReadModeAP(*currentConfig.Dynamic.BatchRead.ReadModeAp)
+			bp.ReadModeAP = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchRead.ReadModeSc != nil {
+			configValue := mapReadModeSCToReadModeSC(*currentConfig.Dynamic.BatchRead.ReadModeSc)
+			bp.ReadModeSC = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchRead.TotalTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchRead.TotalTimeout) * time.Millisecond
+			bp.TotalTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchRead.SocketTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchRead.SocketTimeout) * time.Millisecond
+			bp.SocketTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchRead.MaxRetries != nil {
+			configValue := *currentConfig.Dynamic.BatchRead.MaxRetries
+			bp.MaxRetries = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
+		}
+		if currentConfig.Dynamic.BatchRead.SleepBetweenRetries != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchRead.SleepBetweenRetries) * time.Millisecond
+			bp.SleepBetweenRetries = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchRead.Replica != nil {
+			configValue := mapReplicaToReplicaPolicy(*currentConfig.Dynamic.BatchRead.Replica)
+			bp.ReplicaPolicy = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchRead.TimeoutDelay != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.BatchRead.TimeoutDelay) * time.Millisecond
+			bp.TimeoutDelay = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TimeoutDelay set to %s", configValue.String())
+			}
+		}
+	}
+
+	return bp
 }

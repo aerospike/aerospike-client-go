@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"iter"
 	"reflect"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -116,23 +117,17 @@ func (cmd *batchCommandGet) writeBuffer(ifc command) Error {
 func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	//Parse each message response and add it to the result array
 	cmd.dataOffset = 0
-
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
 			return false, err
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
+
 		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
 		expiration := types.TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
 		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
-		if len(cmd.keys) > batchIndex {
-			err := cmd.parseFieldsRead(fieldCount, cmd.keys[batchIndex])
-			if err != nil {
-				return false, err
-			}
-		}
 
 		// The only valid server return codes are "ok" and "not found" and "filtered out".
 		// If other return codes are received, then abort the batch.
@@ -149,6 +144,12 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		// If cmd is the end marker of the response, do not proceed further
 		if (info3 & _INFO3_LAST) == _INFO3_LAST {
 			return false, nil
+		}
+
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
 		}
 
 		var err Error
@@ -273,4 +274,20 @@ func (cmd *batchCommandGet) Execute() Error {
 
 func (cmd *batchCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, nil, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, false)
+}
+
+func (cmd *batchCommandGet) getNamespaces() iter.Seq2[string, uint64] {
+	return cmd.nsIter
+}
+
+func (cmd *batchCommandGet) getNamespace() *string {
+	return nil
+}
+
+func (cmd *batchCommandGet) nsIter(yield func(string, uint64) bool) {
+	for _, key := range cmd.keys {
+		if !yield(key.namespace, 1) {
+			return
+		}
+	}
 }

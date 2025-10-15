@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -48,6 +50,12 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) Error {
 		return newCustomNodeError(cmd.node, err.resultCode())
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, resultCode)
+	}
+
 	switch resultCode {
 	case types.OK:
 		return nil
@@ -70,4 +78,12 @@ func (cmd *touchCommand) Execute() Error {
 
 func (cmd *touchCommand) commandType() commandType {
 	return ttPut
+}
+
+func (cmd *touchCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *touchCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

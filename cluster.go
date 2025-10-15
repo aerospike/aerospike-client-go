@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"maps"
 	"net"
 	"runtime/debug"
 	"sync"
@@ -30,6 +31,8 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
+
+const aesModule = "github.com/aerospike/aerospike-client-go/v8"
 
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
@@ -57,7 +60,7 @@ type Cluster struct {
 	// Hints for best node for a partition
 	partitionWriteMap iatomic.TypedVal[partitionMap] //partitionMap
 
-	clientPolicy        ClientPolicy
+	clientPolicy        *atomic.Pointer[ClientPolicy]
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
 
@@ -79,25 +82,34 @@ type Cluster struct {
 
 	// Password in hashed format in bytes.
 	password iatomic.SyncVal[[]byte]
+
+	// Cluster max error count for the nodes
+	maxErrorCount iatomic.Int
+
+	// User agent id
+	// Leaving this at cluster level since cluster is visible to nodes
+	// which will need this information when sending user-agent to the server.
+	clientModuleVersion string // e.g. v8.0.0, v8.1.0, etc."
 }
 
 // NewCluster generates a Cluster instance.
-func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
+func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, Error) {
+	loadedPolicy := policy.Load()
 	// Validate the policy params
-	if policy.MinConnectionsPerNode > policy.ConnectionQueueSize {
+	if loadedPolicy.MinConnectionsPerNode > loadedPolicy.ConnectionQueueSize {
 		panic("minimum number of connections specified in the ClientPolicy is bigger than total connection pool size")
 	}
 
 	// Default TLS names when TLS enabled.
 	newHosts := make([]*Host, 0, len(hosts))
-	if policy.TlsConfig != nil && !policy.TlsConfig.InsecureSkipVerify {
-		useClusterName := len(policy.ClusterName) > 0
+	if loadedPolicy.TlsConfig != nil && !loadedPolicy.TlsConfig.InsecureSkipVerify {
+		useClusterName := len(loadedPolicy.ClusterName) > 0
 
 		for _, host := range hosts {
 			nh := *host
 			if nh.TLSName == "" {
 				if useClusterName {
-					nh.TLSName = policy.ClusterName
+					nh.TLSName = loadedPolicy.ClusterName
 				} else {
 					nh.TLSName = host.Name
 				}
@@ -107,17 +119,15 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		hosts = newHosts
 	}
 
-	clientPolicy := *policy
-
 	// Set a default Idle Timeout for the connection
-	if clientPolicy.IdleTimeout <= 0 {
-		clientPolicy.IdleTimeout = 55 * time.Second
+	if loadedPolicy.IdleTimeout <= 0 {
+		loadedPolicy.IdleTimeout = 55 * time.Second
 	}
 
 	newCluster := &Cluster{
-		clientPolicy: clientPolicy,
-		infoPolicy:   InfoPolicy{Timeout: policy.Timeout},
+		infoPolicy:   InfoPolicy{Timeout: loadedPolicy.Timeout},
 		tendChannel:  make(chan struct{}),
+		clientPolicy: policy,
 
 		seeds:    *iatomic.NewSyncVal(hosts),
 		aliases:  *sm.New[Host, *Node](16),
@@ -128,18 +138,25 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		password: *iatomic.NewSyncVal[[]byte](nil),
 
 		supportsPartitionQuery: *iatomic.NewBool(false),
+		clientModuleVersion:    getLibraryVersion(aesModule),
 	}
+	newCluster.maxErrorCount.Set(loadedPolicy.MaxErrorRate)
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
 
 	// setup auth info for cluster
-	if policy.RequiresAuthentication() {
-		if policy.AuthMode == AuthModeExternal && policy.TlsConfig == nil {
+	if loadedPolicy.RequiresAuthentication() {
+		if loadedPolicy.AuthMode == AuthModeExternal && loadedPolicy.TlsConfig == nil {
 			return nil, newError(types.PARAMETER_ERROR, "External Authentication requires TLS configuration to be set, because it sends clear password on the wire.")
 		}
 
-		newCluster.user = policy.User
-		hashedPass, err := hashPassword(policy.Password)
+		// If PKI authentication is used and user is attempting to set password, return an error
+		if loadedPolicy.AuthMode == AuthModePKI && (loadedPolicy.User != "" || loadedPolicy.Password != "") {
+			return nil, newError(types.FORBIDDEN_PASSWORD, "Password authentication is disabled for PKI-only users. Please authenticate using your certificate.")
+		}
+
+		newCluster.user = loadedPolicy.User
+		hashedPass, err := hashPassword(loadedPolicy.Password)
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +167,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	err := newCluster.waitTillStabilized()
 
 	// apply policy rules
-	if policy.FailIfNotConnected && !newCluster.IsConnected() {
+	if loadedPolicy.FailIfNotConnected && !newCluster.IsConnected() {
 		if err != nil {
 			return nil, err
 		}
@@ -159,7 +176,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 	// start up cluster maintenance go routine
 	newCluster.wgTend.Add(1)
-	go newCluster.clusterBoss(&newCluster.clientPolicy)
+	go newCluster.clusterBoss()
 
 	if err == nil {
 		logger.Logger.Debug("New cluster initialized and ready to be used...")
@@ -177,19 +194,20 @@ func (clstr *Cluster) String() string {
 
 // Maintains the cluster on intervals.
 // All clean up code for cluster is here as well.
-func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
+func (clstr *Cluster) clusterBoss() {
+	policy := clstr.clientPolicy.Load()
 	logger.Logger.Info("Starting the cluster tend goroutine...")
 
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Logger.Error("Cluster tend goroutine crashed: %s", debug.Stack())
-			go clstr.clusterBoss(&clstr.clientPolicy)
+			go clstr.clusterBoss()
 		}
 	}()
 
 	defer clstr.wgTend.Done()
 
-	tendInterval := policy.TendInterval
+	tendInterval := clstr.clientPolicy.Load().TendInterval
 	if tendInterval <= 10*time.Millisecond {
 		tendInterval = 10 * time.Millisecond
 	}
@@ -204,13 +222,14 @@ Loop:
 		case <-time.After(tendInterval):
 			tm := time.Now()
 			if err := clstr.tend(); err != nil {
-				logger.Logger.Warn(err.Error())
+				logger.Logger.Warn("%s", err.Error())
 			}
 
+			// clientPolicy := clstr.clientPolicy.Load()
 			// Tending took longer than requested tend interval.
 			// Tending is too slow for the cluster, and may be falling behind schedule.
-			if tendDuration := time.Since(tm); tendDuration > clstr.clientPolicy.TendInterval {
-				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clstr.clientPolicy.TendInterval)
+			if tendDuration := time.Since(tm); tendDuration > policy.TendInterval {
+				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, policy.TendInterval)
 			}
 		}
 	}
@@ -249,7 +268,7 @@ func (clstr *Cluster) tend() Error {
 
 	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
-	if len(nodes) == 0 || (clstr.clientPolicy.SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
+	if clientPolicy := clstr.clientPolicy.Load(); len(nodes) == 0 || (clientPolicy != nil && clientPolicy.SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
 		logger.Logger.Info("No nodes available; seeding...")
 		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
 			return err
@@ -281,14 +300,14 @@ func (clstr *Cluster) tend() Error {
 
 	// find the first host that connects
 	seq.ParDo(peers.peers(), func(_peer *peer) {
-		if clstr.peerExists(peers, _peer.nodeName) {
+		if clstr.peerExists(peers, _peer) {
 			// Node already exists. Do not even try to connect to hosts.
 			return
 		}
 
 		seq.Do(_peer.hosts, func(host *Host) error {
 			// attempt connection to the host
-			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.SeedOnlyCluster}
+			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.Load().SeedOnlyCluster}
 			if err := nv.validateNode(clstr, host); err != nil {
 				logger.Logger.Warn("Add node `%s` failed: `%s`", host, err)
 				return nil
@@ -299,17 +318,17 @@ func (clstr *Cluster) tend() Error {
 				logger.Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", _peer.nodeName, nv.name, host)
 			}
 
-			if clstr.peerExists(peers, nv.name) {
-				// Node already exists. Do not even try to connect to hosts.
-				return seq.Break
-			}
-
 			// Create new node.
 			node := clstr.createNode(&nv)
 			peers.addNode(nv.name, node)
 			partMap.InitDoVal(clstr.getPartitions().clone, func(partMap partitionMap) {
 				node.refreshPartitions(peers, partMap, true)
 			})
+
+			// Preventing duplicate entries.
+			if _peer.replaceNode != nil && !peers.containsNodeToRemove(_peer.replaceNode) {
+				peers.addNodesToRemove(_peer.replaceNode)
+			}
 			return seq.Break
 		})
 	})
@@ -324,15 +343,13 @@ func (clstr *Cluster) tend() Error {
 	})
 
 	if peers.genChanged.Get() {
-		// Handle nodes changes determined from refreshes.
-		removeList := clstr.findNodesToRemove(peers.refreshCount.Get())
-
 		// Remove nodes in a batch.
-		for i := range removeList {
-			logger.Logger.Debug("The following nodes will be removed: %s", removeList[i])
+		nodesToRemove := peers.getNodesToRemove()
+		for i := range nodesToRemove {
+			logger.Logger.Debug("The following nodes will be removed: %s", nodesToRemove[i])
 		}
-		clstr.removeNodes(removeList)
-		clstr.aggregateNodeStats(removeList)
+		clstr.removeNodes(nodesToRemove)
+		clstr.aggregateNodeStats(nodesToRemove)
 	}
 
 	// Add nodes in a batch.
@@ -361,8 +378,9 @@ func (clstr *Cluster) tend() Error {
 
 	clstr.aggregateNodeStats(clstr.GetNodes())
 
+	clusterClientPolicy := *clstr.clientPolicy.Load()
 	// Reset connection error window for all nodes every connErrorWindow tend iterations.
-	if clstr.clientPolicy.MaxErrorRate > 0 && clstr.tendCount%clstr.clientPolicy.ErrorRateWindow == 0 {
+	if clusterClientPolicy.MaxErrorRate > 0 && clstr.tendCount%clusterClientPolicy.ErrorRateWindow == 0 {
 		for _, node := range clstr.GetNodes() {
 			node.resetErrorCount()
 		}
@@ -379,9 +397,11 @@ func (clstr *Cluster) aggregateNodeStats(nodeList []*Node) {
 	for _, node := range nodeList {
 		h := node.host.String()
 		if stats, exists := clstr.stats[h]; exists {
-			stats.aggregate(node.stats.getAndReset())
+			nr := node.stats.getAndReset()
+			stats.aggregate(nr)
 		} else {
-			clstr.stats[h] = node.stats.getAndReset()
+			nr := node.stats.getAndReset()
+			clstr.stats[h] = nr
 		}
 	}
 }
@@ -414,16 +434,41 @@ func (clstr *Cluster) statsCopy() map[string]nodeStats {
 	return res
 }
 
-func (clstr *Cluster) peerExists(peers *peers, nodeName string) bool {
-	node := clstr.findNodeByName(nodeName)
+func (clstr *Cluster) peerExists(peers *peers, peer *peer) bool {
+	node := clstr.findNodeByName(peer.nodeName)
+
 	if node != nil {
-		node.referenceCount.IncrementAndGet()
-		return true
+		if node.failures.Get() <= 0 || node.host.IsLocalhost() {
+			// If the node does not have cluster tend errors or is localhost,
+			// reject new peer as the IP address does not need to change.
+			node.referenceCount.IncrementAndGet()
+			return true
+		}
+
+		for _, host := range peer.hosts {
+			if host.Port == node.host.Port {
+				if host.Name == node.host.Name || (node.hostName != "" && host.Name == node.hostName) {
+					// Main node host is also the same as one of the peer hosts.
+					// Peer should not be added.
+					if host.IsLocalhost() {
+						node.hostName = host.Name
+					}
+					node.referenceCount.IncrementAndGet()
+
+					logger.Logger.Debug("Peer node `%s` matches existing node `%s` by host `%s`.", peer.nodeName, node.name, host)
+					return true
+				}
+			}
+
+		}
+		peer.replaceNode = node
 	}
 
-	node = peers.nodeByName(nodeName)
+	node = peers.nodeByName(peer.nodeName)
 	if node != nil {
 		node.referenceCount.IncrementAndGet()
+		peer.replaceNode = nil
+
 		return true
 	}
 
@@ -453,7 +498,7 @@ func (clstr *Cluster) waitTillStabilized() Error {
 					default:
 					}
 				}
-				logger.Logger.Warn(err.Error())
+				logger.Logger.Warn("%s", err.Error())
 			}
 
 			// Check to see if cluster has changed since the last Tend().
@@ -469,20 +514,22 @@ func (clstr *Cluster) waitTillStabilized() Error {
 		doneCh <- err
 	}()
 
+	clusterClientPolicy := clstr.clientPolicy.Load()
 	select {
-	case <-time.After(clstr.clientPolicy.Timeout):
-		if clstr.clientPolicy.FailIfNotConnected {
+	case <-time.After(clusterClientPolicy.Timeout):
+		if clusterClientPolicy.FailIfNotConnected {
 			clstr.Close()
 		}
 		return ErrTimeout.err()
 	case err := <-doneCh:
-		if err != nil && clstr.clientPolicy.FailIfNotConnected {
+		if err != nil && clusterClientPolicy.FailIfNotConnected {
 			clstr.Close()
 		}
 		return err
 	}
 }
 
+// TODO: Not used anywhere. Consider removing
 func (clstr *Cluster) findAlias(alias *Host) *Node {
 	return clstr.aliases.Get(*alias)
 }
@@ -536,11 +583,12 @@ func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
 
 	logger.Logger.Info("Seeding the cluster. Seeds count: %d", len(seedArray))
 
+	clusterClientPolicy := clstr.clientPolicy.Load()
 	// Add all nodes at once to avoid copying entire array multiple times.
 	for i, seed := range seedArray {
 		go func(index int, seed *Host) {
 			nodesToAdd := make(nodesToAddT, 128)
-			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.SeedOnlyCluster}
+			nv := nodeValidator{seedOnlyCluster: clusterClientPolicy.SeedOnlyCluster}
 			err := nv.seedNodes(clstr, seed, nodesToAdd)
 			if err != nil {
 				logger.Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
@@ -568,7 +616,7 @@ L:
 			if seedCount <= 0 {
 				break L
 			}
-		case <-time.After(clstr.clientPolicy.Timeout):
+		case <-time.After(clusterClientPolicy.Timeout):
 			// time is up, no seeds found
 			break L
 		}
@@ -595,26 +643,32 @@ func (clstr *Cluster) findNodeName(list []*Node, name string) bool {
 	return false
 }
 
+// TODO: Not used anywhere. Consider removing
 func (clstr *Cluster) addAlias(host *Host, node *Node) {
 	if host != nil && node != nil {
 		clstr.aliases.Set(*host, node)
 	}
 }
 
-func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
-	removeList := []*Node{}
+func (clstr *Cluster) findNodesToRemove(peers *peers) {
+	refreshCount := peers.refreshCount.Get()
 
-	if clstr.clientPolicy.SeedOnlyCluster {
+	if clstr.clientPolicy.Load().SeedOnlyCluster {
 		// Don't remove any node even if its bad or inactive.
-		return removeList
+		return
 	}
 
 	nodes := clstr.GetNodes()
-
+	var numberOfOrphans int64
 	for _, node := range nodes {
+		if node.isOrphan.Get() {
+			numberOfOrphans++
+		}
 		if !node.IsActive() {
 			// Inactive nodes must be removed.
-			removeList = append(removeList, node)
+			if !peers.containsNodeToRemove(node) {
+				peers.addNodesToRemove(node)
+			}
 			continue
 		}
 
@@ -623,7 +677,9 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 			// All node info requests failed and this node had 5 consecutive failures.
 			// Remove node.  If no nodes are left, seeds will be tried in next cluster
 			// tend iteration.
-			removeList = append(removeList, node)
+			if !peers.containsNodeToRemove(node) {
+				peers.addNodesToRemove(node)
+			}
 			continue
 		}
 
@@ -636,16 +692,22 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 				if !clstr.findNodeInPartitionMap(node) {
 					// Node doesn't have any partitions mapped to it.
 					// There is no point in keeping it in the cluster.
-					removeList = append(removeList, node)
+					if !peers.containsNodeToRemove(node) {
+						peers.addNodesToRemove(node)
+					}
+				}
+				// If node is orphan, it can be removed if it has no references and no peers.
+				if node.referenceCount.Get() == 0 && node.peersCount.Get() == 0 && node.isOrphan.Get() {
+					peers.addNodesToRemove(node)
 				}
 			} else {
 				// Node not responding. Remove it.
-				removeList = append(removeList, node)
+				if !peers.containsNodeToRemove(node) {
+					peers.addNodesToRemove(node)
+				}
 			}
 		}
 	}
-
-	return removeList
 }
 
 func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
@@ -684,7 +746,7 @@ func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
 	defer clstr.updateClusterFeatures()
 
 	clstr.nodes.Update(func(nodes []*Node) ([]*Node, error) {
-		if clstr.clientPolicy.SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
+		if clientPolicy := clstr.clientPolicy.Load(); clientPolicy != nil && clientPolicy.SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
 			// Don't add new nodes.
 			return nodes, nil
 		}
@@ -883,10 +945,10 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 		done <- false
 	}()
 
-	dealine := time.After(timeout)
+	deadLine := time.After(timeout)
 	for {
 		select {
-		case <-dealine:
+		case <-deadLine:
 			return false, ErrTimeout.err()
 		case <-done:
 			return res, err
@@ -894,9 +956,9 @@ func (clstr *Cluster) MigrationInProgress(timeout time.Duration) (res bool, err 
 	}
 }
 
-// WaitUntillMigrationIsFinished will block until all
+// WaitUntilMigrationIsFinished will block until all
 // migration operations in the cluster all finished.
-func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) Error {
+func (clstr *Cluster) WaitUntilMigrationIsFinished(timeout time.Duration) Error {
 	if timeout <= 0 {
 		timeout = _NO_TIMEOUT
 	}
@@ -913,9 +975,9 @@ func (clstr *Cluster) WaitUntillMigrationIsFinished(timeout time.Duration) Error
 		}
 	}()
 
-	dealine := time.After(timeout)
+	deadLine := time.After(timeout)
 	select {
-	case <-dealine:
+	case <-deadLine:
 		return ErrTimeout.err()
 	case err := <-done:
 		return err
@@ -934,14 +996,17 @@ func (clstr *Cluster) Password() (res []byte) {
 func (clstr *Cluster) changePassword(user string, password string, hash []byte) {
 	// change password ONLY if the user is the same
 	if clstr.user == user {
-		clstr.clientPolicy.Password = password
+		clientPolicy := *clstr.clientPolicy.Load()
+		clientPolicy.Password = password
+		clstr.clientPolicy.Store(&clientPolicy)
 		clstr.password.Set(hash)
 	}
 }
 
 // ClientPolicy returns the client policy that is currently used with the cluster.
 func (clstr *Cluster) ClientPolicy() (res ClientPolicy) {
-	return clstr.clientPolicy
+	returnPolicy := *clstr.clientPolicy.Load()
+	return returnPolicy
 }
 
 // WarmUp fills the connection pool with connections for all nodes.
@@ -1004,7 +1069,72 @@ func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
 	}
 }
 
+func (clstr *Cluster) getNodeLabels() *Labels {
+	var userLabels *Labels
+	if clstr.metricsPolicy.Get() != nil && clstr.metricsPolicy.Get().Labels != nil {
+		userLabels = clstr.metricsPolicy.Get().Labels
+	} else {
+		userLabels = NewLabels()
+	}
+
+	nodes := clstr.GetNodes()
+	labels := make([]map[string]string, 0)
+	clientPolicy := clstr.clientPolicy.Load()
+	// Add node labels
+	for node := range nodes {
+		entries := make(map[string]string)
+		var app_id string
+
+		if clientPolicy.ApplicationId != "" {
+			app_id = clientPolicy.ApplicationId
+		} else {
+			app_id = clstr.user
+		}
+
+		// Merging user labels with node labels
+		for _, labelMap := range *userLabels {
+			maps.Copy(entries, labelMap)
+		}
+
+		// Reserved label names for the client
+		entries["node"] = nodes[node].GetName()
+		entries["host"] = nodes[node].host.String()
+		entries["cluster"] = clientPolicy.ClusterName
+
+		// Users are allowed to override app-id if they want to. Default is the user name.
+		// Users need to set the application id int the client policy.
+		entries["app-id"] = app_id
+
+		labels = append(labels, entries)
+	}
+
+	return NewLabels(labels...)
+}
+
 // DisableMetrics disables the cluster command metrics gathering.
 func (clstr *Cluster) DisableMetrics() {
 	clstr.metricsEnabled.Store(false)
+}
+
+//-------------------------------------------------------
+// Utility Functions
+//-------------------------------------------------------
+
+// getLibraryVersion returns the version of the aerospike client library.
+func getLibraryVersion(modulePath string) string {
+	// golang idiomatic module version is "(devel)" if not set.
+	defaultVersion := "(devel)"
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return defaultVersion
+	}
+
+	for _, dep := range info.Deps {
+		if dep.Path == modulePath {
+			return dep.Version
+		}
+	}
+
+	return defaultVersion
 }

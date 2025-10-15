@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"iter"
 	"reflect"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -162,6 +163,12 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 			continue
 		}
 
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
+		}
+
 		if resultCode == 0 {
 			if cmd.objects == nil {
 				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
@@ -246,16 +253,16 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 			} else if len(ops) == 0 {
 				ops = append(ops, GetOp())
 			}
-			res, err = client.Operate(cmd.client.getUsableBatchReadPolicy(br.Policy).toWritePolicy(cmd.policy), br.Key, ops...)
+			res, err = client.Operate(cmd.client.getUsableBatchReadPolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig), br.Key, ops...)
 		case *BatchWrite:
-			policy := cmd.client.getUsableBatchWritePolicy(br.Policy).toWritePolicy(cmd.policy)
+			policy := cmd.client.getUsableBatchWritePolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
 			policy.RespondPerEachOp = true
 			res, err = client.Operate(policy, br.Key, br.Ops...)
 		case *BatchDelete:
-			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicy(cmd.policy)
+			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
 			res, err = client.Operate(policy, br.Key, DeleteOp())
 		case *BatchUDF:
-			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicy(cmd.policy)
+			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
 			policy.RespondPerEachOp = true
 			res, err = client.execute(policy, br.Key, br.PackageName, br.FunctionName, br.FunctionArgs...)
 		}
@@ -300,4 +307,20 @@ func (cmd *batchCommandOperate) commandType() commandType {
 
 func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchOperateNodeListIfcRetry(cluster, cmd.policy, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
+}
+
+func (cmd *batchCommandOperate) getNamespaces() iter.Seq2[string, uint64] {
+	return cmd.nsIter
+}
+
+func (cmd *batchCommandOperate) getNamespace() *string {
+	return nil
+}
+
+func (cmd *batchCommandOperate) nsIter(yield func(string, uint64) bool) {
+	for _, br := range cmd.records {
+		if !yield(br.key().namespace, 1) {
+			return
+		}
+	}
 }

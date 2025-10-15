@@ -16,6 +16,9 @@ package aerospike
 
 import (
 	"math"
+	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 const (
@@ -102,4 +105,105 @@ func NewWritePolicy(generation, expiration uint32) *WritePolicy {
 	res.MaxRetries = 0
 
 	return res
+}
+
+// copy creates a new WritePolicy instance and copies the values from the source WritePolicy.
+func (wp *WritePolicy) copy() *WritePolicy {
+	if wp == nil {
+		return nil
+	}
+
+	response := *wp
+	return &response
+}
+
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (wp *WritePolicy) patchDynamic(dynConfig *DynConfig) *WritePolicy {
+	// If dynamic config is not set, return the policy as is.
+	if dynConfig == nil {
+		return wp
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	// If no policy is passed in, we don't need to map. Just returned what is in mapped cache already.
+	if wp == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultWritePolicy.Load()
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.Write != nil {
+		// Dynamic configuration is exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		return wp.copy().mapDynamic(dynConfig)
+	} else {
+		return wp
+	}
+}
+
+func (wp *WritePolicy) mapDynamic(dynConfig *DynConfig) *WritePolicy {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
+		return wp
+	}
+
+	if currentConfig.Dynamic.Write != nil {
+		if currentConfig.Dynamic.Write.Replica != nil {
+			configValue := mapReplicaToReplicaPolicy(*currentConfig.Dynamic.Write.Replica)
+			wp.ReplicaPolicy = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReplicaPolicy set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Write.SendKey != nil {
+			configValue := *currentConfig.Dynamic.Write.SendKey
+			wp.SendKey = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SendKey set to %t", configValue)
+			}
+		}
+		if currentConfig.Dynamic.Write.SleepBetweenRetries != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Write.SleepBetweenRetries) * time.Millisecond
+			wp.SleepBetweenRetries = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Write.SocketTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Write.SocketTimeout) * time.Millisecond
+			wp.SocketTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SocketTimeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Write.TotalTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Write.TotalTimeout) * time.Millisecond
+			wp.TotalTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TotalTimeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Write.MaxRetries != nil {
+			configValue := *currentConfig.Dynamic.Write.MaxRetries
+			wp.MaxRetries = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("MaxRetries set to %d", configValue)
+			}
+		}
+		if currentConfig.Dynamic.Write.DurableDelete != nil {
+			configValue := *currentConfig.Dynamic.Write.DurableDelete
+			wp.DurableDelete = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("DurableDelete set to %t", configValue)
+			}
+		}
+		if currentConfig.Dynamic.Write.TimeoutDelay != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Write.TimeoutDelay) * time.Millisecond
+			wp.TimeoutDelay = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TimeoutDelay set to %s", configValue.String())
+			}
+		}
+	}
+
+	return wp
 }

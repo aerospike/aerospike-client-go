@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
@@ -72,7 +74,6 @@ func (cmd *batchCommandExists) writeBuffer(ifc command) Error {
 func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	//Parse each message response and add it to the result array
 	cmd.dataOffset = 0
-
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
 			return false, err
@@ -84,6 +85,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
+
 		if len(cmd.keys) > batchIndex {
 			err := cmd.parseFieldsRead(fieldCount, cmd.keys[batchIndex])
 			if err != nil {
@@ -106,6 +108,12 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 		// If cmd is the end marker of the response, do not proceed further
 		if (int(info3) & _INFO3_LAST) == _INFO3_LAST {
 			return false, nil
+		}
+
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
 		}
 
 		if opCount > 0 {
@@ -162,4 +170,20 @@ func (cmd *batchCommandExists) Execute() Error {
 
 func (cmd *batchCommandExists) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, nil, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, false)
+}
+
+func (cmd *batchCommandExists) getNamespaces() iter.Seq2[string, uint64] {
+	return cmd.nsIter
+}
+
+func (cmd *batchCommandExists) getNamespace() *string {
+	return nil
+}
+
+func (cmd *batchCommandExists) nsIter(yield func(string, uint64) bool) {
+	for _, key := range cmd.keys {
+		if !yield(key.namespace, 1) {
+			return
+		}
+	}
 }

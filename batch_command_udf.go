@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
@@ -90,14 +92,22 @@ func (cmd *batchCommandUDF) parseRecordResults(ifc command, receiveSize int) (bo
 			return false, err
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
+
 		generation := Buffer.BytesToUint32(cmd.dataBuffer, 6)
 		expiration := types.TTL(Buffer.BytesToUint32(cmd.dataBuffer, 10))
 		batchIndex := int(Buffer.BytesToUint32(cmd.dataBuffer, 14))
 		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 		opCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 20))
 		err := cmd.parseFieldsWrite(resultCode, fieldCount, cmd.keys[batchIndex])
+
 		if err != nil {
 			return false, err
+		}
+
+		// Aggregate metrics
+		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		if metricsEnabled {
+			cmd.node.stats.updateOrInsert(ifc, resultCode)
 		}
 
 		// The only valid server return codes are "ok" and "not found" and "filtered out".
@@ -185,7 +195,7 @@ func (cmd *batchCommandUDF) isRead() bool {
 
 func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
 	for i, key := range cmd.keys {
-		policy := cmd.batchUDFPolicy.toWritePolicy(cmd.policy)
+		policy := cmd.batchUDFPolicy.toWritePolicy(cmd.policy, client.dynConfig)
 		policy.RespondPerEachOp = true
 		res, err := client.execute(policy, key, cmd.packageName, cmd.functionName, cmd.args...)
 		cmd.records[i].setRecord(res)
@@ -220,4 +230,20 @@ func (cmd *batchCommandUDF) Execute() Error {
 
 func (cmd *batchCommandUDF) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchNodeListKeys(cluster, cmd.policy, cmd.keys, nil, cmd.sequenceAP, cmd.sequenceSC, cmd.batch, false)
+}
+
+func (cmd *batchCommandUDF) getNamespaces() iter.Seq2[string, uint64] {
+	return cmd.nsIter
+}
+
+func (cmd *batchCommandUDF) getNamespace() *string {
+	return nil
+}
+
+func (cmd *batchCommandUDF) nsIter(yield func(string, uint64) bool) {
+	for _, key := range cmd.keys {
+		if !yield(key.namespace, 1) {
+			return
+		}
+	}
 }

@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/v8/logger"
+
 // BatchUDFPolicy attributes used in batch UDF execute commands.
 type BatchUDFPolicy struct {
 	// Optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -66,7 +68,7 @@ func NewBatchUDFPolicy() *BatchUDFPolicy {
 	}
 }
 
-func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
 
 	if bup != nil {
@@ -78,5 +80,80 @@ func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 		wp.DurableDelete = bup.DurableDelete
 		wp.SendKey = bup.SendKey
 	}
+
+	// In Case dynConfig is not initialized or running return the policy before
+	// merge
+	if dynConfig == nil {
+		return wp
+	}
+
+	config := dynConfig.config
+	if config != nil && config.Dynamic != nil && config.Dynamic.BatchUdf != nil {
+		if config.Dynamic.BatchUdf.DurableDelete != nil {
+			wp.DurableDelete = *config.Dynamic.BatchUdf.DurableDelete
+		}
+		if config.Dynamic.BatchUdf.SendKey != nil {
+			wp.SendKey = *config.Dynamic.BatchUdf.SendKey
+		}
+	}
+
 	return wp
+}
+
+// copy creates a new BasePolicy instance and copies the values from the source BatchUDFPolicy.
+func (bup *BatchUDFPolicy) copy() *BatchUDFPolicy {
+	if bup == nil {
+		return nil
+	}
+
+	response := *bup
+	return &response
+}
+
+// patchDynamic applies the dynamic configuration and generates a new policy
+func (bup *BatchUDFPolicy) patchDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
+	if dynConfig == nil {
+		return bup
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if bup == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultBatchUDFPolicy.Load()
+	}
+	if config != nil && config.Dynamic != nil && config.Dynamic.BatchUdf != nil {
+		// Dynamic configuration is exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		return bup.copy().mapDynamic(dynConfig)
+	} else {
+		return bup
+	}
+}
+
+func (bup *BatchUDFPolicy) mapDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
+		return bup
+	}
+
+	if currentConfig.Dynamic.BatchUdf != nil {
+		if currentConfig.Dynamic.BatchUdf.DurableDelete != nil {
+			configValue := *currentConfig.Dynamic.BatchUdf.DurableDelete
+			bup.DurableDelete = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("DurableDelete set to %t", configValue)
+			}
+		}
+		if currentConfig.Dynamic.BatchUdf.SendKey != nil {
+			configValue := *currentConfig.Dynamic.BatchUdf.SendKey
+			bup.SendKey = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SendKey set to %t", configValue)
+			}
+		}
+	}
+
+	return bup
 }

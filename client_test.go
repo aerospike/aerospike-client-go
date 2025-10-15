@@ -35,12 +35,20 @@ import (
 
 func isJsonObject(ifc any) bool {
 	switch ifc := ifc.(type) {
-	case float64, float32, int, int64, uint64:
+	case float64, float32, int, int64, uint64, string:
 		return true
 	case []any:
 		for _, v := range ifc {
 			switch v.(type) {
-			case float64, float32, int, int64, uint64:
+			case float64, float32, int, int64, uint64, string:
+				return true
+			case map[string]interface{}:
+				for _, v := range ifc {
+					if !isJsonObject(v) {
+						return false
+					}
+				}
+				return true
 			default:
 				return false
 			}
@@ -446,6 +454,8 @@ var _ = gg.Describe("Aerospike", func() {
 		var wpolicy = as.NewWritePolicy(0, 0)
 		var rpolicy = as.NewPolicy()
 		var bpolicy = as.NewBatchPolicy()
+		bpolicy.TotalTimeout = 1 * time.Minute
+		bpolicy.SocketTimeout = 30 * time.Second
 		var rec *as.Record
 
 		if *useReplicas {
@@ -1253,24 +1263,24 @@ var _ = gg.Describe("Aerospike", func() {
 
 						for i := 0; i < keyCount; i++ {
 							key, err := as.NewKey(ns, set, randString(50))
-							gm.Expect(err).ToNot(gm.HaveOccurred())
+							gm.Expect(err == nil).To(gm.BeTrue())
 							keys = append(keys, key)
 
 							// if key shouldExist == true, put it in the DB
 							if i%2 == 0 {
 								err = client.PutBins(wpolicy, key, bin)
-								gm.Expect(err).ToNot(gm.HaveOccurred())
+								gm.Expect(err == nil).To(gm.BeTrue())
 
 								// make sure they exists in the DB
 								exists, err := client.Exists(rpolicy, key)
-								gm.Expect(err).ToNot(gm.HaveOccurred())
+								gm.Expect(err == nil).To(gm.BeTrue())
 								gm.Expect(exists).To(gm.Equal(true))
 							}
 						}
 
 						bpolicy.AllowInline = useInline
 						exists, err = client.BatchExists(bpolicy, keys)
-						gm.Expect(err).ToNot(gm.HaveOccurred())
+						gm.Expect(err == nil).To(gm.BeTrue())
 						gm.Expect(len(exists)).To(gm.Equal(len(keys)))
 						for idx, keyExists := range exists {
 							gm.Expect(keyExists).To(gm.Equal(idx%2 == 0))

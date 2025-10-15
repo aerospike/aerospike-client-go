@@ -122,8 +122,10 @@ func newPartitionTracker(policy *MultiPolicy, filter *PartitionFilter, nodes []*
 
 		// Reset replica sequence and last node used.
 		for _, part := range filter.Partitions {
-			part.sequence = 0
-			part.node = nil
+			if part != nil {
+				part.sequence = 0
+				part.node = nil
+			}
 		}
 	}
 
@@ -182,6 +184,10 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 	retry := (pt.partitionFilter == nil || pt.partitionFilter.Retry) && (pt.iteration == 1)
 
 	for _, part := range pt.partitions {
+		if part == nil {
+			continue
+		}
+
 		if retry || part.Retry {
 			node, err := p.GetNodeQuery(cluster, parts, part)
 			if err != nil {

@@ -15,7 +15,9 @@
 package aerospike
 
 import (
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -23,8 +25,14 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	iatomic "github.com/aerospike/aerospike-client-go/v8/internal/atomic"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
+)
+
+const (
+	MAX_ERROR_RATE_MIN_VALUE = 100
+	ERROR_RATE_MIN_VALUE     = 1
 )
 
 const (
@@ -43,6 +51,7 @@ type Node struct {
 	cluster     *Cluster
 	name        string
 	host        *Host
+	hostName    string
 	aliases     iatomic.TypedVal[[]*Host]
 	stats       nodeStats
 	sessionInfo iatomic.TypedVal[*sessionInfo]
@@ -65,27 +74,33 @@ type Node struct {
 	failures            iatomic.Int
 	partitionChanged    iatomic.Bool
 	errorCount          iatomic.Int
+	maxErrorCount       iatomic.Int
 	rebalanceGeneration iatomic.Int
 
 	features int
 
 	active iatomic.Bool
+
+	version  version.Version
+	isOrphan iatomic.Bool
 }
 
 // NewNode initializes a server node with connection parameters.
 func newNode(cluster *Cluster, nv *nodeValidator) *Node {
+	clusterClientPolicy := cluster.clientPolicy.Load()
 	newNode := &Node{
 		cluster: cluster,
 		name:    nv.name,
 		host:    nv.primaryHost,
 
 		features: nv.features,
+		version:  nv.version,
 
 		stats: *newNodeStats(cluster.MetricsPolicy()),
 
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).
-		connections:         *newConnectionHeap(cluster.clientPolicy.MinConnectionsPerNode, cluster.clientPolicy.ConnectionQueueSize),
+		connections:         *newConnectionHeap(clusterClientPolicy.MinConnectionsPerNode, clusterClientPolicy.ConnectionQueueSize),
 		connectionCount:     *iatomic.NewInt(0),
 		peersGeneration:     *iatomic.NewInt(-1),
 		partitionGeneration: *iatomic.NewInt(-2),
@@ -94,6 +109,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		active:              *iatomic.NewBool(true),
 		partitionChanged:    *iatomic.NewBool(false),
 		errorCount:          *iatomic.NewInt(0),
+		maxErrorCount:       *iatomic.NewInt(cluster.maxErrorCount.Get()),
 		rebalanceGeneration: *iatomic.NewInt(-1),
 	}
 
@@ -140,7 +156,7 @@ func (nd *Node) Refresh(peers *peers) Error {
 
 	var infoMap map[string]string
 	commands := []string{"node", "peers-generation", "partition-generation"}
-	if nd.cluster.clientPolicy.RackAware {
+	if clientPolicy := nd.cluster.clientPolicy.Load(); clientPolicy != nil && clientPolicy.RackAware {
 		commands = append(commands, "rack-ids")
 	}
 
@@ -159,7 +175,6 @@ func (nd *Node) Refresh(peers *peers) Error {
 		nd.refreshFailed(err)
 		return err
 	}
-
 	if err = nd.verifyPartitionGeneration(infoMap); err != nil {
 		nd.refreshFailed(err)
 		return err
@@ -194,7 +209,8 @@ func (nd *Node) Refresh(peers *peers) Error {
 // refreshSessionToken refreshes the session token if it has been expired
 func (nd *Node) refreshSessionToken() (err Error) {
 	// no session token to refresh
-	if !nd.cluster.clientPolicy.RequiresAuthentication() {
+	clusterClientPolicy := nd.cluster.clientPolicy.Load()
+	if !clusterClientPolicy.RequiresAuthentication() {
 		return nil
 	}
 
@@ -202,13 +218,13 @@ func (nd *Node) refreshSessionToken() (err Error) {
 
 	// Consider when the next tend will be in this calculation. If the next tend will be too late,
 	// refresh the sessionInfo now.
-	if st.expiration.IsZero() || time.Now().Before(st.expiration.Add(-nd.cluster.clientPolicy.TendInterval)) {
+	if st.expiration.IsZero() || time.Now().Before(st.expiration.Add(-clusterClientPolicy.TendInterval)) {
 		return nil
 	}
 
-	nd.usingTendConn(nd.cluster.clientPolicy.LoginTimeout, func(conn *Connection) {
+	nd.usingTendConn(clusterClientPolicy.LoginTimeout, func(conn *Connection) {
 		command := newLoginCommand(conn.dataBuffer)
-		if err = command.login(&nd.cluster.clientPolicy, conn, nd.cluster.Password()); err != nil {
+		if err = command.login(clusterClientPolicy, conn, nd.cluster.Password()); err != nil {
 			// force new connections to use default creds until a new valid session token is acquired
 			nd.resetSessionInfo()
 			// Socket not authenticated. Do not put back into pool.
@@ -222,7 +238,7 @@ func (nd *Node) refreshSessionToken() (err Error) {
 }
 
 func (nd *Node) updateRackInfo(infoMap map[string]string) Error {
-	if !nd.cluster.clientPolicy.RackAware {
+	if !nd.cluster.clientPolicy.Load().RackAware {
 		return nil
 	}
 
@@ -319,10 +335,15 @@ func (nd *Node) refreshPeers(peers *peers) {
 		return
 	}
 
-	peers.appendPeers(peerParser.peers)
+	// If node has no peers, it is suspected to be orphan
+	// if !nd.isOrphan.Get() {
+	if len(peerParser.peers) > 0 {
+		peers.refreshCount.IncrementAndGet()
+		peers.appendPeers(peerParser.peers)
+	}
+
 	nd.peersGeneration.Set(int(peerParser.generation()))
 	nd.peersCount.Set(len(peers.peers()))
-	peers.refreshCount.IncrementAndGet()
 }
 
 func (nd *Node) refreshPartitions(peers *peers, partitions partitionMap, freshlyAdded bool) {
@@ -354,7 +375,7 @@ func (nd *Node) refreshFailed(e Error) {
 	nd.peersGeneration.Set(-1)
 	nd.partitionGeneration.Set(-1)
 
-	if nd.cluster.clientPolicy.RackAware {
+	if nd.cluster.clientPolicy.Load().RackAware {
 		nd.rebalanceGeneration.Set(-1)
 	}
 
@@ -372,7 +393,7 @@ func (nd *Node) refreshFailed(e Error) {
 // a fresh connection or exhaust the queue.
 func (nd *Node) dropIdleConnections() {
 	if nd.cluster != nil {
-		nd.connections.DropIdle(nd.cluster.clientPolicy.TendInterval)
+		nd.connections.DropIdle(nd.cluster.clientPolicy.Load().TendInterval)
 	}
 }
 
@@ -411,7 +432,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err Erro
 // getConnection gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
 func (nd *Node) getConnection(deadline, timeout time.Duration) (conn *Connection, err Error) {
-	return nd.getConnectionWithHint(deadline, timeout, 0)
+	return nd.getConnectionWithHint(deadline, timeout, 0, 0)
 }
 
 // newConnectionAllowed will tentatively check if the client is allowed to make a new connection
@@ -421,19 +442,19 @@ func (nd *Node) newConnectionAllowed() Error {
 	if !nd.active.Get() {
 		return ErrServerNotAvailable.err()
 	}
-
+	clusterClientPolicy := nd.cluster.clientPolicy.Load()
 	// if connection count is limited and enough connections are already created, don't create a new one
 	cc := nd.connectionCount.IncrementAndGet()
 	defer nd.connectionCount.DecrementAndGet()
-	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
+	if clusterClientPolicy.LimitConnectionsToQueueSize && cc > clusterClientPolicy.ConnectionQueueSize {
 		return ErrTooManyConnectionsForNode.err()
 	}
 
 	// Check for opening connection threshold
-	if nd.cluster.clientPolicy.OpeningConnectionThreshold > 0 {
+	if clusterClientPolicy.OpeningConnectionThreshold > 0 {
 		ct := nd.cluster.connectionThreshold.IncrementAndGet()
 		defer nd.cluster.connectionThreshold.DecrementAndGet()
-		if ct > nd.cluster.clientPolicy.OpeningConnectionThreshold {
+		if ct > clusterClientPolicy.OpeningConnectionThreshold {
 			return ErrTooManyOpeningConnections.err()
 		}
 	}
@@ -447,9 +468,10 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 		return nil, ErrServerNotAvailable.err()
 	}
 
+	clusterClientPolicy := nd.cluster.clientPolicy.Load()
 	// if connection count is limited and enough connections are already created, don't create a new one
 	cc := nd.connectionCount.IncrementAndGet()
-	if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && cc > nd.cluster.clientPolicy.ConnectionQueueSize {
+	if clusterClientPolicy.LimitConnectionsToQueueSize && cc > clusterClientPolicy.ConnectionQueueSize {
 		nd.connectionCount.DecrementAndGet()
 		nd.stats.ConnectionsPoolEmpty.IncrementAndGet()
 
@@ -457,9 +479,9 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	// Check for opening connection threshold
-	if !overrideThreshold && nd.cluster.clientPolicy.OpeningConnectionThreshold > 0 {
+	if !overrideThreshold && clusterClientPolicy.OpeningConnectionThreshold > 0 {
 		ct := nd.cluster.connectionThreshold.IncrementAndGet()
-		if ct > nd.cluster.clientPolicy.OpeningConnectionThreshold {
+		if ct > clusterClientPolicy.OpeningConnectionThreshold {
 			nd.cluster.connectionThreshold.DecrementAndGet()
 			nd.connectionCount.DecrementAndGet()
 
@@ -470,7 +492,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	nd.stats.ConnectionsAttempts.IncrementAndGet()
-	conn, err := NewConnection(&nd.cluster.clientPolicy, nd.host)
+	conn, err := NewConnection(clusterClientPolicy, nd.host)
 	if err != nil {
 		nd.incrErrorCount()
 		nd.connectionCount.DecrementAndGet()
@@ -481,7 +503,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 
 	sessionInfo := nd.sessionInfo.Get()
 	// need to authenticate
-	if err = conn.login(&nd.cluster.clientPolicy, nd.cluster.Password(), sessionInfo); err != nil {
+	if err = conn.login(clusterClientPolicy, nd.cluster.Password(), sessionInfo); err != nil {
 		// increment node errors if authentication hit a network error
 		if networkError(err) {
 			nd.incrErrorCount()
@@ -494,7 +516,25 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	nd.stats.ConnectionsSuccessful.IncrementAndGet()
-	conn.setIdleTimeout(nd.cluster.clientPolicy.IdleTimeout)
+	conn.setIdleTimeout(clusterClientPolicy.IdleTimeout)
+
+	return conn, nil
+}
+
+func (nd *Node) newTendConnection() (*Connection, Error) {
+	conn, err := nd.newConnection(true)
+	if err != nil {
+		return nil, err
+	}
+
+	serverMinVersion, _ := version.Parse("8.1.0.0")
+	if nd.version.IsGreaterOrEqual(serverMinVersion) {
+		if err := nd.sendUserAgentId(conn); err != nil {
+			// If setting user agent failed, we still return the connection
+			// as it is already authenticated and usable.
+			logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
+		}
+	}
 
 	return conn, nil
 }
@@ -513,7 +553,7 @@ func (nd *Node) makeConnectionForPool(hint byte) {
 
 // getConnectionWithHint gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
-func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte) (conn *Connection, err Error) {
+func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte, timeoutDelay time.Duration) (conn *Connection, err Error) {
 	if !nd.active.Get() {
 		return nil, ErrServerNotAvailable.err()
 	}
@@ -523,6 +563,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 		if conn.IsConnected() {
 			break
 		}
+
 		conn.Close()
 		conn = nil
 	}
@@ -541,7 +582,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 	if err = conn.setTimeout(totalTimeout, socketTimeout); err != nil {
 		nd.stats.ConnectionsFailed.IncrementAndGet()
 
-		// Do not put back into pool.
+		// Do not put back into pool for other types of errors.
 		conn.Close()
 		return nil, err
 	}
@@ -706,7 +747,7 @@ func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection)) (
 			if nd.connectionCount.Get() == 0 {
 				// if there are no connections in the pool, create a new connection synchronously.
 				// this will make sure the initial tend will get a connection without multiple retries.
-				*conn, err = nd.newConnection(true)
+				*conn, err = nd.newTendConnection()
 			} else {
 				*conn, err = nd.GetConnection(timeout)
 			}
@@ -884,8 +925,9 @@ func (nd *Node) WarmUp(count int) (int, Error) {
 // fillMinCounts will fill the connection pool to the minimum required
 // by the ClientPolicy.MinConnectionsPerNode
 func (nd *Node) fillMinConns() (int, Error) {
-	if nd.cluster.clientPolicy.MinConnectionsPerNode > 0 {
-		toFill := nd.cluster.clientPolicy.MinConnectionsPerNode - nd.connectionCount.Get()
+	clusterClientPolicy := nd.cluster.clientPolicy.Load()
+	if clusterClientPolicy.MinConnectionsPerNode > 0 {
+		toFill := clusterClientPolicy.MinConnectionsPerNode - nd.connectionCount.Get()
 		if toFill > 0 {
 			return nd.WarmUp(toFill)
 		}
@@ -896,28 +938,53 @@ func (nd *Node) fillMinConns() (int, Error) {
 // Increments error count for the node. If errorCount goes above the threshold,
 // the node will not accept any more requests until the next window.
 func (nd *Node) incrErrorCount() {
-	if nd.cluster.clientPolicy.MaxErrorRate > 0 {
+	if clientPolicy := nd.cluster.clientPolicy.Load(); clientPolicy != nil && clientPolicy.MaxErrorRate > 0 {
 		nd.errorCount.GetAndIncrement()
 	}
 }
 
-// Resets the error count
+// Resets the error count and circuit breaker windows
 func (nd *Node) resetErrorCount() {
 	nd.errorCount.Set(0)
 }
 
-// checks if the errorCount is within set limits
-func (nd *Node) errorCountWithinLimit() bool {
-	return nd.cluster.clientPolicy.MaxErrorRate <= 0 || nd.errorCount.Get() <= nd.cluster.clientPolicy.MaxErrorRate
-}
-
+// validateErrorCount checks the error count against the maxErrorRate
 // returns error if errorCount has gone above the threshold set in the policy
+// When maxErrorRate is hit, break for one errorRateWindow.
+// On next window, check if half maxErrorRate is met; if not, reset, otherwise keep circuit open
+// and lower the threshold by half.
 func (nd *Node) validateErrorCount() Error {
-	if !nd.errorCountWithinLimit() {
-		nd.stats.CircuitBreakerHits.IncrementAndGet()
+	nodeMaxErrorCount := nd.maxErrorCount.Get()
+	clusterMaxErrorCount := nd.cluster.maxErrorCount.Get()
+	nodeErrorCount := nd.errorCount.Get()
+
+	// Error rate is not breached, reset maxErrorCount to the policy value
+	if nodeErrorCount <= nodeMaxErrorCount {
+		nd.resetErrorCount()
+
+		// Doubling the maxErrorCount till it reaches the cluster maxErrorCount
+		if nodeErrorCount != clusterMaxErrorCount {
+			max := nodeMaxErrorCount * 2
+			if max <= clusterMaxErrorCount {
+				nd.maxErrorCount.Set(max)
+			} else {
+				nd.maxErrorCount.Set(clusterMaxErrorCount)
+			}
+		}
+
+		return nil
+	} else {
+		// Error rate was breached. Next error rate will be halved.
+		nd.resetErrorCount()
+
+		if nodeMaxErrorCount >= 4 {
+			nd.maxErrorCount.Set(nodeMaxErrorCount / 2)
+		} else {
+			nd.maxErrorCount.Set(1)
+		}
+
 		return newError(types.MAX_ERROR_RATE)
 	}
-	return nil
 }
 
 // PeersGeneration returns node's Peers Generation
@@ -933,4 +1000,30 @@ func (nd *Node) PartitionGeneration() int {
 // RebalanceGeneration returns node's Rebalance Generation
 func (nd *Node) RebalanceGeneration() int {
 	return nd.rebalanceGeneration.Get()
+}
+
+func (nd *Node) sendUserAgentId(conn *Connection) Error {
+	var appId string
+	clientPolicy := nd.cluster.clientPolicy.Load()
+	if clientPolicy.ApplicationId != "" {
+		appId = clientPolicy.ApplicationId
+	} else if nd.cluster.user != "" {
+		appId = nd.cluster.user
+	} else {
+		appId = "not-set"
+	}
+
+	// Source user-agent payload
+	// Format: "1,go-<version>,<application-id>"
+	userAgentId := fmt.Sprintf("1,go-%s,%s", nd.cluster.clientModuleVersion, appId)
+	userAgentCommand := fmt.Sprintf("user-agent-set:value=%s", base64.StdEncoding.EncodeToString([]byte(userAgentId)))
+
+	command := []string{userAgentCommand}
+
+	_, err := conn.RequestInfo(command...)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

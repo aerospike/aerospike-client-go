@@ -17,6 +17,8 @@ package aerospike
 import (
 	"crypto/tls"
 	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
 // ClientPolicy encapsulates parameters for client policy command.
@@ -129,6 +131,19 @@ type ClientPolicy struct {
 	// This feature is recommended instead of using the client-side IpMap above.
 	//
 	// "services-alternate" is available with Aerospike Server versions >= 3.7.1.
+	//
+	// Info command to use whether UserServicesAlternate is true or false:
+	//
+	// If false, use:
+	// IP address: service-clear-std
+	// TLS IP address: service-tls-std
+	// Peers addresses: peers-clear-std
+	// Peers TLS addresses: peers-tls-std
+	// If true, use:
+	// IP address: service-clear-alt
+	// TLS IP address: service-tls-alt
+	// Peers addresses: peers-clear-alt
+	// Peers TLS addresses: peers-tls-alt
 	UseServicesAlternate bool // false
 
 	// RackAware directs the client to update rack information on intervals.
@@ -161,6 +176,13 @@ type ClientPolicy struct {
 	// Peers nodes for the cluster are not discovered and seed nodes are
 	// retained despite connection failures.
 	SeedOnlyCluster bool // = false
+
+	// Application id is used to identify application so that client operations can be correlated
+	// with server side metrics.
+	ApplicationId string
+
+	// Determianes the interval for checking for configuration changes using configProvider.
+	ConfigInterval time.Duration // = 5 second
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.
@@ -179,6 +201,7 @@ func NewClientPolicy() *ClientPolicy {
 		MaxErrorRate:                100,
 		ErrorRateWindow:             1,
 		SeedOnlyCluster:             false,
+		ConfigInterval:              time.Second * 5,
 	}
 }
 
@@ -220,4 +243,166 @@ func (cp *ClientPolicy) peersString() string {
 		return "peers-clear-alt"
 	}
 	return "peers-clear-std"
+}
+
+// copyClientPolicy creates a new BasePolicy instance and copies the values from the source policy.
+func (cp *ClientPolicy) copy() *ClientPolicy {
+	if cp == nil {
+		return nil
+	}
+
+	response := *cp
+	return &response
+}
+
+func (cp *ClientPolicy) mapDynamic(dynConfig *DynConfig) *ClientPolicy {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
+		return cp
+	}
+
+	if currentConfig.Dynamic.Client != nil {
+		if currentConfig.Dynamic.Client.IdleTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Client.IdleTimeout) * time.Second
+			cp.IdleTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("IdleTimeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Client.Timeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Client.Timeout) * time.Millisecond
+			cp.Timeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("Timeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Client.ErrorRateWindow != nil {
+			configValue := *currentConfig.Dynamic.Client.ErrorRateWindow
+			cp.ErrorRateWindow = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ErrorRateWindow set to %d", configValue)
+			}
+		}
+		if currentConfig.Dynamic.Client.MaxErrorRate != nil {
+			configValue := *currentConfig.Dynamic.Client.MaxErrorRate
+			cp.MaxErrorRate = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("MaxErrorRate set to %d", configValue)
+			}
+		}
+		if currentConfig.Dynamic.Client.LoginTimeout != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Client.LoginTimeout) * time.Millisecond
+			cp.LoginTimeout = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("LoginTimeout set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Client.RackAware != nil {
+			configValue := *currentConfig.Dynamic.Client.RackAware
+			cp.RackAware = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("RackAware set to %t", configValue)
+			}
+		}
+		if currentConfig.Dynamic.Client.RackIds != nil {
+			configValue := *currentConfig.Dynamic.Client.RackIds
+			cp.RackIds = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("RackIds set to %v", configValue)
+			}
+		}
+		if currentConfig.Dynamic.Client.TendInterval != nil {
+			configValue := time.Duration(*currentConfig.Dynamic.Client.TendInterval) * time.Millisecond
+			cp.TendInterval = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("TendInterval set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Client.UseServiceAlternate != nil {
+			configValue := *currentConfig.Dynamic.Client.UseServiceAlternate
+			cp.UseServicesAlternate = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("UseServicesAlternate set to %t", configValue)
+			}
+		}
+		if currentConfig.Dynamic.Client.ApplicationId != nil {
+			configValue := *currentConfig.Dynamic.Client.ApplicationId
+			cp.ApplicationId = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ApplicationId set to %s", configValue)
+			}
+		}
+	}
+
+	return cp
+}
+
+func (cp *ClientPolicy) mapStatic(dynConfig *DynConfig) *ClientPolicy {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Static == nil {
+		return cp
+	}
+
+	if currentConfig.Static.Client != nil {
+		if currentConfig.Static.Client.ConfigInterval != nil {
+			cp.ConfigInterval = time.Duration(*currentConfig.Static.Client.ConfigInterval) * time.Second
+		}
+		if currentConfig.Static.Client.ConnectionQueueSize != nil {
+			cp.ConnectionQueueSize = *currentConfig.Static.Client.ConnectionQueueSize
+		}
+		if currentConfig.Static.Client.MinConnectionsPerNode != nil {
+			cp.MinConnectionsPerNode = *currentConfig.Static.Client.MinConnectionsPerNode
+		}
+	}
+
+	return cp
+}
+
+// patchDynamic applies the dynamic configuration and generates a new policy.
+func (policy *ClientPolicy) patchDynamic(dynConfig *DynConfig) *ClientPolicy {
+	if dynConfig == nil {
+		return policy
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if config != nil && ((config.Dynamic != nil && config.Dynamic.Client != nil) || (config.Static != nil && config.Static.Client != nil)) {
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		if policy != nil {
+			return policy.copy().mapStatic(dynConfig).mapDynamic(dynConfig)
+		} else {
+			// Passed in policy is nil, fetch mapped default policy from cache.
+			return (*dynConfig.client.dynDefaultClientPolicy).Load()
+		}
+	} else {
+		return policy
+	}
+}
+
+// maxErrorRate is the maximum number of errors allowed in a window
+// errorRateWindow is the time window in which the errors are counted
+// The value for maxErrorRate has to fall within the ratio of errorRateWindow:maxErrorRate, where the ratio is set to be 1:100.
+// Returning calling policy to support chaining.
+func (cp *ClientPolicy) ensureErrorRates() *ClientPolicy {
+	// Returning a copy to avoid modifying the original policy and avoiding potential race conditions.
+	returnPolicy := cp.copy()
+	var errorRateWindow, maxErrorRate int
+	errorRateWindow = max(cp.ErrorRateWindow, ERROR_RATE_MIN_VALUE)
+
+	// MaxErrorRate set by user must be within the ratio of 1:100 of ErrorRateWindow to MaxErrorRate.
+	if errorRateWindow*MAX_ERROR_RATE_MIN_VALUE >= cp.MaxErrorRate {
+		maxErrorRate = cp.MaxErrorRate
+	} else {
+		logger.Logger.Warn(
+			"Invalid circuit breaker configuration: MaxErrorRate: %d, ErrorRateWindow: %d, ratio: %.2f. The ratio (MaxErrorRate/ErrorRateWindow) must be between 1 and 100. Resetting to defaults - MaxErrorRate: %d and ErrorRateWindow: %d",
+			cp.MaxErrorRate, errorRateWindow, float64(cp.MaxErrorRate)/float64(errorRateWindow), MAX_ERROR_RATE_MIN_VALUE, ERROR_RATE_MIN_VALUE)
+		maxErrorRate = MAX_ERROR_RATE_MIN_VALUE
+	}
+
+	returnPolicy.ErrorRateWindow = errorRateWindow
+	returnPolicy.MaxErrorRate = maxErrorRate
+
+	return returnPolicy
 }

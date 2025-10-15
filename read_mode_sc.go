@@ -17,6 +17,13 @@
 
 package aerospike
 
+import (
+	"fmt"
+	"strconv"
+
+	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+)
+
 // ReadModeSC is the read policy in SC (strong consistency) mode namespaces.
 // Determines SC read consistency options.
 type ReadModeSC int
@@ -38,3 +45,34 @@ const (
 	// partitions. Increasing sequence of record versions is not guaranteed.
 	ReadModeSCAllowUnavailable
 )
+
+// String returns the string representation of ReadModeSC
+func (rm ReadModeSC) String() string {
+	switch rm {
+	case ReadModeSCSession:
+		return "SESSION"
+	case ReadModeSCLinearize:
+		return "LINEARIZE"
+	case ReadModeSCAllowReplica:
+		return "ALLOW_REPLICA"
+	case ReadModeSCAllowUnavailable:
+		return "ALLOW_UNAVAILABLE"
+	default:
+		return fmt.Sprintf("Unknown ReadModeSC(%d)", int(rm))
+	}
+}
+
+func mapReadModeSCToReadModeSC(readModeSC dynconfig.ReadModeSc) ReadModeSC {
+	switch readModeSC {
+	case dynconfig.SESSION:
+		return ReadModeSCSession
+	case dynconfig.LINEARIZE:
+		return ReadModeSCLinearize
+	case dynconfig.ALLOW_REPLICA:
+		return ReadModeSCAllowReplica
+	case dynconfig.ALLOW_UNAVAILABLE:
+		return ReadModeSCAllowUnavailable
+	default:
+		panic("unknown ReadModeSC value: " + strconv.Itoa(int(readModeSC)))
+	}
+}

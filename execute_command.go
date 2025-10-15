@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"iter"
+
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
@@ -64,6 +66,12 @@ func (cmd *executeCommand) parseResult(ifc command, conn *Connection) Error {
 		return err
 	}
 
+	// Aggregate metrics
+	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	if metricsEnabled {
+		cmd.node.stats.updateOrInsert(ifc, rp.resultCode)
+	}
+
 	if rp.resultCode != 0 {
 		if rp.resultCode == types.KEY_NOT_FOUND_ERROR {
 			return ErrKeyNotFound.err()
@@ -72,7 +80,7 @@ func (cmd *executeCommand) parseResult(ifc command, conn *Connection) Error {
 		} else if rp.resultCode == types.UDF_BAD_RESPONSE {
 			cmd.record, _ = rp.parseRecord(cmd.key, false)
 			err := cmd.handleUdfError(rp.resultCode)
-			logger.Logger.Debug("UDF execution error: " + err.Error())
+			logger.Logger.Debug("UDF execution error: %s", err.Error())
 			return err
 		}
 
@@ -110,4 +118,12 @@ func (cmd *executeCommand) handleUdfError(resultCode types.ResultCode) Error {
 
 func (cmd *executeCommand) GetRecord() *Record {
 	return cmd.record
+}
+
+func (cmd *executeCommand) getNamespaces() iter.Seq2[string, uint64] {
+	return nil
+}
+
+func (cmd *executeCommand) getNamespace() *string {
+	return &cmd.key.namespace
 }

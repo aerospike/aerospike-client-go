@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/v8/logger"
+
 // BatchReadPolicy attributes used in batch read commands.
 type BatchReadPolicy struct {
 	// FilterExpression is the optional expression filter. If FilterExpression exists and evaluates to false, the specific batch key
@@ -54,8 +56,12 @@ func NewBatchReadPolicy() *BatchReadPolicy {
 	}
 }
 
-func (brp *BatchReadPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+func (brp *BatchReadPolicy) toWritePolicy(bp *BatchPolicy, dynConfig *DynConfig) *WritePolicy {
 	wp := bp.toWritePolicy()
+
+	if dynConfig != nil {
+		wp.BasePolicy = *dynConfig.client.dynDefaultBatchReadBasePolicy.Load()
+	}
 
 	if brp != nil {
 		if brp.FilterExpression != nil {
@@ -66,5 +72,64 @@ func (brp *BatchReadPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
 		wp.ReadModeSC = brp.ReadModeSC
 		wp.ReadTouchTTLPercent = brp.ReadTouchTTLPercent
 	}
+
 	return wp
+}
+
+// copyBAtchReadPolicy creates a new BasePolicy instance and copies the values from the source BatchReadPolicy.
+func (brp *BatchReadPolicy) copy() *BatchReadPolicy {
+	if brp == nil {
+		return nil
+	}
+
+	response := *brp
+	return &response
+}
+
+// patchDynamic applies the dynamic configuration and generates a new policy.
+func (brp *BatchReadPolicy) patchDynamic(dynConfig *DynConfig) *BatchReadPolicy {
+	if dynConfig == nil {
+		return brp
+	}
+
+	config := dynConfig.getConfigIfNotLoadedOrInitialized()
+
+	if brp == nil {
+		// Passed in policy is nil, fetch mapped default policy from cache.
+		return dynConfig.client.dynDefaultBatchReadPolicy.Load()
+	} else if config != nil && config.Dynamic != nil && config.Dynamic.BatchRead != nil {
+		// Dynamic configuration is exists for policy in question.
+		// User has provided a custom policy. We need to apply the dynamic configuration.
+		// Copy the existing write policy to preserve any custom settings.
+		return brp.copy().mapDynamic(dynConfig)
+	} else {
+		return brp
+	}
+}
+
+func (brp *BatchReadPolicy) mapDynamic(dynConfig *DynConfig) *BatchReadPolicy {
+	// Atomically load config to avoid race conditions
+	currentConfig := dynConfig.config
+	if currentConfig == nil || currentConfig.Dynamic == nil {
+		return brp
+	}
+
+	if currentConfig.Dynamic.BatchRead != nil {
+		if currentConfig.Dynamic.BatchRead.ReadModeAp != nil {
+			configValue := mapReadModeAPToReadModeAP(*currentConfig.Dynamic.BatchRead.ReadModeAp)
+			brp.ReadModeAP = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReadModeAP set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchRead.ReadModeSc != nil {
+			configValue := mapReadModeSCToReadModeSC(*currentConfig.Dynamic.BatchRead.ReadModeSc)
+			brp.ReadModeSC = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ReadModeSC set to %s", configValue.String())
+			}
+		}
+	}
+
+	return brp
 }

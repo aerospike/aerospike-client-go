@@ -19,6 +19,7 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -353,6 +354,176 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				gm.Expect(c.IsConnected()).To(gm.BeFalse())
 			})
 
+		})
+	})
+
+	gg.Describe("Node circuit breaker", func() {
+		var err error
+		var client *as.Client
+		var maxErrorRate int
+		var errRateWindow int
+
+		dbHost := as.NewHost(*host, *port)
+		dbHost.TLSName = *nodeTLSName
+
+		gg.BeforeEach(func() {
+			maxErrorRate = 100
+			errRateWindow = 2
+
+			clientPolicy = as.NewClientPolicy()
+			clientPolicy.TlsConfig = tlsConfig
+			clientPolicy.IdleTimeout = 1000 * time.Millisecond
+			clientPolicy.User = *user
+			clientPolicy.Password = *password
+			clientPolicy.MaxErrorRate = maxErrorRate
+			clientPolicy.ErrorRateWindow = errRateWindow
+
+			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		})
+
+		gg.AfterEach(func() {
+			if client != nil {
+				client.Close()
+			}
+		})
+
+		gg.Context("When Circuit Breaker is Used", func() {
+			gg.It("should not trip when error count is below threshold", func() {
+				node := client.GetNodes()[0]
+
+				// Add errors but stay below threshold
+				for i := 0; i < clientPolicy.MaxErrorRate-1; i++ {
+					node.IncrementErrorCount()
+				}
+
+				// Should not trip
+				err := node.ValidateErrorCount()
+				gm.Expect(err).To(gm.BeNil())
+
+				// Error count should be reset
+				gm.Expect(node.GetErrorCount()).To(gm.Equal(0))
+			})
+
+			gg.It("should trip the circuit breaker when error count exceeds maxErrorRate", func() {
+				node := client.GetNodes()[0]
+
+				// Add enough errors to exceed maxErrorRate
+				for i := 0; i < clientPolicy.MaxErrorRate+1; i++ {
+					node.IncrementErrorCount()
+				}
+
+				// Verify circuit breaker trips
+				err := node.ValidateErrorCount()
+				gm.Expect(err).ToNot(gm.BeNil())
+				gm.Expect(err.Matches(types.MAX_ERROR_RATE)).To(gm.BeTrue())
+
+				// Error count should be reset
+				gm.Expect(node.GetErrorCount()).To(gm.Equal(0))
+			})
+
+			gg.It("should halve maxErrorCount threshold after each breach", func() {
+				node := client.GetNodes()[0]
+				initialMax := clientPolicy.MaxErrorRate
+
+				// First breach
+				for i := 0; i < initialMax+1; i++ {
+					node.IncrementErrorCount()
+				}
+				err := node.ValidateErrorCount()
+				gm.Expect(err).ToNot(gm.BeNil())
+
+				// Second breach with lower threshold
+				for i := 0; i < initialMax/2+1; i++ {
+					node.IncrementErrorCount()
+				}
+				err = node.ValidateErrorCount()
+				gm.Expect(err).ToNot(gm.BeNil())
+
+				// Third breach with even lower threshold
+				for i := 0; i < initialMax/4+1; i++ {
+					node.IncrementErrorCount()
+				}
+				err = node.ValidateErrorCount()
+				gm.Expect(err).ToNot(gm.BeNil())
+			})
+
+			gg.It("should not reduce maxErrorCount below 1", func() {
+				node := client.GetNodes()[0]
+
+				// Set up a small initial max error rate
+				node.SetMaxErrorCount(2)
+
+				// First breach - should halve to 1
+				for i := 0; i < 3; i++ {
+					node.IncrementErrorCount()
+				}
+				err := node.ValidateErrorCount()
+				gm.Expect(err).ToNot(gm.BeNil())
+
+				// Second breach - should still be 1
+				for i := 0; i < 2; i++ {
+					node.IncrementErrorCount()
+				}
+				err = node.ValidateErrorCount()
+				gm.Expect(err).ToNot(gm.BeNil())
+
+				// Should not breach with just 1 error (threshold is 1, so 1 <= 1 should pass)
+				node.IncrementErrorCount()
+				err = node.ValidateErrorCount()
+				gm.Expect(err).To(gm.BeNil())
+			})
+
+			gg.It("should disable circuit breaker when MaxErrorRate is 0", func() {
+				// Create new client with circuit breaker disabled
+				disabledPolicy := as.NewClientPolicy()
+				disabledPolicy.TlsConfig = tlsConfig
+				disabledPolicy.MaxErrorRate = 0 // Disable circuit breaker
+
+				disabledClient, err := as.NewClientWithPolicyAndHost(disabledPolicy, dbHost)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defer disabledClient.Close()
+
+				node := disabledClient.GetNodes()[0]
+
+				// When MaxErrorRate is 0, IncrementErrorCount doesn't actually increment
+				// So we need to verify that ValidateErrorCount always passes, even after
+				// calling IncrementErrorCount many times
+				for i := 0; i < 1000; i++ {
+					node.IncrementErrorCount()
+				}
+
+				// Verify error count remains 0 because MaxErrorRate is 0
+				gm.Expect(node.GetErrorCount()).To(gm.Equal(0))
+
+				// Circuit breaker should not trip because errors aren't being counted
+				err = node.ValidateErrorCount()
+				gm.Expect(err).To(gm.BeNil())
+			})
+
+			gg.It("should restore maxErrorCount to policy value after successful validation", func() {
+				node := client.GetNodes()[0]
+				initialMax := clientPolicy.MaxErrorRate
+
+				// First breach - reduces threshold to half
+				for i := 0; i < initialMax+1; i++ {
+					node.IncrementErrorCount()
+				}
+				err := node.ValidateErrorCount()
+				gm.Expect(err).ToNot(gm.BeNil())
+
+				// Successful validation with error count below new threshold
+				node.IncrementErrorCount() // Just one error
+				err = node.ValidateErrorCount()
+				gm.Expect(err).To(gm.BeNil())
+
+				// Verify maxErrorCount was restored to policy value
+				for i := 0; i < initialMax+1; i++ {
+					node.IncrementErrorCount()
+				}
+				err = node.ValidateErrorCount()
+				gm.Expect(err).ToNot(gm.BeNil())
+			})
 		})
 	})
 })

@@ -93,6 +93,8 @@ func readCertificates(serverCertDir string, clientCertFile, clientKeyFile string
 			log.Printf("FAILED: Adding system certificates to the pool failed: %s", err)
 			serverPool = x509.NewCertPool()
 		}
+	} else {
+		serverPool = x509.NewCertPool()
 	}
 
 	// Load server certs from directory
@@ -101,6 +103,10 @@ func readCertificates(serverCertDir string, clientCertFile, clientKeyFile string
 		// Adding server certificates to the pool.
 		// These certificates are used to verify the identity of the server nodes to the client.
 		for _, caFile := range serverCerts {
+			// Need to skip the directory itself
+			if caFile == serverCertDir {
+				continue
+			}
 			caCert, err := os.ReadFile(caFile)
 			if err != nil {
 				log.Fatalf("FAILED: Adding server certificate %s to the pool failed: %s", caFile, err)
