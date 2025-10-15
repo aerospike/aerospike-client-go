@@ -3871,7 +3871,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				// IO errors are considered temporary anomalies. Retry.
 				// Close socket to flush out possible garbage. Do not put back in pool.
 				cmd.conn.Close()
-				cmd.conn = nil
 			}
 
 			cmd.conn = nil
@@ -3931,7 +3930,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			// cancelling/closing the batch/multi commands will return an error, which will
 			// close the connection to throw away its data and signal the server about the
 			// situation. We will not put back the connection in the buffer.
-			if ifc.canPutConnBack() && cmd.conn.IsConnected() && KeepConnection(err) {
+			if ifc.canPutConnBack() && cmd.conn != nil && cmd.conn.IsConnected() && KeepConnection(err) {
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
