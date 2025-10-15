@@ -121,7 +121,7 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 			if conn != nil && conn.node != nil {
 				conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
 			}
-			if errors.Is(terr, os.ErrDeadlineExceeded) {
+			if conn != nil && errors.Is(terr, os.ErrDeadlineExceeded) {
 				conn.salvageConnection = true
 			}
 			// If the connection is not salvageable, close it.
