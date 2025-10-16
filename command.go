@@ -1192,7 +1192,7 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 			cmd.dataOffset++
 		} else {
 			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += 12 // header(4) + ttl(4) + fielCount(2) + opCount(2) = 12
+			cmd.dataOffset += 12 // header(4) + ttl(4) + fieldCount(2) + opCount(2) = 12
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 			cmd.sizeTxnBatch(txn, ver, record.BatchRec().hasWrite)
@@ -1379,7 +1379,7 @@ func (cmd *baseCommand) setBatchOperateReadOffsets(
 			cmd.dataOffset++
 		} else {
 			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += 12 // header(4) + ttl(4) + fielCount(2) + opCount(2) = 12
+			cmd.dataOffset += 12 // header(4) + ttl(4) + fieldCount(2) + opCount(2) = 12
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 			cmd.sizeTxnBatch(txn, ver, record.BatchRec().hasWrite)
@@ -1544,7 +1544,7 @@ func (cmd *baseCommand) setBatchOperateOffsets(
 			cmd.dataOffset++
 		} else {
 			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += 12 // header(4) + ttl(4) + fielCount(2) + opCount(2) = 12
+			cmd.dataOffset += 12 // header(4) + ttl(4) + fieldCount(2) + opCount(2) = 12
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 			cmd.sizeTxnBatch(txn, ver, attr.hasWrite)

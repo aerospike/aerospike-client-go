@@ -74,7 +74,7 @@ var _ = gg.Describe("Security tests", func() {
 			err = client.GrantPrivileges(nil, "role-read-test-test", []as.Privilege{{Code: as.ReadWrite, Namespace: ns, SetName: "bar"}, {Code: as.ReadWriteUDF, Namespace: ns, SetName: "test"}})
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			// Wait until servers syncronize
+			// Wait until servers synchronize
 			time.Sleep(1 * time.Second)
 
 			// Revoke privileges from the roles
@@ -90,7 +90,7 @@ var _ = gg.Describe("Security tests", func() {
 			err = client.DropRole(nil, "dummy-role")
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			// Wait until servers syncronize
+			// Wait until servers synchronize
 			time.Sleep(3 * time.Second)
 
 			roles, err := client.QueryRoles(nil)

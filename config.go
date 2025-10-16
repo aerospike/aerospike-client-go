@@ -450,7 +450,7 @@ func (dc *DynConfig) watchConfig(interval time.Duration) {
 	// This allows the config to be updated dynamically without restarting the client.
 	dc.lock.RLock()
 	var mergedConfigInterval time.Duration
-	// Handle the condition where dynamic config is eneabled but config was not loaded becuase
+	// Handle the condition where dynamic config is enabled but config was not loaded because
 	// the file could not be found or the url is not valid. In that case we will use the interval passed
 	// in or use the default interval of 1 second.
 	if dc.config == nil {

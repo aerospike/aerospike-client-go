@@ -160,7 +160,7 @@ const (
 	ListReturnTypeInverted ListReturnType = 0x10000
 )
 
-// ListSortFlags detemines sort flags for CDT lists
+// ListSortFlags determines sort flags for CDT lists
 type ListSortFlags int
 
 const (
@@ -172,7 +172,7 @@ const (
 	ListSortFlagsDropDuplicates ListSortFlags = 2
 )
 
-// ListWriteFlags detemines write flags for CDT lists
+// ListWriteFlags determines write flags for CDT lists
 // type ListWriteFlags int
 
 const (

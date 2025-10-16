@@ -222,7 +222,7 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 					0xc1},
 				as.BitSetOp(putMode, cdtBinName, 1, 1, bit0),
 				as.BitSetOp(putMode, cdtBinName, 15, 1, bit0),
-				// SUM Offest Size
+				// SUM Offset Size
 				as.BitSetOp(putMode, cdtBinName, 16, 24, bits1),  //  Y    Y      Y
 				as.BitSetOp(putMode, cdtBinName, 40, 22, bits1),  //  N    Y      N
 				as.BitSetOp(putMode, cdtBinName, 73, 21, bits1),  //  N    N      N

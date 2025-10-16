@@ -30,7 +30,7 @@ type QueryPolicy struct {
 	// Default: LONG
 	ExpectedDuration QueryDuration
 
-	// ShortQuery determines wether query expected to return less than 100 records.
+	// ShortQuery determines whether query expected to return less than 100 records.
 	// If true, the server will optimize the query for a small record set.
 	// This field is ignored for aggregation queries, background queries
 	// and server versions 6.0+.
