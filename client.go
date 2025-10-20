@@ -1716,8 +1716,8 @@ func (clnt *Client) createIndex(policy *WritePolicy,
 
 	serverVersion := node.GetServerVersion()
 	createIndexCommand := types.Ternary(
-		serverVersion.IsGreaterOrEqual(internal.ServerVersion_8_1), 
-		"sindex-create:namespace=", 
+		serverVersion.IsGreaterOrEqual(internal.ServerVersion_8_1),
+		"sindex-create:namespace=",
 		"sindex-create:ns=")
 
 	var strCmd bytes.Buffer
@@ -1768,7 +1768,7 @@ func (clnt *Client) createIndex(policy *WritePolicy,
 	}
 
 	if binName != "" {
-		if serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1) {
+		if serverVersion.IsGreaterOrEqual(internal.ServerVersion_8_1) {
 			strCmd.WriteString(";bin=")
 			strCmd.WriteString(binName)
 			strCmd.WriteString(";type=")
@@ -1815,7 +1815,7 @@ func (clnt *Client) DropIndex(
 
 	serverVersion := node.GetServerVersion()
 	deleteIndexCommand := types.Ternary(
-		serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
+		serverVersion.IsGreaterOrEqual(internal.ServerVersion_8_1),
 		"sindex-delete:namespace=",
 		"sindex-delete:ns=")
 
