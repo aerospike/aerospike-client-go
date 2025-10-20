@@ -28,9 +28,18 @@ type Version struct {
 	Major, Minor, Patch, Build int
 }
 
+var (
+	ServerVersion_8_1           = &Version{Major: 8, Minor: 1, Patch: 0, Build: 0}
+	ServerVersionPScan          = &Version{Major: 4, Minor: 9, Patch: 0, Build: 3}
+	ServerVersionQueryShow      = &Version{Major: 5, Minor: 7, Patch: 0, Build: 0}
+	ServerVersionPQueryBatchAny = &Version{Major: 6, Minor: 0, Patch: 0, Build: 0}
+)
+
 // Pattern to match semantic version: major.minor.patch.build
-var pattern = `^(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?(?:\.(?P<build>\d+))?(?:[-_\.~]*?(?P<suffix>.+))?$`
-var regex = regexp.MustCompile(pattern)
+var (
+	pattern = `^(?P<major>\d+)(?:\.(?P<minor>\d+))?(?:\.(?P<patch>\d+))?(?:\.(?P<build>\d+))?(?:[-_\.~]*?(?P<suffix>.+))?$`
+	regex   = regexp.MustCompile(pattern)
+)
 
 // Parse creates a new Version from a semantic version string
 func Parse(versionStr string) (*Version, error) {

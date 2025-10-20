@@ -1165,6 +1165,11 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	policy = clnt.getUsableWritePolicy(policy)
 	content := base64.StdEncoding.EncodeToString(udfBody)
 
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return nil, err
+	}
+
 	var strCmd bytes.Buffer
 	// errors are to remove errcheck warnings
 	// they will always be nil as stated in golang docs
@@ -1179,7 +1184,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	strCmd.WriteString(";")
 
 	// Send UDF to one node. That node will distribute the UDF to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(node, policy.TotalTimeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
@@ -1221,6 +1226,12 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask, Error) {
 	policy = clnt.getUsableWritePolicy(policy)
+
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return nil, err
+	}
+
 	var strCmd bytes.Buffer
 	// errors are to remove errcheck warnings
 	// they will always be nil as stated in golang docs
@@ -1229,7 +1240,7 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 	strCmd.WriteString(";")
 
 	// Send command to one node. That node will distribute it to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(node, policy.TotalTimeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
@@ -1247,13 +1258,18 @@ func (clnt *Client) RemoveUDF(policy *WritePolicy, udfName string) (*RemoveTask,
 func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, Error) {
 	policy = clnt.getUsablePolicy(policy)
 
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return nil, err
+	}
+
 	var strCmd bytes.Buffer
 	// errors are to remove errcheck warnings
 	// they will always be nil as stated in golang docs
 	strCmd.WriteString("udf-list")
 
 	// Send command to one node. That node will distribute it to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(node, policy.TotalTimeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
@@ -1449,6 +1465,11 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespace string, filter *Expression) Error {
 	policy = clnt.getUsableInfoPolicy(policy)
 
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return err
+	}
+
 	var strCmd string
 	if filter == nil {
 		strCmd = "xdr-set-filter:dc=" + datacenter + ";namespace=" + namespace + ";exp=null"
@@ -1462,7 +1483,7 @@ func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespac
 	}
 
 	// Send command to one node. That node will distribute it to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd)
+	responseMap, err := clnt.sendInfoCommand(node, policy.Timeout, strCmd)
 	if err != nil {
 		return err
 	}
@@ -1688,9 +1709,19 @@ func (clnt *Client) createIndex(policy *WritePolicy,
 	ctx ...*CDTContext,
 ) (*IndexTask, Error) {
 	policy = clnt.getUsableWritePolicy(policy)
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return nil, err
+	}
+
+	serverVersion := node.GetServerVersion()
+	createIndexCommand := types.Ternary(
+		serverVersion.IsGreaterOrEqual(internal.ServerVersion_8_1), 
+		"sindex-create:namespace=", 
+		"sindex-create:ns=")
 
 	var strCmd bytes.Buffer
-	strCmd.WriteString("sindex-create:ns=")
+	strCmd.WriteString(createIndexCommand)
 	strCmd.WriteString(namespace)
 
 	if len(setName) > 0 {
@@ -1737,16 +1768,22 @@ func (clnt *Client) createIndex(policy *WritePolicy,
 	}
 
 	if binName != "" {
-		strCmd.WriteString(";indexdata=")
-		strCmd.WriteString(binName)
-		strCmd.WriteString(",")
+		if serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1) {
+			strCmd.WriteString(";bin=")
+			strCmd.WriteString(binName)
+			strCmd.WriteString(";type=")
+		} else {
+			strCmd.WriteString(";indexdata=")
+			strCmd.WriteString(binName)
+			strCmd.WriteString(",")
+		}
 	} else {
 		strCmd.WriteString(";type=")
 	}
 
 	strCmd.WriteString(string(indexType))
 	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(node, policy.TotalTimeout, strCmd.String())
 	if err != nil {
 		return nil, err
 	}
@@ -1770,8 +1807,20 @@ func (clnt *Client) DropIndex(
 	indexName string,
 ) Error {
 	policy = clnt.getUsableWritePolicy(policy)
+
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return err
+	}
+
+	serverVersion := node.GetServerVersion()
+	deleteIndexCommand := types.Ternary(
+		serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
+		"sindex-delete:namespace=",
+		"sindex-delete:ns=")
+
 	var strCmd bytes.Buffer
-	strCmd.WriteString("sindex-delete:ns=")
+	strCmd.WriteString(deleteIndexCommand)
 	strCmd.WriteString(namespace)
 
 	if len(setName) > 0 {
@@ -1782,7 +1831,7 @@ func (clnt *Client) DropIndex(
 	strCmd.WriteString(indexName)
 
 	// Send index command to one node. That node will distribute the command to other nodes.
-	responseMap, err := clnt.sendInfoCommand(policy.TotalTimeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(node, policy.TotalTimeout, strCmd.String())
 	if err != nil {
 		return err
 	}
@@ -1813,6 +1862,11 @@ func (clnt *Client) DropIndex(
 func (clnt *Client) Truncate(policy *InfoPolicy, namespace, set string, beforeLastUpdate *time.Time) Error {
 	policy = clnt.getUsableInfoPolicy(policy)
 
+	node, err := clnt.cluster.GetRandomNode()
+	if err != nil {
+		return err
+	}
+
 	var strCmd bytes.Buffer
 	if len(set) > 0 {
 		strCmd.WriteString("truncate:namespace=")
@@ -1828,7 +1882,7 @@ func (clnt *Client) Truncate(policy *InfoPolicy, namespace, set string, beforeLa
 		strCmd.WriteString(strconv.FormatInt(beforeLastUpdate.UnixNano(), 10))
 	}
 
-	responseMap, err := clnt.sendInfoCommand(policy.Timeout, strCmd.String())
+	responseMap, err := clnt.sendInfoCommand(node, policy.Timeout, strCmd.String())
 	if err != nil {
 		return err
 	}
@@ -1886,9 +1940,11 @@ func (clnt *Client) CreatePKIUser(policy *AdminPolicy, user string, roles []stri
 	if err != nil {
 		return err
 	}
+
+	serverVersion := node.GetServerVersion()
 	// Check server version to ensure it supports PKI users.
-	if node.version.IsSmaller(serverMinVersion) {
-		return newCommonError(nil, fmt.Sprintf("Node version %s is less than required minimum version %s", node.version.String(), serverMinVersion))
+	if serverVersion.IsSmaller(serverMinVersion) {
+		return newCommonError(nil, fmt.Sprintf("Node version %s is less than required minimum version %s", serverVersion.String(), serverMinVersion))
 	}
 
 	node.usingTendConn(policy.Timeout, func(conn *Connection) {
@@ -2264,12 +2320,7 @@ func (clnt *Client) WarmUp(count int) (int, Error) {
 // Internal Methods
 //-------------------------------------------------------
 
-func (clnt *Client) sendInfoCommand(timeout time.Duration, command string) (map[string]string, Error) {
-	node, err := clnt.cluster.GetRandomNode()
-	if err != nil {
-		return nil, err
-	}
-
+func (clnt *Client) sendInfoCommand(node *Node, timeout time.Duration, command string) (map[string]string, Error) {
 	policy := InfoPolicy{Timeout: timeout}
 	return node.RequestInfo(&policy, command)
 }

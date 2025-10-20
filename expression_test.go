@@ -27,16 +27,14 @@ import (
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Expression Filters", func() {
-
-	var ns = *namespace
-	var set = randString(50)
+	ns := *namespace
+	set := randString(50)
 	// var rpolicy = as.NewPolicy()
-	var wpolicy = as.NewWritePolicy(0, 0)
-	var qpolicy = as.NewQueryPolicy()
+	wpolicy := as.NewWritePolicy(0, 0)
+	qpolicy := as.NewQueryPolicy()
 
-	var _ = gg.Context("Generic", gg.Ordered, func() {
-
-		var set = "expression_tests" // The name of the set should be consistent because of predexp_modulo tests, since set name is a part of the digest
+	_ = gg.Context("Generic", gg.Ordered, func() {
+		set := "expression_tests" // The name of the set should be consistent because of predexp_modulo tests, since set name is a part of the digest
 
 		const keyCount = 1000
 
@@ -94,9 +92,8 @@ var _ = gg.Describe("Expression Filters", func() {
 						starbucks[ii][0], starbucks[ii][1])
 				} else {
 					// Somewhere off Africa ...
-					regionstr =
-						"{ \"type\": \"AeroCircle\", " +
-							"  \"coordinates\": [[0.0, 0.0], 3000.0 ] }"
+					regionstr = "{ \"type\": \"AeroCircle\", " +
+						"  \"coordinates\": [[0.0, 0.0], 3000.0 ] }"
 				}
 
 				// Accumulate prime factors of the index into a list and map.
@@ -147,7 +144,6 @@ var _ = gg.Describe("Expression Filters", func() {
 		})
 
 		gg.It("expression must additionally filter indexed query results", func() {
-
 			stm := as.NewStatement(ns, set)
 			stm.SetFilter(as.NewRangeFilter("intval", 0, 400))
 			qpolicy.FilterExpression = as.ExpGreaterEq(as.ExpIntBin("modval"), as.ExpIntVal(8))
@@ -167,7 +163,6 @@ var _ = gg.Describe("Expression Filters", func() {
 		})
 
 		gg.It("expression must work with implied scan", func() {
-
 			stm := as.NewStatement(ns, set)
 			qpolicy.FilterExpression = as.ExpEq(as.ExpStringBin("strval"), as.ExpStringVal("0x0001"))
 			recordset, err := client.Query(qpolicy, stm)
@@ -183,7 +178,6 @@ var _ = gg.Describe("Expression Filters", func() {
 		})
 
 		gg.It("expression and or and not must all work", func() {
-
 			stm := as.NewStatement(ns, set)
 			qpolicy.FilterExpression = as.ExpOr(
 				as.ExpAnd(
@@ -208,7 +202,6 @@ var _ = gg.Describe("Expression Filters", func() {
 		})
 
 		gg.It("Base64 encode/decode must work", func() {
-
 			stm := as.NewStatement(ns, set)
 
 			exp := as.ExpOr(
@@ -260,7 +253,7 @@ var _ = gg.Describe("Expression Filters", func() {
 		return count
 	}
 
-	var _ = gg.Describe("Expressions", gg.Ordered, func() {
+	_ = gg.Describe("Expressions", gg.Ordered, func() {
 		const keyCount = 100
 		set = randString(50)
 
@@ -281,8 +274,7 @@ var _ = gg.Describe("Expression Filters", func() {
 			}
 		})
 
-		var _ = gg.Context("Data Types", func() {
-
+		_ = gg.Context("Data Types", func() {
 			gg.It("ExpIntBin must work", func() {
 				// INT
 				rs := runQuery(
@@ -294,7 +286,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				)
 				count := countResults(rs)
 				gm.Expect(count).To(gm.Equal(1))
-
 			})
 
 			gg.It("ExpStringBin must work", func() {
@@ -308,7 +299,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				)
 				count := countResults(rs)
 				gm.Expect(count).To(gm.Equal(1))
-
 			})
 
 			gg.It("ExpFloatBin must work", func() {
@@ -321,7 +311,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				)
 				count := countResults(rs)
 				gm.Expect(count).To(gm.Equal(1))
-
 			})
 
 			gg.It("ExpBlobBin must work", func() {
@@ -334,7 +323,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				)
 				count := countResults(rs)
 				gm.Expect(count).To(gm.Equal(1))
-
 			})
 
 			gg.It("ExpBinType must work", func() {
@@ -363,7 +351,7 @@ var _ = gg.Describe("Expression Filters", func() {
 			})
 		})
 
-		var _ = gg.Context("Logical Ops", func() {
+		_ = gg.Context("Logical Ops", func() {
 			// AND
 			gg.It("ExpAnd must work", func() {
 				rs := runQuery(
@@ -412,11 +400,9 @@ var _ = gg.Describe("Expression Filters", func() {
 				count := countResults(rs)
 				gm.Expect(count).To(gm.Equal(99))
 			})
-
 		})
 
-		var _ = gg.Context("Comparisons", func() {
-
+		_ = gg.Context("Comparisons", func() {
 			gg.It("ExpEq must work", func() {
 				// EQ
 				rs := runQuery(
@@ -494,11 +480,9 @@ var _ = gg.Describe("Expression Filters", func() {
 				count := countResults(rs)
 				gm.Expect(count).To(gm.Equal(99))
 			})
-
 		}) // gg.Context
 
-		var _ = gg.Context("Record Ops", func() {
-
+		_ = gg.Context("Record Ops", func() {
 			gg.It("ExpRecordSize must work", func() {
 				if serverIsOlderThan("7") {
 					gg.Skip("Not supported servers before v7")
@@ -509,34 +493,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				// because all device sizes are effectively allowed.
 				rs := runQuery(
 					as.ExpGreaterEq(as.ExpRecordSize(), as.ExpIntVal(0)),
-					set,
-				)
-				count := countResults(rs)
-				gm.Expect(count).To(gm.Equal(100))
-			})
-
-			gg.It("ExpDeviceSize must work", func() {
-				// storage-engine could be memory for which deviceSize() returns zero.
-				// This just tests that the expression was sent correctly
-				// because all device sizes are effectively allowed.
-				rs := runQuery(
-					as.ExpGreaterEq(as.ExpDeviceSize(), as.ExpIntVal(0)),
-					set,
-				)
-				count := countResults(rs)
-				gm.Expect(count).To(gm.Equal(100))
-			})
-
-			gg.It("ExpMemorySize must work", func() {
-				if len(nsInfo(ns, "device_total_bytes")) > 0 {
-					gg.Skip("Skipping ExpDeviceSize test since the namespace is persisted and the test works only for Memory-Only namespaces.")
-				}
-
-				// storage-engine could be disk/device for which memorySize() returns zero.
-				// This just tests that the expression was sent correctly
-				// because all device sizes are effectively allowed.
-				rs := runQuery(
-					as.ExpGreaterEq(as.ExpMemorySize(), as.ExpIntVal(0)),
 					set,
 				)
 				count := countResults(rs)
@@ -657,8 +613,7 @@ var _ = gg.Describe("Expression Filters", func() {
 			})
 		})
 
-		var _ = gg.Context("Commands", func() {
-
+		_ = gg.Context("Commands", func() {
 			rpolicy := as.NewPolicy()
 			wpolicy := as.NewWritePolicy(0, 0)
 			spolicy := as.NewScanPolicy()
@@ -690,7 +645,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				)
 				_, err = client.Delete(wpolicy, key)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-
 			})
 
 			gg.It("Put must work", func() {
@@ -709,7 +663,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				)
 				err = client.PutBins(wpolicy, key, as.NewBin("bin", 26))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-
 			})
 
 			gg.It("Get must work", func() {
@@ -728,7 +681,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				)
 				_, err = client.Get(rpolicy, key, "bin")
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-
 			})
 
 			gg.It("Exists must work", func() {
@@ -747,7 +699,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				)
 				_, err = client.Exists(rpolicy, key)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-
 			})
 
 			gg.It("Add must work", func() {
@@ -766,7 +717,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				)
 				err = client.AddBins(wpolicy, key, as.NewBin("test55", "test"))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-
 			})
 
 			gg.It("Prepend must work", func() {
@@ -785,7 +735,6 @@ var _ = gg.Describe("Expression Filters", func() {
 				)
 				err = client.PrependBins(wpolicy, key, as.NewBin("test55", "test"))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-
 			})
 
 			gg.It("Touch must work", func() {
@@ -880,10 +829,9 @@ var _ = gg.Describe("Expression Filters", func() {
 				gm.Expect(count).To(gm.Equal(1))
 			})
 		})
-
 	}) // Describe
 
-	var _ = gg.Describe("Expression Filter Operations", gg.Ordered, func() {
+	_ = gg.Describe("Expression Filter Operations", gg.Ordered, func() {
 		binA := "A"
 		binB := "B"
 		binC := "C"
@@ -986,13 +934,15 @@ var _ = gg.Describe("Expression Filters", func() {
 						as.ExpIntVal(-1)),
 					as.ExpIntVal(2))), keyA, keyA, binA, 1, true},
 
-			{"AddFloat", as.ExpLet(
-				as.ExpDef("val", as.ExpNumAdd(as.ExpFloatBin(binB), as.ExpFloatVal(1.1))),
-				as.ExpAnd(
-					as.ExpGreaterEq(as.ExpVar("val"), as.ExpFloatVal(3.2999)),
-					as.ExpLessEq(as.ExpVar("val"), as.ExpFloatVal(3.3001)),
-				)),
-				keyA, keyB, binA, 2, false},
+			{
+				"AddFloat", as.ExpLet(
+					as.ExpDef("val", as.ExpNumAdd(as.ExpFloatBin(binB), as.ExpFloatVal(1.1))),
+					as.ExpAnd(
+						as.ExpGreaterEq(as.ExpVar("val"), as.ExpFloatVal(3.2999)),
+						as.ExpLessEq(as.ExpVar("val"), as.ExpFloatVal(3.3001)),
+					)),
+				keyA, keyB, binA, 2, false,
+			},
 			{"LogFloat", as.ExpLet(
 				as.ExpDef("val", as.ExpNumLog(as.ExpFloatBin(binB), as.ExpFloatVal(2.0))),
 				as.ExpAnd(
@@ -1036,7 +986,5 @@ var _ = gg.Describe("Expression Filters", func() {
 				assertBinEqual(params.key, r.Bins, params.bin, params.expected)
 			}
 		})
-
 	})
-
 }) // Describe

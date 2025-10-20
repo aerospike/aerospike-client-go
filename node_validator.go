@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/logger"
@@ -49,8 +48,8 @@ type nodeValidator struct {
 
 	sessionInfo *sessionInfo
 
-	features int
-	version  version.Version
+	features      int
+	serverVersion version.Version
 }
 
 func (ndv *nodeValidator) seedNodes(cluster *Cluster, host *Host, nodesToAdd nodesToAddT) Error {
@@ -178,7 +177,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 
 	hasClusterName := len(clientPolicy.ClusterName) > 0
 
-	infoKeys := []string{"node", "partition-generation", "build", "features"}
+	infoKeys := []string{"node", "partition-generation", "build"}
 	if hasClusterName {
 		infoKeys = append(infoKeys, "cluster-name")
 	}
@@ -220,18 +219,6 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 		}
 	}
 
-	// set features
-	if features, exists := infoMap["features"]; exists {
-		ndv.setFeatures(features)
-	}
-
-	// This client requires partition scan support. Partition scans were first
-	// supported in server version 4.9. Do not allow any server node into the
-	// cluster that is running server version < 4.9.
-	if (ndv.features & _SUPPORTS_PARTITION_SCAN) == 0 {
-		return newError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is version < 4.9. This client supports server versions >= 4.9", nodeName, alias.String()))
-	}
-
 	// check if the serverVersion, aka server version, is a valid semantic version.
 	// If build does not exist we assume the server is not using semantic versioning.
 	// This is done for backward compatibility with older servers
@@ -239,8 +226,12 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 		if version, err := version.Parse(serverVersionString); err != nil {
 			return newCommonError(err, fmt.Sprintf("Node %s %s version is invalid: %s", nodeName, alias.String(), serverVersionString))
 		} else {
-			ndv.version = *version
+			ndv.serverVersion = *version
 		}
+	}
+
+	if featError := ndv.setFeatures(alias); featError != nil {
+		return featError
 	}
 
 	// check if the host is a load-balancer
@@ -313,18 +304,24 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 	return nil
 }
 
-func (ndv *nodeValidator) setFeatures(features string) {
-	featureList := strings.Split(features, ";")
-	for i := range featureList {
-		switch featureList[i] {
-		case "pscans":
-			ndv.features |= _SUPPORTS_PARTITION_SCAN
-		case "query-show":
-			ndv.features |= _SUPPORTS_QUERY_SHOW
-		case "batch-any":
-			ndv.features |= _SUPPORTS_BATCH_ANY
-		case "pquery":
-			ndv.features |= _SUPPORTS_PARTITION_QUERY
+func (ndv *nodeValidator) setFeatures(alias *Host) Error {
+	if ndv.serverVersion.IsGreaterOrEqual(version.ServerVersionPScan) {
+		ndv.features |= _SUPPORTS_PARTITION_SCAN
+	} else {
+		// This client requires partition scan support. Partition scans were first
+		// supported in server version 4.9. Do not allow any server node into the
+		// cluster that is running server version < 4.9.
+		if (ndv.features & _SUPPORTS_PARTITION_SCAN) == 0 {
+			return newError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is version < 4.9. This client supports server versions >= 4.9", ndv.name, alias.String()))
 		}
 	}
+	if ndv.serverVersion.IsGreaterOrEqual(version.ServerVersionQueryShow) {
+		ndv.features |= _SUPPORTS_QUERY_SHOW
+	}
+	if ndv.serverVersion.IsGreaterOrEqual(version.ServerVersionPQueryBatchAny) {
+		ndv.features |= _SUPPORTS_BATCH_ANY
+		ndv.features |= _SUPPORTS_PARTITION_QUERY
+	}
+
+	return nil
 }
