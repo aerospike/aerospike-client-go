@@ -85,7 +85,7 @@ func (m *Map[K, V]) Clone() map[K]V {
 	m.mutex.RLock()
 	res := make(map[K]V, len(m.m))
 
-	maps.Copy(m.m, res)
+	maps.Copy(res, m.m)
 
 	m.mutex.RUnlock()
 

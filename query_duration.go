@@ -53,6 +53,20 @@ const (
 	LONG_RELAX_AP
 )
 
+// String returns the string representation of QueryDuration
+func (qd QueryDuration) String() string {
+	switch qd {
+	case LONG:
+		return "LONG"
+	case SHORT:
+		return "SHORT"
+	case LONG_RELAX_AP:
+		return "LONG_RELAX_AP"
+	default:
+		return fmt.Sprintf("Unknown QueryDuration(%d)", int(qd))
+	}
+}
+
 func mapQueryDuration(expectedDuration dynconfig.QueryDuration) QueryDuration {
 	switch expectedDuration {
 	case dynconfig.SHORT:

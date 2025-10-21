@@ -66,9 +66,8 @@ func (yc *YamlConfigProvider) containsVersion(data []byte) bool {
 	if matches == nil {
 		logger.Logger.Warn("`version` is missing in provided configuration")
 		return false
-	} else {
-		return true
 	}
+	return true
 }
 
 // LoadConfig loads the configuration from a YAML file specified by the DSN.
@@ -101,9 +100,8 @@ func (yc *YamlConfigProvider) LoadConfig(filePath string) *dynconfig.Config {
 			logger.Logger.Warn("Failed to serialize file %s to object. Error: %s",
 				filePath, strings.ReplaceAll(err.Error(), "\n", " "))
 			return nil
-		} else {
-			return &config
 		}
+		return &config
 	}
 
 	return nil

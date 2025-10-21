@@ -86,6 +86,7 @@ var errorRateWindow = flag.Int("errorRateWindow", 1, "Error Rate Window for the 
 var openingConnectionThreshold = flag.Int("openingConnectionThreshold", 64, "Maximum number of connections allowed to open simultaneously.")
 var warmUp = flag.Int("warmUp", 128, "Number of connections to open on start up.")
 var useCompression = flag.Bool("compress", false, "Use compression to send and receive data from the server.")
+var useServicesAlternate = flag.Bool("sa", false, "Use alternate service addresses.")
 var minConnsPerNode = flag.Int("minConnsPerNode", 0, "Minimum connections to maintain to each node.")
 
 var randBinData = flag.Bool("R", false, "Use dynamically generated random bin values instead of default static fixed bin values.")
@@ -166,15 +167,18 @@ func main() {
 	clientPolicy.Timeout = 10 * time.Second
 	clientPolicy.OpeningConnectionThreshold = *openingConnectionThreshold
 	clientPolicy.MinConnectionsPerNode = *minConnsPerNode
+	clientPolicy.UseServicesAlternate = *useServicesAlternate
 	clientPolicy.TlsConfig = initAerospikeTLS()
+	var client *as.Client
 	dbHost := as.NewHost(*host, *port)
-	dbHost.TLSName = *tlsName
+	if *tlsName != "" {
+		dbHost.TLSName = *tlsName
+	}
 
 	client, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
 	if err != nil {
 		logger.Fatal(err)
 	}
-
 	cc, _ := client.WarmUp(*warmUp)
 	logger.Printf("Warm-up conns.:\t%d", cc)
 	logger.Println("Nodes Found:", client.GetNodeNames())
@@ -244,6 +248,7 @@ func printBenchmarkParams() {
 	logger.Printf("auth mode:\t%s", *authMode)
 	logger.Printf("user:\t\t%s", *user)
 	logger.Printf("password:\t\t%s", *password)
+	logger.Printf("services alternate:\t%v", *useServicesAlternate)
 }
 
 // parses an string of (key:value) type
@@ -513,12 +518,12 @@ func runBench_I(client *as.Client, ident int, times int) {
 			time.Sleep(time.Second - time.Duration(time.Now().UnixNano()-atomic.LoadInt64(&lastReport)))
 		}
 	}
+
 	countReportChan <- &TStats{false, WCount, 0, writeErr, 0, writeTOErr, 0, wMinLat, wMaxLat, 0, 0, wLatTotal, 0, wLatList, nil}
 }
 
 func runBench_RU(client *as.Client, ident int, times int) {
 	defer wg.Done()
-
 	xr := NewXorRand()
 
 	// var r *as.Record

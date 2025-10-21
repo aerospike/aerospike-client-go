@@ -46,18 +46,20 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 				dc = &DynConfig{
 					configProvider:    fakeProvider,
 					configInitialized: &atomic.Bool{},
+					logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 					config:            &dynconfig.Config{},
 				}
 				dc.client = &Client{
 					dynConfig: dc,
 				}
+				dc.client.dynDefaultClientPolicy = &atomic.Pointer[ClientPolicy]{}
 				dc.initConfig()
 				dc.updateCachedPolicies()
 			})
 
 			gg.It("should update dc.config.Dynamic with Defaults", func() {
 				defaultDynamic := dc.client.dynDefaultPolicy.Load()
-				gm.Expect(dc.client.dynDefaultClientPolicy.Load()).ToNot(gm.BeNil())
+				gm.Expect((*dc.client.dynDefaultClientPolicy).Load()).ToNot(gm.BeNil())
 				gm.Expect(defaultDynamic).ToNot(gm.BeNil())
 
 				// Making sure config has not been updated if LoadConfig() invoked from configProvider is nil.
@@ -101,15 +103,16 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 				dc = &DynConfig{
 					configProvider:    fakeProvider,
 					configInitialized: &atomic.Bool{},
+					logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 					dsn:               dsn,
 					config: &dynconfig.Config{
 						Dynamic: oldDyn,
 					},
 				}
-
 				dc.client = &Client{
 					dynConfig: dc,
 				}
+				dc.client.dynDefaultClientPolicy = &atomic.Pointer[ClientPolicy]{}
 				dc.client.dynDefaultPolicy.Store(&BasePolicy{TotalTimeout: 1 * time.Second})
 
 				// Call initConfig to update dc.config and rehydrate dynamic cache.
@@ -151,6 +154,7 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 				dc = &DynConfig{
 					configProvider:    fakeProvider,
 					configInitialized: &atomic.Bool{},
+					logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 					dsn:               dsn,
 					config: &dynconfig.Config{
 						Dynamic: prevDyn,
@@ -201,8 +205,8 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 				dc = &DynConfig{
 					configProvider:    fakeProvider,
 					configInitialized: &atomic.Bool{},
+					logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 					dsn:               dsn,
-					// Start with an old dynamic configuration.
 					config: &dynconfig.Config{
 						Dynamic: &dynconfig.DynamicConfig{
 							Read: &dynconfig.Read{
@@ -214,10 +218,12 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 						},
 					},
 				}
+				// Start with an old dynamic configuration.
 
 				dc.client = &Client{
 					dynConfig: dc,
 				}
+				dc.client.dynDefaultClientPolicy = &atomic.Pointer[ClientPolicy]{}
 				dc.client.dynDefaultPolicy.Store(&BasePolicy{TotalTimeout: 1 * time.Second})
 
 				dc.providerLoadConfig()

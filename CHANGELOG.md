@@ -1,5 +1,20 @@
 # Change History
 
+## October 20 2025: v8.4.0
+**Improvements**
+- [CLIENT-3435] Update Go client to support FIPS.
+
+**Fixes**
+- [CLIENT-3821] Fixed issue where `Network Error from EOF` could occur after server migrations.
+- [CLIENT-3810] Fixed issue where nil pointer panic occurs on errToAerospikeErr.
+- [CLIENT-3796] Fixed issue where background queries for all records applied only partially.
+- [CLIENT-3744] Added server version check before sending the user-agent-set command.
+- [CLIENT-2418] Skipped orphan seeds without peers when other seeds have peers.
+- [CLIENT-3120] Replaced existing cluster node when a new peer shares the same node name but a different IP address.
+- [CLIENT-3546] Resolved inconsistencies between clients when reflecting configuration changes.
+- [CLIENT-3023] Fixed inability to repeat background queries using the same statement.
+- [CLIENT-3021] Ensured Statement.BinNames is empty for QueryExecute operations.
+
 ## August 29 2025: v8.3.0
 
 - **Improvements**
