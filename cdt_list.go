@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/v8/types"
+
 // List operations support negative indexing. If the index is negative, the
 // resolved index starts backwards from end of list. If an index is out of bounds,
 // a parameter error will be returned. If a range is partially out of bounds, the
@@ -294,10 +296,19 @@ func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext
 			}
 			size += n
 
-			if n, err = c.Value.pack(packer); err != nil {
-				return size + n, err
+			if c.Value != nil {
+				if n, err = c.Value.pack(packer); err != nil {
+					return size + n, err
+				}
+				size += n
+			} else if c.Expression != nil {
+				if n, err = c.Expression.pack(packer); err != nil {
+					return size + n, err
+				}
+				size += n
+			} else {
+				return size, newError(types.PARAMETER_ERROR, "CDTContext must have either a Value or an Expression")
 			}
-			size += n
 		}
 
 		if n, err = packArrayBegin(packer, len(params)+1); err != nil {
@@ -369,11 +380,19 @@ func packCDTCreate(packer BufferEx, opType int16, ctx []*CDTContext, flag int, p
 			return size + n, err
 		}
 		size += n
-
-		if n, err = c.Value.pack(packer); err != nil {
-			return size + n, err
+		if c.Value != nil {
+			if n, err = c.Value.pack(packer); err != nil {
+				return size + n, err
+			}
+			size += n
+		} else if c.Expression != nil{
+			if n, err = c.Expression.pack(packer); err != nil {
+				return size + n, err
+			}
+			size += n
+		} else {
+			return size, newError(types.PARAMETER_ERROR, "CDTContext must have either a Value or an Expression")
 		}
-		size += n
 	}
 
 	c = ctx[last]

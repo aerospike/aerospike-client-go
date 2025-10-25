@@ -23,13 +23,14 @@ import (
 )
 
 const (
-	ctxTypeListIndex = 0x10
-	ctxTypeListRank  = 0x11
-	ctxTypeListValue = 0x13
-	ctxTypeMapIndex  = 0x20
-	ctxTypeMapRank   = 0x21
-	ctxTypeMapKey    = 0x22
-	ctxTypeMapValue  = 0x23
+	ctxTypeExpression = 0x04 // Expression-based context
+	ctxTypeListIndex  = 0x10
+	ctxTypeListRank   = 0x11
+	ctxTypeListValue  = 0x13
+	ctxTypeMapIndex   = 0x20
+	ctxTypeMapRank    = 0x21
+	ctxTypeMapKey     = 0x22
+	ctxTypeMapValue   = 0x23
 )
 
 // CDTContext defines Nested CDT context. Identifies the location of nested list/map to apply the operation.
@@ -37,8 +38,9 @@ const (
 // An array of CTX identifies location of the list/map on multiple
 // levels on nesting.
 type CDTContext struct {
-	Id    int
-	Value Value
+	Id         int
+	Value      Value
+	Expression *Expression
 }
 
 // CDTContextToBase64 converts a []*CDTContext into a base64 encoded string.
@@ -78,7 +80,12 @@ func Base64ToCDTContext(b64 string) ([]*CDTContext, Error) {
 
 	res := make([]*CDTContext, 0, len(list)/2)
 	for i := 0; i < len(list); i += 2 {
-		res = append(res, &CDTContext{Id: list[i].(int), Value: NewValue(list[i+1])})
+		id := list[i].(int)
+		if id == ctxTypeExpression {
+			res = append(res, &CDTContext{Id: id, Expression: NewExpression(list[i+1])})
+		} else {
+			res = append(res, &CDTContext{Id: id, Value: NewValue(list[i+1])})
+		}
 	}
 
 	return res, nil
@@ -97,8 +104,30 @@ func (ctx *CDTContext) pack(cmd BufferEx) (int, Error) {
 		return size, err
 	}
 
-	sz, err = ctx.Value.pack(cmd)
-	size += sz
+	// For expression-based contexts, pack the expression bytes
+	if ctx.Expression != nil {
+		// Get the expression bytes
+		expSize, err := ctx.Expression.size()
+		if err != nil {
+			return size, err
+		}
+		expBuf := newBuffer(expSize)
+		_, err = ctx.Expression.pack(expBuf)
+		if err != nil {
+			return size, err
+		}
+		expBytes := expBuf.Bytes()
+
+		sz, err = packBytes(cmd, expBytes)
+		size += sz
+		return size, err
+	}
+
+	// For value-based contexts, pack the value
+	if ctx.Value != nil {
+		sz, err = ctx.Value.pack(cmd)
+		size += sz
+	}
 
 	return size, err
 }
@@ -146,12 +175,12 @@ func (ctxl cdtContextList) packArray(cmd BufferEx) (int, Error) {
 // -1: Last item.
 // -3: Third to last item.
 func CtxListIndex(index int) *CDTContext {
-	return &CDTContext{ctxTypeListIndex, IntegerValue(index)}
+	return &CDTContext{ctxTypeListIndex, IntegerValue(index), nil}
 }
 
 // CtxListIndexCreate list with given type at index offset, given an order and pad.
 func CtxListIndexCreate(index int, order ListOrderType, pad bool) *CDTContext {
-	return &CDTContext{ctxTypeListIndex | cdtListOrderFlag(order, pad), IntegerValue(index)}
+	return &CDTContext{ctxTypeListIndex | cdtListOrderFlag(order, pad), IntegerValue(index), nil}
 }
 
 // CtxListRank defines Lookup list by rank.
@@ -159,12 +188,12 @@ func CtxListIndexCreate(index int, order ListOrderType, pad bool) *CDTContext {
 // N = Nth smallest value
 // -1 = largest value
 func CtxListRank(rank int) *CDTContext {
-	return &CDTContext{ctxTypeListRank, IntegerValue(rank)}
+	return &CDTContext{ctxTypeListRank, IntegerValue(rank), nil}
 }
 
 // CtxListValue defines Lookup list by value.
 func CtxListValue(key Value) *CDTContext {
-	return &CDTContext{ctxTypeListValue, key}
+	return &CDTContext{ctxTypeListValue, key, nil}
 }
 
 // CtxMapIndex defines Lookup map by index offset.
@@ -176,7 +205,7 @@ func CtxListValue(key Value) *CDTContext {
 // -1: Last item.
 // -3: Third to last item.
 func CtxMapIndex(index int) *CDTContext {
-	return &CDTContext{ctxTypeMapIndex, IntegerValue(index)}
+	return &CDTContext{ctxTypeMapIndex, IntegerValue(index), nil}
 }
 
 // CtxMapRank defines Lookup map by rank.
@@ -184,20 +213,66 @@ func CtxMapIndex(index int) *CDTContext {
 // N = Nth smallest value
 // -1 = largest value
 func CtxMapRank(rank int) *CDTContext {
-	return &CDTContext{ctxTypeMapRank, IntegerValue(rank)}
+	return &CDTContext{ctxTypeMapRank, IntegerValue(rank), nil}
 }
 
 // CtxMapKey defines Lookup map by key.
 func CtxMapKey(key Value) *CDTContext {
-	return &CDTContext{ctxTypeMapKey, key}
+	return &CDTContext{ctxTypeMapKey, key, nil}
 }
 
 // CtxMapKeyCreate creates map with given type at map key.
 func CtxMapKeyCreate(key Value, order mapOrderType) *CDTContext {
-	return &CDTContext{ctxTypeMapKey | order.flag, key}
+	return &CDTContext{ctxTypeMapKey | order.flag, key, nil}
 }
 
 // CtxMapValue defines Lookup map by value.
 func CtxMapValue(value Value) *CDTContext {
-	return &CDTContext{ctxTypeMapValue, value}
+	return &CDTContext{ctxTypeMapValue, value, nil}
+}
+
+// CtxAllChildren creates a context that selects all children in a collection.
+// This is useful for applying operations to all elements in a list or map.
+// Equivalent to CTX.allChildren() in Java client.
+//
+// Example:
+//
+//	ctx := []*CDTContext{
+//	    CtxMapKey(StringValue("books")),
+//	    CtxAllChildren(), // Select all books
+//	}
+func CtxAllChildren() *CDTContext {
+	// Create an expression that always evaluates to true
+	expression := ExpBoolVal(true)
+	return &CDTContext{
+		Id:         ctxTypeExpression,
+		Value:      nil,
+		Expression: expression,
+	}
+}
+
+// CtxAllChildrenWithFilter creates a context that selects all children in a collection
+// that match the given filter expression.
+// Equivalent to CTX.allChildrenWithFilter() in Java client.
+//
+// Parameters:
+//   - exp: Filter expression to apply to each child element
+//
+// Example:
+//
+//	// Select all books with price <= 10.0
+//	filterExp := ExpLessEq(
+//	    ExpMapBin("price"),
+//	    ExpFloatVal(10.0),
+//	)
+//	ctx := []*CDTContext{
+//	    CtxMapKey(StringValue("books")),
+//	    CtxAllChildrenWithFilter(filterExp),
+//	}
+func CtxAllChildrenWithFilter(exp *Expression) *CDTContext {
+	return &CDTContext{
+		Id:         ctxTypeExpression,
+		Value:      nil,
+		Expression: exp,
+	}
 }

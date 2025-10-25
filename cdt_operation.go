@@ -15,13 +15,23 @@
 
 package aerospike
 
-import (
-	"github.com/aerospike/aerospike-client-go/v8/types"
+import "github.com/aerospike/aerospike-client-go/v8/types"
+
+var (
+	selectVal = int(0xfe)
+	modifyVal = int(0xff)
+
+	cdtOperationTypeSELECT = operationSubType(&selectVal)
+	cdtOperationTypeMODIFY = operationSubType(&modifyVal)
 )
 
+type SelectFlag int
+
 const (
-	cdtOperationTypeSELECT = 0xfe
-	cdtOperationTypeMODIFY = 0xff
+	MatchingTree SelectFlag = 0
+	Entries      SelectFlag = 1
+	MapKeys      SelectFlag = 2
+	SelectNoFail SelectFlag = 0x10
 )
 
 // CDTSelectByPath creates CDT select operation with context.
@@ -33,16 +43,18 @@ const (
 //   - ctx: optional path to nested CDT. If not defined, the top-level CDT is used.
 //
 // Returns nil if ctx is nil.
-func CDTSelectByPath(binName string, flags int, ctx ...*CDTContext) *Operation {
+func CDTSelectByPath(binName string, flag SelectFlag, ctx ...*CDTContext) *Operation {
 	if ctx == nil {
 		return nil
 	}
 
 	return &Operation{
-		opType: _CDT_READ,
-		ctx: ctx,
-		binName: binName,
-		encoder: packCDTSelect,
+		opType:    _CDT_READ,
+		ctx:       ctx,
+		binName:   binName,
+		opSubType: cdtOperationTypeSELECT,
+		binValue:  IntegerValue(flag),
+		encoder:   newCDTCreateSelectEncoder,
 	}
 }
 
@@ -56,238 +68,150 @@ func CDTSelectByPath(binName string, flags int, ctx ...*CDTContext) *Operation {
 //   - ctx: optional path to nested CDT. If not defined, the top-level CDT is used.
 //
 // Returns nil if ctx is nil.
-func CDTModifyByPath(binName string, flags int, modifyExp *Expression, ctx ...*CDTContext) *Operation {
+func CDTModifyByPath(binName string, flag SelectFlag, modifyExp *Expression, ctx ...*CDTContext) *Operation {
 	if ctx == nil {
 		return nil
 	}
 
 	return &Operation{
-		opType:   _CDT_MODIFY,
-		ctx: ctx,
-		binName:  binName,
-		encoder: packCDTApply,
+		opType:    _CDT_MODIFY,
+		ctx:       ctx,
+		binName:   binName,
+		opSubType: cdtOperationTypeMODIFY,
+		binValue:  ListValue([]interface{}{flag, modifyExp}),
+		encoder:   newCDTCreateModifyEncoder,
 	}
 }
 
-// packCDTSelectBuffer packs a CDT select operation into the provided buffer.
-// If packer is nil, only calculates and returns the size and expression bytes.
-// If packer is not nil, ctxExpBytes must be provided from a previous call with nil packer.
-func packCDTSelectBuffer(packer BufferEx, flags int, opType int, ctxExpBytes [][]byte, ctx ...*CDTContext) (int, [][]byte, Error) {
+func newCDTCreateSelectEncoder(op *Operation, packer BufferEx) (int, Error) {
+	return packIfCDTSelect(packer, *op.opSubType, op.ctx, op.binValue.(IntegerValue))
+}
+
+func newCDTCreateModifyEncoder(op *Operation, packer BufferEx) (int, Error) {
+	return packIfCDTModify(packer, *op.opSubType, op.ctx, op.binValue.(ListValue))
+}
+
+func packIfCDTModify(packer BufferEx, opType int, ctx []*CDTContext, params ListValue) (int, Error) {
+	// Initialize size tracking
 	size := 0
+	n := 0
 	var err Error
-	var n int
 
-	// Pack array begin with 3 elements
-	n, err = packArrayBegin(packer, 3)
-	if err != nil {
-		return size + n, nil, err
+	// Pack the outer array with 4 elements: [opType, context_array, params_array, <reserved>]
+	if n, err = packArrayBegin(packer, 4); err != nil {
+		return size + n, err
 	}
 	size += n
 
-	// Pack operation type
-	n, err = packAInt(packer, opType)
-	if err != nil {
-		return size + n, nil, err
+	// Pack the operation type as the first element
+	if n, err = packAInt(packer, opType); err != nil {
+		return size + n, err
 	}
 	size += n
 
-	// Pack context array (length * 2 because each context has id and value)
-	n, err = packArrayBegin(packer, len(ctx)*2)
-	if err != nil {
-		return size + n, nil, err
+	if n, err = packArrayBegin(packer, len(ctx)*2); err != nil {
+		return size + n, err
 	}
 	size += n
 
-	// Pre-pack expression bytes if needed (only once, when packer is nil)
-	if packer == nil {
-		ctxExpBytes = make([][]byte, len(ctx))
-	}
-
-	// Pack each context
-	for i, c := range ctx {
-		n, err = packAInt(packer, c.Id)
-		if err != nil {
-			return size + n, ctxExpBytes, err
+	for _, c := range ctx {
+		// Pack the context id
+		if n, err = packAInt64(packer, int64(c.Id)); err != nil {
+			return size + n, err
 		}
 		size += n
 
-		// Pack expression if present, otherwise pack value
-		if c.Expression != nil {
-			// Get expression bytes (cache them on first pass when packer is nil)
-			if packer == nil {
-				expSize, err := c.Expression.size()
-				if err != nil {
-					return size, ctxExpBytes, err
-				}
-				expBuf := newBuffer(expSize)
-				_, err = c.Expression.pack(expBuf)
-				if err != nil {
-					return size, ctxExpBytes, err
-				}
-				ctxExpBytes[i] = expBuf.Bytes()
-			}
-
-			n, err = packBytes(packer, ctxExpBytes[i])
-			if err != nil {
-				return size + n, ctxExpBytes, err
+		// Pack the context value or expression
+		// Each CDTContext must have either a Value (literal) or an Expression (computed)
+		if c.Value != nil {
+			if n, err = c.Value.pack(packer); err != nil {
+				return size + n, err
 			}
 			size += n
-		} else if c.Value != nil {
-			n, err = c.Value.pack(packer)
-			if err != nil {
-				return size + n, ctxExpBytes, err
+		} else if c.Expression != nil {
+			if n, err = c.Expression.pack(packer); err != nil {
+				return size + n, err
 			}
 			size += n
 		} else {
-			return size, ctxExpBytes, newError(types.PARAMETER_ERROR, "CDTContext must have either a Value or an Expression")
+			// Error: context must have either a Value or Expression defined
+			return size, newError(types.PARAMETER_ERROR, "CDTContext must have either a Value or an Expression")
 		}
 	}
 
-	// Pack flags
-	n, err = packAInt(packer, flags)
-	if err != nil {
-		return size + n, ctxExpBytes, err
+	// Pack the parameters array as the third element
+	// Array size is len(params)+1 to reserve space for additional protocol data
+	if n, err = packArrayBegin(packer, len(params)+1); err != nil {
+		return size + n, err
 	}
 	size += n
 
-	return size, ctxExpBytes, nil
-}
-
-// packCDTSelect packs a CDT select operation.
-func packCDTSelect(flags int, opType int, ctx ...*CDTContext) ([]byte, Error) {
-	// First pass: calculate size and pre-pack expressions
-	size, ctxExpBytes, err := packCDTSelectBuffer(nil, flags, opType, nil, ctx...)
-	if err != nil {
-		return nil, err
+	// Pack each parameter object from the params list
+	if len(params) > 0 {
+		for i := range params {
+			if n, err = packObject(packer, params[i], false); err != nil {
+				return size + n, err
+			}
+			size += n
+		}
 	}
 
-	// Second pass: allocate buffer and pack
-	packer := newBuffer(size)
-	_, _, err = packCDTSelectBuffer(packer, flags, opType, ctxExpBytes, ctx...)
-	if err != nil {
-		return nil, err
-	}
-
-	return packer.Bytes(), nil
+	return size, nil
 }
 
-// packCDTApplyBuffer packs a CDT apply operation into the provided buffer.
-// If packer is nil, only calculates and returns the size and expression bytes.
-// If packer is not nil, ctxExpBytes must be provided from a previous call with nil packer.
-func packCDTApplyBuffer(packer BufferEx, flags int, opType int, modifyExpBytes []byte, ctxExpBytes [][]byte, ctx ...*CDTContext) (int, [][]byte, Error) {
+func packIfCDTSelect(packer BufferEx, opType int, ctx []*CDTContext, flag IntegerValue) (int, Error) {
+	// Initialize size tracking
 	size := 0
+	n := 0
 	var err Error
-	var n int
 
-	// Pack array begin with 4 elements
-	n, err = packArrayBegin(packer, 4)
-	if err != nil {
-		return size + n, nil, err
+	// Pack the outer array with 3 elements: [opType, context_array, flag]
+	if n, err = packArrayBegin(packer, 3); err != nil {
+		return size + n, err
 	}
 	size += n
 
-	// Pack operation type
-	n, err = packAInt(packer, opType)
-	if err != nil {
-		return size + n, nil, err
+	// Pack the operation type as the first element
+	if n, err = packAInt(packer, opType); err != nil {
+		return size + n, err
 	}
 	size += n
 
-	// Pack context array (length * 2 because each context has id and value)
-	n, err = packArrayBegin(packer, len(ctx)*2)
-	if err != nil {
-		return size + n, nil, err
+	if n, err = packArrayBegin(packer, len(ctx)*2); err != nil {
+		return size + n, err
 	}
 	size += n
 
-	// Pre-pack expression bytes if needed (only once, when packer is nil)
-	if packer == nil {
-		ctxExpBytes = make([][]byte, len(ctx))
-	}
-
-	// Pack each context
-	for i, c := range ctx {
-		n, err = packAInt(packer, c.Id)
-		if err != nil {
-			return size + n, ctxExpBytes, err
+	for _, c := range ctx {
+		// Pack the context id
+		if n, err = packAInt64(packer, int64(c.Id)); err != nil {
+			return size + n, err
 		}
 		size += n
 
-		// Pack expression if present, otherwise pack value
-		if c.Expression != nil {
-			// Get expression bytes (cache them on first pass when packer is nil)
-			if packer == nil {
-				ctxExpSize, err := c.Expression.size()
-				if err != nil {
-					return size, ctxExpBytes, err
-				}
-				ctxExpBuf := newBuffer(ctxExpSize)
-				_, err = c.Expression.pack(ctxExpBuf)
-				if err != nil {
-					return size, ctxExpBytes, err
-				}
-				ctxExpBytes[i] = ctxExpBuf.Bytes()
-			}
-
-			n, err = packBytes(packer, ctxExpBytes[i])
-			if err != nil {
-				return size + n, ctxExpBytes, err
+		// Pack the context value or expression
+		// Each CDTContext must have either a Value (literal) or an Expression (computed)
+		if c.Value != nil {
+			if n, err = c.Value.pack(packer); err != nil {
+				return size + n, err
 			}
 			size += n
-		} else if c.Value != nil {
-			n, err = c.Value.pack(packer)
-			if err != nil {
-				return size + n, ctxExpBytes, err
+		} else if c.Expression != nil {
+			if n, err = c.Expression.pack(packer); err != nil {
+				return size + n, err
 			}
 			size += n
 		} else {
-			return size, ctxExpBytes, newError(types.PARAMETER_ERROR, "CDTContext must have either a Value or an Expression")
+			// Error: context must have either a Value or Expression defined
+			return size, newError(types.PARAMETER_ERROR, "CDTContext must have either a Value or an Expression")
 		}
 	}
 
-	// Pack flags
-	n, err = packAInt(packer, flags)
-	if err != nil {
-		return size + n, ctxExpBytes, err
+	// Pack the select flag as the third and final element
+	if n, err = flag.pack(packer); err != nil {
+		return size + n, err
 	}
 	size += n
 
-	// Pack modify expression bytes
-	n, err = packBytes(packer, modifyExpBytes)
-	if err != nil {
-		return size + n, ctxExpBytes, err
-	}
-	size += n
-
-	return size, ctxExpBytes, nil
-}
-
-// packCDTApply packs a CDT apply operation with modify expression.
-func packCDTApply(flags int, opType int, modifyExp *Expression, ctx ...*CDTContext) ([]byte, Error) {
-	// Get expression bytes
-	expSize, err := modifyExp.size()
-	if err != nil {
-		return nil, err
-	}
-	expBuf := newBuffer(expSize)
-	_, err = modifyExp.pack(expBuf)
-	if err != nil {
-		return nil, err
-	}
-	expBytes := expBuf.Bytes()
-
-	// First pass: calculate size and pre-pack context expressions
-	size, ctxExpBytes, err := packCDTApplyBuffer(nil, flags, opType, expBytes, nil, ctx...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Second pass: allocate buffer and pack
-	packer := newBuffer(size)
-	_, _, err = packCDTApplyBuffer(packer, flags, opType, expBytes, ctxExpBytes, ctx...)
-	if err != nil {
-		return nil, err
-	}
-
-	return packer.Bytes(), nil
+	return size, nil
 }

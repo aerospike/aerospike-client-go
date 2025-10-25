@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"encoding/base64"
+	"fmt"
+	"reflect"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	ParticleType "github.com/aerospike/aerospike-client-go/v8/types/particle_type"
@@ -27,6 +29,15 @@ import (
 type ExpressionArgument interface {
 	pack(BufferEx) (int, Error)
 }
+
+type LoopVarPart uint
+
+var (
+	Map_Key    LoopVarPart = 0
+	Map_Value  LoopVarPart = 1
+	List_Value LoopVarPart = 1
+	Index      LoopVarPart = 2
+)
 
 // ExpType defines the expression's data type.
 type ExpType uint
@@ -108,6 +119,7 @@ var (
 	expOpKEY           expOp = 80
 	expOpBIN           expOp = 81
 	expOpBIN_TYPE      expOp = 82
+	expVarBuiltIn      expOp = 122
 	expOpCond          expOp = 123
 	expOpVar           expOp = 124
 	expOpLet           expOp = 125
@@ -413,6 +425,27 @@ func (fe *Expression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 			return size, err
 		}
 		size += sz
+	case &expVarBuiltIn:
+		sz, err := packArrayBegin(buf, 3)
+		if err != nil {
+			return size, err
+		}
+		size += sz
+		sz, err = packAInt64(buf, int64(*cmd))
+		if err != nil {
+			return size, err
+		}
+		size += sz
+		sz, err = packAInt64(buf, int64(*fe.module))
+		if err != nil {
+			return size, err
+		}
+		size += sz
+		sz, err = fe.val.pack(buf)
+		if err != nil {
+			return size, err
+		}
+		size += sz
 	default:
 		// Packing logic for all other Ops
 		if value := fe.val; value != nil {
@@ -515,6 +548,76 @@ func ExpKey(expType ExpType) *Expression {
 		nil,
 		nil,
 		nil,
+		nil,
+	)
+}
+
+// ExpLoopVarString creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 5.6.0+.
+func ExpLoopVarString(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeSTRING,
+		nil,
+	)
+}
+
+// ExpLoopVarInt creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 5.6.0+.
+func ExpLoopVarInt(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeINT,
+		nil,
+	)
+}
+
+// ExpLoopVarFloat creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 5.6.0+.
+func ExpLoopVarFloat(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeFLOAT,
+		nil,
+	)
+}
+
+// ExpLoopVarList creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 5.6.0+.
+func ExpLoopVarList(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeLIST,
+		nil,
+	)
+}
+
+// ExpLoopVarMap creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 5.6.0+.
+func ExpLoopVarMap(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeMAP,
 		nil,
 	)
 }
@@ -1420,5 +1523,81 @@ func ExpUnknown() *Expression {
 		module:    nil,
 		exps:      nil,
 		arguments: nil,
+	}
+}
+
+func NewExpression(e interface{}) *Expression {
+	if e == nil {
+		return ExpNilValue()
+	}
+
+	switch v := e.(type) {
+	case *Expression:
+		return v
+	case bool:
+		return ExpBoolVal(v)
+	case int:
+		return ExpIntVal(int64(v))
+	case int8:
+		return ExpIntVal(int64(v))
+	case int16:
+		return ExpIntVal(int64(v))
+	case int32:
+		return ExpIntVal(int64(v))
+	case int64:
+		return ExpIntVal(v)
+	case uint:
+		return ExpIntVal(int64(v))
+	case uint8:
+		return ExpIntVal(int64(v))
+	case uint16:
+		return ExpIntVal(int64(v))
+	case uint32:
+		return ExpIntVal(int64(v))
+	case uint64:
+		return ExpIntVal(int64(v))
+	case float32:
+		return ExpFloatVal(float64(v))
+	case float64:
+		return ExpFloatVal(v)
+	case string:
+		return ExpStringVal(v)
+	case []byte:
+		return ExpBlobVal(v)
+	case []interface{}:
+		// Check if this might be a command array
+		if len(v) > 0 && isNumberType(v[0]) {
+			// This might be a command array, pack as ExpBytes
+			packer := newPacker()
+			_, err := packObject(packer, e, false)
+			if err != nil {
+				panic(err)
+			}
+			return &Expression{bytes: packer.Bytes()}
+		}
+		return ExpListValueVal(v)
+	case map[string]interface{}:
+		return newFilterExpression(nil, JsonValue(v), nil, nil, nil, nil)
+	case map[interface{}]interface{}:
+		return ExpMapVal(MapValue(v))
+	default:
+		// For unknown types, wrap as ExpBytes
+		packer := newPacker()
+		_, err := packObject(packer, e, false)
+		if err != nil {
+			panic(newError(types.TYPE_NOT_SUPPORTED, fmt.Sprintf("Expression type '%v' (%s) not supported: %v", e, reflect.TypeOf(e).String(), err)))
+		}
+		return &Expression{bytes: packer.Bytes()}
+	}
+}
+
+func isNumberType(v interface{}) bool {
+	switch v.(type) {
+	case int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64,
+		float32, float64:
+		return true
+	default:
+		return false
 	}
 }

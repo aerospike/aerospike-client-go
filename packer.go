@@ -579,6 +579,12 @@ func packAByte(cmd BufferEx, val byte) (int, Error) {
 	return 1, nil
 }
 
+func packVarValue(cmd BufferEx) (int, Error) {
+	if cmd != nil {
+		cmd.WriteByte(byte(0xd5))
+	}
+	return 1, nil
+}
 /***************************************************************************
 
 	packer
