@@ -51,6 +51,7 @@ type Node struct {
 	cluster     *Cluster
 	name        string
 	host        *Host
+	hostName    string
 	aliases     iatomic.TypedVal[[]*Host]
 	stats       nodeStats
 	sessionInfo iatomic.TypedVal[*sessionInfo]
@@ -80,7 +81,8 @@ type Node struct {
 
 	active iatomic.Bool
 
-	version version.Version
+	version  version.Version
+	isOrphan iatomic.Bool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -333,10 +335,15 @@ func (nd *Node) refreshPeers(peers *peers) {
 		return
 	}
 
-	peers.appendPeers(peerParser.peers)
+	// If node has no peers, it is suspected to be orphan
+	// if !nd.isOrphan.Get() {
+	if len(peerParser.peers) > 0 {
+		peers.refreshCount.IncrementAndGet()
+		peers.appendPeers(peerParser.peers)
+	}
+
 	nd.peersGeneration.Set(int(peerParser.generation()))
 	nd.peersCount.Set(len(peers.peers()))
-	peers.refreshCount.IncrementAndGet()
 }
 
 func (nd *Node) refreshPartitions(peers *peers, partitions partitionMap, freshlyAdded bool) {
@@ -520,10 +527,13 @@ func (nd *Node) newTendConnection() (*Connection, Error) {
 		return nil, err
 	}
 
-	if err := nd.sendUserAgentId(conn); err != nil {
-		// If setting user agent failed, we still return the connection
-		// as it is already authenticated and usable.
-		logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
+	serverMinVersion, _ := version.Parse("8.1.0.0")
+	if nd.version.IsGreaterOrEqual(serverMinVersion) {
+		if err := nd.sendUserAgentId(conn); err != nil {
+			// If setting user agent failed, we still return the connection
+			// as it is already authenticated and usable.
+			logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
+		}
 	}
 
 	return conn, nil

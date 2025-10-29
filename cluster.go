@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"fmt"
+	"maps"
 	"net"
 	"runtime/debug"
 	"sync"
@@ -59,7 +60,7 @@ type Cluster struct {
 	// Hints for best node for a partition
 	partitionWriteMap iatomic.TypedVal[partitionMap] //partitionMap
 
-	clientPolicy        atomic.Pointer[ClientPolicy]
+	clientPolicy        *atomic.Pointer[ClientPolicy]
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
 
@@ -92,23 +93,23 @@ type Cluster struct {
 }
 
 // NewCluster generates a Cluster instance.
-func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
-
+func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, Error) {
+	loadedPolicy := policy.Load()
 	// Validate the policy params
-	if policy.MinConnectionsPerNode > policy.ConnectionQueueSize {
+	if loadedPolicy.MinConnectionsPerNode > loadedPolicy.ConnectionQueueSize {
 		panic("minimum number of connections specified in the ClientPolicy is bigger than total connection pool size")
 	}
 
 	// Default TLS names when TLS enabled.
 	newHosts := make([]*Host, 0, len(hosts))
-	if policy.TlsConfig != nil && !policy.TlsConfig.InsecureSkipVerify {
-		useClusterName := len(policy.ClusterName) > 0
+	if loadedPolicy.TlsConfig != nil && !loadedPolicy.TlsConfig.InsecureSkipVerify {
+		useClusterName := len(loadedPolicy.ClusterName) > 0
 
 		for _, host := range hosts {
 			nh := *host
 			if nh.TLSName == "" {
 				if useClusterName {
-					nh.TLSName = policy.ClusterName
+					nh.TLSName = loadedPolicy.ClusterName
 				} else {
 					nh.TLSName = host.Name
 				}
@@ -118,16 +119,15 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		hosts = newHosts
 	}
 
-	clientPolicy := *policy
-
 	// Set a default Idle Timeout for the connection
-	if clientPolicy.IdleTimeout <= 0 {
-		clientPolicy.IdleTimeout = 55 * time.Second
+	if loadedPolicy.IdleTimeout <= 0 {
+		loadedPolicy.IdleTimeout = 55 * time.Second
 	}
 
 	newCluster := &Cluster{
-		infoPolicy:  InfoPolicy{Timeout: policy.Timeout},
-		tendChannel: make(chan struct{}),
+		infoPolicy:   InfoPolicy{Timeout: loadedPolicy.Timeout},
+		tendChannel:  make(chan struct{}),
+		clientPolicy: policy,
 
 		seeds:    *iatomic.NewSyncVal(hosts),
 		aliases:  *sm.New[Host, *Node](16),
@@ -140,24 +140,23 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 		supportsPartitionQuery: *iatomic.NewBool(false),
 		clientModuleVersion:    getLibraryVersion(aesModule),
 	}
-	newCluster.maxErrorCount.Set(policy.MaxErrorRate)
-	newCluster.clientPolicy.Store(&clientPolicy)
+	newCluster.maxErrorCount.Set(loadedPolicy.MaxErrorRate)
 
 	newCluster.partitionWriteMap.Set(make(partitionMap))
 
 	// setup auth info for cluster
-	if policy.RequiresAuthentication() {
-		if policy.AuthMode == AuthModeExternal && policy.TlsConfig == nil {
+	if loadedPolicy.RequiresAuthentication() {
+		if loadedPolicy.AuthMode == AuthModeExternal && loadedPolicy.TlsConfig == nil {
 			return nil, newError(types.PARAMETER_ERROR, "External Authentication requires TLS configuration to be set, because it sends clear password on the wire.")
 		}
 
 		// If PKI authentication is used and user is attempting to set password, return an error
-		if policy.AuthMode == AuthModePKI && (policy.User != "" || policy.Password != "") {
+		if loadedPolicy.AuthMode == AuthModePKI && (loadedPolicy.User != "" || loadedPolicy.Password != "") {
 			return nil, newError(types.FORBIDDEN_PASSWORD, "Password authentication is disabled for PKI-only users. Please authenticate using your certificate.")
 		}
 
-		newCluster.user = policy.User
-		hashedPass, err := hashPassword(policy.Password)
+		newCluster.user = loadedPolicy.User
+		hashedPass, err := hashPassword(loadedPolicy.Password)
 		if err != nil {
 			return nil, err
 		}
@@ -168,7 +167,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 	err := newCluster.waitTillStabilized()
 
 	// apply policy rules
-	if policy.FailIfNotConnected && !newCluster.IsConnected() {
+	if loadedPolicy.FailIfNotConnected && !newCluster.IsConnected() {
 		if err != nil {
 			return nil, err
 		}
@@ -177,7 +176,7 @@ func NewCluster(policy *ClientPolicy, hosts []*Host) (*Cluster, Error) {
 
 	// start up cluster maintenance go routine
 	newCluster.wgTend.Add(1)
-	go newCluster.clusterBoss(newCluster.clientPolicy.Load())
+	go newCluster.clusterBoss()
 
 	if err == nil {
 		logger.Logger.Debug("New cluster initialized and ready to be used...")
@@ -195,19 +194,20 @@ func (clstr *Cluster) String() string {
 
 // Maintains the cluster on intervals.
 // All clean up code for cluster is here as well.
-func (clstr *Cluster) clusterBoss(policy *ClientPolicy) {
+func (clstr *Cluster) clusterBoss() {
+	policy := clstr.clientPolicy.Load()
 	logger.Logger.Info("Starting the cluster tend goroutine...")
 
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Logger.Error("Cluster tend goroutine crashed: %s", debug.Stack())
-			go clstr.clusterBoss(clstr.clientPolicy.Load())
+			go clstr.clusterBoss()
 		}
 	}()
 
 	defer clstr.wgTend.Done()
 
-	tendInterval := policy.TendInterval
+	tendInterval := clstr.clientPolicy.Load().TendInterval
 	if tendInterval <= 10*time.Millisecond {
 		tendInterval = 10 * time.Millisecond
 	}
@@ -222,14 +222,14 @@ Loop:
 		case <-time.After(tendInterval):
 			tm := time.Now()
 			if err := clstr.tend(); err != nil {
-				logger.Logger.Warn(err.Error())
+				logger.Logger.Warn("%s", err.Error())
 			}
 
-			clientPolicy := clstr.clientPolicy.Load()
+			// clientPolicy := clstr.clientPolicy.Load()
 			// Tending took longer than requested tend interval.
 			// Tending is too slow for the cluster, and may be falling behind schedule.
-			if tendDuration := time.Since(tm); tendDuration > clientPolicy.TendInterval {
-				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, clientPolicy.TendInterval)
+			if tendDuration := time.Since(tm); tendDuration > policy.TendInterval {
+				logger.Logger.Warn("Tending took %s, while your requested ClientPolicy.TendInterval is %s. Tends are slower than the interval, and may be falling behind the changes in the cluster.", tendDuration, policy.TendInterval)
 			}
 		}
 	}
@@ -300,7 +300,7 @@ func (clstr *Cluster) tend() Error {
 
 	// find the first host that connects
 	seq.ParDo(peers.peers(), func(_peer *peer) {
-		if clstr.peerExists(peers, _peer.nodeName) {
+		if clstr.peerExists(peers, _peer) {
 			// Node already exists. Do not even try to connect to hosts.
 			return
 		}
@@ -318,17 +318,17 @@ func (clstr *Cluster) tend() Error {
 				logger.Logger.Warn("Peer node `%s` is different than actual node `%s` for host `%s`", _peer.nodeName, nv.name, host)
 			}
 
-			if clstr.peerExists(peers, nv.name) {
-				// Node already exists. Do not even try to connect to hosts.
-				return seq.Break
-			}
-
 			// Create new node.
 			node := clstr.createNode(&nv)
 			peers.addNode(nv.name, node)
 			partMap.InitDoVal(clstr.getPartitions().clone, func(partMap partitionMap) {
 				node.refreshPartitions(peers, partMap, true)
 			})
+
+			// Preventing duplicate entries.
+			if _peer.replaceNode != nil && !peers.containsNodeToRemove(_peer.replaceNode) {
+				peers.addNodesToRemove(_peer.replaceNode)
+			}
 			return seq.Break
 		})
 	})
@@ -343,15 +343,15 @@ func (clstr *Cluster) tend() Error {
 	})
 
 	if peers.genChanged.Get() {
-		// Handle nodes changes determined from refreshes.
-		removeList := clstr.findNodesToRemove(peers.refreshCount.Get())
+		clstr.findNodesToRemove(peers)
 
 		// Remove nodes in a batch.
-		for i := range removeList {
-			logger.Logger.Debug("The following nodes will be removed: %s", removeList[i])
+		nodesToRemove := peers.getNodesToRemove()
+		for i := range nodesToRemove {
+			logger.Logger.Debug("The following nodes will be removed: %s", nodesToRemove[i])
 		}
-		clstr.removeNodes(removeList)
-		clstr.aggregateNodeStats(removeList)
+		clstr.removeNodes(nodesToRemove)
+		clstr.aggregateNodeStats(nodesToRemove)
 	}
 
 	// Add nodes in a batch.
@@ -436,16 +436,41 @@ func (clstr *Cluster) statsCopy() map[string]nodeStats {
 	return res
 }
 
-func (clstr *Cluster) peerExists(peers *peers, nodeName string) bool {
-	node := clstr.findNodeByName(nodeName)
+func (clstr *Cluster) peerExists(peers *peers, peer *peer) bool {
+	node := clstr.findNodeByName(peer.nodeName)
+
 	if node != nil {
-		node.referenceCount.IncrementAndGet()
-		return true
+		if node.failures.Get() <= 0 || node.host.IsLocalhost() {
+			// If the node does not have cluster tend errors or is localhost,
+			// reject new peer as the IP address does not need to change.
+			node.referenceCount.IncrementAndGet()
+			return true
+		}
+
+		for _, host := range peer.hosts {
+			if host.Port == node.host.Port {
+				if host.Name == node.host.Name || (node.hostName != "" && host.Name == node.hostName) {
+					// Main node host is also the same as one of the peer hosts.
+					// Peer should not be added.
+					if host.IsLocalhost() {
+						node.hostName = host.Name
+					}
+					node.referenceCount.IncrementAndGet()
+
+					logger.Logger.Debug("Peer node `%s` matches existing node `%s` by host `%s`.", peer.nodeName, node.name, host)
+					return true
+				}
+			}
+
+		}
+		peer.replaceNode = node
 	}
 
-	node = peers.nodeByName(nodeName)
+	node = peers.nodeByName(peer.nodeName)
 	if node != nil {
 		node.referenceCount.IncrementAndGet()
+		peer.replaceNode = nil
+
 		return true
 	}
 
@@ -475,7 +500,7 @@ func (clstr *Cluster) waitTillStabilized() Error {
 					default:
 					}
 				}
-				logger.Logger.Warn(err.Error())
+				logger.Logger.Warn("%s", err.Error())
 			}
 
 			// Check to see if cluster has changed since the last Tend().
@@ -627,20 +652,25 @@ func (clstr *Cluster) addAlias(host *Host, node *Node) {
 	}
 }
 
-func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
-	removeList := []*Node{}
+func (clstr *Cluster) findNodesToRemove(peers *peers) {
+	refreshCount := peers.refreshCount.Get()
 
 	if clstr.clientPolicy.Load().SeedOnlyCluster {
 		// Don't remove any node even if its bad or inactive.
-		return removeList
+		return
 	}
 
 	nodes := clstr.GetNodes()
-
+	var numberOfOrphans int64
 	for _, node := range nodes {
+		if node.isOrphan.Get() {
+			numberOfOrphans++
+		}
 		if !node.IsActive() {
 			// Inactive nodes must be removed.
-			removeList = append(removeList, node)
+			if !peers.containsNodeToRemove(node) {
+				peers.addNodesToRemove(node)
+			}
 			continue
 		}
 
@@ -649,7 +679,9 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 			// All node info requests failed and this node had 5 consecutive failures.
 			// Remove node.  If no nodes are left, seeds will be tried in next cluster
 			// tend iteration.
-			removeList = append(removeList, node)
+			if !peers.containsNodeToRemove(node) {
+				peers.addNodesToRemove(node)
+			}
 			continue
 		}
 
@@ -662,16 +694,22 @@ func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
 				if !clstr.findNodeInPartitionMap(node) {
 					// Node doesn't have any partitions mapped to it.
 					// There is no point in keeping it in the cluster.
-					removeList = append(removeList, node)
+					if !peers.containsNodeToRemove(node) {
+						peers.addNodesToRemove(node)
+					}
+				}
+				// If node is orphan, it can be removed if it has no references and no peers.
+				if node.referenceCount.Get() == 0 && node.peersCount.Get() == 0 && node.isOrphan.Get() {
+					peers.addNodesToRemove(node)
 				}
 			} else {
 				// Node not responding. Remove it.
-				removeList = append(removeList, node)
+				if !peers.containsNodeToRemove(node) {
+					peers.addNodesToRemove(node)
+				}
 			}
 		}
 	}
-
-	return removeList
 }
 
 func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
@@ -1033,10 +1071,12 @@ func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
 	}
 }
 
-func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
+func (clstr *Cluster) getNodeLabels() *Labels {
 	var userLabels *Labels
-	if metricPolicy == nil && clstr.metricsPolicy.Get() != nil && clstr.metricsPolicy.Get().Labels != nil {
+	if clstr.metricsPolicy.Get() != nil && clstr.metricsPolicy.Get().Labels != nil {
 		userLabels = clstr.metricsPolicy.Get().Labels
+	} else {
+		userLabels = NewLabels()
 	}
 
 	nodes := clstr.GetNodes()
@@ -1054,12 +1094,8 @@ func (clstr *Cluster) getNodeLabels(metricPolicy *MetricsPolicy) *Labels {
 		}
 
 		// Merging user labels with node labels
-		if userLabels != nil && userLabels.Labels != nil {
-			for _, userLabel := range *userLabels.Labels {
-				for k, v := range userLabel {
-					entries[k] = v
-				}
-			}
+		for _, labelMap := range *userLabels {
+			maps.Copy(entries, labelMap)
 		}
 
 		// Reserved label names for the client

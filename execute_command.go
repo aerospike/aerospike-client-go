@@ -80,7 +80,7 @@ func (cmd *executeCommand) parseResult(ifc command, conn *Connection) Error {
 		} else if rp.resultCode == types.UDF_BAD_RESPONSE {
 			cmd.record, _ = rp.parseRecord(cmd.key, false)
 			err := cmd.handleUdfError(rp.resultCode)
-			logger.Logger.Debug("UDF execution error: " + err.Error())
+			logger.Logger.Debug("UDF execution error: %s", err.Error())
 			return err
 		}
 

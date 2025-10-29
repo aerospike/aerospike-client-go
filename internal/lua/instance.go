@@ -46,12 +46,12 @@ func newInstance(params ...interface{}) interface{} {
 	registerLuaMapType(L)
 
 	if err := L.DoString(luaLib.LibStreamOps); err != nil {
-		logger.Logger.Error(err.Error())
+		logger.Logger.Error("%s", err.Error())
 		return nil
 	}
 
 	if err := L.DoString(luaLib.LibAerospike); err != nil {
-		logger.Logger.Error(err.Error())
+		logger.Logger.Error("%s", err.Error())
 		return nil
 	}
 

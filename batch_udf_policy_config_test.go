@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"sync/atomic"
+
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -26,6 +28,8 @@ var _ = gg.Describe("ApplyConfigToBatchUDFPolicy", func() {
 		gg.It("should update the policy values based on the dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						BatchUdf: &dynconfig.BatchUdf{
@@ -64,6 +68,8 @@ var _ = gg.Describe("ApplyConfigToBatchUDFPolicy", func() {
 		gg.It("should update the write policy values based on the batch udf dynamic config", func() {
 			// Create the full configuration.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						BatchUdf: &dynconfig.BatchUdf{

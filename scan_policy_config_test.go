@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"sync/atomic"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -28,17 +29,11 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 		gg.It("should update all policy values based on the dynamic config", func() {
 			// Create the full configuration for scan policies.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Scan: &dynconfig.Scan{
-							ReadModeAp: func() *dynconfig.ReadModeAp {
-								r := dynconfig.ONE
-								return &r
-							}(),
-							ReadModeSc: func() *dynconfig.ReadModeSc {
-								r := dynconfig.SESSION
-								return &r
-							}(),
 							Replica: func() *dynconfig.Replica {
 								r := dynconfig.PREFER_RACK
 								return &r
@@ -67,8 +62,6 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 
 			// Validate default values.
 			gm.Expect(policy).NotTo(gm.BeNil())
-			gm.Expect(policy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
-			gm.Expect(policy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
 			gm.Expect(policy.TotalTimeout).To(gm.Equal(0 * time.Second))
 			gm.Expect(policy.SocketTimeout).To(gm.Equal(30 * time.Second))
 			gm.Expect(policy.MaxRetries).To(gm.Equal(5))
@@ -84,8 +77,6 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
 			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
-			gm.Expect(updatedPolicy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
-			gm.Expect(updatedPolicy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
 			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(5000 * time.Millisecond))
 			gm.Expect(updatedPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
 			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(3))
@@ -105,17 +96,11 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 		gg.It("should update only the specified configuration fields and leave the rest unchanged", func() {
 			// Create a configuration with only a subset of scan fields.
 			config := &DynConfig{
+				configInitialized: func() *atomic.Bool { v := &atomic.Bool{}; v.Store(true); return v }(),
+				logUpdate:         func() *atomic.Bool { v := &atomic.Bool{}; v.Store(false); return v }(),
 				config: &dynconfig.Config{
 					Dynamic: &dynconfig.DynamicConfig{
 						Scan: &dynconfig.Scan{
-							ReadModeAp: func() *dynconfig.ReadModeAp {
-								r := dynconfig.ALL
-								return &r
-							}(),
-							ReadModeSc: func() *dynconfig.ReadModeSc {
-								r := dynconfig.ALLOW_UNAVAILABLE
-								return &r
-							}(),
 							SleepBetweenRetries: func() *int {
 								d := 2
 								return &d
@@ -140,8 +125,6 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 
 			// Validate default values.
 			gm.Expect(policy).NotTo(gm.BeNil())
-			gm.Expect(policy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
-			gm.Expect(policy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
 			gm.Expect(policy.TotalTimeout).To(gm.Equal(0 * time.Second))
 			gm.Expect(policy.SocketTimeout).To(gm.Equal(30 * time.Second))
 			gm.Expect(policy.MaxRetries).To(gm.Equal(5))

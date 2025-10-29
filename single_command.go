@@ -74,7 +74,13 @@ func (cmd *singleCommand) getNamespace() *string {
 }
 
 func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+	// If the connection is already closed, don't bother trying to salvage it.
+	if cmd.conn != nil && !cmd.conn.IsConnected() {
+		return
+	}
+
 	conn.deadline = time.Now().Add(timeoutDelay)
+
 	reader := bufio.NewReader(conn.conn)
 	discardedCount := int(cmd.receiveSize - conn.totalReceived)
 
@@ -84,6 +90,7 @@ func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connecti
 		if discarded, err = reader.Discard(discardedCount); err != nil {
 			if discarded < discardedCount {
 				conn.Close()
+				cmd.conn = nil
 				return
 			}
 		}

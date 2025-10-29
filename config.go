@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"runtime/debug"
@@ -35,18 +36,18 @@ var supportedVersions = map[string]struct{}{
 type DynConfig struct {
 	lock sync.RWMutex
 
-	config   *dynconfig.Config
-	wgConfig sync.WaitGroup
+	config *dynconfig.Config
+	cancel context.CancelFunc
 
-	configInitialized  *atomic.Bool
-	client             *Client // Reference to the client to use for callbacks and cached policies.
-	configProvider     dynconfig.ConfigProvider
-	configWatchChannel chan struct{}
+	configInitialized *atomic.Bool
+	client            *Client // Reference to the client to use for callbacks and cached policies.
+	configProvider    dynconfig.ConfigProvider
 
 	metricsCallback func(config *dynconfig.Config, client *Client)
 
-	scheme string
-	dsn    string
+	scheme    string
+	dsn       string
+	logUpdate *atomic.Bool
 }
 
 func parseDsn(inputDsn string) map[string]string {
@@ -98,20 +99,28 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 		return nil
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	dynConfig := &DynConfig{
-		configWatchChannel: make(chan struct{}),
-		configInitialized:  &atomic.Bool{},
-		metricsCallback:    fn,
-		scheme:             schema,
-		dsn:                urlPath,
-		configProvider:     provider,
+		configInitialized: &atomic.Bool{},
+		metricsCallback:   fn,
+		scheme:            schema,
+		dsn:               urlPath,
+		configProvider:    provider,
+		cancel:            cancel,
 	}
+	dynConfig.logUpdate.Store(false)
 	dynConfig.initConfig()
 
-	dynConfig.wgConfig.Add(1)
-	go dynConfig.watchConfig(policy.ConfigInterval)
+	go dynConfig.watchConfig(ctx, policy.ConfigInterval)
 
 	return dynConfig
+}
+
+// Close closes the dynamic configuration watcher.
+func (dc *DynConfig) Close() {
+	if dc != nil && dc.cancel != nil {
+		dc.cancel()
+	}
 }
 
 // ----------------------------------------------------------------
@@ -133,8 +142,10 @@ func (dc *DynConfig) loadConfig() {
 }
 
 func (dc *DynConfig) runCallBack() {
-	if dc.metricsCallback != nil && dc.config != nil && dc.config.Dynamic != nil && dc.config.Dynamic.Metrics != nil {
-		dc.metricsCallback(dc.config, dc.client)
+	// Atomically load config for safe access
+	currentConfig := dc.config
+	if dc.metricsCallback != nil && currentConfig != nil && currentConfig.Dynamic != nil && currentConfig.Dynamic.Metrics != nil {
+		dc.metricsCallback(currentConfig, dc.client)
 	}
 }
 
@@ -144,14 +155,31 @@ func (dc *DynConfig) runCallBack() {
 func (dc *DynConfig) providerLoadConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
 	if loadedConfig != nil {
-		if dc.config.Dynamic == nil {
+		// If the config is updated we need to log changes
+		dc.logUpdate.Store(true)
+
+		// Atomically load current config
+		currentConfig := dc.config
+		if currentConfig != nil && currentConfig.Dynamic == nil {
 			logger.Logger.Warn("Dynamic configuration is enabled and configuration is empty. Configuration will load default policy values.")
 		}
 
-		dc.config.Dynamic = loadedConfig.Dynamic // This is updating the entire dynamic config object
+		// Create new config with updated Dynamic section
+		if currentConfig != nil {
+			newConfig := &dynconfig.Config{
+				Static:  currentConfig.Static, // Keep existing static config
+				Dynamic: loadedConfig.Dynamic, // Use new dynamic config
+			}
+			dc.config = newConfig // Atomically store new config
+		} else {
+			// If no current config, store the loaded config directly
+			dc.config = loadedConfig
+		}
 
 		dc.hydrateDynamicPolicyFromConfig()
-		logger.Logger.Debug("Dynamic configuration updated internal state from provider.")
+		// Once policies are hydrated we can turn logging off
+		dc.logUpdate.Store(false)
+		logger.Logger.Info("Dynamic configuration updated internal state from provider.")
 	}
 }
 
@@ -160,7 +188,7 @@ func (dc *DynConfig) providerLoadConfig() {
 func (dc *DynConfig) initConfig() {
 	loadedConfig := dc.configProvider.LoadConfig(dc.dsn)
 	if loadedConfig != nil {
-		dc.config = loadedConfig // This is updating the entire config object
+		dc.config = loadedConfig // Atomically store the config
 
 		if dc.client != nil {
 			dc.hydrateStaticPolicyFromConfig()
@@ -168,7 +196,8 @@ func (dc *DynConfig) initConfig() {
 		}
 
 		dc.configInitialized.Store(true)
-		logger.Logger.Debug("Dynamic configuration initialized...")
+		dc.logUpdate.Store(false)
+		logger.Logger.Info("Dynamic configuration initialized...")
 	}
 }
 
@@ -185,11 +214,11 @@ func (dc *DynConfig) updateCachedPolicies() {
 }
 
 func (dc *DynConfig) hydrateStaticPolicyFromConfig() {
-	dc.client.dynDefaultClientPolicy.Store(dc.generateStaticClientPolicy())
+	(*dc.client.dynDefaultClientPolicy).Store(dc.generateStaticClientPolicy())
 }
 
 func (dc *DynConfig) hydrateDynamicPolicyFromConfig() {
-	dc.client.dynDefaultClientPolicy.Store(dc.generateDynamicClientPolicy())
+	(*dc.client.dynDefaultClientPolicy).Store(dc.generateDynamicClientPolicy())
 	dc.client.dynDefaultPolicy.Store(dc.generateDynamicReadPolicy())
 	dc.client.dynDefaultWritePolicy.Store(dc.generateDynamicWritePolicy())
 	dc.client.dynDefaultQueryPolicy.Store(dc.generateDynamicQueryPolicy())
@@ -217,7 +246,7 @@ func (dc *DynConfig) generateStaticClientPolicy() *ClientPolicy {
 func (dc *DynConfig) generateDynamicClientPolicy() *ClientPolicy {
 	// Loading current client policy since static fields are set at init time
 	// We need to merge and preserve static and dynamic values.
-	policy := dc.client.dynDefaultClientPolicy.Load()
+	policy := (*dc.client.dynDefaultClientPolicy).Load()
 	if policy == nil {
 		policy = NewClientPolicy()
 	}
@@ -442,44 +471,42 @@ func (dc *DynConfig) generateDynamicMetricsPolicy() *MetricsPolicy {
 // ----------------------------------------------------------------
 // Main watch goroutine for the config provider
 // ----------------------------------------------------------------
-func (dc *DynConfig) watchConfig(interval time.Duration) {
+func (dc *DynConfig) watchConfig(ctx context.Context, interval time.Duration) {
 	logger.Logger.Info("Starting the config watch goroutine...")
 
 	// If the config is not loaded, we will use the default interval.
 	// If the config is loaded, we will use the interval from the config.
 	// This allows the config to be updated dynamically without restarting the client.
-	dc.lock.RLock()
 	var mergedConfigInterval time.Duration
-	// Handle the condition where dynamic config is eneabled but config was not loaded becuase
+	// Handle the condition where dynamic config is enabled but config was not loaded because
 	// the file could not be found or the url is not valid. In that case we will use the interval passed
 	// in or use the default interval of 1 second.
-	if dc.config == nil {
+	currentConfig := dc.config // Atomically load config
+	if currentConfig == nil {
 		mergedConfigInterval = interval
 	} else {
 		// If the config is already loaded, use the interval from the config.
-		if dc.config.Static != nil && dc.config.Static.Client != nil && dc.config.Static.Client.ConfigInterval != nil {
-			mergedConfigInterval = time.Duration(*dc.config.Static.Client.ConfigInterval) * time.Millisecond
+		if currentConfig.Static != nil && currentConfig.Static.Client != nil && currentConfig.Static.Client.ConfigInterval != nil {
+			mergedConfigInterval = time.Duration(*currentConfig.Static.Client.ConfigInterval) * time.Millisecond
 		} else {
 			mergedConfigInterval = interval
 		}
 	}
-	dc.lock.RUnlock()
 
 	defer func() {
 		// TODO: Add exponential backoff here to resource starvation
 		if r := recover(); r != nil {
 			logger.Logger.Warn("Watch config goroutine crashed: %s", debug.Stack())
-			go dc.watchConfig(mergedConfigInterval)
+			go dc.watchConfig(ctx, mergedConfigInterval)
 		}
 	}()
-	defer dc.wgConfig.Done()
 
 	configInterval := max(mergedConfigInterval, 1*time.Second)
 Loop:
 	for {
 		select {
-		case <-dc.configWatchChannel:
-			logger.Logger.Debug("Watch config channel closed. Stopping watch goroutine.")
+		case <-ctx.Done():
+			logger.Logger.Debug("Stopping config watch goroutine.")
 			break Loop
 		case <-time.After(configInterval):
 			tm := time.Now()
@@ -503,14 +530,4 @@ func (dc *DynConfig) getConfigIfNotLoadedOrInitialized() *dynconfig.Config {
 	}
 
 	return config
-}
-
-// ----------------------------------------------------------------
-// Testing functions
-// ----------------------------------------------------------------
-
-func newDynConfigForTest(config *dynconfig.Config) *DynConfig {
-	return &DynConfig{
-		config: config,
-	}
 }
