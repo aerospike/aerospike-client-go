@@ -1,0 +1,52 @@
+name: Make Server Matrix
+description: Builds a server matrix from JSON or file; Go version is passed separately.
+
+inputs:
+  default_json:
+    description: Default JSON of servers (with versions) if no file exists.
+    required: true
+  test_servers_file_path:
+    description: Repo-relative path to server matrix file (optional).
+    required: false
+  go_version:
+    description: Go version to inject into each matrix entry.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - id: build
+      shell: bash
+      env:
+        DEFAULT_JSON: ${{ inputs.default_json }}
+        TEST_SERVERS_FILE_PATH: ${{ inputs.test_servers_file_path }}
+        GO_VERSION: ${{ inputs.go_version }}
+      run: |
+        set -euo pipefail
+
+        FILE="${TEST_SERVERS_FILE_PATH:-}"
+
+        if [[ -n "${FILE}" && -s "${FILE}" ]]; then
+          echo "Using ${FILE} from repository"
+          JSON="$(cat "${FILE}")"
+        else
+          echo "${FILE:-<unset>} missing or empty – using default_json input"
+          JSON="${DEFAULT_JSON}"
+        fi
+
+        echo "Validating JSON..."
+        echo "${JSON}" | jq . >/dev/null
+
+        # Transform object → array, injecting go version into each item
+        MATRIX="$(echo "${JSON}" | jq -c --arg go "${GO_VERSION}" '[to_entries[] | { server: .key, go: $go } + .value]')"
+
+        {
+          echo "matrix<<__JSON__"
+          echo "${MATRIX}"
+          echo "__JSON__"
+        } >> "$GITHUB_OUTPUT"
+
+outputs:
+  matrix:
+    description: JSON array of server entries (with version + go)
+    value: ${{ steps.build.outputs.matrix }}
