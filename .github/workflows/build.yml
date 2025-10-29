@@ -9,7 +9,7 @@ jobs:
   make-matrix:
     runs-on: ubuntu-latest
     outputs:
-      input-matrix: ${{ steps.create-server-matrix.outputs.input-matrix }}
+      input-matrix: ${{ steps.create-server-matrix.outputs.matrix }}
       go-version: ${{ steps.get-go-version.outputs.go-version }}
     steps:
       - uses: actions/checkout@v4
