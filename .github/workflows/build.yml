@@ -1,28 +1,55 @@
 name: Aerospike Go Client Tests
-"on":
+on:
   push:
   pull_request:
 
 env:
   AEROSPIKE_HOSTS: "127.0.0.1:3000"
 jobs:
+  make-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      input-matrix: ${{ steps.create-server-matrix.outputs.input-matrix }}
+      go-version: ${{ steps.get-go-version.outputs.go-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Go version
+        id: get-go-version
+        run: |
+          echo "go-version=$(grep '^go [0-9]' go.mod | awk '{print $2}')" >> $GITHUB_OUTPUT
+          
+      - id: create-server-matrix
+        uses: ./.github/actions/make-matrix
+        with:
+          default_json: |
+            {
+              "stable": { "version": "8.0.0.0" },
+              "release": { "version": "7.0.1.1" }
+            }
+          go_version: ${{ steps.get-go-version.outputs.go-version }}
+
+      - name: debug - print input variables
+        run: |
+          echo ${{ steps.get-go-version.outputs.go-version }}
+          echo ${{ steps.create-server-matrix.outputs.input-matrix }}
   build:
+    needs: make-matrix
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version:
-          - 1.23
-        server-version:
-          - 8.1.0.0-rc4_1
+        ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: "Setup Go ${{ matrix.go-version }}"
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: "${{ matrix.go-version }}"
           cache: true
       - name: Display Go version
-        run: go version
+        run: |
+          echo "Go version: ${{ matrix.go-version }}"
+
       - name: Set up Aerospike Database
         uses: reugn/github-action-aerospike@v1
         with:
