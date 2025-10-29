@@ -25,7 +25,7 @@ jobs:
           default_json: |
             {
               "stable": { "version": "8.0" },
-              "release": { "version": "7.0.0.26" }
+              "release": { "version": "8.1.0.0" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
 
