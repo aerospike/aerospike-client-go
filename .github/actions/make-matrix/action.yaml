@@ -38,7 +38,7 @@ runs:
         echo "${JSON}" | jq . >/dev/null
 
         # Transform object → array, injecting go version into each item
-        MATRIX="$(echo "${JSON}" | jq -c --arg go "${GO_VERSION}" '[to_entries[] | { server: .key, go: $go } + .value]')"
+        MATRIX="$(echo "${JSON}" | jq -c --arg go "${GO_VERSION}" '[.[] | { version: ., "go-version": $go }]')"
 
         {
           echo "matrix<<__JSON__"

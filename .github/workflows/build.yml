@@ -23,10 +23,7 @@ jobs:
         uses: ./.github/actions/make-matrix
         with:
           default_json: |
-            {
-              "stable": { "version": "8.0" },
-              "release": { "version": "8.1.0.0" }
-            }
+            ["8.1.0.0", "8.1.0.0-rc4_1"]
           go_version: ${{ steps.get-go-version.outputs.go-version }}
 
       - name: debug - print input variables
