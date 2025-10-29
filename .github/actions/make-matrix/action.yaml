@@ -37,7 +37,6 @@ runs:
         echo "Validating JSON..."
         echo "${JSON}" | jq . >/dev/null
 
-        # Transform object → array, injecting go version into each item
         MATRIX="$(echo "${JSON}" | jq -c --arg go "${GO_VERSION}" '[to_entries[] | { server: .key, go: $go } + .value]')"
 
         {
@@ -48,5 +47,5 @@ runs:
 
 outputs:
   matrix:
-    description: JSON array of server entries (with version + go)
+    description: JSON array of server entries (includes server and go version)
     value: ${{ steps.build.outputs.matrix }}
