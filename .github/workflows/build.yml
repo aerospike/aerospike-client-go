@@ -53,7 +53,7 @@ jobs:
       - name: Set up Aerospike Database
         uses: reugn/github-action-aerospike@v1
         with:
-          server-version: ${{ matrix.server-version }}
+          server-version: ${{ matrix.version }}
       - name: Test Lua Code
         run: go run github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites internal/lua
       - name: Test types package
