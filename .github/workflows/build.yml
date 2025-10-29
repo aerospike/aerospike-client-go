@@ -25,7 +25,7 @@ jobs:
           default_json: |
             {
               "stable": { "version": "8.0.0.0" },
-              "release": { "version": "7.0.1.1" }
+              "release": { "version": "7.0.0.26" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
 
@@ -34,6 +34,7 @@ jobs:
           echo ${{ steps.get-go-version.outputs.go-version }}
           echo ${{ steps.create-server-matrix.outputs.input-matrix }}
   build:
+    timeout-minutes: 30
     needs: make-matrix
     runs-on: ubuntu-latest
     strategy:
