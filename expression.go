@@ -242,6 +242,158 @@ func (fe *Expression) packExpression(
 	return size, nil
 }
 
+// packCDTModifyList packs a CDT modify list expression
+// Format: [opType(0xfe), context_array, params_array, <reserved>]
+func packCDTModifyList(buf BufferEx, modList expCdtModifyList) (int, Error) {
+	size := 0
+	var sz int
+	var err Error
+
+	// Extract components: [ExpCdtSelect, cdtContextList, flag, modifyExp, ...]
+	var opTypeVal Value
+	var ctxList cdtContextList
+	var params []interface{}
+
+	for _, item := range modList {
+		switch v := item.(type) {
+		case Value:
+			if opTypeVal == nil {
+				opTypeVal = v // First Value is opType (ExpCdtSelect)
+			} else {
+				params = append(params, v) // Other Values are params
+			}
+		case cdtContextList:
+			if v != nil {
+				ctxList = v
+			}
+		case *Expression:
+			params = append(params, v)
+		default:
+			panic(fmt.Sprintf("Value `%v` is not acceptable in expCdtModifyList", item))
+		}
+	}
+
+	// Pack outer array with 4 elements: [opType, context_array, params_array, <reserved>]
+	sz, err = packArrayBegin(buf, 4)
+	if err != nil {
+		return size, err
+	}
+	size += sz
+
+	// Pack opType (0xfe for modify)
+	sz, err = packAInt64(buf, 0xfe)
+	if err != nil {
+		return size, err
+	}
+	size += sz
+
+	// Pack context array
+	sz, err = packArrayBegin(buf, len(ctxList)*2)
+	if err != nil {
+		return size, err
+	}
+	size += sz
+
+	for _, c := range ctxList {
+		sz, err = c.pack(buf)
+		if err != nil {
+			return size, err
+		}
+		size += sz
+	}
+
+	// Pack each parameter using packObject (same as packIfCDTModify)
+	for _, p := range params {
+		switch v := p.(type) {
+		// Case where parameter is a expression
+		case *Expression:
+			sz, err = v.pack(buf)
+			if err != nil {
+				return size, err
+			}
+		case Value:
+			sz, err = packObject(buf, v, false)
+			if err != nil {
+				return size, err
+			}
+		default:
+			// Should never happen since we are already checking the type of the parameter before
+			panic(fmt.Sprintf("Value `%v` is not acceptable in expCdtModifyList", p))
+		}
+		size += sz
+	}
+
+	return size, nil
+}
+
+// packCDTSelectList packs a CDT select list expression
+// Format: [opType(0xfe), context_array, flag]
+func packCDTSelectList(buf BufferEx, selList expCdtSelectList) (int, Error) {
+	size := 0
+	var sz int
+	var err Error
+
+	// Extract components: [ExpCdtSelect, cdtContextList, flag]
+	var opTypeVal Value
+	var ctxList cdtContextList
+	var flag Value
+
+	for _, item := range selList {
+		switch v := item.(type) {
+		case Value:
+			if opTypeVal == nil {
+				opTypeVal = v // First Value is opType (ExpCdtSelect)
+			} else {
+				flag = v // Second Value is flag
+			}
+		case cdtContextList:
+			if v != nil {
+				ctxList = v
+			}
+		default:
+			panic(fmt.Sprintf("Value `%v` is not acceptable in expCdtSelectList", item))
+		}
+	}
+
+	// Pack outer array with 3 elements: [opType, context_array, flag]
+	sz, err = packArrayBegin(buf, 3)
+	if err != nil {
+		return size, err
+	}
+	size += sz
+
+	// Pack opType (0xfe for select)
+	sz, err = packAInt64(buf, 0xfe)
+	if err != nil {
+		return size, err
+	}
+	size += sz
+
+	// Pack context array
+	sz, err = packArrayBegin(buf, len(ctxList)*2)
+	if err != nil {
+		return size, err
+	}
+	size += sz
+
+	for _, c := range ctxList {
+		sz, err = c.pack(buf)
+		if err != nil {
+			return size, err
+		}
+		size += sz
+	}
+
+	// Pack flag
+	sz, err = flag.pack(buf)
+	if err != nil {
+		return size, err
+	}
+	size += sz
+
+	return size, nil
+}
+
 func (fe *Expression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 	size := 0
 
@@ -310,150 +462,20 @@ func (fe *Expression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 				switch v := arg.(type) {
 				case expCdtModifyList:
 					skipArgs = true
-					// Handle modify container - pack using packIfCDTModify format
-					// Format: [opType(0xff), context_array, params_array(with reserve), <reserved>]
-					modList := arg.(expCdtModifyList)
-
-					// Extract components: [ExpCdtSelect, cdtContextList, flag, modifyExp, ...]
-					var opTypeVal Value
-					var ctxList cdtContextList
-					var params []interface{}
-
-					for _, item := range modList {
-						switch v := item.(type) {
-						case Value:
-							if opTypeVal == nil {
-								opTypeVal = v // First Value is opType (ExpCdtSelect)
-							} else {
-								params = append(params, v) // Other Values are params
-							}
-						case cdtContextList:
-							if v != nil {
-								ctxList = v
-							}
-						case *Expression:
-							params = append(params, v)
-						default:
-							panic(fmt.Sprintf("Value `%v` is not acceptable in expCdtModifyList", item))
-						}
-					}
-
-					// Pack outer array with 4 elements: [opType, context_array, params_array, <reserved>]
-					sz, err = packArrayBegin(buf, 4)
+					sz, err = packCDTModifyList(buf, v)
 					if err != nil {
 						return size, err
 					}
 					size += sz
-
-					// Pack opType (0xff for modify)
-					sz, err = packAInt64(buf, 0xfe)
-					if err != nil {
-						return size, err
-					}
-					size += sz
-
-					// Pack context array
-					sz, err = packArrayBegin(buf, len(ctxList)*2)
-					if err != nil {
-						return size, err
-					}
-					size += sz
-
-					for _, c := range ctxList {
-						sz, err = c.pack(buf)
-						if err != nil {
-							return size, err
-						}
-						size += sz
-					}
-
-					// Pack each parameter using packObject (same as packIfCDTModify)
-					for _, p := range params {
-						switch v := p.(type) {
-						// Case where parameter is a expression
-						case *Expression:
-							sz, err = v.pack(buf)
-							if err != nil {
-								return size, err
-							}
-						case Value:
-							sz, err = packObject(buf, v, false)
-							if err != nil {
-								return size, err
-							}
-						default:
-							// Should never happen since we are already checking the type of the parameter before
-							panic(fmt.Sprintf("Value `%v` is not acceptable in expCdtModifyList", p))
-						}
-						size += sz
-					}
-
 					// Don't count container in argLen, it's handled separately
 					continue
 				case expCdtSelectList:
 					skipArgs = true
-					// Handle select container - pack using packIfCDTSelect format
-					// Format: [opType(0xfe), context_array, flag]
-					selList := arg.(expCdtSelectList)
-
-					// Extract components: [ExpCdtSelect, cdtContextList, flag]
-					var opTypeVal Value
-					var ctxList cdtContextList
-					var flag Value
-
-					for _, item := range selList {
-						switch v := item.(type) {
-						case Value:
-							if opTypeVal == nil {
-								opTypeVal = v // First Value is opType (ExpCdtSelect)
-							} else {
-								flag = v // Second Value is flag
-							}
-						case cdtContextList:
-							if v != nil {
-								ctxList = v
-							}
-						default:
-							panic(fmt.Sprintf("Value `%v` is not acceptable in expCdtSelectList", item))
-						}
-					}
-
-					// Pack outer array with 3 elements: [opType, context_array, flag]
-					sz, err = packArrayBegin(buf, 3)
+					sz, err = packCDTSelectList(buf, v)
 					if err != nil {
 						return size, err
 					}
 					size += sz
-
-					// Pack opType (0xfe for select)
-					sz, err = packAInt64(buf, 0xfe)
-					if err != nil {
-						return size, err
-					}
-					size += sz
-
-					// Pack context array
-					sz, err = packArrayBegin(buf, len(ctxList)*2)
-					if err != nil {
-						return size, err
-					}
-					size += sz
-
-					for _, c := range ctxList {
-						sz, err = c.pack(buf)
-						if err != nil {
-							return size, err
-						}
-						size += sz
-					}
-
-					// Pack flag
-					sz, err = flag.pack(buf)
-					if err != nil {
-						return size, err
-					}
-					size += sz
-
 					// Don't count container in argLen, it's handled separately
 					continue
 				case Value, *Expression:
