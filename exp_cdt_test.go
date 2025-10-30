@@ -18,6 +18,7 @@ import (
 	"math"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -32,12 +33,18 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
 
 	gg.BeforeEach(func() {
-		if !featureEnabled("cdt-select-path") {
+		serverRequiredVersion, err := version.Parse("8.1.1")
+		if err != nil {
+			gg.Fail("Failed to parse server required version")
+		}
+
+		node := client.GetNodes()[0]
+		nodeVersion := node.GetServerVersion()
+		if nodeVersion.IsSmaller(serverRequiredVersion) {
 			gg.Skip("CDT select/modify by path operations require server version 8.1.1+ with cdt-select-path feature.")
 			return
 		}
 
-		var err error
 		key, err = as.NewKey(ns, set, randString(50))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 	})
