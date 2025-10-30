@@ -1887,8 +1887,8 @@ func (clnt *Client) CreatePKIUser(policy *AdminPolicy, user string, roles []stri
 		return err
 	}
 	// Check server version to ensure it supports PKI users.
-	if node.version.IsSmaller(serverMinVersion) {
-		return newCommonError(nil, fmt.Sprintf("Node version %s is less than required minimum version %s", node.version.String(), serverMinVersion))
+	if node.serverVersion.IsSmaller(serverMinVersion) {
+		return newCommonError(nil, fmt.Sprintf("Node version %s is less than required minimum version %s", node.serverVersion.String(), serverMinVersion))
 	}
 
 	node.usingTendConn(policy.Timeout, func(conn *Connection) {

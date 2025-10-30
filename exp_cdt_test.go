@@ -33,10 +33,11 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 	gg.BeforeEach(func() {
 		if !featureEnabled("cdt-select-path") {
-			gg.Skip("CDT select/modify by path operations require server version 5.6+ with cdt-select-path feature.")
+			gg.Skip("CDT select/modify by path operations require server version 8.1.1+ with cdt-select-path feature.")
 			return
 		}
 
+		var err error
 		key, err = as.NewKey(ns, set, randString(50))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 	})
@@ -44,7 +45,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 	gg.Describe("ExpSelectByPath Tests", func() {
 
 		gg.It("should select prices from books using ExpSelectByPath", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			booksList := []interface{}{
 				map[string]interface{}{
@@ -79,7 +80,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,     
+				as.VALUES,
 				as.ExpMapBin("res1"),
 				bookKey, allChildren, priceKey,
 			)
@@ -113,7 +114,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should select titles from books with price filter", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			booksList := []interface{}{
 				map[string]interface{}{
@@ -182,7 +183,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should use ExpReadOp with ExpSelectByPath", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			// Create simple data
 			data := map[string]interface{}{
@@ -225,7 +226,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 	gg.Describe("ExpModifyByPath Tests", func() {
 
 		gg.It("should modify all book prices by multiplying by 1.50 using ExpModifyByPath", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			booksList := []interface{}{
 				map[string]interface{}{
@@ -262,15 +263,15 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			// Create modify expression that multiplies by 1.50
 			modifyExp := as.ExpNumMul(
 				as.ExpLoopVarFloat(as.VALUE), // Current price value
-				as.ExpFloatVal(1.50),          // Multiply by 1.50
+				as.ExpFloatVal(1.50),         // Multiply by 1.50
 			)
 
 			// Create apply expression
 			applyExp := as.ExpModifyByPath(
-				as.ExpTypeMAP,         // Return type: map
-				0,                     // Flags
-				as.ExpMapBin("res1"),  // Source bin
-				modifyExp,             // Modify expression
+				as.ExpTypeMAP,                  // Return type: map
+				0,                              // Flags
+				as.ExpMapBin("res1"),           // Source bin
+				modifyExp,                      // Modify expression
 				bookKey, allChildren, priceKey, // CTX path
 			)
 
@@ -326,7 +327,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should modify prices with addition operation", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"products": []interface{}{
@@ -386,11 +387,11 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			}
 
 			// Verify price is 15.0 (10.0 + 5.0)
-			gm.Expect(math.Abs(priceFloat-15.0)).To(gm.BeNumerically("<", 0.01))
+			gm.Expect(math.Abs(priceFloat - 15.0)).To(gm.BeNumerically("<", 0.01))
 		})
 
 		gg.It("should modify with subtraction operation", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"accounts": map[string]interface{}{
@@ -442,7 +443,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should work with ExpWriteFlagCreateOnly", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"values": []interface{}{1, 2, 3},
@@ -477,7 +478,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should combine ExpSelectByPath and ExpModifyByPath", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"items": []interface{}{
@@ -559,7 +560,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should work with different flag combinations", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"items": []interface{}{5, 10, 15},
@@ -606,7 +607,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 	gg.Describe("Advanced Expression CDT Tests", func() {
 
 		gg.It("should handle list of lists with ExpSelectByPath", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"matrix": []interface{}{
@@ -649,7 +650,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should modify nested map values with ExpModifyByPath", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"departments": map[string]interface{}{
@@ -715,11 +716,11 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			}
 
 			expectedRevenue := 100000 * 1.1
-			gm.Expect(math.Abs(revenueFloat-expectedRevenue)).To(gm.BeNumerically("<", 1.0))
+			gm.Expect(math.Abs(revenueFloat - expectedRevenue)).To(gm.BeNumerically("<", 1.0))
 		})
 
 		gg.It("should use ExpSelectByPath with integer values", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"scores": map[string]interface{}{
@@ -761,7 +762,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should handle ExpModifyByPath with division", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"values": []interface{}{100, 200, 300},
@@ -810,7 +811,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should work with MAP_KEYS flag in ExpSelectByPath", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"products": map[string]interface{}{
@@ -850,7 +851,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should handle ExpSelectByPath with filtered results", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"employees": []interface{}{
@@ -907,7 +908,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should handle ExpModifyByPath with conditional expressions", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"items": []interface{}{
@@ -971,7 +972,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should work with ExpWriteFlagEvalNoFail on missing bins", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			// Don't create the bin
 			bin := as.NewBin("otherbin", "test")
@@ -998,7 +999,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 		})
 
 		gg.It("should handle multiple ExpWriteOp operations in sequence", func() {
-		client.Delete(nil, key)
+			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"values": []interface{}{1, 2, 3},
@@ -1063,6 +1064,105 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(firstValue).To(gm.Equal(2), "1 * 2 = 2")
 		})
+
+		gg.It("should select blobs using ExpSelectByPath with ExpLoopVarBlob", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"files": []interface{}{
+					map[string]interface{}{"name": "file1.bin", "data": []byte("Binary data 1")},
+					map[string]interface{}{"name": "file2.bin", "data": []byte("Binary data 2")},
+					map[string]interface{}{"name": "file3.bin", "data": []byte("Binary data 3")},
+				},
+			}
+
+			bin := as.NewBin("data", data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("files"))
+			ctx2 := as.CtxAllChildren()
+			ctx3 := as.CtxMapKey(as.NewStringValue("data"))
+
+			selectExp := as.ExpSelectByPath(
+				as.ExpTypeLIST,
+				as.VALUES,
+				as.ExpMapBin("data"),
+				ctx1, ctx2, ctx3,
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("blobResults", selectExp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			blobs := result.Bins["blobResults"]
+			gm.Expect(blobs).ToNot(gm.BeNil())
+
+			blobList, ok := blobs.([]interface{})
+			if ok {
+				gm.Expect(len(blobList)).To(gm.Equal(3), "Should have 3 blobs")
+				// Verify at least one blob has content
+				foundValidBlob := false
+				for _, item := range blobList {
+					if blob, ok := item.([]byte); ok && len(blob) > 0 {
+						foundValidBlob = true
+						break
+					}
+				}
+				gm.Expect(foundValidBlob).To(gm.BeTrue(), "Should have at least one valid blob")
+			}
+		})
+
+		gg.It("should work with blob list operations using ExpSelectByPath", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"blobList": []interface{}{
+					[]byte("First blob content"),
+					[]byte("Second blob content"),
+					[]byte("Third blob content"),
+					[]byte("Fourth blob content"),
+				},
+			}
+
+			bin := as.NewBin("data", data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("blobList"))
+			ctx2 := as.CtxAllChildren()
+
+			selectExp := as.ExpSelectByPath(
+				as.ExpTypeLIST,
+				as.VALUES,
+				as.ExpMapBin("data"),
+				ctx1, ctx2,
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpWriteOp("allBlobs", selectExp, as.ExpWriteFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			finalRecord, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			allBlobs := finalRecord.Bins["allBlobs"]
+			gm.Expect(allBlobs).ToNot(gm.BeNil())
+
+			blobList, ok := allBlobs.([]interface{})
+			if ok {
+				gm.Expect(len(blobList)).To(gm.Equal(4), "Should have 4 blobs")
+				// Verify all items are byte arrays
+				for i, item := range blobList {
+					blob, ok := item.([]byte)
+					gm.Expect(ok).To(gm.BeTrue(), "Item %d should be a byte array", i)
+					gm.Expect(len(blob)).To(gm.BeNumerically(">", 0), "Blob %d should not be empty", i)
+				}
+			}
+		})
 	})
 })
-

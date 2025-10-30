@@ -729,7 +729,7 @@ func ExpKey(expType ExpType) *Expression {
 
 // ExpLoopVarString creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
-// Requires server version 5.6.0+.
+// Requires server version 8.1.1+.
 func ExpLoopVarBool(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
@@ -743,7 +743,7 @@ func ExpLoopVarBool(part LoopVarPart) *Expression {
 
 // ExpLoopVarString creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
-// Requires server version 5.6.0+.
+// Requires server version 8.1.1+.
 func ExpLoopVarString(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
@@ -757,7 +757,7 @@ func ExpLoopVarString(part LoopVarPart) *Expression {
 
 // ExpLoopVarInt creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
-// Requires server version 5.6.0+.
+// Requires server version 8.1.1+.
 func ExpLoopVarInt(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
@@ -771,7 +771,7 @@ func ExpLoopVarInt(part LoopVarPart) *Expression {
 
 // ExpLoopVarFloat creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
-// Requires server version 5.6.0+.
+// Requires server version 8.1.1+.
 func ExpLoopVarFloat(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
@@ -785,7 +785,7 @@ func ExpLoopVarFloat(part LoopVarPart) *Expression {
 
 // ExpLoopVarList creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
-// Requires server version 5.6.0+.
+// Requires server version 8.1.1+.
 func ExpLoopVarList(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
@@ -799,7 +799,7 @@ func ExpLoopVarList(part LoopVarPart) *Expression {
 
 // ExpLoopVarMap creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
-// Requires server version 5.6.0+.
+// Requires server version 8.1.1+.
 func ExpLoopVarMap(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
@@ -807,6 +807,20 @@ func ExpLoopVarMap(part LoopVarPart) *Expression {
 		nil,
 		nil,
 		&ExpTypeMAP,
+		nil,
+	)
+}
+
+// ExpLoopVarMap creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 8.1.1+.
+func ExpLoopVarBlob(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeBLOB,
 		nil,
 	)
 }

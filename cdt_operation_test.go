@@ -18,6 +18,7 @@ import (
 	"math"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -33,8 +34,15 @@ var _ = gg.Describe("CDT Operation Test", func() {
 	var binName string
 
 	gg.BeforeEach(func() {
-		if !featureEnabled("cdt-select-path") {
-			gg.Skip("CDT select/modify by path operations require server version 5.6+ with cdt-select-path feature.")
+		serverRequiredVersion, err := version.Parse("8.1.1")
+		if err != nil {
+			gg.Fail("Failed to parse server required version")
+		}
+
+		node := client.GetNodes()[0]
+		nodeVersion := node.GetServerVersion()
+		if nodeVersion.IsSmaller(serverRequiredVersion) {
+			gg.Skip("CDT select/modify by path operations require server version 8.1.1+ with cdt-select-path feature.")
 			return
 		}
 
@@ -1391,6 +1399,89 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			resultList, ok := resultBin.([]interface{})
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(3))
+			}
+		})
+
+		gg.It("should select blobs using ExpLoopVarBlob with VALUE", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"blobs": map[string]interface{}{
+					"data1": []byte("Hello World"),
+					"data2": []byte("Test Data"),
+					"data3": []byte("Binary Content"),
+				},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("blobs"))
+			ctx2 := as.CtxAllChildren()
+
+			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultBin := result.Bins[binName]
+			resultList, ok := resultBin.([]interface{})
+			if ok {
+				gm.Expect(len(resultList)).To(gm.Equal(3))
+				// Verify at least one blob is returned correctly
+				foundBlob := false
+				for _, item := range resultList {
+					if blob, ok := item.([]byte); ok {
+						if len(blob) > 0 {
+							foundBlob = true
+							break
+						}
+					}
+				}
+				gm.Expect(foundBlob).To(gm.BeTrue(), "Should have at least one valid blob")
+			}
+		})
+
+		gg.It("should select all blob values from nested structure", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"documents": []interface{}{
+					map[string]interface{}{"id": 1, "content": []byte("Document 1 content")},
+					map[string]interface{}{"id": 2, "content": []byte("Document 2 content")},
+					map[string]interface{}{"id": 3, "content": []byte("Document 3 content")},
+				},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Select all blob content values
+			ctx1 := as.CtxMapKey(as.NewStringValue("documents"))
+			ctx2 := as.CtxAllChildren()
+			ctx3 := as.CtxMapKey(as.NewStringValue("content"))
+
+			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultBin := result.Bins[binName]
+			resultList, ok := resultBin.([]interface{})
+			if ok {
+				gm.Expect(len(resultList)).To(gm.Equal(3), "Should have 3 blob values")
+				// Verify all returned items are blobs
+				blobCount := 0
+				for _, item := range resultList {
+					if blob, ok := item.([]byte); ok && len(blob) > 0 {
+						blobCount++
+					}
+				}
+				gm.Expect(blobCount).To(gm.BeNumerically(">", 0), "Should have at least one valid blob")
 			}
 		})
 	})
