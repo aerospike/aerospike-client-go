@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2025 Aerospike, Inc.
 //
 // Portions may be licensed to Aerospike, Inc. under one or more contributor
 // license agreements WHICH ARE COMPATIBLE WITH THE APACHE LICENSE, VERSION 2.0.
@@ -19,19 +19,17 @@ import "github.com/aerospike/aerospike-client-go/v8/types"
 
 var (
 	selectVal = int(0xfe)
-	modifyVal = int(0xff)
 
 	cdtOperationTypeSELECT = operationSubType(&selectVal)
-	cdtOperationTypeMODIFY = operationSubType(&modifyVal)
 )
 
 type SelectFlag int
 
 const (
-	MatchingTree SelectFlag = 0
-	Entries      SelectFlag = 1
-	MapKeys      SelectFlag = 2
-	SelectNoFail SelectFlag = 0x10
+	MATCHING_TREE SelectFlag = 0
+	VALUES        SelectFlag = 1
+	MAP_KEYS      SelectFlag = 2
+	NO_FAIL       SelectFlag = 0x10
 )
 
 // CDTSelectByPath creates CDT select operation with context.
@@ -77,7 +75,7 @@ func CDTModifyByPath(binName string, flag SelectFlag, modifyExp *Expression, ctx
 		opType:    _CDT_MODIFY,
 		ctx:       ctx,
 		binName:   binName,
-		opSubType: cdtOperationTypeMODIFY,
+		opSubType: cdtOperationTypeSELECT,
 		binValue:  ListValue([]interface{}{flag, modifyExp}),
 		encoder:   newCDTCreateModifyEncoder,
 	}

@@ -33,10 +33,9 @@ type ExpressionArgument interface {
 type LoopVarPart uint
 
 var (
-	Map_Key    LoopVarPart = 0
-	Map_Value  LoopVarPart = 1
-	List_Value LoopVarPart = 1
-	Index      LoopVarPart = 2
+	MAP_KEY LoopVarPart = 0
+	VALUE   LoopVarPart = 1
+	INDEX   LoopVarPart = 2
 )
 
 // ExpType defines the expression's data type.
@@ -302,12 +301,161 @@ func (fe *Expression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 			return size, err
 		}
 		size += sz
+		skipArgs := false
 		// Encoding the Arguments
 		if args := fe.arguments; len(args) > 0 {
 			argLen := 0
 			for _, arg := range args {
 				// First match to estimate the Size and write the Context
 				switch v := arg.(type) {
+				case expCdtModifyList:
+					skipArgs = true
+					// Handle modify container - pack using packIfCDTModify format
+					// Format: [opType(0xff), context_array, params_array(with reserve), <reserved>]
+					modList := arg.(expCdtModifyList)
+
+					// Extract components: [ExpCdtSelect, cdtContextList, flag, modifyExp, ...]
+					var opTypeVal Value
+					var ctxList cdtContextList
+					var params []interface{}
+
+					for _, item := range modList {
+						switch v := item.(type) {
+						case Value:
+							if opTypeVal == nil {
+								opTypeVal = v // First Value is opType (ExpCdtSelect)
+							} else {
+								params = append(params, v) // Other Values are params
+							}
+						case cdtContextList:
+							if v != nil {
+								ctxList = v
+							}
+						case *Expression:
+							params = append(params, v)
+						default:
+							panic(fmt.Sprintf("Value `%v` is not acceptable in expCdtModifyList", item))
+						}
+					}
+
+					// Pack outer array with 4 elements: [opType, context_array, params_array, <reserved>]
+					sz, err = packArrayBegin(buf, 4)
+					if err != nil {
+						return size, err
+					}
+					size += sz
+
+					// Pack opType (0xff for modify)
+					sz, err = packAInt64(buf, 0xfe)
+					if err != nil {
+						return size, err
+					}
+					size += sz
+
+					// Pack context array
+					sz, err = packArrayBegin(buf, len(ctxList)*2)
+					if err != nil {
+						return size, err
+					}
+					size += sz
+
+					for _, c := range ctxList {
+						sz, err = c.pack(buf)
+						if err != nil {
+							return size, err
+						}
+						size += sz
+					}
+
+					// Pack each parameter using packObject (same as packIfCDTModify)
+					for _, p := range params {
+						switch v := p.(type) {
+						// Case where parameter is a expression
+						case *Expression:
+							sz, err = v.pack(buf)
+							if err != nil {
+								return size, err
+							}
+						case Value:
+							sz, err = packObject(buf, v, false)
+							if err != nil {
+								return size, err
+							}
+						default:
+							// Should never happen since we are already checking the type of the parameter before
+							panic(fmt.Sprintf("Value `%v` is not acceptable in expCdtModifyList", p))
+						}
+						size += sz
+					}
+
+					// Don't count container in argLen, it's handled separately
+					continue
+				case expCdtSelectList:
+					skipArgs = true
+					// Handle select container - pack using packIfCDTSelect format
+					// Format: [opType(0xfe), context_array, flag]
+					selList := arg.(expCdtSelectList)
+
+					// Extract components: [ExpCdtSelect, cdtContextList, flag]
+					var opTypeVal Value
+					var ctxList cdtContextList
+					var flag Value
+
+					for _, item := range selList {
+						switch v := item.(type) {
+						case Value:
+							if opTypeVal == nil {
+								opTypeVal = v // First Value is opType (ExpCdtSelect)
+							} else {
+								flag = v // Second Value is flag
+							}
+						case cdtContextList:
+							if v != nil {
+								ctxList = v
+							}
+						default:
+							panic(fmt.Sprintf("Value `%v` is not acceptable in expCdtSelectList", item))
+						}
+					}
+
+					// Pack outer array with 3 elements: [opType, context_array, flag]
+					sz, err = packArrayBegin(buf, 3)
+					if err != nil {
+						return size, err
+					}
+					size += sz
+
+					// Pack opType (0xfe for select)
+					sz, err = packAInt64(buf, 0xfe)
+					if err != nil {
+						return size, err
+					}
+					size += sz
+
+					// Pack context array
+					sz, err = packArrayBegin(buf, len(ctxList)*2)
+					if err != nil {
+						return size, err
+					}
+					size += sz
+
+					for _, c := range ctxList {
+						sz, err = c.pack(buf)
+						if err != nil {
+							return size, err
+						}
+						size += sz
+					}
+
+					// Pack flag
+					sz, err = flag.pack(buf)
+					if err != nil {
+						return size, err
+					}
+					size += sz
+
+					// Don't count container in argLen, it's handled separately
+					continue
 				case Value, *Expression:
 					argLen++
 				case cdtContextList:
@@ -342,27 +490,32 @@ func (fe *Expression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 					panic("Value `%v` is not acceptable in Expression Filters as an argument")
 				}
 			}
-			sz, err = packArrayBegin(buf, argLen)
-			if err != nil {
-				return size, err
-			}
-			size += sz
-			// Second match to write the real values
-			for _, arg := range args {
-				switch val := arg.(type) {
-				case Value:
-					sz, err = val.pack(buf)
-					if err != nil {
-						return size, err
+
+			if !skipArgs {
+				// Pack the arguments
+				sz, err = packArrayBegin(buf, argLen)
+				if err != nil {
+					return size, err
+				}
+				size += sz
+
+				// Pack the arguments
+				for _, arg := range args {
+					switch val := arg.(type) {
+					case Value:
+						sz, err = val.pack(buf)
+						if err != nil {
+							return size, err
+						}
+						size += sz
+					case *Expression:
+						sz, err = val.pack(buf)
+						if err != nil {
+							return size, err
+						}
+						size += sz
+					default:
 					}
-					size += sz
-				case *Expression:
-					sz, err = val.pack(buf)
-					if err != nil {
-						return size, err
-					}
-					size += sz
-				default:
 				}
 			}
 		} else {
@@ -548,6 +701,20 @@ func ExpKey(expType ExpType) *Expression {
 		nil,
 		nil,
 		nil,
+		nil,
+	)
+}
+
+// ExpLoopVarString creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 5.6.0+.
+func ExpLoopVarBool(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeBOOL,
 		nil,
 	)
 }

@@ -118,7 +118,8 @@ func (ctx *CDTContext) pack(cmd BufferEx) (int, Error) {
 		}
 		expBytes := expBuf.Bytes()
 
-		sz, err = packBytes(cmd, expBytes)
+		// Pack the expression bytes as a byte array and not as a blob!!
+		sz, err = packByteArray(cmd, expBytes)
 		size += sz
 		return size, err
 	}

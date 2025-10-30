@@ -585,6 +585,7 @@ func packVarValue(cmd BufferEx) (int, Error) {
 	}
 	return 1, nil
 }
+
 /***************************************************************************
 
 	packer
