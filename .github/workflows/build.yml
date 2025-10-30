@@ -1,5 +1,5 @@
 name: Aerospike Go Client Tests
-"on":
+on:
   push:
   pull_request:
 
@@ -8,14 +8,40 @@ env:
   GODEBUG: fips140=only
   GOFIPS140: latest
 jobs:
+  make-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      input-matrix: ${{ steps.create-server-matrix.outputs.matrix }}
+      go-version: ${{ steps.get-go-version.outputs.go-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Go version
+        id: get-go-version
+        run: |
+          echo "go-version=$(grep '^go [0-9]' go.mod | awk '{print $2}')" >> $GITHUB_OUTPUT
+          
+      - id: create-server-matrix
+        uses: ./.github/actions/make-matrix
+        with:
+          default_json: |
+            {
+              "stable": { "version": "8.1.0.1" },
+              "release": { "version": "8.1.0.1_2" }
+            }
+          go_version: ${{ steps.get-go-version.outputs.go-version }}
+
+      - name: debug - print input variables
+        run: |
+          echo ${{ steps.get-go-version.outputs.go-version }}
+          echo ${{ steps.create-server-matrix.outputs.input-matrix }}
   build:
+    timeout-minutes: 30
+    needs: make-matrix
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version:
-          - 1.25.1
-        server-version:
-          - 8.1.0.0
+        include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
     steps:
       - uses: actions/checkout@v4
       - name: "Setup Go ${{ matrix.go-version }}"
@@ -38,11 +64,13 @@ jobs:
           go mod vendor
 
       - name: Display Go version
-        run: go version
+        run: |
+          echo "Go version: ${{ matrix.go-version }}"
+
       - name: Set up Aerospike Database
         uses: reugn/github-action-aerospike@v1
         with:
-          server-version: ${{ matrix.server-version }}
+          server-version: ${{ matrix.version }}
       - name: Test Lua Code
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites internal/lua
