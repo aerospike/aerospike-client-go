@@ -805,12 +805,17 @@ func (nd *Node) requestInfo(timeout time.Duration, name ...string) (response map
 // requestRawInfo gets info values by name from the specified database server node.
 // It won't parse the results.
 func (nd *Node) requestRawInfo(policy *InfoPolicy, name ...string) (response *info, err Error) {
-	nd.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errorCall := nd.usingTendConn(policy.Timeout, func(conn *Connection) {
 		response, err = newInfo(conn, name...)
 		if err != nil {
 			conn.Close()
 		}
-	})
+	}) 
+
+	if errorCall != nil {
+		return nil, errorCall
+	}
+
 	return response, err
 }
 
