@@ -222,7 +222,7 @@ func (nd *Node) refreshSessionToken() (err Error) {
 		return nil
 	}
 
-	nd.usingTendConn(clusterClientPolicy.LoginTimeout, func(conn *Connection) {
+	errCall := nd.usingTendConn(clusterClientPolicy.LoginTimeout, func(conn *Connection) {
 		command := newLoginCommand(conn.dataBuffer)
 		if err = command.login(clusterClientPolicy, conn, nd.cluster.Password()); err != nil {
 			// force new connections to use default creds until a new valid session token is acquired
@@ -233,6 +233,10 @@ func (nd *Node) refreshSessionToken() (err Error) {
 			nd.sessionInfo.Set(command.sessionInfo())
 		}
 	})
+
+	if errCall != nil {
+		return errCall
+	}
 
 	return err
 }
@@ -792,12 +796,16 @@ func (nd *Node) RequestInfo(policy *InfoPolicy, name ...string) (map[string]stri
 
 // RequestInfo gets info values by name from the specified database server node.
 func (nd *Node) requestInfo(timeout time.Duration, name ...string) (response map[string]string, err Error) {
-	nd.usingTendConn(timeout, func(conn *Connection) {
+	errCall := nd.usingTendConn(timeout, func(conn *Connection) {
 		response, err = conn.RequestInfo(name...)
 		if err != nil {
 			conn.Close()
 		}
 	})
+
+	if errCall != nil {
+		return nil, errCall
+	}
 
 	return response, err
 }
@@ -805,15 +813,15 @@ func (nd *Node) requestInfo(timeout time.Duration, name ...string) (response map
 // requestRawInfo gets info values by name from the specified database server node.
 // It won't parse the results.
 func (nd *Node) requestRawInfo(policy *InfoPolicy, name ...string) (response *info, err Error) {
-	errorCall := nd.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := nd.usingTendConn(policy.Timeout, func(conn *Connection) {
 		response, err = newInfo(conn, name...)
 		if err != nil {
 			conn.Close()
 		}
-	}) 
+	})
 
-	if errorCall != nil {
-		return nil, errorCall
+	if errCall != nil {
+		return nil, errCall
 	}
 
 	return response, err

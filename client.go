@@ -1861,10 +1861,14 @@ func (clnt *Client) CreateUser(policy *AdminPolicy, user string, password string
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.createUser(conn, policy, user, hash, roles)
 	})
+
+	if errCall != nil {
+		return errCall
+	}
 
 	return err
 }
@@ -1891,10 +1895,14 @@ func (clnt *Client) CreatePKIUser(policy *AdminPolicy, user string, roles []stri
 		return newCommonError(nil, fmt.Sprintf("Node version %s is less than required minimum version %s", node.version.String(), serverMinVersion))
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.createUser(conn, policy, user, hash, roles)
 	})
+
+	if errCall != nil {
+		return newError(errCall.resultCode(), fmt.Sprintf("PKI user creation failed: %s", errCall.Error()))
+	}
 
 	if err != nil {
 		return newError(err.resultCode(), fmt.Sprintf("PKI user creation failed: %s", err.Error()))
@@ -1913,10 +1921,15 @@ func (clnt *Client) DropUser(policy *AdminPolicy, user string) Error {
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.dropUser(conn, policy, user)
 	})
+
+	if errCall != nil {
+		return errCall
+	}
+
 	return err
 }
 
@@ -1939,7 +1952,7 @@ func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password st
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 
 		if user == clnt.cluster.user {
@@ -1950,6 +1963,10 @@ func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password st
 			err = command.setPassword(conn, policy, user, hash)
 		}
 	})
+
+	if errCall != nil {
+		return errCall
+	}
 
 	if err == nil {
 		clnt.cluster.changePassword(user, password, hash)
@@ -1968,10 +1985,15 @@ func (clnt *Client) GrantRoles(policy *AdminPolicy, user string, roles []string)
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.grantRoles(conn, policy, user, roles)
 	})
+
+	if errCall != nil {
+		return errCall
+	}
+
 	return err
 }
 
@@ -1985,10 +2007,14 @@ func (clnt *Client) RevokeRoles(policy *AdminPolicy, user string, roles []string
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.revokeRoles(conn, policy, user, roles)
 	})
+
+	if errCall != nil {
+		return errCall
+	}
 
 	return err
 }
@@ -2003,10 +2029,15 @@ func (clnt *Client) QueryUser(policy *AdminPolicy, user string) (res *UserRoles,
 		return nil, err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		res, err = command.QueryUser(conn, policy, user)
 	})
+
+	if errCall != nil {
+		return nil, errCall
+	}
+
 	return res, err
 }
 
@@ -2020,10 +2051,15 @@ func (clnt *Client) QueryUsers(policy *AdminPolicy) (res []*UserRoles, err Error
 		return nil, err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		res, err = command.QueryUsers(conn, policy)
 	})
+
+	if errCall != nil {
+		return nil, errCall
+	}
+
 	return res, err
 }
 
@@ -2037,10 +2073,15 @@ func (clnt *Client) QueryRole(policy *AdminPolicy, role string) (res *Role, err 
 		return nil, err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		res, err = command.QueryRole(conn, policy, role)
 	})
+
+	if errCall != nil {
+		return nil, errCall
+	}
+
 	return res, err
 }
 
@@ -2054,10 +2095,15 @@ func (clnt *Client) QueryRoles(policy *AdminPolicy) (res []*Role, err Error) {
 		return nil, err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		res, err = command.QueryRoles(conn, policy)
 	})
+
+	if errCall != nil {
+		return nil, errCall
+	}
+
 	return res, err
 }
 
@@ -2073,10 +2119,15 @@ func (clnt *Client) CreateRole(policy *AdminPolicy, roleName string, privileges 
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.createRole(conn, policy, roleName, privileges, whitelist, readQuota, writeQuota)
 	})
+
+	if errCall != nil {
+		return errCall
+	}
+
 	return err
 }
 
@@ -2090,10 +2141,15 @@ func (clnt *Client) DropRole(policy *AdminPolicy, roleName string) Error {
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.dropRole(conn, policy, roleName)
 	})
+
+	if errCall != nil {
+		return errCall
+	}
+
 	return err
 }
 
@@ -2107,10 +2163,15 @@ func (clnt *Client) GrantPrivileges(policy *AdminPolicy, roleName string, privil
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.grantPrivileges(conn, policy, roleName, privileges)
 	})
+
+	if errCall != nil {
+		return errCall
+	}
+
 	return err
 }
 
@@ -2124,10 +2185,15 @@ func (clnt *Client) RevokePrivileges(policy *AdminPolicy, roleName string, privi
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.revokePrivileges(conn, policy, roleName, privileges)
 	})
+
+	if errCall != nil {
+		return errCall
+	}
+
 	return err
 }
 
@@ -2141,10 +2207,15 @@ func (clnt *Client) SetWhitelist(policy *AdminPolicy, roleName string, whitelist
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.setWhitelist(conn, policy, roleName, whitelist)
 	})
+
+	if errCall != nil {
+		return errCall
+	}
+
 	return err
 }
 
@@ -2160,10 +2231,15 @@ func (clnt *Client) SetQuotas(policy *AdminPolicy, roleName string, readQuota, w
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) {
 		command := NewAdminCommand(nil)
 		err = command.setQuotas(conn, policy, roleName, readQuota, writeQuota)
 	})
+
+	if errCall != nil {
+		return errCall
+	}
+
 	return err
 }
 
