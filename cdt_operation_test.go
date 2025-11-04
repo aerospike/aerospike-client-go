@@ -1459,7 +1459,6 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			err := client.PutBins(wpolicy, key, bin)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			// Select all blob content values
 			ctx1 := as.CtxMapKey(as.NewStringValue("documents"))
 			ctx2 := as.CtxAllChildren()
 			ctx3 := as.CtxMapKey(as.NewStringValue("content"))
@@ -1474,7 +1473,6 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			resultList, ok := resultBin.([]interface{})
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(3), "Should have 3 blob values")
-				// Verify all returned items are blobs
 				blobCount := 0
 				for _, item := range resultList {
 					if blob, ok := item.([]byte); ok && len(blob) > 0 {
@@ -1483,6 +1481,389 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				}
 				gm.Expect(blobCount).To(gm.BeNumerically(">", 0), "Should have at least one valid blob")
 			}
+		})
+	})
+
+	gg.Describe("ExpResultRemove Tests", func() {
+
+		gg.It("should remove all items from a list using ExpResultRemove", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"items": []interface{}{1, 2, 3, 4, 5},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("items"))
+			ctx2 := as.CtxAllChildren()
+
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, applyOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			finalRecord, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+
+			items, ok := finalData["items"].([]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(items)).To(gm.Equal(0), "All items should be removed")
+		})
+
+		gg.It("should remove filtered items from a list using ExpResultRemove", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"numbers": []interface{}{1, 5, 10, 15, 20, 25, 30},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("numbers"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGreater(
+					as.ExpLoopVarInt(as.VALUE),
+					as.ExpIntVal(10),
+				),
+			)
+
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, applyOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			finalRecord, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+
+			numbers, ok := finalData["numbers"].([]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(numbers)).To(gm.Equal(3), "Should keep items <= 10")
+			gm.Expect(numbers).To(gm.ContainElement(1))
+			gm.Expect(numbers).To(gm.ContainElement(5))
+			gm.Expect(numbers).To(gm.ContainElement(10))
+		})
+
+		gg.It("should remove all items from a map using ExpResultRemove", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"config": map[string]interface{}{
+					"option1": "value1",
+					"option2": "value2",
+					"option3": "value3",
+				},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("config"))
+			ctx2 := as.CtxAllChildren()
+
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, applyOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			finalRecord, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+
+			config, ok := finalData["config"].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(config)).To(gm.Equal(0), "All map entries should be removed")
+		})
+
+		gg.It("should remove filtered map entries using ExpResultRemove", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"scores": map[string]interface{}{
+					"alice": 95,
+					"bob":   45,
+					"carol": 75,
+					"dave":  30,
+				},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("scores"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpLess(
+					as.ExpLoopVarInt(as.VALUE),
+					as.ExpIntVal(50),
+				),
+			)
+
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, applyOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			finalRecord, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+
+			scores, ok := finalData["scores"].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(scores)).To(gm.Equal(2), "Should keep scores >= 50")
+
+			_, hasBob := scores["bob"]
+			gm.Expect(hasBob).To(gm.BeFalse())
+			_, hasDave := scores["dave"]
+			gm.Expect(hasDave).To(gm.BeFalse())
+
+			aliceScore, hasAlice := scores["alice"]
+			gm.Expect(hasAlice).To(gm.BeTrue())
+			gm.Expect(aliceScore).To(gm.Equal(95))
+		})
+
+		gg.It("should remove books with low prices using ExpResultRemove", func() {
+			client.Delete(nil, key)
+
+			booksList := []interface{}{
+				map[string]interface{}{
+					"title": "Cheap Book 1",
+					"price": 5.99,
+				},
+				map[string]interface{}{
+					"title": "Expensive Book",
+					"price": 25.99,
+				},
+				map[string]interface{}{
+					"title": "Cheap Book 2",
+					"price": 3.99,
+				},
+				map[string]interface{}{
+					"title": "Mid Price Book",
+					"price": 15.99,
+				},
+			}
+
+			rootMap := map[string]interface{}{
+				"books": booksList,
+			}
+
+			bin := as.NewBin(binName, rootMap)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("books"))
+			ctx2 := as.CtxAllChildren()
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpLessEq(
+					as.ExpMapGetByKey(
+						as.MapReturnType.VALUE,
+						as.ExpTypeFLOAT,
+						as.ExpStringVal("price"),
+						as.ExpLoopVarMap(as.VALUE),
+					),
+					as.ExpFloatVal(10.0),
+				),
+			)
+
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2, ctx3)
+
+			result, err := client.Operate(nil, key, applyOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			finalRecord, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+
+			books, ok := finalData["books"].([]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(books)).To(gm.Equal(2), "Should keep 2 expensive books")
+
+			for _, bookRaw := range books {
+				book, ok := bookRaw.(map[interface{}]interface{})
+				gm.Expect(ok).To(gm.BeTrue())
+
+				price, ok := book["price"]
+				gm.Expect(ok).To(gm.BeTrue())
+
+				var priceFloat float64
+				switch v := price.(type) {
+				case float64:
+					priceFloat = v
+				case float32:
+					priceFloat = float64(v)
+				case int:
+					priceFloat = float64(v)
+				}
+
+				gm.Expect(priceFloat).To(gm.BeNumerically(">", 10.0))
+			}
+		})
+
+		gg.It("should remove items by index filter using ExpResultRemove", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"values": []interface{}{100, 200, 300, 400, 500},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("values"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGreaterEq(
+					as.ExpLoopVarInt(as.INDEX),
+					as.ExpIntVal(3),
+				),
+			)
+
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, applyOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			finalRecord, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+
+			values, ok := finalData["values"].([]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(3), "Should keep first 3 items")
+			gm.Expect(values[0]).To(gm.Equal(100))
+			gm.Expect(values[1]).To(gm.Equal(200))
+			gm.Expect(values[2]).To(gm.Equal(300))
+		})
+
+		gg.It("should remove map entries by key filter using ExpResultRemove", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"inventory": map[string]interface{}{
+					"apple":  10,
+					"banana": 5,
+					"cherry": 8,
+					"date":   3,
+				},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("inventory"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGreaterEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("c"),
+				),
+			)
+
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, applyOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			finalRecord, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+
+			inventory, ok := finalData["inventory"].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(inventory)).To(gm.Equal(2))
+
+			_, hasApple := inventory["apple"]
+			gm.Expect(hasApple).To(gm.BeTrue())
+			_, hasBanana := inventory["banana"]
+			gm.Expect(hasBanana).To(gm.BeTrue())
+		})
+
+		gg.It("should remove nested items using ExpResultRemove with complex path", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"departments": map[string]interface{}{
+					"sales": []interface{}{
+						map[string]interface{}{"name": "John", "sales": 1000},
+						map[string]interface{}{"name": "Jane", "sales": 5000},
+					},
+					"engineering": []interface{}{
+						map[string]interface{}{"name": "Bob", "sales": 500},
+						map[string]interface{}{"name": "Alice", "sales": 3000},
+					},
+				},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("departments"))
+			ctx2 := as.CtxAllChildren()
+			ctx3 := as.CtxAllChildren()
+			ctx4 := as.CtxAllChildrenWithFilter(
+				as.ExpLess(
+					as.ExpMapGetByKey(
+						as.MapReturnType.VALUE,
+						as.ExpTypeINT,
+						as.ExpStringVal("sales"),
+						as.ExpLoopVarMap(as.VALUE),
+					),
+					as.ExpIntVal(2000),
+				),
+			)
+
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2, ctx3, ctx4)
+
+			result, err := client.Operate(nil, key, applyOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			finalRecord, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+
+			departments, ok := finalData["departments"].(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+
+			salesList, ok := departments["sales"].([]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(salesList)).To(gm.Equal(1), "Should keep Jane only")
+
+			engList, ok := departments["engineering"].([]interface{})
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(engList)).To(gm.Equal(1), "Should keep Alice only")
 		})
 	})
 })

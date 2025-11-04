@@ -118,6 +118,7 @@ var (
 	expOpKEY           expOp = 80
 	expOpBIN           expOp = 81
 	expOpBIN_TYPE      expOp = 82
+	expOpRESULT_REMOVE expOp = 100
 	expVarBuiltIn      expOp = 122
 	expOpCond          expOp = 123
 	expOpVar           expOp = 124
@@ -821,6 +822,19 @@ func ExpLoopVarBlob(part LoopVarPart) *Expression {
 		nil,
 		nil,
 		&ExpTypeBLOB,
+		nil,
+	)
+}
+
+// ExpResultRemove creates a result remove expression.
+// Requires server version 8.1.1+.
+func ExpResultRemove() *Expression {
+	return newFilterExpression(
+		&expOpRESULT_REMOVE,
+		nil,
+		nil,
+		nil,
+		nil,
 		nil,
 	)
 }
