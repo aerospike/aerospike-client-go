@@ -737,7 +737,7 @@ func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) Error {
 // usingTendConn allows the tend connection to be used in a monitor without race conditions.
 // If the connection is not valid, it establishes a valid connection first.
 func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection) Error) Error {
-	err := nd.tendConn.Update(func(conn **Connection) error {
+	errCall := nd.tendConn.Update(func(conn **Connection) error {
 		var err Error
 		if timeout <= 0 {
 			timeout = _DEFAULT_TIMEOUT
@@ -767,15 +767,16 @@ func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection) Er
 		// if all went well, call the closure
 		return f(*conn)
 	})
-	if err == nil {
+
+	if errCall == nil {
 		return nil
 	}
 	// The error returned should be an Error
-	if aerr, ok := err.(Error); ok {
+	if aerr, ok := errCall.(Error); ok {
 		return aerr
 	}
 	// Fallback: wrap in a common error if somehow it's not an Error type
-	return newCommonError(err)
+	return newCommonError(errCall)
 }
 
 // requestInfoWithRetry gets info values by name from the specified database server node.
