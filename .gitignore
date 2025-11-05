@@ -29,3 +29,4 @@ golangci.yml
 cover*.out
 .vscode/settings.json
 ginkgo.report
+.idea
