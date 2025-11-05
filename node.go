@@ -807,7 +807,7 @@ func (nd *Node) requestInfo(timeout time.Duration, name ...string) (response map
 		if err != nil {
 			conn.Close()
 		}
-		return nil
+		return err
 	}); errCall != nil {
 		return nil, errCall
 	}
@@ -823,7 +823,7 @@ func (nd *Node) requestRawInfo(policy *InfoPolicy, name ...string) (response *in
 		if err != nil {
 			conn.Close()
 		}
-		return nil
+		return err
 	}); errCall != nil {
 		return nil, errCall
 	}
