@@ -222,24 +222,19 @@ func (nd *Node) refreshSessionToken() (err Error) {
 		return nil
 	}
 
-	errCall := nd.usingTendConn(clusterClientPolicy.LoginTimeout, func(conn *Connection) Error {
+	return nd.usingTendConn(clusterClientPolicy.LoginTimeout, func(conn *Connection) Error {
 		command := newLoginCommand(conn.dataBuffer)
-		if err = command.login(clusterClientPolicy, conn, nd.cluster.Password()); err != nil {
+		if err := command.login(clusterClientPolicy, conn, nd.cluster.Password()); err != nil {
 			// force new connections to use default creds until a new valid session token is acquired
 			nd.resetSessionInfo()
 			// Socket not authenticated. Do not put back into pool.
 			conn.Close()
-		} else {
-			nd.sessionInfo.Set(command.sessionInfo())
+			return err
 		}
+
+		nd.sessionInfo.Set(command.sessionInfo())
 		return nil
 	})
-
-	if errCall != nil {
-		return errCall
-	}
-
-	return err
 }
 
 func (nd *Node) updateRackInfo(infoMap map[string]string) Error {
@@ -806,15 +801,13 @@ func (nd *Node) RequestInfo(policy *InfoPolicy, name ...string) (map[string]stri
 
 // RequestInfo gets info values by name from the specified database server node.
 func (nd *Node) requestInfo(timeout time.Duration, name ...string) (response map[string]string, err Error) {
-	errCall := nd.usingTendConn(timeout, func(conn *Connection) Error {
+	if errCall := nd.usingTendConn(timeout, func(conn *Connection) Error {
 		response, err = conn.RequestInfo(name...)
 		if err != nil {
 			conn.Close()
 		}
 		return nil
-	})
-
-	if errCall != nil {
+	}); errCall != nil {
 		return nil, errCall
 	}
 
@@ -824,15 +817,13 @@ func (nd *Node) requestInfo(timeout time.Duration, name ...string) (response map
 // requestRawInfo gets info values by name from the specified database server node.
 // It won't parse the results.
 func (nd *Node) requestRawInfo(policy *InfoPolicy, name ...string) (response *info, err Error) {
-	errCall := nd.usingTendConn(policy.Timeout, func(conn *Connection) Error {
+	if errCall := nd.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		response, err = newInfo(conn, name...)
 		if err != nil {
 			conn.Close()
 		}
 		return nil
-	})
-
-	if errCall != nil {
+	}); errCall != nil {
 		return nil, errCall
 	}
 
