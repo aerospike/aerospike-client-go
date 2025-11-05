@@ -1,5 +1,9 @@
 # Change History
 
+## November 4 2025: v8.4.1
+**Fixes**
+- [CLIENT-3821] Fixed issue where `panic: runtime error: invalid memory address` could occur after calling `usingTendConn(...)`.
+
 ## October 20 2025: v8.4.0
 **Improvements**
 - [CLIENT-3435] Update Go client to support FIPS.

@@ -1861,12 +1861,10 @@ func (clnt *Client) CreateUser(policy *AdminPolicy, user string, password string
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	return node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.createUser(conn, policy, user, hash, roles)
+		return command.createUser(conn, policy, user, hash, roles)
 	})
-
-	return err
 }
 
 // CreatePKIUser creates a new user PKI user with roles. PKI users are authenticated via TLS and a certificate instead of a password.
@@ -1891,12 +1889,10 @@ func (clnt *Client) CreatePKIUser(policy *AdminPolicy, user string, roles []stri
 		return newCommonError(nil, fmt.Sprintf("Node version %s is less than required minimum version %s", node.version.String(), serverMinVersion))
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	if err := node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.createUser(conn, policy, user, hash, roles)
-	})
-
-	if err != nil {
+		return command.createUser(conn, policy, user, hash, roles)
+	}); err != nil {
 		return newError(err.resultCode(), fmt.Sprintf("PKI user creation failed: %s", err.Error()))
 	}
 
@@ -1913,11 +1909,10 @@ func (clnt *Client) DropUser(policy *AdminPolicy, user string) Error {
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	return node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.dropUser(conn, policy, user)
+		return command.dropUser(conn, policy, user)
 	})
-	return err
 }
 
 // ChangePassword changes a user's password. Clear-text password will be hashed using bcrypt before sending to server.
@@ -1939,23 +1934,21 @@ func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password st
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	if err := node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
 
 		if user == clnt.cluster.user {
 			// Change own password.
-			err = command.changePassword(conn, policy, user, clnt.cluster.Password(), hash)
-		} else {
-			// Change other user's password by user admin.
-			err = command.setPassword(conn, policy, user, hash)
+			return command.changePassword(conn, policy, user, clnt.cluster.Password(), hash)
 		}
-	})
-
-	if err == nil {
-		clnt.cluster.changePassword(user, password, hash)
+		// Change other user's password by user admin.
+		return command.setPassword(conn, policy, user, hash)
+	}); err != nil {
+		return err
 	}
 
-	return err
+	clnt.cluster.changePassword(user, password, hash)
+	return nil
 }
 
 // GrantRoles adds roles to user's list of roles.
@@ -1968,11 +1961,10 @@ func (clnt *Client) GrantRoles(policy *AdminPolicy, user string, roles []string)
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	return node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.grantRoles(conn, policy, user, roles)
+		return command.grantRoles(conn, policy, user, roles)
 	})
-	return err
 }
 
 // RevokeRoles removes roles from user's list of roles.
@@ -1985,12 +1977,10 @@ func (clnt *Client) RevokeRoles(policy *AdminPolicy, user string, roles []string
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	return node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.revokeRoles(conn, policy, user, roles)
+		return command.revokeRoles(conn, policy, user, roles)
 	})
-
-	return err
 }
 
 // QueryUser retrieves roles for a given user.
@@ -2003,10 +1993,15 @@ func (clnt *Client) QueryUser(policy *AdminPolicy, user string) (res *UserRoles,
 		return nil, err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	if errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
 		res, err = command.QueryUser(conn, policy, user)
-	})
+
+		return err
+	}); errCall != nil {
+		return nil, errCall
+	}
+
 	return res, err
 }
 
@@ -2020,10 +2015,15 @@ func (clnt *Client) QueryUsers(policy *AdminPolicy) (res []*UserRoles, err Error
 		return nil, err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	if errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
 		res, err = command.QueryUsers(conn, policy)
-	})
+
+		return err
+	}); errCall != nil {
+		return nil, errCall
+	}
+
 	return res, err
 }
 
@@ -2037,10 +2037,15 @@ func (clnt *Client) QueryRole(policy *AdminPolicy, role string) (res *Role, err 
 		return nil, err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	if errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
 		res, err = command.QueryRole(conn, policy, role)
-	})
+
+		return err
+	}); errCall != nil {
+		return nil, errCall
+	}
+
 	return res, err
 }
 
@@ -2054,10 +2059,15 @@ func (clnt *Client) QueryRoles(policy *AdminPolicy) (res []*Role, err Error) {
 		return nil, err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	if errCall := node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
 		res, err = command.QueryRoles(conn, policy)
-	})
+
+		return err
+	}); errCall != nil {
+		return nil, errCall
+	}
+
 	return res, err
 }
 
@@ -2073,11 +2083,10 @@ func (clnt *Client) CreateRole(policy *AdminPolicy, roleName string, privileges 
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	return node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.createRole(conn, policy, roleName, privileges, whitelist, readQuota, writeQuota)
+		return command.createRole(conn, policy, roleName, privileges, whitelist, readQuota, writeQuota)
 	})
-	return err
 }
 
 // DropRole removes a user-defined role.
@@ -2090,11 +2099,10 @@ func (clnt *Client) DropRole(policy *AdminPolicy, roleName string) Error {
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	return node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.dropRole(conn, policy, roleName)
+		return command.dropRole(conn, policy, roleName)
 	})
-	return err
 }
 
 // GrantPrivileges grant privileges to a user-defined role.
@@ -2107,11 +2115,10 @@ func (clnt *Client) GrantPrivileges(policy *AdminPolicy, roleName string, privil
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	return node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.grantPrivileges(conn, policy, roleName, privileges)
+		return command.grantPrivileges(conn, policy, roleName, privileges)
 	})
-	return err
 }
 
 // RevokePrivileges revokes privileges from a user-defined role.
@@ -2124,11 +2131,10 @@ func (clnt *Client) RevokePrivileges(policy *AdminPolicy, roleName string, privi
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	return node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.revokePrivileges(conn, policy, roleName, privileges)
+		return command.revokePrivileges(conn, policy, roleName, privileges)
 	})
-	return err
 }
 
 // SetWhitelist sets IP address whitelist for a role. If whitelist is nil or empty, it removes existing whitelist from role.
@@ -2141,11 +2147,10 @@ func (clnt *Client) SetWhitelist(policy *AdminPolicy, roleName string, whitelist
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	return node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.setWhitelist(conn, policy, roleName, whitelist)
+		return command.setWhitelist(conn, policy, roleName, whitelist)
 	})
-	return err
 }
 
 // SetQuotas sets maximum reads/writes per second limits for a role.  If a quota is zero, the limit is removed.
@@ -2160,11 +2165,10 @@ func (clnt *Client) SetQuotas(policy *AdminPolicy, roleName string, readQuota, w
 		return err
 	}
 
-	node.usingTendConn(policy.Timeout, func(conn *Connection) {
+	return node.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		command := NewAdminCommand(nil)
-		err = command.setQuotas(conn, policy, roleName, readQuota, writeQuota)
+		return command.setQuotas(conn, policy, roleName, readQuota, writeQuota)
 	})
-	return err
 }
 
 //-------------------------------------------------------

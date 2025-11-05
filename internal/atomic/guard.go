@@ -42,10 +42,10 @@ func (g *Guard[T]) DoVal(f func(T)) {
 }
 
 // Call the passed closure allowing to replace the content.
-func (g *Guard[T]) Update(f func(**T)) {
+func (g *Guard[T]) Update(f func(**T) error) error {
 	g.m.Lock()
 	defer g.m.Unlock()
-	f(&g.val)
+	return f(&g.val)
 }
 
 // Calls the passed closure allowing to replace the content.
