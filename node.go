@@ -222,19 +222,19 @@ func (nd *Node) refreshSessionToken() (err Error) {
 		return nil
 	}
 
-	nd.usingTendConn(clusterClientPolicy.LoginTimeout, func(conn *Connection) {
+	return nd.usingTendConn(clusterClientPolicy.LoginTimeout, func(conn *Connection) Error {
 		command := newLoginCommand(conn.dataBuffer)
-		if err = command.login(clusterClientPolicy, conn, nd.cluster.Password()); err != nil {
+		if err := command.login(clusterClientPolicy, conn, nd.cluster.Password()); err != nil {
 			// force new connections to use default creds until a new valid session token is acquired
 			nd.resetSessionInfo()
 			// Socket not authenticated. Do not put back into pool.
 			conn.Close()
-		} else {
-			nd.sessionInfo.Set(command.sessionInfo())
+			return err
 		}
-	})
 
-	return err
+		nd.sessionInfo.Set(command.sessionInfo())
+		return nil
+	})
 }
 
 func (nd *Node) updateRackInfo(infoMap map[string]string) Error {
@@ -736,8 +736,9 @@ func (nd *Node) WaitUntillMigrationIsFinished(timeout time.Duration) Error {
 
 // usingTendConn allows the tend connection to be used in a monitor without race conditions.
 // If the connection is not valid, it establishes a valid connection first.
-func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection)) (err Error) {
-	nd.tendConn.Update(func(conn **Connection) {
+func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection) Error) Error {
+	errCall := nd.tendConn.Update(func(conn **Connection) error {
+		var err Error
 		if timeout <= 0 {
 			timeout = _DEFAULT_TIMEOUT
 		}
@@ -754,19 +755,28 @@ func (nd *Node) usingTendConn(timeout time.Duration, f func(conn *Connection)) (
 
 			// if no connection could be established, exit fast
 			if err != nil {
-				return
+				return err
 			}
 		}
 
 		// Set timeout for tend conn
 		if err = (*conn).setTimeout(timeout, timeout); err != nil {
-			return
+			return err
 		}
 
 		// if all went well, call the closure
-		f(*conn)
+		return f(*conn)
 	})
-	return err
+
+	if errCall == nil {
+		return nil
+	}
+	// The error returned should be an Error
+	if aerr, ok := errCall.(Error); ok {
+		return aerr
+	}
+	// Fallback: wrap in a common error if somehow it's not an Error type
+	return newCommonError(errCall)
 }
 
 // requestInfoWithRetry gets info values by name from the specified database server node.
@@ -792,12 +802,15 @@ func (nd *Node) RequestInfo(policy *InfoPolicy, name ...string) (map[string]stri
 
 // RequestInfo gets info values by name from the specified database server node.
 func (nd *Node) requestInfo(timeout time.Duration, name ...string) (response map[string]string, err Error) {
-	nd.usingTendConn(timeout, func(conn *Connection) {
+	if errCall := nd.usingTendConn(timeout, func(conn *Connection) Error {
 		response, err = conn.RequestInfo(name...)
 		if err != nil {
 			conn.Close()
 		}
-	})
+		return err
+	}); errCall != nil {
+		return nil, errCall
+	}
 
 	return response, err
 }
@@ -805,12 +818,16 @@ func (nd *Node) requestInfo(timeout time.Duration, name ...string) (response map
 // requestRawInfo gets info values by name from the specified database server node.
 // It won't parse the results.
 func (nd *Node) requestRawInfo(policy *InfoPolicy, name ...string) (response *info, err Error) {
-	nd.usingTendConn(policy.Timeout, func(conn *Connection) {
+	if errCall := nd.usingTendConn(policy.Timeout, func(conn *Connection) Error {
 		response, err = newInfo(conn, name...)
 		if err != nil {
 			conn.Close()
 		}
-	})
+		return err
+	}); errCall != nil {
+		return nil, errCall
+	}
+
 	return response, err
 }
 

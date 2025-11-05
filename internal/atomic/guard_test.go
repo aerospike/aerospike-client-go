@@ -106,8 +106,10 @@ var _ = gg.Describe("Atomic Guard", func() {
 
 	gg.It("must replace internal value's reference correctly", func() {
 		local := S{a: 99, b: false}
-		grd.Update(func(s **S) {
+		grd.Update(func(s **S) error {
 			*s = &local
+
+			return nil
 		})
 
 		grd.Do(func(s *S) {
