@@ -137,22 +137,44 @@ func packIfCDTModify(packer BufferEx, opType int, ctx []*CDTContext, params List
 		}
 	}
 
-	// Pack the parameters array as the third element
-	// Array size is len(params)+1 to reserve space for additional protocol data
-	if n, err = packArrayBegin(packer, len(params)+1); err != nil {
+	// Extract flag and expression from params
+	// params should be [flag, modifyExp]
+	if len(params) != 2 {
+		return size, newError(types.PARAMETER_ERROR, "CDTModifyByPath requires flag and expression")
+	}
+
+	flag, ok := params[0].(SelectFlag)
+	if !ok {
+		return size, newError(types.PARAMETER_ERROR, "First parameter must be a SelectFlag")
+	}
+
+	modifyExp, ok := params[1].(*Expression)
+	if !ok {
+		return size, newError(types.PARAMETER_ERROR, "Second parameter must be an Expression")
+	}
+
+	// Element 3: Pack flags | 4 (ensure apply flag is set)
+	if n, err = packAInt64(packer, int64(flag|4)); err != nil {
 		return size + n, err
 	}
 	size += n
 
-	// Pack each parameter object from the params list
-	if len(params) > 0 {
-		for i := range params {
-			if n, err = packObject(packer, params[i], false); err != nil {
-				return size + n, err
-			}
-			size += n
-		}
+	// Element 4: Pack expression bytes directly
+	expSize, err := modifyExp.size()
+	if err != nil {
+		return size, err
 	}
+	expBuf := newBuffer(expSize)
+	_, err = modifyExp.pack(expBuf)
+	if err != nil {
+		return size, err
+	}
+	expBytes := expBuf.Bytes()
+
+	if n, err = packByteArray(packer, expBytes); err != nil {
+		return size + n, err
+	}
+	size += n
 
 	return size, nil
 }

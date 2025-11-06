@@ -89,8 +89,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(record).ToNot(gm.BeNil())
 
 			ctx1 := as.CtxMapKey(as.NewStringValue("book"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpLessEq(
 					as.ExpMapGetByKey(
 						as.MapReturnType.VALUE,
@@ -101,9 +100,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 					as.ExpFloatVal(10.0),
 				),
 			)
-			ctx4 := as.CtxMapKey(as.NewStringValue("title"))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("title"),
+				),
+			)
 
-			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3, ctx4)
+			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -165,7 +169,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			bookKey := as.CtxMapKey(as.NewStringValue("book"))
 			allChildren := as.CtxAllChildren()
-			priceKey := as.CtxMapKey(as.NewStringValue("price"))
+			priceKey := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("price"),
+				),
+			)
 
 			modifyExp := as.ExpNumMul(
 				as.ExpLoopVarFloat(as.VALUE), // Current price value
@@ -279,8 +288,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			ctx1 := as.CtxMapKey(as.NewStringValue("store"))
 			ctx2 := as.CtxMapKey(as.NewStringValue("books"))
-			ctx3 := as.CtxAllChildren()
-			ctx4 := as.CtxAllChildrenWithFilter(
+			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpAnd(
 					as.ExpEq(
 						as.ExpMapGetByKey(
@@ -302,9 +310,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 					),
 				),
 			)
-			ctx5 := as.CtxMapKey(as.NewStringValue("title"))
+			ctx4 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("title"),
+				),
+			)
 
-			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3, ctx4, ctx5)
+			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3, ctx4)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -344,8 +357,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Try to select books with price <= 10.0 (should return empty)
 			ctx1 := as.CtxMapKey(as.NewStringValue("book"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpLessEq(
 					as.ExpMapGetByKey(
 						as.MapReturnType.VALUE,
@@ -356,9 +368,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 					as.ExpFloatVal(10.0),
 				),
 			)
-			ctx4 := as.CtxMapKey(as.NewStringValue("title"))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("title"),
+				),
+			)
 
-			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3, ctx4)
+			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -397,8 +414,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			ctx1 := as.CtxMapKey(as.NewStringValue("book"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpLessEq(
 					as.ExpMapGetByKey(
 						as.MapReturnType.VALUE,
@@ -410,7 +426,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.MATCHING_TREE, ctx1, ctx2, ctx3)
+			selectOp := as.CDTSelectByPath(binName, as.MATCHING_TREE, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -567,7 +583,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Add 5 to each score
 			ctx1 := as.CtxMapKey(as.NewStringValue("scores"))
-			ctx2 := as.CtxAllChildren()
+			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			modifyExp := as.ExpNumAdd(
 				as.ExpLoopVarInt(as.VALUE),
@@ -612,7 +628,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Subtract 100 from each balance
 			ctx1 := as.CtxMapKey(as.NewStringValue("balances"))
-			ctx2 := as.CtxAllChildren()
+			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			modifyExp := as.ExpNumSub(
 				as.ExpLoopVarInt(as.VALUE),
@@ -732,8 +748,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Select active users
 			ctx1 := as.CtxMapKey(as.NewStringValue("users"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
 					as.ExpMapGetByKey(
 						as.MapReturnType.VALUE,
@@ -744,9 +759,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 					as.ExpBoolVal(true),
 				),
 			)
-			ctx4 := as.CtxMapKey(as.NewStringValue("name"))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("name"),
+				),
+			)
 
-			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3, ctx4)
+			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -782,8 +802,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Select products that are (inStock AND price < 20) OR (price > 25)
 			ctx1 := as.CtxMapKey(as.NewStringValue("products"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpOr(
 					as.ExpAnd(
 						as.ExpEq(
@@ -816,9 +835,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 					),
 				),
 			)
-			ctx4 := as.CtxMapKey(as.NewStringValue("name"))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("name"),
+				),
+			)
 
-			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3, ctx4)
+			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -877,8 +901,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("level1"))
 			ctx2 := as.CtxMapKey(as.NewStringValue("level2"))
 			ctx3 := as.CtxMapKey(as.NewStringValue("level3"))
-			ctx4 := as.CtxAllChildren()
-			ctx5 := as.CtxAllChildrenWithFilter(
+			ctx4 := as.CtxAllChildrenWithFilter(
 				as.ExpGreater(
 					as.ExpMapGetByKey(
 						as.MapReturnType.VALUE,
@@ -889,9 +912,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 					as.ExpIntVal(150),
 				),
 			)
-			ctx6 := as.CtxMapKey(as.NewStringValue("value"))
+			ctx5 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("value"),
+				),
+			)
 
-			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3, ctx4, ctx5, ctx6)
+			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3, ctx4, ctx5)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1045,7 +1073,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Subtract 100 from all balances
 			ctx1 := as.CtxMapKey(as.NewStringValue("balances"))
-			ctx2 := as.CtxAllChildren()
+			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			modifyExp := as.ExpNumSub(
 				as.ExpLoopVarInt(as.VALUE),
@@ -1094,7 +1122,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			ctx1 := as.CtxMapKey(as.NewStringValue("company"))
 			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxMapKey(as.NewStringValue("q1"))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("q1"),
+				),
+			)
 
 			selectOp := as.CDTSelectByPath(binName, as.MATCHING_TREE, ctx1, ctx2, ctx3)
 
@@ -1121,8 +1154,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Select names of products that are in stock AND price < 150
 			ctx1 := as.CtxMapKey(as.NewStringValue("products"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpAnd(
 					as.ExpEq(
 						as.ExpMapGetByKey(
@@ -1144,9 +1176,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 					),
 				),
 			)
-			ctx4 := as.CtxMapKey(as.NewStringValue("name"))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("name"),
+				),
+			)
 
-			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3, ctx4)
+			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1173,7 +1210,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Multiply each value by its index + 1
 			ctx1 := as.CtxMapKey(as.NewStringValue("values"))
-			ctx2 := as.CtxAllChildren()
+			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			modifyExp := as.ExpNumMul(
 				as.ExpLoopVarInt(as.VALUE),
@@ -1225,7 +1262,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Toggle all flags (NOT operation)
 			ctx1 := as.CtxMapKey(as.NewStringValue("flags"))
-			ctx2 := as.CtxAllChildren()
+			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			modifyExp := as.ExpNot(
 				as.ExpLoopVarBool(as.VALUE),
@@ -1301,25 +1338,24 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			err := client.PutBins(wpolicy, key, bin)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			// Calculate: (value * multiplier) + 100
+			// Add 100 to each value field in the metrics
 			ctx1 := as.CtxMapKey(as.NewStringValue("metrics"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxMapKey(as.NewStringValue("value"))
-
-			modifyExp := as.ExpNumAdd(
-				as.ExpNumMul(
-					as.ExpLoopVarInt(as.VALUE),
-					as.ExpMapGetByKey(
-						as.MapReturnType.VALUE,
-						as.ExpTypeINT,
-						as.ExpStringVal("multiplier"),
-						as.ExpLoopVarMap(as.VALUE),
-					),
+			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("value"),
 				),
+			)
+
+			// At ctx3, we're at the "value" field value (10, 20, 30)
+			// The expression calculates the new value
+			modifyExp := as.ExpNumAdd(
+				as.ExpLoopVarInt(as.VALUE),
 				as.ExpIntVal(100),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, 0, modifyExp, ctx1, ctx2, ctx3)
+			applyOp := as.CDTModifyByPath(binName, as.MATCHING_TREE, modifyExp, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1334,15 +1370,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			metrics, ok := finalData["metrics"].([]interface{})
 			gm.Expect(ok).To(gm.BeTrue())
 
-			// First: (10 * 2) + 100 = 120
-			// Second: (20 * 3) + 100 = 160
-			// Third: (30 * 4) + 100 = 220
 			firstMetric, ok := metrics[0].(map[interface{}]interface{})
 			gm.Expect(ok).To(gm.BeTrue())
 
 			value, ok := firstMetric["value"].(int)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(value).To(gm.Equal(120), "(10 * 2) + 100 = 120")
+			gm.Expect(value).To(gm.Equal(110), "10 + 100 = 110")
 		})
 
 		gg.It("should handle CDTSelectByPath with OR filter expression", func() {
@@ -1363,8 +1396,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Select names where priority is 1 OR 3
 			ctx1 := as.CtxMapKey(as.NewStringValue("items"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpOr(
 					as.ExpEq(
 						as.ExpMapGetByKey(
@@ -1386,9 +1418,9 @@ var _ = gg.Describe("CDT Operation Test", func() {
 					),
 				),
 			)
-			ctx4 := as.CtxMapKey(as.NewStringValue("name"))
+			ctx3 := as.CtxMapKey(as.NewStringValue("name"))
 
-			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3, ctx4)
+			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1461,7 +1493,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			ctx1 := as.CtxMapKey(as.NewStringValue("documents"))
 			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxMapKey(as.NewStringValue("content"))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("content"),
+				),
+			)
 
 			selectOp := as.CDTSelectByPath(binName, as.VALUES, ctx1, ctx2, ctx3)
 
@@ -1498,7 +1535,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			ctx1 := as.CtxMapKey(as.NewStringValue("items"))
-			ctx2 := as.CtxAllChildren()
+			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2)
 
@@ -1572,7 +1609,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			ctx1 := as.CtxMapKey(as.NewStringValue("config"))
-			ctx2 := as.CtxAllChildren()
+			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2)
 
@@ -1672,8 +1709,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			ctx1 := as.CtxMapKey(as.NewStringValue("books"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpLessEq(
 					as.ExpMapGetByKey(
 						as.MapReturnType.VALUE,
@@ -1685,7 +1721,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2, ctx3)
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1828,9 +1864,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			ctx1 := as.CtxMapKey(as.NewStringValue("departments"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildren()
-			ctx4 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
+			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpLess(
 					as.ExpMapGetByKey(
 						as.MapReturnType.VALUE,
@@ -1842,7 +1877,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2, ctx3, ctx4)
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
