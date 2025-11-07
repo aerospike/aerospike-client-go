@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Deploy Aerolab Cluster
-        uses: gagan405/github-action-aerolab-runner@v1
+        uses: ./.github/actions/deploy-aerolab
         with:
           aerospike_version: "8.1.0.1"
           nodes: 3
