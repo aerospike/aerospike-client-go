@@ -15,9 +15,9 @@ on:
         description: "Cluster name"
         required: false
         default: "ce"
-  push:
-    branches:
-      - CLIENT-3852-tests-against-multi-node-cluster
+  schedule:
+    - cron: "0 2 * * *" # Nightly at 02:00 UTC
+
 jobs:
   make-matrix:
     runs-on: ubuntu-latest
