@@ -33,8 +33,10 @@ jobs:
 
       - name: debug - print input variables
         run: |
-          echo ${{ steps.get-go-version.outputs.go-version }}
-          echo ${{ steps.create-server-matrix.outputs.input-matrix }}
+          echo "Go version: ${{ steps.get-go-version.outputs.go-version }}"
+          echo 'Matrix output:'
+          echo '${{ steps.create-server-matrix.outputs.matrix }}' | jq .
+
   build:
     timeout-minutes: 30
     needs: make-matrix
