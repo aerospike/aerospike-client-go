@@ -24,12 +24,54 @@ var (
 )
 
 type SelectFlag int
+type ModifyFlag int
 
 const (
-	MATCHING_TREE SelectFlag = 0
-	VALUES        SelectFlag = 1
-	MAP_KEYS      SelectFlag = 2
-	NO_FAIL       SelectFlag = 0x10
+	// Return a tree from the root (bin) level to the bottom of the tree,
+	// with only non-filtered out nodes.
+	EXP_PATH_SELECT_MATCHING_TREE SelectFlag = 0
+
+	// Return the list of the values of the nodes finally selected by the context.
+	// For maps, this returns the value of each (key, value) pair.
+	EXP_PATH_SELECT_VALUE         SelectFlag = 1
+
+	// Return the list of the values of the nodes finally selected by the context.
+	// This is a synonym for AS_EXP_PATH_SELECT_VALUE to make it clear in your
+	// source code that you're expecting a list.
+	EXP_PATH_SELECT_LIST_VALUE    SelectFlag = 1
+
+	// Return the list of map values of the nodes finally selected by the context.
+	// This is a synonym for AS_EXP_PATH_SELECT_VALUE to make it clear in your
+	// source code that you're expecting a map.  See also
+	// EXP_PATH_SELECT_MAP_KEY_VALUE.
+	EXP_PATH_SELECT_MAP_VALUE     SelectFlag = 1
+
+    // Return the list of map keys of the nodes finally selected by the context.
+	EXP_PATH_SELECT_MAP_KEY       SelectFlag = 2
+
+	// Returns the list of map (key, value) pairs of the nodes finally selected
+	// by the context.  This is a synonym for setting both
+	// EXP_PATH_SELECT_MAP_KEY and EXP_PATH_SELECT_MAP_VALUE bits together.
+	EXP_PATH_SELECT_MAP_KEY_VALUE SelectFlag = EXP_PATH_SELECT_MAP_KEY | EXP_PATH_SELECT_MAP_VALUE
+
+	// If the expression in the context hits an invalid type (e.g., selects
+	// as an integer when the value is a string), do not fail the operation;
+	// just ignore those elements.  Interpret UNKNOWN as false instead.
+	EXP_PATH_SELECT_NO_FAIL       SelectFlag = 0x10
+)
+
+const (
+	// If the expression in the context hits an invalid type, the operation
+	// will fail.  This is the default behavior.
+	EXP_PATH_MODIFY_DEFAULT ModifyFlag = 0x00
+
+	// This flag is set when leaf values are to be modified.
+	EXP_PATH_MODIFY_APPLY   ModifyFlag = 0x04
+
+	// If the expression in the context hits an invalid type (e.g., selects
+	// as an integer when the value is a string), do not fail the operation;
+	// just ignore those elements.  Interpret UNKNOWN as false instead.
+	EXP_PATH_MODIFY_NO_FAIL ModifyFlag = 0x10
 )
 
 // CDTSelectByPath creates CDT select operation with context.
@@ -66,7 +108,7 @@ func CDTSelectByPath(binName string, flag SelectFlag, ctx ...*CDTContext) *Opera
 //   - ctx: optional path to nested CDT. If not defined, the top-level CDT is used.
 //
 // Returns nil if ctx is nil.
-func CDTModifyByPath(binName string, flag SelectFlag, modifyExp *Expression, ctx ...*CDTContext) *Operation {
+func CDTModifyByPath(binName string, flag ModifyFlag, modifyExp *Expression, ctx ...*CDTContext) *Operation {
 	if ctx == nil {
 		return nil
 	}
@@ -143,7 +185,7 @@ func packIfCDTModify(packer BufferEx, opType int, ctx []*CDTContext, params List
 		return size, newError(types.PARAMETER_ERROR, "CDTModifyByPath requires flag and expression")
 	}
 
-	flag, ok := params[0].(SelectFlag)
+	flag, ok := params[0].(ModifyFlag)
 	if !ok {
 		return size, newError(types.PARAMETER_ERROR, "First parameter must be a SelectFlag")
 	}
@@ -153,8 +195,8 @@ func packIfCDTModify(packer BufferEx, opType int, ctx []*CDTContext, params List
 		return size, newError(types.PARAMETER_ERROR, "Second parameter must be an Expression")
 	}
 
-	// Element 3: Pack flags | 4 (ensure apply flag is set)
-	if n, err = packAInt64(packer, int64(flag|4)); err != nil {
+	// Element 3: Pack flags | EXP_PATH_MODIFY_APPLY (ensure apply flag is set)
+	if n, err = packAInt64(packer, int64(flag|EXP_PATH_MODIFY_APPLY)); err != nil {
 		return size + n, err
 	}
 	size += n

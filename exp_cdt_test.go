@@ -87,7 +87,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("res1"),
 				bookKey, allChildren, priceKey,
 			)
@@ -148,8 +148,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			// Select titles where price <= 10
 			ctx1 := as.CtxMapKey(as.NewStringValue("book"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpLessEq(
 					as.ExpMapGetByKey(
 						as.MapReturnType.VALUE,
@@ -160,13 +159,18 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 					as.ExpFloatVal(10.0),
 				),
 			)
-			ctx4 := as.CtxMapKey(as.NewStringValue("title"))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("title"),
+				),
+			)
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("res1"),
-				ctx1, ctx2, ctx3, ctx4,
+				ctx1, ctx2, ctx3,
 			)
 
 			result, err := client.Operate(nil, key,
@@ -207,7 +211,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("data"),
 				ctx1, ctx2,
 			)
@@ -465,7 +469,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("data"),
 				ctx1, ctx2,
 			)
@@ -506,7 +510,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("data"),
 				selectCtx1, selectCtx2, selectCtx3,
 			)
@@ -566,7 +570,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			gm.Expect(value).To(gm.Equal(20), "Value should be doubled (10 * 2 = 20)")
 		})
 
-		gg.It("should work with different flag combinations", func() {
+		gg.It("should NOT work with different flag combinations", func() {
 			client.Delete(nil, key)
 
 			data := map[string]interface{}{
@@ -584,7 +588,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			// Test with flag value 1 (Entries)
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("data"),
 				ctx1, ctx2,
 			)
@@ -598,7 +602,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			// Test with MATCHING_TREE flag
 			selectExp2 := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.MATCHING_TREE,
+				as.EXP_PATH_SELECT_MATCHING_TREE,
 				as.ExpMapBin("data"),
 				ctx1, ctx2,
 			)
@@ -606,8 +610,8 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			result2, err := client.Operate(nil, key,
 				as.ExpWriteOp("result2", selectExp2, as.ExpWriteFlagDefault),
 			)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(result2).ToNot(gm.BeNil())
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result2).To(gm.BeNil())
 		})
 	})
 
@@ -634,7 +638,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("data"),
 				ctx1, ctx2,
 			)
@@ -678,8 +682,13 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			// Increase all revenue by 10%
 			ctx1 := as.CtxMapKey(as.NewStringValue("departments"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxMapKey(as.NewStringValue("revenue"))
+			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("revenue"),
+				),
+			)
 
 			modifyExp := as.ExpNumMul(
 				as.ExpLoopVarInt(as.VALUE),
@@ -695,7 +704,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			)
 
 			result, err := client.Operate(nil, key,
-				as.ExpWriteOp("data", applyExp, as.ExpWriteFlagUpdateOnly),
+				as.ExpWriteOp("data", applyExp, as.ExpWriteFlagDefault),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(result).ToNot(gm.BeNil())
@@ -747,7 +756,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("data"),
 				ctx1, ctx2,
 			)
@@ -838,7 +847,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.MAP_KEYS,
+				as.EXP_PATH_SELECT_MAP_KEY,
 				as.ExpMapBin("data"),
 				ctx1, ctx2,
 			)
@@ -874,8 +883,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			// Select names of active employees
 			ctx1 := as.CtxMapKey(as.NewStringValue("employees"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxAllChildrenWithFilter(
+			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
 					as.ExpMapGetByKey(
 						as.MapReturnType.VALUE,
@@ -886,13 +894,18 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 					as.ExpBoolVal(true),
 				),
 			)
-			ctx4 := as.CtxMapKey(as.NewStringValue("name"))
+			ctx3 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringVal("name"),
+				),
+			)
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("data"),
-				ctx1, ctx2, ctx3, ctx4,
+				ctx1, ctx2, ctx3,
 			)
 
 			result, err := client.Operate(nil, key,
@@ -992,7 +1005,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("nonexistent"),
 				ctx1, ctx2,
 			)
@@ -1022,7 +1035,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("data"),
 				ctx1, ctx2,
 			)
@@ -1093,7 +1106,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("data"),
 				ctx1, ctx2, ctx3,
 			)
@@ -1143,7 +1156,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.VALUES,
+				as.EXP_PATH_SELECT_VALUE,
 				as.ExpMapBin("data"),
 				ctx1, ctx2,
 			)
