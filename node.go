@@ -654,6 +654,10 @@ func (nd *Node) getConnectionWithHint(deadline time.Time, timeout time.Duration,
 	}
 
 	if conn == nil {
+		if nd.cluster.clientPolicy.LimitConnectionsToQueueSize && nd.connectionCount.Get() >= nd.cluster.clientPolicy.ConnectionQueueSize {
+			return nil, types.ErrConnectionPoolEmptyAndAllConnectionsInUse
+		}
+
 		// tentatively check if a connection is allowed to avoid launching too many goroutines.
 		if err = nd.newConnectionAllowed(); err == nil {
 			go nd.makeConnectionForPool(hint)

@@ -148,6 +148,8 @@ type BasePolicy struct {
 	// Scan and query are also not affected by replica algorithms.
 	// Default to sending read commands to the node containing the key's master partition.
 	ReplicaPolicy ReplicaPolicy
+
+	ExitFastOnExhaustedConnectionPool bool
 }
 
 // NewPolicy generates a new BasePolicy instance with default values.

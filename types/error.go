@@ -58,10 +58,11 @@ func (ase *AerospikeError) MarkInDoubt() {
 // If no message is provided, the result code will be translated into the default
 // error message automatically.
 // To be able to check for error type, you could use the following:
-//   if aerr, ok := err.(AerospikeError); ok {
-//       errCode := aerr.ResultCode()
-//       errMessage := aerr.Error()
-//   }
+//
+//	if aerr, ok := err.(AerospikeError); ok {
+//	    errCode := aerr.ResultCode()
+//	    errMessage := aerr.Error()
+//	}
 func NewAerospikeError(code ResultCode, messages ...string) error {
 	if len(messages) == 0 {
 		messages = []string{ResultCodeToString(code)}
@@ -74,20 +75,21 @@ func NewAerospikeError(code ResultCode, messages ...string) error {
 //revive:disable
 
 var (
-	ErrServerNotAvailable             = NewAerospikeError(SERVER_NOT_AVAILABLE)
-	ErrKeyNotFound                    = NewAerospikeError(KEY_NOT_FOUND_ERROR)
-	ErrRecordsetClosed                = NewAerospikeError(RECORDSET_CLOSED)
-	ErrConnectionPoolEmpty            = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Connection pool is empty. This happens when either all connection are in-use already, or no connections were available")
-	ErrTooManyConnectionsForNode      = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Connection limit reached for this node. This value is controlled via ClientPolicy.LimitConnectionsToQueueSize")
-	ErrTooManyOpeningConnections      = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Too many connections are trying to open at once. This value is controlled via ClientPolicy.OpeningConnectionThreshold")
-	ErrTimeout                        = NewAerospikeError(TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
-	ErrUDFBadResponse                 = NewAerospikeError(UDF_BAD_RESPONSE, "Invalid UDF return value")
-	ErrNoOperationsSpecified          = NewAerospikeError(INVALID_COMMAND, "No operations were passed to QueryExecute")
-	ErrNoBinNamesAlloedInQueryExecute = NewAerospikeError(INVALID_COMMAND, "Statement.BinNames must be empty for QueryExecute")
-	ErrFilteredOut                    = NewAerospikeError(FILTERED_OUT)
-	ErrPartitionScanQueryNotSupported = NewAerospikeError(PARAMETER_ERROR, "Partition Scans/Queries are not supported by all nodes in this cluster")
-	ErrScanTerminated                 = NewAerospikeError(SCAN_TERMINATED)
-	ErrQueryTerminated                = NewAerospikeError(QUERY_TERMINATED)
+	ErrServerNotAvailable                        = NewAerospikeError(SERVER_NOT_AVAILABLE)
+	ErrKeyNotFound                               = NewAerospikeError(KEY_NOT_FOUND_ERROR)
+	ErrRecordsetClosed                           = NewAerospikeError(RECORDSET_CLOSED)
+	ErrConnectionPoolEmpty                       = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Connection pool is empty. This happens when either all connection are in-use already, or no connections were available")
+	ErrConnectionPoolEmptyAndAllConnectionsInUse = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Connection pool is empty and all connections are in use. This happens when all connection are in-use already")
+	ErrTooManyConnectionsForNode                 = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Connection limit reached for this node. This value is controlled via ClientPolicy.LimitConnectionsToQueueSize")
+	ErrTooManyOpeningConnections                 = NewAerospikeError(NO_AVAILABLE_CONNECTIONS_TO_NODE, "Too many connections are trying to open at once. This value is controlled via ClientPolicy.OpeningConnectionThreshold")
+	ErrTimeout                                   = NewAerospikeError(TIMEOUT, "command execution timed out on client: See `Policy.Timeout`")
+	ErrUDFBadResponse                            = NewAerospikeError(UDF_BAD_RESPONSE, "Invalid UDF return value")
+	ErrNoOperationsSpecified                     = NewAerospikeError(INVALID_COMMAND, "No operations were passed to QueryExecute")
+	ErrNoBinNamesAlloedInQueryExecute            = NewAerospikeError(INVALID_COMMAND, "Statement.BinNames must be empty for QueryExecute")
+	ErrFilteredOut                               = NewAerospikeError(FILTERED_OUT)
+	ErrPartitionScanQueryNotSupported            = NewAerospikeError(PARAMETER_ERROR, "Partition Scans/Queries are not supported by all nodes in this cluster")
+	ErrScanTerminated                            = NewAerospikeError(SCAN_TERMINATED)
+	ErrQueryTerminated                           = NewAerospikeError(QUERY_TERMINATED)
 )
 
 //revive:enable

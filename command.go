@@ -2117,6 +2117,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		cmd.conn, err = ifc.getConnection(policy)
 		if err != nil {
+			if policy.ExitFastOnExhaustedConnectionPool && err == types.ErrConnectionPoolEmptyAndAllConnectionsInUse {
+				break
+			}
+
 			isClientTimeout = true
 
 			if err == types.ErrConnectionPoolEmpty {
