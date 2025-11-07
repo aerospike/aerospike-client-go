@@ -692,7 +692,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			modifyExp := as.ExpNumMul(
 				as.ExpLoopVarInt(as.VALUE),
-				as.ExpFloatVal(1.1),
+				as.ExpIntVal(2),
 			)
 
 			applyExp := as.ExpModifyByPath(
@@ -723,16 +723,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			gm.Expect(ok).To(gm.BeTrue())
 
 			revenue := sales["revenue"]
-			var revenueFloat float64
-			switch v := revenue.(type) {
-			case float64:
-				revenueFloat = v
-			case int:
-				revenueFloat = float64(v)
-			}
-
-			expectedRevenue := 100000 * 1.1
-			gm.Expect(math.Abs(revenueFloat - expectedRevenue)).To(gm.BeNumerically("<", 1.0))
+			gm.Expect(revenue).To(gm.Equal(200000), "Revenue should be 200000 (100000 * 2)")
 		})
 
 		gg.It("should use ExpSelectByPath with integer values", func() {

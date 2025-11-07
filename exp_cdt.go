@@ -1,10 +1,13 @@
 package aerospike
 
+// Module identifier for CDT expressions.
 const expCdtMODULE int64 = 0
 
+// Flags for CDT expression operations.
 type ExpCdtFlags int64
 
 const (
+	// Identifier for CDT select expression.
 	ExpCdtSelect ExpCdtFlags = 0xfe
 )
 

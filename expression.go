@@ -489,7 +489,7 @@ func (fe *Expression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 						}
 						size += sz
 
-						sz, err = packAInt64(buf, 0xff)
+						sz, err = packAInt64(buf, int64(*cdtOperationContextEVAL))
 						if err != nil {
 							return size, err
 						}

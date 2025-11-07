@@ -15,6 +15,19 @@
 
 package aerospike
 
+var (
+	// Opcode used to encode a CDT select and apply operation.
+	// If flag bit 2 is clear, the operation will be interpreted as a select
+	// operation; otherwise, as an apply operation.
+	selectVal = int(0xfe)
+
+	// Opcode used to encode the calling of a virtual operation.
+	contextEval = int(0xff)
+
+	cdtOperationTypeSELECT  = operationSubType(&selectVal)
+	cdtOperationContextEVAL = operationSubType(&contextEval)
+)
+
 func newCDTCreateOperationEncoder(op *Operation, packer BufferEx) (int, Error) {
 	if op.binValue != nil {
 		if params := op.binValue.(ListValue); len(params) > 0 {

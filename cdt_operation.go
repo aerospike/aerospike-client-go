@@ -17,11 +17,6 @@ package aerospike
 
 import "github.com/aerospike/aerospike-client-go/v8/types"
 
-var (
-	selectVal = int(0xfe)
-
-	cdtOperationTypeSELECT = operationSubType(&selectVal)
-)
 
 type SelectFlag int
 type ModifyFlag int
@@ -33,21 +28,21 @@ const (
 
 	// Return the list of the values of the nodes finally selected by the context.
 	// For maps, this returns the value of each (key, value) pair.
-	EXP_PATH_SELECT_VALUE         SelectFlag = 1
+	EXP_PATH_SELECT_VALUE SelectFlag = 1
 
 	// Return the list of the values of the nodes finally selected by the context.
-	// This is a synonym for AS_EXP_PATH_SELECT_VALUE to make it clear in your
+	// This is a synonym for EXP_PATH_SELECT_VALUE to make it clear in your
 	// source code that you're expecting a list.
-	EXP_PATH_SELECT_LIST_VALUE    SelectFlag = 1
+	EXP_PATH_SELECT_LIST_VALUE SelectFlag = 1
 
 	// Return the list of map values of the nodes finally selected by the context.
-	// This is a synonym for AS_EXP_PATH_SELECT_VALUE to make it clear in your
+	// This is a synonym for EXP_PATH_SELECT_VALUE to make it clear in your
 	// source code that you're expecting a map.  See also
 	// EXP_PATH_SELECT_MAP_KEY_VALUE.
-	EXP_PATH_SELECT_MAP_VALUE     SelectFlag = 1
+	EXP_PATH_SELECT_MAP_VALUE SelectFlag = 1
 
-    // Return the list of map keys of the nodes finally selected by the context.
-	EXP_PATH_SELECT_MAP_KEY       SelectFlag = 2
+	// Return the list of map keys of the nodes finally selected by the context.
+	EXP_PATH_SELECT_MAP_KEY SelectFlag = 2
 
 	// Returns the list of map (key, value) pairs of the nodes finally selected
 	// by the context.  This is a synonym for setting both
@@ -57,7 +52,7 @@ const (
 	// If the expression in the context hits an invalid type (e.g., selects
 	// as an integer when the value is a string), do not fail the operation;
 	// just ignore those elements.  Interpret UNKNOWN as false instead.
-	EXP_PATH_SELECT_NO_FAIL       SelectFlag = 0x10
+	EXP_PATH_SELECT_NO_FAIL SelectFlag = 0x10
 )
 
 const (
@@ -66,7 +61,7 @@ const (
 	EXP_PATH_MODIFY_DEFAULT ModifyFlag = 0x00
 
 	// This flag is set when leaf values are to be modified.
-	EXP_PATH_MODIFY_APPLY   ModifyFlag = 0x04
+	EXP_PATH_MODIFY_APPLY ModifyFlag = 0x04
 
 	// If the expression in the context hits an invalid type (e.g., selects
 	// as an integer when the value is a string), do not fail the operation;
