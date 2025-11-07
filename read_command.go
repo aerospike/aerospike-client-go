@@ -20,6 +20,7 @@ import (
 
 	"github.com/aerospike/aerospike-client-go/v4/logger"
 	"github.com/aerospike/aerospike-client-go/v4/types"
+	ParticleType "github.com/aerospike/aerospike-client-go/v4/types/particle_type"
 
 	Buffer "github.com/aerospike/aerospike-client-go/v4/utils/buffer"
 )
@@ -35,6 +36,7 @@ type readCommand struct {
 	object *reflect.Value
 
 	replicaSequence int
+	lazy            bool
 }
 
 // this method uses reflection.
@@ -221,7 +223,15 @@ func (cmd *readCommand) parseRecord(
 		receiveOffset += 4 + 4 + nameSize
 
 		particleBytesSize := opSize - (4 + nameSize)
-		value, _ := bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
+		var value interface{}
+		if cmd.lazy && particleType == ParticleType.MAP {
+			// we need to make a copy as the buffer is reused
+			b := make([]byte, particleBytesSize)
+			copy(b, cmd.dataBuffer[receiveOffset:receiveOffset+particleBytesSize])
+			value = newUnpacker(b, 0, particleBytesSize)
+		} else {
+			value, _ = bytesToParticle(particleType, cmd.dataBuffer, receiveOffset, particleBytesSize)
+		}
 		receiveOffset += particleBytesSize
 
 		if bins == nil {
