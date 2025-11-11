@@ -14,6 +14,11 @@ inputs:
     description: "Cluster name"
     required: false
     default: "ce"
+  aerolab_version:
+    # https://github.com/aerospike/aerolab/releases/
+    description: "Aerolab version to run."
+    required: false
+    default: "7.9.0"
 
 runs:
   using: composite
@@ -27,8 +32,8 @@ runs:
     - name: Download Aerolab .deb
       shell: bash
       run: |
-        echo "Downloading Aerolab 7.9.0 (amd64)"
-        curl -L -o aerolab.deb https://github.com/aerospike/aerolab/releases/download/7.9.0/aerolab-linux-amd64-7.9.0.deb
+        echo "Downloading Aerolab ${{ inputs.aerolab_version }} (amd64)"
+        curl -L -o aerolab.deb https://github.com/aerospike/aerolab/releases/download/${{ inputs.aerolab_version }}/aerolab-linux-amd64-${{ inputs.aerolab_version }}.deb
 
     - name: Install Aerolab
       shell: bash
