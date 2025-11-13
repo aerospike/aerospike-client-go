@@ -105,10 +105,7 @@ jobs:
           echo "Go version: ${{ needs.make-matrix.outputs.go-version }}"
       - name: Run the tests
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo \
-          -coverprofile=./cover_native.out -covermode=atomic -coverpkg=./... \
-          -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" \
-          -- -p=3100 -use-services-alternate=true
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -coverprofile=./cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -p=3100 -use-services-alternate=true
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge cover_*.out > cover_all.out
