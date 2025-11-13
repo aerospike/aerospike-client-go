@@ -25,9 +25,16 @@ on:
     branches:
       - CLIENT-3852-tests-against-multi-node-cluster
 
+env:
+  # defaults to use against workflow triggered through cron
+  AEROSPIKE_VERSION: 8.1.0.1
+  NODES: 3
+  CLUSTER_NAME: ce
+  RUNNER_VERSION: ubuntu-24.04
+
 jobs:
   make-matrix:
-    runs-on: ${{ inputs.runner_version }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || env.RUNNER_VERSION }}
     outputs:
       input-matrix: ${{ steps.create-server-matrix.outputs.matrix }}
       go-version: ${{ steps.get-go-version.outputs.go-version }}
@@ -44,12 +51,15 @@ jobs:
         with:
           default_json: |
             {
-              "stable": { "version": "8.1.0.1" }
+              "stable": { "version": "${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
 
       - name: debug - print input variables
         run: |
+          echo "Aerospike version: ${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}"
+          echo "Nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}"
+          echo "Cluster name: ${{ github.event_name == 'workflow_dispatch' && inputs.cluster_name || env.CLUSTER_NAME }}"
           echo "Go version: ${{ steps.get-go-version.outputs.go-version }}"
           echo 'Matrix output:'
           echo '${{ steps.create-server-matrix.outputs.matrix }}' | jq .
@@ -57,7 +67,7 @@ jobs:
   build:
     timeout-minutes: 30
     needs: make-matrix
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || env.RUNNER_VERSION }}
     strategy:
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
@@ -67,9 +77,9 @@ jobs:
       - name: Deploy Aerolab Cluster
         uses: ./.github/actions/deploy-aerolab
         with:
-          aerospike_version: "8.1.0.1"
-          nodes: 3
-          cluster_name: "ci-test"
+          aerospike_version: ${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}
+          nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
+          cluster_name: ${{ github.event_name == 'workflow_dispatch' && inputs.cluster_name || env.CLUSTER_NAME }}
         
       - name: "Setup Go ${{ needs.make-matrix.outputs.go-version }}"
         uses: actions/setup-go@v4
@@ -95,7 +105,10 @@ jobs:
           echo "Go version: ${{ needs.make-matrix.outputs.go-version }}"
       - name: Run the tests
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -coverprofile=./cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -p=3100 -use-services-alternate=true
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo \
+          -coverprofile=./cover_native.out -covermode=atomic -coverpkg=./... \
+          -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" \
+          -- -p=3100 -use-services-alternate=true
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge cover_*.out > cover_all.out
