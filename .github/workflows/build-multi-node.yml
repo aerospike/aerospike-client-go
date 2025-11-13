@@ -21,6 +21,9 @@ on:
         default: "ubuntu-24.04" # https://github.com/actions/runner-images/blob/main/README.md
   schedule:
     - cron: "0 2 * * *" # Nightly at 02:00 UTC
+  push:
+    branches:
+      - CLIENT-3852-tests-against-multi-node-cluster
 
 jobs:
   make-matrix:
@@ -92,7 +95,7 @@ jobs:
           echo "Go version: ${{ needs.make-matrix.outputs.go-version }}"
       - name: Run the tests
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -coverprofile=./cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -p=3100
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -coverprofile=./cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -p=3100 -use-services-alternate=true
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge cover_*.out > cover_all.out

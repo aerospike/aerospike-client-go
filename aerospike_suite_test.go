@@ -50,7 +50,7 @@ var (
 	useReplicas          = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
 	debug                = flag.Bool("debug", false, "Will set the logging level to DEBUG.")
 	namespace            = flag.String("n", "test", "Namespace")
-	UseServicesAlternate = flag.Bool("use-services-alternate", true, "Will set ClientPolicy.UseServicesAlternate to true.")
+	UseServicesAlternate = flag.Bool("use-services-alternate", false, "Will set ClientPolicy.UseServicesAlternate to true.")
 
 	certFile          = flag.String("cert_file", "", "Certificate file name.")
 	keyFile           = flag.String("key_file", "", "Key file name.")
