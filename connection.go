@@ -74,7 +74,9 @@ type Connection struct {
 	idleDeadline time.Time
 
 	// connection object
-	conn          net.Conn
+	conn net.Conn
+	// connection mutex
+	connMu        sync.RWMutex
 	totalReceived int64
 
 	// histogram to adjust the buff size to optimal value over time
@@ -95,8 +97,6 @@ type Connection struct {
 	// inflater may consume more bytes than required.
 	// LimitReader is used to avoid that problem.
 	limitReader *io.LimitedReader
-
-	closer sync.Once
 
 	// Used to track the last time the connection was used. This is used to determine
 	// if the connection is idle/timeout and should be closed.
@@ -119,7 +119,7 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 	if terr, ok := err.(net.Error); ok {
 		if terr.Timeout() {
 			if conn != nil {
-			 	if conn.node != nil {
+				if conn.node != nil {
 					conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
 				}
 				if errors.Is(terr, os.ErrDeadlineExceeded) {
@@ -137,7 +137,7 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 
 	// set node if exists
 	if conn != nil {
-		aerr.setNode(conn.node)
+		_ = aerr.setNode(conn.node)
 	}
 
 	return aerr
@@ -224,6 +224,9 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
 
 // Write writes the slice to the connection buffer.
 func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
+	ctn.connMu.RLock()
+	defer ctn.connMu.RUnlock()
+
 	var err error
 
 	// make sure all bytes are written
@@ -252,6 +255,9 @@ func (ctn *Connection) Write(buf []byte) (total int, aerr Error) {
 
 // Read reads from connection buffer to the provided slice.
 func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
+	ctn.connMu.RLock()
+	defer ctn.connMu.RUnlock()
+
 	var err error
 
 	// if all bytes are not read, retry until successful
@@ -302,6 +308,9 @@ func (ctn *Connection) Read(buf []byte, length int) (total int, aerr Error) {
 
 // IsConnected returns true if the connection is not closed yet.
 func (ctn *Connection) IsConnected() bool {
+	ctn.connMu.RLock()
+	defer ctn.connMu.RUnlock()
+
 	return ctn.conn != nil
 }
 
@@ -375,29 +384,34 @@ func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duratio
 	return nil
 }
 
-// Close closes the connection
+// Close closes the connection.
 func (ctn *Connection) Close() {
-	ctn.closer.Do(func() {
-		if ctn != nil && ctn.conn != nil {
-			// deregister
-			if ctn.node != nil {
-				ctn.node.connectionCount.DecrementAndGet()
-				ctn.node.stats.ConnectionsClosed.IncrementAndGet()
-			}
+	if ctn == nil {
+		return
+	}
 
-			if err := ctn.conn.Close(); err != nil {
-				logger.Logger.Warn("%s", err.Error())
-			}
-			ctn.conn = nil
+	ctn.connMu.Lock()
+	defer ctn.connMu.Unlock()
 
-			// put the data buffer back in the pool in case it gets used again
-			buffPool.Put(ctn.dataBuffer)
-
-			ctn.dataBuffer = nil
-			ctn.origDataBuffer = nil
-			ctn.node = nil
+	if ctn.conn != nil {
+		// deregister
+		if ctn.node != nil {
+			ctn.node.connectionCount.DecrementAndGet()
+			ctn.node.stats.ConnectionsClosed.IncrementAndGet()
 		}
-	})
+
+		if err := ctn.conn.Close(); err != nil {
+			logger.Logger.Warn("%s", err.Error())
+		}
+		ctn.conn = nil
+
+		// put the data buffer back in the pool in case it gets used again
+		buffPool.Put(ctn.dataBuffer)
+
+		ctn.dataBuffer = nil
+		ctn.origDataBuffer = nil
+		ctn.node = nil
+	}
 }
 
 // Login will send authentication information to the server.
@@ -501,7 +515,7 @@ func (ctn *Connection) refresh() {
 	now := time.Now()
 	ctn.idleDeadline = now.Add(ctn.idleTimeout)
 	if ctn.inflater != nil {
-		ctn.inflater.Close()
+		_ = ctn.inflater.Close()
 	}
 	ctn.compressed = false
 	ctn.inflater = nil
