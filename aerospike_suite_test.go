@@ -31,7 +31,9 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	asl "github.com/aerospike/aerospike-client-go/v8/logger"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
@@ -168,19 +170,14 @@ func TestAerospike(t *testing.T) {
 	gg.RunSpecs(t, "Aerospike Client Library Suite")
 }
 
-func featureEnabled(feature string) bool {
-	node := client.GetNodes()[0]
-	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "features")
-	if err != nil {
-		log.Fatal("Failed to connect to aerospike: err:", err)
-	}
-
-	return strings.Contains(infoMap["features"], feature)
-}
-
 func isEnterpriseEdition() bool {
 	node := client.GetNodes()[0]
-	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "edition")
+	serverVersion := node.GetServerVersion()
+	serverCommand := types.Ternary(
+		serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1), 
+		"release", 
+		"edition")
+	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), serverCommand)
 	if err != nil {
 		log.Fatal("Failed to connect to aerospike: err:", err)
 	}

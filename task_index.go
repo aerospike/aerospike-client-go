@@ -18,6 +18,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 // IndexTask is used to poll for long running create index completion.
@@ -39,14 +42,18 @@ func NewIndexTask(cluster *Cluster, namespace string, indexName string) *IndexTa
 
 // IsDone queries all nodes for task completion status.
 func (tski *IndexTask) IsDone() (bool, Error) {
-	command := "sindex/" + tski.namespace + "/" + tski.indexName
 	nodes := tski.cluster.GetNodes()
 	complete := false
 
 	r := regexp.MustCompile(`\.*load_pct=(\d+)\.*`)
 
 	for _, node := range nodes {
-		responseMap, err := node.requestInfoWithRetry(&tski.cluster.infoPolicy, 5, command)
+		serverVersion := node.GetServerVersion()
+		statusCommand := types.Ternary(
+			serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
+			"sindex-stat:namespace="+tski.namespace+";indexname="+tski.indexName,
+			"sindex/"+tski.namespace+"/"+tski.indexName)
+		responseMap, err := node.requestInfoWithRetry(&tski.cluster.infoPolicy, 5, statusCommand)
 		if err != nil {
 			return false, err
 		}

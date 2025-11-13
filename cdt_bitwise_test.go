@@ -144,10 +144,6 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 	}
 
 	gg.BeforeEach(func() {
-		if !featureEnabled("blob-bits") {
-			gg.Skip("CDT Bitwise Tests will not run since feature is not supported by the server.")
-			return
-		}
 
 		key, err = as.NewKey(ns, set, randString(50))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
