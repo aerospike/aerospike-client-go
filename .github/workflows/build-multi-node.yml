@@ -34,7 +34,7 @@ env:
 
 jobs:
   make-matrix:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || env.RUNNER_VERSION }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || 'ubuntu-24.04' }}
     outputs:
       input-matrix: ${{ steps.create-server-matrix.outputs.matrix }}
       go-version: ${{ steps.get-go-version.outputs.go-version }}
@@ -45,7 +45,7 @@ jobs:
         id: get-go-version
         run: |
           echo "go-version=$(grep '^go [0-9]' go.mod | awk '{print $2}')" >> $GITHUB_OUTPUT
-          
+
       - id: create-server-matrix
         uses: ./.github/actions/make-matrix
         with:
@@ -63,24 +63,24 @@ jobs:
           echo "Go version: ${{ steps.get-go-version.outputs.go-version }}"
           echo 'Matrix output:'
           echo '${{ steps.create-server-matrix.outputs.matrix }}' | jq .
-      
+
   build:
     timeout-minutes: 30
     needs: make-matrix
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || env.RUNNER_VERSION }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || 'ubuntu-24.04' }}
     strategy:
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Deploy Aerolab Cluster
         uses: ./.github/actions/deploy-aerolab
         with:
           aerospike_version: ${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}
           nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
           cluster_name: ${{ github.event_name == 'workflow_dispatch' && inputs.cluster_name || env.CLUSTER_NAME }}
-        
+
       - name: "Setup Go ${{ needs.make-matrix.outputs.go-version }}"
         uses: actions/setup-go@v4
         with:
