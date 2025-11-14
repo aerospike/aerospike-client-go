@@ -21,9 +21,6 @@ on:
         default: "ubuntu-24.04" # https://github.com/actions/runner-images/blob/main/README.md
   schedule:
     - cron: "0 2 * * *" # Nightly at 02:00 UTC
-  push:
-    branches:
-      - CLIENT-3852-tests-against-multi-node-cluster
 
 env:
   # defaults to use against workflow triggered through cron
