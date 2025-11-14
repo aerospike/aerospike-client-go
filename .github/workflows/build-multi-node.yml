@@ -6,7 +6,7 @@ on:
       aerospike_version:
         description: "Aerolab/Aerospike version"
         required: false
-        default: "8.1.0.1"
+        default: "8.1.0.1c"
       nodes:
         description: "Number of cluster nodes"
         required: false
@@ -27,7 +27,7 @@ on:
 
 env:
   # defaults to use against workflow triggered through cron
-  AEROSPIKE_VERSION: 8.1.0.1
+  AEROSPIKE_VERSION: 8.1.0.1c
   NODES: 3
   CLUSTER_NAME: ce
   RUNNER_VERSION: ubuntu-24.04
