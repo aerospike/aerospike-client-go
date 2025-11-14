@@ -102,7 +102,7 @@ jobs:
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo build -tags="app_engine" .
       - name: Run the tests
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -coverprofile=./cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge cover_*.out > cover_all.out
