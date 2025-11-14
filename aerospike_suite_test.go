@@ -115,6 +115,8 @@ func initTestVars() {
 		log.Fatal(err.Error())
 	}
 
+	printConnectedNodes(client)
+
 	defaultBatchPolicy := as.NewBatchPolicy()
 	defaultBatchPolicy.TotalTimeout = 15 * time.Second
 	defaultBatchPolicy.SocketTimeout = 5 * time.Second
@@ -152,6 +154,13 @@ func initTestVars() {
 
 	// make sure the metrics code runs in all tests
 	client.EnableMetrics(nil)
+}
+
+func printConnectedNodes(client *as.Client) {
+	for _, node := range client.GetNodes() {
+		h := node.GetHost()
+		fmt.Printf("Node: %s, Host: %s, Port: %d\n", node.GetName(), h.Name, h.Port)
+	}
 }
 
 func TestMain(m *testing.M) {
