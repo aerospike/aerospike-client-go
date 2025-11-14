@@ -24,3 +24,7 @@ require (
 	golang.org/x/tools v0.31.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
+
+retract (
+	[v8.3.0, v8.4.1] // Problem with User Agent code returning a closed connection without an error.
+)
