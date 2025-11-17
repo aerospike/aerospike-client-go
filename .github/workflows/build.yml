@@ -107,7 +107,7 @@ jobs:
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge cover_*.out > cover_all.out
       - name: Check Code Coverage
-        uses: vladopajic/go-test-coverage@v2
+        uses: vladopajic/go-test-coverage@v2.17.0
         with:
           # Configure action using config file (option 1)
           config: ./.testcoverage.yml
