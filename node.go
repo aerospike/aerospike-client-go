@@ -528,7 +528,7 @@ func (nd *Node) newTendConnection() (*Connection, Error) {
 	}
 
 	serverMinVersion := &version.Version{Major: 8, Minor: 1, Patch: 0, Build: 0}
-	if nd.version.IsGreaterOrEqual(serverMinVersion) {
+	if nd.serverVersion.IsGreaterOrEqual(serverMinVersion) {
 		if err := nd.sendUserAgentId(conn); err != nil {
 			logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
 			return nil, err
