@@ -26,13 +26,6 @@ import (
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 
-	gg.BeforeEach(func() {
-		if !featureEnabled("geo") {
-			gg.Skip("Geo Tests will not run since feature is not supported by the server.")
-			return
-		}
-	})
-
 	// connection data
 	var ns = *namespace
 	var set = randString(50)

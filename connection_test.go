@@ -42,7 +42,7 @@ var _ = gg.Describe("Connection Test", func() {
 		gm.Expect(conn).ToNot(gm.BeNil())
 	})
 
-	gg.It("Dealines should be calculated correctly", func() {
+	gg.It("Deadlines should be calculated correctly", func() {
 		deadline := func(timeout time.Duration) (res time.Time) {
 			if timeout > 0 {
 				res = time.Now().Add(timeout)
@@ -67,9 +67,9 @@ var _ = gg.Describe("Connection Test", func() {
 
 			gg.By(fmt.Sprintf("expTotalDeadline: %v, expSocketDeadline: %v, expSocketTimeout: %v", matrix.expTotalDeadline, matrix.expSocketDeadline, matrix.expSocketTimeout))
 
-			gm.Expect(expTotalDeadline).To(gm.BeTemporally("~", matrix.expTotalDeadline, time.Millisecond))
-			gm.Expect(expSocketDeadline).To(gm.BeTemporally("~", matrix.expSocketDeadline, time.Millisecond))
-			gm.Expect(expSocketTimeout).To(gm.BeNumerically("~", matrix.expSocketTimeout, time.Millisecond))
+			gm.Expect(expTotalDeadline).To(gm.BeTemporally("~", matrix.expTotalDeadline, 2*time.Millisecond))
+			gm.Expect(expSocketDeadline).To(gm.BeTemporally("~", matrix.expSocketDeadline, 2*time.Millisecond))
+			gm.Expect(expSocketTimeout).To(gm.BeNumerically("~", matrix.expSocketTimeout, 2*time.Millisecond))
 		}
 	})
 

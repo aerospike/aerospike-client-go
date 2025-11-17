@@ -81,8 +81,8 @@ type Node struct {
 
 	active iatomic.Bool
 
-	version  version.Version
-	isOrphan iatomic.Bool
+	serverVersion version.Version
+	isOrphan      iatomic.Bool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -93,8 +93,8 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		name:    nv.name,
 		host:    nv.primaryHost,
 
-		features: nv.features,
-		version:  nv.version,
+		features:      nv.features,
+		serverVersion: nv.serverVersion,
 
 		stats: *newNodeStats(cluster.MetricsPolicy()),
 
@@ -1042,4 +1042,8 @@ func (nd *Node) sendUserAgentId(conn *Connection) Error {
 	}
 
 	return nil
+}
+
+func (nd *Node) GetServerVersion() version.Version {
+	return nd.serverVersion
 }

@@ -314,7 +314,7 @@ func newMapSetPolicy(binName string, attributes mapOrderType, ctx []*CDTContext)
 }
 
 func newMapCreatePutEncoder(op *Operation, packer BufferEx) (int, Error) {
-	return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.ctx, op.binValue.(ListValue))
+	return packCDTIfcParamsAsArray(packer, *op.opSubType, op.ctx, op.binValue.(ListValue))
 }
 
 /////////////////////////

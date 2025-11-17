@@ -108,11 +108,8 @@ var _ = gg.Describe("Aerospike", func() {
 
 	gg.Describe("Client Management", func() {
 
-		dbHost := as.NewHost(*host, *port)
-		dbHost.TLSName = *nodeTLSName
-
 		gg.It("must open and close the client without a problem", func() {
-			client, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+			client, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(client.IsConnected()).To(gm.BeTrue())
 
@@ -150,7 +147,7 @@ var _ = gg.Describe("Aerospike", func() {
 			cpolicy := *clientPolicy
 			cpolicy.ClusterName = "haha"
 			cpolicy.Timeout = 10 * time.Second
-			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
+			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHosts...)
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.CLUSTER_NAME_MISMATCH_ERROR)).To(gm.BeTrue())
 			gm.Expect(nclient).To(gm.BeNil())
@@ -161,7 +158,7 @@ var _ = gg.Describe("Aerospike", func() {
 			cpolicy.ClusterName = "haha"
 			cpolicy.Timeout = 10 * time.Second
 			cpolicy.FailIfNotConnected = false
-			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
+			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHosts...)
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.CLUSTER_NAME_MISMATCH_ERROR)).To(gm.BeTrue())
 			gm.Expect(nclient).NotTo(gm.BeNil())
@@ -174,7 +171,7 @@ var _ = gg.Describe("Aerospike", func() {
 			cpolicy := *clientPolicy
 			cpolicy.ClusterName = actualClusterName
 			cpolicy.Timeout = 10 * time.Second
-			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
+			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHosts...)
 			gm.Expect(err).NotTo(gm.HaveOccurred())
 			gm.Expect(len(nclient.GetNodes())).To(gm.Equal(nodeCount))
 		})
@@ -191,7 +188,7 @@ var _ = gg.Describe("Aerospike", func() {
 			cpolicy.AuthMode = as.AuthModeExternal
 			cpolicy.User = "badwan"
 			cpolicy.Password = "blastoff"
-			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
+			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHosts...)
 			gm.Expect(err).NotTo(gm.HaveOccurred())
 			gm.Expect(len(nclient.GetNodes())).To(gm.Equal(nodeCount))
 		})
@@ -202,7 +199,7 @@ var _ = gg.Describe("Aerospike", func() {
 				cpolicy := *clientPolicy
 				cpolicy.User = *user
 				cpolicy.Password = *password
-				c, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
+				c, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHosts...)
 				gm.Expect(err).NotTo(gm.HaveOccurred())
 
 				info := info(c, "rack-ids")
@@ -215,7 +212,7 @@ var _ = gg.Describe("Aerospike", func() {
 				cpolicy.RackAware = true
 
 				for rid := 1; rid <= 20; rid++ {
-					nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHost)
+					nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHosts...)
 					gm.Expect(err).NotTo(gm.HaveOccurred())
 
 					wpolicy := as.NewWritePolicy(0, 0)
