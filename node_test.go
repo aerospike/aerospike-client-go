@@ -33,12 +33,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 		var err error
 		var client *as.Client
 
-		dbHost := as.NewHost(*host, *port)
-		dbHost.TLSName = *nodeTLSName
-
 		gg.BeforeEach(func() {
 			// use the same client for all
-			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
@@ -51,8 +48,8 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 					clientPolicy.TlsConfig = tlsConfig
 					clientPolicy.User = "non_existent_user"
 					clientPolicy.Password = "non_existent_user"
-
-					client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+					clientPolicy.UseServicesAlternate = *UseServicesAlternate
+					client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 					gm.Expect(err).To(gm.HaveOccurred())
 				})
 
@@ -69,8 +66,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				clientPolicy.ConnectionQueueSize = 4
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
+				clientPolicy.UseServicesAlternate = *UseServicesAlternate
 
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
@@ -100,8 +98,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 					clientPolicy.ConnectionQueueSize = 4
 					clientPolicy.User = *user
 					clientPolicy.Password = *password
+					clientPolicy.UseServicesAlternate = *UseServicesAlternate
 
-					client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+					client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 					defer client.Close()
 
@@ -148,8 +147,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				clientPolicy.ConnectionQueueSize = 4
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
+				clientPolicy.UseServicesAlternate = *UseServicesAlternate
 
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
@@ -195,8 +195,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				// clientPolicy.TendInterval = time.Hour
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
+				clientPolicy.UseServicesAlternate = *UseServicesAlternate
 
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
@@ -287,8 +288,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				clientPolicy.MinConnectionsPerNode = 5
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
+				clientPolicy.UseServicesAlternate = *UseServicesAlternate
 
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
@@ -309,8 +311,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				clientPolicy.IdleTimeout = 1000 * time.Millisecond
 				clientPolicy.User = *user
 				clientPolicy.Password = *password
+				clientPolicy.UseServicesAlternate = *UseServicesAlternate
 
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
@@ -363,9 +366,6 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 		var maxErrorRate int
 		var errRateWindow int
 
-		dbHost := as.NewHost(*host, *port)
-		dbHost.TLSName = *nodeTLSName
-
 		gg.BeforeEach(func() {
 			maxErrorRate = 100
 			errRateWindow = 2
@@ -377,8 +377,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			clientPolicy.Password = *password
 			clientPolicy.MaxErrorRate = maxErrorRate
 			clientPolicy.ErrorRateWindow = errRateWindow
+			clientPolicy.UseServicesAlternate = *UseServicesAlternate
 
-			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHost)
+			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
@@ -479,8 +480,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				disabledPolicy := as.NewClientPolicy()
 				disabledPolicy.TlsConfig = tlsConfig
 				disabledPolicy.MaxErrorRate = 0 // Disable circuit breaker
+				disabledPolicy.UseServicesAlternate = *UseServicesAlternate
 
-				disabledClient, err := as.NewClientWithPolicyAndHost(disabledPolicy, dbHost)
+				disabledClient, err := as.NewClientWithPolicyAndHost(disabledPolicy, dbHosts...)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer disabledClient.Close()
 

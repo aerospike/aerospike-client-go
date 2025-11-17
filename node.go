@@ -81,8 +81,8 @@ type Node struct {
 
 	active iatomic.Bool
 
-	version  version.Version
-	isOrphan iatomic.Bool
+	serverVersion version.Version
+	isOrphan      iatomic.Bool
 }
 
 // NewNode initializes a server node with connection parameters.
@@ -93,8 +93,8 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		name:    nv.name,
 		host:    nv.primaryHost,
 
-		features: nv.features,
-		version:  nv.version,
+		features:      nv.features,
+		serverVersion: nv.serverVersion,
 
 		stats: *newNodeStats(cluster.MetricsPolicy()),
 
@@ -527,12 +527,11 @@ func (nd *Node) newTendConnection() (*Connection, Error) {
 		return nil, err
 	}
 
-	serverMinVersion, _ := version.Parse("8.1.0.0")
-	if nd.version.IsGreaterOrEqual(serverMinVersion) {
+	serverMinVersion := &version.Version{Major: 8, Minor: 1, Patch: 0, Build: 0}
+	if nd.serverVersion.IsGreaterOrEqual(serverMinVersion) {
 		if err := nd.sendUserAgentId(conn); err != nil {
-			// If setting user agent failed, we still return the connection
-			// as it is already authenticated and usable.
 			logger.Logger.Warn("Error setting user agent for node %s: %s", nd.String(), err.Error())
+			return nil, err
 		}
 	}
 
@@ -1043,4 +1042,8 @@ func (nd *Node) sendUserAgentId(conn *Connection) Error {
 	}
 
 	return nil
+}
+
+func (nd *Node) GetServerVersion() version.Version {
+	return nd.serverVersion
 }

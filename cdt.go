@@ -18,10 +18,10 @@ package aerospike
 func newCDTCreateOperationEncoder(op *Operation, packer BufferEx) (int, Error) {
 	if op.binValue != nil {
 		if params := op.binValue.(ListValue); len(params) > 0 {
-			return packCDTIfcParamsAsArray(packer, int16(*op.opSubType), op.ctx, op.binValue.(ListValue))
+			return packCDTIfcParamsAsArray(packer, *op.opSubType, op.ctx, op.binValue.(ListValue))
 		}
 	}
-	return packCDTParamsAsArray(packer, int16(*op.opSubType), op.ctx)
+	return packCDTParamsAsArray(packer, *op.opSubType, op.ctx)
 }
 
 func newCDTCreateOperationValues2(command int, attributes mapOrderType, binName string, ctx []*CDTContext, value1 interface{}, value2 interface{}) *Operation {

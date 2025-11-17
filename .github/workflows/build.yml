@@ -33,8 +33,10 @@ jobs:
 
       - name: debug - print input variables
         run: |
-          echo ${{ steps.get-go-version.outputs.go-version }}
-          echo ${{ steps.create-server-matrix.outputs.input-matrix }}
+          echo "Go version: ${{ steps.get-go-version.outputs.go-version }}"
+          echo 'Matrix output:'
+          echo '${{ steps.create-server-matrix.outputs.matrix }}' | jq .
+
   build:
     timeout-minutes: 30
     needs: make-matrix
@@ -100,12 +102,12 @@ jobs:
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo build -tags="app_engine" .
       - name: Run the tests
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -coverprofile=./cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge cover_*.out > cover_all.out
       - name: Check Code Coverage
-        uses: vladopajic/go-test-coverage@v2
+        uses: vladopajic/go-test-coverage@v2.17.0
         with:
           # Configure action using config file (option 1)
           config: ./.testcoverage.yml
