@@ -91,8 +91,17 @@ type BatchPolicy struct {
 	// The returned records will be safe to use, since only fully received data will be parsed
 	// and set.
 	//
-	// This flag is only supported for BatchGet and BatchGetHeader methods. BatchGetComplex always returns
-	// partial results by design.
+	// This flag is checked at the client level for:
+	// - BatchGet, BatchGetOperate, and BatchGetHeader methods
+	// - BatchGetComplex (which always returns partial results by design)
+	//
+	// For BatchOperate (with BatchRead, BatchWrite, BatchDelete, BatchUDF records) and BatchDelete:
+	// - When batch contains only ONE record: AllowPartialResults is checked during single-record execution
+	// - When batch contains MULTIPLE records: Errors from batchExecute are returned directly without
+	//   checking this flag at the client level. However, the flag is still respected during batch
+	//   retry/split scenarios to allow partial results from different nodes.
+	//
+	// Default: false
 	AllowPartialResults bool //= false
 }
 
