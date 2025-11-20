@@ -22,17 +22,19 @@ import (
 )
 
 type serverCommand struct {
+	taskId uint64
 	queryCommand
 }
 
-func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, operations []*Operation) *serverCommand {
+func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, taskId uint64, operations []*Operation) *serverCommand {
 	return &serverCommand{
 		queryCommand: *newQueryCommand(node, policy, writePolicy, statement, operations, nil),
+		taskId:       taskId,
 	}
 }
 
 func (cmd *serverCommand) writeBuffer(ifc command) (err Error) {
-	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.statement.TaskId, cmd.operations, cmd.writePolicy != nil, nil)
+	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.taskId, cmd.operations, cmd.writePolicy != nil, nil)
 }
 
 func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
