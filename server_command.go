@@ -22,11 +22,15 @@ import (
 )
 
 type serverCommand struct {
+	// Deprecated: should not be used and will be removed in future major release.
 	taskId uint64
 	queryCommand
 }
 
 func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, taskId uint64, operations []*Operation) *serverCommand {
+	// Statement does contain a taskId however we cannot rely on it since the statement might be reused.
+	// If TaskId is 0, set it to a new random value and return the same statement. Cannot modify the original
+	// statement since user might want to reuse it.
 	return &serverCommand{
 		queryCommand: *newQueryCommand(node, policy, writePolicy, statement, operations, nil),
 		taskId:       taskId,
