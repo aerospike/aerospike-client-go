@@ -49,9 +49,9 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 		}
 
 		if done, err := tracker.isClusterComplete(clnt.Cluster(), &policy.BasePolicy); !recordset.IsActive() || done || err != nil {
-			errs = chainErrors(err, errs)
 			// Scan is complete.
-			if errs != nil {
+			if err != nil {
+				errs = chainErrors(err, errs)
 				tracker.partitionError()
 				recordset.sendError(errs)
 			}
