@@ -26,7 +26,7 @@ type Pool struct {
 	New func(params ...interface{}) interface{}
 	// IsUsable checks if the object polled from the pool is still fresh and usable
 	IsUsable func(obj interface{}, params ...interface{}) bool
-	// CanReturn checkes if the object is eligible to go back to the pool
+	// CanReturn checks if the object is eligible to go back to the pool
 	CanReturn func(obj interface{}) bool
 	// Finalize will be called when an object is not eligible to go back to the pool.
 	// Usable to close connections, file handles, ...

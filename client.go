@@ -1190,7 +1190,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	}
 
 	response := responseMap[strCmd.String()]
-	if strings.EqualFold(response, "ok") {
+	if strings.EqualFold(response, "ok") || response == "" {
 		return NewRegisterTask(clnt.cluster, serverPath), nil
 	}
 
@@ -1385,7 +1385,7 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 
 	var errs Error
 	for i := range nodes {
-		command := newServerCommand(nodes[i], policy, writePolicy, statement, ops)
+		command := newServerCommand(nodes[i], policy, writePolicy, statement, taskId, ops)
 		if err := command.Execute(); err != nil {
 			errs = chainErrors(err, errs)
 		}
@@ -1420,7 +1420,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 
 	var errs Error
 	for i := range nodes {
-		command := newServerCommand(nodes[i], policy, nil, statement, nil)
+		command := newServerCommand(nodes[i], policy, nil, statement, taskId, nil)
 		if err := command.Execute(); err != nil {
 			errs = chainErrors(err, errs)
 		}
@@ -1453,7 +1453,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
-	command := newServerCommand(node, policy, nil, statement, nil)
+	command := newServerCommand(node, policy, nil, statement, taskId, nil)
 	err := command.Execute()
 
 	return NewExecuteTask(clnt.cluster, statement, taskId), err

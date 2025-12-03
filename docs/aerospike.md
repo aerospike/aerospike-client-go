@@ -72,7 +72,7 @@ Example:
   client, err := as.NewClient("127.0.0.1", 3000)
 ```
 
-For detals, see [Client Class](client.md).
+For details, see [Client Class](client.md).
 
 <!--
 ################################################################################

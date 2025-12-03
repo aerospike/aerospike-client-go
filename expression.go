@@ -22,7 +22,7 @@ import (
 )
 
 // ExpressionArgument is used for passing arguments to filter expressions.
-// The accptable arguments are:
+// The acceptable arguments are:
 // Value, ExpressionFilter, []*CDTContext
 type ExpressionArgument interface {
 	pack(BufferEx) (int, Error)

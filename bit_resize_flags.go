@@ -18,7 +18,7 @@ package aerospike
 type BitResizeFlags int
 
 const (
-	// BitResizeFlagsDefault specifies the defalt flag.
+	// BitResizeFlagsDefault specifies the default flag.
 	BitResizeFlagsDefault BitResizeFlags = 0
 
 	// BitResizeFlagsFromFront Adds/removes bytes from the beginning instead of the end.
