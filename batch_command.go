@@ -58,7 +58,7 @@ func (cmd *batchCommand) setInDoubt(ifc batcher) {
 }
 
 func (cmd *batchCommand) inDoubt() {
-	// do nothing by defaut
+	// do nothing by default
 }
 
 func (cmd *batchCommand) prepareRetry(ifc command, isTimeout bool) bool {

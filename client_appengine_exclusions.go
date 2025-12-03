@@ -67,7 +67,7 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 	inputChan := make(chan interface{}, 4096) // 4096 = number of partitions
 	istream := lualib.NewStream(luaInstance, inputChan)
 
-	// Output Channe;
+	// Output Channel;
 	outputChan := make(chan interface{})
 	ostream := lualib.NewStream(luaInstance, outputChan)
 
