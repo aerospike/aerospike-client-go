@@ -1190,7 +1190,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	}
 
 	response := responseMap[strCmd.String()]
-	if strings.EqualFold(response, "ok") {
+	if strings.EqualFold(response, "ok") || response == "" {
 		return NewRegisterTask(clnt.cluster, serverPath), nil
 	}
 
