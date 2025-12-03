@@ -1,5 +1,14 @@
 # Change History
 
+## December 3 2025: v8.5.0
+
+  **Fixes**
+    - [CLIENT-3937] Fix typos in comments across multiple files.
+    - [CLIENT-3896] Update BatchPolicy.AllowPartialResults docs.
+    - [CLIENT-3891] TaskId not being properly assigned during Background Query.
+    - [CLIENT-3925] Avoid sending previous errors when cluster is complete.
+    - [CLIENT-3936] Make RegisterUDF backward compatible with older Aerospike server versions.
+
 ## November 14 2025: v8.4.2
 
   **Fixes**
