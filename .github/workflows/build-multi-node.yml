@@ -79,7 +79,7 @@ jobs:
           cluster_name: ${{ github.event_name == 'workflow_dispatch' && inputs.cluster_name || env.CLUSTER_NAME }}
 
       - name: "Setup Go ${{ needs.make-matrix.outputs.go-version }}"
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
           go-version: "${{ needs.make-matrix.outputs.go-version }}"
           cache: true
