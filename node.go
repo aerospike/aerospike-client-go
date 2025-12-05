@@ -976,7 +976,6 @@ func (nd *Node) validateErrorCount() Error {
 
 	// Error rate is not breached, reset maxErrorCount to the policy value
 	if nodeErrorCount <= nodeMaxErrorCount {
-		nd.resetErrorCount()
 
 		// Doubling the maxErrorCount till it reaches the cluster maxErrorCount
 		if nodeErrorCount != clusterMaxErrorCount {
