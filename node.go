@@ -978,7 +978,7 @@ func (nd *Node) validateErrorCount() Error {
 	if nodeErrorCount <= nodeMaxErrorCount {
 
 		// Doubling the maxErrorCount till it reaches the cluster maxErrorCount
-		if nodeErrorCount != clusterMaxErrorCount {
+		if nodeMaxErrorCount != clusterMaxErrorCount {
 			max := nodeMaxErrorCount * 2
 			if max <= clusterMaxErrorCount {
 				nd.maxErrorCount.Set(max)
