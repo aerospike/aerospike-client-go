@@ -13,3 +13,10 @@
 // limitations under the License.
 
 package types
+
+func Ternary[T any](cond bool, left, right T) T {
+	if cond {
+		return left
+	}
+	return right
+}

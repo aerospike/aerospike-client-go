@@ -162,7 +162,7 @@ const (
 	ListReturnTypeInverted ListReturnType = 0x10000
 )
 
-// ListSortFlags detemines sort flags for CDT lists
+// ListSortFlags determines sort flags for CDT lists
 type ListSortFlags int
 
 const (
@@ -174,7 +174,7 @@ const (
 	ListSortFlagsDropDuplicates ListSortFlags = 2
 )
 
-// ListWriteFlags detemines write flags for CDT lists
+// ListWriteFlags determines write flags for CDT lists
 // type ListWriteFlags int
 
 const (
@@ -195,12 +195,12 @@ const (
 func listGenericOpEncoder(op *Operation, packer BufferEx) (int, Error) {
 	args := op.binValue.(ListValue)
 	if len(args) > 1 {
-		return packCDTIfcVarParamsAsArray(packer, int16(args[0].(int)), op.ctx, args[1:]...)
+		return packCDTIfcVarParamsAsArray(packer, args[0].(int), op.ctx, args[1:]...)
 	}
-	return packCDTIfcVarParamsAsArray(packer, int16(args[0].(int)), op.ctx)
+	return packCDTIfcVarParamsAsArray(packer, args[0].(int), op.ctx)
 }
 
-func packCDTParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ...Value) (int, Error) {
+func packCDTParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params ...Value) (int, Error) {
 	size := 0
 	n := 0
 	var err Error
@@ -242,17 +242,22 @@ func packCDTParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, para
 		}
 		size += n
 	} else {
-		if n, err = packShortRaw(packer, opType); err != nil {
-			return n, err
-		}
-		size += n
-
 		if len(params) > 0 {
-			if n, err = packArrayBegin(packer, len(params)); err != nil {
+			if n, err = packArrayBegin(packer, len(params)+1); err != nil {
+				return size + n, err
+			}
+			size += n
+		} else {
+			if n, err = packArrayBegin(packer, 1); err != nil {
 				return size + n, err
 			}
 			size += n
 		}
+
+		if n, err = packAInt(packer, int(opType)); err != nil {
+			return size + n, err
+		}
+		size += n
 	}
 
 	if len(params) > 0 {
@@ -266,11 +271,11 @@ func packCDTParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, para
 	return size, nil
 }
 
-func packCDTIfcParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ListValue) (int, Error) {
+func packCDTIfcParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params ListValue) (int, Error) {
 	return packCDTIfcVarParamsAsArray(packer, opType, ctx, []interface{}(params)...)
 }
 
-func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ...interface{}) (int, Error) {
+func packCDTIfcVarParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params ...interface{}) (int, Error) {
 	size := 0
 	n := 0
 	var err Error

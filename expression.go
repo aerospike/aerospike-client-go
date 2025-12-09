@@ -24,7 +24,7 @@ import (
 )
 
 // ExpressionArgument is used for passing arguments to filter expressions.
-// The accptable arguments are:
+// The acceptable arguments are:
 // Value, ExpressionFilter, []*CDTContext
 type ExpressionArgument interface {
 	pack(BufferEx) (int, Error)
@@ -1002,6 +1002,8 @@ func ExpRecordSize() *Expression {
 //
 // This expression should only be used for server versions less than 7.0. Use
 // [ExpRecordSize] for server version 7.0+.
+//
+// Deprecated: memory_size has been deprecated since server version 8.1. User ExpRecordSize
 func ExpDeviceSize() *Expression {
 	return newFilterExpression(&expOpDEVICE_SIZE, nil, nil, nil, nil, nil)
 }
@@ -1012,6 +1014,8 @@ func ExpDeviceSize() *Expression {
 //
 // Requires server version between 5.3 inclusive and 7.0 exclusive.
 // Use [ExpRecordSize] for server version 7.0+.
+//
+// Deprecated: memory_size has been deprecated since server version 8.1. User ExpRecordSize
 func ExpMemorySize() *Expression {
 	return newFilterExpression(&expOpMEMORY_SIZE, nil, nil, nil, nil, nil)
 }

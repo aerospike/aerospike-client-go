@@ -41,13 +41,13 @@ const (
 	// SysAdmin allows to manage indexes, user defined functions and server configuration.
 	SysAdmin privilegeCode = "sys-admin"
 
-	// DataAdmin allows to manage indicies and user defined functions.
+	// DataAdmin allows to manage indices and user defined functions.
 	DataAdmin privilegeCode = "data-admin"
 
 	// UDFAdmin allows to manage user defined functions.
 	UDFAdmin privilegeCode = "udf-admin"
 
-	// SIndexAdmin allows to manage indicies.
+	// SIndexAdmin allows to manage indices.
 	SIndexAdmin privilegeCode = "sindex-admin"
 
 	// ReadWriteUDF allows read, write and UDF transactions with the database.

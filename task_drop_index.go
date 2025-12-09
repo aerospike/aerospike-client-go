@@ -14,6 +14,11 @@
 
 package aerospike
 
+import (
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
+	"github.com/aerospike/aerospike-client-go/v8/types"
+)
+
 // DropIndexTask is used to poll for long running create index completion.
 type DropIndexTask struct {
 	*baseTask
@@ -33,12 +38,16 @@ func NewDropIndexTask(cluster *Cluster, namespace string, indexName string) *Dro
 
 // IsDone queries all nodes for task completion status.
 func (tski *DropIndexTask) IsDone() (bool, Error) {
-	command := "sindex-exists:ns=" + tski.namespace + ";indexname=" + tski.indexName
 	nodes := tski.cluster.GetNodes()
 	complete := false
 
 	for _, node := range nodes {
-		responseMap, err := node.requestInfoWithRetry(&tski.cluster.infoPolicy, 5, command)
+		serverVersion := node.GetServerVersion()
+		statusCommand := types.Ternary(
+			serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
+			"sindex-exists:namespace="+tski.namespace+";indexname="+tski.indexName,
+			"sindex-exists:ns="+tski.namespace+";indexname="+tski.indexName)
+		responseMap, err := node.requestInfoWithRetry(&tski.cluster.infoPolicy, 5, statusCommand)
 		if err != nil {
 			return false, err
 		}

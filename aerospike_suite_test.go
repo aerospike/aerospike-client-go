@@ -31,7 +31,9 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	asl "github.com/aerospike/aerospike-client-go/v8/logger"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
@@ -113,6 +115,8 @@ func initTestVars() {
 		log.Fatal(err.Error())
 	}
 
+	printConnectedNodes(client)
+
 	defaultBatchPolicy := as.NewBatchPolicy()
 	defaultBatchPolicy.TotalTimeout = 15 * time.Second
 	defaultBatchPolicy.SocketTimeout = 5 * time.Second
@@ -152,6 +156,13 @@ func initTestVars() {
 	client.EnableMetrics(nil)
 }
 
+func printConnectedNodes(client *as.Client) {
+	for _, node := range client.GetNodes() {
+		h := node.GetHost()
+		fmt.Printf("Node: %s, Host: %s, Port: %d\n", node.GetName(), h.Name, h.Port)
+	}
+}
+
 func TestMain(m *testing.M) {
 	rand.Seed(time.Now().UnixNano())
 	flag.Parse()
@@ -168,19 +179,14 @@ func TestAerospike(t *testing.T) {
 	gg.RunSpecs(t, "Aerospike Client Library Suite")
 }
 
-func featureEnabled(feature string) bool {
-	node := client.GetNodes()[0]
-	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "features")
-	if err != nil {
-		log.Fatal("Failed to connect to aerospike: err:", err)
-	}
-
-	return strings.Contains(infoMap["features"], feature)
-}
-
 func isEnterpriseEdition() bool {
 	node := client.GetNodes()[0]
-	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "edition")
+	serverVersion := node.GetServerVersion()
+	serverCommand := types.Ternary(
+		serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1), 
+		"release", 
+		"edition")
+	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), serverCommand)
 	if err != nil {
 		log.Fatal("Failed to connect to aerospike: err:", err)
 	}

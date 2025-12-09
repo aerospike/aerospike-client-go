@@ -55,6 +55,9 @@ type ClientPolicy struct {
 	// stack will always be the least used. These connections are checked for IdleTimeout
 	// on every tend (usually 1 second).
 	//
+	// Servers 8.1+ have deprecated proto-fd-idle-ms. When proto-fd-idle-ms is ultimately removed,
+    // the server will stop automatically reaping based on socket idle timeouts.
+	//
 	// Default: 0 seconds
 	IdleTimeout time.Duration //= 0 seconds
 
@@ -75,6 +78,9 @@ type ClientPolicy struct {
 	//
 	// If server proto-fd-idle-ms is changed, client ClientPolicy.IdleTimeout should also be
 	// changed to be a few seconds less than proto-fd-idle-ms.
+	//
+	//  Servers 8.1+ have deprecated proto-fd-idle-ms. When proto-fd-idle-ms is ultimately removed,
+	//  the server will stop automatically reaping based on socket idle timeouts.
 	//
 	// Default: 0
 	MinConnectionsPerNode int

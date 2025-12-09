@@ -1,0 +1,113 @@
+name: Build and test against multi-node cluster
+
+on:
+  workflow_dispatch:
+    inputs:
+      aerospike_version:
+        description: "Aerolab/Aerospike version"
+        required: false
+        default: "8.1.0.1c"
+      nodes:
+        description: "Number of cluster nodes"
+        required: false
+        default: "3"
+      cluster_name:
+        description: "Cluster name"
+        required: false
+        default: "ce"
+      runner_version:
+        description: "Ubuntu runner version"
+        required: false
+        default: "ubuntu-24.04" # https://github.com/actions/runner-images/blob/main/README.md
+  schedule:
+    - cron: "0 2 * * *" # Nightly at 02:00 UTC
+
+env:
+  # defaults to use against workflow triggered through cron
+  AEROSPIKE_VERSION: 8.1.0.1c
+  NODES: 3
+  CLUSTER_NAME: ce
+  RUNNER_VERSION: ubuntu-24.04
+
+jobs:
+  make-matrix:
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || 'ubuntu-24.04' }}
+    outputs:
+      input-matrix: ${{ steps.create-server-matrix.outputs.matrix }}
+      go-version: ${{ steps.get-go-version.outputs.go-version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Get Go version
+        id: get-go-version
+        run: |
+          echo "go-version=$(grep '^go [0-9]' go.mod | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - id: create-server-matrix
+        uses: ./.github/actions/make-matrix
+        with:
+          default_json: |
+            {
+              "stable": { "version": "${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}" }
+            }
+          go_version: ${{ steps.get-go-version.outputs.go-version }}
+
+      - name: debug - print input variables
+        run: |
+          echo "Aerospike version: ${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}"
+          echo "Nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}"
+          echo "Cluster name: ${{ github.event_name == 'workflow_dispatch' && inputs.cluster_name || env.CLUSTER_NAME }}"
+          echo "Go version: ${{ steps.get-go-version.outputs.go-version }}"
+          echo 'Matrix output:'
+          echo '${{ steps.create-server-matrix.outputs.matrix }}' | jq .
+
+  build:
+    timeout-minutes: 30
+    needs: make-matrix
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || 'ubuntu-24.04' }}
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Deploy Aerolab Cluster
+        uses: ./.github/actions/deploy-aerolab
+        with:
+          aerospike_version: ${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}
+          nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
+          cluster_name: ${{ github.event_name == 'workflow_dispatch' && inputs.cluster_name || env.CLUSTER_NAME }}
+
+      - name: "Setup Go ${{ needs.make-matrix.outputs.go-version }}"
+        uses: actions/setup-go@v6
+        with:
+          go-version: "${{ needs.make-matrix.outputs.go-version }}"
+          cache: true
+      - name: Fetch dependencies
+        env:
+          GODEBUG: fips140=on
+        run: |
+          # Install all dependencies
+          go mod download
+
+          # Install ginkgo CLI and gocovmerge for testing
+          go install github.com/onsi/ginkgo/v2/ginkgo@v2.22.2
+          go mod download github.com/wadey/gocovmerge
+
+          # Vendor the dependencies
+          go mod vendor
+
+      - name: Display Go version
+        run: |
+          echo "Go version: ${{ needs.make-matrix.outputs.go-version }}"
+      - name: Run the tests
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -hosts=127.0.0.1:3100,127.0.0.1:3101,127.0.0.1:3102 -use-services-alternate=true
+      - name: Combine Cover Profiles
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/wadey/gocovmerge cover_*.out > cover_all.out
+      - name: Check Code Coverage
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          # Configure action using config file (option 1)
+          config: ./.testcoverage.yml

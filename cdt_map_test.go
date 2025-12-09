@@ -101,11 +101,6 @@ var _ = gg.Describe("CDT Map Test", func() {
 
 	gg.BeforeEach(func() {
 
-		if !featureEnabled("cdt-map") {
-			gg.Skip("CDT Map Tests will not run since feature is not supported by the server.")
-			return
-		}
-
 		key, err = as.NewKey(ns, set, randString(50))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
