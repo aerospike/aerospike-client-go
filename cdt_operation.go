@@ -17,7 +17,6 @@ package aerospike
 
 import "github.com/aerospike/aerospike-client-go/v8/types"
 
-
 type SelectFlag int
 type ModifyFlag int
 
@@ -79,8 +78,15 @@ const (
 //
 // Returns nil if ctx is nil.
 func CDTSelectByPath(binName string, flag SelectFlag, ctx ...*CDTContext) *Operation {
-	if ctx == nil {
-		return nil
+	if len(ctx) == 0 {
+		return &Operation{
+			opType:    _CDT_READ,
+			ctx:       nil,
+			binName:   binName,
+			opSubType: cdtOperationTypeSELECT,
+			binValue:  IntegerValue(flag),
+			encoder:   newCDTCreateSelectEncoder,
+		}
 	}
 
 	return &Operation{
@@ -104,8 +110,15 @@ func CDTSelectByPath(binName string, flag SelectFlag, ctx ...*CDTContext) *Opera
 //
 // Returns nil if ctx is nil.
 func CDTModifyByPath(binName string, flag ModifyFlag, modifyExp *Expression, ctx ...*CDTContext) *Operation {
-	if ctx == nil {
-		return nil
+	if len(ctx) == 0 {
+		return &Operation{
+			opType:    _CDT_MODIFY,
+			ctx:       ctx,
+			binName:   binName,
+			opSubType: cdtOperationTypeSELECT,
+			binValue:  ListValue([]interface{}{flag, modifyExp}),
+			encoder:   newCDTCreateModifyEncoder,
+		}
 	}
 
 	return &Operation{

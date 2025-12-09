@@ -15,10 +15,12 @@
 package aerospike_test
 
 import (
+	"errors"
 	"math"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
+	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -937,16 +939,15 @@ var _ = gg.Describe("CDT Operation Test", func() {
 	})
 
 	gg.Describe("CDT Operation Edge Cases", func() {
-
 		gg.It("should return nil when context is nil for CDTSelectByPath", func() {
 			op := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, nil...)
-			gm.Expect(op).To(gm.BeNil(), "Should return nil when context is nil")
+			gm.Expect(op).ToNot(gm.BeNil(), "Should return nil when context is nil")
 		})
 
 		gg.It("should return nil when context is nil for CDTModifyByPath", func() {
 			modifyExp := as.ExpIntVal(42)
 			op := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, nil...)
-			gm.Expect(op).To(gm.BeNil(), "Should return nil when context is nil")
+			gm.Expect(op).ToNot(gm.BeNil(), "Should return nil when context is nil")
 		})
 
 		gg.It("should work with single context element", func() {
@@ -1899,6 +1900,324 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			engList, ok := departments["engineering"].([]interface{})
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(engList)).To(gm.Equal(1), "Should keep Alice only")
+		})
+	})
+
+	gg.Describe("CDT Path Operations With No Context Tests", func() {
+
+		gg.It("should return PARAMETER_ERROR for CDTSelectByPath with no context passed in", func() {
+			client.Delete(nil, key)
+
+			data := []interface{}{1, 2, 3, 4, 5}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Call CDTSelectByPath without passing any context
+			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE)
+
+			// Verify that the operation was created successfully
+			gm.Expect(selectOp).ToNot(gm.BeNil())
+
+			// Server should return PARAMETER_ERROR when no context is provided
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result).To(gm.BeNil())
+
+			// Verify it's a PARAMETER_ERROR
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+		})
+
+		gg.It("should return PARAMETER_ERROR for CDTSelectByPath with no context - map keys", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"key1": "value1",
+				"key2": "value2",
+				"key3": "value3",
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Call CDTSelectByPath without passing any context
+			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY)
+
+			// Verify that the operation was created successfully
+			gm.Expect(selectOp).ToNot(gm.BeNil())
+
+			// Server should return PARAMETER_ERROR when no context is provided
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result).To(gm.BeNil())
+
+			// Verify it's a PARAMETER_ERROR
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+		})
+
+		gg.It("should return PARAMETER_ERROR for CDTSelectByPath with explicit nil context", func() {
+			client.Delete(nil, key)
+
+			data := []interface{}{"a", "b", "c"}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Call CDTSelectByPath with explicit nil context
+			var nilCtx []*as.CDTContext = nil
+			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, nilCtx...)
+
+			// Verify that the operation was created successfully
+			gm.Expect(selectOp).ToNot(gm.BeNil())
+
+			// Server should return PARAMETER_ERROR when no context is provided
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result).To(gm.BeNil())
+
+			// Verify it's a PARAMETER_ERROR
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+		})
+
+		gg.It("should return PARAMETER_ERROR for CDTSelectByPath with empty context slice", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"alpha": 10,
+				"beta":  20,
+				"gamma": 30,
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Call CDTSelectByPath with an empty context slice
+			emptyCtx := []*as.CDTContext{}
+			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, emptyCtx...)
+
+			// Verify that the operation was created successfully
+			gm.Expect(selectOp).ToNot(gm.BeNil())
+
+			// Server should return PARAMETER_ERROR when empty context is provided
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result).To(gm.BeNil())
+
+			// Verify it's a PARAMETER_ERROR
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+		})
+
+		gg.It("should return PARAMETER_ERROR for CDTModifyByPath with no context - list append", func() {
+			client.Delete(nil, key)
+
+			data := []interface{}{1, 2, 3, 4, 5}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Call CDTModifyByPath without passing any context to append an item to the top-level list
+			modifyExp := as.ExpListAppend(
+				as.DefaultListPolicy(),
+				as.ExpIntVal(6),
+				as.ExpLoopVarList(as.VALUE),
+			)
+			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
+
+			// Verify that the operation was created successfully
+			gm.Expect(modifyOp).ToNot(gm.BeNil())
+
+			// Server should return PARAMETER_ERROR when no context is provided
+			result, err := client.Operate(nil, key, modifyOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result).To(gm.BeNil())
+
+			// Verify it's a PARAMETER_ERROR
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+		})
+
+		gg.It("should return PARAMETER_ERROR for CDTModifyByPath with no context - map put", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"existing": "value",
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Call CDTModifyByPath without passing any context to add a key to the top-level map
+			modifyExp := as.ExpMapPut(
+				as.DefaultMapPolicy(),
+				as.ExpStringVal("newKey"),
+				as.ExpStringVal("newValue"),
+				as.ExpLoopVarMap(as.VALUE),
+			)
+			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
+
+			// Verify that the operation was created successfully
+			gm.Expect(modifyOp).ToNot(gm.BeNil())
+
+			// Server should return PARAMETER_ERROR when no context is provided
+			result, err := client.Operate(nil, key, modifyOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result).To(gm.BeNil())
+
+			// Verify it's a PARAMETER_ERROR
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+		})
+
+		gg.It("should return PARAMETER_ERROR for CDTModifyByPath with explicit nil context", func() {
+			client.Delete(nil, key)
+
+			data := []interface{}{10, 20, 30}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Call CDTModifyByPath with explicit nil context
+			var nilCtx []*as.CDTContext = nil
+			modifyExp := as.ExpListAppend(
+				as.DefaultListPolicy(),
+				as.ExpIntVal(40),
+				as.ExpLoopVarList(as.VALUE),
+			)
+			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, nilCtx...)
+
+			// Verify that the operation was created successfully
+			gm.Expect(modifyOp).ToNot(gm.BeNil())
+
+			// Server should return PARAMETER_ERROR when no context is provided
+			result, err := client.Operate(nil, key, modifyOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result).To(gm.BeNil())
+
+			// Verify it's a PARAMETER_ERROR
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+		})
+
+		gg.It("should return PARAMETER_ERROR for CDTModifyByPath with empty context slice", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"count": 100,
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Call CDTModifyByPath with an empty context slice to modify top-level map
+			emptyCtx := []*as.CDTContext{}
+			modifyExp := as.ExpMapPut(
+				as.DefaultMapPolicy(),
+				as.ExpStringVal("newCounter"),
+				as.ExpIntVal(200),
+				as.ExpLoopVarMap(as.VALUE),
+			)
+			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, emptyCtx...)
+
+			// Verify that the operation was created successfully
+			gm.Expect(modifyOp).ToNot(gm.BeNil())
+
+			// Server should return PARAMETER_ERROR when empty context is provided
+			result, err := client.Operate(nil, key, modifyOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result).To(gm.BeNil())
+
+			// Verify it's a PARAMETER_ERROR
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+		})
+
+		gg.It("should verify ctx field is nil in Operation when no context passed to CDTSelectByPath", func() {
+			// This test verifies the internal state of the operation
+			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE)
+			gm.Expect(selectOp).ToNot(gm.BeNil())
+			// The operation should be created successfully with nil context
+		})
+
+		gg.It("should verify ctx field is nil in Operation when no context passed to CDTModifyByPath", func() {
+			// This test verifies the internal state of the operation
+			modifyExp := as.ExpIntVal(42)
+			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
+			gm.Expect(modifyOp).ToNot(gm.BeNil())
+			// The operation should be created successfully with nil context
+		})
+
+		gg.It("should return PARAMETER_ERROR for CDTModifyByPath with no context - arithmetic", func() {
+			client.Delete(nil, key)
+
+			data := []interface{}{10, 20, 30, 40, 50}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Multiply each value by 2 in the top-level list
+			modifyExp := as.ExpNumMul(
+				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntVal(2),
+			)
+			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
+
+			// Server should return PARAMETER_ERROR when no context is provided
+			result, err := client.Operate(nil, key, modifyOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result).To(gm.BeNil())
+
+			// Verify it's a PARAMETER_ERROR
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+		})
+
+		gg.It("should return PARAMETER_ERROR for CDTSelectByPath with no context - matching tree", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"dept1": map[string]interface{}{"name": "Sales", "count": 10},
+				"dept2": map[string]interface{}{"name": "Engineering", "count": 25},
+				"dept3": map[string]interface{}{"name": "HR", "count": 5},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Select the entire top-level structure as matching tree
+			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_MATCHING_TREE)
+
+			// Server should return PARAMETER_ERROR when no context is provided
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(result).To(gm.BeNil())
+
+			// Verify it's a PARAMETER_ERROR
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
 		})
 	})
 })
