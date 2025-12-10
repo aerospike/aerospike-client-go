@@ -25,6 +25,8 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+	registry "github.com/aerospike/aerospike-client-go/v8/config/registry"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
 	asub "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
@@ -64,6 +66,15 @@ func isJsonObject(ifc interface{}) bool {
 	default:
 		return false
 	}
+}
+
+// fakeConfigProvider implements the dynconfig.ConfigProvider interface.
+type fakeConfigProvider struct {
+	config *dynconfig.Config
+}
+
+func (f *fakeConfigProvider) LoadConfig(dsn string) *dynconfig.Config {
+	return f.config
 }
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
@@ -191,6 +202,30 @@ var _ = gg.Describe("Aerospike", func() {
 			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHosts...)
 			gm.Expect(err).NotTo(gm.HaveOccurred())
 			gm.Expect(len(nclient.GetNodes())).To(gm.Equal(nodeCount))
+		})
+
+		gg.It("must not panic when dynconfig is enabled", func() {
+			originalConfigURL := as.AEROSPIKE_CLIENT_CONFIG_URL
+			defer func() {
+				as.AEROSPIKE_CLIENT_CONFIG_URL = originalConfigURL
+			}()
+
+			// Register a fake config provider for testing
+			fakeProvider := &fakeConfigProvider{
+				config: &dynconfig.Config{
+					Version: func() *string { v := "1.0.0"; return &v }(),
+					Dynamic: &dynconfig.DynamicConfig{},
+				},
+			}
+			registry.Register("test://", fakeProvider)
+
+			// Set config URL to enable dynconfig
+			as.AEROSPIKE_CLIENT_CONFIG_URL = "test://dummy"
+
+			// Create a client which calls newDynConfigWithCallBack
+			testClient, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			testClient.Close()
 		})
 
 		gg.Context("Rackaware", func() {
