@@ -15,7 +15,7 @@ Unlike some other language clients, the Go client doesn't have explicit async/aw
 
 Before using async operations, ensure you have:
 
-1. **Go 1.18+** installed
+1. **Go 1.24.0** installed
 2. **Aerospike Go client v8** installed:
    ```bash
    go get github.com/aerospike/aerospike-client-go/v8
@@ -73,7 +73,7 @@ Single async operations let you execute individual Put/Get calls independently. 
 
 **Note**: A single Get/Put call does not require a goroutine; it can be invoked directly. The provided examples use goroutines only to show how these operations can participate in concurrent workflows.
 
-### Write Operations (Put)
+### (Put) Operations 
 
 The following example demonstrates how to write singe records:
 
@@ -142,7 +142,7 @@ func asyncPut(client *as.Client, policy *as.WritePolicy, key *as.Key, bins ...*a
 
 ```
 
-### Read Operations (Get)
+### (Get) Operations
 
 The following example demonstrates how to read single records:
 
@@ -214,7 +214,7 @@ func asyncGet(client *as.Client, policy *as.BasePolicy, key *as.Key, binNames ..
   
 ```
 
-### Operate Operations
+### (Operate) Operations
 
 You can also perform async Operate operations (combining read and write):
 
@@ -292,9 +292,9 @@ func asyncOperate(client *as.Client, policy *as.WritePolicy, key *as.Key, ops ..
 
 ## Batch Async Operations
 
-Batch operations in the Aerospike Go client already use internal concurrency (via goroutines) to process multiple nodes in parallel. However, you can run multiple batch operations concurrently for even better performance.
+However, you can run multiple batch operations concurrently for even better performance. Wrap batch operations in go routine to avoid blocking.
 
-### Batch Write Operations
+### (BatchWrite) Operations
 
 The following example demonstrates concurrent batch write operations:
 
@@ -424,7 +424,7 @@ func exampleAsyncBatchPuts(client *as.Client) error {
 
 ```
 
-### Batch Read Operations
+### (BatchGet) Operations
 
 The following example demonstrates concurrent batch read operations:
 
@@ -572,7 +572,7 @@ func exampleAsyncBatchGets(client *as.Client) error {
 
 ```
 
-### Batch Operate Operations
+### (BatchOperate) Operations
 
 You can also perform batch operate operations concurrently:
 
