@@ -24,13 +24,13 @@ Please let us know if you can suggest an improvement anywhere in the library.
 
   To guard against this, you should observe the following in your application design:
 
-  1.1. **Use only one `Client` object in your application**: `Client` objects pool connections inside and synchronize their inner functionality. They are goroutine friendly. Use only one `Client` object in your application and pass it around.
+  1.1. **Use only one `Client` instance in your application**: `Client` instances pool connections inside and synchronize their inner functionality. They are goroutine friendly. Use only one `Client` instance in your application and pass it around.
 
-  1.2. **Limit `Client` connection pool**: The default number of maximum connection pool size in a client object is 256. Even under extreme load in fast metal, clients rarely use more than even a quarter of this many connection. When there's no available connections in the pool, new connection to server will be made. If the pool is full, connections will be closed after their use to guard against too many connections.
+  1.2. **Limit `Client` connection pool**: The default number of maximum connection pool size in a client instance is 100. Even under extreme load in fast metal, clients rarely use more than even a quarter of this many connection. When there's no available connections in the pool, new connection to server will be made. If the pool is full, connections will be closed after their use to guard against too many connections.
 
   If this pool is too small, the client will waste time in connecting to the server for each new request; If too big, it will waste server connections.
 
-  At its maximum number of 256 for each client, and `proto-fd-max` set to 10000 in your server node configuration, you can safely have around 50 clients **per server node**. In practice, this will approach 150 high performing clients. You can change this pool size in `ClientPolicy`, and then initialize your `Client` object using `NewClientWithPolicy(policy **ClientPolicy, hostname string, port int)` initializer.
+  At its maximum number of 100 for each client, and `proto-fd-max` set to 10000 in your server node configuration, you can safely have around 80-100 clients **per server node**. In practice, this will approach 200+ high performing clients. You can change this pool size in `ClientPolicy`, and then initialize your `Client` instance using `NewClientWithPolicy(policy **ClientPolicy, hostname string, port int)` initializer.
 
   You can also guard against the number of new connections to each node using `ClientPolicy.LimitConnectionsToQueueSize = true`, so that if a connection is not available in the pool, the client will wait or timeout instead of creating a new client.
 
@@ -114,9 +114,9 @@ The connection pool after connecting to the database is initially empty, and con
 
 The client provides three levels of WarmUp methods:
 
-- `Client.WarmUp(count)` - Warms up connections for all nodes in the cluster
-- `Cluster.WarmUp(count)` - Warms up connections for all nodes in the cluster (same as Client.WarmUp)
-- `Node.WarmUp(count)` - Warms up connections for a specific node
+- `func (clnt *Client) WarmUp(count int) (int, Error)` - Warms up connections for all nodes in the cluster
+- `func (clstr *Cluster) WarmUp(count int) (int, Error)` - Warms up connections for all nodes in the cluster (same as Client.WarmUp)
+- `func (nd *Node) WarmUp(count int) (int, Error)` - Warms up connections for a specific node
 
 
 ```go
@@ -196,31 +196,6 @@ client.SetDefaultPolicy(policy)
 client.Put(nil, key, bins)
 ```
 
-
-### Circuit Breaker
-
-Employ a circuit breaker that activates when a maximum error count is reached for a node and rejects requests to that node until the specified error window expires. The following `ClientPolicy` fields can create a circuit breaker.
-
-#### MaxErrorRate
-
-Maximum number of errors allowed per node per `ErrorRateWindow`. Errors include connection errors, timeouts, and device overload. If maximum errors are reached, further requests to that node are retried to another node depending on replica policy. If maxRetries are exhausted, a backoff exception `ErrMaxErrorRate` is returned.
-
-#### ErrorRateWindow
-
-The number of cluster tend iterations that defines the window for `MaxErrorRate`. One tend iteration is defined as the tend interval (default 1 second) plus the time to tend all nodes. At the end of the window, the error count is reset to zero and backoff state is removed on all nodes.
-
-```go
-policy := NewClientPolicy()
-policy.MaxErrorRate = 100        // Maximum errors per window
-policy.ErrorRateWindow = 10      // Window size in tend iterations
-policy.TendInterval = 1 * time.Second
-
-client, err := NewClientWithPolicy(policy, "localhost", 3000)
-```
-
-The user application could optionally use a fallback cluster to handle traffic when the circuit breaker is employed.
-
-
 ### Resource Clean Up
 
 #### Close Recordset
@@ -243,57 +218,6 @@ for res := range recordset.Results() {
     // process record
     fmt.Println(res.Record)
 }
-```
-
-#### Goroutine and Channel Cleanup
-
-- When using goroutines for async operations, ensure all goroutines complete before closing the client
-- Use `sync.WaitGroup` to wait for all goroutines to finish
-- Close channels after all senders are done
-- **Example**:
-```go
-
-import (
-	"fmt"
-	"log"
-	as "github.com/aerospike/aerospike-client-go/v8"
-)
-
-...
-
-client, err := as.NewClient("localhost", 3000)
-if err != nil {
-    log.Fatal(err)
-}
-
-var wg sync.WaitGroup
-errorChan := make(chan error, 100)
-
-// Start async operations
-for i := 0; i < 100; i++ {
-    wg.Add(1)
-    go func(idx int) {
-        defer wg.Done() // Ensure goroutine cleanup
-
-        key, _ := as.NewKey(namespace, set, fmt.Sprintf("key-%d", idx))
-        err := client.PutBins(nil, key, as.NewBin("id", idx))
-        if err != nil {
-            errorChan <- err
-        }
-    }(i)
-}
-
-// Wait for all goroutines to complete
-wg.Wait()
-close(errorChan) // Close channel after all senders are done
-
-// Process errors
-for err := range errorChan {
-    if err != nil {
-        log.Printf("Operation error: %v", err)
-    }
-}
-
 ```
 
 ### Use Operate for Multiple Operations
@@ -350,7 +274,7 @@ policy.TendInterval = 1 * time.Second  // Default
 Following these best practices will help you:
 
 - **Improve Performance**: Through proper connection pooling, policy reuse, and efficient operations
-- **Increase Reliability**: Through circuit breakers, proper error handling, and connection management
+- **Increase Reliability**: Through proper error handling, and connection management
 - **Reduce Resource Usage**: Through shared client instances and proper cleanup
 - **Maintain Observability**: Through proper logging configuration
 
