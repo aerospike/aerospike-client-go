@@ -257,6 +257,10 @@ func (cmd *batchIndexCommandGet) parseRecord(key *Key, opCount int, generation, 
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
+func (cmd *batchIndexCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
+	return newBatchNodeListRecords(cluster, cmd.policy, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
+}
+
 func (cmd *batchIndexCommandGet) getNamespaces() iter.Seq2[string, uint64] {
 	return cmd.nsIter
 }
