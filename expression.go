@@ -826,6 +826,34 @@ func ExpLoopVarBlob(part LoopVarPart) *Expression {
 	)
 }
 
+// ExpLoopVarNil creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 8.1.1+.
+func ExpLoopVarNil(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeNIL,
+		nil,
+	)
+}
+
+// ExpLoopVarGeoJSON creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 8.1.1+.
+func ExpLoopVarGeoJSON(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeGEO,
+		nil,
+	)
+}
+
 // ExpResultRemove creates a result remove expression.
 // Requires server version 8.1.1+.
 func ExpResultRemove() *Expression {

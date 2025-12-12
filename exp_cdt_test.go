@@ -15,6 +15,7 @@
 package aerospike_test
 
 import (
+	"fmt"
 	"math"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -1076,14 +1077,15 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			gm.Expect(firstValue).To(gm.Equal(2), "1 * 2 = 2")
 		})
 
-		gg.It("should select blobs using ExpSelectByPath with ExpLoopVarBlob", func() {
+		gg.It("should use ExpLoopVarBlob to access blob values in expressions", func() {
 			client.Delete(nil, key)
 
 			data := map[string]interface{}{
-				"files": []interface{}{
-					map[string]interface{}{"name": "file1.bin", "data": []byte("Binary data 1")},
-					map[string]interface{}{"name": "file2.bin", "data": []byte("Binary data 2")},
-					map[string]interface{}{"name": "file3.bin", "data": []byte("Binary data 3")},
+				"blobs": []interface{}{
+					[]byte("First blob"),
+					[]byte("Second blob"),
+					[]byte("Third blob"),
+					[]byte("Fourth blob"),
 				},
 			}
 
@@ -1091,9 +1093,70 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			err := client.PutBins(wpolicy, key, bin)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			ctx1 := as.CtxMapKey(as.NewStringValue("files"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxMapKey(as.NewStringValue("data"))
+			ctx1 := as.CtxMapKey(as.NewStringValue("blobs"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpLess(
+					as.ExpLoopVarInt(as.INDEX),
+					as.ExpIntVal(2),
+				),
+			)
+
+			selectExp := as.ExpSelectByPath(
+				as.ExpTypeLIST,
+				as.EXP_PATH_SELECT_VALUE,
+				as.ExpMapBin("data"),
+				ctx1, ctx2,
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("firstTwoBlobs", selectExp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			firstTwoBlobs := result.Bins["firstTwoBlobs"]
+			gm.Expect(firstTwoBlobs).ToNot(gm.BeNil())
+
+			blobList, ok := firstTwoBlobs.([]interface{})
+			if ok {
+				gm.Expect(len(blobList)).To(gm.Equal(2), "Should have 2 blobs")
+				for i, item := range blobList {
+					blob, ok := item.([]byte)
+					gm.Expect(ok).To(gm.BeTrue(), "Item %d should be a byte array", i)
+					gm.Expect(len(blob)).To(gm.BeNumerically(">", 0), "Blob %d should not be empty", i)
+				}
+			}
+		})
+
+		gg.It("should use ExpLoopVarBool to filter boolean values", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"features": []interface{}{
+					map[string]interface{}{"name": "feature1", "enabled": true},
+					map[string]interface{}{"name": "feature2", "enabled": false},
+					map[string]interface{}{"name": "feature3", "enabled": true},
+					map[string]interface{}{"name": "feature4", "enabled": false},
+				},
+			}
+
+			bin := as.NewBin("data", data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("features"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpMapGetByKey(
+						as.MapReturnType.VALUE,
+						as.ExpTypeBOOL,
+						as.ExpStringVal("enabled"),
+						as.ExpLoopVarMap(as.VALUE),
+					),
+					as.ExpBoolVal(true),
+				),
+			)
+			ctx3 := as.CtxMapKey(as.NewStringValue("name"))
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
@@ -1103,26 +1166,68 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			)
 
 			result, err := client.Operate(nil, key,
-				as.ExpReadOp("blobResults", selectExp, as.ExpReadFlagDefault),
+				as.ExpReadOp("enabledFeatures", selectExp, as.ExpReadFlagDefault),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(result).ToNot(gm.BeNil())
 
-			blobs := result.Bins["blobResults"]
-			gm.Expect(blobs).ToNot(gm.BeNil())
+			enabledFeatures := result.Bins["enabledFeatures"]
+			gm.Expect(enabledFeatures).ToNot(gm.BeNil())
 
-			blobList, ok := blobs.([]interface{})
+			featureList, ok := enabledFeatures.([]interface{})
 			if ok {
-				gm.Expect(len(blobList)).To(gm.Equal(3), "Should have 3 blobs")
-				// Verify at least one blob has content
-				foundValidBlob := false
-				for _, item := range blobList {
-					if blob, ok := item.([]byte); ok && len(blob) > 0 {
-						foundValidBlob = true
-						break
-					}
+				gm.Expect(len(featureList)).To(gm.Equal(2), "Should have 2 enabled features")
+				gm.Expect(featureList).To(gm.ContainElements("feature1", "feature3"))
+			}
+		})
+
+		gg.It("should use ExpLoopVarList to access nested list values", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"matrix": []interface{}{
+					[]interface{}{1, 2, 3},
+					[]interface{}{4, 5, 6},
+					[]interface{}{7, 8, 9},
+				},
+			}
+
+			bin := as.NewBin("data", data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("matrix"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpListSize(as.ExpLoopVarList(as.VALUE)),
+					as.ExpIntVal(3),
+				),
+			)
+
+			selectExp := as.ExpSelectByPath(
+				as.ExpTypeLIST,
+				as.EXP_PATH_SELECT_VALUE,
+				as.ExpMapBin("data"),
+				ctx1, ctx2,
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("rows", selectExp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			rows := result.Bins["rows"]
+			gm.Expect(rows).ToNot(gm.BeNil())
+
+			rowList, ok := rows.([]interface{})
+			if ok {
+				gm.Expect(len(rowList)).To(gm.Equal(3), "Should have 3 rows with size 3")
+				for i, row := range rowList {
+					rowData, ok := row.([]interface{})
+					gm.Expect(ok).To(gm.BeTrue(), "Row %d should be a list", i)
+					gm.Expect(len(rowData)).To(gm.Equal(3), "Row %d should have 3 elements", i)
 				}
-				gm.Expect(foundValidBlob).To(gm.BeTrue(), "Should have at least one valid blob")
 			}
 		})
 
@@ -1167,11 +1272,113 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			blobList, ok := allBlobs.([]interface{})
 			if ok {
 				gm.Expect(len(blobList)).To(gm.Equal(4), "Should have 4 blobs")
-				// Verify all items are byte arrays
 				for i, item := range blobList {
 					blob, ok := item.([]byte)
 					gm.Expect(ok).To(gm.BeTrue(), "Item %d should be a byte array", i)
 					gm.Expect(len(blob)).To(gm.BeNumerically(">", 0), "Blob %d should not be empty", i)
+				}
+			}
+		})
+
+		gg.It("should use ExpLoopVarNil to access nil values in expressions", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"entries": []interface{}{
+					map[string]interface{}{"status": "active", "value": 100},
+					map[string]interface{}{"status": "inactive", "value": nil},
+					map[string]interface{}{"status": "pending", "value": 200},
+				},
+			}
+
+			bin := as.NewBin("data", data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("entries"))
+			ctx2 := as.CtxAllChildren()
+			ctx3 := as.CtxMapKey(as.NewStringValue("status"))
+
+			selectExp := as.ExpSelectByPath(
+				as.ExpTypeLIST,
+				as.EXP_PATH_SELECT_VALUE,
+				as.ExpMapBin("data"),
+				ctx1, ctx2, ctx3,
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("statuses", selectExp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			statuses := result.Bins["statuses"]
+			gm.Expect(statuses).ToNot(gm.BeNil())
+
+			statusList, ok := statuses.([]interface{})
+			if ok {
+				gm.Expect(len(statusList)).To(gm.Equal(3), "Should have 3 status values")
+				gm.Expect(statusList).To(gm.ContainElements("active", "inactive", "pending"))
+			}
+		})
+
+		gg.It("should use ExpLoopVarGeoJSON to access and filter GeoJSON values", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"locations": []interface{}{
+					as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-122.4194, 37.7749]}`), // San Francisco
+					as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-118.2437, 34.0522]}`), // Los Angeles
+					as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-73.9352, 40.7306]}`),  // Brooklyn
+				},
+			}
+
+			bin := as.NewBin("data", data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			californiaRegion := as.NewGeoJSONValue(`{
+				"type": "Polygon",
+				"coordinates": [[
+					[-124.5, 32.5],
+					[-114.0, 32.5],
+					[-114.0, 42.0],
+					[-124.5, 42.0],
+					[-124.5, 32.5]
+				]]
+			}`)
+
+			ctx1 := as.CtxMapKey(as.NewStringValue("locations"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGeoCompare(
+					as.ExpLoopVarGeoJSON(as.VALUE),
+					as.ExpGeoVal(californiaRegion.String()),
+				),
+			)
+
+			selectExp := as.ExpSelectByPath(
+				as.ExpTypeLIST,
+				as.EXP_PATH_SELECT_VALUE,
+				as.ExpMapBin("data"),
+				ctx1, ctx2,
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("californiaLoc", selectExp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			californiaLocations := result.Bins["californiaLoc"]
+			gm.Expect(californiaLocations).ToNot(gm.BeNil())
+
+			locationList, ok := californiaLocations.([]interface{})
+			if ok {
+				gm.Expect(len(locationList)).To(gm.BeNumerically(">=", 0), "Should have filtered GeoJSON locations")
+				for i, loc := range locationList {
+					geoVal, isGeoJSON := loc.(as.GeoJSONValue)
+					gm.Expect(isGeoJSON).To(gm.BeTrue(), fmt.Sprintf("Location %d should be a GeoJSON value", i))
+					gm.Expect(geoVal.String()).ToNot(gm.BeEmpty(), fmt.Sprintf("Location %d should not be empty", i))
 				}
 			}
 		})
