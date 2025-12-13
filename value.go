@@ -17,6 +17,7 @@ package aerospike
 import (
 	"bytes"
 	"fmt"
+	"iter"
 	"reflect"
 	"strconv"
 
@@ -1188,6 +1189,85 @@ func (vl *RawBlobValue) GetObject() interface{} {
 // String implements Stringer interface.
 func (vl *RawBlobValue) String() string {
 	return fmt.Sprintf("% 02x", vl.Data)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// SeqValue encapsulates an iter.Seq[T].
+type SeqValue[T any] struct {
+	seq iter.Seq[T]
+}
+
+// NewSeqValue creates a value from an iter.Seq.
+func NewSeqValue[T any](seq iter.Seq[T]) *SeqValue[T] {
+	return &SeqValue[T]{seq: seq}
+}
+
+// EstimateSize returns the size of the SeqValue in wire protocol.
+func (it *SeqValue[T]) EstimateSize() (int, Error) {
+	return packSeqList(nil, it.seq)
+}
+
+func (it *SeqValue[T]) write(cmd BufferEx) (int, Error) {
+	return packSeqList(cmd, it.seq)
+}
+
+func (it *SeqValue[T]) pack(cmd BufferEx) (int, Error) {
+	return packSeqList(cmd, it.seq)
+}
+
+// GetType returns wire protocol value type.
+func (it *SeqValue[T]) GetType() int {
+	return ParticleType.LIST
+}
+
+// GetObject returns original value as an interface{}.
+func (it *SeqValue[T]) GetObject() interface{} {
+	return it.seq
+}
+
+// String implements Stringer interface.
+func (it *SeqValue[T]) String() string {
+	return fmt.Sprintf("%v", it.seq)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// Seq2Value encapsulates an arbitrary iter.Seq2.
+type Seq2Value[K comparable, V any] struct {
+	seq2 iter.Seq2[K, V]
+}
+
+// NewSeq2Value generates a Seq2Value instance.
+func NewSeq2Value[K comparable, V any](seq2 iter.Seq2[K, V]) *Seq2Value[K, V] {
+	return &Seq2Value[K, V]{seq2: seq2}
+}
+
+// EstimateSize returns the size of the Seq2Value in wire protocol.
+func (seq2 *Seq2Value[K, V]) EstimateSize() (int, Error) {
+	return packSeq2Map(nil, seq2.seq2)
+}
+
+func (seq2 *Seq2Value[K, V]) write(cmd BufferEx) (int, Error) {
+	return packSeq2Map(cmd, seq2.seq2)
+}
+
+func (seq2 *Seq2Value[K, V]) pack(cmd BufferEx) (int, Error) {
+	return packSeq2Map(cmd, seq2.seq2)
+}
+
+// GetType returns wire protocol value type.
+func (seq2 *Seq2Value[K, V]) GetType() int {
+	return ParticleType.MAP
+}
+
+// GetObject returns original value as an interface{}.
+func (seq2 *Seq2Value[K, V]) GetObject() interface{} {
+	return seq2.seq2
+}
+
+func (seq2 *Seq2Value[K, V]) String() string {
+	return fmt.Sprintf("%v", seq2.seq2)
 }
 
 //////////////////////////////////////////////////////////////////////////////

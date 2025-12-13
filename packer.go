@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"iter"
 	"math"
 	"reflect"
 	"time"
@@ -98,6 +99,20 @@ func packArrayBegin(cmd BufferEx, size int) (int, Error) {
 	}
 }
 
+func packArrayBeginMax(cmd BufferEx, size int) (int, Error) {
+	return packInt(cmd, 0xdd, int32(size))
+}
+
+// reserves maximum header size for the array
+func reserveArrayBeginMax(cmd BufferEx) BufferEx {
+	if cmd == nil {
+		return nil
+	}
+
+	n, _ := packInt(nil, 0xdd, -1)
+	return cmd.Reserve(n)
+}
+
 func packIfcMap(cmd BufferEx, theMap map[interface{}]interface{}) (int, Error) {
 	size := 0
 	n, err := packMapBegin(cmd, len(theMap))
@@ -118,6 +133,30 @@ func packIfcMap(cmd BufferEx, theMap map[interface{}]interface{}) (int, Error) {
 		}
 		size += n
 	}
+
+	return size, err
+}
+
+func packSeqList[T any](cmd BufferEx, seq iter.Seq[T]) (int, Error) {
+	header := reserveArrayBeginMax(cmd)
+
+	size := 0
+	len := 0
+	for v := range seq {
+		n, err := packObject(cmd, v, false)
+		if err != nil {
+			return 0, err
+		}
+		size += n
+		len++
+	}
+
+	// write array size
+	n, err := packArrayBeginMax(header, len)
+	if err != nil {
+		return 0, err
+	}
+	size += n
 
 	return size, err
 }
@@ -151,6 +190,37 @@ func packJsonMap(cmd BufferEx, theMap map[string]interface{}) (int, Error) {
 	return size, err
 }
 
+func packSeq2Map[K comparable, V any](cmd BufferEx, seq2 iter.Seq2[K, V]) (int, Error) {
+	header := reserveMapBeginMax(cmd)
+
+	size := 0
+	len := int32(0)
+	for k, v := range seq2 {
+		n, err := packObject(cmd, k, true)
+		if err != nil {
+			return 0, err
+		}
+		size += n
+
+		n, err = packObject(cmd, v, false)
+		if err != nil {
+			return 0, err
+		}
+		size += n
+
+		len++
+	}
+
+	// write array size
+	n, err := packMapBeginMax(header, len)
+	if err != nil {
+		return 0, err
+	}
+	size += n
+
+	return size, err
+}
+
 // PackMap packs any map that implements the MapIter interface
 func PackMap(cmd BufferEx, theMap MapIter) (int, Error) {
 	return packMap(cmd, theMap)
@@ -179,6 +249,19 @@ func packMapBegin(cmd BufferEx, size int) (int, Error) {
 	} else {
 		return packInt(cmd, 0xdf, int32(size))
 	}
+}
+
+// reserves maximum header size for the array
+func reserveMapBeginMax(cmd BufferEx) BufferEx {
+	if cmd == nil {
+		return nil
+	}
+	n, _ := packInt(nil, 0xdf, -1)
+	return cmd.Reserve(n)
+}
+
+func packMapBeginMax(cmd BufferEx, size int32) (int, Error) {
+	return packInt(cmd, 0xdf, size)
 }
 
 // PackBytes backs a byte array
@@ -593,6 +676,17 @@ type packer struct {
 
 func newPacker() *packer {
 	return &packer{}
+}
+
+// WriteInt64 writes an int64 to the buffer
+func (vb *packer) Reserve(n int) BufferEx {
+	pos := vb.Len()
+	sz := vb.WriteInt32(-1)
+
+	return &bufferEx{
+		dataBuffer: vb.Bytes()[pos : pos+sz],
+		dataOffset: 0,
+	}
 }
 
 // WriteInt64 writes an int64 to the buffer

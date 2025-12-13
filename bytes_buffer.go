@@ -21,6 +21,7 @@ import (
 
 // BufferEx is a specialized buffer interface for aerospike client.
 type BufferEx interface {
+	Reserve(n int) BufferEx
 	WriteInt64(num int64) int
 	WriteUint64(num uint64) int
 	WriteInt32(num int32) int
@@ -51,6 +52,18 @@ func newBuffer(sz int) *bufferEx {
 // Bytes returns the content of the buffer
 func (buf *bufferEx) Bytes() []byte {
 	return buf.dataBuffer[:buf.dataOffset]
+}
+
+// Reserve returns current dataOffset+n slice as a BufferEx to be used later.
+// IT is used for cases where some value in a header is not know yet and
+// needs to be written later.
+func (buf *bufferEx) Reserve(n int) BufferEx {
+	res := &bufferEx{
+		dataBuffer: buf.dataBuffer[buf.dataOffset : buf.dataOffset+n],
+		dataOffset: 0,
+	}
+	buf.dataOffset += n
+	return res
 }
 
 // Int64ToBytes converts an int64 into slice of Bytes.

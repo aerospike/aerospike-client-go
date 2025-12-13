@@ -103,6 +103,20 @@ func Benchmark_Pack_String_100000(b *testing.B) {
 	doPack(val, b)
 }
 
+func Benchmark_Pack_Complex_IfcArray_iter_Seq(b *testing.B) {
+	seq := func(yield func(any) bool) {
+		items := []interface{}{1, 1, 1, "a simple string", nil, rand.Int63(), []byte{12, 198, 211}}
+		for _, v := range items {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+
+	val := NewSeqValue(seq)
+	doPack(val, b)
+}
+
 func Benchmark_Pack_Complex_IfcArray_Direct(b *testing.B) {
 	val := []interface{}{1, 1, 1, "a simple string", nil, rand.Int63(), []byte{12, 198, 211}}
 	doPack(val, b)
@@ -150,6 +164,27 @@ func Benchmark_Pack_Complex_Map(b *testing.B) {
 	doPack(val, b)
 }
 
+func Benchmark_Pack_Complex_Map_Seq2(b *testing.B) {
+	seq2 := func(yield func(any, any) bool) {
+		items := map[interface{}]interface{}{
+			rand.Int63(): rand.Int63(),
+			nil:          1,
+			"s":          491871,
+			15892987:     strings.Repeat("s", 100),
+			"s2":         []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+		}
+
+		for k, v := range items {
+			if !yield(k, v) {
+				return
+			}
+		}
+	}
+
+	val := NewSeq2Value(seq2)
+	doPack(val, b)
+}
+
 func Benchmark_Pack_Complex_JsonMap(b *testing.B) {
 	val := map[string]interface{}{
 		"rand.Int63()": rand.Int63(),
@@ -165,6 +200,13 @@ func Benchmark_Pack_Complex_JsonMap(b *testing.B) {
 type benchBuffer struct {
 	dataBuffer []byte
 	dataOffset int
+}
+
+func (bb *benchBuffer) Reserve(n int) BufferEx {
+	return &benchBuffer{
+		dataBuffer: bb.dataBuffer[bb.dataOffset : bb.dataOffset+n],
+		dataOffset: 0,
+	}
 }
 
 // Int64ToBytes converts an int64 into slice of Bytes.

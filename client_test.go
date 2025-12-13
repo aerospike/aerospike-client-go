@@ -972,7 +972,17 @@ var _ = gg.Describe("Aerospike", func() {
 							},
 						})
 
-						err = client.PutBins(wpolicy, key, bin0, bin1, bin2, bin3, bin4, bin5, bin6, bin7, bin8, bin9, bin10)
+						items := []interface{}{1, 1, 1, "a simple string", nil, rand.Int63(), []byte{12, 198, 211}}
+						seq := func(yield func(any) bool) {
+							for _, v := range items {
+								if !yield(v) {
+									return
+								}
+							}
+						}
+						bin11 := as.NewBin("Aerospike11", as.NewSeqValue(seq))
+
+						err = client.PutBins(wpolicy, key, bin0, bin1, bin2, bin3, bin4, bin5, bin6, bin7, bin8, bin9, bin10, bin11)
 						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						rec, err = client.Get(rpolicy, key)
@@ -989,6 +999,7 @@ var _ = gg.Describe("Aerospike", func() {
 						arraysEqual(rec.Bins[bin8.Name], bin8.Value.GetObject())
 						arraysEqual(rec.Bins[bin9.Name], bin9.Value.GetObject())
 						arraysEqual(rec.Bins[bin10.Name], bin10.Value.GetObject())
+						arraysEqual(rec.Bins[bin11.Name], items)
 					})
 
 				}) // context list
@@ -1021,7 +1032,24 @@ var _ = gg.Describe("Aerospike", func() {
 							"GeoJSON":    as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 						})
 
-						err = client.PutBins(wpolicy, key, bin1, bin2)
+						items := map[interface{}]interface{}{
+							rand.Int63(): rand.Int63(),
+							1:            1,
+							"s":          491871,
+							15892987:     strings.Repeat("s", 100),
+							"s2":         []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+						}
+						seq2 := func(yield func(any, any) bool) {
+							for k, v := range items {
+								if !yield(k, v) {
+									return
+								}
+							}
+						}
+
+						bin3 := as.NewBin("Aerospike3", as.NewSeq2Value(seq2))
+
+						err = client.PutBins(wpolicy, key, bin1, bin2, bin3)
 						gm.Expect(err).ToNot(gm.HaveOccurred())
 
 						rec, err = client.Get(rpolicy, key)
@@ -1029,6 +1057,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 						mapsEqual(rec.Bins[bin1.Name], bin1.Value.GetObject())
 						mapsEqual(rec.Bins[bin2.Name], bin2.Value.GetObject())
+						mapsEqual(rec.Bins[bin3.Name], items)
 					})
 
 				}) // context map
