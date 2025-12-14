@@ -11,6 +11,10 @@ inputs:
   go_version:
     description: Go version to inject into each matrix entry.
     required: true
+  modes:
+    description: Comma seperated list of consistency modes (AP,SC).
+    required: false
+    default: "AP,SC"
 
 runs:
   using: composite
@@ -21,6 +25,7 @@ runs:
         DEFAULT_JSON: ${{ inputs.default_json }}
         TEST_SERVERS_FILE_PATH: ${{ inputs.test_servers_file_path }}
         GO_VERSION: ${{ inputs.go_version }}
+        MODES: ${{ inputs.modes }}
       run: |
         set -euo pipefail
 
@@ -34,10 +39,29 @@ runs:
           JSON="${DEFAULT_JSON}"
         fi
 
+
+        MODES_ARR=$(echo "${MODES:-AP,SC}" | tr ',' '\n' | xargs -n1 | jq -R . | jq -s .)
+        echo "Trimmed array as JSON:"
+        echo "${MODES_ARR}"
+        echo
+
         echo "Validating JSON..."
         echo "${JSON}" | jq . >/dev/null
+    
 
-        MATRIX="$(echo "${JSON}" | jq -c --arg go "${GO_VERSION}" '[to_entries[] | {server: .key, version: .value.version, "go-version": $go}]')"
+        MATRIX="$(echo "${JSON}" | jq -c \
+          --arg go "${GO_VERSION}" \
+          --argjson modes "${MODES_ARR}" \
+          '[
+            to_entries[] as $e |
+            $modes[] as $mode |
+            {
+              server: $e.key,
+              version: $e.value.version,
+              "go-version": $go,
+              mode: $mode
+            }
+          ]')"
 
         echo "matrix<<EOF" >> "$GITHUB_OUTPUT"
         echo "${MATRIX}" >> "$GITHUB_OUTPUT"

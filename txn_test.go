@@ -794,6 +794,8 @@ var _ = gg.Describe("Aerospike", func() {
 		})
 
 		gg.It("must succeed BatchGet with expressions and transaction", func() {
+			gg.Skip("Skipped due to issue tracked in CLIENT-4009")
+
 			client.Truncate(nil, "test", "", nil)
 
 			startKey := 0

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       aerospike_version:
-        description: "Aerolab/Aerospike version"
+        description: "Aerolab/Aerospike version, SC is supported only on enterprise version "
         required: false
         default: "8.1.0.1c"
       nodes:
@@ -19,15 +19,24 @@ on:
         description: "Ubuntu runner version"
         required: false
         default: "ubuntu-24.04" # https://github.com/actions/runner-images/blob/main/README.md
+      modes:
+        description: "Comma-separated list of consistency modes (AP,SC). Casing matters"
+        required: false
+        default: "AP"
   schedule:
     - cron: "0 2 * * *" # Nightly at 02:00 UTC
 
+permissions:
+  contents: read   
+  actions: read  
+
 env:
   # defaults to use against workflow triggered through cron
-  AEROSPIKE_VERSION: 8.1.0.1c
+  AEROSPIKE_VERSION: 8.1.0.1
   NODES: 3
   CLUSTER_NAME: ce
   RUNNER_VERSION: ubuntu-24.04
+  MODES: AP,SC
 
 jobs:
   make-matrix:
@@ -51,6 +60,7 @@ jobs:
               "stable": { "version": "${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
+          modes: ${{ github.event_name == 'workflow_dispatch' && inputs.modes || env.MODES }}
 
       - name: debug - print input variables
         run: |
@@ -58,6 +68,7 @@ jobs:
           echo "Nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}"
           echo "Cluster name: ${{ github.event_name == 'workflow_dispatch' && inputs.cluster_name || env.CLUSTER_NAME }}"
           echo "Go version: ${{ steps.get-go-version.outputs.go-version }}"
+          echo "Consistency Mode: ${{ github.event_name == 'workflow_dispatch' && inputs.modes || env.MODES }}"
           echo 'Matrix output:'
           echo '${{ steps.create-server-matrix.outputs.matrix }}' | jq .
 
@@ -65,6 +76,8 @@ jobs:
     timeout-minutes: 30
     needs: make-matrix
     runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || 'ubuntu-24.04' }}
+    permissions:
+      actions: write 
     strategy:
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
@@ -72,11 +85,13 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Deploy Aerolab Cluster
-        uses: ./.github/actions/deploy-aerolab
+        uses: ./.github/actions/multi-node-cluster
         with:
-          aerospike_version: ${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}
+          aerospike_version: ${{ matrix.version }}
           nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
           cluster_name: ${{ github.event_name == 'workflow_dispatch' && inputs.cluster_name || env.CLUSTER_NAME }}
+          mode: ${{ matrix.mode }}
+          feature_conf_encoded: ${{ secrets.FEATURES_CONF }}
 
       - name: "Setup Go ${{ needs.make-matrix.outputs.go-version }}"
         uses: actions/setup-go@v6
@@ -102,12 +117,43 @@ jobs:
           echo "Go version: ${{ needs.make-matrix.outputs.go-version }}"
       - name: Run the tests
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -hosts=127.0.0.1:3100,127.0.0.1:3101,127.0.0.1:3102 -use-services-alternate=true
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -hosts=127.0.0.1:3100,127.0.0.1:3101,127.0.0.1:3102 -use-services-alternate=true
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/wadey/gocovmerge cover_*.out > cover_all.out
+        run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
       - name: Check Code Coverage
         uses: vladopajic/go-test-coverage@v2
         with:
           # Configure action using config file (option 1)
           config: ./.testcoverage.yml
+      - name: Show coverage report in step summary
+        if: always()
+        run: |
+          {
+            echo "**coverage:**"
+            echo ""
+            echo "**${{ matrix.version }}-${{ matrix.mode }}:** ${{ steps.check-coverage.outputs.total-coverage }}%"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Move coverage files under reports folder
+        run: |
+          mkdir -p reports
+          mv covprofile_*.out reports/
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cover_${{matrix.version}}_${{matrix.mode}}
+          path: reports
+          if-no-files-found: warn
+
+  merged_coverage:
+    name: Final Coverage
+    needs: build
+    uses: ./.github/workflows/merge-coverage.yml
+    with:
+      artifact_pattern: cover_*
+      threshold: ${{ fromJSON(vars.COVERAGE_THRESHOLD) }}
+    permissions:
+      actions: write
+      contents: read 
+
+  

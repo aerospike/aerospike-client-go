@@ -1,0 +1,96 @@
+name: "Deploy Aerospike Cluster using Aerolab"
+description: "Creates an Aerospike cluster using Aerolab on the current runner"
+
+inputs:
+  aerospike_version:
+    description: "Aerospike version for cluster creation"
+    required: false
+    default: "8.1.0.1c"
+  nodes:
+    description: "Number of cluster nodes"
+    required: false
+    default: "3"
+  cluster_name:
+    description: "Cluster name"
+    required: false
+    default: "ce"
+  aerolab_version:
+    # https://github.com/aerospike/aerolab/releases/
+    description: "Aerolab version to run."
+    required: false
+    default: "7.9.0"
+  mode:
+    # https://github.com/aerospike/aerolab/releases/
+    description: "Chosen consistency mode for the Aerospike cluster."
+    required: false
+    default: "AP"
+  feature_conf_encoded:
+      description: "Base64Encoded feature config, required for Multi node sc set up"
+      required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Aerolab
+      uses: ./.github/actions/setup-aerolab
+      with:
+        aerolab_version: ${{ inputs.aerolab_version }}
+
+    - name: Load features.conf
+      shell: bash
+      if: ${{ inputs.mode == 'SC' || !endsWith(inputs.aerospike_version, 'c')}}
+      run: |
+        mkdir -p /tmp/aerospike
+        echo "${{ inputs.feature_conf_encoded }}" | base64 --decode > /tmp/aerospike/features.conf
+        chmod 600 /tmp/aerospike/features.conf
+
+    - name: Configure Aerolab backend
+      shell: bash
+      run: |
+        aerolab config backend -t docker 
+
+    - name: Create Aerospike cluster
+      shell: bash
+      run: |
+        VERSION="${{ inputs.aerospike_version }}"
+        NODES="${{ inputs.nodes }}"
+        NAME="${{ inputs.cluster_name }}"
+        CMD=(aerolab cluster create -v "$VERSION" -c "$NODES" -n "$NAME")
+
+        # invalid combination
+        if [[ "${{ inputs.mode }}" == "SC"  && "$VERSION" == *c ]]; then
+          echo "::error::SC mode cannot be used with community (-c) version"
+          exit 1
+        fi
+
+        # EE - Multi node needs features.conf
+        if [[ "$VERSION" != *c ]]; then
+          CMD+=(-f /tmp/aerospike/features.conf)
+        fi
+
+        echo "Running: ${CMD[*]}"
+        "${CMD[@]}"
+
+
+    - name: Enabling allow-plunge flag and setting up SC namespace 
+      shell: bash
+      if: ${{ inputs.mode == 'SC' }}
+      run: |
+        aerolab conf adjust -n "${{ inputs.cluster_name }}" set "namespace test".strong-consistency-allow-expunge true 
+        echo "setting SC and applying roster..."
+        aerolab conf sc -n "${{ inputs.cluster_name }}"
+
+    - name: Validate cluster list
+      shell: bash
+      run: |
+        echo "Listing clusters..."
+        aerolab cluster list | tee cluster-list.txt
+
+    - name: Show cluster list output as job summary
+      shell: bash
+      run: |
+        echo "## Aerolab Cluster Created" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo '````' >> $GITHUB_STEP_SUMMARY
+        cat cluster-list.txt >> $GITHUB_STEP_SUMMARY
+        echo '````' >> $GITHUB_STEP_SUMMARY
