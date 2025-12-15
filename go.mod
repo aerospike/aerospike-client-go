@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/onsi/ginkgo/v2 v2.27.2
-	github.com/onsi/gomega v1.38.2
+	github.com/onsi/gomega v1.38.3
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	github.com/yuin/gopher-lua v1.1.1
 	golang.org/x/sync v0.19.0
