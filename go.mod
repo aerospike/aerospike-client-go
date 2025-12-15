@@ -7,7 +7,7 @@ require (
 	github.com/onsi/gomega v1.38.2
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	github.com/yuin/gopher-lua v1.1.1
-	golang.org/x/sync v0.18.0
+	golang.org/x/sync v0.19.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
