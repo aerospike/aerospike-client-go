@@ -3708,25 +3708,29 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if notFirstIteration {
-			applyTransactionRetryMetrics(cmd.node)
+			if cmd.node != nil {
+				applyTransactionRetryMetrics(cmd.node)
+			}
 
 			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
-					alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, cmd.commandSentCounter)
-					if alreadyRetried {
-						// Batch was retried in separate subcommands. Complete this command.
-						applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
-						if err != nil {
-							return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+					if cmd.node != nil {
+						alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, cmd.commandSentCounter)
+						if alreadyRetried {
+							// Batch was retried in separate subcommands. Complete this command.
+							applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
+							if err != nil {
+								return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+							}
+							return nil
 						}
-						return nil
-					}
 
-					// chain the errors and retry
-					if err != nil {
-						errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
-						continue
+						// chain the errors and retry
+						if err != nil {
+							errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+							continue
+						}
 					}
 				}
 			}

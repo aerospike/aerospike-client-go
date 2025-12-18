@@ -944,7 +944,7 @@ func (clnt *Client) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePo
 
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, records, true)
 	if err != nil {
-		return nil, err
+		return records, err
 	}
 
 	cmd := newBatchCommandDelete(clnt, nil, policy, deletePolicy, keys, records, attr)
@@ -1011,7 +1011,7 @@ func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy,
 
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, records, attr.hasWrite)
 	if err != nil {
-		return nil, err
+		return records, err
 	}
 
 	cmd := newBatchCommandUDF(clnt, nil, policy, udfPolicy, keys, packageName, functionName, args, records, attr)
