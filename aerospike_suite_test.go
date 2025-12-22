@@ -183,8 +183,8 @@ func isEnterpriseEdition() bool {
 	node := client.GetNodes()[0]
 	serverVersion := node.GetServerVersion()
 	serverCommand := types.Ternary(
-		serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1), 
-		"release", 
+		serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1_1),
+		"release",
 		"edition")
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), serverCommand)
 	if err != nil {
