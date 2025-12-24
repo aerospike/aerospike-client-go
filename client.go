@@ -1975,10 +1975,6 @@ func (clnt *Client) DropUser(policy *AdminPolicy, user string) Error {
 func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password string) Error {
 	policy = clnt.getUsableAdminPolicy(policy)
 
-	if clnt.cluster.user == "" {
-		return ErrInvalidUser.err()
-	}
-
 	hash, err := hashPassword(password)
 	if err != nil {
 		return err
