@@ -155,14 +155,14 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 						as.MapReturnType.VALUE,
 						as.ExpTypeFLOAT,
 						as.ExpStringVal("price"),
-						as.ExpLoopVarMap(as.VALUE),
+						as.ExpMapLoopVar(as.VALUE),
 					),
 					as.ExpFloatVal(10.0),
 				),
 			)
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("title"),
 				),
 			)
@@ -274,7 +274,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			// Create modify expression that multiplies by 1.50
 			modifyExp := as.ExpNumMul(
-				as.ExpLoopVarFloat(as.VALUE), // Current price value
+				as.ExpFloatLoopVar(as.VALUE), // Current price value
 				as.ExpFloatVal(1.50),         // Multiply by 1.50
 			)
 
@@ -358,7 +358,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			ctx3 := as.CtxMapKey(as.NewStringValue("price"))
 
 			modifyExp := as.ExpNumAdd(
-				as.ExpLoopVarFloat(as.VALUE),
+				as.ExpFloatLoopVar(as.VALUE),
 				as.ExpFloatVal(5.0),
 			)
 
@@ -421,7 +421,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			ctx2 := as.CtxAllChildren()
 
 			modifyExp := as.ExpNumSub(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(100),
 			)
 
@@ -528,7 +528,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			modifyCtx3 := as.CtxMapKey(as.NewStringValue("value"))
 
 			modifyExp := as.ExpNumMul(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(2),
 			)
 
@@ -686,13 +686,13 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("revenue"),
 				),
 			)
 
 			modifyExp := as.ExpNumMul(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(2),
 			)
 
@@ -785,7 +785,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			ctx2 := as.CtxAllChildren()
 
 			modifyExp := as.ExpNumDiv(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(10),
 			)
 
@@ -881,14 +881,14 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 						as.MapReturnType.VALUE,
 						as.ExpTypeBOOL,
 						as.ExpStringVal("active"),
-						as.ExpLoopVarMap(as.VALUE),
+						as.ExpMapLoopVar(as.VALUE),
 					),
 					as.ExpBoolVal(true),
 				),
 			)
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("name"),
 				),
 			)
@@ -939,7 +939,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			ctx3 := as.CtxMapKey(as.NewStringValue("count"))
 
 			modifyExp := as.ExpNumMul(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(2),
 			)
 
@@ -1034,7 +1034,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 
 			// Modify values (double them)
 			modifyExp := as.ExpNumMul(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(2),
 			)
 
@@ -1077,15 +1077,15 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			gm.Expect(firstValue).To(gm.Equal(2), "1 * 2 = 2")
 		})
 
-		gg.It("should use ExpLoopVarBlob to access blob values in expressions", func() {
+		gg.It("should use ExpBlobLoopVar to filter blobs by comparison", func() {
 			client.Delete(nil, key)
 
 			data := map[string]interface{}{
 				"blobs": []interface{}{
-					[]byte("First blob"),
-					[]byte("Second blob"),
-					[]byte("Third blob"),
-					[]byte("Fourth blob"),
+					[]byte("blob1"),
+					[]byte("blob2"),
+					[]byte("blob3"),
+					[]byte("exclude"),
 				},
 			}
 
@@ -1093,11 +1093,12 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			err := client.PutBins(wpolicy, key, bin)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
+			// Select blobs that are not equal to "exclude" using ExpBlobLoopVar
 			ctx1 := as.CtxMapKey(as.NewStringValue("blobs"))
 			ctx2 := as.CtxAllChildrenWithFilter(
-				as.ExpLess(
-					as.ExpLoopVarInt(as.INDEX),
-					as.ExpIntVal(2),
+				as.ExpNotEq(
+					as.ExpBlobLoopVar(as.VALUE),
+					as.ExpBlobVal([]byte("exclude")),
 				),
 			)
 
@@ -1109,21 +1110,21 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			)
 
 			result, err := client.Operate(nil, key,
-				as.ExpReadOp("firstTwoBlobs", selectExp, as.ExpReadFlagDefault),
+				as.ExpReadOp("filteredBlobs", selectExp, as.ExpReadFlagDefault),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(result).ToNot(gm.BeNil())
 
-			firstTwoBlobs := result.Bins["firstTwoBlobs"]
-			gm.Expect(firstTwoBlobs).ToNot(gm.BeNil())
+			filteredBlobs := result.Bins["filteredBlobs"]
+			gm.Expect(filteredBlobs).ToNot(gm.BeNil())
 
-			blobList, ok := firstTwoBlobs.([]interface{})
+			blobList, ok := filteredBlobs.([]interface{})
 			if ok {
-				gm.Expect(len(blobList)).To(gm.Equal(2), "Should have 2 blobs")
+				gm.Expect(len(blobList)).To(gm.Equal(3), "Should have 3 blobs not equal to 'exclude'")
 				for i, item := range blobList {
 					blob, ok := item.([]byte)
 					gm.Expect(ok).To(gm.BeTrue(), "Item %d should be a byte array", i)
-					gm.Expect(len(blob)).To(gm.BeNumerically(">", 0), "Blob %d should not be empty", i)
+					gm.Expect(blob).ToNot(gm.Equal([]byte("exclude")), "Blob %d should not be 'exclude'", i)
 				}
 			}
 		})
@@ -1151,7 +1152,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 						as.MapReturnType.VALUE,
 						as.ExpTypeBOOL,
 						as.ExpStringVal("enabled"),
-						as.ExpLoopVarMap(as.VALUE),
+						as.ExpMapLoopVar(as.VALUE),
 					),
 					as.ExpBoolVal(true),
 				),
@@ -1199,7 +1200,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("matrix"))
 			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpListSize(as.ExpLoopVarList(as.VALUE)),
+					as.ExpListSize(as.ExpListLoopVar(as.VALUE)),
 					as.ExpIntVal(3),
 				),
 			)
@@ -1280,14 +1281,17 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			}
 		})
 
-		gg.It("should use ExpLoopVarNil to access nil values in expressions", func() {
+		gg.It("should use ExpNilLoopVar to filter direct nil values in a list", func() {
 			client.Delete(nil, key)
 
 			data := map[string]interface{}{
-				"entries": []interface{}{
-					map[string]interface{}{"status": "active", "value": 100},
-					map[string]interface{}{"status": "inactive", "value": nil},
-					map[string]interface{}{"status": "pending", "value": 200},
+				"mixedValues": []interface{}{
+					100,
+					nil,
+					"string",
+					nil,
+					true,
+					nil,
 				},
 			}
 
@@ -1295,30 +1299,90 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			err := client.PutBins(wpolicy, key, bin)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			ctx1 := as.CtxMapKey(as.NewStringValue("entries"))
-			ctx2 := as.CtxAllChildren()
-			ctx3 := as.CtxMapKey(as.NewStringValue("status"))
+			// Select only nil values using ExpNilLoopVar
+			ctx1 := as.CtxMapKey(as.NewStringValue("mixedValues"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpNilLoopVar(as.VALUE),
+					as.ExpNilValue(),
+				),
+			)
 
 			selectExp := as.ExpSelectByPath(
 				as.ExpTypeLIST,
-				as.EXP_PATH_SELECT_VALUE,
+				as.EXP_PATH_SELECT_VALUE|as.EXP_PATH_SELECT_NO_FAIL,
 				as.ExpMapBin("data"),
-				ctx1, ctx2, ctx3,
+				ctx1, ctx2,
 			)
 
 			result, err := client.Operate(nil, key,
-				as.ExpReadOp("statuses", selectExp, as.ExpReadFlagDefault),
+				as.ExpReadOp("nilValues", selectExp, as.ExpReadFlagDefault),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(result).ToNot(gm.BeNil())
 
-			statuses := result.Bins["statuses"]
-			gm.Expect(statuses).ToNot(gm.BeNil())
+			nilValues := result.Bins["nilValues"]
+			gm.Expect(nilValues).ToNot(gm.BeNil())
 
-			statusList, ok := statuses.([]interface{})
+			valueList, ok := nilValues.([]interface{})
 			if ok {
-				gm.Expect(len(statusList)).To(gm.Equal(3), "Should have 3 status values")
-				gm.Expect(statusList).To(gm.ContainElements("active", "inactive", "pending"))
+				gm.Expect(len(valueList)).To(gm.Equal(3), "Should have 3 nil values")
+				for _, val := range valueList {
+					gm.Expect(val).To(gm.BeNil(), "All selected values should be nil")
+				}
+			}
+		})
+
+		gg.It("should use ExpNilLoopVar with INDEX to access nil values by position", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"values": []interface{}{
+					"first",
+					nil,
+					"third",
+					nil,
+					"fifth",
+					nil,
+				},
+			}
+
+			bin := as.NewBin("data", data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Select indices of nil values
+			ctx1 := as.CtxMapKey(as.NewStringValue("values"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpNilLoopVar(as.VALUE),
+					as.ExpNilValue(),
+				),
+			)
+
+			selectExp := as.ExpSelectByPath(
+				as.ExpTypeLIST,
+				as.EXP_PATH_SELECT_VALUE|as.EXP_PATH_SELECT_NO_FAIL,
+				as.ExpMapBin("data"),
+				ctx1, ctx2,
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpWriteOp("nils", selectExp, as.ExpWriteFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			// Verify result
+			finalRecord, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			nils := finalRecord.Bins["nils"]
+			if nils != nil {
+				nilList, ok := nils.([]interface{})
+				if ok {
+					gm.Expect(len(nilList)).To(gm.Equal(3), "Should have 3 nil values")
+				}
 			}
 		})
 
@@ -1351,7 +1415,7 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("locations"))
 			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpGeoCompare(
-					as.ExpLoopVarGeoJSON(as.VALUE),
+					as.ExpGeoJSONLoopVar(as.VALUE),
 					as.ExpGeoVal(californiaRegion.String()),
 				),
 			)

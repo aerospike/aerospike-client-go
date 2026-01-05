@@ -97,14 +97,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 						as.MapReturnType.VALUE,
 						as.ExpTypeFLOAT,
 						as.ExpStringVal("price"),
-						as.ExpLoopVarMap(as.VALUE),
+						as.ExpMapLoopVar(as.VALUE),
 					),
 					as.ExpFloatVal(10.0),
 				),
 			)
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("title"),
 				),
 			)
@@ -173,13 +173,13 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			allChildren := as.CtxAllChildren()
 			priceKey := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("price"),
 				),
 			)
 
 			modifyExp := as.ExpNumMul(
-				as.ExpLoopVarFloat(as.VALUE), // Current price value
+				as.ExpFloatLoopVar(as.VALUE), // Current price value
 				as.ExpFloatVal(1.10),         // Multiply by 1.10
 			)
 
@@ -297,7 +297,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 							as.MapReturnType.VALUE,
 							as.ExpTypeSTRING,
 							as.ExpStringVal("category"),
-							as.ExpLoopVarMap(as.VALUE),
+							as.ExpMapLoopVar(as.VALUE),
 						),
 						as.ExpStringVal("fiction"),
 					),
@@ -306,7 +306,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 							as.MapReturnType.VALUE,
 							as.ExpTypeFLOAT,
 							as.ExpStringVal("price"),
-							as.ExpLoopVarMap(as.VALUE),
+							as.ExpMapLoopVar(as.VALUE),
 						),
 						as.ExpFloatVal(10.0),
 					),
@@ -314,7 +314,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			)
 			ctx4 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("title"),
 				),
 			)
@@ -365,14 +365,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 						as.MapReturnType.VALUE,
 						as.ExpTypeFLOAT,
 						as.ExpStringVal("price"),
-						as.ExpLoopVarMap(as.VALUE),
+						as.ExpMapLoopVar(as.VALUE),
 					),
 					as.ExpFloatVal(10.0),
 				),
 			)
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("title"),
 				),
 			)
@@ -422,7 +422,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 						as.MapReturnType.VALUE,
 						as.ExpTypeFLOAT,
 						as.ExpStringVal("price"),
-						as.ExpLoopVarMap(as.VALUE),
+						as.ExpMapLoopVar(as.VALUE),
 					),
 					as.ExpFloatVal(10.0),
 				),
@@ -458,7 +458,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("items"))
 			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpGreater(
-					as.ExpLoopVarInt(as.VALUE),
+					as.ExpIntLoopVar(as.VALUE),
 					as.ExpIntVal(75),
 				),
 			)
@@ -511,7 +511,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("numbers"))
 			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpLess(
-					as.ExpLoopVarInt(as.INDEX),
+					as.ExpIntLoopVar(as.INDEX),
 					as.ExpIntVal(3),
 				),
 			)
@@ -551,7 +551,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("products"))
 			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpLess(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("c"),
 				),
 			)
@@ -588,7 +588,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			modifyExp := as.ExpNumAdd(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(5),
 			)
 
@@ -633,7 +633,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			modifyExp := as.ExpNumSub(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(100),
 			)
 
@@ -756,14 +756,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 						as.MapReturnType.VALUE,
 						as.ExpTypeBOOL,
 						as.ExpStringVal("active"),
-						as.ExpLoopVarMap(as.VALUE),
+						as.ExpMapLoopVar(as.VALUE),
 					),
 					as.ExpBoolVal(true),
 				),
 			)
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("name"),
 				),
 			)
@@ -812,7 +812,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 								as.MapReturnType.VALUE,
 								as.ExpTypeBOOL,
 								as.ExpStringVal("inStock"),
-								as.ExpLoopVarMap(as.VALUE),
+								as.ExpMapLoopVar(as.VALUE),
 							),
 							as.ExpBoolVal(true),
 						),
@@ -821,7 +821,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 								as.MapReturnType.VALUE,
 								as.ExpTypeFLOAT,
 								as.ExpStringVal("price"),
-								as.ExpLoopVarMap(as.VALUE),
+								as.ExpMapLoopVar(as.VALUE),
 							),
 							as.ExpFloatVal(20.0),
 						),
@@ -831,7 +831,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 							as.MapReturnType.VALUE,
 							as.ExpTypeFLOAT,
 							as.ExpStringVal("price"),
-							as.ExpLoopVarMap(as.VALUE),
+							as.ExpMapLoopVar(as.VALUE),
 						),
 						as.ExpFloatVal(25.0),
 					),
@@ -839,7 +839,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			)
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("name"),
 				),
 			)
@@ -909,14 +909,14 @@ var _ = gg.Describe("CDT Operation Test", func() {
 						as.MapReturnType.VALUE,
 						as.ExpTypeINT,
 						as.ExpStringVal("value"),
-						as.ExpLoopVarMap(as.VALUE),
+						as.ExpMapLoopVar(as.VALUE),
 					),
 					as.ExpIntVal(150),
 				),
 			)
 			ctx5 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("value"),
 				),
 			)
@@ -1077,7 +1077,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			modifyExp := as.ExpNumSub(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(100),
 			)
 
@@ -1125,7 +1125,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx2 := as.CtxAllChildren()
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("q1"),
 				),
 			)
@@ -1162,7 +1162,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 							as.MapReturnType.VALUE,
 							as.ExpTypeBOOL,
 							as.ExpStringVal("inStock"),
-							as.ExpLoopVarMap(as.VALUE),
+							as.ExpMapLoopVar(as.VALUE),
 						),
 						as.ExpBoolVal(true),
 					),
@@ -1171,7 +1171,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 							as.MapReturnType.VALUE,
 							as.ExpTypeINT,
 							as.ExpStringVal("price"),
-							as.ExpLoopVarMap(as.VALUE),
+							as.ExpMapLoopVar(as.VALUE),
 						),
 						as.ExpIntVal(150),
 					),
@@ -1179,7 +1179,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			)
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("name"),
 				),
 			)
@@ -1214,9 +1214,9 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			modifyExp := as.ExpNumMul(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpNumAdd(
-					as.ExpLoopVarInt(as.INDEX),
+					as.ExpIntLoopVar(as.INDEX),
 					as.ExpIntVal(1),
 				),
 			)
@@ -1266,7 +1266,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
 			modifyExp := as.ExpNot(
-				as.ExpLoopVarBool(as.VALUE),
+				as.ExpBoolLoopVar(as.VALUE),
 			)
 
 			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
@@ -1344,7 +1344,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("value"),
 				),
 			)
@@ -1352,7 +1352,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			// At ctx3, we're at the "value" field value (10, 20, 30)
 			// The expression calculates the new value
 			modifyExp := as.ExpNumAdd(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(100),
 			)
 
@@ -1404,7 +1404,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 							as.MapReturnType.VALUE,
 							as.ExpTypeINT,
 							as.ExpStringVal("priority"),
-							as.ExpLoopVarMap(as.VALUE),
+							as.ExpMapLoopVar(as.VALUE),
 						),
 						as.ExpIntVal(1),
 					),
@@ -1413,7 +1413,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 							as.MapReturnType.VALUE,
 							as.ExpTypeINT,
 							as.ExpStringVal("priority"),
-							as.ExpLoopVarMap(as.VALUE),
+							as.ExpMapLoopVar(as.VALUE),
 						),
 						as.ExpIntVal(3),
 					),
@@ -1496,7 +1496,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx2 := as.CtxAllChildren()
 			ctx3 := as.CtxAllChildrenWithFilter(
 				as.ExpEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("content"),
 				),
 			)
@@ -1520,6 +1520,95 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				gm.Expect(blobCount).To(gm.BeNumerically(">", 0), "Should have at least one valid blob")
 			}
 		})
+
+		gg.It("should filter blob values using ExpBlobLoopVar", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"files": []interface{}{
+					[]byte("shortblob"),
+					[]byte("this is a longer blob content"),
+					[]byte("another medium sized blob"),
+					[]byte("x"),
+				},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Select blobs that are not equal to a specific blob value using ExpBlobLoopVar
+			ctx1 := as.CtxMapKey(as.NewStringValue("files"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpNotEq(
+					as.ExpBlobLoopVar(as.VALUE),
+					as.ExpBlobVal([]byte("x")),
+				),
+			)
+
+			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultBin := result.Bins[binName]
+			resultList, ok := resultBin.([]interface{})
+			if ok {
+				gm.Expect(len(resultList)).To(gm.Equal(3), "Should have 3 blobs not equal to 'x'")
+				for _, item := range resultList {
+					blob, ok := item.([]byte)
+					gm.Expect(ok).To(gm.BeTrue(), "Item should be a blob")
+					gm.Expect(blob).ToNot(gm.Equal([]byte("x")), "Blob should not be 'x'")
+				}
+			}
+		})
+
+		gg.It("should filter nil values using ExpNilLoopVar", func() {
+			client.Delete(nil, key)
+
+			data := map[string]interface{}{
+				"records": []interface{}{
+					map[string]interface{}{"name": "record1", "value": 100},
+					map[string]interface{}{"name": "record2", "value": nil},
+					map[string]interface{}{"name": "record3", "value": 200},
+					map[string]interface{}{"name": "record4", "value": nil},
+				},
+			}
+
+			bin := as.NewBin(binName, data)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Select only records where value is nil
+			ctx1 := as.CtxMapKey(as.NewStringValue("records"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpEq(
+					as.ExpMapGetByKey(
+						as.MapReturnType.VALUE,
+						as.ExpTypeNIL,
+						as.ExpStringVal("value"),
+						as.ExpMapLoopVar(as.VALUE),
+					),
+					as.ExpNilValue(),
+				),
+			)
+			ctx3 := as.CtxMapKey(as.NewStringValue("name"))
+
+			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE|as.EXP_PATH_SELECT_NO_FAIL, ctx1, ctx2, ctx3)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultBin := result.Bins[binName]
+			resultList, ok := resultBin.([]interface{})
+			if ok {
+				gm.Expect(len(resultList)).To(gm.Equal(2), "Should have 2 records with nil values")
+				gm.Expect(resultList).To(gm.ContainElement("record2"))
+				gm.Expect(resultList).To(gm.ContainElement("record4"))
+			}
+		})
 	})
 
 	gg.Describe("ExpResultRemove Tests", func() {
@@ -1538,7 +1627,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("items"))
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
-			applyOp := as.CDTModifyByPath(binName, 0, as.ExpResultRemove(), ctx1, ctx2)
+			applyOp := as.CDTModifyByPath(binName, 0, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1569,12 +1658,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("numbers"))
 			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpGreater(
-					as.ExpLoopVarInt(as.VALUE),
+					as.ExpIntLoopVar(as.VALUE),
 					as.ExpIntVal(10),
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpResultRemove(), ctx1, ctx2)
+			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1612,7 +1701,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("config"))
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpResultRemove(), ctx1, ctx2)
+			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1648,12 +1737,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("scores"))
 			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpLess(
-					as.ExpLoopVarInt(as.VALUE),
+					as.ExpIntLoopVar(as.VALUE),
 					as.ExpIntVal(50),
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpResultRemove(), ctx1, ctx2)
+			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1716,13 +1805,13 @@ var _ = gg.Describe("CDT Operation Test", func() {
 						as.MapReturnType.VALUE,
 						as.ExpTypeFLOAT,
 						as.ExpStringVal("price"),
-						as.ExpLoopVarMap(as.VALUE),
+						as.ExpMapLoopVar(as.VALUE),
 					),
 					as.ExpFloatVal(10.0),
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpResultRemove(), ctx1, ctx2)
+			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1773,12 +1862,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("values"))
 			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpGreaterEq(
-					as.ExpLoopVarInt(as.INDEX),
+					as.ExpIntLoopVar(as.INDEX),
 					as.ExpIntVal(3),
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpResultRemove(), ctx1, ctx2)
+			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1817,12 +1906,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("inventory"))
 			ctx2 := as.CtxAllChildrenWithFilter(
 				as.ExpGreaterEq(
-					as.ExpLoopVarString(as.MAP_KEY),
+					as.ExpStringLoopVar(as.MAP_KEY),
 					as.ExpStringVal("c"),
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpResultRemove(), ctx1, ctx2)
+			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1872,13 +1961,13 @@ var _ = gg.Describe("CDT Operation Test", func() {
 						as.MapReturnType.VALUE,
 						as.ExpTypeINT,
 						as.ExpStringVal("sales"),
-						as.ExpLoopVarMap(as.VALUE),
+						as.ExpMapLoopVar(as.VALUE),
 					),
 					as.ExpIntVal(2000),
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpResultRemove(), ctx1, ctx2, ctx3)
+			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -2032,7 +2121,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			modifyExp := as.ExpListAppend(
 				as.DefaultListPolicy(),
 				as.ExpIntVal(6),
-				as.ExpLoopVarList(as.VALUE),
+				as.ExpListLoopVar(as.VALUE),
 			)
 			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
 
@@ -2066,7 +2155,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.DefaultMapPolicy(),
 				as.ExpStringVal("newKey"),
 				as.ExpStringVal("newValue"),
-				as.ExpLoopVarMap(as.VALUE),
+				as.ExpMapLoopVar(as.VALUE),
 			)
 			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
 
@@ -2098,7 +2187,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			modifyExp := as.ExpListAppend(
 				as.DefaultListPolicy(),
 				as.ExpIntVal(40),
-				as.ExpLoopVarList(as.VALUE),
+				as.ExpListLoopVar(as.VALUE),
 			)
 			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, nilCtx...)
 
@@ -2133,7 +2222,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.DefaultMapPolicy(),
 				as.ExpStringVal("newCounter"),
 				as.ExpIntVal(200),
-				as.ExpLoopVarMap(as.VALUE),
+				as.ExpMapLoopVar(as.VALUE),
 			)
 			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, emptyCtx...)
 
@@ -2177,7 +2266,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Multiply each value by 2 in the top-level list
 			modifyExp := as.ExpNumMul(
-				as.ExpLoopVarInt(as.VALUE),
+				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(2),
 			)
 			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)

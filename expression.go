@@ -731,7 +731,7 @@ func ExpKey(expType ExpType) *Expression {
 // ExpLoopVarString creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
 // Requires server version 8.1.1+.
-func ExpLoopVarBool(part LoopVarPart) *Expression {
+func ExpBoolLoopVar(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
 		NewIntegerValue(int(part)),
@@ -742,10 +742,10 @@ func ExpLoopVarBool(part LoopVarPart) *Expression {
 	)
 }
 
-// ExpLoopVarString creates a loop variable expression for the specified part.
+// ExpStringLoopVar creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
 // Requires server version 8.1.1+.
-func ExpLoopVarString(part LoopVarPart) *Expression {
+func ExpStringLoopVar(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
 		NewIntegerValue(int(part)),
@@ -756,10 +756,10 @@ func ExpLoopVarString(part LoopVarPart) *Expression {
 	)
 }
 
-// ExpLoopVarInt creates a loop variable expression for the specified part.
+// ExpIntLoopVar creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
 // Requires server version 8.1.1+.
-func ExpLoopVarInt(part LoopVarPart) *Expression {
+func ExpIntLoopVar(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
 		NewIntegerValue(int(part)),
@@ -770,10 +770,10 @@ func ExpLoopVarInt(part LoopVarPart) *Expression {
 	)
 }
 
-// ExpLoopVarFloat creates a loop variable expression for the specified part.
+// ExpFloatLoopVar creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
 // Requires server version 8.1.1+.
-func ExpLoopVarFloat(part LoopVarPart) *Expression {
+func ExpFloatLoopVar(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
 		NewIntegerValue(int(part)),
@@ -784,10 +784,10 @@ func ExpLoopVarFloat(part LoopVarPart) *Expression {
 	)
 }
 
-// ExpLoopVarList creates a loop variable expression for the specified part.
+// ExpListLoopVar creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
 // Requires server version 8.1.1+.
-func ExpLoopVarList(part LoopVarPart) *Expression {
+func ExpListLoopVar(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
 		NewIntegerValue(int(part)),
@@ -798,10 +798,10 @@ func ExpLoopVarList(part LoopVarPart) *Expression {
 	)
 }
 
-// ExpLoopVarMap creates a loop variable expression for the specified part.
+// ExpMapLoopVar creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
 // Requires server version 8.1.1+.
-func ExpLoopVarMap(part LoopVarPart) *Expression {
+func ExpMapLoopVar(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
 		NewIntegerValue(int(part)),
@@ -815,7 +815,7 @@ func ExpLoopVarMap(part LoopVarPart) *Expression {
 // ExpLoopVarMap creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
 // Requires server version 8.1.1+.
-func ExpLoopVarBlob(part LoopVarPart) *Expression {
+func ExpBlobLoopVar(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
 		NewIntegerValue(int(part)),
@@ -826,10 +826,10 @@ func ExpLoopVarBlob(part LoopVarPart) *Expression {
 	)
 }
 
-// ExpLoopVarNil creates a loop variable expression for the specified part.
+// ExpNilLoopVar creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
 // Requires server version 8.1.1+.
-func ExpLoopVarNil(part LoopVarPart) *Expression {
+func ExpNilLoopVar(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
 		NewIntegerValue(int(part)),
@@ -840,10 +840,10 @@ func ExpLoopVarNil(part LoopVarPart) *Expression {
 	)
 }
 
-// ExpLoopVarGeoJSON creates a loop variable expression for the specified part.
+// ExpGeoJSONLoopVar creates a loop variable expression for the specified part.
 // This function is used in conjunction with list/map iteration expressions.
 // Requires server version 8.1.1+.
-func ExpLoopVarGeoJSON(part LoopVarPart) *Expression {
+func ExpGeoJSONLoopVar(part LoopVarPart) *Expression {
 	return newFilterExpression(
 		&expVarBuiltIn,
 		NewIntegerValue(int(part)),
@@ -854,9 +854,9 @@ func ExpLoopVarGeoJSON(part LoopVarPart) *Expression {
 	)
 }
 
-// ExpResultRemove creates a result remove expression.
+// ExpRemoveResult creates a result remove expression.
 // Requires server version 8.1.1+.
-func ExpResultRemove() *Expression {
+func ExpRemoveResult() *Expression {
 	return newFilterExpression(
 		&expOpRESULT_REMOVE,
 		nil,
