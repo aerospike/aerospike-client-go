@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
@@ -56,13 +57,21 @@ var exp = as.ExpCond(
 	as.ExpUnknown(),
 )
 
-var _ = gg.Describe("Secondary index test", func() {
+var _ = gg.Describe("Secondary index test", gg.Ordered, func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
+
+	gg.BeforeAll(func() {
+		node := client.GetNodes()[0]
+		serverVersion := node.GetServerVersion()
+		if serverVersion.IsSmaller(version.ServerVersion_8_1) {
+			gg.Skip("Secondary index tests require server version 8.1.0 or greater")
+		}
+	})
 
 	gg.Describe("Index creation with expression", gg.Ordered, func() {
 		gg.BeforeAll(func() {
 			// Make sure the global set‑up really happened.
-			gm.Expect(client).NotTo(gm.BeNil(), "client must be initialized in the suite’s set‑up")
+			gm.Expect(client).NotTo(gm.BeNil(), "client must be initialized in the suite's set‑up")
 
 			task, err := client.CreateIndexWithExpression(wpolicy, *namespace, setName, indexName, as.NUMERIC, as.ICT_DEFAULT, exp)
 			if err != nil {
