@@ -68,7 +68,7 @@ const (
 	EXP_PATH_MODIFY_NO_FAIL ModifyFlag = 0x10
 )
 
-// CDTSelectByPath creates CDT select operation with context.
+// SelectByPath creates CDT select operation with context.
 // Equivalent to as_operations_cdt_select in C client.
 //
 // Parameters:
@@ -77,7 +77,7 @@ const (
 //   - ctx: optional path to nested CDT. If not defined, the top-level CDT is used.
 //
 // Returns nil if ctx is nil.
-func CDTSelectByPath(binName string, flag SelectFlag, ctx ...*CDTContext) *Operation {
+func SelectByPath(binName string, flag SelectFlag, ctx ...*CDTContext) *Operation {
 	if len(ctx) == 0 {
 		return &Operation{
 			opType:    _CDT_READ,
@@ -99,7 +99,7 @@ func CDTSelectByPath(binName string, flag SelectFlag, ctx ...*CDTContext) *Opera
 	}
 }
 
-// CDTModifyByPath creates CDT apply operation with context and modify expression.
+// ModifyByPath creates CDT apply operation with context and modify expression.
 // Equivalent to as_operations_cdt_apply in C client.
 //
 // Parameters:
@@ -109,7 +109,7 @@ func CDTSelectByPath(binName string, flag SelectFlag, ctx ...*CDTContext) *Opera
 //   - ctx: optional path to nested CDT. If not defined, the top-level CDT is used.
 //
 // Returns nil if ctx is nil.
-func CDTModifyByPath(binName string, flag ModifyFlag, modifyExp *Expression, ctx ...*CDTContext) *Operation {
+func ModifyByPath(binName string, flag ModifyFlag, modifyExp *Expression, ctx ...*CDTContext) *Operation {
 	if len(ctx) == 0 {
 		return &Operation{
 			opType:    _CDT_MODIFY,

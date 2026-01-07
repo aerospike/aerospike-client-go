@@ -109,7 +109,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -183,7 +183,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpFloatVal(1.10),         // Multiply by 1.10
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, bookKey, allChildren, priceKey)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, bookKey, allChildren, priceKey)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -319,7 +319,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3, ctx4)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3, ctx4)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -377,7 +377,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -428,7 +428,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_MATCHING_TREE, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_MATCHING_TREE, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -463,7 +463,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -489,7 +489,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("existing"))
 			ctx2 := as.CtxAllChildren()
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_NO_FAIL, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_NO_FAIL, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -516,7 +516,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -556,7 +556,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -592,7 +592,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpIntVal(5),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -637,7 +637,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpIntVal(100),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -676,7 +676,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("matrix"))
 			ctx2 := as.CtxAllChildren()
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -711,7 +711,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("items"))
 			ctx2 := as.CtxAllChildren()
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -768,7 +768,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -844,7 +844,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -921,7 +921,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3, ctx4, ctx5)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3, ctx4, ctx5)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -940,13 +940,13 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 	gg.Describe("CDT Operation Edge Cases", func() {
 		gg.It("should return nil when context is nil for CDTSelectByPath", func() {
-			op := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, nil...)
+			op := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, nil...)
 			gm.Expect(op).ToNot(gm.BeNil(), "Should return nil when context is nil")
 		})
 
 		gg.It("should return nil when context is nil for CDTModifyByPath", func() {
 			modifyExp := as.ExpIntVal(42)
-			op := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, nil...)
+			op := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, nil...)
 			gm.Expect(op).ToNot(gm.BeNil(), "Should return nil when context is nil")
 		})
 
@@ -964,7 +964,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			// Select with single context
 			ctx1 := as.CtxMapKey(as.NewStringValue("value"))
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -990,7 +990,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("emptyList"))
 			ctx2 := as.CtxAllChildren()
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_NO_FAIL, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_NO_FAIL, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1016,7 +1016,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("emptyMap"))
 			ctx2 := as.CtxAllChildren()
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_NO_FAIL, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_NO_FAIL, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1043,7 +1043,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx2 := as.CtxListIndex(1) // Select second item (index 1)
 			ctx3 := as.CtxMapKey(as.NewStringValue("value"))
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1081,7 +1081,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpIntVal(100),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1130,7 +1130,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_MATCHING_TREE, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_MATCHING_TREE, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1184,7 +1184,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1221,7 +1221,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1269,7 +1269,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpBoolLoopVar(as.VALUE),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1317,7 +1317,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx2 := as.CtxAllChildren()
 			ctx3 := as.CtxAllChildren()
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1356,7 +1356,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpIntVal(100),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2, ctx3)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1421,7 +1421,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			)
 			ctx3 := as.CtxMapKey(as.NewStringValue("name"))
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1453,7 +1453,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("blobs"))
 			ctx2 := as.CtxAllChildren()
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1501,7 +1501,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1546,7 +1546,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1595,7 +1595,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			)
 			ctx3 := as.CtxMapKey(as.NewStringValue("name"))
 
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE|as.EXP_PATH_SELECT_NO_FAIL, ctx1, ctx2, ctx3)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE|as.EXP_PATH_SELECT_NO_FAIL, ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, selectOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1627,7 +1627,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("items"))
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
-			applyOp := as.CDTModifyByPath(binName, 0, as.ExpRemoveResult(), ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, 0, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1663,7 +1663,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1701,7 +1701,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			ctx1 := as.CtxMapKey(as.NewStringValue("config"))
 			ctx2 := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1742,7 +1742,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1811,7 +1811,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1867,7 +1867,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1911,7 +1911,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1967,7 +1967,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				),
 			)
 
-			applyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2, ctx3)
+			applyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, as.ExpRemoveResult(), ctx1, ctx2, ctx3)
 
 			result, err := client.Operate(nil, key, applyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -2004,7 +2004,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			// Call CDTSelectByPath without passing any context
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE)
 
 			// Verify that the operation was created successfully
 			gm.Expect(selectOp).ToNot(gm.BeNil())
@@ -2034,7 +2034,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			// Call CDTSelectByPath without passing any context
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY)
 
 			// Verify that the operation was created successfully
 			gm.Expect(selectOp).ToNot(gm.BeNil())
@@ -2061,7 +2061,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Call CDTSelectByPath with explicit nil context
 			var nilCtx []*as.CDTContext = nil
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, nilCtx...)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, nilCtx...)
 
 			// Verify that the operation was created successfully
 			gm.Expect(selectOp).ToNot(gm.BeNil())
@@ -2092,7 +2092,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Call CDTSelectByPath with an empty context slice
 			emptyCtx := []*as.CDTContext{}
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE, emptyCtx...)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, emptyCtx...)
 
 			// Verify that the operation was created successfully
 			gm.Expect(selectOp).ToNot(gm.BeNil())
@@ -2123,7 +2123,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpIntVal(6),
 				as.ExpListLoopVar(as.VALUE),
 			)
-			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
+			modifyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
 
 			// Verify that the operation was created successfully
 			gm.Expect(modifyOp).ToNot(gm.BeNil())
@@ -2157,7 +2157,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpStringVal("newValue"),
 				as.ExpMapLoopVar(as.VALUE),
 			)
-			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
+			modifyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
 
 			// Verify that the operation was created successfully
 			gm.Expect(modifyOp).ToNot(gm.BeNil())
@@ -2189,7 +2189,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpIntVal(40),
 				as.ExpListLoopVar(as.VALUE),
 			)
-			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, nilCtx...)
+			modifyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, nilCtx...)
 
 			// Verify that the operation was created successfully
 			gm.Expect(modifyOp).ToNot(gm.BeNil())
@@ -2224,7 +2224,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpIntVal(200),
 				as.ExpMapLoopVar(as.VALUE),
 			)
-			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, emptyCtx...)
+			modifyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, emptyCtx...)
 
 			// Verify that the operation was created successfully
 			gm.Expect(modifyOp).ToNot(gm.BeNil())
@@ -2242,7 +2242,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 		gg.It("should verify ctx field is nil in Operation when no context passed to CDTSelectByPath", func() {
 			// This test verifies the internal state of the operation
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_VALUE)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE)
 			gm.Expect(selectOp).ToNot(gm.BeNil())
 			// The operation should be created successfully with nil context
 		})
@@ -2250,7 +2250,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should verify ctx field is nil in Operation when no context passed to CDTModifyByPath", func() {
 			// This test verifies the internal state of the operation
 			modifyExp := as.ExpIntVal(42)
-			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
+			modifyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
 			gm.Expect(modifyOp).ToNot(gm.BeNil())
 			// The operation should be created successfully with nil context
 		})
@@ -2269,7 +2269,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				as.ExpIntLoopVar(as.VALUE),
 				as.ExpIntVal(2),
 			)
-			modifyOp := as.CDTModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
+			modifyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp)
 
 			// Server should return PARAMETER_ERROR when no context is provided
 			result, err := client.Operate(nil, key, modifyOp)
@@ -2296,7 +2296,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			// Select the entire top-level structure as matching tree
-			selectOp := as.CDTSelectByPath(binName, as.EXP_PATH_SELECT_MATCHING_TREE)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_MATCHING_TREE)
 
 			// Server should return PARAMETER_ERROR when no context is provided
 			result, err := client.Operate(nil, key, selectOp)
