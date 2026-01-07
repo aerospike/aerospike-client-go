@@ -1,5 +1,12 @@
 # Change History
 
+Hotfix release
+
+## January 7 2026: v8.5.1
+
+  **Fixes**
+    - [CLIENT-4035] Allows pkiAuth users to change passwords for users who are using passwords.
+
 ## December 3 2025: v8.5.0
 
   **Fixes**
