@@ -1,0 +1,34 @@
+name: "Set up Aerolab"
+description: "Set up Aerolab environment"
+
+inputs:
+  aerolab_version:
+    description: "Aerolab version to run."
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl
+
+    - name: Download Aerolab .deb
+      shell: bash
+      run: |
+        echo "Downloading Aerolab ${{ inputs.aerolab_version }} (amd64)"
+        curl -L -o aerolab.deb https://github.com/aerospike/aerolab/releases/download/${{ inputs.aerolab_version }}/aerolab-linux-amd64-${{ inputs.aerolab_version }}.deb
+
+    - name: Install Aerolab
+      shell: bash
+      run: |
+        sudo dpkg -i aerolab.deb
+        sudo apt-get install -f -y
+
+    - name: Prepare Aerolab home
+      shell: bash
+      run: |
+        mkdir -p /tmp/aerolab-home
+        echo "AEROLAB_HOME=/tmp/aerolab-home" >> $GITHUB_ENV
