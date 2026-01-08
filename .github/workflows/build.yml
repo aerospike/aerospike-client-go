@@ -137,7 +137,7 @@ jobs:
           mv covprofile_*.out reports/
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cover_${{matrix.version}}_${{matrix.mode}}
           path: reports
