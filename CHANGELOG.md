@@ -1,5 +1,13 @@
 # Change History
 
+## January 7 2026: v7.10.2
+
+Minor fix release.
+
+- **Fixes**
+  - [CLIENT-3023] Fix an issue where we would allow repeat background query with the same statement.
+  - [CLIENT-4016] Fix an issue where BatchDelete panics in goroutine when namespace does not exist.
+
 ## May 5 2025: v7.10.1
 
 - **Fixes**

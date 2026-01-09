@@ -658,7 +658,7 @@ func (clnt *Client) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePo
 
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, records, true)
 	if err != nil {
-		return nil, err
+		return records, err
 	}
 
 	cmd := newBatchCommandDelete(clnt, nil, policy, deletePolicy, keys, records, attr)
@@ -709,7 +709,7 @@ func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy,
 
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, records, attr.hasWrite)
 	if err != nil {
-		return nil, err
+		return records, err
 	}
 
 	cmd := newBatchCommandUDF(clnt, nil, policy, udfPolicy, keys, packageName, functionName, args, records, attr)
@@ -1028,6 +1028,7 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 	if len(statement.BinNames) > 0 {
 		return nil, ErrNoBinNamesAllowedInQueryExecute.err()
 	}
+	taskId := statement.prepareTaskId()
 
 	policy = clnt.getUsableQueryPolicy(policy)
 	writePolicy = clnt.getUsableWritePolicy(writePolicy)
@@ -1041,13 +1042,13 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 
 	var errs Error
 	for i := range nodes {
-		command := newServerCommand(nodes[i], policy, writePolicy, statement, statement.TaskId, ops)
+		command := newServerCommand(nodes[i], policy, writePolicy, statement, ops)
 		if err := command.Execute(); err != nil {
 			errs = chainErrors(err, errs)
 		}
 	}
 
-	return NewExecuteTask(clnt.cluster, statement), errs
+	return NewExecuteTask(clnt.cluster, statement, taskId), errs
 }
 
 // ExecuteUDF applies user defined function on records that match the statement filter.
@@ -1065,6 +1066,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	functionArgs ...Value,
 ) (*ExecuteTask, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
+	taskId := statement.prepareTaskId()
 
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
@@ -1075,13 +1077,13 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 
 	var errs Error
 	for i := range nodes {
-		command := newServerCommand(nodes[i], policy, nil, statement, statement.TaskId, nil)
+		command := newServerCommand(nodes[i], policy, nil, statement, nil)
 		if err := command.Execute(); err != nil {
 			errs = chainErrors(err, errs)
 		}
 	}
 
-	return NewExecuteTask(clnt.cluster, statement), errs
+	return NewExecuteTask(clnt.cluster, statement, taskId), errs
 }
 
 // ExecuteUDFNode applies user defined function on records that match the statement filter on the specified node.
@@ -1100,6 +1102,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 	functionArgs ...Value,
 ) (*ExecuteTask, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
+	taskId := statement.prepareTaskId()
 
 	if node == nil {
 		return nil, ErrClusterIsEmpty.err()
@@ -1107,10 +1110,10 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
-	command := newServerCommand(node, policy, nil, statement, statement.TaskId, nil)
+	command := newServerCommand(node, policy, nil, statement, nil)
 	err := command.Execute()
 
-	return NewExecuteTask(clnt.cluster, statement), err
+	return NewExecuteTask(clnt.cluster, statement, taskId), err
 }
 
 // SetXDRFilter sets XDR filter for given datacenter name and namespace. The expression filter indicates

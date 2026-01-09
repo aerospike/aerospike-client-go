@@ -964,7 +964,7 @@ func (clnt *ProxyClient) QueryExecute(policy *QueryPolicy,
 	policy = clnt.getUsableQueryPolicy(policy)
 	writePolicy = clnt.getUsableWritePolicy(writePolicy)
 
-	command := newServerCommand(nil, policy, writePolicy, statement, statement.TaskId, ops)
+	command := newServerCommand(nil, policy, writePolicy, statement, ops)
 
 	if err := command.ExecuteGRPC(clnt); err != nil {
 		return nil, err
@@ -992,7 +992,7 @@ func (clnt *ProxyClient) ExecuteUDF(policy *QueryPolicy,
 
 	nstatement := *statement
 	nstatement.SetAggregateFunction(packageName, functionName, functionArgs, false)
-	command := newServerCommand(nil, policy, wpolicy, &nstatement, nstatement.TaskId, nil)
+	command := newServerCommand(nil, policy, wpolicy, &nstatement, nil)
 
 	if err := command.ExecuteGRPC(clnt); err != nil {
 		return nil, err

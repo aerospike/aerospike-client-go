@@ -554,4 +554,77 @@ var _ = gg.Describe("Query operations", func() {
 		}
 	})
 
+	gg.It("must allow reusing the same statement for multiple QueryExecute calls without errors", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewEqualFilter(bin6.Name, 1))
+
+		updateBin := as.NewBin("Aerospike7", 100)
+
+		tsk1, err := client.QueryExecute(queryPolicy, nil, stm, as.PutOp(updateBin))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(<-tsk1.OnComplete()).To(gm.BeNil())
+
+		updateBin2 := as.NewBin("Aerospike7", 200)
+		tsk2, err := client.QueryExecute(queryPolicy, nil, stm, as.PutOp(updateBin2))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(<-tsk2.OnComplete()).To(gm.BeNil())
+
+		updateBin3 := as.NewBin("Aerospike7", 300)
+		tsk3, err := client.QueryExecute(queryPolicy, nil, stm, as.PutOp(updateBin3))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(<-tsk3.OnComplete()).To(gm.BeNil())
+
+		// Verify that the last operation was applied correctly by reading records back
+		stmRead := as.NewStatement(ns, set)
+		recordset, err := client.Query(queryPolicy, stmRead)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		foundRecords := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			rec := res.Record
+			gm.Expect(rec).ToNot(gm.BeNil())
+			gm.Expect(rec.Bins["Aerospike7"]).To(gm.Equal(300))
+			foundRecords++
+		}
+
+		gm.Expect(foundRecords).To(gm.Equal(keyCount))
+	})
+
+	gg.It("must allow reusing the same statement for multiple Query calls without errors", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16))
+
+		recordset1, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		count1 := 0
+		for res := range recordset1.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			count1++
+		}
+
+		recordset2, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		count2 := 0
+		for res := range recordset2.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			count2++
+		}
+
+		recordset3, err := client.Query(queryPolicy, stm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		count3 := 0
+		for res := range recordset3.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			count3++
+		}
+
+		// All calls should return the same number of records
+		gm.Expect(count1).To(gm.Equal(count2))
+		gm.Expect(count2).To(gm.Equal(count3))
+		gm.Expect(count1).To(gm.BeNumerically(">", 0))
+	})
 })
