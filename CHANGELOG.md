@@ -1,5 +1,12 @@
 # Change History
 
+## January 7 2026: v6.16.1
+
+Minor backported fix release.
+
+- **Fixes**
+  - [CLIENT-4016] Fix an issue where BatchDelete panics in goroutine when namespace does not exist.
+
 ## March 13 2025: v6.16.0
 
   Minor backported fix release.
