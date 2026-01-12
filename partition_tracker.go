@@ -172,9 +172,9 @@ func (pt *partitionTracker) assignPartitionsToNodes(cluster *Cluster, namespace 
 	list := make([]*nodePartitions, 0, pt.nodeCapacity)
 
 	pMap := cluster.getPartitions()
-	parts := pMap[namespace]
+	parts, exists := pMap.get(namespace)
 
-	if parts == nil {
+	if !exists {
 		return nil, newError(types.INVALID_NAMESPACE, fmt.Sprintf("Invalid Partition Map for namespace `%s` in Partition Scan", namespace))
 	}
 

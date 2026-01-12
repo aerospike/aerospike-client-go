@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"sync"
 
 	"github.com/aerospike/aerospike-client-go/v7/types"
 )
@@ -76,18 +77,60 @@ func (p *Partitions) clone() *Partitions {
 	}
 }
 
-/*
+// partitionMap is a thread-safe map that stores partition information for different namespaces.
+// It uses a sync.Map internally to provide concurrent read/write access without explicit locking.
+// The keys are namespace names (strings), and the values are pointers to Partitions structs.
+// This structure allows for efficient, concurrent operations on partition data across multiple goroutines.
+//
+// Usage:
+// - Use get(key) to retrieve partition data for a namespace
+// - Use set(key, value) to update or add partition data for a namespace
+// - Use iterate(func) to iterate over all namespace-partition pairs safely
+// - Use delete(key) to remove partition data for a namespace
+// - Use len() to get the number of namespaces in the map
+type partitionMap struct {
+	m sync.Map
+}
 
-	partitionMap
+func newPartitionMap() *partitionMap {
+	return &partitionMap{}
+}
 
-*/
+func (pm *partitionMap) get(key string) (*Partitions, bool) {
+	value, ok := pm.m.Load(key)
+	if !ok {
+		return nil, false
+	}
+	return value.(*Partitions), true
+}
 
-type partitionMap map[string]*Partitions
+func (pm *partitionMap) set(key string, value *Partitions) {
+	pm.m.Store(key, value)
+}
+
+func (pm *partitionMap) delete(key string) {
+	pm.m.Delete(key)
+}
+
+func (pm *partitionMap) len() int {
+	length := 0
+	pm.m.Range(func(key, value interface{}) bool {
+		length++
+		return true
+	})
+	return length
+}
+
+func (pm *partitionMap) iterate(f func(key string, value *Partitions) bool) {
+	pm.m.Range(func(key, value interface{}) bool {
+		return f(key.(string), value.(*Partitions))
+	})
+}
 
 // cleanup removes all the references stored in the lists
 // to help the GC identify the unused pointers.
-func (pm partitionMap) cleanup() {
-	for ns, partitions := range pm {
+func (pm *partitionMap) cleanup() {
+	pm.iterate(func(ns string, partitions *Partitions) bool {
 		for i := range partitions.Replicas {
 			for j := range partitions.Replicas[i] {
 				partitions.Replicas[i][j] = nil
@@ -98,24 +141,25 @@ func (pm partitionMap) cleanup() {
 		partitions.Replicas = nil
 		partitions.regimes = nil
 
-		delete(pm, ns)
-	}
+		pm.delete(ns)
+		return true
+	})
 }
 
 // String implements stringer interface for partitionMap
-func (pm partitionMap) clone() partitionMap {
-	// Make deep copy of map.
-	pmap := make(partitionMap, len(pm))
-	for ns := range pm {
-		pmap[ns] = pm[ns].clone()
-	}
-	return pmap
+func (pm *partitionMap) clone() *partitionMap {
+	newPm := newPartitionMap()
+	pm.iterate(func(ns string, partitions *Partitions) bool {
+		newPm.set(ns, partitions.clone())
+		return true
+	})
+	return newPm
 }
 
 // String implements stringer interface for partitionMap
-func (pm partitionMap) String() string {
+func (pm *partitionMap) String() string {
 	res := bytes.Buffer{}
-	for ns, partitions := range pm {
+	pm.iterate(func(ns string, partitions *Partitions) bool {
 		res.WriteString("-----------------------------------------------------------------------\n")
 		res.WriteString("Namespace: " + ns + "\n")
 		res.WriteString(fmt.Sprintf("Regimes: %v\n", partitions.regimes))
@@ -138,18 +182,19 @@ func (pm partitionMap) String() string {
 			}
 			res.WriteString("\n")
 		}
-	}
+		return true
+	})
 	res.WriteString("\n")
 	return res.String()
 }
 
 // naively validates the partition map
-func (pm partitionMap) validate() Error {
+func (pm *partitionMap) validate() Error {
 	masterNodePartitionNotDefined := map[string][]int{}
 	replicaNodePartitionNotDefined := map[string][]int{}
 	var errs Error
 
-	for nsName, partition := range pm {
+	pm.iterate(func(nsName string, partition *Partitions) bool {
 		if len(partition.regimes) != _PARTITIONS {
 			errs = chainErrors(newError(types.COMMON_ERROR, fmt.Sprintf("Wrong number of regimes for namespace `%s`. Must be %d, but found %d.", nsName, _PARTITIONS, len(partition.regimes))), errs)
 		}
@@ -169,7 +214,8 @@ func (pm partitionMap) validate() Error {
 				}
 			}
 		}
-	}
+		return true
+	})
 
 	if errs != nil || len(masterNodePartitionNotDefined) > 0 || len(replicaNodePartitionNotDefined) > 0 {
 		for nsName, partitionList := range masterNodePartitionNotDefined {

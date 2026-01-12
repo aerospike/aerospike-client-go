@@ -36,7 +36,7 @@ var partitionMapLock sync.Mutex
 
 // Parse node's master (and optionally prole) partitions.
 type partitionParser struct {
-	pmap           partitionMap
+	pmap           *partitionMap
 	buffer         []byte
 	partitionCount int
 	generation     int
@@ -46,7 +46,7 @@ type partitionParser struct {
 	regimeError bool
 }
 
-func newPartitionParser(node *Node, partitions partitionMap, partitionCount int) (*partitionParser, Error) {
+func newPartitionParser(node *Node, partitions *partitionMap, partitionCount int) (*partitionParser, Error) {
 	newPartitionParser := &partitionParser{
 		partitionCount: partitionCount,
 	}
@@ -169,17 +169,17 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) Error {
 				return newErrorAndWrap(err, types.PARSE_ERROR, "Failed to find replica count value")
 			}
 
-			partitions := pp.pmap[namespace]
-			if partitions == nil {
+			partitions, exists := pp.pmap.get(namespace)
+			if !exists {
 				// Create new replica array.
 				partitions = newPartitions(pp.partitionCount, replicaCount, regime != 0)
-				pp.pmap[namespace] = partitions
+				pp.pmap.set(namespace, partitions)
 			} else if len(partitions.Replicas) != replicaCount {
 				// Ensure replicaArray is correct size.
 				logger.Logger.Info("Namespace `%s` replication factor changed from `%d` to `%d` ", namespace, len(partitions.Replicas), replicaCount)
 
 				partitions.setReplicaCount(replicaCount) //= clonePartitions(partitions, replicaCount)
-				pp.pmap[namespace] = partitions
+				pp.pmap.set(namespace, partitions)
 			}
 
 			// Parse partition bitmaps.

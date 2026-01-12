@@ -58,10 +58,10 @@ func NewPartitionForReplicaPolicy(namespace string, replica ReplicaPolicy) *Part
 func PartitionForWrite(cluster *Cluster, policy *BasePolicy, key *Key) (*Partition, Error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	pmap := cluster.getPartitions()
-	partitions := pmap[key.namespace]
+	partitions, exists := pmap.get(key.namespace)
 
-	if partitions == nil {
-		return nil, newInvalidNamespaceError(key.namespace, len(pmap))
+	if !exists {
+		return nil, newInvalidNamespaceError(key.namespace, pmap.len())
 	}
 
 	return NewPartition(partitions, key, policy.ReplicaPolicy, nil, false), nil
@@ -71,10 +71,10 @@ func PartitionForWrite(cluster *Cluster, policy *BasePolicy, key *Key) (*Partiti
 func PartitionForRead(cluster *Cluster, policy *BasePolicy, key *Key) (*Partition, Error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	pmap := cluster.getPartitions()
-	partitions := pmap[key.namespace]
+	partitions, exists := pmap.get(key.namespace)
 
-	if partitions == nil {
-		return nil, newInvalidNamespaceError(key.namespace, len(pmap))
+	if !exists {
+		return nil, newInvalidNamespaceError(key.namespace, pmap.len())
 	}
 
 	var replica ReplicaPolicy
@@ -125,10 +125,10 @@ func GetReplicaPolicySC(policy *BasePolicy) ReplicaPolicy {
 func GetNodeBatchRead(cluster *Cluster, key *Key, replica ReplicaPolicy, replicaSC ReplicaPolicy, prevNode *Node, sequence int, sequenceSC int) (*Node, Error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	pmap := cluster.getPartitions()
-	partitions := pmap[key.namespace]
+	partitions, exists := pmap.get(key.namespace)
 
-	if partitions == nil {
-		return nil, newInvalidNamespaceError(key.namespace, len(pmap))
+	if !exists {
+		return nil, newInvalidNamespaceError(key.namespace, pmap.len())
 	}
 
 	if partitions.SCMode {
@@ -145,10 +145,10 @@ func GetNodeBatchRead(cluster *Cluster, key *Key, replica ReplicaPolicy, replica
 func GetNodeBatchWrite(cluster *Cluster, key *Key, replica ReplicaPolicy, prevNode *Node, sequence int) (*Node, Error) {
 	// Must copy hashmap reference for copy on write semantics to work.
 	pmap := cluster.getPartitions()
-	partitions := pmap[key.namespace]
+	partitions, exists := pmap.get(key.namespace)
 
-	if partitions == nil {
-		return nil, newInvalidNamespaceError(key.namespace, len(pmap))
+	if !exists {
+		return nil, newInvalidNamespaceError(key.namespace, pmap.len())
 	}
 
 	p := NewPartition(partitions, key, replica, prevNode, false)
