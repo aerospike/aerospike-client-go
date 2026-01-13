@@ -278,7 +278,8 @@ func packIfCDTSelect(packer BufferEx, opType int, ctx []*CDTContext, flag Intege
 	}
 
 	// Pack the select flag as the third and final element
-	if n, err = flag.pack(packer); err != nil {
+	// Clear the MODIFY_APPLY flag (bit 4) to match Java client behavior
+	if n, err = packAInt64(packer, int64(flag)&^4); err != nil {
 		return size + n, err
 	}
 	size += n

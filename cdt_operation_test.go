@@ -135,6 +135,176 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(titles).To(gm.ContainElement("Moby Dick"))
 		})
 
+		gg.It("should select featured products with in-stock variants using nested filters", func() {
+			client.Delete(nil, key)
+
+			// Create test data: products with variants and inventory (MAP structure matching Java client pattern)
+			// This test mirrors the Java PathExpressionsDemo.java example with:
+			// - Root bin contains a map with "inventory" key (wrapper)
+			// - Under "inventory" is a MAP of products (keyed by product ID)
+			// - CtxAllChildren() iterates all products under "inventory"
+			// - CtxAllChildrenWithFilter() filters those products
+			// - Each product contains a "variants" MAP (not list)
+			rootData := map[string]interface{}{
+				"inventory": map[string]interface{}{
+					"10000001": map[string]interface{}{
+						"name":     "T-Shirt",
+						"category": "clothing",
+						"featured": true,
+						"variants": map[string]interface{}{
+							"2001": map[string]interface{}{
+								"size":     "S",
+								"color":    "red",
+								"quantity": 5,
+							},
+							"2002": map[string]interface{}{
+								"size":     "M",
+								"color":    "blue",
+								"quantity": 0, // Out of stock
+							},
+							"2003": map[string]interface{}{
+								"size":     "L",
+								"color":    "green",
+								"quantity": 10,
+							},
+						},
+					},
+					"10000002": map[string]interface{}{
+						"name":     "Jeans",
+						"category": "clothing",
+						"featured": false, // Not featured
+						"variants": map[string]interface{}{
+							"2004": map[string]interface{}{
+								"size":     "30",
+								"color":    "blue",
+								"quantity": 20,
+							},
+						},
+					},
+					"10000003": map[string]interface{}{
+						"name":     "Jacket",
+						"category": "clothing",
+						"featured": true,
+						"variants": map[string]interface{}{
+							"2005": map[string]interface{}{
+								"size":     "M",
+								"color":    "black",
+								"quantity": 3,
+							},
+							"2006": map[string]interface{}{
+								"size":     "L",
+								"color":    "brown",
+								"quantity": 7,
+							},
+						},
+					},
+					"10000004": map[string]interface{}{
+						"name":     "Hat",
+						"category": "accessories",
+						"featured": true,
+						"variants": map[string]interface{}{
+							"2007": map[string]interface{}{
+								"size":     "One Size",
+								"color":    "red",
+								"quantity": 0, // All out of stock
+							},
+						},
+					},
+				},
+			}
+
+			bin := as.NewBin(binName, rootData)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Product-level filter: featured == true
+			filterOnFeatured := as.ExpEq(
+				as.ExpMapGetByKey(
+					as.MapReturnType.VALUE,
+					as.ExpTypeBOOL,
+					as.ExpStringVal("featured"),
+					as.ExpMapLoopVar(as.VALUE),
+				),
+				as.ExpBoolVal(true),
+			)
+
+			// Variant-level filter: quantity > 0
+			filterOnVariantInventory := as.ExpGreater(
+				as.ExpMapGetByKey(
+					as.MapReturnType.VALUE,
+					as.ExpTypeINT,
+					as.ExpStringVal("quantity"),
+					as.ExpMapLoopVar(as.VALUE),
+				),
+				as.ExpIntVal(0),
+			)
+
+			// Operation - select featured products with in-stock variants
+			// Context chain (matching Java main example lines 103-106):
+			// 1. CtxAllChildren() - Iterate through children in root map
+			// 2. CtxAllChildrenWithFilter() - Filter products by featured==true
+			// 3. CtxMapKey("variants") - Navigate to variants in each filtered product
+			// 4. CtxAllChildrenWithFilter() - Filter variants by quantity>0
+			readResult, err := client.Operate(nil, key,
+				as.SelectByPath(binName, as.EXP_PATH_SELECT_MATCHING_TREE,
+					as.CtxAllChildren(),
+					as.CtxAllChildrenWithFilter(filterOnFeatured),
+					as.CtxMapKey(as.NewStringValue("variants")),
+					as.CtxAllChildrenWithFilter(filterOnVariantInventory),
+				),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(readResult).ToNot(gm.BeNil())
+
+			// Verify results
+			results := readResult.Bins[binName]
+			gm.Expect(results).ToNot(gm.BeNil())
+
+			resultMap, ok := results.(map[interface{}]interface{})
+			gm.Expect(ok).To(gm.BeTrue(), "Result should be a map")
+
+			// Result should have "inventory" key with filtered products underneath
+			gm.Expect(resultMap).To(gm.HaveKey("inventory"), "Result should contain inventory key")
+
+			inventoryMap := resultMap["inventory"].(map[interface{}]interface{})
+
+			// Should have 3 product IDs in results (10000001, 10000003, 10000004)
+			gm.Expect(len(inventoryMap)).To(gm.Equal(3), "Should have 3 featured products in results")
+			gm.Expect(inventoryMap).To(gm.HaveKey("10000001"), "Should contain T-Shirt product ID")
+			gm.Expect(inventoryMap).ToNot(gm.HaveKey("10000002"), "Should NOT contain Jeans (not featured)")
+			gm.Expect(inventoryMap).To(gm.HaveKey("10000003"), "Should contain Jacket product ID")
+			gm.Expect(inventoryMap).To(gm.HaveKey("10000004"), "Should contain Hat product ID")
+
+			// Verify T-Shirt (10000001) - only contains variants subtree
+			tshirt := inventoryMap["10000001"].(map[interface{}]interface{})
+			gm.Expect(tshirt).To(gm.HaveKey("variants"), "Should contain variants key")
+			gm.Expect(tshirt).ToNot(gm.HaveKey("name"), "MATCHING_TREE only returns traversed path, not full object")
+			tshirtVariants := tshirt["variants"].(map[interface{}]interface{})
+			gm.Expect(len(tshirtVariants)).To(gm.Equal(2), "T-Shirt should have 2 in-stock variants")
+			gm.Expect(tshirtVariants).To(gm.HaveKey("2001"), "Should contain variant 2001 (size S)")
+			gm.Expect(tshirtVariants).ToNot(gm.HaveKey("2002"), "Should NOT contain variant 2002 (out of stock)")
+			gm.Expect(tshirtVariants).To(gm.HaveKey("2003"), "Should contain variant 2003 (size L)")
+
+			// Verify variant 2001 has correct data
+			variant2001 := tshirtVariants["2001"].(map[interface{}]interface{})
+			gm.Expect(variant2001["size"]).To(gm.Equal("S"))
+			gm.Expect(variant2001["quantity"]).To(gm.Equal(5))
+
+			// Verify Jacket (10000003) - only contains variants subtree
+			jacket := inventoryMap["10000003"].(map[interface{}]interface{})
+			gm.Expect(jacket).To(gm.HaveKey("variants"), "Should contain variants key")
+			jacketVariants := jacket["variants"].(map[interface{}]interface{})
+			gm.Expect(len(jacketVariants)).To(gm.Equal(2), "Jacket should have 2 in-stock variants")
+			gm.Expect(jacketVariants).To(gm.HaveKey("2005"), "Should contain variant 2005 (size M)")
+			gm.Expect(jacketVariants).To(gm.HaveKey("2006"), "Should contain variant 2006 (size L)")
+
+			// Verify Hat (10000004) - has empty variants map (no in-stock variants)
+			hat := inventoryMap["10000004"].(map[interface{}]interface{})
+			gm.Expect(hat).To(gm.HaveKey("variants"), "Should contain variants key")
+			hatVariants := hat["variants"].(map[interface{}]interface{})
+			gm.Expect(len(hatVariants)).To(gm.Equal(0), "Hat should have 0 in-stock variants")
+		})
+
 		gg.It("should modify all book prices by multiplying by 1.10 using CDTModifyByPath", func() {
 			client.Delete(nil, key)
 
