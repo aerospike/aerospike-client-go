@@ -82,7 +82,7 @@ func Base64ToCDTContext(b64 string) ([]*CDTContext, Error) {
 	for i := 0; i < len(list); i += 2 {
 		id := list[i].(int)
 		if id == ctxTypeExpression {
-			res = append(res, &CDTContext{Id: id, Expression: NewExpression(list[i+1])})
+			res = append(res, &CDTContext{Id: id, Expression: newExpression(list[i+1])})
 		} else {
 			res = append(res, &CDTContext{Id: id, Value: NewValue(list[i+1])})
 		}

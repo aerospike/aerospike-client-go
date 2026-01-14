@@ -1775,7 +1775,7 @@ func ExpUnknown() *Expression {
 	}
 }
 
-func NewExpression(e interface{}) *Expression {
+func newExpression(e interface{}) *Expression {
 	if e == nil {
 		return ExpNilValue()
 	}
