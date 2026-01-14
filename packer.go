@@ -220,6 +220,8 @@ func packObject(cmd BufferEx, obj interface{}, mapKey bool) (int, Error) {
 		return v.pack(cmd)
 	case []Value:
 		return ValueArray(v).pack(cmd)
+	case *Expression:
+		return v.pack(cmd)
 	case string:
 		return packString(cmd, v)
 	case []byte:

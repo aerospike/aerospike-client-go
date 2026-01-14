@@ -138,3 +138,7 @@ func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
 func (host *Host) Equals(other *Host) bool {
 	return host.equals(other)
 }
+
+func NewExpression(e interface{}) *Expression {
+	return newExpression(e)
+}
