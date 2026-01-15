@@ -81,6 +81,18 @@ func (p *Privilege) code() int {
 	// Requires server version 6+
 	case Truncate:
 		return 14
+
+	// User can manage masking policies. Requires server version >= 8.1.1.
+	case MaskingAdmin:
+		return 15
+
+	// User can read data with masking policies applied. Requires server version >= 8.1.1.
+	case ReadMasked:
+		return 16
+
+	// User can write data with masking policies applied. Requires server version >= 8.1.1.
+	case WriteMasked:
+		return 17
 	}
 
 	panic("invalid role: " + p.Code)
@@ -136,6 +148,18 @@ func privilegeFrom(code uint8) privilegeCode {
 	// Requires server version 6+
 	case 14:
 		return Truncate
+
+	// User can manage masking policies. Requires server version >= 8.1.1.
+	case 15:
+		return MaskingAdmin
+
+	// User can read data with masking policies applied. Requires server version >= 8.1.1.
+	case 16:
+		return ReadMasked
+
+	// User can write data with masking policies applied. Requires server version >= 8.1.1.
+	case 17:
+		return WriteMasked
 	}
 
 	panic(fmt.Sprintf("invalid privilege code: %v", code))
