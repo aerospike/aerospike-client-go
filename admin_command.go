@@ -676,7 +676,12 @@ func (acmd *AdminCommand) parseRolesFull(receiveSize int) (int, []*Role, Error) 
 				role.Name = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
 				acmd.dataOffset += len
 			case _PRIVILEGES:
+				startOffset := acmd.dataOffset
 				acmd.parsePrivileges(role)
+				bytesRead := acmd.dataOffset - startOffset
+				if bytesRead < len {
+					acmd.dataOffset += len - bytesRead
+				}
 			case _WHITELIST:
 				role.Whitelist = acmd.parseWhitelist(len)
 			case _READ_QUOTA:

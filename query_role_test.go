@@ -24,8 +24,8 @@ import (
 
 var _ = gg.Describe("Query Roles Tests", func() {
 	var (
-		credentialsProvided bool
-		serverVersion       version.Version
+		serverVersion version.Version
+		err           error
 	)
 
 	// Expected roles by version
@@ -52,19 +52,12 @@ var _ = gg.Describe("Query Roles Tests", func() {
 
 	gg.BeforeEach(func() {
 		// Check if credentials are provided
-		credentialsProvided = (*user != "" && *password != "")
-
-		if !credentialsProvided {
+		if *user == "" || *password == "" {
 			gg.Skip("Skipping test: Credentials not provided")
 		}
 
-		// Ensure client is available and security is enabled
-		if client == nil {
-			gg.Skip("Skipping test: Client not initialized")
-		}
-
-		// Check if security is enabled
-		_, err := client.QueryRoles(nil)
+		// Check if security is enabled on this specific server
+		_, err = client.QueryRoles(nil)
 		if err != nil {
 			gg.Skip("Skipping test: Security is not enabled on the server")
 		}
@@ -76,7 +69,7 @@ var _ = gg.Describe("Query Roles Tests", func() {
 		}
 	})
 
-	gg.Context("QueryRoles", func() {
+	gg.Context("Query Roles", func() {
 		gg.It("should query all roles successfully", func() {
 			policy := as.NewAdminPolicy()
 			roles, err := client.QueryRoles(policy)
@@ -102,7 +95,16 @@ var _ = gg.Describe("Query Roles Tests", func() {
 				roleNames[role.Name] = true
 			}
 
-			// Check that all base roles exist
+			// Check that ALL base roles exist
+			missingRoles := []string{}
+			for _, expectedRole := range baseRoles {
+				if !roleNames[expectedRole] {
+					missingRoles = append(missingRoles, expectedRole)
+				}
+			}
+			gm.Expect(missingRoles).To(gm.BeEmpty(), "Missing base roles: %v", missingRoles)
+
+			// Verify each base role individually for clear failure messages
 			for _, expectedRole := range baseRoles {
 				gm.Expect(roleNames[expectedRole]).To(gm.BeTrue(),
 					"Role '%s' should exist for server version < 8.1.1", expectedRole)
@@ -134,19 +136,35 @@ var _ = gg.Describe("Query Roles Tests", func() {
 				roleNames[role.Name] = true
 			}
 
-			// Check that all base roles exist
+			// Check that ALL base roles exist
+			missingBaseRoles := []string{}
+			for _, expectedRole := range baseRoles {
+				if !roleNames[expectedRole] {
+					missingBaseRoles = append(missingBaseRoles, expectedRole)
+				}
+			}
+			gm.Expect(missingBaseRoles).To(gm.BeEmpty(), "Missing base roles: %v", missingBaseRoles)
+
+			// Check that ALL masking roles exist
+			missingMaskingRoles := []string{}
+			for _, expectedRole := range maskingRoles {
+				if !roleNames[expectedRole] {
+					missingMaskingRoles = append(missingMaskingRoles, expectedRole)
+				}
+			}
+			gm.Expect(missingMaskingRoles).To(gm.BeEmpty(), "Missing masking roles: %v", missingMaskingRoles)
+
+			// Verify each base role individually for clear failure messages
 			for _, expectedRole := range baseRoles {
 				gm.Expect(roleNames[expectedRole]).To(gm.BeTrue(),
 					"Role '%s' should exist for server version >= 8.1.1", expectedRole)
 			}
 
-			// Check that masking roles exist
-			gm.Expect(roleNames[string(as.MaskingAdmin)]).To(gm.BeTrue(),
-				"Masking role '%s' should exist for server version >= 8.1.1", as.MaskingAdmin)
-			gm.Expect(roleNames[string(as.ReadMasked)]).To(gm.BeTrue(),
-				"Masking role '%s' should exist for server version >= 8.1.1", as.ReadMasked)
-			gm.Expect(roleNames[string(as.WriteMasked)]).To(gm.BeTrue(),
-				"Masking role '%s' should exist for server version >= 8.1.1", as.WriteMasked)
+			// Verify each masking role individually
+			for _, expectedRole := range maskingRoles {
+				gm.Expect(roleNames[expectedRole]).To(gm.BeTrue(),
+					"Masking role '%s' should exist for server version >= 8.1.1", expectedRole)
+			}
 		})
 
 		gg.It("should have appropriate roles based on server version", func() {
@@ -166,32 +184,44 @@ var _ = gg.Describe("Query Roles Tests", func() {
 			if serverVersion.IsGreaterOrEqual(&expectedVersion) {
 				// Server version >= 8.1.1: check all roles including masking
 				allRoles := append(baseRoles, maskingRoles...)
+
+				missingRoles := []string{}
+				for _, expectedRole := range allRoles {
+					if !roleNames[expectedRole] {
+						missingRoles = append(missingRoles, expectedRole)
+					}
+				}
+				gm.Expect(missingRoles).To(gm.BeEmpty(), "Missing roles for version >= 8.1.1: %v", missingRoles)
+
+				// Verify all roles individually
 				for _, expectedRole := range allRoles {
 					gm.Expect(roleNames[expectedRole]).To(gm.BeTrue(),
 						"Role '%s' should exist for server version %s", expectedRole, serverVersion.String())
 				}
-
-				// Verify masking roles specifically
-				gm.Expect(roleNames[string(as.MaskingAdmin)]).To(gm.BeTrue(),
-					"Masking role '%s' should exist for server version >= 8.1.1", as.MaskingAdmin)
-				gm.Expect(roleNames[string(as.ReadMasked)]).To(gm.BeTrue(),
-					"Masking role '%s' should exist for server version >= 8.1.1", as.ReadMasked)
-				gm.Expect(roleNames[string(as.WriteMasked)]).To(gm.BeTrue(),
-					"Masking role '%s' should exist for server version >= 8.1.1", as.WriteMasked)
 			} else {
 				// Server version < 8.1.1: check only base roles
+				missingRoles := []string{}
+				for _, expectedRole := range baseRoles {
+					if !roleNames[expectedRole] {
+						missingRoles = append(missingRoles, expectedRole)
+					}
+				}
+				gm.Expect(missingRoles).To(gm.BeEmpty(), "Missing base roles for version < 8.1.1: %v", missingRoles)
+
+				// Verify all base roles individually
 				for _, expectedRole := range baseRoles {
 					gm.Expect(roleNames[expectedRole]).To(gm.BeTrue(),
 						"Role '%s' should exist for server version %s", expectedRole, serverVersion.String())
 				}
 
 				// Verify masking roles do NOT exist
-				gm.Expect(roleNames[string(as.MaskingAdmin)]).To(gm.BeFalse(),
-					"Masking role '%s' should NOT exist for server version < 8.1.1", as.MaskingAdmin)
-				gm.Expect(roleNames[string(as.ReadMasked)]).To(gm.BeFalse(),
-					"Masking role '%s' should NOT exist for server version < 8.1.1", as.ReadMasked)
-				gm.Expect(roleNames[string(as.WriteMasked)]).To(gm.BeFalse(),
-					"Masking role '%s' should NOT exist for server version < 8.1.1", as.WriteMasked)
+				unexpectedRoles := []string{}
+				for _, maskingRole := range maskingRoles {
+					if roleNames[maskingRole] {
+						unexpectedRoles = append(unexpectedRoles, maskingRole)
+					}
+				}
+				gm.Expect(unexpectedRoles).To(gm.BeEmpty(), "Unexpected masking roles for version < 8.1.1: %v", unexpectedRoles)
 			}
 		})
 	})

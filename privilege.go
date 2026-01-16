@@ -15,7 +15,9 @@
 
 package aerospike
 
-import "fmt"
+import (
+	"github.com/aerospike/aerospike-client-go/v8/logger"
+)
 
 type privilegeCode string
 
@@ -93,9 +95,16 @@ func (p *Privilege) code() int {
 	// User can write data with masking policies applied. Requires server version >= 8.1.1.
 	case WriteMasked:
 		return 17
-	}
 
-	panic("invalid role: " + p.Code)
+	// Unknown privilege code from server (forward compatibility).
+	case Unknown:
+		return -1
+
+	default:
+		// This should never happen if privilegeFrom() is used correctly
+		logger.Logger.Warn("Invalid privilege code in Privilege.code(): %s", p.Code)
+		return -1
+	}
 }
 
 func privilegeFrom(code uint8) privilegeCode {
@@ -160,11 +169,19 @@ func privilegeFrom(code uint8) privilegeCode {
 	// User can write data with masking policies applied. Requires server version >= 8.1.1.
 	case 17:
 		return WriteMasked
-	}
 
-	panic(fmt.Sprintf("invalid privilege code: %v", code))
+	default:
+		// Return Unknown for forward compatibility with new privilege codes
+		// from future server versions. This allows the client to work with
+		// newer servers without breaking when new privileges are added.
+		logger.Logger.Warn("Unknown privilege code received from server: %d. Using Unknown.", code)
+		return Unknown
+	}
 }
 
 func (p *Privilege) canScope() bool {
-	return p.code() >= 10
+	// Unknown privileges (code = -1) cannot be scoped since we don't know their characteristics.
+	// MaskingAdmin (code = 15) is global only.
+	// Data privileges (code >= 10) can be scoped except MaskingAdmin.
+	return p.code() >= 10 && p.code() != 15
 }
