@@ -24,7 +24,8 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
-
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
@@ -94,10 +95,19 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	gg.It("must parse invalid UDF error", func() {
 		_, err := client.RegisterUDF(wpolicy, []byte(invalidUdfBody), "invalid_udf1.lua", as.LUA)
 		gm.Expect(err).To(gm.HaveOccurred())
-		gm.Expect(err.Error()).To(gm.HaveSuffix(`compile_error
+
+		serverVersion := client.GetNodes()[0].GetServerVersion()
+		suffix := types.Ternary(
+			serverVersion.IsSmaller(&version.Version{Major: 7, Minor: 0, Patch: 0, Build: 0}),
+			`compile_error
 File: invalid_udf1.lua
 Line: 3
-Message: syntax error near 'returned'`))
+Message: '=' expected near 'returned'`,
+			`compile_error
+File: invalid_udf1.lua
+Line: 3
+Message: syntax error near 'returned'`)
+		gm.Expect(err.Error()).To(gm.HaveSuffix(suffix))
 	})
 
 	gg.It("must run a UDF on a single record", func() {
