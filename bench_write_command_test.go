@@ -23,7 +23,7 @@ import (
 	_ "net/http/pprof"
 )
 
-func doPut(set string, value interface{}, b *testing.B) {
+func doPut(set string, value any, b *testing.B) {
 	policy := NewWritePolicy(0, 0)
 
 	dataBuffer := make([]byte, 1024*1024)
@@ -118,7 +118,7 @@ func Benchmark_WriteCommand_String_100000(b *testing.B) {
 
 func Benchmark_WriteCommand_Complex_Array(b *testing.B) {
 	set := "put_bench_str_10000"
-	value := []interface{}{1, 1, 1, "a simple string", nil, rand.Int63(), []byte{12, 198, 211}}
+	value := []any{1, 1, 1, "a simple string", nil, rand.Int63(), []byte{12, 198, 211}}
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
@@ -127,12 +127,12 @@ func Benchmark_WriteCommand_Complex_Array(b *testing.B) {
 
 func Benchmark_WriteCommand_Complex_Map(b *testing.B) {
 	set := "put_bench_str_10000"
-	value := map[interface{}]interface{}{
+	value := map[any]any{
 		rand.Int63(): rand.Int63(),
 		nil:          1,
 		"s":          491871,
 		15892987:     strings.Repeat("s", 100),
-		"s2":         []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+		"s2":         []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 	}
 	b.N = 1000
 	runtime.GC()
@@ -142,16 +142,16 @@ func Benchmark_WriteCommand_Complex_Map(b *testing.B) {
 
 func Benchmark_WriteCommand_JSON_Map(b *testing.B) {
 	set := "put_bench_str_10000"
-	value := map[string]interface{}{
+	value := map[string]any{
 		strings.Repeat("a", 16): rand.Int63(),
 		strings.Repeat("b", 16): strings.Repeat("s", 100),
-		strings.Repeat("c", 16): []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
-		strings.Repeat("d", 16): map[interface{}]interface{}{
+		strings.Repeat("c", 16): []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+		strings.Repeat("d", 16): map[any]any{
 			rand.Int63(): rand.Int63(),
 			nil:          1,
 			"s":          491871,
 			15892987:     strings.Repeat("s", 100),
-			"s2":         []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+			"s2":         []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 		},
 	}
 	b.N = 1000

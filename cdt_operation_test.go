@@ -59,26 +59,26 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should select titles from books with price <= 10.0 using CDTSelectByPath", func() {
 			client.Delete(nil, key)
 
-			booksList := []interface{}{
-				map[string]interface{}{
+			booksList := []any{
+				map[string]any{
 					"title": "Sayings of the Century",
 					"price": 8.95,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "Sword of Honour",
 					"price": 12.99,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "Moby Dick",
 					"price": 8.99,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "The Lord of the Rings",
 					"price": 22.99,
 				},
 			}
 
-			rootMap := map[string]interface{}{
+			rootMap := map[string]any{
 				"book": booksList,
 			}
 
@@ -118,7 +118,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			results := result.Bins[binName]
 			gm.Expect(results).ToNot(gm.BeNil())
 
-			resultList, ok := results.([]interface{})
+			resultList, ok := results.([]any)
 			gm.Expect(ok).To(gm.BeTrue(), "Result should be a list")
 			gm.Expect(len(resultList)).To(gm.Equal(2), "Should have 2 books with price <= 10.0")
 
@@ -145,65 +145,65 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			// - CtxAllChildren() iterates all products under "inventory"
 			// - CtxAllChildrenWithFilter() filters those products
 			// - Each product contains a "variants" MAP (not list)
-			rootData := map[string]interface{}{
-				"inventory": map[string]interface{}{
-					"10000001": map[string]interface{}{
+			rootData := map[string]any{
+				"inventory": map[string]any{
+					"10000001": map[string]any{
 						"name":     "T-Shirt",
 						"category": "clothing",
 						"featured": true,
-						"variants": map[string]interface{}{
-							"2001": map[string]interface{}{
+						"variants": map[string]any{
+							"2001": map[string]any{
 								"size":     "S",
 								"color":    "red",
 								"quantity": 5,
 							},
-							"2002": map[string]interface{}{
+							"2002": map[string]any{
 								"size":     "M",
 								"color":    "blue",
 								"quantity": 0, // Out of stock
 							},
-							"2003": map[string]interface{}{
+							"2003": map[string]any{
 								"size":     "L",
 								"color":    "green",
 								"quantity": 10,
 							},
 						},
 					},
-					"10000002": map[string]interface{}{
+					"10000002": map[string]any{
 						"name":     "Jeans",
 						"category": "clothing",
 						"featured": false, // Not featured
-						"variants": map[string]interface{}{
-							"2004": map[string]interface{}{
+						"variants": map[string]any{
+							"2004": map[string]any{
 								"size":     "30",
 								"color":    "blue",
 								"quantity": 20,
 							},
 						},
 					},
-					"10000003": map[string]interface{}{
+					"10000003": map[string]any{
 						"name":     "Jacket",
 						"category": "clothing",
 						"featured": true,
-						"variants": map[string]interface{}{
-							"2005": map[string]interface{}{
+						"variants": map[string]any{
+							"2005": map[string]any{
 								"size":     "M",
 								"color":    "black",
 								"quantity": 3,
 							},
-							"2006": map[string]interface{}{
+							"2006": map[string]any{
 								"size":     "L",
 								"color":    "brown",
 								"quantity": 7,
 							},
 						},
 					},
-					"10000004": map[string]interface{}{
+					"10000004": map[string]any{
 						"name":     "Hat",
 						"category": "accessories",
 						"featured": true,
-						"variants": map[string]interface{}{
-							"2007": map[string]interface{}{
+						"variants": map[string]any{
+							"2007": map[string]any{
 								"size":     "One Size",
 								"color":    "red",
 								"quantity": 0, // All out of stock
@@ -260,13 +260,13 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			results := readResult.Bins[binName]
 			gm.Expect(results).ToNot(gm.BeNil())
 
-			resultMap, ok := results.(map[interface{}]interface{})
+			resultMap, ok := results.(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue(), "Result should be a map")
 
 			// Result should have "inventory" key with filtered products underneath
 			gm.Expect(resultMap).To(gm.HaveKey("inventory"), "Result should contain inventory key")
 
-			inventoryMap := resultMap["inventory"].(map[interface{}]interface{})
+			inventoryMap := resultMap["inventory"].(map[any]any)
 
 			// Should have 3 product IDs in results (10000001, 10000003, 10000004)
 			gm.Expect(len(inventoryMap)).To(gm.Equal(3), "Should have 3 featured products in results")
@@ -276,58 +276,58 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(inventoryMap).To(gm.HaveKey("10000004"), "Should contain Hat product ID")
 
 			// Verify T-Shirt (10000001) - only contains variants subtree
-			tshirt := inventoryMap["10000001"].(map[interface{}]interface{})
+			tshirt := inventoryMap["10000001"].(map[any]any)
 			gm.Expect(tshirt).To(gm.HaveKey("variants"), "Should contain variants key")
 			gm.Expect(tshirt).ToNot(gm.HaveKey("name"), "MATCHING_TREE only returns traversed path, not full object")
-			tshirtVariants := tshirt["variants"].(map[interface{}]interface{})
+			tshirtVariants := tshirt["variants"].(map[any]any)
 			gm.Expect(len(tshirtVariants)).To(gm.Equal(2), "T-Shirt should have 2 in-stock variants")
 			gm.Expect(tshirtVariants).To(gm.HaveKey("2001"), "Should contain variant 2001 (size S)")
 			gm.Expect(tshirtVariants).ToNot(gm.HaveKey("2002"), "Should NOT contain variant 2002 (out of stock)")
 			gm.Expect(tshirtVariants).To(gm.HaveKey("2003"), "Should contain variant 2003 (size L)")
 
 			// Verify variant 2001 has correct data
-			variant2001 := tshirtVariants["2001"].(map[interface{}]interface{})
+			variant2001 := tshirtVariants["2001"].(map[any]any)
 			gm.Expect(variant2001["size"]).To(gm.Equal("S"))
 			gm.Expect(variant2001["quantity"]).To(gm.Equal(5))
 
 			// Verify Jacket (10000003) - only contains variants subtree
-			jacket := inventoryMap["10000003"].(map[interface{}]interface{})
+			jacket := inventoryMap["10000003"].(map[any]any)
 			gm.Expect(jacket).To(gm.HaveKey("variants"), "Should contain variants key")
-			jacketVariants := jacket["variants"].(map[interface{}]interface{})
+			jacketVariants := jacket["variants"].(map[any]any)
 			gm.Expect(len(jacketVariants)).To(gm.Equal(2), "Jacket should have 2 in-stock variants")
 			gm.Expect(jacketVariants).To(gm.HaveKey("2005"), "Should contain variant 2005 (size M)")
 			gm.Expect(jacketVariants).To(gm.HaveKey("2006"), "Should contain variant 2006 (size L)")
 
 			// Verify Hat (10000004) - has empty variants map (no in-stock variants)
-			hat := inventoryMap["10000004"].(map[interface{}]interface{})
+			hat := inventoryMap["10000004"].(map[any]any)
 			gm.Expect(hat).To(gm.HaveKey("variants"), "Should contain variants key")
-			hatVariants := hat["variants"].(map[interface{}]interface{})
+			hatVariants := hat["variants"].(map[any]any)
 			gm.Expect(len(hatVariants)).To(gm.Equal(0), "Hat should have 0 in-stock variants")
 		})
 
 		gg.It("should modify all book prices by multiplying by 1.10 using CDTModifyByPath", func() {
 			client.Delete(nil, key)
 
-			booksList := []interface{}{
-				map[string]interface{}{
+			booksList := []any{
+				map[string]any{
 					"title": "Sayings of the Century",
 					"price": 8.95,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "Sword of Honour",
 					"price": 12.99,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "Moby Dick",
 					"price": 8.99,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "The Lord of the Rings",
 					"price": 22.99,
 				},
 			}
 
-			rootMap := map[string]interface{}{
+			rootMap := map[string]any{
 				"book": booksList,
 			}
 
@@ -363,17 +363,17 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(finalRecord).ToNot(gm.BeNil())
 
-			finalRootMap, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalRootMap, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue(), "Root map should exist")
 
 			finalBooksListRaw, ok := finalRootMap["book"]
 			gm.Expect(ok).To(gm.BeTrue(), "Books list should exist in root map")
 
-			finalBooksList, ok := finalBooksListRaw.([]interface{})
+			finalBooksList, ok := finalBooksListRaw.([]any)
 			gm.Expect(ok).To(gm.BeTrue(), "Books should be a list")
 			gm.Expect(len(finalBooksList)).To(gm.BeNumerically(">", 0), "Books list should not be empty")
 
-			firstBook, ok := finalBooksList[0].(map[interface{}]interface{})
+			firstBook, ok := finalBooksList[0].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue(), "First book should be a map")
 
 			priceObj, ok := firstBook["price"]
@@ -402,7 +402,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			// Verify all books have increased prices
 			originalPrices := []float64{8.95, 12.99, 8.99, 22.99}
 			for i, bookRaw := range finalBooksList {
-				book, ok := bookRaw.(map[interface{}]interface{})
+				book, ok := bookRaw.(map[any]any)
 				gm.Expect(ok).To(gm.BeTrue(), "Book %d should be a map", i)
 
 				price, ok := book["price"]
@@ -429,22 +429,22 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should work with nested contexts and complex filter expressions", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"store": map[string]interface{}{
-					"books": []interface{}{
-						map[string]interface{}{
+			data := map[string]any{
+				"store": map[string]any{
+					"books": []any{
+						map[string]any{
 							"category": "reference",
 							"author":   "Nigel Rees",
 							"title":    "Sayings of the Century",
 							"price":    8.95,
 						},
-						map[string]interface{}{
+						map[string]any{
 							"category": "fiction",
 							"author":   "Evelyn Waugh",
 							"title":    "Sword of Honour",
 							"price":    12.99,
 						},
-						map[string]interface{}{
+						map[string]any{
 							"category": "fiction",
 							"author":   "Herman Melville",
 							"title":    "Moby Dick",
@@ -499,7 +499,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(results).ToNot(gm.BeNil())
 
 			// Should only get "Moby Dick" (fiction with price 8.99 < 10.0)
-			resultList, ok := results.([]interface{})
+			resultList, ok := results.([]any)
 			gm.Expect(ok).To(gm.BeTrue(), "Result should be a list")
 			gm.Expect(len(resultList)).To(gm.Equal(1), "Should have 1 fiction book with price < 10.0")
 			gm.Expect(resultList[0]).To(gm.Equal("Moby Dick"))
@@ -508,18 +508,18 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle empty results when no items match the filter", func() {
 			client.Delete(nil, key)
 
-			booksList := []interface{}{
-				map[string]interface{}{
+			booksList := []any{
+				map[string]any{
 					"title": "Expensive Book 1",
 					"price": 25.99,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "Expensive Book 2",
 					"price": 30.50,
 				},
 			}
 
-			rootMap := map[string]interface{}{
+			rootMap := map[string]any{
 				"book": booksList,
 			}
 
@@ -556,7 +556,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			// Verify empty results
 			results := result.Bins[binName]
 			if results != nil {
-				resultList, ok := results.([]interface{})
+				resultList, ok := results.([]any)
 				if ok {
 					gm.Expect(len(resultList)).To(gm.Equal(0), "Should have 0 books matching the filter")
 				}
@@ -566,18 +566,18 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should work with MatchingTree flag to return the full matching structure", func() {
 			client.Delete(nil, key)
 
-			booksList := []interface{}{
-				map[string]interface{}{
+			booksList := []any{
+				map[string]any{
 					"title": "Cheap Book",
 					"price": 5.99,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "Expensive Book",
 					"price": 25.99,
 				},
 			}
 
-			rootMap := map[string]interface{}{
+			rootMap := map[string]any{
 				"book": booksList,
 			}
 
@@ -612,8 +612,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should work with MapKeys flag to return only map keys", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"items": map[string]interface{}{
+			data := map[string]any{
+				"items": map[string]any{
 					"item1": 100,
 					"item2": 200,
 					"item3": 50,
@@ -647,8 +647,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should work with SelectNoFail flag to avoid errors on missing paths", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"existing": []interface{}{1, 2, 3},
+			data := map[string]any{
+				"existing": []any{1, 2, 3},
 			}
 
 			bin := as.NewBin(binName, data)
@@ -669,8 +669,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should work with loop variable INDEX to access list indices", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"numbers": []interface{}{10, 20, 30, 40, 50},
+			data := map[string]any{
+				"numbers": []any{10, 20, 30, 40, 50},
 			}
 
 			bin := as.NewBin(binName, data)
@@ -696,7 +696,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			results := result.Bins[binName]
 			gm.Expect(results).ToNot(gm.BeNil())
 
-			resultList, ok := results.([]interface{})
+			resultList, ok := results.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(3), "Should have 3 items with index < 3")
 			}
@@ -705,8 +705,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should work with loop variable MAP_KEY to access map keys", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"products": map[string]interface{}{
+			data := map[string]any{
+				"products": map[string]any{
 					"apple":  1.50,
 					"banana": 0.75,
 					"cherry": 2.25,
@@ -736,7 +736,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			results := result.Bins[binName]
 			gm.Expect(results).ToNot(gm.BeNil())
 
-			resultList, ok := results.([]interface{})
+			resultList, ok := results.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(2), "Should have 2 items with keys < 'c'")
 			}
@@ -745,8 +745,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should modify with addition operation", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"scores": []interface{}{10, 20, 30, 40, 50},
+			data := map[string]any{
+				"scores": []any{10, 20, 30, 40, 50},
 			}
 
 			bin := as.NewBin(binName, data)
@@ -771,10 +771,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalRootMap, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalRootMap, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			finalScores, ok := finalRootMap["scores"].([]interface{})
+			finalScores, ok := finalRootMap["scores"].([]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(finalScores)).To(gm.Equal(5))
 
@@ -786,8 +786,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should modify with subtraction operation", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"balances": map[string]interface{}{
+			data := map[string]any{
+				"balances": map[string]any{
 					"account1": 1000,
 					"account2": 2000,
 					"account3": 1500,
@@ -816,10 +816,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalRootMap, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalRootMap, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			finalBalances, ok := finalRootMap["balances"].(map[interface{}]interface{})
+			finalBalances, ok := finalRootMap["balances"].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
 			// Verify account1 balance was decreased by 100
@@ -831,11 +831,11 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should work with nested lists and complex filters", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"matrix": []interface{}{
-					[]interface{}{1, 2, 3},
-					[]interface{}{4, 5, 6},
-					[]interface{}{7, 8, 9},
+			data := map[string]any{
+				"matrix": []any{
+					[]any{1, 2, 3},
+					[]any{4, 5, 6},
+					[]any{7, 8, 9},
 				},
 			}
 
@@ -856,7 +856,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			results := result.Bins[binName]
 			gm.Expect(results).ToNot(gm.BeNil())
 
-			resultList, ok := results.([]interface{})
+			resultList, ok := results.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(3), "Should have 3 rows")
 			}
@@ -865,8 +865,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle integer map keys correctly", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"items": map[interface{}]interface{}{
+			data := map[string]any{
+				"items": map[any]any{
 					1: "first",
 					2: "second",
 					3: "third",
@@ -894,19 +894,19 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should work with boolean expressions in filters", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"users": []interface{}{
-					map[string]interface{}{
+			data := map[string]any{
+				"users": []any{
+					map[string]any{
 						"name":   "Alice",
 						"active": true,
 						"age":    30,
 					},
-					map[string]interface{}{
+					map[string]any{
 						"name":   "Bob",
 						"active": false,
 						"age":    25,
 					},
-					map[string]interface{}{
+					map[string]any{
 						"name":   "Charlie",
 						"active": true,
 						"age":    35,
@@ -948,7 +948,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			results := result.Bins[binName]
 			gm.Expect(results).ToNot(gm.BeNil())
 
-			resultList, ok := results.([]interface{})
+			resultList, ok := results.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(2), "Should have 2 active users")
 				gm.Expect(resultList).To(gm.ContainElement("Alice"))
@@ -959,12 +959,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle complex AND/OR filter combinations", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"products": []interface{}{
-					map[string]interface{}{"name": "Widget", "price": 10.0, "inStock": true},
-					map[string]interface{}{"name": "Gadget", "price": 25.0, "inStock": false},
-					map[string]interface{}{"name": "Gizmo", "price": 15.0, "inStock": true},
-					map[string]interface{}{"name": "Doohickey", "price": 30.0, "inStock": true},
+			data := map[string]any{
+				"products": []any{
+					map[string]any{"name": "Widget", "price": 10.0, "inStock": true},
+					map[string]any{"name": "Gadget", "price": 25.0, "inStock": false},
+					map[string]any{"name": "Gizmo", "price": 15.0, "inStock": true},
+					map[string]any{"name": "Doohickey", "price": 30.0, "inStock": true},
 				},
 			}
 
@@ -1024,7 +1024,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			results := result.Bins[binName]
 			gm.Expect(results).ToNot(gm.BeNil())
 
-			resultList, ok := results.([]interface{})
+			resultList, ok := results.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(3), "Should have 3 matching products")
 			}
@@ -1033,11 +1033,11 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should work with string operations in modify expressions", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"items": []interface{}{
-					map[string]interface{}{"id": 1, "tag": "item"},
-					map[string]interface{}{"id": 2, "tag": "item"},
-					map[string]interface{}{"id": 3, "tag": "item"},
+			data := map[string]any{
+				"items": []any{
+					map[string]any{"id": 1, "tag": "item"},
+					map[string]any{"id": 2, "tag": "item"},
+					map[string]any{"id": 3, "tag": "item"},
 				},
 			}
 
@@ -1053,13 +1053,13 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle deeply nested structures", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"level1": map[string]interface{}{
-					"level2": map[string]interface{}{
-						"level3": []interface{}{
-							map[string]interface{}{"value": 100},
-							map[string]interface{}{"value": 200},
-							map[string]interface{}{"value": 300},
+			data := map[string]any{
+				"level1": map[string]any{
+					"level2": map[string]any{
+						"level3": []any{
+							map[string]any{"value": 100},
+							map[string]any{"value": 200},
+							map[string]any{"value": 300},
 						},
 					},
 				},
@@ -1101,7 +1101,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			results := result.Bins[binName]
 			gm.Expect(results).ToNot(gm.BeNil())
 
-			resultList, ok := results.([]interface{})
+			resultList, ok := results.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(2), "Should have 2 values > 150")
 			}
@@ -1123,7 +1123,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should work with single context element", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
+			data := map[string]any{
 				"value": 123,
 			}
 
@@ -1147,9 +1147,9 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle empty lists correctly", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"emptyList": []interface{}{},
-				"items":     []interface{}{1, 2, 3},
+			data := map[string]any{
+				"emptyList": []any{},
+				"items":     []any{1, 2, 3},
 			}
 
 			bin := as.NewBin(binName, data)
@@ -1170,9 +1170,9 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle empty maps correctly", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"emptyMap": map[string]interface{}{},
-				"items": map[string]interface{}{
+			data := map[string]any{
+				"emptyMap": map[string]any{},
+				"items": map[string]any{
 					"a": 1,
 					"b": 2,
 				},
@@ -1196,11 +1196,11 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle CDTSelectByPath with list index context", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"items": []interface{}{
-					map[string]interface{}{"name": "item1", "value": 10},
-					map[string]interface{}{"name": "item2", "value": 20},
-					map[string]interface{}{"name": "item3", "value": 30},
+			data := map[string]any{
+				"items": []any{
+					map[string]any{"name": "item1", "value": 10},
+					map[string]any{"name": "item2", "value": 20},
+					map[string]any{"name": "item3", "value": 30},
 				},
 			}
 
@@ -1220,7 +1220,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(result).ToNot(gm.BeNil())
 
 			resultBin := result.Bins[binName]
-			resultList, ok := resultBin.([]interface{})
+			resultList, ok := resultBin.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(1))
 				gm.Expect(resultList[0]).To(gm.Equal(20))
@@ -1230,8 +1230,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle CDTModifyByPath with subtraction", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"balances": map[string]interface{}{
+			data := map[string]any{
+				"balances": map[string]any{
 					"account1": 1000,
 					"account2": 2000,
 					"account3": 3000,
@@ -1260,10 +1260,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			balances, ok := finalData["balances"].(map[interface{}]interface{})
+			balances, ok := finalData["balances"].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
 			account1, ok := balances["account1"].(int)
@@ -1274,13 +1274,13 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle CDTSelectByPath with MATCHING_TREE on nested maps", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"company": map[string]interface{}{
-					"sales": map[string]interface{}{
+			data := map[string]any{
+				"company": map[string]any{
+					"sales": map[string]any{
 						"q1": 10000,
 						"q2": 12000,
 					},
-					"engineering": map[string]interface{}{
+					"engineering": map[string]any{
 						"q1": 5000,
 						"q2": 6000,
 					},
@@ -1310,12 +1310,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle CDTSelectByPath with multiple filtered contexts", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"products": []interface{}{
-					map[string]interface{}{"name": "Product A", "price": 100, "inStock": true},
-					map[string]interface{}{"name": "Product B", "price": 200, "inStock": false},
-					map[string]interface{}{"name": "Product C", "price": 150, "inStock": true},
-					map[string]interface{}{"name": "Product D", "price": 50, "inStock": true},
+			data := map[string]any{
+				"products": []any{
+					map[string]any{"name": "Product A", "price": 100, "inStock": true},
+					map[string]any{"name": "Product B", "price": 200, "inStock": false},
+					map[string]any{"name": "Product C", "price": 150, "inStock": true},
+					map[string]any{"name": "Product D", "price": 50, "inStock": true},
 				},
 			}
 
@@ -1362,7 +1362,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Verify the result - should contain "Product A" and "Product D"
 			resultBin := result.Bins[binName]
-			resultList, ok := resultBin.([]interface{})
+			resultList, ok := resultBin.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.BeNumerically(">=", 1))
 			}
@@ -1371,8 +1371,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle CDTModifyByPath with ExpLoopVarInt INDEX", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"values": []interface{}{100, 200, 300, 400},
+			data := map[string]any{
+				"values": []any{100, 200, 300, 400},
 			}
 
 			bin := as.NewBin(binName, data)
@@ -1400,10 +1400,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			values, ok := finalData["values"].([]interface{})
+			values, ok := finalData["values"].([]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
 			// First value: 100 * (0 + 1) = 100
@@ -1419,8 +1419,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle CDTModifyByPath with boolean expressions", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"flags": map[string]interface{}{
+			data := map[string]any{
+				"flags": map[string]any{
 					"feature1": false,
 					"feature2": false,
 					"feature3": false,
@@ -1448,10 +1448,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			flags, ok := finalData["flags"].(map[interface{}]interface{})
+			flags, ok := finalData["flags"].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
 			// All flags should now be true
@@ -1466,13 +1466,13 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle CDTSelectByPath with MAP_KEYS flag on nested map", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"config": map[string]interface{}{
-					"server1": map[string]interface{}{
+			data := map[string]any{
+				"config": map[string]any{
+					"server1": map[string]any{
 						"host": "192.168.1.1",
 						"port": 8080,
 					},
-					"server2": map[string]interface{}{
+					"server2": map[string]any{
 						"host": "192.168.1.2",
 						"port": 8081,
 					},
@@ -1497,11 +1497,11 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle CDTModifyByPath with complex arithmetic", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"metrics": []interface{}{
-					map[string]interface{}{"value": 10, "multiplier": 2},
-					map[string]interface{}{"value": 20, "multiplier": 3},
-					map[string]interface{}{"value": 30, "multiplier": 4},
+			data := map[string]any{
+				"metrics": []any{
+					map[string]any{"value": 10, "multiplier": 2},
+					map[string]any{"value": 20, "multiplier": 3},
+					map[string]any{"value": 30, "multiplier": 4},
 				},
 			}
 
@@ -1535,13 +1535,13 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			metrics, ok := finalData["metrics"].([]interface{})
+			metrics, ok := finalData["metrics"].([]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			firstMetric, ok := metrics[0].(map[interface{}]interface{})
+			firstMetric, ok := metrics[0].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
 			value, ok := firstMetric["value"].(int)
@@ -1552,12 +1552,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should handle CDTSelectByPath with OR filter expression", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"items": []interface{}{
-					map[string]interface{}{"name": "Item A", "priority": 1},
-					map[string]interface{}{"name": "Item B", "priority": 2},
-					map[string]interface{}{"name": "Item C", "priority": 3},
-					map[string]interface{}{"name": "Item D", "priority": 1},
+			data := map[string]any{
+				"items": []any{
+					map[string]any{"name": "Item A", "priority": 1},
+					map[string]any{"name": "Item B", "priority": 2},
+					map[string]any{"name": "Item C", "priority": 3},
+					map[string]any{"name": "Item D", "priority": 1},
 				},
 			}
 
@@ -1599,7 +1599,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			// Verify the result - should contain "Item A", "Item C", and "Item D"
 			resultBin := result.Bins[binName]
-			resultList, ok := resultBin.([]interface{})
+			resultList, ok := resultBin.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(3))
 			}
@@ -1608,8 +1608,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should select blobs using ExpLoopVarBlob with VALUE", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"blobs": map[string]interface{}{
+			data := map[string]any{
+				"blobs": map[string]any{
 					"data1": []byte("Hello World"),
 					"data2": []byte("Test Data"),
 					"data3": []byte("Binary Content"),
@@ -1630,7 +1630,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(result).ToNot(gm.BeNil())
 
 			resultBin := result.Bins[binName]
-			resultList, ok := resultBin.([]interface{})
+			resultList, ok := resultBin.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(3))
 				// Verify at least one blob is returned correctly
@@ -1650,11 +1650,11 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should select all blob values from nested structure", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"documents": []interface{}{
-					map[string]interface{}{"id": 1, "content": []byte("Document 1 content")},
-					map[string]interface{}{"id": 2, "content": []byte("Document 2 content")},
-					map[string]interface{}{"id": 3, "content": []byte("Document 3 content")},
+			data := map[string]any{
+				"documents": []any{
+					map[string]any{"id": 1, "content": []byte("Document 1 content")},
+					map[string]any{"id": 2, "content": []byte("Document 2 content")},
+					map[string]any{"id": 3, "content": []byte("Document 3 content")},
 				},
 			}
 
@@ -1678,7 +1678,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(result).ToNot(gm.BeNil())
 
 			resultBin := result.Bins[binName]
-			resultList, ok := resultBin.([]interface{})
+			resultList, ok := resultBin.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(3), "Should have 3 blob values")
 				blobCount := 0
@@ -1694,8 +1694,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should filter blob values using ExpBlobLoopVar", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"files": []interface{}{
+			data := map[string]any{
+				"files": []any{
 					[]byte("shortblob"),
 					[]byte("this is a longer blob content"),
 					[]byte("another medium sized blob"),
@@ -1723,7 +1723,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(result).ToNot(gm.BeNil())
 
 			resultBin := result.Bins[binName]
-			resultList, ok := resultBin.([]interface{})
+			resultList, ok := resultBin.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(3), "Should have 3 blobs not equal to 'x'")
 				for _, item := range resultList {
@@ -1737,12 +1737,12 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should filter nil values using ExpNilLoopVar", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"records": []interface{}{
-					map[string]interface{}{"name": "record1", "value": 100},
-					map[string]interface{}{"name": "record2", "value": nil},
-					map[string]interface{}{"name": "record3", "value": 200},
-					map[string]interface{}{"name": "record4", "value": nil},
+			data := map[string]any{
+				"records": []any{
+					map[string]any{"name": "record1", "value": 100},
+					map[string]any{"name": "record2", "value": nil},
+					map[string]any{"name": "record3", "value": 200},
+					map[string]any{"name": "record4", "value": nil},
 				},
 			}
 
@@ -1772,7 +1772,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(result).ToNot(gm.BeNil())
 
 			resultBin := result.Bins[binName]
-			resultList, ok := resultBin.([]interface{})
+			resultList, ok := resultBin.([]any)
 			if ok {
 				gm.Expect(len(resultList)).To(gm.Equal(2), "Should have 2 records with nil values")
 				gm.Expect(resultList).To(gm.ContainElement("record2"))
@@ -1786,8 +1786,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should remove all items from a list using ExpResultRemove", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"items": []interface{}{1, 2, 3, 4, 5},
+			data := map[string]any{
+				"items": []any{1, 2, 3, 4, 5},
 			}
 
 			bin := as.NewBin(binName, data)
@@ -1806,10 +1806,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			items, ok := finalData["items"].([]interface{})
+			items, ok := finalData["items"].([]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(items)).To(gm.Equal(0), "All items should be removed")
 		})
@@ -1817,8 +1817,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should remove filtered items from a list using ExpResultRemove", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"numbers": []interface{}{1, 5, 10, 15, 20, 25, 30},
+			data := map[string]any{
+				"numbers": []any{1, 5, 10, 15, 20, 25, 30},
 			}
 
 			bin := as.NewBin(binName, data)
@@ -1842,10 +1842,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			numbers, ok := finalData["numbers"].([]interface{})
+			numbers, ok := finalData["numbers"].([]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(numbers)).To(gm.Equal(3), "Should keep items <= 10")
 			gm.Expect(numbers).To(gm.ContainElement(1))
@@ -1856,8 +1856,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should remove all items from a map using ExpResultRemove", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"config": map[string]interface{}{
+			data := map[string]any{
+				"config": map[string]any{
 					"option1": "value1",
 					"option2": "value2",
 					"option3": "value3",
@@ -1880,10 +1880,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			config, ok := finalData["config"].(map[interface{}]interface{})
+			config, ok := finalData["config"].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(config)).To(gm.Equal(0), "All map entries should be removed")
 		})
@@ -1891,8 +1891,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should remove filtered map entries using ExpResultRemove", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"scores": map[string]interface{}{
+			data := map[string]any{
+				"scores": map[string]any{
 					"alice": 95,
 					"bob":   45,
 					"carol": 75,
@@ -1921,10 +1921,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			scores, ok := finalData["scores"].(map[interface{}]interface{})
+			scores, ok := finalData["scores"].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(scores)).To(gm.Equal(2), "Should keep scores >= 50")
 
@@ -1941,26 +1941,26 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should remove books with low prices using ExpResultRemove", func() {
 			client.Delete(nil, key)
 
-			booksList := []interface{}{
-				map[string]interface{}{
+			booksList := []any{
+				map[string]any{
 					"title": "Cheap Book 1",
 					"price": 5.99,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "Expensive Book",
 					"price": 25.99,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "Cheap Book 2",
 					"price": 3.99,
 				},
-				map[string]interface{}{
+				map[string]any{
 					"title": "Mid Price Book",
 					"price": 15.99,
 				},
 			}
 
-			rootMap := map[string]interface{}{
+			rootMap := map[string]any{
 				"books": booksList,
 			}
 
@@ -1990,15 +1990,15 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			books, ok := finalData["books"].([]interface{})
+			books, ok := finalData["books"].([]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(books)).To(gm.Equal(2), "Should keep 2 expensive books")
 
 			for _, bookRaw := range books {
-				book, ok := bookRaw.(map[interface{}]interface{})
+				book, ok := bookRaw.(map[any]any)
 				gm.Expect(ok).To(gm.BeTrue())
 
 				price, ok := book["price"]
@@ -2021,8 +2021,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should remove items by index filter using ExpResultRemove", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"values": []interface{}{100, 200, 300, 400, 500},
+			data := map[string]any{
+				"values": []any{100, 200, 300, 400, 500},
 			}
 
 			bin := as.NewBin(binName, data)
@@ -2046,10 +2046,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			values, ok := finalData["values"].([]interface{})
+			values, ok := finalData["values"].([]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(values)).To(gm.Equal(3), "Should keep first 3 items")
 			gm.Expect(values[0]).To(gm.Equal(100))
@@ -2060,8 +2060,8 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should remove map entries by key filter using ExpResultRemove", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"inventory": map[string]interface{}{
+			data := map[string]any{
+				"inventory": map[string]any{
 					"apple":  10,
 					"banana": 5,
 					"cherry": 8,
@@ -2090,10 +2090,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			inventory, ok := finalData["inventory"].(map[interface{}]interface{})
+			inventory, ok := finalData["inventory"].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(inventory)).To(gm.Equal(2))
 
@@ -2106,15 +2106,15 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should remove nested items using ExpResultRemove with complex path", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"departments": map[string]interface{}{
-					"sales": []interface{}{
-						map[string]interface{}{"name": "John", "sales": 1000},
-						map[string]interface{}{"name": "Jane", "sales": 5000},
+			data := map[string]any{
+				"departments": map[string]any{
+					"sales": []any{
+						map[string]any{"name": "John", "sales": 1000},
+						map[string]any{"name": "Jane", "sales": 5000},
 					},
-					"engineering": []interface{}{
-						map[string]interface{}{"name": "Bob", "sales": 500},
-						map[string]interface{}{"name": "Alice", "sales": 3000},
+					"engineering": []any{
+						map[string]any{"name": "Bob", "sales": 500},
+						map[string]any{"name": "Alice", "sales": 3000},
 					},
 				},
 			}
@@ -2146,17 +2146,17 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			finalRecord, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			finalData, ok := finalRecord.Bins[binName].(map[interface{}]interface{})
+			finalData, ok := finalRecord.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			departments, ok := finalData["departments"].(map[interface{}]interface{})
+			departments, ok := finalData["departments"].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
 
-			salesList, ok := departments["sales"].([]interface{})
+			salesList, ok := departments["sales"].([]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(salesList)).To(gm.Equal(1), "Should keep Jane only")
 
-			engList, ok := departments["engineering"].([]interface{})
+			engList, ok := departments["engineering"].([]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(engList)).To(gm.Equal(1), "Should keep Alice only")
 		})
@@ -2167,7 +2167,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should return PARAMETER_ERROR for CDTSelectByPath with no context passed in", func() {
 			client.Delete(nil, key)
 
-			data := []interface{}{1, 2, 3, 4, 5}
+			data := []any{1, 2, 3, 4, 5}
 
 			bin := as.NewBin(binName, data)
 			err := client.PutBins(wpolicy, key, bin)
@@ -2193,7 +2193,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should return PARAMETER_ERROR for CDTSelectByPath with no context - map keys", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
+			data := map[string]any{
 				"key1": "value1",
 				"key2": "value2",
 				"key3": "value3",
@@ -2223,7 +2223,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should return PARAMETER_ERROR for CDTSelectByPath with explicit nil context", func() {
 			client.Delete(nil, key)
 
-			data := []interface{}{"a", "b", "c"}
+			data := []any{"a", "b", "c"}
 
 			bin := as.NewBin(binName, data)
 			err := client.PutBins(wpolicy, key, bin)
@@ -2250,7 +2250,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should return PARAMETER_ERROR for CDTSelectByPath with empty context slice", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
+			data := map[string]any{
 				"alpha": 10,
 				"beta":  20,
 				"gamma": 30,
@@ -2281,7 +2281,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should return PARAMETER_ERROR for CDTModifyByPath with no context - list append", func() {
 			client.Delete(nil, key)
 
-			data := []interface{}{1, 2, 3, 4, 5}
+			data := []any{1, 2, 3, 4, 5}
 
 			bin := as.NewBin(binName, data)
 			err := client.PutBins(wpolicy, key, bin)
@@ -2312,7 +2312,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should return PARAMETER_ERROR for CDTModifyByPath with no context - map put", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
+			data := map[string]any{
 				"existing": "value",
 			}
 
@@ -2346,7 +2346,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should return PARAMETER_ERROR for CDTModifyByPath with explicit nil context", func() {
 			client.Delete(nil, key)
 
-			data := []interface{}{10, 20, 30}
+			data := []any{10, 20, 30}
 
 			bin := as.NewBin(binName, data)
 			err := client.PutBins(wpolicy, key, bin)
@@ -2378,7 +2378,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should return PARAMETER_ERROR for CDTModifyByPath with empty context slice", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
+			data := map[string]any{
 				"count": 100,
 			}
 
@@ -2428,7 +2428,7 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should return PARAMETER_ERROR for CDTModifyByPath with no context - arithmetic", func() {
 			client.Delete(nil, key)
 
-			data := []interface{}{10, 20, 30, 40, 50}
+			data := []any{10, 20, 30, 40, 50}
 
 			bin := as.NewBin(binName, data)
 			err := client.PutBins(wpolicy, key, bin)
@@ -2455,10 +2455,10 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should return PARAMETER_ERROR for CDTSelectByPath with no context - matching tree", func() {
 			client.Delete(nil, key)
 
-			data := map[string]interface{}{
-				"dept1": map[string]interface{}{"name": "Sales", "count": 10},
-				"dept2": map[string]interface{}{"name": "Engineering", "count": 25},
-				"dept3": map[string]interface{}{"name": "HR", "count": 5},
+			data := map[string]any{
+				"dept1": map[string]any{"name": "Sales", "count": 10},
+				"dept2": map[string]any{"name": "Engineering", "count": 25},
+				"dept3": map[string]any{"name": "HR", "count": 5},
 			}
 
 			bin := as.NewBin(binName, data)

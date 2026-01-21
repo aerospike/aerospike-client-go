@@ -40,7 +40,7 @@ func newUnpacker(buffer []byte, offset int, length int) *unpacker {
 	}
 }
 
-func (upckr *unpacker) UnpackList() ([]interface{}, Error) {
+func (upckr *unpacker) UnpackList() ([]any, Error) {
 	if upckr.length <= 0 {
 		return nil, nil
 	}
@@ -64,9 +64,9 @@ func (upckr *unpacker) UnpackList() ([]interface{}, Error) {
 	return upckr.unpackList(count)
 }
 
-func (upckr *unpacker) unpackList(count int) ([]interface{}, Error) {
+func (upckr *unpacker) unpackList(count int) ([]any, Error) {
 	if count == 0 {
-		return make([]interface{}, 0), nil
+		return make([]any, 0), nil
 	}
 
 	mark := upckr.offset
@@ -87,7 +87,7 @@ func (upckr *unpacker) unpackList(count int) ([]interface{}, Error) {
 		}
 	}
 
-	out := make([]interface{}, 0, count)
+	out := make([]any, 0, count)
 	if size == count {
 		out = append(out, val)
 	}
@@ -102,7 +102,7 @@ func (upckr *unpacker) unpackList(count int) ([]interface{}, Error) {
 	return out, nil
 }
 
-func (upckr *unpacker) UnpackMap() (interface{}, Error) {
+func (upckr *unpacker) UnpackMap() (any, Error) {
 	if upckr.length <= 0 {
 		return nil, nil
 	}
@@ -120,14 +120,14 @@ func (upckr *unpacker) UnpackMap() (interface{}, Error) {
 		count = int(Buffer.BytesToUint32(upckr.buffer, upckr.offset))
 		upckr.offset += 4
 	} else {
-		return make(map[interface{}]interface{}), nil
+		return make(map[any]any), nil
 	}
 	return upckr.unpackMap(count)
 }
 
-func (upckr *unpacker) unpackMap(count int) (interface{}, Error) {
+func (upckr *unpacker) unpackMap(count int) (any, Error) {
 	if count <= 0 {
-		return make(map[interface{}]interface{}), nil
+		return make(map[any]any), nil
 	}
 
 	if upckr.isMapCDT() {
@@ -136,8 +136,8 @@ func (upckr *unpacker) unpackMap(count int) (interface{}, Error) {
 	return upckr.unpackMapNormal(count)
 }
 
-func (upckr *unpacker) unpackMapNormal(count int) (map[interface{}]interface{}, Error) {
-	out := make(map[interface{}]interface{}, count)
+func (upckr *unpacker) unpackMapNormal(count int) (map[any]any, Error) {
+	out := make(map[any]any, count)
 
 	for i := 0; i < count; i++ {
 		key, err := upckr.unpackObject(true)
@@ -200,7 +200,7 @@ func (upckr *unpacker) isMapCDT() bool {
 	return false
 }
 
-func (upckr *unpacker) unpackObjects() (interface{}, Error) {
+func (upckr *unpacker) unpackObjects() (any, Error) {
 	if upckr.length <= 0 {
 		return nil, nil
 	}
@@ -208,11 +208,11 @@ func (upckr *unpacker) unpackObjects() (interface{}, Error) {
 	return upckr.unpackObject(false)
 }
 
-func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (interface{}, Error) {
+func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (any, Error) {
 	theType := upckr.buffer[upckr.offset] & 0xff
 	upckr.offset++
 	count--
-	var val interface{}
+	var val any
 
 	switch theType {
 	case ParticleType.STRING:
@@ -267,7 +267,7 @@ func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (interface{}, Error)
 // errSkipHeader is used internally as a signal; it is never sent back to the user
 var errSkipHeader = newError(types.OK, "Skip the unpacker error")
 
-func (upckr *unpacker) unpackObject(isMapKey bool) (interface{}, Error) {
+func (upckr *unpacker) unpackObject(isMapKey bool) (any, Error) {
 	theType := upckr.buffer[upckr.offset] & 0xff
 	upckr.offset++
 

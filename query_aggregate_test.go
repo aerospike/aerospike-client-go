@@ -133,7 +133,7 @@ var _ = gg.Describe("Query Aggregate operations", func() {
 
 		for rec := range res.Results() {
 			gm.Expect(rec.Err).ToNot(gm.HaveOccurred())
-			gm.Expect(rec.Record.Bins["SUCCESS"]).To(gm.Equal(map[interface{}]interface{}{"sum": sumAll(keyCount), "count": float64(keyCount)}))
+			gm.Expect(rec.Record.Bins["SUCCESS"]).To(gm.Equal(map[any]any{"sum": sumAll(keyCount), "count": float64(keyCount)}))
 		}
 	})
 })

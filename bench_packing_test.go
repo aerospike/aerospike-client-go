@@ -49,7 +49,7 @@ func Benchmark_Pack_binary_PutUint64(b *testing.B) {
 	}
 }
 
-func doPack(val interface{}, b *testing.B) {
+func doPack(val any, b *testing.B) {
 	var err error
 	v := NewValue(val)
 	runtime.GC()
@@ -104,7 +104,7 @@ func Benchmark_Pack_String_100000(b *testing.B) {
 }
 
 func Benchmark_Pack_Complex_IfcArray_Direct(b *testing.B) {
-	val := []interface{}{1, 1, 1, "a simple string", nil, rand.Int63(), []byte{12, 198, 211}}
+	val := []any{1, 1, 1, "a simple string", nil, rand.Int63(), []byte{12, 198, 211}}
 	doPack(val, b)
 }
 
@@ -140,23 +140,23 @@ func Benchmark_Pack_Complex_ValueArray(b *testing.B) {
 }
 
 func Benchmark_Pack_Complex_Map(b *testing.B) {
-	val := map[interface{}]interface{}{
+	val := map[any]any{
 		rand.Int63(): rand.Int63(),
 		nil:          1,
 		"s":          491871,
 		15892987:     strings.Repeat("s", 100),
-		"s2":         []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+		"s2":         []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 	}
 	doPack(val, b)
 }
 
 func Benchmark_Pack_Complex_JsonMap(b *testing.B) {
-	val := map[string]interface{}{
+	val := map[string]any{
 		"rand.Int63()": rand.Int63(),
 		"nil":          1,
 		"s":            491871,
 		"15892987":     strings.Repeat("s", 100),
-		"s2":           []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
+		"s2":           []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 	}
 	doPack(val, b)
 }

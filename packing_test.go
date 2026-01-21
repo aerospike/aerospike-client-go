@@ -22,7 +22,7 @@ package aerospike
 // 	gm "github.com/onsi/gomega"
 // )
 
-// func testPackingFor(v interface{}) interface{} {
+// func testPackingFor(v any) any {
 // 	packer := newPacker()
 
 // 	err := packer.PackObject(v)
@@ -144,12 +144,12 @@ package aerospike
 
 // 		gg.It("should pack and unpack empty array of int8", func() {
 // 			v := []int8{}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{}))
 // 		})
 
 // 		gg.It("should pack and unpack an array of int8", func() {
 // 			v := []int8{1, 2, 3}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{1, 2, 3}))
 // 		})
 
 // 		gg.It("should pack and unpack empty array of uint8", func() {
@@ -166,72 +166,72 @@ package aerospike
 
 // 		gg.It("should pack and unpack empty array of int16", func() {
 // 			v := []int16{}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{}))
 // 		})
 
 // 		gg.It("should pack and unpack an array of int16", func() {
 // 			v := []int16{1, 2, 3}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{1, 2, 3}))
 // 		})
 
 // 		gg.It("should pack and unpack empty array of uint16", func() {
 // 			v := []uint16{}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{}))
 // 		})
 
 // 		gg.It("should pack and unpack an array of uint16", func() {
 // 			v := []uint16{1, 2, 3}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{1, 2, 3}))
 // 		})
 
 // 		gg.It("should pack and unpack empty array of int32", func() {
 // 			v := []int32{}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{}))
 // 		})
 
 // 		gg.It("should pack and unpack an array of int32", func() {
 // 			v := []int32{1, 2, 3}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{1, 2, 3}))
 // 		})
 
 // 		gg.It("should pack and unpack empty array of uint32", func() {
 // 			v := []uint32{}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{}))
 // 		})
 
 // 		gg.It("should pack and unpack an array of uint32", func() {
 // 			v := []uint32{1, 2, 3}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{1, 2, 3}))
 // 		})
 
 // 		gg.It("should pack and unpack empty array of int64", func() {
 // 			v := []int64{}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{}))
 // 		})
 
 // 		gg.It("should pack and unpack an array of int64", func() {
 // 			v := []int64{1, 2, 3}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{1, 2, 3}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{1, 2, 3}))
 // 		})
 
 // 		gg.It("should pack and unpack empty array of uint64", func() {
 // 			v := []uint64{}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{}))
 // 		})
 
 // 		gg.It("should pack and unpack an array of uint64", func() {
 // 			v := []uint64{1, 2, 3}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{uint64(1), uint64(2), uint64(3)}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{uint64(1), uint64(2), uint64(3)}))
 // 		})
 
 // 		gg.It("should pack and unpack empty array of string", func() {
 // 			v := []string{}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{}))
 // 		})
 
 // 		gg.It("should pack and unpack an array of string", func() {
 // 			v := []string{"this", "is", "an", "array", "of", "strings", strings.Repeat("s", 32911)}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]interface{}{"this", "is", "an", "array", "of", "strings", strings.Repeat("s", 32911)}))
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal([]any{"this", "is", "an", "array", "of", "strings", strings.Repeat("s", 32911)}))
 // 		})
 
 // 	})
@@ -239,12 +239,12 @@ package aerospike
 // 	gg.Context("Map Value Types", func() {
 
 // 		gg.It("should pack and unpack empty map", func() {
-// 			v := map[interface{}]interface{}{}
-// 			gm.Expect(testPackingFor(v)).To(gm.Equal(map[interface{}]interface{}{}))
+// 			v := map[any]any{}
+// 			gm.Expect(testPackingFor(v)).To(gm.Equal(map[any]any{}))
 // 		})
 
 // 		gg.It("should pack and unpack a complex map", func() {
-// 			v := map[interface{}]interface{}{
+// 			v := map[any]any{
 // 				"uint8":      uint8(math.MaxUint8),
 // 				"int8":       int8(math.MaxInt8),
 // 				"mint8":      int8(math.MinInt8),
@@ -271,7 +271,7 @@ package aerospike
 // 				"false":      false,
 // 			}
 
-// 			vRes := map[interface{}]interface{}{
+// 			vRes := map[any]any{
 // 				"uint8":      int(math.MaxUint8),
 // 				"int8":       int(math.MaxInt8),
 // 				"mint8":      int(math.MinInt8),
@@ -303,92 +303,92 @@ package aerospike
 
 // 		gg.It("should pack and unpack map with varying key types", func() {
 // 			// Test Values
-// 			vUint8 := map[uint8]interface{}{
+// 			vUint8 := map[uint8]any{
 // 				uint8(math.MaxUint8): "v",
 // 			}
 
-// 			vInt8 := map[int8]interface{}{
+// 			vInt8 := map[int8]any{
 // 				int8(math.MaxInt8): "v",
 // 			}
 
-// 			vUint16 := map[uint16]interface{}{
+// 			vUint16 := map[uint16]any{
 // 				uint16(math.MaxUint16): "v",
 // 			}
 
-// 			vInt16 := map[int16]interface{}{
+// 			vInt16 := map[int16]any{
 // 				int16(math.MaxInt16): "v",
 // 			}
 
-// 			vUint32 := map[uint32]interface{}{
+// 			vUint32 := map[uint32]any{
 // 				uint32(math.MaxUint32): "v",
 // 			}
 
-// 			vInt32 := map[int32]interface{}{
+// 			vInt32 := map[int32]any{
 // 				int32(math.MaxInt32): "v",
 // 			}
 
-// 			vUint64 := map[uint64]interface{}{
+// 			vUint64 := map[uint64]any{
 // 				uint64(math.MaxUint64): "v",
 // 			}
 
-// 			vInt64 := map[int64]interface{}{
+// 			vInt64 := map[int64]any{
 // 				int64(math.MaxInt64): "v",
 // 			}
 
-// 			vFloat32 := map[float32]interface{}{
+// 			vFloat32 := map[float32]any{
 // 				float32(math.MaxFloat32): "v",
 // 			}
 
-// 			vFloat64 := map[float64]interface{}{
+// 			vFloat64 := map[float64]any{
 // 				float64(math.MaxFloat64): "v",
 // 			}
 
-// 			vStr := map[string]interface{}{
+// 			vStr := map[string]any{
 // 				"string key": "v",
 // 			}
 
 // 			// gm.Expected Values
-// 			retUint8 := map[interface{}]interface{}{
+// 			retUint8 := map[any]any{
 // 				int(math.MaxUint8): "v",
 // 			}
 
-// 			retInt8 := map[interface{}]interface{}{
+// 			retInt8 := map[any]any{
 // 				int(math.MaxInt8): "v",
 // 			}
 
-// 			retUint16 := map[interface{}]interface{}{
+// 			retUint16 := map[any]any{
 // 				int(math.MaxUint16): "v",
 // 			}
 
-// 			retInt16 := map[interface{}]interface{}{
+// 			retInt16 := map[any]any{
 // 				int(math.MaxInt16): "v",
 // 			}
 
-// 			retUint32 := map[interface{}]interface{}{
+// 			retUint32 := map[any]any{
 // 				int(math.MaxUint32): "v",
 // 			}
 
-// 			retInt32 := map[interface{}]interface{}{
+// 			retInt32 := map[any]any{
 // 				int(math.MaxInt32): "v",
 // 			}
 
-// 			retUint64 := map[interface{}]interface{}{
+// 			retUint64 := map[any]any{
 // 				uint64(math.MaxUint64): "v",
 // 			}
 
-// 			retInt64 := map[interface{}]interface{}{
+// 			retInt64 := map[any]any{
 // 				int(math.MaxInt64): "v",
 // 			}
 
-// 			retFloat32 := map[interface{}]interface{}{
+// 			retFloat32 := map[any]any{
 // 				float32(math.MaxFloat32): "v",
 // 			}
 
-// 			retFloat64 := map[interface{}]interface{}{
+// 			retFloat64 := map[any]any{
 // 				float64(math.MaxFloat64): "v",
 // 			}
 
-// 			retStr := map[interface{}]interface{}{
+// 			retStr := map[any]any{
 // 				"string key": "v",
 // 			}
 

@@ -98,7 +98,7 @@ var _ = gg.Describe("Aerospike", func() {
 				// make sure the returned BinMap here reflects what you
 				// expect the final marshalled object should be.
 				gm.Expect(rec.Bins).To(gm.Equal(as.BinMap{
-					"ABC": map[interface{}]interface{}{
+					"ABC": map[any]any{
 						"b":   "World!",
 						"ace": 0,
 						"bce": 42,

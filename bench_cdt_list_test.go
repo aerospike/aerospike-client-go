@@ -100,8 +100,8 @@ func init() {
 			as.IntegerValue(i),
 			as.FloatValue(1.0),
 			as.StringValue("String Value"),
-			as.ListValue([]interface{}{1, "s", 1.0, true}),
-			as.MapValue(map[interface{}]interface{}{1: "s", 2.0: true}),
+			as.ListValue([]any{1, "s", 1.0, true}),
+			as.MapValue(map[any]any{1: "s", 2.0: true}),
 		)
 	}
 	list = values

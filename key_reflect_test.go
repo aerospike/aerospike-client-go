@@ -31,7 +31,7 @@ var _ = gg.Describe("Key Test Reflection", func() {
 	// 		key, _ := as.NewKey("namespace", "set", []int{1, 2, 3})
 	// 		gm.Expect(hex.EncodeToString(key.Digest())).To(gm.Equal("a8b63a8208ebebb49d027d51899121fd0d03d2f7"))
 
-	// 		keyInterfaceArrayOfTheSameValues, _ := as.NewKey("namespace", "set", []interface{}{1, 2, 3})
+	// 		keyInterfaceArrayOfTheSameValues, _ := as.NewKey("namespace", "set", []any{1, 2, 3})
 	// 		gm.Expect(hex.EncodeToString(keyInterfaceArrayOfTheSameValues.Digest())).To(gm.Equal(hex.EncodeToString(key.Digest())))
 
 	// 	})

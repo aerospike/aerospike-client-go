@@ -116,7 +116,7 @@ func ModifyByPath(binName string, flag ModifyFlag, modifyExp *Expression, ctx ..
 			ctx:       ctx,
 			binName:   binName,
 			opSubType: cdtOperationTypeSELECT,
-			binValue:  ListValue([]interface{}{flag, modifyExp}),
+			binValue:  ListValue([]any{flag, modifyExp}),
 			encoder:   newCDTCreateModifyEncoder,
 		}
 	}
@@ -126,7 +126,7 @@ func ModifyByPath(binName string, flag ModifyFlag, modifyExp *Expression, ctx ..
 		ctx:       ctx,
 		binName:   binName,
 		opSubType: cdtOperationTypeSELECT,
-		binValue:  ListValue([]interface{}{flag, modifyExp}),
+		binValue:  ListValue([]any{flag, modifyExp}),
 		encoder:   newCDTCreateModifyEncoder,
 	}
 }
