@@ -19,7 +19,7 @@ require (
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/mod v0.31.0 // indirect
+	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
