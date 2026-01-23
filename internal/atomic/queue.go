@@ -21,7 +21,7 @@ import "sync"
 // if the queue is full, offer will return false
 type Queue struct {
 	head, tail uint32
-	data       []interface{}
+	data       []any
 	size       uint32
 	wrapped    bool
 	mutex      sync.Mutex
@@ -35,7 +35,7 @@ func NewQueue(size int) *Queue {
 
 	return &Queue{
 		wrapped: false,
-		data:    make([]interface{}, uint32(size)),
+		data:    make([]any, uint32(size)),
 		size:    uint32(size),
 	}
 }
@@ -43,7 +43,7 @@ func NewQueue(size int) *Queue {
 // Offer adds an item to the queue unless the queue is full.
 // In case the queue is full, the item will not be added to the queue
 // and false will be returned
-func (q *Queue) Offer(obj interface{}) bool {
+func (q *Queue) Offer(obj any) bool {
 	q.mutex.Lock()
 
 	// make sure queue is not full
@@ -64,7 +64,7 @@ func (q *Queue) Offer(obj interface{}) bool {
 
 // Poll removes and returns an item from the queue.
 // If the queue is empty, nil will be returned.
-func (q *Queue) Poll() (res interface{}) {
+func (q *Queue) Poll() (res any) {
 	q.mutex.Lock()
 
 	// if queue is not empty

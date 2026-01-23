@@ -756,7 +756,7 @@ func (tm intFloat64Map) Len() int {
 	return len(tm)
 }
 
-type intInterfaceMap map[int]interface{}
+type intInterfaceMap map[int]any
 
 // PackMap packs TypeMap as msgpack.
 func (tm intInterfaceMap) PackMap(buf BufferEx) (int, error) {
@@ -1042,7 +1042,7 @@ func (tm int8Float64Map) Len() int {
 	return len(tm)
 }
 
-type int8InterfaceMap map[int8]interface{}
+type int8InterfaceMap map[int8]any
 
 // PackMap packs TypeMap as msgpack.
 func (tm int8InterfaceMap) PackMap(buf BufferEx) (int, error) {
@@ -1328,7 +1328,7 @@ func (tm int16Float64Map) Len() int {
 	return len(tm)
 }
 
-type int16InterfaceMap map[int16]interface{}
+type int16InterfaceMap map[int16]any
 
 // PackMap packs TypeMap as msgpack.
 func (tm int16InterfaceMap) PackMap(buf BufferEx) (int, error) {
@@ -1614,7 +1614,7 @@ func (tm int32Float64Map) Len() int {
 	return len(tm)
 }
 
-type int32InterfaceMap map[int32]interface{}
+type int32InterfaceMap map[int32]any
 
 // PackMap packs TypeMap as msgpack.
 func (tm int32InterfaceMap) PackMap(buf BufferEx) (int, error) {
@@ -1900,7 +1900,7 @@ func (tm int64Float64Map) Len() int {
 	return len(tm)
 }
 
-type int64InterfaceMap map[int64]interface{}
+type int64InterfaceMap map[int64]any
 
 // PackMap packs TypeMap as msgpack.
 func (tm int64InterfaceMap) PackMap(buf BufferEx) (int, error) {
@@ -2186,7 +2186,7 @@ func (tm uint16Float64Map) Len() int {
 	return len(tm)
 }
 
-type uint16InterfaceMap map[uint16]interface{}
+type uint16InterfaceMap map[uint16]any
 
 // PackMap packs TypeMap as msgpack.
 func (tm uint16InterfaceMap) PackMap(buf BufferEx) (int, error) {
@@ -2472,7 +2472,7 @@ func (tm uint32Float64Map) Len() int {
 	return len(tm)
 }
 
-type uint32InterfaceMap map[uint32]interface{}
+type uint32InterfaceMap map[uint32]any
 
 // PackMap packs TypeMap as msgpack.
 func (tm uint32InterfaceMap) PackMap(buf BufferEx) (int, error) {
@@ -2758,7 +2758,7 @@ func (tm float32Float64Map) Len() int {
 	return len(tm)
 }
 
-type float32InterfaceMap map[float32]interface{}
+type float32InterfaceMap map[float32]any
 
 // PackMap packs TypeMap as msgpack.
 func (tm float32InterfaceMap) PackMap(buf BufferEx) (int, error) {
@@ -3044,7 +3044,7 @@ func (tm float64Float64Map) Len() int {
 	return len(tm)
 }
 
-type float64InterfaceMap map[float64]interface{}
+type float64InterfaceMap map[float64]any
 
 // PackMap packs TypeMap as msgpack.
 func (tm float64InterfaceMap) PackMap(buf BufferEx) (int, error) {
@@ -3616,7 +3616,7 @@ func (tm uint64Float64Map) Len() int {
 	return len(tm)
 }
 
-type uint64InterfaceMap map[uint64]interface{}
+type uint64InterfaceMap map[uint64]any
 
 // PackMap packs TypeMap as msgpack.
 func (tm uint64InterfaceMap) PackMap(buf BufferEx) (int, error) {

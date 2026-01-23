@@ -109,7 +109,7 @@ func batchReads(
 		key := keys[i]
 		record := records[i]
 		level := asl.ERR
-		var value interface{}
+		var value any
 
 		if record != nil {
 			level = asl.INFO

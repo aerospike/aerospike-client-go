@@ -69,8 +69,8 @@ var _ = gg.Describe("Scan operations", func() {
 				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
 				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-				gm.Expect(rec.Bins[bin3.Name]).To(gm.Equal(map[interface{}]interface{}{"1": 1, "2": 2}))
-				gm.Expect(rec.Bins[bin4.Name]).To(gm.Equal([]interface{}{1, 2, 3}))
+				gm.Expect(rec.Bins[bin3.Name]).To(gm.Equal(map[any]any{"1": 1, "2": 2}))
+				gm.Expect(rec.Bins[bin4.Name]).To(gm.Equal([]any{1, 2, 3}))
 
 				delete(keys, string(rec.Key.Digest()))
 			}
@@ -110,8 +110,8 @@ var _ = gg.Describe("Scan operations", func() {
 				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
 				gm.Expect(rec.Bins[bin2.Name]).To(gm.Equal(bin2.Value.GetObject()))
 
-				gm.Expect(rec.Bins[bin3.Name]).To(gm.Equal(map[interface{}]interface{}{"1": 1, "2": 2}))
-				gm.Expect(rec.Bins[bin4.Name]).To(gm.Equal([]interface{}{1, 2, 3}))
+				gm.Expect(rec.Bins[bin3.Name]).To(gm.Equal(map[any]any{"1": 1, "2": 2}))
+				gm.Expect(rec.Bins[bin4.Name]).To(gm.Equal([]any{1, 2, 3}))
 
 				delete(keys, string(rec.Key.Digest()))
 			}

@@ -42,7 +42,7 @@ func randString(size int) string {
 	return string(buf)
 }
 
-func normalizeValue(v interface{}, isMapKey bool) interface{} {
+func normalizeValue(v any, isMapKey bool) any {
 	if v != nil {
 		switch v.(type) {
 		case int8, int16, int32, int, int64:
@@ -70,10 +70,10 @@ func normalizeValue(v interface{}, isMapKey bool) interface{} {
 	return nil
 }
 
-func mapToIfcMap(v interface{}) map[interface{}]interface{} {
+func mapToIfcMap(v any) map[any]any {
 	s := reflect.ValueOf(v)
 	l := s.Len()
-	res := make(map[interface{}]interface{}, l)
+	res := make(map[any]any, l)
 	for _, k := range s.MapKeys() {
 		v := s.MapIndex(k).Interface()
 		res[normalizeValue(k.Interface(), true)] = normalizeValue(v, false)
@@ -82,10 +82,10 @@ func mapToIfcMap(v interface{}) map[interface{}]interface{} {
 	return res
 }
 
-func sliceToIfcSlice(v interface{}) []interface{} {
+func sliceToIfcSlice(v any) []any {
 	s := reflect.ValueOf(v)
 	l := s.Len()
-	res := make([]interface{}, l)
+	res := make([]any, l)
 	for i := 0; i < l; i++ {
 		t := s.Index(i).Interface()
 		res[i] = normalizeValue(t, false)
@@ -94,7 +94,7 @@ func sliceToIfcSlice(v interface{}) []interface{} {
 	return res
 }
 
-func arraysEqual(ia, ib interface{}) {
+func arraysEqual(ia, ib any) {
 	a := sliceToIfcSlice(ia)
 	b := sliceToIfcSlice(ib)
 
@@ -117,7 +117,7 @@ func arraysEqual(ia, ib interface{}) {
 	}
 }
 
-func mapsEqual(ia, ib interface{}) {
+func mapsEqual(ia, ib any) {
 	a := mapToIfcMap(ia)
 	b := mapToIfcMap(ib)
 

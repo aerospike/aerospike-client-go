@@ -147,8 +147,8 @@ func Benchmark_BatchGet_String_100000(b *testing.B) {
 
 func Benchmark_BatchGet_Complex_Array(b *testing.B) {
 	set := "batch_get_bench_str_10000"
-	// bins := []*as.Bin{as.NewBin("b", []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
-	bins := []*as.Bin{as.NewBin("b", []interface{}{rand.Int63()})}
+	// bins := []*as.Bin{as.NewBin("b", []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
+	bins := []*as.Bin{as.NewBin("b", []any{rand.Int63()})}
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
@@ -160,8 +160,8 @@ func Benchmark_BatchGet_Complex_Array(b *testing.B) {
 
 func Benchmark_BatchGet_Complex_Map(b *testing.B) {
 	set := "batch_get_bench_str_10000"
-	// bins := []*as.Bin{as.NewBin("b", []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
-	bins := []*as.Bin{as.NewBin("b", map[interface{}]interface{}{rand.Int63(): rand.Int63()})}
+	// bins := []*as.Bin{as.NewBin("b", []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
+	bins := []*as.Bin{as.NewBin("b", map[any]any{rand.Int63(): rand.Int63()})}
 	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()

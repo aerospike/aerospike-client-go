@@ -149,7 +149,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		return 1.04 / math.Sqrt(math.Pow(2, float64(n_index_bits)))
 	}
 
-	expectDescription := func(description []interface{}, index_bits, minhash_bits int) {
+	expectDescription := func(description []any, index_bits, minhash_bits int) {
 		gm.Expect(index_bits).To(gm.Equal(description[0]))
 		gm.Expect(minhash_bits).To(gm.Equal(description[1]))
 	}
@@ -172,7 +172,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		result_list := record.Bins[binName].(as.OpResults)
 		count := result_list[1]
 		count1 := result_list[2]
-		description := result_list[3].([]interface{})
+		description := result_list[3].([]any)
 
 		expectDescription(description, index_bits, minhash_bits)
 		gm.Expect(0).To(gm.Equal(count))
@@ -276,7 +276,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 		result_list := record.Bins[binName].(as.OpResults)
 		count := result_list[1].(int)
 		count1 := result_list[2].(int)
-		description := result_list[3].([]interface{})
+		description := result_list[3].([]any)
 		n_added := result_list[4]
 
 		expectDescription(description, index_bits, minhash_bits)
@@ -346,7 +346,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 			resulta_list := recorda.Bins[binName].(as.OpResults)
 			counta := resulta_list[1].(int)
 			counta1 := resulta_list[2].(int)
-			descriptiona := resulta_list[3].([]interface{})
+			descriptiona := resulta_list[3].([]any)
 
 			expectDescription(descriptiona, index_bits, 0)
 			expectHLLCount(index_bits, counta, len(vals0))
@@ -364,7 +364,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 			countb := resultb_list[1].(int)
 			n_added0 := resultb_list[2].(int)
 			countb1 := resultb_list[4].(int)
-			descriptionb := resultb_list[5].([]interface{})
+			descriptionb := resultb_list[5].([]any)
 
 			gm.Expect(0).To(gm.Equal(n_added0))
 			expectDescription(descriptionb, ix, 0)
@@ -692,7 +692,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 
 			result_list := record.Bins[binName].(as.OpResults)
 			count := result_list[0].(int)
-			description := result_list[1].([]interface{})
+			description := result_list[1].([]any)
 
 			gm.Expect(count).To(gm.Equal(0))
 			expectDescription(description, index_bits, minhash_bits)
@@ -744,7 +744,7 @@ var _ = gg.Describe("HyperLogLog Test", func() {
 			as.HLLSetUnionOp(as.DefaultHLLPolicy(), binName, hlls),
 			as.HLLDescribeOp(binName))
 		result_list := record.Bins[binName].(as.OpResults)
-		description := result_list[1].([]interface{})
+		description := result_list[1].([]any)
 
 		expectDescription(description, index_bits, minhash_bits)
 

@@ -65,7 +65,7 @@ func Benchmark_Key_Hash_S_100_000(b *testing.B) {
 
 var _key *Key
 
-func makeKeys(val interface{}, b *testing.B) {
+func makeKeys(val any, b *testing.B) {
 	var err error
 	for i := 0; i < b.N; i++ {
 		_key, err = NewKey("ns", "set", val)
@@ -143,7 +143,7 @@ func Benchmark_NewKey_____Float64(b *testing.B) {
 }
 
 func Benchmark_NewKey_List_No_Reflect(b *testing.B) {
-	list := []interface{}{
+	list := []any{
 		strings.Repeat("s", 1e3),
 		strings.Repeat("s", 1e3),
 		strings.Repeat("s", 1e3),

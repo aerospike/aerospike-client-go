@@ -29,17 +29,17 @@ import (
 var _ = gg.Describe("Lua List API Test", func() {
 
 	// code vs result
-	testMatrix := map[string]interface{}{
-		"l = List()\n return l":           []interface{}{},
-		"l = List.create()\n return l":    []interface{}{},
-		"l = List.create(100)\n return l": make([]interface{}, 0, 100),
+	testMatrix := map[string]any{
+		"l = List()\n return l":           []any{},
+		"l = List.create()\n return l":    []any{},
+		"l = List.create(100)\n return l": make([]any, 0, 100),
 
-		"l = list()\n return l":           []interface{}{},
-		"l = list.create()\n return l":    []interface{}{},
-		"l = list.create(100)\n return l": make([]interface{}, 0, 100),
-		"l = list({1,2})\n return l":      []interface{}{float64(1), float64(2)},
+		"l = list()\n return l":           []any{},
+		"l = list.create()\n return l":    []any{},
+		"l = list.create(100)\n return l": make([]any, 0, 100),
+		"l = list({1,2})\n return l":      []any{float64(1), float64(2)},
 
-		"l = list({1,2})\n l[1] = 5\n return l": []interface{}{float64(5), float64(2)},
+		"l = list({1,2})\n l[1] = 5\n return l": []any{float64(5), float64(2)},
 		"l = list({1,2})\n return l[1]":         float64(1),
 
 		"l = list()\n return list.size(l)":           float64(0),
@@ -47,41 +47,41 @@ var _ = gg.Describe("Lua List API Test", func() {
 		"l = list.create(100)\n return list.size(l)": float64(0),
 		"l = list({1,2})\n return list.size(l)":      float64(2),
 
-		"l = list{1,2}\n list.insert(l, 1, 0)\n return l": []interface{}{float64(0), float64(1), float64(2)},
-		"l = list{1,2}\n list.insert(l, 2, 0)\n return l": []interface{}{float64(1), float64(0), float64(2)},
-		"l = list{1,2}\n list.insert(l, 3, 0)\n return l": []interface{}{float64(1), float64(2), float64(0)},
+		"l = list{1,2}\n list.insert(l, 1, 0)\n return l": []any{float64(0), float64(1), float64(2)},
+		"l = list{1,2}\n list.insert(l, 2, 0)\n return l": []any{float64(1), float64(0), float64(2)},
+		"l = list{1,2}\n list.insert(l, 3, 0)\n return l": []any{float64(1), float64(2), float64(0)},
 
-		"l = list{1,2}\n list.append(l, 3)\n return l":                    []interface{}{float64(1), float64(2), float64(3)},
-		"l = list{1,2}\n list.append(l, 3)\nlist.append(l, 4)\n return l": []interface{}{float64(1), float64(2), float64(3), float64(4)},
+		"l = list{1,2}\n list.append(l, 3)\n return l":                    []any{float64(1), float64(2), float64(3)},
+		"l = list{1,2}\n list.append(l, 3)\nlist.append(l, 4)\n return l": []any{float64(1), float64(2), float64(3), float64(4)},
 
-		"l = list{1,2}\n list.prepend(l, 0)\n return l":                     []interface{}{float64(0), float64(1), float64(2)},
-		"l = list{1,2}\n list.prepend(l, 3)\nlist.prepend(l, 4)\n return l": []interface{}{float64(4), float64(3), float64(1), float64(2)},
+		"l = list{1,2}\n list.prepend(l, 0)\n return l":                     []any{float64(0), float64(1), float64(2)},
+		"l = list{1,2}\n list.prepend(l, 3)\nlist.prepend(l, 4)\n return l": []any{float64(4), float64(3), float64(1), float64(2)},
 
-		"l = list{1,2}\n return list.take(l, 1)":                      []interface{}{float64(1)},
-		"l = list{1,2}\n return list.take(l, 2)":                      []interface{}{float64(1), float64(2)},
-		"l = list{1,2}\n return list.take(l, 3)":                      []interface{}{float64(1), float64(2)},
-		"l = list{1,2}\n list.take(l, 1)\nlist.take(l, 2)\n return l": []interface{}{float64(1), float64(2)},
+		"l = list{1,2}\n return list.take(l, 1)":                      []any{float64(1)},
+		"l = list{1,2}\n return list.take(l, 2)":                      []any{float64(1), float64(2)},
+		"l = list{1,2}\n return list.take(l, 3)":                      []any{float64(1), float64(2)},
+		"l = list{1,2}\n list.take(l, 1)\nlist.take(l, 2)\n return l": []any{float64(1), float64(2)},
 
-		"l = list{1,2}\n list.remove(l, 1)\n return l":                    []interface{}{float64(2)},
-		"l = list{1,2}\n list.remove(l, 2)\n return l":                    []interface{}{float64(1)},
-		"l = list{1,2}\n list.remove(l, 1)\nlist.remove(l, 1)\n return l": []interface{}{},
+		"l = list{1,2}\n list.remove(l, 1)\n return l":                    []any{float64(2)},
+		"l = list{1,2}\n list.remove(l, 2)\n return l":                    []any{float64(1)},
+		"l = list{1,2}\n list.remove(l, 1)\nlist.remove(l, 1)\n return l": []any{},
 
-		"l = list{1,2}\n list.drop(l, 1)\n return l":              []interface{}{float64(1), float64(2)},
-		"l = list{1,2}\n return list.drop(l, 1)":                  []interface{}{float64(2)},
-		"l = list{1,2}\n return list.drop(l, 2)":                  []interface{}{},
-		"l = list{1,2}\n return list.drop(l, 5)":                  []interface{}{},
-		"l = list{1,2}\n list.drop(l, 1)\nreturn list.drop(l, 1)": []interface{}{float64(2)},
+		"l = list{1,2}\n list.drop(l, 1)\n return l":              []any{float64(1), float64(2)},
+		"l = list{1,2}\n return list.drop(l, 1)":                  []any{float64(2)},
+		"l = list{1,2}\n return list.drop(l, 2)":                  []any{},
+		"l = list{1,2}\n return list.drop(l, 5)":                  []any{},
+		"l = list{1,2}\n list.drop(l, 1)\nreturn list.drop(l, 1)": []any{float64(2)},
 
-		"l = list{1,2}\n list.trim(l, 1)\n return l": []interface{}{},
-		"l = list{1,2}\n list.trim(l, 2)\n return l": []interface{}{float64(1)},
+		"l = list{1,2}\n list.trim(l, 1)\n return l": []any{},
+		"l = list{1,2}\n list.trim(l, 2)\n return l": []any{float64(1)},
 
-		"l = list{1,2}\n return list.clone(l)": []interface{}{float64(1), float64(2)},
+		"l = list{1,2}\n return list.clone(l)": []any{float64(1), float64(2)},
 
-		"l1 = list{1,2}\n l2 = list{3,4}\n list.concat(l1, l2)\n return l1": []interface{}{float64(1), float64(2), float64(3), float64(4)},
-		"l1 = list{3,4}\n l2 = list{1,2}\n list.concat(l1, l2)\n return l1": []interface{}{float64(3), float64(4), float64(1), float64(2)},
+		"l1 = list{1,2}\n l2 = list{3,4}\n list.concat(l1, l2)\n return l1": []any{float64(1), float64(2), float64(3), float64(4)},
+		"l1 = list{3,4}\n l2 = list{1,2}\n list.concat(l1, l2)\n return l1": []any{float64(3), float64(4), float64(1), float64(2)},
 
-		"l1 = list{1,2}\n l2 = list{3,4}\n return list.merge(l1, l2)": []interface{}{float64(1), float64(2), float64(3), float64(4)},
-		"l1 = list{3,4}\n l2 = list{1,2}\n return list.merge(l1, l2)": []interface{}{float64(3), float64(4), float64(1), float64(2)},
+		"l1 = list{1,2}\n l2 = list{3,4}\n return list.merge(l1, l2)": []any{float64(1), float64(2), float64(3), float64(4)},
+		"l1 = list{3,4}\n l2 = list{1,2}\n return list.merge(l1, l2)": []any{float64(3), float64(4), float64(1), float64(2)},
 
 		"l = list{1,2,3,4,5}\n cnt = 0\nfor value in list.iterator(l) do\n\t cnt = cnt + value\n end\n return cnt": float64(15),
 

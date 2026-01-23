@@ -402,7 +402,7 @@ var _ = gg.Describe("Query operations", func() {
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 			rec := res.Record
-			results := rec.Bins["SUCCESS"].(map[interface{}]interface{})
+			results := rec.Bins["SUCCESS"].(map[any]any)
 			gm.Expect(results["bin4"]).To(gm.Equal("constValue"))
 			// gm.Expect(results["bin5"]).To(gm.Equal(-1))
 			cnt++
@@ -426,7 +426,7 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.Query(queryPolicy, stm)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		recs := []interface{}{}
+		recs := []any{}
 		// consume recordset and check errors
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
@@ -454,7 +454,7 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.Query(queryPolicy, stmRes)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		recs := []interface{}{}
+		recs := []any{}
 		// consume recordset and check errors
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
@@ -513,7 +513,7 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.Query(queryPolicy, stmRes)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		recs := []interface{}{}
+		recs := []any{}
 		// consume recordset and check errors
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())

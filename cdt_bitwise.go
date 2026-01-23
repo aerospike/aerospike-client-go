@@ -457,10 +457,10 @@ func newCDTBitwiseEncoder(op *Operation, packer BufferEx) (int, Error) {
 }
 
 func packCDTBitIfcParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ListValue) (int, Error) {
-	return packCDTBitIfcVarParamsAsArray(packer, opType, ctx, []interface{}(params)...)
+	return packCDTBitIfcVarParamsAsArray(packer, opType, ctx, []any(params)...)
 }
 
-func packCDTBitIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ...interface{}) (int, Error) {
+func packCDTBitIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, params ...any) (int, Error) {
 	size := 0
 	n := 0
 	var err Error

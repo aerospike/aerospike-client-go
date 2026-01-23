@@ -69,10 +69,10 @@ var _ = gg.Describe("Aerospike", func() {
 						bin6 := as.NewBin("Aerospike6", []uint16{0, 1, 2, 3, math.MaxUint16})
 						bin7 := as.NewBin("Aerospike7", []uint32{0, 1, 2, 3, math.MaxUint32})
 						bin8 := as.NewBin("Aerospike8", []string{"", "\n", "string"})
-						bin9 := as.NewBin("Aerospike9", []interface{}{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), [3]int{1, 2, 3}})
+						bin9 := as.NewBin("Aerospike9", []any{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), [3]int{1, 2, 3}})
 
 						// complex type, consisting different arrays
-						bin10 := as.NewBin("Aerospike10", []interface{}{
+						bin10 := as.NewBin("Aerospike10", []any{
 							nil,
 							bin1.Value.GetObject(),
 							bin2.Value.GetObject(),
@@ -83,11 +83,11 @@ var _ = gg.Describe("Aerospike", func() {
 							bin7.Value.GetObject(),
 							bin8.Value.GetObject(),
 							bin9.Value.GetObject(),
-							map[interface{}]interface{}{
+							map[any]any{
 								1: [16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
-								[16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}: []interface{}{"string", 12, nil},
-								// [3]int{0, 1, 2}:          []interface{}{"string", 12, nil},
-								// [3]string{"0", "1", "2"}: []interface{}{"string", 12, nil},
+								[16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}: []any{"string", 12, nil},
+								// [3]int{0, 1, 2}:          []any{"string", 12, nil},
+								// [3]string{"0", "1", "2"}: []any{"string", 12, nil},
 								15:                   nil,
 								int8(math.MaxInt8):   int8(math.MaxInt8),
 								int64(math.MinInt64): int64(math.MinInt64),
@@ -99,7 +99,7 @@ var _ = gg.Describe("Aerospike", func() {
 								// float64(math.MaxFloat64):  float64(math.MaxFloat64),
 								"true":   true,
 								"false":  false,
-								"string": map[interface{}]interface{}{ /*nil: "string",*/ "string": 19}, // map to complex array
+								"string": map[any]any{ /*nil: "string",*/ "string": 19}, // map to complex array
 								// nil:                       []int{18, 41},                                                           // array to complex map
 								"GeoJSON": as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 							},
@@ -135,7 +135,7 @@ var _ = gg.Describe("Aerospike", func() {
 							int32(math.MinInt32): randString(100),
 						})
 
-						bin2 := as.NewBin("Aerospike2", map[interface{}]interface{}{
+						bin2 := as.NewBin("Aerospike2", map[any]any{
 							15:                   nil,
 							"true":               true,
 							"false":              false,
@@ -147,7 +147,7 @@ var _ = gg.Describe("Aerospike", func() {
 							// float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 							// float32(math.MaxFloat32):  float32(math.MaxFloat32),
 							// float64(math.MaxFloat64):  float64(math.MaxFloat64),
-							"string": map[interface{}]interface{}{ /*nil: "string",*/ "string": 19}, // map to complex array
+							"string": map[any]any{ /*nil: "string",*/ "string": 19}, // map to complex array
 							// nil:                       []int{18, 41},                                            // array to complex map
 							// "longString":              strings.Repeat("s", 32911),                                              // bit-sign test
 							"GeoJSON": as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
@@ -168,18 +168,18 @@ var _ = gg.Describe("Aerospike", func() {
 				gg.Context("Bins with LIST type", func() {
 
 					gg.It("must save a key with Array Types", func() {
-						bin1 := as.NewBin("Aerospike1", []interface{}{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
-						bin2 := as.NewBin("Aerospike2", []interface{}{math.MinInt16, 0, 1, 2, 3, math.MaxInt16})
-						bin3 := as.NewBin("Aerospike3", []interface{}{math.MinInt32, 0, 1, 2, 3, math.MaxInt32})
-						bin4 := as.NewBin("Aerospike4", []interface{}{math.MinInt64, 0, 1, 2, 3, math.MaxInt64})
-						bin5 := as.NewBin("Aerospike5", []interface{}{0, 1, 2, 3, math.MaxUint8})
-						bin6 := as.NewBin("Aerospike6", []interface{}{0, 1, 2, 3, math.MaxUint16})
-						bin7 := as.NewBin("Aerospike7", []interface{}{0, 1, 2, 3, math.MaxUint32})
-						bin8 := as.NewBin("Aerospike8", []interface{}{"", "\n", "string"})
-						bin9 := as.NewBin("Aerospike9", []interface{}{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), [3]int{1, 2, 3}})
+						bin1 := as.NewBin("Aerospike1", []any{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
+						bin2 := as.NewBin("Aerospike2", []any{math.MinInt16, 0, 1, 2, 3, math.MaxInt16})
+						bin3 := as.NewBin("Aerospike3", []any{math.MinInt32, 0, 1, 2, 3, math.MaxInt32})
+						bin4 := as.NewBin("Aerospike4", []any{math.MinInt64, 0, 1, 2, 3, math.MaxInt64})
+						bin5 := as.NewBin("Aerospike5", []any{0, 1, 2, 3, math.MaxUint8})
+						bin6 := as.NewBin("Aerospike6", []any{0, 1, 2, 3, math.MaxUint16})
+						bin7 := as.NewBin("Aerospike7", []any{0, 1, 2, 3, math.MaxUint32})
+						bin8 := as.NewBin("Aerospike8", []any{"", "\n", "string"})
+						bin9 := as.NewBin("Aerospike9", []any{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), [3]int{1, 2, 3}})
 
 						// complex type, consisting different arrays
-						bin10 := as.NewBin("Aerospike10", []interface{}{
+						bin10 := as.NewBin("Aerospike10", []any{
 							nil,
 							bin1.Value.GetObject(),
 							bin2.Value.GetObject(),
@@ -190,11 +190,11 @@ var _ = gg.Describe("Aerospike", func() {
 							bin7.Value.GetObject(),
 							bin8.Value.GetObject(),
 							bin9.Value.GetObject(),
-							map[interface{}]interface{}{
+							map[any]any{
 								1: [16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
-								[16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}: []interface{}{"string", 12, nil},
-								// [3]int{0, 1, 2}:          []interface{}{"string", 12, nil},
-								// [3]string{"0", "1", "2"}: []interface{}{"string", 12, nil},
+								[16]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}: []any{"string", 12, nil},
+								// [3]int{0, 1, 2}:          []any{"string", 12, nil},
+								// [3]string{"0", "1", "2"}: []any{"string", 12, nil},
 								15:                   nil,
 								int8(math.MaxInt8):   int8(math.MaxInt8),
 								int64(math.MinInt64): int64(math.MinInt64),
@@ -206,8 +206,8 @@ var _ = gg.Describe("Aerospike", func() {
 								// float64(math.MaxFloat64):  float64(math.MaxFloat64),
 								"true":   true,
 								"false":  false,
-								"string": map[interface{}]interface{}{ /*nil: "string",*/ "string": 19}, // map to complex array
-								// nil:       []interface{}{18, 41},                                                   // array to complex map
+								"string": map[any]any{ /*nil: "string",*/ "string": 19}, // map to complex array
+								// nil:       []any{18, 41},                                                   // array to complex map
 								"GeoJSON": as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 							},
 						})
@@ -242,7 +242,7 @@ var _ = gg.Describe("Aerospike", func() {
 							int32(math.MinInt32): randString(100),
 						})
 
-						bin2 := as.NewBin("Aerospike2", map[interface{}]interface{}{
+						bin2 := as.NewBin("Aerospike2", map[any]any{
 							15:                   nil,
 							"true":               true,
 							"false":              false,
@@ -254,7 +254,7 @@ var _ = gg.Describe("Aerospike", func() {
 							// float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 							// float32(math.MaxFloat32):  float32(math.MaxFloat32),
 							// float64(math.MaxFloat64):  float64(math.MaxFloat64),
-							"string": map[interface{}]interface{}{ /*nil: "string",*/ "string": 19}, // map to complex array
+							"string": map[any]any{ /*nil: "string",*/ "string": 19}, // map to complex array
 							// nil:                       []int{18, 41},                                                           // array to complex map
 							"longString": strings.Repeat("s", 32911),                                              // bit-sign test
 							"GeoJSON":    as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test

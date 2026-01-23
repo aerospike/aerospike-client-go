@@ -27,7 +27,7 @@ func init() {
 	packObjectReflect = concretePackObjectReflect
 }
 
-func concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (int, Error) {
+func concretePackObjectReflect(cmd BufferEx, obj any, mapKey bool) (int, Error) {
 	// check for array and map
 	rv := reflect.ValueOf(obj)
 	switch reflect.TypeOf(obj).Kind() {
@@ -46,7 +46,7 @@ func concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (int,
 		}
 
 		l := rv.Len()
-		arr := make([]interface{}, l)
+		arr := make([]any, l)
 		for i := 0; i < l; i++ {
 			arr[i] = rv.Index(i).Interface()
 		}
@@ -56,7 +56,7 @@ func concretePackObjectReflect(cmd BufferEx, obj interface{}, mapKey bool) (int,
 			return 0, newError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", obj))
 		}
 		l := rv.Len()
-		amap := make(map[interface{}]interface{}, l)
+		amap := make(map[any]any, l)
 		for _, i := range rv.MapKeys() {
 			amap[i.Interface()] = rv.MapIndex(i).Interface()
 		}

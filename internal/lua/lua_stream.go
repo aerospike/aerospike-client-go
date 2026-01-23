@@ -25,7 +25,7 @@ import (
 
 // Stream is the data type used as a stream by the lua instances
 type Stream struct {
-	s chan interface{}
+	s chan any
 }
 
 const luaLuaStreamTypeName = "LuaStream"
@@ -52,7 +52,7 @@ func registerLuaStreamType(L *lua.LState) {
 }
 
 // NewStream creates a LuaStream
-func NewStream(L *lua.LState, stream chan interface{}) *lua.LUserData {
+func NewStream(L *lua.LState, stream chan any) *lua.LUserData {
 	luaStream := &Stream{s: stream}
 	ud := L.NewUserData()
 	ud.Value = luaStream
@@ -61,7 +61,7 @@ func NewStream(L *lua.LState, stream chan interface{}) *lua.LUserData {
 }
 
 func newStream(L *lua.LState) int {
-	luaStream := &Stream{s: make(chan interface{}, 64)}
+	luaStream := &Stream{s: make(chan any, 64)}
 	ud := L.NewUserData()
 	ud.Value = luaStream
 	L.SetMetatable(ud, L.GetTypeMetatable(luaLuaStreamTypeName))
