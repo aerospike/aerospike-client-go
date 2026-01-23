@@ -168,6 +168,13 @@ func (wp *WritePolicy) mapDynamic(dynConfig *DynConfig) *WritePolicy {
 				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
 			}
 		}
+		if currentConfig.Dynamic.Write.SleepMultiplier != nil {
+			configValue := *currentConfig.Dynamic.Write.SleepMultiplier
+			wp.SleepMultiplier = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepMultiplier set to %f", configValue)
+			}
+		}
 		if currentConfig.Dynamic.Write.SocketTimeout != nil {
 			configValue := time.Duration(*currentConfig.Dynamic.Write.SocketTimeout) * time.Millisecond
 			wp.SocketTimeout = configValue

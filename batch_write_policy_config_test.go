@@ -42,6 +42,10 @@ var _ = gg.Describe("ApplyConfigToBatchWritePolicy", func() {
 								d := 1
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.5
+								return &d
+							}(),
 							SocketTimeout: func() *int {
 								d := 3
 								return &d
@@ -119,6 +123,10 @@ var _ = gg.Describe("ApplyConfigToBatchWritePolicy", func() {
 								d := 1
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.5
+								return &d
+							}(),
 							SocketTimeout: func() *int {
 								d := 3
 								return &d
@@ -169,6 +177,10 @@ var _ = gg.Describe("ApplyConfigToBatchWritePolicy", func() {
 								d := 1
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.5
+								return &d
+							}(),
 							SocketTimeout: func() *int {
 								d := 3
 								return &d
@@ -202,6 +214,7 @@ var _ = gg.Describe("ApplyConfigToBatchWritePolicy", func() {
 			gm.Expect(batchPolicy.SocketTimeout).To(gm.Equal(30 * time.Second))
 			gm.Expect(batchPolicy.MaxRetries).To(gm.Equal(2))
 			gm.Expect(batchPolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(batchPolicy.SleepMultiplier).To(gm.Equal(1.0))
 			gm.Expect(batchPolicy.ReplicaPolicy).To(gm.Equal(SEQUENCE))
 			gm.Expect(batchPolicy.SendKey).To(gm.BeFalse())
 			gm.Expect(batchPolicy.UseCompression).To(gm.BeFalse())
@@ -216,6 +229,7 @@ var _ = gg.Describe("ApplyConfigToBatchWritePolicy", func() {
 			gm.Expect(batchPolicy.TotalTimeout).To(gm.Equal(15 * time.Millisecond))
 			gm.Expect(batchPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
 			gm.Expect(batchPolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(batchPolicy.SleepMultiplier).To(gm.Equal(1.5))
 			gm.Expect(batchPolicy.MaxRetries).To(gm.Equal(5))
 			gm.Expect(batchPolicy.ReplicaPolicy).To(gm.Equal(SEQUENCE))
 			gm.Expect(batchPolicy.SendKey).To(gm.BeFalse())
@@ -233,6 +247,7 @@ var _ = gg.Describe("ApplyConfigToBatchWritePolicy", func() {
 			gm.Expect(updatedWritePolicy.TotalTimeout).To(gm.Equal(15 * time.Millisecond))
 			gm.Expect(updatedWritePolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
 			gm.Expect(updatedWritePolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(updatedWritePolicy.SleepMultiplier).To(gm.Equal(1.5))
 			gm.Expect(updatedWritePolicy.MaxRetries).To(gm.Equal(5))
 			gm.Expect(updatedWritePolicy.SendKey).To(gm.BeTrue())
 		})

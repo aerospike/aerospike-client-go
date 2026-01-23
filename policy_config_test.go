@@ -58,6 +58,10 @@ var _ = gg.Describe("ApplyConfigToBasePolicy", func() {
 								d := 2
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.5
+								return &d
+							}(),
 							Replica: func() *dynconfig.Replica {
 								d := dynconfig.PREFER_RACK
 								return &d
@@ -81,7 +85,7 @@ var _ = gg.Describe("ApplyConfigToBasePolicy", func() {
 			gm.Expect(policy.SendKey).To(gm.BeFalse())
 			gm.Expect(policy.ReplicaPolicy).To(gm.Equal(SEQUENCE))
 			gm.Expect(policy.UseCompression).To(gm.BeFalse())
-
+			gm.Expect(policy.SleepMultiplier).To(gm.Equal(1.0))
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
 
@@ -96,6 +100,7 @@ var _ = gg.Describe("ApplyConfigToBasePolicy", func() {
 			gm.Expect(updatedPolicy.SendKey).To(gm.BeFalse())
 			gm.Expect(updatedPolicy.UseCompression).To(gm.BeFalse())
 			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(PREFER_RACK))
+			gm.Expect(updatedPolicy.SleepMultiplier).To(gm.Equal(1.5))
 		})
 	})
 

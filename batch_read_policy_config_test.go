@@ -50,6 +50,10 @@ var _ = gg.Describe("ApplyConfigToBatchReadPolicy", func() {
 								d := 1
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.5
+								return &d
+							}(),
 							SocketTimeout: func() *int {
 								d := 3
 								return &d
@@ -111,6 +115,10 @@ var _ = gg.Describe("ApplyConfigToBatchReadPolicy", func() {
 								d := 1
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.5
+								return &d
+							}(),
 							SocketTimeout: func() *int {
 								d := 3
 								return &d
@@ -140,6 +148,7 @@ var _ = gg.Describe("ApplyConfigToBatchReadPolicy", func() {
 			gm.Expect(batchPolicy.ReadModeAP).To(gm.Equal(ReadModeAPOne))
 			gm.Expect(batchPolicy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
 			gm.Expect(batchPolicy.ReadTouchTTLPercent).To(gm.Equal(int32(0)))
+			gm.Expect(batchPolicy.SleepMultiplier).To(gm.Equal(1.0))
 
 			// Apply configuration to BatchPolicy.
 			batchPolicy = config.client.dynDefaultBatchPolicy.Load()
@@ -150,6 +159,7 @@ var _ = gg.Describe("ApplyConfigToBatchReadPolicy", func() {
 			gm.Expect(batchPolicy.TotalTimeout).To(gm.Equal(15 * time.Millisecond))
 			gm.Expect(batchPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
 			gm.Expect(batchPolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(batchPolicy.SleepMultiplier).To(gm.Equal(1.5))
 			gm.Expect(batchPolicy.MaxRetries).To(gm.Equal(5))
 			gm.Expect(batchPolicy.ReplicaPolicy).To(gm.Equal(SEQUENCE))
 			gm.Expect(batchPolicy.SendKey).To(gm.BeFalse())
@@ -168,6 +178,7 @@ var _ = gg.Describe("ApplyConfigToBatchReadPolicy", func() {
 			gm.Expect(updatedWritePolicy.TotalTimeout).To(gm.Equal(15 * time.Millisecond))
 			gm.Expect(updatedWritePolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
 			gm.Expect(updatedWritePolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(updatedWritePolicy.SleepMultiplier).To(gm.Equal(1.5))
 			gm.Expect(updatedWritePolicy.MaxRetries).To(gm.Equal(5))
 			gm.Expect(updatedWritePolicy.SendKey).To(gm.BeFalse())
 		})
