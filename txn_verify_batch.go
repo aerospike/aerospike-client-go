@@ -91,7 +91,7 @@ func (cmd *txnBatchVerifyCommand) parseRecordResults(ifc command, receiveSize in
 
 		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
 		if metricsEnabled {
-			cmd.node.stats.updateOrInsert(ifc, resultCode)
+			cmd.node.stats.updateOrInsert(ifc.getNamespace(), ifc.getNamespaces(), ifc.commandType(), resultCode)
 		}
 
 		// The only valid server return codes are "ok" and "not found" and "filtered out".
