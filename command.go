@@ -4090,23 +4090,10 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
-	dm := &cmd.node.stats.DetailedMetrics
 
 	if single := ifc.getNamespace(); single != nil {
-		ns := *single
-
-		arr := dm.Get(ns)
-		if arr == nil {
-			arr = &[ttMaxCommandTypes]*commandMetric{}
-			dm.Set(ns, arr)
-		}
-
-		cm := arr[ct]
-		if cm == nil {
-			cm = cmd.node.stats.newCommandMetric()
-			arr[ct] = cm
-		}
-
+		arr := cmd.node.stats.getOrCreateMetricsArray(*single)
+		cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 		cm.Parsing.Add(end)
 		cm.BytesReceived.Add(uint64(dataReceived))
 	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
@@ -4114,16 +4101,8 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 			if ns == "" {
 				continue
 			}
-			arr := dm.Get(ns)
-			if arr == nil {
-				arr = &[ttMaxCommandTypes]*commandMetric{}
-				dm.Set(ns, arr)
-			}
-			cm := arr[ct]
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				arr[ct] = cm
-			}
+			arr := cmd.node.stats.getOrCreateMetricsArray(ns)
+			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 			cm.Parsing.Add(end)
 			cm.BytesReceived.Add(uint64(dataReceived))
 		}
@@ -4134,39 +4113,18 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime time.Time) {
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
-	dm := &cmd.node.stats.DetailedMetrics
 
 	if single := ifc.getNamespace(); single != nil {
-		arr := dm.Get(*single)
-		if arr == nil {
-			arr = &[ttMaxCommandTypes]*commandMetric{}
-			dm.Set(*single, arr)
-		}
-
-		cm := arr[ct]
-		if cm == nil {
-			cm = cmd.node.stats.newCommandMetric()
-			arr[ct] = cm
-		}
-
+		arr := cmd.node.stats.getOrCreateMetricsArray(*single)
+		cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 		cm.ConnectionAq.Add(end)
 	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
 		for ns := range nsMap {
 			if ns == "" {
 				continue
 			}
-			arr := dm.Get(ns)
-			if arr == nil {
-				arr = &[ttMaxCommandTypes]*commandMetric{}
-				dm.Set(ns, arr)
-			}
-
-			cm := arr[ct]
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				arr[ct] = cm
-			}
-
+			arr := cmd.node.stats.getOrCreateMetricsArray(ns)
+			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 			cm.ConnectionAq.Add(end)
 		}
 	}
@@ -4176,35 +4134,19 @@ func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime 
 func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc command, bytesSent int, startTime time.Time) {
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
-	dm := &cmd.node.stats.DetailedMetrics
+
 	if singleNS := ifc.getNamespace(); singleNS != nil {
 		if *singleNS != "" {
-			arr := dm.Get(*singleNS)
-			if arr == nil {
-				arr = &[ttMaxCommandTypes]*commandMetric{}
-				dm.Set(*singleNS, arr)
-			}
-			cm := arr[ct]
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				arr[ct] = cm
-			}
+			arr := cmd.node.stats.getOrCreateMetricsArray(*singleNS)
+			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 			cm.BytesSent.Add(uint64(bytesSent))
 			cm.Latency.Add(end)
 		}
-	} else if nsIter := ifc.getNamespaces(); nsIter != nil { // allocation happens
+	} else if nsIter := ifc.getNamespaces(); nsIter != nil {
 		for ns := range nsIter {
 			if ns != "" {
-				arr := dm.Get(ns)
-				if arr == nil {
-					arr = &[ttMaxCommandTypes]*commandMetric{}
-					dm.Set(ns, arr)
-				}
-				cm := arr[ct]
-				if cm == nil {
-					cm = cmd.node.stats.newCommandMetric()
-					arr[ct] = cm
-				}
+				arr := cmd.node.stats.getOrCreateMetricsArray(ns)
+				cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 				cm.BytesSent.Add(uint64(bytesSent))
 				cm.Latency.Add(end)
 			}

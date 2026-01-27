@@ -14,6 +14,7 @@ echo "UpdateOrInsert Benchmark Suite"
 echo "=================================="
 echo "Timestamp: $TIMESTAMP"
 echo "Benchmark Time: $BENCHMARK_TIME"
+echo "Usage: BENCHMARK_TIME=<duration> $0"
 echo ""
 
 # Create output directory
@@ -30,16 +31,20 @@ run_benchmark() {
     
     # Run benchmark with CPU, memory, and mutex profiling
     # -run='^$' skips all regular tests and runs only benchmarks
-    go test -run='^$' -bench="^${bench_name}$" \
+    if go test -run='^$' -bench="^${bench_name}$" \
+        -race \
         -benchmem \
         -benchtime="$BENCHMARK_TIME" \
         -cpuprofile="${OUTPUT_DIR}/${bench_name}_${TIMESTAMP}_cpu.prof" \
         -memprofile="${OUTPUT_DIR}/${bench_name}_${TIMESTAMP}_mem.prof" \
         -mutexprofile="${OUTPUT_DIR}/${bench_name}_${TIMESTAMP}_mutex.prof" \
-        | tee "${OUTPUT_DIR}/${bench_name}_${TIMESTAMP}_results.txt"
-    
-    echo ""
-    echo "✓ Benchmark complete. Profiles saved to $OUTPUT_DIR"
+        2>&1 | tee "${OUTPUT_DIR}/${bench_name}_${TIMESTAMP}_results.txt"; then
+        echo ""
+        echo "✓ Benchmark complete. Profiles saved to $OUTPUT_DIR"
+    else
+        echo ""
+        echo "✗ Benchmark failed or no matching benchmarks found"
+    fi
     echo ""
 }
 
@@ -83,21 +88,27 @@ if command -v go &> /dev/null; then
     echo "   go tool pprof -http=:8080 ${OUTPUT_DIR}/BenchmarkUpdateOrInsertHighConcurrency_${TIMESTAMP}_mutex.prof"
     echo ""
     
-    # Generate text report
-    echo "Generating CPU profile text report..."
-    go tool pprof -text "${OUTPUT_DIR}/BenchmarkUpdateOrInsertHighConcurrency_${TIMESTAMP}_cpu.prof" \
-        > "${OUTPUT_DIR}/BenchmarkUpdateOrInsertHighConcurrency_${TIMESTAMP}_cpu_report.txt"
-    
-    echo "Top CPU consumers:"
-    head -n 20 "${OUTPUT_DIR}/BenchmarkUpdateOrInsertHighConcurrency_${TIMESTAMP}_cpu_report.txt"
-    echo ""
-    
-    read -p "Open CPU flamegraph in browser? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "Opening flamegraph at http://localhost:8080 ..."
-        echo "Press Ctrl+C to stop the server"
-        go tool pprof -http=:8080 "${OUTPUT_DIR}/BenchmarkUpdateOrInsertHighConcurrency_${TIMESTAMP}_cpu.prof"
+    # Generate text report only if profile file exists
+    CPU_PROFILE="${OUTPUT_DIR}/BenchmarkUpdateOrInsertHighConcurrency_${TIMESTAMP}_cpu.prof"
+    if [[ -f "$CPU_PROFILE" ]]; then
+        echo "Generating CPU profile text report..."
+        go tool pprof -text "$CPU_PROFILE" \
+            > "${OUTPUT_DIR}/BenchmarkUpdateOrInsertHighConcurrency_${TIMESTAMP}_cpu_report.txt"
+
+        echo "Top CPU consumers:"
+        head -n 20 "${OUTPUT_DIR}/BenchmarkUpdateOrInsertHighConcurrency_${TIMESTAMP}_cpu_report.txt"
+        echo ""
+
+        read -p "Open CPU flamegraph in browser? (y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo "Opening flamegraph at http://localhost:8080 ..."
+            echo "Press Ctrl+C to stop the server"
+            go tool pprof -http=:8080 "$CPU_PROFILE"
+        fi
+    else
+        echo "No CPU profile found. Benchmark may have failed to connect to Aerospike at $HOST:$PORT"
+        echo "Check the results files in $OUTPUT_DIR for error details."
     fi
 fi
 

@@ -232,18 +232,9 @@ func BenchmarkCommandMergeDetailMetrics(b *testing.B) {
 	operations := []commandType{ttExists}
 
 	for _, operation := range operations {
-		arr := sourceNodeStats.DetailedMetrics.Get("test")
-		if arr == nil {
-			arr = &[ttMaxCommandTypes]*commandMetric{}
-			sourceNodeStats.DetailedMetrics.Set("test", arr)
-		}
-		
-		cm := arr[operation]
-		if cm == nil {
-			cm = sourceNodeStats.newCommandMetric()
-			arr[operation] = cm
-		}
-		
+		arr := sourceNodeStats.getOrCreateMetricsArray("test")
+		cm := sourceNodeStats.getOrCreateCommandMetric(arr, operation)
+
 		// Simulate metrics data
 		cm.Parsing.Add(uint64(1))
 		cm.BytesSent.Add(uint64(1))
@@ -267,26 +258,28 @@ func BenchmarkCloneDetailedMetrics(b *testing.B) {
 	ns := newNodeStats(policy)
 
 	const testNamespace = "test"
-	
-	// Create and populate array with metrics
-	arr := &[ttMaxCommandTypes]*commandMetric{}
-	arr[ttGet] = ns.newCommandMetric()
-	ns.DetailedMetrics.Set(testNamespace, arr)
+
+	// Create and populate array with metrics using lock-free helpers
+	arr := ns.getOrCreateMetricsArray(testNamespace)
+	cm := ns.getOrCreateCommandMetric(arr, ttGet)
 
 	now := time.Now()
-	ns.DetailedMetrics.Get(testNamespace)[ttGet].Latency.Add(uint64(now.UnixNano()))
-	ns.DetailedMetrics.Get(testNamespace)[ttGet].BytesSent.Add(1024)
-	ns.DetailedMetrics.Get(testNamespace)[ttGet].Parsing.Add(uint64(now.UnixNano()))
-	ns.DetailedMetrics.Get(testNamespace)[ttGet].ConnectionAq.Add(5)
+	cm.Latency.Add(uint64(now.UnixNano()))
+	cm.BytesSent.Add(1024)
+	cm.Parsing.Add(uint64(now.UnixNano()))
+	cm.ConnectionAq.Add(5)
 
 	b.StartTimer()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		cloned := ns.cloneDetailedMetrics()
+		var cloned sync.Map
+		ns.cloneDetailedMetricsInto(&cloned)
 		// Use cloned in some trivial way to prevent compiler optimizations.
-		if cloned == nil || cloned.Length() == 0 {
-			b.Fatal("cloned DetailedMetrics is nil or empty")
+		count := 0
+		cloned.Range(func(_, _ any) bool { count++; return true })
+		if count == 0 {
+			b.Fatal("cloned DetailedMetrics is empty")
 		}
 	}
 }
@@ -295,19 +288,21 @@ func BenchmarkCloneAndResetDetailedResultCodeCounts(b *testing.B) {
 	b.StopTimer()
 	policy := DefaultMetricsPolicy()
 	ns := newNodeStats(policy)
-	
-	// Create and populate array with result code metrics
-	arr := &[ttMaxCommandTypes]*commandResultCodeMetric{}
-	arr[ttGet] = ns.newCommandResultCodeMetricWithValue(types.ResultCode(0))
-	arr[ttGet].ResultCodeCounts.Set(types.ResultCode(0), 1)
-	ns.DetailedResultCodeCounts.Set("test", arr)
+
+	// Create and populate array with result code metrics using lock-free helpers
+	arr := ns.getOrCreateResultCodeArray("test")
+	m := ns.getOrCreateResultCodeMetric(arr, ttGet, types.ResultCode(0))
+	m.ResultCodeCounts.Set(types.ResultCode(0), 1)
 
 	b.StartTimer()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		cloned := ns.cloneAndResetDetailedResultCodeCounts()
-		if cloned.Length() == 0 {
+		var cloned sync.Map
+		ns.cloneAndResetDetailedResultCodeCountsInto(&cloned)
+		count := 0
+		cloned.Range(func(_, _ any) bool { count++; return true })
+		if count == 0 {
 			b.Fatal("cloned DetailedResultCodeCounts is empty")
 		}
 	}
