@@ -167,10 +167,10 @@ func privilegeFrom(code uint8) (privilegeCode, Error) {
 		return WriteMasked, nil
 
 	default:
-		return Unknown, newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Unknown privilege code received from server: %d.", code))
+		return unknown, newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Unknown privilege code received from server: %d.", code))
 	}
 }
 
-func (p *Privilege) canScope() (bool, Error) {
-	return p.code() >= 10, nil
+func (p *Privilege) canScope() bool {
+	return p.code() >= 10
 }

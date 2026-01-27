@@ -306,33 +306,31 @@ func (acmd *AdminCommand) writePrivileges(privileges []Privilege) Error {
 	offset++
 
 	for _, privilege := range privileges {
-		if code := privilege.code(); code < 0 {
+		code := privilege.code()
+		if code < 0 {
 			return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Invalid privilege code in Privilege.code(): %s.", privilege.Code))
-		} else {
-			acmd.dataBuffer[offset] = byte(code)
+		}
+
+		acmd.dataBuffer[offset] = byte(code)
+		offset++
+
+		if privilege.canScope() {
+			if len(privilege.SetName) > 0 && len(privilege.Namespace) == 0 {
+				return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
+			}
+
+			acmd.dataBuffer[offset] = byte(len(privilege.Namespace))
 			offset++
+			copy(acmd.dataBuffer[offset:], privilege.Namespace)
+			offset += len(privilege.Namespace)
 
-			if canScope, err := privilege.canScope(); err != nil {
-				return err
-			} else if canScope {
-
-				if len(privilege.SetName) > 0 && len(privilege.Namespace) == 0 {
-					return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
-				}
-
-				acmd.dataBuffer[offset] = byte(len(privilege.Namespace))
-				offset++
-				copy(acmd.dataBuffer[offset:], privilege.Namespace)
-				offset += len(privilege.Namespace)
-
-				acmd.dataBuffer[offset] = byte(len(privilege.SetName))
-				offset++
-				copy(acmd.dataBuffer[offset:], privilege.SetName)
-				offset += len(privilege.SetName)
-			} else {
-				if len(privilege.Namespace) > 0 || len(privilege.SetName) > 0 {
-					return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
-				}
+			acmd.dataBuffer[offset] = byte(len(privilege.SetName))
+			offset++
+			copy(acmd.dataBuffer[offset:], privilege.SetName)
+			offset += len(privilege.SetName)
+		} else {
+			if len(privilege.Namespace) > 0 || len(privilege.SetName) > 0 {
+				return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
 			}
 		}
 	}
@@ -721,9 +719,7 @@ func (acmd *AdminCommand) parsePrivileges(role *Role) Error {
 		acmd.dataOffset++
 		priv := Privilege{Code: code}
 
-		if canScope, err := priv.canScope(); err != nil {
-			return err
-		} else if canScope {
+		if priv.canScope() {
 			len := int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
 			acmd.dataOffset++
 			priv.Namespace = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])

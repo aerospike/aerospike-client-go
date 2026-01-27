@@ -74,8 +74,8 @@ const (
 	// WriteMasked allows write transactions with the database with masking policies applied. Requires server version >= 8.1.1.
 	WriteMasked privilegeCode = "write-masked"
 
-	// Unknown privilege code from server.
+	// unknown privilege code from server.
 	// This is used for forward compatibility when the server sends
 	// privilege codes that are not yet known to this client version.
-	Unknown privilegeCode = "unknown"
+	unknown privilegeCode = "unknown"
 )
