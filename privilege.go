@@ -16,7 +16,9 @@
 package aerospike
 
 import (
-	"github.com/aerospike/aerospike-client-go/v8/logger"
+	"fmt"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 type privilegeCode string
@@ -96,92 +98,79 @@ func (p *Privilege) code() int {
 	case WriteMasked:
 		return 17
 
-	// Unknown privilege code from server (forward compatibility).
-	case Unknown:
-		return -1
-
 	default:
-		// This should never happen if privilegeFrom() is used correctly
-		logger.Logger.Warn("Invalid privilege code in Privilege.code(): %s", p.Code)
 		return -1
 	}
 }
 
-func privilegeFrom(code uint8) privilegeCode {
+func privilegeFrom(code uint8) (privilegeCode, Error) {
 	switch code {
 	// User can edit/remove other users.  Global scope only.
 	case 0:
-		return UserAdmin
+		return UserAdmin, nil
 
 	// User can perform systems administration functions on a database that do not involve user
 	// administration.  Examples include server configuration.
 	// Global scope only.
 	case 1:
-		return SysAdmin
+		return SysAdmin, nil
 
 	// User can perform data administration functions on a database that do not involve user
 	// administration.  Examples include index and user defined function management.
 	// Global scope only.
 	case 2:
-		return DataAdmin
+		return DataAdmin, nil
 
 	// User can perform user defined function(UDF) administration actions.
 	// Examples include create/drop UDF. Global scope only.
 	// Requires server version 6+
 	case 3:
-		return UDFAdmin
+		return UDFAdmin, nil
 
 	// User can perform secondary index administration actions.
 	// Examples include create/drop index. Global scope only.
 	// Requires server version 6+
 	case 4:
-		return SIndexAdmin
+		return SIndexAdmin, nil
 
 	// User can read data.
 	case 10:
-		return Read
+		return Read, nil
 
 	// User can read and write data.
 	case 11:
-		return ReadWrite
+		return ReadWrite, nil
 
 	// User can read and write data through user defined functions.
 	case 12:
-		return ReadWriteUDF
+		return ReadWriteUDF, nil
 
 	// User can only write data.
 	case 13:
-		return Write
+		return Write, nil
 
 	// User can truncate data only.
 	// Requires server version 6+
 	case 14:
-		return Truncate
+		return Truncate, nil
 
 	// User can manage masking policies. Requires server version >= 8.1.1.
 	case 15:
-		return MaskingAdmin
+		return MaskingAdmin, nil
 
 	// User can read data with masking policies applied. Requires server version >= 8.1.1.
 	case 16:
-		return ReadMasked
+		return ReadMasked, nil
 
 	// User can write data with masking policies applied. Requires server version >= 8.1.1.
 	case 17:
-		return WriteMasked
+		return WriteMasked, nil
 
 	default:
-		// Return Unknown for forward compatibility with new privilege codes
-		// from future server versions. This allows the client to work with
-		// newer servers without breaking when new privileges are added.
-		logger.Logger.Warn("Unknown privilege code received from server: %d. Using Unknown.", code)
-		return Unknown
+		return Unknown, newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Unknown privilege code received from server: %d.", code))
 	}
 }
 
-func (p *Privilege) canScope() bool {
-	// Unknown privileges (code = -1) cannot be scoped since we don't know their characteristics.
-	// MaskingAdmin (code = 15) is global only.
-	// Data privileges (code >= 10) can be scoped except MaskingAdmin.
-	return p.code() >= 10 && p.code() != 15
+func (p *Privilege) canScope() (bool, Error) {
+	return p.code() >= 10, nil
 }

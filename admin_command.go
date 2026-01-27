@@ -306,29 +306,33 @@ func (acmd *AdminCommand) writePrivileges(privileges []Privilege) Error {
 	offset++
 
 	for _, privilege := range privileges {
-		code := privilege.code()
-
-		acmd.dataBuffer[offset] = byte(code)
-		offset++
-
-		if privilege.canScope() {
-
-			if len(privilege.SetName) > 0 && len(privilege.Namespace) == 0 {
-				return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
-			}
-
-			acmd.dataBuffer[offset] = byte(len(privilege.Namespace))
-			offset++
-			copy(acmd.dataBuffer[offset:], privilege.Namespace)
-			offset += len(privilege.Namespace)
-
-			acmd.dataBuffer[offset] = byte(len(privilege.SetName))
-			offset++
-			copy(acmd.dataBuffer[offset:], privilege.SetName)
-			offset += len(privilege.SetName)
+		if code := privilege.code(); code < 0 {
+			return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Invalid privilege code in Privilege.code(): %s.", privilege.Code))
 		} else {
-			if len(privilege.Namespace) > 0 || len(privilege.SetName) > 0 {
-				return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
+			acmd.dataBuffer[offset] = byte(code)
+			offset++
+
+			if canScope, err := privilege.canScope(); err != nil {
+				return err
+			} else if canScope {
+
+				if len(privilege.SetName) > 0 && len(privilege.Namespace) == 0 {
+					return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
+				}
+
+				acmd.dataBuffer[offset] = byte(len(privilege.Namespace))
+				offset++
+				copy(acmd.dataBuffer[offset:], privilege.Namespace)
+				offset += len(privilege.Namespace)
+
+				acmd.dataBuffer[offset] = byte(len(privilege.SetName))
+				offset++
+				copy(acmd.dataBuffer[offset:], privilege.SetName)
+				offset += len(privilege.SetName)
+			} else {
+				if len(privilege.Namespace) > 0 || len(privilege.SetName) > 0 {
+					return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
+				}
 			}
 		}
 	}
@@ -664,7 +668,7 @@ func (acmd *AdminCommand) parseRolesFull(receiveSize int) (int, []*Role, Error) 
 		fieldCount := int(acmd.dataBuffer[acmd.dataOffset+3])
 		acmd.dataOffset += _HEADER_REMAINING
 
-		for i := 0; i < fieldCount; i++ {
+		for range fieldCount {
 			len := int(Buffer.BytesToInt32(acmd.dataBuffer, acmd.dataOffset))
 			acmd.dataOffset += 4
 			id := acmd.dataBuffer[acmd.dataOffset]
@@ -676,11 +680,8 @@ func (acmd *AdminCommand) parseRolesFull(receiveSize int) (int, []*Role, Error) 
 				role.Name = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
 				acmd.dataOffset += len
 			case _PRIVILEGES:
-				startOffset := acmd.dataOffset
-				acmd.parsePrivileges(role)
-				bytesRead := acmd.dataOffset - startOffset
-				if bytesRead < len {
-					acmd.dataOffset += len - bytesRead
+				if err := acmd.parsePrivileges(role); err != nil {
+					return 0, nil, err
 				}
 			case _WHITELIST:
 				role.Whitelist = acmd.parseWhitelist(len)
@@ -707,17 +708,22 @@ func (acmd *AdminCommand) parseRolesFull(receiveSize int) (int, []*Role, Error) 
 	return 0, list, nil
 }
 
-func (acmd *AdminCommand) parsePrivileges(role *Role) {
+func (acmd *AdminCommand) parsePrivileges(role *Role) Error {
 	size := int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
 	acmd.dataOffset++
 	role.Privileges = make([]Privilege, 0, size)
 
-	for i := 0; i < size; i++ {
-		priv := Privilege{}
-		priv.Code = privilegeFrom(acmd.dataBuffer[acmd.dataOffset])
+	for range size {
+		code, err := privilegeFrom(acmd.dataBuffer[acmd.dataOffset])
+		if err != nil {
+			return err
+		}
 		acmd.dataOffset++
+		priv := Privilege{Code: code}
 
-		if priv.canScope() {
+		if canScope, err := priv.canScope(); err != nil {
+			return err
+		} else if canScope {
 			len := int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
 			acmd.dataOffset++
 			priv.Namespace = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
@@ -730,6 +736,8 @@ func (acmd *AdminCommand) parsePrivileges(role *Role) {
 		}
 		role.Privileges = append(role.Privileges, priv)
 	}
+
+	return nil
 }
 
 func (acmd *AdminCommand) parseWhitelist(length int) []string {
