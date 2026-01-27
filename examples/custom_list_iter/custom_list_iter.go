@@ -116,10 +116,10 @@ func runExample(client *as.Client) {
 
 	// The value received from the server is an unsigned byte stream.
 	// Convert to an integer before comparing with expected.
-	received := [][]int64{} // returns as [][]interface{}, need to be converted
-	for _, l1 := range record.Bins[bin.Name].([]interface{}) {
+	received := [][]int64{} // returns as [][]any, need to be converted
+	for _, l1 := range record.Bins[bin.Name].([]any) {
 		l := []int64{}
-		for _, l2 := range l1.([]interface{}) {
+		for _, l2 := range l1.([]any) {
 			l = append(l, int64(l2.(int)))
 		}
 		received = append(received, l)

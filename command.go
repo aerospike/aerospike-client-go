@@ -2944,7 +2944,7 @@ func (cmd *baseCommand) estimateOperationSizeForBin(bin *Bin) Error {
 	return nil
 }
 
-func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, value interface{}) Error {
+func (cmd *baseCommand) estimateOperationSizeForBinNameAndValue(name string, value any) Error {
 	cmd.dataOffset += len(name) + int(_OPERATION_HEADER_SIZE)
 	sz, err := NewValue(value).EstimateSize()
 	if err != nil {
@@ -3297,7 +3297,7 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 	return err
 }
 
-func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val interface{}, operation OperationType) Error {
+func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val any, operation OperationType) Error {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], name)
 	if nameLength > 15 {
 		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than 15 bytes.", name))

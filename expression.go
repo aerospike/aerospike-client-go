@@ -253,7 +253,7 @@ func packCDTModifyList(buf BufferEx, modList expCdtModifyList) (int, Error) {
 	// Extract components: [ExpCdtSelect, cdtContextList, flag, modifyExp, ...]
 	var opTypeVal Value
 	var ctxList cdtContextList
-	var params []interface{}
+	var params []any
 
 	for _, item := range modList {
 		switch v := item.(type) {
@@ -1164,7 +1164,7 @@ func ExpValueArrayVal(val ValueArray) *Expression {
 }
 
 // ExpListValueVal creates a List bin Value
-func ExpListValueVal(val ...interface{}) *Expression {
+func ExpListValueVal(val ...any) *Expression {
 	return newFilterExpression(
 		&expOpQUOTED,
 		NewListValue(val),
@@ -1775,7 +1775,7 @@ func ExpUnknown() *Expression {
 	}
 }
 
-func newExpression(e interface{}) *Expression {
+func newExpression(e any) *Expression {
 	if e == nil {
 		return ExpNilValue()
 	}
@@ -1813,7 +1813,7 @@ func newExpression(e interface{}) *Expression {
 		return ExpStringVal(v)
 	case []byte:
 		return ExpBlobVal(v)
-	case []interface{}:
+	case []any:
 		// Check if this might be a command array
 		if len(v) > 0 && isNumberType(v[0]) {
 			// This might be a command array, pack as ExpBytes
@@ -1825,9 +1825,9 @@ func newExpression(e interface{}) *Expression {
 			return &Expression{bytes: packer.Bytes()}
 		}
 		return ExpListValueVal(v)
-	case map[string]interface{}:
+	case map[string]any:
 		return newFilterExpression(nil, JsonValue(v), nil, nil, nil, nil)
-	case map[interface{}]interface{}:
+	case map[any]any:
 		return ExpMapVal(MapValue(v))
 	default:
 		// For unknown types, wrap as ExpBytes
@@ -1840,7 +1840,7 @@ func newExpression(e interface{}) *Expression {
 	}
 }
 
-func isNumberType(v interface{}) bool {
+func isNumberType(v any) bool {
 	switch v.(type) {
 	case int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64,

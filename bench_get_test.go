@@ -115,8 +115,8 @@ func Benchmark_Get_String_100000(b *testing.B) {
 
 func Benchmark_Get_Complex_Array(b *testing.B) {
 	set := "get_bench_str_10000"
-	// bins := []*as.Bin{as.NewBin("b", []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
-	bins := []*as.Bin{as.NewBin("b", []interface{}{rand.Int63()})}
+	// bins := []*as.Bin{as.NewBin("b", []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
+	bins := []*as.Bin{as.NewBin("b", []any{rand.Int63()})}
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForGetBench(set, bins)
@@ -125,15 +125,15 @@ func Benchmark_Get_Complex_Array(b *testing.B) {
 
 func Benchmark_Get_Complex_Map(b *testing.B) {
 	set := "get_bench_str_10000"
-	// bins := []*as.Bin{as.NewBin("b", []interface{}{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
-	bins := []*as.Bin{as.NewBin("b", map[interface{}]interface{}{rand.Int63(): rand.Int63()})}
+	// bins := []*as.Bin{as.NewBin("b", []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
+	bins := []*as.Bin{as.NewBin("b", map[any]any{rand.Int63(): rand.Int63()})}
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForGetBench(set, bins)
 	doGet(set, b)
 }
 
-func doPut(set string, value interface{}, b *testing.B) {
+func doPut(set string, value any, b *testing.B) {
 	var err error
 	// key, _ := as.NewKey(*namespace, set, 0)
 	for i := 0; i < b.N; i++ {

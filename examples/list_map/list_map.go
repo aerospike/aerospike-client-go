@@ -51,7 +51,7 @@ func testListStrings(client *as.Client) {
 
 	record, err := client.Get(shared.Policy, key, bin.Name)
 	shared.PanicOnError(err)
-	receivedList := record.Bins[bin.Name].([]interface{})
+	receivedList := record.Bins[bin.Name].([]any)
 
 	validateSize(3, len(receivedList))
 	validate("string1", receivedList[0])
@@ -62,22 +62,22 @@ func testListStrings(client *as.Client) {
 }
 
 /**
- * Write/Read []interface{} directly instead of relying on java serializer.
+ * Write/Read []any directly instead of relying on java serializer.
  */
 func testListComplex(client *as.Client) {
-	log.Printf("Read/Write []interface{}")
+	log.Printf("Read/Write []any")
 	key, _ := as.NewKey(*shared.Namespace, *shared.Set, "listkey2")
 	client.Delete(shared.WritePolicy, key)
 
 	blob := []byte{3, 52, 125}
-	list := []interface{}{"string1", 2, blob}
+	list := []any{"string1", 2, blob}
 
 	bin := as.NewBin("listbin2", list)
 	client.PutBins(shared.WritePolicy, key, bin)
 
 	record, err := client.Get(shared.Policy, key, bin.Name)
 	shared.PanicOnError(err)
-	receivedList := record.Bins[bin.Name].([]interface{})
+	receivedList := record.Bins[bin.Name].([]any)
 
 	validateSize(3, len(receivedList))
 	validate("string1", receivedList[0])
@@ -85,7 +85,7 @@ func testListComplex(client *as.Client) {
 	validate(2, receivedList[1])
 	validateBytes(blob, receivedList[2].([]byte))
 
-	log.Printf("Read/Write []interface{} successful.")
+	log.Printf("Read/Write []any successful.")
 }
 
 /**
@@ -105,7 +105,7 @@ func testMapStrings(client *as.Client) {
 
 	record, err := client.Get(shared.Policy, key, bin.Name)
 	shared.PanicOnError(err)
-	receivedMap := record.Bins[bin.Name].(map[interface{}]interface{})
+	receivedMap := record.Bins[bin.Name].(map[any]any)
 
 	validateSize(3, len(receivedMap))
 	validate("string1", receivedMap["key1"])
@@ -116,10 +116,10 @@ func testMapStrings(client *as.Client) {
 }
 
 /**
- * Write/Read map[interface{}]interface{} directly instead of relying on java serializer.
+ * Write/Read map[any]any directly instead of relying on java serializer.
  */
 func testMapComplex(client *as.Client) {
-	log.Printf("Read/Write map[interface{}]interface{}")
+	log.Printf("Read/Write map[any]any")
 	key, _ := as.NewKey(*shared.Namespace, *shared.Set, "mapkey2")
 	client.Delete(shared.WritePolicy, key)
 
@@ -131,7 +131,7 @@ func testMapComplex(client *as.Client) {
 		512,
 	}
 
-	amap := map[interface{}]interface{}{
+	amap := map[any]any{
 		"key1": "string1",
 		"key2": 2,
 		"key3": blob,
@@ -143,7 +143,7 @@ func testMapComplex(client *as.Client) {
 
 	record, err := client.Get(shared.Policy, key, bin.Name)
 	shared.PanicOnError(err)
-	receivedMap := record.Bins[bin.Name].(map[interface{}]interface{})
+	receivedMap := record.Bins[bin.Name].(map[any]any)
 
 	validateSize(4, len(receivedMap))
 	validate("string1", receivedMap["key1"])
@@ -151,14 +151,14 @@ func testMapComplex(client *as.Client) {
 	validate(2, receivedMap["key2"])
 	validateBytes(blob, receivedMap["key3"].([]byte))
 
-	receivedInner := receivedMap["key4"].([]interface{})
+	receivedInner := receivedMap["key4"].([]any)
 	validateSize(4, len(receivedInner))
 	validate(100034, receivedInner[0])
 	validate(12384955, receivedInner[1])
 	validate(3, receivedInner[2])
 	validate(512, receivedInner[3])
 
-	log.Printf("Read/Write map[interface{}]interface{} successful")
+	log.Printf("Read/Write map[any]any successful")
 }
 
 /**
@@ -170,19 +170,19 @@ func testListMapCombined(client *as.Client) {
 	client.Delete(shared.WritePolicy, key)
 
 	blob := []byte{3, 52, 125}
-	inner := []interface{}{
+	inner := []any{
 		"string2",
 		5,
 	}
 
-	innerMap := map[interface{}]interface{}{
+	innerMap := map[any]any{
 		"a":    1,
 		2:      "b",
 		3:      blob,
 		"list": inner,
 	}
 
-	list := []interface{}{
+	list := []any{
 		"string1",
 		8,
 		inner,
@@ -194,25 +194,25 @@ func testListMapCombined(client *as.Client) {
 
 	record, err := client.Get(shared.Policy, key, bin.Name)
 	shared.PanicOnError(err)
-	received := record.Bins[bin.Name].([]interface{})
+	received := record.Bins[bin.Name].([]any)
 
 	validateSize(4, len(received))
 	validate("string1", received[0])
 	// Server convert numbers to long, so must expect long.
 	validate(8, received[1])
 
-	receivedInner := received[2].([]interface{})
+	receivedInner := received[2].([]any)
 	validateSize(2, len(receivedInner))
 	validate("string2", receivedInner[0])
 	validate(5, receivedInner[1])
 
-	receivedMap := received[3].(map[interface{}]interface{})
+	receivedMap := received[3].(map[any]any)
 	validateSize(4, len(receivedMap))
 	validate(1, receivedMap["a"])
 	validate("b", receivedMap[2])
 	validateBytes(blob, receivedMap[3].([]byte))
 
-	receivedInner2 := receivedMap["list"].([]interface{})
+	receivedInner2 := receivedMap["list"].([]any)
 	validateSize(2, len(receivedInner2))
 	validate("string2", receivedInner2[0])
 	validate(5, receivedInner2[1])
@@ -250,7 +250,7 @@ func testListOperate(client *as.Client) {
 	record, err := client.Get(shared.Policy, key, bin.Name)
 	shared.PanicOnError(err)
 
-	receivedList := record.Bins[bin.Name].([]interface{})
+	receivedList := record.Bins[bin.Name].([]any)
 	validateSize(4, len(receivedList))
 	validate("string1", receivedList[0])
 	validate("string2", receivedList[1])
@@ -267,7 +267,7 @@ func validateSize(expected, received int) {
 	}
 }
 
-func validate(expected, received interface{}) {
+func validate(expected, received any) {
 	if !(received == expected) {
 		log.Fatalf(
 			"Mismatch: expected=%v received=%v", expected, received)

@@ -265,8 +265,8 @@ var _ = gg.Describe("Expression Filters", func() {
 					"bin2": fmt.Sprintf("%d", ii),
 					"bin3": float64(ii) / 3,
 					"bin4": []byte(fmt.Sprintf("blob%d", ii)),
-					"bin5": []interface{}{"a", "b", ii},
-					"bin6": map[string]interface{}{"a": "test", "b": ii},
+					"bin5": []any{"a", "b", ii},
+					"bin6": map[string]any{"a": "test", "b": ii},
 				}
 				client.Delete(wpolicy, key)
 				client.Put(wpolicy, key, ibin)
@@ -964,7 +964,7 @@ var _ = gg.Describe("Expression Filters", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 
-		assertBinEqual := func(key *as.Key, r as.BinMap, binName string, expected interface{}) {
+		assertBinEqual := func(key *as.Key, r as.BinMap, binName string, expected any) {
 			_, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(r[binName]).To(gm.Equal(expected))

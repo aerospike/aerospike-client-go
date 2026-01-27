@@ -21,7 +21,7 @@ import (
 
 // Array implement a fixed width array with atomic semantics
 type Array struct {
-	items  []interface{}
+	items  []any
 	length int
 	mutex  sync.RWMutex
 }
@@ -30,13 +30,13 @@ type Array struct {
 func NewArray(length int) *Array {
 	return &Array{
 		length: length,
-		items:  make([]interface{}, length),
+		items:  make([]any, length),
 	}
 }
 
 // Get atomically retrieves an element from the Array.
 // If idx is out of range, it will return nil
-func (aa *Array) Get(idx int) interface{} {
+func (aa *Array) Get(idx int) any {
 	// do not lock if not needed
 	if idx < 0 || idx >= aa.length {
 		return nil
@@ -50,7 +50,7 @@ func (aa *Array) Get(idx int) interface{} {
 
 // Set atomically sets an element in the Array.
 // If idx is out of range, it will return an error
-func (aa *Array) Set(idx int, node interface{}) error {
+func (aa *Array) Set(idx int, node any) error {
 	// do not lock if not needed
 	if idx < 0 || idx >= aa.length {
 		return fmt.Errorf("index %d is larger than array size (%d)", idx, aa.length)

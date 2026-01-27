@@ -3,8 +3,8 @@ module github.com/aerospike/aerospike-client-go/v8
 go 1.23.0
 
 require (
-	github.com/onsi/ginkgo/v2 v2.27.3
-	github.com/onsi/gomega v1.38.3
+	github.com/onsi/ginkgo/v2 v2.27.5
+	github.com/onsi/gomega v1.39.0
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	github.com/yuin/gopher-lua v1.1.1
 	golang.org/x/sync v0.16.0

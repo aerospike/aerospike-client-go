@@ -222,10 +222,10 @@ func newHLLEncoder(op *Operation, packer BufferEx) (int, Error) {
 }
 
 func packHLLIfcParamsAsArray(packer BufferEx, opType int16, params ListValue) (int, Error) {
-	return packHLLIfcVarParamsAsArray(packer, opType, []interface{}(params)...)
+	return packHLLIfcVarParamsAsArray(packer, opType, []any(params)...)
 }
 
-func packHLLIfcVarParamsAsArray(packer BufferEx, opType int16, params ...interface{}) (int, Error) {
+func packHLLIfcVarParamsAsArray(packer BufferEx, opType int16, params ...any) (int, Error) {
 	size := 0
 	n, err := packArrayBegin(packer, len(params)+1)
 	if err != nil {
@@ -273,8 +273,8 @@ func (va _HLLValueArray) GetType() int {
 	return ParticleType.LIST
 }
 
-// GetObject returns original value as an interface{}.
-func (va _HLLValueArray) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (va _HLLValueArray) GetObject() any {
 	return []HLLValue(va)
 }
 

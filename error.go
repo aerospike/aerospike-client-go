@@ -245,7 +245,7 @@ func (ase *AerospikeError) Matches(rcs ...types.ResultCode) bool {
 }
 
 // As implements the interface for errors.As function.
-func (ase *AerospikeError) As(target interface{}) bool {
+func (ase *AerospikeError) As(target any) bool {
 	ae, ok := target.(*AerospikeError)
 	if !ok {
 		return false

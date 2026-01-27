@@ -27,12 +27,12 @@ import (
 )
 
 // this function will be set in value_slow file if included
-var newValueReflect func(interface{}) Value
+var newValueReflect func(any) Value
 
 // MapPair is used when the client returns sorted maps from the server
 // Since the default map in Go is a hash map, we will use a slice
 // to return the results in server order
-type MapPair struct{ Key, Value interface{} }
+type MapPair struct{ Key, Value any }
 
 // Value interface is used to efficiently serialize objects into the wire protocol.
 type Value interface {
@@ -49,8 +49,8 @@ type Value interface {
 	// GetType returns wire protocol value type.
 	GetType() int
 
-	// GetObject returns original value as an interface{}.
-	GetObject() interface{}
+	// GetObject returns original value as an any.
+	GetObject() any
 
 	// String implements Stringer interface.
 	String() string
@@ -70,7 +70,7 @@ type AerospikeBlob interface {
 
 // tryConcreteValue will return an aerospike value.
 // If the encoder does not exist, it will not try to use reflection.
-func tryConcreteValue(v interface{}) Value {
+func tryConcreteValue(v any) Value {
 	switch val := v.(type) {
 	case Value:
 		return val
@@ -80,11 +80,11 @@ func tryConcreteValue(v interface{}) Value {
 		return LongValue(val)
 	case string:
 		return StringValue(val)
-	case []interface{}:
+	case []any:
 		return ListValue(val)
-	case map[string]interface{}:
+	case map[string]any:
 		return JsonValue(val)
-	case map[interface{}]interface{}:
+	case map[any]any:
 		return NewMapValue(val)
 	case nil:
 		return nullValue
@@ -190,7 +190,7 @@ func tryConcreteValue(v interface{}) Value {
 		return NewMapperValue(intFloat32Map(val))
 	case map[int]float64:
 		return NewMapperValue(intFloat64Map(val))
-	case map[int]interface{}:
+	case map[int]any:
 		return NewMapperValue(intInterfaceMap(val))
 	case map[int8]string:
 		return NewMapperValue(int8StringMap(val))
@@ -212,7 +212,7 @@ func tryConcreteValue(v interface{}) Value {
 		return NewMapperValue(int8Float32Map(val))
 	case map[int8]float64:
 		return NewMapperValue(int8Float64Map(val))
-	case map[int8]interface{}:
+	case map[int8]any:
 		return NewMapperValue(int8InterfaceMap(val))
 	case map[int16]string:
 		return NewMapperValue(int16StringMap(val))
@@ -234,7 +234,7 @@ func tryConcreteValue(v interface{}) Value {
 		return NewMapperValue(int16Float32Map(val))
 	case map[int16]float64:
 		return NewMapperValue(int16Float64Map(val))
-	case map[int16]interface{}:
+	case map[int16]any:
 		return NewMapperValue(int16InterfaceMap(val))
 	case map[int32]string:
 		return NewMapperValue(int32StringMap(val))
@@ -256,7 +256,7 @@ func tryConcreteValue(v interface{}) Value {
 		return NewMapperValue(int32Float32Map(val))
 	case map[int32]float64:
 		return NewMapperValue(int32Float64Map(val))
-	case map[int32]interface{}:
+	case map[int32]any:
 		return NewMapperValue(int32InterfaceMap(val))
 	case map[int64]string:
 		return NewMapperValue(int64StringMap(val))
@@ -278,7 +278,7 @@ func tryConcreteValue(v interface{}) Value {
 		return NewMapperValue(int64Float32Map(val))
 	case map[int64]float64:
 		return NewMapperValue(int64Float64Map(val))
-	case map[int64]interface{}:
+	case map[int64]any:
 		return NewMapperValue(int64InterfaceMap(val))
 	case map[uint16]string:
 		return NewMapperValue(uint16StringMap(val))
@@ -300,7 +300,7 @@ func tryConcreteValue(v interface{}) Value {
 		return NewMapperValue(uint16Float32Map(val))
 	case map[uint16]float64:
 		return NewMapperValue(uint16Float64Map(val))
-	case map[uint16]interface{}:
+	case map[uint16]any:
 		return NewMapperValue(uint16InterfaceMap(val))
 	case map[uint32]string:
 		return NewMapperValue(uint32StringMap(val))
@@ -322,7 +322,7 @@ func tryConcreteValue(v interface{}) Value {
 		return NewMapperValue(uint32Float32Map(val))
 	case map[uint32]float64:
 		return NewMapperValue(uint32Float64Map(val))
-	case map[uint32]interface{}:
+	case map[uint32]any:
 		return NewMapperValue(uint32InterfaceMap(val))
 	case map[float32]string:
 		return NewMapperValue(float32StringMap(val))
@@ -344,7 +344,7 @@ func tryConcreteValue(v interface{}) Value {
 		return NewMapperValue(float32Float32Map(val))
 	case map[float32]float64:
 		return NewMapperValue(float32Float64Map(val))
-	case map[float32]interface{}:
+	case map[float32]any:
 		return NewMapperValue(float32InterfaceMap(val))
 	case map[float64]string:
 		return NewMapperValue(float64StringMap(val))
@@ -366,7 +366,7 @@ func tryConcreteValue(v interface{}) Value {
 		return NewMapperValue(float64Float32Map(val))
 	case map[float64]float64:
 		return NewMapperValue(float64Float64Map(val))
-	case map[float64]interface{}:
+	case map[float64]any:
 		return NewMapperValue(float64InterfaceMap(val))
 	case map[string]uint64:
 		return NewMapperValue(stringUint64Map(val))
@@ -410,7 +410,7 @@ func tryConcreteValue(v interface{}) Value {
 		return NewMapperValue(uint64Float32Map(val))
 	case map[uint64]float64:
 		return NewMapperValue(uint64Float64Map(val))
-	case map[uint64]interface{}:
+	case map[uint64]any:
 		return NewMapperValue(uint64InterfaceMap(val))
 	}
 
@@ -418,7 +418,7 @@ func tryConcreteValue(v interface{}) Value {
 }
 
 // OpResults encapsulates the results of batch read operations
-type OpResults []interface{}
+type OpResults []any
 
 // NewValue generates a new Value object based on the type.
 // If the type is not supported, NewValue will panic.
@@ -441,7 +441,7 @@ type OpResults []interface{}
 // This way you will avoid hitting reflection.
 // To completely avoid reflection in the library,
 // use the build tag: as_performance while building your program.
-func NewValue(v interface{}) Value {
+func NewValue(v any) Value {
 	if value := tryConcreteValue(v); value != nil {
 		return value
 	}
@@ -484,8 +484,8 @@ func (vl NullValue) GetType() int {
 	return ParticleType.NULL
 }
 
-// GetObject returns original value as an interface{}.
-func (vl NullValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl NullValue) GetObject() any {
 	return nil
 }
 
@@ -523,8 +523,8 @@ func (vl InfinityValue) GetType() int {
 	panic("Invalid particle type: INF")
 }
 
-// GetObject returns original value as an interface{}.
-func (vl InfinityValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl InfinityValue) GetObject() any {
 	return nil
 }
 
@@ -562,8 +562,8 @@ func (vl WildCardValue) GetType() int {
 	panic("Invalid particle type: WildCard")
 }
 
-// GetObject returns original value as an interface{}.
-func (vl WildCardValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl WildCardValue) GetObject() any {
 	return nil
 }
 
@@ -611,8 +611,8 @@ func (vl BytesValue) GetType() int {
 	return ParticleType.BLOB
 }
 
-// GetObject returns original value as an interface{}.
-func (vl BytesValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl BytesValue) GetObject() any {
 	return []byte(vl)
 }
 
@@ -649,8 +649,8 @@ func (vl StringValue) GetType() int {
 	return ParticleType.STRING
 }
 
-// GetObject returns original value as an interface{}.
-func (vl StringValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl StringValue) GetObject() any {
 	return string(vl)
 }
 
@@ -688,8 +688,8 @@ func (vl IntegerValue) GetType() int {
 	return ParticleType.INTEGER
 }
 
-// GetObject returns original value as an interface{}.
-func (vl IntegerValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl IntegerValue) GetObject() any {
 	return int(vl)
 }
 
@@ -727,8 +727,8 @@ func (vl LongValue) GetType() int {
 	return ParticleType.INTEGER
 }
 
-// GetObject returns original value as an interface{}.
-func (vl LongValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl LongValue) GetObject() any {
 	return int64(vl)
 }
 
@@ -766,8 +766,8 @@ func (vl FloatValue) GetType() int {
 	return ParticleType.FLOAT
 }
 
-// GetObject returns original value as an interface{}.
-func (vl FloatValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl FloatValue) GetObject() any {
 	return float64(vl)
 }
 
@@ -806,8 +806,8 @@ func (vb BoolValue) GetType() int {
 	return ParticleType.BOOL
 }
 
-// GetObject returns original value as an interface{}.
-func (vb BoolValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vb BoolValue) GetObject() any {
 	return bool(vb)
 }
 
@@ -847,8 +847,8 @@ func (va ValueArray) GetType() int {
 	return ParticleType.LIST
 }
 
-// GetObject returns original value as an interface{}.
-func (va ValueArray) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (va ValueArray) GetObject() any {
 	return []Value(va)
 }
 
@@ -861,10 +861,10 @@ func (va ValueArray) String() string {
 
 // ListValue encapsulates any arbitrary array.
 // Supported by Aerospike 3+ servers only.
-type ListValue []interface{}
+type ListValue []any
 
 // NewListValue generates a ListValue instance.
-func NewListValue(list []interface{}) ListValue {
+func NewListValue(list []any) ListValue {
 	return ListValue(list)
 }
 
@@ -878,7 +878,7 @@ func (vl ListValue) write(cmd BufferEx) (int, Error) {
 }
 
 func (vl ListValue) pack(cmd BufferEx) (int, Error) {
-	return packIfcList(cmd, []interface{}(vl))
+	return packIfcList(cmd, []any(vl))
 }
 
 // GetType returns wire protocol value type.
@@ -886,14 +886,14 @@ func (vl ListValue) GetType() int {
 	return ParticleType.LIST
 }
 
-// GetObject returns original value as an interface{}.
-func (vl ListValue) GetObject() interface{} {
-	return []interface{}(vl)
+// GetObject returns original value as an any.
+func (vl ListValue) GetObject() any {
+	return []any(vl)
 }
 
 // String implements Stringer interface.
 func (vl ListValue) String() string {
-	return fmt.Sprintf("%v", []interface{}(vl))
+	return fmt.Sprintf("%v", []any(vl))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -931,8 +931,8 @@ func (vl *ListerValue) GetType() int {
 	return ParticleType.LIST
 }
 
-// GetObject returns original value as an interface{}.
-func (vl *ListerValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl *ListerValue) GetObject() any {
 	return vl.list
 }
 
@@ -945,10 +945,10 @@ func (vl *ListerValue) String() string {
 
 // MapValue encapsulates an arbitrary map.
 // Supported by Aerospike 3+ servers only.
-type MapValue map[interface{}]interface{}
+type MapValue map[any]any
 
 // NewMapValue generates a MapValue instance.
-func NewMapValue(vmap map[interface{}]interface{}) MapValue {
+func NewMapValue(vmap map[any]any) MapValue {
 	return MapValue(vmap)
 }
 
@@ -970,23 +970,23 @@ func (vl MapValue) GetType() int {
 	return ParticleType.MAP
 }
 
-// GetObject returns original value as an interface{}.
-func (vl MapValue) GetObject() interface{} {
-	return map[interface{}]interface{}(vl)
+// GetObject returns original value as an any.
+func (vl MapValue) GetObject() any {
+	return map[any]any(vl)
 }
 
 func (vl MapValue) String() string {
-	return fmt.Sprintf("%v", map[interface{}]interface{}(vl))
+	return fmt.Sprintf("%v", map[any]any(vl))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 // JsonValue encapsulates a Json map.
 // Supported by Aerospike 3+ servers only.
-type JsonValue map[string]interface{}
+type JsonValue map[string]any
 
 // NewJsonValue generates a JsonValue instance.
-func NewJsonValue(vmap map[string]interface{}) JsonValue {
+func NewJsonValue(vmap map[string]any) JsonValue {
 	return JsonValue(vmap)
 }
 
@@ -1008,13 +1008,13 @@ func (vl JsonValue) GetType() int {
 	return ParticleType.MAP
 }
 
-// GetObject returns original value as an interface{}.
-func (vl JsonValue) GetObject() interface{} {
-	return map[string]interface{}(vl)
+// GetObject returns original value as an any.
+func (vl JsonValue) GetObject() any {
+	return map[string]any(vl)
 }
 
 func (vl JsonValue) String() string {
-	return fmt.Sprintf("%v", map[string]interface{}(vl))
+	return fmt.Sprintf("%v", map[string]any(vl))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1052,8 +1052,8 @@ func (vl *MapperValue) GetType() int {
 	return ParticleType.MAP
 }
 
-// GetObject returns original value as an interface{}.
-func (vl *MapperValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl *MapperValue) GetObject() any {
 	return vl.vmap
 }
 
@@ -1096,8 +1096,8 @@ func (vl GeoJSONValue) GetType() int {
 	return ParticleType.GEOJSON
 }
 
-// GetObject returns original value as an interface{}.
-func (vl GeoJSONValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl GeoJSONValue) GetObject() any {
 	return string(vl)
 }
 
@@ -1134,8 +1134,8 @@ func (vl HLLValue) GetType() int {
 	return ParticleType.HLL
 }
 
-// GetObject returns original value as an interface{}.
-func (vl HLLValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl HLLValue) GetObject() any {
 	return []byte(vl)
 }
 
@@ -1180,8 +1180,8 @@ func (vl *RawBlobValue) GetType() int {
 	return vl.ParticleType
 }
 
-// GetObject returns original value as an interface{}.
-func (vl *RawBlobValue) GetObject() interface{} {
+// GetObject returns original value as an any.
+func (vl *RawBlobValue) GetObject() any {
 	return []byte(vl.Data)
 }
 
@@ -1192,7 +1192,7 @@ func (vl *RawBlobValue) String() string {
 
 //////////////////////////////////////////////////////////////////////////////
 
-func bytesToParticleRaw(ptype int, buf []byte, offset int, length int, raw bool) (interface{}, Error) {
+func bytesToParticleRaw(ptype int, buf []byte, offset int, length int, raw bool) (any, Error) {
 	switch ptype {
 	case ParticleType.MAP:
 		if raw {
@@ -1209,7 +1209,7 @@ func bytesToParticleRaw(ptype int, buf []byte, offset int, length int, raw bool)
 	return bytesToParticle(ptype, buf, offset, length)
 }
 
-func bytesToParticle(ptype int, buf []byte, offset int, length int) (interface{}, Error) {
+func bytesToParticle(ptype int, buf []byte, offset int, length int) (any, Error) {
 
 	switch ptype {
 	case ParticleType.INTEGER:
@@ -1304,7 +1304,7 @@ func bytesToKeyValue(pType int, buf []byte, offset int, length int) (Value, Erro
 	}
 }
 
-func unwrapValue(v interface{}) interface{} {
+func unwrapValue(v any) any {
 	if v == nil {
 		return nil
 	}
@@ -1312,7 +1312,7 @@ func unwrapValue(v interface{}) interface{} {
 	if uv, ok := v.(Value); ok {
 		return unwrapValue(uv.GetObject())
 	} else if uv, ok := v.([]Value); ok {
-		a := make([]interface{}, len(uv))
+		a := make([]any, len(uv))
 		for i := range uv {
 			a[i] = unwrapValue(uv[i].GetObject())
 		}

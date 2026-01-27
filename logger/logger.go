@@ -37,7 +37,7 @@ const (
 )
 
 type genericLogger interface {
-	Printf(format string, v ...interface{})
+	Printf(format string, v ...any)
 }
 
 type logger struct {
@@ -72,7 +72,7 @@ func (lgr *logger) SetLevel(level LogPriority) {
 }
 
 // LogAtLevel will logs a message at the level requested.
-func (lgr *logger) LogAtLevel(level LogPriority, format string, v ...interface{}) {
+func (lgr *logger) LogAtLevel(level LogPriority, format string, v ...any) {
 	switch level {
 	case DEBUG:
 		lgr.Debug(format, v...)
@@ -87,7 +87,7 @@ func (lgr *logger) LogAtLevel(level LogPriority, format string, v ...interface{}
 }
 
 // Debug logs a message if log level allows to do so.
-func (lgr *logger) Debug(format string, v ...interface{}) {
+func (lgr *logger) Debug(format string, v ...any) {
 	if lgr.level <= DEBUG {
 		if l, ok := lgr.Logger.(*log.Logger); ok {
 			l.Output(2, fmt.Sprintf(format, v...))
@@ -98,7 +98,7 @@ func (lgr *logger) Debug(format string, v ...interface{}) {
 }
 
 // Info logs a message if log level allows to do so.
-func (lgr *logger) Info(format string, v ...interface{}) {
+func (lgr *logger) Info(format string, v ...any) {
 	if lgr.level <= INFO {
 		if l, ok := lgr.Logger.(*log.Logger); ok {
 			l.Output(2, fmt.Sprintf(format, v...))
@@ -109,7 +109,7 @@ func (lgr *logger) Info(format string, v ...interface{}) {
 }
 
 // Warn logs a message if log level allows to do so.
-func (lgr *logger) Warn(format string, v ...interface{}) {
+func (lgr *logger) Warn(format string, v ...any) {
 	if lgr.level <= WARNING {
 		if l, ok := lgr.Logger.(*log.Logger); ok {
 			l.Output(2, fmt.Sprintf(format, v...))
@@ -120,7 +120,7 @@ func (lgr *logger) Warn(format string, v ...interface{}) {
 }
 
 // Error logs a message if log level allows to do so.
-func (lgr *logger) Error(format string, v ...interface{}) {
+func (lgr *logger) Error(format string, v ...any) {
 	if lgr.level <= ERR {
 		if l, ok := lgr.Logger.(*log.Logger); ok {
 			l.Output(2, fmt.Sprintf(format, v...))
