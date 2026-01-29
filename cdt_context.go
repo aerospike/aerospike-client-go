@@ -167,14 +167,18 @@ func (ctxl cdtContextList) packArray(cmd BufferEx) (int, Error) {
 	return size, nil
 }
 
-// CtxListIndex defines Lookup list by index offset.
+// CtxListIndex creates a context to lookup a list by index offset.
 // If the index is negative, the resolved index starts backwards from end of list.
 // If an index is out of bounds, a parameter error will be returned.
-// Examples:
-// 0: First item.
-// 4: Fifth item.
-// -1: Last item.
-// -3: Third to last item.
+//
+// Index examples:
+// - 0: First item.
+// - 4: Fifth item.
+// - -1: Last item.
+// - -3: Third to last item.
+//
+// Parameters:
+//   - index: List index position
 func CtxListIndex(index int) *CDTContext {
 	return &CDTContext{ctxTypeListIndex, IntegerValue(index), nil}
 }
@@ -184,10 +188,13 @@ func CtxListIndexCreate(index int, order ListOrderType, pad bool) *CDTContext {
 	return &CDTContext{ctxTypeListIndex | cdtListOrderFlag(order, pad), IntegerValue(index), nil}
 }
 
-// CtxListRank defines Lookup list by rank.
+// CtxListRank creates a context to lookup a list by rank.
 // 0 = smallest value
 // N = Nth smallest value
 // -1 = largest value
+//
+// Parameters:
+//   - rank: Rank position (0 = smallest, -1 = largest)
 func CtxListRank(rank int) *CDTContext {
 	return &CDTContext{ctxTypeListRank, IntegerValue(rank), nil}
 }
@@ -209,15 +216,21 @@ func CtxMapIndex(index int) *CDTContext {
 	return &CDTContext{ctxTypeMapIndex, IntegerValue(index), nil}
 }
 
-// CtxMapRank defines Lookup map by rank.
+// CtxMapRank creates a context to lookup a map by rank.
 // 0 = smallest value
 // N = Nth smallest value
 // -1 = largest value
+//
+// Parameters:
+//   - rank: Rank position (0 = smallest, -1 = largest)
 func CtxMapRank(rank int) *CDTContext {
 	return &CDTContext{ctxTypeMapRank, IntegerValue(rank), nil}
 }
 
-// CtxMapKey defines Lookup map by key.
+// CtxMapKey creates a context to lookup a map by key.
+//
+// Parameters:
+//   - key: The map key to navigate to (use StringValue, IntegerValue, etc.)
 func CtxMapKey(key Value) *CDTContext {
 	return &CDTContext{ctxTypeMapKey, key, nil}
 }
