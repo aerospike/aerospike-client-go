@@ -1791,7 +1791,8 @@ func (clnt *Client) createIndex(policy *WritePolicy,
 	response := responseMap[strCmd.String()]
 	if strings.EqualFold(response, "OK") {
 		// Return task that could optionally be polled for completion.
-		return NewIndexTask(clnt.cluster, namespace, indexName), nil
+		timeout := policy.SocketTimeout
+		return newIndexTaskWithTimeout(clnt.cluster, namespace, indexName, timeout), nil
 	}
 
 	return nil, parseInfoErrorCode(response)
@@ -1840,7 +1841,8 @@ func (clnt *Client) DropIndex(
 
 	if strings.EqualFold(response, "OK") {
 		// Return task that could optionally be polled for completion.
-		task := NewDropIndexTask(clnt.cluster, namespace, indexName)
+		timeout := policy.SocketTimeout
+		task := newDropIndexTaskWithTimeout(clnt.cluster, namespace, indexName, timeout)
 		return <-task.OnComplete()
 	}
 

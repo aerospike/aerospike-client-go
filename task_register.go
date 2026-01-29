@@ -28,7 +28,7 @@ type RegisterTask struct {
 // NewRegisterTask initializes a RegisterTask with fields needed to query server nodes.
 func NewRegisterTask(cluster *Cluster, packageName string) *RegisterTask {
 	return &RegisterTask{
-		baseTask:    newTask(cluster),
+		baseTask:    newTask(cluster, 0),
 		packageName: packageName,
 	}
 }
