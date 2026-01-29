@@ -35,6 +35,7 @@ func NewTxnVerifyPolicy() *TxnVerifyPolicy {
 	mp.SocketTimeout = 3 * time.Second
 	mp.TotalTimeout = 10 * time.Second
 	mp.SleepBetweenRetries = 1 * time.Second
+	mp.SleepMultiplier = 1.0
 
 	return &TxnVerifyPolicy{
 		BatchPolicy: mp,
@@ -123,6 +124,13 @@ func (tvp *TxnVerifyPolicy) mapDynamic(dynConfig *DynConfig) *TxnVerifyPolicy {
 			tvp.SleepBetweenRetries = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.TxnVerify.SleepMultiplier != nil {
+			configValue := *currentConfig.Dynamic.TxnVerify.SleepMultiplier
+			tvp.SleepMultiplier = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepMultiplier set to %f", configValue)
 			}
 		}
 		if currentConfig.Dynamic.TxnVerify.Replica != nil {

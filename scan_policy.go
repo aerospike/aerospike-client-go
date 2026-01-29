@@ -122,6 +122,13 @@ func (sp *ScanPolicy) mapDynamic(dynConfig *DynConfig) *ScanPolicy {
 				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
 			}
 		}
+		if currentConfig.Dynamic.Scan.SleepMultiplier != nil {
+			configValue := *currentConfig.Dynamic.Scan.SleepMultiplier
+			sp.SleepMultiplier = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepMultiplier set to %f", configValue)
+			}
+		}
 		if currentConfig.Dynamic.Scan.Replica != nil {
 			configValue := mapReplicaToReplicaPolicy(*currentConfig.Dynamic.Scan.Replica)
 			sp.ReplicaPolicy = configValue

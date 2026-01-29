@@ -59,6 +59,10 @@ var _ = gg.Describe("WritePolicy Config", func() {
 								d := 2
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.5
+								return &d
+							}(),
 							SendKey: func() *bool {
 								r := true
 								return &r
@@ -84,6 +88,7 @@ var _ = gg.Describe("WritePolicy Config", func() {
 			gm.Expect(policy.MaxRetries).To(gm.Equal(0))
 			gm.Expect(policy.DurableDelete).To(gm.BeFalse())
 			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(policy.SleepMultiplier).To(gm.Equal(1.0))
 			gm.Expect(policy.SendKey).To(gm.BeFalse())
 
 			updatedPolicy := policy.patchDynamic(config)
@@ -95,6 +100,7 @@ var _ = gg.Describe("WritePolicy Config", func() {
 			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(3))
 			gm.Expect(updatedPolicy.DurableDelete).To(gm.BeTrue())
 			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(2 * time.Millisecond))
+			gm.Expect(updatedPolicy.SleepMultiplier).To(gm.Equal(1.5))
 			gm.Expect(updatedPolicy.SendKey).To(gm.BeTrue())
 			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(PREFER_RACK))
 		})

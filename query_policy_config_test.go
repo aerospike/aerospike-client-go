@@ -50,6 +50,10 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 								d := 2
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.4
+								return &d
+							}(),
 							Replica: func() *dynconfig.Replica {
 								d := dynconfig.PREFER_RACK
 								return &d
@@ -80,7 +84,7 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 			// SocketTimeout is in seconds.
 			gm.Expect(policy.SocketTimeout).To(gm.Equal(30 * time.Second))
 			gm.Expect(policy.MaxRetries).To(gm.Equal(5))
-			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(policy.SleepMultiplier).To(gm.Equal(1.0))
 			gm.Expect(policy.SendKey).To(gm.BeFalse())
 			gm.Expect(policy.ReplicaPolicy).To(gm.Equal(SEQUENCE))
 			gm.Expect(policy.UseCompression).To(gm.BeFalse())
@@ -98,6 +102,7 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 			// Note: Some tests change MaxRetries; full config changes it to 3.
 			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(3))
 			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(2 * time.Millisecond))
+			gm.Expect(updatedPolicy.SleepMultiplier).To(gm.Equal(1.4))
 			gm.Expect(updatedPolicy.SendKey).To(gm.BeFalse())
 			gm.Expect(updatedPolicy.UseCompression).To(gm.BeFalse())
 			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(PREFER_RACK))
@@ -127,6 +132,10 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 								d := 2
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.5
+								return &d
+							}(),
 							Replica: func() *dynconfig.Replica {
 								r := dynconfig.PREFER_RACK
 								return &r
@@ -145,6 +154,7 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 			gm.Expect(policy.SocketTimeout).To(gm.Equal(30 * time.Second))
 			gm.Expect(policy.MaxRetries).To(gm.Equal(5))
 			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(policy.SleepMultiplier).To(gm.Equal(1.0))
 			gm.Expect(policy.SendKey).To(gm.BeFalse())
 			gm.Expect(policy.ReplicaPolicy).To(gm.Equal(SEQUENCE))
 			gm.Expect(policy.UseCompression).To(gm.BeFalse())
@@ -160,6 +170,7 @@ var _ = gg.Describe("ApplyConfigToQueryPolicy", func() {
 			// MaxRetries should remain unchanged (default = 5) since it was not set.
 			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(5))
 			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(2 * time.Millisecond))
+			gm.Expect(updatedPolicy.SleepMultiplier).To(gm.Equal(1.5))
 			gm.Expect(updatedPolicy.SendKey).To(gm.BeFalse())
 			gm.Expect(updatedPolicy.UseCompression).To(gm.BeFalse())
 			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(PREFER_RACK))

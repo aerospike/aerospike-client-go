@@ -36,6 +36,7 @@ type partitionTracker struct {
 	recordCount         *atmc.Int
 	maxRecords          int64
 	sleepBetweenRetries time.Duration
+	sleepMultiplier     float64
 	socketTimeout       time.Duration
 	totalTimeout        time.Duration
 	iteration           int //= 1
@@ -137,6 +138,7 @@ func newPartitionTracker(policy *MultiPolicy, filter *PartitionFilter, nodes []*
 
 func (pt *partitionTracker) init(policy *MultiPolicy) {
 	pt.sleepBetweenRetries = policy.SleepBetweenRetries
+	pt.sleepMultiplier = policy.SleepMultiplier
 	pt.socketTimeout = policy.SocketTimeout
 	pt.totalTimeout = policy.TotalTimeout
 
@@ -403,7 +405,9 @@ func (pt *partitionTracker) isComplete(hasPartitionQuery bool, policy *BasePolic
 	if pt.maxRecords > 0 {
 		pt.maxRecords -= recordCount
 	}
-
+	if pt.sleepMultiplier > 1 {
+		pt.sleepBetweenRetries = time.Duration(float64(pt.sleepBetweenRetries) * pt.sleepMultiplier)
+	}
 	pt.iteration++
 	return false, nil
 }

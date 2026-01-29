@@ -115,6 +115,7 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 							}(),
 							MaxRetries:         func() *int { r := 3; return &r }(),
 							MaxConcurrentNodes: func() *int { r := 5; return &r }(),
+							SleepMultiplier:    func() *float64 { d := 2.0; return &d }(),
 						},
 					},
 				},
@@ -144,6 +145,7 @@ var _ = gg.Describe("ApplyConfigToScanPolicy", func() {
 			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(5000 * time.Millisecond))
 			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(3))
 			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(2 * time.Millisecond))
+			gm.Expect(updatedPolicy.SleepMultiplier).To(gm.Equal(2.0))
 			// Even if only select fields are configured, SendKey gets overridden.
 			gm.Expect(updatedPolicy.SendKey).To(gm.BeFalse())
 			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(SEQUENCE))

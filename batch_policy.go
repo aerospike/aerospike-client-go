@@ -220,6 +220,13 @@ func (p *BatchPolicy) mapDynamic(dynConfig *DynConfig) *BatchPolicy {
 				logger.Logger.Debug("SleepBetweenRetries set to %s", configValue.String())
 			}
 		}
+		if currentConfig.Dynamic.BatchRead.SleepMultiplier != nil {
+			configValue := *currentConfig.Dynamic.BatchRead.SleepMultiplier
+			p.SleepMultiplier = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Debug("SleepMultiplier set to %f", configValue)
+			}
+		}
 		if currentConfig.Dynamic.BatchRead.AllowInline != nil {
 			configValue := *currentConfig.Dynamic.BatchRead.AllowInline
 			p.AllowInline = configValue

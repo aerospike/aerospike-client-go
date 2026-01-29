@@ -160,6 +160,7 @@ func (tm *TxnMonitor) copyTimeoutPolicy(policy *BasePolicy) *WritePolicy {
 	wp.TimeoutDelay = policy.TimeoutDelay
 	wp.MaxRetries = policy.MaxRetries
 	wp.SleepBetweenRetries = policy.SleepBetweenRetries
+	wp.SleepMultiplier = policy.SleepMultiplier
 	wp.UseCompression = policy.UseCompression
 	wp.RespondPerEachOp = true
 
