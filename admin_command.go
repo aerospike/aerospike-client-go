@@ -307,12 +307,14 @@ func (acmd *AdminCommand) writePrivileges(privileges []Privilege) Error {
 
 	for _, privilege := range privileges {
 		code := privilege.code()
+		if code < 0 {
+			return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Invalid privilege code in Privilege.code(): %s.", privilege.Code))
+		}
 
 		acmd.dataBuffer[offset] = byte(code)
 		offset++
 
 		if privilege.canScope() {
-
 			if len(privilege.SetName) > 0 && len(privilege.Namespace) == 0 {
 				return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin privilege '%v' has a set scope with an empty namespace.", privilege))
 			}
@@ -664,7 +666,7 @@ func (acmd *AdminCommand) parseRolesFull(receiveSize int) (int, []*Role, Error) 
 		fieldCount := int(acmd.dataBuffer[acmd.dataOffset+3])
 		acmd.dataOffset += _HEADER_REMAINING
 
-		for i := 0; i < fieldCount; i++ {
+		for range fieldCount {
 			len := int(Buffer.BytesToInt32(acmd.dataBuffer, acmd.dataOffset))
 			acmd.dataOffset += 4
 			id := acmd.dataBuffer[acmd.dataOffset]
@@ -676,7 +678,9 @@ func (acmd *AdminCommand) parseRolesFull(receiveSize int) (int, []*Role, Error) 
 				role.Name = string(acmd.dataBuffer[acmd.dataOffset : acmd.dataOffset+len])
 				acmd.dataOffset += len
 			case _PRIVILEGES:
-				acmd.parsePrivileges(role)
+				if err := acmd.parsePrivileges(role); err != nil {
+					return 0, nil, err
+				}
 			case _WHITELIST:
 				role.Whitelist = acmd.parseWhitelist(len)
 			case _READ_QUOTA:
@@ -702,15 +706,18 @@ func (acmd *AdminCommand) parseRolesFull(receiveSize int) (int, []*Role, Error) 
 	return 0, list, nil
 }
 
-func (acmd *AdminCommand) parsePrivileges(role *Role) {
+func (acmd *AdminCommand) parsePrivileges(role *Role) Error {
 	size := int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
 	acmd.dataOffset++
 	role.Privileges = make([]Privilege, 0, size)
 
-	for i := 0; i < size; i++ {
-		priv := Privilege{}
-		priv.Code = privilegeFrom(acmd.dataBuffer[acmd.dataOffset])
+	for range size {
+		code, err := privilegeFrom(acmd.dataBuffer[acmd.dataOffset])
+		if err != nil {
+			return err
+		}
 		acmd.dataOffset++
+		priv := Privilege{Code: code}
 
 		if priv.canScope() {
 			len := int(acmd.dataBuffer[acmd.dataOffset] & 0xFF)
@@ -725,6 +732,8 @@ func (acmd *AdminCommand) parsePrivileges(role *Role) {
 		}
 		role.Privileges = append(role.Privileges, priv)
 	}
+
+	return nil
 }
 
 func (acmd *AdminCommand) parseWhitelist(length int) []string {
