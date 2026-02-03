@@ -15,7 +15,11 @@
 package aerospike_test
 
 import (
+	"sync"
+	"time"
+
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -91,6 +95,64 @@ var _ = gg.Describe("Complex Index operations test", func() {
 				gm.Expect(err).To(gm.HaveOccurred())
 			})
 
+		})
+
+		gg.Context("Concurrent index drop and create operations", func() {
+			indexName := "concurrent_test_index"
+			binName := "test_bin"
+
+			gg.It("must handle concurrent drop/create without hanging", func() {
+				// Use a short timeout policy (5 seconds) to keep test suite fast
+				shortTimeoutPolicy := as.NewWritePolicy(0, 0)
+				shortTimeoutPolicy.SocketTimeout = 5 * time.Second
+
+				// Clean up any existing index first
+				_ = client.DropIndex(shortTimeoutPolicy, ns, set, indexName)
+
+				var wg sync.WaitGroup
+				errors := make(chan error, 20)
+
+				for i := 0; i < 10; i++ {
+					wg.Add(1)
+					go func(iteration int) {
+						defer wg.Done()
+
+						err := client.DropIndex(shortTimeoutPolicy, ns, set, indexName)
+						if err != nil {
+							if !err.Matches(types.INDEX_NOTFOUND) && !err.Matches(types.TIMEOUT) {
+								errors <- err
+							}
+						}
+
+						// Create index
+						idxTask, err := client.CreateIndex(shortTimeoutPolicy, ns, set, indexName, binName, as.STRING)
+						if err != nil {
+							if !err.Matches(types.INDEX_FOUND) && !err.Matches(types.TIMEOUT) {
+								errors <- err
+							}
+						} else {
+							err = <-idxTask.OnComplete()
+							if err != nil {
+								if !err.Matches(types.TIMEOUT) {
+									errors <- err
+								}
+							}
+						}
+					}(i)
+				}
+
+				wg.Wait()
+				close(errors)
+
+				var errs []error
+				for err := range errors {
+					errs = append(errs, err)
+				}
+
+				_ = client.DropIndex(shortTimeoutPolicy, ns, set, indexName)
+
+				gm.Expect(errs).To(gm.BeEmpty(), "Unexpected errors during concurrent index operations")
+			})
 		})
 
 	})

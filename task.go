@@ -33,12 +33,14 @@ type Task interface {
 type baseTask struct {
 	retries atomic.Int
 	cluster *Cluster
+	timeout time.Duration
 }
 
 // newTask initializes task with fields needed to query server nodes.
-func newTask(cluster *Cluster) *baseTask {
+func newTask(cluster *Cluster, timeout time.Duration) *baseTask {
 	return &baseTask{
 		cluster: cluster,
+		timeout: timeout,
 	}
 }
 
@@ -52,9 +54,23 @@ func (btsk *baseTask) onComplete(ifc Task) chan Error {
 		defer close(ch)
 
 		var interval = 100 * time.Millisecond
+		var deadline time.Time
+		
+		// Set deadline if timeout is specified (> 0)
+		if btsk.timeout > 0 {
+			deadline = time.Now().Add(btsk.timeout)
+		}
 
 		for {
 			time.Sleep(interval)
+
+			// Check timeout before calling IsDone()
+			if btsk.timeout > 0 && time.Now().After(deadline) {
+				err := newError(types.TIMEOUT, "Client timeout: task did not complete within timeout period")
+				err.markInDoubt(true)
+				ch <- err
+				return
+			}
 
 			done, err := ifc.IsDone()
 			// Every 5 failed retries increase the interval
