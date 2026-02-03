@@ -42,6 +42,10 @@ func newOperateArgs(
 	respondAllOps := false
 
 	for _, operation := range operations {
+		if operation.err != nil {
+			return operateArgs{}, operation.err
+		}
+
 		switch operation.opType {
 		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ:
 			// Map operations require respondAllOps to be true.

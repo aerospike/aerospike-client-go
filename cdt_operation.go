@@ -15,7 +15,11 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v8/types"
+import (
+	"fmt"
+
+	"github.com/aerospike/aerospike-client-go/v8/types"
+)
 
 type SelectFlag int
 type ModifyFlag int
@@ -78,6 +82,13 @@ const (
 //
 // Returns nil if ctx is nil.
 func SelectByPath(binName string, flag SelectFlag, ctx ...*CDTContext) *Operation {
+	if binName == "" || len(binName) > MaxBinNameLength {
+		return &Operation{
+			opType: _CDT_READ,
+			err:    newError(types.PARAMETER_ERROR, fmt.Sprintf("binName cannot be empty or exceed %d characters", MaxBinNameLength)),
+		}
+	}
+
 	if len(ctx) == 0 {
 		return &Operation{
 			opType:    _CDT_READ,
@@ -110,6 +121,13 @@ func SelectByPath(binName string, flag SelectFlag, ctx ...*CDTContext) *Operatio
 //
 // Returns nil if ctx is nil.
 func ModifyByPath(binName string, flag ModifyFlag, modifyExp *Expression, ctx ...*CDTContext) *Operation {
+	if binName == "" || len(binName) > MaxBinNameLength {
+		return &Operation{
+			opType: _CDT_MODIFY,
+			err:    newError(types.PARAMETER_ERROR, fmt.Sprintf("binName cannot be empty or exceed %d characters", MaxBinNameLength)),
+		}
+	}
+
 	if len(ctx) == 0 {
 		return &Operation{
 			opType:    _CDT_MODIFY,
