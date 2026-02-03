@@ -137,7 +137,7 @@ func (cmd *batchIndexCommandGet) parseRecordResults(ifc command, receiveSize int
 		// Aggregate metrics
 		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
 		if metricsEnabled {
-			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), ifc.commandType(), resultCode)
+			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
 
 		if resultCode != 0 {

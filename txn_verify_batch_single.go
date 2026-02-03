@@ -131,7 +131,7 @@ func (cmd *batchSingleTxnVerifyCommand) parseResult(ifc command, conn *Connectio
 	// Aggregate metrics
 	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
 	if metricsEnabled {
-		cmd.node.stats.updateOrInsert(ifc.getNamespace(), ifc.getNamespaces(), ifc.commandType(), resultCode)
+		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 	}
 
 	// generation := Buffer.BytesToUint32(cmd.dataBuffer, 14)
