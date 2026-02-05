@@ -23,8 +23,6 @@ import (
 	"iter"
 	"time"
 
-	amap "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
-
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	"github.com/aerospike/aerospike-client-go/v8/types/pool"
@@ -148,6 +146,7 @@ const (
 	ttUDF
 	ttBatchRead
 	ttBatchWrite
+	ttMaxCommandTypes // Automatically gets the count of command types via iota
 )
 
 var (
@@ -4091,23 +4090,10 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
-	dm := &cmd.node.stats.DetailedMetrics
 
 	if single := ifc.getNamespace(); single != nil {
-		ns := *single
-
-		inner := dm.Get(ns)
-		if inner == nil {
-			inner = amap.New[commandType, *commandMetric](0)
-			dm.Set(ns, inner)
-		}
-
-		cm := inner.Get(ct)
-		if cm == nil {
-			cm = cmd.node.stats.newCommandMetric()
-			inner.Set(ct, cm)
-		}
-
+		arr := cmd.node.stats.getOrCreateMetricsArray(*single)
+		cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 		cm.Parsing.Add(end)
 		cm.BytesReceived.Add(uint64(dataReceived))
 	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
@@ -4115,16 +4101,8 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 			if ns == "" {
 				continue
 			}
-			inner := dm.Get(ns)
-			if inner == nil {
-				inner = amap.New[commandType, *commandMetric](0)
-				dm.Set(ns, inner)
-			}
-			cm := inner.Get(ct)
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				inner.Set(ct, cm)
-			}
+			arr := cmd.node.stats.getOrCreateMetricsArray(ns)
+			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 			cm.Parsing.Add(end)
 			cm.BytesReceived.Add(uint64(dataReceived))
 		}
@@ -4135,39 +4113,18 @@ func (cmd *baseCommand) applyDetailedMetricsParsing(ifc command, startTime time.
 func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime time.Time) {
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
-	dm := &cmd.node.stats.DetailedMetrics
 
 	if single := ifc.getNamespace(); single != nil {
-		inner := dm.Get(*single)
-		if inner == nil {
-			inner = amap.New[commandType, *commandMetric](0)
-			dm.Set(*single, inner)
-		}
-
-		cm := inner.Get(ct)
-		if cm == nil {
-			cm = cmd.node.stats.newCommandMetric()
-			inner.Set(ct, cm)
-		}
-
+		arr := cmd.node.stats.getOrCreateMetricsArray(*single)
+		cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 		cm.ConnectionAq.Add(end)
 	} else if nsMap := ifc.getNamespaces(); nsMap != nil {
 		for ns := range nsMap {
 			if ns == "" {
 				continue
 			}
-			inner := dm.Get(ns)
-			if inner == nil {
-				inner = amap.New[commandType, *commandMetric](0)
-				dm.Set(ns, inner)
-			}
-
-			cm := inner.Get(ct)
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				inner.Set(ct, cm)
-			}
-
+			arr := cmd.node.stats.getOrCreateMetricsArray(ns)
+			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 			cm.ConnectionAq.Add(end)
 		}
 	}
@@ -4177,36 +4134,19 @@ func (cmd *baseCommand) applyDetailedMetricsConnectionAq(ifc command, startTime 
 func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc command, bytesSent int, startTime time.Time) {
 	end := uint64(time.Since(startTime).Microseconds())
 	ct := ifc.commandType()
-	dm := &cmd.node.stats.DetailedMetrics
+
 	if singleNS := ifc.getNamespace(); singleNS != nil {
 		if *singleNS != "" {
-			inner := dm.Get(*singleNS)
-			if inner == nil {
-				inner = amap.New[commandType, *commandMetric](1)
-				dm.Set(*singleNS, inner)
-			}
-			cm := inner.Get(ct)
-			if cm == nil {
-				cm = cmd.node.stats.newCommandMetric()
-				inner.Set(ct, cm)
-			}
+			arr := cmd.node.stats.getOrCreateMetricsArray(*singleNS)
+			cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 			cm.BytesSent.Add(uint64(bytesSent))
 			cm.Latency.Add(end)
 		}
-	} else if nsIter := ifc.getNamespaces(); nsIter != nil { // allocation happens
+	} else if nsIter := ifc.getNamespaces(); nsIter != nil {
 		for ns := range nsIter {
 			if ns != "" {
-				//upsert(ns)
-				inner := dm.Get(ns)
-				if inner == nil {
-					inner = amap.New[commandType, *commandMetric](1)
-					dm.Set(ns, inner)
-				}
-				cm := inner.Get(ct)
-				if cm == nil {
-					cm = cmd.node.stats.newCommandMetric()
-					inner.Set(ct, cm)
-				}
+				arr := cmd.node.stats.getOrCreateMetricsArray(ns)
+				cm := cmd.node.stats.getOrCreateCommandMetric(arr, ct)
 				cm.BytesSent.Add(uint64(bytesSent))
 				cm.Latency.Add(end)
 			}
