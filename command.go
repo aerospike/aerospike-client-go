@@ -3347,9 +3347,13 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
 		if nameLength > MaxBinNameLength {
 			return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than %d bytes.", operation.binName, MaxBinNameLength))
 		}
-	default:
+	case _CDT_READ, _CDT_MODIFY:
 		if !valid {
 			return newError(types.PARAMETER_ERROR, fmt.Sprintf("binName cannot be empty or exceed %d characters", MaxBinNameLength))
+		}
+	default:
+		if !valid {
+			return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", operation.binName, MaxBinNameLength))
 		}
 	}
 
