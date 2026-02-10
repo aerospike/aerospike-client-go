@@ -64,9 +64,6 @@ type Operation struct {
 
 	// binValue (Optional) determines bin value used in operation.
 	binValue Value
-
-	// err (Optional) contains validation error from operation creation.
-	err Error
 }
 
 // size returns the size of the operation on the wire protocol.

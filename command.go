@@ -3277,9 +3277,9 @@ func (cmd *baseCommand) writeKey(key *Key) Error {
 }
 
 func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) Error {
-	nameLength, valid := cmd.validateBinName(bin.Name)
+	nameLength, valid := cmd.writeAndValidateBinName(bin.Name)
 	if !valid {
-		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", bin.Name, MaxBinNameLength))
+		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", bin.Name, maxBinNameLength))
 	}
 
 	valueLength, err := bin.Value.EstimateSize()
@@ -3298,9 +3298,9 @@ func (cmd *baseCommand) writeOperationForBin(bin *Bin, operation OperationType) 
 }
 
 func (cmd *baseCommand) writeOperationForBinNameAndValue(name string, val any, operation OperationType) Error {
-	nameLength, valid := cmd.validateBinName(name)
+	nameLength, valid := cmd.writeAndValidateBinName(name)
 	if !valid {
-		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", name, MaxBinNameLength))
+		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", name, maxBinNameLength))
 	}
 
 	v := NewValue(val)
@@ -3341,19 +3341,19 @@ func (cmd *baseCommand) writeBatchReadOperations(ops []*Operation, readAttr int)
 }
 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
-	nameLength, valid := cmd.validateBinName(operation.binName)
+	nameLength, valid := cmd.writeAndValidateBinName(operation.binName)
 	switch operation.opType {
 	case _READ, _READ_HEADER, _TOUCH, _DELETE:
-		if nameLength > MaxBinNameLength {
-			return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than %d bytes.", operation.binName, MaxBinNameLength))
+		if nameLength > maxBinNameLength {
+			return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long, it cannot be longer than %d bytes.", operation.binName, maxBinNameLength))
 		}
 	case _CDT_READ, _CDT_MODIFY:
 		if !valid {
-			return newError(types.PARAMETER_ERROR, fmt.Sprintf("binName cannot be empty or exceed %d characters", MaxBinNameLength))
+			return newError(types.PARAMETER_ERROR, fmt.Sprintf("binName cannot be empty or exceed %d characters", maxBinNameLength))
 		}
 	default:
 		if !valid {
-			return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", operation.binName, MaxBinNameLength))
+			return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", operation.binName, maxBinNameLength))
 		}
 	}
 
@@ -3389,9 +3389,9 @@ func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
 }
 
 func (cmd *baseCommand) writeOperationForBinName(name string, operation OperationType) Error {
-	nameLength, valid := cmd.validateBinName(name)
+	nameLength, valid := cmd.writeAndValidateBinName(name)
 	if !valid {
-		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", name, MaxBinNameLength))
+		return newError(types.BIN_NAME_TOO_LONG, fmt.Sprintf("Bin name `%s` too long or empty, it must be between 1 and %d bytes.", name, maxBinNameLength))
 	}
 
 	cmd.WriteInt32(int32(nameLength + 4))
@@ -4226,7 +4226,7 @@ func (cmd *baseCommand) applyDetailedMetricsDataSizeAndLatencyOnWrite(ifc comman
 	}
 }
 
-func (cmd *baseCommand) validateBinName(binName string) (int, bool) {
+func (cmd *baseCommand) writeAndValidateBinName(binName string) (int, bool) {
 	nameLength := copy(cmd.dataBuffer[(cmd.dataOffset+int(_OPERATION_HEADER_SIZE)):], binName)
-	return nameLength, binName != "" && nameLength <= MaxBinNameLength
+	return nameLength, binName != "" && nameLength <= maxBinNameLength
 }
