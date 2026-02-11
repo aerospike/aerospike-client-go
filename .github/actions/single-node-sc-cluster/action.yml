@@ -1,0 +1,36 @@
+name: "Deploy SC enabled cluster"
+description: "Creates an single node aerospike cluster"
+
+inputs:
+  version:
+    description: "Aerospike version for cluster creation"
+    required: true
+    default: "8.1.0.1"
+  aerolab_version:
+    # https://github.com/aerospike/aerolab/releases/
+    description: "Aerolab version to run."
+    required: false
+    default: "7.9.0"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Aerolab
+      uses: ./.github/actions/setup-aerolab
+      with:
+        aerolab_version: ${{ inputs.aerolab_version }}
+
+    - name: Configure Aerolab backend
+      shell: bash
+      run: |
+        aerolab config backend -t docker
+
+    - name: Deploy single node SC namespace cluster, set replication factor and apply roster
+      shell: bash
+      run: |
+        CLUSTER_NAME="aero"
+        AEROSPIKE_VERSION="${{ inputs.version }}"
+        aerolab cluster create -v $AEROSPIKE_VERSION -n $CLUSTER_NAME -e 3000:3000
+        aerolab conf adjust -n $CLUSTER_NAME set "namespace test".replication-factor 1
+        aerolab conf adjust -n $CLUSTER_NAME set "namespace test".strong-consistency-allow-expunge true    
+        aerolab conf sc -n $CLUSTER_NAME

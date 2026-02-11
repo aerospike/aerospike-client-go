@@ -49,6 +49,10 @@ var _ = gg.Describe("ApplyConfigToTxnRollPolicy", func() {
 								d := 1
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.5
+								return &d
+							}(),
 							SocketTimeout: func() *int {
 								d := 3
 								return &d
@@ -87,6 +91,7 @@ var _ = gg.Describe("ApplyConfigToTxnRollPolicy", func() {
 			gm.Expect(policy.ReadModeSC).To(gm.Equal(ReadModeSCSession))
 			gm.Expect(policy.ReplicaPolicy).To(gm.Equal(MASTER))
 			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Second))
+			gm.Expect(policy.SleepMultiplier).To(gm.Equal(1.0))
 			gm.Expect(policy.SocketTimeout).To(gm.Equal(3 * time.Second))
 			gm.Expect(policy.TotalTimeout).To(gm.Equal(10 * time.Second))
 			gm.Expect(policy.MaxRetries).To(gm.Equal(5))
@@ -103,6 +108,7 @@ var _ = gg.Describe("ApplyConfigToTxnRollPolicy", func() {
 			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(15 * time.Millisecond))
 			gm.Expect(updatedPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
 			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(updatedPolicy.SleepMultiplier).To(gm.Equal(1.5))
 			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(5))
 			gm.Expect(updatedPolicy.SendKey).To(gm.BeFalse())
 		})

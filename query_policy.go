@@ -130,6 +130,13 @@ func (qp *QueryPolicy) mapDynamic(dynConfig *DynConfig) *QueryPolicy {
 				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
 			}
 		}
+		if currentConfig.Dynamic.Query.SleepMultiplier != nil {
+			configValue := *currentConfig.Dynamic.Query.SleepMultiplier
+			qp.SleepMultiplier = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepMultiplier set to %f", configValue)
+			}
+		}
 		if currentConfig.Dynamic.Query.Replica != nil {
 			configValue := mapReplicaToReplicaPolicy(*currentConfig.Dynamic.Query.Replica)
 			qp.ReplicaPolicy = configValue

@@ -25,6 +25,8 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+	registry "github.com/aerospike/aerospike-client-go/v8/config/registry"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
 	asub "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
@@ -33,16 +35,16 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
-func isJsonObject(ifc interface{}) bool {
+func isJsonObject(ifc any) bool {
 	switch ifc := ifc.(type) {
 	case float64, float32, int, int64, uint64, string:
 		return true
-	case []interface{}:
+	case []any:
 		for _, v := range ifc {
 			switch v.(type) {
 			case float64, float32, int, int64, uint64, string:
 				return true
-			case map[string]interface{}:
+			case map[string]any:
 				for _, v := range ifc {
 					if !isJsonObject(v) {
 						return false
@@ -54,7 +56,7 @@ func isJsonObject(ifc interface{}) bool {
 			}
 		}
 		return true
-	case map[string]interface{}:
+	case map[string]any:
 		for _, v := range ifc {
 			if !isJsonObject(v) {
 				return false
@@ -64,6 +66,15 @@ func isJsonObject(ifc interface{}) bool {
 	default:
 		return false
 	}
+}
+
+// fakeConfigProvider implements the dynconfig.ConfigProvider interface.
+type fakeConfigProvider struct {
+	config *dynconfig.Config
+}
+
+func (f *fakeConfigProvider) LoadConfig(dsn string) *dynconfig.Config {
+	return f.config
 }
 
 // ALL tests are isolated by SetName and Key, which are 50 random characters
@@ -130,7 +141,7 @@ var _ = gg.Describe("Aerospike", func() {
 				// make sure it's a strict map of string => float64 | string => float64
 				gm.Expect(isJsonObject(nodeStatsIfc)).To(gm.BeTrue())
 
-				if nodeStats, ok := nodeStatsIfc.(map[string]interface{}); ok {
+				if nodeStats, ok := nodeStatsIfc.(map[string]any); ok {
 					gm.Expect(nodeStats["connections-attempts"].(float64)).To(gm.BeNumerically(">=", 1))
 					gm.Expect(nodeStats["node-added-count"].(float64)).To(gm.BeNumerically(">=", 1))
 					gm.Expect(nodeStats["partition-map-updates"].(float64)).To(gm.BeNumerically(">=", 1))
@@ -191,6 +202,30 @@ var _ = gg.Describe("Aerospike", func() {
 			nclient, err := as.NewClientWithPolicyAndHost(&cpolicy, dbHosts...)
 			gm.Expect(err).NotTo(gm.HaveOccurred())
 			gm.Expect(len(nclient.GetNodes())).To(gm.Equal(nodeCount))
+		})
+
+		gg.It("must not panic when dynconfig is enabled", func() {
+			originalConfigURL := as.AEROSPIKE_CLIENT_CONFIG_URL
+			defer func() {
+				as.AEROSPIKE_CLIENT_CONFIG_URL = originalConfigURL
+			}()
+
+			// Register a fake config provider for testing
+			fakeProvider := &fakeConfigProvider{
+				config: &dynconfig.Config{
+					Version: func() *string { v := "1.0.0"; return &v }(),
+					Dynamic: &dynconfig.DynamicConfig{},
+				},
+			}
+			registry.Register("test://", fakeProvider)
+
+			// Set config URL to enable dynconfig
+			as.AEROSPIKE_CLIENT_CONFIG_URL = "test://dummy"
+
+			// Create a client which calls newDynConfigWithCallBack
+			testClient, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			testClient.Close()
 		})
 
 		gg.Context("Rackaware", func() {
@@ -908,7 +943,7 @@ var _ = gg.Describe("Aerospike", func() {
 						// All int types and sizes should be encoded into an int64,
 						// unless if they are of type uint64, which always encodes to uint64
 						// regardless of the values inside
-						intList := []interface{}{math.MinInt64, math.MinInt64 + 1}
+						intList := []any{math.MinInt64, math.MinInt64 + 1}
 						for i := uint(0); i < 64; i++ {
 							intList = append(intList, -(1 << i))
 							intList = append(intList, -(1<<i)-1)
@@ -927,18 +962,18 @@ var _ = gg.Describe("Aerospike", func() {
 						// intList = append(intList, uint64(math.MaxUint64))
 						bin0 := as.NewBin("Aerospike0", intList)
 
-						bin1 := as.NewBin("Aerospike1", []interface{}{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
-						bin2 := as.NewBin("Aerospike2", []interface{}{math.MinInt16, 0, 1, 2, 3, math.MaxInt16})
-						bin3 := as.NewBin("Aerospike3", []interface{}{math.MinInt32, 0, 1, 2, 3, math.MaxInt32})
-						bin4 := as.NewBin("Aerospike4", []interface{}{math.MinInt64, 0, 1, 2, 3, math.MaxInt64})
-						bin5 := as.NewBin("Aerospike5", []interface{}{0, 1, 2, 3, math.MaxUint8})
-						bin6 := as.NewBin("Aerospike6", []interface{}{0, 1, 2, 3, math.MaxUint16})
-						bin7 := as.NewBin("Aerospike7", []interface{}{0, 1, 2, 3, math.MaxUint32})
-						bin8 := as.NewBin("Aerospike8", []interface{}{"", "\n", "string"})
-						bin9 := as.NewBin("Aerospike9", []interface{}{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), []interface{}{1, 2, 3}})
+						bin1 := as.NewBin("Aerospike1", []any{math.MinInt8, 0, 1, 2, 3, math.MaxInt8})
+						bin2 := as.NewBin("Aerospike2", []any{math.MinInt16, 0, 1, 2, 3, math.MaxInt16})
+						bin3 := as.NewBin("Aerospike3", []any{math.MinInt32, 0, 1, 2, 3, math.MaxInt32})
+						bin4 := as.NewBin("Aerospike4", []any{math.MinInt64, 0, 1, 2, 3, math.MaxInt64})
+						bin5 := as.NewBin("Aerospike5", []any{0, 1, 2, 3, math.MaxUint8})
+						bin6 := as.NewBin("Aerospike6", []any{0, 1, 2, 3, math.MaxUint16})
+						bin7 := as.NewBin("Aerospike7", []any{0, 1, 2, 3, math.MaxUint32})
+						bin8 := as.NewBin("Aerospike8", []any{"", "\n", "string"})
+						bin9 := as.NewBin("Aerospike9", []any{"", 1, nil, true, false, uint64(math.MaxUint64), math.MaxFloat32, math.MaxFloat64, as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), []any{1, 2, 3}})
 
 						// complex type, consisting different arrays
-						bin10 := as.NewBin("Aerospike10", []interface{}{
+						bin10 := as.NewBin("Aerospike10", []any{
 							nil,
 							bin0.Value.GetObject(),
 							bin1.Value.GetObject(),
@@ -950,10 +985,10 @@ var _ = gg.Describe("Aerospike", func() {
 							bin7.Value.GetObject(),
 							bin8.Value.GetObject(),
 							bin9.Value.GetObject(),
-							map[interface{}]interface{}{
+							map[any]any{
 								1: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
-								// [3]int{0, 1, 2}:          []interface{}{"string", 12, nil},
-								// [3]string{"0", "1", "2"}: []interface{}{"string", 12, nil},
+								// [3]int{0, 1, 2}:          []any{"string", 12, nil},
+								// [3]string{"0", "1", "2"}: []any{"string", 12, nil},
 								15:                   nil,
 								int8(math.MaxInt8):   int8(math.MaxInt8),
 								int64(math.MinInt64): int64(math.MinInt64),
@@ -965,8 +1000,8 @@ var _ = gg.Describe("Aerospike", func() {
 								// float64(math.MaxFloat64):  float64(math.MaxFloat64),
 								"true":   true,
 								"false":  false,
-								"string": map[interface{}]interface{}{ /*nil: "string",*/ "string": 19}, // map to complex array
-								// nil:                       []interface{}{18, 41},                                                   // array to complex map
+								"string": map[any]any{ /*nil: "string",*/ "string": 19}, // map to complex array
+								// nil:                       []any{18, 41},                                                   // array to complex map
 								"GeoJSON": as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 								"intList": intList,
 							},
@@ -997,13 +1032,13 @@ var _ = gg.Describe("Aerospike", func() {
 
 					gg.It("must save a key with Array Types", func() {
 						// complex type, consisting different maps
-						bin1 := as.NewBin("Aerospike1", map[interface{}]interface{}{
+						bin1 := as.NewBin("Aerospike1", map[any]any{
 							0:                    "",
 							int32(math.MaxInt32): randString(100),
 							int32(math.MinInt32): randString(100),
 						})
 
-						bin2 := as.NewBin("Aerospike2", map[interface{}]interface{}{
+						bin2 := as.NewBin("Aerospike2", map[any]any{
 							15:                   nil,
 							"true":               true,
 							"false":              false,
@@ -1015,8 +1050,8 @@ var _ = gg.Describe("Aerospike", func() {
 							// float64(-math.MaxFloat64): float64(-math.MaxFloat64),
 							// float32(math.MaxFloat32):  float32(math.MaxFloat32),
 							// float64(math.MaxFloat64):  float64(math.MaxFloat64),
-							"string": map[interface{}]interface{}{ /*nil: "string",*/ "string": 19}, // map to complex array
-							// nil:          []interface{}{18, 41},                                                   // array to complex map
+							"string": map[any]any{ /*nil: "string",*/ "string": 19}, // map to complex array
+							// nil:          []any{18, 41},                                                   // array to complex map
 							"longString": strings.Repeat("s", 32911),                                              // bit-sign test
 							"GeoJSON":    as.NewGeoJSONValue(`{ "type": "Point", "coordinates": [0.00, 0.00] }"`), // bit-sign test
 						})
@@ -1556,7 +1591,7 @@ var _ = gg.Describe("Aerospike", func() {
 					}
 
 					// First Part: For CDTs
-					list := []interface{}{}
+					list := []any{}
 					for j, key := range keys {
 						for i := 1; i <= listSize; i++ {
 							list = append(list, i*100)
@@ -1611,7 +1646,7 @@ var _ = gg.Describe("Aerospike", func() {
 					}
 
 					// First Part: For CDTs
-					list := []interface{}{}
+					list := []any{}
 					for j, key := range keys {
 						for i := 1; i <= listSize; i++ {
 							list = append(list, i*100)
@@ -1898,7 +1933,7 @@ var _ = gg.Describe("Aerospike", func() {
 				const cdtBinName = "cdtBin"
 
 				// First Part: For CDTs
-				list := []interface{}{}
+				list := []any{}
 				opAppend := as.ListAppendOp(cdtBinName, 1)
 				for i := 1; i <= listSize; i++ {
 					list = append(list, i)

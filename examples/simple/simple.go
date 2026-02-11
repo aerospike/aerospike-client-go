@@ -34,7 +34,7 @@ func main() {
 	bins := as.BinMap{
 		"bin1": 42, // you can pass any supported type as bin value
 		"bin2": "An elephant is a mouse with an operating system",
-		"bin3": []interface{}{"Go", 17981},
+		"bin3": []any{"Go", 17981},
 	}
 
 	// write the bins

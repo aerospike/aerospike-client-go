@@ -30,7 +30,7 @@ type queryAggregateCommand struct {
 	queryCommand
 
 	luaInstance *lua.LState
-	inputChan   chan interface{}
+	inputChan   chan any
 }
 
 func newQueryAggregateCommand(node *Node, policy *QueryPolicy, statement *Statement, recordset *Recordset) *queryAggregateCommand {
@@ -67,7 +67,7 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 		// Aggregate metrics
 		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
 		if metricsEnabled {
-			cmd.node.stats.updateOrInsert(ifc, resultCode)
+			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
 
 		if resultCode != 0 {

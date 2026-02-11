@@ -86,6 +86,7 @@ type Read struct {
 	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
 	Replica             *Replica    `yaml:"replica"`
 	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
+	SleepMultiplier     *float64    `yaml:sleep_multiplier`
 	SocketTimeout       *int        `yaml:"socket_timeout"`
 	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
@@ -96,6 +97,7 @@ type Write struct {
 	Replica             *Replica `yaml:"replica"`
 	SendKey             *bool    `yaml:"send_key"`
 	SleepBetweenRetries *int     `yaml:"sleep_between_retries"`
+	SleepMultiplier     *float64 `yaml:sleep_multiplier`
 	SocketTimeout       *int     `yaml:"socket_timeout"`
 	TotalTimeout        *int     `yaml:"total_timeout"`
 	MaxRetries          *int     `yaml:"max_retries"`
@@ -106,6 +108,7 @@ type Write struct {
 type Query struct {
 	Replica             *Replica       `yaml:"replica"`
 	SleepBetweenRetries *int           `yaml:"sleep_between_retries"`
+	SleepMultiplier     *float64       `yaml:sleep_multiplier`
 	SocketTimeout       *int           `yaml:"socket_timeout"`
 	TotalTimeout        *int           `yaml:"total_timeout"`
 	MaxRetries          *int           `yaml:"max_retries"`
@@ -118,6 +121,7 @@ type Query struct {
 type Scan struct {
 	Replica             *Replica `yaml:"replica"`
 	SleepBetweenRetries *int     `yaml:"sleep_between_retries"`
+	SleepMultiplier     *float64 `yaml:sleep_multiplier`
 	SocketTimeout       *int     `yaml:"socket_timeout"`
 	TimeoutDelay        *int     `yaml:"timeout_delay"`
 	TotalTimeout        *int     `yaml:"total_timeout"`
@@ -130,6 +134,7 @@ type BatchRead struct {
 	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
 	Replica             *Replica    `yaml:"replica"`
 	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
+	SleepMultiplier     *float64    `yaml:sleep_multiplier`
 	SocketTimeout       *int        `yaml:"socket_timeout"`
 	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
@@ -143,6 +148,7 @@ type BatchRead struct {
 type BatchWrite struct {
 	Replica             *Replica `yaml:"replica"`
 	SleepBetweenRetries *int     `yaml:"sleep_between_retries"`
+	SleepMultiplier     *float64 `yaml:sleep_multiplier`
 	SocketTimeout       *int     `yaml:"socket_timeout"`
 	TotalTimeout        *int     `yaml:"total_timeout"`
 	MaxRetries          *int     `yaml:"max_retries"`
@@ -170,6 +176,7 @@ type TxnRoll struct {
 	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
 	Replica             *Replica    `yaml:"replica"`
 	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
+	SleepMultiplier     *float64    `yaml:sleep_multiplier`
 	SocketTimeout       *int        `yaml:"socket_timeout"`
 	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`
@@ -184,6 +191,7 @@ type TxnVerify struct {
 	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
 	Replica             *Replica    `yaml:"replica"`
 	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
+	SleepMultiplier     *float64    `yaml:sleep_multiplier`
 	SocketTimeout       *int        `yaml:"socket_timeout"`
 	TotalTimeout        *int        `yaml:"total_timeout"`
 	MaxRetries          *int        `yaml:"max_retries"`

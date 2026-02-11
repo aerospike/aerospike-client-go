@@ -70,7 +70,7 @@ func Benchmark_Get(b *testing.B) {
 	// obj := &OBJECT{198, "Jack Shaftoe and Company", []byte(bytes.Repeat([]byte{32}, 1000))}
 	// obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1}}
 	client.Delete(nil, key)
-	client.PutBins(nil, key, as.NewBin("b", []interface{}{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, "a", "b"}))
+	client.PutBins(nil, key, as.NewBin("b", []any{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, "a", "b"}))
 	// client.PutBins(nil, key, as.NewBin("b", 1))
 	// client.PutObject(nil, key, &obj)
 

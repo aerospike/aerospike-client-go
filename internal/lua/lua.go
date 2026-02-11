@@ -24,8 +24,8 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-// NewValue creates a value from interface{} in the interpreter
-func NewValue(L *lua.LState, value interface{}) lua.LValue {
+// NewValue creates a value from any in the interpreter
+func NewValue(L *lua.LState, value any) lua.LValue {
 	// Nils should return immediately
 	if value == nil {
 		return lua.LNil
@@ -65,14 +65,14 @@ func NewValue(L *lua.LState, value interface{}) lua.LValue {
 		return lua.LNumber(v)
 	case bool:
 		return lua.LBool(v)
-	case map[interface{}]interface{}:
+	case map[any]any:
 		luaMap := &Map{m: v}
 		ud := L.NewUserData()
 		ud.Value = luaMap
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaMapTypeName))
 		return ud
 
-	case []interface{}:
+	case []any:
 		luaList := &List{l: v}
 		ud := L.NewUserData()
 		ud.Value = luaList
@@ -85,7 +85,7 @@ func NewValue(L *lua.LState, value interface{}) lua.LValue {
 	switch rv.Kind() {
 	case reflect.Array, reflect.Slice:
 		l := rv.Len()
-		arr := make([]interface{}, l)
+		arr := make([]any, l)
 		for i := 0; i < l; i++ {
 			arr[i] = rv.Index(i).Interface()
 		}
@@ -93,7 +93,7 @@ func NewValue(L *lua.LState, value interface{}) lua.LValue {
 		return NewValue(L, arr)
 	case reflect.Map:
 		l := rv.Len()
-		amap := make(map[interface{}]interface{}, l)
+		amap := make(map[any]any, l)
 		for _, i := range rv.MapKeys() {
 			amap[i.Interface()] = rv.MapIndex(i).Interface()
 		}
@@ -115,7 +115,7 @@ func NewValue(L *lua.LState, value interface{}) lua.LValue {
 }
 
 // LValueToInterface converts a generic LValue to a native type
-func LValueToInterface(val lua.LValue) interface{} {
+func LValueToInterface(val lua.LValue) any {
 	switch val.Type() {
 	case lua.LTNil:
 		return nil
@@ -138,7 +138,7 @@ func LValueToInterface(val lua.LValue) interface{} {
 
 	case lua.LTTable:
 		t := val.(*lua.LTable)
-		m := make(map[interface{}]interface{}, t.Len())
+		m := make(map[any]any, t.Len())
 		t.ForEach(func(k, v lua.LValue) { m[k] = v })
 		return m
 	default:

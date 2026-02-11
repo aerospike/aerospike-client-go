@@ -34,7 +34,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 	gg.BeforeAll(func() {
 		for ii := 0; ii < keyCount; ii++ {
 			key, _ := as.NewKey(ns, set, ii)
-			ibin := as.BinMap{"bin": map[string]interface{}{"test": ii, "test2": "a"}}
+			ibin := as.BinMap{"bin": map[string]any{"test": ii, "test2": "a"}}
 			client.Delete(wpolicy, key)
 			err := client.Put(wpolicy, key, ibin)
 			gm.Expect(err).NotTo(gm.HaveOccurred())
@@ -84,7 +84,7 @@ var _ = gg.Describe("Expression Filters - Maps", gg.Ordered, func() {
 	})
 
 	gg.It("ExpMapGetByKeyList should work", func() {
-		amap := map[interface{}]interface{}{
+		amap := map[any]any{
 			"test4": 333,
 			"test5": 444,
 		}

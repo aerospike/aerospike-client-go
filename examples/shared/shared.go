@@ -55,6 +55,9 @@ var Namespace = flag.String("n", "test", "Aerospike namespace.")
 var Set = flag.String("s", "testset", "Aerospike set name.")
 var showUsage = flag.Bool("u", false, "Show usage information.")
 
+// ExampleType is used by examples that support multiple modes
+var ExampleType = flag.String("example", "default", "Example type to run (example-specific).")
+
 // Client is shared for all examples
 var Client *as.Client
 

@@ -15,6 +15,19 @@
 
 package aerospike
 
+var (
+	// Opcode used to encode a CDT select and apply operation.
+	// If flag bit 2 is clear, the operation will be interpreted as a select
+	// operation; otherwise, as an apply operation.
+	selectVal = int(0xfe)
+
+	// Opcode used to encode the calling of a virtual operation.
+	contextEval = int(0xff)
+
+	cdtOperationTypeSELECT  = operationSubType(&selectVal)
+	cdtOperationContextEVAL = operationSubType(&contextEval)
+)
+
 func newCDTCreateOperationEncoder(op *Operation, packer BufferEx) (int, Error) {
 	if op.binValue != nil {
 		if params := op.binValue.(ListValue); len(params) > 0 {
@@ -24,13 +37,13 @@ func newCDTCreateOperationEncoder(op *Operation, packer BufferEx) (int, Error) {
 	return packCDTParamsAsArray(packer, *op.opSubType, op.ctx)
 }
 
-func newCDTCreateOperationValues2(command int, attributes mapOrderType, binName string, ctx []*CDTContext, value1 interface{}, value2 interface{}) *Operation {
+func newCDTCreateOperationValues2(command int, attributes mapOrderType, binName string, ctx []*CDTContext, value1 any, value2 any) *Operation {
 	return &Operation{
 		opType:    _MAP_MODIFY,
 		opSubType: &command,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{value1, value2, IntegerValue(attributes.attr)}),
+		binValue:  ListValue([]any{value1, value2, IntegerValue(attributes.attr)}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }
@@ -46,24 +59,24 @@ func newCDTCreateOperationValues0(command int, typ OperationType, binName string
 	}
 }
 
-func newCDTCreateOperationValuesN(command int, typ OperationType, binName string, ctx []*CDTContext, values []interface{}, returnType mapReturnType) *Operation {
+func newCDTCreateOperationValuesN(command int, typ OperationType, binName string, ctx []*CDTContext, values []any, returnType mapReturnType) *Operation {
 	return &Operation{
 		opType:    typ,
 		opSubType: &command,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), ListValue(values)}),
+		binValue:  ListValue([]any{IntegerValue(returnType), ListValue(values)}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }
 
-func newCDTCreateOperationValue1(command int, typ OperationType, binName string, ctx []*CDTContext, value interface{}, returnType mapReturnType) *Operation {
+func newCDTCreateOperationValue1(command int, typ OperationType, binName string, ctx []*CDTContext, value any, returnType mapReturnType) *Operation {
 	return &Operation{
 		opType:    typ,
 		opSubType: &command,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), value}),
+		binValue:  ListValue([]any{IntegerValue(returnType), value}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }
@@ -74,7 +87,7 @@ func newCDTCreateOperationIndex(command int, typ OperationType, binName string, 
 		opSubType: &command,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), index}),
+		binValue:  ListValue([]any{IntegerValue(returnType), index}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }
@@ -85,7 +98,7 @@ func newCDTCreateOperationIndexCount(command int, typ OperationType, binName str
 		opSubType: &command,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), index, count}),
+		binValue:  ListValue([]any{IntegerValue(returnType), index, count}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }
@@ -96,7 +109,7 @@ func newCDTMapCreateOperationRelativeIndex(command int, typ OperationType, binNa
 		opSubType: &command,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), key, index}),
+		binValue:  ListValue([]any{IntegerValue(returnType), key, index}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }
@@ -107,19 +120,19 @@ func newCDTMapCreateOperationRelativeIndexCount(command int, typ OperationType, 
 		opSubType: &command,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), key, index, count}),
+		binValue:  ListValue([]any{IntegerValue(returnType), key, index, count}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }
 
-func newCDTCreateRangeOperation(command int, typ OperationType, binName string, ctx []*CDTContext, begin interface{}, end interface{}, returnType mapReturnType) *Operation {
+func newCDTCreateRangeOperation(command int, typ OperationType, binName string, ctx []*CDTContext, begin any, end any, returnType mapReturnType) *Operation {
 	if end == nil {
 		return &Operation{
 			opType:    typ,
 			opSubType: &command,
 			ctx:       ctx,
 			binName:   binName,
-			binValue:  ListValue([]interface{}{IntegerValue(returnType), begin}),
+			binValue:  ListValue([]any{IntegerValue(returnType), begin}),
 			encoder:   newCDTCreateOperationEncoder,
 		}
 	}
@@ -129,7 +142,7 @@ func newCDTCreateRangeOperation(command int, typ OperationType, binName string, 
 		opSubType: &command,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{IntegerValue(returnType), begin, end}),
+		binValue:  ListValue([]any{IntegerValue(returnType), begin, end}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }

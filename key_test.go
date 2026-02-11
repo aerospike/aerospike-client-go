@@ -116,23 +116,23 @@ var _ = gg.Describe("Key Test", func() {
 
 		// gg.It("for Arrays", func() {
 
-		// 	key, _ := as.NewKey("namespace", "set", []interface{}{})
+		// 	key, _ := as.NewKey("namespace", "set", []any{})
 		// 	gm.Expect(hex.EncodeToString(key.Digest())).To(gm.Equal("2af0111192df4ca297232d1641ff52c2ce51ce2d"))
 
-		// 	key, _ = as.NewKey("namespace", "set", []interface{}{1, []byte{1, 17}, "str"})
+		// 	key, _ = as.NewKey("namespace", "set", []any{1, []byte{1, 17}, "str"})
 		// 	gm.Expect(hex.EncodeToString(key.Digest())).To(gm.Equal("8f5129e079cf66333a8372192d93072a4c661be2"))
 
 		// })
 
 		gg.It("for custom digest", func() {
-			// key, _ := as.NewKey("namespace", "set", []interface{}{})
+			// key, _ := as.NewKey("namespace", "set", []any{})
 			// gm.Expect(hex.EncodeToString(key.Digest())).To(gm.Equal("2af0111192df4ca297232d1641ff52c2ce51ce2d"))
 			key, _ := as.NewKey("namespace", "set", 1)
 			err := key.SetDigest([]byte("01234567890123456789"))
 			gm.Expect(err, nil)
 			gm.Expect(key.Digest()).To(gm.Equal([]byte("01234567890123456789")))
 
-			key, _ = as.NewKeyWithDigest("namespace", "set", []interface{}{}, []byte("01234567890123456789"))
+			key, _ = as.NewKeyWithDigest("namespace", "set", []any{}, []byte("01234567890123456789"))
 			gm.Expect(key.Digest()).To(gm.Equal([]byte("01234567890123456789")))
 		})
 

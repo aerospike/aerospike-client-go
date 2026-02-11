@@ -69,5 +69,5 @@ func (rc *Record) udfError() string {
 // udfResult returns the value returned by a UDF execute in a batch.
 // The result may be nil.
 func (rc *Record) udfResult() BinMap {
-	return BinMap(rc.Bins["SUCCESS"].(map[string]interface{}))
+	return BinMap(rc.Bins["SUCCESS"].(map[string]any))
 }

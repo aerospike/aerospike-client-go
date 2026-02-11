@@ -61,7 +61,7 @@ func (cmd *txnCloseCommand) parseResult(ifc command, conn *Connection) Error {
 	// Aggregate metrics
 	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
 	if metricsEnabled {
-		cmd.node.stats.updateOrInsert(ifc, resultCode)
+		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 	}
 
 	if resultCode == 0 || resultCode == types.KEY_NOT_FOUND_ERROR {

@@ -14,6 +14,8 @@
 
 package aerospike
 
+import "github.com/aerospike/aerospike-client-go/v8/types"
+
 // List operations support negative indexing. If the index is negative, the
 // resolved index starts backwards from end of list. If an index is out of bounds,
 // a parameter error will be returned. If a range is partially out of bounds, the
@@ -270,10 +272,10 @@ func packCDTParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params
 }
 
 func packCDTIfcParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params ListValue) (int, Error) {
-	return packCDTIfcVarParamsAsArray(packer, opType, ctx, []interface{}(params)...)
+	return packCDTIfcVarParamsAsArray(packer, opType, ctx, []any(params)...)
 }
 
-func packCDTIfcVarParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params ...interface{}) (int, Error) {
+func packCDTIfcVarParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params ...any) (int, Error) {
 	size := 0
 	n := 0
 	var err Error
@@ -299,10 +301,19 @@ func packCDTIfcVarParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, 
 			}
 			size += n
 
-			if n, err = c.Value.pack(packer); err != nil {
-				return size + n, err
+			if c.Value != nil {
+				if n, err = c.Value.pack(packer); err != nil {
+					return size + n, err
+				}
+				size += n
+			} else if c.Expression != nil {
+				if n, err = c.Expression.pack(packer); err != nil {
+					return size + n, err
+				}
+				size += n
+			} else {
+				return size, newError(types.PARAMETER_ERROR, "CDTContext must have either a Value or an Expression")
 			}
-			size += n
 		}
 
 		if n, err = packArrayBegin(packer, len(params)+1); err != nil {
@@ -346,7 +357,7 @@ func cdtCreateOpEncoder(op *Operation, packer BufferEx) (int, Error) {
 	return packCDTCreate(packer, int16(args[0].(int)), op.ctx, args[1].(int))
 }
 
-func packCDTCreate(packer BufferEx, opType int16, ctx []*CDTContext, flag int, params ...interface{}) (int, Error) {
+func packCDTCreate(packer BufferEx, opType int16, ctx []*CDTContext, flag int, params ...any) (int, Error) {
 	size := 0
 	n := 0
 	var err Error
@@ -374,11 +385,19 @@ func packCDTCreate(packer BufferEx, opType int16, ctx []*CDTContext, flag int, p
 			return size + n, err
 		}
 		size += n
-
-		if n, err = c.Value.pack(packer); err != nil {
-			return size + n, err
+		if c.Value != nil {
+			if n, err = c.Value.pack(packer); err != nil {
+				return size + n, err
+			}
+			size += n
+		} else if c.Expression != nil {
+			if n, err = c.Expression.pack(packer); err != nil {
+				return size + n, err
+			}
+			size += n
+		} else {
+			return size, newError(types.PARAMETER_ERROR, "CDTContext must have either a Value or an Expression")
 		}
-		size += n
 	}
 
 	c = ctx[last]
@@ -475,7 +494,11 @@ func ListSetOrderWithIndexOp(binName string, listOrder ListOrderType, ctx ...*CD
 // ListAppendOp creates a list append operation.
 // Server appends values to end of list bin.
 // Server returns list size on bin name.
-// It will panic is no values have been passed.
+// It will panic if no values have been passed.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - values: One or more values to append
 func ListAppendOp(binName string, values ...interface{}) *Operation {
 	if len(values) == 1 {
 		return &Operation{opType: _CDT_MODIFY, binName: binName, binValue: ListValue{_CDT_LIST_APPEND, NewValue(values[0])}, encoder: listGenericOpEncoder}
@@ -486,8 +509,8 @@ func ListAppendOp(binName string, values ...interface{}) *Operation {
 // ListAppendWithPolicyOp creates a list append operation.
 // Server appends values to end of list bin.
 // Server returns list size on bin name.
-// It will panic is no values have been passed.
-func ListAppendWithPolicyOp(policy *ListPolicy, binName string, values ...interface{}) *Operation {
+// It will panic if no values have been passed.
+func ListAppendWithPolicyOp(policy *ListPolicy, binName string, values ...any) *Operation {
 	switch len(values) {
 	case 1:
 		return &Operation{opType: _CDT_MODIFY, binName: binName, binValue: ListValue{_CDT_LIST_APPEND, NewValue(values[0]), IntegerValue(policy.attributes), IntegerValue(policy.flags)}, encoder: listGenericOpEncoder}
@@ -499,8 +522,8 @@ func ListAppendWithPolicyOp(policy *ListPolicy, binName string, values ...interf
 // ListAppendWithPolicyContextOp creates a list append operation.
 // Server appends values to end of list bin.
 // Server returns list size on bin name.
-// It will panic is no values have been passed.
-func ListAppendWithPolicyContextOp(policy *ListPolicy, binName string, ctx []*CDTContext, values ...interface{}) *Operation {
+// It will panic if no values have been passed.
+func ListAppendWithPolicyContextOp(policy *ListPolicy, binName string, ctx []*CDTContext, values ...any) *Operation {
 	switch len(values) {
 	case 1:
 		return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_APPEND, NewValue(values[0]), IntegerValue(policy.attributes), IntegerValue(policy.flags)}, encoder: listGenericOpEncoder}
@@ -512,7 +535,12 @@ func ListAppendWithPolicyContextOp(policy *ListPolicy, binName string, ctx []*CD
 // ListInsertOp creates a list insert operation.
 // Server inserts value to specified index of list bin.
 // Server returns list size on bin name.
-// It will panic is no values have been passed.
+// It will panic if no values have been passed.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - index: Index position to insert at (0 = beginning, -1 = before last)
+//   - values: One or more values to insert
 func ListInsertOp(binName string, index int, values ...interface{}) *Operation {
 	if len(values) == 1 {
 		return &Operation{opType: _CDT_MODIFY, binName: binName, binValue: ListValue{_CDT_LIST_INSERT, IntegerValue(index), NewValue(values[0])}, encoder: listGenericOpEncoder}
@@ -524,7 +552,7 @@ func ListInsertOp(binName string, index int, values ...interface{}) *Operation {
 // Server inserts value to specified index of list bin.
 // Server returns list size on bin name.
 // It will panic is no values have been passed.
-func ListInsertWithPolicyOp(policy *ListPolicy, binName string, index int, values ...interface{}) *Operation {
+func ListInsertWithPolicyOp(policy *ListPolicy, binName string, index int, values ...any) *Operation {
 	if len(values) == 1 {
 		return &Operation{opType: _CDT_MODIFY, binName: binName, binValue: ListValue{_CDT_LIST_INSERT, IntegerValue(index), NewValue(values[0]), IntegerValue(policy.flags)}, encoder: listGenericOpEncoder}
 	}
@@ -535,15 +563,20 @@ func ListInsertWithPolicyOp(policy *ListPolicy, binName string, index int, value
 // Server inserts value to specified index of list bin.
 // Server returns list size on bin name.
 // It will panic is no values have been passed.
-func ListInsertWithPolicyContextOp(policy *ListPolicy, binName string, index int, ctx []*CDTContext, values ...interface{}) *Operation {
+func ListInsertWithPolicyContextOp(policy *ListPolicy, binName string, index int, ctx []*CDTContext, values ...any) *Operation {
 	if len(values) == 1 {
 		return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_INSERT, IntegerValue(index), NewValue(values[0]), IntegerValue(policy.flags)}, encoder: listGenericOpEncoder}
 	}
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_INSERT_ITEMS, IntegerValue(index), ListValue(values), IntegerValue(policy.flags)}, encoder: listGenericOpEncoder}
 }
 
-// ListPopOp creates list pop operation.
+// ListPopOp creates a list pop operation.
 // Server returns item at specified index and removes item from list bin.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - index: Index to pop from (0 = first, -1 = last)
+//   - ctx: Optional CDT context for nested lists
 func ListPopOp(binName string, index int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_POP, IntegerValue(index)}, encoder: listGenericOpEncoder}
 }
@@ -567,19 +600,30 @@ func ListPopRangeFromOp(binName string, index int, ctx ...*CDTContext) *Operatio
 // ListRemoveOp creates a list remove operation.
 // Server removes item at specified index from list bin.
 // Server returns number of items removed.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - index: Index to remove (0 = first, -1 = last)
+//   - ctx: Optional CDT context for nested lists
 func ListRemoveOp(binName string, index int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE, IntegerValue(index)}, encoder: listGenericOpEncoder}
 }
 
-// ListRemoveByValueOp creates list remove by value operation.
+// ListRemoveByValueOp creates a list remove by value operation.
 // Server removes the item identified by value and returns removed data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - value: Value to remove
+//   - returnType: What to return (see ListReturnType constants)
+//   - ctx: Optional CDT context for nested lists
 func ListRemoveByValueOp(binName string, value interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE, IntegerValue(returnType), NewValue(value)}, encoder: listGenericOpEncoder}
 }
 
 // ListRemoveByValueListOp creates list remove by value operation.
 // Server removes list items identified by value and returns removed data specified by returnType.
-func ListRemoveByValueListOp(binName string, values []interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
+func ListRemoveByValueListOp(binName string, values []any, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_LIST, IntegerValue(returnType), ListValue(values)}, encoder: listGenericOpEncoder}
 }
 
@@ -588,7 +632,7 @@ func ListRemoveByValueListOp(binName string, values []interface{}, returnType Li
 // If valueBegin is nil, the range is less than valueEnd.
 // If valueEnd is nil, the range is greater than equal to valueBegin.
 // Server returns removed data specified by returnType
-func ListRemoveByValueRangeOp(binName string, returnType ListReturnType, valueBegin, valueEnd interface{}, ctx ...*CDTContext) *Operation {
+func ListRemoveByValueRangeOp(binName string, returnType ListReturnType, valueBegin, valueEnd any, ctx ...*CDTContext) *Operation {
 	if valueEnd == nil {
 		return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(valueBegin)}, encoder: listGenericOpEncoder}
 	}
@@ -608,7 +652,7 @@ func ListRemoveByValueRangeOp(binName string, returnType ListReturnType, valueBe
 //	(3,0) = [4,5,9,11,15]
 //	(3,3) = [11,15]
 //	(3,-3) = [0,4,5,9,11,15]
-func ListRemoveByValueRelativeRankRangeOp(binName string, returnType ListReturnType, value interface{}, rank int, ctx ...*CDTContext) *Operation {
+func ListRemoveByValueRelativeRankRangeOp(binName string, returnType ListReturnType, value any, rank int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank)}, encoder: listGenericOpEncoder}
 }
 
@@ -624,7 +668,7 @@ func ListRemoveByValueRelativeRankRangeOp(binName string, returnType ListReturnT
 //	(3,0,1) = [4]
 //	(3,3,7) = [11,15]
 //	(3,-3,2) = []
-func ListRemoveByValueRelativeRankRangeCountOp(binName string, returnType ListReturnType, value interface{}, rank, count int, ctx ...*CDTContext) *Operation {
+func ListRemoveByValueRelativeRankRangeCountOp(binName string, returnType ListReturnType, value any, rank, count int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank), IntegerValue(count)}, encoder: listGenericOpEncoder}
 }
 
@@ -649,6 +693,12 @@ func ListRemoveRangeFromOp(binName string, index int, ctx ...*CDTContext) *Opera
 // ListSetOp creates a list set operation.
 // Server sets item value at specified index in list bin.
 // Server does not return a result by default.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - index: Index to update (0 = first, -1 = last)
+//   - value: New value to set
+//   - ctx: Optional CDT context for nested lists
 func ListSetOp(binName string, index int, value interface{}, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET, IntegerValue(index), NewValue(value)}, encoder: listGenericOpEncoder}
 }
@@ -656,7 +706,7 @@ func ListSetOp(binName string, index int, value interface{}, ctx ...*CDTContext)
 // ListSetWithPolicyOp creates a list set operation using a ListPolicy.
 // Server sets item value at specified index in list bin.
 // Server does not return a result by default.
-func ListSetWithPolicyOp(policy *ListPolicy, binName string, index int, value interface{}, ctx ...*CDTContext) *Operation {
+func ListSetWithPolicyOp(policy *ListPolicy, binName string, index int, value any, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET, IntegerValue(index), NewValue(value), IntegerValue(policy.flags)}, encoder: listGenericOpEncoder}
 }
 
@@ -671,6 +721,10 @@ func ListTrimOp(binName string, index int, count int, ctx ...*CDTContext) *Opera
 // ListClearOp creates a list clear operation.
 // Server removes all items in list bin.
 // Server does not return a result by default.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - ctx: Optional CDT context for nested lists
 func ListClearOp(binName string, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_CLEAR}, encoder: listGenericOpEncoder}
 }
@@ -679,7 +733,7 @@ func ListClearOp(binName string, ctx ...*CDTContext) *Operation {
 // Server increments list[index] by value.
 // Value should be integer(IntegerValue, LongValue) or float(FloatValue).
 // Server returns list[index] after incrementing.
-func ListIncrementOp(binName string, index int, value interface{}, ctx ...*CDTContext) *Operation {
+func ListIncrementOp(binName string, index int, value any, ctx ...*CDTContext) *Operation {
 	val := NewValue(value)
 	switch val.(type) {
 	case LongValue, IntegerValue, FloatValue:
@@ -706,7 +760,7 @@ func ListIncrementByOneWithPolicyOp(policy *ListPolicy, binName string, index in
 // ListIncrementWithPolicyOp creates a list increment operation.
 // Server increments list[index] by value.
 // Server returns list[index] after incrementing.
-func ListIncrementWithPolicyOp(policy *ListPolicy, binName string, index int, value interface{}, ctx ...*CDTContext) *Operation {
+func ListIncrementWithPolicyOp(policy *ListPolicy, binName string, index int, value any, ctx ...*CDTContext) *Operation {
 	val := NewValue(value)
 	switch val.(type) {
 	case LongValue, IntegerValue, FloatValue:
@@ -718,18 +772,35 @@ func ListIncrementWithPolicyOp(policy *ListPolicy, binName string, index int, va
 
 // ListSizeOp creates a list size operation.
 // Server returns size of list on bin name.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - ctx: Optional CDT context for nested lists
 func ListSizeOp(binName string, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SIZE}, encoder: listGenericOpEncoder}
 }
 
 // ListGetOp creates a list get operation.
 // Server returns item at specified index in list bin.
+//
+// Supports negative indexing: -1 = last item, -2 = second to last, etc.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - index: List index (0 = first, -1 = last)
+//   - ctx: Optional CDT context for nested lists
 func ListGetOp(binName string, index int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET, IntegerValue(index)}, encoder: listGenericOpEncoder}
 }
 
 // ListGetRangeOp creates a list get range operation.
 // Server returns "count" items starting at specified index in list bin.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - index: Starting index (0 = first, -1 = last)
+//   - count: Number of items to return
+//   - ctx: Optional CDT context for nested lists
 func ListGetRangeOp(binName string, index int, count int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_RANGE, IntegerValue(index), IntegerValue(count)}, encoder: listGenericOpEncoder}
 }
@@ -787,13 +858,19 @@ func ListRemoveByRankRangeCountOp(binName string, rank int, count int, returnTyp
 
 // ListGetByValueOp creates a list get by value operation.
 // Server selects list items identified by value and returns selected data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - value: Value to search for
+//   - returnType: What to return (see ListReturnType constants)
+//   - ctx: Optional CDT context for nested lists
 func ListGetByValueOp(binName string, value interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE, IntegerValue(returnType), NewValue(value)}, encoder: listGenericOpEncoder}
 }
 
 // ListGetByValueListOp creates list get by value list operation.
 // Server selects list items identified by values and returns selected data specified by returnType.
-func ListGetByValueListOp(binName string, values []interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
+func ListGetByValueListOp(binName string, values []any, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_LIST, IntegerValue(returnType), ListValue(values)}, encoder: listGenericOpEncoder}
 }
 
@@ -802,6 +879,13 @@ func ListGetByValueListOp(binName string, values []interface{}, returnType ListR
 // If valueBegin is nil, the range is less than valueEnd.
 // If valueEnd is nil, the range is greater than equal to valueBegin.
 // Server returns selected data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - beginValue: Start of value range (inclusive), nil for open-ended
+//   - endValue: End of value range (exclusive), nil for open-ended
+//   - returnType: What to return (see ListReturnType constants)
+//   - ctx: Optional CDT context for nested lists
 func ListGetByValueRangeOp(binName string, beginValue, endValue interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	if endValue == nil {
 		return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(beginValue)}, encoder: listGenericOpEncoder}
@@ -809,15 +893,27 @@ func ListGetByValueRangeOp(binName string, beginValue, endValue interface{}, ret
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(beginValue), NewValue(endValue)}, encoder: listGenericOpEncoder}
 }
 
-// ListGetByIndexOp creates list get by index operation.
-// Server selects list item identified by index and returns selected data specified by returnType
+// ListGetByIndexOp creates a list get by index operation.
+// Server selects list item identified by index and returns selected data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - index: List index (0 = first, -1 = last)
+//   - returnType: What to return (see ListReturnType constants)
+//   - ctx: Optional CDT context for nested lists
 func ListGetByIndexOp(binName string, index int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_INDEX, IntegerValue(returnType), IntegerValue(index)}, encoder: listGenericOpEncoder}
 }
 
-// ListGetByIndexRangeOp creates list get by index range operation.
+// ListGetByIndexRangeOp creates a list get by index range operation.
 // Server selects list items starting at specified index to the end of list and returns selected
 // data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - index: Starting index (0 = first, -1 = last)
+//   - returnType: What to return (see ListReturnType constants)
+//   - ctx: Optional CDT context for nested lists
 func ListGetByIndexRangeOp(binName string, index int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_INDEX_RANGE, IntegerValue(returnType), IntegerValue(index)}, encoder: listGenericOpEncoder}
 }
@@ -831,6 +927,14 @@ func ListGetByIndexRangeCountOp(binName string, index, count int, returnType Lis
 
 // ListGetByRankOp creates a list get by rank operation.
 // Server selects list item identified by rank and returns selected data specified by returnType.
+//
+// Rank is the sorted index of the value: 0 = smallest value, -1 = largest value.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - rank: Rank position (0 = lowest, -1 = highest)
+//   - returnType: What to return (see ListReturnType constants)
+//   - ctx: Optional CDT context for nested lists
 func ListGetByRankOp(binName string, rank int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_RANK, IntegerValue(returnType), IntegerValue(rank)}, encoder: listGenericOpEncoder}
 }
@@ -838,6 +942,12 @@ func ListGetByRankOp(binName string, rank int, returnType ListReturnType, ctx ..
 // ListGetByRankRangeOp creates a list get by rank range operation.
 // Server selects list items starting at specified rank to the last ranked item and returns selected
 // data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list
+//   - rank: Starting rank (0 = lowest, -1 = highest)
+//   - returnType: What to return (see ListReturnType constants)
+//   - ctx: Optional CDT context for nested lists
 func ListGetByRankRangeOp(binName string, rank int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_RANK_RANGE, IntegerValue(returnType), IntegerValue(rank)}, encoder: listGenericOpEncoder}
 }
@@ -861,7 +971,7 @@ func ListGetByRankRangeCountOp(binName string, rank, count int, returnType ListR
 //	(3,0) = [4,5,9,11,15]
 //	(3,3) = [11,15]
 //	(3,-3) = [0,4,5,9,11,15]
-func ListGetByValueRelativeRankRangeOp(binName string, value interface{}, rank int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
+func ListGetByValueRelativeRankRangeOp(binName string, value any, rank int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank)}, encoder: listGenericOpEncoder}
 }
 
@@ -878,6 +988,6 @@ func ListGetByValueRelativeRankRangeOp(binName string, value interface{}, rank i
 //	(3,0,1) = [4]
 //	(3,3,7) = [11,15]
 //	(3,-3,2) = []
-func ListGetByValueRelativeRankRangeCountOp(binName string, value interface{}, rank, count int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
+func ListGetByValueRelativeRankRangeCountOp(binName string, value any, rank, count int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE, IntegerValue(returnType), NewValue(value), IntegerValue(rank), IntegerValue(count)}, encoder: listGenericOpEncoder}
 }

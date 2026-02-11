@@ -34,7 +34,7 @@ var _ = gg.Describe("Expression Filters - HLL", gg.Ordered, func() {
 	gg.BeforeAll(func() {
 		for ii := 0; ii < keyCount; ii++ {
 			key, _ := as.NewKey(ns, set, ii)
-			bin := as.BinMap{"bin": ii, "lbin": []interface{}{ii, "a"}}
+			bin := as.BinMap{"bin": ii, "lbin": []any{ii, "a"}}
 			client.Delete(wpolicy, key)
 			err := client.Put(nil, key, bin)
 			gm.Expect(err).NotTo(gm.HaveOccurred())

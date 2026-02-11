@@ -34,6 +34,7 @@ func NewTxnRollPolicy() *TxnRollPolicy {
 	mp.SocketTimeout = 3 * time.Second
 	mp.TotalTimeout = 10 * time.Second
 	mp.SleepBetweenRetries = 1 * time.Second
+	mp.SleepMultiplier = 1.0
 
 	return &TxnRollPolicy{
 		BatchPolicy: mp,
@@ -108,6 +109,13 @@ func (trp *TxnRollPolicy) mapDynamic(dynConfig *DynConfig) *TxnRollPolicy {
 			trp.SleepBetweenRetries = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.TxnRoll.SleepMultiplier != nil {
+			configValue := *currentConfig.Dynamic.TxnRoll.SleepMultiplier
+			trp.SleepMultiplier = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepMultiplier set to %f", configValue)
 			}
 		}
 		if currentConfig.Dynamic.TxnRoll.SocketTimeout != nil {

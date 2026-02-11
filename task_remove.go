@@ -28,7 +28,7 @@ type RemoveTask struct {
 // NewRemoveTask initializes a RemoveTask with fields needed to query server nodes.
 func NewRemoveTask(cluster *Cluster, packageName string) *RemoveTask {
 	return &RemoveTask{
-		baseTask:    newTask(cluster),
+		baseTask:    newTask(cluster, 0),
 		packageName: packageName,
 	}
 }

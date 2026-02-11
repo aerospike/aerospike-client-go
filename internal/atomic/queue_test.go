@@ -31,7 +31,7 @@ var _ = gg.Describe("Atomic Queue", func() {
 
 	var qcap int
 	var q *atomic.Queue
-	var elem interface{}
+	var elem any
 
 	gg.BeforeEach(func() {
 		qcap = 10

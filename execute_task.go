@@ -37,7 +37,7 @@ type ExecuteTask struct {
 // NewExecuteTask initializes task with fields needed to query server nodes.
 func NewExecuteTask(cluster *Cluster, statement *Statement, taskId uint64) *ExecuteTask {
 	return &ExecuteTask{
-		baseTask: newTask(cluster),
+		baseTask: newTask(cluster, 0),
 		taskID:   taskId,
 		scan:     statement.IsScan(),
 		observed: make(map[string]struct{}, len(cluster.GetNodes())),

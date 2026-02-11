@@ -64,4 +64,18 @@ const (
 
 	// Truncate allow issuing truncate commands.
 	Truncate privilegeCode = "truncate"
+
+	// MaskingAdmin allows to manage masking policies. Requires server version >= 8.1.1.
+	MaskingAdmin privilegeCode = "masking-admin"
+
+	// ReadMasked allows read transactions with the database with masking policies applied. Requires server version >= 8.1.1.
+	ReadMasked privilegeCode = "read-masked"
+
+	// WriteMasked allows write transactions with the database with masking policies applied. Requires server version >= 8.1.1.
+	WriteMasked privilegeCode = "write-masked"
+
+	// unknown privilege code from server.
+	// This is used for forward compatibility when the server sends
+	// privilege codes that are not yet known to this client version.
+	unknown privilegeCode = "unknown"
 )

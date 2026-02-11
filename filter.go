@@ -34,21 +34,21 @@ type Filter struct {
 
 // NewEqualFilter creates a new equality filter instance for query.
 // Value can be an integer, string or a blob (byte array). Byte arrays are only supported on server v7+.
-func NewEqualFilter(binName string, value interface{}, ctx ...*CDTContext) *Filter {
+func NewEqualFilter(binName string, value any, ctx ...*CDTContext) *Filter {
 	val := NewValue(value)
 	return newFilter(binName, "", ICT_DEFAULT, val.GetType(), val, val, ctx, nil)
 }
 
 // NewEqualWithExpressionFilter creates an equality filter for query with an expression.
 // Value can be an integer, string or a blob (byte array). Byte arrays are only supported on server v7+.
-func NewEqualWithExpressionFilter(expression *Expression, value interface{}) *Filter {
+func NewEqualWithExpressionFilter(expression *Expression, value any) *Filter {
 	v := NewValue(value)
 	return newFilter("", "", ICT_DEFAULT, v.GetType(), v, v, nil, expression)
 }
 
 // NewEqualWithIndexNameFilter creates an equality filter for query with an index name.
 // Value can be an integer, string or a blob (byte array). Byte arrays are only supported on server v7+.
-func NewEqualWithIndexNameFilter(indexName string, value interface{}) *Filter {
+func NewEqualWithIndexNameFilter(indexName string, value any) *Filter {
 	v := NewValue(value)
 	return newFilter("", indexName, ICT_DEFAULT, v.GetType(), v, v, nil, nil)
 }
@@ -79,21 +79,21 @@ func NewRangeWithIndexNameFilter(indexName string, begin int64, end int64) *Filt
 
 // NewContainsFilter creates a contains filter for query on collection index.
 // Value can be an integer, string or a blob (byte array). Byte arrays are only supported on server v7+.
-func NewContainsFilter(binName string, indexCollectionType IndexCollectionType, value interface{}, ctx ...*CDTContext) *Filter {
+func NewContainsFilter(binName string, indexCollectionType IndexCollectionType, value any, ctx ...*CDTContext) *Filter {
 	v := NewValue(value)
 	return newFilter(binName, "", indexCollectionType, v.GetType(), v, v, ctx, nil)
 }
 
 // NewContainsWithExpressionFilter creates a contains filter for query on collection index with an expression.
 // Value can be an integer, string or a blob (byte array). Byte arrays are only supported on server v7+.
-func NewContainsWithExpressionFilter(expression *Expression, indexCollectionType IndexCollectionType, value interface{}) *Filter {
+func NewContainsWithExpressionFilter(expression *Expression, indexCollectionType IndexCollectionType, value any) *Filter {
 	v := NewValue(value)
 	return newFilter("", "", indexCollectionType, v.GetType(), v, v, nil, expression)
 }
 
 // NewContainsWithIndexNameFilter creates a contains filter for query on collection index with an index name.
 // Value can be an integer, string or a blob (byte array). Byte arrays are only supported on server v7+.
-func NewContainsWithIndexNameFilter(indexName string, indexCollectionType IndexCollectionType, value interface{}) *Filter {
+func NewContainsWithIndexNameFilter(indexName string, indexCollectionType IndexCollectionType, value any) *Filter {
 	v := NewValue(value)
 	return newFilter("", indexName, indexCollectionType, v.GetType(), v, v, nil, nil)
 }

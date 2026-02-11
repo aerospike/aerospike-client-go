@@ -25,7 +25,7 @@ import (
 
 // List is the list data type to be used with a Lua instance
 type List struct {
-	l []interface{}
+	l []any
 }
 
 const luaLuaListTypeName = "LuaList"
@@ -76,7 +76,7 @@ func registerLuaListType(L *lua.LState) {
 // Constructor
 func createLuaList(L *lua.LState) int {
 	if L.GetTop() == 0 {
-		luaList := &List{l: []interface{}{}}
+		luaList := &List{l: []any{}}
 		ud := L.NewUserData()
 		ud.Value = luaList
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -84,7 +84,7 @@ func createLuaList(L *lua.LState) int {
 		return 1
 	} else if L.GetTop() == 1 || L.GetTop() == 2 {
 		cp := L.CheckInt(1)
-		l := make([]interface{}, 0, cp)
+		l := make([]any, 0, cp)
 
 		luaList := &List{l: l}
 		ud := L.NewUserData()
@@ -100,7 +100,7 @@ func createLuaList(L *lua.LState) int {
 // Constructor
 func newLuaList(L *lua.LState) int {
 	if L.GetTop() == 1 {
-		luaList := &List{l: []interface{}{}}
+		luaList := &List{l: []any{}}
 		ud := L.NewUserData()
 		ud.Value = luaList
 		L.SetMetatable(ud, L.GetTypeMetatable(luaLuaListTypeName))
@@ -108,7 +108,7 @@ func newLuaList(L *lua.LState) int {
 		return 1
 	} else if L.GetTop() == 2 {
 		t := L.CheckTable(2)
-		l := make([]interface{}, t.Len())
+		l := make([]any, t.Len())
 		for i := 1; i <= t.Len(); i++ {
 			l[i-1] = LValueToInterface(t.RawGetInt(i))
 		}
@@ -174,7 +174,7 @@ func luaListInsert(L *lua.LState) int {
 		if ln > 256 {
 			ln = 256
 		}
-		newList := make([]interface{}, len(p.l)+1, ln)
+		newList := make([]any, len(p.l)+1, ln)
 
 		copy(newList, p.l[:index-1])
 		newList[index-1] = value
@@ -216,7 +216,7 @@ func luaListPrepend(L *lua.LState) int {
 		if ln > 256 {
 			ln = 256
 		}
-		newList := make([]interface{}, len(p.l)+1, ln)
+		newList := make([]any, len(p.l)+1, ln)
 
 		copy(newList[1:], p.l)
 		newList[0] = value
@@ -255,11 +255,11 @@ func luaListDrop(L *lua.LState) int {
 	}
 
 	count := L.CheckInt(2)
-	var items []interface{}
+	var items []any
 	if count < len(p.l) {
 		items = p.l[count:]
 	} else {
-		items = []interface{}{}
+		items = []any{}
 	}
 
 	luaList := &List{l: items}
@@ -303,7 +303,7 @@ func luaListClone(L *lua.LState) int {
 		return 0
 	}
 
-	newList := &List{l: make([]interface{}, len(p.l))}
+	newList := &List{l: make([]any, len(p.l))}
 	copy(newList.l, p.l)
 
 	ud := L.NewUserData()
@@ -323,7 +323,7 @@ func luaListMerge(L *lua.LState) int {
 
 	sp := checkLuaList(L, 2)
 
-	newList := &List{l: make([]interface{}, 0, len(p.l)+len(sp.l))}
+	newList := &List{l: make([]any, 0, len(p.l)+len(sp.l))}
 	newList.l = append(newList.l, p.l...)
 	newList.l = append(newList.l, sp.l...)
 

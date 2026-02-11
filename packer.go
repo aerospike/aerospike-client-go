@@ -28,9 +28,9 @@ import (
 	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
 
-var packObjectReflect func(BufferEx, interface{}, bool) (int, Error)
+var packObjectReflect func(BufferEx, any, bool) (int, Error)
 
-func packIfcList(cmd BufferEx, list []interface{}) (int, Error) {
+func packIfcList(cmd BufferEx, list []any) (int, Error) {
 	size := 0
 	n, err := packArrayBegin(cmd, len(list))
 	if err != nil {
@@ -98,7 +98,7 @@ func packArrayBegin(cmd BufferEx, size int) (int, Error) {
 	}
 }
 
-func packIfcMap(cmd BufferEx, theMap map[interface{}]interface{}) (int, Error) {
+func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	size := 0
 	n, err := packMapBegin(cmd, len(theMap))
 	if err != nil {
@@ -123,11 +123,11 @@ func packIfcMap(cmd BufferEx, theMap map[interface{}]interface{}) (int, Error) {
 }
 
 // PackJson packs json data
-func PackJson(cmd BufferEx, theMap map[string]interface{}) (int, Error) {
+func PackJson(cmd BufferEx, theMap map[string]any) (int, Error) {
 	return packJsonMap(cmd, theMap)
 }
 
-func packJsonMap(cmd BufferEx, theMap map[string]interface{}) (int, Error) {
+func packJsonMap(cmd BufferEx, theMap map[string]any) (int, Error) {
 	size := 0
 	n, err := packMapBegin(cmd, len(theMap))
 	if err != nil {
@@ -214,12 +214,14 @@ func packByteArrayBegin(cmd BufferEx, length int) (int, Error) {
 	return packStringBegin(cmd, length)
 }
 
-func packObject(cmd BufferEx, obj interface{}, mapKey bool) (int, Error) {
+func packObject(cmd BufferEx, obj any, mapKey bool) (int, Error) {
 	switch v := obj.(type) {
 	case Value:
 		return v.pack(cmd)
 	case []Value:
 		return ValueArray(v).pack(cmd)
+	case *Expression:
+		return v.pack(cmd)
 	case string:
 		return packString(cmd, v)
 	case []byte:
@@ -264,13 +266,13 @@ func packObject(cmd BufferEx, obj interface{}, mapKey bool) (int, Error) {
 		if mapKey {
 			return 0, newError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
-		return packIfcMap(cmd, map[interface{}]interface{}{})
-	case []interface{}:
+		return packIfcMap(cmd, map[any]any{})
+	case []any:
 		if mapKey {
 			return 0, newError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}
 		return packIfcList(cmd, v)
-	case map[interface{}]interface{}:
+	case map[any]any:
 		if mapKey {
 			return 0, newError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
 		}

@@ -102,6 +102,7 @@ func newDynConfigWithCallBack(policy *ClientPolicy, fn func(config *dynconfig.Co
 	ctx, cancel := context.WithCancel(context.Background())
 	dynConfig := &DynConfig{
 		configInitialized: &atomic.Bool{},
+		logUpdate:         &atomic.Bool{},
 		metricsCallback:   fn,
 		scheme:            schema,
 		dsn:               urlPath,

@@ -24,7 +24,7 @@ import (
 	"testing"
 )
 
-func benchGetObj(times int, client *as.Client, key *as.Key, obj interface{}) {
+func benchGetObj(times int, client *as.Client, key *as.Key, obj any) {
 	for i := 0; i < times; i++ {
 		if err = client.GetObject(nil, key, obj); err != nil {
 			panic(err)
@@ -32,7 +32,7 @@ func benchGetObj(times int, client *as.Client, key *as.Key, obj interface{}) {
 	}
 }
 
-func benchPutObj(times int, client *as.Client, key *as.Key, wp *as.WritePolicy, obj interface{}) {
+func benchPutObj(times int, client *as.Client, key *as.Key, wp *as.WritePolicy, obj any) {
 	for i := 0; i < times; i++ {
 		if err = client.PutObject(wp, key, obj); err != nil {
 			panic(err)

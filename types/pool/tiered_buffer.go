@@ -57,7 +57,7 @@ func NewTieredBufferPool(min, max int) *TieredBufferPool {
 		blockSize := 1 << i
 		p.pools = append(p.pools,
 			sync.Pool{
-				New: func() interface{} {
+				New: func() any {
 					// The Pool's New function should generally only return pointer
 					// types, since a pointer can be put into the return interface
 					// value without an allocation:

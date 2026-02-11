@@ -117,18 +117,32 @@ func initTestVars() {
 
 	printConnectedNodes(client)
 
+	isSCMode := as.ConfiguredAsStrongConsistency(client, *namespace)
+
 	defaultBatchPolicy := as.NewBatchPolicy()
 	defaultBatchPolicy.TotalTimeout = 15 * time.Second
 	defaultBatchPolicy.SocketTimeout = 5 * time.Second
+	if isSCMode {
+		defaultBatchPolicy.ReadModeSC = as.ReadModeSCLinearize
+	}
 	defaultWritePolicy := as.NewWritePolicy(0, 0)
 	defaultWritePolicy.TotalTimeout = 15 * time.Second
 	defaultWritePolicy.SocketTimeout = 5 * time.Second
+	if isSCMode {
+		defaultBatchPolicy.ReadModeSC = as.ReadModeSCLinearize
+	}
 	defaultScanPolicy := as.NewScanPolicy()
 	defaultScanPolicy.TotalTimeout = 15 * time.Second
 	defaultScanPolicy.SocketTimeout = 5 * time.Second
+	if isSCMode {
+		defaultBatchPolicy.ReadModeSC = as.ReadModeSCLinearize
+	}
 	defaultQueryPolicy := as.NewQueryPolicy()
 	defaultQueryPolicy.TotalTimeout = 15 * time.Second
 	defaultQueryPolicy.SocketTimeout = 5 * time.Second
+	if isSCMode {
+		defaultBatchPolicy.ReadModeSC = as.ReadModeSCLinearize
+	}
 	defaultAdminPolicy := as.NewAdminPolicy()
 	defaultAdminPolicy.Timeout = 15 * time.Second
 	defaultInfoPolicy := as.NewInfoPolicy()
@@ -145,15 +159,20 @@ func initTestVars() {
 	client.SetDefaultAdminPolicy(defaultAdminPolicy)
 	client.SetDefaultInfoPolicy(defaultInfoPolicy)
 
+	p := client.GetDefaultPolicy()
+	if isSCMode {
+		p.ReadModeSC = as.ReadModeSCLinearize
+	}
 	// set default policies
 	if *useReplicas {
-		p := client.GetDefaultPolicy()
 		p.ReplicaPolicy = as.MASTER_PROLES
-		client.SetDefaultPolicy(p)
 	}
+	client.SetDefaultPolicy(p)
 
 	// make sure the metrics code runs in all tests
 	client.EnableMetrics(nil)
+	log.Println("Client default policy for ReadModeSC:", client.DefaultPolicy.ReadModeSC)
+
 }
 
 func printConnectedNodes(client *as.Client) {
@@ -183,8 +202,8 @@ func isEnterpriseEdition() bool {
 	node := client.GetNodes()[0]
 	serverVersion := node.GetServerVersion()
 	serverCommand := types.Ternary(
-		serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1), 
-		"release", 
+		serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
+		"release",
 		"edition")
 	infoMap, err := node.RequestInfo(as.NewInfoPolicy(), serverCommand)
 	if err != nil {
