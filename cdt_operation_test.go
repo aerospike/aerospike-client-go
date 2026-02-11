@@ -2478,5 +2478,101 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
 			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
 		})
+
+		gg.It("should return PARAMETER_ERROR for SelectByPath with empty binName", func() {
+			key, err := as.NewKey(ns, set, randString(50))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Create test data
+			data := map[string]any{"test": "value"}
+			client.Delete(nil, key)
+			err = client.PutBins(nil, key, as.NewBin("validBin", data))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.StringValue("test"))
+			selectOp := as.SelectByPath("", as.EXP_PATH_SELECT_VALUE, ctx1)
+
+			// Call Operate and check the error
+			record, err := client.Operate(nil, key, selectOp)
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("binName"))
+			gm.Expect(record).To(gm.BeNil())
+		})
+
+		gg.It("should return PARAMETER_ERROR for SelectByPath with binName too long", func() {
+			key, err := as.NewKey(ns, set, randString(50))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			longBinName := "1234567890123456" // 16 characters, exceeds limit of 15
+
+			// Create test data
+			data := map[string]any{"test": "value"}
+			client.Delete(nil, key)
+			err = client.PutBins(nil, key, as.NewBin("validBin", data))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.StringValue("test"))
+			selectOp := as.SelectByPath(longBinName, as.EXP_PATH_SELECT_VALUE, ctx1)
+
+			// Call Operate and check the error
+			record, err := client.Operate(nil, key, selectOp)
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+			errorMsg := err.Error()
+			gm.Expect(errorMsg).To(gm.Or(gm.ContainSubstring("15"), gm.ContainSubstring("exceed")))
+			gm.Expect(record).To(gm.BeNil())
+		})
+
+		gg.It("should return PARAMETER_ERROR for ModifyByPath with empty binName", func() {
+			key, err := as.NewKey(ns, set, randString(50))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Create test data
+			data := map[string]any{"test": 50}
+			client.Delete(nil, key)
+			err = client.PutBins(nil, key, as.NewBin("validBin", data))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.StringValue("test"))
+			modifyExp := as.ExpIntVal(100)
+			modifyOp := as.ModifyByPath("", as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1)
+
+			// Call Operate and check the error
+			record, err := client.Operate(nil, key, modifyOp)
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("binName"))
+			gm.Expect(record).To(gm.BeNil())
+		})
+
+		gg.It("should return PARAMETER_ERROR for ModifyByPath with binName too long", func() {
+			key, err := as.NewKey(ns, set, randString(50))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			longBinName := "1234567890123456" // 16 characters, exceeds limit of 15
+
+			// Create test data
+			data := map[string]any{"test": 50}
+			client.Delete(nil, key)
+			err = client.PutBins(nil, key, as.NewBin("validBin", data))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx1 := as.CtxMapKey(as.StringValue("test"))
+			modifyExp := as.ExpIntVal(100)
+			modifyOp := as.ModifyByPath(longBinName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1)
+
+			// Call Operate and check the error
+			record, err := client.Operate(nil, key, modifyOp)
+
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+			errorMsg := err.Error()
+			gm.Expect(errorMsg).To(gm.Or(gm.ContainSubstring("15"), gm.ContainSubstring("exceed")))
+			gm.Expect(record).To(gm.BeNil())
+		})
 	})
 })

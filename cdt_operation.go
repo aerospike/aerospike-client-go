@@ -15,7 +15,9 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v8/types"
+import (
+	"github.com/aerospike/aerospike-client-go/v8/types"
+)
 
 type SelectFlag int
 type ModifyFlag int
