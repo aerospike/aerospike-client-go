@@ -30,8 +30,9 @@ jobs:
         with:
           default_json: |
             {
-              "stable": { "version": "8.1.0.1" },
-              "release": { "version": "8.1.0.1_2" }
+              "7.1.0": { "version": "7.1.0" },
+              "8.1.0.1": { "version": "8.1.0.1" },
+              "8.1.1": { "version": "8.1.1" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
           modes: AP
@@ -74,16 +75,14 @@ jobs:
       - name: Display Go version
         run: |
           echo "Go version: ${{ matrix.go-version }}"
-      - name: Set up Aerospike Database(AP)
-        if: ${{ matrix.mode == 'AP' }}
-        uses: reugn/github-action-aerospike@v1
+      - name: Deploy Aerospike cluster
+        uses: ./.github/actions/multi-node-cluster
         with:
-          server-version: ${{ matrix.version }}
-      - name: Set up Aerospike Database(SC)
-        if: ${{ matrix.mode == 'SC' }}
-        uses: ./.github/actions/single-node-sc-cluster
-        with:
-          version: ${{ matrix.version }}
+          aerospike_version: ${{ matrix.version }}
+          nodes: "1"
+          mode: ${{ matrix.mode }}
+          expose_ports: "3000:3000"
+          feature_conf_encoded: ${{ secrets.FEATURES_CONF }}
       - name: Test Lua Code
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites internal/lua
