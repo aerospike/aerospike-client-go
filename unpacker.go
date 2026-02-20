@@ -230,6 +230,11 @@ func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (any, Error) {
 			val = b
 		}
 
+	case ParticleType.HLL:
+		b := make([]byte, count)
+		copy(b, upckr.buffer[upckr.offset:upckr.offset+count])
+		val = HLLValue(b)
+
 	case ParticleType.GEOJSON:
 		val = NewGeoJSONValue(string(upckr.buffer[upckr.offset : upckr.offset+count]))
 
