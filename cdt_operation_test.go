@@ -1779,6 +1779,59 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				gm.Expect(resultList).To(gm.ContainElement("record4"))
 			}
 		})
+
+		gg.It("should filter HLL values using ExpHLLLoopVar", func() {
+			client.Delete(nil, key)
+
+			// Create HLL values using HLLAddOp on temporary bins
+			smallData := []as.Value{as.NewValue("a"), as.NewValue("b")}
+			largeData := []as.Value{as.NewValue("a"), as.NewValue("b"), as.NewValue("c"), as.NewValue("d"), as.NewValue("e")}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll1", smallData, 8, 0),
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll2", largeData, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read HLL values back
+			rec, err := client.Get(nil, key, "hll1", "hll2")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hll1Val := rec.Bins["hll1"]
+			hll2Val := rec.Bins["hll2"]
+			gm.Expect(hll1Val).ToNot(gm.BeNil())
+			gm.Expect(hll2Val).ToNot(gm.BeNil())
+
+			// Store HLL values in a nested structure
+			data := map[string]any{
+				"hlls": []any{hll1Val, hll2Val},
+			}
+
+			bin := as.NewBin(binName, data)
+			err = client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Use ExpHLLLoopVar to filter HLL values with count > 3
+			ctx1 := as.CtxMapKey(as.NewStringValue("hlls"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGreater(
+					as.ExpHLLGetCount(as.ExpHLLLoopVar(as.VALUE)),
+					as.ExpIntVal(3),
+				),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultBin := result.Bins[binName]
+			resultList, ok := resultBin.([]any)
+			if ok {
+				gm.Expect(len(resultList)).To(gm.Equal(1), "Should have 1 HLL with count > 3 (the large one)")
+			}
+		})
 	})
 
 	gg.Describe("ExpResultRemove Tests", func() {
