@@ -209,6 +209,29 @@ func packBytes(cmd BufferEx, b []byte) (int, Error) {
 	return size, nil
 }
 
+func packHLL(cmd BufferEx, b []byte) (int, Error) {
+	size := 0
+	n, err := packByteArrayBegin(cmd, len(b)+1)
+	if err != nil {
+		return n, err
+	}
+	size += n
+
+	n, err = packAByte(cmd, ParticleType.HLL)
+	if err != nil {
+		return size + n, err
+	}
+	size += n
+
+	n, err = packByteArray(cmd, b)
+	if err != nil {
+		return size + n, err
+	}
+	size += n
+
+	return size, nil
+}
+
 func packByteArrayBegin(cmd BufferEx, length int) (int, Error) {
 	// Use string header codes for byte arrays.
 	return packStringBegin(cmd, length)

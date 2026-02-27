@@ -854,6 +854,20 @@ func ExpGeoJSONLoopVar(part LoopVarPart) *Expression {
 	)
 }
 
+// ExpHLLLoopVar creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 8.1.1+.
+func ExpHLLLoopVar(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeHLL,
+		nil,
+	)
+}
+
 // ExpRemoveResult creates a result remove expression.
 // Requires server version 8.1.1+.
 func ExpRemoveResult() *Expression {

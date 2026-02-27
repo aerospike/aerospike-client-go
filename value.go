@@ -1126,7 +1126,7 @@ func (vl HLLValue) write(cmd BufferEx) (int, Error) {
 }
 
 func (vl HLLValue) pack(cmd BufferEx) (int, Error) {
-	return packBytes(cmd, vl)
+	return packHLL(cmd, vl)
 }
 
 // GetType returns wire protocol value type.

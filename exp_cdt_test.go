@@ -1446,5 +1446,67 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 				}
 			}
 		})
+
+		gg.It("should use ExpHLLLoopVar to filter HLL values by estimated count", func() {
+			client.Delete(nil, key)
+
+			// Create HLL values using HLLAddOp on separate bins
+			smallData := []as.Value{as.NewValue("a"), as.NewValue("b")}
+			largeData := []as.Value{as.NewValue("a"), as.NewValue("b"), as.NewValue("c"), as.NewValue("d"), as.NewValue("e")}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll1", smallData, 8, 0),
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll2", largeData, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read HLL values back
+			rec, err := client.Get(nil, key, "hll1", "hll2")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hll1Val := rec.Bins["hll1"]
+			hll2Val := rec.Bins["hll2"]
+			gm.Expect(hll1Val).ToNot(gm.BeNil())
+			gm.Expect(hll2Val).ToNot(gm.BeNil())
+
+			// Store HLL values in a nested structure
+			data := map[string]any{
+				"hlls": []any{hll1Val, hll2Val},
+			}
+
+			bin := as.NewBin("data", data)
+			err = client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Use ExpHLLLoopVar to filter HLL values with count > 3
+			ctx1 := as.CtxMapKey(as.NewStringValue("hlls"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGreater(
+					as.ExpHLLGetCount(as.ExpHLLLoopVar(as.VALUE)),
+					as.ExpIntVal(3),
+				),
+			)
+
+			selectExp := as.ExpSelectByPath(
+				as.ExpTypeLIST,
+				as.EXP_PATH_SELECT_VALUE,
+				as.ExpMapBin("data"),
+				ctx1, ctx2,
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("filteredHlls", selectExp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			filteredHlls := result.Bins["filteredHlls"]
+			gm.Expect(filteredHlls).ToNot(gm.BeNil())
+
+			hllList, ok := filteredHlls.([]any)
+			if ok {
+				gm.Expect(len(hllList)).To(gm.Equal(1), "Should have 1 HLL with count > 3 (the large one)")
+			}
+		})
 	})
 })

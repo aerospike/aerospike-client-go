@@ -1779,6 +1779,59 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				gm.Expect(resultList).To(gm.ContainElement("record4"))
 			}
 		})
+
+		gg.It("should filter HLL values using ExpHLLLoopVar", func() {
+			client.Delete(nil, key)
+
+			// Create HLL values using HLLAddOp on temporary bins
+			smallData := []as.Value{as.NewValue("a"), as.NewValue("b")}
+			largeData := []as.Value{as.NewValue("a"), as.NewValue("b"), as.NewValue("c"), as.NewValue("d"), as.NewValue("e")}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll1", smallData, 8, 0),
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll2", largeData, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read HLL values back
+			rec, err := client.Get(nil, key, "hll1", "hll2")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hll1Val := rec.Bins["hll1"]
+			hll2Val := rec.Bins["hll2"]
+			gm.Expect(hll1Val).ToNot(gm.BeNil())
+			gm.Expect(hll2Val).ToNot(gm.BeNil())
+
+			// Store HLL values in a nested structure
+			data := map[string]any{
+				"hlls": []any{hll1Val, hll2Val},
+			}
+
+			bin := as.NewBin(binName, data)
+			err = client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Use ExpHLLLoopVar to filter HLL values with count > 3
+			ctx1 := as.CtxMapKey(as.NewStringValue("hlls"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGreater(
+					as.ExpHLLGetCount(as.ExpHLLLoopVar(as.VALUE)),
+					as.ExpIntVal(3),
+				),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultBin := result.Bins[binName]
+			resultList, ok := resultBin.([]any)
+			if ok {
+				gm.Expect(len(resultList)).To(gm.Equal(1), "Should have 1 HLL with count > 3 (the large one)")
+			}
+		})
 	})
 
 	gg.Describe("ExpResultRemove Tests", func() {
@@ -2573,6 +2626,281 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			errorMsg := err.Error()
 			gm.Expect(errorMsg).To(gm.Or(gm.ContainSubstring("15"), gm.ContainSubstring("exceed")))
 			gm.Expect(record).To(gm.BeNil())
+		})
+	})
+
+	gg.Describe("HLL Nested in Map/List Tests", func() {
+
+		gg.It("should preserve HLLValue type when stored in a map[any]any", func() {
+			client.Delete(nil, key)
+
+			// Create an HLL bin with 5000 integer values
+			values := make([]as.Value, 5000)
+			for i := 0; i < 5000; i++ {
+				values[i] = as.NewValue(i)
+			}
+
+			ops := []*as.Operation{
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll_temp_bin", values, 4, 4),
+			}
+			_, err := client.Operate(nil, key, ops...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read HLL value back
+			rec, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hllVal, ok := rec.Bins["hll_temp_bin"].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "Top-level HLL bin should be HLLValue type")
+
+			// Store the HLL value inside a map[any]any
+			wp := as.NewWritePolicy(0, 0)
+			wp.SendKey = true
+			err = client.PutBins(wp, key, as.NewBin("elhss", map[any]any{
+				"a": as.NewHLLValue(hllVal),
+			}))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read back and verify the nested value is still HLLValue
+			rec, err = client.Get(nil, key, "elhss")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			resultMap, ok := rec.Bins["elhss"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue(), "Bin should be a map")
+
+			nestedVal, ok := resultMap["a"].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "Nested value should be HLLValue, not []byte")
+			gm.Expect(len(nestedVal)).To(gm.BeNumerically(">", 0))
+		})
+
+		gg.It("should preserve HLLValue type when stored in a map[string]any", func() {
+			client.Delete(nil, key)
+
+			// Create an HLL bin
+			entries := make([]as.Value, 256)
+			for i := 0; i < 256; i++ {
+				entries[i] = as.NewValue(i)
+			}
+
+			ops := []*as.Operation{
+				as.HLLAddOp(as.DefaultHLLPolicy(), binName, entries, 8, 0),
+			}
+			_, err := client.Operate(nil, key, ops...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read HLL value back
+			rec, err := client.Get(nil, key, binName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hllVal, ok := rec.Bins[binName].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "Top-level HLL bin should be HLLValue type")
+
+			// Store the HLL value inside a map[string]any
+			mapBinName := "mapbin"
+			mapData := map[string]any{
+				"a": as.NewHLLValue(hllVal),
+			}
+			bin := as.NewBin(mapBinName, mapData)
+			err = client.PutBins(nil, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read back and verify the nested value is still HLLValue
+			rec, err = client.Get(nil, key, mapBinName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			resultMap, ok := rec.Bins[mapBinName].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue(), "Bin should be a map")
+
+			nestedVal, ok := resultMap["a"].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "Nested value should be HLLValue, not []byte")
+			gm.Expect(len(nestedVal)).To(gm.BeNumerically(">", 0))
+		})
+
+		gg.It("should preserve HLLValue type when stored in a list", func() {
+			client.Delete(nil, key)
+
+			// Create two HLL bins with different data
+			smallData := []as.Value{as.StringValue("a"), as.StringValue("b")}
+			largeData := []as.Value{as.StringValue("c"), as.StringValue("d"), as.StringValue("e"), as.StringValue("f"), as.StringValue("g")}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll1", smallData, 8, 0),
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll2", largeData, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err := client.Get(nil, key, "hll1", "hll2")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hll1Val := rec.Bins["hll1"].(as.HLLValue)
+			hll2Val := rec.Bins["hll2"].(as.HLLValue)
+
+			// Store HLL values in a list inside a map
+			listBinName := "listbin"
+			listData := map[string]any{
+				"hlls": []any{as.NewHLLValue(hll1Val), as.NewHLLValue(hll2Val)},
+			}
+			bin := as.NewBin(listBinName, listData)
+			err = client.PutBins(nil, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read back and verify nested HLL values preserve their type
+			rec, err = client.Get(nil, key, listBinName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			resultMap, ok := rec.Bins[listBinName].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			resultList, ok := resultMap["hlls"].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(resultList)).To(gm.Equal(2))
+
+			_, ok = resultList[0].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "First nested HLL should be HLLValue type")
+
+			_, ok = resultList[1].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "Second nested HLL should be HLLValue type")
+		})
+
+		gg.It("should preserve HLLValue type in map inside map", func() {
+			client.Delete(nil, key)
+
+			entries := make([]as.Value, 256)
+			for i := 0; i < 256; i++ {
+				entries[i] = as.NewValue(i)
+			}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), binName, entries, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err := client.Get(nil, key, binName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hllVal, ok := rec.Bins[binName].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			// Store HLL in a map nested inside another map (2 levels deep)
+			deepBinName := "deepmapbin"
+			deepData := map[string]any{
+				"level1": map[any]any{
+					"level2": as.NewHLLValue(hllVal),
+				},
+			}
+			bin := as.NewBin(deepBinName, deepData)
+			err = client.PutBins(nil, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err = client.Get(nil, key, deepBinName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			outerMap, ok := rec.Bins[deepBinName].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			innerMap, ok := outerMap["level1"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			nestedVal, ok := innerMap["level2"].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "HLL nested 2 levels deep in maps should be HLLValue type")
+			gm.Expect(len(nestedVal)).To(gm.BeNumerically(">", 0))
+		})
+
+		gg.It("should preserve HLLValue type in list inside list inside map", func() {
+			client.Delete(nil, key)
+
+			entries := make([]as.Value, 256)
+			for i := 0; i < 256; i++ {
+				entries[i] = as.NewValue(i)
+			}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), binName, entries, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err := client.Get(nil, key, binName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hllVal, ok := rec.Bins[binName].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			// Store HLL in a list nested inside another list inside a map (3 levels deep)
+			deepBinName := "deeplistbin"
+			deepData := map[string]any{
+				"level1": []any{
+					[]any{as.NewHLLValue(hllVal)},
+				},
+			}
+			bin := as.NewBin(deepBinName, deepData)
+			err = client.PutBins(nil, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err = client.Get(nil, key, deepBinName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			outerMap, ok := rec.Bins[deepBinName].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			outerList, ok := outerMap["level1"].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			innerList, ok := outerList[0].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			nestedVal, ok := innerList[0].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "HLL nested 3 levels deep (map->list->list) should be HLLValue type")
+			gm.Expect(len(nestedVal)).To(gm.BeNumerically(">", 0))
+		})
+
+		gg.It("should support HLL operations on nested HLL values via expressions", func() {
+			client.Delete(nil, key)
+
+			// Create HLL values with different cardinalities
+			smallData := []as.Value{as.StringValue("a"), as.StringValue("b")}
+			largeData := []as.Value{as.StringValue("a"), as.StringValue("b"), as.StringValue("c"), as.StringValue("d"), as.StringValue("e")}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll1", smallData, 8, 0),
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll2", largeData, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err := client.Get(nil, key, "hll1", "hll2")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hll1Val := rec.Bins["hll1"].(as.HLLValue)
+			hll2Val := rec.Bins["hll2"].(as.HLLValue)
+
+			// Store both HLL values in a nested map->list structure
+			nestedBinName := "nestedbin"
+			data := map[string]any{
+				"hlls": []any{as.NewHLLValue(hll1Val), as.NewHLLValue(hll2Val)},
+			}
+			bin := as.NewBin(nestedBinName, data)
+			err = client.PutBins(nil, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Use ExpHLLLoopVar to filter HLL values with count > 3
+			ctx1 := as.CtxMapKey(as.NewStringValue("hlls"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGreater(
+					as.ExpHLLGetCount(as.ExpHLLLoopVar(as.VALUE)),
+					as.ExpIntVal(3),
+				),
+			)
+
+			selectOp := as.SelectByPath(nestedBinName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultBin := result.Bins[nestedBinName]
+			resultList, ok := resultBin.([]any)
+			if ok {
+				gm.Expect(len(resultList)).To(gm.Equal(1), "Should have 1 HLL with count > 3 (the large one)")
+			}
 		})
 	})
 })
