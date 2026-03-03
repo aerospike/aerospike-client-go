@@ -139,7 +139,7 @@ jobs:
           mkdir -p reports
           mv covprofile_*.out reports/
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: cover_${{matrix.version}}_${{matrix.mode}}
           path: reports
