@@ -118,7 +118,10 @@ var (
 	expOpKEY           expOp = 80
 	expOpBIN           expOp = 81
 	expOpBIN_TYPE      expOp = 82
+	expOpIN_LIST       expOp = 9
 	expOpRESULT_REMOVE expOp = 100
+	expOpMAP_KEYS      expOp = 101
+	expOpMAP_VALUES    expOp = 102
 	expVarBuiltIn      expOp = 122
 	expOpCond          expOp = 123
 	expOpVar           expOp = 124
@@ -878,6 +881,42 @@ func ExpRemoveResult() *Expression {
 		nil,
 		nil,
 		nil,
+	)
+}
+
+// ExpInList creates an expression that checks if a value is contained in a list.
+func ExpInList(value *Expression, list *Expression) *Expression {
+	return newFilterExpression(
+		&expOpIN_LIST,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]*Expression{value, list},
+	)
+}
+
+// ExpMapKeys creates an expression that extracts all keys from a map as a list.
+func ExpMapKeys(mapExp *Expression) *Expression {
+	return newFilterExpression(
+		&expOpMAP_KEYS,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]*Expression{mapExp},
+	)
+}
+
+// ExpMapValues creates an expression that extracts all values from a map as a list.
+func ExpMapValues(mapExp *Expression) *Expression {
+	return newFilterExpression(
+		&expOpMAP_VALUES,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]*Expression{mapExp},
 	)
 }
 
