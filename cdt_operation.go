@@ -61,14 +61,13 @@ const (
 	// will fail.  This is the default behavior.
 	EXP_PATH_MODIFY_DEFAULT ModifyFlag = 0x00
 
-	// This flag is set when leaf values are to be modified.
-	EXP_PATH_MODIFY_APPLY ModifyFlag = 0x04
-
 	// If the expression in the context hits an invalid type (e.g., selects
 	// as an integer when the value is a string), do not fail the operation;
 	// just ignore those elements.  Interpret UNKNOWN as false instead.
 	EXP_PATH_MODIFY_NO_FAIL ModifyFlag = 0x10
 )
+
+var modifyApplyFlag ModifyFlag = 0x04
 
 // SelectByPath creates CDT select operation with context.
 // Equivalent to as_operations_cdt_select in C client.
@@ -206,7 +205,7 @@ func packIfCDTModify(packer BufferEx, opType int, ctx []*CDTContext, params List
 	}
 
 	// Element 3: Pack flags | EXP_PATH_MODIFY_APPLY (ensure apply flag is set)
-	if n, err = packAInt64(packer, int64(flag|EXP_PATH_MODIFY_APPLY)); err != nil {
+	if n, err = packAInt64(packer, int64(flag|modifyApplyFlag)); err != nil {
 		return size + n, err
 	}
 	size += n
