@@ -2903,4 +2903,300 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			}
 		})
 	})
+
+	gg.Describe("CDT MapKeysIn and AndFilter Tests", func() {
+
+		gg.BeforeEach(func() {
+			requiredVersion, err := version.Parse("8.1.2")
+			if err != nil {
+				gg.Fail("Failed to parse server required version")
+			}
+
+			node := client.GetNodes()[0]
+			nodeVersion := node.GetServerVersion()
+			if nodeVersion.IsSmaller(requiredVersion) {
+				gg.Skip("CDT mapKeysIn and andFilter operations require server version 8.1.2+.")
+				return
+			}
+		})
+
+		gg.It("should select map entries by key list using mapKeysIn", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"alpha": 10,
+				"beta":  20,
+				"gamma": 30,
+				"delta": 40,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("alpha", "gamma")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(2))
+			gm.Expect(values).To(gm.ContainElement(10))
+			gm.Expect(values).To(gm.ContainElement(30))
+		})
+
+		gg.It("should apply same-level AND filter with mapKeysIn", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 5,
+				"b": 15,
+				"c": 25,
+				"d": 35,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Select keys "a", "b", "c" via mapKeysIn, then AND-filter to keep values > 10
+			keyInCtx := as.CtxMapStringKeysIn("a", "b", "c")
+			andFilterCtx := as.CtxAndFilter(
+				as.ExpGreater(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(10)),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY_VALUE, keyInCtx, andFilterCtx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultList, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			// MAP_KEY_VALUE returns a flat list [key, value, key, value, ...]
+			gm.Expect(len(resultList)).To(gm.Equal(4), "Should have 4 elements (2 key-value pairs)")
+
+			resultMap := make(map[any]any)
+			for i := 0; i < len(resultList); i += 2 {
+				resultMap[resultList[i]] = resultList[i+1]
+			}
+			gm.Expect(resultMap["b"]).To(gm.Equal(15))
+			gm.Expect(resultMap["c"]).To(gm.Equal(25))
+		})
+
+		gg.It("should handle mapKeysIn with some missing keys", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 1,
+				"b": 2,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("a", "x")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(1))
+			gm.Expect(values).To(gm.ContainElement(1))
+		})
+
+		gg.It("should handle mapKeysIn with empty key list", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 1,
+				"b": 2,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn()
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(0))
+		})
+
+		gg.It("should handle mapKeysIn with empty map", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("a", "b")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(0))
+		})
+
+		gg.It("should handle mapKeysIn with single key", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"x": 1,
+				"y": 2,
+				"z": 3,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("y")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(1))
+			gm.Expect(values[0]).To(gm.Equal(2))
+		})
+
+		gg.It("should handle mapKeysIn selecting all keys", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 1,
+				"b": 2,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("a", "b")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(2))
+			gm.Expect(values).To(gm.ContainElement(1))
+			gm.Expect(values).To(gm.ContainElement(2))
+		})
+
+		gg.It("should return results in map key order not input order", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"z": 3,
+				"a": 1,
+				"m": 2,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("a", "z", "m")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(3))
+			// Aerospike maps are key-ordered, so results come back in sorted key order: a=1, m=2, z=3
+			gm.Expect(values[0]).To(gm.Equal(1))
+			gm.Expect(values[1]).To(gm.Equal(2))
+			gm.Expect(values[2]).To(gm.Equal(3))
+		})
+
+		gg.It("should handle mapKeysIn with integer keys", func() {
+			client.Delete(nil, key)
+
+			m := map[any]any{
+				1: "one",
+				2: "two",
+				3: "three",
+			}
+
+			bin := as.NewBin(binName, as.NewMapValue(m))
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapIntKeysIn(1, 2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(2))
+			gm.Expect(values).To(gm.ContainElement("one"))
+			gm.Expect(values).To(gm.ContainElement("two"))
+		})
+
+		gg.It("should handle mapKeysIn on nested map", func() {
+			client.Delete(nil, key)
+
+			inner := map[string]any{
+				"a": 1,
+				"b": 2,
+				"c": 3,
+			}
+
+			outer := map[string]any{
+				"outer": inner,
+			}
+
+			bin := as.NewBin(binName, outer)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Navigate into "outer" key, then select keys "a" and "c" from the inner map
+			outerCtx := as.CtxMapKey(as.NewStringValue("outer"))
+			keysCtx := as.CtxMapStringKeysIn("a", "c")
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, outerCtx, keysCtx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(2))
+			gm.Expect(values).To(gm.ContainElement(1))
+			gm.Expect(values).To(gm.ContainElement(3))
+		})
+	})
 })
