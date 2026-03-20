@@ -274,10 +274,6 @@ func (cmd *batchCommandOperate) executeSingle(client clientIfc) Error {
 				continue
 			}
 
-			if cmd.policy.AllowPartialResults {
-				continue
-			}
-
 			return err
 		}
 	}
