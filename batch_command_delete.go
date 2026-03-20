@@ -202,9 +202,6 @@ func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
 				continue
 			}
 
-			if cmd.policy.AllowPartialResults {
-				continue
-			}
 			return err
 		}
 	}
