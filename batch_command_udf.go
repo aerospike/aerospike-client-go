@@ -202,9 +202,6 @@ func (cmd *batchCommandUDF) executeSingle(client clientIfc) Error {
 				continue
 			}
 
-			if cmd.policy.AllowPartialResults {
-				continue
-			}
 			return err
 		}
 	}
