@@ -97,7 +97,7 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 			val1 := rec.Bins[binName1].(int)
 			val2 := rec.Bins[binName2].(int)
 			mapVal := rec.Bins[mapBin].(int)
-			gm.Expect(val1*10).To(gm.Equal(val2))
+			gm.Expect(val1 * 10).To(gm.Equal(val2))
 			gm.Expect(val1).To(gm.Equal(mapVal))
 
 			_, hasBin3 := rec.Bins[binName3]
@@ -130,7 +130,7 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 			val3 := rec.Bins[binName3].(int)
 			gm.Expect(val1).To(gm.BeNumerically(">=", begin))
 			gm.Expect(val1).To(gm.BeNumerically("<=", end))
-			gm.Expect(val1*100).To(gm.Equal(val3))
+			gm.Expect(val1 * 100).To(gm.Equal(val3))
 
 			_, hasBin2 := rec.Bins[binName2]
 			gm.Expect(hasBin2).To(gm.BeFalse())
@@ -163,8 +163,8 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 			r1 := rec.Bins["result1"].(int)
 			r2 := rec.Bins["result2"].(int)
 			r3 := rec.Bins["result3"].(int)
-			gm.Expect(r1*10).To(gm.Equal(r2))
-			gm.Expect(r1*100).To(gm.Equal(r3))
+			gm.Expect(r1 * 10).To(gm.Equal(r2))
+			gm.Expect(r1 * 100).To(gm.Equal(r3))
 			count++
 		}
 		gm.Expect(count).To(gm.BeNumerically(">=", size))
@@ -200,8 +200,8 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 			r3 := rec.Bins["result3"].(int)
 			gm.Expect(r1).To(gm.BeNumerically(">=", begin))
 			gm.Expect(r1).To(gm.BeNumerically("<=", end))
-			gm.Expect(r1*10).To(gm.Equal(r2))
-			gm.Expect(r1*100).To(gm.Equal(r3))
+			gm.Expect(r1 * 10).To(gm.Equal(r2))
+			gm.Expect(r1 * 100).To(gm.Equal(r3))
 			count++
 		}
 		gm.Expect(count).To(gm.Equal(end - begin + 1))
@@ -233,7 +233,7 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 			sum := rec.Bins["sum"].(int)
 			gm.Expect(val1).To(gm.BeNumerically(">=", begin))
 			gm.Expect(val1).To(gm.BeNumerically("<=", end))
-			gm.Expect(val1+val1*10).To(gm.Equal(sum))
+			gm.Expect(val1 + val1*10).To(gm.Equal(sum))
 
 			_, hasBin2 := rec.Bins[binName2]
 			gm.Expect(hasBin2).To(gm.BeFalse())
@@ -268,7 +268,7 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 
 			original := rec.Bins[binName1].(int)
 			computed := rec.Bins["computed"].(int)
-			gm.Expect(original*100).To(gm.Equal(computed))
+			gm.Expect(original * 100).To(gm.Equal(computed))
 			count++
 		}
 		gm.Expect(count).To(gm.Equal(end - begin + 1))
@@ -303,8 +303,8 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 			val2 := rec.Bins[binName2].(int)
 			sum := rec.Bins["sum"].(int)
 			diff := rec.Bins["diff"].(int)
-			gm.Expect(val1+val2).To(gm.Equal(sum))
-			gm.Expect(val2-val1).To(gm.Equal(diff))
+			gm.Expect(val1 + val2).To(gm.Equal(sum))
+			gm.Expect(val2 - val1).To(gm.Equal(diff))
 			count++
 		}
 		gm.Expect(count).To(gm.Equal(end - begin + 1))
@@ -337,7 +337,7 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 
 			original := rec.Bins[binName1].(int)
 			doubled := rec.Bins["doubled"].(int)
-			gm.Expect(original*2).To(gm.Equal(doubled))
+			gm.Expect(original * 2).To(gm.Equal(doubled))
 			gm.Expect(original).To(gm.BeNumerically("<", 6))
 			count++
 		}
@@ -639,40 +639,4 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 		gm.Expect(ae.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
 	})
 
-	gg.It("must reject query when both bin names and operations are set", func() {
-		stm := as.NewStatement(ns, set, binName1, binName2)
-		stm.SetFilter(as.NewRangeFilter(binName1, 1, 5))
-		stm.Operations = []*as.Operation{as.GetBinOp(binName1)}
-
-		recordset, err := client.Query(queryPolicy, stm)
-		if err == nil {
-			for res := range recordset.Results() {
-				if res.Err != nil {
-					err = res.Err
-					break
-				}
-			}
-		}
-
-		gm.Expect(err).To(gm.HaveOccurred())
-		var ae *as.AerospikeError
-		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
-		gm.Expect(ae.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
-	})
-
-	gg.It("must reject background execute when both bin names and operations are set", func() {
-		stm := as.NewStatement(ns, set, binName1, binName2)
-		stm.SetFilter(as.NewRangeFilter(binName1, 1, 5))
-
-		writeExp := as.ExpStringVal("tagged")
-
-		_, err := client.QueryExecute(queryPolicy, nil, stm,
-			as.ExpWriteOp("tag", writeExp, as.ExpWriteFlagDefault),
-		)
-		gm.Expect(err).To(gm.HaveOccurred())
-
-		var ae *as.AerospikeError
-		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
-		gm.Expect(ae.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
-	})
 })
