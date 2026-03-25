@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -2668,20 +2668,32 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 
 	operationCount := 0
 
-	// Operations (used in query execute) and bin names (used in scan/query) are mutually exclusive.
+	// Operations and bin names are mutually exclusive.
 	if len(operations) > 0 {
-		if !background {
-			return newError(types.PARAMETER_ERROR, "Operations not allowed in foreground query")
+		if statement.BinNames != nil {
+			logger.Logger.Warn("Operations and bin names are mutually exclusive")
 		}
 
-		for _, op := range operations {
-			if !op.opType.isWrite {
-				return newError(types.PARAMETER_ERROR, "Read operations not allowed in background query")
+		if background {
+			for _, op := range operations {
+				if !op.opType.isWrite {
+					return newError(types.PARAMETER_ERROR, "Background query operations must be write-only. Use query for read-only operations.")
+				}
+				if err := cmd.estimateOperationSizeForOperation(op, false); err != nil {
+					return err
+				}
 			}
-			if err := cmd.estimateOperationSizeForOperation(op, false); err != nil {
-				return err
+		} else {
+			for _, op := range operations {
+				if op.opType.isWrite {
+					return newError(types.PARAMETER_ERROR, "Query operations must be read-only. Use background query for write-only operations.")
+				}
+				if err := cmd.estimateOperationSizeForOperation(op, false); err != nil {
+					return err
+				}
 			}
 		}
+
 		operationCount = len(operations)
 	} else if len(statement.BinNames) > 0 && (isNew || statement.Filter == nil) {
 		for _, binName := range statement.BinNames {
