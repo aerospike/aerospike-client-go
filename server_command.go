@@ -22,17 +22,23 @@ import (
 )
 
 type serverCommand struct {
+	// Deprecated: should not be used and will be removed in future major release.
+	taskId uint64
 	queryCommand
 }
 
-func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, operations []*Operation) *serverCommand {
+func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy, statement *Statement, taskId uint64, operations []*Operation) *serverCommand {
+	// Statement does contain a taskId however we cannot rely on it since the statement might be reused.
+	// If TaskId is 0, set it to a new random value and return the same statement. Cannot modify the original
+	// statement since user might want to reuse it.
 	return &serverCommand{
 		queryCommand: *newQueryCommand(node, policy, writePolicy, statement, operations, nil),
+		taskId:       taskId,
 	}
 }
 
 func (cmd *serverCommand) writeBuffer(ifc command) (err Error) {
-	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.statement.TaskId, cmd.operations, cmd.writePolicy != nil, nil)
+	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.taskId, cmd.operations, cmd.writePolicy != nil, nil)
 }
 
 func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
@@ -51,7 +57,7 @@ func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool
 		// Aggregate metrics
 		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
 		if metricsEnabled {
-			cmd.node.stats.updateOrInsert(ifc, resultCode)
+			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
 
 		if resultCode != 0 {

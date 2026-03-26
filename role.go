@@ -41,13 +41,13 @@ const (
 	// SysAdmin allows to manage indexes, user defined functions and server configuration.
 	SysAdmin privilegeCode = "sys-admin"
 
-	// DataAdmin allows to manage indicies and user defined functions.
+	// DataAdmin allows to manage indices and user defined functions.
 	DataAdmin privilegeCode = "data-admin"
 
 	// UDFAdmin allows to manage user defined functions.
 	UDFAdmin privilegeCode = "udf-admin"
 
-	// SIndexAdmin allows to manage indicies.
+	// SIndexAdmin allows to manage indices.
 	SIndexAdmin privilegeCode = "sindex-admin"
 
 	// ReadWriteUDF allows read, write and UDF transactions with the database.
@@ -64,4 +64,18 @@ const (
 
 	// Truncate allow issuing truncate commands.
 	Truncate privilegeCode = "truncate"
+
+	// MaskingAdmin allows to manage masking policies. Requires server version >= 8.1.1.
+	MaskingAdmin privilegeCode = "masking-admin"
+
+	// ReadMasked allows read transactions with the database with masking policies applied. Requires server version >= 8.1.1.
+	ReadMasked privilegeCode = "read-masked"
+
+	// WriteMasked allows write transactions with the database with masking policies applied. Requires server version >= 8.1.1.
+	WriteMasked privilegeCode = "write-masked"
+
+	// unknown privilege code from server.
+	// This is used for forward compatibility when the server sends
+	// privilege codes that are not yet known to this client version.
+	unknown privilegeCode = "unknown"
 )

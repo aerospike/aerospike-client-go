@@ -14,12 +14,17 @@
 
 package aerospike
 
+const (
+	// maxBinNameLength is the maximum bin name length.
+	maxBinNameLength = 15
+)
+
 // BinMap is used to define a map of bin names to values.
-type BinMap map[string]interface{}
+type BinMap map[string]any
 
 // Bin encapsulates a field name/value pair.
 type Bin struct {
-	// Bin name. Current limit is 14 characters.
+	// Bin name. Current limit is 15 bytes.
 	Name string
 
 	// Bin value.
@@ -28,7 +33,7 @@ type Bin struct {
 
 // NewBin generates a new Bin instance, specifying bin name and string value.
 // For servers configured as "single-bin", enter an empty name.
-func NewBin(name string, value interface{}) *Bin {
+func NewBin(name string, value any) *Bin {
 	return &Bin{
 		Name:  name,
 		Value: NewValue(value),

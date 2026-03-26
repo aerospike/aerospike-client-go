@@ -86,7 +86,7 @@ func (tm *TxnMonitor) getTranOpsFromKeys(txn *Txn, keys []*Key) ([]*Operation, E
 		return nil, err
 	}
 
-	list := make([]interface{}, 0, len(keys))
+	list := make([]any, 0, len(keys))
 
 	for _, key := range keys {
 		if err := txn.SetNamespace(key.namespace); err != nil {
@@ -102,7 +102,7 @@ func (tm *TxnMonitor) getTranOpsFromBatchRecords(txn *Txn, records []BatchRecord
 		return nil, err
 	}
 
-	list := make([]interface{}, 0, len(records))
+	list := make([]any, 0, len(records))
 
 	for _, br := range records {
 		if err := txn.SetNamespace(br.key().namespace); err != nil {
@@ -121,7 +121,7 @@ func (tm *TxnMonitor) getTranOpsFromBatchRecords(txn *Txn, records []BatchRecord
 	return tm.getTranOpsFromValueList(txn, list), nil
 }
 
-func (tm *TxnMonitor) getTranOpsFromValueList(txn *Txn, list []interface{}) []*Operation {
+func (tm *TxnMonitor) getTranOpsFromValueList(txn *Txn, list []any) []*Operation {
 	if txn.MonitorExists() {
 		return []*Operation{
 			ListAppendWithPolicyOp(txnOrderedListPolicy, binNameDigests, list...),
@@ -160,6 +160,7 @@ func (tm *TxnMonitor) copyTimeoutPolicy(policy *BasePolicy) *WritePolicy {
 	wp.TimeoutDelay = policy.TimeoutDelay
 	wp.MaxRetries = policy.MaxRetries
 	wp.SleepBetweenRetries = policy.SleepBetweenRetries
+	wp.SleepMultiplier = policy.SleepMultiplier
 	wp.UseCompression = policy.UseCompression
 	wp.RespondPerEachOp = true
 

@@ -23,14 +23,14 @@ type Pool struct {
 	pool *atomic.Queue
 
 	// New will create a new object
-	New func(params ...interface{}) interface{}
+	New func(params ...any) any
 	// IsUsable checks if the object polled from the pool is still fresh and usable
-	IsUsable func(obj interface{}, params ...interface{}) bool
-	// CanReturn checkes if the object is eligible to go back to the pool
-	CanReturn func(obj interface{}) bool
+	IsUsable func(obj any, params ...any) bool
+	// CanReturn checks if the object is eligible to go back to the pool
+	CanReturn func(obj any) bool
 	// Finalize will be called when an object is not eligible to go back to the pool.
 	// Usable to close connections, file handles, ...
-	Finalize func(obj interface{})
+	Finalize func(obj any)
 }
 
 // NewPool creates a new fixed size pool.
@@ -43,7 +43,7 @@ func NewPool(poolSize int) *Pool {
 // Get returns an element from the pool.
 // If the pool is empty, or the returned element is not usable,
 // nil or the result of the New function will be returned
-func (bp *Pool) Get(params ...interface{}) interface{} {
+func (bp *Pool) Get(params ...any) any {
 	res := bp.pool.Poll()
 	if res == nil || (bp.IsUsable != nil && !bp.IsUsable(res, params...)) {
 		// not usable, so finalize
@@ -60,7 +60,7 @@ func (bp *Pool) Get(params ...interface{}) interface{} {
 }
 
 // Put will add the elem back to the pool, unless the pool is full.
-func (bp *Pool) Put(obj interface{}) {
+func (bp *Pool) Put(obj any) {
 	finalize := true
 	if bp.CanReturn == nil || bp.CanReturn(obj) {
 		finalize = !bp.pool.Offer(obj)

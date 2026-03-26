@@ -50,6 +50,10 @@ var _ = gg.Describe("ApplyConfigToTxnVerifyPolicy", func() {
 								d := 1
 								return &d
 							}(),
+							SleepMultiplier: func() *float64 {
+								d := 1.5
+								return &d
+							}(),
 							SocketTimeout: func() *int {
 								d := 3
 								return &d
@@ -76,6 +80,7 @@ var _ = gg.Describe("ApplyConfigToTxnVerifyPolicy", func() {
 			gm.Expect(policy.SocketTimeout).To(gm.Equal(3 * time.Second))
 			gm.Expect(policy.MaxRetries).To(gm.Equal(5))
 			gm.Expect(policy.SleepBetweenRetries).To(gm.Equal(1 * time.Second))
+			gm.Expect(policy.SleepMultiplier).To(gm.Equal(1.0))
 			gm.Expect(policy.SendKey).To(gm.BeFalse())
 
 			// Apply the configuration.
@@ -87,6 +92,7 @@ var _ = gg.Describe("ApplyConfigToTxnVerifyPolicy", func() {
 			gm.Expect(updatedPolicy.ReadModeSC).To(gm.Equal(ReadModeSCLinearize))
 			gm.Expect(updatedPolicy.ReplicaPolicy).To(gm.Equal(MASTER))
 			gm.Expect(updatedPolicy.SleepBetweenRetries).To(gm.Equal(1 * time.Millisecond))
+			gm.Expect(updatedPolicy.SleepMultiplier).To(gm.Equal(1.5))
 			gm.Expect(updatedPolicy.SocketTimeout).To(gm.Equal(3 * time.Millisecond))
 			gm.Expect(updatedPolicy.TotalTimeout).To(gm.Equal(20 * time.Millisecond))
 			gm.Expect(updatedPolicy.MaxRetries).To(gm.Equal(5))

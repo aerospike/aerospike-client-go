@@ -944,7 +944,7 @@ func (clnt *Client) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePo
 
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, records, true)
 	if err != nil {
-		return nil, err
+		return records, err
 	}
 
 	cmd := newBatchCommandDelete(clnt, nil, policy, deletePolicy, keys, records, attr)
@@ -1011,7 +1011,7 @@ func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy,
 
 	batchNodes, err := newBatchNodeList(clnt.cluster, policy, keys, records, attr.hasWrite)
 	if err != nil {
-		return nil, err
+		return records, err
 	}
 
 	cmd := newBatchCommandUDF(clnt, nil, policy, udfPolicy, keys, packageName, functionName, args, records, attr)
@@ -1190,7 +1190,7 @@ func (clnt *Client) RegisterUDF(policy *WritePolicy, udfBody []byte, serverPath 
 	}
 
 	response := responseMap[strCmd.String()]
-	if strings.EqualFold(response, "ok") {
+	if strings.EqualFold(response, "ok") || response == "" {
 		return NewRegisterTask(clnt.cluster, serverPath), nil
 	}
 
@@ -1385,7 +1385,7 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 
 	var errs Error
 	for i := range nodes {
-		command := newServerCommand(nodes[i], policy, writePolicy, statement, ops)
+		command := newServerCommand(nodes[i], policy, writePolicy, statement, taskId, ops)
 		if err := command.Execute(); err != nil {
 			errs = chainErrors(err, errs)
 		}
@@ -1420,7 +1420,7 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 
 	var errs Error
 	for i := range nodes {
-		command := newServerCommand(nodes[i], policy, nil, statement, nil)
+		command := newServerCommand(nodes[i], policy, nil, statement, taskId, nil)
 		if err := command.Execute(); err != nil {
 			errs = chainErrors(err, errs)
 		}
@@ -1453,7 +1453,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, false)
 
-	command := newServerCommand(node, policy, nil, statement, nil)
+	command := newServerCommand(node, policy, nil, statement, taskId, nil)
 	err := command.Execute()
 
 	return NewExecuteTask(clnt.cluster, statement, taskId), err
@@ -1791,7 +1791,8 @@ func (clnt *Client) createIndex(policy *WritePolicy,
 	response := responseMap[strCmd.String()]
 	if strings.EqualFold(response, "OK") {
 		// Return task that could optionally be polled for completion.
-		return NewIndexTask(clnt.cluster, namespace, indexName), nil
+		timeout := policy.SocketTimeout
+		return newIndexTaskWithTimeout(clnt.cluster, namespace, indexName, timeout), nil
 	}
 
 	return nil, parseInfoErrorCode(response)
@@ -1840,7 +1841,8 @@ func (clnt *Client) DropIndex(
 
 	if strings.EqualFold(response, "OK") {
 		// Return task that could optionally be polled for completion.
-		task := NewDropIndexTask(clnt.cluster, namespace, indexName)
+		timeout := policy.SocketTimeout
+		task := newDropIndexTaskWithTimeout(clnt.cluster, namespace, indexName, timeout)
 		return <-task.OnComplete()
 	}
 
@@ -1974,10 +1976,6 @@ func (clnt *Client) DropUser(policy *AdminPolicy, user string) Error {
 // ChangePassword changes a user's password. Clear-text password will be hashed using bcrypt before sending to server.
 func (clnt *Client) ChangePassword(policy *AdminPolicy, user string, password string) Error {
 	policy = clnt.getUsableAdminPolicy(policy)
-
-	if clnt.cluster.user == "" {
-		return ErrInvalidUser.err()
-	}
 
 	hash, err := hashPassword(password)
 	if err != nil {

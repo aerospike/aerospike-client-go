@@ -94,7 +94,7 @@ func (cmd *writePayloadCommand) parseResult(ifc command, conn *Connection) Error
 	// Aggregate metrics
 	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
 	if metricsEnabled {
-		cmd.node.stats.updateOrInsert(ifc, types.ResultCode(resultCode))
+		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), types.ResultCode(resultCode))
 	}
 
 	if resultCode != 0 {

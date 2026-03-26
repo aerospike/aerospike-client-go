@@ -149,12 +149,15 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 		// Aggregate metrics
 		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
 		if metricsEnabled {
-			cmd.node.stats.updateOrInsert(ifc, resultCode)
+			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
 
 		var err Error
 		if cmd.indexRecords != nil {
 			if len(cmd.indexRecords) > 0 {
+				if err := cmd.parseFieldsBatch(resultCode, fieldCount, cmd.indexRecords[batchIndex]); err != nil {
+					return false, err
+				}
 				if resultCode == 0 {
 					if cmd.indexRecords[batchIndex].Record, err = cmd.parseRecord(cmd.indexRecords[batchIndex].Key, opCount, generation, expiration); err != nil {
 						return false, err
@@ -162,12 +165,20 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 				}
 			}
 		} else {
-			if resultCode == 0 {
-				if cmd.objects == nil {
+			if cmd.objects == nil {
+				if err := cmd.parseFieldsRead(fieldCount, cmd.keys[batchIndex]); err != nil {
+					return false, err
+				}
+				if resultCode == 0 {
 					if cmd.records[batchIndex], err = cmd.parseRecord(cmd.keys[batchIndex], opCount, generation, expiration); err != nil {
 						return false, err
 					}
-				} else if batchObjectParser != nil {
+				}
+			} else if batchObjectParser != nil {
+				if err := cmd.parseFieldsRead(fieldCount, cmd.keys[batchIndex]); err != nil {
+					return false, err
+				}
+				if resultCode == 0 {
 					// mark it as found
 					cmd.objectsFound[batchIndex] = true
 					if err := batchObjectParser(cmd, batchIndex, opCount, fieldCount, generation, expiration); err != nil {

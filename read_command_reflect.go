@@ -119,7 +119,7 @@ func setObjectMetaFields(obj reflect.Value, ttl, gen uint32) Error {
 	return nil
 }
 
-func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName string, value interface{}) Error {
+func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName string, value any) Error {
 	if value == nil {
 		return nil
 	}
@@ -134,7 +134,7 @@ func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName stri
 	return setValue(f, value)
 }
 
-func fillMap(f, newMap, emptyStruct reflect.Value, key, elem, value interface{}, fieldKind reflect.Kind) Error {
+func fillMap(f, newMap, emptyStruct reflect.Value, key, elem, value any, fieldKind reflect.Kind) Error {
 	var newKey, newVal reflect.Value
 	fKeyType := f.Type().Key()
 	if key != nil {
@@ -177,7 +177,7 @@ func fillMap(f, newMap, emptyStruct reflect.Value, key, elem, value interface{},
 		if newMap.Type().Elem().NumField() == 0 {
 			newMap.SetMapIndex(newKey, emptyStruct)
 		} else {
-			return newError(types.PARSE_ERROR, "Map value type is struct{}, but data returned from database is a non-empty map[interface{}]interface{}")
+			return newError(types.PARSE_ERROR, "Map value type is struct{}, but data returned from database is a non-empty map[any]any")
 		}
 	} else {
 		newMap.SetMapIndex(newKey, newVal)
@@ -185,7 +185,7 @@ func fillMap(f, newMap, emptyStruct reflect.Value, key, elem, value interface{},
 	return nil
 }
 
-func setValue(f reflect.Value, value interface{}) Error {
+func setValue(f reflect.Value, value any) Error {
 	// find the name based on tag mapping
 	if f.CanSet() {
 		if value == nil {
@@ -338,7 +338,7 @@ func setValue(f reflect.Value, value interface{}) Error {
 					f.Set(reflect.ValueOf(&tm))
 					break
 				}
-				valMap, ok := value.(map[interface{}]interface{})
+				valMap, ok := value.(map[any]any)
 				if !ok {
 					return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
 				}
@@ -381,7 +381,7 @@ func setValue(f reflect.Value, value interface{}) Error {
 			}
 		case reflect.Map:
 			emptyStruct := reflect.ValueOf(struct{}{})
-			if theMap, ok := value.(map[interface{}]interface{}); ok {
+			if theMap, ok := value.(map[any]any); ok {
 				newMap := reflect.MakeMap(f.Type())
 				for key, elem := range theMap {
 					if err := fillMap(f, newMap, emptyStruct, key, elem, value, fieldKind); err != nil {
@@ -423,7 +423,7 @@ func setValue(f reflect.Value, value interface{}) Error {
 				break
 			}
 
-			valMap, ok := value.(map[interface{}]interface{})
+			valMap, ok := value.(map[any]any)
 			if !ok {
 				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
 			}
@@ -440,7 +440,7 @@ func setValue(f reflect.Value, value interface{}) Error {
 	return nil
 }
 
-func setStructValue(f reflect.Value, valMap map[interface{}]interface{}, typeOfT reflect.Type, index []int) (err Error) {
+func setStructValue(f reflect.Value, valMap map[any]any, typeOfT reflect.Type, index []int) (err Error) {
 	numFields := typeOfT.NumField()
 	for i := 0; i < numFields; i++ {
 		fld := typeOfT.Field(i)

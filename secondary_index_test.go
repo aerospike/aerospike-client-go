@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
@@ -56,13 +57,21 @@ var exp = as.ExpCond(
 	as.ExpUnknown(),
 )
 
-var _ = gg.Describe("Secondary index test", func() {
+var _ = gg.Describe("Secondary index test", gg.Ordered, func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
+
+	gg.BeforeAll(func() {
+		node := client.GetNodes()[0]
+		serverVersion := node.GetServerVersion()
+		if serverVersion.IsSmaller(version.ServerVersion_8_1) {
+			gg.Skip("Secondary index tests require server version 8.1.0 or greater")
+		}
+	})
 
 	gg.Describe("Index creation with expression", gg.Ordered, func() {
 		gg.BeforeAll(func() {
 			// Make sure the global set‑up really happened.
-			gm.Expect(client).NotTo(gm.BeNil(), "client must be initialized in the suite’s set‑up")
+			gm.Expect(client).NotTo(gm.BeNil(), "client must be initialized in the suite's set‑up")
 
 			task, err := client.CreateIndexWithExpression(wpolicy, *namespace, setName, indexName, as.NUMERIC, as.ICT_DEFAULT, exp)
 			if err != nil {
@@ -483,23 +492,23 @@ func insertTestRecords() {
 		name      string
 		age       int
 		country   string
-		skills    []interface{}
-		metadata  map[interface{}]interface{}
+		skills    []any
+		metadata  map[any]any
 		location  string
-		locations []interface{} // Collection of geospatial points
+		locations []any // Collection of geospatial points
 	}{
-		{1, "Tim", 312, "Australia", []interface{}{"Go", "Python", 1}, map[interface{}]interface{}{"level": 5, "active": true}, `{"type": "Point", "coordinates": [144.9631, -37.8136]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [144.9631, -37.8136]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [144.9700, -37.8200]}`)}},
-		{2, "Bob", 47, "Canada", []interface{}{"Java", "C++", 2}, map[interface{}]interface{}{"level": 3, "active": false}, `{"type": "Point", "coordinates": [-79.3832, 43.6532]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-79.3832, 43.6532]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-79.3900, 43.6600]}`)}},
-		{3, "Jo", 15, "USA", []interface{}{"JavaScript", "HTML", 3}, map[interface{}]interface{}{"level": 2, "active": true}, `{"type": "Point", "coordinates": [-74.0060, 40.7128]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-74.0060, 40.7128]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-74.0100, 40.7200]}`)}},
-		{4, "Steven", 23, "Botswana", []interface{}{"Python", "Go", 4}, map[interface{}]interface{}{"level": 4, "active": true}, `{"type": "Point", "coordinates": [25.9084, -24.6282]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [25.9084, -24.6282]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [25.9150, -24.6350]}`)}},
-		{5, "Susan", 32, "Canada", []interface{}{"C#", "SQL", 5}, map[interface{}]interface{}{"level": 4, "active": false}, `{"type": "Point", "coordinates": [-123.1207, 49.2827]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-123.1207, 49.2827]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-123.1300, 49.2900]}`)}},
-		{6, "Jess", 17, "USA", []interface{}{"Python", "R", 6}, map[interface{}]interface{}{"level": 1, "active": true}, `{"type": "Point", "coordinates": [-122.4194, 37.7749]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-122.4194, 37.7749]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-122.4250, 37.7800]}`)}},
-		{7, "Sam", 18, "USA", []interface{}{"Go", "Rust", 7}, map[interface{}]interface{}{"level": 2, "active": true}, `{"type": "Point", "coordinates": [-87.6298, 41.8781]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-87.6298, 41.8781]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-87.6350, 41.8850]}`)}},
-		{8, "Alex", 47, "Canada", []interface{}{"Java", "Kotlin", 8}, map[interface{}]interface{}{"level": 5, "active": true}, `{"type": "Point", "coordinates": [-75.6972, 45.4215]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-75.6972, 45.4215]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-75.7000, 45.4280]}`)}},
-		{9, "Pam", 56, "Australia", []interface{}{"C++", "Assembly", 9}, map[interface{}]interface{}{"level": 6, "active": false}, `{"type": "Point", "coordinates": [151.2093, -33.8688]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [151.2093, -33.8688]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [151.2150, -33.8750]}`)}},
-		{10, "Vivek", 12, "India", []interface{}{"Python", "Django", 10}, map[interface{}]interface{}{"level": 1, "active": true}, `{"type": "Point", "coordinates": [77.1025, 28.7041]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [77.1025, 28.7041]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [77.1100, 28.7100]}`)}},
-		{11, "Kiril", 22, "Sweden", []interface{}{"Go", "Docker", 11}, map[interface{}]interface{}{"level": 3, "active": true}, `{"type": "Point", "coordinates": [18.0686, 59.3293]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [18.0686, 59.3293]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [18.0750, 59.3350]}`)}},
-		{12, "Bill", 23, "UK", []interface{}{"JavaScript", "Node.js", 12}, map[interface{}]interface{}{"level": 3, "active": false}, `{"type": "Point", "coordinates": [-0.1276, 51.5074]}`, []interface{}{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-0.1276, 51.5074]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-0.1200, 51.5150]}`)}},
+		{1, "Tim", 312, "Australia", []any{"Go", "Python", 1}, map[any]any{"level": 5, "active": true}, `{"type": "Point", "coordinates": [144.9631, -37.8136]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [144.9631, -37.8136]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [144.9700, -37.8200]}`)}},
+		{2, "Bob", 47, "Canada", []any{"Java", "C++", 2}, map[any]any{"level": 3, "active": false}, `{"type": "Point", "coordinates": [-79.3832, 43.6532]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-79.3832, 43.6532]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-79.3900, 43.6600]}`)}},
+		{3, "Jo", 15, "USA", []any{"JavaScript", "HTML", 3}, map[any]any{"level": 2, "active": true}, `{"type": "Point", "coordinates": [-74.0060, 40.7128]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-74.0060, 40.7128]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-74.0100, 40.7200]}`)}},
+		{4, "Steven", 23, "Botswana", []any{"Python", "Go", 4}, map[any]any{"level": 4, "active": true}, `{"type": "Point", "coordinates": [25.9084, -24.6282]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [25.9084, -24.6282]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [25.9150, -24.6350]}`)}},
+		{5, "Susan", 32, "Canada", []any{"C#", "SQL", 5}, map[any]any{"level": 4, "active": false}, `{"type": "Point", "coordinates": [-123.1207, 49.2827]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-123.1207, 49.2827]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-123.1300, 49.2900]}`)}},
+		{6, "Jess", 17, "USA", []any{"Python", "R", 6}, map[any]any{"level": 1, "active": true}, `{"type": "Point", "coordinates": [-122.4194, 37.7749]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-122.4194, 37.7749]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-122.4250, 37.7800]}`)}},
+		{7, "Sam", 18, "USA", []any{"Go", "Rust", 7}, map[any]any{"level": 2, "active": true}, `{"type": "Point", "coordinates": [-87.6298, 41.8781]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-87.6298, 41.8781]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-87.6350, 41.8850]}`)}},
+		{8, "Alex", 47, "Canada", []any{"Java", "Kotlin", 8}, map[any]any{"level": 5, "active": true}, `{"type": "Point", "coordinates": [-75.6972, 45.4215]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-75.6972, 45.4215]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-75.7000, 45.4280]}`)}},
+		{9, "Pam", 56, "Australia", []any{"C++", "Assembly", 9}, map[any]any{"level": 6, "active": false}, `{"type": "Point", "coordinates": [151.2093, -33.8688]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [151.2093, -33.8688]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [151.2150, -33.8750]}`)}},
+		{10, "Vivek", 12, "India", []any{"Python", "Django", 10}, map[any]any{"level": 1, "active": true}, `{"type": "Point", "coordinates": [77.1025, 28.7041]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [77.1025, 28.7041]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [77.1100, 28.7100]}`)}},
+		{11, "Kiril", 22, "Sweden", []any{"Go", "Docker", 11}, map[any]any{"level": 3, "active": true}, `{"type": "Point", "coordinates": [18.0686, 59.3293]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [18.0686, 59.3293]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [18.0750, 59.3350]}`)}},
+		{12, "Bill", 23, "UK", []any{"JavaScript", "Node.js", 12}, map[any]any{"level": 3, "active": false}, `{"type": "Point", "coordinates": [-0.1276, 51.5074]}`, []any{as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-0.1276, 51.5074]}`), as.NewGeoJSONValue(`{"type": "Point", "coordinates": [-0.1200, 51.5150]}`)}},
 	}
 
 	for _, p := range people {

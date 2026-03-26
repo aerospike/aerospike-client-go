@@ -24,7 +24,8 @@ import (
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
-
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
@@ -94,10 +95,19 @@ var _ = gg.Describe("UDF/Query tests", func() {
 	gg.It("must parse invalid UDF error", func() {
 		_, err := client.RegisterUDF(wpolicy, []byte(invalidUdfBody), "invalid_udf1.lua", as.LUA)
 		gm.Expect(err).To(gm.HaveOccurred())
-		gm.Expect(err.Error()).To(gm.HaveSuffix(`compile_error
+
+		serverVersion := client.GetNodes()[0].GetServerVersion()
+		suffix := types.Ternary(
+			serverVersion.IsSmaller(&version.Version{Major: 7, Minor: 0, Patch: 0, Build: 0}),
+			`compile_error
 File: invalid_udf1.lua
 Line: 3
-Message: syntax error near 'returned'`))
+Message: '=' expected near 'returned'`,
+			`compile_error
+File: invalid_udf1.lua
+Line: 3
+Message: syntax error near 'returned'`)
+		gm.Expect(err.Error()).To(gm.HaveSuffix(suffix))
 	})
 
 	gg.It("must run a UDF on a single record", func() {
@@ -118,7 +128,7 @@ Message: syntax error near 'returned'`))
 		}
 		res, err := client.Execute(wpolicy, key, "udf1", "testFunc1", as.NewValue(2))
 		gm.Expect(err).ToNot(gm.HaveOccurred())
-		gm.Expect(res).To(gm.Equal(map[interface{}]interface{}{"status": "OK"}))
+		gm.Expect(res).To(gm.Equal(map[any]any{"status": "OK"}))
 
 		time.Sleep(3 * time.Second)
 
@@ -273,7 +283,7 @@ Message: syntax error near 'returned'`))
 			})
 		})
 
-		testMatrix := map[interface{}]interface{}{
+		testMatrix := map[any]any{
 			math.MinInt64: math.MinInt64,
 			// math.MaxInt64:  int64(math.MaxInt64), // TODO: Wrong serialization on server - sign-bit is wrong
 			math.MinInt32:               math.MinInt32, // TODO: Wrong serialization type on server
@@ -301,7 +311,7 @@ Message: syntax error near 'returned'`))
 
 			res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(nil))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(res.(map[interface{}]interface{})["val"]).To(gm.BeNil())
+			gm.Expect(res.(map[any]any)["val"]).To(gm.BeNil())
 
 		}) // it
 
@@ -310,14 +320,14 @@ Message: syntax error near 'returned'`))
 			for k, v := range testMatrix {
 				res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(k))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-				gm.Expect(res.(map[interface{}]interface{})["val"]).To(gm.Equal(v))
+				gm.Expect(res.(map[any]any)["val"]).To(gm.Equal(v))
 			}
 
 		}) // it
 
 		gg.It("must serialize list values to echo function and get the same value back", func() {
 
-			v := []interface{}{
+			v := []any{
 				nil,
 				math.MinInt64,
 				math.MinInt32,
@@ -338,7 +348,7 @@ Message: syntax error near 'returned'`))
 				"Hello, 世界",
 			}
 
-			vExpected := []interface{}{
+			vExpected := []any{
 				nil,
 				int(math.MinInt64),
 				int(math.MinInt32),
@@ -362,18 +372,18 @@ Message: syntax error near 'returned'`))
 			res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(v))
 
 			// for i := range v {
-			// 	fmt.Printf("%v => %T\n", res.(map[interface{}]interface{})["val"].([]interface{})[i], res.(map[interface{}]interface{})["val"].([]interface{})[i])
+			// 	fmt.Printf("%v => %T\n", res.(map[any]any)["val"].([]any)[i], res.(map[any]any)["val"].([]any)[i])
 			// 	fmt.Printf("%v => %T\n", vExpected[i], vExpected[i])
 			// }
 
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(res.(map[interface{}]interface{})["val"]).To(gm.Equal(vExpected))
+			gm.Expect(res.(map[any]any)["val"]).To(gm.Equal(vExpected))
 
 		}) // it
 
 		gg.It("must serialize map values to echo function and get the same value back", func() {
 
-			v := map[interface{}]interface{}{
+			v := map[any]any{
 				// nil:            nil,
 				math.MinInt64:  math.MinInt64,
 				math.MinInt32:  math.MinInt32,
@@ -393,7 +403,7 @@ Message: syntax error near 'returned'`))
 				"Hello, 世界":    "Hello, 世界",
 			}
 
-			vExpected := map[interface{}]interface{}{
+			vExpected := map[any]any{
 				// nil:            nil,
 				math.MinInt64:  math.MinInt64,
 				math.MinInt32:  math.MinInt32,
@@ -416,7 +426,7 @@ Message: syntax error near 'returned'`))
 			res, err := client.Execute(nil, key, "udfEcho", "echo", as.NewValue(v))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			resMap := res.(map[interface{}]interface{})["val"].(map[interface{}]interface{})
+			resMap := res.(map[any]any)["val"].(map[any]any)
 			// for k := range resMap {
 			// 	fmt.Printf("%v : %v => %T: %T\n", k, k, resMap[k], resMap[k])
 			// 	fmt.Printf("%v => %T\n", vExpected[k], vExpected[k])

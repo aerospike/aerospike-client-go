@@ -293,6 +293,13 @@ func (bp *BasePolicy) mapDynamic(dynConfig *DynConfig) *BasePolicy {
 				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
 			}
 		}
+		if currentConfig.Dynamic.Read.SleepMultiplier != nil {
+			configValue := *currentConfig.Dynamic.Read.SleepMultiplier
+			bp.SleepMultiplier = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepMultiplier set to %f", configValue)
+			}
+		}
 		if currentConfig.Dynamic.Read.Replica != nil {
 			configValue := mapReplicaToReplicaPolicy(*currentConfig.Dynamic.Read.Replica)
 			bp.ReplicaPolicy = configValue
@@ -346,6 +353,13 @@ func (bp *BasePolicy) mapDynamicBatchWrite(dynConfig *DynConfig) *BasePolicy {
 			bp.SleepBetweenRetries = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchWrite.SleepMultiplier != nil {
+			configValue := *currentConfig.Dynamic.BatchWrite.SleepMultiplier
+			bp.SleepMultiplier = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepMultiplier set to %f", configValue)
 			}
 		}
 		if currentConfig.Dynamic.BatchWrite.Replica != nil {
@@ -415,6 +429,13 @@ func (bp *BasePolicy) mapDynamicBatchRead(dynConfig *DynConfig) *BasePolicy {
 			bp.SleepBetweenRetries = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.BatchRead.SleepMultiplier != nil {
+			configValue := *currentConfig.Dynamic.BatchRead.SleepMultiplier
+			bp.SleepMultiplier = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepMultiplier set to %f", configValue)
 			}
 		}
 		if currentConfig.Dynamic.BatchRead.Replica != nil {

@@ -16,7 +16,9 @@ package aerospike
 
 import (
 	"encoding/json"
+	"iter"
 	"sync"
+	"sync/atomic"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 
@@ -25,14 +27,17 @@ import (
 	hist "github.com/aerospike/aerospike-client-go/v8/types/histogram"
 )
 
+type detailedMetricsArray = [ttMaxCommandTypes]atomic.Pointer[commandMetric]
+type detailedResultCodeArray = [ttMaxCommandTypes]atomic.Pointer[commandResultCodeMetric]
+
+// Note: ttMaxCommandTypes is automatically calculated via iota in the commandType enum
+// defined in command.go. It represents the total count of command types and is used
+// for sizing preallocated arrays for metrics per command type.
+
 // nodeStats keeps track of client's internal node statistics
 // These statistics are aggregated once per tend in the cluster object
 // and then are served to the end-user.
 type nodeStats struct {
-	//(htype Type, base T, buckets int)
-	//hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-	// TODO: Remove this lock and abstract it out using Generics
-	m sync.Mutex
 	// MetricsPolicy contains policy, default values for histograms, which are used on node_stats init time
 	metricPolicy *MetricsPolicy
 
@@ -100,10 +105,10 @@ type nodeStats struct {
 	BatchReadMetrics hist.SyncHistogram[uint64] `json:"batch-read-metrics"`
 	// Metrics for Batch commands containing writes
 	BatchWriteMetrics hist.SyncHistogram[uint64] `json:"batch-write-metrics"`
-	// Error counts for each command
-	DetailedResultCodeCounts amap.Map[string, *amap.Map[commandType, *commandResultCodeMetric]] `json:"detailed-resultcode-counts"`
-	// Detailed metrics for per namespace and per command type
-	DetailedMetrics amap.Map[string, *amap.Map[commandType, *commandMetric]] `json:"detailed-metrics"`
+	// Error counts for each command - using preallocated arrays for commandType (lock-free)
+	DetailedResultCodeCounts sync.Map // map[string]*detailedResultCodeArray
+	// Detailed metrics for per namespace and per command type - using preallocated arrays for commandType (lock-free)
+	DetailedMetrics sync.Map // map[string]*detailedMetricsArray
 }
 
 // commandResultCodeMetric keeps track of the ResultCode counts for a given command
@@ -138,21 +143,19 @@ func newNodeStats(policy *MetricsPolicy) *nodeStats {
 	}
 
 	return &nodeStats{
-		metricPolicy:             policy,
-		StatLabels:               NewLabels(),
-		GetMetrics:               *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		GetHeaderMetrics:         *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		ExistsMetrics:            *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		PutMetrics:               *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		DeleteMetrics:            *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		OperateMetrics:           *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		QueryMetrics:             *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		ScanMetrics:              *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		UDFMetrics:               *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		BatchReadMetrics:         *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		BatchWriteMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		DetailedResultCodeCounts: *amap.New[string, *amap.Map[commandType, *commandResultCodeMetric]](0),
-		DetailedMetrics:          *amap.New[string, *amap.Map[commandType, *commandMetric]](0),
+		metricPolicy:     policy,
+		StatLabels:       NewLabels(),
+		GetMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		GetHeaderMetrics: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ExistsMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		PutMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		DeleteMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		OperateMetrics:   *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		QueryMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ScanMetrics:      *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		UDFMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BatchReadMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BatchWriteMetrics: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
 	}
 }
 
@@ -170,10 +173,52 @@ func (n *nodeStats) newCommandResultCodeMetricWithValue(resultCode types.ResultC
 	}
 }
 
+// getOrCreateMetricsArray returns the metrics array for a namespace, creating it if needed (lock-free)
+func (n *nodeStats) getOrCreateMetricsArray(namespace string) *detailedMetricsArray {
+	if val, ok := n.DetailedMetrics.Load(namespace); ok {
+		return val.(*detailedMetricsArray)
+	}
+	newArr := &detailedMetricsArray{}
+	actual, _ := n.DetailedMetrics.LoadOrStore(namespace, newArr)
+	return actual.(*detailedMetricsArray)
+}
+
+// getOrCreateResultCodeArray returns the result code array for a namespace, creating it if needed (lock-free)
+func (n *nodeStats) getOrCreateResultCodeArray(namespace string) *detailedResultCodeArray {
+	if val, ok := n.DetailedResultCodeCounts.Load(namespace); ok {
+		return val.(*detailedResultCodeArray)
+	}
+	newArr := &detailedResultCodeArray{}
+	actual, _ := n.DetailedResultCodeCounts.LoadOrStore(namespace, newArr)
+	return actual.(*detailedResultCodeArray)
+}
+
+// getOrCreateCommandMetric returns the command metric for a slot, creating it if needed (lock-free CAS)
+func (n *nodeStats) getOrCreateCommandMetric(arr *detailedMetricsArray, ct commandType) *commandMetric {
+	if cm := arr[ct].Load(); cm != nil {
+		return cm
+	}
+	newCm := n.newCommandMetric()
+	if arr[ct].CompareAndSwap(nil, newCm) {
+		return newCm
+	}
+	return arr[ct].Load()
+}
+
+// getOrCreateResultCodeMetric returns the result code metric for a slot, creating it if needed (lock-free CAS)
+func (n *nodeStats) getOrCreateResultCodeMetric(arr *detailedResultCodeArray, ct commandType, resultCode types.ResultCode) *commandResultCodeMetric {
+	if m := arr[ct].Load(); m != nil {
+		return m
+	}
+	newM := n.newCommandResultCodeMetricWithValue(resultCode)
+	if arr[ct].CompareAndSwap(nil, newM) {
+		return newM
+	}
+	return arr[ct].Load()
+}
+
 // latest returns the latest values to be used in aggregation and then resets the values
 func (ns *nodeStats) getAndReset() *nodeStats {
-	ns.m.Lock()
-
 	res := &nodeStats{
 		metricPolicy:             ns.metricPolicy,
 		StatLabels:               NewLabels(),
@@ -199,28 +244,26 @@ func (ns *nodeStats) getAndReset() *nodeStats {
 		TransactionRetryCount: ns.TransactionRetryCount.CloneAndSet(0),
 		TransactionErrorCount: ns.TransactionErrorCount.CloneAndSet(0),
 
-		GetMetrics:               *ns.GetMetrics.CloneAndReset(),
-		GetHeaderMetrics:         *ns.GetHeaderMetrics.CloneAndReset(),
-		ExistsMetrics:            *ns.ExistsMetrics.CloneAndReset(),
-		PutMetrics:               *ns.PutMetrics.CloneAndReset(),
-		DeleteMetrics:            *ns.DeleteMetrics.CloneAndReset(),
-		OperateMetrics:           *ns.OperateMetrics.CloneAndReset(),
-		QueryMetrics:             *ns.QueryMetrics.CloneAndReset(),
-		ScanMetrics:              *ns.ScanMetrics.CloneAndReset(),
-		UDFMetrics:               *ns.UDFMetrics.CloneAndReset(),
-		BatchReadMetrics:         *ns.BatchReadMetrics.CloneAndReset(),
-		BatchWriteMetrics:        *ns.BatchWriteMetrics.CloneAndReset(),
-		DetailedResultCodeCounts: *ns.cloneAndResetDetailedResultCodeCounts(),
-		DetailedMetrics:          *ns.cloneAndResetDetailedMetrics(),
+		GetMetrics:       *ns.GetMetrics.CloneAndReset(),
+		GetHeaderMetrics: *ns.GetHeaderMetrics.CloneAndReset(),
+		ExistsMetrics:    *ns.ExistsMetrics.CloneAndReset(),
+		PutMetrics:       *ns.PutMetrics.CloneAndReset(),
+		DeleteMetrics:    *ns.DeleteMetrics.CloneAndReset(),
+		OperateMetrics:   *ns.OperateMetrics.CloneAndReset(),
+		QueryMetrics:     *ns.QueryMetrics.CloneAndReset(),
+		ScanMetrics:      *ns.ScanMetrics.CloneAndReset(),
+		UDFMetrics:       *ns.UDFMetrics.CloneAndReset(),
+		BatchReadMetrics:  *ns.BatchReadMetrics.CloneAndReset(),
+		BatchWriteMetrics: *ns.BatchWriteMetrics.CloneAndReset(),
 	}
 
-	ns.m.Unlock()
+	ns.cloneAndResetDetailedResultCodeCountsInto(&res.DetailedResultCodeCounts)
+	ns.cloneAndResetDetailedMetricsInto(&res.DetailedMetrics)
+
 	return res
 }
 
 func (ns *nodeStats) clone() nodeStats {
-	ns.m.Lock()
-
 	res := nodeStats{
 		metricPolicy:             ns.metricPolicy,
 		StatLabels:               NewLabels(),
@@ -246,27 +289,118 @@ func (ns *nodeStats) clone() nodeStats {
 		TransactionRetryCount: ns.TransactionRetryCount.Clone(),
 		TransactionErrorCount: ns.TransactionErrorCount.Clone(),
 
-		GetMetrics:               *ns.GetMetrics.Clone(),
-		GetHeaderMetrics:         *ns.GetHeaderMetrics.Clone(),
-		ExistsMetrics:            *ns.ExistsMetrics.Clone(),
-		PutMetrics:               *ns.PutMetrics.Clone(),
-		DeleteMetrics:            *ns.DeleteMetrics.Clone(),
-		OperateMetrics:           *ns.OperateMetrics.Clone(),
-		QueryMetrics:             *ns.QueryMetrics.Clone(),
-		ScanMetrics:              *ns.ScanMetrics.Clone(),
-		UDFMetrics:               *ns.UDFMetrics.Clone(),
-		BatchReadMetrics:         *ns.BatchReadMetrics.Clone(),
-		BatchWriteMetrics:        *ns.BatchWriteMetrics.Clone(),
-		DetailedResultCodeCounts: *ns.cloneDetailedResultCodeCounts(),
-		DetailedMetrics:          *ns.cloneDetailedMetrics(),
+		GetMetrics:       *ns.GetMetrics.Clone(),
+		GetHeaderMetrics: *ns.GetHeaderMetrics.Clone(),
+		ExistsMetrics:    *ns.ExistsMetrics.Clone(),
+		PutMetrics:       *ns.PutMetrics.Clone(),
+		DeleteMetrics:    *ns.DeleteMetrics.Clone(),
+		OperateMetrics:   *ns.OperateMetrics.Clone(),
+		QueryMetrics:     *ns.QueryMetrics.Clone(),
+		ScanMetrics:      *ns.ScanMetrics.Clone(),
+		UDFMetrics:       *ns.UDFMetrics.Clone(),
+		BatchReadMetrics:  *ns.BatchReadMetrics.Clone(),
+		BatchWriteMetrics: *ns.BatchWriteMetrics.Clone(),
 	}
 
-	ns.m.Unlock()
+	ns.cloneDetailedResultCodeCountsInto(&res.DetailedResultCodeCounts)
+	ns.cloneDetailedMetricsInto(&res.DetailedMetrics)
+
 	return res
 }
 
+// cloneDetailedMetricsInto clones DetailedMetrics into the target sync.Map
+func (ns *nodeStats) cloneDetailedMetricsInto(target *sync.Map) {
+	ns.DetailedMetrics.Range(func(key, value any) bool {
+		namespace := key.(string)
+		srcArr := value.(*detailedMetricsArray)
+
+		tgtArr := &detailedMetricsArray{}
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			srcMetric := srcArr[ct].Load()
+			if srcMetric == nil {
+				continue
+			}
+			tgtMetric := ns.newCommandMetric()
+			tgtMetric.ConnectionAq = *srcMetric.ConnectionAq.Clone()
+			tgtMetric.Latency = *srcMetric.Latency.Clone()
+			tgtMetric.Parsing = *srcMetric.Parsing.Clone()
+			tgtMetric.BytesSent = *srcMetric.BytesSent.Clone()
+			tgtMetric.BytesReceived = *srcMetric.BytesReceived.Clone()
+			tgtArr[ct].Store(tgtMetric)
+		}
+		target.Store(namespace, tgtArr)
+		return true
+	})
+}
+
+// cloneDetailedResultCodeCountsInto clones DetailedResultCodeCounts into the target sync.Map
+func (ns *nodeStats) cloneDetailedResultCodeCountsInto(target *sync.Map) {
+	ns.DetailedResultCodeCounts.Range(func(key, value any) bool {
+		namespace := key.(string)
+		srcArr := value.(*detailedResultCodeArray)
+
+		tgtArr := &detailedResultCodeArray{}
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			srcMetric := srcArr[ct].Load()
+			if srcMetric == nil {
+				continue
+			}
+			tgtMetric := ns.newCommandResultCodeMetric()
+			tgtMetric.ResultCodeCounts = *srcMetric.ResultCodeCounts.CloneMap()
+			tgtArr[ct].Store(tgtMetric)
+		}
+		target.Store(namespace, tgtArr)
+		return true
+	})
+}
+
+// cloneAndResetDetailedMetricsInto clones and resets DetailedMetrics into the target sync.Map
+func (ns *nodeStats) cloneAndResetDetailedMetricsInto(target *sync.Map) {
+	ns.DetailedMetrics.Range(func(key, value any) bool {
+		namespace := key.(string)
+		srcArr := value.(*detailedMetricsArray)
+
+		tgtArr := &detailedMetricsArray{}
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			srcMetric := srcArr[ct].Load()
+			if srcMetric == nil {
+				continue
+			}
+			tgtMetric := ns.newCommandMetric()
+			tgtMetric.ConnectionAq = *srcMetric.ConnectionAq.CloneAndReset()
+			tgtMetric.Latency = *srcMetric.Latency.CloneAndReset()
+			tgtMetric.Parsing = *srcMetric.Parsing.CloneAndReset()
+			tgtMetric.BytesSent = *srcMetric.BytesSent.CloneAndReset()
+			tgtMetric.BytesReceived = *srcMetric.BytesReceived.CloneAndReset()
+			tgtArr[ct].Store(tgtMetric)
+		}
+		target.Store(namespace, tgtArr)
+		return true
+	})
+}
+
+// cloneAndResetDetailedResultCodeCountsInto clones and resets DetailedResultCodeCounts into the target sync.Map
+func (ns *nodeStats) cloneAndResetDetailedResultCodeCountsInto(target *sync.Map) {
+	ns.DetailedResultCodeCounts.Range(func(key, value any) bool {
+		namespace := key.(string)
+		srcArr := value.(*detailedResultCodeArray)
+
+		tgtArr := &detailedResultCodeArray{}
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			srcMetric := srcArr[ct].Load()
+			if srcMetric == nil {
+				continue
+			}
+			tgtMetric := ns.newCommandResultCodeMetric()
+			tgtMetric.ResultCodeCounts = *srcMetric.ResultCodeCounts.CloneAndResetMap()
+			tgtArr[ct].Store(tgtMetric)
+		}
+		target.Store(namespace, tgtArr)
+		return true
+	})
+}
+
 func (ns *nodeStats) reshape(policy *MetricsPolicy) {
-	ns.m.Lock()
 	ns.metricPolicy = policy
 	ns.StatLabels = NewLabels()
 	ns.GetMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
@@ -282,13 +416,9 @@ func (ns *nodeStats) reshape(policy *MetricsPolicy) {
 	ns.BatchWriteMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 	ns.reshapeDetailedResultCodeCounts()
 	ns.reshapeDetailedMetrics()
-	ns.m.Unlock()
 }
 
 func (ns *nodeStats) aggregate(newStats *nodeStats) {
-	ns.m.Lock()
-	newStats.m.Lock()
-
 	ns.StatLabels = NewLabels()
 	ns.ConnectionsAttempts.AddAndGet(newStats.ConnectionsAttempts.Get())
 	ns.ConnectionsSuccessful.AddAndGet(newStats.ConnectionsSuccessful.Get())
@@ -325,9 +455,6 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.BatchWriteMetrics.Merge(&newStats.BatchWriteMetrics)
 	ns.mergeCommandResultCodeMetric(newStats)
 	ns.mergeDetailedMetrics(newStats)
-
-	newStats.m.Unlock()
-	ns.m.Unlock()
 }
 
 func (ns nodeStats) MarshalJSON() ([]byte, error) {
@@ -409,33 +536,46 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 // Serializes DetailedMetrics for json encoding
 func (ns *nodeStats) marshalDetailedMetrics() map[string]map[string]*commandMetric {
 	result := make(map[string]map[string]*commandMetric)
-	for _, namespace := range ns.DetailedMetrics.Keys() {
-		commands := ns.DetailedMetrics.Get(namespace)
+	ns.DetailedMetrics.Range(func(key, value any) bool {
+		namespace := key.(string)
+		arr := value.(*detailedMetricsArray)
 		metrics := make(map[string]*commandMetric)
-		for _, ct := range commands.Keys() {
-			metrics[ct.String()] = commands.Get(ct)
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			if cm := arr[ct].Load(); cm != nil {
+				metrics[ct.String()] = cm
+			}
 		}
-		result[namespace] = metrics
-	}
+		if len(metrics) > 0 {
+			result[namespace] = metrics
+		}
+		return true
+	})
 	return result
 }
 
 // Serializes DetailedResultCodeCounts for json encoding
 func (ns *nodeStats) marshalResultCodeCounts() map[string]map[string]map[string]int {
 	result := make(map[string]map[string]map[string]int)
-	for _, namespace := range ns.DetailedResultCodeCounts.Keys() {
-		commands := ns.DetailedResultCodeCounts.Get(namespace)
+	ns.DetailedResultCodeCounts.Range(func(key, value any) bool {
+		namespace := key.(string)
+		arr := value.(*detailedResultCodeArray)
 		commandMap := make(map[string]map[string]int)
-		for _, ct := range commands.Keys() {
-			resultCodes := ns.DetailedResultCodeCounts.Get(namespace).Get(ct)
-			resultCodeMap := make(map[string]int)
-			for _, rc := range resultCodes.ResultCodeCounts.Keys() {
-				resultCodeMap[rc.String()] = int(resultCodes.ResultCodeCounts.Get(rc))
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			if m := arr[ct].Load(); m != nil {
+				resultCodeMap := make(map[string]int)
+				for _, rc := range m.ResultCodeCounts.Keys() {
+					resultCodeMap[rc.String()] = int(m.ResultCodeCounts.Get(rc))
+				}
+				if len(resultCodeMap) > 0 {
+					commandMap[ct.String()] = resultCodeMap
+				}
 			}
-			commandMap[ct.String()] = resultCodeMap
 		}
-		result[namespace] = commandMap
-	}
+		if len(commandMap) > 0 {
+			result[namespace] = commandMap
+		}
+		return true
+	})
 	return result
 }
 
@@ -463,19 +603,19 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 		RetryCount int `json:"transaction-retry-count"`
 		ErrorCount int `json:"transaction-error-count"`
 
-		GetMetrics               hist.SyncHistogram[uint64]                                         `json:"get-metrics"`
-		GetHeaderMetrics         hist.SyncHistogram[uint64]                                         `json:"get-header-metrics"`
-		ExistsMetrics            hist.SyncHistogram[uint64]                                         `json:"exists-metrics"`
-		PutMetrics               hist.SyncHistogram[uint64]                                         `json:"put-metrics"`
-		DeleteMetrics            hist.SyncHistogram[uint64]                                         `json:"delete-metrics"`
-		OperateMetrics           hist.SyncHistogram[uint64]                                         `json:"operate-metrics"`
-		QueryMetrics             hist.SyncHistogram[uint64]                                         `json:"query-metrics"`
-		ScanMetrics              hist.SyncHistogram[uint64]                                         `json:"scan-metrics"`
-		UDFMetrics               hist.SyncHistogram[uint64]                                         `json:"udf-metrics"`
-		BatchReadMetrics         hist.SyncHistogram[uint64]                                         `json:"batch-read-metrics"`
-		BatchWriteMetrics        hist.SyncHistogram[uint64]                                         `json:"batch-write-metrics"`
-		DetailedResultCodeCounts amap.Map[string, *amap.Map[commandType, *commandResultCodeMetric]] `json:"detailed-resultcode-counts"`
-		DetailedMetrics          amap.Map[string, *amap.Map[commandType, *commandMetric]]           `json:"detailed-metrics"`
+		GetMetrics               hist.SyncHistogram[uint64]                                     `json:"get-metrics"`
+		GetHeaderMetrics         hist.SyncHistogram[uint64]                                     `json:"get-header-metrics"`
+		ExistsMetrics            hist.SyncHistogram[uint64]                                     `json:"exists-metrics"`
+		PutMetrics               hist.SyncHistogram[uint64]                                     `json:"put-metrics"`
+		DeleteMetrics            hist.SyncHistogram[uint64]                                     `json:"delete-metrics"`
+		OperateMetrics           hist.SyncHistogram[uint64]                                     `json:"operate-metrics"`
+		QueryMetrics             hist.SyncHistogram[uint64]                                     `json:"query-metrics"`
+		ScanMetrics              hist.SyncHistogram[uint64]                                     `json:"scan-metrics"`
+		UDFMetrics               hist.SyncHistogram[uint64]                                     `json:"udf-metrics"`
+		BatchReadMetrics         hist.SyncHistogram[uint64]                                     `json:"batch-read-metrics"`
+		BatchWriteMetrics        hist.SyncHistogram[uint64]                                     `json:"batch-write-metrics"`
+		DetailedResultCodeCounts amap.Map[string, *[ttMaxCommandTypes]*commandResultCodeMetric] `json:"detailed-resultcode-counts"`
+		DetailedMetrics          amap.Map[string, *[ttMaxCommandTypes]*commandMetric]           `json:"detailed-metrics"`
 	}{}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
@@ -515,206 +655,87 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 	ns.UDFMetrics = aux.UDFMetrics
 	ns.BatchReadMetrics = aux.BatchReadMetrics
 	ns.BatchWriteMetrics = aux.BatchWriteMetrics
-	ns.DetailedResultCodeCounts = aux.DetailedResultCodeCounts
-	ns.DetailedMetrics = aux.DetailedMetrics
+
+	// Convert amap.Map to sync.Map for DetailedMetrics
+	for _, namespace := range aux.DetailedMetrics.Keys() {
+		srcArr := aux.DetailedMetrics.Get(namespace)
+		if srcArr == nil {
+			continue
+		}
+		tgtArr := &detailedMetricsArray{}
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			if srcArr[ct] != nil {
+				tgtArr[ct].Store(srcArr[ct])
+			}
+		}
+		ns.DetailedMetrics.Store(namespace, tgtArr)
+	}
+
+	// Convert amap.Map to sync.Map for DetailedResultCodeCounts
+	for _, namespace := range aux.DetailedResultCodeCounts.Keys() {
+		srcArr := aux.DetailedResultCodeCounts.Get(namespace)
+		if srcArr == nil {
+			continue
+		}
+		tgtArr := &detailedResultCodeArray{}
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			if srcArr[ct] != nil {
+				tgtArr[ct].Store(srcArr[ct])
+			}
+		}
+		ns.DetailedResultCodeCounts.Store(namespace, tgtArr)
+	}
 
 	return nil
 }
 
-// Clone returns a deep copy of the nodeStats DetailedMetrics object
-func (ns *nodeStats) cloneDetailedMetrics() *amap.Map[string, *amap.Map[commandType, *commandMetric]] {
-	// allocate the top‐level map once
-	cloned := amap.New[string, *amap.Map[commandType, *commandMetric]](0)
-
-	// iterate each namespace
-	for _, namespace := range ns.DetailedMetrics.Keys() {
-		srcCmdMap := ns.DetailedMetrics.Get(namespace)
-
-		// iterate each commandType in that namespace
-		for _, cmdType := range srcCmdMap.Keys() {
-			srcMetric := srcCmdMap.Get(cmdType)
-
-			// get-or-create inner map for this namespace
-			tgtCmdMap := cloned.Get(namespace)
-			if tgtCmdMap == nil {
-				tgtCmdMap = amap.New[commandType, *commandMetric](0)
-				cloned.Set(namespace, tgtCmdMap)
-			}
-
-			// get-or-create the commandMetric
-			tgtMetric := tgtCmdMap.Get(cmdType)
-			if tgtMetric == nil {
-				tgtMetric = ns.newCommandMetric()
-				tgtCmdMap.Set(cmdType, tgtMetric)
-			}
-
-			// clone each field
-			tgtMetric.ConnectionAq = *srcMetric.ConnectionAq.Clone()
-			tgtMetric.Latency = *srcMetric.Latency.Clone()
-			tgtMetric.Parsing = *srcMetric.Parsing.Clone()
-			tgtMetric.BytesSent = *srcMetric.BytesSent.Clone()
-			tgtMetric.BytesReceived = *srcMetric.BytesReceived.Clone()
-		}
-	}
-
-	return cloned
-}
-
-// Clone returns a deep copy of the nodeStats DetailedResultCodes object
-func (ns *nodeStats) cloneDetailedResultCodeCounts() *amap.Map[string, *amap.Map[commandType, *commandResultCodeMetric]] {
-	cloned := amap.New[string, *amap.Map[commandType, *commandResultCodeMetric]](0)
-
-	for _, namespace := range ns.DetailedResultCodeCounts.Keys() {
-		srcInner := ns.DetailedResultCodeCounts.Get(namespace)
-
-		for _, ct := range srcInner.Keys() {
-			srcMetric := srcInner.Get(ct)
-
-			tgtInner := cloned.Get(namespace)
-			if tgtInner == nil {
-				tgtInner = amap.New[commandType, *commandResultCodeMetric](0)
-				cloned.Set(namespace, tgtInner)
-			}
-
-			tgtMetric := tgtInner.Get(ct)
-			if tgtMetric == nil {
-				tgtMetric = ns.newCommandResultCodeMetric()
-				tgtInner.Set(ct, tgtMetric)
-			}
-
-			tgtMetric.ResultCodeCounts = *srcMetric.ResultCodeCounts.CloneMap()
-		}
-	}
-
-	return cloned
-}
-
-// Clone and reset returns a deep copy of the nodeStats DetailedMetrics object and resets the original
-func (n *nodeStats) cloneAndResetDetailedMetrics() *amap.Map[string, *amap.Map[commandType, *commandMetric]] {
-	// one allocation for the top-level map
-	cloned := amap.New[string, *amap.Map[commandType, *commandMetric]](0)
-
-	// walk every namespace
-	for _, namespace := range n.DetailedMetrics.Keys() {
-		srcCmdMap := n.DetailedMetrics.Get(namespace)
-
-		// walk every commandType in that namespace
-		for _, cmdType := range srcCmdMap.Keys() {
-			srcMetric := srcCmdMap.Get(cmdType)
-
-			// clone+reset each metric (allocates inside CloneAndReset)
-			connClone := srcMetric.ConnectionAq.CloneAndReset()
-			latencyClone := srcMetric.Latency.CloneAndReset()
-			parsingClone := srcMetric.Parsing.CloneAndReset()
-			bytesClone := srcMetric.BytesSent.CloneAndReset()
-			bytesReceivedClone := srcMetric.BytesReceived.CloneAndReset()
-
-			// get-or-create inner map for this namespace
-			tgtCmdMap := cloned.Get(namespace)
-			if tgtCmdMap == nil {
-				tgtCmdMap = amap.New[commandType, *commandMetric](0)
-				cloned.Set(namespace, tgtCmdMap)
-			}
-
-			// get-or-create the commandMetric
-			tgtMetric := tgtCmdMap.Get(cmdType)
-			if tgtMetric == nil {
-				tgtMetric = n.newCommandMetric()
-				tgtCmdMap.Set(cmdType, tgtMetric)
-			}
-
-			// overwrite its fields with the cloned-and-reset values
-			tgtMetric.ConnectionAq = *connClone
-			tgtMetric.Latency = *latencyClone
-			tgtMetric.Parsing = *parsingClone
-			tgtMetric.BytesSent = *bytesClone
-			tgtMetric.BytesReceived = *bytesReceivedClone
-		}
-	}
-
-	return cloned
-}
-
-// Clone and reset returns a deep copy of the nodeStats DetailedResultCodes object and resets the original
-func (n *nodeStats) cloneAndResetDetailedResultCodeCounts() *amap.Map[string, *amap.Map[commandType, *commandResultCodeMetric]] {
-	cloned := amap.New[string, *amap.Map[commandType, *commandResultCodeMetric]](0)
-
-	for _, namespace := range n.DetailedResultCodeCounts.Keys() {
-		srcInner := n.DetailedResultCodeCounts.Get(namespace)
-
-		for _, ct := range srcInner.Keys() {
-			srcMetric := srcInner.Get(ct)
-
-			resetMap := srcMetric.ResultCodeCounts.CloneAndResetMap()
-
-			tgtInner := cloned.Get(namespace)
-			if tgtInner == nil {
-				tgtInner = amap.New[commandType, *commandResultCodeMetric](0)
-				cloned.Set(namespace, tgtInner)
-			}
-
-			tgtMetric := tgtInner.Get(ct)
-			if tgtMetric == nil {
-				tgtMetric = n.newCommandResultCodeMetric()
-				tgtInner.Set(ct, tgtMetric)
-			}
-
-			tgtMetric.ResultCodeCounts = *resetMap
-		}
-	}
-
-	return cloned
-}
-
 // mergeDetailedMetrics merges detailed metrics from the incoming stats into the current stats.
 func (n *nodeStats) mergeDetailedMetrics(ns *nodeStats) {
-	for _, namespace := range ns.DetailedMetrics.Keys() {
-		srcCmdMap := ns.DetailedMetrics.Get(namespace)
+	ns.DetailedMetrics.Range(func(key, value any) bool {
+		namespace := key.(string)
+		srcArr := value.(*detailedMetricsArray)
 
-		tgtCmdMap := n.DetailedMetrics.Get(namespace)
-		if tgtCmdMap == nil {
-			tgtCmdMap = amap.New[commandType, *commandMetric](0)
-			n.DetailedMetrics.Set(namespace, tgtCmdMap)
-		}
+		tgtArr := n.getOrCreateMetricsArray(namespace)
 
-		for _, cmdType := range srcCmdMap.Keys() {
-			srcMetric := srcCmdMap.Get(cmdType)
-
-			tgtMetric := tgtCmdMap.Get(cmdType)
-			if tgtMetric == nil {
-				tgtMetric = n.newCommandMetric()
-				tgtCmdMap.Set(cmdType, tgtMetric)
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			srcMetric := srcArr[ct].Load()
+			if srcMetric == nil {
+				continue
 			}
 
+			tgtMetric := n.getOrCreateCommandMetric(tgtArr, ct)
 			tgtMetric.ConnectionAq.Merge(&srcMetric.ConnectionAq)
 			tgtMetric.Latency.Merge(&srcMetric.Latency)
 			tgtMetric.Parsing.Merge(&srcMetric.Parsing)
 			tgtMetric.BytesSent.Merge(&srcMetric.BytesSent)
 			tgtMetric.BytesReceived.Merge(&srcMetric.BytesReceived)
 		}
-	}
+		return true
+	})
 }
 
 // mergeCommandResultCodeMetric merges detailed error metrics from the incoming stats into the current stats.
 func (n *nodeStats) mergeCommandResultCodeMetric(ns *nodeStats) {
-	for _, namespace := range ns.DetailedResultCodeCounts.Keys() {
-		srcNSMap := ns.DetailedResultCodeCounts.Get(namespace)
+	ns.DetailedResultCodeCounts.Range(func(key, value any) bool {
+		namespace := key.(string)
+		srcArr := value.(*detailedResultCodeArray)
 
-		// get-or-create the target inner map for this namespace
-		tgtNSMap := n.DetailedResultCodeCounts.Get(namespace)
-		if tgtNSMap == nil {
-			tgtNSMap = amap.New[commandType, *commandResultCodeMetric](0)
-			n.DetailedResultCodeCounts.Set(namespace, tgtNSMap)
-		}
+		tgtArr := n.getOrCreateResultCodeArray(namespace)
 
-		// for each commandType in that namespace
-		for _, cp := range srcNSMap.Keys() {
-			srcMetric := srcNSMap.Get(cp)
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			srcMetric := srcArr[ct].Load()
+			if srcMetric == nil {
+				continue
+			}
 
-			tgtMetric := tgtNSMap.Get(cp)
+			tgtMetric := tgtArr[ct].Load()
 			if tgtMetric == nil {
-				tgtMetric = n.newCommandResultCodeMetric()
-				tgtNSMap.Set(cp, tgtMetric)
+				newM := n.newCommandResultCodeMetric()
+				if tgtArr[ct].CompareAndSwap(nil, newM) {
+					tgtMetric = newM
+				} else {
+					tgtMetric = tgtArr[ct].Load()
+				}
 			}
 
 			for _, resultCode := range srcMetric.ResultCodeCounts.Keys() {
@@ -726,73 +747,60 @@ func (n *nodeStats) mergeCommandResultCodeMetric(ns *nodeStats) {
 				}
 			}
 		}
-	}
+		return true
+	})
 }
 
 // reshapeDetailedMetrics reshapes the detailed metrics as defined by `hist.SyncHistogram`
 func (n *nodeStats) reshapeDetailedMetrics() {
-	for _, namespace := range n.DetailedMetrics.Keys() {
-		for _, command := range n.DetailedMetrics.Get(namespace).Keys() {
-			n.DetailedMetrics.Get(namespace).Get(command).ConnectionAq.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			n.DetailedMetrics.Get(namespace).Get(command).Latency.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			n.DetailedMetrics.Get(namespace).Get(command).Parsing.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			n.DetailedMetrics.Get(namespace).Get(command).BytesSent.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			n.DetailedMetrics.Get(namespace).Get(command).BytesReceived.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+	n.DetailedMetrics.Range(func(key, value any) bool {
+		arr := value.(*detailedMetricsArray)
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			metric := arr[ct].Load()
+			if metric == nil {
+				continue
+			}
+			metric.ConnectionAq.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			metric.Latency.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			metric.Parsing.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			metric.BytesSent.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			metric.BytesReceived.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
 		}
-	}
+		return true
+	})
 }
 
 // reshapeDetailedResultCodeCounts reshapes the detailed error metrics
 func (n *nodeStats) reshapeDetailedResultCodeCounts() {
-	for _, namespace := range n.DetailedResultCodeCounts.Keys() {
-		for _, command := range n.DetailedResultCodeCounts.Get(namespace).Keys() {
-			for _, resultCode := range n.DetailedResultCodeCounts.Get(namespace).Get(command).ResultCodeCounts.Keys() {
-				n.DetailedResultCodeCounts.Get(namespace).Get(command).ResultCodeCounts.Set(resultCode, 0)
+	n.DetailedResultCodeCounts.Range(func(key, value any) bool {
+		arr := value.(*detailedResultCodeArray)
+		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
+			metric := arr[ct].Load()
+			if metric == nil {
+				continue
+			}
+			for _, resultCode := range metric.ResultCodeCounts.Keys() {
+				metric.ResultCodeCounts.Set(resultCode, 0)
 			}
 		}
-	}
+		return true
+	})
 }
 
-// Update or insert Detailed error metrics
-func (n *nodeStats) updateOrInsert(ifc command, resultCode types.ResultCode) {
-	n.m.Lock()
-	defer n.m.Unlock()
-	namespace := ifc.getNamespace()
+// updateOrInsert updates result code counts (lock-free)
+func (n *nodeStats) updateOrInsert(namespace *string, namespaces iter.Seq2[string, uint64], ct commandType, resultCode types.ResultCode) {
 	if namespace != nil {
-		inner := n.DetailedResultCodeCounts.Get(*namespace)
-		if inner == nil {
-			inner = amap.New[commandType, *commandResultCodeMetric](0)
-			n.DetailedResultCodeCounts.Set(*namespace, inner)
-		}
-
-		ct := ifc.commandType()
-		m := inner.Get(ct)
-		if m == nil {
-			m = n.newCommandResultCodeMetricWithValue(resultCode)
-			inner.Set(ct, m)
-		}
-
+		arr := n.getOrCreateResultCodeArray(*namespace)
+		m := n.getOrCreateResultCodeMetric(arr, ct, resultCode)
 		if cur := m.ResultCodeCounts.Get(resultCode); cur > 0 {
 			m.ResultCodeCounts.Set(resultCode, cur+1)
 		} else {
 			m.ResultCodeCounts.Set(resultCode, 1)
 		}
 	} else {
-		namespaces := ifc.getNamespaces()
-		for namespace := range namespaces {
-			inner := n.DetailedResultCodeCounts.Get(namespace)
-			if inner == nil {
-				inner = amap.New[commandType, *commandResultCodeMetric](0)
-				n.DetailedResultCodeCounts.Set(namespace, inner)
-			}
-
-			ct := ifc.commandType()
-			m := inner.Get(ct)
-			if m == nil {
-				m = n.newCommandResultCodeMetricWithValue(resultCode)
-				inner.Set(ct, m)
-			}
-
+		for ns := range namespaces {
+			arr := n.getOrCreateResultCodeArray(ns)
+			m := n.getOrCreateResultCodeMetric(arr, ct, resultCode)
 			if cur := m.ResultCodeCounts.Get(resultCode); cur > 0 {
 				m.ResultCodeCounts.Set(resultCode, cur+1)
 			} else {

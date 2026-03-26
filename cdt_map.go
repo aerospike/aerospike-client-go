@@ -172,7 +172,7 @@ var MapReturnType = struct {
 
 	// KEY_VALUE will return key/value items. The possible return types are:
 	//
-	// map[interface{}]interface{} : Returned for unordered maps
+	// map[any]any : Returned for unordered maps
 	// []MapPair : Returned for range results where range order needs to be preserved.
 	KEY_VALUE mapReturnType
 
@@ -330,7 +330,7 @@ func MapCreateOp(binName string, order mapOrderType, ctx []*CDTContext) *Operati
 	return &Operation{
 		opType:   _MAP_MODIFY,
 		binName:  binName,
-		binValue: ListValue([]interface{}{cdtMapOpTypeSetType, order.flag, IntegerValue(order.attr)}),
+		binValue: ListValue([]any{cdtMapOpTypeSetType, order.flag, IntegerValue(order.attr)}),
 		ctx:      ctx,
 		encoder:  cdtCreateOpEncoder,
 	}
@@ -356,11 +356,18 @@ func MapSetPolicyOp(policy *MapPolicy, binName string, ctx ...*CDTContext) *Oper
 	return newMapSetPolicy(binName, policy.attributes, ctx)
 }
 
-// MapPutOp creates map put operation.
+// MapPutOp creates a map put operation.
 // Server writes key/value item to map bin and returns map size.
 //
 // The required map policy dictates the type of map to create when it does not exist.
 // The map policy also specifies the mode used when writing items to the map.
+//
+// Parameters:
+//   - policy: Map policy (use DefaultMapPolicy() or NewMapPolicy())
+//   - binName: Name of the bin containing the map
+//   - key: Map key
+//   - value: Map value
+//   - ctx: Optional CDT context for nested maps
 func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interface{}, ctx ...*CDTContext) *Operation {
 	if policy.flags != 0 {
 		ops := cdtMapOpTypePut
@@ -371,7 +378,7 @@ func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interfac
 			opSubType: &ops,
 			ctx:       ctx,
 			binName:   binName,
-			binValue:  ListValue([]interface{}{key, value, IntegerValue(policy.attributes.attr), IntegerValue(policy.flags)}),
+			binValue:  ListValue([]any{key, value, IntegerValue(policy.attributes.attr), IntegerValue(policy.flags)}),
 			encoder:   newMapCreatePutEncoder,
 		}
 	}
@@ -383,7 +390,7 @@ func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interfac
 			opSubType: &policy.itemCommand,
 			ctx:       ctx,
 			binName:   binName,
-			binValue:  ListValue([]interface{}{key, value}),
+			binValue:  ListValue([]any{key, value}),
 			encoder:   newMapCreatePutEncoder,
 		}
 	}
@@ -393,16 +400,22 @@ func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interfac
 		opSubType: &policy.itemCommand,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{key, value, IntegerValue(policy.attributes.attr)}),
+		binValue:  ListValue([]any{key, value, IntegerValue(policy.attributes.attr)}),
 		encoder:   newMapCreatePutEncoder,
 	}
 }
 
-// MapPutItemsOp creates map put items operation
+// MapPutItemsOp creates a map put items operation.
 // Server writes each map item to map bin and returns map size.
 //
 // The required map policy dictates the type of map to create when it does not exist.
 // The map policy also specifies the mode used when writing items to the map.
+//
+// Parameters:
+//   - policy: Map policy (use DefaultMapPolicy() or NewMapPolicy())
+//   - binName: Name of the bin containing the map
+//   - amap: Map of key-value pairs to put
+//   - ctx: Optional CDT context for nested maps
 func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]interface{}, ctx ...*CDTContext) *Operation {
 	if policy.flags != 0 {
 		ops := cdtMapOpTypePutItems
@@ -413,7 +426,7 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 			opSubType: &ops,
 			ctx:       ctx,
 			binName:   binName,
-			binValue:  ListValue([]interface{}{amap, IntegerValue(policy.attributes.attr), IntegerValue(policy.flags)}),
+			binValue:  ListValue([]any{amap, IntegerValue(policy.attributes.attr), IntegerValue(policy.flags)}),
 			encoder:   newCDTCreateOperationEncoder,
 		}
 	}
@@ -425,7 +438,7 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 			opSubType: &policy.itemsCommand,
 			ctx:       ctx,
 			binName:   binName,
-			binValue:  ListValue([]interface{}{MapValue(amap)}),
+			binValue:  ListValue([]any{MapValue(amap)}),
 			encoder:   newCDTCreateOperationEncoder,
 		}
 	}
@@ -435,7 +448,7 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 		opSubType: &policy.itemsCommand,
 		ctx:       ctx,
 		binName:   binName,
-		binValue:  ListValue([]interface{}{MapValue(amap), IntegerValue(policy.attributes.attr)}),
+		binValue:  ListValue([]any{MapValue(amap), IntegerValue(policy.attributes.attr)}),
 		encoder:   newCDTCreateOperationEncoder,
 	}
 }
@@ -446,6 +459,13 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 //
 // The required map policy dictates the type of map to create when it does not exist.
 // The map policy also specifies the mode used when writing items to the map.
+//
+// Parameters:
+//   - policy: Map policy
+//   - binName: Name of the bin containing the map
+//   - key: Map key to increment
+//   - incr: Increment value (must be numeric)
+//   - ctx: Optional CDT context for nested maps
 func MapIncrementOp(policy *MapPolicy, binName string, key interface{}, incr interface{}, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValues2(cdtMapOpTypeIncrement, policy.attributes, binName, ctx, key, incr)
 }
@@ -456,25 +476,35 @@ func MapIncrementOp(policy *MapPolicy, binName string, key interface{}, incr int
 //
 // The required map policy dictates the type of map to create when it does not exist.
 // The map policy also specifies the mode used when writing items to the map.
-func MapDecrementOp(policy *MapPolicy, binName string, key interface{}, decr interface{}, ctx ...*CDTContext) *Operation {
+func MapDecrementOp(policy *MapPolicy, binName string, key any, decr any, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValues2(cdtMapOpTypeDecrement, policy.attributes, binName, ctx, key, decr)
 }
 
-// MapClearOp creates map clear operation.
+// MapClearOp creates a map clear operation.
 // Server removes all items in map.  Server returns nil.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - ctx: Optional CDT context for nested maps
 func MapClearOp(binName string, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValues0(cdtMapOpTypeClear, _MAP_MODIFY, binName, ctx)
 }
 
-// MapRemoveByKeyOp creates map remove operation.
+// MapRemoveByKeyOp creates a map remove by key operation.
 // Server removes map item identified by key and returns removed data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - key: Key to remove
+//   - returnType: What to return (see MapReturnType constants)
+//   - ctx: Optional CDT context for nested maps
 func MapRemoveByKeyOp(binName string, key interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeRemoveByKey, _MAP_MODIFY, binName, ctx, key, returnType)
 }
 
 // MapRemoveByKeyListOp creates map remove operation.
 // Server removes map items identified by keys and returns removed data specified by returnType.
-func MapRemoveByKeyListOp(binName string, keys []interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapRemoveByKeyListOp(binName string, keys []any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeRemoveKeyList, _MAP_MODIFY, binName, ctx, keys, returnType)
 }
 
@@ -484,19 +514,25 @@ func MapRemoveByKeyListOp(binName string, keys []interface{}, returnType mapRetu
 // If keyEnd is nil, the range is greater than equal to keyBegin.
 //
 // Server returns removed data specified by returnType.
-func MapRemoveByKeyRangeOp(binName string, keyBegin interface{}, keyEnd interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapRemoveByKeyRangeOp(binName string, keyBegin any, keyEnd any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateRangeOperation(cdtMapOpTypeRemoveByKeyInterval, _MAP_MODIFY, binName, ctx, keyBegin, keyEnd, returnType)
 }
 
-// MapRemoveByValueOp creates map remove operation.
+// MapRemoveByValueOp creates a map remove by value operation.
 // Server removes map items identified by value and returns removed data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - value: Value to match for removal
+//   - returnType: What to return (see MapReturnType constants)
+//   - ctx: Optional CDT context for nested maps
 func MapRemoveByValueOp(binName string, value interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeRemoveByValue, _MAP_MODIFY, binName, ctx, value, returnType)
 }
 
 // MapRemoveByValueListOp creates map remove operation.
 // Server removes map items identified by values and returns removed data specified by returnType.
-func MapRemoveByValueListOp(binName string, values []interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapRemoveByValueListOp(binName string, values []any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValuesN(cdtMapOpTypeRemoveValueList, _MAP_MODIFY, binName, ctx, values, returnType)
 }
 
@@ -506,7 +542,7 @@ func MapRemoveByValueListOp(binName string, values []interface{}, returnType map
 // If valueEnd is nil, the range is greater than equal to valueBegin.
 //
 // Server returns removed data specified by returnType.
-func MapRemoveByValueRangeOp(binName string, valueBegin interface{}, valueEnd interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapRemoveByValueRangeOp(binName string, valueBegin any, valueEnd any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateRangeOperation(cdtMapOpTypeRemoveByValueInterval, _MAP_MODIFY, binName, ctx, valueBegin, valueEnd, returnType)
 }
 
@@ -519,7 +555,7 @@ func MapRemoveByValueRangeOp(binName string, valueBegin interface{}, valueEnd in
 //	(value,rank) = [removed items]
 //	(11,1) = [{0=17}]
 //	(11,-1) = [{9=10},{5=15},{0=17}]
-func MapRemoveByValueRelativeRankRangeOp(binName string, value interface{}, rank int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapRemoveByValueRelativeRankRangeOp(binName string, value any, rank int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateRangeOperation(cdtMapOpTypeRemoveByValueRelRankRange, _MAP_MODIFY, binName, ctx, value, rank, returnType)
 }
 
@@ -532,7 +568,7 @@ func MapRemoveByValueRelativeRankRangeOp(binName string, value interface{}, rank
 //	(value,rank,count) = [removed items]
 //	(11,1,1) = [{0=17}]
 //	(11,-1,1) = [{9=10}]
-func MapRemoveByValueRelativeRankRangeCountOp(binName string, value interface{}, rank, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapRemoveByValueRelativeRankRangeCountOp(binName string, value any, rank, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeRemoveByValueRelRankRange, _MAP_MODIFY, binName, ctx, NewValue(value), rank, count, returnType)
 }
 
@@ -586,7 +622,7 @@ func MapRemoveByRankRangeCountOp(binName string, rank int, count int, returnType
 //	(5,-1) = [{4=2},{5=15},{9=10}]
 //	(3,2) = [{9=10}]
 //	(3,-2) = [{0=17},{4=2},{5=15},{9=10}]
-func MapRemoveByKeyRelativeIndexRangeOp(binName string, key interface{}, index int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapRemoveByKeyRelativeIndexRangeOp(binName string, key any, index int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndex(cdtMapOpTypeRemoveByKeyRelIndexRange, _MAP_MODIFY, binName, ctx, NewValue(key), index, returnType)
 }
 
@@ -602,28 +638,50 @@ func MapRemoveByKeyRelativeIndexRangeOp(binName string, key interface{}, index i
 //	(5,-1,1) = [{4=2}]
 //	(3,2,1) = [{9=10}]
 //	(3,-2,2) = [{0=17}]
-func MapRemoveByKeyRelativeIndexRangeCountOp(binName string, key interface{}, index, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapRemoveByKeyRelativeIndexRangeCountOp(binName string, key any, index, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeRemoveByKeyRelIndexRange, _MAP_MODIFY, binName, ctx, NewValue(key), index, count, returnType)
 }
 
-// MapSizeOp creates map size operation.
+// MapSizeOp creates a map size operation.
 // Server returns size of map.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - ctx: Optional CDT context for nested maps
 func MapSizeOp(binName string, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValues0(cdtMapOpTypeSize, _MAP_READ, binName, ctx)
 }
 
-// MapGetByKeyOp creates map get by key operation.
+// MapGetByKeyOp creates a map get by key operation.
 // Server selects map item identified by key and returns selected data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - key: The key to look up (string, int, or any supported type)
+//   - returnType: What to return (see MapReturnType constants: VALUE, KEY, KEY_VALUE, EXISTS, etc.)
+//   - ctx: Optional CDT context for nested maps
+//
+// Returns an Operation that can be used with Client.Operate().
+// Note: Single operation returns value directly. OpResults (slice) is only returned
+// when multiple operations target the same bin.
 func MapGetByKeyOp(binName string, key interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByKey, _MAP_READ, binName, ctx, key, returnType)
 }
 
-// MapGetByKeyRangeOp creates map get by key range operation.
+// MapGetByKeyRangeOp creates a map get by key range operation.
 // Server selects map items identified by key range (keyBegin inclusive, keyEnd exclusive).
 // If keyBegin is nil, the range is less than keyEnd.
 // If keyEnd is nil, the range is greater than equal to keyBegin.
 //
 // Server returns selected data specified by returnType.
+// Works best with ordered maps (KEY_ORDERED or KEY_VALUE_ORDERED).
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - keyBegin: Start of key range (inclusive), nil for open-ended
+//   - keyEnd: End of key range (exclusive), nil for open-ended
+//   - returnType: What to return (see MapReturnType constants)
+//   - ctx: Optional CDT context for nested maps
 func MapGetByKeyRangeOp(binName string, keyBegin interface{}, keyEnd interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateRangeOperation(cdtMapOpTypeGetByKeyInterval, _MAP_READ, binName, ctx, keyBegin, keyEnd, returnType)
 }
@@ -640,7 +698,7 @@ func MapGetByKeyRangeOp(binName string, keyBegin interface{}, keyEnd interface{}
 //	(5,-1) = [{4=2},{5=15},{9=10}]
 //	(3,2) = [{9=10}]
 //	(3,-2) = [{0=17},{4=2},{5=15},{9=10}]
-func MapGetByKeyRelativeIndexRangeOp(binName string, key interface{}, index int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapGetByKeyRelativeIndexRangeOp(binName string, key any, index int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndex(cdtMapOpTypeGetByKeyRelIndexRange, _MAP_READ, binName, ctx, NewValue(key), index, returnType)
 }
 
@@ -656,28 +714,47 @@ func MapGetByKeyRelativeIndexRangeOp(binName string, key interface{}, index int,
 //	(5,-1,1) = [{4=2}]
 //	(3,2,1) = [{9=10}]
 //	(3,-2,2) = [{0=17}]
-func MapGetByKeyRelativeIndexRangeCountOp(binName string, key interface{}, index, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapGetByKeyRelativeIndexRangeCountOp(binName string, key any, index, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeGetByKeyRelIndexRange, _MAP_READ, binName, ctx, NewValue(key), index, count, returnType)
 }
 
 // MapGetByKeyListOp creates a map get by key list operation.
 // Server selects map items identified by keys and returns selected data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - keys: List of keys to look up
+//   - returnType: What to return (see MapReturnType constants)
+//   - ctx: Optional CDT context for nested maps
 func MapGetByKeyListOp(binName string, keys []interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByKeyList, _MAP_READ, binName, ctx, keys, returnType)
 }
 
-// MapGetByValueOp creates map get by value operation.
+// MapGetByValueOp creates a map get by value operation.
 // Server selects map items identified by value and returns selected data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - value: Value to search for
+//   - returnType: What to return (see MapReturnType constants)
+//   - ctx: Optional CDT context for nested maps
 func MapGetByValueOp(binName string, value interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByValue, _MAP_READ, binName, ctx, value, returnType)
 }
 
-// MapGetByValueRangeOp creates map get by value range operation.
+// MapGetByValueRangeOp creates a map get by value range operation.
 // Server selects map items identified by value range (valueBegin inclusive, valueEnd exclusive)
 // If valueBegin is nil, the range is less than valueEnd.
 // If valueEnd is nil, the range is greater than equal to valueBegin.
 //
 // Server returns selected data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - valueBegin: Start of value range (inclusive), nil for open-ended
+//   - valueEnd: End of value range (exclusive), nil for open-ended
+//   - returnType: What to return (see MapReturnType constants)
+//   - ctx: Optional CDT context for nested maps
 func MapGetByValueRangeOp(binName string, valueBegin interface{}, valueEnd interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateRangeOperation(cdtMapOpTypeGetByValueInterval, _MAP_READ, binName, ctx, valueBegin, valueEnd, returnType)
 }
@@ -691,7 +768,7 @@ func MapGetByValueRangeOp(binName string, valueBegin interface{}, valueEnd inter
 //	(value,rank) = [selected items]
 //	(11,1) = [{0=17}]
 //	(11,-1) = [{9=10},{5=15},{0=17}]
-func MapGetByValueRelativeRankRangeOp(binName string, value interface{}, rank int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapGetByValueRelativeRankRangeOp(binName string, value any, rank int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndex(cdtMapOpTypeGetByValueRelRankRange, _MAP_READ, binName, ctx, NewValue(value), rank, returnType)
 }
 
@@ -704,25 +781,40 @@ func MapGetByValueRelativeRankRangeOp(binName string, value interface{}, rank in
 //	(value,rank,count) = [selected items]
 //	(11,1,1) = [{0=17}]
 //	(11,-1,1) = [{9=10}]
-func MapGetByValueRelativeRankRangeCountOp(binName string, value interface{}, rank, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapGetByValueRelativeRankRangeCountOp(binName string, value any, rank, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTMapCreateOperationRelativeIndexCount(cdtMapOpTypeGetByValueRelRankRange, _MAP_READ, binName, ctx, NewValue(value), rank, count, returnType)
 }
 
 // MapGetByValueListOp creates map get by value list operation.
 // Server selects map items identified by values and returns selected data specified by returnType.
-func MapGetByValueListOp(binName string, values []interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapGetByValueListOp(binName string, values []any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByValueList, _MAP_READ, binName, ctx, values, returnType)
 }
 
-// MapGetByIndexOp creates map get by index operation.
+// MapGetByIndexOp creates a map get by index operation.
 // Server selects map item identified by index and returns selected data specified by returnType.
+//
+// Index is the item offset from the start of the map (for ordered maps).
+// Supports negative indexing: -1 = last item.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - index: Index position (0 = first, -1 = last)
+//   - returnType: What to return (see MapReturnType constants)
+//   - ctx: Optional CDT context for nested maps
 func MapGetByIndexOp(binName string, index int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByIndex, _MAP_READ, binName, ctx, index, returnType)
 }
 
-// MapGetByIndexRangeOp creates map get by index range operation.
+// MapGetByIndexRangeOp creates a map get by index range operation.
 // Server selects map items starting at specified index to the end of map and returns selected
 // data specified by returnType.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - index: Starting index (0 = first, -1 = last)
+//   - returnType: What to return (see MapReturnType constants)
+//   - ctx: Optional CDT context for nested maps
 func MapGetByIndexRangeOp(binName string, index int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByIndexRange, _MAP_READ, binName, ctx, index, returnType)
 }
@@ -733,8 +825,20 @@ func MapGetByIndexRangeCountOp(binName string, index int, count int, returnType 
 	return newCDTCreateOperationIndexCount(cdtMapOpTypeGetByIndexRange, _MAP_READ, binName, ctx, index, count, returnType)
 }
 
-// MapGetByRankOp creates map get by rank operation.
+// MapGetByRankOp creates a map get by rank operation.
 // Server selects map item identified by rank and returns selected data specified by returnType.
+//
+// Rank is the sorted index of the value component:
+//   - Rank 0: Item with lowest value
+//   - Rank 1: Second lowest value
+//   - Rank -1: Item with highest value (most common for leaderboards)
+//   - Rank -2: Second highest value
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - rank: Rank position (0 = lowest, -1 = highest)
+//   - returnType: What to return (see MapReturnType constants)
+//   - ctx: Optional CDT context for nested maps
 func MapGetByRankOp(binName string, rank int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByRank, _MAP_READ, binName, ctx, rank, returnType)
 }
@@ -746,8 +850,18 @@ func MapGetByRankRangeOp(binName string, rank int, returnType mapReturnType, ctx
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByRankRange, _MAP_READ, binName, ctx, rank, returnType)
 }
 
-// MapGetByRankRangeCountOp creates map get by rank range operation.
+// MapGetByRankRangeCountOp creates a map get by rank range operation with count limit.
 // Server selects "count" map items starting at specified rank and returns selected data specified by returnType.
+//
+// This is more intuitive than MapGetByRankRangeOp for getting top N items. Start from rank -1
+// (highest) and specify count to get the top N items.
+//
+// Parameters:
+//   - binName: Name of the bin containing the map
+//   - rank: Starting rank (0 = lowest, -1 = highest)
+//   - count: Number of items to return
+//   - returnType: What to return (see MapReturnType constants)
+//   - ctx: Optional CDT context for nested maps
 func MapGetByRankRangeCountOp(binName string, rank int, count int, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationIndexCount(cdtMapOpTypeGetByRankRange, _MAP_READ, binName, ctx, rank, count, returnType)
 }

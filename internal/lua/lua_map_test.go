@@ -29,15 +29,15 @@ import (
 var _ = gg.Describe("Lua Map API Test", func() {
 
 	// code vs result
-	testMatrix := map[string]interface{}{
-		"m = Map()\n return m": map[interface{}]interface{}{},
+	testMatrix := map[string]any{
+		"m = Map()\n return m": map[any]any{},
 
-		"m = map()\n return m":             map[interface{}]interface{}{},
-		"m = map{x = 1, y = 2}\n return m": map[interface{}]interface{}{"x": float64(1), "y": float64(2)},
-		"m = map.create(100)\n return m":   make(map[interface{}]interface{}, 100),
+		"m = map()\n return m":             map[any]any{},
+		"m = map{x = 1, y = 2}\n return m": map[any]any{"x": float64(1), "y": float64(2)},
+		"m = map.create(100)\n return m":   make(map[any]any, 100),
 
 		"m = map({x=1,y=2})\n return m['x']":         float64(1),
-		"m = map({x=1,y=2})\n m['x'] = 5\n return m": map[interface{}]interface{}{"x": float64(5), "y": float64(2)},
+		"m = map({x=1,y=2})\n m['x'] = 5\n return m": map[any]any{"x": float64(5), "y": float64(2)},
 
 		"m = map()\n return map.size(m)":           float64(0),
 		"m = map.create(100)\n return map.size(m)": float64(0),
@@ -48,15 +48,15 @@ var _ = gg.Describe("Lua Map API Test", func() {
 		"m = map{x=1,y=2,z=3}\n str = ''\nfor k in map.keys(m) do\n\t str = str .. k\n end\n return string.len(str)": float64(3),
 		"m = map{x=1,y=2,z=3}\n cnt = 0\nfor v in map.values(m) do\n\t cnt = cnt + v\n end\n return cnt":             float64(6),
 
-		"m = map{x=1,y=2}\n map.remove(m, 'x')\n return m":                     map[interface{}]interface{}{"y": float64(2)},
-		"m = map{x=1,y=2}\n map.remove(m, 'y')\n return m":                     map[interface{}]interface{}{"x": float64(1)},
-		"m = map{x=1,y=2}\n map.remove(m, 'x')\nmap.remove(m, 'y')\n return m": map[interface{}]interface{}{},
-		"m = map{x=1,y=2}\n map.remove(m, 'z')\nmap.remove(m, 't')\n return m": map[interface{}]interface{}{"x": float64(1), "y": float64(2)},
+		"m = map{x=1,y=2}\n map.remove(m, 'x')\n return m":                     map[any]any{"y": float64(2)},
+		"m = map{x=1,y=2}\n map.remove(m, 'y')\n return m":                     map[any]any{"x": float64(1)},
+		"m = map{x=1,y=2}\n map.remove(m, 'x')\nmap.remove(m, 'y')\n return m": map[any]any{},
+		"m = map{x=1,y=2}\n map.remove(m, 'z')\nmap.remove(m, 't')\n return m": map[any]any{"x": float64(1), "y": float64(2)},
 
 		"m1 = map({x=1,y=2})\n m2 = map.clone(m1)\n return map.size(m2)": float64(2),
 
-		"m1 = map{x=1,y=2}\n m2 = map{a=3,b=4}\n return map.merge(m1, m2)":                                          map[interface{}]interface{}{"x": float64(1), "y": float64(2), "a": float64(3), "b": float64(4)},
-		"m1 = map{x=1,y=2}\n m2 = map{x=3,y=4}\n return map.merge(m1, m2, function(v1, v2)\n return v1 + v2\n end)": map[interface{}]interface{}{"x": float64(4), "y": float64(6)},
+		"m1 = map{x=1,y=2}\n m2 = map{a=3,b=4}\n return map.merge(m1, m2)":                                          map[any]any{"x": float64(1), "y": float64(2), "a": float64(3), "b": float64(4)},
+		"m1 = map{x=1,y=2}\n m2 = map{x=3,y=4}\n return map.merge(m1, m2, function(v1, v2)\n return v1 + v2\n end)": map[any]any{"x": float64(4), "y": float64(6)},
 	}
 
 	gg.It("must run all code blocks", func() {

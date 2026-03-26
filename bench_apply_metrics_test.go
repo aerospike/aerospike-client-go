@@ -1,12 +1,13 @@
 package aerospike
 
 import (
+	"fmt"
 	"iter"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	amap "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -206,9 +207,12 @@ func BenchmarkCommandMergeCommandResultCodeMetrics(b *testing.B) {
 	targetNodeStats := newNodeStats(mp)
 	sourceNodeStats := newNodeStats(mp)
 
-	sourceNodeStats.updateOrInsert(&fakeCommand{namespace: "test", ct: ttGet}, types.ResultCode(0))
-	sourceNodeStats.updateOrInsert(&fakeCommand{namespace: "testTwo", ct: ttPut}, types.ResultCode(0))
-	sourceNodeStats.updateOrInsert(&fakeCommand{namespace: "testThree", ct: ttExists}, types.ResultCode(0))
+	fcmd1 := &fakeCommand{namespace: "test", ct: ttGet}
+	fcmd2 := &fakeCommand{namespace: "testTwo", ct: ttPut}
+	fcmd3 := &fakeCommand{namespace: "testThree", ct: ttExists}
+	sourceNodeStats.updateOrInsert(fcmd1.getNamespace(), fcmd1.getNamespaces(), fcmd1.commandType(), types.ResultCode(0))
+	sourceNodeStats.updateOrInsert(fcmd2.getNamespace(), fcmd2.getNamespaces(), fcmd2.commandType(), types.ResultCode(0))
+	sourceNodeStats.updateOrInsert(fcmd3.getNamespace(), fcmd3.getNamespaces(), fcmd3.commandType(), types.ResultCode(0))
 
 	b.StartTimer()
 	b.ResetTimer()
@@ -228,22 +232,14 @@ func BenchmarkCommandMergeDetailMetrics(b *testing.B) {
 	operations := []commandType{ttExists}
 
 	for _, operation := range operations {
-		sourceNodeStats.DetailedMetrics.UpdateOrInsertFn("test", func(inner *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
-			// Insert metrics for ttGet
-			inner.UpdateOrInsertFn(operation, func(cm *commandMetric) *commandMetric {
-				// Simulate metrics data
-				cm.Parsing.Add(uint64(1))
-				cm.BytesSent.Add(uint64(1))
-				cm.ConnectionAq.Add(uint64(1))
-				cm.Latency.Add(uint64(1))
-				return cm
-			}, func() *commandMetric {
-				return sourceNodeStats.newCommandMetric()
-			})
-			return inner
-		}, func() *amap.Map[commandType, *commandMetric] {
-			return amap.NewWithValue(operation, sourceNodeStats.newCommandMetric())
-		})
+		arr := sourceNodeStats.getOrCreateMetricsArray("test")
+		cm := sourceNodeStats.getOrCreateCommandMetric(arr, operation)
+
+		// Simulate metrics data
+		cm.Parsing.Add(uint64(1))
+		cm.BytesSent.Add(uint64(1))
+		cm.ConnectionAq.Add(uint64(1))
+		cm.Latency.Add(uint64(1))
 	}
 
 	b.StartTimer()
@@ -262,33 +258,28 @@ func BenchmarkCloneDetailedMetrics(b *testing.B) {
 	ns := newNodeStats(policy)
 
 	const testNamespace = "test"
-	sampleMap := amap.New[commandType, *commandMetric](0)
-	sampleMap.UpdateOrInsertFn(ttGet, func(old *commandMetric) *commandMetric {
-		return old
-	}, func() *commandMetric {
-		return ns.newCommandMetric()
-	})
-	// Insert the sample map under the test namespace.
-	ns.DetailedMetrics.UpdateOrInsertFn(testNamespace, func(old *amap.Map[commandType, *commandMetric]) *amap.Map[commandType, *commandMetric] {
-		return old
-	}, func() *amap.Map[commandType, *commandMetric] {
-		return sampleMap
-	})
+
+	// Create and populate array with metrics using lock-free helpers
+	arr := ns.getOrCreateMetricsArray(testNamespace)
+	cm := ns.getOrCreateCommandMetric(arr, ttGet)
 
 	now := time.Now()
-	ns.DetailedMetrics.Get(testNamespace).Get(ttGet).Latency.Add(uint64(now.UnixNano()))
-	ns.DetailedMetrics.Get(testNamespace).Get(ttGet).BytesSent.Add(1024)
-	ns.DetailedMetrics.Get(testNamespace).Get(ttGet).Parsing.Add(uint64(now.UnixNano()))
-	ns.DetailedMetrics.Get(testNamespace).Get(ttGet).ConnectionAq.Add(5)
+	cm.Latency.Add(uint64(now.UnixNano()))
+	cm.BytesSent.Add(1024)
+	cm.Parsing.Add(uint64(now.UnixNano()))
+	cm.ConnectionAq.Add(5)
 
 	b.StartTimer()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		cloned := ns.cloneDetailedMetrics()
+		var cloned sync.Map
+		ns.cloneDetailedMetricsInto(&cloned)
 		// Use cloned in some trivial way to prevent compiler optimizations.
-		if cloned == nil || cloned.Length() == 0 {
-			b.Fatal("cloned DetailedMetrics is nil or empty")
+		count := 0
+		cloned.Range(func(_, _ any) bool { count++; return true })
+		if count == 0 {
+			b.Fatal("cloned DetailedMetrics is empty")
 		}
 	}
 }
@@ -297,26 +288,21 @@ func BenchmarkCloneAndResetDetailedResultCodeCounts(b *testing.B) {
 	b.StopTimer()
 	policy := DefaultMetricsPolicy()
 	ns := newNodeStats(policy)
-	ns.DetailedResultCodeCounts.UpdateOrInsertFn("test", func(inner *amap.Map[commandType, *commandResultCodeMetric]) *amap.Map[commandType, *commandResultCodeMetric] {
-		inner.UpdateOrInsertFn(ttGet, func(metric *commandResultCodeMetric) *commandResultCodeMetric {
-			metric.ResultCodeCounts.UpdateOrInsert(types.ResultCode(0), func(val uint64) uint64 {
-				return val + 1
-			}, 0)
-			return metric
-		}, func() *commandResultCodeMetric {
-			return ns.newCommandResultCodeMetricWithValue(types.ResultCode(0))
-		})
-		return inner
-	}, func() *amap.Map[commandType, *commandResultCodeMetric] {
-		return amap.NewWithValue(ttGet, ns.newCommandResultCodeMetricWithValue(types.ResultCode(0)))
-	})
+
+	// Create and populate array with result code metrics using lock-free helpers
+	arr := ns.getOrCreateResultCodeArray("test")
+	m := ns.getOrCreateResultCodeMetric(arr, ttGet, types.ResultCode(0))
+	m.ResultCodeCounts.Set(types.ResultCode(0), 1)
 
 	b.StartTimer()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		cloned := ns.cloneAndResetDetailedResultCodeCounts()
-		if cloned.Length() == 0 {
+		var cloned sync.Map
+		ns.cloneAndResetDetailedResultCodeCountsInto(&cloned)
+		count := 0
+		cloned.Range(func(_, _ any) bool { count++; return true })
+		if count == 0 {
 			b.Fatal("cloned DetailedResultCodeCounts is empty")
 		}
 	}
@@ -337,5 +323,205 @@ func (fc *fakeCmdSingle) getNamespace() *string {
 func newFakeCmdSingle() *fakeCmdSingle {
 	return &fakeCmdSingle{
 		fakeCommand: *newStub(),
+	}
+}
+
+// BenchmarkUpdateOrInsertHighConcurrency benchmarks updateOrInsert with high concurrency across many namespaces
+func BenchmarkUpdateOrInsertHighConcurrency(b *testing.B) {
+	const (
+		numNamespaces = 200
+		numGoroutines = 100
+	)
+
+	b.StopTimer()
+
+	// Create metrics policy and node stats
+	mp := DefaultMetricsPolicy()
+	nodeStats := newNodeStats(mp)
+	me.Store(true)
+
+	node := &Node{
+		cluster: &Cluster{
+			metricsEnabled: me,
+		},
+		stats: *nodeStats,
+	}
+
+	// Generate namespace names: ns_0, ns_1, ..., ns_199
+	namespaces := make([]string, numNamespaces)
+	for i := 0; i < numNamespaces; i++ {
+		namespaces[i] = fmt.Sprintf("ns_%d", i)
+	}
+
+	commandTypes := []commandType{ttGet, ttPut, ttExists, ttDelete, ttBatchRead}
+
+	fakeCommands := make([]*fakeCommand, 0, numNamespaces*len(commandTypes))
+	for _, ns := range namespaces {
+		for _, ct := range commandTypes {
+			cmd := &fakeCommand{
+				baseCommand: baseCommand{node: node},
+				namespace:   ns,
+				ct:          ct,
+			}
+			fakeCommands = append(fakeCommands, cmd)
+		}
+	}
+
+	b.StartTimer()
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Divide work across goroutines
+		workPerGoroutine := len(fakeCommands) / numGoroutines
+		if workPerGoroutine == 0 {
+			workPerGoroutine = 1
+		}
+
+		var wg sync.WaitGroup
+		wg.Add(numGoroutines)
+
+		for g := 0; g < numGoroutines; g++ {
+			start := g * workPerGoroutine
+			end := start + workPerGoroutine
+			if g == numGoroutines-1 {
+				end = len(fakeCommands)
+			}
+			if start >= len(fakeCommands) {
+				wg.Done()
+				continue
+			}
+			if end > len(fakeCommands) {
+				end = len(fakeCommands)
+			}
+
+			go func(cmds []*fakeCommand) {
+				defer wg.Done()
+				for _, cmd := range cmds {
+					resultCode := types.ResultCode(0) // OK
+					nodeStats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
+				}
+			}(fakeCommands[start:end])
+		}
+
+		wg.Wait()
+	}
+}
+
+// BenchmarkUpdateOrInsertHighConcurrencyContended benchmarks with maximum contention
+// where all goroutines compete for the same namespace
+func BenchmarkUpdateOrInsertHighConcurrencyContended(b *testing.B) {
+	const (
+		numNamespaces   = 200
+		numGoroutines   = 100
+		opsPerGoroutine = 1000
+	)
+
+	b.StopTimer()
+
+	mp := DefaultMetricsPolicy()
+	nodeStats := newNodeStats(mp)
+	me.Store(true)
+
+	node := &Node{
+		cluster: &Cluster{
+			metricsEnabled: me,
+		},
+		stats: *nodeStats,
+	}
+
+	// Generate namespace names
+	namespaces := make([]string, numNamespaces)
+	for i := 0; i < numNamespaces; i++ {
+		namespaces[i] = fmt.Sprintf("ns_%d", i)
+	}
+
+	commandTypes := []commandType{ttGet, ttPut, ttExists, ttDelete, ttBatchRead}
+
+	b.StartTimer()
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		var wg sync.WaitGroup
+		wg.Add(numGoroutines)
+
+		for g := 0; g < numGoroutines; g++ {
+			go func(goroutineID int) {
+				defer wg.Done()
+				// Each goroutine performs many operations
+				for op := 0; op < opsPerGoroutine; op++ {
+					// Rotate through namespaces and command types
+					nsIdx := (goroutineID*opsPerGoroutine + op) % len(namespaces)
+					ctIdx := (goroutineID*opsPerGoroutine + op) % len(commandTypes)
+
+					cmd := &fakeCommand{
+						baseCommand: baseCommand{node: node},
+						namespace:   namespaces[nsIdx],
+						ct:          commandTypes[ctIdx],
+					}
+
+					// Vary result codes
+					// Common result codes that are most common. Could add more but leaving at 5 for now.
+					resultCode := types.ResultCode(op % 5)
+					nodeStats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
+				}
+			}(g)
+		}
+
+		wg.Wait()
+	}
+}
+
+// BenchmarkUpdateOrInsertScalability tests scalability with varying goroutine counts
+func BenchmarkUpdateOrInsertScalability(b *testing.B) {
+	goroutineCounts := []int{1, 10, 50, 100, 200, 500}
+
+	for _, numGoroutines := range goroutineCounts {
+		b.Run(fmt.Sprintf("goroutines_%d", numGoroutines), func(b *testing.B) {
+			const numNamespaces = 200
+
+			b.StopTimer()
+
+			mp := DefaultMetricsPolicy()
+			nodeStats := newNodeStats(mp)
+			me.Store(true)
+
+			node := &Node{
+				cluster: &Cluster{
+					metricsEnabled: me,
+				},
+				stats: *nodeStats,
+			}
+
+			namespaces := make([]string, numNamespaces)
+			for i := 0; i < numNamespaces; i++ {
+				namespaces[i] = fmt.Sprintf("ns_%d", i)
+			}
+
+			b.StartTimer()
+			b.ResetTimer()
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				var wg sync.WaitGroup
+				wg.Add(numGoroutines)
+
+				for g := 0; g < numGoroutines; g++ {
+					go func(id int) {
+						defer wg.Done()
+						ns := namespaces[id%len(namespaces)]
+						cmd := &fakeCommand{
+							baseCommand: baseCommand{node: node},
+							namespace:   ns,
+							ct:          ttGet,
+						}
+						nodeStats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), types.ResultCode(0))
+					}(g)
+				}
+
+				wg.Wait()
+			}
+		})
 	}
 }

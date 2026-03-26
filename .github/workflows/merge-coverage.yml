@@ -1,0 +1,70 @@
+name: Merge Code Coverage
+on:
+  workflow_call:
+    inputs:
+      artifact_pattern:
+        description: 'Artifact name pattern'
+        required: false
+        type: string
+        default: 'cover_*'
+      threshold:
+        description: 'Coverage threshold'
+        required: false
+        type: number
+        default: 0
+
+permissions:
+  actions: write
+  contents: read  
+
+jobs:
+  merged_coverage:
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ inputs.artifact_pattern }}
+          path: reports
+
+      - name: Merge coverage profiles
+        run: |
+          go run github.com/wadey/gocovmerge reports/**/covprofile_*.out > cover_all.out
+
+      - name: Check Code Coverage
+        id: check-coverage
+        uses: vladopajic/go-test-coverage@v2.17.0
+        continue-on-error: true
+        with:
+          config: ./.testcoverage.yml
+          threshold-total: ${{ inputs.threshold }}
+
+      - name: Show coverage summary
+        if: always()
+        run: |
+          {
+            echo "**Total coverage:** ${{ steps.check-coverage.outputs.total-coverage }}%"
+            echo
+            echo "<details><summary><strong>Detailed report</strong></summary>"
+            echo
+            echo '```text'
+            echo '${{ steps.check-coverage.outputs.report }}' | jq -r .
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate Html report
+        run: |
+          mkdir -p coverage-reports
+          go tool cover -html=cover_all.out -o coverage-reports/index.html
+          mv cover_all.out coverage-reports/
+
+      - name: Upload Html report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-html
+          path: coverage-reports
+          if-no-files-found: error

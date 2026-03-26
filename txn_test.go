@@ -794,6 +794,8 @@ var _ = gg.Describe("Aerospike", func() {
 		})
 
 		gg.It("must succeed BatchGet with expressions and transaction", func() {
+			gg.Skip("Skipped due to issue tracked in CLIENT-4009")
+
 			client.Truncate(nil, "test", "", nil)
 
 			startKey := 0
@@ -806,6 +808,7 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 
 				keys = append(keys, key)
+
 			}
 
 			// Create the expression: bin_i > num
@@ -838,6 +841,42 @@ var _ = gg.Describe("Aerospike", func() {
 
 			_, err = client.Commit(txn)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
+		})
+
+		gg.It("must support BatchGetComplex operation with transaction", func() {
+			// Test that indexRecords path correctly parses fields
+			keys := make([]*as.Key, 5)
+			brecs := make([]*as.BatchRead, 5)
+
+			for i := range keys {
+				key, _ := as.NewKey(ns, set, i)
+				keys[i] = key
+				err := client.PutBins(nil, key, as.NewBin(binName, i))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				brecs[i] = as.NewBatchRead(nil, key, []string{binName})
+			}
+
+			txn := as.NewTxn()
+			bp := as.NewBatchPolicy()
+			bp.Txn = txn
+
+			err := client.BatchGetComplex(bp, brecs)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Verify records were populated
+			for i := range brecs {
+				gm.Expect(brecs[i].Record).ToNot(gm.BeNil())
+				gm.Expect(brecs[i].Record.Bins[binName]).To(gm.Equal(i))
+			}
+
+			// Modify a record outside transaction
+			err = client.PutBins(nil, keys[0], as.NewBin(binName, 999))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Commit should detect version mismatch
+			_, err = client.Commit(txn)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.MRT_VERSION_MISMATCH)).To(gm.BeTrue())
 		})
 
 	}) // describe

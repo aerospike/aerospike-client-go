@@ -1,15 +1,19 @@
 name: Aerospike Go Client Tests
 on:
-  push:
   pull_request:
+
+permissions:
+  contents: read  
+  actions: read  
 
 env:
   AEROSPIKE_HOSTS: "127.0.0.1:3000"
   GODEBUG: fips140=only
   GOFIPS140: latest
+
 jobs:
   make-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
     outputs:
       input-matrix: ${{ steps.create-server-matrix.outputs.matrix }}
       go-version: ${{ steps.get-go-version.outputs.go-version }}
@@ -31,10 +35,12 @@ jobs:
         with:
           default_json: |
             {
-              "stable": { "version": "8.1.0.1" },
-              "release": { "version": "8.1.0.1_2" }
+              "7.1.0": { "version": "7.1.0" },
+              "8.1.0.1": { "version": "8.1.0.1" },
+              "8.1.1": { "version": "8.1.1" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
+          modes: AP
 
       - name: debug - print input variables
         run: |
@@ -45,7 +51,9 @@ jobs:
   build:
     timeout-minutes: 30
     needs: make-matrix
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
+    permissions:
+      actions: write 
     strategy:
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
@@ -74,15 +82,17 @@ jobs:
 
           # Vendor the dependencies
           go mod vendor
-
       - name: Display Go version
         run: |
           echo "Go version: ${{ matrix.go-version }}"
-
       - name: Set up Aerospike Database
         uses: reugn/github-action-aerospike@2065a9209cfd5ef88a3e07f3e7929e321d1e0067 # v1.1.0
         with:
-          server-version: ${{ matrix.version }}
+          aerospike_version: ${{ matrix.version }}
+          nodes: "1"
+          mode: ${{ matrix.mode }}
+          expose_ports: "3000:3000"
+          feature_conf_encoded: ${{ secrets.FEATURES_CONF }}
       - name: Test Lua Code
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites internal/lua
@@ -112,12 +122,43 @@ jobs:
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo build -tags="app_engine" .
       - name: Run the tests
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=cover_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/wadey/gocovmerge cover_*.out > cover_all.out
+        run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
       - name: Check Code Coverage
+        id: check-coverage
         uses: vladopajic/go-test-coverage@cc5012c2cfa84542e02b079141958a885861d326 # v2.17.0
+        continue-on-error: true
         with:
-          # Configure action using config file (option 1)
           config: ./.testcoverage.yml
+      - name: Show coverage report in step summary
+        if: always()
+        run: |
+          {
+            echo "**coverage:**"
+            echo ""
+            echo "**${{ matrix.version }}-${{ matrix.mode }}:** ${{ steps.check-coverage.outputs.total-coverage }}%"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: create and move cover file to reports directory
+        run: |
+          mkdir -p reports
+          mv covprofile_*.out reports/
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: cover_${{matrix.version}}_${{matrix.mode}}
+          path: reports
+          if-no-files-found: warn
+
+  merged_coverage:
+    name: Final Coverage
+    needs: build
+    uses: ./.github/workflows/merge-coverage.yml
+    with:
+      artifact_pattern: cover_*
+      threshold: ${{ fromJSON(vars.COVERAGE_THRESHOLD) }}
+    permissions:
+      actions: write
+      contents: read 

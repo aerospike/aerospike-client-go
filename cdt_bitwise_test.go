@@ -33,7 +33,7 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
 	var cdtBinName string
 
-	var assertEquals = func(e string, v1, v2 interface{}) {
+	var assertEquals = func(e string, v1, v2 any) {
 		gm.Expect(v1).To(gm.Equal(v2), e)
 	}
 
@@ -218,7 +218,7 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 					0xc1},
 				as.BitSetOp(putMode, cdtBinName, 1, 1, bit0),
 				as.BitSetOp(putMode, cdtBinName, 15, 1, bit0),
-				// SUM Offest Size
+				// SUM Offset Size
 				as.BitSetOp(putMode, cdtBinName, 16, 24, bits1),  //  Y    Y      Y
 				as.BitSetOp(putMode, cdtBinName, 40, 22, bits1),  //  N    Y      N
 				as.BitSetOp(putMode, cdtBinName, 73, 21, bits1),  //  N    N      N

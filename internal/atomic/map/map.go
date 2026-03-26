@@ -202,6 +202,7 @@ func (mp *Map[K, V]) UpdateOrInsert(key K, updateFn func(V) V, defaultVal V) V {
 	}
 }
 
+// todo: this can go away
 // UpdateOrInsert will update the value if it exists, otherwise it will insert the default value.
 func (mp *Map[K, V]) UpdateOrInsertFn(key K, updateFn func(V) V, defaultValFn func() V) V {
 	mp.mutex.Lock()

@@ -51,9 +51,9 @@ func newBatchNodeList(cluster *Cluster, policy *BatchPolicy, keys []*Key, record
 		if err != nil {
 			if len(records) > 0 {
 				records[i].Err = chainErrors(err, records[i].Err)
-			} else {
-				errs = chainErrors(err, errs)
+				records[i].ResultCode = err.resultCode()
 			}
+			errs = chainErrors(err, errs)
 			// return nil, err
 		}
 

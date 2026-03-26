@@ -64,7 +64,7 @@ func runExample(client *as.Client) {
 	shared.PanicOnError(err)
 
 	for rec := range res.Results() {
-		res := rec.Record.Bins["SUCCESS"].(map[interface{}]interface{})
+		res := rec.Record.Bins["SUCCESS"].(map[any]any)
 		log.Printf("Result from Map/Reduce: %v\n", res)
 		log.Printf("Result %f should equal %f\n", res["sum"].(float64)/res["count"].(float64), average)
 	}

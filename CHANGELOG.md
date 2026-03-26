@@ -1,21 +1,53 @@
 # Change History
 
+## February 11 2025: v8.6.0
+
+- **Fixes**
+  - [CLIENT-3954] Fixed where instantiate DynConfig.logUpdate could cause nil pointer dereference.
+  - [CLIENT-3964] Fixed failing `must Register a UDF` when running against AES 6.4.0 and older.
+  - [CLIENT-4016] Fixed where BatchDelete panics in goroutine when namespace does not exist.
+  - [CLIENT-4009] Fixed where BatchGet with expression in a transaction could cause a panic.
+  - [CLIENT-3939] Fixed where `newBatchOperateNodeListIfcRetry` causes a panic.
+  - [CLIENT-3964] Fixed Failing `must Register a UDF` when running against AES 6.4.0 and older.
+  - [CLIENT-4067] Fixed issues due to support privilege / permission code expansion due to data masking feature.
+  - [CLIENT-4132] Fixed where DropIndex hangs indefinitely when called in parallel with CreateIndex call.
+
+- **Improvements**
+  - [CLIENT-4035] Allow pkiAuth users to change passwords for users who are using passwords.
+  - [CLIENT-3955] Added server version validation before tests are ran.
+  - [CLIENT-3898] Enable sc namespace in git action for both single and multi-node setup.
+  - [CLIENT-4083] Added sleepMultiplier to be part of dynamic config.
+  - [CLIENT-3968] Changes to improve performance regression with detailed metrics in hot path.
+  - [CLIENT-4155] Invalid binNames on selectByPath and modifyByPath return parameter error.
+  
+- **New Features**
+  - [CLIENT-3749] Added Path Expressions.
+
+## December 3 2025: v8.5.0
+
+- **Fixes**
+    - [CLIENT-3937] Fix typos in comments across multiple files.
+    - [CLIENT-3896] Update BatchPolicy.AllowPartialResults docs.
+    - [CLIENT-3891] TaskId not being properly assigned during Background Query.
+    - [CLIENT-3925] Avoid sending previous errors when cluster is complete.
+    - [CLIENT-3936] Make RegisterUDF backward compatible with older Aerospike server versions.
+
 ## November 14 2025: v8.4.2
 
-  **Fixes**
+- **Fixes**
     - [CLIENT_3894] Setting user-agent allows a closed connection to return for tend.
 
 ## November 4 2025: v8.4.1
 
-  **Fixes**
+- **Fixes**
     - [CLIENT-3821] Fixed issue where `panic: runtime error: invalid memory address` could occur after calling `usingTendConn(...)`.
 
 ## October 20 2025: v8.4.0
 
-  **Improvements**
+- **Improvements**
     - [CLIENT-3435] Update Go client to support FIPS.
 
-  **Fixes**
+- **Fixes**
     - [CLIENT-3821] Fixed issue where `Network Error from EOF` could occur after server migrations.
     - [CLIENT-3810] Fixed issue where nil pointer panic occurs on errToAerospikeErr.
     - [CLIENT-3796] Fixed issue where background queries for all records applied only partially.

@@ -442,6 +442,33 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err.Matches(types.INVALID_NAMESPACE)).To(gm.BeTrue())
 			})
 
+			gg.It("Should not panic on BatchDelete with non-existent namespace", func() {
+				// This test validates the fix for nil cmd.node panic in retry logic
+				var keys []*as.Key
+				for i := 0; i < 10; i++ {
+					key, _ := as.NewKey("non_existent_namespace", "non_existent_set", i)
+					keys = append(keys, key)
+				}
+
+				bp := as.NewBatchPolicy()
+				bp.MaxRetries = 2 // Ensure retry logic is exercised
+				bdp := as.NewBatchDeletePolicy()
+
+				// This should return an error but not panic
+				records, err := client.BatchDelete(bp, bdp, keys)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(types.INVALID_NAMESPACE)).To(gm.BeTrue())
+
+				// Also check individual record errors
+				gm.Expect(records).NotTo(gm.BeNil())
+				gm.Expect(len(records)).To(gm.Equal(len(keys)))
+				for _, record := range records {
+					gm.Expect(record.Err).To(gm.HaveOccurred())
+					gm.Expect(record.Err.Matches(types.INVALID_NAMESPACE)).To(gm.BeTrue())
+					gm.Expect(record.ResultCode).To(gm.Equal(types.INVALID_NAMESPACE))
+				}
+			})
+
 			gg.It("Overall command error should be reflected in API call error and not BatchRecord error", func() {
 				var batchRecords []as.BatchRecordIfc
 				key, _ := as.NewKey(*namespace, set, 0)

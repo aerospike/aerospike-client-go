@@ -61,7 +61,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) Error {
 	// Aggregate metrics
 	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
 	if metricsEnabled {
-		cmd.node.stats.updateOrInsert(ifc, rp.resultCode)
+		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), rp.resultCode)
 	}
 
 	if rp.resultCode != 0 {

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"math"
 	"math/rand"
+	"strconv"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
@@ -401,7 +402,7 @@ var _ = gg.Describe("Query operations", func() {
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
 			rec := res.Record
-			results := rec.Bins["SUCCESS"].(map[interface{}]interface{})
+			results := rec.Bins["SUCCESS"].(map[any]any)
 			gm.Expect(results["bin4"]).To(gm.Equal("constValue"))
 			// gm.Expect(results["bin5"]).To(gm.Equal(-1))
 			cnt++
@@ -425,7 +426,7 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.Query(queryPolicy, stm)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		recs := []interface{}{}
+		recs := []any{}
 		// consume recordset and check errors
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
@@ -453,7 +454,7 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.Query(queryPolicy, stmRes)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		recs := []interface{}{}
+		recs := []any{}
 		// consume recordset and check errors
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
@@ -512,7 +513,7 @@ var _ = gg.Describe("Query operations", func() {
 		recordset, err := client.Query(queryPolicy, stmRes)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		recs := []interface{}{}
+		recs := []any{}
 		// consume recordset and check errors
 		for res := range recordset.Results() {
 			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
@@ -683,5 +684,85 @@ var _ = gg.Describe("Query operations", func() {
 		gm.Expect(count1).To(gm.Equal(count2))
 		gm.Expect(count2).To(gm.Equal(count3))
 		gm.Expect(count1).To(gm.BeNumerically(">", 0))
+	})
+
+	gg.It("must validate taskId for background query jobs using query-show info command", func() {
+		stm := as.NewStatement(ns, set)
+		stm.SetFilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16))
+
+		updateBin := as.NewBin("Aerospike10", 888)
+
+		et, err := client.QueryExecute(queryPolicy, nil, stm, as.PutOp(updateBin))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(et).ToNot(gm.BeNil())
+
+		// Get and validate task ID
+		taskId := et.TaskId()
+		gm.Expect(taskId).To(gm.BeNumerically(">", 0))
+
+		// Query all nodes to verify the task ID is actually valid and tracked by the server
+		nodes := client.GetNodes()
+		gm.Expect(len(nodes)).To(gm.BeNumerically(">", 0))
+
+		taskIdStr := strconv.FormatUint(taskId, 10)
+		taskFoundAndValidated := false
+
+		// Check that at least one node has the task tracked with the correct task ID
+		for _, node := range nodes {
+			ip := as.NewInfoPolicy()
+
+			infoCmd := "query-show:id=" + taskIdStr
+
+			res, err := node.RequestInfo(ip, infoCmd)
+			if err == nil {
+				response := res[infoCmd]
+				// If we don't get ERROR:2, the task exists or existed
+				if !bytes.Contains([]byte(response), []byte("ERROR:2")) {
+					// Verify response contains expected job information
+					gm.Expect(response).To(gm.ContainSubstring("status="))
+
+					// Verify the response contains the task ID we're looking for
+					gm.Expect(response).To(gm.Or(
+						gm.ContainSubstring("id="+taskIdStr),
+						gm.ContainSubstring("trid="+taskIdStr),
+					))
+
+					taskFoundAndValidated = true
+				}
+			}
+		}
+
+		gm.Expect(taskFoundAndValidated).To(gm.BeTrue(),
+			"Task ID %d should be tracked by at least one server node", taskId)
+
+		gm.Expect(<-et.OnComplete()).To(gm.BeNil())
+
+		// Verify IsDone returns true after completion
+		done, err := et.IsDone()
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(done).To(gm.BeTrue())
+
+		// After completion, verify that the task ID is still consistent
+		taskIdAfterCompletion := et.TaskId()
+		gm.Expect(taskIdAfterCompletion).To(gm.Equal(taskId),
+			"Task ID should remain consistent before and after completion")
+
+		// After completion, verify that records were actually updated
+		verifyStm := as.NewStatement(ns, set)
+		verifyStm.SetFilter(as.NewRangeFilter(bin3.Name, 0, math.MaxInt16))
+		recordset, err := client.Query(queryPolicy, verifyStm)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		updatedCount := 0
+		for res := range recordset.Results() {
+			gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+			rec := res.Record
+			if rec.Bins["Aerospike10"] == 888 {
+				updatedCount++
+			}
+		}
+
+		// All matching records should have been updated
+		gm.Expect(updatedCount).To(gm.BeNumerically(">", 0))
 	})
 })

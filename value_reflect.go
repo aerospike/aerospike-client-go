@@ -25,13 +25,13 @@ func init() {
 }
 
 // if the returned value is nil, the caller will panic
-func concreteNewValueReflect(v interface{}) Value {
+func concreteNewValueReflect(v any) Value {
 	// check for array and map
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Array, reflect.Slice:
 		l := rv.Len()
-		arr := make([]interface{}, l)
+		arr := make([]any, l)
 		for i := 0; i < l; i++ {
 			arr[i] = rv.Index(i).Interface()
 		}
@@ -39,7 +39,7 @@ func concreteNewValueReflect(v interface{}) Value {
 		return NewListValue(arr)
 	case reflect.Map:
 		l := rv.Len()
-		amap := make(map[interface{}]interface{}, l)
+		amap := make(map[any]any, l)
 		for _, i := range rv.MapKeys() {
 			amap[i.Interface()] = rv.MapIndex(i).Interface()
 		}

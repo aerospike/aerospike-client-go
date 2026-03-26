@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -34,7 +35,16 @@ type IndexTask struct {
 // NewIndexTask initializes a task with fields needed to query server nodes.
 func NewIndexTask(cluster *Cluster, namespace string, indexName string) *IndexTask {
 	return &IndexTask{
-		baseTask:  newTask(cluster),
+		baseTask:  newTask(cluster, 0),
+		namespace: namespace,
+		indexName: indexName,
+	}
+}
+
+// newIndexTaskWithTimeout initializes a task with fields needed to query server nodes and a timeout.
+func newIndexTaskWithTimeout(cluster *Cluster, namespace string, indexName string, timeout time.Duration) *IndexTask {
+	return &IndexTask{
+		baseTask:  newTask(cluster, timeout),
 		namespace: namespace,
 		indexName: indexName,
 	}
@@ -43,9 +53,8 @@ func NewIndexTask(cluster *Cluster, namespace string, indexName string) *IndexTa
 // IsDone queries all nodes for task completion status.
 func (tski *IndexTask) IsDone() (bool, Error) {
 	nodes := tski.cluster.GetNodes()
-	complete := false
 
-	r := regexp.MustCompile(`\.*load_pct=(\d+)\.*`)
+	r := regexp.MustCompile(`load_pct=(\d+)`)
 
 	for _, node := range nodes {
 		serverVersion := node.GetServerVersion()
@@ -53,33 +62,55 @@ func (tski *IndexTask) IsDone() (bool, Error) {
 			serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
 			"sindex-stat:namespace="+tski.namespace+";indexname="+tski.indexName,
 			"sindex/"+tski.namespace+"/"+tski.indexName)
+		
 		responseMap, err := node.requestInfoWithRetry(&tski.cluster.infoPolicy, 5, statusCommand)
 		if err != nil {
 			return false, err
 		}
 
-		for _, response := range responseMap {
-			find := "load_pct="
-			index := strings.Index(response, find)
+		// Get the response for our status command
+		response, exists := responseMap[statusCommand]
+		
+		// Handle missing or empty response
+		if !exists || response == "" {
+			return false, newError(types.INDEX_GENERIC, 
+				"sindex-stat failed: empty or missing response from node "+node.GetName())
+		}
 
-			if index < 0 {
-				if tski.retries.Get() > 20 {
-					complete = true
-				}
-				continue
+		// Check for load_pct in response
+		find := "load_pct="
+		index := strings.Index(response, find)
+
+		if index < 0 {
+			// Index not found - check if it's an error response
+			if strings.Contains(response, "FAIL") || strings.Contains(response, "ERROR") {
+				return false, newError(types.INDEX_GENERIC, 
+					"sindex-stat failed: "+response+" from node "+node.GetName())
 			}
+			// Index not readable yet, continue polling
+			return false, nil
+		}
 
-			matchRes := r.FindStringSubmatch(response)
-			// we know it exists and is a valid number
-			pct, _ := strconv.Atoi(matchRes[1])
+		matchRes := r.FindStringSubmatch(response)
+		if len(matchRes) < 2 {
+			return false, newError(types.INDEX_GENERIC, 
+				"sindex-stat failed: could not parse load_pct from response '"+response+"'")
+		}
+		
+		pct, parseErr := strconv.Atoi(matchRes[1])
+		if parseErr != nil {
+			return false, newError(types.INDEX_GENERIC, 
+				"sindex-stat failed: invalid load_pct value '"+matchRes[1]+"'")
+		}
 
-			if pct >= 0 && pct < 100 {
-				return false, nil
-			}
-			complete = true
+		if pct < 100 {
+			// Index still building on this node
+			return false, nil
 		}
 	}
-	return complete, nil
+	
+	// All nodes report 100% complete
+	return true, nil
 }
 
 // OnComplete returns a channel that will be closed as soon as the task is finished.

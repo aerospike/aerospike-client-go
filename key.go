@@ -95,7 +95,7 @@ func (ky *Key) String() string {
 // NewKey initializes a key from namespace, optional set name and user key.
 // The set name and user defined key are converted to a digest before sending to the server.
 // The server handles record identifiers by digest only.
-func NewKey(namespace string, setName string, key interface{}) (*Key, Error) {
+func NewKey(namespace string, setName string, key any) (*Key, Error) {
 	newKey := &Key{
 		namespace: namespace,
 		setName:   setName,
@@ -111,7 +111,7 @@ func NewKey(namespace string, setName string, key interface{}) (*Key, Error) {
 
 // NewKeyWithDigest initializes a key from namespace, optional set name and user key.
 // The server handles record identifiers by digest only.
-func NewKeyWithDigest(namespace string, setName string, key interface{}, digest []byte) (*Key, Error) {
+func NewKeyWithDigest(namespace string, setName string, key any, digest []byte) (*Key, Error) {
 	newKey := &Key{
 		namespace: namespace,
 		setName:   setName,

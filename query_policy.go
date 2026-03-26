@@ -32,7 +32,7 @@ type QueryPolicy struct {
 	// Default: LONG
 	ExpectedDuration QueryDuration
 
-	// ShortQuery determines wether query expected to return less than 100 records.
+	// ShortQuery determines whether query expected to return less than 100 records.
 	// If true, the server will optimize the query for a small record set.
 	// This field is ignored for aggregation queries, background queries
 	// and server versions 6.0+.
@@ -128,6 +128,13 @@ func (qp *QueryPolicy) mapDynamic(dynConfig *DynConfig) *QueryPolicy {
 			qp.SleepBetweenRetries = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("SleepBetweenRetries set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Query.SleepMultiplier != nil {
+			configValue := *currentConfig.Dynamic.Query.SleepMultiplier
+			qp.SleepMultiplier = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("SleepMultiplier set to %f", configValue)
 			}
 		}
 		if currentConfig.Dynamic.Query.Replica != nil {

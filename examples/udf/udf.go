@@ -222,9 +222,9 @@ func writeWithValidation(client *as.Client) {
 func writeListMapUsingUdf(client *as.Client) {
 	key, _ := as.NewKey(*shared.Namespace, *shared.Set, "udfkey5")
 
-	inner := []interface{}{"string2", int64(8)}
-	innerMap := map[interface{}]interface{}{"a": int64(1), int64(2): "b", "list": inner}
-	list := []interface{}{"string1", int64(4), inner, innerMap}
+	inner := []any{"string2", int64(8)}
+	innerMap := map[any]any{"a": int64(1), int64(2): "b", "list": inner}
+	list := []any{"string1", int64(4), inner, innerMap}
 
 	binName := "udfbin5"
 
@@ -233,7 +233,7 @@ func writeListMapUsingUdf(client *as.Client) {
 	received, err := client.Execute(shared.WritePolicy, key, "record_example", "readBin", as.NewValue(binName))
 	shared.PanicOnError(err)
 
-	if testEq(received.([]interface{}), list) {
+	if testEq(received.([]any), list) {
 		log.Printf("UDF data matched: namespace=%s set=%s key=%s bin=%s value=%s",
 			key.Namespace(), key.SetName(), key.Value(), binName, received)
 	} else {
@@ -266,7 +266,7 @@ func writeBlobUsingUdf(client *as.Client) {
 	}
 }
 
-func testEq(a, b []interface{}) bool {
+func testEq(a, b []any) bool {
 	if len(a) != len(b) {
 		return false
 	}
