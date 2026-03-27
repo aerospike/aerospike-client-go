@@ -22,10 +22,15 @@ jobs:
     runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Download all coverage artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: ${{ inputs.artifact_pattern }}
           path: reports
@@ -36,7 +41,7 @@ jobs:
 
       - name: Check Code Coverage
         id: check-coverage
-        uses: vladopajic/go-test-coverage@v2.17.0
+        uses: vladopajic/go-test-coverage@cc5012c2cfa84542e02b079141958a885861d326 # v2.17.0
         continue-on-error: true
         with:
           config: ./.testcoverage.yml
@@ -63,7 +68,7 @@ jobs:
           mv cover_all.out coverage-reports/
 
       - name: Upload Html report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: coverage-html
           path: coverage-reports
