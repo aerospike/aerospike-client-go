@@ -18,7 +18,12 @@ jobs:
       input-matrix: ${{ steps.create-server-matrix.outputs.matrix }}
       go-version: ${{ steps.get-go-version.outputs.go-version }}
     steps:
-      - uses: actions/checkout@v6
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@df199fb7be9f65074067a9eb93f12bb4c5547cf2 # v2.13.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Get Go version
         id: get-go-version
@@ -53,9 +58,14 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
     steps:
-      - uses: actions/checkout@v6
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@df199fb7be9f65074067a9eb93f12bb4c5547cf2 # v2.13.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: "Setup Go ${{ matrix.go-version }}"
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@19bb51245e9c80abacb2e91cc42b33fa478b8639 # v4.2.1
         with:
           go-version: "${{ matrix.go-version }}"
           cache: true
@@ -75,8 +85,8 @@ jobs:
       - name: Display Go version
         run: |
           echo "Go version: ${{ matrix.go-version }}"
-      - name: Deploy Aerospike cluster
-        uses: ./.github/actions/multi-node-cluster
+      - name: Set up Aerospike Database
+        uses: reugn/github-action-aerospike@2065a9209cfd5ef88a3e07f3e7929e321d1e0067 # v1.1.0
         with:
           aerospike_version: ${{ matrix.version }}
           nodes: "1"
@@ -118,7 +128,7 @@ jobs:
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
       - name: Check Code Coverage
         id: check-coverage
-        uses: vladopajic/go-test-coverage@v2.17.0
+        uses: vladopajic/go-test-coverage@cc5012c2cfa84542e02b079141958a885861d326 # v2.17.0
         continue-on-error: true
         with:
           config: ./.testcoverage.yml
