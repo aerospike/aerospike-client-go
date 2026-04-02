@@ -966,4 +966,82 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 		})
 	})
+
+	gg.Describe("AllowPartialResults should not suppress timeout errors on single-key batches", func() {
+		var ns = *namespace
+		var set = randString(50)
+
+		// Write a record that we can read back in batch calls.
+		gg.BeforeEach(func() {
+			key, _ := as.NewKey(ns, set, 0)
+			err := client.PutBins(nil, key, as.NewBin("bin1", 1))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		})
+
+		// Helper: a batch policy with AllowPartialResults=true and a timeout
+		// short enough to expire before the server can respond.
+		newTimedOutBatchPolicy := func() *as.BatchPolicy {
+			bp := as.NewBatchPolicy()
+			bp.AllowPartialResults = true
+			bp.TotalTimeout = 1 * time.Nanosecond
+			bp.SocketTimeout = 1 * time.Nanosecond
+			bp.MaxRetries = 0
+			return bp
+		}
+
+		gg.It("BatchGet must surface timeout error even with AllowPartialResults", func() {
+			key, _ := as.NewKey(ns, set, 0)
+			keys := []*as.Key{key}
+			bp := newTimedOutBatchPolicy()
+
+			_, err := client.BatchGet(bp, keys)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.TIMEOUT)).To(gm.BeTrue())
+		})
+
+		gg.It("BatchGetHeader must surface timeout error even with AllowPartialResults", func() {
+			key, _ := as.NewKey(ns, set, 0)
+			keys := []*as.Key{key}
+			bp := newTimedOutBatchPolicy()
+
+			_, err := client.BatchGetHeader(bp, keys)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.TIMEOUT)).To(gm.BeTrue())
+		})
+
+		gg.It("BatchDelete must surface timeout error even with AllowPartialResults", func() {
+			key, _ := as.NewKey(ns, set, 0)
+			keys := []*as.Key{key}
+			bp := newTimedOutBatchPolicy()
+
+			_, err := client.BatchDelete(bp, nil, keys)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.TIMEOUT)).To(gm.BeTrue())
+		})
+
+		gg.It("BatchOperate must surface timeout error even with AllowPartialResults", func() {
+			key, _ := as.NewKey(ns, set, 0)
+			bp := newTimedOutBatchPolicy()
+
+			var records []as.BatchRecordIfc
+			records = append(records, as.NewBatchReadOps(nil, key, as.GetBinOp("bin1")))
+
+			err := client.BatchOperate(bp, records)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.TIMEOUT)).To(gm.BeTrue())
+		})
+
+		gg.It("BatchGetComplex must surface timeout error even with AllowPartialResults", func() {
+			key, _ := as.NewKey(ns, set, 0)
+			bp := newTimedOutBatchPolicy()
+
+			records := []*as.BatchRead{
+				as.NewBatchRead(nil, key, []string{"bin1"}),
+			}
+
+			err := client.BatchGetComplex(bp, records)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.TIMEOUT)).To(gm.BeTrue())
+		})
+	})
 })
