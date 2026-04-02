@@ -15,8 +15,11 @@
 package aerospike_test
 
 import (
+	"time"
+
 	as "github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -223,6 +226,183 @@ var _ = gg.Describe("Query Roles Tests", func() {
 				}
 				gm.Expect(unexpectedRoles).To(gm.BeEmpty(), "Unexpected masking roles for version < 8.1.1: %v", unexpectedRoles)
 			}
+		})
+	})
+
+	gg.Context("CreateRole field count", func() {
+
+		gg.BeforeEach(func() {
+			if !securityEnabled() {
+				gg.Skip("Security is not enabled on the server")
+			}
+		})
+
+		gg.Context("single privilege", func() {
+
+			const roleName = "test-single-priv"
+
+			gg.AfterEach(func() {
+				client.DropRole(nil, roleName)
+				time.Sleep(time.Second)
+			})
+
+			gg.It("should create a role with exactly one privilege", func() {
+				privs := []as.Privilege{{Code: as.Read, Namespace: *namespace, SetName: ""}}
+
+				err := client.CreateRole(nil, roleName, privs, []string{}, 0, 0)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				time.Sleep(time.Second)
+
+				role, err := client.QueryRole(nil, roleName)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(role.Name).To(gm.Equal(roleName))
+				gm.Expect(role.Privileges).To(gm.Equal(privs))
+			})
+
+			gg.It("should create a role with multiple privileges", func() {
+				privs := []as.Privilege{
+					{Code: as.Read, Namespace: *namespace, SetName: ""},
+					{Code: as.ReadWrite, Namespace: *namespace, SetName: ""},
+				}
+
+				err := client.CreateRole(nil, roleName, privs, []string{}, 0, 0)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				time.Sleep(time.Second)
+
+				role, err := client.QueryRole(nil, roleName)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(role.Name).To(gm.Equal(roleName))
+				gm.Expect(role.Privileges).To(gm.ConsistOf(privs))
+			})
+		})
+
+		gg.Context("single whitelist entry", func() {
+
+			const roleName = "test-single-wl"
+
+			gg.AfterEach(func() {
+				client.DropRole(nil, roleName)
+				time.Sleep(time.Second)
+			})
+
+			gg.It("should create a role with exactly one whitelist entry", func() {
+				ip := getOutboundIP().String()
+				privs := []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}
+
+				err := client.CreateRole(nil, roleName, privs, []string{ip}, 0, 0)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				time.Sleep(time.Second)
+
+				role, err := client.QueryRole(nil, roleName)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(role.Name).To(gm.Equal(roleName))
+				gm.Expect(role.Privileges).To(gm.Equal(privs))
+				gm.Expect(role.Whitelist).To(gm.Equal([]string{ip}))
+			})
+
+			gg.It("should create a role with multiple whitelist entries", func() {
+				privs := []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}
+
+				err := client.CreateRole(nil, roleName, privs, []string{"10.0.0.1", "10.0.0.2"}, 0, 0)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				time.Sleep(time.Second)
+
+				role, err := client.QueryRole(nil, roleName)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(role.Name).To(gm.Equal(roleName))
+				gm.Expect(role.Whitelist).To(gm.ConsistOf("10.0.0.1", "10.0.0.2"))
+			})
+		})
+
+		gg.Context("single privilege with single whitelist entry", func() {
+
+			const roleName = "test-priv-wl"
+
+			gg.AfterEach(func() {
+				client.DropRole(nil, roleName)
+				time.Sleep(time.Second)
+			})
+
+			gg.It("should create a role with one privilege and one whitelist entry", func() {
+				ip := getOutboundIP().String()
+				privs := []as.Privilege{{Code: as.Read, Namespace: *namespace, SetName: ""}}
+
+				err := client.CreateRole(nil, roleName, privs, []string{ip}, 0, 0)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				time.Sleep(time.Second)
+
+				role, err := client.QueryRole(nil, roleName)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(role.Name).To(gm.Equal(roleName))
+				gm.Expect(role.Privileges).To(gm.Equal(privs))
+				gm.Expect(role.Whitelist).To(gm.Equal([]string{ip}))
+			})
+		})
+
+		gg.Context("all fields populated", func() {
+
+			const roleName = "test-all-fields"
+
+			gg.AfterEach(func() {
+				client.DropRole(nil, roleName)
+				time.Sleep(time.Second)
+			})
+
+			gg.It("should create a role with one privilege, one whitelist entry, and quotas", func() {
+				ip := getOutboundIP().String()
+				privs := []as.Privilege{{Code: as.Read, Namespace: *namespace, SetName: ""}}
+
+				err := client.CreateRole(nil, roleName, privs, []string{ip}, 500, 1000)
+				if err != nil && err.Matches(types.QUOTAS_NOT_ENABLED) {
+					gg.Skip("Quotas not enabled on server")
+				}
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				time.Sleep(time.Second)
+
+				role, err := client.QueryRole(nil, roleName)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(role.Name).To(gm.Equal(roleName))
+				gm.Expect(role.Privileges).To(gm.Equal(privs))
+				gm.Expect(role.Whitelist).To(gm.Equal([]string{ip}))
+				gm.Expect(role.ReadQuota).To(gm.Equal(uint32(500)))
+				gm.Expect(role.WriteQuota).To(gm.Equal(uint32(1000)))
+			})
+		})
+
+		gg.Context("setWhitelist with single entry", func() {
+
+			const roleName = "test-set-wl"
+
+			gg.AfterEach(func() {
+				client.DropRole(nil, roleName)
+				time.Sleep(time.Second)
+			})
+
+			gg.It("should set a single whitelist entry on an existing role", func() {
+				ip := getOutboundIP().String()
+				privs := []as.Privilege{{Code: as.Read, Namespace: "", SetName: ""}}
+
+				err := client.CreateRole(nil, roleName, privs, []string{}, 0, 0)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				time.Sleep(time.Second)
+
+				err = client.SetWhitelist(nil, roleName, []string{ip})
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				time.Sleep(time.Second)
+
+				role, err := client.QueryRole(nil, roleName)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(role.Name).To(gm.Equal(roleName))
+				gm.Expect(role.Whitelist).To(gm.Equal([]string{ip}))
+			})
 		})
 	})
 })
