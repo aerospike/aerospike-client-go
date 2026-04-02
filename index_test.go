@@ -104,4 +104,58 @@ var _ = gg.Describe("Index operations test", func() {
 		})
 
 	})
+
+	gg.Describe("Set Index creation", func() {
+
+		var ns = *namespace
+		var set = randString(50)
+		var wpolicy = as.NewWritePolicy(0, 0)
+		var setIndexName = set + "setindex"
+
+		gg.BeforeEach(func() {
+			if serverIsOlderThan("8.1.2") {
+				gg.Skip("Set index requires server version 8.1.2+")
+			}
+		})
+
+		gg.It("must create and drop a Set Index", func() {
+			// Drop set index if it already exists
+			client.DropIndex(wpolicy, ns, set, setIndexName)
+
+			idxTask, err := client.CreateSetIndex(wpolicy, ns, set, setIndexName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// wait until index is created
+			gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
+
+			err = client.DropIndex(wpolicy, ns, set, setIndexName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		})
+
+		gg.It("must drop a Set Index, and recreate it again to verify", func() {
+			// Drop set index if it already exists
+			client.DropIndex(wpolicy, ns, set, setIndexName)
+
+			idxTask, err := client.CreateSetIndex(wpolicy, ns, set, setIndexName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// wait until index is created
+			gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
+
+			// drop the index
+			err = client.DropIndex(wpolicy, ns, set, setIndexName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// create the index again; should not encounter any errors
+			idxTask, err = client.CreateSetIndex(wpolicy, ns, set, setIndexName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// wait until index is created
+			gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
+
+			err = client.DropIndex(wpolicy, ns, set, setIndexName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		})
+
+	})
 })
