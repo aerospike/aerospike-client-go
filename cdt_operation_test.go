@@ -3087,26 +3087,44 @@ var _ = gg.Describe("CDT Operation Test", func() {
 		gg.It("should modify via mapKeysIn", func() {
 			client.Delete(nil, key)
 
+			// Nested structure matching C client test pattern:
+			// {inventory: {w1: {item_a: {count: 100}, item_b: {count: 200}},
+			//              w2: {item_a: {count: 50},  item_b: {count: 75}},
+			//              w3: {item_a: {count: 10},  item_b: {count: 20}}}}
 			m := map[string]any{
-				"a": 10,
-				"b": 20,
-				"c": 30,
+				"inventory": map[string]any{
+					"w1": map[string]any{
+						"item_a": map[string]any{"count": 100},
+						"item_b": map[string]any{"count": 200},
+					},
+					"w2": map[string]any{
+						"item_a": map[string]any{"count": 50},
+						"item_b": map[string]any{"count": 75},
+					},
+					"w3": map[string]any{
+						"item_a": map[string]any{"count": 10},
+						"item_b": map[string]any{"count": 20},
+					},
+				},
 			}
 
 			bin := as.NewBin(binName, m)
 			err := client.PutBins(wpolicy, key, bin)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			// Add 100 to values of keys "a" and "c" via ModifyByPath
-			keysCtx := as.CtxMapStringKeysIn("a", "c")
-			childCtx := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
+			// Add 1000 to count in all items of w1 and w2 via ModifyByPath
+			// Context: mapKey("inventory") -> mapKeysIn("w1","w2") -> allChildren() -> mapKey("count")
+			invKey := as.CtxMapKey(as.StringValue("inventory"))
+			keysCtx := as.CtxMapStringKeysIn("w1", "w2")
+			childCtx := as.CtxAllChildren()
+			countKey := as.CtxMapKey(as.StringValue("count"))
 
 			modifyExp := as.ExpNumAdd(
 				as.ExpIntLoopVar(as.VALUE),
-				as.ExpIntVal(100),
+				as.ExpIntVal(1000),
 			)
 
-			modifyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, keysCtx, childCtx)
+			modifyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, invKey, keysCtx, childCtx, countKey)
 
 			result, err := client.Operate(nil, key, modifyOp)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -3118,9 +3136,26 @@ var _ = gg.Describe("CDT Operation Test", func() {
 
 			resultMap, ok := record.Bins[binName].(map[any]any)
 			gm.Expect(ok).To(gm.BeTrue())
-			gm.Expect(resultMap["a"]).To(gm.Equal(110))
-			gm.Expect(resultMap["b"]).To(gm.Equal(20)) // unchanged
-			gm.Expect(resultMap["c"]).To(gm.Equal(130))
+
+			inv, ok := resultMap["inventory"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			rw1, ok := inv["w1"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			rw1a, ok := rw1["item_a"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(rw1a["count"]).To(gm.Equal(1100))
+
+			rw1b, ok := rw1["item_b"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(rw1b["count"]).To(gm.Equal(1200))
+
+			// w3 should be unchanged
+			rw3, ok := inv["w3"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			rw3a, ok := rw3["item_a"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(rw3a["count"]).To(gm.Equal(10))
 		})
 
 		gg.It("should handle mapKeysIn with some missing keys", func() {
