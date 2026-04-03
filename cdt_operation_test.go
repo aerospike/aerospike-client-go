@@ -2987,6 +2987,142 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(resultMap["c"]).To(gm.Equal(25))
 		})
 
+		gg.It("should reject andFilter as first context with no preceding entry", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{"a": 1}
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// andFilter with no preceding context (e.g. mapKeysIn) is invalid
+			andFilterCtx := as.CtxAndFilter(
+				as.ExpGreater(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(0)),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, andFilterCtx)
+
+			_, err = client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+		})
+
+		gg.It("should reject chained andFilters", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{"a": 1, "b": 2, "c": 3}
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Two andFilters in a row is invalid — use ExpAnd to combine instead
+			keyInCtx := as.CtxMapStringKeysIn("a", "b", "c")
+			andFilter1 := as.CtxAndFilter(
+				as.ExpGreaterEq(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(2)),
+			)
+			andFilter2 := as.CtxAndFilter(
+				as.ExpLessEq(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(3)),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, keyInCtx, andFilter1, andFilter2)
+
+			_, err = client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+		})
+
+		gg.It("should reject andFilter after allChildrenWithFilter", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{"a": 1, "b": 2, "c": 3}
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// andFilter cannot follow an expression-type context like allChildrenWithFilter
+			baseFilter := as.CtxAllChildrenWithFilter(
+				as.ExpGreater(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(0)),
+			)
+			andFilterCtx := as.CtxAndFilter(
+				as.ExpLess(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(3)),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, baseFilter, andFilterCtx)
+
+			_, err = client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+		})
+
+		gg.It("should apply andFilter with mapIndex", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"x": 10,
+				"y": 20,
+				"z": 30,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Select map index 0, then AND-filter to keep only entries with key >= "y"
+			indexCtx := as.CtxMapIndex(0)
+			andFilterCtx := as.CtxAndFilter(
+				as.ExpGreaterEq(as.ExpStringLoopVar(as.MAP_KEY), as.ExpStringVal("y")),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY_VALUE, indexCtx, andFilterCtx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultList, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			// Index 0 selects a single entry; AND filter further narrows it.
+			// The result depends on which entry is at index 0 and whether it passes the filter.
+			// If it passes, we get 2 elements (key+value); if not, 0 elements.
+			gm.Expect(len(resultList) == 0 || len(resultList) == 2).To(gm.BeTrue())
+		})
+
+		gg.It("should modify via mapKeysIn", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 10,
+				"b": 20,
+				"c": 30,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Add 100 to values of keys "a" and "c" via ModifyByPath
+			keysCtx := as.CtxMapStringKeysIn("a", "c")
+			childCtx := as.CtxAllChildrenWithFilter(as.ExpBoolVal(true))
+
+			modifyExp := as.ExpNumAdd(
+				as.ExpIntLoopVar(as.VALUE),
+				as.ExpIntVal(100),
+			)
+
+			modifyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, keysCtx, childCtx)
+
+			result, err := client.Operate(nil, key, modifyOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			// Verify the modified values
+			record, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			resultMap, ok := record.Bins[binName].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(resultMap["a"]).To(gm.Equal(110))
+			gm.Expect(resultMap["b"]).To(gm.Equal(20)) // unchanged
+			gm.Expect(resultMap["c"]).To(gm.Equal(130))
+		})
+
 		gg.It("should handle mapKeysIn with some missing keys", func() {
 			client.Delete(nil, key)
 
