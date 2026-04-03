@@ -2684,9 +2684,13 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 				}
 			}
 		} else {
+			hasQueryOpsProjectionExt := cmd.node != nil && cmd.node.SupportsQueryOpsProjectionExt()
 			for _, op := range operations {
 				if op.opType.isWrite {
 					return newError(types.PARAMETER_ERROR, "Query operations must be read-only. Use background query for write-only operations.")
+				}
+				if !hasQueryOpsProjectionExt && !op.opType.isBasicRead() {
+					return newError(types.PARAMETER_ERROR, "Only basic read operations are supported for query operations projection in server versions prior to 8.1.2.")
 				}
 				if err := cmd.estimateOperationSizeForOperation(op, false); err != nil {
 					return err

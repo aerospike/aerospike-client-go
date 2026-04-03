@@ -39,10 +39,6 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	var indexName string
 
 	gg.BeforeEach(func() {
-		if serverIsOlderThan("8.1.2") {
-			gg.Skip("Bin projection tests require server version 8.1.2 or later")
-		}
-
 		set = randString(50)
 		indexName = set + binName1
 
@@ -75,6 +71,10 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	var queryPolicy = as.NewQueryPolicy()
 
 	gg.It("must project multiple bins via get operations", func() {
+		if serverIsOlderThan("8.1.2") {
+			gg.Skip("Extended ops projection requires server version 8.1.2 or later")
+		}
+
 		stm := as.NewStatement(ns, set)
 		stm.Operations = []*as.Operation{
 			as.GetBinOp(binName1),
@@ -140,6 +140,10 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	})
 
 	gg.It("must project bins via expression read operations", func() {
+		if serverIsOlderThan("8.1.2") {
+			gg.Skip("Extended ops projection requires server version 8.1.2 or later")
+		}
+
 		stm := as.NewStatement(ns, set)
 
 		exp1 := as.ExpIntBin(binName1)
@@ -171,6 +175,10 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	})
 
 	gg.It("must project bins via expression read with range filter", func() {
+		if serverIsOlderThan("8.1.2") {
+			gg.Skip("Extended ops projection requires server version 8.1.2 or later")
+		}
+
 		begin := 1
 		end := 10
 
@@ -208,6 +216,10 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	})
 
 	gg.It("must project mixed get and expression read operations", func() {
+		if serverIsOlderThan("8.1.2") {
+			gg.Skip("Extended ops projection requires server version 8.1.2 or later")
+		}
+
 		begin := 1
 		end := 10
 
@@ -245,6 +257,10 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	})
 
 	gg.It("must query with expression read multiply operation", func() {
+		if serverIsOlderThan("8.1.2") {
+			gg.Skip("Extended ops projection requires server version 8.1.2 or later")
+		}
+
 		begin := 1
 		end := 10
 
@@ -275,6 +291,10 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	})
 
 	gg.It("must query with multiple expression read operations", func() {
+		if serverIsOlderThan("8.1.2") {
+			gg.Skip("Extended ops projection requires server version 8.1.2 or later")
+		}
+
 		begin := 5
 		end := 15
 
@@ -311,6 +331,10 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	})
 
 	gg.It("must query with expression read and filter expression", func() {
+		if serverIsOlderThan("8.1.2") {
+			gg.Skip("Extended ops projection requires server version 8.1.2 or later")
+		}
+
 		begin := 1
 		end := 20
 
@@ -498,6 +522,10 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	})
 
 	gg.It("must query with expression read and no filter", func() {
+		if serverIsOlderThan("8.1.2") {
+			gg.Skip("Extended ops projection requires server version 8.1.2 or later")
+		}
+
 		stm := as.NewStatement(ns, set)
 
 		exp := as.ExpNumAdd(as.ExpIntBin(binName1), as.ExpIntVal(1000))
@@ -517,6 +545,10 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	})
 
 	gg.It("must query with conditional expression read", func() {
+		if serverIsOlderThan("8.1.2") {
+			gg.Skip("Extended ops projection requires server version 8.1.2 or later")
+		}
+
 		begin := 1
 		end := 20
 
@@ -602,6 +634,10 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 	})
 
 	gg.It("must query with expression read eval no fail on nonexistent bin", func() {
+		if serverIsOlderThan("8.1.2") {
+			gg.Skip("Extended ops projection requires server version 8.1.2 or later")
+		}
+
 		begin := 1
 		end := 5
 

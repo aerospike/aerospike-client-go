@@ -91,6 +91,14 @@ func (op *Operation) size() (int, Error) {
 	return size, nil
 }
 
+// isBasicRead returns true if the operation type is a basic read operation
+// (READ or READ_HEADER). Basic reads are supported for query operations
+// projection on server versions prior to 8.1.2. Extended read operations
+// (e.g., CDT_READ, EXP_READ, BIT_READ, HLL_READ) require server version 8.1.2+.
+func (op OperationType) isBasicRead() bool {
+	return op == _READ || op == _READ_HEADER
+}
+
 // GetBinOp creates read bin database operation.
 func GetBinOp(binName string) *Operation {
 	return &Operation{opType: _READ, binName: binName, binValue: NewNullValue()}
