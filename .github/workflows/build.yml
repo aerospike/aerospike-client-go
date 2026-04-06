@@ -37,10 +37,11 @@ jobs:
             {
               "7.1.0": { "version": "7.1.0" },
               "8.1.0.1": { "version": "8.1.0.1" },
-              "8.1.1": { "version": "8.1.1" }
+              "8.1.1": { "version": "8.1.1" },
+              "8.1.2-rc1": { "version": "8.1.2-rc1" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
-          modes: AP
+          modes: AP,SC
 
       - name: debug - print input variables
         run: |
@@ -53,6 +54,7 @@ jobs:
     needs: make-matrix
     runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
     permissions:
+      id-token: write
       actions: write 
     strategy:
       matrix:
@@ -86,13 +88,14 @@ jobs:
         run: |
           echo "Go version: ${{ matrix.go-version }}"
       - name: Set up Aerospike Database
-        uses: reugn/github-action-aerospike@2065a9209cfd5ef88a3e07f3e7929e321d1e0067 # v1.1.0
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@5e2e7a2458e4f7c5aa0a05b0e9de8c77e0d60da6
         with:
-          aerospike_version: ${{ matrix.version }}
-          nodes: "1"
-          mode: ${{ matrix.mode }}
-          expose_ports: "3000:3000"
-          feature_conf_encoded: ${{ secrets.FEATURES_CONF }}
+          aerospike-version: ${{ matrix.version }}
+          num-nodes: 1
+          enable-strong-consistency: ${{ matrix.mode == 'SC' }}
+          features-content: ${{ secrets.FEATURES_CONF }}
+          oidc-provider: ${{ vars.OIDC_PROVIDER }}
+          oidc-audience: ${{ vars.OIDC_AUDIENCE }}
       - name: Test Lua Code
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites internal/lua
