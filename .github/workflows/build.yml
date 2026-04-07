@@ -5,6 +5,7 @@ on:
 permissions:
   contents: read
   actions: read
+  id-token: write
 
 env:
   AEROSPIKE_HOSTS: "127.0.0.1:3000"
