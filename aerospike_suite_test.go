@@ -210,7 +210,7 @@ func isEnterpriseEdition() bool {
 		log.Fatal("Failed to connect to aerospike: err:", err)
 	}
 
-	return strings.Contains(infoMap["edition"], "Enterprise")
+	return strings.Contains(infoMap[serverCommand], "Enterprise")
 }
 
 func securityEnabled() bool {
