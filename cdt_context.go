@@ -295,6 +295,14 @@ func CtxMapBytesKeysIn(keys ...[]byte) *CDTContext {
 // to be included in the result. Typically used after CtxMapKeysIn
 // or other selection contexts to further narrow the results.
 //
+// Restrictions:
+//   - Only one CtxAndFilter is allowed per context level. Multiple CtxAndFilter
+//     calls cannot be chained. To combine multiple conditions, use ExpAnd within
+//     a single CtxAndFilter.
+//   - The preceding context entry must not be an expression type (i.e. CtxAndFilter
+//     cannot follow CtxAllChildrenWithFilter or CtxAllChildren).
+//   - CtxAndFilter cannot be the first entry in the context chain.
+//
 // Parameters:
 //   - exp: Filter expression; entries that evaluate to false are excluded
 func CtxAndFilter(exp *Expression) *CDTContext {
