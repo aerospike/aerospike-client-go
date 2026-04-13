@@ -44,6 +44,7 @@ const (
 	_SUPPORTS_QUERY_SHOW
 	_SUPPORTS_BATCH_ANY
 	_SUPPORTS_PARTITION_QUERY
+	_SUPPORTS_QUERY_OPS_PROJECTION_EXT
 )
 
 // Node represents an Aerospike Database Server Node
@@ -137,6 +138,12 @@ func (nd *Node) SupportsQueryShow() bool {
 // SupportsPartitionQuery returns true if the node supports the feature.
 func (nd *Node) SupportsPartitionQuery() bool {
 	return (nd.features & _SUPPORTS_PARTITION_QUERY) != 0
+}
+
+// SupportsQueryOpsProjectionExt returns true if the node supports extended read operations
+// (CDT, expression, bit, HLL reads) in query operations projection. Requires server version 8.1.2+.
+func (nd *Node) SupportsQueryOpsProjectionExt() bool {
+	return (nd.features & _SUPPORTS_QUERY_OPS_PROJECTION_EXT) != 0
 }
 
 // Refresh requests current status from server node, and updates node with the result.
