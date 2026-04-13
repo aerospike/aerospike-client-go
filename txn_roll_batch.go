@@ -187,8 +187,8 @@ func (cmd *batchTxnRollCommand) inDoubt() {
 		return
 	}
 
-	for index := range cmd.batch.offsets {
-		record := cmd.records[index]
+	for _, offset := range cmd.batch.offsets {
+		record := cmd.records[offset]
 
 		if record.ResultCode == types.NO_RESPONSE {
 			record.InDoubt = true
