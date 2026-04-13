@@ -194,13 +194,14 @@ func (cmd *batchCommandUDF) isRead() bool {
 }
 
 func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
-	for i, key := range cmd.keys {
+	for _, offset := range cmd.batch.offsets {
+		key := cmd.keys[offset]
 		policy := cmd.batchUDFPolicy.toWritePolicy(cmd.policy, client.dynConfig)
 		policy.RespondPerEachOp = true
 		res, err := client.execute(policy, key, cmd.packageName, cmd.functionName, cmd.args...)
-		cmd.records[i].setRecord(res)
+		cmd.records[offset].setRecord(res)
 		if err != nil {
-			cmd.records[i].setRawError(err)
+			cmd.records[offset].setRawError(err)
 
 			// Key not found is NOT an error for batch requests
 			if err.resultCode() == types.KEY_NOT_FOUND_ERROR {
@@ -219,7 +220,7 @@ func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchCommandUDF) Execute() Error {
-	if len(cmd.keys) == 1 {
+	if len(cmd.batch.offsets) == 1 {
 		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)

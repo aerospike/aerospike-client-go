@@ -186,11 +186,12 @@ func (cmd *batchCommandDelete) commandType() commandType {
 
 func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
 	policy := cmd.batchDeletePolicy.toWritePolicy(cmd.policy, client.dynConfig)
-	for i, key := range cmd.keys {
+	for _, offset := range cmd.batch.offsets {
+		key := cmd.keys[offset]
 		res, err := client.Operate(policy, key, DeleteOp())
-		cmd.records[i].setRecord(res)
+		cmd.records[offset].setRecord(res)
 		if err != nil {
-			cmd.records[i].setRawError(err)
+			cmd.records[offset].setRawError(err)
 
 			// Key not found is NOT an error for batch requests
 			if err.resultCode() == types.KEY_NOT_FOUND_ERROR {
@@ -209,7 +210,7 @@ func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchCommandDelete) Execute() Error {
-	if len(cmd.keys) == 1 {
+	if len(cmd.batch.offsets) == 1 {
 		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
