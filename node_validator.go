@@ -322,7 +322,7 @@ func (ndv *nodeValidator) setFeatures(alias *Host) Error {
 		ndv.features |= _SUPPORTS_BATCH_ANY
 		ndv.features |= _SUPPORTS_PARTITION_QUERY
 	}
-	if ndv.serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1_2) {
+	if ndv.serverVersion.IsGreaterOrEqual(version.ServerVersionQueryOpsProjectionExt) {
 		ndv.features |= _SUPPORTS_QUERY_OPS_PROJECTION_EXT
 	}
 
