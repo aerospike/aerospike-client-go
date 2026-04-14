@@ -166,3 +166,11 @@ func ExecuteSingleBatchDelete(client *Client, policy *BatchPolicy, deletePolicy 
 	cmd := newBatchCommandDelete(client, batch, policy, deletePolicy, keys, records, nil)
 	return cmd.executeSingle(client)
 }
+
+// ExecuteSingleBatchUDF calls batchCommandUDF.executeSingle with
+// the given keys, records, and offsets, bypassing the normal Execute condition.
+func ExecuteSingleBatchUDF(client *Client, policy *BatchPolicy, udfPolicy *BatchUDFPolicy, keys []*Key, packageName, functionName string, args []Value, records []*BatchRecord, offsets []int) Error {
+	batch := &batchNode{offsets: offsets}
+	cmd := newBatchCommandUDF(client, batch, policy, udfPolicy, keys, packageName, functionName, args, records, nil)
+	return cmd.executeSingle(client)
+}
