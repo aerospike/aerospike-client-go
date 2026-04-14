@@ -112,6 +112,37 @@ var _ = gg.Describe("Batch executeSingle offset correctness", func() {
 		}
 	})
 
+	gg.It("executeSingle must only process offset records (batchCommandUDF)", func() {
+		luaCode := `function rec_create(rec, bins)
+		    return bins
+		end`
+
+		removeUDF("test_single_ops.lua")
+		registerUDF(luaCode, "test_single_ops.lua")
+
+		records := make([]*as.BatchRecord, keyCount)
+		for j := 0; j < keyCount; j++ {
+			records[j] = &as.BatchRecord{
+				Key: keys[j],
+			}
+		}
+
+		args := []as.Value{as.NewMapValue(map[any]any{"bin1_str": "a"})}
+		err := as.ExecuteSingleBatchUDF(client, bpolicy, as.NewBatchUDFPolicy(), keys, "test_single_ops", "rec_create", args, records, offsets)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		for j, br := range records {
+			if j == 1 || j == 3 {
+				gm.Expect(br.ResultCode).To(gm.Equal(types.OK),
+					"record at offset index %d has result code %s, expected OK", j, br.ResultCode)
+				gm.Expect(br.Record).ToNot(gm.BeNil(), "record at offset index %d should be populated", j)
+			} else {
+				gm.Expect(br.Record).To(gm.BeNil(),
+					"record at non-offset index %d should be nil but was populated", j)
+			}
+		}
+	})
+
 	gg.It("executeSingle must only process offset records (batchCommandDelete)", func() {
 		records := make([]*as.BatchRecord, keyCount)
 		for j := 0; j < keyCount; j++ {
