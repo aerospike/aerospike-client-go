@@ -33,8 +33,15 @@ type Statement struct {
 	// If not set, the server will determine the index from the filter's bin name.
 	IndexName string
 
-	// BinNames determines bin names (optional)
+	// BinNames determines for bin projections in queries (Optional).
+	// Mutually exclusive with Operations.
 	BinNames []string
+
+	// Operations to be performed on query/execute.
+	// For foreground queries (Query), only read operations are allowed.
+	// For background queries (QueryExecute), only write operations are allowed.
+	// Mutually exclusive with BinNames.
+	Operations []*Operation
 
 	// Filter determines query index filter (Optional).
 	// This filter is applied to the secondary index on query.

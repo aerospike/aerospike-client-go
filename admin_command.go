@@ -147,11 +147,11 @@ func (acmd *AdminCommand) revokeRoles(conn *Connection, policy *AdminPolicy, use
 
 func (acmd *AdminCommand) createRole(conn *Connection, policy *AdminPolicy, roleName string, privileges []Privilege, whitelist []string, readQuota, writeQuota uint32) Error {
 	fieldCount := 1
-	if len(privileges) > 1 {
+	if len(privileges) > 0 {
 		fieldCount++
 	}
 
-	if len(whitelist) > 1 {
+	if len(whitelist) > 0 {
 		fieldCount++
 	}
 

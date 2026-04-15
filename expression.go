@@ -118,7 +118,10 @@ var (
 	expOpKEY           expOp = 80
 	expOpBIN           expOp = 81
 	expOpBIN_TYPE      expOp = 82
+	expOpIN_LIST       expOp = 9
 	expOpRESULT_REMOVE expOp = 100
+	expOpMAP_KEYS      expOp = 101
+	expOpMAP_VALUES    expOp = 102
 	expVarBuiltIn      expOp = 122
 	expOpCond          expOp = 123
 	expOpVar           expOp = 124
@@ -854,6 +857,20 @@ func ExpGeoJSONLoopVar(part LoopVarPart) *Expression {
 	)
 }
 
+// ExpHLLLoopVar creates a loop variable expression for the specified part.
+// This function is used in conjunction with list/map iteration expressions.
+// Requires server version 8.1.1+.
+func ExpHLLLoopVar(part LoopVarPart) *Expression {
+	return newFilterExpression(
+		&expVarBuiltIn,
+		NewIntegerValue(int(part)),
+		nil,
+		nil,
+		&ExpTypeHLL,
+		nil,
+	)
+}
+
 // ExpRemoveResult creates a result remove expression.
 // Requires server version 8.1.1+.
 func ExpRemoveResult() *Expression {
@@ -864,6 +881,42 @@ func ExpRemoveResult() *Expression {
 		nil,
 		nil,
 		nil,
+	)
+}
+
+// ExpInList creates an expression that checks if a value is contained in a list.
+func ExpInList(value *Expression, list *Expression) *Expression {
+	return newFilterExpression(
+		&expOpIN_LIST,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]*Expression{value, list},
+	)
+}
+
+// ExpMapKeys creates an expression that extracts all keys from a map as a list.
+func ExpMapKeys(mapExp *Expression) *Expression {
+	return newFilterExpression(
+		&expOpMAP_KEYS,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]*Expression{mapExp},
+	)
+}
+
+// ExpMapValues creates an expression that extracts all values from a map as a list.
+func ExpMapValues(mapExp *Expression) *Expression {
+	return newFilterExpression(
+		&expOpMAP_VALUES,
+		nil,
+		nil,
+		nil,
+		nil,
+		[]*Expression{mapExp},
 	)
 }
 

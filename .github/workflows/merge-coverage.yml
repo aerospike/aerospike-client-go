@@ -22,10 +22,10 @@ jobs:
     runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
 
       - name: Download all coverage artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: ${{ inputs.artifact_pattern }}
           path: reports
@@ -36,7 +36,7 @@ jobs:
 
       - name: Check Code Coverage
         id: check-coverage
-        uses: vladopajic/go-test-coverage@v2.17.0
+        uses: vladopajic/go-test-coverage@v2.18.4
         continue-on-error: true
         with:
           config: ./.testcoverage.yml
@@ -63,7 +63,7 @@ jobs:
           mv cover_all.out coverage-reports/
 
       - name: Upload Html report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-html
           path: coverage-reports

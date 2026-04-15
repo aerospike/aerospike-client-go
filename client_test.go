@@ -1749,6 +1749,20 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(err).To(gm.HaveOccurred())
 			})
 
+			gg.It("must succeed for read-only operate with expiration set on policy", func() {
+				key, err := as.NewKey(ns, set, randString(50))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				bin1 := as.NewBin("optintread", 1)
+				err = client.PutBins(wpolicy, key, bin1)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				writePolicy := as.NewWritePolicy(0, 86400)
+				rec, err = client.Operate(writePolicy, key, as.GetBinOp(bin1.Name))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec.Bins[bin1.Name]).To(gm.Equal(bin1.Value.GetObject()))
+			})
+
 			gg.It("must work correctly when no BinOps are passed as argument", func() {
 				key, err := as.NewKey(ns, set, randString(50))
 				gm.Expect(err).ToNot(gm.HaveOccurred())

@@ -34,6 +34,10 @@ const (
 
 	// ICT_MAPVALUES is Index map values.
 	ICT_MAPVALUES
+
+	// ICT_SET is a set index. No bin, type, context, or expression parameters are used.
+	// Requires server version 8.1.2+.
+	ICT_SET
 )
 
 func (ict IndexCollectionType) String() string {
@@ -50,6 +54,8 @@ func (ict IndexCollectionType) String() string {
 	// Index map values.
 	case ICT_MAPVALUES:
 		return "ICT_MAPVALUES"
+	case ICT_SET:
+		return "ICT_SET"
 	}
 	panic(unreachable)
 }
@@ -66,6 +72,9 @@ func ictToString(ict IndexCollectionType) string {
 
 	case ICT_MAPVALUES:
 		return "MAPVALUES"
+
+	case ICT_SET:
+		return "set"
 
 	default:
 		panic(fmt.Sprintf("Unknown IndexCollectionType value %v", ict))

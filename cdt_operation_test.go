@@ -1779,6 +1779,59 @@ var _ = gg.Describe("CDT Operation Test", func() {
 				gm.Expect(resultList).To(gm.ContainElement("record4"))
 			}
 		})
+
+		gg.It("should filter HLL values using ExpHLLLoopVar", func() {
+			client.Delete(nil, key)
+
+			// Create HLL values using HLLAddOp on temporary bins
+			smallData := []as.Value{as.NewValue("a"), as.NewValue("b")}
+			largeData := []as.Value{as.NewValue("a"), as.NewValue("b"), as.NewValue("c"), as.NewValue("d"), as.NewValue("e")}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll1", smallData, 8, 0),
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll2", largeData, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read HLL values back
+			rec, err := client.Get(nil, key, "hll1", "hll2")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hll1Val := rec.Bins["hll1"]
+			hll2Val := rec.Bins["hll2"]
+			gm.Expect(hll1Val).ToNot(gm.BeNil())
+			gm.Expect(hll2Val).ToNot(gm.BeNil())
+
+			// Store HLL values in a nested structure
+			data := map[string]any{
+				"hlls": []any{hll1Val, hll2Val},
+			}
+
+			bin := as.NewBin(binName, data)
+			err = client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Use ExpHLLLoopVar to filter HLL values with count > 3
+			ctx1 := as.CtxMapKey(as.NewStringValue("hlls"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGreater(
+					as.ExpHLLGetCount(as.ExpHLLLoopVar(as.VALUE)),
+					as.ExpIntVal(3),
+				),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultBin := result.Bins[binName]
+			resultList, ok := resultBin.([]any)
+			if ok {
+				gm.Expect(len(resultList)).To(gm.Equal(1), "Should have 1 HLL with count > 3 (the large one)")
+			}
+		})
 	})
 
 	gg.Describe("ExpResultRemove Tests", func() {
@@ -2573,6 +2626,748 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			errorMsg := err.Error()
 			gm.Expect(errorMsg).To(gm.Or(gm.ContainSubstring("15"), gm.ContainSubstring("exceed")))
 			gm.Expect(record).To(gm.BeNil())
+		})
+	})
+
+	gg.Describe("HLL Nested in Map/List Tests", func() {
+
+		gg.It("should preserve HLLValue type when stored in a map[any]any", func() {
+			client.Delete(nil, key)
+
+			// Create an HLL bin with 5000 integer values
+			values := make([]as.Value, 5000)
+			for i := 0; i < 5000; i++ {
+				values[i] = as.NewValue(i)
+			}
+
+			ops := []*as.Operation{
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll_temp_bin", values, 4, 4),
+			}
+			_, err := client.Operate(nil, key, ops...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read HLL value back
+			rec, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hllVal, ok := rec.Bins["hll_temp_bin"].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "Top-level HLL bin should be HLLValue type")
+
+			// Store the HLL value inside a map[any]any
+			wp := as.NewWritePolicy(0, 0)
+			wp.SendKey = true
+			err = client.PutBins(wp, key, as.NewBin("elhss", map[any]any{
+				"a": as.NewHLLValue(hllVal),
+			}))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read back and verify the nested value is still HLLValue
+			rec, err = client.Get(nil, key, "elhss")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			resultMap, ok := rec.Bins["elhss"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue(), "Bin should be a map")
+
+			nestedVal, ok := resultMap["a"].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "Nested value should be HLLValue, not []byte")
+			gm.Expect(len(nestedVal)).To(gm.BeNumerically(">", 0))
+		})
+
+		gg.It("should preserve HLLValue type when stored in a map[string]any", func() {
+			client.Delete(nil, key)
+
+			// Create an HLL bin
+			entries := make([]as.Value, 256)
+			for i := 0; i < 256; i++ {
+				entries[i] = as.NewValue(i)
+			}
+
+			ops := []*as.Operation{
+				as.HLLAddOp(as.DefaultHLLPolicy(), binName, entries, 8, 0),
+			}
+			_, err := client.Operate(nil, key, ops...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read HLL value back
+			rec, err := client.Get(nil, key, binName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hllVal, ok := rec.Bins[binName].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "Top-level HLL bin should be HLLValue type")
+
+			// Store the HLL value inside a map[string]any
+			mapBinName := "mapbin"
+			mapData := map[string]any{
+				"a": as.NewHLLValue(hllVal),
+			}
+			bin := as.NewBin(mapBinName, mapData)
+			err = client.PutBins(nil, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read back and verify the nested value is still HLLValue
+			rec, err = client.Get(nil, key, mapBinName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			resultMap, ok := rec.Bins[mapBinName].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue(), "Bin should be a map")
+
+			nestedVal, ok := resultMap["a"].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "Nested value should be HLLValue, not []byte")
+			gm.Expect(len(nestedVal)).To(gm.BeNumerically(">", 0))
+		})
+
+		gg.It("should preserve HLLValue type when stored in a list", func() {
+			client.Delete(nil, key)
+
+			// Create two HLL bins with different data
+			smallData := []as.Value{as.StringValue("a"), as.StringValue("b")}
+			largeData := []as.Value{as.StringValue("c"), as.StringValue("d"), as.StringValue("e"), as.StringValue("f"), as.StringValue("g")}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll1", smallData, 8, 0),
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll2", largeData, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err := client.Get(nil, key, "hll1", "hll2")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hll1Val := rec.Bins["hll1"].(as.HLLValue)
+			hll2Val := rec.Bins["hll2"].(as.HLLValue)
+
+			// Store HLL values in a list inside a map
+			listBinName := "listbin"
+			listData := map[string]any{
+				"hlls": []any{as.NewHLLValue(hll1Val), as.NewHLLValue(hll2Val)},
+			}
+			bin := as.NewBin(listBinName, listData)
+			err = client.PutBins(nil, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read back and verify nested HLL values preserve their type
+			rec, err = client.Get(nil, key, listBinName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			resultMap, ok := rec.Bins[listBinName].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			resultList, ok := resultMap["hlls"].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(resultList)).To(gm.Equal(2))
+
+			_, ok = resultList[0].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "First nested HLL should be HLLValue type")
+
+			_, ok = resultList[1].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "Second nested HLL should be HLLValue type")
+		})
+
+		gg.It("should preserve HLLValue type in map inside map", func() {
+			client.Delete(nil, key)
+
+			entries := make([]as.Value, 256)
+			for i := 0; i < 256; i++ {
+				entries[i] = as.NewValue(i)
+			}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), binName, entries, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err := client.Get(nil, key, binName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hllVal, ok := rec.Bins[binName].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			// Store HLL in a map nested inside another map (2 levels deep)
+			deepBinName := "deepmapbin"
+			deepData := map[string]any{
+				"level1": map[any]any{
+					"level2": as.NewHLLValue(hllVal),
+				},
+			}
+			bin := as.NewBin(deepBinName, deepData)
+			err = client.PutBins(nil, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err = client.Get(nil, key, deepBinName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			outerMap, ok := rec.Bins[deepBinName].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			innerMap, ok := outerMap["level1"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			nestedVal, ok := innerMap["level2"].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "HLL nested 2 levels deep in maps should be HLLValue type")
+			gm.Expect(len(nestedVal)).To(gm.BeNumerically(">", 0))
+		})
+
+		gg.It("should preserve HLLValue type in list inside list inside map", func() {
+			client.Delete(nil, key)
+
+			entries := make([]as.Value, 256)
+			for i := 0; i < 256; i++ {
+				entries[i] = as.NewValue(i)
+			}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), binName, entries, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err := client.Get(nil, key, binName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hllVal, ok := rec.Bins[binName].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			// Store HLL in a list nested inside another list inside a map (3 levels deep)
+			deepBinName := "deeplistbin"
+			deepData := map[string]any{
+				"level1": []any{
+					[]any{as.NewHLLValue(hllVal)},
+				},
+			}
+			bin := as.NewBin(deepBinName, deepData)
+			err = client.PutBins(nil, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err = client.Get(nil, key, deepBinName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			outerMap, ok := rec.Bins[deepBinName].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			outerList, ok := outerMap["level1"].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			innerList, ok := outerList[0].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			nestedVal, ok := innerList[0].(as.HLLValue)
+			gm.Expect(ok).To(gm.BeTrue(), "HLL nested 3 levels deep (map->list->list) should be HLLValue type")
+			gm.Expect(len(nestedVal)).To(gm.BeNumerically(">", 0))
+		})
+
+		gg.It("should support HLL operations on nested HLL values via expressions", func() {
+			client.Delete(nil, key)
+
+			// Create HLL values with different cardinalities
+			smallData := []as.Value{as.StringValue("a"), as.StringValue("b")}
+			largeData := []as.Value{as.StringValue("a"), as.StringValue("b"), as.StringValue("c"), as.StringValue("d"), as.StringValue("e")}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll1", smallData, 8, 0),
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll2", largeData, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			rec, err := client.Get(nil, key, "hll1", "hll2")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hll1Val := rec.Bins["hll1"].(as.HLLValue)
+			hll2Val := rec.Bins["hll2"].(as.HLLValue)
+
+			// Store both HLL values in a nested map->list structure
+			nestedBinName := "nestedbin"
+			data := map[string]any{
+				"hlls": []any{as.NewHLLValue(hll1Val), as.NewHLLValue(hll2Val)},
+			}
+			bin := as.NewBin(nestedBinName, data)
+			err = client.PutBins(nil, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Use ExpHLLLoopVar to filter HLL values with count > 3
+			ctx1 := as.CtxMapKey(as.NewStringValue("hlls"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGreater(
+					as.ExpHLLGetCount(as.ExpHLLLoopVar(as.VALUE)),
+					as.ExpIntVal(3),
+				),
+			)
+
+			selectOp := as.SelectByPath(nestedBinName, as.EXP_PATH_SELECT_VALUE, ctx1, ctx2)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultBin := result.Bins[nestedBinName]
+			resultList, ok := resultBin.([]any)
+			if ok {
+				gm.Expect(len(resultList)).To(gm.Equal(1), "Should have 1 HLL with count > 3 (the large one)")
+			}
+		})
+	})
+
+	gg.Describe("CDT MapKeysIn and AndFilter Tests", func() {
+
+		gg.BeforeEach(func() {
+			requiredVersion, err := version.Parse("8.1.2")
+			if err != nil {
+				gg.Fail("Failed to parse server required version")
+			}
+
+			node := client.GetNodes()[0]
+			nodeVersion := node.GetServerVersion()
+			if nodeVersion.IsSmaller(requiredVersion) {
+				gg.Skip("CDT mapKeysIn and andFilter operations require server version 8.1.2+.")
+				return
+			}
+		})
+
+		gg.It("should select map entries by key list using mapKeysIn", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"alpha": 10,
+				"beta":  20,
+				"gamma": 30,
+				"delta": 40,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("alpha", "gamma")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(2))
+			gm.Expect(values).To(gm.ContainElement(10))
+			gm.Expect(values).To(gm.ContainElement(30))
+		})
+
+		gg.It("should apply same-level AND filter with mapKeysIn", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 5,
+				"b": 15,
+				"c": 25,
+				"d": 35,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Select keys "a", "b", "c" via mapKeysIn, then AND-filter to keep values > 10
+			keyInCtx := as.CtxMapStringKeysIn("a", "b", "c")
+			andFilterCtx := as.CtxAndFilter(
+				as.ExpGreater(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(10)),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY_VALUE, keyInCtx, andFilterCtx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultList, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			// MAP_KEY_VALUE returns a flat list [key, value, key, value, ...]
+			gm.Expect(len(resultList)).To(gm.Equal(4), "Should have 4 elements (2 key-value pairs)")
+
+			resultMap := make(map[any]any)
+			for i := 0; i < len(resultList); i += 2 {
+				resultMap[resultList[i]] = resultList[i+1]
+			}
+			gm.Expect(resultMap["b"]).To(gm.Equal(15))
+			gm.Expect(resultMap["c"]).To(gm.Equal(25))
+		})
+
+		gg.It("should reject andFilter as first context with no preceding entry", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{"a": 1}
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// andFilter with no preceding context (e.g. mapKeysIn) is invalid
+			andFilterCtx := as.CtxAndFilter(
+				as.ExpGreater(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(0)),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, andFilterCtx)
+
+			_, err = client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+		})
+
+		gg.It("should reject chained andFilters", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{"a": 1, "b": 2, "c": 3}
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Two andFilters in a row is invalid — use ExpAnd to combine instead
+			keyInCtx := as.CtxMapStringKeysIn("a", "b", "c")
+			andFilter1 := as.CtxAndFilter(
+				as.ExpGreaterEq(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(2)),
+			)
+			andFilter2 := as.CtxAndFilter(
+				as.ExpLessEq(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(3)),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, keyInCtx, andFilter1, andFilter2)
+
+			_, err = client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+		})
+
+		gg.It("should reject andFilter after allChildrenWithFilter", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{"a": 1, "b": 2, "c": 3}
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// andFilter cannot follow an expression-type context like allChildrenWithFilter
+			baseFilter := as.CtxAllChildrenWithFilter(
+				as.ExpGreater(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(0)),
+			)
+			andFilterCtx := as.CtxAndFilter(
+				as.ExpLess(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(3)),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, baseFilter, andFilterCtx)
+
+			_, err = client.Operate(nil, key, selectOp)
+			gm.Expect(err).To(gm.HaveOccurred())
+		})
+
+		gg.It("should apply andFilter with mapIndex", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"x": 10,
+				"y": 20,
+				"z": 30,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Select map index 0, then AND-filter to keep only entries with key >= "y"
+			indexCtx := as.CtxMapIndex(0)
+			andFilterCtx := as.CtxAndFilter(
+				as.ExpGreaterEq(as.ExpStringLoopVar(as.MAP_KEY), as.ExpStringVal("y")),
+			)
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_MAP_KEY_VALUE, indexCtx, andFilterCtx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			resultList, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			// Index 0 selects a single entry; AND filter further narrows it.
+			// The result depends on which entry is at index 0 and whether it passes the filter.
+			// If it passes, we get 2 elements (key+value); if not, 0 elements.
+			gm.Expect(len(resultList) == 0 || len(resultList) == 2).To(gm.BeTrue())
+		})
+
+		gg.It("should modify via mapKeysIn", func() {
+			client.Delete(nil, key)
+
+			// Nested structure matching C client test pattern:
+			// {inventory: {w1: {item_a: {count: 100}, item_b: {count: 200}},
+			//              w2: {item_a: {count: 50},  item_b: {count: 75}},
+			//              w3: {item_a: {count: 10},  item_b: {count: 20}}}}
+			m := map[string]any{
+				"inventory": map[string]any{
+					"w1": map[string]any{
+						"item_a": map[string]any{"count": 100},
+						"item_b": map[string]any{"count": 200},
+					},
+					"w2": map[string]any{
+						"item_a": map[string]any{"count": 50},
+						"item_b": map[string]any{"count": 75},
+					},
+					"w3": map[string]any{
+						"item_a": map[string]any{"count": 10},
+						"item_b": map[string]any{"count": 20},
+					},
+				},
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Add 1000 to count in all items of w1 and w2 via ModifyByPath
+			// Context: mapKey("inventory") -> mapKeysIn("w1","w2") -> allChildren() -> mapKey("count")
+			invKey := as.CtxMapKey(as.StringValue("inventory"))
+			keysCtx := as.CtxMapStringKeysIn("w1", "w2")
+			childCtx := as.CtxAllChildren()
+			countKey := as.CtxMapKey(as.StringValue("count"))
+
+			modifyExp := as.ExpNumAdd(
+				as.ExpIntLoopVar(as.VALUE),
+				as.ExpIntVal(1000),
+			)
+
+			modifyOp := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_DEFAULT, modifyExp, invKey, keysCtx, childCtx, countKey)
+
+			result, err := client.Operate(nil, key, modifyOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			// Verify the modified values
+			record, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			resultMap, ok := record.Bins[binName].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			inv, ok := resultMap["inventory"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+
+			rw1, ok := inv["w1"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			rw1a, ok := rw1["item_a"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(rw1a["count"]).To(gm.Equal(1100))
+
+			rw1b, ok := rw1["item_b"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(rw1b["count"]).To(gm.Equal(1200))
+
+			// w3 should be unchanged
+			rw3, ok := inv["w3"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			rw3a, ok := rw3["item_a"].(map[any]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(rw3a["count"]).To(gm.Equal(10))
+		})
+
+		gg.It("should handle mapKeysIn with some missing keys", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 1,
+				"b": 2,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("a", "x")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(1))
+			gm.Expect(values).To(gm.ContainElement(1))
+		})
+
+		gg.It("should handle mapKeysIn with empty key list", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 1,
+				"b": 2,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn()
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(0))
+		})
+
+		gg.It("should handle mapKeysIn with empty map", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("a", "b")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(0))
+		})
+
+		gg.It("should handle mapKeysIn with single key", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"x": 1,
+				"y": 2,
+				"z": 3,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("y")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(1))
+			gm.Expect(values[0]).To(gm.Equal(2))
+		})
+
+		gg.It("should handle mapKeysIn selecting all keys", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 1,
+				"b": 2,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("a", "b")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(2))
+			gm.Expect(values).To(gm.ContainElement(1))
+			gm.Expect(values).To(gm.ContainElement(2))
+		})
+
+		gg.It("should return results in map key order not input order", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"z": 3,
+				"a": 1,
+				"m": 2,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapStringKeysIn("a", "z", "m")
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(3))
+			// Aerospike maps are key-ordered, so results come back in sorted key order: a=1, m=2, z=3
+			gm.Expect(values[0]).To(gm.Equal(1))
+			gm.Expect(values[1]).To(gm.Equal(2))
+			gm.Expect(values[2]).To(gm.Equal(3))
+		})
+
+		gg.It("should handle mapKeysIn with integer keys", func() {
+			client.Delete(nil, key)
+
+			m := map[any]any{
+				1: "one",
+				2: "two",
+				3: "three",
+			}
+
+			bin := as.NewBin(binName, as.NewMapValue(m))
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			ctx := as.CtxMapIntKeysIn(1, 2)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(2))
+			gm.Expect(values).To(gm.ContainElement("one"))
+			gm.Expect(values).To(gm.ContainElement("two"))
+		})
+
+		gg.It("should handle mapKeysIn on nested map", func() {
+			client.Delete(nil, key)
+
+			inner := map[string]any{
+				"a": 1,
+				"b": 2,
+				"c": 3,
+			}
+
+			outer := map[string]any{
+				"outer": inner,
+			}
+
+			bin := as.NewBin(binName, outer)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Navigate into "outer" key, then select keys "a" and "c" from the inner map
+			outerCtx := as.CtxMapKey(as.NewStringValue("outer"))
+			keysCtx := as.CtxMapStringKeysIn("a", "c")
+
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, outerCtx, keysCtx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(2))
+			gm.Expect(values).To(gm.ContainElement(1))
+			gm.Expect(values).To(gm.ContainElement(3))
 		})
 	})
 })

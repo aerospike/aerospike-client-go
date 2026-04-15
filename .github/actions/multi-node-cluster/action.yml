@@ -27,6 +27,10 @@ inputs:
   feature_conf_encoded:
       description: "Base64Encoded feature config, required for Multi node sc set up"
       required: false
+  expose_ports:
+      description: "Port mapping to expose from the container (e.g. 3000:3000). Passed as -e flag to aerolab cluster create."
+      required: false
+      default: ""
 
 runs:
   using: composite
@@ -38,7 +42,7 @@ runs:
 
     - name: Load features.conf
       shell: bash
-      if: ${{ inputs.mode == 'SC' || !endsWith(inputs.aerospike_version, 'c')}}
+      if: ${{ inputs.nodes != '1' && (inputs.mode == 'SC' || !endsWith(inputs.aerospike_version, 'c'))}}
       run: |
         mkdir -p /tmp/aerospike
         echo "${{ inputs.feature_conf_encoded }}" | base64 --decode > /tmp/aerospike/features.conf
@@ -63,20 +67,31 @@ runs:
           exit 1
         fi
 
-        # EE - Multi node needs features.conf
-        if [[ "$VERSION" != *c ]]; then
+        # EE multi-node needs features.conf (single-node EE runs without a license)
+        if [[ "$VERSION" != *c && "$NODES" != "1" ]]; then
           CMD+=(-f /tmp/aerospike/features.conf)
+        fi
+
+        # Expose ports if specified (e.g. for single-node setups)
+        if [[ -n "${{ inputs.expose_ports }}" ]]; then
+          CMD+=(-e "${{ inputs.expose_ports }}")
         fi
 
         echo "Running: ${CMD[*]}"
         "${CMD[@]}"
 
 
-    - name: Enabling allow-plunge flag and setting up SC namespace 
+    - name: Set replication-factor 1 for single-node SC
+      shell: bash
+      if: ${{ inputs.mode == 'SC' && inputs.nodes == '1' }}
+      run: |
+        aerolab conf adjust -n "${{ inputs.cluster_name }}" set "namespace test".replication-factor 1
+
+    - name: Enabling allow-plunge flag and setting up SC namespace
       shell: bash
       if: ${{ inputs.mode == 'SC' }}
       run: |
-        aerolab conf adjust -n "${{ inputs.cluster_name }}" set "namespace test".strong-consistency-allow-expunge true 
+        aerolab conf adjust -n "${{ inputs.cluster_name }}" set "namespace test".strong-consistency-allow-expunge true
         echo "setting SC and applying roster..."
         aerolab conf sc -n "${{ inputs.cluster_name }}"
 

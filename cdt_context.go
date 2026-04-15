@@ -31,6 +31,8 @@ const (
 	ctxTypeMapRank    = 0x21
 	ctxTypeMapKey     = 0x22
 	ctxTypeMapValue   = 0x23
+	ctxTypeMapKeysIn  = 0x2a
+	ctxTypeAnd        = 0x200
 )
 
 // CDTContext defines Nested CDT context. Identifies the location of nested list/map to apply the operation.
@@ -81,7 +83,9 @@ func Base64ToCDTContext(b64 string) ([]*CDTContext, Error) {
 	res := make([]*CDTContext, 0, len(list)/2)
 	for i := 0; i < len(list); i += 2 {
 		id := list[i].(int)
-		if id == ctxTypeExpression {
+		// Check if this is an expression context based on the low nibble of the id.
+		// Mask with 0x0f so AND|EXP contexts (0x204) are correctly detected.
+		if (id & 0x0f) == ctxTypeExpression {
 			res = append(res, &CDTContext{Id: id, Expression: newExpression(list[i+1])})
 		} else {
 			res = append(res, &CDTContext{Id: id, Value: NewValue(list[i+1])})
@@ -243,6 +247,70 @@ func CtxMapKeyCreate(key Value, order mapOrderType) *CDTContext {
 // CtxMapValue defines Lookup map by value.
 func CtxMapValue(value Value) *CDTContext {
 	return &CDTContext{ctxTypeMapValue, value, nil}
+}
+
+// CtxMapStringKeysIn selects map entries whose keys are contained in the provided string keys.
+// Can be combined with CtxAndFilter to apply additional filtering on the selected entries.
+func CtxMapStringKeysIn(keys ...string) *CDTContext {
+	list := make([]any, len(keys))
+	for i, k := range keys {
+		list[i] = k
+	}
+	return &CDTContext{ctxTypeMapKeysIn, NewListValue(list), nil}
+}
+
+// CtxMapIntKeysIn selects map entries whose keys are contained in the provided integer keys.
+// Can be combined with CtxAndFilter to apply additional filtering on the selected entries.
+func CtxMapIntKeysIn(keys ...int) *CDTContext {
+	list := make([]any, len(keys))
+	for i, k := range keys {
+		list[i] = k
+	}
+	return &CDTContext{ctxTypeMapKeysIn, NewListValue(list), nil}
+}
+
+// CtxMapFloatKeysIn selects map entries whose keys are contained in the provided float keys.
+// Can be combined with CtxAndFilter to apply additional filtering on the selected entries.
+func CtxMapFloatKeysIn(keys ...float64) *CDTContext {
+	list := make([]any, len(keys))
+	for i, k := range keys {
+		list[i] = k
+	}
+	return &CDTContext{ctxTypeMapKeysIn, NewListValue(list), nil}
+}
+
+// CtxMapBytesKeysIn selects map entries whose keys are contained in the provided byte slice keys.
+// Can be combined with CtxAndFilter to apply additional filtering on the selected entries.
+func CtxMapBytesKeysIn(keys ...[]byte) *CDTContext {
+	list := make([]any, len(keys))
+	for i, k := range keys {
+		list[i] = k
+	}
+	return &CDTContext{ctxTypeMapKeysIn, NewListValue(list), nil}
+}
+
+// CtxAndFilter applies an additional expression filter at the current context level.
+// This creates an AND filter that combines with the preceding context.
+// Entries must satisfy both the preceding context and this filter expression
+// to be included in the result. Typically used after CtxMapKeysIn
+// or other selection contexts to further narrow the results.
+//
+// Restrictions:
+//   - Only one CtxAndFilter is allowed per context level. Multiple CtxAndFilter
+//     calls cannot be chained. To combine multiple conditions, use ExpAnd within
+//     a single CtxAndFilter.
+//   - The preceding context entry must not be an expression type (i.e. CtxAndFilter
+//     cannot follow CtxAllChildrenWithFilter or CtxAllChildren).
+//   - CtxAndFilter cannot be the first entry in the context chain.
+//
+// Parameters:
+//   - exp: Filter expression; entries that evaluate to false are excluded
+func CtxAndFilter(exp *Expression) *CDTContext {
+	return &CDTContext{
+		Id:         ctxTypeAnd | ctxTypeExpression,
+		Value:      nil,
+		Expression: exp,
+	}
 }
 
 // CtxAllChildren creates a context that selects all children in a collection.

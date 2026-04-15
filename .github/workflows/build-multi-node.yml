@@ -45,7 +45,12 @@ jobs:
       input-matrix: ${{ steps.create-server-matrix.outputs.matrix }}
       go-version: ${{ steps.get-go-version.outputs.go-version }}
     steps:
-      - uses: actions/checkout@v6
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Get Go version
         id: get-go-version
@@ -82,7 +87,12 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
     steps:
-      - uses: actions/checkout@v6
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Deploy Aerolab Cluster
         uses: ./.github/actions/multi-node-cluster
@@ -94,7 +104,7 @@ jobs:
           feature_conf_encoded: ${{ secrets.FEATURES_CONF }}
 
       - name: "Setup Go ${{ needs.make-matrix.outputs.go-version }}"
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: "${{ needs.make-matrix.outputs.go-version }}"
           cache: true
@@ -122,7 +132,7 @@ jobs:
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
       - name: Check Code Coverage
-        uses: vladopajic/go-test-coverage@v2
+        uses: vladopajic/go-test-coverage@f190f667e23b4441202d0bab0f8c2e7bce8925b6 # v2.18.4
         with:
           # Configure action using config file (option 1)
           config: ./.testcoverage.yml
@@ -139,7 +149,7 @@ jobs:
           mkdir -p reports
           mv covprofile_*.out reports/
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: cover_${{matrix.version}}_${{matrix.mode}}
           path: reports

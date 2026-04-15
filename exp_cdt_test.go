@@ -1446,5 +1446,345 @@ var _ = gg.Describe("Expression CDT Operations Test", func() {
 				}
 			}
 		})
+
+		gg.It("should use ExpHLLLoopVar to filter HLL values by estimated count", func() {
+			client.Delete(nil, key)
+
+			// Create HLL values using HLLAddOp on separate bins
+			smallData := []as.Value{as.NewValue("a"), as.NewValue("b")}
+			largeData := []as.Value{as.NewValue("a"), as.NewValue("b"), as.NewValue("c"), as.NewValue("d"), as.NewValue("e")}
+
+			_, err := client.Operate(nil, key,
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll1", smallData, 8, 0),
+				as.HLLAddOp(as.DefaultHLLPolicy(), "hll2", largeData, 8, 0),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Read HLL values back
+			rec, err := client.Get(nil, key, "hll1", "hll2")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			hll1Val := rec.Bins["hll1"]
+			hll2Val := rec.Bins["hll2"]
+			gm.Expect(hll1Val).ToNot(gm.BeNil())
+			gm.Expect(hll2Val).ToNot(gm.BeNil())
+
+			// Store HLL values in a nested structure
+			data := map[string]any{
+				"hlls": []any{hll1Val, hll2Val},
+			}
+
+			bin := as.NewBin("data", data)
+			err = client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Use ExpHLLLoopVar to filter HLL values with count > 3
+			ctx1 := as.CtxMapKey(as.NewStringValue("hlls"))
+			ctx2 := as.CtxAllChildrenWithFilter(
+				as.ExpGreater(
+					as.ExpHLLGetCount(as.ExpHLLLoopVar(as.VALUE)),
+					as.ExpIntVal(3),
+				),
+			)
+
+			selectExp := as.ExpSelectByPath(
+				as.ExpTypeLIST,
+				as.EXP_PATH_SELECT_VALUE,
+				as.ExpMapBin("data"),
+				ctx1, ctx2,
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("filteredHlls", selectExp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			filteredHlls := result.Bins["filteredHlls"]
+			gm.Expect(filteredHlls).ToNot(gm.BeNil())
+
+			hllList, ok := filteredHlls.([]any)
+			if ok {
+				gm.Expect(len(hllList)).To(gm.Equal(1), "Should have 1 HLL with count > 3 (the large one)")
+			}
+		})
+	})
+
+	gg.Describe("ExpInList, ExpMapKeys, ExpMapValues Tests", func() {
+		gg.BeforeEach(func() {
+			requiredVersion, err := version.Parse("8.1.2")
+			if err != nil {
+				gg.Fail("Failed to parse server required version")
+			}
+
+			node := client.GetNodes()[0]
+			nodeVersion := node.GetServerVersion()
+			if nodeVersion.IsSmaller(requiredVersion) {
+				gg.Skip("ExpInList, ExpMapKeys, and ExpMapValues require server version 8.1.2+.")
+				return
+			}
+		})
+
+		gg.It("should check if value is in list using ExpInList", func() {
+			client.Delete(nil, key)
+
+			bin := as.NewBin("color", "blue")
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Check if bin "color" is in the list ["red", "blue", "green"]
+			exp := as.ExpInList(
+				as.ExpStringBin("color"),
+				as.ExpListValueVal("red", "blue", "green"),
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("inList", exp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+			gm.Expect(result.Bins["inList"]).To(gm.BeTrue())
+
+			// Negative case: value not in list
+			expNot := as.ExpInList(
+				as.ExpStringBin("color"),
+				as.ExpListValueVal("red", "yellow", "green"),
+			)
+
+			resultNot, err := client.Operate(nil, key,
+				as.ExpReadOp("notInList", expNot, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(resultNot).ToNot(gm.BeNil())
+			gm.Expect(resultNot.Bins["notInList"]).To(gm.BeFalse())
+		})
+
+		gg.It("should extract map keys using ExpMapKeys", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"x": 1,
+				"y": 2,
+				"z": 3,
+			}
+
+			bin := as.NewBin("myMap", m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			exp := as.ExpMapKeys(as.ExpMapBin("myMap"))
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("keys", exp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			keys, ok := result.Bins["keys"].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(keys)).To(gm.Equal(3))
+			gm.Expect(keys).To(gm.ContainElement("x"))
+			gm.Expect(keys).To(gm.ContainElement("y"))
+			gm.Expect(keys).To(gm.ContainElement("z"))
+		})
+
+		gg.It("should extract map values using ExpMapValues", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 100,
+				"b": 200,
+				"c": 300,
+			}
+
+			bin := as.NewBin("myMap", m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			exp := as.ExpMapValues(as.ExpMapBin("myMap"))
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("values", exp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins["values"].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(3))
+			gm.Expect(values).To(gm.ContainElement(100))
+			gm.Expect(values).To(gm.ContainElement(200))
+			gm.Expect(values).To(gm.ContainElement(300))
+		})
+
+		gg.It("should extract map values from empty map", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{}
+
+			bin := as.NewBin("myMap", m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			exp := as.ExpMapValues(as.ExpMapBin("myMap"))
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("values", exp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins["values"].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(0))
+		})
+
+		gg.It("should extract map values from single-entry map", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"x": 42,
+			}
+
+			bin := as.NewBin("myMap", m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			exp := as.ExpMapValues(as.ExpMapBin("myMap"))
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("values", exp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins["values"].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(1))
+			gm.Expect(values[0]).To(gm.Equal(42))
+		})
+
+		gg.It("should extract map values with integer keys", func() {
+			client.Delete(nil, key)
+
+			m := map[any]any{
+				1: "one",
+				2: "two",
+				3: "three",
+			}
+
+			bin := as.NewBin("myMap", as.NewMapValue(m))
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			exp := as.ExpMapValues(as.ExpMapBin("myMap"))
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("values", exp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins["values"].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(3))
+			gm.Expect(values).To(gm.ContainElement("one"))
+			gm.Expect(values).To(gm.ContainElement("two"))
+			gm.Expect(values).To(gm.ContainElement("three"))
+		})
+
+		gg.It("should check value in map values using ExpInList with ExpMapValues", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 10,
+				"b": 20,
+				"c": 30,
+			}
+
+			bin := as.NewBin("myMap", m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Check if 20 is in the map values
+			exp := as.ExpInList(
+				as.ExpIntVal(20),
+				as.ExpMapValues(as.ExpMapBin("myMap")),
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("found", exp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+			gm.Expect(result.Bins["found"]).To(gm.BeTrue())
+
+			// Check if 99 is NOT in the map values
+			expNot := as.ExpInList(
+				as.ExpIntVal(99),
+				as.ExpMapValues(as.ExpMapBin("myMap")),
+			)
+
+			resultNot, err := client.Operate(nil, key,
+				as.ExpReadOp("notFound", expNot, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(resultNot).ToNot(gm.BeNil())
+			gm.Expect(resultNot.Bins["notFound"]).To(gm.BeFalse())
+		})
+
+		gg.It("should extract string values from map using ExpMapValues", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"name": "Charlie",
+				"city": "London",
+			}
+
+			bin := as.NewBin("myMap", m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			exp := as.ExpMapValues(as.ExpMapBin("myMap"))
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("values", exp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins["values"].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(2))
+			gm.Expect(values).To(gm.ContainElement("Charlie"))
+			gm.Expect(values).To(gm.ContainElement("London"))
+		})
+
+		gg.It("should verify map values list size using ExpMapValues with ExpListSize", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"x": 1,
+				"y": 2,
+				"z": 3,
+			}
+
+			bin := as.NewBin("myMap", m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Use mapValues inside a list size expression
+			exp := as.ExpEq(
+				as.ExpListSize(as.ExpMapValues(as.ExpMapBin("myMap"))),
+				as.ExpIntVal(3),
+			)
+
+			result, err := client.Operate(nil, key,
+				as.ExpReadOp("sizeCheck", exp, as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+			gm.Expect(result.Bins["sizeCheck"]).To(gm.BeTrue())
+		})
 	})
 })

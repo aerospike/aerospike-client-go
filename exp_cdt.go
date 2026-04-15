@@ -34,7 +34,7 @@ func ExpSelectByPath(
 // This is the new version that packs arguments in a different order for compatibility.
 func ExpModifyByPath(
 	returnType ExpType,
-	flag SelectFlag,
+	flag ModifyFlag,
 	bin *Expression,
 	modifyExp *Expression,
 	ctx ...*CDTContext,

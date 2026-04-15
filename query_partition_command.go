@@ -30,7 +30,7 @@ func newQueryPartitionCommand(
 		policy:           policy,
 		writePolicy:      nil,
 		statement:        statement,
-		operations:       nil,
+		operations:       statement.Operations,
 	}
 	cmd.rawCDT = policy.RawCDT
 	cmd.terminationErrorType = statement.terminationError()

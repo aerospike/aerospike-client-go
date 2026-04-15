@@ -1,5 +1,24 @@
 # Change History
 
+## April 14 2026: v8.7.0
+
+- New Features
+  - [CLIENT-4432] Implemented enhanced expression API of server 8.1.2.
+  - [CLIENT-3998] Added Ops Projection.
+
+- Fixes
+  - [CLIENT-4585] Fixed garbled roles when exactly one privilege is provided.
+  - [CLIENT-4400] ExpModifyByPath uses wrong flag type SelectFlag instead of ModifyFlag.
+  - [CLIENT-4308] Fixed where CDT containing HLL value cannot be loaded properly.
+  - [CLIENT-4301] Added missing ExpHLLLoopVar functions.
+  - [CLIENT-4564] Fixed where batch executeSingle ignores errors when AllowPartialResults is true.
+
+- Improvements
+  - [CLIENT-3885] Add a guardrail to prevent expiration from being set with read-only operate.
+  - [CLIENT-4386] (CDT) Prevent Modify_Apply from being exposed.
+  - [CLIENT-4315] Support creating Set Indexes with sindex-admin role.
+  - [CLIENT-4592] Update andFilter docs for not supported andFilter calls.
+
 ## February 11 2025: v8.6.0
 
 - **Fixes**
@@ -26,37 +45,37 @@
 ## December 3 2025: v8.5.0
 
 - **Fixes**
-    - [CLIENT-3937] Fix typos in comments across multiple files.
-    - [CLIENT-3896] Update BatchPolicy.AllowPartialResults docs.
-    - [CLIENT-3891] TaskId not being properly assigned during Background Query.
-    - [CLIENT-3925] Avoid sending previous errors when cluster is complete.
-    - [CLIENT-3936] Make RegisterUDF backward compatible with older Aerospike server versions.
+  - [CLIENT-3937] Fix typos in comments across multiple files.
+  - [CLIENT-3896] Update BatchPolicy.AllowPartialResults docs.
+  - [CLIENT-3891] TaskId not being properly assigned during Background Query.
+  - [CLIENT-3925] Avoid sending previous errors when cluster is complete.
+  - [CLIENT-3936] Make RegisterUDF backward compatible with older Aerospike server versions.
 
 ## November 14 2025: v8.4.2
 
 - **Fixes**
-    - [CLIENT_3894] Setting user-agent allows a closed connection to return for tend.
+  - [CLIENT_3894] Setting user-agent allows a closed connection to return for tend.
 
 ## November 4 2025: v8.4.1
 
 - **Fixes**
-    - [CLIENT-3821] Fixed issue where `panic: runtime error: invalid memory address` could occur after calling `usingTendConn(...)`.
+  - [CLIENT-3821] Fixed issue where `panic: runtime error: invalid memory address` could occur after calling `usingTendConn(...)`.
 
 ## October 20 2025: v8.4.0
 
 - **Improvements**
-    - [CLIENT-3435] Update Go client to support FIPS.
+  - [CLIENT-3435] Update Go client to support FIPS.
 
 - **Fixes**
-    - [CLIENT-3821] Fixed issue where `Network Error from EOF` could occur after server migrations.
-    - [CLIENT-3810] Fixed issue where nil pointer panic occurs on errToAerospikeErr.
-    - [CLIENT-3796] Fixed issue where background queries for all records applied only partially.
-    - [CLIENT-3744] Added server version check before sending the user-agent-set command.
-    - [CLIENT-2418] Skipped orphan seeds without peers when other seeds have peers.
-    - [CLIENT-3120] Replaced existing cluster node when a new peer shares the same node name but a different IP address.
-    - [CLIENT-3546] Resolved inconsistencies between clients when reflecting configuration changes.
-    - [CLIENT-3023] Fixed inability to repeat background queries using the same statement.
-    - [CLIENT-3021] Ensured Statement.BinNames is empty for QueryExecute operations.
+  - [CLIENT-3821] Fixed issue where `Network Error from EOF` could occur after server migrations.
+  - [CLIENT-3810] Fixed issue where nil pointer panic occurs on errToAerospikeErr.
+  - [CLIENT-3796] Fixed issue where background queries for all records applied only partially.
+  - [CLIENT-3744] Added server version check before sending the user-agent-set command.
+  - [CLIENT-2418] Skipped orphan seeds without peers when other seeds have peers.
+  - [CLIENT-3120] Replaced existing cluster node when a new peer shares the same node name but a different IP address.
+  - [CLIENT-3546] Resolved inconsistencies between clients when reflecting configuration changes.
+  - [CLIENT-3023] Fixed inability to repeat background queries using the same statement.
+  - [CLIENT-3021] Ensured Statement.BinNames is empty for QueryExecute operations.
 
 ## August 29 2025: v8.3.0
 
@@ -442,7 +461,6 @@ This is a major update. Please test your code thoroughly before using in product
 - **Fixes**
   - [CLIENT-2318] Fixes an issue where Expression in `BatchPolicy` takes precedence rather than `BatchDeletePolicy` in `BatchDelete`.
 
-
 ## November 1 2023: v6.14.1
 
   Hotfix.
@@ -453,13 +471,11 @@ This is a major update. Please test your code thoroughly before using in product
     Caching of the operation is faulty and causes race conditions when used concurrently.
     This commit removes the caching which included a useless allocation and rarely, if ever, had any practical influence on performance.
 
-
 ## August 2023: v6.14.0
 
 - **New Features**
 
   - Adds support for the AerospikeProxy and DBAAS service.
-
 
 ## July 28 2023: v6.13.0
 
@@ -481,7 +497,6 @@ This is a major update. Please test your code thoroughly before using in product
   - [CLIENT-2312] Remove support for old-style queries.
   - [CLIENT-2265] Increase the required Go version to 1.17 to be able to compile a dependency which itself was updated due to security issues.
 
-
 - **Fixes**
 
   - Removes race condition from the client, resolves #399.
@@ -489,7 +504,6 @@ This is a major update. Please test your code thoroughly before using in product
   - Assign DefaultInfoPolicy on Client initialization.
   - Fixed panics in Read Command Reflection API. (Github #402) thanks to [Yegor Myskin](https://github.com/un000)
   - [CLIENT-2283] Set correct return types in list/map read expressions.
-
 
 ## March 20 2023: v6.12.0
 
@@ -1719,7 +1733,7 @@ Minor fix release.
 
 - **Improvements**
 
-  - Corrects typos in the code. PR #142, thanks to [Muyiwa Olurin ](https://github.com/muyiwaolurin)
+  - Corrects typos in the code. PR #142, thanks to [Muyiwa Olurin](https://github.com/muyiwaolurin)
   - Use the tend connection for `RequestInfo` commands.
 
 - **Fixes**
@@ -2200,7 +2214,7 @@ NOTICE: All LDTs on server other than LLIST have been deprecated, and will be re
 
   - Fixed a bug regarding setting TaskIds on the client.
 
-- ** Other Changes **
+- **Other Changes**
 
   - Removed deprecated `ReplaceRoles()` method.
 
