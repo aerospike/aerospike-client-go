@@ -239,7 +239,8 @@ func (cmd *batchCommandOperate) parseRecord(key *Key, opCount int, generation, e
 func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 	var res *Record
 	var err Error
-	for _, br := range cmd.records {
+	for _, offset := range cmd.batch.offsets {
+		br := cmd.records[offset]
 
 		switch br := br.(type) {
 		case *BatchRead:
@@ -288,7 +289,7 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchCommandOperate) Execute() Error {
-	if cmd.objects == nil && len(cmd.records) == 1 {
+	if cmd.objects == nil && len(cmd.batch.offsets) == 1 {
 		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
