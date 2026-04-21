@@ -1,0 +1,55 @@
+task_id: "ISSUE-90"
+title: "Reduce read-path allocations via BinSerDer interface + codegen"
+task_type: "feature"
+
+description: >
+  Reduce temporal allocations in the Go client's read path by allowing
+  users to pass a zero-value struct that implements a hypothetical
+  BinSerDer interface into read methods (e.g. Get / GetObject). The
+  struct's own methods (e.g. UnmarshalBin / MarshalBin) describe how to
+  deserialize bins without reflection, avoiding per-read reflection-
+  driven allocations.
+
+  A code-generation tool should produce BinSerDer implementations for
+  user structs driven by existing `as:"binName"` struct tags, so users
+  can opt into the zero-reflection path without hand-writing the
+  methods.
+
+acceptance_criteria:
+  - Define a BinSerDer interface (or similarly named) for struct <-> bin
+    conversion without reflection
+  - Read methods accept a zero-value struct implementing the interface
+    and populate it in place with minimal temporal allocations
+  - Provide a code generator that emits BinSerDer implementations for
+    user structs based on existing `as:"..."` tags
+  - Benchmarks demonstrate fewer allocations vs. the reflection-based
+    path
+  - Tests cover the generated code and the new read-method entry points
+  - Existing reflection-based APIs continue to work unchanged
+
+constraints:
+  - Additive API only — no breaking changes to existing exported
+    signatures
+  - New non-reflection path must compile and work under both default
+    and `as_performance` build tags
+  - No new external runtime dependencies
+  - Follow existing code style and Error-interface conventions
+
+metadata:
+  priority: medium
+  epic: "Reduce read-path allocations"
+
+budget:
+  max_code_retries: 3
+  max_replans: 2
+
+client:
+  type: go
+  repo: /Users/mkaracic/workfolder/source/aerospike-client-go
+  branch: stage
+  db_host: 127.0.0.1
+  db_port: 3000
+
+llm:
+  provider: langchain-anthropic
+  model: claude-sonnet-4-6
