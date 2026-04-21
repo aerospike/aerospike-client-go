@@ -31,6 +31,11 @@ type baseReadCommand struct {
 	// pointer to the object that's going to be unmarshalled
 	object *reflect.Value
 
+	// Optional: if set, the read path will invoke binSerDer.UnmarshalBin
+	// for each bin returned from the server instead of using reflection.
+	// Only one of object / binSerDer should be non-nil per command.
+	binSerDer BinSerDer
+
 	replicaSequence int
 }
 

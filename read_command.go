@@ -74,7 +74,13 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) Error {
 		return newError(rp.resultCode)
 	}
 
-	if cmd.object == nil {
+	if cmd.binSerDer != nil {
+		// Zero-reflection path: skip fields, then decode each bin and
+		// hand it to the user's BinSerDer implementation.
+		if err := parseObjectBinSerDer(&cmd.baseReadCommand, cmd.binSerDer, rp.opCount, rp.fieldCount, rp.generation, rp.expiration); err != nil {
+			return err
+		}
+	} else if cmd.object == nil {
 		if rp.opCount == 0 {
 			// data Bin was not returned
 			cmd.record = newRecord(cmd.node, cmd.key, nil, rp.generation, rp.expiration)
