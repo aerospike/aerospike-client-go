@@ -1,4 +1,4 @@
-task_id: "ISSUE-90"
+task_id: "CLIENT-4688"
 title: "Reduce read-path allocations via BinSerDer interface + codegen"
 task_type: "feature"
 
