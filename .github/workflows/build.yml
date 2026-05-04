@@ -3,8 +3,9 @@ on:
   pull_request:
 
 permissions:
-  contents: read  
-  actions: read  
+  contents: read
+  actions: read
+  id-token: write
 
 env:
   AEROSPIKE_HOSTS: "127.0.0.1:3000"
@@ -29,18 +30,16 @@ jobs:
         id: get-go-version
         run: |
           echo "go-version=$(grep '^go [0-9]' go.mod | awk '{print $2}')" >> $GITHUB_OUTPUT
-          
+
       - id: create-server-matrix
         uses: ./.github/actions/make-matrix
         with:
           default_json: |
             {
-              "7.1.0": { "version": "7.1.0" },
-              "8.1.0.1": { "version": "8.1.0.1" },
-              "8.1.1": { "version": "8.1.1" }
+              "8.1.2.0": { "version": "8.1.2.0" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
-          modes: AP
+          modes: AP,SC
 
       - name: debug - print input variables
         run: |
@@ -53,7 +52,8 @@ jobs:
     needs: make-matrix
     runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
     permissions:
-      actions: write 
+      id-token: write
+      actions: write
     strategy:
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
@@ -86,45 +86,46 @@ jobs:
         run: |
           echo "Go version: ${{ matrix.go-version }}"
       - name: Set up Aerospike Database
-        uses: reugn/github-action-aerospike@2065a9209cfd5ef88a3e07f3e7929e321d1e0067 # v1.1.0
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@f13fdc6f6e89031e402e8fd68b9c218ed19ceb7e
         with:
-          aerospike_version: ${{ matrix.version }}
-          nodes: "1"
-          mode: ${{ matrix.mode }}
-          expose_ports: "3000:3000"
-          feature_conf_encoded: ${{ secrets.FEATURES_CONF }}
+          aerospike-version: ${{ matrix.version }}
+          num-nodes: 1
+          enable-strong-consistency: ${{ matrix.mode == 'SC' }}
+          features-content: ${{ secrets.FEATURES_CONF }}
+          oidc-provider: ${{ vars.OIDC_PROVIDER }}
+          oidc-audience: ${{ vars.OIDC_AUDIENCE }}
       - name: Test Lua Code
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites internal/lua
       - name: Test types package
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites types
       - name: Test pkg tests
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites pkg
       - name: Build Benchmark tool
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: cd tools/benchmark | go build -mod=vendor -tags as_proxy -o benchmark .
       - name: Build asinfo tool
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: cd tools/asinfo | go build -mod=vendor -o asinfo .
       - name: Build cli tool
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: cd tools/cli | go build -mod=vendor -o cli .
       - name: Build example files
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
       - name: Build with Reflection code removed
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo build -tags="as_performance" .
       - name: Build for Google App Engine (unsafe package removed)
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo build -tags="app_engine" .
       - name: Run the tests
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
       - name: Combine Cover Profiles
-        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
       - name: Check Code Coverage
         id: check-coverage
@@ -161,4 +162,4 @@ jobs:
       threshold: ${{ fromJSON(vars.COVERAGE_THRESHOLD) }}
     permissions:
       actions: write
-      contents: read 
+      contents: read
