@@ -43,4 +43,3 @@ Todo:
 Notes: 
     * This library is derived from jBcrypt by Damien Miller <djm@mindrot.org>
     * bcrypt_test.go is from ZooWar.com
-
