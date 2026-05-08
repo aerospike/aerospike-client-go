@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"iter"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -105,7 +104,7 @@ func (fn *fakeCommand) salvageConn(timeoutDelay time.Duration, conn *Connection,
 func newStub() *fakeCommand {
 	mp := DefaultMetricsPolicy()
 	nodeStats := newNodeStats(mp)
-	me.Store(true)
+	me = true
 	// setup a fake node and baseCommand with metrics enabled.
 	node := &Node{
 		cluster: &Cluster{
@@ -131,7 +130,7 @@ func newStub() *fakeCommand {
 func newStubWithNamespaces() *fakeCommand {
 	mp := DefaultMetricsPolicy()
 	nodeStats := newNodeStats(mp)
-	me.Store(true)
+	me = true
 	// setup a fake node and baseCommand with metrics enabled.
 	node := &Node{
 		cluster: &Cluster{
@@ -154,7 +153,7 @@ func newStubWithNamespaces() *fakeCommand {
 	return &fcmd
 }
 
-var me atomic.Bool
+var me bool
 
 func BenchmarkApplyDetailedMetricsDataSizeAndLatency(b *testing.B) {
 	b.StopTimer()
@@ -338,7 +337,7 @@ func BenchmarkUpdateOrInsertHighConcurrency(b *testing.B) {
 	// Create metrics policy and node stats
 	mp := DefaultMetricsPolicy()
 	nodeStats := newNodeStats(mp)
-	me.Store(true)
+	me = true
 
 	node := &Node{
 		cluster: &Cluster{
@@ -421,7 +420,7 @@ func BenchmarkUpdateOrInsertHighConcurrencyContended(b *testing.B) {
 
 	mp := DefaultMetricsPolicy()
 	nodeStats := newNodeStats(mp)
-	me.Store(true)
+	me = true
 
 	node := &Node{
 		cluster: &Cluster{
@@ -485,7 +484,7 @@ func BenchmarkUpdateOrInsertScalability(b *testing.B) {
 
 			mp := DefaultMetricsPolicy()
 			nodeStats := newNodeStats(mp)
-			me.Store(true)
+			me = true
 
 			node := &Node{
 				cluster: &Cluster{

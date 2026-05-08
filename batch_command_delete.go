@@ -117,7 +117,7 @@ func (cmd *batchCommandDelete) parseRecordResults(ifc command, receiveSize int) 
 		}
 
 		// Aggregate metrics
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.node.cluster.metricsEnabled
 		if metricsEnabled {
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}

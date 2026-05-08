@@ -3786,7 +3786,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			continue
 		}
 
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.node.cluster.metricsEnabled
 
 		// check if node has encountered too many errors
 		if err = cmd.node.validateErrorCount(); err != nil {
@@ -4045,21 +4045,24 @@ func applyTransactionMetrics(node *Node, tt commandType, tb time.Time) {
 }
 
 func applyTransactionErrorMetrics(node *Node) {
-	if node != nil {
-		node.stats.TransactionErrorCount.GetAndIncrement()
+	if node == nil || !node.cluster.metricsEnabled {
+		return
 	}
+	node.stats.TransactionErrorCount.GetAndIncrement()
 }
 
 func applyTransactionRetryMetrics(node *Node) {
-	if node != nil {
-		node.stats.TransactionRetryCount.GetAndIncrement()
+	if node == nil || !node.cluster.metricsEnabled {
+		return
 	}
+	node.stats.TransactionRetryCount.GetAndIncrement()
 }
 
 func applyConnectionRecoveredMetrics(node *Node) {
-	if node != nil {
-		node.stats.ConnectionsRecovered.GetAndIncrement()
+	if node == nil || !node.cluster.metricsEnabled {
+		return
 	}
+	node.stats.ConnectionsRecovered.GetAndIncrement()
 }
 
 func applyMetrics(tt commandType, metrics *nodeStats, s time.Time) {

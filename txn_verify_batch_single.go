@@ -129,7 +129,7 @@ func (cmd *batchSingleTxnVerifyCommand) parseResult(ifc command, conn *Connectio
 	resultCode := types.ResultCode(cmd.dataBuffer[13] & 0xFF)
 
 	// Aggregate metrics
-	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	metricsEnabled := cmd.node.cluster.metricsEnabled
 	if metricsEnabled {
 		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 	}

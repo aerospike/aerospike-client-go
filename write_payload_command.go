@@ -92,7 +92,7 @@ func (cmd *writePayloadCommand) parseResult(ifc command, conn *Connection) Error
 	resultCode := cmd.dataBuffer[13] & 0xFF
 
 	// Aggregate metrics
-	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	metricsEnabled := cmd.node.cluster.metricsEnabled
 	if metricsEnabled {
 		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), types.ResultCode(resultCode))
 	}

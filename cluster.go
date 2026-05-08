@@ -53,9 +53,17 @@ type Cluster struct {
 	stats     map[string]*nodeStats //host => stats
 	statsLock sync.Mutex
 
-	// enable performance metrics
-	metricsEnabled atomic.Bool // bool
-	metricsPolicy  iatomic.TypedVal[*MetricsPolicy]
+	// enable performance metrics.
+	//
+	// metricsEnabled and metricsPolicy are intentionally plain (non-atomic)
+	// fields. Reading them on the per-command hot path is then a single
+	// non-synchronizing load, which the compiler can hoist and the branch
+	// predictor can perfectly predict for a value that does not change after
+	// startup. Writing them via EnableMetrics/DisableMetrics concurrently with
+	// in-flight commands is racy by design — set them once at startup (e.g.
+	// via ClientPolicy.MetricsPolicy) and then leave them alone.
+	metricsEnabled bool
+	metricsPolicy  *MetricsPolicy
 
 	// Hints for best node for a partition
 	partitionWriteMap iatomic.TypedVal[partitionMap] //partitionMap
@@ -161,6 +169,14 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 			return nil, err
 		}
 		newCluster.password = *iatomic.NewSyncVal(hashedPass)
+	}
+
+	// If the policy enables metrics, switch them on once at construction time
+	// so that the per-command hot path sees the plain-bool gate without ever
+	// observing a transition. Done before waitTillStabilized so that nodes
+	// added during seeding pick up the configured histogram shape immediately.
+	if loadedPolicy.MetricsPolicy != nil {
+		newCluster.EnableMetrics(loadedPolicy.MetricsPolicy)
 	}
 
 	// try to seed connections for first use
@@ -1037,26 +1053,32 @@ func (clstr *Cluster) WarmUp(count int) (int, Error) {
 	return cnt.Get(), nil
 }
 
-// MetricsEnabled returns true if metrics are enabled for the cluster.
+// MetricsPolicy returns the currently configured MetricsPolicy.
 func (clstr *Cluster) MetricsPolicy() *MetricsPolicy {
-	return clstr.metricsPolicy.Get()
+	return clstr.metricsPolicy
 }
 
 // MetricsEnabled returns true if metrics are enabled for the cluster.
 func (clstr *Cluster) MetricsEnabled() bool {
-	return clstr.metricsEnabled.Load()
+	return clstr.metricsEnabled
 }
 
 // EnableMetrics enables the cluster command metrics gathering.
-// If the parameters for the histogram in the policy are the different from the one already
-// on the cluster, the metrics will be reset.
+// If the parameters for the histogram in the policy are different from the one
+// already on the cluster, the metrics will be reset.
+//
+// This method is preserved for backwards compatibility. The underlying
+// metricsEnabled / metricsPolicy fields are plain (non-atomic), so calling
+// EnableMetrics concurrently with in-flight commands is racy by design.
+// Prefer setting ClientPolicy.MetricsPolicy at NewClient time and never
+// invoking EnableMetrics/DisableMetrics afterwards.
 func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
 	if policy == nil {
 		policy = DefaultMetricsPolicy()
 	}
 
-	clstr.metricsPolicy.Set(policy)
-	clstr.metricsEnabled.Store(true)
+	clstr.metricsPolicy = policy
+	clstr.metricsEnabled = true
 
 	clstr.statsLock.Lock()
 	defer clstr.statsLock.Unlock()
@@ -1073,8 +1095,8 @@ func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
 
 func (clstr *Cluster) getNodeLabels() *Labels {
 	var userLabels *Labels
-	if clstr.metricsPolicy.Get() != nil && clstr.metricsPolicy.Get().Labels != nil {
-		userLabels = clstr.metricsPolicy.Get().Labels
+	if clstr.metricsPolicy != nil && clstr.metricsPolicy.Labels != nil {
+		userLabels = clstr.metricsPolicy.Labels
 	} else {
 		userLabels = NewLabels()
 	}
@@ -1114,8 +1136,12 @@ func (clstr *Cluster) getNodeLabels() *Labels {
 }
 
 // DisableMetrics disables the cluster command metrics gathering.
+//
+// Preserved for backwards compatibility — see the note on EnableMetrics. The
+// underlying field is a plain bool, so calling DisableMetrics concurrently
+// with in-flight commands is racy by design.
 func (clstr *Cluster) DisableMetrics() {
-	clstr.metricsEnabled.Store(false)
+	clstr.metricsEnabled = false
 }
 
 //-------------------------------------------------------

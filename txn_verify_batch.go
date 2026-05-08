@@ -89,7 +89,7 @@ func (cmd *txnBatchVerifyCommand) parseRecordResults(ifc command, receiveSize in
 		}
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.node.cluster.metricsEnabled
 		if metricsEnabled {
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
