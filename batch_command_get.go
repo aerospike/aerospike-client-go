@@ -36,6 +36,11 @@ type batchCommandGet struct {
 	// pointer to the object that's going to be unmarshalled
 	objects      []*reflect.Value
 	objectsFound []bool
+
+	// destination receivers for the sink read path. Parallel to keys.
+	// Takes precedence over `objects` when both are set.
+	sinks      []BinReceiver
+	sinksFound []bool
 }
 
 type batchObjectParserIfc interface {
@@ -44,10 +49,28 @@ type batchObjectParserIfc interface {
 	object(int) *reflect.Value
 }
 
+type batchSinkParserIfc interface {
+	buf() []byte
+	readBytes(int) Error
+	sink(int) BinReceiver
+}
+
 // this method uses reflection.
 // Will not be set if performance flag is passed for the build.
 var batchObjectParser func(
 	cmd batchObjectParserIfc,
+	offset int,
+	opCount int,
+	fieldCount int,
+	generation uint32,
+	expiration uint32,
+) Error
+
+// batchSinkParser dispatches a batch record into the BinReceiver at the
+// matching offset. Set in batch_command_get_sink.go's init(); always
+// available (no build tag).
+var batchSinkParser func(
+	cmd batchSinkParserIfc,
 	offset int,
 	opCount int,
 	fieldCount int,
@@ -102,6 +125,10 @@ func (cmd *batchCommandGet) buf() []byte {
 
 func (cmd *batchCommandGet) object(index int) *reflect.Value {
 	return cmd.objects[index]
+}
+
+func (cmd *batchCommandGet) sink(index int) BinReceiver {
+	return cmd.sinks[index]
 }
 
 func (cmd *batchCommandGet) writeBuffer(ifc command) Error {
@@ -165,7 +192,17 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 				}
 			}
 		} else {
-			if cmd.objects == nil {
+			if cmd.sinks != nil {
+				if err := cmd.parseFieldsRead(fieldCount, cmd.keys[batchIndex]); err != nil {
+					return false, err
+				}
+				if resultCode == 0 {
+					cmd.sinksFound[batchIndex] = true
+					if err := batchSinkParser(cmd, batchIndex, opCount, fieldCount, generation, expiration); err != nil {
+						return false, err
+					}
+				}
+			} else if cmd.objects == nil {
 				if err := cmd.parseFieldsRead(fieldCount, cmd.keys[batchIndex]); err != nil {
 					return false, err
 				}
