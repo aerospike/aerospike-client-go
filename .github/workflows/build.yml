@@ -129,7 +129,7 @@ jobs:
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
       - name: Check Code Coverage
         id: check-coverage
-        uses: vladopajic/go-test-coverage@8cfd056d3bc5cc2bc64a840ded0c907aaae3dc46 # v2.18.7
+        uses: vladopajic/go-test-coverage@a93b868a4cbcbf18dc3781650fad241f0020e609 # v2.18.8
         continue-on-error: true
         with:
           config: ./.testcoverage.yml
