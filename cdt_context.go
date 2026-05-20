@@ -299,20 +299,6 @@ func CtxMapIntKeysIn(keys ...int) *CDTContext {
 	return &CDTContext{ctxTypeMapKeysIn, NewListValue(list), nil}
 }
 
-// CtxMapFloatKeysIn selects map entries whose keys are contained in the provided float keys.
-// Can be combined with CtxAndFilter to apply additional filtering on the selected entries.
-//
-// Deprecated: use CtxMapKeysIn with NewFloatValue per element, e.g.
-//
-//	CtxMapKeysIn(NewFloatValue(1.5), NewFloatValue(2.5))
-func CtxMapFloatKeysIn(keys ...float64) *CDTContext {
-	list := make([]any, len(keys))
-	for i, k := range keys {
-		list[i] = k
-	}
-	return &CDTContext{ctxTypeMapKeysIn, NewListValue(list), nil}
-}
-
 // CtxMapBytesKeysIn selects map entries whose keys are contained in the provided byte slice keys.
 // Can be combined with CtxAndFilter to apply additional filtering on the selected entries.
 //
