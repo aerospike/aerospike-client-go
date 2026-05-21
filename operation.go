@@ -44,6 +44,13 @@ var (
 	_DELETE      = OperationType{14, true, 15}
 	_HLL_READ    = OperationType{15, false, 16}
 	_HLL_MODIFY  = OperationType{16, true, 17}
+
+	// String operation wire op types. The integer protocol codes match the
+	// Java client's StringOperation values exactly so server compatibility is
+	// preserved. Requires server version 8.1.3+.
+	_STRING_READ   = OperationType{17, false, 18}
+	_STRING_MODIFY = OperationType{18, true, 19}
+	_TO_STRING     = OperationType{19, false, 20}
 )
 
 // Operation contains operation definition.
