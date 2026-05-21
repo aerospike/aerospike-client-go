@@ -397,4 +397,15 @@ var _ = gg.Describe("String Expressions Test", func() {
 		rec := eval(as.ExpStringLen(nested))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal(11))
 	})
+
+	gg.It("upper on string nested in map projected via ExpMapGetByKey", func() {
+		m := map[any]any{"a": "hello", "b": "world"}
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin(bin, m))).ToNot(gm.HaveOccurred())
+
+		nested := as.ExpMapGetByKey(
+			as.MapReturnType.VALUE, as.ExpTypeSTRING, as.ExpStringVal("a"), as.ExpMapBin(bin))
+		rec := eval(as.ExpStringUpper(policy, nested))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("HELLO"))
+	})
 })

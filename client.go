@@ -440,6 +440,12 @@ func (clnt *Client) PutPayload(policy *WritePolicy, key *Key, payload []byte) Er
 func (clnt *Client) Put(policy *WritePolicy, key *Key, binMap BinMap) Error {
 	policy = clnt.getUsableWritePolicy(policy)
 
+	if clnt.utf8ValidationEnabled() {
+		if err := validateUTF8BinMap(binMap); err != nil {
+			return err
+		}
+	}
+
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
 			return err
@@ -461,6 +467,12 @@ func (clnt *Client) Put(policy *WritePolicy, key *Key, binMap BinMap) Error {
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
 	policy = clnt.getUsableWritePolicy(policy)
+
+	if clnt.utf8ValidationEnabled() {
+		if err := validateUTF8Bins(bins); err != nil {
+			return err
+		}
+	}
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -488,6 +500,12 @@ func (clnt *Client) PutBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
 func (clnt *Client) Append(policy *WritePolicy, key *Key, binMap BinMap) Error {
 	policy = clnt.getUsableWritePolicy(policy)
 
+	if clnt.utf8ValidationEnabled() {
+		if err := validateUTF8BinMap(binMap); err != nil {
+			return err
+		}
+	}
+
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
 			return err
@@ -505,6 +523,12 @@ func (clnt *Client) Append(policy *WritePolicy, key *Key, binMap BinMap) Error {
 // AppendBins works the same as Append, but avoids BinMap allocation and iteration.
 func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
 	policy = clnt.getUsableWritePolicy(policy)
+
+	if clnt.utf8ValidationEnabled() {
+		if err := validateUTF8Bins(bins); err != nil {
+			return err
+		}
+	}
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -528,6 +552,12 @@ func (clnt *Client) AppendBins(policy *WritePolicy, key *Key, bins ...*Bin) Erro
 func (clnt *Client) Prepend(policy *WritePolicy, key *Key, binMap BinMap) Error {
 	policy = clnt.getUsableWritePolicy(policy)
 
+	if clnt.utf8ValidationEnabled() {
+		if err := validateUTF8BinMap(binMap); err != nil {
+			return err
+		}
+	}
+
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
 			return err
@@ -545,6 +575,12 @@ func (clnt *Client) Prepend(policy *WritePolicy, key *Key, binMap BinMap) Error 
 // PrependBins works the same as Prepend, but avoids BinMap allocation and iteration.
 func (clnt *Client) PrependBins(policy *WritePolicy, key *Key, bins ...*Bin) Error {
 	policy = clnt.getUsableWritePolicy(policy)
+
+	if clnt.utf8ValidationEnabled() {
+		if err := validateUTF8Bins(bins); err != nil {
+			return err
+		}
+	}
 
 	if policy.Txn != nil {
 		if err := txnMonitor.addKey(clnt.cluster, policy, key); err != nil {
@@ -1031,6 +1067,11 @@ func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy,
 func (clnt *Client) Operate(policy *WritePolicy, key *Key, operations ...*Operation) (*Record, Error) {
 	// TODO: Remove this method in the next major release.
 	policy = clnt.getUsableWritePolicy(policy)
+	if clnt.utf8ValidationEnabled() {
+		if err := validateUTF8Operations(operations); err != nil {
+			return nil, err
+		}
+	}
 	args, err := newOperateArgs(clnt.cluster, policy, key, operations)
 	if err != nil {
 		return nil, err
