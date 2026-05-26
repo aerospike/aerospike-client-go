@@ -66,7 +66,7 @@ var _ = gg.Describe("String Operations Test", func() {
 	}
 
 	gg.BeforeEach(func() {
-		requiredVersion, err := version.Parse("8.1.2")
+		requiredVersion, err := version.Parse("8.1.3")
 		if err != nil {
 			gg.Fail("Failed to parse server required version")
 		}

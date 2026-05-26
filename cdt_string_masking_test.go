@@ -103,7 +103,7 @@ var _ = gg.Describe("String Masking Tests", gg.Ordered, func() {
 			skipped = true
 			return
 		}
-		requiredVersion, err := version.Parse("8.1.2")
+		requiredVersion, err := version.Parse("8.1.3")
 		if err != nil {
 			gg.Fail("Failed to parse required version")
 		}
