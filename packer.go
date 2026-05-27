@@ -78,7 +78,13 @@ func packValueArray(cmd BufferEx, list ValueArray) (int, Error) {
 	size += n
 
 	for i := range list {
-		n, err = list[i].pack(cmd)
+		// Treat a nil Value interface as msgpack nil so callers (e.g. CtxMapKeysIn)
+		// can pass nil placeholders without panicking on a nil interface dereference.
+		if list[i] == nil {
+			n, err = nullValue.pack(cmd)
+		} else {
+			n, err = list[i].pack(cmd)
+		}
 		if err != nil {
 			return 0, err
 		}
