@@ -77,6 +77,10 @@ type Client struct {
 	RackAware           *bool   `yaml:"rack_aware"`
 	RackIds             *[]int  `yaml:"rack_ids"`
 	TendInterval        *int    `yaml:"tend_interval"`
+	// ServicesType overrides UseServiceAlternate. Accepted values: "auto", "main", "alternate".
+	ServicesType        *string `yaml:"services_type"`
+	// UseServiceAlternate is kept for backward compatibility. Prefer ServicesType.
+	// true maps to ServicesAlternate, false maps to ServicesMain.
 	UseServiceAlternate *bool   `yaml:"use_service_alternate"`
 	ApplicationId       *string `yaml:"app_id"`
 }

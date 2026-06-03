@@ -86,7 +86,8 @@ var errorRateWindow = flag.Int("errorRateWindow", 1, "Error Rate Window for the 
 var openingConnectionThreshold = flag.Int("openingConnectionThreshold", 64, "Maximum number of connections allowed to open simultaneously.")
 var warmUp = flag.Int("warmUp", 128, "Number of connections to open on start up.")
 var useCompression = flag.Bool("compress", false, "Use compression to send and receive data from the server.")
-var useServicesAlternate = flag.Bool("sa", false, "Use alternate service addresses.")
+var useServicesAlternate = flag.Bool("sa", false, "Deprecated. Use -services-type=alternate instead.")
+var servicesTypeFlag = flag.String("services-type", "auto", "Controls which service addresses are used for cluster discovery: auto|main|alternate.")
 var minConnsPerNode = flag.Int("minConnsPerNode", 0, "Minimum connections to maintain to each node.")
 
 var randBinData = flag.Bool("R", false, "Use dynamically generated random bin values instead of default static fixed bin values.")
@@ -167,7 +168,18 @@ func main() {
 	clientPolicy.Timeout = 10 * time.Second
 	clientPolicy.OpeningConnectionThreshold = *openingConnectionThreshold
 	clientPolicy.MinConnectionsPerNode = *minConnsPerNode
-	clientPolicy.UseServicesAlternate = *useServicesAlternate
+	switch *servicesTypeFlag {
+	case "alternate":
+		clientPolicy.ServicesType = as.ServicesAlternate
+	case "main":
+		clientPolicy.ServicesType = as.ServicesMain
+	default:
+		if *useServicesAlternate {
+			clientPolicy.ServicesType = as.ServicesAlternate
+		} else {
+			clientPolicy.ServicesType = as.ServicesAuto
+		}
+	}
 	clientPolicy.TlsConfig = initAerospikeTLS()
 	var client *as.Client
 	dbHost := as.NewHost(*host, *port)
@@ -248,7 +260,7 @@ func printBenchmarkParams() {
 	logger.Printf("auth mode:\t%s", *authMode)
 	logger.Printf("user:\t\t%s", *user)
 	logger.Printf("password:\t\t%s", *password)
-	logger.Printf("services alternate:\t%v", *useServicesAlternate)
+	logger.Printf("services type:\t%v", *servicesTypeFlag)
 }
 
 // parses an string of (key:value) type

@@ -25,6 +25,23 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
+// resolveServicesType converts the test flag values into a ServicesType.
+// It reads ServicesTypeFlag first; if it is "auto" (the default) it also
+// checks the legacy -use-services-alternate bool for backward compat.
+func resolveServicesType() as.ServicesType {
+	switch *ServicesTypeFlag {
+	case "alternate":
+		return as.ServicesAlternate
+	case "main":
+		return as.ServicesMain
+	default:
+		if *UseServicesAlternate {
+			return as.ServicesAlternate
+		}
+		return as.ServicesAuto
+	}
+}
+
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Aerospike Node Tests", func() {
 
@@ -46,9 +63,9 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				gg.It("must return error if it fails to authenticate", func() {
 					clientPolicy := as.NewClientPolicy()
 					clientPolicy.TlsConfig = tlsConfig
-					clientPolicy.User = "non_existent_user"
-					clientPolicy.Password = "non_existent_user"
-					clientPolicy.UseServicesAlternate = *UseServicesAlternate
+				clientPolicy.User = "non_existent_user"
+				clientPolicy.Password = "non_existent_user"
+				clientPolicy.ServicesType = resolveServicesType()
 					client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 					gm.Expect(err).To(gm.HaveOccurred())
 				})
@@ -62,18 +79,18 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			gg.It("must return a new connection on every poll", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.LimitConnectionsToQueueSize = false
-				clientPolicy.ConnectionQueueSize = 4
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.UseServicesAlternate = *UseServicesAlternate
+			clientPolicy.LimitConnectionsToQueueSize = false
+			clientPolicy.ConnectionQueueSize = 4
+			clientPolicy.User = *user
+			clientPolicy.Password = *password
+			clientPolicy.ServicesType = resolveServicesType()
 
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-				defer client.Close()
+			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer client.Close()
 
-				for _, node := range client.GetNodes() {
-					for i := 0; i < 20; i++ {
+			for _, node := range client.GetNodes() {
+				for i := 0; i < 20; i++ {
 						c, err := node.GetConnection(0)
 						gm.Expect(err).NotTo(gm.HaveOccurred())
 						gm.Expect(c).NotTo(gm.BeNil())
@@ -94,18 +111,18 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				gg.It("must return appropriate error when pool is exhausted", func() {
 					clientPolicy := as.NewClientPolicy()
 					clientPolicy.TlsConfig = tlsConfig
-					clientPolicy.LimitConnectionsToQueueSize = true
-					clientPolicy.ConnectionQueueSize = 4
-					clientPolicy.User = *user
-					clientPolicy.Password = *password
-					clientPolicy.UseServicesAlternate = *UseServicesAlternate
+				clientPolicy.LimitConnectionsToQueueSize = true
+				clientPolicy.ConnectionQueueSize = 4
+				clientPolicy.User = *user
+				clientPolicy.Password = *password
+				clientPolicy.ServicesType = resolveServicesType()
 
-					client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
-					gm.Expect(err).ToNot(gm.HaveOccurred())
-					defer client.Close()
+				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				defer client.Close()
 
-					for _, node := range client.GetNodes() {
-						for i := 0; i < clientPolicy.ConnectionQueueSize-1; i++ {
+				for _, node := range client.GetNodes() {
+					for i := 0; i < clientPolicy.ConnectionQueueSize-1; i++ {
 							c, err := node.GetConnection(0)
 							gm.Expect(err).NotTo(gm.HaveOccurred())
 							gm.Expect(c).NotTo(gm.BeNil())
@@ -143,13 +160,13 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			gg.It("must return an error when maximum number of connections are polled", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.LimitConnectionsToQueueSize = true
-				clientPolicy.ConnectionQueueSize = 4
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.UseServicesAlternate = *UseServicesAlternate
+			clientPolicy.LimitConnectionsToQueueSize = true
+			clientPolicy.ConnectionQueueSize = 4
+			clientPolicy.User = *user
+			clientPolicy.Password = *password
+			clientPolicy.ServicesType = resolveServicesType()
 
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
+			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				defer client.Close()
 
@@ -191,19 +208,19 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			gg.It("must reuse connections before they become idle", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.IdleTimeout = 1000 * time.Millisecond
-				// clientPolicy.TendInterval = time.Hour
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.UseServicesAlternate = *UseServicesAlternate
+			clientPolicy.IdleTimeout = 1000 * time.Millisecond
+			// clientPolicy.TendInterval = time.Hour
+			clientPolicy.User = *user
+			clientPolicy.Password = *password
+			clientPolicy.ServicesType = resolveServicesType()
 
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-				defer client.Close()
+			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer client.Close()
 
-				node := client.GetNodes()[0]
+			node := client.GetNodes()[0]
 
-				// get a few connections at once
+			// get a few connections at once
 				var conns []*as.Connection
 				for i := 0; i < 4; i++ {
 					// gg.By(fmt.Sprintf("Retrieving conns i=%d", i))
@@ -284,11 +301,11 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			gg.It("must maintain a minimum number of connections per client policy even if idle", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.IdleTimeout = 2000 * time.Millisecond
-				clientPolicy.MinConnectionsPerNode = 5
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.UseServicesAlternate = *UseServicesAlternate
+			clientPolicy.IdleTimeout = 2000 * time.Millisecond
+			clientPolicy.MinConnectionsPerNode = 5
+			clientPolicy.User = *user
+			clientPolicy.Password = *password
+			clientPolicy.ServicesType = resolveServicesType()
 
 				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -308,18 +325,18 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 			gg.It("must delay the connection from becoming idle if it is put back in the queue", func() {
 				clientPolicy := as.NewClientPolicy()
 				clientPolicy.TlsConfig = tlsConfig
-				clientPolicy.IdleTimeout = 1000 * time.Millisecond
-				clientPolicy.User = *user
-				clientPolicy.Password = *password
-				clientPolicy.UseServicesAlternate = *UseServicesAlternate
+			clientPolicy.IdleTimeout = 1000 * time.Millisecond
+			clientPolicy.User = *user
+			clientPolicy.Password = *password
+			clientPolicy.ServicesType = resolveServicesType()
 
-				client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-				defer client.Close()
+			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer client.Close()
 
-				node := client.GetNodes()[0]
+			node := client.GetNodes()[0]
 
-				deadlineThreshold := clientPolicy.IdleTimeout / 10
+			deadlineThreshold := clientPolicy.IdleTimeout / 10
 
 				// gg.By("Retrieving c")
 				c, err := node.GetConnection(0)
@@ -372,12 +389,12 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 
 			clientPolicy = as.NewClientPolicy()
 			clientPolicy.TlsConfig = tlsConfig
-			clientPolicy.IdleTimeout = 1000 * time.Millisecond
-			clientPolicy.User = *user
-			clientPolicy.Password = *password
-			clientPolicy.MaxErrorRate = maxErrorRate
-			clientPolicy.ErrorRateWindow = errRateWindow
-			clientPolicy.UseServicesAlternate = *UseServicesAlternate
+		clientPolicy.IdleTimeout = 1000 * time.Millisecond
+		clientPolicy.User = *user
+		clientPolicy.Password = *password
+		clientPolicy.MaxErrorRate = maxErrorRate
+		clientPolicy.ErrorRateWindow = errRateWindow
+		clientPolicy.ServicesType = resolveServicesType()
 
 			client, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -479,8 +496,8 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				// Create new client with circuit breaker disabled
 				disabledPolicy := as.NewClientPolicy()
 				disabledPolicy.TlsConfig = tlsConfig
-				disabledPolicy.MaxErrorRate = 0 // Disable circuit breaker
-				disabledPolicy.UseServicesAlternate = *UseServicesAlternate
+			disabledPolicy.MaxErrorRate = 0 // Disable circuit breaker
+			disabledPolicy.ServicesType = resolveServicesType()
 
 				disabledClient, err := as.NewClientWithPolicyAndHost(disabledPolicy, dbHosts...)
 				gm.Expect(err).ToNot(gm.HaveOccurred())

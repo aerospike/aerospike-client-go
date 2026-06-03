@@ -59,7 +59,7 @@ func BenchmarkApplyConfigToClientPolicyWithDynamicAndStaticConfig(b *testing.B) 
 				RackAware:           func() *bool { b := true; return &b }(),
 				RackIds:             func() *[]int { i := []int{1, 2, 3}; return &i }(),
 				TendInterval:        func() *int { i := 1000; return &i }(),
-				UseServiceAlternate: func() *bool { b := true; return &b }(),
+				ServicesType: func() *string { s := "alternate"; return &s }(),
 			},
 		},
 	}

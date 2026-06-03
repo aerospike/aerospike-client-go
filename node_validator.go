@@ -182,9 +182,19 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 		infoKeys = append(infoKeys, "cluster-name")
 	}
 
-	addressCommand := clientPolicy.serviceString()
+	// Build the service info command(s) to request.
+	// In ServicesAuto mode we request both std and alt so we can detect which
+	// variant the server is reachable under.
+	stdCmd := clientPolicy.serviceStringFor(ServicesMain)
+	altCmd := clientPolicy.serviceStringFor(ServicesAlternate)
+	addressCommand := clientPolicy.serviceString() // std for Auto/Main, alt for Alternate
+
 	if ndv.detectLoadBalancer && !ndv.seedOnlyCluster {
-		infoKeys = append(infoKeys, addressCommand)
+		if clientPolicy.ServicesType == ServicesAuto {
+			infoKeys = append(infoKeys, stdCmd, altCmd)
+		} else {
+			infoKeys = append(infoKeys, addressCommand)
+		}
 	}
 
 	infoMap, err := conn.RequestInfo(infoKeys...)
@@ -234,67 +244,15 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 		return featError
 	}
 
-	// check if the host is a load-balancer
-	if peersStr, exists := infoMap[addressCommand]; exists {
-		var hostAddress []*Host
-		peerParser := peerListParser{buf: []byte("[" + peersStr + "]")}
-		if hostAddress, err = peerParser.readHosts(alias.TLSName); err != nil {
-			logger.Logger.Error("Failed to parse `%s` results... err: %s", alias.String(), err.Error())
-		}
-
-		if len(hostAddress) > 0 {
-			isLoadBalancer := true
-		LOAD_BALANCER:
-			for _, h := range hostAddress {
-				for _, a := range ndv.aliases {
-					if h.equals(a) {
-						// one of the aliases were the same as an advertised service
-						// no need to replace the seed host with the alias
-						isLoadBalancer = false
-						break LOAD_BALANCER
-					}
-				}
+	// Load-balancer detection and ServicesAuto resolution.
+	if ndv.detectLoadBalancer && !ndv.seedOnlyCluster {
+		if clientPolicy.ServicesType == ServicesAuto {
+			alias, err = ndv.resolveServicesAuto(cluster, &clientPolicy, alias, infoMap, stdCmd, altCmd)
+			if err != nil {
+				return err
 			}
-
-			if isLoadBalancer && ndv.detectLoadBalancer {
-				aliasFound := false
-
-				// take the seed out of the aliases if it is load balancer
-				logger.Logger.Info("Host `%s` seems to be a load balancer. It is going to be replace by `%v`", alias.String(), hostAddress[0])
-				// try to connect to the aliases, and coose the first one that connects
-				for _, h := range hostAddress {
-					hconn, err := NewConnection(&clientPolicy, h)
-					if err != nil {
-						continue
-					}
-					defer hconn.Close()
-
-					if clientPolicy.RequiresAuthentication() {
-						// need to authenticate
-						acmd := newLoginCommand(hconn.dataBuffer)
-						err = acmd.login(&clientPolicy, hconn, cluster.Password())
-						if err != nil {
-							continue
-						}
-
-						ndv.sessionInfo = acmd.sessionInfo()
-					}
-
-					alias = h
-					ndv.aliases = hostAddress
-					aliasFound = true
-
-					// found one, no need to try the rest
-					break
-				}
-
-				// Failed to find a valid address to connect. IP Address is probably internal on the cloud
-				// because the server access-address is not configured.  Log warning and continue
-				// with original seed.
-				if !aliasFound {
-					logger.Logger.Info("Inaccessible address `%s` as cluster seed. access-address is probably not configured on server.", alias.String())
-				}
-			}
+		} else if peersStr, exists := infoMap[addressCommand]; exists {
+			alias = ndv.applyLoadBalancerDetection(cluster, &clientPolicy, alias, peersStr)
 		}
 	}
 
@@ -302,6 +260,177 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 	ndv.primaryHost = alias
 
 	return nil
+}
+
+// resolveServicesAuto is called when ServicesType == ServicesAuto. It requests
+// both the std and alt service addresses, compares them against the seed alias,
+// and resolves the correct ServicesType for the cluster. It also performs
+// load-balancer detection and returns the (possibly rewritten) alias.
+func (ndv *nodeValidator) resolveServicesAuto(
+	cluster *Cluster,
+	clientPolicy *ClientPolicy,
+	alias *Host,
+	infoMap map[string]string,
+	stdCmd, altCmd string,
+) (*Host, Error) {
+	parseList := func(cmd string) []*Host {
+		raw, ok := infoMap[cmd]
+		if !ok || raw == "" {
+			return nil
+		}
+		pp := peerListParser{buf: []byte("[" + raw + "]")}
+		hosts, err := pp.readHosts(alias.TLSName)
+		if err != nil {
+			logger.Logger.Error("Failed to parse `%s` results for alias `%s`: %s", cmd, alias.String(), err.Error())
+			return nil
+		}
+		return hosts
+	}
+
+	stdHosts := parseList(stdCmd)
+	altHosts := parseList(altCmd)
+
+	aliasMatchesAny := func(list []*Host) bool {
+		for _, h := range list {
+			for _, a := range ndv.aliases {
+				if h.equals(a) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	stdMatch := aliasMatchesAny(stdHosts)
+	altMatch := aliasMatchesAny(altHosts)
+
+	var resolved ServicesType
+	var winningList []*Host
+
+	switch {
+	case stdMatch:
+		resolved = ServicesMain
+		winningList = stdHosts
+	case altMatch:
+		resolved = ServicesAlternate
+		winningList = altHosts
+	default:
+		// Neither list contains the seed — likely a load balancer.
+		// Try to connect to std addresses first, then alt.
+		resolved, winningList = ndv.tryConnectLists(clientPolicy, cluster, stdHosts, altHosts)
+	}
+
+	logger.Logger.Debug("ServicesAuto resolved to %v for seed %s", resolved, alias.String())
+	cluster.setResolvedServicesType(resolved)
+
+	// Apply LB rewrite if the seed is not in the winning list.
+	if winningList != nil && !aliasMatchesAny(winningList) {
+		alias = ndv.tryReplaceWithConnectable(clientPolicy, cluster, alias, winningList)
+	}
+
+	return alias, nil
+}
+
+// tryConnectLists tries to establish a connection to addresses in stdHosts
+// first, then altHosts. Returns the resolved ServicesType and the winning list.
+func (ndv *nodeValidator) tryConnectLists(
+	clientPolicy *ClientPolicy,
+	cluster *Cluster,
+	stdHosts, altHosts []*Host,
+) (ServicesType, []*Host) {
+	tryList := func(hosts []*Host) bool {
+		for _, h := range hosts {
+			conn, err := NewConnection(clientPolicy, h)
+			if err != nil {
+				continue
+			}
+			conn.Close()
+			return true
+		}
+		return false
+	}
+
+	if tryList(stdHosts) {
+		return ServicesMain, stdHosts
+	}
+	if tryList(altHosts) {
+		return ServicesAlternate, altHosts
+	}
+	// Fall back to main if neither list yields a connection.
+	return ServicesMain, stdHosts
+}
+
+// tryReplaceWithConnectable replaces the current alias with the first
+// connectable host from hostAddresses (load-balancer rewrite). If none
+// connects, the original alias is returned unchanged.
+func (ndv *nodeValidator) tryReplaceWithConnectable(
+	clientPolicy *ClientPolicy,
+	cluster *Cluster,
+	alias *Host,
+	hostAddresses []*Host,
+) *Host {
+	logger.Logger.Info("Host `%s` seems to be a load balancer. It is going to be replaced by `%v`", alias.String(), hostAddresses[0])
+
+	for _, h := range hostAddresses {
+		hconn, err := NewConnection(clientPolicy, h)
+		if err != nil {
+			continue
+		}
+		defer hconn.Close()
+
+		if clientPolicy.RequiresAuthentication() {
+			acmd := newLoginCommand(hconn.dataBuffer)
+			if err = acmd.login(clientPolicy, hconn, cluster.Password()); err != nil {
+				continue
+			}
+			ndv.sessionInfo = acmd.sessionInfo()
+		}
+
+		ndv.aliases = hostAddresses
+		return h
+	}
+
+	logger.Logger.Info("Inaccessible address `%s` as cluster seed. access-address is probably not configured on server.", alias.String())
+	return alias
+}
+
+// applyLoadBalancerDetection is the non-auto path: it checks whether the seed
+// is a load balancer using the pre-selected service command response and, if
+// so, replaces it with the first connectable real host.
+func (ndv *nodeValidator) applyLoadBalancerDetection(
+	cluster *Cluster,
+	clientPolicy *ClientPolicy,
+	alias *Host,
+	peersStr string,
+) *Host {
+	var hostAddress []*Host
+	peerParser := peerListParser{buf: []byte("[" + peersStr + "]")}
+	var err Error
+	if hostAddress, err = peerParser.readHosts(alias.TLSName); err != nil {
+		logger.Logger.Error("Failed to parse service results for `%s`: %s", alias.String(), err.Error())
+		return alias
+	}
+
+	if len(hostAddress) == 0 {
+		return alias
+	}
+
+	isLoadBalancer := true
+LOAD_BALANCER:
+	for _, h := range hostAddress {
+		for _, a := range ndv.aliases {
+			if h.equals(a) {
+				isLoadBalancer = false
+				break LOAD_BALANCER
+			}
+		}
+	}
+
+	if !isLoadBalancer {
+		return alias
+	}
+
+	return ndv.tryReplaceWithConnectable(clientPolicy, cluster, alias, hostAddress)
 }
 
 func (ndv *nodeValidator) setFeatures(alias *Host) Error {

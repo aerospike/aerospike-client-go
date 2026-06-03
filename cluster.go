@@ -251,6 +251,16 @@ func (clstr *Cluster) AddSeeds(hosts []*Host) {
 	})
 }
 
+// setResolvedServicesType atomically updates the cluster's stored policy so
+// that all subsequent peer-discovery calls (peersString()) use the resolved
+// ServicesType. It is called once from validateAlias when ServicesAuto mode
+// detects whether std or alt addresses are in use.
+func (clstr *Cluster) setResolvedServicesType(t ServicesType) {
+	p := clstr.clientPolicy.Load().copy()
+	p.ServicesType = t
+	clstr.clientPolicy.Store(p)
+}
+
 // Healthy returns an error if the cluster is not healthy.
 func (clstr *Cluster) Healthy() Error {
 	p := clstr.getPartitions()

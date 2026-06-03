@@ -21,6 +21,26 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
+// ServicesType controls which set of cluster service addresses the client uses
+// for discovery during cluster tending.
+type ServicesType int
+
+const (
+	// ServicesAuto is the default. On first seed contact the client requests
+	// both std and alt service addresses, compares them against the seed IP,
+	// and automatically selects ServicesMain or ServicesAlternate. The resolved
+	// choice is then used for all subsequent peer discovery (peers-*-std or
+	// peers-*-alt). When detection is skipped (loopback, SeedOnlyCluster) the
+	// client falls back to ServicesMain.
+	ServicesAuto ServicesType = iota
+	// ServicesMain always uses the standard service addresses
+	// (service-*-std / peers-*-std). Equivalent to the old UseServicesAlternate=false.
+	ServicesMain
+	// ServicesAlternate always uses the alternate service addresses
+	// (service-*-alt / peers-*-alt). Equivalent to the old UseServicesAlternate=true.
+	ServicesAlternate
+)
+
 // ClientPolicy encapsulates parameters for client policy command.
 type ClientPolicy struct {
 	// AuthMode specifies authentication mode used when user/password is defined. It is set to AuthModeInternal by default.
@@ -130,27 +150,26 @@ type ClientPolicy struct {
 	// The value is the real IP address used to connect to the server.
 	IpMap map[string]string
 
-	// UseServicesAlternate determines if the client should use "services-alternate" instead of "services"
-	// in info request during cluster tending.
-	//"services-alternate" returns server configured external IP addresses that client
-	// uses to talk to nodes. "services-alternate" can be used in place of providing a client "ipMap".
-	// This feature is recommended instead of using the client-side IpMap above.
+	// ServicesType controls which cluster service addresses the client uses for
+	// discovery. ServicesAuto (default) detects the correct variant by comparing
+	// the seed IP against the addresses advertised by both std and alt info
+	// commands on first contact. ServicesMain and ServicesAlternate force a fixed
+	// choice and skip auto-detection.
 	//
-	// "services-alternate" is available with Aerospike Server versions >= 3.7.1.
+	// Info commands used per ServicesType:
 	//
-	// Info command to use whether UserServicesAlternate is true or false:
+	// ServicesAuto / ServicesMain:
+	//   IP address:         service-clear-std
+	//   TLS IP address:     service-tls-std
+	//   Peers addresses:    peers-clear-std
+	//   Peers TLS:          peers-tls-std
 	//
-	// If false, use:
-	// IP address: service-clear-std
-	// TLS IP address: service-tls-std
-	// Peers addresses: peers-clear-std
-	// Peers TLS addresses: peers-tls-std
-	// If true, use:
-	// IP address: service-clear-alt
-	// TLS IP address: service-tls-alt
-	// Peers addresses: peers-clear-alt
-	// Peers TLS addresses: peers-tls-alt
-	UseServicesAlternate bool // false
+	// ServicesAlternate:
+	//   IP address:         service-clear-alt
+	//   TLS IP address:     service-tls-alt
+	//   Peers addresses:    peers-clear-alt
+	//   Peers TLS:          peers-tls-alt
+	ServicesType ServicesType
 
 	// RackAware directs the client to update rack information on intervals.
 	// When this feature is enabled, the client will prefer to use nodes which reside
@@ -217,35 +236,39 @@ func (cp *ClientPolicy) RequiresAuthentication() bool {
 }
 
 func (cp *ClientPolicy) servicesString() string {
-	if cp.UseServicesAlternate {
+	if cp.ServicesType == ServicesAlternate {
 		return "services-alternate"
 	}
 	return "services"
 }
 
-func (cp *ClientPolicy) serviceString() string {
+// serviceStringFor returns the service info command for the given ServicesType,
+// allowing callers to request a specific variant without modifying the policy.
+func (cp *ClientPolicy) serviceStringFor(t ServicesType) string {
 	if cp.TlsConfig == nil {
-		if cp.UseServicesAlternate {
+		if t == ServicesAlternate {
 			return "service-clear-alt"
 		}
 		return "service-clear-std"
 	}
-
-	if cp.UseServicesAlternate {
+	if t == ServicesAlternate {
 		return "service-tls-alt"
 	}
 	return "service-tls-std"
 }
 
+func (cp *ClientPolicy) serviceString() string {
+	return cp.serviceStringFor(cp.ServicesType)
+}
+
 func (cp *ClientPolicy) peersString() string {
 	if cp.TlsConfig != nil {
-		if cp.UseServicesAlternate {
+		if cp.ServicesType == ServicesAlternate {
 			return "peers-tls-alt"
 		}
 		return "peers-tls-std"
 	}
-
-	if cp.UseServicesAlternate {
+	if cp.ServicesType == ServicesAlternate {
 		return "peers-clear-alt"
 	}
 	return "peers-clear-std"
@@ -325,11 +348,27 @@ func (cp *ClientPolicy) mapDynamic(dynConfig *DynConfig) *ClientPolicy {
 				logger.Logger.Info("TendInterval set to %s", configValue.String())
 			}
 		}
-		if currentConfig.Dynamic.Client.UseServiceAlternate != nil {
-			configValue := *currentConfig.Dynamic.Client.UseServiceAlternate
-			cp.UseServicesAlternate = configValue
+		if currentConfig.Dynamic.Client.ServicesType != nil {
+			switch *currentConfig.Dynamic.Client.ServicesType {
+			case "alternate":
+				cp.ServicesType = ServicesAlternate
+			case "main":
+				cp.ServicesType = ServicesMain
+			default:
+				cp.ServicesType = ServicesAuto
+			}
 			if dynConfig.logUpdate.Load() {
-				logger.Logger.Info("UseServicesAlternate set to %t", configValue)
+				logger.Logger.Info("ServicesType set to %s", *currentConfig.Dynamic.Client.ServicesType)
+			}
+		} else if currentConfig.Dynamic.Client.UseServiceAlternate != nil {
+			// Backward-compat: bool field maps to Main/Alternate; Auto is not expressible via the old field.
+			if *currentConfig.Dynamic.Client.UseServiceAlternate {
+				cp.ServicesType = ServicesAlternate
+			} else {
+				cp.ServicesType = ServicesMain
+			}
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ServicesType set to %v (from use_service_alternate=%t)", cp.ServicesType, *currentConfig.Dynamic.Client.UseServiceAlternate)
 			}
 		}
 		if currentConfig.Dynamic.Client.ApplicationId != nil {

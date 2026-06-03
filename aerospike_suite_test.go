@@ -50,7 +50,9 @@ var (
 	useReplicas          = flag.Bool("use-replicas", false, "Aerospike will use replicas as well as master partitions.")
 	debug                = flag.Bool("debug", false, "Will set the logging level to DEBUG.")
 	namespace            = flag.String("n", "test", "Namespace")
-	UseServicesAlternate = flag.Bool("use-services-alternate", false, "Will set ClientPolicy.UseServicesAlternate to true.")
+	ServicesTypeFlag = flag.String("services-type", "auto", "Controls which service addresses are used for cluster discovery: auto|main|alternate. 'auto' detects the correct variant from the seed node. Deprecated alias: -use-services-alternate.")
+	// Deprecated: use -services-type=alternate instead.
+	UseServicesAlternate = flag.Bool("use-services-alternate", false, "Deprecated. Use -services-type=alternate instead.")
 
 	certFile          = flag.String("cert_file", "", "Certificate file name.")
 	keyFile           = flag.String("key_file", "", "Key file name.")
@@ -95,7 +97,20 @@ func initTestVars() {
 	// setup TLS
 	tlsConfig = initTLS()
 	clientPolicy.TlsConfig = tlsConfig
-	clientPolicy.UseServicesAlternate = *UseServicesAlternate
+	// Resolve ServicesType: explicit -services-type flag takes precedence over
+	// the deprecated -use-services-alternate bool.
+	switch *ServicesTypeFlag {
+	case "alternate":
+		clientPolicy.ServicesType = as.ServicesAlternate
+	case "main":
+		clientPolicy.ServicesType = as.ServicesMain
+	default:
+		if *UseServicesAlternate {
+			clientPolicy.ServicesType = as.ServicesAlternate
+		} else {
+			clientPolicy.ServicesType = as.ServicesAuto
+		}
+	}
 
 	if len(strings.TrimSpace(*hosts)) > 0 {
 		dbHosts, err = as.NewHosts(strings.Split(*hosts, ",")...)
