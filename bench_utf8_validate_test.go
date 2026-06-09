@@ -330,39 +330,38 @@ func Benchmark_UTF8_validateUTF8Operations_5Ops_ASCII_64B(b *testing.B) {
 // below isolates that hot read so we can quote a number.
 
 func Benchmark_UTF8_utf8ValidationEnabled_Disabled(b *testing.B) {
-	// utf8ValidationEnabled is a method on *Client. We don't need a
-	// connected cluster — the method short-circuits on nil and on
-	// nil-cluster, but for a fair "disabled" read we want to exercise
-	// the atomic Load. Build the smallest viable Client + cluster.
-	clnt := newClientWithEmptyClusterForBench()
+	// utf8ValidationEnabled is a method on *Cluster. The method
+	// short-circuits on nil, but for a fair "disabled" read we want to
+	// exercise the atomic Load. Build the smallest viable cluster.
+	clstr := newClusterForBench()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		utfSinkBool = clnt.utf8ValidationEnabled()
+		utfSinkBool = clstr.utf8ValidationEnabled()
 	}
 }
 
 func Benchmark_UTF8_utf8ValidationEnabled_Enabled(b *testing.B) {
-	clnt := newClientWithEmptyClusterForBench()
-	p := clnt.cluster.clientPolicy.Load()
+	clstr := newClusterForBench()
+	p := clstr.clientPolicy.Load()
 	pCopy := *p
 	pCopy.ValidateUTF8 = true
-	clnt.cluster.clientPolicy.Store(&pCopy)
+	clstr.clientPolicy.Store(&pCopy)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		utfSinkBool = clnt.utf8ValidationEnabled()
+		utfSinkBool = clstr.utf8ValidationEnabled()
 	}
 }
 
-// Nil-client short-circuit. The cheapest possible disabled-path read —
+// Nil-cluster short-circuit. The cheapest possible disabled-path read —
 // included to document the floor.
-func Benchmark_UTF8_utf8ValidationEnabled_NilClient(b *testing.B) {
-	var clnt *Client
+func Benchmark_UTF8_utf8ValidationEnabled_NilCluster(b *testing.B) {
+	var clstr *Cluster
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		utfSinkBool = clnt.utf8ValidationEnabled()
+		utfSinkBool = clstr.utf8ValidationEnabled()
 	}
 }
 
@@ -415,22 +414,18 @@ func stringsRepeatedKey(i int) string {
 	return string(alpha[i%len(alpha)]) + string(alpha[(i/len(alpha))%len(alpha)])
 }
 
-// newClientWithEmptyClusterForBench wires just enough of a Client for
+// newClusterForBench wires just enough of a Cluster for
 // utf8ValidationEnabled() to exercise its real path (atomic.Load on
 // clientPolicy) without opening any sockets.
 //
-// utf8ValidationEnabled reads:   clnt.cluster.clientPolicy.Load()
-// So we need a non-nil cluster with a populated atomic pointer; nothing
-// else is touched. This avoids dragging in NewClient (which dials).
-func newClientWithEmptyClusterForBench() *Client {
+// utf8ValidationEnabled reads:   clstr.clientPolicy.Load()
+// So we need a populated atomic pointer; nothing else is touched.
+// This avoids dragging in NewClient (which dials).
+func newClusterForBench() *Cluster {
 	p := NewClientPolicy()
 	ap := &atomic.Pointer[ClientPolicy]{}
 	ap.Store(p)
-	c := &Cluster{
+	return &Cluster{
 		clientPolicy: ap,
-	}
-	return &Client{
-		DefaultPolicy: NewPolicy(),
-		cluster:       c,
 	}
 }
