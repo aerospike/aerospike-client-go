@@ -162,12 +162,12 @@ func validateUTF8BinMap(m BinMap) Error {
 }
 
 // utf8ValidationEnabled reports whether ValidateUTF8 is set on the active
-// ClientPolicy. Safe to call on a nil Client (returns false).
-func (clnt *Client) utf8ValidationEnabled() bool {
-	if clnt == nil || clnt.cluster == nil {
+// ClientPolicy. Safe to call on a nil Cluster (returns false).
+func (clstr *Cluster) utf8ValidationEnabled() bool {
+	if clstr == nil {
 		return false
 	}
-	p := clnt.cluster.clientPolicy.Load()
+	p := clstr.clientPolicy.Load()
 	return p != nil && p.ValidateUTF8
 }
 
