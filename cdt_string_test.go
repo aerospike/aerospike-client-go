@@ -645,4 +645,164 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(err).To(gm.HaveOccurred())
 		gm.Expect(err.Matches(ast.BIN_NOT_FOUND)).To(gm.BeTrue())
 	})
+
+	// ============================================================
+	// Codepoint-vs-byte anchors
+	//
+	// Server-side indices and strlen are in Unicode code points, not bytes
+	// and not Java UTF-16 chars. Go strings are byte sequences with native
+	// UTF-8, so the byte vs codepoint distinction is the relevant one here.
+	// ============================================================
+
+	gg.It("strlen counts codepoints not bytes", func() {
+		// "café" = 4 codepoints, 5 UTF-8 bytes.
+		put("café")
+		gm.Expect(operate(as.StrLenOp(bin)).Bins[bin]).To(gm.Equal(4))
+		// "日本語" = 3 codepoints, 9 UTF-8 bytes.
+		put("日本語")
+		gm.Expect(operate(as.StrLenOp(bin)).Bins[bin]).To(gm.Equal(3))
+		// "👋hi" — emoji is U+1F44B, a supplementary codepoint (4 UTF-8 bytes).
+		// Total codepoints = 3.
+		put("👋hi")
+		gm.Expect(operate(as.StrLenOp(bin)).Bins[bin]).To(gm.Equal(3))
+	})
+
+	gg.It("byteLength counts bytes not codepoints", func() {
+		put("café")
+		gm.Expect(operate(as.StrByteLengthOp(bin)).Bins[bin]).To(gm.Equal(5))
+		put("日本語")
+		gm.Expect(operate(as.StrByteLengthOp(bin)).Bins[bin]).To(gm.Equal(9))
+		// 👋 = 4 UTF-8 bytes, "hi" = 2 bytes.
+		put("👋hi")
+		gm.Expect(operate(as.StrByteLengthOp(bin)).Bins[bin]).To(gm.Equal(6))
+	})
+
+	gg.It("substr indexes codepoints not bytes", func() {
+		// "日本語hi" — substr(start=3, end=5) returns codepoints 3..4 = "hi".
+		// A byte-indexed substr would land mid-way through "日" (each CJK char
+		// is 3 UTF-8 bytes).
+		put("日本語hi")
+		rec := operate(as.StrSubstrOp(bin, 3, 5))
+		gm.Expect(rec.Bins[bin]).To(gm.Equal("hi"))
+	})
+
+	gg.It("charAt returns whole codepoint not half-surrogate", func() {
+		// 👋 is U+1F44B (4 UTF-8 bytes, would be a surrogate pair in UTF-16).
+		// charAt at the emoji position must return the full codepoint.
+		put("a👋b")
+		rec := operate(as.StrCharAtOp(bin, 1))
+		gm.Expect(rec.Bins[bin]).To(gm.Equal("👋"))
+	})
+
+	gg.It("find returns codepoint index not byte index", func() {
+		// "café-world": "world" starts at codepoint 5.
+		put("café-world")
+		gm.Expect(operate(as.StrFindOp(bin, "world")).Bins[bin]).To(gm.Equal(5))
+
+		// "👋-world": "world" starts at codepoint index 2 (after emoji + dash).
+		// A byte-indexed find would return a different number (👋 is 4 bytes).
+		put("👋-world")
+		gm.Expect(operate(as.StrFindOp(bin, "world")).Bins[bin]).To(gm.Equal(2))
+	})
+
+	gg.It("find and contains require matching normalization form", func() {
+		// "café" can be stored as NFC (U+00E9, 1 codepoint, 2 UTF-8 bytes) or
+		// NFD (U+0065 U+0301, 2 codepoints, 3 UTF-8 bytes). They render
+		// identically but are distinct byte sequences. The server's find /
+		// contains uses ICU binary string search — NFC and NFD are NOT
+		// considered equal. Callers who need normalization-insensitive search
+		// must normalizeNFC the bin (and the needle) first. This test anchors
+		// the contract so a future change to ICU comparison mode does not
+		// silently flip the behavior.
+		const NFC = "café"      // "café" composed
+		const NFD = "café"     // "café" decomposed
+
+		put(NFC)
+		// NFC haystack vs NFC needle — match.
+		gm.Expect(operate(as.StrFindOp(bin, NFC)).Bins[bin]).To(gm.Equal(0))
+		gm.Expect(operate(as.StrContainsOp(bin, NFC)).Bins[bin]).To(gm.Equal(true))
+		// NFC haystack vs NFD needle — no match (byte sequences differ).
+		gm.Expect(operate(as.StrFindOp(bin, NFD)).Bins[bin]).To(gm.Equal(-1))
+		gm.Expect(operate(as.StrContainsOp(bin, NFD)).Bins[bin]).To(gm.Equal(false))
+	})
+
+	gg.It("normalizeNFC composes a decomposed sequence", func() {
+		// "é" is the NFD ("decomposed") form of "é": Latin small "e"
+		// followed by combining acute accent. normalizeNFC must compose it to
+		// U+00E9 (NFC, single codepoint) — proving the op actually transforms
+		// non-normalized input, not just the no-op case.
+		put("é")
+		operate(as.StrNormalizeNFCOp(policy, bin))
+		gm.Expect(stringValue()).To(gm.Equal("é"))
+		// Composed form is 1 codepoint; the decomposed input would be 2.
+		gm.Expect(operate(as.StrLenOp(bin)).Bins[bin]).To(gm.Equal(1))
+	})
+
+	// ============================================================
+	// toString on blob with invalid UTF-8
+	//
+	// The server's blob→string conversion validates the bytes and rejects
+	// non-well-formed input with OP_NOT_APPLICABLE. {0xED, 0xA0, 0x80} is the
+	// UTF-8 encoding of U+D800 (ill-formed surrogate) — the same fixture used
+	// by the negative-tests suite in string_invalid_utf8_test.go.
+	// ============================================================
+
+	gg.It("toString on blob with invalid UTF-8 raises OP_NOT_APPLICABLE", func() {
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key,
+			as.NewBin(bin, []byte{0xED, 0xA0, 0x80}))).ToNot(gm.HaveOccurred())
+
+		_, err := client.Operate(nil, key, as.StrToStringOp(bin))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue())
+	})
+
+	// ============================================================
+	// Prepare / parameter-error suite
+	//
+	// These exercise the server's prepare-phase validation
+	// (particle_string.c: find occurrence != 0, empty/negative pad
+	// arguments, repeat count >= 0, regex_replace pattern compile).
+	// All should surface as PARAMETER_ERROR; an invalid regex surfaces
+	// as PARAMETER_ERROR per observed 8.1.3 behavior.
+	// ============================================================
+
+	expectParamError := func(op *as.Operation) {
+		_, err := client.Operate(nil, key, op)
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+	}
+
+	gg.It("find with zero occurrence raises PARAMETER_ERROR", func() {
+		// 0 is reserved as "no occurrence"; the server's find prepare rejects it.
+		put("hello")
+		expectParamError(as.StrFindNthOp(bin, "x", 0))
+	})
+
+	gg.It("padStart with empty pad string raises PARAMETER_ERROR", func() {
+		put("hello")
+		expectParamError(as.StrPadStartOp(policy, bin, 10, ""))
+	})
+
+	gg.It("padEnd with empty pad string raises PARAMETER_ERROR", func() {
+		put("hello")
+		expectParamError(as.StrPadEndOp(policy, bin, 10, ""))
+	})
+
+	gg.It("padStart with negative target raises PARAMETER_ERROR", func() {
+		put("hello")
+		expectParamError(as.StrPadStartOp(policy, bin, -1, "*"))
+	})
+
+	gg.It("repeat with negative count raises PARAMETER_ERROR", func() {
+		put("hello")
+		expectParamError(as.StrRepeatOp(policy, bin, -1))
+	})
+
+	gg.It("regexReplace with invalid pattern raises PARAMETER_ERROR", func() {
+		// Unclosed character class — PCRE2 compile fails inside the op.
+		put("hello")
+		expectParamError(as.StrRegexReplaceOp(
+			policy, bin, "[unclosed", "NUM", as.StringRegexDefault))
+	})
 })
