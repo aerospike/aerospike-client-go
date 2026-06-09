@@ -182,6 +182,11 @@ const (
 	// LOST_CONFLICT defines write command loses conflict to XDR.
 	LOST_CONFLICT ResultCode = 28
 
+	// INVALID_ENCODING defines that a string bin or string argument contains
+	// invalid UTF-8. Returned by server 8.1.3+ string operations when the bin
+	// value or a string argument fails the UTF-8 well-formedness gate.
+	INVALID_ENCODING ResultCode = 29
+
 	// Write can't complete until XDR finishes shipping.
 	XDR_KEY_BUSY ResultCode = 32
 
@@ -502,6 +507,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case LOST_CONFLICT:
 		return "Write command loses conflict to XDR."
 
+	case INVALID_ENCODING:
+		return "Invalid UTF-8 encoding"
+
 	case XDR_KEY_BUSY:
 		return "Write can't complete until XDR finishes shipping."
 
@@ -772,6 +780,8 @@ func (rc ResultCode) String() string {
 		return "FILTERED_OUT"
 	case LOST_CONFLICT:
 		return "LOST_CONFLICT"
+	case INVALID_ENCODING:
+		return "INVALID_ENCODING"
 	case XDR_KEY_BUSY:
 		return "XDR_KEY_BUSY"
 	case QUERY_END:

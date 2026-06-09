@@ -408,4 +408,28 @@ var _ = gg.Describe("String Expressions Test", func() {
 		rec := eval(as.ExpStringUpper(policy, nested))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("HELLO"))
 	})
+
+	// ============================================================
+	// Codepoint-vs-byte anchors (mirror of cdt_string_test.go)
+	// ============================================================
+
+	gg.It("strlen counts codepoints and byteLength counts bytes", func() {
+		// "café" = 4 codepoints, 5 UTF-8 bytes.
+		put("café")
+		gm.Expect(eval(as.ExpStringLen(as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(4))
+		gm.Expect(eval(as.ExpStringByteLength(as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(5))
+
+		// "日本語" = 3 codepoints, 9 UTF-8 bytes.
+		put("日本語")
+		gm.Expect(eval(as.ExpStringLen(as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(3))
+		gm.Expect(eval(as.ExpStringByteLength(as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(9))
+	})
+
+	gg.It("charAt returns whole supplementary codepoint", func() {
+		// 👋 is U+1F44B (4 UTF-8 bytes). charAt must return the whole
+		// codepoint, not a half-surrogate or a byte.
+		put("a👋b")
+		rec := eval(as.ExpStringCharAt(as.ExpIntVal(1), as.ExpStringBin(bin)))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("👋"))
+	})
 })
