@@ -18,6 +18,7 @@ import (
 	"errors"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
@@ -45,6 +46,23 @@ var _ = gg.Describe("UTF-8 Write Validation", gg.Ordered, func() {
 	)
 
 	gg.BeforeAll(func() {
+		// This suite is gated to the 8.1.2 server line. The
+		// backward-compat round-trip test (default-policy round-trips
+		// invalid UTF-8 bytes) requires the server to accept invalid
+		// UTF-8 STRING writes verbatim — true on 8.1.2, but 8.1.3+
+		// enforces UTF-8 server-side and rejects the write. Anything
+		// older than 8.1.2 lacks the test fixtures we rely on. Skip
+		// the whole Ordered container on any version outside [8.1.2, 8.1.3).
+		minVersion, err := version.Parse("8.1.2")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		maxExclusive, err := version.Parse("8.1.3")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		nodeVersion := client.GetNodes()[0].GetServerVersion()
+		if nodeVersion.IsSmaller(minVersion) || nodeVersion.IsGreaterOrEqual(maxExclusive) {
+			gg.Skip("UTF-8 write-validation tests are gated to server 8.1.2.x; got " + nodeVersion.String())
+			return
+		}
+
 		// Build a second client that opts in to UTF-8 validation. The
 		// suite-wide `client` keeps the legacy default (off) so existing
 		// tests are unaffected.
