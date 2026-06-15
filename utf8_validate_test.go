@@ -46,20 +46,11 @@ var _ = gg.Describe("UTF-8 Write Validation", gg.Ordered, func() {
 	)
 
 	gg.BeforeAll(func() {
-		// This suite is gated to the 8.1.2 server line. The
-		// backward-compat round-trip test (default-policy round-trips
-		// invalid UTF-8 bytes) requires the server to accept invalid
-		// UTF-8 STRING writes verbatim — true on 8.1.2, but 8.1.3+
-		// enforces UTF-8 server-side and rejects the write. Anything
-		// older than 8.1.2 lacks the test fixtures we rely on. Skip
-		// the whole Ordered container on any version outside [8.1.2, 8.1.3).
 		minVersion, err := version.Parse("8.1.2")
 		gm.Expect(err).ToNot(gm.HaveOccurred())
-		maxExclusive, err := version.Parse("8.1.3")
-		gm.Expect(err).ToNot(gm.HaveOccurred())
 		nodeVersion := client.GetNodes()[0].GetServerVersion()
-		if nodeVersion.IsSmaller(minVersion) || nodeVersion.IsGreaterOrEqual(maxExclusive) {
-			gg.Skip("UTF-8 write-validation tests are gated to server 8.1.2.x; got " + nodeVersion.String())
+		if nodeVersion.IsSmaller(minVersion) {
+			gg.Skip("UTF-8 write-validation tests require server 8.1.2+; got " + nodeVersion.String())
 			return
 		}
 
@@ -101,10 +92,20 @@ var _ = gg.Describe("UTF-8 Write Validation", gg.Ordered, func() {
 	// ============================================================
 
 	gg.It("default policy round-trips non-UTF-8 bytes (backward compatibility)", func() {
+		// Server 8.1.3+ enforces UTF-8 on STRING writes and rejects
+		// invalid bytes, so this legacy round-trip is only meaningful
+		// on 8.1.2.x.
+		maxExclusive, err := version.Parse("8.1.3")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		nodeVersion := client.GetNodes()[0].GetServerVersion()
+		if nodeVersion.IsGreaterOrEqual(maxExclusive) {
+			gg.Skip("backward-compat round-trip only applies to server <8.1.3")
+		}
+
 		nonUTF8 := string(badRawBytes)
 		gm.Expect(client.PutBins(nil, key, as.NewBin(bin, nonUTF8))).ToNot(gm.HaveOccurred())
-		rec, err := client.Get(nil, key)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
+		rec, gerr := client.Get(nil, key)
+		gm.Expect(gerr).ToNot(gm.HaveOccurred())
 		gm.Expect(rec.Bins[bin]).To(gm.Equal(nonUTF8))
 	})
 

@@ -50,7 +50,7 @@ var _ = gg.Describe("String Masking Tests", gg.Ordered, func() {
 
 	var (
 		ns           = *namespace
-		set          = randString(50)
+		set          = "test"
 		key          *as.Key
 		policy       = as.DefaultStringPolicy
 		privClient   *as.Client
