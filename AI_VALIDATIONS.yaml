@@ -1,0 +1,58 @@
+# AI_VALIDATIONS.yaml — aerospike-client-go
+#
+# Drop this file in the repo root. The pipeline agent reads it to know
+# what "done" means. Each validation is either command-based (has a `command`)
+# or agent-interpreted (has only a `description`).
+
+validations:
+
+  # -- Critical (must pass) ---------------------------------------------------
+
+  build:
+    description: "Full project compiles without errors"
+    command: "go build ./..."
+    critical: true
+    timeout: 120
+
+  unit_tests:
+    description: "All tests pass against the running Aerospike server"
+    # Use ginkgo so the Aerospike test-binary flags (-h, -p, optionally -U/-P) are
+    # passed through correctly. Add `-U <user> -P <pass>` after `--` if the cluster requires auth.
+    command: "go clean --testcache && ginkgo -r -- -h localhost -p 3100"
+    critical: true
+    timeout: 1800
+
+  # -- Non-critical (should pass, attempt to fix) -----------------------------
+
+  vet:
+    description: "Go vet passes with no issues"
+    command: "go vet ./..."
+    critical: false
+    timeout: 120
+
+  # -- Agent-interpreted (no command, use judgment) ----------------------------
+
+  api_surface:
+    description: >
+      Public API in the aerospike package must not have breaking changes.
+      No exported function/method/type signatures removed or changed.
+      New exports are fine. Check by reviewing the diff of *.go files in the repo root.
+    critical: true
+
+  code_conventions:
+    description: >
+      Changes follow the existing code style and conventions:
+      - Go 1.23+ features are acceptable
+      - No new external dependencies
+      - Error handling matches existing patterns (custom Error interface)
+      - Reflection-based code is guarded with //go:build !as_performance
+      - Follow existing import alias conventions (as, gg, gm)
+    critical: false
+
+  test_coverage:
+    description: >
+      New or modified functionality has corresponding test coverage.
+      If the task adds a feature, there should be tests for it.
+      If the task fixes a bug, there should be a test that would have caught it.
+      Tests use Ginkgo v2 Describe/Context/It blocks with Gomega matchers.
+    critical: false
