@@ -27,6 +27,12 @@ type baseWriteCommand struct {
 	singleCommand
 
 	policy *WritePolicy
+
+	// serverMessage / serverSubcode are populated from the response by
+	// parseHeader when the server attaches an extended error detail
+	// (ErrorDetailVerbosity > 0). Subcode defaults to SubCodeNone (0).
+	serverMessage string
+	serverSubcode int
 }
 
 func newBaseWriteCommand(
@@ -101,6 +107,9 @@ func (cmd *baseWriteCommand) parseHeader() (types.ResultCode, Error) {
 	if err := rp.parseFields(cmd.policy.Txn, cmd.key, true); err != nil {
 		return err.resultCode(), err
 	}
+
+	cmd.serverMessage = rp.serverMessage
+	cmd.serverSubcode = rp.serverSubcode
 
 	return rp.resultCode, nil
 }

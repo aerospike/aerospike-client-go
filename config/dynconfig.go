@@ -82,27 +82,29 @@ type Client struct {
 }
 
 type Read struct {
-	ReadModeAp          *ReadModeAp `yaml:"read_mode_ap"`
-	ReadModeSc          *ReadModeSc `yaml:"read_mode_sc"`
-	Replica             *Replica    `yaml:"replica"`
-	SleepBetweenRetries *int        `yaml:"sleep_between_retries"`
-	SleepMultiplier     *float64    `yaml:sleep_multiplier`
-	SocketTimeout       *int        `yaml:"socket_timeout"`
-	TotalTimeout        *int        `yaml:"total_timeout"`
-	MaxRetries          *int        `yaml:"max_retries"`
-	TimeoutDelay        *int        `yaml:"timeout_delay"`
+	ReadModeAp           *ReadModeAp `yaml:"read_mode_ap"`
+	ReadModeSc           *ReadModeSc `yaml:"read_mode_sc"`
+	Replica              *Replica    `yaml:"replica"`
+	SleepBetweenRetries  *int        `yaml:"sleep_between_retries"`
+	SleepMultiplier      *float64    `yaml:sleep_multiplier`
+	SocketTimeout        *int        `yaml:"socket_timeout"`
+	TotalTimeout         *int        `yaml:"total_timeout"`
+	MaxRetries           *int        `yaml:"max_retries"`
+	TimeoutDelay         *int        `yaml:"timeout_delay"`
+	ErrorDetailVerbosity *int        `yaml:"error_detail_verbosity"`
 }
 
 type Write struct {
-	Replica             *Replica `yaml:"replica"`
-	SendKey             *bool    `yaml:"send_key"`
-	SleepBetweenRetries *int     `yaml:"sleep_between_retries"`
-	SleepMultiplier     *float64 `yaml:sleep_multiplier`
-	SocketTimeout       *int     `yaml:"socket_timeout"`
-	TotalTimeout        *int     `yaml:"total_timeout"`
-	MaxRetries          *int     `yaml:"max_retries"`
-	DurableDelete       *bool    `yaml:"durable_delete"`
-	TimeoutDelay        *int     `yaml:"timeout_delay"`
+	Replica              *Replica `yaml:"replica"`
+	SendKey              *bool    `yaml:"send_key"`
+	SleepBetweenRetries  *int     `yaml:"sleep_between_retries"`
+	SleepMultiplier      *float64 `yaml:sleep_multiplier`
+	SocketTimeout        *int     `yaml:"socket_timeout"`
+	TotalTimeout         *int     `yaml:"total_timeout"`
+	MaxRetries           *int     `yaml:"max_retries"`
+	DurableDelete        *bool    `yaml:"durable_delete"`
+	TimeoutDelay         *int     `yaml:"timeout_delay"`
+	ErrorDetailVerbosity *int     `yaml:"error_detail_verbosity"`
 }
 
 type Query struct {

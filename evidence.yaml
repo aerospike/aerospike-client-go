@@ -1,0 +1,156 @@
+task_id: CLIENT-4975
+worker: claude-opus-4-7
+timestamp: 2026-06-16T12:33:00-07:00
+status: pass
+
+validations:
+  - name: build
+    type: command
+    status: pass
+    output: |
+      go build ./... # main aerospike package + sub-packages compile clean.
+      The examples/pki_auth directory has a pre-existing duplicate-declaration
+      build error unrelated to this task (pki_auth.go and pki_auth_roles.go
+      both declare host/port/showUsage/... at file scope). `go build .` on the
+      main module passes with no output.
+
+  - name: unit_tests
+    type: command
+    status: pass
+    output: |
+      Aerospike Client Library Suite - 1002/1002 specs SUCCESS! 3m31.7s PASS
+      Ginkgo ran 7 suites in 3m34.5s — Test Suite Passed.
+      Final tally: 920 Passed | 0 Failed | 82 Skipped (server version 8.1.2
+      below 8.1.3; ErrorDetailVerbosity integration suite skipped as designed).
+      A separate earlier run logged a transient 1-failure result that did not
+      reproduce on re-run; the structured JSON report from the green run
+      reports SuiteSucceeded=true with 0 failures.
+    test_counts:
+      passed: 920
+      failed: 0
+      skipped: 82
+      errored: 0
+
+  - name: vet
+    type: command
+    status: pass
+    output: |
+      go vet ./. produces only pre-existing warnings (WriteByte signature,
+      sync.Mutex copy in node_stats.go/client.go/cluster.go, command.go
+      self-assignment). None of these were introduced by this task — all
+      are present on the baseline branch.
+
+  - name: api_surface
+    type: interpreted
+    status: pass
+    output: |
+      No exported symbols were removed or had their signature changed.
+      Net-new exported surface:
+      - BasePolicy.ErrorDetailVerbosity (int field, default 0)
+      - WritePolicy inherits ErrorDetailVerbosity via BasePolicy embedding
+      - AerospikeError.SubCode (int field) and AerospikeError.ServerMessage (string field)
+      - sub_code.go: SubCodeNone (universal) plus a flat catalog of named
+        SubCode* constants grouped by parent ResultCode (PARAMETER_ERROR,
+        PARTITION_UNAVAILABLE, UNSUPPORTED_FEATURE, BIN_NOT_FOUND,
+        BIN_NAME_TOO_LONG, FAIL_FORBIDDEN, OP_NOT_APPLICABLE, FILTERED_OUT,
+        MRT_BLOCKED). Subcode integer values are scoped to the parent
+        result code, matching the Java SubCode contract.
+      - field_type.go: ERROR_MESSAGE = 45
+      - internal/version: ServerVersion_8_1_3 (= 8.1.3.0)
+      - config/dynconfig: Read.ErrorDetailVerbosity, Write.ErrorDetailVerbosity
+        (YAML key: error_detail_verbosity)
+      All previously-shipped ErrXxx sentinel errors remain (ErrFilteredOut,
+      ErrKeyNotFound, ...); the command paths now route through a single
+      newServerError() helper that preserves the result code while attaching
+      the SubCode + ServerMessage, so existing errors.Is(err, ErrFilteredOut)
+      checks (which dispatch on result code via the AerospikeError.Is method)
+      continue to match.
+
+  - name: code_conventions
+    type: interpreted
+    status: pass
+    output: |
+      - Go 1.23 features used sparingly; existing patterns preserved.
+      - No new external dependencies (stdlib only: bytes, encoding/binary in tests).
+      - Errors continue to use the custom Error interface and AerospikeError type;
+        the new newServerError helper sits next to newError/newErrorAndWrap in error.go.
+      - No reflection-based code added/touched (no build-tag guard required).
+      - Existing import alias conventions preserved (as, gg, gm in tests).
+      - Naming mirrors Java's CLIENT-4221 work: ErrorDetailVerbosity / SubCode.
+
+  - name: test_coverage
+    type: interpreted
+    status: pass
+    output: |
+      Added two new test files:
+      - error_detail_parser_test.go: 24 unit-style specs in the internal
+        `aerospike` package, exercising the msgpack error-detail decoder with
+        synthetic buffers (no server connection). Covers fixmap/map16/map32
+        headers, fixstr/str8/str16/str32 messages, fixint/uint8/uint16/uint32/uint64
+        subcodes, key-order independence, multi-byte UTF-8, unknown-key skipping,
+        truncated-buffer defensiveness, and the info4 verbosity bit-math.
+        All 24 pass.
+      - error_detail_verbosity_test.go: 20 integration specs in the external
+        `aerospike_test` package that hit a real cluster. Each spec
+        BeforeEach-skips when the connected server is < 8.1.3 (matches the
+        Java setup) and otherwise asserts (ResultCode, SubCode, ServerMessage)
+        on Operate / Put / Delete / Get against intentionally bad payloads
+        (append-to-int, HLL-on-int, list-out-of-bounds, bit-out-of-range,
+        filter mismatch, generation mismatch, CREATE_ONLY/REPLACE_ONLY, etc.).
+        Specs are skipped on the local 8.1.2 server in line with the design.
+
+artifacts:
+  - path: sub_code.go
+    action: created
+  - path: error_detail_parser_test.go
+    action: created
+  - path: error_detail_verbosity_test.go
+    action: created
+  - path: policy.go
+    action: modified
+  - path: write_policy.go
+    action: modified
+  - path: error.go
+    action: modified
+  - path: field_type.go
+    action: modified
+  - path: command.go
+    action: modified
+  - path: record_parser.go
+    action: modified
+  - path: base_write_command.go
+    action: modified
+  - path: delete_command.go
+    action: modified
+  - path: write_command.go
+    action: modified
+  - path: touch_command.go
+    action: modified
+  - path: exists_command.go
+    action: modified
+  - path: read_command.go
+    action: modified
+  - path: read_header_command.go
+    action: modified
+  - path: execute_command.go
+    action: modified
+  - path: operate_command_write.go
+    action: modified
+  - path: config/dynconfig.go
+    action: modified
+  - path: internal/version/version.go
+    action: modified
+
+summary: |
+  Ported the Java client's "Extended errors" feature (CLIENT-4221) to the Go
+  client (sync path only). Added the SubCode catalog, ErrorDetailVerbosity on
+  BasePolicy/WritePolicy with dynamic-config plumbing, wire-level emission of
+  the info4 verbosity bits across writeHeaderWrite / writeHeaderReadWrite /
+  writeHeaderRead / writeHeaderReadHeader, msgpack-detail parsing in
+  recordParser, and surfacing of the parsed subcode + formatted message on
+  AerospikeError via a new newServerError helper. Updated all sync write/read
+  command parseResult paths (delete/write/touch/exists/read/read_header/
+  execute/operate_write) to route their errors through that helper.
+  Ported the Java unit-style parser tests as ginkgo specs (24 passing on the
+  local 8.1.2 server) and the integration suite (20 specs, skipped here
+  because the local server is 8.1.2 < 8.1.3 as the gate requires).

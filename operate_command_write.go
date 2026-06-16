@@ -59,21 +59,16 @@ func (cmd *operateCommandWrite) parseResult(ifc command, conn *Connection) Error
 		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), rp.resultCode)
 	}
 
-	switch rp.resultCode {
-	case types.OK:
+	if rp.resultCode == types.OK {
 		var err Error
 		cmd.record, err = rp.parseRecord(cmd.key, true)
 		if err != nil {
 			return err
 		}
 		return nil
-	case types.KEY_NOT_FOUND_ERROR:
-		return ErrKeyNotFound.err()
-	case types.FILTERED_OUT:
-		return ErrFilteredOut.err()
-	default:
-		return newError(rp.resultCode)
 	}
+
+	return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode)
 }
 
 func (cmd *operateCommandWrite) Execute() Error {

@@ -56,16 +56,11 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) Error {
 		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 	}
 
-	switch resultCode {
-	case types.OK:
+	if resultCode == types.OK {
 		return nil
-	case types.KEY_NOT_FOUND_ERROR:
-		return ErrKeyNotFound.err()
-	case types.FILTERED_OUT:
-		return ErrFilteredOut.err()
-	default:
-		return newError(types.ResultCode(resultCode))
 	}
+
+	return newServerError(types.ResultCode(resultCode), cmd.serverMessage, cmd.serverSubcode)
 }
 
 func (cmd *touchCommand) isRead() bool {

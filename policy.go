@@ -177,6 +177,14 @@ type BasePolicy struct {
 	// in the background.  Processing continues on the original command and the user
 	// is still notified at the original command timeout.
 	TimeoutDelay time.Duration // = 0
+
+	// ErrorDetailVerbosity requests server error detail fields in responses.
+	//  0 - disabled (no error details).
+	//  1 - subcode only.
+	//  2 - subcode + message.
+	// Default: 0
+	// Requires Aerospike server version 8.1.3 or later. Older servers ignore the flag.
+	ErrorDetailVerbosity int
 }
 
 // NewPolicy generates a new BasePolicy instance with default values.
@@ -312,6 +320,13 @@ func (bp *BasePolicy) mapDynamic(dynConfig *DynConfig) *BasePolicy {
 			bp.TimeoutDelay = configValue
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("TimeoutDelay set to %s", configValue.String())
+			}
+		}
+		if currentConfig.Dynamic.Read.ErrorDetailVerbosity != nil {
+			configValue := *currentConfig.Dynamic.Read.ErrorDetailVerbosity
+			bp.ErrorDetailVerbosity = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ErrorDetailVerbosity set to %d", configValue)
 			}
 		}
 	}

@@ -116,6 +116,54 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 
 	}) // Context
 
+	gg.Context("newServerError preserves const-sentinel contract", func() {
+
+		gg.It("errors.Is matches ErrKeyNotFound for plain KEY_NOT_FOUND_ERROR", func() {
+			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "", 0)
+
+			gm.Expect(errors.Is(err, ErrKeyNotFound)).To(gm.BeTrue())
+			gm.Expect(err.Matches(ast.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue())
+		})
+
+		gg.It("errors.Is matches ErrKeyNotFound when server detail is present", func() {
+			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "record missing (subcode=7)", 7)
+
+			gm.Expect(errors.Is(err, ErrKeyNotFound)).To(gm.BeTrue())
+
+			ae := &AerospikeError{}
+			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
+			gm.Expect(ae.ResultCode).To(gm.Equal(ast.KEY_NOT_FOUND_ERROR))
+			gm.Expect(ae.ServerMessage).To(gm.Equal("record missing (subcode=7)"))
+			gm.Expect(ae.SubCode).To(gm.Equal(7))
+		})
+
+		gg.It("errors.Is matches ErrFilteredOut for plain FILTERED_OUT", func() {
+			err := newServerError(ast.FILTERED_OUT, "", 0)
+
+			gm.Expect(errors.Is(err, ErrFilteredOut)).To(gm.BeTrue())
+			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
+		})
+
+		gg.It("errors.Is matches ErrFilteredOut when server detail is present", func() {
+			err := newServerError(ast.FILTERED_OUT, "filtered by bin (subcode=1)", 1)
+
+			gm.Expect(errors.Is(err, ErrFilteredOut)).To(gm.BeTrue())
+
+			ae := &AerospikeError{}
+			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
+			gm.Expect(ae.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
+			gm.Expect(ae.ServerMessage).To(gm.Equal("filtered by bin (subcode=1)"))
+			gm.Expect(ae.SubCode).To(gm.Equal(1))
+		})
+
+		gg.It("errors.Is does not cross-match unrelated result codes", func() {
+			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "", 0)
+
+			gm.Expect(errors.Is(err, ErrFilteredOut)).To(gm.BeFalse())
+		})
+
+	}) // Context
+
 	gg.Context("errors.As", func() {
 
 		gg.It("should handle simple case", func() {

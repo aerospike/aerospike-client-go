@@ -210,6 +210,13 @@ func (wp *WritePolicy) mapDynamic(dynConfig *DynConfig) *WritePolicy {
 				logger.Logger.Info("TimeoutDelay set to %s", configValue.String())
 			}
 		}
+		if currentConfig.Dynamic.Write.ErrorDetailVerbosity != nil {
+			configValue := *currentConfig.Dynamic.Write.ErrorDetailVerbosity
+			wp.ErrorDetailVerbosity = configValue
+			if dynConfig.logUpdate.Load() {
+				logger.Logger.Info("ErrorDetailVerbosity set to %d", configValue)
+			}
+		}
 	}
 
 	return wp

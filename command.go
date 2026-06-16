@@ -95,6 +95,9 @@ const (
 	_INFO4_MRT_ROLL_BACK = (1 << 2)
 	// Must be able to lock record in transaction.
 	_INFO4_MRT_ON_LOCKING_ONLY = (1 << 4)
+	// info4 bits 5-6: error detail verbosity level.
+	_INFO4_ERROR_VERBOSITY_SHIFT = 5
+	_INFO4_ERROR_VERBOSITY_MASK  = 0x60
 
 	// Interpret SC_READ bits in info3.
 	//
@@ -3043,6 +3046,8 @@ func (cmd *baseCommand) writeHeaderWrite(policy *WritePolicy, writeAttr, fieldCo
 		txnAttr |= _INFO4_MRT_ON_LOCKING_ONLY
 	}
 
+	txnAttr |= (policy.ErrorDetailVerbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK
+
 	// if (policy.Xdr) {
 	// 	readAttr |= _INFO1_XDR;
 	// }
@@ -3111,6 +3116,8 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, args *operateA
 		txnAttr |= _INFO4_MRT_ON_LOCKING_ONLY
 	}
 
+	txnAttr |= (policy.ErrorDetailVerbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK
+
 	// if (policy.xdr) {
 	// 	readAttr |= _INFO1_XDR;
 	// }
@@ -3174,8 +3181,9 @@ func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, writeAttr,
 	cmd.dataBuffer[9] = byte(readAttr)
 	cmd.dataBuffer[10] = byte(writeAttr)
 	cmd.dataBuffer[11] = byte(infoAttr)
+	cmd.dataBuffer[12] = byte((policy.ErrorDetailVerbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK)
 
-	for i := 12; i < 18; i++ {
+	for i := 13; i < 18; i++ {
 		cmd.dataBuffer[i] = 0
 	}
 	cmd.dataOffset = 18
@@ -3209,8 +3217,9 @@ func (cmd *baseCommand) writeHeaderReadHeader(policy *BasePolicy, readAttr, fiel
 	cmd.dataBuffer[9] = byte(readAttr)
 	cmd.dataBuffer[10] = byte(0)
 	cmd.dataBuffer[11] = byte(infoAttr)
+	cmd.dataBuffer[12] = byte((policy.ErrorDetailVerbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK)
 
-	for i := 12; i < 18; i++ {
+	for i := 13; i < 18; i++ {
 		cmd.dataBuffer[i] = 0
 	}
 

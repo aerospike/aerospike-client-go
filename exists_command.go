@@ -67,9 +67,9 @@ func (cmd *existsCommand) parseResult(ifc command, conn *Connection) Error {
 		cmd.exists = false
 	case types.FILTERED_OUT:
 		cmd.exists = true
-		return ErrFilteredOut.err()
+		return newServerError(types.FILTERED_OUT, rp.serverMessage, rp.serverSubcode)
 	default:
-		return newError(rp.resultCode)
+		return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode)
 	}
 
 	return nil
