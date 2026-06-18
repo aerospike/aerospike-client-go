@@ -169,11 +169,11 @@ func StrSubstrFromOp(binName string, start int, ctx ...*CDTContext) *Operation {
 	return newStringReadOp(_STR_OP_SUBSTR, binName, ctx, IntegerValue(start))
 }
 
-// StrSubstrOp creates a string `substr` operation that reads `length` codepoints
-// starting at codepoint `start`. Negative indexes count from the end. `length`
-// is clamped to the remaining string length.
-func StrSubstrOp(binName string, start int, length int, ctx ...*CDTContext) *Operation {
-	return newStringReadOp(_STR_OP_SUBSTR, binName, ctx, IntegerValue(start), IntegerValue(length))
+// StrSubstrOp creates a string `substr` operation that reads codepoints in the
+// half-open range `[start, end)`. Negative indexes count from the end. `end`
+// is clamped to the string length.
+func StrSubstrOp(binName string, start int, end int, ctx ...*CDTContext) *Operation {
+	return newStringReadOp(_STR_OP_SUBSTR, binName, ctx, IntegerValue(start), IntegerValue(end))
 }
 
 // StrCharAtOp creates a string `charAt` operation. The server returns the

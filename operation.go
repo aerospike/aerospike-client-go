@@ -127,11 +127,19 @@ func PutOp(bin *Bin) *Operation {
 }
 
 // AppendOp creates string append database operation.
+//
+// Deprecated: Use [StrAppendOp] instead. This legacy operation performs a raw
+// byte concatenation that is not Unicode/DBCS-aware; the string-package
+// equivalent provides consistent Unicode handling and policy/CTX support.
 func AppendOp(bin *Bin) *Operation {
 	return &Operation{opType: _APPEND, binName: bin.Name, binValue: bin.Value}
 }
 
 // PrependOp creates string prepend database operation.
+//
+// Deprecated: Use [StrPrependOp] instead. This legacy operation performs a raw
+// byte concatenation that is not Unicode/DBCS-aware; the string-package
+// equivalent provides consistent Unicode handling and policy/CTX support.
 func PrependOp(bin *Bin) *Operation {
 	return &Operation{opType: _PREPEND, binName: bin.Name, binValue: bin.Value}
 }
