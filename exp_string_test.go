@@ -111,6 +111,19 @@ var _ = gg.Describe("String Expressions Test", func() {
 		gm.Expect(r2.Bins[variable]).To(gm.Equal(2))
 	})
 
+	gg.It("find skips overlapping matches", func() {
+		// Self-overlapping needle "aa" in "aaaa": after match at 0, search
+		// resumes at 2 — so the 2nd occurrence is at 2, not 1. Mirrors the
+		// StrFindNthOp contract and ICU usearch behavior.
+		put("aaaa")
+		gm.Expect(eval(as.ExpStringFindNth(
+			as.ExpStringVal("aa"), as.ExpIntVal(1), as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(0))
+		gm.Expect(eval(as.ExpStringFindNth(
+			as.ExpStringVal("aa"), as.ExpIntVal(2), as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(2))
+		gm.Expect(eval(as.ExpStringFindNth(
+			as.ExpStringVal("aa"), as.ExpIntVal(3), as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(-1))
+	})
+
 	gg.It("contains returns a boolean", func() {
 		put("hello world")
 		present := eval(as.ExpStringContains(as.ExpStringVal("hello"), as.ExpStringBin(bin)))
@@ -241,6 +254,36 @@ var _ = gg.Describe("String Expressions Test", func() {
 		values := as.ExpListValueVal(" ", "big", " world")
 		rec := eval(as.ExpStringConcat(policy, values, as.ExpStringBin(bin)))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello big world"))
+	})
+
+	gg.It("append adds value to end", func() {
+		skipExpressionModifyPath()
+		put("hello")
+		rec := eval(as.ExpStringAppend(policy, as.ExpStringVal(" world"), as.ExpStringBin(bin)))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello world"))
+	})
+
+	gg.It("append preserves multibyte codepoints", func() {
+		// Unicode/DBCS-aware: "日本" + "語" -> "日本語".
+		skipExpressionModifyPath()
+		put("日本")
+		rec := eval(as.ExpStringAppend(policy, as.ExpStringVal("語"), as.ExpStringBin(bin)))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("日本語"))
+	})
+
+	gg.It("prepend adds value to start", func() {
+		skipExpressionModifyPath()
+		put("world")
+		rec := eval(as.ExpStringPrepend(policy, as.ExpStringVal("hello "), as.ExpStringBin(bin)))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello world"))
+	})
+
+	gg.It("prepend preserves multibyte codepoints", func() {
+		// Unicode/DBCS-aware: "語" prepended with "日本" -> "日本語".
+		skipExpressionModifyPath()
+		put("語")
+		rec := eval(as.ExpStringPrepend(policy, as.ExpStringVal("日本"), as.ExpStringBin(bin)))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("日本語"))
 	})
 
 	gg.It("snip removes from start and range", func() {

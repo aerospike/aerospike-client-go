@@ -72,6 +72,8 @@ const (
 	_STR_OP_PAD_END       = 64
 	_STR_OP_REPEAT        = 65
 	_STR_OP_REGEX_REPLACE = 66
+	_STR_OP_APPEND        = 67
+	_STR_OP_PREPEND       = 68
 )
 
 // StringNumericType is the numeric type filter used by [StrIsNumericTypedOp]
@@ -331,6 +333,24 @@ func StrConcatListOp(policy *StringPolicy, binName string, values []string, ctx 
 		list[i] = StringValue(s)
 	}
 	return newStringModifyOp(_STR_OP_CONCAT, binName, ctx, list, IntegerValue(policy.flags))
+}
+
+// StrAppendOp creates a string `append` operation that appends `value` to the
+// end of the bin. Unlike the legacy byte-level [AppendOp], this operation is
+// Unicode/DBCS-aware and shares the consistent [StringPolicy] / CTX interface
+// of the rest of the string package.
+func StrAppendOp(policy *StringPolicy, binName string, value string, ctx ...*CDTContext) *Operation {
+	policy = stringPolicyOrDefault(policy)
+	return newStringModifyOp(_STR_OP_APPEND, binName, ctx, StringValue(value), IntegerValue(policy.flags))
+}
+
+// StrPrependOp creates a string `prepend` operation that prepends `value` to
+// the start of the bin. Unlike the legacy byte-level [PrependOp], this
+// operation is Unicode/DBCS-aware and shares the consistent [StringPolicy] /
+// CTX interface of the rest of the string package.
+func StrPrependOp(policy *StringPolicy, binName string, value string, ctx ...*CDTContext) *Operation {
+	policy = stringPolicyOrDefault(policy)
+	return newStringModifyOp(_STR_OP_PREPEND, binName, ctx, StringValue(value), IntegerValue(policy.flags))
 }
 
 // StrSnipFromOp creates a string `snip` operation that removes codepoints
