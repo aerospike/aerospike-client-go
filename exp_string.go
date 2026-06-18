@@ -64,10 +64,11 @@ func ExpStringSubstrFrom(start *Expression, src *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeSTRING, IntegerValue(_STR_OP_SUBSTR), start)
 }
 
-// ExpStringSubstr creates an expression that returns `length` codepoints of
-// `src` starting at codepoint `start`. Negative indexes count from the end.
-func ExpStringSubstr(start *Expression, length *Expression, src *Expression) *Expression {
-	return addStringReadExp(src, ExpTypeSTRING, IntegerValue(_STR_OP_SUBSTR), start, length)
+// ExpStringSubstr creates an expression that returns the substring of `src` in
+// the half-open codepoint range `[start, end)`. Negative indexes count from
+// the end.
+func ExpStringSubstr(start *Expression, end *Expression, src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeSTRING, IntegerValue(_STR_OP_SUBSTR), start, end)
 }
 
 // ExpStringCharAt creates an expression that returns the codepoint at `index`
