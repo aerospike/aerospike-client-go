@@ -216,6 +216,22 @@ func ExpStringConcat(policy *StringPolicy, values *Expression, src *Expression) 
 	return addStringModifyExp(src, IntegerValue(_STR_OP_CONCAT), values, IntegerValue(policy.flags))
 }
 
+// ExpStringAppend creates an expression that appends `value` to the end of
+// `src` and returns the resulting string. Unicode/DBCS-aware counterpart to
+// the legacy byte-level append; does not modify the underlying bin.
+func ExpStringAppend(policy *StringPolicy, value *Expression, src *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_APPEND), value, IntegerValue(policy.flags))
+}
+
+// ExpStringPrepend creates an expression that prepends `value` to the start of
+// `src` and returns the resulting string. Unicode/DBCS-aware counterpart to
+// the legacy byte-level prepend; does not modify the underlying bin.
+func ExpStringPrepend(policy *StringPolicy, value *Expression, src *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_PREPEND), value, IntegerValue(policy.flags))
+}
+
 // ExpStringSnipFrom creates an expression that removes codepoints from `src`
 // starting at codepoint `start` through the end, returning the resulting
 // string. Does not modify the underlying bin.

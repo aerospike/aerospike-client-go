@@ -66,7 +66,7 @@ var _ = gg.Describe("String Operations Test", func() {
 	}
 
 	gg.BeforeEach(func() {
-		requiredVersion, err := version.Parse("8.1.2")
+		requiredVersion, err := version.Parse("8.1.3")
 		if err != nil {
 			gg.Fail("Failed to parse server required version")
 		}
@@ -142,6 +142,26 @@ var _ = gg.Describe("String Operations Test", func() {
 		put("ababab")
 		rec := operate(as.StrFindNthOp(bin, "ab", 2))
 		gm.Expect(rec.Bins[bin]).To(gm.Equal(2))
+	})
+
+	gg.It("find skips overlapping matches (ASCII)", func() {
+		// "aa" is a self-overlapping needle (prefix "a" == suffix "a"). After
+		// matching at index 0 the search resumes *after* the match (index 2),
+		// so the 2nd occurrence is at 2 — not 1. Mirrors replace() and the ICU
+		// usearch path used for non-ASCII haystacks.
+		put("aaaa")
+		gm.Expect(operate(as.StrFindNthOp(bin, "aa", 1)).Bins[bin]).To(gm.Equal(0))
+		gm.Expect(operate(as.StrFindNthOp(bin, "aa", 2)).Bins[bin]).To(gm.Equal(2))
+		gm.Expect(operate(as.StrFindNthOp(bin, "aa", 3)).Bins[bin]).To(gm.Equal(-1))
+	})
+
+	gg.It("find skips overlapping matches (Unicode)", func() {
+		// Same overlap-skip rule on the ICU path. "👋👋" is self-overlapping in
+		// codepoints; matches land at codepoint indices 0 and 2, not 0 and 1.
+		put("👋👋👋👋")
+		gm.Expect(operate(as.StrFindNthOp(bin, "👋👋", 1)).Bins[bin]).To(gm.Equal(0))
+		gm.Expect(operate(as.StrFindNthOp(bin, "👋👋", 2)).Bins[bin]).To(gm.Equal(2))
+		gm.Expect(operate(as.StrFindNthOp(bin, "👋👋", 3)).Bins[bin]).To(gm.Equal(-1))
 	})
 
 	gg.It("contains returns a boolean match flag", func() {
@@ -356,6 +376,16 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(stringValue()).To(gm.Equal("hello"))
 	})
 
+	gg.It("replaceAll skips overlapping matches", func() {
+		// Self-overlapping needle "aa" in "aaaa": replacement resumes after each
+		// match, yielding "XX" — not "XaX" (which would require allowing the
+		// 2nd match to start at index 1). Anchors the contract that find()
+		// mirrors.
+		put("aaaa")
+		operate(as.StrReplaceAllOp(policy, bin, "aa", "X"))
+		gm.Expect(stringValue()).To(gm.Equal("XX"))
+	})
+
 	gg.It("trim removes whitespace on both ends", func() {
 		put("  hello world  ")
 		operate(as.StrTrimOp(policy, bin))
@@ -428,6 +458,63 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(stringValue()).To(gm.Equal("hello big world"))
 	})
 
+	gg.It("append adds value to end", func() {
+		put("hello")
+		operate(as.StrAppendOp(policy, bin, " world"))
+		gm.Expect(stringValue()).To(gm.Equal("hello world"))
+	})
+
+	gg.It("append to empty string yields value", func() {
+		put("")
+		operate(as.StrAppendOp(policy, bin, "hi"))
+		gm.Expect(stringValue()).To(gm.Equal("hi"))
+	})
+
+	gg.It("append preserves multibyte codepoints", func() {
+		// Unicode/DBCS-aware: appending a multi-byte string must not corrupt
+		// either side. "日本" + "語" -> "日本語" (3 codepoints, 9 UTF-8 bytes).
+		put("日本")
+		operate(as.StrAppendOp(policy, bin, "語"))
+		gm.Expect(stringValue()).To(gm.Equal("日本語"))
+		gm.Expect(operate(as.StrLenOp(bin)).Bins[bin]).To(gm.Equal(3))
+	})
+
+	gg.It("prepend adds value to start", func() {
+		put("world")
+		operate(as.StrPrependOp(policy, bin, "hello "))
+		gm.Expect(stringValue()).To(gm.Equal("hello world"))
+	})
+
+	gg.It("prepend to empty string yields value", func() {
+		put("")
+		operate(as.StrPrependOp(policy, bin, "hi"))
+		gm.Expect(stringValue()).To(gm.Equal("hi"))
+	})
+
+	gg.It("prepend preserves multibyte codepoints", func() {
+		// Unicode/DBCS-aware: prepending a multi-byte string must not corrupt
+		// either side. "語" prepended with "日本" -> "日本語".
+		put("語")
+		operate(as.StrPrependOp(policy, bin, "日本"))
+		gm.Expect(stringValue()).To(gm.Equal("日本語"))
+		gm.Expect(operate(as.StrLenOp(bin)).Bins[bin]).To(gm.Equal(3))
+	})
+
+	gg.It("append on missing bin with NO_FAIL is a no-op", func() {
+		// Mirrors the upper() missing-bin NO_FAIL test for the append op.
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
+
+		noFail := as.NewStringPolicy(as.StringWriteNoFail)
+		operate(as.StrAppendOp(noFail, bin, "x"))
+
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		_, exists := rec.Bins[bin]
+		gm.Expect(exists).To(gm.BeFalse())
+		gm.Expect(rec.Bins["other"]).To(gm.Equal("untouched"))
+	})
+
 	gg.It("regexReplace targets first match by default", func() {
 		put("abc123def456")
 		operate(as.StrRegexReplaceOp(policy, bin, "[0-9]+", "NUM", as.StringRegexDefault))
@@ -498,6 +585,16 @@ var _ = gg.Describe("String Operations Test", func() {
 			as.StrPadEndOp(policy, bin, 10, "."))
 
 		gm.Expect(stringValue()).To(gm.Equal("xxbxx....."))
+	})
+
+	gg.It("snip then concat in one operate", func() {
+		put("hello beautiful world")
+
+		operate(
+			as.StrSnipOp(policy, bin, 5, 15),
+			as.StrConcatOp(policy, bin, "!"))
+
+		gm.Expect(stringValue()).To(gm.Equal("hello world!"))
 	})
 
 	gg.It("split result entries are readable strings", func() {
@@ -574,6 +671,35 @@ var _ = gg.Describe("String Operations Test", func() {
 		after := rec.Bins[bin].(map[any]any)
 		items := after["items"].([]any)
 		gm.Expect(items).To(gm.Equal([]any{"one", "TWO", "three"}))
+	})
+
+	gg.It("append on string nested in list", func() {
+		// list = ["alpha", "beta", "gamma"]; append "!" at index 1 -> "beta!"
+		list := []any{"alpha", "beta", "gamma"}
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin(bin, list))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrAppendOp(policy, bin, "!", as.CtxListIndex(1)))
+
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(rec.Bins[bin]).To(gm.Equal([]any{"alpha", "beta!", "gamma"}))
+	})
+
+	gg.It("prepend on string nested in map", func() {
+		// map = {"a": "world", "b": "foo"}; prepend "hello " at key "a"
+		m := map[any]any{"a": "world", "b": "foo"}
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin(bin, m))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrPrependOp(policy, bin, "hello ",
+			as.CtxMapKey(as.StringValue("a"))))
+
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		after := rec.Bins[bin].(map[any]any)
+		gm.Expect(after["a"]).To(gm.Equal("hello world"))
+		gm.Expect(after["b"]).To(gm.Equal("foo"))
 	})
 
 	// ============================================================
