@@ -1158,7 +1158,7 @@ func ExpDigestModulo(modulo int64) *Expression {
 
 // ExpRegexCompare creates a function like regular expression string operation.
 //
-// Deprecated: Use [ExpStringRegexCompare] or [ExpStringRegexCompareWithFlags]
+// Deprecated: ExpRegexCompare has been deprecated since 8.8.0. Use [ExpStringRegexCompare] or [ExpStringRegexCompareWithFlags]
 // instead. This legacy comparison uses POSIX regex and is not Unicode/DBCS-aware;
 // the string-package equivalent uses ICU regex and provides consistent Unicode
 // handling across the string ops.
