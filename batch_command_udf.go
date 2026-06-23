@@ -223,7 +223,31 @@ func (cmd *batchCommandUDF) Execute() Error {
 	if len(cmd.batch.offsets) == 1 {
 		return cmd.executeSingle(cmd.client)
 	}
-	return cmd.execute(cmd)
+	err := cmd.execute(cmd)
+	if err != nil {
+		// Mark this node's NO_RESPONSE write records in-doubt. Called directly (not via
+		// setInDoubt) because splitRetry may have been set during an abandoned split,
+		// which would otherwise suppress propagation. inDoubt() only flips NO_RESPONSE
+		// writes, so it is idempotent and safe even if a sub-command already set some.
+		cmd.inDoubt()
+	}
+	return err
+}
+
+// inDoubt marks each write record that did not receive a server response as in-doubt.
+// Reached on a multi-key batch timeout via Execute -> setInDoubt (when not split).
+func (cmd *batchCommandUDF) inDoubt() {
+	if !cmd.attr.hasWrite {
+		return
+	}
+
+	for _, offset := range cmd.batch.offsets {
+		record := cmd.records[offset]
+
+		if record.ResultCode == types.NO_RESPONSE {
+			record.InDoubt = true
+		}
+	}
 }
 
 func (cmd *batchCommandUDF) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {

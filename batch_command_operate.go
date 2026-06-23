@@ -292,7 +292,28 @@ func (cmd *batchCommandOperate) Execute() Error {
 	if cmd.objects == nil && len(cmd.batch.offsets) == 1 {
 		return cmd.executeSingle(cmd.client)
 	}
-	return cmd.execute(cmd)
+	err := cmd.execute(cmd)
+	if err != nil {
+		// Mark this node's NO_RESPONSE write records in-doubt. Called directly (not via
+		// setInDoubt) because splitRetry may have been set during an abandoned split,
+		// which would otherwise suppress propagation. inDoubt() only flips NO_RESPONSE
+		// writes, so it is idempotent and safe even if a sub-command already set some.
+		cmd.inDoubt()
+	}
+	return err
+}
+
+// inDoubt marks each write record that did not receive a server response as in-doubt.
+// A BatchOperate list can mix reads and writes, so in-doubt is set per record based on
+// its own hasWrite flag. Reached on a multi-key batch timeout via Execute -> setInDoubt.
+func (cmd *batchCommandOperate) inDoubt() {
+	for _, offset := range cmd.batch.offsets {
+		record := cmd.records[offset].BatchRec()
+
+		if record.ResultCode == types.NO_RESPONSE && record.hasWrite {
+			record.InDoubt = true
+		}
+	}
 }
 
 func (cmd *batchCommandOperate) commandType() commandType {
