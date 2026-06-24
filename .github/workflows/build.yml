@@ -39,7 +39,7 @@ jobs:
               "8.1.2.0": { "version": "8.1.2.0" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
-          modes: AP,SC
+          modes: ${{ github.actor == 'dependabot[bot]' && 'AP' || 'AP,SC' }}
 
       - name: debug - print input variables
         run: |
