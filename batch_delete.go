@@ -65,32 +65,30 @@ func (bd *BatchDelete) equals(obj BatchRecordIfc) bool {
 	return bd.Policy == other.Policy
 }
 
-// Return wire protocol size. For internal use only.
-func (bd *BatchDelete) size(parentPolicy *BasePolicy) (int, Error) {
+// resolveSendKey returns parent ∪ per-record/default/dynamic sendKey. For internal use only.
+func (bd *BatchDelete) resolveSendKey(parentPolicy *BasePolicy, client *Client) bool {
+	dp := client.getUsableBatchDeletePolicy(bd.Policy)
+	return parentPolicy.SendKey || (dp != nil && dp.SendKey)
+}
+
+// Return wire protocol size. sendKey is pre-resolved so size and write agree. For internal use only.
+func (bd *BatchDelete) size(sendKey bool) (int, Error) {
 	size := 2 // gen(2) = 2
 
-	if bd.Policy != nil {
-		if bd.Policy.FilterExpression != nil {
-			if sz, err := bd.Policy.FilterExpression.size(); err != nil {
-				return -1, err
-			} else {
-				size += sz + int(_FIELD_HEADER_SIZE)
-			}
-		}
-
-		if (bd.Policy.SendKey || parentPolicy.SendKey) && bd.Key.hasValueToSend() {
-			if sz, err := bd.Key.userKey.EstimateSize(); err != nil {
-				return -1, err
-			} else {
-				size += sz + int(_FIELD_HEADER_SIZE) + 1
-			}
-		}
-	} else if parentPolicy.SendKey && bd.Key.hasValueToSend() {
-		sz, err := bd.Key.userKey.EstimateSize()
-		if err != nil {
+	if bd.Policy != nil && bd.Policy.FilterExpression != nil {
+		if sz, err := bd.Policy.FilterExpression.size(); err != nil {
 			return -1, err
+		} else {
+			size += sz + int(_FIELD_HEADER_SIZE)
 		}
-		size += sz + int(_FIELD_HEADER_SIZE) + 1
+	}
+
+	if sendKey && bd.Key.hasValueToSend() {
+		if sz, err := bd.Key.userKey.EstimateSize(); err != nil {
+			return -1, err
+		} else {
+			size += sz + int(_FIELD_HEADER_SIZE) + 1
+		}
 	}
 
 	return size, nil

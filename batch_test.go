@@ -19,7 +19,9 @@ package aerospike_test
 import (
 	"math"
 	"math/rand"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -1029,3 +1031,231 @@ var _ = gg.Describe("Aerospike", func() {
 		})
 	})
 })
+
+// ── BatchWrite ───────────────────────────────────────────────────────────────
+
+var _ = gg.Describe("CLIENT-4898 BatchWrite sendKey", func() {
+	ns := *namespace
+	set := "ck4898_write"
+
+	gg.It("resolves sendKey as the union of parent and per-record policy (single & multi record)", func() {
+		for _, sz := range sendKeyBatchSizes {
+			// parent BatchPolicy.SendKey=true, per-record nil → key stored
+			bp := as.NewBatchPolicy()
+			bp.SendKey = true
+			keys := sendKeyKeys(ns, set, "w-parent-"+sz.name, sz.n)
+			runSendKeyBatchWrites(client, keys, bp, nil)
+			expectSendKeyStored(ns, set, keys, true)
+
+			// per-record BatchWritePolicy.SendKey=true, parent false → key stored
+			bp = as.NewBatchPolicy()
+			bp.SendKey = false
+			wp := as.NewBatchWritePolicy()
+			wp.SendKey = true
+			keys = sendKeyKeys(ns, set, "w-perrec-"+sz.name, sz.n)
+			runSendKeyBatchWrites(client, keys, bp, wp)
+			expectSendKeyStored(ns, set, keys, true)
+
+			// parent SendKey=true overrides per-record SendKey=false (union) → key stored
+			bp = as.NewBatchPolicy()
+			bp.SendKey = true
+			wp = as.NewBatchWritePolicy()
+			wp.SendKey = false
+			keys = sendKeyKeys(ns, set, "w-union-"+sz.name, sz.n)
+			runSendKeyBatchWrites(client, keys, bp, wp)
+			expectSendKeyStored(ns, set, keys, true)
+
+			// neither parent nor per-record set → key NOT stored
+			bp = as.NewBatchPolicy()
+			bp.SendKey = false
+			wp = as.NewBatchWritePolicy()
+			wp.SendKey = false
+			keys = sendKeyKeys(ns, set, "w-none-"+sz.name, sz.n)
+			runSendKeyBatchWrites(client, keys, bp, wp)
+			expectSendKeyStored(ns, set, keys, false)
+		}
+	})
+})
+
+// ── BatchUDF (dedicated client.BatchExecute path) ────────────────────────────
+
+var _ = gg.Describe("CLIENT-4898 BatchUDF sendKey", func() {
+	ns := *namespace
+	set := "ck4898_udf"
+
+	gg.It("resolves sendKey from parent or per-record policy (single & multi record)", func() {
+		for _, sz := range sendKeyBatchSizes {
+			// parent BatchPolicy.SendKey=true, per-record nil → key stored
+			bp := as.NewBatchPolicy()
+			bp.SendKey = true
+			keys := sendKeyKeys(ns, set, "u-parent-"+sz.name, sz.n)
+			runSendKeyBatchUDF(client, keys, bp, nil)
+			expectSendKeyStored(ns, set, keys, true)
+
+			// per-record BatchUDFPolicy.SendKey=true, parent false → key stored
+			bp = as.NewBatchPolicy()
+			bp.SendKey = false
+			up := as.NewBatchUDFPolicy()
+			up.SendKey = true
+			keys = sendKeyKeys(ns, set, "u-perrec-"+sz.name, sz.n)
+			runSendKeyBatchUDF(client, keys, bp, up)
+			expectSendKeyStored(ns, set, keys, true)
+		}
+	})
+})
+
+// ── BatchDelete (dedicated client.BatchDelete path) ──────────────────────────
+//
+// sendKey on a delete stores the key on the (durable) tombstone, which is not observable via a
+// normal scan. This is a functional/smoke test: the parent-union code path must encode and run
+// cleanly for both single- and multi-record deletes.
+
+var _ = gg.Describe("CLIENT-4898 BatchDelete sendKey [smoke — tombstone key not scannable]", func() {
+	ns := *namespace
+	set := "ck4898_delete"
+
+	gg.It("parent BatchPolicy.SendKey=true deletes cleanly (single & multi record)", func() {
+		for _, sz := range sendKeyBatchSizes {
+			bp := as.NewBatchPolicy()
+			bp.SendKey = true
+			keys := sendKeyKeys(ns, set, "d-parent-"+sz.name, sz.n)
+			for i, k := range keys {
+				gm.Expect(client.PutBins(nil, k, as.NewBin("v", i))).ToNot(gm.HaveOccurred())
+			}
+
+			recs, err := client.BatchDelete(bp, nil, keys)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			for _, r := range recs {
+				gm.Expect(r.ResultCode).To(gm.Equal(types.OK))
+			}
+			for _, k := range keys {
+				ex, err := client.Exists(nil, k)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(ex).To(gm.BeFalse(), "record should be deleted")
+			}
+		}
+	})
+})
+
+// ── Mixed batch (heterogeneous BatchOperate) ─────────────────────────────────
+
+var _ = gg.Describe("CLIENT-4898 mixed batch sendKey", func() {
+	ns := *namespace
+	set := "ck4898_mixed"
+
+	gg.It("parent SendKey=true: write/UDF records store the key, read records do not", func() {
+		ensureSendKeyUDF()
+
+		bp := as.NewBatchPolicy()
+		bp.SendKey = true
+
+		wKey := sendKeyKeys(ns, set, "mx-write", 1)[0]
+		uKey := sendKeyKeys(ns, set, "mx-udf", 1)[0]
+		rKey := sendKeyKeys(ns, set, "mx-read", 1)[0]
+		// Seed the read target (with a nil policy, so its own key is NOT stored).
+		gm.Expect(client.PutBins(nil, rKey, as.NewBin("v", 1))).ToNot(gm.HaveOccurred())
+
+		recs := []as.BatchRecordIfc{
+			as.NewBatchWrite(nil, wKey, as.PutOp(as.NewBin("v", 1))),
+			as.NewBatchUDF(nil, uKey, "client4898udf", "writeBin", as.NewValue("v"), as.NewValue(1)),
+			as.NewBatchRead(nil, rKey, []string{"v"}),
+		}
+		gm.Expect(client.BatchOperate(bp, recs)).ToNot(gm.HaveOccurred())
+
+		// Writes honor parent sendKey; the read never stores a key.
+		gm.Expect(sendKeyStored(ns, set, wKey)).To(gm.BeTrue(), "write record must store key under parent SendKey=true")
+		gm.Expect(sendKeyStored(ns, set, uKey)).To(gm.BeTrue(), "UDF record must store key under parent SendKey=true")
+		gm.Expect(sendKeyStored(ns, set, rKey)).To(gm.BeFalse(), "read record must never store a key")
+	})
+})
+
+// Shared helpers for the batch sendKey tests (batch_test.go, dynconfig_serialze_test.go).
+var sendKeyBatchSizes = []struct {
+	name string
+	n    int
+}{
+	{"single-record", 1},
+	{"multi-record", 3},
+}
+
+// sendKeyStored reports whether the SERVER stored the user key for this digest. A scan is the
+// only correct probe: the client does not supply the key, so Record.Key.Value() is non-nil ONLY
+// if the server stored and echoed it at write time. (client.Get can't tell — it already holds
+// the key it queried with.)
+func sendKeyStored(ns, set string, key *as.Key) bool {
+	rs, err := client.ScanAll(as.NewScanPolicy(), ns, set)
+	if err != nil {
+		return false
+	}
+	defer rs.Close()
+
+	want := string(key.Digest())
+	for res := range rs.Results() {
+		if res.Err != nil || res.Record == nil || res.Record.Key == nil {
+			continue
+		}
+		if string(res.Record.Key.Digest()) == want {
+			return res.Record.Key.Value() != nil
+		}
+	}
+	return false
+}
+
+func expectSendKeyStored(ns, set string, keys []*as.Key, want bool) {
+	for _, k := range keys {
+		gm.ExpectWithOffset(1, sendKeyStored(ns, set, k)).To(gm.Equal(want),
+			"key %v: server-stored mismatch (want stored=%v)", k.Value(), want)
+	}
+}
+
+// sendKeyKeys builds n distinct keys under a unique prefix (prefixes keep scenarios from
+// colliding in the shared set's scan).
+func sendKeyKeys(ns, set, prefix string, n int) []*as.Key {
+	keys := make([]*as.Key, n)
+	for i := 0; i < n; i++ {
+		k, err := as.NewKey(ns, set, prefix+"-"+strconv.Itoa(i))
+		gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+		keys[i] = k
+	}
+	return keys
+}
+
+// runWrites issues a BatchWrite per key and returns the keys.
+func runSendKeyBatchWrites(c *as.Client, keys []*as.Key, bp *as.BatchPolicy, wp *as.BatchWritePolicy) {
+	recs := make([]as.BatchRecordIfc, len(keys))
+	for i, k := range keys {
+		recs[i] = as.NewBatchWrite(wp, k, as.PutOp(as.NewBin("v", i)))
+	}
+	gm.ExpectWithOffset(1, c.BatchOperate(bp, recs)).ToNot(gm.HaveOccurred())
+}
+
+// The UDF writes a bin, so the record is created and its key becomes observable via scan.
+const sendKeyUDFBody = `
+function writeBin(rec, name, val)
+    rec[name] = val
+    if aerospike:exists(rec) then
+        aerospike:update(rec)
+    else
+        aerospike:create(rec)
+    end
+end
+`
+
+var sendKeyUDFOnce sync.Once
+
+func ensureSendKeyUDF() {
+	sendKeyUDFOnce.Do(func() {
+		t, err := client.RegisterUDF(as.NewWritePolicy(0, 0), []byte(sendKeyUDFBody), "client4898udf.lua", as.LUA)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(<-t.OnComplete()).ToNot(gm.HaveOccurred())
+	})
+}
+
+func runSendKeyBatchUDF(c *as.Client, keys []*as.Key, bp *as.BatchPolicy, up *as.BatchUDFPolicy) {
+	ensureSendKeyUDF()
+	recs, err := c.BatchExecute(bp, up, keys, "client4898udf", "writeBin", as.NewValue("v"), as.NewValue(1))
+	gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+	for _, r := range recs {
+		gm.ExpectWithOffset(1, r.ResultCode).To(gm.Equal(types.OK))
+	}
+}

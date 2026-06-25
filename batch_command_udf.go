@@ -197,6 +197,9 @@ func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
 	for _, offset := range cmd.batch.offsets {
 		key := cmd.keys[offset]
 		policy := cmd.batchUDFPolicy.toWritePolicy(cmd.policy, client.dynConfig)
+		// Honor sendKey from BOTH the parent BatchPolicy and the per-record policy.
+		// toWritePolicy carries only the per-record value, so OR in the parent's sendKey here.
+		policy.SendKey = cmd.policy.SendKey || (cmd.batchUDFPolicy != nil && cmd.batchUDFPolicy.SendKey)
 		policy.RespondPerEachOp = true
 		res, err := client.execute(policy, key, cmd.packageName, cmd.functionName, cmd.args...)
 		cmd.records[offset].setRecord(res)

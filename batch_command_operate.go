@@ -257,13 +257,18 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 			res, err = client.Operate(cmd.client.getUsableBatchReadPolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig), br.Key, ops...)
 		case *BatchWrite:
 			policy := cmd.client.getUsableBatchWritePolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
+			// Honor sendKey from BOTH the parent BatchPolicy and the per-record policy.
+			// toWritePolicy carries only the per-record value, so OR in the parent's sendKey here.
+			policy.SendKey = br.resolveSendKey(&cmd.policy.BasePolicy, cmd.client)
 			policy.RespondPerEachOp = true
 			res, err = client.Operate(policy, br.Key, br.Ops...)
 		case *BatchDelete:
 			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
+			policy.SendKey = br.resolveSendKey(&cmd.policy.BasePolicy, cmd.client)
 			res, err = client.Operate(policy, br.Key, DeleteOp())
 		case *BatchUDF:
 			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
+			policy.SendKey = br.resolveSendKey(&cmd.policy.BasePolicy, cmd.client)
 			policy.RespondPerEachOp = true
 			res, err = client.execute(policy, br.Key, br.PackageName, br.FunctionName, br.FunctionArgs...)
 		}
