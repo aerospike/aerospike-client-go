@@ -1075,6 +1075,25 @@ var _ = gg.Describe("CLIENT-4898 BatchWrite sendKey", func() {
 			expectSendKeyStored(ns, set, keys, false)
 		}
 	})
+
+	// Cluster default must be honored even when a per-record policy with SendKey=false is present.
+	gg.It("cluster DefaultBatchWritePolicy.SendKey=true is honored despite a per-record SendKey=false", func() {
+		orig := client.DefaultBatchWritePolicy
+		defer func() { client.DefaultBatchWritePolicy = orig }()
+		def := as.NewBatchWritePolicy()
+		def.SendKey = true // cluster default enables sendKey
+		client.DefaultBatchWritePolicy = def
+
+		for _, sz := range sendKeyBatchSizes {
+			bp := as.NewBatchPolicy()
+			bp.SendKey = false // parent does NOT request the key
+			wp := as.NewBatchWritePolicy()
+			wp.SendKey = false // per-record policy present but does NOT request the key
+			keys := sendKeyKeys(ns, set, "w-clusterdef-"+sz.name, sz.n)
+			runSendKeyBatchWrites(client, keys, bp, wp)
+			expectSendKeyStored(ns, set, keys, true)
+		}
+	})
 })
 
 // ── BatchUDF (dedicated client.BatchExecute path) ────────────────────────────

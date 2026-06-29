@@ -67,8 +67,10 @@ func (bd *BatchDelete) equals(obj BatchRecordIfc) bool {
 
 // resolveSendKey returns parent ∪ per-record/default/dynamic sendKey. For internal use only.
 func (bd *BatchDelete) resolveSendKey(parentPolicy *BasePolicy, client *Client) bool {
+	// sendKey is the union of parent, cluster default and per-record (dp carries dynamic config).
+	def := client.DefaultBatchDeletePolicy
 	dp := client.getUsableBatchDeletePolicy(bd.Policy)
-	return parentPolicy.SendKey || (dp != nil && dp.SendKey)
+	return parentPolicy.SendKey || (def != nil && def.SendKey) || (dp != nil && dp.SendKey)
 }
 
 // Return wire protocol size. sendKey is pre-resolved so size and write agree. For internal use only.

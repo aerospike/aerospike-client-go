@@ -67,8 +67,10 @@ func (bw *BatchWrite) equals(obj BatchRecordIfc) bool {
 
 // resolveSendKey returns parent ∪ per-record/default/dynamic sendKey. For internal use only.
 func (bw *BatchWrite) resolveSendKey(parentPolicy *BasePolicy, client *Client) bool {
+	// sendKey is the union of parent, cluster default and per-record (wp carries dynamic config).
+	def := client.DefaultBatchWritePolicy
 	wp := client.getUsableBatchWritePolicy(bw.Policy)
-	return parentPolicy.SendKey || (wp != nil && wp.SendKey)
+	return parentPolicy.SendKey || (def != nil && def.SendKey) || (wp != nil && wp.SendKey)
 }
 
 // Return wire protocol size. sendKey is pre-resolved so size and write agree. For internal use only.

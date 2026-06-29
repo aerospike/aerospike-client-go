@@ -85,8 +85,10 @@ func (bu *BatchUDF) equals(obj BatchRecordIfc) bool {
 
 // resolveSendKey returns parent ∪ per-record/default/dynamic sendKey. For internal use only.
 func (bu *BatchUDF) resolveSendKey(parentPolicy *BasePolicy, client *Client) bool {
-	udfPolicy := client.getUsableBatchUDFPolicy(bu.Policy)
-	return parentPolicy.SendKey || (udfPolicy != nil && udfPolicy.SendKey)
+	// sendKey is the union of parent, cluster default and per-record (up carries dynamic config).
+	def := client.DefaultBatchUDFPolicy
+	up := client.getUsableBatchUDFPolicy(bu.Policy)
+	return parentPolicy.SendKey || (def != nil && def.SendKey) || (up != nil && up.SendKey)
 }
 
 // Return wire protocol size. sendKey is pre-resolved so size and write agree. For internal use only.

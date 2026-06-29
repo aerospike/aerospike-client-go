@@ -151,10 +151,8 @@ var _ = gg.Describe("CLIENT-4898 dynamic config sendKey override", func() {
 	ns := *namespace
 	set := "ck4898_dyn"
 
-	// Single self-contained test (does not use the shared batch sendKey helpers).
-	//
-	// Guarantee: dynamic config can only ENABLE sendKey, never DISABLE an API-set value, and it
-	// must never mutate the caller's policy object (patchDynamic works on a copy).
+	// Self-contained (no shared helpers): dynamic config only enables sendKey, never disables an
+	// API-set value, and never mutates the caller's policy.
 	gg.It("dynamic config can only enable sendKey, never disable it, and never mutates the caller policy", func() {
 		// Fresh dynconfig-enabled client per scheme (config is wired at client construction).
 		withClient := func(url string) (*as.Client, func()) {

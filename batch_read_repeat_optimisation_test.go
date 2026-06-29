@@ -19,9 +19,9 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
-// A read record must stay eligible for the batch repeat flag regardless of the batch policy(parent policy) sendKey
-// (reads never send the key). We encode and compare sizes: a repeated read costs ~1 byte vs a full
-// namespace/set header, so the repeated-read batch must be smaller; if equal, the repeat was lost.
+// A read record must stay eligible for the batch repeat flag regardless of the parent BatchPolicy
+// sendKey (reads never send the key). We encode and compare sizes: a repeated read costs ~1 byte
+// vs a full namespace/set header, so the repeated-read batch must be smaller; if equal, repeat was lost.
 
 var _ = gg.Describe("Batch read repeat optimization is preserved regardless of parent BatchPolicy.SendKey", func() {
 
