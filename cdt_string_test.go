@@ -500,18 +500,17 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(operate(as.StrLenOp(bin)).Bins[bin]).To(gm.Equal(3))
 	})
 
-	gg.It("append on missing bin with NO_FAIL is a no-op", func() {
-		// Mirrors the upper() missing-bin NO_FAIL test for the append op.
+	gg.It("append on missing bin creates the bin from empty", func() {
+		// Create-ops {insert, concat, append, prepend} bootstrap an empty string
+		// and create a missing bin. NO_FAIL is irrelevant — the op always succeeds.
 		client.Delete(nil, key)
 		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
 
-		noFail := as.NewStringPolicy(as.StringWriteNoFail)
-		operate(as.StrAppendOp(noFail, bin, "x"))
+		operate(as.StrAppendOp(policy, bin, "x"))
 
 		rec, err := client.Get(nil, key)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
-		_, exists := rec.Bins[bin]
-		gm.Expect(exists).To(gm.BeFalse())
+		gm.Expect(rec.Bins[bin]).To(gm.Equal("x"))
 		gm.Expect(rec.Bins["other"]).To(gm.Equal("untouched"))
 	})
 
@@ -746,10 +745,27 @@ var _ = gg.Describe("String Operations Test", func() {
 	})
 
 	// ============================================================
-	// NO_FAIL flag — missing-bin path
+	// Missing-bin path
 	// ============================================================
 
-	gg.It("modify on missing bin with NO_FAIL is a no-op", func() {
+	gg.It("modify on missing bin is a no-op", func() {
+		// A non-create modify op on a missing bin is a silent no-op (success,
+		// bin not created) regardless of NO_FAIL — there is no BIN_NOT_FOUND path.
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrUpperOp(policy, bin))
+
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		_, exists := rec.Bins[bin]
+		gm.Expect(exists).To(gm.BeFalse())
+		gm.Expect(rec.Bins["other"]).To(gm.Equal("untouched"))
+	})
+
+	gg.It("NO_FAIL does not change the missing-bin no-op", func() {
+		// The missing-bin no-op for non-create ops is flag-independent; NO_FAIL
+		// neither creates the bin nor raises an error.
 		client.Delete(nil, key)
 		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
 
@@ -763,13 +779,82 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(rec.Bins["other"]).To(gm.Equal("untouched"))
 	})
 
-	gg.It("modify on missing bin without NO_FAIL raises BIN_NOT_FOUND", func() {
+	// All eight additive ops create a missing bin from empty in server 8.1.3
+	// (string ops + SERVER-97 PR 1452, which adds overwrite/repeat/pad_start/
+	// pad_end to the create-op set). Transform/subtractive ops still no-op.
+
+	// readBin returns the bin value (or nil if absent) without the panicking
+	// type assertion stringValue() uses — so a missing-bin create that didn't
+	// create fails cleanly instead of panicking.
+	readBin := func() any {
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		return rec.Bins[bin]
+	}
+
+	gg.It("insert on missing bin creates the bin from empty", func() {
 		client.Delete(nil, key)
 		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
 
-		_, err := client.Operate(nil, key, as.StrUpperOp(policy, bin))
-		gm.Expect(err).To(gm.HaveOccurred())
-		gm.Expect(err.Matches(ast.BIN_NOT_FOUND)).To(gm.BeTrue())
+		operate(as.StrInsertOp(policy, bin, 0, "hi"))
+
+		gm.Expect(readBin()).To(gm.Equal("hi"))
+	})
+
+	gg.It("concat on missing bin creates the bin from empty", func() {
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrConcatOp(policy, bin, "hi"))
+
+		gm.Expect(readBin()).To(gm.Equal("hi"))
+	})
+
+	gg.It("prepend on missing bin creates the bin from empty", func() {
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrPrependOp(policy, bin, "hi"))
+
+		gm.Expect(readBin()).To(gm.Equal("hi"))
+	})
+
+	gg.It("overwrite on missing bin creates the bin from empty", func() {
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrOverwriteOp(policy, bin, 0, "hi"))
+
+		gm.Expect(readBin()).To(gm.Equal("hi"))
+	})
+
+	gg.It("padStart on missing bin creates the bin from empty", func() {
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrPadStartOp(policy, bin, 5, "x"))
+
+		gm.Expect(readBin()).To(gm.Equal("xxxxx"))
+	})
+
+	gg.It("padEnd on missing bin creates the bin from empty", func() {
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrPadEndOp(policy, bin, 5, "x"))
+
+		gm.Expect(readBin()).To(gm.Equal("xxxxx"))
+	})
+
+	gg.It("repeat on missing bin creates an empty bin", func() {
+		// repeat(n) on empty = "" — the bin is created holding an empty string
+		// (server test: expect_string_bin(b, "")).
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrRepeatOp(policy, bin, 3))
+
+		gm.Expect(readBin()).To(gm.Equal(""))
 	})
 
 	// ============================================================
@@ -840,8 +925,8 @@ var _ = gg.Describe("String Operations Test", func() {
 		// must normalizeNFC the bin (and the needle) first. This test anchors
 		// the contract so a future change to ICU comparison mode does not
 		// silently flip the behavior.
-		const NFC = "café"      // "café" composed
-		const NFD = "café"     // "café" decomposed
+		const NFC = "café"  // "café" composed
+		const NFD = "café" // "café" decomposed
 
 		put(NFC)
 		// NFC haystack vs NFC needle — match.
