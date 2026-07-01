@@ -118,7 +118,8 @@ func (br *BatchRead) equals(obj BatchRecordIfc) bool {
 }
 
 // Return wire protocol size. For internal use only.
-func (br *BatchRead) size(parentPolicy *BasePolicy) (int, Error) {
+// size: sendKey is ignored — batch reads never store the user key. For internal use only.
+func (br *BatchRead) size(sendKey bool) (int, Error) {
 	size := 0
 
 	if br.Policy != nil {

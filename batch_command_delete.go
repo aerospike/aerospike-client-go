@@ -186,6 +186,10 @@ func (cmd *batchCommandDelete) commandType() commandType {
 
 func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
 	policy := cmd.batchDeletePolicy.toWritePolicy(cmd.policy, client.dynConfig)
+	// Honor sendKey from BOTH the parent BatchPolicy and the per-record policy.
+	// toWritePolicy carries only the per-record value, so OR in the parent's sendKey here.
+	policy.SendKey = cmd.policy.SendKey || (cmd.batchDeletePolicy != nil && cmd.batchDeletePolicy.SendKey)
+
 	for _, offset := range cmd.batch.offsets {
 		key := cmd.keys[offset]
 		res, err := client.Operate(policy, key, DeleteOp())

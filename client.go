@@ -934,6 +934,8 @@ func (clnt *Client) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePo
 
 	attr := &batchAttr{}
 	attr.setBatchDelete(deletePolicy)
+	// Union the parent BatchPolicy sendKey — setBatchDelete only reads the per-record policy.
+	attr.sendKey = attr.sendKey || policy.SendKey
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be set to record
@@ -1001,6 +1003,8 @@ func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy,
 
 	attr := &batchAttr{}
 	attr.setBatchUDF(udfPolicy)
+	// Union the parent BatchPolicy sendKey — setBatchUDF only reads the per-record policy.
+	attr.sendKey = attr.sendKey || policy.SendKey
 
 	// same array can be used without synchronization;
 	// when a key exists, the corresponding index will be set to record

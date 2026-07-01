@@ -148,7 +148,10 @@ func (bup *BatchUDFPolicy) mapDynamic(dynConfig *DynConfig) *BatchUDFPolicy {
 		}
 		if currentConfig.Dynamic.BatchUdf.SendKey != nil {
 			configValue := *currentConfig.Dynamic.BatchUdf.SendKey
-			bup.SendKey = configValue
+			// Dynamic config sendKey only overrides when true.
+			if configValue {
+				bup.SendKey = true
+			}
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("SendKey set to %t", configValue)
 			}
