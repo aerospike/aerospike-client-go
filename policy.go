@@ -182,6 +182,8 @@ type BasePolicy struct {
 	//  0 - disabled (no error details).
 	//  1 - subcode only.
 	//  2 - subcode + message.
+	//  3 - subcode, message, and (on expression build-failure paths) a structured
+	//      expression trace, surfaced on [AerospikeError.ExpTrace].
 	// Default: 0
 	// Requires Aerospike server version 8.1.3 or later. Older servers ignore the flag.
 	ErrorDetailVerbosity int

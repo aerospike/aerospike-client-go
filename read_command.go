@@ -63,7 +63,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) Error {
 	}
 
 	if rp.resultCode != 0 {
-		return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode)
+		return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode, rp.expTrace)
 	}
 
 	if cmd.object == nil {

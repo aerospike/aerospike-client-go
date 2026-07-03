@@ -124,6 +124,16 @@ type AerospikeError struct {
 	// did not send a detail.
 	ServerMessage string
 
+	// ExpTrace is the server-supplied expression build trace, or nil when absent.
+	//
+	// Populated only at error-detail verbosity 3 (see
+	// [BasePolicy.ErrorDetailVerbosity]) on an expression build failure - a
+	// metadata filter (filter_exp) or an exp_read/exp_write operation that the
+	// server could not build. Such failures carry [types.PARAMETER_ERROR] and
+	// [SubCodeNone]. nil on every other failure (including non-expression failures
+	// at verbosity 3). See [ExpressionTrace].
+	ExpTrace *ExpressionTrace
+
 	// Includes stack frames for the error
 	stackFrames []stackFrame
 }
@@ -149,10 +159,11 @@ func newErrorAndWrap(e error, code types.ResultCode, messages ...string) Error {
 }
 
 // newServerError builds a failure error that carries the server's extended-error
-// detail (formatted message and numeric subcode) when present. Route non-OK
-// throws on the wire path through here so the detail is never silently dropped
-// on special-case result codes such as FILTERED_OUT or KEY_NOT_FOUND_ERROR.
-func newServerError(code types.ResultCode, serverMessage string, subcode int) Error {
+// detail (formatted message, numeric subcode, and - on expression build-failure
+// paths at verbosity 3 - the structured expression trace) when present. Route
+// non-OK throws on the wire path through here so the detail is never silently
+// dropped on special-case result codes such as FILTERED_OUT or KEY_NOT_FOUND_ERROR.
+func newServerError(code types.ResultCode, serverMessage string, subcode int, expTrace *ExpressionTrace) Error {
 	var ne Error
 	if serverMessage != "" {
 		ne = newError(code, serverMessage)
@@ -162,6 +173,7 @@ func newServerError(code types.ResultCode, serverMessage string, subcode int) Er
 	if ae, ok := ne.(*AerospikeError); ok {
 		ae.SubCode = subcode
 		ae.ServerMessage = serverMessage
+		ae.ExpTrace = expTrace
 	}
 	return ne
 }

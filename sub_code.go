@@ -178,14 +178,12 @@ const (
 	SubCodeOpNotStringUTF8Invalid = 11
 
 	// -------------------------------------------------------
-	// Pairs with ResultCode.FILTERED_OUT (27)  [AS_ERR_FILTERED_OUT]
+	// ResultCode.FILTERED_OUT (27) [AS_ERR_FILTERED_OUT] carries NO subcode:
+	// the server emits AS_SUB_NONE plus a contextual "filtered out ..." message.
+	// (The as_sub_filtered_t enum was removed server-side and never shipped, so
+	// no SubCodeFiltered* constants are defined here. Match on the message, not a
+	// subcode.)
 	// -------------------------------------------------------
-
-	// SubCodeFilteredMeta: record filtered out by a metadata-only filter expression.
-	SubCodeFilteredMeta = 1
-
-	// SubCodeFilteredBins: record filtered out by a bin-reading filter expression.
-	SubCodeFilteredBins = 2
 
 	// -------------------------------------------------------
 	// Pairs with ResultCode.MRT_BLOCKED (120)  [AS_ERR_MRT_BLOCKED]

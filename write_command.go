@@ -71,7 +71,7 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 	}
 
 	if resultCode != types.OK {
-		ae := newServerError(types.ResultCode(resultCode), cmd.serverMessage, cmd.serverSubcode)
+		ae := newServerError(types.ResultCode(resultCode), cmd.serverMessage, cmd.serverSubcode, cmd.serverExpTrace)
 		ae.setNode(cmd.node)
 		return ae
 	}

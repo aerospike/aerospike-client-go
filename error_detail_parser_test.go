@@ -290,7 +290,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 
 		gg.It("unknown keys are skipped, not fatal", func() {
 			var payload bytes.Buffer
-			payload.WriteByte(0x84) // fixmap, 4 entries
+			payload.WriteByte(0x84)                    // fixmap, 4 entries
 			payload.Write(pair(intKey(50), fixint(0))) // unknown
 			payload.Write(pair(intKey(1), fixint(7)))
 			payload.Write(intKey(51))
@@ -319,6 +319,181 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			rp := parserWithFields(nil, nil)
 			rp.parseFieldsError()
 			gm.Expect(rp.serverMessage).To(gm.Equal(""))
+		})
+	})
+
+	// ------------------------------------------------------------
+	// Parser: verbosity-3 expression trace (nested key-3 map).
+	// ------------------------------------------------------------
+
+	gg.Context("verbosity-3 expression trace", func() {
+		gg.It("parses a full expression trace alongside the message", func() {
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseBuild)),
+				pair(intKey(expTraceKeyByteOffset), fixint(7)),
+				pair(intKey(expTraceKeyOp), fixstr("cmp_eq")),
+				pair(intKey(expTraceKeyDepth), fixint(3)),
+				pair(intKey(expTraceKeyPath), fixarray(fixstr("and"), fixstr("eq"), fixstr("cmp_eq"))),
+				pair(intKey(expTraceKeySnippet), fixstr("eq(int,float)")),
+			)
+			detail := fixmapN(
+				pair(intKey(2), fixstr("bad exp")),
+				pair(intKey(asErrorDetailKeyExpTrace), trace),
+			)
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			// Message still surfaces unchanged; subcode absent (no key 1).
+			gm.Expect(rp.serverMessage).To(gm.Equal("bad exp"))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(SubCodeNone))
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			gm.Expect(t.Phase).To(gm.Equal(ExpTracePhaseBuild))
+			gm.Expect(t.ByteOffset).To(gm.Equal(7))
+			gm.Expect(t.Op).To(gm.Equal("cmp_eq"))
+			gm.Expect(t.Depth).To(gm.Equal(3))
+			gm.Expect(t.Snippet).To(gm.Equal("eq(int,float)"))
+			// path order preserved root -> fault.
+			gm.Expect(t.Path).To(gm.Equal([]string{"and", "eq", "cmp_eq"}))
+			// lang absent => msgpack default.
+			gm.Expect(t.Lang).To(gm.Equal(ExpTraceLangMsgpack))
+		})
+
+		gg.It("keeps the '...' path-truncation sentinel and reports the true depth", func() {
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseBuild)),
+				pair(intKey(expTraceKeyDepth), fixint(20)),
+				pair(intKey(expTraceKeyPath),
+					fixarray(fixstr("and"), fixstr("or"), fixstr("..."), fixstr("cmp_eq"))),
+			)
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			// depth reports the TRUE count, not the truncated path length.
+			gm.Expect(t.Depth).To(gm.Equal(20))
+			gm.Expect(t.Path).To(gm.HaveLen(4))
+			gm.Expect(t.Path[2]).To(gm.Equal(ExpTracePathTruncationSentinel))
+			gm.Expect(t.Path[2]).To(gm.Equal("..."))
+			// order preserved around the sentinel.
+			gm.Expect(t.Path[0]).To(gm.Equal("and"))
+			gm.Expect(t.Path[3]).To(gm.Equal("cmp_eq"))
+		})
+
+		gg.It("tolerates snippet and path absent within a present trace", func() {
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseBuild)),
+				pair(intKey(expTraceKeyByteOffset), fixint(12)),
+				pair(intKey(expTraceKeyOp), fixstr("add")),
+				pair(intKey(expTraceKeyDepth), fixint(2)),
+			)
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			gm.Expect(t.Phase).To(gm.Equal(ExpTracePhaseBuild))
+			gm.Expect(t.ByteOffset).To(gm.Equal(12))
+			gm.Expect(t.Op).To(gm.Equal("add"))
+			gm.Expect(t.Depth).To(gm.Equal(2))
+			gm.Expect(t.Snippet).To(gm.Equal("")) // snippet absent
+			gm.Expect(t.Path).To(gm.BeNil())      // path absent
+		})
+
+		gg.It("skips unknown / reserved trace keys without corrupting known fields", func() {
+			trace := fixmapN(
+				pair(intKey(expTraceKeyOutcome), fixint(5)), // 7 reserved
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseBuild)),
+				pair(intKey(expTraceKeyAelLine), fixint(9)), // 11 reserved
+				pair(intKey(expTraceKeyByteOffset), fixint(4)),
+				pair(intKey(expTraceKeyAelCol), fixint(2)), // 12 reserved
+				pair(intKey(99), fixstr("ignored")),        // wholly unknown
+			)
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			gm.Expect(t.Phase).To(gm.Equal(ExpTracePhaseBuild))
+			gm.Expect(t.ByteOffset).To(gm.Equal(4))
+			// unknown keys did not corrupt absent fields.
+			gm.Expect(t.Op).To(gm.Equal(""))
+			gm.Expect(t.Depth).To(gm.Equal(-1))
+		})
+
+		gg.It("treats an absent lang as msgpack", func() {
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseBuild)),
+				pair(intKey(expTraceKeyByteOffset), fixint(1)),
+			)
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			gm.Expect(t.Lang).To(gm.Equal(ExpTraceLangMsgpack))
+			gm.Expect(t.AelOffset).To(gm.Equal(-1))
+			gm.Expect(t.AelSpan).To(gm.Equal(-1))
+		})
+
+		gg.It("exposes lang=AEL with its offsets when present", func() {
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseBuild)),
+				pair(intKey(expTraceKeyLang), fixint(ExpTraceLangAel)),
+				pair(intKey(expTraceKeyAelOffset), fixint(42)),
+				pair(intKey(expTraceKeyAelSpan), fixint(6)),
+			)
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			gm.Expect(t.Lang).To(gm.Equal(ExpTraceLangAel))
+			gm.Expect(t.AelOffset).To(gm.Equal(42))
+			gm.Expect(t.AelSpan).To(gm.Equal(6))
+		})
+
+		gg.It("leaves expTrace nil for a plain subcode+message response", func() {
+			detail := fixmap2(
+				pair(intKey(1), fixint(4)),
+				pair(intKey(2), fixstr("plain")),
+			)
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			gm.Expect(rp.serverMessage).To(gm.Equal("plain (subcode=4)"))
+			gm.Expect(rp.expTrace).To(gm.BeNil()) // no key 3 => no expression trace
+		})
+
+		gg.It("surfaces the message even when key 3 precedes key 2", func() {
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseBuild)),
+				pair(intKey(expTraceKeyOp), fixstr("eq")),
+			)
+			detail := fixmapN(
+				pair(intKey(asErrorDetailKeyExpTrace), trace),
+				pair(intKey(2), fixstr("bad exp")),
+			)
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			gm.Expect(rp.serverMessage).To(gm.Equal("bad exp"))
+			gm.Expect(rp.expTrace).NotTo(gm.BeNil())
+			gm.Expect(rp.expTrace.Op).To(gm.Equal("eq"))
+		})
+
+		gg.It("treats a present-but-empty nested map as no trace", func() {
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), fixmapN()))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+			gm.Expect(rp.expTrace).To(gm.BeNil())
 		})
 	})
 })
@@ -359,6 +534,28 @@ func parserWithFields(types []FieldType, data [][]byte) *recordParser {
 		fieldCount:    len(types),
 	}
 	return rp
+}
+
+// fixmapN builds a fixmap (0-15 key/value pairs).
+func fixmapN(kvs ...[]byte) []byte {
+	gm.Expect(len(kvs) <= 15).To(gm.BeTrue())
+	var out bytes.Buffer
+	out.WriteByte(byte(0x80 | len(kvs)))
+	for _, kv := range kvs {
+		out.Write(kv)
+	}
+	return out.Bytes()
+}
+
+// fixarray builds a fixarray (0-15 elements).
+func fixarray(elems ...[]byte) []byte {
+	gm.Expect(len(elems) <= 15).To(gm.BeTrue())
+	var out bytes.Buffer
+	out.WriteByte(byte(0x90 | len(elems)))
+	for _, e := range elems {
+		out.Write(e)
+	}
+	return out.Bytes()
 }
 
 func fixmap1(kv []byte) []byte {

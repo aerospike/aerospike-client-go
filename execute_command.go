@@ -80,7 +80,7 @@ func (cmd *executeCommand) parseResult(ifc command, conn *Connection) Error {
 			return err
 		}
 
-		return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode)
+		return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode, rp.expTrace)
 	}
 
 	if rp.opCount == 0 {

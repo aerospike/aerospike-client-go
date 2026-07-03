@@ -67,7 +67,7 @@ func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) Error {
 		return nil
 	}
 
-	return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode)
+	return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode, rp.expTrace)
 }
 
 func (cmd *readHeaderCommand) GetRecord() *Record {

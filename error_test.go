@@ -119,14 +119,14 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 	gg.Context("newServerError preserves const-sentinel contract", func() {
 
 		gg.It("errors.Is matches ErrKeyNotFound for plain KEY_NOT_FOUND_ERROR", func() {
-			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "", 0)
+			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "", 0, nil)
 
 			gm.Expect(errors.Is(err, ErrKeyNotFound)).To(gm.BeTrue())
 			gm.Expect(err.Matches(ast.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue())
 		})
 
 		gg.It("errors.Is matches ErrKeyNotFound when server detail is present", func() {
-			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "record missing (subcode=7)", 7)
+			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "record missing (subcode=7)", 7, nil)
 
 			gm.Expect(errors.Is(err, ErrKeyNotFound)).To(gm.BeTrue())
 
@@ -138,26 +138,27 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 		})
 
 		gg.It("errors.Is matches ErrFilteredOut for plain FILTERED_OUT", func() {
-			err := newServerError(ast.FILTERED_OUT, "", 0)
+			err := newServerError(ast.FILTERED_OUT, "", 0, nil)
 
 			gm.Expect(errors.Is(err, ErrFilteredOut)).To(gm.BeTrue())
 			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
 		})
 
 		gg.It("errors.Is matches ErrFilteredOut when server detail is present", func() {
-			err := newServerError(ast.FILTERED_OUT, "filtered by bin (subcode=1)", 1)
+			// FILTERED_OUT carries no subcode (SubCodeNone) - only a contextual message.
+			err := newServerError(ast.FILTERED_OUT, "filtered out by filter expression", SubCodeNone, nil)
 
 			gm.Expect(errors.Is(err, ErrFilteredOut)).To(gm.BeTrue())
 
 			ae := &AerospikeError{}
 			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 			gm.Expect(ae.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
-			gm.Expect(ae.ServerMessage).To(gm.Equal("filtered by bin (subcode=1)"))
-			gm.Expect(ae.SubCode).To(gm.Equal(1))
+			gm.Expect(ae.ServerMessage).To(gm.Equal("filtered out by filter expression"))
+			gm.Expect(ae.SubCode).To(gm.Equal(SubCodeNone))
 		})
 
 		gg.It("errors.Is does not cross-match unrelated result codes", func() {
-			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "", 0)
+			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "", 0, nil)
 
 			gm.Expect(errors.Is(err, ErrFilteredOut)).To(gm.BeFalse())
 		})

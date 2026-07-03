@@ -69,9 +69,9 @@ func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) Error {
 		cmd.existed = false
 	case types.FILTERED_OUT:
 		cmd.existed = true
-		return newServerError(types.FILTERED_OUT, cmd.serverMessage, cmd.serverSubcode)
+		return newServerError(types.FILTERED_OUT, cmd.serverMessage, cmd.serverSubcode, cmd.serverExpTrace)
 	default:
-		return newServerError(types.ResultCode(resultCode), cmd.serverMessage, cmd.serverSubcode)
+		return newServerError(types.ResultCode(resultCode), cmd.serverMessage, cmd.serverSubcode, cmd.serverExpTrace)
 	}
 
 	return nil

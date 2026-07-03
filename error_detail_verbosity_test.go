@@ -16,7 +16,6 @@ package aerospike_test
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -46,8 +45,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 			gg.Skip("no nodes available")
 		}
 		serverVersion := nodes[0].GetServerVersion()
-		if serverVersion.IsSmaller(version.ServerVersion_8_1_3) {
-			fmt.Println("skipping tests")
+		if serverVersion.IsSmaller(version.ServerVersion_8_1_1) {
 			gg.Skip("Extended error-detail requires server version 8.1.3 or later; got " + serverVersion.String())
 		}
 		supported = true
@@ -237,14 +235,16 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		assertSubcode(err, types.PARAMETER_ERROR, as.SubCodeParamBitsSizeOutOfRange)
 	})
 
-	gg.It("read filtered out: FILTERED_OUT with FILTERED_BINS subcode", func() {
+	gg.It("read filtered out: FILTERED_OUT carries no subcode, only a message", func() {
+		// FILTERED_OUT carries no subcode (SubCodeNone) and a contextual message;
+		// the server's as_sub_filtered_t enum was removed, so there is no subcode.
 		p := as.NewPolicy()
 		p.ErrorDetailVerbosity = 2
 		p.FilterExpression = as.ExpEq(as.ExpIntBin(edvBinName), as.ExpIntVal(99))
 		p.SendKey = false
 
 		_, err := client.Get(p, intKey)
-		assertSubcode(err, types.FILTERED_OUT, as.SubCodeFilteredBins)
+		assertSubcodeAbsent(err, types.FILTERED_OUT, "filtered out")
 	})
 
 	// -----------------------------------------------------------
@@ -282,13 +282,68 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		assertSubcodeAbsent(err, types.GENERATION_ERROR, "generation")
 	})
 
-	gg.It("operate filtered out: FILTERED_OUT with FILTERED_BINS subcode", func() {
+	gg.It("operate filtered out: FILTERED_OUT carries no subcode, only a message", func() {
+		// FILTERED_OUT carries no subcode (SubCodeNone) and a contextual message;
+		// the server's as_sub_filtered_t enum was removed, so there is no subcode.
 		wp := as.NewWritePolicy(0, 0)
 		wp.ErrorDetailVerbosity = 2
 		wp.FilterExpression = as.ExpEq(as.ExpIntBin(edvBinName), as.ExpIntVal(99))
 
 		_, err := client.Operate(wp, intKey, as.GetOp())
-		assertSubcode(err, types.FILTERED_OUT, as.SubCodeFilteredBins)
+		assertSubcodeAbsent(err, types.FILTERED_OUT, "filtered out")
+	})
+
+	// -----------------------------------------------------------
+	// Verbosity 3: expression build-failure trace (SERVER-1137).
+	//
+	// A type-mismatched comparison expression (int vs float) fails to *build* on
+	// the server. As a filter expression it yields "invalid metadata expression in
+	// request"; as an exp_write op it yields "invalid expression in operation
+	// request". Both carry PARAMETER_ERROR + SubCodeNone and, at verbosity 3, a
+	// structured build trace. Assert trace PRESENCE and SHAPE, not exact
+	// byteOffset/snippet bytes.
+	// -----------------------------------------------------------
+
+	// badExp builds an expression whose operands are type-mismatched (int vs
+	// float), so the server build fails.
+	badExp := func() *as.Expression {
+		return as.ExpEq(as.ExpIntVal(5), as.ExpFloatVal(6.0))
+	}
+
+	gg.It("filter expression build failure surfaces an expression trace at verbosity 3", func() {
+		p := as.NewPolicy()
+		p.ErrorDetailVerbosity = 3
+		p.FilterExpression = badExp()
+
+		_, err := client.Get(p, intKey)
+		gm.Expect(err).To(gm.HaveOccurred())
+
+		ae := &as.AerospikeError{}
+		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
+		gm.Expect(ae.ResultCode).To(gm.Equal(types.PARAMETER_ERROR))
+		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(strings.ToLower(ae.ServerMessage)).To(gm.ContainSubstring("invalid metadata expression in request"))
+
+		gm.Expect(ae.ExpTrace).NotTo(gm.BeNil())
+		gm.Expect(ae.ExpTrace.Phase).To(gm.Equal(as.ExpTracePhaseBuild))
+	})
+
+	gg.It("exp_write build failure surfaces an expression trace at verbosity 3", func() {
+		wp := as.NewWritePolicy(0, 0)
+		wp.ErrorDetailVerbosity = 3
+
+		_, err := client.Operate(wp, intKey,
+			as.ExpWriteOp(edvBinName, badExp(), as.ExpWriteFlagDefault))
+		gm.Expect(err).To(gm.HaveOccurred())
+
+		ae := &as.AerospikeError{}
+		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
+		gm.Expect(ae.ResultCode).To(gm.Equal(types.PARAMETER_ERROR))
+		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(strings.ToLower(ae.ServerMessage)).To(gm.ContainSubstring("invalid expression in operation request"))
+
+		gm.Expect(ae.ExpTrace).NotTo(gm.BeNil())
+		gm.Expect(ae.ExpTrace.Phase).To(gm.Equal(as.ExpTracePhaseBuild))
 	})
 
 	// -----------------------------------------------------------

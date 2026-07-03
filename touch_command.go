@@ -60,7 +60,7 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) Error {
 		return nil
 	}
 
-	return newServerError(types.ResultCode(resultCode), cmd.serverMessage, cmd.serverSubcode)
+	return newServerError(types.ResultCode(resultCode), cmd.serverMessage, cmd.serverSubcode, cmd.serverExpTrace)
 }
 
 func (cmd *touchCommand) isRead() bool {

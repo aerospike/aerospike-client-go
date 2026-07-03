@@ -39,6 +39,11 @@ type recordParser struct {
 	// constants in sub_code.go). Defaults to SubCodeNone (0).
 	serverSubcode int
 
+	// expTrace is the server-supplied expression build trace, parsed from the
+	// nested error-detail key-3 map at verbosity 3 on expression build-failure
+	// paths. nil when absent.
+	expTrace *ExpressionTrace
+
 	cmd *baseCommand
 }
 
@@ -225,6 +230,9 @@ func (rp *recordParser) parseErrorDetails(offset int, size int) string {
 			} else {
 				offset = rp.skipMsgpackValue(offset, end)
 			}
+		case asErrorDetailKeyExpTrace: // nested expression-trace map (verbosity 3)
+			rp.expTrace = rp.parseExpTrace(offset, end)
+			offset = rp.skipMsgpackValue(offset, end)
 		default:
 			offset = rp.skipMsgpackValue(offset, end)
 		}
@@ -244,6 +252,149 @@ func (rp *recordParser) parseErrorDetails(offset int, size int) string {
 		return message
 	}
 	return ""
+}
+
+// parseExpTrace decodes the nested expression-trace map (top-level error-detail
+// key 3, only sent at verbosity 3 on expression build-failure paths) into an
+// *ExpressionTrace.
+//
+// Reuses the shared msgpack decoder. Treats every trace key as optional (never
+// requires key 1 - build failures carry SubCodeNone), skips unknown trace keys,
+// tolerates the "..." path-truncation sentinel as an ordinary element, and never
+// panics on a missing/truncated trace. An absent lang key surfaces as msgpack.
+// Returns nil when the value is not a readable, non-empty map.
+func (rp *recordParser) parseExpTrace(offset int, end int) *ExpressionTrace {
+	if offset >= end {
+		return nil
+	}
+
+	buf := rp.cmd.dataBuffer
+
+	// Read nested map header (fixmap, map16, map32).
+	b := int(buf[offset]) & 0xFF
+	offset++
+	var count int
+
+	if (b & 0xF0) == 0x80 {
+		count = b & 0x0F
+	} else if b == 0xDE && offset+2 <= end {
+		count = int(Buffer.BytesToUint16(buf, offset))
+		offset += 2
+	} else if b == 0xDF && offset+4 <= end {
+		count = int(Buffer.BytesToInt32(buf, offset))
+		offset += 4
+	} else {
+		return nil
+	}
+
+	if count <= 0 {
+		return nil
+	}
+
+	// Absent integer fields read as -1; an absent lang surfaces as msgpack.
+	t := &ExpressionTrace{
+		Phase:      -1,
+		ByteOffset: -1,
+		Depth:      -1,
+		Lang:       ExpTraceLangMsgpack,
+		AelOffset:  -1,
+		AelSpan:    -1,
+	}
+
+	for i := 0; i < count && offset < end; i++ {
+		// Read key (positive fixint or uint8).
+		var key int
+		b = int(buf[offset]) & 0xFF
+		offset++
+
+		if b <= 0x7F {
+			key = b
+		} else if b == 0xCC && offset < end {
+			key = int(buf[offset]) & 0xFF
+			offset++
+		} else {
+			break
+		}
+
+		switch key {
+		case expTraceKeyPhase:
+			t.Phase = int(rp.unpackUint(offset, end))
+		case expTraceKeyByteOffset:
+			t.ByteOffset = int(rp.unpackUint(offset, end))
+		case expTraceKeyOp:
+			t.Op = rp.unpackStrValue(offset, end)
+		case expTraceKeyDepth:
+			t.Depth = int(rp.unpackUint(offset, end))
+		case expTraceKeyPath:
+			t.Path = rp.unpackStrArray(offset, end)
+		case expTraceKeySnippet:
+			t.Snippet = rp.unpackStrValue(offset, end)
+		case expTraceKeyLang:
+			if lang := int(rp.unpackUint(offset, end)); lang >= 0 {
+				t.Lang = lang
+			}
+		case expTraceKeyAelOffset:
+			t.AelOffset = int(rp.unpackUint(offset, end))
+		case expTraceKeyAelSpan:
+			t.AelSpan = int(rp.unpackUint(offset, end))
+		default:
+			// Unknown / reserved trace key (outcome, ael_line, ael_col, etc.) - skip.
+		}
+
+		// Advance past the value regardless of whether the key was recognized.
+		offset = rp.skipMsgpackValue(offset, end)
+	}
+
+	return t
+}
+
+// unpackStrValue decodes a msgpack string value to a string, or "" if the value
+// at the offset is not a readable string.
+func (rp *recordParser) unpackStrValue(offset int, end int) string {
+	strOffset, strLen, ok := rp.unpackStr(offset, end)
+	if !ok {
+		return ""
+	}
+	return string(rp.cmd.dataBuffer[strOffset : strOffset+strLen])
+}
+
+// unpackStrArray decodes a msgpack array of strings (the expression-trace path).
+// Preserves element order, keeps the "..." truncation sentinel as an ordinary
+// element, and leaves an empty slot for any element that is not a readable string.
+// Returns nil when the value is not a readable array.
+func (rp *recordParser) unpackStrArray(offset int, end int) []string {
+	if offset >= end {
+		return nil
+	}
+
+	buf := rp.cmd.dataBuffer
+	b := int(buf[offset]) & 0xFF
+	offset++
+	var length int
+
+	if (b & 0xF0) == 0x90 {
+		length = b & 0x0F
+	} else if b == 0xDC && offset+2 <= end {
+		length = int(Buffer.BytesToUint16(buf, offset))
+		offset += 2
+	} else if b == 0xDD && offset+4 <= end {
+		length = int(Buffer.BytesToInt32(buf, offset))
+		offset += 4
+	} else {
+		return nil
+	}
+
+	if length < 0 {
+		return nil
+	}
+
+	result := make([]string, length)
+
+	for i := 0; i < length && offset < end; i++ {
+		result[i] = rp.unpackStrValue(offset, end)
+		offset = rp.skipMsgpackValue(offset, end)
+	}
+	return result
 }
 
 // unpackUint decodes a msgpack unsigned integer at offset. Returns -1 on failure.
