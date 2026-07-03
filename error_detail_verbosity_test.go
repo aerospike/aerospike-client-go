@@ -45,7 +45,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 			gg.Skip("no nodes available")
 		}
 		serverVersion := nodes[0].GetServerVersion()
-		if serverVersion.IsSmaller(version.ServerVersion_8_1_1) {
+		if serverVersion.IsSmaller(version.ServerVersion_8_1_3) {
 			gg.Skip("Extended error-detail requires server version 8.1.3 or later; got " + serverVersion.String())
 		}
 		supported = true
