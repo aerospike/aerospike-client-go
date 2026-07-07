@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"sort"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -112,13 +113,35 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	}
 	size += n
 
-	for k, v := range theMap {
+	// Servers with AER-6930 (8.1.2+) validate that map literals inside filter
+	// expressions are in canonical (key-ordered) msgpack form and reject
+	// unsorted maps with a PARAMETER_ERROR. Pack keys in canonical order to
+	// match the C client's on-wire form. Size estimation (cmd == nil) is
+	// order-independent, so sorting is skipped there.
+	if cmd == nil || len(theMap) < 2 {
+		for k, v := range theMap {
+			n, err = packObject(cmd, k, true)
+			if err != nil {
+				return 0, err
+			}
+			size += n
+			n, err = packObject(cmd, v, false)
+			if err != nil {
+				return 0, err
+			}
+			size += n
+		}
+
+		return size, err
+	}
+
+	for _, k := range canonicalKeyOrder(theMap) {
 		n, err = packObject(cmd, k, true)
 		if err != nil {
 			return 0, err
 		}
 		size += n
-		n, err = packObject(cmd, v, false)
+		n, err = packObject(cmd, theMap[k], false)
 		if err != nil {
 			return 0, err
 		}
@@ -126,6 +149,164 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	}
 
 	return size, err
+}
+
+// Canonical map key type ranks, following the server's msgpack comparison
+// ordering (msgpack_in.c): NIL < FALSE < TRUE < INT < STRING < LIST < MAP <
+// BYTES < DOUBLE < GEOJSON. Unrecognized key types sort last in stable
+// (insertion) order; the server rejects them as map keys anyway.
+const (
+	canonicalRankNil = iota
+	canonicalRankFalse
+	canonicalRankTrue
+	canonicalRankInt
+	canonicalRankString
+	canonicalRankList
+	canonicalRankMap
+	canonicalRankBytes
+	canonicalRankDouble
+	canonicalRankGeoJSON
+	canonicalRankOther
+)
+
+// canonicalKey is the normalized form of a map key used for canonical ordering.
+type canonicalKey struct {
+	rank int
+	i    int64
+	u    uint64 // set instead of i when rank is canonicalRankInt and isU
+	isU  bool   // the key is an unsigned value greater than math.MaxInt64
+	f    float64
+	s    string
+	b    []byte
+}
+
+func normalizeCanonicalKey(k any) canonicalKey {
+	switch v := k.(type) {
+	case nil:
+		return canonicalKey{rank: canonicalRankNil}
+	case bool:
+		if v {
+			return canonicalKey{rank: canonicalRankTrue}
+		}
+		return canonicalKey{rank: canonicalRankFalse}
+	case int:
+		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
+	case int8:
+		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
+	case int16:
+		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
+	case int32:
+		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
+	case int64:
+		return canonicalKey{rank: canonicalRankInt, i: v}
+	case uint8:
+		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
+	case uint16:
+		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
+	case uint32:
+		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
+	case uint:
+		if uint64(v) > math.MaxInt64 {
+			return canonicalKey{rank: canonicalRankInt, u: uint64(v), isU: true}
+		}
+		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
+	case uint64:
+		if v > math.MaxInt64 {
+			return canonicalKey{rank: canonicalRankInt, u: v, isU: true}
+		}
+		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
+	case float32:
+		return canonicalKey{rank: canonicalRankDouble, f: float64(v)}
+	case float64:
+		return canonicalKey{rank: canonicalRankDouble, f: v}
+	case string:
+		return canonicalKey{rank: canonicalRankString, s: v}
+	case []byte:
+		return canonicalKey{rank: canonicalRankBytes, b: v}
+	case time.Time:
+		return canonicalKey{rank: canonicalRankInt, i: v.UnixNano()}
+	case GeoJSONValue:
+		return canonicalKey{rank: canonicalRankGeoJSON, s: string(v)}
+	case Value:
+		return normalizeCanonicalKey(v.GetObject())
+	case []any:
+		return canonicalKey{rank: canonicalRankList}
+	case map[any]any:
+		return canonicalKey{rank: canonicalRankMap}
+	}
+	return canonicalKey{rank: canonicalRankOther}
+}
+
+func compareCanonicalKeys(a, b canonicalKey) int {
+	if a.rank != b.rank {
+		if a.rank < b.rank {
+			return -1
+		}
+		return 1
+	}
+
+	switch a.rank {
+	case canonicalRankInt:
+		switch {
+		case a.isU && b.isU:
+			if a.u < b.u {
+				return -1
+			} else if a.u > b.u {
+				return 1
+			}
+			return 0
+		case a.isU:
+			return 1
+		case b.isU:
+			return -1
+		default:
+			if a.i < b.i {
+				return -1
+			} else if a.i > b.i {
+				return 1
+			}
+			return 0
+		}
+	case canonicalRankString, canonicalRankGeoJSON:
+		if a.s < b.s {
+			return -1
+		} else if a.s > b.s {
+			return 1
+		}
+		return 0
+	case canonicalRankBytes:
+		return bytes.Compare(a.b, b.b)
+	case canonicalRankDouble:
+		if a.f < b.f {
+			return -1
+		} else if a.f > b.f {
+			return 1
+		}
+		return 0
+	}
+	return 0
+}
+
+// canonicalKeyOrder returns the map's keys sorted in the server's canonical
+// msgpack key order.
+func canonicalKeyOrder(theMap map[any]any) []any {
+	type keyNorm struct {
+		key  any
+		norm canonicalKey
+	}
+	kns := make([]keyNorm, 0, len(theMap))
+	for k := range theMap {
+		kns = append(kns, keyNorm{key: k, norm: normalizeCanonicalKey(k)})
+	}
+	sort.SliceStable(kns, func(x, y int) bool {
+		return compareCanonicalKeys(kns[x].norm, kns[y].norm) < 0
+	})
+
+	keys := make([]any, len(kns))
+	for i := range kns {
+		keys[i] = kns[i].key
+	}
+	return keys
 }
 
 // PackJson packs json data
@@ -141,13 +322,38 @@ func packJsonMap(cmd BufferEx, theMap map[string]any) (int, Error) {
 	}
 	size += n
 
-	for k, v := range theMap {
+	// Sort keys canonically for the same reason as packIfcMap; plain string
+	// comparison matches the server's ordering for string keys.
+	if cmd == nil || len(theMap) < 2 {
+		for k, v := range theMap {
+			n, err = packString(cmd, k)
+			if err != nil {
+				return 0, err
+			}
+			size += n
+			n, err = packObject(cmd, v, false)
+			if err != nil {
+				return 0, err
+			}
+			size += n
+		}
+
+		return size, err
+	}
+
+	keys := make([]string, 0, len(theMap))
+	for k := range theMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
 		n, err = packString(cmd, k)
 		if err != nil {
 			return 0, err
 		}
 		size += n
-		n, err = packObject(cmd, v, false)
+		n, err = packObject(cmd, theMap[k], false)
 		if err != nil {
 			return 0, err
 		}
