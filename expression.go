@@ -675,6 +675,16 @@ func (fe *Expression) size() (int, Error) {
 }
 
 func (fe *Expression) pack(buf BufferEx) (int, Error) {
+	// Wrap the buffer so any map value literal packed anywhere inside this
+	// expression goes out in canonical key order, as required by servers with
+	// AER-6930 (8.1.2+). A nil buf is a size-estimation pass and stays
+	// unwrapped; size does not depend on key order.
+	if buf != nil {
+		if _, ok := buf.(canonicalPackBuffer); !ok {
+			buf = canonicalPackBuffer{buf}
+		}
+	}
+
 	if len(fe.bytes) > 0 {
 		if buf != nil {
 			return buf.Write(fe.bytes)

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -115,10 +115,10 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 
 	// Servers with AER-6930 (8.1.2+) validate that map literals inside filter
 	// expressions are in canonical (key-ordered) msgpack form and reject
-	// unsorted maps with a PARAMETER_ERROR. Pack keys in canonical order to
-	// match the C client's on-wire form. Size estimation (cmd == nil) is
-	// order-independent, so sorting is skipped there.
-	if cmd == nil || len(theMap) < 2 {
+	// unsorted maps with a PARAMETER_ERROR. Only expression literals are
+	// validated, so keys are sorted only when packing into an expression
+	// (canonicalPackBuffer); all other paths keep the order-free fast loop.
+	if !isCanonicalPack(cmd) || len(theMap) < 2 {
 		for k, v := range theMap {
 			n, err = packObject(cmd, k, true)
 			if err != nil {
@@ -135,13 +135,13 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 		return size, err
 	}
 
-	for _, k := range canonicalKeyOrder(theMap) {
-		n, err = packObject(cmd, k, true)
+	for _, e := range canonicalEntryOrder(theMap) {
+		n, err = packObject(cmd, e.key, true)
 		if err != nil {
 			return 0, err
 		}
 		size += n
-		n, err = packObject(cmd, theMap[k], false)
+		n, err = packObject(cmd, e.val, false)
 		if err != nil {
 			return 0, err
 		}
@@ -149,6 +149,19 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	}
 
 	return size, err
+}
+
+// canonicalPackBuffer marks a BufferEx as packing a filter-expression value
+// literal, which servers with AER-6930 require in canonical (key-ordered)
+// msgpack form. The marker travels down the recursive pack calls, so maps
+// nested anywhere inside the literal are packed in canonical order.
+type canonicalPackBuffer struct {
+	BufferEx
+}
+
+func isCanonicalPack(cmd BufferEx) bool {
+	_, ok := cmd.(canonicalPackBuffer)
+	return ok
 }
 
 // Canonical map key type ranks, following the server's msgpack comparison
@@ -287,26 +300,24 @@ func compareCanonicalKeys(a, b canonicalKey) int {
 	return 0
 }
 
-// canonicalKeyOrder returns the map's keys sorted in the server's canonical
-// msgpack key order.
-func canonicalKeyOrder(theMap map[any]any) []any {
-	type keyNorm struct {
-		key  any
-		norm canonicalKey
-	}
-	kns := make([]keyNorm, 0, len(theMap))
-	for k := range theMap {
-		kns = append(kns, keyNorm{key: k, norm: normalizeCanonicalKey(k)})
-	}
-	sort.SliceStable(kns, func(x, y int) bool {
-		return compareCanonicalKeys(kns[x].norm, kns[y].norm) < 0
-	})
+type canonicalEntry struct {
+	key  any
+	val  any
+	norm canonicalKey
+}
 
-	keys := make([]any, len(kns))
-	for i := range kns {
-		keys[i] = kns[i].key
+// canonicalEntryOrder returns the map's entries sorted in the server's
+// canonical msgpack key order. Map keys are unique, so ties (distinct Go types
+// normalizing to the same canonical key) may land in either order.
+func canonicalEntryOrder(theMap map[any]any) []canonicalEntry {
+	entries := make([]canonicalEntry, 0, len(theMap))
+	for k, v := range theMap {
+		entries = append(entries, canonicalEntry{key: k, val: v, norm: normalizeCanonicalKey(k)})
 	}
-	return keys
+	slices.SortFunc(entries, func(a, b canonicalEntry) int {
+		return compareCanonicalKeys(a.norm, b.norm)
+	})
+	return entries
 }
 
 // PackJson packs json data
@@ -324,7 +335,7 @@ func packJsonMap(cmd BufferEx, theMap map[string]any) (int, Error) {
 
 	// Sort keys canonically for the same reason as packIfcMap; plain string
 	// comparison matches the server's ordering for string keys.
-	if cmd == nil || len(theMap) < 2 {
+	if !isCanonicalPack(cmd) || len(theMap) < 2 {
 		for k, v := range theMap {
 			n, err = packString(cmd, k)
 			if err != nil {
@@ -345,7 +356,7 @@ func packJsonMap(cmd BufferEx, theMap map[string]any) (int, Error) {
 	for k := range theMap {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	for _, k := range keys {
 		n, err = packString(cmd, k)
