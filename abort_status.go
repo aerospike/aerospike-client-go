@@ -21,6 +21,7 @@ const (
 	AbortStatusOK                AbortStatus = "Abort succeeded"
 	AbortStatusAlreadyCommitted  AbortStatus = "Already committed"
 	AbortStatusAlreadyAborted    AbortStatus = "Already aborted"
+	AbortStatusCommitFailed      AbortStatus = "Abort not allowed because a commit already failed on this transaction with an in-doubt outcome"
 	AbortStatusRollBackAbandoned AbortStatus = "Transaction client roll back abandoned. Server will eventually abort the Transaction."
 	AbortStatusCloseAbandoned    AbortStatus = "Transaction has been rolled back, but Transaction client close was abandoned. Server will eventually close the Transaction."
 )

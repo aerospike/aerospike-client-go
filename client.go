@@ -1613,6 +1613,8 @@ func (clnt *Client) Commit(txn *Txn) (CommitStatus, Error) {
 		}
 		return tr.Commit(&clnt.getUsableTxnRollPolicy(nil).BatchPolicy)
 	case TxnStateVerified:
+		fallthrough
+	case TxnStateCommitFailed:
 		return tr.Commit(&clnt.getUsableTxnRollPolicy(nil).BatchPolicy)
 	case TxnStateCommitted:
 		return CommitStatusAlreadyCommitted, nil
@@ -1622,6 +1624,9 @@ func (clnt *Client) Commit(txn *Txn) (CommitStatus, Error) {
 }
 
 // Abort and rollback the given multi-record transaction.
+//
+// Abort is not allowed after an in-doubt mark-roll-forward failure
+// the server may still roll the transaction forward.
 //
 // Requires server version 8.0+
 func (clnt *Client) Abort(txn *Txn) (AbortStatus, Error) {
@@ -1633,6 +1638,8 @@ func (clnt *Client) Abort(txn *Txn) (AbortStatus, Error) {
 		fallthrough
 	case TxnStateVerified:
 		return tr.Abort(&clnt.getUsableTxnRollPolicy(nil).BatchPolicy)
+	case TxnStateCommitFailed:
+		return AbortStatusCommitFailed, newError(types.TXN_FAILED, "Transaction commit failed. Abort is not allowed.")
 	case TxnStateCommitted:
 		return AbortStatusAlreadyCommitted, newError(types.TXN_ALREADY_COMMITTED, "Transaction already committed")
 	case TxnStateAborted:
