@@ -569,7 +569,10 @@ func packAInt64(cmd BufferEx, val int64) (int, Error) {
 		if val <= math.MaxUint32 {
 			return packInt(cmd, 0xce, int32(val))
 		}
-		return packInt64(cmd, 0xd3, val)
+		// Canonical msgpack packs non-negative integers unsigned (0xcf);
+		// servers 8.1.2+ (AER-6930) reject the signed 0xd3 form inside
+		// filter-expression list/map literals. See CLIENT-5045.
+		return packUInt64(cmd, uint64(val))
 	}
 
 	if val >= -32 {
