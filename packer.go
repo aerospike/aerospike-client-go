@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -135,13 +136,13 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 		return size, err
 	}
 
-	for _, e := range canonicalEntryOrder(theMap) {
-		n, err = packObject(cmd, e.key, true)
+	for _, k := range canonicalKeyOrder(theMap) {
+		n, err = packObject(cmd, k, true)
 		if err != nil {
 			return 0, err
 		}
 		size += n
-		n, err = packObject(cmd, e.val, false)
+		n, err = packObject(cmd, theMap[k], false)
 		if err != nil {
 			return 0, err
 		}
@@ -182,117 +183,41 @@ const (
 	canonicalRankOther
 )
 
-// canonicalKey is the normalized form of a map key used for canonical ordering.
-type canonicalKey struct {
-	rank int
-	i    int64
-	u    uint64 // set instead of i when rank is canonicalRankInt and isU
-	isU  bool   // the key is an unsigned value greater than math.MaxInt64
-	f    float64
-	s    string
-	b    []byte
-}
-
-func normalizeCanonicalKey(k any) canonicalKey {
-	switch v := k.(type) {
-	case nil:
-		return canonicalKey{rank: canonicalRankNil}
-	case bool:
-		if v {
-			return canonicalKey{rank: canonicalRankTrue}
-		}
-		return canonicalKey{rank: canonicalRankFalse}
-	case int:
-		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
-	case int8:
-		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
-	case int16:
-		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
-	case int32:
-		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
-	case int64:
-		return canonicalKey{rank: canonicalRankInt, i: v}
-	case uint8:
-		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
-	case uint16:
-		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
-	case uint32:
-		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
-	case uint:
-		if uint64(v) > math.MaxInt64 {
-			return canonicalKey{rank: canonicalRankInt, u: uint64(v), isU: true}
-		}
-		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
-	case uint64:
-		if v > math.MaxInt64 {
-			return canonicalKey{rank: canonicalRankInt, u: v, isU: true}
-		}
-		return canonicalKey{rank: canonicalRankInt, i: int64(v)}
-	case float32:
-		return canonicalKey{rank: canonicalRankDouble, f: float64(v)}
-	case float64:
-		return canonicalKey{rank: canonicalRankDouble, f: v}
-	case string:
-		return canonicalKey{rank: canonicalRankString, s: v}
-	case []byte:
-		return canonicalKey{rank: canonicalRankBytes, b: v}
-	case time.Time:
-		return canonicalKey{rank: canonicalRankInt, i: v.UnixNano()}
-	case GeoJSONValue:
-		return canonicalKey{rank: canonicalRankGeoJSON, s: string(v)}
-	case Value:
-		return normalizeCanonicalKey(v.GetObject())
-	case []any:
-		return canonicalKey{rank: canonicalRankList}
-	case map[any]any:
-		return canonicalKey{rank: canonicalRankMap}
-	}
-	return canonicalKey{rank: canonicalRankOther}
-}
-
-func compareCanonicalKeys(a, b canonicalKey) int {
-	if a.rank != b.rank {
-		if a.rank < b.rank {
-			return -1
-		}
-		return 1
+// compareCanonicalKeys orders two map keys in the server's canonical msgpack
+// key order. Ranks and values are read straight off the native key types, so
+// sorting needs no per-key normalization or allocation.
+func compareCanonicalKeys(a, b any) int {
+	ra := canonicalKeyRank(a)
+	rb := canonicalKeyRank(b)
+	if ra != rb {
+		return cmp.Compare(ra, rb)
 	}
 
-	switch a.rank {
+	switch ra {
 	case canonicalRankInt:
+		ai, au, aIsU := canonicalKeyInt(a)
+		bi, bu, bIsU := canonicalKeyInt(b)
 		switch {
-		case a.isU && b.isU:
-			if a.u < b.u {
-				return -1
-			} else if a.u > b.u {
-				return 1
-			}
-			return 0
-		case a.isU:
+		case aIsU && bIsU:
+			return cmp.Compare(au, bu)
+		case aIsU:
 			return 1
-		case b.isU:
+		case bIsU:
 			return -1
-		default:
-			if a.i < b.i {
-				return -1
-			} else if a.i > b.i {
-				return 1
-			}
-			return 0
 		}
+		return cmp.Compare(ai, bi)
 	case canonicalRankString, canonicalRankGeoJSON:
-		if a.s < b.s {
-			return -1
-		} else if a.s > b.s {
-			return 1
-		}
-		return 0
+		return cmp.Compare(canonicalKeyString(a), canonicalKeyString(b))
 	case canonicalRankBytes:
-		return bytes.Compare(a.b, b.b)
+		return bytes.Compare(canonicalKeyBytes(a), canonicalKeyBytes(b))
 	case canonicalRankDouble:
-		if a.f < b.f {
+		// plain </> matches the server's C comparison semantics; cmp.Compare
+		// would order NaN below all other values
+		af := canonicalKeyFloat(a)
+		bf := canonicalKeyFloat(b)
+		if af < bf {
 			return -1
-		} else if a.f > b.f {
+		} else if af > bf {
 			return 1
 		}
 		return 0
@@ -300,24 +225,139 @@ func compareCanonicalKeys(a, b canonicalKey) int {
 	return 0
 }
 
-type canonicalEntry struct {
-	key  any
-	val  any
-	norm canonicalKey
+// canonicalKeyRank returns the map key's type rank in the server's msgpack
+// comparison ordering.
+func canonicalKeyRank(k any) int {
+	switch v := k.(type) {
+	case nil:
+		return canonicalRankNil
+	case bool:
+		if v {
+			return canonicalRankTrue
+		}
+		return canonicalRankFalse
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64,
+		time.Time, IntegerValue, LongValue:
+		return canonicalRankInt
+	case float32, float64, FloatValue:
+		return canonicalRankDouble
+	case string, StringValue:
+		return canonicalRankString
+	case []byte, BytesValue:
+		return canonicalRankBytes
+	case GeoJSONValue:
+		return canonicalRankGeoJSON
+	case []any, ListValue:
+		return canonicalRankList
+	case map[any]any, MapValue:
+		return canonicalRankMap
+	case Value:
+		return canonicalKeyRank(v.GetObject())
+	}
+	return canonicalRankOther
 }
 
-// canonicalEntryOrder returns the map's entries sorted in the server's
-// canonical msgpack key order. Map keys are unique, so ties (distinct Go types
-// normalizing to the same canonical key) may land in either order.
-func canonicalEntryOrder(theMap map[any]any) []canonicalEntry {
-	entries := make([]canonicalEntry, 0, len(theMap))
-	for k, v := range theMap {
-		entries = append(entries, canonicalEntry{key: k, val: v, norm: normalizeCanonicalKey(k)})
+// canonicalKeyInt returns an int-ranked key's integer value. isU is set for
+// unsigned values above math.MaxInt64, which sort after every signed value.
+func canonicalKeyInt(k any) (i int64, u uint64, isU bool) {
+	switch v := k.(type) {
+	case int:
+		return int64(v), 0, false
+	case int8:
+		return int64(v), 0, false
+	case int16:
+		return int64(v), 0, false
+	case int32:
+		return int64(v), 0, false
+	case int64:
+		return v, 0, false
+	case uint8:
+		return int64(v), 0, false
+	case uint16:
+		return int64(v), 0, false
+	case uint32:
+		return int64(v), 0, false
+	case uint:
+		if uint64(v) > math.MaxInt64 {
+			return 0, uint64(v), true
+		}
+		return int64(v), 0, false
+	case uint64:
+		if v > math.MaxInt64 {
+			return 0, v, true
+		}
+		return int64(v), 0, false
+	case time.Time:
+		return v.UnixNano(), 0, false
+	case IntegerValue:
+		return int64(v), 0, false
+	case LongValue:
+		return int64(v), 0, false
+	case Value:
+		return canonicalKeyInt(v.GetObject())
 	}
-	slices.SortFunc(entries, func(a, b canonicalEntry) int {
-		return compareCanonicalKeys(a.norm, b.norm)
-	})
-	return entries
+	return 0, 0, false
+}
+
+func canonicalKeyString(k any) string {
+	switch v := k.(type) {
+	case string:
+		return v
+	case StringValue:
+		return string(v)
+	case GeoJSONValue:
+		return string(v)
+	case Value:
+		if s, ok := v.GetObject().(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+func canonicalKeyBytes(k any) []byte {
+	switch v := k.(type) {
+	case []byte:
+		return v
+	case BytesValue:
+		return v
+	case Value:
+		if b, ok := v.GetObject().([]byte); ok {
+			return b
+		}
+	}
+	return nil
+}
+
+func canonicalKeyFloat(k any) float64 {
+	switch v := k.(type) {
+	case float32:
+		return float64(v)
+	case float64:
+		return v
+	case FloatValue:
+		return float64(v)
+	case Value:
+		switch f := v.GetObject().(type) {
+		case float32:
+			return float64(f)
+		case float64:
+			return f
+		}
+	}
+	return 0
+}
+
+// canonicalKeyOrder returns the map's keys sorted in the server's canonical
+// msgpack key order. Map keys are unique, so ties (distinct Go types
+// comparing equal canonically) may land in either order.
+func canonicalKeyOrder(theMap map[any]any) []any {
+	keys := make([]any, 0, len(theMap))
+	for k := range theMap {
+		keys = append(keys, k)
+	}
+	slices.SortFunc(keys, compareCanonicalKeys)
+	return keys
 }
 
 // PackJson packs json data
