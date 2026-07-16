@@ -105,6 +105,71 @@ var _ = gg.Describe("Index operations test", func() {
 
 	})
 
+	gg.Describe("INTEGER Index creation", func() {
+
+		var ns = *namespace
+		var set = randString(50)
+		var wpolicy = as.NewWritePolicy(0, 0)
+		var integerIndexName = set + "intbin"
+
+		const keyCount = 100
+
+		gg.BeforeEach(func() {
+			if serverIsOlderThan("8.1.3") {
+				gg.Skip("INTEGER index type requires server version 8.1.3+")
+			}
+
+			for i := 0; i < keyCount; i++ {
+				key, err := as.NewKey(ns, set, i)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				err = client.PutBins(wpolicy, key, as.NewBin("intbin", i))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+			}
+		})
+
+		gg.It("must create an INTEGER index and query it", func() {
+			idxTask, err := client.CreateIndex(wpolicy, ns, set, integerIndexName, "intbin", as.INTEGER)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer client.DropIndex(wpolicy, ns, set, integerIndexName)
+
+			// wait until index is created
+			gm.Expect(<-idxTask.OnComplete()).ToNot(gm.HaveOccurred())
+
+			// range query on the INTEGER index
+			stmt := as.NewStatement(ns, set)
+			gm.Expect(stmt.SetFilter(as.NewRangeFilter("intbin", 10, 19))).ToNot(gm.HaveOccurred())
+
+			rs, err := client.Query(nil, stmt)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			count := 0
+			for res := range rs.Results() {
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				gm.Expect(res.Record.Bins["intbin"]).To(gm.BeNumerically(">=", 10))
+				gm.Expect(res.Record.Bins["intbin"]).To(gm.BeNumerically("<=", 19))
+				count++
+			}
+			gm.Expect(count).To(gm.Equal(10))
+
+			// equality query on the INTEGER index
+			stmt = as.NewStatement(ns, set)
+			gm.Expect(stmt.SetFilter(as.NewEqualFilter("intbin", 42))).ToNot(gm.HaveOccurred())
+
+			rs, err = client.Query(nil, stmt)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			count = 0
+			for res := range rs.Results() {
+				gm.Expect(res.Err).ToNot(gm.HaveOccurred())
+				gm.Expect(res.Record.Bins["intbin"]).To(gm.Equal(42))
+				count++
+			}
+			gm.Expect(count).To(gm.Equal(1))
+		})
+
+	})
+
 	gg.Describe("Set Index creation", func() {
 
 		var ns = *namespace
