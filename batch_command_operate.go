@@ -297,7 +297,25 @@ func (cmd *batchCommandOperate) Execute() Error {
 	if cmd.objects == nil && len(cmd.batch.offsets) == 1 {
 		return cmd.executeSingle(cmd.client)
 	}
-	return cmd.execute(cmd)
+	err := cmd.execute(cmd)
+	if err != nil {
+		cmd.setInDoubt(cmd)
+	}
+	return err
+}
+
+// inDoubt marks every write record on this subcommand that was left without a
+// server response (NO_RESPONSE) as in-doubt. This is the multi-key counterpart
+// of the single-key write path: on a timeout the write may have been applied on
+// the server even though the client never received the result. Read-only
+// records are never marked in-doubt.
+func (cmd *batchCommandOperate) inDoubt() {
+	for _, offset := range cmd.batch.offsets {
+		record := cmd.records[offset]
+		if record.isWrite() && record.resultCode() == types.NO_RESPONSE {
+			record.BatchRec().InDoubt = true
+		}
+	}
 }
 
 func (cmd *batchCommandOperate) commandType() commandType {

@@ -217,7 +217,28 @@ func (cmd *batchCommandDelete) Execute() Error {
 	if len(cmd.batch.offsets) == 1 {
 		return cmd.executeSingle(cmd.client)
 	}
-	return cmd.execute(cmd)
+	err := cmd.execute(cmd)
+	if err != nil {
+		cmd.setInDoubt(cmd)
+	}
+	return err
+}
+
+// inDoubt marks every record on this write subcommand that was left without a
+// server response (NO_RESPONSE) as in-doubt. On a timeout the delete may have
+// been applied on the server even though the client never received the result.
+func (cmd *batchCommandDelete) inDoubt() {
+	if !cmd.attr.hasWrite {
+		return
+	}
+
+	for _, offset := range cmd.batch.offsets {
+		record := cmd.records[offset]
+
+		if record.ResultCode == types.NO_RESPONSE {
+			record.InDoubt = true
+		}
+	}
 }
 
 func (cmd *batchCommandDelete) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {

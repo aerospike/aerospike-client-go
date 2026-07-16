@@ -205,7 +205,11 @@ func (cmd *batchTxnRollCommand) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchTxnRollCommand) Execute() Error {
-	return cmd.execute(cmd)
+	err := cmd.execute(cmd)
+	if err != nil {
+		cmd.setInDoubt(cmd)
+	}
+	return err
 }
 
 func (cmd *batchTxnRollCommand) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
