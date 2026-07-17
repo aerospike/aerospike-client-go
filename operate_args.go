@@ -43,12 +43,15 @@ func newOperateArgs(
 
 	for _, operation := range operations {
 		switch operation.opType {
-		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ:
-			// Map operations require respondAllOps to be true.
+		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ, _STRING_READ, _TO_STRING:
+			// These operations require respondAllOps to be true so that each op
+			// (including any mixed-in modify ops) contributes exactly one result
+			// slot, preserving the positional index<->op mapping. Matches Java's
+			// OperateArgs grouping.
 			respondAllOps = true
 			// Fall through to read.
 			fallthrough
-		case _CDT_READ, _READ, _STRING_READ, _TO_STRING:
+		case _CDT_READ, _READ:
 			rattr |= _INFO1_READ
 
 			// Read all bins if no bin is specified.
@@ -59,8 +62,10 @@ func newOperateArgs(
 		case _READ_HEADER:
 			rattr |= _INFO1_READ
 			readHeader = true
-		case _BIT_MODIFY, _EXP_MODIFY, _HLL_MODIFY, _MAP_MODIFY:
-			// Map operations require respondAllOps to be true.
+		case _BIT_MODIFY, _EXP_MODIFY, _HLL_MODIFY, _MAP_MODIFY, _STRING_MODIFY:
+			// These operations require respondAllOps to be true so that each op
+			// contributes exactly one result slot, preserving the positional
+			// index<->op mapping. Matches Java's OperateArgs grouping.
 			respondAllOps = true
 			// Fall through to write.
 			fallthrough

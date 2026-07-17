@@ -560,20 +560,39 @@ var _ = gg.Describe("String Operations Test", func() {
 			as.StrUpperOp(policy, bin),
 			as.StrLenOp(bin))
 
-		// When more than one op writes to the same bin, the client returns
-		// each result in order — the modify ops contribute a nil entry. When
-		// only one op produces a value, the client surfaces the scalar
-		// directly. Tolerate either shape and pull out the strlen result.
-		switch v := rec.Bins[bin].(type) {
-		case as.OpResults:
-			// strlen is the final op
-			gm.Expect(v[len(v)-1]).To(gm.Equal(11))
-		case int:
-			gm.Expect(v).To(gm.Equal(11))
-		default:
-			gg.Fail("unexpected result type for multi-op same-bin pipeline")
-		}
+		// CLIENT-5102: because the client auto-sets RESPOND_ALL_OPS for string
+		// ops, every op contributes exactly one result slot — the two modify
+		// ops emit nil and strlen emits its value at its submission index. The
+		// positional index<->op mapping is preserved.
+		results := rec.Bins[bin].(as.OpResults)
+		gm.Expect(len(results)).To(gm.Equal(3))
+		gm.Expect(results[0]).To(gm.BeNil()) // trim (modify)
+		gm.Expect(results[1]).To(gm.BeNil()) // upper (modify)
+		gm.Expect(results[2]).To(gm.Equal(11))
 		gm.Expect(stringValue()).To(gm.Equal("HELLO WORLD"))
+	})
+
+	gg.It("preserves positional index<->op mapping with a modify op mixed among reads (CLIENT-5102)", func() {
+		// The exact regression from the ticket: with the default policy
+		// (RespondPerEachOp = false), a same-bin multi-op that mixes a modify
+		// op with reads must return one slot per submitted op. Without the fix
+		// the modify op's slot is dropped and every following read shifts down
+		// one position (e.g. [6, "h"] instead of [nil, 6, "h"]) — a silent
+		// mis-read with no error.
+		put("hello")
+
+		rec := operate(
+			as.StrUpperOp(policy, bin), // index 0: modify -> nil slot
+			as.StrLenOp(bin),           // index 1: strlen -> 5
+			as.StrCharAtOp(bin, 0),     // index 2: charAt -> "H"
+		)
+
+		results := rec.Bins[bin].(as.OpResults)
+		gm.Expect(len(results)).To(gm.Equal(3))
+		gm.Expect(results[0]).To(gm.BeNil())
+		gm.Expect(results[1]).To(gm.Equal(5))
+		gm.Expect(results[2]).To(gm.Equal("H"))
+		gm.Expect(stringValue()).To(gm.Equal("HELLO"))
 	})
 
 	gg.It("chained replaceAll and padding compose as expected", func() {
