@@ -152,17 +152,20 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	return size, err
 }
 
-// canonicalPackBuffer marks a BufferEx as packing a filter-expression value
-// literal, which servers with AER-6930 require in canonical (key-ordered)
-// msgpack form. The marker travels down the recursive pack calls, so maps
-// nested anywhere inside the literal are packed in canonical order.
-type canonicalPackBuffer struct {
-	BufferEx
+// canonicalPacker is implemented by buffers that can pack filter-expression
+// map value literals in the server's canonical (key-ordered) msgpack form.
+// The flag rides on the concrete buffer (see bufferEx.canonicalKeys), so
+// marking a pack as canonical allocates nothing.
+type canonicalPacker interface {
+	setCanonicalKeys(bool)
+	canonicalKeysOrdered() bool
 }
 
+// isCanonicalPack reports whether cmd is packing a filter-expression literal,
+// whose maps servers with AER-6930 require in canonical key order.
 func isCanonicalPack(cmd BufferEx) bool {
-	_, ok := cmd.(canonicalPackBuffer)
-	return ok
+	c, ok := cmd.(canonicalPacker)
+	return ok && c.canonicalKeysOrdered()
 }
 
 // Canonical map key type ranks, following the server's msgpack comparison
@@ -207,9 +210,39 @@ func compareCanonicalKeys(a, b any) int {
 		}
 		return cmp.Compare(ai, bi)
 	case canonicalRankString, canonicalRankGeoJSON:
-		return cmp.Compare(canonicalKeyString(a), canonicalKeyString(b))
+		var sa, sb string
+		switch v := a.(type) {
+		case string:
+			sa = v
+		case StringValue:
+			sa = string(v)
+		case GeoJSONValue:
+			sa = string(v)
+		}
+		switch v := b.(type) {
+		case string:
+			sb = v
+		case StringValue:
+			sb = string(v)
+		case GeoJSONValue:
+			sb = string(v)
+		}
+		return cmp.Compare(sa, sb)
 	case canonicalRankBytes:
-		return bytes.Compare(canonicalKeyBytes(a), canonicalKeyBytes(b))
+		var ba, bb []byte
+		switch v := a.(type) {
+		case []byte:
+			ba = v
+		case BytesValue:
+			ba = v
+		}
+		switch v := b.(type) {
+		case []byte:
+			bb = v
+		case BytesValue:
+			bb = v
+		}
+		return bytes.Compare(ba, bb)
 	case canonicalRankDouble:
 		// plain </> matches the server's C comparison semantics; cmp.Compare
 		// would order NaN below all other values
@@ -299,36 +332,6 @@ func canonicalKeyInt(k any) (i int64, u uint64, isU bool) {
 	return 0, 0, false
 }
 
-func canonicalKeyString(k any) string {
-	switch v := k.(type) {
-	case string:
-		return v
-	case StringValue:
-		return string(v)
-	case GeoJSONValue:
-		return string(v)
-	case Value:
-		if s, ok := v.GetObject().(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-func canonicalKeyBytes(k any) []byte {
-	switch v := k.(type) {
-	case []byte:
-		return v
-	case BytesValue:
-		return v
-	case Value:
-		if b, ok := v.GetObject().([]byte); ok {
-			return b
-		}
-	}
-	return nil
-}
-
 func canonicalKeyFloat(k any) float64 {
 	switch v := k.(type) {
 	case float32:
@@ -337,13 +340,6 @@ func canonicalKeyFloat(k any) float64 {
 		return v
 	case FloatValue:
 		return float64(v)
-	case Value:
-		switch f := v.GetObject().(type) {
-		case float32:
-			return float64(f)
-		case float64:
-			return f
-		}
 	}
 	return 0
 }
