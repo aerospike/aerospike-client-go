@@ -15,11 +15,11 @@
 package aerospike
 
 import (
-	// "github.com/aerospike/aerospike-client-go/v8/logger"
-
 	"io"
 	"strconv"
+	"strings"
 
+	"github.com/aerospike/aerospike-client-go/v8/logger"
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -38,7 +38,7 @@ func parsePeers(cluster *Cluster, node *Node) (*peerListParser, Error) {
 		return nil, newError(types.PARSE_ERROR, "Info Command response was empty.")
 	}
 
-	p := peerListParser{buf: []byte(peersStr)}
+	p := peerListParser{buf: []byte(peersStr), ipMap: cluster.clientPolicy.Load().IpMap}
 	if err := p.Parse(); err != nil {
 		return nil, err
 	}
@@ -53,6 +53,10 @@ type peerListParser struct {
 	defPort *int64
 	gen     *int64
 	peers   []*peer
+
+	// ipMap, when set, translates each discovered peer address into a
+	// client-reachable one (mosl-nlb-config fork). See ClientPolicy.IpMap.
+	ipMap map[string]string
 }
 
 func (p *peerListParser) generation() int64 {
@@ -182,6 +186,24 @@ func (p *peerListParser) ParseHost(host string) (*Host, Error) {
 		} else {
 			addr = host
 		}
+	}
+
+	// mosl-nlb-config fork: translate the advertised address (host, no port) into a
+	// client-reachable one. A map value may replace the host alone ("host") or both
+	// host and port ("host:port"). A nil map is safe to index. See ClientPolicy.IpMap.
+	if translated, ok := p.ipMap[addr]; ok && translated != "" {
+		if idx := strings.LastIndex(translated, ":"); idx >= 0 {
+			if translatedPort, perr := strconv.Atoi(translated[idx+1:]); perr == nil {
+				addr = translated[:idx]
+				port = translatedPort
+			} else {
+				// no parseable port suffix (e.g. bare IPv6) — treat whole value as host
+				addr = translated
+			}
+		} else {
+			addr = translated
+		}
+		logger.Logger.Debug("IpMap translated peer `%s` -> `%s:%d`", host, addr, port)
 	}
 
 	return NewHost(addr, port), nil
