@@ -16,9 +16,11 @@ package aerospike
 
 import (
 	"sync/atomic"
+	"testing"
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
@@ -193,3 +195,52 @@ var _ = gg.Describe("ApplyConfigToTxnRollPolicy", func() {
 		})
 	})
 })
+
+func TestAbortBlockedAfterCommitFailedState(t *testing.T) {
+	txn := NewTxn()
+	txn.markCommitFailed()
+
+	if txn.State() != TxnStateCommitFailed {
+		t.Fatalf("expected COMMIT_FAILED state, got %v", txn.State())
+	}
+
+	err := txn.VerifyCommand()
+	if err == nil || !err.Matches(types.COMMON_ERROR) {
+		t.Fatalf("VerifyCommand should reject non-OPEN txn, got %v", err)
+	}
+
+	clnt := &Client{}
+	status, err := clnt.Abort(txn)
+	if err == nil {
+		t.Fatal("Abort should fail after commit failure")
+	}
+	if !err.Matches(types.TXN_FAILED) {
+		t.Fatalf("expected TXN_FAILED, got %v", err)
+	}
+	if status != AbortStatusCommitFailed {
+		t.Fatalf("expected AbortStatusCommitFailed, got %v", status)
+	}
+}
+
+func TestMarkCommitFailedPreservesTerminalStates(t *testing.T) {
+	tests := []struct {
+		name  string
+		state TxnState
+		want  TxnState
+	}{
+		{"aborted stays aborted", TxnStateAborted, TxnStateAborted},
+		{"committed stays committed", TxnStateCommitted, TxnStateCommitted},
+		{"verified becomes commit failed", TxnStateVerified, TxnStateCommitFailed},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			txn := NewTxn()
+			txn.SetState(tc.state)
+			txn.markCommitFailed()
+			if txn.State() != tc.want {
+				t.Fatalf("markCommitFailed() with initial %v: got %v, want %v", tc.state, txn.State(), tc.want)
+			}
+		})
+	}
+}

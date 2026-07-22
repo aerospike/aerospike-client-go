@@ -60,7 +60,7 @@ func (cmd *txnMarkRollForwardCommand) parseResult(ifc command, conn *Connection)
 		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 	}
 
-	if resultCode == 0 || resultCode == types.MRT_COMMITTED {
+	if resultCode == 0 {
 		return nil
 	}
 
