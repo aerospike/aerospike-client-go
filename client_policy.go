@@ -135,7 +135,7 @@ type ClientPolicy struct {
 	// missing key leaves the address unchanged. It is applied on both the
 	// seed/service-address path (node_validator.go) and the peers path (peers_parser.go).
 	//
-	// NOTE: mosl-nlb-config fork change. Stock declares this identical field but never
+	// NOTE: IpMap/NLB fork change. Stock declares this identical field but never
 	// applies it (dead since the 2021 addFriends removal); this fork re-wires it and
 	// additionally accepts "host:port" values.
 	IpMap map[string]string

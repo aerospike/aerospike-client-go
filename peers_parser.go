@@ -55,7 +55,7 @@ type peerListParser struct {
 	peers   []*peer
 
 	// ipMap, when set, translates each discovered peer address into a
-	// client-reachable one (mosl-nlb-config fork). See ClientPolicy.IpMap.
+	// client-reachable one (IpMap/NLB fork). See ClientPolicy.IpMap.
 	ipMap map[string]string
 }
 
@@ -188,7 +188,7 @@ func (p *peerListParser) ParseHost(host string) (*Host, Error) {
 		}
 	}
 
-	// mosl-nlb-config fork: translate the advertised address (host, no port) into a
+	// IpMap/NLB fork: translate the advertised address (host, no port) into a
 	// client-reachable one. A map value may replace the host alone ("host") or both
 	// host and port ("host:port"). A nil map is safe to index. See ClientPolicy.IpMap.
 	if translated, ok := p.ipMap[addr]; ok && translated != "" {
