@@ -203,7 +203,10 @@ func (p *peerListParser) ParseHost(host string) (*Host, Error) {
 		} else {
 			addr = translated
 		}
-		logger.Logger.Debug("IpMap translated peer `%s` -> `%s:%d`", host, addr, port)
+		// IpMap/NLB fork: logged at Info so the pre-translation (server-advertised)
+		// address is visible at normal log level, letting a failed `Add node` be traced
+		// back to exactly what the cluster advertised before IpMap rewrote it.
+		logger.Logger.Info("IpMap translated peer `%s` -> `%s:%d`", host, addr, port)
 	}
 
 	return NewHost(addr, port), nil
