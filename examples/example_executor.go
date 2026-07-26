@@ -48,6 +48,12 @@ var (
 	port   int
 	ns     string
 	set    string
+
+	// luaPath is the local directory holding the Lua modules used by the
+	// query-aggregate examples (client-side stream aggregation reads them
+	// from disk). Relative to the working directory, so run from the
+	// repository root, or point AEROSPIKE_LUA_PATH elsewhere.
+	luaPath = envStr("AEROSPIKE_LUA_PATH", "examples/lua/")
 )
 
 func envStr(name, fallback string) string {

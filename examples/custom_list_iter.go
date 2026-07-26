@@ -1,8 +1,5 @@
 /*
- * Copyright 2014-2022 Aerospike, Inc.
- *
- * Portions may be licensed to Aerospike, Inc. under one or more contributor
- * license agreements.
+ * Copyright 2014-2026 Aerospike, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -19,11 +16,9 @@ package main
 
 import (
 	"log"
-	"reflect"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
-	shared "github.com/aerospike/aerospike-client-go/v8/examples/shared"
 )
 
 var (
@@ -31,15 +26,16 @@ var (
 	cll = SliceListInt64(ll)
 )
 
-// SliceInt64 is a custom data type
+// SliceInt64 is a custom data type implementing the as.ListIter interface,
+// letting the client pack it without reflection.
 type SliceInt64 []int64
 
-// Len implements the ListIter interface
+// Len implements the ListIter interface.
 func (sli SliceInt64) Len() int {
 	return len(sli)
 }
 
-// PackList implements the ListIter interface
+// PackList implements the ListIter interface.
 func (sli SliceInt64) PackList(buf as.BufferEx) (int, error) {
 	size := 0
 	for _, elem := range sli {
@@ -52,15 +48,15 @@ func (sli SliceInt64) PackList(buf as.BufferEx) (int, error) {
 	return size, nil
 }
 
-// SliceListInt64 is a custom data type
+// SliceListInt64 is a custom data type implementing the as.ListIter interface.
 type SliceListInt64 [][]int64
 
-// Len returns the length of the array
+// Len returns the length of the array.
 func (sli SliceListInt64) Len() int {
 	return len(sli)
 }
 
-// PackList implements the ListIter interface
+// PackList implements the ListIter interface.
 func (sli SliceListInt64) PackList(buf as.BufferEx) (int, error) {
 	size := 0
 	for _, l := range sli {
@@ -73,63 +69,38 @@ func (sli SliceListInt64) PackList(buf as.BufferEx) (int, error) {
 	return size, nil
 }
 
-func main() {
-	runExample(shared.Client)
-	log.Println("Example finished successfully.")
-}
+// Compare write performance of a nested list bin with and without a custom
+// ListIter packer.
+func runCustomListIter() error {
+	key, err := as.NewKey(ns, set, "addkey")
+	if err != nil {
+		return err
+	}
 
-func runExample(client *as.Client) {
-	key, err := as.NewKey(*shared.Namespace, *shared.Set, "addkey")
-	shared.PanicOnError(err)
-
-	// Delete record if it already exists.
-	client.Delete(shared.WritePolicy, key)
-
+	// Write the plain [][]int64 value, packed via reflection.
 	bin := as.NewBin("bin", ll)
-	b := time.Now()
+	begin := time.Now()
 	for i := 0; i < 10000; i++ {
-		if err := client.PutBins(shared.WritePolicy, key, bin); err != nil {
-			log.Panicf("Get failed %s: %s", key, err)
+		if err := client.PutBins(nil, key, bin); err != nil {
+			return err
 		}
 	}
-	t := time.Since(b)
-	log.Println("Performance WITHOUT custom iterator:", t)
+	log.Println("Performance WITHOUT custom iterator:", time.Since(begin))
 
+	// Write the same value through the custom ListIter implementation.
 	bin = as.NewBin("bin", cll)
-	b = time.Now()
+	begin = time.Now()
 	for i := 0; i < 10000; i++ {
-		if err := client.PutBins(shared.WritePolicy, key, bin); err != nil {
-			log.Panicf("Get failed %s: %s", key, err)
+		if err := client.PutBins(nil, key, bin); err != nil {
+			return err
 		}
 	}
-	t = time.Since(b)
-	log.Println("Performance WITH    custom iterator:", t)
+	log.Println("Performance WITH    custom iterator:", time.Since(begin))
 
-	record, err := client.Get(shared.Policy, key, bin.Name)
-	shared.PanicOnError(err)
-
-	if record == nil {
-		log.Fatalf(
-			"Failed to get: namespace=%s set=%s key=%s",
-			key.Namespace(), key.SetName(), key.Value())
+	record, err := client.Get(nil, key, "bin")
+	if err != nil {
+		return err
 	}
-
-	// The value received from the server is an unsigned byte stream.
-	// Convert to an integer before comparing with expected.
-	received := [][]int64{} // returns as [][]any, need to be converted
-	for _, l1 := range record.Bins[bin.Name].([]any) {
-		l := []int64{}
-		for _, l2 := range l1.([]any) {
-			l = append(l, int64(l2.(int)))
-		}
-		received = append(received, l)
-	}
-	expected := ll
-
-	if reflect.DeepEqual(received, expected) {
-		log.Printf("Packing successful: ns=%s set=%s key=%s bin=%s",
-			key.Namespace(), key.SetName(), key.Value(), bin.Name)
-	} else {
-		log.Fatalf("Packing mismatch: Expected %#v.\n Received %#v.", expected, received)
-	}
+	log.Printf("Read back %d rows.", len(record.Bins["bin"].([]any)))
+	return nil
 }

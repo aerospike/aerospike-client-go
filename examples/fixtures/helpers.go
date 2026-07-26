@@ -19,6 +19,7 @@ package fixtures
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -67,6 +68,37 @@ func AssertBin(userKey, bin string, want any) error {
 	}
 	if got := record.Bins[bin]; got != want {
 		return fmt.Errorf("key %q bin %q: got %v (%T), want %v (%T)", userKey, bin, got, got, want, want)
+	}
+	return nil
+}
+
+// DeleteIntKeys removes records keyed by the integers from..to inclusive.
+func DeleteIntKeys(from, to int) error {
+	for i := from; i <= to; i++ {
+		key, err := as.NewKey(namespace, set, i)
+		if err != nil {
+			return err
+		}
+		if _, err := client.Delete(nil, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AssertBinDeepEquals reads a record back and deep-compares one bin against
+// the expected structure (for list/map bins).
+func AssertBinDeepEquals(userKey, bin string, want any) error {
+	key, err := as.NewKey(namespace, set, userKey)
+	if err != nil {
+		return err
+	}
+	record, err := client.Get(nil, key, bin)
+	if err != nil {
+		return err
+	}
+	if got := record.Bins[bin]; !reflect.DeepEqual(got, want) {
+		return fmt.Errorf("key %q bin %q: got %#v, want %#v", userKey, bin, got, want)
 	}
 	return nil
 }

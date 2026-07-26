@@ -19,6 +19,7 @@ package fixtures
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"strconv"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -201,5 +202,74 @@ func Touch() Fixture {
 		// be gone.
 		Validate: func() error { return AssertRecordMissing(key) },
 		Cleanup:  func() error { return DeleteKeys(key) },
+	}
+}
+
+func ListMap() Fixture {
+	keys := []string{"listkey1", "listkey2", "mapkey1", "mapkey2", "listmapkey"}
+	blob := []byte{3, 52, 125}
+	inner := []any{"string2", 5}
+	return Fixture{
+		Setup: func() error { return DeleteKeys(keys...) },
+		Validate: func() error {
+			// After the operate step, listbin1 holds the unique fourth item.
+			if err := AssertBinDeepEquals("listkey1", "listbin1",
+				[]any{"string1", "string2", "string3", "string4"}); err != nil {
+				return err
+			}
+			if err := AssertBinDeepEquals("listkey2", "listbin2",
+				[]any{"string1", 2, blob}); err != nil {
+				return err
+			}
+			if err := AssertBinDeepEquals("mapkey1", "mapbin1",
+				map[any]any{"key1": "string1", "key2": "string2", "key3": "string3"}); err != nil {
+				return err
+			}
+			if err := AssertBinDeepEquals("mapkey2", "mapbin2",
+				map[any]any{"key1": "string1", "key2": 2, "key3": blob,
+					"key4": []any{100034, 12384955, 3, 512}}); err != nil {
+				return err
+			}
+			return AssertBinDeepEquals("listmapkey", "listmapbin",
+				[]any{"string1", 8, inner,
+					map[any]any{"a": 1, 2: "b", 3: blob, "list": inner}})
+		},
+		Cleanup: func() error { return DeleteKeys(keys...) },
+	}
+}
+
+func ListIter(expected [][]int64) Fixture {
+	const key = "addkey"
+	return Fixture{
+		Setup: func() error { return DeleteKeys(key) },
+		// The custom packer must produce the same wire format as reflection:
+		// the read-back value must deep-equal the dataset that was written.
+		Validate: func() error {
+			k, err := as.NewKey(namespace, set, key)
+			if err != nil {
+				return err
+			}
+			record, err := client.Get(nil, k, "bin")
+			if err != nil {
+				return err
+			}
+			rows, ok := record.Bins["bin"].([]any)
+			if !ok {
+				return fmt.Errorf("bin is not a list: %T", record.Bins["bin"])
+			}
+			received := make([][]int64, 0, len(rows))
+			for _, row := range rows {
+				cols := []int64{}
+				for _, col := range row.([]any) {
+					cols = append(cols, int64(col.(int)))
+				}
+				received = append(received, cols)
+			}
+			if !reflect.DeepEqual(received, expected) {
+				return fmt.Errorf("read-back data does not match the written dataset (%d rows)", len(rows))
+			}
+			return nil
+		},
+		Cleanup: func() error { return DeleteKeys(key) },
 	}
 }
