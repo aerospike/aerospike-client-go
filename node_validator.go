@@ -237,7 +237,10 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 	// check if the host is a load-balancer
 	if peersStr, exists := infoMap[addressCommand]; exists {
 		var hostAddress []*Host
-		peerParser := peerListParser{buf: []byte("[" + peersStr + "]")}
+		// IpMap/NLB fork: translate the seed's own advertised service address too
+		// (Java parity), so a load-balancer seed is replaced with a reachable per-node
+		// address rather than an internal one.
+		peerParser := peerListParser{buf: []byte("[" + peersStr + "]"), ipMap: clientPolicy.IpMap}
 		if hostAddress, err = peerParser.readHosts(alias.TLSName); err != nil {
 			logger.Logger.Error("Failed to parse `%s` results... err: %s", alias.String(), err.Error())
 		}
