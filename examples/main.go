@@ -49,7 +49,25 @@ func main() {
 
 	log.SetOutput(os.Stdout)
 
-	// Assign the ambient state shared by all examples, then connect.
+	facts := connectClient()
+	defer client.Close()
+
+	results := make([]result, 0, len(selected))
+	for _, ex := range selected {
+		log.Printf("=== %s", ex.Name)
+		results = append(results, execute(ex, facts))
+	}
+
+	if printSummary(results) > 0 {
+		os.Exit(1)
+	}
+}
+
+// connectClient assigns the ambient state shared by all examples, connects
+// (over TLS when configured), and probes the server's capabilities. Shared by
+// the CLI runner (main) and the go test bridge (examples_test.go) so both
+// entry points connect exactly the same way.
+func connectClient() serverFacts {
 	host = *hostFlag
 	port = *portFlag
 	user = *userFlag
@@ -83,11 +101,11 @@ func main() {
 		seed.TLSName = tlsServerName
 	}
 
+	var err error
 	client, err = as.NewClientWithPolicyAndHost(policy, seed)
 	if err != nil {
 		log.Fatalf("failed to connect to Aerospike at %s:%d: %v", host, port, err)
 	}
-	defer client.Close()
 
 	facts := probeServerFacts()
 
@@ -96,15 +114,7 @@ func main() {
 	// know which kind of namespace they are cleaning up.
 	fixtures.Init(client, ns, set, facts.strongConsistency)
 
-	results := make([]result, 0, len(selected))
-	for _, ex := range selected {
-		log.Printf("=== %s", ex.Name)
-		results = append(results, execute(ex, facts))
-	}
-
-	if printSummary(results) > 0 {
-		os.Exit(1)
-	}
+	return facts
 }
 
 // selectExamples resolves command-line arguments against the registry.

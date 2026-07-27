@@ -54,6 +54,7 @@ jobs:
     permissions:
       id-token: write
       actions: write
+      checks: write
     strategy:
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
@@ -79,6 +80,9 @@ jobs:
           # Install ginkgo CLI and gocovmerge for testing
           go install github.com/onsi/ginkgo/v2/ginkgo@v2.22.2
           go mod download github.com/wadey/gocovmerge
+
+          # Install gotestsum to run the examples via `go test` and produce a JUnit report
+          go install gotest.tools/gotestsum@v1.13.0
 
           # Vendor the dependencies
           go mod vendor
@@ -114,7 +118,7 @@ jobs:
         run: cd tools/cli | go build -mod=vendor -o cli .
       - name: Build example files
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
-        run: find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
+        run: go build ./examples/...
       - name: Build with Reflection code removed
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo build -tags="as_performance" .
@@ -124,6 +128,16 @@ jobs:
       - name: Run the tests
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
+      - name: Example Run
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
+        run: gotestsum --junitfile example-results.xml --format testname -- ./examples -run TestExamples
+      - name: Publish Example Run results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
+        with:
+          check_name: "Example Run (${{ matrix.version }}-${{ matrix.mode }})"
+          comment_mode: off
+          files: example-results.xml
       - name: Combine Cover Profiles
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out

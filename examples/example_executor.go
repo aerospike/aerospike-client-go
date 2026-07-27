@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -68,12 +70,20 @@ var (
 	tlsConfig     *tls.Config
 	tlsServerName string
 
-	// luaPath is the local directory holding the Lua modules used by the
+	// luaPath is the directory holding the Lua modules used by the
 	// query-aggregate examples (client-side stream aggregation reads them
-	// from disk). Relative to the working directory, so run from the
-	// repository root, or point AEROSPIKE_LUA_PATH elsewhere.
-	luaPath = envStr("AEROSPIKE_LUA_PATH", "examples/lua/")
+	// from disk). Resolved relative to this source file rather than the
+	// working directory, since `go run ./examples` (cwd = repo root) and
+	// `go test ./examples` (cwd = this package's directory) differ; override
+	// with AEROSPIKE_LUA_PATH to point elsewhere.
+	luaPath = envStr("AEROSPIKE_LUA_PATH", defaultLuaPath())
 )
+
+// defaultLuaPath returns the lua/ directory next to this source file.
+func defaultLuaPath() string {
+	_, thisFile, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(thisFile), "lua") + string(filepath.Separator)
+}
 
 func envStr(name, fallback string) string {
 	if v := os.Getenv(name); v != "" {
