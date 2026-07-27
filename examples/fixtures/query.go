@@ -177,6 +177,70 @@ func CountSetObjects() Fixture {
 	}
 }
 
+func Query() Fixture {
+	const size = 50
+	indexNames := []string{"query_int_idx", "query_category_idx"}
+	return Fixture{
+		Setup: func() error {
+			for _, name := range indexNames {
+				_ = client.DropIndex(nil, namespace, set, name)
+			}
+			return deleteQueryKeys(size)
+		},
+		// queryint in [10, 15] is 6 records; querycategory "even" is every
+		// other one of the 50 seeded records.
+		Validate: func() error {
+			rangeCount, err := countQuery(as.NewRangeFilter("queryint", 10, 15))
+			if err != nil {
+				return err
+			}
+			if rangeCount != 6 {
+				return fmt.Errorf("range query returned %d records, want 6", rangeCount)
+			}
+			equalCount, err := countQuery(as.NewEqualFilter("querycategory", "even"))
+			if err != nil {
+				return err
+			}
+			if equalCount != size/2 {
+				return fmt.Errorf("equality query returned %d records, want %d", equalCount, size/2)
+			}
+			return nil
+		},
+		Cleanup: func() error {
+			if err := deleteQueryKeys(size); err != nil {
+				return err
+			}
+			for _, name := range indexNames {
+				_ = client.DropIndex(nil, namespace, set, name)
+			}
+			return nil
+		},
+	}
+}
+
+func deleteQueryKeys(size int) error {
+	return DeleteKeys(numberedKeys("querykey", size)...)
+}
+
+func countQuery(filter *as.Filter) (int, error) {
+	statement := as.NewStatement(namespace, set)
+	statement.SetFilter(filter)
+	recordset, err := client.Query(nil, statement)
+	if err != nil {
+		return 0, err
+	}
+	defer recordset.Close()
+
+	count := 0
+	for res := range recordset.Results() {
+		if res.Err != nil {
+			return 0, res.Err
+		}
+		count++
+	}
+	return count, nil
+}
+
 func GeoJSONQuery() Fixture {
 	const indexName = "testset_geo_index"
 	return Fixture{
