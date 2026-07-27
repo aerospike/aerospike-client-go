@@ -82,7 +82,7 @@ jobs:
           go mod download github.com/wadey/gocovmerge
 
           # Install gotestsum to run the examples via `go test` and produce a JUnit report
-          go install gotest.tools/gotestsum@v1.13.0
+          go install gotest.tools/gotestsum@v1.12.3
 
           # Vendor the dependencies
           go mod vendor
