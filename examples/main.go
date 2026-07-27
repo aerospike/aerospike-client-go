@@ -72,6 +72,9 @@ func connectClient() serverFacts {
 	port = *portFlag
 	user = *userFlag
 	password = *passwordFlag
+	if password == "" {
+		password = os.Getenv("AEROSPIKE_PASSWORD")
+	}
 	ns = *namespaceFlag
 	set = *setFlag
 

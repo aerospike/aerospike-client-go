@@ -38,7 +38,7 @@ var (
 	hostFlag      = flag.String("h", envStr("AEROSPIKE_HOST", "127.0.0.1"), "Aerospike server hostname or IP address.")
 	portFlag      = flag.Int("p", envInt("AEROSPIKE_PORT", 3000), "Aerospike server port number.")
 	userFlag      = flag.String("U", envStr("AEROSPIKE_USER", ""), "Aerospike username.")
-	passwordFlag  = flag.String("P", envStr("AEROSPIKE_PASSWORD", ""), "Aerospike password.")
+	passwordFlag  = flag.String("P", "", "Aerospike password (or set AEROSPIKE_PASSWORD).")
 	namespaceFlag = flag.String("n", envStr("AEROSPIKE_NAMESPACE", "test"), "Aerospike namespace.")
 	setFlag       = flag.String("s", envStr("AEROSPIKE_SET", "testset"), "Aerospike set name.")
 
