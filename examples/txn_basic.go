@@ -12,72 +12,64 @@
  * the License.
  */
 
-// Basic multi-record transaction (MRT) example with commit-status handling.
-//
-// Requires Aerospike server 8.0+ and a strong-consistency namespace.
-//
-// Run:
-//
-//	go run main.go -h 127.0.0.1 -p 3000 -n <ns> -s <set>
 package main
 
 import (
 	"log"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
-	shared "github.com/aerospike/aerospike-client-go/v8/examples/shared"
 )
 
-func main() {
+// Basic multi-record transaction (MRT) example with commit-status handling.
+// Requires Aerospike server 8.0+ and a strong-consistency namespace.
+func runTxnBasic() error {
 	txn := as.NewTxn()
 	log.Printf("Initialize transaction: %d", txn.Id())
 
-	if err := runCommands(txn); err != nil {
+	if err := runTxnCommands(txn); err != nil {
 		log.Printf("Transaction commands failed: %v", err)
 		abortTxn(txn)
-		return
+		return err
 	}
 
 	log.Printf("Commit transaction: %d", txn.Id())
 	handleCommit(txn)
+	return nil
 }
 
-// runCommands performs reads and writes in a single transaction.
-func runCommands(txn *as.Txn) error {
+// runTxnCommands performs reads and writes in a single transaction.
+func runTxnCommands(txn *as.Txn) error {
 	wp := as.NewWritePolicy(0, 0)
 	wp.Txn = txn
-
 	rp := as.NewPolicy()
 	rp.Txn = txn
 
-	key, err := as.NewKey(*shared.Namespace, *shared.Set, "txn-basic-1")
+	key, err := as.NewKey(ns, set, "txn-basic-1")
 	if err != nil {
 		return err
 	}
 
 	log.Println("Write record")
-	if err := shared.Client.PutBins(wp, key, as.NewBin("a", 1234)); err != nil {
+	if err := client.PutBins(wp, key, as.NewBin("a", 1234)); err != nil {
 		return err
 	}
 
 	log.Println("Read record")
-	if _, err := shared.Client.Get(rp, key); err != nil {
+	if _, err := client.Get(rp, key); err != nil {
 		return err
 	}
 
 	log.Println("Update record in transaction")
-	if err := shared.Client.PutBins(wp, key, as.NewBin("a", 5678)); err != nil {
+	if err := client.PutBins(wp, key, as.NewBin("a", 5678)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 // handleCommit branches on CommitStatus and Txn.State().
 // Do not call Abort() blindly after every commit error.
 func handleCommit(txn *as.Txn) {
-	status, err := shared.Client.Commit(txn)
-
+	status, err := client.Commit(txn)
 	switch status {
 	case as.CommitStatusOK:
 		log.Println("Commit succeeded")
@@ -136,7 +128,7 @@ func handleCommit(txn *as.Txn) {
 }
 
 func abortTxn(txn *as.Txn) {
-	status, err := shared.Client.Abort(txn)
+	status, err := client.Abort(txn)
 	if err != nil {
 		log.Printf("Abort failed: status=%v err=%v", status, err)
 		return

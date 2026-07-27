@@ -27,15 +27,37 @@ var (
 	client    *as.Client
 	namespace string
 	set       string
+
+	// deletePolicy is nil on AP namespaces (the default delete is fine) and
+	// carries DurableDelete on strong-consistency namespaces, where the
+	// server forbids non-durable deletes.
+	deletePolicy *as.WritePolicy
 )
 
 // Init hands the fixtures package its connection and target. The example
-// runner calls it once, right after connecting.
-func Init(c *as.Client, ns, setName string) {
+// runner calls it once, right after connecting and probing the server.
+func Init(c *as.Client, ns, setName string, strongConsistency bool) {
 	client = c
 	namespace = ns
 	set = setName
+
+	if strongConsistency {
+		deletePolicy = as.NewWritePolicy(0, 0)
+		deletePolicy.DurableDelete = true
+	}
 }
+
+// A SkipError marks an example as skipped rather than failed: the server or
+// its configuration cannot support the example. Return it from any lifecycle
+// step via Skip.
+type SkipError struct {
+	Reason string
+}
+
+func (e SkipError) Error() string { return e.Reason }
+
+// Skip reports that an example cannot run in this environment.
+func Skip(reason string) error { return SkipError{Reason: reason} }
 
 // A Fixture holds the optional lifecycle steps that verify an example:
 // Setup seeds required state (cleanup-first, so reruns work), Validate

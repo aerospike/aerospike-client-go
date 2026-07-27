@@ -25,6 +25,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -51,26 +52,49 @@ func main() {
 	// Assign the ambient state shared by all examples, then connect.
 	host = *hostFlag
 	port = *portFlag
+	user = *userFlag
+	password = *passwordFlag
 	ns = *namespaceFlag
 	set = *setFlag
 
 	log.Printf("Connecting to %s:%d namespace=%s set=%s", host, port, ns, set)
 
 	policy := as.NewClientPolicy()
-	policy.User = *userFlag
-	policy.Password = *passwordFlag
+	policy.User = user
+	policy.Password = password
 	policy.Timeout = 3 * time.Second
 
-	client, err = as.NewClientWithPolicy(policy, host, port)
+	// Connect over TLS when TLS options are configured, so the whole suite
+	// can run against a TLS-secured cluster.
+	seed := as.NewHost(host, port)
+	if *tlsName != "" || *encryptOnly {
+		serverCertPool, clientCertPool, certErr := readCertificates(*serverCertDir, *clientCertFile, *clientKeyFile)
+		if certErr != nil {
+			log.Fatalf("failed to read certificates: %v", certErr)
+		}
+		tlsConfig = &tls.Config{
+			Certificates:             clientCertPool,
+			RootCAs:                  serverCertPool,
+			InsecureSkipVerify:       *encryptOnly,
+			PreferServerCipherSuites: true,
+		}
+		tlsServerName = *tlsName
+		policy.TlsConfig = tlsConfig
+		seed.TLSName = tlsServerName
+	}
+
+	client, err = as.NewClientWithPolicyAndHost(policy, seed)
 	if err != nil {
 		log.Fatalf("failed to connect to Aerospike at %s:%d: %v", host, port, err)
 	}
 	defer client.Close()
 
-	// Hand the connection and target to the fixtures package.
-	fixtures.Init(client, ns, set)
-
 	facts := probeServerFacts()
+
+	// Hand the connection and target to the fixtures package. Strong
+	// consistency namespaces forbid non-durable deletes, so fixtures need to
+	// know which kind of namespace they are cleaning up.
+	fixtures.Init(client, ns, set, facts.strongConsistency)
 
 	results := make([]result, 0, len(selected))
 	for _, ex := range selected {

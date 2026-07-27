@@ -33,7 +33,7 @@ func DeleteKeys(userKeys ...string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := client.Delete(nil, key); err != nil {
+		if _, err := client.Delete(deletePolicy, key); err != nil {
 			return err
 		}
 	}
@@ -79,7 +79,7 @@ func DeleteIntKeys(from, to int) error {
 		if err != nil {
 			return err
 		}
-		if _, err := client.Delete(nil, key); err != nil {
+		if _, err := client.Delete(deletePolicy, key); err != nil {
 			return err
 		}
 	}

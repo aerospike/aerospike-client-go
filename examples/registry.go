@@ -20,6 +20,11 @@ import (
 
 // examples is the central registry of documentation examples in given execution order.
 var examples = []Example{
+	{Name: "connect_basic", Run: runConnectBasic},
+	{Name: "connect_auth", Run: runConnectAuth},
+	{Name: "connect_tls", Run: runConnectTLS, Requires: TLSConfigured()},
+	{Name: "connect_tls_pki", Run: runConnectTLSPKI, Fixture: fixtures.Connect(),
+		Requires: TLSConfigured().AndEnterpriseEdition().AndSecurityEnabled()},
 	{Name: "put", Run: runPut, Fixture: fixtures.Put()},
 	{Name: "get", Run: runGet, Fixture: fixtures.Get()},
 	{Name: "simple", Run: runSimple, Fixture: fixtures.Simple()},
@@ -28,7 +33,7 @@ var examples = []Example{
 	{Name: "prepend", Run: runPrepend, Fixture: fixtures.Prepend()},
 	{Name: "replace", Run: runReplace, Fixture: fixtures.Replace()},
 	{Name: "operate", Run: runOperate, Fixture: fixtures.Operate()},
-	{Name: "generation", Run: runGeneration, Fixture: fixtures.Generation()},
+	{Name: "generation", Run: runGeneration, Fixture: fixtures.Generation(), Requires: TTLSupported()},
 	{Name: "blob", Run: runBlob, Fixture: fixtures.Blob()},
 	{Name: "list_map", Run: runListMap, Fixture: fixtures.ListMap()},
 	{Name: "custom_list_iter", Run: runCustomListIter, Fixture: fixtures.ListIter(ll)},
@@ -44,4 +49,15 @@ var examples = []Example{
 	{Name: "query_aggregate_average", Run: runQueryAggregateAverage, Fixture: fixtures.QueryAggregateAverage()},
 	{Name: "query_aggregate_sum", Run: runQueryAggregateSum, Fixture: fixtures.QueryAggregateSum()},
 	{Name: "udf", Run: runUDF, Fixture: fixtures.UDF()},
+	{Name: "info", Run: runInfo, Fixture: fixtures.Info()},
+	{Name: "txn_basic", Run: runTxnBasic, Fixture: fixtures.TxnBasic(),
+		Requires: EnterpriseEdition().AndStrongConsistency().AndMinServerVersion(8, 0)},
+	{Name: "txn_concurrent", Run: runTxnConcurrent,
+		Fixture:  fixtures.TxnConcurrent(keyRange, batchIterations*mixedBatchSize, queryDataSize),
+		Requires: EnterpriseEdition().AndStrongConsistency().AndMinServerVersion(8, 0)},
+	{Name: "tls_secure_connection", Run: runTLSSecureConnection, Requires: TLSConfigured()},
+	{Name: "pki_auth", Run: runPKIAuth, Fixture: fixtures.PKIAuth(),
+		Requires: TLSConfigured().AndEnterpriseEdition().AndSecurityEnabled()},
+	{Name: "pki_auth_roles", Run: runPKIAuthRoles, Fixture: fixtures.PKIAuthRoles(),
+		Requires: TLSConfigured().AndEnterpriseEdition().AndSecurityEnabled()},
 }

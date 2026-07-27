@@ -15,6 +15,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -37,17 +39,34 @@ var (
 	passwordFlag  = flag.String("P", envStr("AEROSPIKE_PASSWORD", ""), "Aerospike password.")
 	namespaceFlag = flag.String("n", envStr("AEROSPIKE_NAMESPACE", "test"), "Aerospike namespace.")
 	setFlag       = flag.String("s", envStr("AEROSPIKE_SET", "testset"), "Aerospike set name.")
+
+	// TLS/PKI configuration used by the tls_secure_connection and pki_auth
+	// examples. When unset, those examples are skipped.
+	tlsName        = flag.String("tlsName", envStr("AEROSPIKE_TLS_NAME", ""), "Aerospike server TLS name.")
+	encryptOnly    = flag.Bool("encryptOnly", os.Getenv("AEROSPIKE_TLS_ENCRYPT_ONLY") != "", "Should the TLS connection be encrypted only without authentication?")
+	useSystemCerts = flag.Bool("useSystemCerts", os.Getenv("AEROSPIKE_TLS_SYSTEM_CERTS") != "", "Add system certificates to the RootCA list?")
+	serverCertDir  = flag.String("serverCertDir", envStr("AEROSPIKE_TLS_SERVER_CERT_DIR", ""), "Server certificate dir.")
+	clientCertFile = flag.String("clientCertFile", envStr("AEROSPIKE_TLS_CLIENT_CERT", ""), "Client Cert File.")
+	clientKeyFile  = flag.String("clientKeyFile", envStr("AEROSPIKE_TLS_CLIENT_KEY", ""), "Client Key File.")
 )
 
 // Ambient state shared by all examples and fixtures. Assigned exactly once in
 // main() before any example runs, so the documentation-ready example files
 // stay free of connection and configuration code.
 var (
-	client *as.Client
-	host   string
-	port   int
-	ns     string
-	set    string
+	client   *as.Client
+	host     string
+	port     int
+	user     string
+	password string
+	ns       string
+	set      string
+
+	// tlsConfig is nil unless TLS options are configured; tlsServerName is
+	// the certificate name the server is verified against. Examples that
+	// open their own connections use these so they work on TLS clusters.
+	tlsConfig     *tls.Config
+	tlsServerName string
 
 	// luaPath is the local directory holding the Lua modules used by the
 	// query-aggregate examples (client-side stream aggregation reads them
@@ -96,6 +115,7 @@ type Requirement struct {
 	strongConsistency bool
 	ttl               bool
 	tls               bool
+	security          bool
 	minVersion        *version.Version
 }
 
@@ -104,6 +124,8 @@ func EnterpriseEdition() Requirement { return Requirement{enterprise: true} }
 func TTLSupported() Requirement { return Requirement{ttl: true} }
 
 func TLSConfigured() Requirement { return Requirement{tls: true} }
+
+func SecurityEnabled() Requirement { return Requirement{security: true} }
 
 func MinServerVersion(major, minor int) Requirement {
 	return Requirement{minVersion: &version.Version{Major: major, Minor: minor}}
@@ -114,6 +136,8 @@ func (r Requirement) AndEnterpriseEdition() Requirement { r.enterprise = true; r
 func (r Requirement) AndStrongConsistency() Requirement { r.strongConsistency = true; return r }
 
 func (r Requirement) AndTTLSupported() Requirement { r.ttl = true; return r }
+
+func (r Requirement) AndSecurityEnabled() Requirement { r.security = true; return r }
 
 func (r Requirement) AndMinServerVersion(major, minor int) Requirement {
 	r.minVersion = &version.Version{Major: major, Minor: minor}
@@ -137,7 +161,9 @@ func (req Requirement) failureReason(facts serverFacts) string {
 			ns,
 		)
 	case req.tls && !facts.tlsConfigured:
-		return "requires TLS configuration (AEROSPIKE_TLS_NAME not set)"
+		return "requires TLS configuration (-tlsName / AEROSPIKE_TLS_NAME not set)"
+	case req.security && !facts.securityEnabled:
+		return "requires a security-enabled server"
 	case req.minVersion != nil && !facts.version.IsGreaterOrEqual(req.minVersion):
 		return fmt.Sprintf(
 			"requires server %d.%d+ (connected to %s)",
@@ -157,13 +183,14 @@ type serverFacts struct {
 	strongConsistency bool
 	ttlSupported      bool
 	tlsConfigured     bool
+	securityEnabled   bool
 }
 
 func probeServerFacts() serverFacts {
 	node := client.GetNodes()[0]
 	facts := serverFacts{
 		version:       node.GetServerVersion(),
-		tlsConfigured: os.Getenv("AEROSPIKE_TLS_NAME") != "",
+		tlsConfigured: *tlsName != "" || *encryptOnly,
 	}
 
 	editionCommand := "edition"
@@ -172,6 +199,12 @@ func probeServerFacts() serverFacts {
 	}
 	if infoMap, err := node.RequestInfo(as.NewInfoPolicy(), editionCommand); err == nil {
 		facts.enterprise = strings.Contains(infoMap[editionCommand], "Enterprise")
+	}
+	// Security is an Enterprise feature and can be disabled there; a role
+	// query only succeeds when it is on.
+	if facts.enterprise {
+		_, err := client.QueryRoles(nil)
+		facts.securityEnabled = err == nil
 	}
 	// An example is skipped, not failed, when a fact cannot be confirmed.
 	nsConfig := nsInfo(node)
@@ -196,18 +229,6 @@ func nsInfo(node *as.Node) map[string]string {
 	}
 	return config
 }
-
-// skipError marks an example as skipped instead of failed.
-type skipError struct {
-	reason string
-}
-
-func (e skipError) Error() string {
-	return e.reason
-}
-
-// skip returns an error that marks the example as skipped.
-func skip(reason string) error { return skipError{reason: reason} }
 
 // status is the outcome of one example run.
 type status string
@@ -264,8 +285,9 @@ func runLifecycle(ex Example, facts serverFacts) (st status, detail string) {
 		if err == nil {
 			continue
 		}
-		if s, ok := err.(skipError); ok {
-			return statusSkip, s.reason
+		var skipped fixtures.SkipError
+		if errors.As(err, &skipped) {
+			return statusSkip, skipped.Reason
 		}
 		return statusFail, step.name + ": " + err.Error()
 	}
