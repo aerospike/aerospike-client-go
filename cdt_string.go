@@ -353,13 +353,6 @@ func StrPrependOp(policy *StringPolicy, binName string, value string, ctx ...*CD
 	return newStringModifyOp(_STR_OP_PREPEND, binName, ctx, StringValue(value), IntegerValue(policy.flags))
 }
 
-// StrSnipFromOp creates a string `snip` operation that removes codepoints
-// starting at codepoint `start` through the end of the string.
-func StrSnipFromOp(policy *StringPolicy, binName string, start int, ctx ...*CDTContext) *Operation {
-	policy = stringPolicyOrDefault(policy)
-	return newStringModifyOp(_STR_OP_SNIP, binName, ctx, IntegerValue(start), IntegerValue(policy.flags))
-}
-
 // StrSnipOp creates a string `snip` operation that removes the half-open
 // codepoint range [start, end) from the bin.
 func StrSnipOp(policy *StringPolicy, binName string, start int, end int, ctx ...*CDTContext) *Operation {

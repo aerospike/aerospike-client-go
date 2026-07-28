@@ -286,15 +286,12 @@ var _ = gg.Describe("String Expressions Test", func() {
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("日本語"))
 	})
 
-	gg.It("snip removes from start and range", func() {
+	gg.It("snip removes range", func() {
 		skipExpressionModifyPath()
-		put("hello world")
-		r1 := eval(as.ExpStringSnipFrom(policy, as.ExpIntVal(5), as.ExpStringBin(bin)))
-		gm.Expect(r1.Bins[variable]).To(gm.Equal("hello"))
 
 		put("hello beautiful world")
-		r2 := eval(as.ExpStringSnip(policy, as.ExpIntVal(5), as.ExpIntVal(15), as.ExpStringBin(bin)))
-		gm.Expect(r2.Bins[variable]).To(gm.Equal("hello world"))
+		r := eval(as.ExpStringSnip(policy, as.ExpIntVal(5), as.ExpIntVal(15), as.ExpStringBin(bin)))
+		gm.Expect(r.Bins[variable]).To(gm.Equal("hello world"))
 	})
 
 	gg.It("replace touches only the first match", func() {
