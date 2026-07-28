@@ -132,8 +132,8 @@ jobs:
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: gotestsum --junitfile example-results.xml --format testname -- ./examples -run TestExamples
       - name: Publish Example Run results
-        if: always()
-        uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
+        if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && hashFiles('example-results.xml') != '' }}
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Example Run (${{ matrix.version }}-${{ matrix.mode }})"
           comment_mode: off
