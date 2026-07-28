@@ -483,20 +483,6 @@ func (fe *Expression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 					size += sz
 					// Don't count container in argLen, it's handled separately
 					continue
-				case stringExpRawArgs:
-					// String replace / replaceAll / regexReplace pre-pack their
-					// entire arg block (including the outer array header) because
-					// one of their msgpack arguments is itself a nested
-					// [needle, repl] list — a shape the generic per-arg encoder
-					// below cannot emit. Emit the bytes verbatim and skip the
-					// generic args wrapping.
-					skipArgs = true
-					sz, err = v.pack(buf)
-					if err != nil {
-						return size, err
-					}
-					size += sz
-					continue
 				case Value, *Expression:
 					argLen++
 				case cdtContextList:

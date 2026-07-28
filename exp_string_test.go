@@ -30,9 +30,9 @@ import (
 // older clusters via the standard Ginkgo version-check pattern documented in
 // AI_PIPELINE.md.
 //
-// Several modify-expression tests in the Java suite are @Ignore'd because the
-// server SIGSEGVs in particle_string.c on the expression-modify path. The Go
-// suite skips those same cases with gg.Skip and a matching reason.
+// Several modify-expression tests are @Ignore'd in the Java suite because an
+// older server SIGSEGV'd in particle_string.c on the expression-modify path.
+// That bug is fixed on current server builds, so the Go suite runs them.
 var _ = gg.Describe("String Expressions Test", func() {
 	const bin = "sbin"
 	const variable = "v"
@@ -221,17 +221,11 @@ var _ = gg.Describe("String Expressions Test", func() {
 	// Modify expressions (return the modified string; do not persist)
 	// ============================================================
 	//
-	// Most of these mirror tests that are @Ignore'd in the Java suite
-	// because the server SIGSEGVs in particle_string.c on the
-	// expression-modify path. We skip them at runtime with the same reason.
-
-	skipExpressionModifyPath := func() {
-		// TEMPORARILY DISABLED to validate the expression-modify path + fixes
-		// against a live server (CLIENT-4822/5145/5164). Revert to gg.Skip.
-	}
+	// Most of these mirror tests that are @Ignore'd in the Java suite because
+	// an older server SIGSEGV'd in particle_string.c on the expression-modify
+	// path. That bug is fixed on current server builds, so we run them.
 
 	gg.It("insert splices into source", func() {
-		skipExpressionModifyPath()
 		put("hello world")
 		rec := eval(as.ExpStringInsert(
 			policy, as.ExpIntVal(5), as.ExpStringVal(" beautiful"), as.ExpStringBin(bin)))
@@ -239,10 +233,6 @@ var _ = gg.Describe("String Expressions Test", func() {
 	})
 
 	gg.It("overwrite replaces a range", func() {
-		// The Java suite leaves this @Ignore commented out, but in practice
-		// the server still hits the same SIGSEGV path in particle_string.c
-		// as the other modify-expression cases — skip in lock step.
-		skipExpressionModifyPath()
 		put("hello world")
 		rec := eval(as.ExpStringOverwrite(
 			policy, as.ExpIntVal(6), as.ExpStringVal("earth"), as.ExpStringBin(bin)))
@@ -250,7 +240,6 @@ var _ = gg.Describe("String Expressions Test", func() {
 	})
 
 	gg.It("concat appends a list of values", func() {
-		skipExpressionModifyPath()
 		put("hello")
 		values := as.ExpListValueVal(" ", "big", " world")
 		rec := eval(as.ExpStringConcat(policy, values, as.ExpStringBin(bin)))
@@ -258,7 +247,6 @@ var _ = gg.Describe("String Expressions Test", func() {
 	})
 
 	gg.It("append adds value to end", func() {
-		skipExpressionModifyPath()
 		put("hello")
 		rec := eval(as.ExpStringAppend(policy, as.ExpStringVal(" world"), as.ExpStringBin(bin)))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello world"))
@@ -266,14 +254,12 @@ var _ = gg.Describe("String Expressions Test", func() {
 
 	gg.It("append preserves multibyte codepoints", func() {
 		// Unicode/DBCS-aware: "日本" + "語" -> "日本語".
-		skipExpressionModifyPath()
 		put("日本")
 		rec := eval(as.ExpStringAppend(policy, as.ExpStringVal("語"), as.ExpStringBin(bin)))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("日本語"))
 	})
 
 	gg.It("prepend adds value to start", func() {
-		skipExpressionModifyPath()
 		put("world")
 		rec := eval(as.ExpStringPrepend(policy, as.ExpStringVal("hello "), as.ExpStringBin(bin)))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello world"))
@@ -281,14 +267,12 @@ var _ = gg.Describe("String Expressions Test", func() {
 
 	gg.It("prepend preserves multibyte codepoints", func() {
 		// Unicode/DBCS-aware: "語" prepended with "日本" -> "日本語".
-		skipExpressionModifyPath()
 		put("語")
 		rec := eval(as.ExpStringPrepend(policy, as.ExpStringVal("日本"), as.ExpStringBin(bin)))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("日本語"))
 	})
 
 	gg.It("snip removes range", func() {
-		skipExpressionModifyPath()
 
 		put("hello beautiful world")
 		r := eval(as.ExpStringSnip(policy, as.ExpIntVal(5), as.ExpIntVal(15), as.ExpStringBin(bin)))
@@ -296,7 +280,6 @@ var _ = gg.Describe("String Expressions Test", func() {
 	})
 
 	gg.It("replace touches only the first match", func() {
-		skipExpressionModifyPath()
 		put("hello world world")
 		rec := eval(as.ExpStringReplace(
 			policy, as.ExpStringVal("world"), as.ExpStringVal("earth"), as.ExpStringBin(bin)))
@@ -304,7 +287,6 @@ var _ = gg.Describe("String Expressions Test", func() {
 	})
 
 	gg.It("replaceAll substitutes every match", func() {
-		skipExpressionModifyPath()
 		put("aabaa")
 		rec := eval(as.ExpStringReplaceAll(
 			policy, as.ExpStringVal("a"), as.ExpStringVal("x"), as.ExpStringBin(bin)))
@@ -312,28 +294,24 @@ var _ = gg.Describe("String Expressions Test", func() {
 	})
 
 	gg.It("upper and lower produce correct case", func() {
-		skipExpressionModifyPath()
 		put("hello World")
 		gm.Expect(eval(as.ExpStringUpper(policy, as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal("HELLO WORLD"))
 		gm.Expect(eval(as.ExpStringLower(policy, as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal("hello world"))
 	})
 
 	gg.It("caseFold lowercases independently of locale", func() {
-		skipExpressionModifyPath()
 		put("HELLO World")
 		rec := eval(as.ExpStringCaseFold(policy, as.ExpStringBin(bin)))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello world"))
 	})
 
 	gg.It("normalizeNFC leaves already-normalized string unchanged", func() {
-		skipExpressionModifyPath()
 		put("hello")
 		rec := eval(as.ExpStringNormalizeNFC(policy, as.ExpStringBin(bin)))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello"))
 	})
 
 	gg.It("trim variants strip appropriate edges", func() {
-		skipExpressionModifyPath()
 		put("  hello world  ")
 		gm.Expect(eval(as.ExpStringTrim(policy, as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal("hello world"))
 		gm.Expect(eval(as.ExpStringTrimStart(policy, as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal("hello world  "))
@@ -341,7 +319,6 @@ var _ = gg.Describe("String Expressions Test", func() {
 	})
 
 	gg.It("padStart fills left to target length", func() {
-		skipExpressionModifyPath()
 		put("hello")
 		rec := eval(as.ExpStringPadStart(
 			policy, as.ExpIntVal(10), as.ExpStringVal("*"), as.ExpStringBin(bin)))
@@ -349,7 +326,6 @@ var _ = gg.Describe("String Expressions Test", func() {
 	})
 
 	gg.It("padEnd fills right to target length", func() {
-		skipExpressionModifyPath()
 		put("hello")
 		rec := eval(as.ExpStringPadEnd(
 			policy, as.ExpIntVal(10), as.ExpStringVal("."), as.ExpStringBin(bin)))
@@ -357,14 +333,12 @@ var _ = gg.Describe("String Expressions Test", func() {
 	})
 
 	gg.It("repeat duplicates contents", func() {
-		skipExpressionModifyPath()
 		put("ab")
 		rec := eval(as.ExpStringRepeat(policy, as.ExpIntVal(3), as.ExpStringBin(bin)))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("ababab"))
 	})
 
 	gg.It("regexReplace first and global", func() {
-		skipExpressionModifyPath()
 		put("abc123def456")
 		r1 := eval(as.ExpStringRegexReplace(
 			policy, as.ExpStringVal("[0-9]+"), as.ExpStringVal("NUM"),
@@ -392,7 +366,6 @@ var _ = gg.Describe("String Expressions Test", func() {
 	// ============================================================
 
 	gg.It("chained trim then upper composes", func() {
-		skipExpressionModifyPath()
 		put("  hello world  ")
 		chain := as.ExpStringUpper(policy,
 			as.ExpStringTrim(policy, as.ExpStringBin(bin)))
