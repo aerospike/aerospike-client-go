@@ -226,7 +226,8 @@ var _ = gg.Describe("String Expressions Test", func() {
 	// expression-modify path. We skip them at runtime with the same reason.
 
 	skipExpressionModifyPath := func() {
-		gg.Skip("Blocked by server SIGSEGV at particle_string.c:1014 (expression-modify path)")
+		// TEMPORARILY DISABLED to validate the expression-modify path + fixes
+		// against a live server (CLIENT-4822/5145/5164). Revert to gg.Skip.
 	}
 
 	gg.It("insert splices into source", func() {
@@ -381,7 +382,6 @@ var _ = gg.Describe("String Expressions Test", func() {
 	// ============================================================
 
 	gg.It("toString converts an integer bin", func() {
-		gg.Skip("Server returns PARAMETER (4) for ExpStringToString (CALL_REPR module with empty msgpack payload). The expression dispatcher rejects this shape today.")
 		putRaw(as.NewBin(bin, 42))
 		rec := eval(as.ExpStringToString(as.ExpIntBin(bin)))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("42"))

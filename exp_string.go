@@ -246,11 +246,18 @@ func ExpStringSnip(policy *StringPolicy, start *Expression, end *Expression, src
 // not modify the underlying bin.
 func ExpStringReplace(policy *StringPolicy, needle *Expression, replacement *Expression, src *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
-	bytes, err := packStringReplaceExp(_STR_OP_REPLACE, needle, replacement, policy.flags)
-	if err != nil {
-		panic(err)
-	}
-	return addStringModifyBytes(src, bytes)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_REPLACE),
+		stringExpQuotedPair(needle, replacement), IntegerValue(policy.flags))
+}
+
+// stringExpQuotedPair builds the nested [first, second] argument that the
+// replace-family string expressions require. The pair must be QUOTE-wrapped
+// (opcode 126) so the server treats it as a literal list rather than a nested
+// call — the same wrapping ExpListValueVal applies for concat. Emitting the
+// pair without the quote is what the server rejected with PARAMETER.
+func stringExpQuotedPair(first *Expression, second *Expression) *Expression {
+	return newFilterExpression(
+		&expOpQUOTED, ValueArray{first.val, second.val}, nil, nil, nil, nil)
 }
 
 // ExpStringReplaceAll creates an expression that replaces every occurrence of
@@ -258,11 +265,8 @@ func ExpStringReplace(policy *StringPolicy, needle *Expression, replacement *Exp
 // not modify the underlying bin.
 func ExpStringReplaceAll(policy *StringPolicy, needle *Expression, replacement *Expression, src *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
-	bytes, err := packStringReplaceExp(_STR_OP_REPLACE_ALL, needle, replacement, policy.flags)
-	if err != nil {
-		panic(err)
-	}
-	return addStringModifyBytes(src, bytes)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_REPLACE_ALL),
+		stringExpQuotedPair(needle, replacement), IntegerValue(policy.flags))
 }
 
 // ExpStringUpper creates an expression that returns `src` uppercased. Does not
@@ -351,11 +355,10 @@ func ExpStringRepeat(policy *StringPolicy, count *Expression, src *Expression) *
 // ignored.
 func ExpStringRegexReplace(policy *StringPolicy, pattern *Expression, replacement *Expression, regexFlags StringRegexFlags, src *Expression) *Expression {
 	_ = stringPolicyOrDefault(policy)
-	bytes, err := packStringRegexReplaceExp(pattern, replacement, int(regexFlags))
-	if err != nil {
-		panic(err)
-	}
-	return addStringModifyBytes(src, bytes)
+	// The server's regex_replace op table takes [list, regexFlags] (no slot for
+	// policy flags), so pass the quoted [pattern, replacement] pair + regexFlags.
+	return addStringModifyExp(src, IntegerValue(_STR_OP_REGEX_REPLACE),
+		stringExpQuotedPair(pattern, replacement), IntegerValue(int(regexFlags)))
 }
 
 //-----------------------------------------------------------------
@@ -366,26 +369,12 @@ func ExpStringRegexReplace(policy *StringPolicy, pattern *Expression, replacemen
 // of `src`, where `src` may be any expression yielding an integer, float, string,
 // or blob value. Returns an error for any other source type.
 func ExpStringToString(src *Expression) *Expression {
-	flags := int64(_stringExpMODULE_REPR)
-	// toString carries an empty msgpack array as its args block. Pre-pack `[]`
-	// and emit it through the stringExpRawArgs escape hatch so the encoder
-	// does not substitute val.pack when arguments is empty.
-	sz, err := packArrayBegin(nil, 0)
-	if err != nil {
-		panic(err)
-	}
-	buf := newBuffer(sz)
-	if _, err = packArrayBegin(buf, 0); err != nil {
-		panic(err)
-	}
+	// Dedicated TO_STRING opcode (99), encoded as [99, bin]. The prior
+	// CALL_REPR (module 4) shape was rejected by the server with PARAMETER.
+	// Mirrors aerospike-client-c CLIENT-5164 (PR #228).
 	return &Expression{
-		cmd:       &expOpCALL,
-		val:       nil,
-		bin:       src,
-		flags:     &flags,
-		module:    &ExpTypeSTRING,
-		exps:      nil,
-		arguments: []ExpressionArgument{stringExpRawArgs(buf.Bytes())},
+		cmd: &expOpTO_STRING,
+		bin: src,
 	}
 }
 
