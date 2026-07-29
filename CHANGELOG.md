@@ -1,5 +1,21 @@
 # Change History
 
+## July 29 2026: v8.8.0
+
+- Fixes
+  - [CLIENT-5133] Fixed where ClientPolicy.IpMap address translation was no longer applied during peer discovery.
+  - [CLIENT-5040] Fixed where ExpListAppendItems with a Map element throws PARAMETER_ERROR.
+  - [CLIENT-5000] Fixed where batch writes did not set per-record inDoubt on timeout (NO_RESPONSE).
+  - [CLIENT-4988] Fixed regression where empty bin names were not allowed.
+  - [CLIENT-4959] Prevent transaction abort.
+  - [CLIENT-4940] Changed sendkey policy resolution to union of all send-key settings.
+  - [CLIENT-4753] Fixed where CTX.mapKeysIn typed overloads diverge from CDT map-key spec.
+  - [CLIENT-4632] Fixed where executeSingle iterates all records instead of node-assigned offsets.
+
+- Improvements
+  - [CLIENT-4390] Create index uses "integer" instead of "numeric" starting with Aerospike server >= 8.1.3.
+  - [CLIENT-4590] Updated Go client CI to leverage shared-workflows.
+
 ## April 14 2026: v8.7.0
 
 - New Features
