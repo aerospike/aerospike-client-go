@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,7 +47,8 @@ type BatchRecordIfc interface {
 	chainError(err Error)
 	String() string
 	getType() batchRecordType
-	size(parentPolicy *BasePolicy) (int, Error)
+	size(sendKey bool) (int, Error)
+	resolveSendKey(parentPolicy *BasePolicy, client *Client) bool
 	equals(BatchRecordIfc) bool
 }
 
@@ -167,6 +168,11 @@ func (br *BatchRecord) getType() batchRecordType {
 }
 
 // Return wire protocol size. For internal use only.
-func (br *BatchRecord) size(parentPolicy *BasePolicy) (int, Error) {
+func (br *BatchRecord) size(sendKey bool) (int, Error) {
 	panic(unreachable)
+}
+
+// resolveSendKey: reads (and any type not overriding this) never send the key. For internal use only.
+func (br *BatchRecord) resolveSendKey(parentPolicy *BasePolicy, client *Client) bool {
+	return false
 }

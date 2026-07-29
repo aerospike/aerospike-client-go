@@ -28,6 +28,7 @@ type TxnState byte
 const (
 	TxnStateOpen TxnState = iota
 	TxnStateVerified
+	TxnStateCommitFailed
 	TxnStateCommitted
 	TxnStateAborted
 )
@@ -215,6 +216,14 @@ func (txn *Txn) VerifyCommand() Error {
 		return newError(types.COMMON_ERROR, "Issuing commands to this transaction is forbidden because it has been ended by a commit or abort")
 	}
 	return nil
+}
+
+// markCommitFailed transitions to COMMIT_FAILED when mark-roll-forward fails in an in-doubt state.
+// The server may still roll the transaction forward; Abort must not be called.
+func (txn *Txn) markCommitFailed() {
+	if txn.state != TxnStateAborted && txn.state != TxnStateCommitted {
+		txn.state = TxnStateCommitFailed
+	}
 }
 
 // Set Transaction namespace only if doesn't already exist.

@@ -194,13 +194,17 @@ func (cmd *batchCommandUDF) isRead() bool {
 }
 
 func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
-	for i, key := range cmd.keys {
+	for _, offset := range cmd.batch.offsets {
+		key := cmd.keys[offset]
 		policy := cmd.batchUDFPolicy.toWritePolicy(cmd.policy, client.dynConfig)
+		// Honor sendKey from BOTH the parent BatchPolicy and the per-record policy.
+		// toWritePolicy carries only the per-record value, so OR in the parent's sendKey here.
+		policy.SendKey = cmd.policy.SendKey || (cmd.batchUDFPolicy != nil && cmd.batchUDFPolicy.SendKey)
 		policy.RespondPerEachOp = true
 		res, err := client.execute(policy, key, cmd.packageName, cmd.functionName, cmd.args...)
-		cmd.records[i].setRecord(res)
+		cmd.records[offset].setRecord(res)
 		if err != nil {
-			cmd.records[i].setRawError(err)
+			cmd.records[offset].setRawError(err)
 
 			// Key not found is NOT an error for batch requests
 			if err.resultCode() == types.KEY_NOT_FOUND_ERROR {
@@ -219,10 +223,31 @@ func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchCommandUDF) Execute() Error {
-	if len(cmd.keys) == 1 {
+	if len(cmd.batch.offsets) == 1 {
 		return cmd.executeSingle(cmd.client)
 	}
-	return cmd.execute(cmd)
+	err := cmd.execute(cmd)
+	if err != nil {
+		cmd.setInDoubt(cmd)
+	}
+	return err
+}
+
+// inDoubt marks every record on this write subcommand that was left without a
+// server response (NO_RESPONSE) as in-doubt. On a timeout the UDF may have been
+// applied on the server even though the client never received the result.
+func (cmd *batchCommandUDF) inDoubt() {
+	if !cmd.attr.hasWrite {
+		return
+	}
+
+	for _, offset := range cmd.batch.offsets {
+		record := cmd.records[offset]
+
+		if record.ResultCode == types.NO_RESPONSE {
+			record.InDoubt = true
+		}
+	}
 }
 
 func (cmd *batchCommandUDF) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {

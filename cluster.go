@@ -309,7 +309,11 @@ func (clstr *Cluster) tend() Error {
 			// attempt connection to the host
 			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.Load().SeedOnlyCluster}
 			if err := nv.validateNode(clstr, host); err != nil {
-				logger.Logger.Warn("Add node `%s` failed: `%s`", host, err)
+				// IpMap/NLB fork: include the advertised peer node name so a
+				// failing peer can be correlated against server-side membership
+				// (asadm / `peers-clear-std`). `host` here is the post-IpMap target
+				// address; the pre-translation address is logged in peers_parser.go.
+				logger.Logger.Warn("Add node `%s` (peer node `%s`) failed: `%s`", host, _peer.nodeName, err)
 				return nil
 			}
 

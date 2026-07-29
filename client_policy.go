@@ -56,7 +56,7 @@ type ClientPolicy struct {
 	// on every tend (usually 1 second).
 	//
 	// Servers 8.1+ have deprecated proto-fd-idle-ms. When proto-fd-idle-ms is ultimately removed,
-    // the server will stop automatically reaping based on socket idle timeouts.
+	// the server will stop automatically reaping based on socket idle timeouts.
 	//
 	// Default: 0 seconds
 	IdleTimeout time.Duration //= 0 seconds
@@ -122,12 +122,22 @@ type ClientPolicy struct {
 	// Minimum possible interval is 10 Milliseconds.
 	TendInterval time.Duration //= 1 second
 
-	// A IP translation table is used in cases where different clients
-	// use different server IP addresses. This may be necessary when
-	// using clients from both inside and outside a local area
-	// network. Default is no translation.
-	// The key is the IP address returned from friend info requests to other servers.
-	// The value is the real IP address used to connect to the server.
+	// IpMap translates server-advertised addresses into client-reachable ones. It is
+	// used when client and server sit on different networks (e.g. an on-prem client
+	// reaching a cloud cluster through a load balancer), so the internal address a node
+	// advertises during discovery can be rewritten into an address the client can
+	// actually connect to. Default is nil (no translation).
+	//
+	// The key is the host (no port) the server advertises. The value is the address the
+	// client should use instead: either "host" (port preserved, matching the Java and C
+	// clients) or "host:port" (host and port both replaced — needed when several nodes
+	// sit behind one load-balancer hostname and are distinguished only by port). A
+	// missing key leaves the address unchanged. It is applied on both the
+	// seed/service-address path (node_validator.go) and the peers path (peers_parser.go).
+	//
+	// NOTE: IpMap/NLB fork change. Stock declares this identical field but never
+	// applies it (dead since the 2021 addFriends removal); this fork re-wires it and
+	// additionally accepts "host:port" values.
 	IpMap map[string]string
 
 	// UseServicesAlternate determines if the client should use "services-alternate" instead of "services"

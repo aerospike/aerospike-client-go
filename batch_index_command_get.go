@@ -68,7 +68,8 @@ func (cmd *batchIndexCommandGet) Execute() Error {
 }
 
 func (cmd *batchIndexCommandGet) executeSingle(client *Client) Error {
-	for _, br := range cmd.records {
+	for _, offset := range cmd.batch.offsets {
+		br := cmd.records[offset]
 		var ops []*Operation
 		if br.headerOnly() {
 			ops = []*Operation{GetHeaderOp()}

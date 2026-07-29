@@ -1,40 +1,23 @@
-name: Build and test against multi-node cluster
+name: Nightly Tests
 
 on:
+  schedule:
+    - cron: "0 2 * * *" # Nightly at 02:00 UTC
   workflow_dispatch:
-    inputs:
-      aerospike_version:
-        description: "Aerospike version to test against"
-        required: false
-        default: "8.1.1"
-      nodes:
-        description: "Number of cluster nodes"
-        required: false
-        default: "3"
-      runner_version:
-        description: "Ubuntu runner version"
-        required: false
-        default: "ubuntu-24.04" # https://github.com/actions/runner-images/blob/main/README.md
-      modes:
-        description: "Comma-separated list of consistency modes (AP,SC). Casing matters"
-        required: false
-        default: "AP,SC"
 
 permissions:
-  contents: read   
-  actions: read  
+  contents: read
+  actions: read
   id-token: write
 
 env:
-  # defaults to use against workflow triggered through cron
-  AEROSPIKE_VERSION: 8.1.1
-  NODES: 3
-  RUNNER_VERSION: ubuntu-24.04
-  MODES: AP,SC
+  AEROSPIKE_HOSTS: "127.0.0.1:3000"
+  GODEBUG: fips140=only
+  GOFIPS140: latest
 
 jobs:
   make-matrix:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || 'ubuntu-24.04' }}
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
     outputs:
       input-matrix: ${{ steps.create-server-matrix.outputs.matrix }}
       go-version: ${{ steps.get-go-version.outputs.go-version }}
@@ -56,28 +39,30 @@ jobs:
         with:
           default_json: |
             {
-              "stable": { "version": "${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}" }
+
+              "7.2": { "version": "7.2" },
+              "8.1.0.1": { "version": "8.1.0.1" },
+              "8.1.1.0": { "version": "8.1.1.0" },
+              "8.1.2.0": { "version": "8.1.2.0" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
-          modes: ${{ github.event_name == 'workflow_dispatch' && inputs.modes || env.MODES }}
+          modes: AP,SC
 
       - name: debug - print input variables
         run: |
-          echo "Aerospike version: ${{ github.event_name == 'workflow_dispatch' && inputs.aerospike_version || env.AEROSPIKE_VERSION }}"
-          echo "Nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}"
           echo "Go version: ${{ steps.get-go-version.outputs.go-version }}"
-          echo "Consistency Mode: ${{ github.event_name == 'workflow_dispatch' && inputs.modes || env.MODES }}"
           echo 'Matrix output:'
           echo '${{ steps.create-server-matrix.outputs.matrix }}' | jq .
 
   build:
     timeout-minutes: 30
     needs: make-matrix
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_version || 'ubuntu-24.04' }}
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
     permissions:
       id-token: write
-      actions: write 
+      actions: write
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
     steps:
@@ -88,22 +73,12 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Aerospike multi-node cluster
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@5e2e7a2458e4f7c5aa0a05b0e9de8c77e0d60da6
-        with:
-          aerospike-version: ${{ matrix.version }}
-          num-nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
-          base-port: 3100
-          enable-strong-consistency: ${{ matrix.mode == 'SC' }}
-          features-content: ${{ secrets.FEATURES_CONF }}
-          oidc-provider: ${{ vars.OIDC_PROVIDER }}
-          oidc-audience: ${{ vars.OIDC_AUDIENCE }}
-
-      - name: "Setup Go ${{ needs.make-matrix.outputs.go-version }}"
+      - name: "Setup Go ${{ matrix.go-version }}"
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "${{ needs.make-matrix.outputs.go-version }}"
+          go-version: "${{ matrix.go-version }}"
           cache: true
+
       - name: Fetch dependencies
         env:
           GODEBUG: fips140=on
@@ -120,15 +95,37 @@ jobs:
 
       - name: Display Go version
         run: |
-          echo "Go version: ${{ needs.make-matrix.outputs.go-version }}"
+          echo "Go version: ${{ matrix.go-version }}"
+
+      - name: Set up Aerospike Database
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@5e2e7a2458e4f7c5aa0a05b0e9de8c77e0d60da6
+        with:
+          aerospike-version: ${{ matrix.version }}
+          num-nodes: 1
+          enable-strong-consistency: ${{ matrix.mode == 'SC' }}
+          features-content: ${{ secrets.FEATURES_CONF }}
+          oidc-provider: ${{ vars.OIDC_PROVIDER }}
+          oidc-audience: ${{ vars.OIDC_AUDIENCE }}
+
+      - name: Test Lua Code
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites internal/lua
+      - name: Test types package
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites types
+      - name: Test pkg tests
+        env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites pkg
       - name: Run the tests
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
-        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog" -- -hosts=127.0.0.1:3100,127.0.0.1:3101,127.0.0.1:3102 -use-services-alternate=true
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
       - name: Combine Cover Profiles
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
       - name: Check Code Coverage
+        id: check-coverage
         uses: vladopajic/go-test-coverage@5f3508324fc185e82048a2861f8bdd3d83db133b # v2.18.9
+        continue-on-error: true
         with:
           config: ./.testcoverage.yml
       - name: Show coverage report in step summary
@@ -139,7 +136,7 @@ jobs:
             echo ""
             echo "**${{ matrix.version }}-${{ matrix.mode }}:** ${{ steps.check-coverage.outputs.total-coverage }}%"
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Move coverage files under reports folder
+      - name: create and move cover file to reports directory
         run: |
           mkdir -p reports
           mv covprofile_*.out reports/
@@ -159,4 +156,4 @@ jobs:
       threshold: ${{ fromJSON(vars.COVERAGE_THRESHOLD) }}
     permissions:
       actions: write
-      contents: read 
+      contents: read

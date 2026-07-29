@@ -239,7 +239,8 @@ func (cmd *batchCommandOperate) parseRecord(key *Key, opCount int, generation, e
 func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 	var res *Record
 	var err Error
-	for _, br := range cmd.records {
+	for _, offset := range cmd.batch.offsets {
+		br := cmd.records[offset]
 
 		switch br := br.(type) {
 		case *BatchRead:
@@ -256,13 +257,18 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 			res, err = client.Operate(cmd.client.getUsableBatchReadPolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig), br.Key, ops...)
 		case *BatchWrite:
 			policy := cmd.client.getUsableBatchWritePolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
+			// Honor sendKey from BOTH the parent BatchPolicy and the per-record policy.
+			// toWritePolicy carries only the per-record value, so OR in the parent's sendKey here.
+			policy.SendKey = br.resolveSendKey(&cmd.policy.BasePolicy, cmd.client)
 			policy.RespondPerEachOp = true
 			res, err = client.Operate(policy, br.Key, br.Ops...)
 		case *BatchDelete:
 			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
+			policy.SendKey = br.resolveSendKey(&cmd.policy.BasePolicy, cmd.client)
 			res, err = client.Operate(policy, br.Key, DeleteOp())
 		case *BatchUDF:
 			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig)
+			policy.SendKey = br.resolveSendKey(&cmd.policy.BasePolicy, cmd.client)
 			policy.RespondPerEachOp = true
 			res, err = client.execute(policy, br.Key, br.PackageName, br.FunctionName, br.FunctionArgs...)
 		}
@@ -288,10 +294,28 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchCommandOperate) Execute() Error {
-	if cmd.objects == nil && len(cmd.records) == 1 {
+	if cmd.objects == nil && len(cmd.batch.offsets) == 1 {
 		return cmd.executeSingle(cmd.client)
 	}
-	return cmd.execute(cmd)
+	err := cmd.execute(cmd)
+	if err != nil {
+		cmd.setInDoubt(cmd)
+	}
+	return err
+}
+
+// inDoubt marks every write record on this subcommand that was left without a
+// server response (NO_RESPONSE) as in-doubt. This is the multi-key counterpart
+// of the single-key write path: on a timeout the write may have been applied on
+// the server even though the client never received the result. Read-only
+// records are never marked in-doubt.
+func (cmd *batchCommandOperate) inDoubt() {
+	for _, offset := range cmd.batch.offsets {
+		record := cmd.records[offset]
+		if record.isWrite() && record.resultCode() == types.NO_RESPONSE {
+			record.BatchRec().InDoubt = true
+		}
+	}
 }
 
 func (cmd *batchCommandOperate) commandType() commandType {

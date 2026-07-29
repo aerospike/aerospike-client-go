@@ -879,5 +879,63 @@ var _ = gg.Describe("Aerospike", func() {
 			gm.Expect(err.Matches(types.MRT_VERSION_MISMATCH)).To(gm.BeTrue())
 		})
 
+		gg.It("must allow abort after clean mark-roll-forward failure", func() {
+			key, _ := as.NewKey(ns, set, randString(50))
+
+			err := client.PutBins(nil, key, as.NewBin(binName, "val1"))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			txn := as.NewTxn()
+			wp := as.NewWritePolicy(0, 0)
+			wp.Txn = txn
+
+			err = client.PutBins(wp, key, as.NewBin(binName, "val2"))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			mkey, _ := as.NewKey(ns, "<ERO~MRT", txn.Id())
+			dwp := as.NewWritePolicy(0, 0)
+			dwp.DurableDelete = true
+			_, err = client.Delete(dwp, mkey)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			commitStatus, err := client.Commit(txn)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.MRT_EXPIRED)).To(gm.BeTrue())
+			gm.Expect(err.IsInDoubt()).To(gm.BeFalse())
+			gm.Expect(commitStatus).To(gm.Equal(as.CommitStatusMarkRollForwardAbandoned))
+			gm.Expect(txn.GetInDoubt()).To(gm.BeFalse())
+			gm.Expect(txn.State()).To(gm.Equal(as.TxnStateVerified))
+
+			status, err := client.Abort(txn)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(status).To(gm.Equal(as.AbortStatusOK))
+			gm.Expect(txn.State()).To(gm.Equal(as.TxnStateAborted))
+		})
+
+		gg.It("must allow abort after verify failure because transaction was rolled back", func() {
+			key, _ := as.NewKey(ns, set, randString(50))
+
+			err := client.PutBins(nil, key, as.NewBin(binName, "val1"))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			txn := as.NewTxn()
+			rp := as.NewPolicy()
+			rp.Txn = txn
+
+			_, err = client.Get(rp, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			err = client.PutBins(nil, key, as.NewBin(binName, "val3"))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			_, err = client.Commit(txn)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(txn.State()).To(gm.Equal(as.TxnStateAborted))
+
+			status, err := client.Abort(txn)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(status).To(gm.Equal(as.AbortStatusAlreadyAborted))
+		})
+
 	}) // describe
 })

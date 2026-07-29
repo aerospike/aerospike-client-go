@@ -65,32 +65,32 @@ func (bw *BatchWrite) equals(obj BatchRecordIfc) bool {
 	return &bw.Ops == &other.Ops && bw.Policy == other.Policy && (bw.Policy == nil || !bw.Policy.SendKey)
 }
 
-// Return wire protocol size. For internal use only.
-func (bw *BatchWrite) size(parentPolicy *BasePolicy) (int, Error) {
+// resolveSendKey returns parent ∪ per-record/default/dynamic sendKey. For internal use only.
+func (bw *BatchWrite) resolveSendKey(parentPolicy *BasePolicy, client *Client) bool {
+	// sendKey is the union of parent, cluster default and per-record (wp carries dynamic config).
+	def := client.DefaultBatchWritePolicy
+	wp := client.getUsableBatchWritePolicy(bw.Policy)
+	return parentPolicy.SendKey || (def != nil && def.SendKey) || (wp != nil && wp.SendKey)
+}
+
+// Return wire protocol size. sendKey is pre-resolved so size and write agree. For internal use only.
+func (bw *BatchWrite) size(sendKey bool) (int, Error) {
 	size := 2 // gen(2) = 2
 
-	if bw.Policy != nil {
-		if bw.Policy.FilterExpression != nil {
-			if sz, err := bw.Policy.FilterExpression.size(); err != nil {
-				return -1, err
-			} else {
-				size += sz + int(_FIELD_HEADER_SIZE)
-			}
-		}
-
-		if (bw.Policy.SendKey || parentPolicy.SendKey) && bw.Key.hasValueToSend() {
-			if sz, err := bw.Key.userKey.EstimateSize(); err != nil {
-				return -1, err
-			} else {
-				size += sz + int(_FIELD_HEADER_SIZE) + 1
-			}
-		}
-	} else if parentPolicy.SendKey && bw.Key.hasValueToSend() {
-		sz, err := bw.Key.userKey.EstimateSize()
-		if err != nil {
+	if bw.Policy != nil && bw.Policy.FilterExpression != nil {
+		if sz, err := bw.Policy.FilterExpression.size(); err != nil {
 			return -1, err
+		} else {
+			size += sz + int(_FIELD_HEADER_SIZE)
 		}
-		size += sz + int(_FIELD_HEADER_SIZE) + 1
+	}
+
+	if sendKey && bw.Key.hasValueToSend() {
+		if sz, err := bw.Key.userKey.EstimateSize(); err != nil {
+			return -1, err
+		} else {
+			size += sz + int(_FIELD_HEADER_SIZE) + 1
+		}
 	}
 
 	hasWrite := false

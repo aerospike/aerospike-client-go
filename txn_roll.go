@@ -65,6 +65,13 @@ func (txr *TxnRoll) Commit(rollPolicy *BatchPolicy) (CommitStatus, Error) {
 
 	if txr.txn.MonitorExists() {
 		if err := txr.MarkRollForward(writePolicy, txnKey); err != nil {
+			if err.resultCode() == types.MRT_COMMITTED {
+				// Server already committed (e.g. prior in-doubt mark roll forward succeeded).
+				txr.txn.SetInDoubt(false)
+				txr.txn.SetState(TxnStateCommitted)
+				return CommitStatusAlreadyCommitted, nil
+			}
+
 			aec := NewTxnCommitError(CommitErrorMarkRollForwardAbandoned, txr.verifyRecords, txr.rollRecords, err)
 
 			if err.resultCode() == types.MRT_ABORTED {
@@ -73,17 +80,20 @@ func (txr *TxnRoll) Commit(rollPolicy *BatchPolicy) (CommitStatus, Error) {
 				txr.txn.SetState(TxnStateAborted)
 			} else if txr.txn.GetInDoubt() {
 				aec.markInDoubt(true)
+				txr.txn.markCommitFailed()
 			} else if err.IsInDoubt() {
 				aec.markInDoubt(true)
 				txr.txn.SetInDoubt(true)
+				txr.txn.markCommitFailed()
 			}
-			return CommitStatusRollForwardAbandoned, aec
+			return CommitStatusMarkRollForwardAbandoned, aec
 		}
 	}
 
 	txr.txn.SetState(TxnStateCommitted)
 	txr.txn.SetInDoubt(false)
 
+	// If roll fails, the server will eventually roll forward.
 	if err := txr.Roll(rollPolicy, _INFO4_MRT_ROLL_FORWARD); err != nil {
 		return CommitStatusRollForwardAbandoned, err
 	}
@@ -94,6 +104,7 @@ func (txr *TxnRoll) Commit(rollPolicy *BatchPolicy) (CommitStatus, Error) {
 			return CommitStatusCloseAbandoned, err
 		}
 	}
+
 	return CommitStatusOK, nil
 }
 
@@ -239,4 +250,3 @@ func (txr *TxnRoll) Close(writePolicy *WritePolicy, txnKey *Key) Error {
 
 	return nil
 }
-

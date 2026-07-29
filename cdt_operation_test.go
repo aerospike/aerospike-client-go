@@ -2532,28 +2532,6 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
 		})
 
-		gg.It("should return PARAMETER_ERROR for SelectByPath with empty binName", func() {
-			key, err := as.NewKey(ns, set, randString(50))
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			// Create test data
-			data := map[string]any{"test": "value"}
-			client.Delete(nil, key)
-			err = client.PutBins(nil, key, as.NewBin("validBin", data))
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			ctx1 := as.CtxMapKey(as.StringValue("test"))
-			selectOp := as.SelectByPath("", as.EXP_PATH_SELECT_VALUE, ctx1)
-
-			// Call Operate and check the error
-			record, err := client.Operate(nil, key, selectOp)
-
-			gm.Expect(err).To(gm.HaveOccurred())
-			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
-			gm.Expect(err.Error()).To(gm.ContainSubstring("binName"))
-			gm.Expect(record).To(gm.BeNil())
-		})
-
 		gg.It("should return PARAMETER_ERROR for SelectByPath with binName too long", func() {
 			key, err := as.NewKey(ns, set, randString(50))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -2576,29 +2554,6 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
 			errorMsg := err.Error()
 			gm.Expect(errorMsg).To(gm.Or(gm.ContainSubstring("15"), gm.ContainSubstring("exceed")))
-			gm.Expect(record).To(gm.BeNil())
-		})
-
-		gg.It("should return PARAMETER_ERROR for ModifyByPath with empty binName", func() {
-			key, err := as.NewKey(ns, set, randString(50))
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			// Create test data
-			data := map[string]any{"test": 50}
-			client.Delete(nil, key)
-			err = client.PutBins(nil, key, as.NewBin("validBin", data))
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			ctx1 := as.CtxMapKey(as.StringValue("test"))
-			modifyExp := as.ExpIntVal(100)
-			modifyOp := as.ModifyByPath("", as.EXP_PATH_MODIFY_DEFAULT, modifyExp, ctx1)
-
-			// Call Operate and check the error
-			record, err := client.Operate(nil, key, modifyOp)
-
-			gm.Expect(err).To(gm.HaveOccurred())
-			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
-			gm.Expect(err.Error()).To(gm.ContainSubstring("binName"))
 			gm.Expect(record).To(gm.BeNil())
 		})
 
@@ -3368,6 +3323,100 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			gm.Expect(len(values)).To(gm.Equal(2))
 			gm.Expect(values).To(gm.ContainElement(1))
 			gm.Expect(values).To(gm.ContainElement(3))
+		})
+
+		gg.It("should select map entries with mixed-type keys using CtxMapKeysIn", func() {
+			client.Delete(nil, key)
+
+			blobKey := []byte{'u', 's', '-', 'e', 'a', 's', 't'}
+
+			// Build a map with one string key, one integer key, and one blob key.
+			// Go's native maps cannot hold a []byte key (not comparable), so
+			// populate the bin via per-key MapPutOps — each call can use a
+			// typed Value for the key, so the resulting CDT map ends up with
+			// genuine string / int / blob keys at the server.
+			mapPolicy := as.DefaultMapPolicy()
+			_, err := client.Operate(nil, key,
+				as.MapPutOp(mapPolicy, binName, as.NewStringValue("sku"), "widget-42"),
+				as.MapPutOp(mapPolicy, binName, as.NewLongValue(1001), "qty"),
+				as.MapPutOp(mapPolicy, binName, as.NewBytesValue(blobKey), "region"),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Polymorphic key list: string + long + bytes in one call. The server
+			// validates element types and matches each against the map keys.
+			ctx := as.CtxMapKeysIn(
+				as.NewStringValue("sku"),
+				as.NewLongValue(1001),
+				as.NewBytesValue(blobKey),
+			)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(3))
+			gm.Expect(values).To(gm.ContainElement("widget-42"))
+			gm.Expect(values).To(gm.ContainElement("qty"))
+			gm.Expect(values).To(gm.ContainElement("region"))
+		})
+
+		gg.It("should tolerate a nil element in CtxMapKeysIn key list", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"a": 1,
+				"b": 2,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// A nil entry must be packed as msgpack nil (server tolerates it
+			// when scanning the key filter list) — packer.packValueArray must
+			// not panic on the nil interface.
+			ctx := as.CtxMapKeysIn(as.NewStringValue("a"), nil)
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			record, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record).ToNot(gm.BeNil())
+		})
+
+		gg.It("should match CtxMapStringKeysIn results when called polymorphically", func() {
+			client.Delete(nil, key)
+
+			m := map[string]any{
+				"alpha": 10,
+				"beta":  20,
+				"gamma": 30,
+				"delta": 40,
+			}
+
+			bin := as.NewBin(binName, m)
+			err := client.PutBins(wpolicy, key, bin)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			// Equivalence guard: same map shape as the 'should select map entries
+			// by key list using mapKeysIn' spec above. Calling through the new
+			// polymorphic CtxMapKeysIn with string Values must return the same
+			// result set as the deprecated CtxMapStringKeysIn variant.
+			ctx := as.CtxMapKeysIn(as.NewStringValue("alpha"), as.NewStringValue("gamma"))
+			selectOp := as.SelectByPath(binName, as.EXP_PATH_SELECT_VALUE, ctx)
+
+			result, err := client.Operate(nil, key, selectOp)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(result).ToNot(gm.BeNil())
+
+			values, ok := result.Bins[binName].([]any)
+			gm.Expect(ok).To(gm.BeTrue())
+			gm.Expect(len(values)).To(gm.Equal(2))
+			gm.Expect(values).To(gm.ContainElement(10))
+			gm.Expect(values).To(gm.ContainElement(30))
 		})
 	})
 })

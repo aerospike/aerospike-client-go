@@ -40,6 +40,12 @@ var _ BufferEx = &bufferEx{}
 type bufferEx struct {
 	dataBuffer []byte
 	dataOffset int
+
+	// canonicalKeys marks the buffer as packing a filter-expression value
+	// literal, whose maps servers with AER-6930 (8.1.2+) require in canonical
+	// (key-ordered) msgpack form. The flag lives on the buffer instead of a
+	// wrapper type so marking allocates nothing.
+	canonicalKeys bool
 }
 
 func newBuffer(sz int) *bufferEx {
@@ -47,6 +53,12 @@ func newBuffer(sz int) *bufferEx {
 		dataBuffer: make([]byte, sz),
 	}
 }
+
+// setCanonicalKeys toggles canonical map-key ordering for this buffer.
+func (buf *bufferEx) setCanonicalKeys(v bool) { buf.canonicalKeys = v }
+
+// canonicalKeysOrdered reports whether maps must be packed in canonical order.
+func (buf *bufferEx) canonicalKeysOrdered() bool { return buf.canonicalKeys }
 
 // Bytes returns the content of the buffer
 func (buf *bufferEx) Bytes() []byte {

@@ -166,7 +166,10 @@ func (bwp *BatchWritePolicy) mapDynamic(dynConfig *DynConfig) *BatchWritePolicy 
 		}
 		if currentConfig.Dynamic.BatchWrite.SendKey != nil {
 			configValue := *currentConfig.Dynamic.BatchWrite.SendKey
-			bwp.SendKey = configValue
+			// Dynamic config sendKey only overrides when true.
+			if configValue {
+				bwp.SendKey = true
+			}
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("SendKey set to %t", configValue)
 			}

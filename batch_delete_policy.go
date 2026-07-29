@@ -140,7 +140,10 @@ func (bdp *BatchDeletePolicy) mapDynamic(dynConfig *DynConfig) *BatchDeletePolic
 		}
 		if config.Dynamic.BatchDelete.SendKey != nil {
 			configValue := *config.Dynamic.BatchDelete.SendKey
-			bdp.SendKey = configValue
+			// Dynamic config sendKey only overrides when true
+			if configValue {
+				bdp.SendKey = true
+			}
 			if dynConfig.logUpdate.Load() {
 				logger.Logger.Info("SendKey set to %t", configValue)
 			}

@@ -187,8 +187,8 @@ func (cmd *batchTxnRollCommand) inDoubt() {
 		return
 	}
 
-	for index := range cmd.batch.offsets {
-		record := cmd.records[index]
+	for _, offset := range cmd.batch.offsets {
+		record := cmd.records[offset]
 
 		if record.ResultCode == types.NO_RESPONSE {
 			record.InDoubt = true
@@ -205,7 +205,11 @@ func (cmd *batchTxnRollCommand) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchTxnRollCommand) Execute() Error {
-	return cmd.execute(cmd)
+	err := cmd.execute(cmd)
+	if err != nil {
+		cmd.setInDoubt(cmd)
+	}
+	return err
 }
 
 func (cmd *batchTxnRollCommand) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {

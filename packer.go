@@ -16,10 +16,12 @@ package aerospike
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/binary"
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -78,7 +80,13 @@ func packValueArray(cmd BufferEx, list ValueArray) (int, Error) {
 	size += n
 
 	for i := range list {
-		n, err = list[i].pack(cmd)
+		// Treat a nil Value interface as msgpack nil so callers (e.g. CtxMapKeysIn)
+		// can pass nil placeholders without panicking on a nil interface dereference.
+		if list[i] == nil {
+			n, err = nullValue.pack(cmd)
+		} else {
+			n, err = list[i].pack(cmd)
+		}
 		if err != nil {
 			return 0, err
 		}
@@ -106,13 +114,35 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	}
 	size += n
 
-	for k, v := range theMap {
+	// Servers with AER-6930 (8.1.2+) validate that map literals inside filter
+	// expressions are in canonical (key-ordered) msgpack form and reject
+	// unsorted maps with a PARAMETER_ERROR. Only expression literals are
+	// validated, so keys are sorted only when packing into an expression
+	// (canonicalPackBuffer); all other paths keep the order-free fast loop.
+	if !isCanonicalPack(cmd) || len(theMap) < 2 {
+		for k, v := range theMap {
+			n, err = packObject(cmd, k, true)
+			if err != nil {
+				return 0, err
+			}
+			size += n
+			n, err = packObject(cmd, v, false)
+			if err != nil {
+				return 0, err
+			}
+			size += n
+		}
+
+		return size, err
+	}
+
+	for _, k := range canonicalKeyOrder(theMap) {
 		n, err = packObject(cmd, k, true)
 		if err != nil {
 			return 0, err
 		}
 		size += n
-		n, err = packObject(cmd, v, false)
+		n, err = packObject(cmd, theMap[k], false)
 		if err != nil {
 			return 0, err
 		}
@@ -120,6 +150,210 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	}
 
 	return size, err
+}
+
+// canonicalPacker is implemented by buffers that can pack filter-expression
+// map value literals in the server's canonical (key-ordered) msgpack form.
+// The flag rides on the concrete buffer (see bufferEx.canonicalKeys), so
+// marking a pack as canonical allocates nothing.
+type canonicalPacker interface {
+	setCanonicalKeys(bool)
+	canonicalKeysOrdered() bool
+}
+
+// isCanonicalPack reports whether cmd is packing a filter-expression literal,
+// whose maps servers with AER-6930 require in canonical key order.
+func isCanonicalPack(cmd BufferEx) bool {
+	c, ok := cmd.(canonicalPacker)
+	return ok && c.canonicalKeysOrdered()
+}
+
+// Canonical map key type ranks, following the server's msgpack comparison
+// ordering (msgpack_in.c): NIL < FALSE < TRUE < INT < STRING < LIST < MAP <
+// BYTES < DOUBLE < GEOJSON. Unrecognized key types sort last in stable
+// (insertion) order; the server rejects them as map keys anyway.
+const (
+	canonicalRankNil = iota
+	canonicalRankFalse
+	canonicalRankTrue
+	canonicalRankInt
+	canonicalRankString
+	canonicalRankList
+	canonicalRankMap
+	canonicalRankBytes
+	canonicalRankDouble
+	canonicalRankGeoJSON
+	canonicalRankOther
+)
+
+// compareCanonicalKeys orders two map keys in the server's canonical msgpack
+// key order. Ranks and values are read straight off the native key types, so
+// sorting needs no per-key normalization or allocation.
+func compareCanonicalKeys(a, b any) int {
+	ra := canonicalKeyRank(a)
+	rb := canonicalKeyRank(b)
+	if ra != rb {
+		return cmp.Compare(ra, rb)
+	}
+
+	switch ra {
+	case canonicalRankInt:
+		ai, au, aIsU := canonicalKeyInt(a)
+		bi, bu, bIsU := canonicalKeyInt(b)
+		switch {
+		case aIsU && bIsU:
+			return cmp.Compare(au, bu)
+		case aIsU:
+			return 1
+		case bIsU:
+			return -1
+		}
+		return cmp.Compare(ai, bi)
+	case canonicalRankString, canonicalRankGeoJSON:
+		var sa, sb string
+		switch v := a.(type) {
+		case string:
+			sa = v
+		case StringValue:
+			sa = string(v)
+		case GeoJSONValue:
+			sa = string(v)
+		}
+		switch v := b.(type) {
+		case string:
+			sb = v
+		case StringValue:
+			sb = string(v)
+		case GeoJSONValue:
+			sb = string(v)
+		}
+		return cmp.Compare(sa, sb)
+	case canonicalRankBytes:
+		var ba, bb []byte
+		switch v := a.(type) {
+		case []byte:
+			ba = v
+		case BytesValue:
+			ba = v
+		}
+		switch v := b.(type) {
+		case []byte:
+			bb = v
+		case BytesValue:
+			bb = v
+		}
+		return bytes.Compare(ba, bb)
+	case canonicalRankDouble:
+		// plain </> matches the server's C comparison semantics; cmp.Compare
+		// would order NaN below all other values
+		af := canonicalKeyFloat(a)
+		bf := canonicalKeyFloat(b)
+		if af < bf {
+			return -1
+		} else if af > bf {
+			return 1
+		}
+		return 0
+	}
+	return 0
+}
+
+// canonicalKeyRank returns the map key's type rank in the server's msgpack
+// comparison ordering.
+func canonicalKeyRank(k any) int {
+	switch v := k.(type) {
+	case nil:
+		return canonicalRankNil
+	case bool:
+		if v {
+			return canonicalRankTrue
+		}
+		return canonicalRankFalse
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64,
+		time.Time, IntegerValue, LongValue:
+		return canonicalRankInt
+	case float32, float64, FloatValue:
+		return canonicalRankDouble
+	case string, StringValue:
+		return canonicalRankString
+	case []byte, BytesValue:
+		return canonicalRankBytes
+	case GeoJSONValue:
+		return canonicalRankGeoJSON
+	case []any, ListValue:
+		return canonicalRankList
+	case map[any]any, MapValue:
+		return canonicalRankMap
+	case Value:
+		return canonicalKeyRank(v.GetObject())
+	}
+	return canonicalRankOther
+}
+
+// canonicalKeyInt returns an int-ranked key's integer value. isU is set for
+// unsigned values above math.MaxInt64, which sort after every signed value.
+func canonicalKeyInt(k any) (i int64, u uint64, isU bool) {
+	switch v := k.(type) {
+	case int:
+		return int64(v), 0, false
+	case int8:
+		return int64(v), 0, false
+	case int16:
+		return int64(v), 0, false
+	case int32:
+		return int64(v), 0, false
+	case int64:
+		return v, 0, false
+	case uint8:
+		return int64(v), 0, false
+	case uint16:
+		return int64(v), 0, false
+	case uint32:
+		return int64(v), 0, false
+	case uint:
+		if uint64(v) > math.MaxInt64 {
+			return 0, uint64(v), true
+		}
+		return int64(v), 0, false
+	case uint64:
+		if v > math.MaxInt64 {
+			return 0, v, true
+		}
+		return int64(v), 0, false
+	case time.Time:
+		return v.UnixNano(), 0, false
+	case IntegerValue:
+		return int64(v), 0, false
+	case LongValue:
+		return int64(v), 0, false
+	case Value:
+		return canonicalKeyInt(v.GetObject())
+	}
+	return 0, 0, false
+}
+
+func canonicalKeyFloat(k any) float64 {
+	switch v := k.(type) {
+	case float32:
+		return float64(v)
+	case float64:
+		return v
+	case FloatValue:
+		return float64(v)
+	}
+	return 0
+}
+
+// canonicalKeyOrder returns the map's keys sorted in the server's canonical
+// msgpack key order. Map keys are unique, so ties (distinct Go types
+// comparing equal canonically) may land in either order.
+func canonicalKeyOrder(theMap map[any]any) []any {
+	keys := make([]any, 0, len(theMap))
+	for k := range theMap {
+		keys = append(keys, k)
+	}
+	slices.SortFunc(keys, compareCanonicalKeys)
+	return keys
 }
 
 // PackJson packs json data
@@ -135,13 +369,38 @@ func packJsonMap(cmd BufferEx, theMap map[string]any) (int, Error) {
 	}
 	size += n
 
-	for k, v := range theMap {
+	// Sort keys canonically for the same reason as packIfcMap; plain string
+	// comparison matches the server's ordering for string keys.
+	if !isCanonicalPack(cmd) || len(theMap) < 2 {
+		for k, v := range theMap {
+			n, err = packString(cmd, k)
+			if err != nil {
+				return 0, err
+			}
+			size += n
+			n, err = packObject(cmd, v, false)
+			if err != nil {
+				return 0, err
+			}
+			size += n
+		}
+
+		return size, err
+	}
+
+	keys := make([]string, 0, len(theMap))
+	for k := range theMap {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	for _, k := range keys {
 		n, err = packString(cmd, k)
 		if err != nil {
 			return 0, err
 		}
 		size += n
-		n, err = packObject(cmd, v, false)
+		n, err = packObject(cmd, theMap[k], false)
 		if err != nil {
 			return 0, err
 		}
@@ -346,7 +605,10 @@ func packAInt64(cmd BufferEx, val int64) (int, Error) {
 		if val <= math.MaxUint32 {
 			return packInt(cmd, 0xce, int32(val))
 		}
-		return packInt64(cmd, 0xd3, val)
+		// Canonical msgpack packs non-negative integers unsigned (0xcf);
+		// servers 8.1.2+ (AER-6930) reject the signed 0xd3 form inside
+		// filter-expression list/map literals. See CLIENT-5045.
+		return packUInt64(cmd, uint64(val))
 	}
 
 	if val >= -32 {
