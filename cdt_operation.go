@@ -16,6 +16,8 @@
 package aerospike
 
 import (
+	"fmt"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -204,6 +206,16 @@ func packIfCDTModify(packer BufferEx, opType int, ctx []*CDTContext, params List
 		return size, newError(types.PARAMETER_ERROR, "Second parameter must be an Expression")
 	}
 
+	// Reject invalid modify flags instead of masking them into a valid
+	// operation. Legal values are EXP_PATH_MODIFY_DEFAULT (0) and
+	// EXP_PATH_MODIFY_NO_FAIL (0x10); a negative value, or one with bit 2 (the
+	// internal APPLY bit) set, is never valid. Without this check a negative
+	// flag would still carry the released NO_FAIL bit after the OR below and
+	// silently tolerate type errors on a write (CLIENT-5183).
+	if v := int64(flag); v < 0 || v&0x04 != 0 {
+		return size, newError(types.PARAMETER_ERROR, fmt.Sprintf("invalid modify flag %d", v))
+	}
+
 	// Element 3: Pack flags | EXP_PATH_MODIFY_APPLY (ensure apply flag is set)
 	if n, err = packAInt64(packer, int64(flag|modifyApplyFlag)); err != nil {
 		return size + n, err
@@ -278,9 +290,20 @@ func packIfCDTSelect(packer BufferEx, opType int, ctx []*CDTContext, flag Intege
 		}
 	}
 
-	// Pack the select flag as the third and final element
-	// Clear the MODIFY_APPLY flag (bit 4) to match Java client behavior
-	if n, err = packAInt64(packer, int64(flag)&^4); err != nil {
+	// Reject invalid select flags instead of masking them into a valid
+	// operation. Legal values are the exposed constants 0..3 and 0x10 (and ORs
+	// of them); a negative value, or one with bit 2 (the internal APPLY bit)
+	// set, is never valid. Previously the value was masked with &^4, but for a
+	// negative input that rewrite lands its low nibble on a server return type,
+	// so the request executes silently instead of erroring (CLIENT-5183).
+	if v := int64(flag); v < 0 || v&0x04 != 0 {
+		return size, newError(types.PARAMETER_ERROR, fmt.Sprintf("invalid select flag %d", v))
+	}
+
+	// Pack the (validated) select flag as the third and final element. The
+	// value is guaranteed to have bit 2 clear by the check above, so no mask
+	// is needed.
+	if n, err = packAInt64(packer, int64(flag)); err != nil {
 		return size + n, err
 	}
 	size += n
