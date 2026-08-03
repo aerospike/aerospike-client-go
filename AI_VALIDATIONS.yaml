@@ -1,58 +1,52 @@
-# AI_VALIDATIONS.yaml — aerospike-client-go
-#
-# Drop this file in the repo root. The pipeline agent reads it to know
-# what "done" means. Each validation is either command-based (has a `command`)
-# or agent-interpreted (has only a `description`).
-
 validations:
-
-  # -- Critical (must pass) ---------------------------------------------------
-
   build:
-    description: "Full project compiles without errors"
+    description: "Whole module compiles (library, subpackages, tools, examples)."
     command: "go build ./..."
     critical: true
-    timeout: 120
+    timeout: 300
 
-  unit_tests:
-    description: "All tests pass against the running Aerospike server"
-    # Use ginkgo so the Aerospike test-binary flags (-h, -p, optionally -U/-P) are
-    # passed through correctly. Add `-U <user> -P <pass>` after `--` if the cluster requires auth.
-    command: "go clean --testcache && ginkgo -r -- -h localhost -p 3100"
-    critical: true
-    timeout: 1800
+  build_as_performance:
+    description: "Library still compiles with reflection/Object-API code removed."
+    command: "go build -tags=as_performance ."
+    critical: false
+    timeout: 180
 
-  # -- Non-critical (should pass, attempt to fix) -----------------------------
+  build_app_engine:
+    description: "Library still compiles for Google App Engine (unsafe package removed)."
+    command: "go build -tags=app_engine ."
+    critical: false
+    timeout: 180
 
   vet:
-    description: "Go vet passes with no issues"
+    description: "go vet reports no problems across the module."
     command: "go vet ./..."
+    critical: false
+    timeout: 300
+
+  gofmt:
+    description: "All Go source is gofmt-formatted (no files listed means clean)."
+    command: "test -z \"$(gofmt -l $(git ls-files '*.go'))\""
     critical: false
     timeout: 120
 
-  # -- Agent-interpreted (no command, use judgment) ----------------------------
+  test_suite:
+    description: "Full Ginkgo integration suite passes with the race detector, matching CI. Requires a live Aerospike server at 127.0.0.1:3000 (override with `-- -h <host> -p <port>` or `-- -hosts=...`). HyperLogLog specs are skipped as in CI."
+    command: "go run github.com/onsi/ginkgo/v2/ginkgo -r -race -keep-going -succinct -randomize-suites -skip=HyperLogLog"
+    critical: true
+    timeout: 2400
 
-  api_surface:
-    description: >
-      Public API in the aerospike package must not have breaking changes.
-      No exported function/method/type signatures removed or changed.
-      New exports are fine. Check by reviewing the diff of *.go files in the repo root.
+  api_stability:
+    description: "No breaking changes to exported identifiers/behavior in the root `aerospike` package or `types`/`pkg` without a corresponding CHANGELOG.md entry. This is a released, versioned (/v8) client library."
     critical: true
 
-  code_conventions:
-    description: >
-      Changes follow the existing code style and conventions:
-      - Go 1.23+ features are acceptable
-      - No new external dependencies
-      - Error handling matches existing patterns (custom Error interface)
-      - Reflection-based code is guarded with //go:build !as_performance
-      - Follow existing import alias conventions (as, gg, gm)
+  test_coverage_for_new_code:
+    description: "New or changed public behavior is covered by Ginkgo specs in the appropriate suite (root integration suite, or internal/lua, types, pkg) following the existing Describe/It + Gomega style."
     critical: false
 
-  test_coverage:
-    description: >
-      New or modified functionality has corresponding test coverage.
-      If the task adds a feature, there should be tests for it.
-      If the task fixes a bug, there should be a test that would have caught it.
-      Tests use Ginkgo v2 Describe/Context/It blocks with Gomega matchers.
+  build_tag_variants_preserved:
+    description: "Code guarded by //go:build tags (as_performance, app_engine, as_proxy, multinode, go1.24) still compiles under each variant; reflection-dependent code has its non-reflect fallback where the *_reflect.go pattern exists."
+    critical: false
+
+  no_unwarranted_dependencies:
+    description: "No new heavy third-party dependencies added to go.mod without justification; the dependency set stays minimal (Ginkgo/Gomega, gopher-lua, x/sync, yaml)."
     critical: false
