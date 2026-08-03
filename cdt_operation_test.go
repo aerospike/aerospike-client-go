@@ -16,6 +16,7 @@ package aerospike_test
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -2212,6 +2213,71 @@ var _ = gg.Describe("CDT Operation Test", func() {
 			engList, ok := departments["engineering"].([]any)
 			gm.Expect(ok).To(gm.BeTrue())
 			gm.Expect(len(engList)).To(gm.Equal(1), "Should keep Alice only")
+		})
+	})
+
+	gg.Describe("CDT Path Operations Reject Invalid Flags (CLIENT-5183)", func() {
+
+		// A negative flag, or one with bit 2 (the internal APPLY bit) set, is
+		// unconditionally invalid for either operation. The client must reject
+		// it with PARAMETER_ERROR rather than mask it (select cleared bit 2,
+		// modify set it) into a request that the server happily executes — for
+		// a negative input the rewritten low nibble aliases onto a valid server
+		// return type, so the misuse silently succeeds. See CLIENT-5183.
+
+		expectParameterError := func(result *as.Record, err error) {
+			gm.Expect(result).To(gm.BeNil())
+			gm.Expect(err).To(gm.HaveOccurred())
+			aerr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerr)).To(gm.BeTrue(), "Error should be an AerospikeError")
+			gm.Expect(aerr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+		}
+
+		putSimpleMap := func() {
+			client.Delete(nil, key)
+			bin := as.NewBin(binName, map[string]any{"a": 1, "b": 2, "c": 3})
+			gm.Expect(client.PutBins(wpolicy, key, bin)).ToNot(gm.HaveOccurred())
+		}
+
+		// Legal SelectFlag values are the exposed constants 0..3 and 0x10 (and
+		// ORs). The negatives are the ticket's repro table; 4..7 cover the
+		// bit-2-set positives that the old &^4 mask would have silently cleared.
+		invalidSelectFlags := []as.SelectFlag{-1, -2, -3, -9, -12, -16, 4, 5, 6, 7}
+		for _, f := range invalidSelectFlags {
+			gg.It(fmt.Sprintf("should reject SelectByPath flag %d with PARAMETER_ERROR", int(f)), func() {
+				putSimpleMap()
+				op := as.SelectByPath(binName, f, as.CtxAllChildren())
+				expectParameterError(client.Operate(nil, key, op))
+			})
+		}
+
+		// Legal ModifyFlag values are 0 (DEFAULT) and 0x10 (NO_FAIL). Bit 2 is
+		// the internal APPLY bit and must never be caller-supplied.
+		invalidModifyFlags := []as.ModifyFlag{-1, -2, -12, -16, 4, 5, 6, 7}
+		for _, f := range invalidModifyFlags {
+			gg.It(fmt.Sprintf("should reject ModifyByPath flag %d with PARAMETER_ERROR", int(f)), func() {
+				putSimpleMap()
+				modifyExp := as.ExpNumAdd(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(5))
+				op := as.ModifyByPath(binName, f, modifyExp, as.CtxAllChildren())
+				expectParameterError(client.Operate(nil, key, op))
+			})
+		}
+
+		// Regression: valid flags must still be accepted. NO_FAIL (0x10) sets a
+		// high bit but not bit 2, so the new guard must let it through.
+		gg.It("should still accept SelectByPath with EXP_PATH_SELECT_NO_FAIL", func() {
+			putSimpleMap()
+			op := as.SelectByPath(binName, as.EXP_PATH_SELECT_NO_FAIL, as.CtxAllChildren())
+			_, err := client.Operate(nil, key, op)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		})
+
+		gg.It("should still accept ModifyByPath with EXP_PATH_MODIFY_NO_FAIL", func() {
+			putSimpleMap()
+			modifyExp := as.ExpNumAdd(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(5))
+			op := as.ModifyByPath(binName, as.EXP_PATH_MODIFY_NO_FAIL, modifyExp, as.CtxAllChildren())
+			_, err := client.Operate(nil, key, op)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 		})
 	})
 
