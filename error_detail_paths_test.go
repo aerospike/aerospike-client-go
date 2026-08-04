@@ -34,6 +34,13 @@ import (
 // surface (SubCode / ServerMessage / ExpTrace) flowing through each path.
 // Requires an 8.1.3+ server; the transaction cases additionally require a
 // Strong-Consistency namespace.
+// edpUDFBody is a trivial module for the Execute path; the filter is evaluated
+// before the body runs, so the body itself is never exercised. Kept local to
+// avoid the shared udfBody/registerUDF helpers, which live behind !app_engine.
+const edpUDFBody = `function testFunc1(rec, div)
+   return 1
+end`
+
 var _ = gg.Describe("ErrorDetail wired-path coverage (integration)", func() {
 	const edpBinName = "edp-bin"
 
@@ -140,7 +147,12 @@ var _ = gg.Describe("ErrorDetail wired-path coverage (integration)", func() {
 
 	gg.Context("Execute (UDF apply)", func() {
 		gg.BeforeEach(func() {
-			registerUDF(udfBody, "udf1.lua")
+			// Registered inline (rather than via the shared registerUDF/udfBody
+			// helpers) so this file stays free of the !app_engine build gate those
+			// helpers live behind and still compiles under -tags=app_engine.
+			regTask, err := client.RegisterUDF(nil, []byte(edpUDFBody), "udf1.lua", as.LUA)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
 		})
 
 		gg.It("returns bare FILTERED_OUT with no staged detail", func() {
