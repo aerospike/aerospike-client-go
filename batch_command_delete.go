@@ -94,6 +94,7 @@ func (cmd *batchCommandDelete) parseRecordResults(ifc command, receiveSize int) 
 		if err != nil {
 			return false, err
 		}
+		cmd.applyErrorDetail(cmd.records[batchIndex])
 
 		// The only valid server return codes are "ok" and "not found" and "filtered out".
 		// If other return codes are received, then abort the batch.

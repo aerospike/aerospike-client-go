@@ -46,6 +46,44 @@ type baseMultiCommand struct {
 	selectCases    []reflect.SelectCase
 
 	bc bufferedConn
+
+	// Server error detail captured from the current record's ERROR_MESSAGE field
+	// (field 45), populated when the batch opted into ErrorDetailVerbosity > 0.
+	// Reset at the start of each per-record field walk (parseVersion/skipKey) and
+	// consumed by the per-record setError via applyErrorDetail.
+	serverMessage  string
+	serverSubcode  int
+	serverExpTrace *ExpressionTrace
+}
+
+// resetServerErrorDetail clears any per-record error detail captured for a prior
+// record. Called at the start of each record's field walk so a record without a
+// field-45 detail does not inherit the previous record's.
+func (cmd *baseMultiCommand) resetServerErrorDetail() {
+	cmd.serverMessage = ""
+	cmd.serverSubcode = SubCodeNone
+	cmd.serverExpTrace = nil
+}
+
+// captureErrorDetail decodes the ERROR_MESSAGE field (field 45) msgpack payload
+// for the current record. After readBytes(fieldlen), the field type sits at
+// cmd.dataBuffer[0] and the msgpack payload at cmd.dataBuffer[1 : size+1], so it
+// reuses the single-record error-detail decoder over the same buffer.
+func (cmd *baseMultiCommand) captureErrorDetail(size int) {
+	rp := &recordParser{cmd: &cmd.baseCommand, serverSubcode: SubCodeNone}
+	cmd.serverMessage = rp.parseErrorDetails(1, size)
+	cmd.serverSubcode = rp.serverSubcode
+	cmd.serverExpTrace = rp.expTrace
+}
+
+// applyErrorDetail copies the captured per-record error detail onto the batch
+// record so a subsequent setError/setErrorWithMsg surfaces the server subcode,
+// message, and expression trace. A record without a field-45 detail receives the
+// cleared (empty) values.
+func (cmd *baseMultiCommand) applyErrorDetail(br *BatchRecord) {
+	br.ServerMessage = cmd.serverMessage
+	br.SubCode = cmd.serverSubcode
+	br.ExpTrace = cmd.serverExpTrace
 }
 
 var multiObjectParser func(
@@ -240,6 +278,7 @@ func (cmd *baseMultiCommand) parseKey(fieldCount int, bval *int64) (*Key, Error)
 
 func (cmd *baseMultiCommand) parseVersion(fieldCount int) (*uint64, Error) {
 	var version *uint64
+	cmd.resetServerErrorDetail()
 
 	for i := 0; i < fieldCount; i++ {
 		if err := cmd.readBytes(4); err != nil {
@@ -256,6 +295,8 @@ func (cmd *baseMultiCommand) parseVersion(fieldCount int) (*uint64, Error) {
 
 		if fieldType == RECORD_VERSION && size == 7 {
 			version = Buffer.VersionBytesToUint64(cmd.dataBuffer, 1)
+		} else if fieldType == ERROR_MESSAGE && size > 0 {
+			cmd.captureErrorDetail(size)
 		}
 	}
 	return version, nil
@@ -286,10 +327,15 @@ func (cmd *baseMultiCommand) parseFieldsBatch(resultCode types.ResultCode, field
 		} else {
 			cmd.txn.OnRead(br.BatchRec().Key, version)
 		}
-		return nil
 	} else {
-		return cmd.skipKey(fieldCount)
+		if err := cmd.skipKey(fieldCount); err != nil {
+			return err
+		}
 	}
+
+	// Surface any per-row error detail (field 45) captured during the field walk.
+	cmd.applyErrorDetail(br.BatchRec())
+	return nil
 }
 
 func (cmd *baseMultiCommand) parseFieldsWrite(resultCode types.ResultCode, fieldCount int, key *Key) (err Error) {
@@ -306,6 +352,7 @@ func (cmd *baseMultiCommand) parseFieldsWrite(resultCode types.ResultCode, field
 }
 
 func (cmd *baseMultiCommand) skipKey(fieldCount int) (err Error) {
+	cmd.resetServerErrorDetail()
 	for i := 0; i < fieldCount; i++ {
 		if err = cmd.readBytes(4); err != nil {
 			return err
@@ -314,6 +361,12 @@ func (cmd *baseMultiCommand) skipKey(fieldCount int) (err Error) {
 		fieldlen := int(Buffer.BytesToUint32(cmd.dataBuffer, 0))
 		if err = cmd.readBytes(fieldlen); err != nil {
 			return err
+		}
+
+		if FieldType(cmd.dataBuffer[0]) == ERROR_MESSAGE {
+			if size := fieldlen - 1; size > 0 {
+				cmd.captureErrorDetail(size)
+			}
 		}
 	}
 

@@ -103,6 +103,7 @@ func (cmd *batchCommandUDF) parseRecordResults(ifc command, receiveSize int) (bo
 		if err != nil {
 			return false, err
 		}
+		cmd.applyErrorDetail(cmd.records[batchIndex])
 
 		// Aggregate metrics
 		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()

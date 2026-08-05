@@ -72,6 +72,19 @@ type BatchRecord struct {
 	// after the command was sent to the server.
 	InDoubt bool
 
+	// ServerMessage is the formatted server-side error detail (message and/or
+	// subcode) for this row, populated when the batch opted into
+	// ErrorDetailVerbosity > 0 and the server attached field 45. Empty otherwise.
+	ServerMessage string
+
+	// SubCode is the numeric server-supplied subcode for this row (see SubCode*
+	// constants in sub_code.go). Defaults to SubCodeNone (0).
+	SubCode int
+
+	// ExpTrace is the server-supplied expression build trace for this row, sent
+	// only at verbosity 3 on expression build-failure paths. nil when absent.
+	ExpTrace *ExpressionTrace
+
 	// Does this command contain a write operation. For internal use only.
 	hasWrite bool
 }
@@ -122,6 +135,21 @@ func (br *BatchRecord) prepare() {
 	br.ResultCode = types.NO_RESPONSE
 	br.Err = nil
 	br.InDoubt = false
+	br.ServerMessage = ""
+	br.SubCode = SubCodeNone
+	br.ExpTrace = nil
+}
+
+// Set the server-supplied error detail (field 45) for this record. For internal use only.
+func (br *BatchRecord) setErrorDetail(message string, subcode int, expTrace *ExpressionTrace) {
+	br.ServerMessage = message
+	br.SubCode = subcode
+	br.ExpTrace = expTrace
+}
+
+// hasServerErrorDetail reports whether a server-side error detail was captured for this record.
+func (br *BatchRecord) hasServerErrorDetail() bool {
+	return br.ServerMessage != "" || br.SubCode != SubCodeNone || br.ExpTrace != nil
 }
 
 // Set record result. For internal use only.
@@ -142,14 +170,20 @@ func (br *BatchRecord) setRawError(err Error) {
 func (br *BatchRecord) setError(node *Node, resultCode types.ResultCode, inDoubt bool) {
 	br.ResultCode = resultCode
 	br.InDoubt = inDoubt
-	br.Err = newError(br.ResultCode).setNode(node).markInDoubtIf(inDoubt)
+	if br.hasServerErrorDetail() {
+		br.Err = newServerError(resultCode, br.ServerMessage, br.SubCode, br.ExpTrace).setNode(node).markInDoubtIf(inDoubt)
+	} else {
+		br.Err = newError(br.ResultCode).setNode(node).markInDoubtIf(inDoubt)
+	}
 }
 
 // Set error result. For internal use only.
 func (br *BatchRecord) setErrorWithMsg(node *Node, resultCode types.ResultCode, msg string, inDoubt bool) {
 	br.ResultCode = resultCode
 	br.InDoubt = inDoubt
-	br.Err = newError(br.ResultCode, msg).setNode(node).markInDoubtIf(inDoubt)
+	// msg is a caller-supplied message (e.g. a UDF FAILURE bin). Fold in any
+	// captured server subcode / expression trace for this row alongside it.
+	br.Err = newServerError(resultCode, msg, br.SubCode, br.ExpTrace).setNode(node).markInDoubtIf(inDoubt)
 }
 
 // String implements the Stringer interface.
