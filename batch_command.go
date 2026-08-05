@@ -31,6 +31,7 @@ type batcher interface {
 	// executeSingle(*Client) Error
 	setInDoubt(batcher)
 	inDoubt()
+	clearSplitRetry()
 }
 
 type batchCommand struct {
@@ -59,6 +60,32 @@ func (cmd *batchCommand) setInDoubt(ifc batcher) {
 
 func (cmd *batchCommand) inDoubt() {
 	// do nothing by default
+}
+
+// clearSplitRetry resets the split-retry marker. A command produced by
+// cloneBatchCommand inherits the parent's fields via shallow copy, but a freshly
+// split subcommand has not itself been split-retried, so it must own its own
+// in-doubt pass. This mirrors the Java client, where retryBatch builds each
+// subcommand with createCommand (a fresh object with splitRetry=false) rather
+// than copying the parent.
+func (cmd *batchCommand) clearSplitRetry() {
+	cmd.splitRetry = false
+}
+
+// failFastInDoubt handles a failed split subcommand when partial results are not
+// allowed. In that case the remaining subcommands will not run, so this command's
+// full set of still-unanswered writes (already attempted on a prior iteration, and
+// therefore in-doubt) is marked before the caller bails. The parent skips its own
+// in-doubt pass once split, so this is where the un-run records get flagged. The
+// call is idempotent for records a subcommand already handled. Returns true when
+// the caller should stop (fail fast); false when partial results are allowed and
+// the remaining subcommands should keep running.
+func (cmd *batchCommand) failFastInDoubt(ifc batcher) bool {
+	if cmd.policy.AllowPartialResults {
+		return false
+	}
+	ifc.inDoubt()
+	return true
 }
 
 func (cmd *batchCommand) prepareRetry(ifc command, isTimeout bool) bool {
@@ -94,10 +121,19 @@ func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, iteration int
 	var ferr Error
 	for _, batchNode := range batchNodes {
 		command := ifc.cloneBatchCommand(batchNode)
+		// The clone inherited splitRetry=true from this (now-split) parent via
+		// shallow copy. As a freshly split leaf it has not itself been split, so
+		// clear the marker; otherwise its own setInDoubt below is skipped and the
+		// in-doubt flag is never stamped on the records it owns.
+		command.clearSplitRetry()
 		command.setSequence(cmd.sequenceAP, cmd.sequenceSC)
 		if err := command.executeIter(command, iteration); err != nil {
+			// This subcommand failed (e.g. timed out). Mark the in-doubt flag
+			// on its own affected records, since the parent command skips its
+			// in-doubt pass once a split retry has occurred.
+			command.setInDoubt(command)
 			ferr = chainErrors(err, ferr)
-			if !cmd.policy.AllowPartialResults {
+			if cmd.failFastInDoubt(ifc) {
 				return false, ferr
 			}
 		}

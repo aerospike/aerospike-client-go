@@ -18,10 +18,11 @@ package aerospike
 type CommitStatus string
 
 const (
-	CommitStatusOK                   CommitStatus = "Commit succeeded"
-	CommitStatusUnverified           CommitStatus = "Commit process was disrupted on client side and unverified"
-	CommitStatusAlreadyCommitted     CommitStatus = "Already committed"
-	CommitStatusAlreadyAborted       CommitStatus = "Already aborted"
-	CommitStatusRollForwardAbandoned CommitStatus = "Transaction client roll forward abandoned. Server will eventually commit the Transaction."
-	CommitStatusCloseAbandoned       CommitStatus = "Transaction has been rolled forward, but Transaction client close was abandoned. Server will eventually close the Transaction."
+	CommitStatusOK                       CommitStatus = "Commit succeeded"
+	CommitStatusUnverified               CommitStatus = "Commit process was disrupted on client side and unverified"
+	CommitStatusAlreadyCommitted         CommitStatus = "Already committed"
+	CommitStatusAlreadyAborted           CommitStatus = "Already aborted"
+	CommitStatusMarkRollForwardAbandoned CommitStatus = "Transaction client mark roll forward abandoned. Server will eventually abort the Transaction."
+	CommitStatusRollForwardAbandoned     CommitStatus = "Transaction client roll forward abandoned. Server will eventually commit the Transaction."
+	CommitStatusCloseAbandoned           CommitStatus = "Transaction has been rolled forward, but Transaction client close was abandoned. Server will eventually close the Transaction."
 )

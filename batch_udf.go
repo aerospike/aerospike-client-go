@@ -83,32 +83,32 @@ func (bu *BatchUDF) equals(obj BatchRecordIfc) bool {
 	}
 }
 
-// Return wire protocol size. For internal use only.
-func (bu *BatchUDF) size(parentPolicy *BasePolicy) (int, Error) {
+// resolveSendKey returns parent ∪ per-record/default/dynamic sendKey. For internal use only.
+func (bu *BatchUDF) resolveSendKey(parentPolicy *BasePolicy, client *Client) bool {
+	// sendKey is the union of parent, cluster default and per-record (up carries dynamic config).
+	def := client.DefaultBatchUDFPolicy
+	up := client.getUsableBatchUDFPolicy(bu.Policy)
+	return parentPolicy.SendKey || (def != nil && def.SendKey) || (up != nil && up.SendKey)
+}
+
+// Return wire protocol size. sendKey is pre-resolved so size and write agree. For internal use only.
+func (bu *BatchUDF) size(sendKey bool) (int, Error) {
 	size := 2 // gen(2) = 2
 
-	if bu.Policy != nil {
-		if bu.Policy.FilterExpression != nil {
-			sz, err := bu.Policy.FilterExpression.size()
-			if err != nil {
-				return -1, err
-			}
-			size += sz + int(_FIELD_HEADER_SIZE)
-		}
-
-		if (bu.Policy.SendKey || parentPolicy.SendKey) && bu.Key.hasValueToSend() {
-			if sz, err := bu.Key.userKey.EstimateSize(); err != nil {
-				return -1, err
-			} else {
-				size += sz + int(_FIELD_HEADER_SIZE) + 1
-			}
-		}
-	} else if parentPolicy.SendKey && bu.Key.hasValueToSend() {
-		sz, err := bu.Key.userKey.EstimateSize()
+	if bu.Policy != nil && bu.Policy.FilterExpression != nil {
+		sz, err := bu.Policy.FilterExpression.size()
 		if err != nil {
 			return -1, err
 		}
-		size += sz + int(_FIELD_HEADER_SIZE) + 1
+		size += sz + int(_FIELD_HEADER_SIZE)
+	}
+
+	if sendKey && bu.Key.hasValueToSend() {
+		if sz, err := bu.Key.userKey.EstimateSize(); err != nil {
+			return -1, err
+		} else {
+			size += sz + int(_FIELD_HEADER_SIZE) + 1
+		}
 	}
 
 	size += len(bu.PackageName) + int(_FIELD_HEADER_SIZE)
