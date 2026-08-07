@@ -108,8 +108,8 @@ type AerospikeError struct {
 	// Iteration determies on which retry the error occurred
 	Iteration int
 
-	// SubCode is the server-supplied error subcode (see SubCode* constants
-	// in sub_code.go). Defaults to SubCodeNone (0).
+	// SubCode is the server-supplied error subcode (see the SubCode* constants
+	// in the types package). Defaults to [types.SubCodeNone] (0).
 	//
 	// A subcode is only meaningful when interpreted together with ResultCode:
 	// subcode integer values are scoped to their parent result code and are
@@ -117,7 +117,7 @@ type AerospikeError struct {
 	//
 	// Populated only when BasePolicy.ErrorDetailVerbosity > 0 and the
 	// failing branch dispatched a subcode. Requires server version 8.1.3+.
-	SubCode int
+	SubCode types.SubCode
 
 	// ServerMessage is the formatted server-supplied error detail
 	// (human-readable message and/or subcode tag). Empty when the server
@@ -130,7 +130,7 @@ type AerospikeError struct {
 	// [BasePolicy.ErrorDetailVerbosity]) on an expression build failure - a
 	// metadata filter (filter_exp) or an exp_read/exp_write operation that the
 	// server could not build. Such failures carry [types.PARAMETER_ERROR] and
-	// [SubCodeNone]. nil on every other failure (including non-expression failures
+	// [types.SubCodeNone]. nil on every other failure (including non-expression failures
 	// at verbosity 3). See [ExpressionTrace].
 	ExpTrace *ExpressionTrace
 
@@ -163,7 +163,7 @@ func newErrorAndWrap(e error, code types.ResultCode, messages ...string) Error {
 // paths at verbosity 3 - the structured expression trace) when present. Route
 // non-OK throws on the wire path through here so the detail is never silently
 // dropped on special-case result codes such as FILTERED_OUT or KEY_NOT_FOUND_ERROR.
-func newServerError(code types.ResultCode, serverMessage string, subcode int, expTrace *ExpressionTrace) Error {
+func newServerError(code types.ResultCode, serverMessage string, subcode types.SubCode, expTrace *ExpressionTrace) Error {
 	var ne Error
 	if serverMessage != "" {
 		ne = newError(code, serverMessage)

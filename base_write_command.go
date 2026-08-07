@@ -30,10 +30,10 @@ type baseWriteCommand struct {
 
 	// serverMessage / serverSubcode / serverExpTrace are populated from the
 	// response by parseHeader when the server attaches an extended error detail
-	// (ErrorDetailVerbosity > 0). Subcode defaults to SubCodeNone (0);
+	// (ErrorDetailVerbosity > 0). Subcode defaults to [types.SubCodeNone] (0);
 	// serverExpTrace is nil unless a verbosity-3 expression build trace was sent.
 	serverMessage  string
-	serverSubcode  int
+	serverSubcode  types.SubCode
 	serverExpTrace *ExpressionTrace
 }
 

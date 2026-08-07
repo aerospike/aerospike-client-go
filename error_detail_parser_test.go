@@ -19,6 +19,7 @@ import (
 	"encoding/binary"
 	"strings"
 
+	ast "github.com/aerospike/aerospike-client-go/v8/types"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
@@ -77,7 +78,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			rp := parserForDetail(detail)
 			rp.parseFieldsError()
 			gm.Expect(rp.serverMessage).To(gm.Equal("cannot append (subcode=99)"))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(99))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCode(99)))
 		})
 
 		gg.It("parses fixmap with subcode only", func() {
@@ -85,7 +86,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			rp := parserForDetail(detail)
 			rp.parseFieldsError()
 			gm.Expect(rp.serverMessage).To(gm.Equal("error subcode=42"))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(42))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCode(42)))
 		})
 
 		gg.It("parses fixmap with message only", func() {
@@ -93,7 +94,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			rp := parserForDetail(detail)
 			rp.parseFieldsError()
 			gm.Expect(rp.serverMessage).To(gm.Equal("oops"))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(SubCodeNone))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCodeNone))
 		})
 
 		gg.It("parses keys in reverse order", func() {
@@ -104,7 +105,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			rp := parserForDetail(detail)
 			rp.parseFieldsError()
 			gm.Expect(rp.serverMessage).To(gm.Equal("swap (subcode=7)"))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(7))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCode(7)))
 		})
 
 		gg.It("parses multi-byte UTF-8 message", func() {
@@ -190,7 +191,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
 			gm.Expect(rp.serverMessage).To(gm.Equal("u8 (subcode=200)"))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(200))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCode(200)))
 		})
 
 		gg.It("parses subcode as uint16", func() {
@@ -232,7 +233,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
 			gm.Expect(rp.serverMessage).To(gm.HavePrefix("u64 (subcode="))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(int(value)))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCode(value)))
 		})
 
 		gg.It("parses message as str8", func() {
@@ -273,7 +274,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			rp := parserForDetail([]byte{0x80})
 			rp.parseFieldsError()
 			gm.Expect(rp.serverMessage).To(gm.Equal(""))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(SubCodeNone))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCodeNone))
 		})
 
 		gg.It("truncated value does not panic", func() {
@@ -345,7 +346,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 
 			// Message still surfaces unchanged; subcode absent (no key 1).
 			gm.Expect(rp.serverMessage).To(gm.Equal("bad exp"))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(SubCodeNone))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCodeNone))
 
 			t := rp.expTrace
 			gm.Expect(t).NotTo(gm.BeNil())
@@ -530,7 +531,7 @@ func parserWithFields(types []FieldType, data [][]byte) *recordParser {
 
 	rp := &recordParser{
 		cmd:           cmd,
-		serverSubcode: SubCodeNone,
+		serverSubcode: ast.SubCodeNone,
 		fieldCount:    len(types),
 	}
 	return rp

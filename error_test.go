@@ -134,7 +134,7 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 			gm.Expect(ae.ResultCode).To(gm.Equal(ast.KEY_NOT_FOUND_ERROR))
 			gm.Expect(ae.ServerMessage).To(gm.Equal("record missing (subcode=7)"))
-			gm.Expect(ae.SubCode).To(gm.Equal(7))
+			gm.Expect(ae.SubCode).To(gm.Equal(ast.SubCode(7)))
 		})
 
 		gg.It("errors.Is matches ErrFilteredOut for plain FILTERED_OUT", func() {
@@ -146,7 +146,7 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 
 		gg.It("errors.Is matches ErrFilteredOut when server detail is present", func() {
 			// FILTERED_OUT carries no subcode (SubCodeNone) - only a contextual message.
-			err := newServerError(ast.FILTERED_OUT, "filtered out by filter expression", SubCodeNone, nil)
+			err := newServerError(ast.FILTERED_OUT, "filtered out by filter expression", ast.SubCodeNone, nil)
 
 			gm.Expect(errors.Is(err, ErrFilteredOut)).To(gm.BeTrue())
 
@@ -154,7 +154,7 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 			gm.Expect(ae.ResultCode).To(gm.Equal(ast.FILTERED_OUT))
 			gm.Expect(ae.ServerMessage).To(gm.Equal("filtered out by filter expression"))
-			gm.Expect(ae.SubCode).To(gm.Equal(SubCodeNone))
+			gm.Expect(ae.SubCode).To(gm.Equal(ast.SubCodeNone))
 		})
 
 		gg.It("errors.Is does not cross-match unrelated result codes", func() {

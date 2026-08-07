@@ -68,7 +68,7 @@ var _ = gg.Describe("ErrorDetail wired-path coverage (integration)", func() {
 		ae := &as.AerospikeError{}
 		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 		gm.Expect(ae.ResultCode).To(gm.Equal(types.PARAMETER_ERROR))
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		gm.Expect(ae.ExpTrace).NotTo(gm.BeNil(), "Expected a build trace at verbosity 3")
 		gm.Expect(ae.ExpTrace.Phase).To(gm.Equal(as.ExpTracePhaseBuild))
 		gm.Expect(ae.ExpTrace.ByteOffset).To(gm.BeNumerically(">=", 0), "Msgpack build traces carry byte_offset")
@@ -171,7 +171,7 @@ var _ = gg.Describe("ErrorDetail wired-path coverage (integration)", func() {
 			ae := &as.AerospikeError{}
 			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 			gm.Expect(ae.ResultCode).To(gm.Equal(types.FILTERED_OUT))
-			gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+			gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 			gm.Expect(ae.ServerMessage).To(gm.BeEmpty())
 			gm.Expect(ae.ExpTrace).To(gm.BeNil())
 		})
@@ -205,7 +205,7 @@ var _ = gg.Describe("ErrorDetail wired-path coverage (integration)", func() {
 			wp.Txn = txn
 
 			_, err := client.Operate(wp, listKey, as.ListGetOp(edpBinName, 99))
-			assertSubcode(err, types.OP_NOT_APPLICABLE, as.SubCodeOpNotCDTIndexOutOfBounds)
+			assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotCDTIndexOutOfBounds)
 
 			_, _ = client.Abort(txn)
 		})

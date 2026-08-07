@@ -69,7 +69,7 @@ const (
 // attaches this trace as a nested map under the field-45 error-detail key 3. It is
 // surfaced on [AerospikeError.ExpTrace].
 //
-// Expression build failures carry [types.PARAMETER_ERROR] and [SubCodeNone] (no
+// Expression build failures carry [types.PARAMETER_ERROR] and [types.SubCodeNone] (no
 // subcode); the contextual message is on the error. The trace is purely additive
 // diagnostic detail - it never changes the result code, subcode, or message-string
 // format.

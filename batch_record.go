@@ -79,8 +79,8 @@ type BatchRecord struct {
 	ServerMessage string
 
 	// SubCode is the numeric server-supplied subcode for this row (see SubCode*
-	// constants in sub_code.go). Defaults to SubCodeNone (0).
-	SubCode int
+	// constants in the types package). Defaults to [types.SubCodeNone] (0).
+	SubCode types.SubCode
 
 	// ExpTrace is the server-supplied expression build trace for this row, sent
 	// only at verbosity 3 on expression build-failure paths. nil when absent.
@@ -137,12 +137,12 @@ func (br *BatchRecord) prepare() {
 	br.Err = nil
 	br.InDoubt = false
 	br.ServerMessage = ""
-	br.SubCode = SubCodeNone
+	br.SubCode = types.SubCodeNone
 	br.ExpTrace = nil
 }
 
 // Set the server-supplied error detail (field 45) for this record. For internal use only.
-func (br *BatchRecord) setErrorDetail(message string, subcode int, expTrace *ExpressionTrace) {
+func (br *BatchRecord) setErrorDetail(message string, subcode types.SubCode, expTrace *ExpressionTrace) {
 	br.ServerMessage = message
 	br.SubCode = subcode
 	br.ExpTrace = expTrace
@@ -150,7 +150,7 @@ func (br *BatchRecord) setErrorDetail(message string, subcode int, expTrace *Exp
 
 // hasServerErrorDetail reports whether a server-side error detail was captured for this record.
 func (br *BatchRecord) hasServerErrorDetail() bool {
-	return br.ServerMessage != "" || br.SubCode != SubCodeNone || br.ExpTrace != nil
+	return br.ServerMessage != "" || br.SubCode != types.SubCodeNone || br.ExpTrace != nil
 }
 
 // Set record result. For internal use only.
@@ -165,6 +165,18 @@ func (br *BatchRecord) setRawError(err Error) {
 	br.ResultCode = err.resultCode()
 	br.InDoubt = err.IsInDoubt()
 	br.Err = err
+
+	// Surface any server-supplied error detail (field 45) carried by the error onto
+	// this record's structured fields, mirroring the multi-record path's
+	// applyErrorDetail. The single-key batch fast-path (executeSingle) routes row
+	// failures here via the single-record command API, whose Error already carries
+	// the decoded detail; without this copy br.ServerMessage / br.SubCode /
+	// br.ExpTrace would stay empty on a one-record batch even with verbosity opted in.
+	if ae, ok := err.(*AerospikeError); ok {
+		br.ServerMessage = ae.ServerMessage
+		br.SubCode = ae.SubCode
+		br.ExpTrace = ae.ExpTrace
+	}
 }
 
 // Set error result. For internal use only.

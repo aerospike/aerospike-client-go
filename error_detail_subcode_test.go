@@ -24,8 +24,9 @@ import (
 )
 
 // Live-server verification of the (ResultCode, SubCode) pairs the client
-// publishes in sub_code.go. sub_code.go is a hand-maintained mirror of the
-// server's per-status subcode enums (as/include/base/proto.h); these tests pin
+// publishes as the SubCode* constants in the types package. That catalogue is a
+// hand-maintained mirror of the server's per-status subcode enums
+// (as/include/base/proto.h); these tests pin
 // the pairs that are reachable from a plain Go client (CDT / HLL / bitwise ops)
 // so the mirror can't drift silently.
 //
@@ -93,7 +94,7 @@ var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 		// PROTO_SIZE_MAX = 128 MiB; the check is on the resulting size (>=).
 		_, err = client.Operate(verbosityWP(), key,
 			as.BitResizeOp(as.DefaultBitPolicy(), edsBin, 128*1024*1024, as.BitResizeFlagsDefault))
-		assertSubcode(err, types.PARAMETER_ERROR, as.SubCodeParamBitsResizeExceeded)
+		assertSubcode(err, types.PARAMETER_ERROR, types.SubCodeParamBitsResizeExceeded)
 	})
 
 	gg.It("bounded list insert past end: CDT_BOUNDED_LIST_OVERFLOW subcode", func() {
@@ -105,7 +106,7 @@ var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 		boundedPolicy := as.NewListPolicy(as.ListOrderUnordered, as.ListWriteFlagsInsertBounded)
 		_, err = client.Operate(verbosityWP(), key,
 			as.ListInsertWithPolicyOp(boundedPolicy, edsBin, 5, 99))
-		assertSubcode(err, types.OP_NOT_APPLICABLE, as.SubCodeOpNotCDTBoundedListOverflow)
+		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotCDTBoundedListOverflow)
 	})
 
 	gg.It("HLL add without index_bits on a new bin: HLL_INDEX_BITS_UNSET subcode", func() {
@@ -115,7 +116,7 @@ var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 		// No existing sketch to inherit index_bits from, and index_bits left unset (-1).
 		_, err := client.Operate(verbosityWP(), key,
 			as.HLLAddOp(as.DefaultHLLPolicy(), edsBin, []as.Value{as.NewValue("x")}, -1, -1))
-		assertSubcode(err, types.OP_NOT_APPLICABLE, as.SubCodeOpNotHLLIndexBitsUnset)
+		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotHLLIndexBitsUnset)
 	})
 
 	gg.It("HLL fold on a minhash sketch: HLL_CANNOT_FOLD_MINHASH subcode", func() {
@@ -127,7 +128,7 @@ var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 		_, err = client.Operate(verbosityWP(), key, as.HLLFoldOp(edsBin, 8))
-		assertSubcode(err, types.OP_NOT_APPLICABLE, as.SubCodeOpNotHLLCannotFoldMinhash)
+		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotHLLCannotFoldMinhash)
 	})
 
 	// -----------------------------------------------------------
@@ -150,7 +151,7 @@ var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 		// 12 > 6, default policy has no ALLOW_FOLD -> cannot reduce.
 		_, err = client.Operate(verbosityWP(), key,
 			as.HLLSetUnionOp(as.DefaultHLLPolicy(), edsBin, []as.HLLValue{input}))
-		assertSubcode(err, types.OP_NOT_APPLICABLE, as.SubCodeOpNotHLLCannotReduceIndexBits)
+		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotHLLCannotReduceIndexBits)
 	})
 
 	gg.It("HLL union reducing minhash_bits without fold: HLL_CANNOT_REDUCE_MINHASH_BITS subcode", func() {
@@ -165,7 +166,7 @@ var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 		// index_bits equal (10), minhash 4 != 6, no ALLOW_FOLD -> cannot reduce minhash.
 		_, err = client.Operate(verbosityWP(), key,
 			as.HLLSetUnionOp(as.DefaultHLLPolicy(), edsBin, []as.HLLValue{input}))
-		assertSubcode(err, types.OP_NOT_APPLICABLE, as.SubCodeOpNotHLLCannotReduceMinhashBits)
+		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotHLLCannotReduceMinhashBits)
 	})
 
 	gg.It("HLL intersect of 3 inputs with mismatched minhash: HLL_INTERSECT_MINHASH_MISMATCH subcode", func() {
@@ -184,6 +185,6 @@ var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 		// n_elements = 3 > 2; bin minhash (0) mismatches inputs' minhash (4).
 		_, err = client.Operate(verbosityWP(), key,
 			as.HLLGetIntersectCountOp(edsBin, []as.HLLValue{s1, s2, s3}))
-		assertSubcode(err, types.OP_NOT_APPLICABLE, as.SubCodeOpNotHLLIntersectMinhashMismatch)
+		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotHLLIntersectMinhashMismatch)
 	})
 })

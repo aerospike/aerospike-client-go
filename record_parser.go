@@ -36,8 +36,8 @@ type recordParser struct {
 	serverMessage string
 
 	// serverSubcode is the numeric server-supplied subcode (see SubCode*
-	// constants in sub_code.go). Defaults to SubCodeNone (0).
-	serverSubcode int
+	// constants in the types package). Defaults to [types.SubCodeNone] (0).
+	serverSubcode types.SubCode
 
 	// expTrace is the server-supplied expression build trace, parsed from the
 	// nested error-detail key-3 map at verbosity 3 on expression build-failure
@@ -51,7 +51,7 @@ type recordParser struct {
 func newRecordParser(cmd *baseCommand) (*recordParser, Error) {
 	rp := &recordParser{
 		cmd:           cmd,
-		serverSubcode: SubCodeNone,
+		serverSubcode: types.SubCodeNone,
 	}
 
 	// Read proto and check if compressed
@@ -241,7 +241,7 @@ func (rp *recordParser) parseErrorDetails(offset int, size int) string {
 	// The server only serializes subcodes >= 1 (SubCodeNone = 0 is never
 	// sent), so a parsed subcode always overrides the default.
 	if subcode >= 0 {
-		rp.serverSubcode = int(subcode)
+		rp.serverSubcode = types.SubCode(subcode)
 	}
 
 	if message != "" && subcode >= 0 {
@@ -259,7 +259,7 @@ func (rp *recordParser) parseErrorDetails(offset int, size int) string {
 // *ExpressionTrace.
 //
 // Reuses the shared msgpack decoder. Treats every trace key as optional (never
-// requires key 1 - build failures carry SubCodeNone), skips unknown trace keys,
+// requires key 1 - build failures carry types.SubCodeNone), skips unknown trace keys,
 // tolerates the "..." path-truncation sentinel as an ordinary element, and never
 // panics on a missing/truncated trace. An absent lang key surfaces as msgpack.
 // Returns nil when the value is not a readable, non-empty map.

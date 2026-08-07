@@ -52,7 +52,7 @@ type baseMultiCommand struct {
 	// Reset at the start of each per-record field walk (parseVersion/skipKey) and
 	// consumed by the per-record setError via applyErrorDetail.
 	serverMessage  string
-	serverSubcode  int
+	serverSubcode  types.SubCode
 	serverExpTrace *ExpressionTrace
 }
 
@@ -61,7 +61,7 @@ type baseMultiCommand struct {
 // field-45 detail does not inherit the previous record's.
 func (cmd *baseMultiCommand) resetServerErrorDetail() {
 	cmd.serverMessage = ""
-	cmd.serverSubcode = SubCodeNone
+	cmd.serverSubcode = types.SubCodeNone
 	cmd.serverExpTrace = nil
 }
 
@@ -70,7 +70,7 @@ func (cmd *baseMultiCommand) resetServerErrorDetail() {
 // cmd.dataBuffer[0] and the msgpack payload at cmd.dataBuffer[1 : size+1], so it
 // reuses the single-record error-detail decoder over the same buffer.
 func (cmd *baseMultiCommand) captureErrorDetail(size int) {
-	rp := &recordParser{cmd: &cmd.baseCommand, serverSubcode: SubCodeNone}
+	rp := &recordParser{cmd: &cmd.baseCommand, serverSubcode: types.SubCodeNone}
 	cmd.serverMessage = rp.parseErrorDetails(1, size)
 	cmd.serverSubcode = rp.serverSubcode
 	cmd.serverExpTrace = rp.expTrace

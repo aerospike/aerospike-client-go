@@ -88,7 +88,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		ae := &as.AerospikeError{}
 		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 		gm.Expect(ae.ResultCode).To(gm.Equal(types.BIN_TYPE_ERROR))
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		gm.Expect(ae.ServerMessage).To(gm.Equal(""))
 	})
 
@@ -105,7 +105,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		ae := &as.AerospikeError{}
 		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 		gm.Expect(ae.ResultCode).To(gm.Equal(types.BIN_NOT_FOUND))
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeBinNotFoundHLLCannotCreateWithOp))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeBinNotFoundHLLCannotCreateWithOp))
 		gm.Expect(ae.ServerMessage).To(gm.ContainSubstring("subcode=1"))
 	})
 
@@ -122,7 +122,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		ae := &as.AerospikeError{}
 		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 		gm.Expect(ae.ResultCode).To(gm.Equal(types.BIN_NOT_FOUND))
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeBinNotFoundHLLCannotCreateWithOp))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeBinNotFoundHLLCannotCreateWithOp))
 		gm.Expect(ae.ServerMessage).To(gm.ContainSubstring("(subcode=1)"))
 		gm.Expect(strings.ToLower(ae.ServerMessage)).To(gm.ContainSubstring("count op"))
 	})
@@ -179,7 +179,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 		_, err = client.Operate(wp, key, as.HLLRefreshCountOp("no-hll-bin"))
-		assertSubcode(err, types.BIN_NOT_FOUND, as.SubCodeBinNotFoundHLLCannotCreateWithOp)
+		assertSubcode(err, types.BIN_NOT_FOUND, types.SubCodeBinNotFoundHLLCannotCreateWithOp)
 	})
 
 	gg.It("list get index out of bounds: OP_NOT_APPLICABLE with CDT-index subcode", func() {
@@ -187,7 +187,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		wp.ErrorDetailVerbosity = 2
 
 		_, err := client.Operate(wp, listKey, as.ListGetOp(edvBinName, 99))
-		assertSubcode(err, types.OP_NOT_APPLICABLE, as.SubCodeOpNotCDTIndexOutOfBounds)
+		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotCDTIndexOutOfBounds)
 	})
 
 	gg.It("list get by rank out of bounds: CDT rank subcode", func() {
@@ -195,7 +195,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		wp.ErrorDetailVerbosity = 2
 
 		_, err := client.Operate(wp, listKey, as.ListGetByRankOp(edvBinName, 99, as.ListReturnTypeValue))
-		assertSubcode(err, types.OP_NOT_APPLICABLE, as.SubCodeOpNotCDTRankOutOfBounds)
+		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotCDTRankOutOfBounds)
 	})
 
 	gg.It("HLL fold target too large: OPNOT_HLL_FOLD_INDEX_BITS_TOO_LARGE subcode", func() {
@@ -208,7 +208,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 		_, err = client.Operate(wp, key, as.HLLFoldOp(edvBinName, 14))
-		assertSubcode(err, types.OP_NOT_APPLICABLE, as.SubCodeOpNotHLLFoldIndexBitsTooLarge)
+		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotHLLFoldIndexBitsTooLarge)
 	})
 
 	gg.It("bit get offset out of range: PARAM_BITS_OFFSET subcode", func() {
@@ -220,7 +220,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 		_, err = client.Operate(wp, key, as.BitGetOp(edvBinName, 2000000000, 8))
-		assertSubcode(err, types.PARAMETER_ERROR, as.SubCodeParamBitsOffsetOutOfRange)
+		assertSubcode(err, types.PARAMETER_ERROR, types.SubCodeParamBitsOffsetOutOfRange)
 	})
 
 	gg.It("bit get size zero: PARAM_BITS_SIZE subcode", func() {
@@ -232,7 +232,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 		_, err = client.Operate(wp, key, as.BitGetOp(edvBinName, 0, 0))
-		assertSubcode(err, types.PARAMETER_ERROR, as.SubCodeParamBitsSizeOutOfRange)
+		assertSubcode(err, types.PARAMETER_ERROR, types.SubCodeParamBitsSizeOutOfRange)
 	})
 
 	gg.It("read filtered out: FILTERED_OUT carries no subcode, only a message", func() {
@@ -321,7 +321,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		ae := &as.AerospikeError{}
 		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 		gm.Expect(ae.ResultCode).To(gm.Equal(types.PARAMETER_ERROR))
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		gm.Expect(strings.ToLower(ae.ServerMessage)).To(gm.ContainSubstring("invalid metadata expression in request"))
 
 		gm.Expect(ae.ExpTrace).NotTo(gm.BeNil())
@@ -339,7 +339,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		ae := &as.AerospikeError{}
 		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 		gm.Expect(ae.ResultCode).To(gm.Equal(types.PARAMETER_ERROR))
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		gm.Expect(strings.ToLower(ae.ServerMessage)).To(gm.ContainSubstring("invalid expression in operation request"))
 
 		gm.Expect(ae.ExpTrace).NotTo(gm.BeNil())
@@ -367,14 +367,14 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 	})
 })
 
-func assertSubcode(err error, expectedResultCode types.ResultCode, expectedSubcode int) {
+func assertSubcode(err error, expectedResultCode types.ResultCode, expectedSubcode types.SubCode) {
 	gm.Expect(err).To(gm.HaveOccurred())
 	ae := &as.AerospikeError{}
 	gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 	gm.Expect(ae.ResultCode).To(gm.Equal(expectedResultCode))
 	gm.Expect(ae.SubCode).To(gm.Equal(expectedSubcode))
 	gm.Expect(ae.ServerMessage).NotTo(gm.BeEmpty())
-	gm.Expect(ae.ServerMessage).To(gm.ContainSubstring("subcode=" + intToString(expectedSubcode)))
+	gm.Expect(ae.ServerMessage).To(gm.ContainSubstring("subcode=" + intToString(int(expectedSubcode))))
 }
 
 func assertSubcodeAbsent(err error, expectedResultCode types.ResultCode, expectedSubstrings ...string) {
@@ -382,7 +382,7 @@ func assertSubcodeAbsent(err error, expectedResultCode types.ResultCode, expecte
 	ae := &as.AerospikeError{}
 	gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 	gm.Expect(ae.ResultCode).To(gm.Equal(expectedResultCode))
-	gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+	gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 	gm.Expect(ae.ServerMessage).NotTo(gm.BeEmpty())
 	for _, expected := range expectedSubstrings {
 		gm.Expect(strings.ToLower(ae.ServerMessage)).To(gm.ContainSubstring(strings.ToLower(expected)))

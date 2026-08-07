@@ -121,7 +121,7 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 
 			// Field 45 was decoded even though a Txn is tracking the response.
 			gm.Expect(rp.serverMessage).To(gm.Equal("cannot append (subcode=9)"))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(9))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(types.SubCode(9)))
 			// The 7-byte version was parsed and recorded on the read set.
 			gm.Expect(txn.ReadExistsForKey(key)).To(gm.BeTrue())
 		})
@@ -140,7 +140,7 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 			gm.Expect(err).To(gm.BeNil())
 
 			gm.Expect(rp.serverMessage).To(gm.Equal("error subcode=3"))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(3))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(types.SubCode(3)))
 			gm.Expect(txn.ReadExistsForKey(key)).To(gm.BeTrue())
 		})
 
@@ -168,7 +168,7 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 			err := rp.parseFields(nil, nil, false)
 			gm.Expect(err).To(gm.BeNil())
 			gm.Expect(rp.serverMessage).To(gm.Equal("nil txn (subcode=1)"))
-			gm.Expect(rp.serverSubcode).To(gm.Equal(1))
+			gm.Expect(rp.serverSubcode).To(gm.Equal(types.SubCode(1)))
 		})
 	})
 
@@ -177,7 +177,7 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 	// ------------------------------------------------------------
 
 	gg.Context("newServerError expression-trace carry-through", func() {
-		gg.It("attaches the ExpTrace (build failure: PARAMETER_ERROR + SubCodeNone)", func() {
+		gg.It("attaches the ExpTrace (build failure: PARAMETER_ERROR + types.SubCodeNone)", func() {
 			trace := &ExpressionTrace{
 				Phase:      ExpTracePhaseBuild,
 				ByteOffset: 7,
@@ -187,7 +187,7 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 				AelOffset:  -1,
 				AelSpan:    -1,
 			}
-			err := newServerError(types.PARAMETER_ERROR, "failed to build expression", SubCodeNone, trace)
+			err := newServerError(types.PARAMETER_ERROR, "failed to build expression", types.SubCodeNone, trace)
 
 			ae := &AerospikeError{}
 			gm.Expect(err.Matches(types.PARAMETER_ERROR)).To(gm.BeTrue())
@@ -195,7 +195,7 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 
 			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 			gm.Expect(ae.ResultCode).To(gm.Equal(types.PARAMETER_ERROR))
-			gm.Expect(ae.SubCode).To(gm.Equal(SubCodeNone))
+			gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 			gm.Expect(ae.ServerMessage).To(gm.Equal("failed to build expression"))
 			gm.Expect(ae.ExpTrace).To(gm.BeIdenticalTo(trace))
 		})
@@ -206,7 +206,7 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 			ae := &AerospikeError{}
 			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 			gm.Expect(ae.ExpTrace).To(gm.BeNil())
-			gm.Expect(ae.SubCode).To(gm.Equal(1))
+			gm.Expect(ae.SubCode).To(gm.Equal(types.SubCode(1)))
 			gm.Expect(ae.ServerMessage).To(gm.Equal("index out of bounds (subcode=1)"))
 		})
 	})

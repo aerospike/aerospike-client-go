@@ -185,7 +185,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 	// server message, no subcode and no trace.
 	assertNoDetails := func(ae *as.AerospikeError, expectedRc types.ResultCode) {
 		gm.Expect(ae.ResultCode).To(gm.Equal(expectedRc), "Unexpected result code")
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone), "Expected no subcode")
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone), "Expected no subcode")
 		gm.Expect(ae.ServerMessage).To(gm.BeEmpty(), "Expected no server-supplied error detail")
 		gm.Expect(ae.ExpTrace).To(gm.BeNil(), "Expected no expression trace")
 	}
@@ -199,7 +199,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 
 	gg.It("filter fault div by zero surfaces an eval trace", func() {
 		ae := expectFilteredGet(3, divZeroFilterExp(), types.FILTERED_OUT)
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "integer division by zero")
 
 		t := assertEvalTrace(ae, "div", 2, []string{"gt", "div"})
@@ -210,7 +210,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		exp := as.ExpEq(as.ExpNumMod(as.ExpIntBin(binInt), as.ExpIntVal(0)), as.ExpIntVal(1))
 
 		ae := expectFilteredGet(3, exp, types.FILTERED_OUT)
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "integer modulo by zero")
 
 		t := assertEvalTrace(ae, "mod", 2, []string{"eq", "mod"})
@@ -223,7 +223,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 			as.ExpNumDiv(as.ExpIntVal(math.MinInt64), as.ExpIntVal(-1)), as.ExpIntVal(1))
 
 		ae := expectFilteredGet(3, exp, types.FILTERED_OUT)
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "integer division overflow")
 
 		assertEvalTrace(ae, "div", 2, []string{"gt", "div"})
@@ -234,7 +234,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		exp := as.ExpEq(as.ExpMapBin(binMap1), as.ExpMapBin(binMap2))
 
 		ae := expectFilteredGet(3, exp, types.FILTERED_OUT)
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "cannot compare an unordered map")
 
 		assertEvalTrace(ae, "eq", 1, []string{"eq"})
@@ -246,7 +246,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		exp := as.ExpEq(cdtOobExp(), as.ExpIntVal(1))
 
 		ae := expectFilteredGet(3, exp, types.FILTERED_OUT)
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeOpNotCDTIndexOutOfBounds))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeOpNotCDTIndexOutOfBounds))
 		assertMessageContains(ae, "out of bounds")
 
 		assertEvalTrace(ae, "call", 2, []string{"eq", "call"})
@@ -275,7 +275,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		exp := as.ExpEq(cdtOobExp(), as.ExpIntVal(1))
 
 		ae := expectFilteredGet(1, exp, types.FILTERED_OUT)
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeOpNotCDTIndexOutOfBounds))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeOpNotCDTIndexOutOfBounds))
 		gm.Expect(ae.ExpTrace).To(gm.BeNil(), "Tier 1 must surface no trace")
 
 		gm.Expect(ae.ServerMessage).NotTo(gm.BeEmpty())
@@ -425,7 +425,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		ae := expectOperateError(stdKey, 3, types.PARAMETER_ERROR,
 			as.ExpReadOp("result", buildErrorExp(), as.ExpReadFlagDefault))
 
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "invalid expression in operation request")
 		assertBuildTrace(ae)
 	})
@@ -460,7 +460,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 			as.ExpReadOp("result", as.ExpNumDiv(as.ExpIntBin(binInt), as.ExpIntVal(0)),
 				as.ExpReadFlagDefault))
 
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "integer division by zero")
 		assertEvalTrace(ae, "div", 1, []string{"div"})
 	})
@@ -469,7 +469,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		ae := expectOperateError(stdKey, 3, types.OP_NOT_APPLICABLE,
 			as.ExpReadOp("result", cdtOobExp(), as.ExpReadFlagDefault))
 
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeOpNotCDTIndexOutOfBounds))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeOpNotCDTIndexOutOfBounds))
 		assertMessageContains(ae, "out of bounds")
 		assertEvalTrace(ae, "call", 1, []string{"call"})
 	})
@@ -478,7 +478,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		ae := expectOperateError(stdKey, 3, types.OP_NOT_APPLICABLE,
 			as.ExpReadOp("result", as.ExpIntBin(binMissing), as.ExpReadFlagDefault))
 
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "expression references an absent bin or key")
 		assertEvalTrace(ae, "bin", 1, []string{"bin"})
 	})
@@ -489,7 +489,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		ae := expectOperateError(stdKey, 3, types.OP_NOT_APPLICABLE,
 			as.ExpReadOp("result", as.ExpIntBin(binFloat), as.ExpReadFlagDefault))
 
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "expression references an absent bin or key")
 		assertEvalTrace(ae, "bin", 1, []string{"bin"})
 	})
@@ -499,7 +499,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		ae := expectOperateError(stdKey, 3, types.OP_NOT_APPLICABLE,
 			as.ExpReadOp("result", as.ExpUnknown(), as.ExpReadFlagDefault))
 
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "expression references an absent bin or key")
 		assertEvalTrace(ae, "unknown", 1, []string{"unknown"})
 	})
@@ -539,7 +539,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 			as.ExpWriteOp("wb", as.ExpNumDiv(as.ExpIntBin(binInt), as.ExpIntVal(0)),
 				as.ExpWriteFlagDefault))
 
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeNone))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
 		assertMessageContains(ae, "integer division by zero")
 		assertEvalTrace(ae, "div", 1, []string{"div"})
 	})
@@ -548,7 +548,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		ae := expectOperateError(stdKey, 3, types.OP_NOT_APPLICABLE,
 			as.ExpWriteOp("wb", cdtOobExp(), as.ExpWriteFlagDefault))
 
-		gm.Expect(ae.SubCode).To(gm.Equal(as.SubCodeOpNotCDTIndexOutOfBounds))
+		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeOpNotCDTIndexOutOfBounds))
 		assertMessageContains(ae, "out of bounds")
 		assertEvalTrace(ae, "call", 1, []string{"call"})
 	})
