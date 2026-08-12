@@ -989,7 +989,10 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) (err Error) 
 	}
 
 	cmd.begin()
-	fieldCount := cmd.estimateRawKeySize(key)
+	fieldCount, err := cmd.estimateKeySize(policy, key, false)
+	if err != nil {
+		return err
+	}
 
 	predSize := 0
 	if policy.FilterExpression != nil {
