@@ -86,7 +86,7 @@ func (fn *fakeCommand) execute(ifc command) Error {
 	return nil
 }
 
-func (fn *fakeCommand) executeIter(ifc command, iter int) Error {
+func (fn *fakeCommand) executeIter(ifc command, iter int, deadline time.Time) Error {
 	return nil
 }
 

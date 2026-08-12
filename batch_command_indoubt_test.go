@@ -15,6 +15,9 @@
 package aerospike
 
 import (
+	"iter"
+	"time"
+
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -41,9 +44,9 @@ var _ = gg.Describe("Batch multi-key write in-doubt propagation (CLIENT-5000)", 
 
 	gg.Context("batchCommandOperate (mixed read/write batch)", func() {
 		gg.It("marks only timed-out write records in-doubt, leaving reads and successes untouched", func() {
-			bw0 := NewBatchWrite(nil, mkKey(0), PutOp(NewBin("a", 1)))   // timed out, write
-			br1 := NewBatchReadHeader(nil, mkKey(1))                     // timed out, read-only
-			bw2 := NewBatchWrite(nil, mkKey(2), PutOp(NewBin("a", 1)))   // succeeded, write
+			bw0 := NewBatchWrite(nil, mkKey(0), PutOp(NewBin("a", 1))) // timed out, write
+			br1 := NewBatchReadHeader(nil, mkKey(1))                   // timed out, read-only
+			bw2 := NewBatchWrite(nil, mkKey(2), PutOp(NewBin("a", 1))) // succeeded, write
 
 			markSucceeded(bw2.BatchRec())
 
@@ -315,5 +318,77 @@ var _ = gg.Describe("Batch multi-key write in-doubt propagation (CLIENT-5000)", 
 			gm.Expect(recs[0].InDoubt).To(gm.BeFalse())
 			gm.Expect(recs[1].InDoubt).To(gm.BeFalse())
 		})
+	})
+})
+
+// budgetStubCommand drives the executeAt retry loop without any I/O: every
+// attempt fails at node acquisition, and the stub counts the attempts.
+type budgetStubCommand struct {
+	baseCommand
+	policy       *BasePolicy
+	getNodeCalls int
+}
+
+func (c *budgetStubCommand) getPolicy(ifc command) Policy { return c.policy }
+func (c *budgetStubCommand) getNode(ifc command) (*Node, Error) {
+	c.getNodeCalls++
+	return nil, newError(types.INVALID_NODE_ERROR, "stub node failure")
+}
+func (c *budgetStubCommand) prepareRetry(ifc command, isTimeout bool) bool { return true }
+func (c *budgetStubCommand) commandType() commandType                      { return ttNone }
+func (c *budgetStubCommand) getNamespaces() iter.Seq2[string, uint64]      { return nil }
+func (c *budgetStubCommand) getNamespace() *string                         { return nil }
+func (c *budgetStubCommand) putConnection(conn *Connection)                {}
+func (c *budgetStubCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
+}
+func (c *budgetStubCommand) writeBuffer(ifc command) Error { panic("unreachable") }
+func (c *budgetStubCommand) getConnection(policy Policy) (*Connection, Error) {
+	panic("unreachable")
+}
+func (c *budgetStubCommand) parseResult(ifc command, conn *Connection) Error { panic("unreachable") }
+func (c *budgetStubCommand) Execute() Error                                  { panic("unreachable") }
+
+// A split batch retry re-executes subcommands through executeIter. The
+// subcommands must run under the parent's remaining budget: its deadline (so a
+// split retry cannot outlive the caller's TotalTimeout, which executeIter
+// previously recomputed from scratch) and its attempt count (so the retries do
+// not restart at zero).
+var _ = gg.Describe("Split-retry budget inheritance", func() {
+
+	newStub := func(totalTimeout time.Duration, maxRetries int) *budgetStubCommand {
+		policy := NewPolicy()
+		policy.TotalTimeout = totalTimeout
+		policy.MaxRetries = maxRetries
+		policy.SleepBetweenRetries = 0
+		return &budgetStubCommand{policy: policy}
+	}
+
+	gg.It("must honor the parent's already-expired deadline instead of a fresh TotalTimeout", func() {
+		stub := newStub(5*time.Second, 3)
+		expired := time.Now().Add(-time.Second)
+
+		err := stub.executeIter(stub, 1, expired)
+
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(types.TIMEOUT)).To(gm.BeTrue(),
+			"an inherited expired deadline must surface as a timeout, got: %v", err)
+		gm.Expect(err.Matches(types.MAX_RETRIES_EXCEEDED)).To(gm.BeFalse(),
+			"the command must not burn its retry budget against an expired deadline")
+		gm.Expect(stub.getNodeCalls).To(gm.BeZero(),
+			"no attempt may start after the parent's deadline has passed")
+	})
+
+	gg.It("must continue the parent's attempt count instead of restarting the budget", func() {
+		// A fresh command gets MaxRetries+1 attempts.
+		fresh := newStub(0, 3)
+		gm.Expect(fresh.executeIter(fresh, 0, time.Time{})).To(gm.HaveOccurred())
+		gm.Expect(fresh.getNodeCalls).To(gm.Equal(4))
+
+		// A subcommand that inherits 3 consumed attempts gets only the remainder.
+		inherited := newStub(0, 3)
+		err := inherited.executeIter(inherited, 3, time.Time{})
+		gm.Expect(err.Matches(types.MAX_RETRIES_EXCEEDED)).To(gm.BeTrue())
+		gm.Expect(inherited.getNodeCalls).To(gm.Equal(1),
+			"3 of the 4 attempts were already spent by the parent")
 	})
 })

@@ -204,7 +204,7 @@ type command interface {
 	onInDoubt()
 
 	execute(ifc command) Error
-	executeIter(ifc command, iter int) Error
+	executeIter(ifc command, iter int, deadline time.Time) Error
 	executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) Error
 
 	canPutConnBack() bool
@@ -3708,9 +3708,12 @@ func (cmd *baseCommand) execute(ifc command) Error {
 	return cmd.executeAt(ifc, policy, deadline, -1)
 }
 
-func (cmd *baseCommand) executeIter(ifc command, iter int) Error {
+// executeIter continues a command under an inherited budget: a split batch
+// retry passes the parent's remaining deadline and attempt count, so the
+// subcommands cannot outlive the caller's TotalTimeout or restart the retry
+// budget. A zero deadline means the parent had no total timeout.
+func (cmd *baseCommand) executeIter(ifc command, iter int, deadline time.Time) Error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
-	deadline := policy.deadline()
 
 	err := cmd.executeAt(ifc, policy, deadline, iter)
 	if err != nil && err.IsInDoubt() {
@@ -3727,6 +3730,14 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	notFirstIteration := false
 	isClientTimeout := false
 	loopCount := 0
+
+	// A split batch retry continues the parent's attempt count instead of
+	// starting a fresh budget. The cloned subcommand usually inherits the
+	// counter through the shallow copy already; setting it from the parameter
+	// makes the contract explicit rather than an accident of cloning.
+	if iterations > 0 {
+		cmd.commandSentCounter = iterations
+	}
 
 	var err Error
 	// Execute command until successful, timed out or maximum iterations have been reached.
@@ -3767,7 +3778,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
 					if cmd.node != nil {
-						alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, cmd.commandSentCounter)
+						alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, deadline, cmd.commandSentCounter)
 						if alreadyRetried {
 							// Batch was retried in separate subcommands. Complete this command.
 							applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)

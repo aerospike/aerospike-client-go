@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"iter"
+	"time"
 )
 
 type batcher interface {
@@ -24,7 +25,7 @@ type batcher interface {
 	cloneBatchCommand(batch *batchNode) batcher
 	filteredOut() int
 
-	retryBatch(ifc batcher, cluster *Cluster, iteration int) (bool, Error)
+	retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration int) (bool, Error)
 	generateBatchNodes(*Cluster) ([]*batchNode, Error)
 	setSequence(int, int)
 
@@ -102,7 +103,7 @@ func (cmd *batchCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return false
 }
 
-func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, iteration int) (bool, Error) {
+func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration int) (bool, Error) {
 	// Retry requires keys for this node to be split among other nodes.
 	// This is both recursive and exponential.
 	batchNodes, err := ifc.generateBatchNodes(cluster)
@@ -127,7 +128,7 @@ func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, iteration int
 		// in-doubt flag is never stamped on the records it owns.
 		command.clearSplitRetry()
 		command.setSequence(cmd.sequenceAP, cmd.sequenceSC)
-		if err := command.executeIter(command, iteration); err != nil {
+		if err := command.executeIter(command, iteration, deadline); err != nil {
 			// This subcommand failed (e.g. timed out). Mark the in-doubt flag
 			// on its own affected records, since the parent command skips its
 			// in-doubt pass once a split retry has occurred.
