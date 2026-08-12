@@ -143,3 +143,39 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 	})
 
 }) // Describe
+
+// prepareRetryTimeout decides replica sequencing on retry: when it reports
+// true the failure is treated as a timeout, so writes retry on the same node
+// and linearized reads keep their replica sequence. Only an explicit
+// SERVER_NOT_AVAILABLE response (a node disowning the partition) justifies
+// advancing a write to the next replica, matching the Java client. The
+// polarity was previously inverted: writes moved replicas on connection
+// errors and stayed put on SERVER_NOT_AVAILABLE.
+var _ = gg.Describe("prepareRetryTimeout replica-sequencing polarity", func() {
+
+	gg.It("must treat a client timeout as a timeout regardless of the error", func() {
+		gm.Expect(prepareRetryTimeout(true, nil)).To(gm.BeTrue())
+		gm.Expect(prepareRetryTimeout(true, newError(ast.SERVER_NOT_AVAILABLE))).To(gm.BeTrue())
+	})
+
+	gg.It("must not treat SERVER_NOT_AVAILABLE as a timeout, so writes advance the replica", func() {
+		gm.Expect(prepareRetryTimeout(false, newError(ast.SERVER_NOT_AVAILABLE))).To(gm.BeFalse())
+	})
+
+	gg.It("must treat every other failure as a timeout, so writes retry in place", func() {
+		for _, rc := range []ast.ResultCode{
+			ast.NETWORK_ERROR,
+			ast.TIMEOUT,
+			ast.DEVICE_OVERLOAD,
+			ast.KEY_BUSY,
+			ast.PARSE_ERROR,
+		} {
+			gm.Expect(prepareRetryTimeout(false, newError(rc))).To(gm.BeTrue(),
+				"result code %v must be treated as a timeout", rc)
+		}
+	})
+
+	gg.It("must not treat an error-less failed pass (an inactive node) as a timeout", func() {
+		gm.Expect(prepareRetryTimeout(false, nil)).To(gm.BeFalse())
+	})
+})

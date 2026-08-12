@@ -3762,7 +3762,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				applyTransactionRetryMetrics(cmd.node)
 			}
 
-			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
+			if !ifc.prepareRetry(ifc, prepareRetryTimeout(isClientTimeout, err)) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
 					if cmd.node != nil {
@@ -4051,6 +4051,18 @@ func (cmd *baseCommand) canPutConnBack() bool {
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
 	panic("Abstract method. Should not end up here")
+}
+
+// prepareRetryTimeout reports whether a failed attempt should be treated as a
+// timeout for replica sequencing: writes then retry on the same node, and
+// linearized reads do not advance the replica sequence. Everything except an
+// explicit SERVER_NOT_AVAILABLE response is treated as a timeout, matching the
+// Java client: only a node that says it does not own the partition justifies
+// moving a write to the next replica; connection failures and other server
+// errors retry in place. A pass that failed without an error (an inactive
+// node) is not a timeout, so the retry can move on to a healthy node.
+func prepareRetryTimeout(isClientTimeout bool, err Error) bool {
+	return isClientTimeout || (err != nil && !err.Matches(types.SERVER_NOT_AVAILABLE))
 }
 
 func networkError(err Error) bool {
