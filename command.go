@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"net"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/logger"
@@ -3948,11 +3949,14 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
-			// DEVICE_OVERLOAD and KEY_BUSY are transient server responses:
-			// retry them and feed the circuit breaker, matching the Java
-			// client. The response was fully parsed, so the connection is
-			// healthy and goes back into the pool rather than being closed.
-			if overloadedServerError(err) && !cmd.oneShot {
+			// DEVICE_OVERLOAD, KEY_BUSY and a server-side TIMEOUT are
+			// transient server responses: retry them and feed the circuit
+			// breaker, matching the Java client. The response was fully
+			// parsed, so the connection is healthy and goes back into the
+			// pool rather than being closed. (Multi commands never pool on
+			// error -- canPutConnBack -- since their stream may be undrained;
+			// they close and retry through the batch machinery instead.)
+			if (overloadedServerError(err) || parsedServerTimeout(err)) && !cmd.oneShot {
 				isClientTimeout = false
 				cmd.node.incrErrorCount()
 
@@ -4078,6 +4082,21 @@ func prepareRetryTimeout(isClientTimeout bool, err Error) bool {
 
 func networkError(err Error) bool {
 	return err.Matches(types.NETWORK_ERROR, types.TIMEOUT)
+}
+
+// parsedServerTimeout reports a TIMEOUT that arrived as a parsed server
+// response rather than a client-side I/O deadline. Both carry result code
+// TIMEOUT, but a client-side deadline wraps the underlying net.Error
+// (errToAerospikeErr), while a parsed response does not. The distinction
+// matters because a parsed response leaves the connection healthy and
+// poolable, and because only the server-side timeout counts toward the
+// node's circuit breaker, matching the Java client.
+func parsedServerTimeout(err Error) bool {
+	if !err.Matches(types.TIMEOUT) {
+		return false
+	}
+	var netErr net.Error
+	return !errors.As(err, &netErr)
 }
 
 // overloadedServerError reports the transient server responses that are

@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"errors"
+	"net"
+	"os"
 
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
@@ -210,5 +212,42 @@ var _ = gg.Describe("overloadedServerError retry classification", func() {
 	gg.It("must keep the connection for both, so retries reuse the pool", func() {
 		gm.Expect(KeepConnection(newError(ast.DEVICE_OVERLOAD))).To(gm.BeTrue())
 		gm.Expect(KeepConnection(newError(ast.KEY_BUSY))).To(gm.BeTrue())
+	})
+})
+
+// parsedServerTimeout separates the two errors that share result code TIMEOUT:
+// a timeout the server returned as a parsed response (connection healthy,
+// counts toward the circuit breaker, retried with the connection pooled) and a
+// client-side I/O deadline (connection possibly mid-message, must not be
+// pooled). The tell is the wrapped net.Error that only the client-side path
+// attaches.
+var _ = gg.Describe("parsedServerTimeout classification", func() {
+
+	gg.It("must classify a bare TIMEOUT as a server response", func() {
+		gm.Expect(parsedServerTimeout(newError(ast.TIMEOUT))).To(gm.BeTrue())
+	})
+
+	gg.It("must not classify a client-side I/O deadline, which wraps a net.Error", func() {
+		ioTimeout := &net.OpError{Op: "read", Err: os.ErrDeadlineExceeded}
+		gm.Expect(parsedServerTimeout(newErrorAndWrap(ioTimeout, ast.TIMEOUT))).To(gm.BeFalse())
+	})
+
+	gg.It("must not classify other result codes", func() {
+		for _, rc := range []ast.ResultCode{
+			ast.NETWORK_ERROR,
+			ast.DEVICE_OVERLOAD,
+			ast.SERVER_NOT_AVAILABLE,
+			ast.PARAMETER_ERROR,
+		} {
+			gm.Expect(parsedServerTimeout(newError(rc))).To(gm.BeFalse(),
+				"result code %v must not classify as a server timeout", rc)
+		}
+	})
+
+	// The retry path pools the connection for a parsed server timeout; the
+	// fatal path must still refuse to pool any TIMEOUT, because there it
+	// cannot distinguish a drained response from an abandoned stream.
+	gg.It("must keep KeepConnection conservative about TIMEOUT", func() {
+		gm.Expect(KeepConnection(newError(ast.TIMEOUT))).To(gm.BeFalse())
 	})
 })
