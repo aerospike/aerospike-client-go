@@ -2090,4 +2090,56 @@ var _ = gg.Describe("Retry semantics", func() {
 				"MaxRetries=%d must produce %d attempts", maxRetries, maxRetries+1)
 		}
 	})
+
+	// After a client-side timeout the time budget was already consumed by the
+	// attempt itself, so the loop must not also sleep before retrying -- the
+	// Java client skips the sleep the same way. With a sleep this large, any
+	// sleeping between the attempts would dominate the elapsed time.
+	gg.It("must not sleep between retries after a client timeout", func() {
+		c, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		defer c.Close()
+
+		key, err := as.NewKey(*namespace, randString(50), "retry_sleep")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		policy := as.NewPolicy()
+		policy.SocketTimeout = time.Nanosecond
+		policy.TotalTimeout = 0
+		policy.MaxRetries = 2
+		policy.SleepBetweenRetries = 400 * time.Millisecond
+
+		begin := time.Now()
+		_, err = c.Get(policy, key)
+		elapsed := time.Since(begin)
+
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(elapsed).To(gm.BeNumerically("<", 300*time.Millisecond),
+			"client timeouts must retry without sleeping, took %v", elapsed)
+	})
+
+	// inDoubt reports whether the server may have applied a write. A write
+	// that never reached the wire -- here every attempt dies on an
+	// already-expired socket deadline before sending -- cannot be in doubt.
+	// The counter previously ticked per loop pass rather than per send, so
+	// such writes were misreported as in doubt.
+	gg.It("must not mark a never-sent write as in doubt", func() {
+		c, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		defer c.Close()
+
+		key, err := as.NewKey(*namespace, randString(50), "retry_indoubt")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		wpolicy := as.NewWritePolicy(0, 0)
+		wpolicy.SocketTimeout = time.Nanosecond
+		wpolicy.TotalTimeout = 0
+		wpolicy.MaxRetries = 1
+		wpolicy.SleepBetweenRetries = 0
+
+		err = c.Put(wpolicy, key, as.BinMap{"a": 1})
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.IsInDoubt()).To(gm.BeFalse(),
+			"a write that never reached the wire must not be in doubt: %v", err)
+	})
 })
