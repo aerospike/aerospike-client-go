@@ -17,6 +17,8 @@ package aerospike
 import (
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
+
+	Buffer "github.com/aerospike/aerospike-client-go/v8/utils/buffer"
 )
 
 // A read record must stay eligible for the batch repeat flag regardless of the parent BatchPolicy
@@ -79,6 +81,59 @@ var _ = gg.Describe("Batch read repeat optimization is preserved regardless of p
 			dist := encodeSize(parentSendKey, distinct)
 			gm.Expect(rep).To(gm.BeNumerically("<", dist),
 				"read repeat must apply with parent BatchPolicy.SendKey=%v", parentSendKey)
+		}
+	})
+})
+
+// The batch flags byte follows the row count in the batch field. Bit 0x8 must always be set: it
+// instructs the server to return the key-specific error code on an error that stops a batch
+// response (CLIENT-1720; the Java client sets it unconditionally). The policy bits are
+// AllowInline=0x1, AllowInlineSSD=0x2, RespondAllKeys=0x4.
+
+var _ = gg.Describe("Batch flags byte requests key-specific error codes", func() {
+
+	key, _ := NewKey("test", "batch_flags", 1)
+
+	// Encodes a minimal batch operate command and returns the flags byte from the batch field:
+	// after the 4-byte field length, 1-byte field type and 4-byte row count.
+	encodedFlags := func(policy *BatchPolicy) byte {
+		cmd := &baseCommand{}
+		attr := newBatchAttr(policy, _INFO1_READ|_INFO1_GET_ALL)
+		err := cmd.setBatchOperateOffsets(policy, []*Key{key}, nil, nil, attr, &batchOffsetsNative{offsets: []int{0}})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 26))
+		off := int(_MSG_TOTAL_HEADER_SIZE)
+		for i := 0; i < fieldCount; i++ {
+			flen := int(Buffer.BytesToUint32(cmd.dataBuffer, off))
+			ftype := FieldType(cmd.dataBuffer[off+4])
+			if ftype == BATCH_INDEX || ftype == BATCH_INDEX_WITH_SET {
+				return cmd.dataBuffer[off+5+4]
+			}
+			off += 4 + flen
+		}
+		gg.Fail("no batch field found in the encoded command")
+		return 0
+	}
+
+	gg.It("must set 0x8 always and map the policy bits", func() {
+		for _, tc := range []struct {
+			name   string
+			adjust func(*BatchPolicy)
+			want   byte
+		}{
+			{"defaults", func(p *BatchPolicy) {}, 0x8 | 0x1 | 0x4}, // AllowInline and RespondAllKeys default true
+			{"bare", func(p *BatchPolicy) { p.AllowInline = false; p.RespondAllKeys = false }, 0x8},
+			{"allowInlineSSD", func(p *BatchPolicy) {
+				p.AllowInline = false
+				p.RespondAllKeys = false
+				p.AllowInlineSSD = true
+			}, 0x8 | 0x2},
+			{"all", func(p *BatchPolicy) { p.AllowInlineSSD = true }, 0x8 | 0x1 | 0x2 | 0x4},
+		} {
+			policy := NewBatchPolicy()
+			tc.adjust(policy)
+			gm.Expect(encodedFlags(policy)).To(gm.Equal(tc.want), tc.name)
 		}
 	})
 })

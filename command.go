@@ -1954,9 +1954,12 @@ func (cmd *baseCommand) writeBatchWrite(
 }
 
 func (cmd *baseCommand) getBatchFlags(policy *BatchPolicy) byte {
-	flags := byte(0)
+	// 0x8 instructs the server to return the key-specific error code on an
+	// error that stops a batch response, instead of a generic one. Always set,
+	// matching the Java client (CLIENT-1720).
+	flags := byte(0x8)
 	if policy.AllowInline {
-		flags = 1
+		flags |= 0x1
 	}
 
 	if policy.AllowInlineSSD {
