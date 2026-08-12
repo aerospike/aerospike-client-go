@@ -251,3 +251,44 @@ var _ = gg.Describe("parsedServerTimeout classification", func() {
 		gm.Expect(KeepConnection(newError(ast.TIMEOUT))).To(gm.BeFalse())
 	})
 })
+
+// verifyFailError composes the commit error for a failed transaction verify.
+// The verify failure must stay the primary cause even when the follow-up
+// rollback or monitor close also fails; previously the follow-up error
+// replaced it, losing the reason the commit failed verification.
+var _ = gg.Describe("transaction verify-failure error chaining", func() {
+
+	newRoll := func() *TxnRoll { return NewTxnRoll(nil, NewTxn()) }
+
+	verifyErr := func() Error { return newError(ast.MRT_VERSION_MISMATCH, "verify failed") }
+	rollErr := func() Error { return newError(ast.TIMEOUT, "rollback failed") }
+
+	gg.It("must report TXN_FAILED with the commit error attached", func() {
+		err := newRoll().verifyFailError(CommitErrorVerifyFail, verifyErr(), nil)
+		gm.Expect(err.Matches(ast.TXN_FAILED)).To(gm.BeTrue())
+		te := &TxnError{}
+		gm.Expect(errors.As(err, &te)).To(gm.BeTrue())
+		gm.Expect(te.CommitError).To(gm.Equal(CommitErrorVerifyFail))
+	})
+
+	gg.It("must keep the verify failure as the cause when nothing else failed", func() {
+		err := newRoll().verifyFailError(CommitErrorVerifyFail, verifyErr(), nil)
+		gm.Expect(err.Matches(ast.MRT_VERSION_MISMATCH)).To(gm.BeTrue())
+	})
+
+	gg.It("must preserve both causes when the rollback also fails, verify first", func() {
+		err := newRoll().verifyFailError(CommitErrorVerifyFailAbortAbandoned, verifyErr(), rollErr())
+
+		// Both failures must be discoverable in the chain.
+		gm.Expect(err.Matches(ast.MRT_VERSION_MISMATCH)).To(gm.BeTrue(),
+			"the verify failure must not be lost")
+		gm.Expect(err.Matches(ast.TIMEOUT)).To(gm.BeTrue(),
+			"the follow-up failure must be chained")
+
+		// And the verify failure must come first: unwrapping past the
+		// TXN_FAILED head reaches MRT_VERSION_MISMATCH before TIMEOUT.
+		inner := &AerospikeError{}
+		gm.Expect(errors.As(errors.Unwrap(err), &inner)).To(gm.BeTrue())
+		gm.Expect(inner.ResultCode).To(gm.Equal(ast.MRT_VERSION_MISMATCH))
+	})
+})

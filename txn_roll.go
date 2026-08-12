@@ -33,12 +33,11 @@ func NewTxnRoll(client *Client, txn *Txn) *TxnRoll {
 }
 
 func (txr *TxnRoll) Verify(verifyPolicy, rollPolicy *BatchPolicy) Error {
-	if err := txr.VerifyRecordVersions(verifyPolicy); err != nil {
+	if verifyErr := txr.VerifyRecordVersions(verifyPolicy); verifyErr != nil {
 		txr.txn.SetState(TxnStateAborted)
 
-		if err := txr.Roll(rollPolicy, _INFO4_MRT_ROLL_BACK); err != nil {
-			return NewTxnCommitError(CommitErrorVerifyFailAbortAbandoned, txr.verifyRecords, txr.rollRecords, err)
-
+		if rollErr := txr.Roll(rollPolicy, _INFO4_MRT_ROLL_BACK); rollErr != nil {
+			return txr.verifyFailError(CommitErrorVerifyFailAbortAbandoned, verifyErr, rollErr)
 		}
 
 		if txr.txn.CloseMonitor() {
@@ -46,15 +45,25 @@ func (txr *TxnRoll) Verify(verifyPolicy, rollPolicy *BatchPolicy) Error {
 			writePolicy.BasePolicy = rollPolicy.BasePolicy
 
 			txnKey := getTxnMonitorKey(txr.txn)
-			if err := txr.Close(writePolicy, txnKey); err != nil {
-				return NewTxnCommitError(CommitErrorVerifyFailCloseAbandoned, txr.verifyRecords, txr.rollRecords, err)
+			if closeErr := txr.Close(writePolicy, txnKey); closeErr != nil {
+				return txr.verifyFailError(CommitErrorVerifyFailCloseAbandoned, verifyErr, closeErr)
 			}
 		}
 
-		return NewTxnCommitError(CommitErrorVerifyFail, txr.verifyRecords, txr.rollRecords, err)
+		return txr.verifyFailError(CommitErrorVerifyFail, verifyErr, nil)
 	}
 	txr.txn.SetState(TxnStateVerified)
 	return nil
+}
+
+// verifyFailError builds the commit error for a failed verify. The verify
+// failure is the primary cause, and a follow-up failure (an abandoned rollback
+// or monitor close) is chained beneath it rather than replacing it -- the Java
+// client keeps the same ordering via suppressed exceptions. Previously the
+// follow-up error shadowed the verify error, so the reason the commit failed
+// verification was lost from the abandoned-path errors.
+func (txr *TxnRoll) verifyFailError(commitError CommitError, verifyErr, followUpErr Error) Error {
+	return NewTxnCommitError(commitError, txr.verifyRecords, txr.rollRecords, chainErrors(verifyErr, followUpErr))
 }
 
 func (txr *TxnRoll) Commit(rollPolicy *BatchPolicy) (CommitStatus, Error) {
