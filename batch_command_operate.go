@@ -195,6 +195,12 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 // Returns the number of bytes that were parsed from the given buffer.
 func (cmd *batchCommandOperate) parseRecord(key *Key, opCount int, generation, expiration uint32) (*Record, Error) {
 	bins := make(BinMap, opCount)
+	// Operate rows additionally keep a positional view of the results; see
+	// Record.OpResults.
+	var opResults []any
+	if cmd.isOperation {
+		opResults = make([]any, 0, opCount)
+	}
 
 	for i := 0; i < opCount; i++ {
 		if err := cmd.readBytes(8); err != nil {
@@ -219,6 +225,7 @@ func (cmd *batchCommandOperate) parseRecord(key *Key, opCount int, generation, e
 		}
 
 		if cmd.isOperation {
+			opResults = append(opResults, value)
 			if prev, ok := bins[name]; ok {
 				if prev2, ok := prev.(OpResults); ok {
 					bins[name] = append(prev2, value)
@@ -233,7 +240,9 @@ func (cmd *batchCommandOperate) parseRecord(key *Key, opCount int, generation, e
 		}
 	}
 
-	return newRecord(cmd.node, key, bins, generation, expiration), nil
+	rec := newRecord(cmd.node, key, bins, generation, expiration)
+	rec.OpResults = opResults
+	return rec, nil
 }
 
 func (cmd *batchCommandOperate) executeSingle(client *Client) Error {

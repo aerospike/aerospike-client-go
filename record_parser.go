@@ -198,6 +198,12 @@ func (rp *recordParser) parseRecord(key *Key, isOperation bool) (*Record, Error)
 	receiveOffset := rp.cmd.dataOffset
 
 	bins := make(BinMap, rp.opCount)
+	// Operate commands additionally keep a positional view, so results are
+	// addressable even when several operations share a bin name.
+	var opResults []any
+	if isOperation {
+		opResults = make([]any, 0, rp.opCount)
+	}
 	for i := 0; i < rp.opCount; i++ {
 		opSize := int(Buffer.BytesToUint32(rp.cmd.dataBuffer, receiveOffset))
 		particleType := int(rp.cmd.dataBuffer[receiveOffset+5])
@@ -214,6 +220,7 @@ func (rp *recordParser) parseRecord(key *Key, isOperation bool) (*Record, Error)
 		}
 
 		if isOperation {
+			opResults = append(opResults, value)
 			// for operate list command results
 			if prev, exists := bins[name]; exists {
 				if res, ok := prev.(OpResults); ok {
@@ -231,5 +238,7 @@ func (rp *recordParser) parseRecord(key *Key, isOperation bool) (*Record, Error)
 		}
 	}
 
-	return newRecord(rp.cmd.node, key, bins, rp.generation, rp.expiration), nil
+	rec := newRecord(rp.cmd.node, key, bins, rp.generation, rp.expiration)
+	rec.OpResults = opResults
+	return rec, nil
 }

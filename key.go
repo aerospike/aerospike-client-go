@@ -96,6 +96,7 @@ func (ky *Key) String() string {
 // The set name and user defined key are converted to a digest before sending to the server.
 // The server handles record identifiers by digest only.
 func NewKey(namespace string, setName string, key any) (*Key, Error) {
+	// TODO: Make it guarded generic so we can remove the error
 	newKey := &Key{
 		namespace: namespace,
 		setName:   setName,

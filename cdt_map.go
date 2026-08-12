@@ -100,6 +100,10 @@ const (
 	cdtMapOpTypeGetByValueRelRankRange    = 110
 )
 
+// MapOrderType is the type of the MapOrder enumeration values, which select a
+// map's key ordering.
+type MapOrderType = mapOrderType
+
 type mapOrderType struct {
 	attr int
 	flag int

@@ -29,6 +29,20 @@ type Record struct {
 	// Bins is the map of requested name/value bins.
 	Bins BinMap
 
+	// OpResults holds an operate command's results in the order the server
+	// returned them.
+	//
+	// The Bins map cannot express several operations on the same bin: it holds
+	// only the last value, or an OpResults slice under that one name. This
+	// slice is the positional view, so a caller can address each result even
+	// when two operations touched the same bin.
+	//
+	// Note that only operations that *produce* a value appear here. A
+	// write-only operation such as a put or a touch sends no result back, so
+	// the positions line up with the returned results, not with the request.
+	// It is nil for commands that are not operates.
+	OpResults []any
+
 	// Generation shows record modification count.
 	Generation uint32
 
@@ -52,6 +66,20 @@ func newRecord(node *Node, key *Key, bins BinMap, generation, expiration uint32)
 	}
 
 	return r
+}
+
+// OperationResult returns the i-th of an operate command's returned results,
+// and whether that position exists.
+//
+// Only operations that produce a value are represented, so the positions follow
+// the returned results rather than the request: a chain of put, add and get
+// yields one result, from the get. The result is absent for a command that was
+// not an operate.
+func (rc *Record) OperationResult(i int) (any, bool) {
+	if rc == nil || i < 0 || i >= len(rc.OpResults) {
+		return nil, false
+	}
+	return rc.OpResults[i], true
 }
 
 // String implements the Stringer interface.
