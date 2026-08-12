@@ -2053,3 +2053,41 @@ var _ = gg.Describe("Aerospike", func() {
 	}) // Describe
 
 })
+
+var _ = gg.Describe("Retry semantics", func() {
+
+	// MaxRetries counts retries, not attempts: the initial attempt is free, so
+	// MaxRetries=N must produce N+1 total attempts before MAX_RETRIES_EXCEEDED.
+	// This matches the MaxRetries doc and the Java client; the loop previously
+	// stopped one attempt short.
+	//
+	// A nanosecond socket timeout makes every attempt fail client-side. The
+	// error's Iteration field carries the attempt count; a dedicated client
+	// keeps the connection-pool state (which feeds that counter) deterministic.
+	gg.It("must make MaxRetries+1 total attempts before giving up", func() {
+		c, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		defer c.Close()
+
+		key, err := as.NewKey(*namespace, randString(50), "retry_count")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		for _, maxRetries := range []int{0, 1, 2, 5} {
+			policy := as.NewPolicy()
+			policy.SocketTimeout = time.Nanosecond
+			policy.TotalTimeout = 0
+			policy.MaxRetries = maxRetries
+			policy.SleepBetweenRetries = 0
+
+			_, err := c.Get(policy, key)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.MAX_RETRIES_EXCEEDED)).To(gm.BeTrue(),
+				"expected MAX_RETRIES_EXCEEDED, got: %v", err)
+
+			ae := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
+			gm.Expect(ae.Iteration).To(gm.Equal(maxRetries+1),
+				"MaxRetries=%d must produce %d attempts", maxRetries, maxRetries+1)
+		}
+	})
+})

@@ -3733,8 +3733,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		cmd.commandSentCounter++
 		loopCount++
 
-		// too many retries
-		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 1) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
+		// Too many retries. The initial attempt is not counted as a retry, so
+		// MaxRetries=N allows N+1 total attempts, per the MaxRetries doc and
+		// matching the Java client's iteration accounting.
+		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 1) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries+1) {
 			if cmd.node != nil && cmd.node.cluster != nil {
 				cmd.node.cluster.maxRetriesExceededCount.GetAndIncrement()
 			}
