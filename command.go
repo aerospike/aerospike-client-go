@@ -981,6 +981,13 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 
 // Writes the command for getting metadata operations
 func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) (err Error) {
+	// Send key on a get header is a server error
+	if policy.SendKey {
+		adjusted := *policy
+		adjusted.SendKey = false
+		policy = &adjusted
+	}
+
 	cmd.begin()
 	fieldCount := cmd.estimateRawKeySize(key)
 
