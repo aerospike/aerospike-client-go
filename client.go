@@ -1602,20 +1602,44 @@ func (clnt *Client) queryNodePartitions(policy *QueryPolicy, node *Node, stateme
 //
 // Requires server version 8.0+
 func (clnt *Client) Commit(txn *Txn) (CommitStatus, Error) {
-	tr := NewTxnRoll(clnt, txn)
+	return clnt.CommitWithPolicies(nil, nil, txn)
+}
 
+// CommitWithPolicies attempts to commit the given multi-record transaction,
+// using the supplied verify and roll policies for the two phases of the commit
+// rather than the client's defaults.
+//
+// A nil policy falls back to the client default for that phase, so
+// Commit(txn) is CommitWithPolicies(nil, nil, txn).
+//
+// Layers that resolve policies per call -- an SDK binding a policy set to a
+// session, for example -- need this form; applications that configure the
+// client once should keep using Commit.
+//
+// Requires server version 8.0+
+func (clnt *Client) CommitWithPolicies(
+	verifyPolicy *TxnVerifyPolicy,
+	rollPolicy *TxnRollPolicy,
+	txn *Txn,
+) (CommitStatus, Error) {
+	// The policies are resolved inside the branches that use them, never
+	// before the switch: the terminal states return without touching a
+	// policy, and a caller may hold a client whose defaults are unset.
+	tr := NewTxnRoll(clnt, txn)
 	switch txn.State() {
 	default:
 		fallthrough
 	case TxnStateOpen:
-		if err := tr.Verify(&clnt.getUsableTxnVerifyPolicy(nil).BatchPolicy, &clnt.getUsableTxnRollPolicy(nil).BatchPolicy); err != nil {
+		verify := &clnt.getUsableTxnVerifyPolicy(verifyPolicy).BatchPolicy
+		roll := &clnt.getUsableTxnRollPolicy(rollPolicy).BatchPolicy
+		if err := tr.Verify(verify, roll); err != nil {
 			return CommitStatusUnverified, err
 		}
-		return tr.Commit(&clnt.getUsableTxnRollPolicy(nil).BatchPolicy)
+		return tr.Commit(roll)
 	case TxnStateVerified:
 		fallthrough
 	case TxnStateCommitFailed:
-		return tr.Commit(&clnt.getUsableTxnRollPolicy(nil).BatchPolicy)
+		return tr.Commit(&clnt.getUsableTxnRollPolicy(rollPolicy).BatchPolicy)
 	case TxnStateCommitted:
 		return CommitStatusAlreadyCommitted, nil
 	case TxnStateAborted:
@@ -1630,6 +1654,21 @@ func (clnt *Client) Commit(txn *Txn) (CommitStatus, Error) {
 //
 // Requires server version 8.0+
 func (clnt *Client) Abort(txn *Txn) (AbortStatus, Error) {
+	return clnt.AbortWithPolicy(nil, txn)
+}
+
+// AbortWithPolicy aborts and rolls back the given multi-record transaction,
+// using the supplied roll policy rather than the client's default.
+//
+// A nil policy falls back to the client default, so Abort(txn) is
+// AbortWithPolicy(nil, txn).
+//
+// Abort is not allowed after an in-doubt mark-roll-forward failure: the server
+// may still roll the transaction forward.
+//
+// Requires server version 8.0+
+func (clnt *Client) AbortWithPolicy(rollPolicy *TxnRollPolicy, txn *Txn) (AbortStatus, Error) {
+	// As in CommitWithPolicies, the policy is resolved only where it is used.
 	tr := NewTxnRoll(clnt, txn)
 	switch txn.State() {
 	default:
@@ -1637,7 +1676,7 @@ func (clnt *Client) Abort(txn *Txn) (AbortStatus, Error) {
 	case TxnStateOpen:
 		fallthrough
 	case TxnStateVerified:
-		return tr.Abort(&clnt.getUsableTxnRollPolicy(nil).BatchPolicy)
+		return tr.Abort(&clnt.getUsableTxnRollPolicy(rollPolicy).BatchPolicy)
 	case TxnStateCommitFailed:
 		return AbortStatusCommitFailed, newError(types.TXN_FAILED, "Transaction commit failed. Abort is not allowed.")
 	case TxnStateCommitted:
