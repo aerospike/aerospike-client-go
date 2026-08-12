@@ -3915,9 +3915,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			isClientTimeout = false
-			if deviceOverloadError(err) {
-				cmd.node.incrErrorCount()
-			}
 			// try to salvage the connection
 			if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 				go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
@@ -3951,14 +3948,28 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			// chain the errors
 			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
+			// DEVICE_OVERLOAD and KEY_BUSY are transient server responses:
+			// retry them and feed the circuit breaker, matching the Java
+			// client. The response was fully parsed, so the connection is
+			// healthy and goes back into the pool rather than being closed.
+			if overloadedServerError(err) && !cmd.oneShot {
+				isClientTimeout = false
+				cmd.node.incrErrorCount()
+
+				if ifc.canPutConnBack() && cmd.conn.IsConnected() {
+					cmd.node.PutConnection(cmd.conn)
+				} else {
+					cmd.conn.Close()
+				}
+				cmd.conn = nil
+
+				logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
+				continue
+			}
+
 			if networkError(err) {
 				isTimeout := errors.Is(err, ErrTimeout)
 				isClientTimeout = isTimeout
-				if !isTimeout {
-					if deviceOverloadError(err) {
-						cmd.node.incrErrorCount()
-					}
-				}
 
 				if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 					// Do not close connection immediately, but give it a chance to recover
@@ -4069,8 +4080,13 @@ func networkError(err Error) bool {
 	return err.Matches(types.NETWORK_ERROR, types.TIMEOUT)
 }
 
-func deviceOverloadError(err Error) bool {
-	return err.Matches(types.DEVICE_OVERLOAD)
+// overloadedServerError reports the transient server responses that are
+// retried and feed the circuit breaker, matching the Java client: the node is
+// momentarily overloaded (DEVICE_OVERLOAD) or the record is locked by another
+// transaction (KEY_BUSY). Both arrive as fully parsed responses on a healthy
+// connection.
+func overloadedServerError(err Error) bool {
+	return err.Matches(types.DEVICE_OVERLOAD, types.KEY_BUSY)
 }
 
 func applyTransactionMetrics(node *Node, tt commandType, tb time.Time) {

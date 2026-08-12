@@ -179,3 +179,36 @@ var _ = gg.Describe("prepareRetryTimeout replica-sequencing polarity", func() {
 		gm.Expect(prepareRetryTimeout(false, nil)).To(gm.BeFalse())
 	})
 })
+
+// overloadedServerError gates the retry of transient server responses:
+// DEVICE_OVERLOAD (node momentarily overloaded) and KEY_BUSY (record locked by
+// another transaction). Both previously fell through to the fatal return and
+// failed the command on the first response; they now retry and feed the
+// circuit breaker, matching the Java client.
+var _ = gg.Describe("overloadedServerError retry classification", func() {
+
+	gg.It("must classify DEVICE_OVERLOAD and KEY_BUSY as retryable", func() {
+		gm.Expect(overloadedServerError(newError(ast.DEVICE_OVERLOAD))).To(gm.BeTrue())
+		gm.Expect(overloadedServerError(newError(ast.KEY_BUSY))).To(gm.BeTrue())
+	})
+
+	gg.It("must not classify other failures as overloaded", func() {
+		for _, rc := range []ast.ResultCode{
+			ast.TIMEOUT,
+			ast.NETWORK_ERROR,
+			ast.PARAMETER_ERROR,
+			ast.KEY_NOT_FOUND_ERROR,
+			ast.SERVER_NOT_AVAILABLE,
+		} {
+			gm.Expect(overloadedServerError(newError(rc))).To(gm.BeFalse(),
+				"result code %v must not be classified as overloaded", rc)
+		}
+	})
+
+	// The response arrives fully parsed on a healthy connection, so the retry
+	// path pools it rather than closing it; KeepConnection must agree.
+	gg.It("must keep the connection for both, so retries reuse the pool", func() {
+		gm.Expect(KeepConnection(newError(ast.DEVICE_OVERLOAD))).To(gm.BeTrue())
+		gm.Expect(KeepConnection(newError(ast.KEY_BUSY))).To(gm.BeTrue())
+	})
+})
