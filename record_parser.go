@@ -206,12 +206,13 @@ func (rp *recordParser) parseRecord(key *Key, isOperation bool) (*Record, Error)
 		receiveOffset += 4 + 4 + nameSize
 
 		particleBytesSize := opSize - (4 + nameSize)
-		value, _ := bytesToParticle(particleType, rp.cmd.dataBuffer, receiveOffset, particleBytesSize)
-		receiveOffset += particleBytesSize
-
-		if bins == nil {
-			bins = make(BinMap, rp.opCount)
+		value, err := bytesToParticle(particleType, rp.cmd.dataBuffer, receiveOffset, particleBytesSize)
+		if err != nil {
+			// A malformed particle must fail the read; swallowing it would
+			// silently return a nil bin value.
+			return nil, err
 		}
+		receiveOffset += particleBytesSize
 
 		if isOperation {
 			// for operate list command results
