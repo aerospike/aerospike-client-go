@@ -31,7 +31,6 @@ type batchCommandGet struct {
 	records      []*Record
 	indexRecords []*BatchRead
 	readAttr     int
-	key          Key
 
 	// pointer to the object that's going to be unmarshalled
 	objects      []*reflect.Value

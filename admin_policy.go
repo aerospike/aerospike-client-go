@@ -30,19 +30,3 @@ func NewAdminPolicy() *AdminPolicy {
 		Timeout: _DEFAULT_TIMEOUT,
 	}
 }
-
-func (ap *AdminPolicy) deadline() (deadline time.Time) {
-	if ap != nil && ap.Timeout > 0 {
-		deadline = time.Now().Add(ap.Timeout)
-	}
-
-	return deadline
-}
-
-func (ap *AdminPolicy) timeout() time.Duration {
-	if ap != nil && ap.Timeout > 0 {
-		return ap.Timeout
-	}
-
-	return _DEFAULT_TIMEOUT
-}

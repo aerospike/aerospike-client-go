@@ -113,11 +113,6 @@ const (
 	//   1      0     allow replica
 	//   1      1     allow unavailable
 
-	_STATE_READ_AUTH_HEADER uint8 = 1
-	_STATE_READ_HEADER      uint8 = 2
-	_STATE_READ_DETAIL      uint8 = 3
-	_STATE_COMPLETE         uint8 = 4
-
 	_BATCH_MSG_READ   uint8 = 0x0
 	_BATCH_MSG_REPEAT uint8 = 0x1
 	_BATCH_MSG_INFO   uint8 = 0x2
@@ -2113,149 +2108,6 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 	return nil
 }
 
-func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchRead, batch *batchNode) Error {
-	offsets := batch.offsets
-	max := len(batch.offsets)
-
-	// Estimate buffer size
-	cmd.begin()
-	fieldCount := 1
-	predSize := 0
-	if policy.FilterExpression != nil {
-		var err Error
-		predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
-		if err != nil {
-			return err
-		}
-		if predSize > 0 {
-			fieldCount++
-		}
-	}
-
-	cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 5
-
-	var prev *BatchRead
-	for i := 0; i < max; i++ {
-		record := records[offsets[i]]
-		key := record.Key
-		binNames := record.BinNames
-		ops := record.Ops
-
-		cmd.dataOffset += len(key.digest) + 4
-
-		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.Key.namespace == key.namespace &&
-			(prev.Key.setName == key.setName) &&
-			&prev.BinNames == &binNames && prev.ReadAllBins == record.ReadAllBins &&
-			&prev.Ops == &ops {
-			// Can set repeat previous namespace/bin names to save space.
-			cmd.dataOffset++
-		} else {
-			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE) + 6
-			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
-
-			if len(binNames) != 0 {
-				for _, binName := range binNames {
-					cmd.estimateOperationSizeForBinName(binName)
-				}
-			} else if len(ops) != 0 {
-				for _, op := range ops {
-					cmd.estimateOperationSizeForOperation(op, true)
-				}
-			}
-
-			prev = record
-		}
-	}
-
-	if err := cmd.sizeBuffer(policy.compress()); err != nil {
-		return err
-	}
-
-	readAttr := _INFO1_READ
-	if policy.ReadModeAP == ReadModeAPAll {
-		readAttr |= _INFO1_READ_MODE_AP_ALL
-	}
-
-	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 0, fieldCount, 0)
-
-	if policy.FilterExpression != nil {
-		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	}
-
-	// Write real field size.
-	fieldSizeOffset := cmd.dataOffset
-	cmd.writeFieldHeader(0, BATCH_INDEX_WITH_SET)
-
-	cmd.WriteUint32(uint32(max))
-
-	if policy.AllowInline {
-		cmd.WriteByte(1)
-	} else {
-		cmd.WriteByte(0)
-	}
-
-	prev = nil
-	for i := 0; i < max; i++ {
-		index := offsets[i]
-		cmd.WriteUint32(uint32(index))
-
-		record := records[index]
-		key := record.Key
-		binNames := record.BinNames
-		ops := record.Ops
-		if _, err := cmd.Write(key.digest[:]); err != nil {
-			return newCommonError(err)
-		}
-
-		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.Key.namespace == key.namespace &&
-			(prev.Key.setName == key.setName) &&
-			&prev.BinNames == &binNames && prev.ReadAllBins == record.ReadAllBins &&
-			&prev.Ops == &ops {
-			// Can set repeat previous namespace/bin names to save space.
-			cmd.WriteByte(1) // repeat
-		} else {
-			// Write full header, namespace and bin names.
-			cmd.WriteByte(0) // do not repeat
-			if len(binNames) > 0 {
-				cmd.WriteByte(byte(readAttr))
-				cmd.writeBatchFields(key, 0, len(binNames))
-				for _, binName := range binNames {
-					if err := cmd.writeOperationForBinName(binName, _READ); err != nil {
-						return err
-					}
-				}
-			} else if len(ops) > 0 {
-				offset := cmd.dataOffset
-				cmd.dataOffset++
-				cmd.writeBatchFields(key, 0, len(ops))
-				cmd.dataBuffer[offset], _ = cmd.writeBatchReadOperations(ops, readAttr)
-			} else {
-				attr := byte(readAttr)
-				if record.ReadAllBins {
-					attr |= byte(_INFO1_GET_ALL)
-				} else {
-					attr |= byte(_INFO1_NOBINDATA)
-				}
-				cmd.WriteByte(attr)
-				cmd.writeBatchFields(key, 0, 0)
-			}
-
-			prev = record
-		}
-	}
-
-	cmd.WriteUint32At(uint32(cmd.dataOffset)-uint32(_MSG_TOTAL_HEADER_SIZE)-4, fieldSizeOffset)
-	cmd.end()
-	cmd.markCompressed(policy)
-
-	return nil
-}
-
 func (cmd *baseCommand) writeBatchFieldsTxn(
 	key *Key,
 	txn *Txn,
@@ -2909,23 +2761,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	return nil
 }
 
-func (cmd *baseCommand) estimateKeyAttrSize(policy Policy, key *Key, attr *batchAttr, filterExp *Expression) (int, Error) {
-	fieldCount, err := cmd.estimateKeySize(policy.GetBasePolicy(), key, attr.hasWrite)
-	if err != nil {
-		return -1, err
-	}
-
-	if filterExp != nil {
-		predSize, err := cmd.estimateExpressionSize(filterExp)
-		if err != nil {
-			return -1, err
-		}
-		cmd.dataOffset += predSize
-		fieldCount++
-	}
-	return fieldCount, nil
-}
-
 func (cmd *baseCommand) estimateKeySize(policy *BasePolicy, key *Key, hasWrite bool) (int, Error) {
 	fieldCount := cmd.estimateRawKeySize(key)
 
@@ -3250,44 +3085,6 @@ func (cmd *baseCommand) writeHeaderReadHeader(policy *BasePolicy, readAttr, fiel
 	cmd.WriteInt16(int16(fieldCount))
 	cmd.WriteInt16(int16(operationCount))
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
-}
-
-// Header write for batch single commands.
-func (cmd *baseCommand) writeKeyAttr(
-	policy Policy,
-	key *Key,
-	attr *batchAttr,
-	filterExp *Expression,
-	fieldCount int,
-	operationCount int,
-) Error {
-	cmd.dataOffset = 8
-	// Write all header data except total size which must be written last.
-	cmd.WriteByte(_MSG_REMAINING_HEADER_SIZE) // Message header length.
-	cmd.WriteByte(byte(attr.readAttr))
-	cmd.WriteByte(byte(attr.writeAttr))
-	cmd.WriteByte(byte(attr.infoAttr))
-	cmd.WriteByte(byte(attr.txnAttr))
-	cmd.WriteByte(0) // clear the result code
-	cmd.WriteUint32(attr.generation)
-	cmd.WriteUint32(attr.expiration)
-	cmd.WriteInt32(0)
-	cmd.WriteInt16(int16(fieldCount))
-	cmd.WriteInt16(int16(operationCount))
-	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
-
-	cmd.writeKeyWithPolicy(policy.GetBasePolicy(), key, attr.hasWrite)
-
-	if filterExp != nil {
-		expSize, err := filterExp.size()
-		if err != nil {
-			return err
-		}
-		if err := cmd.writeFilterExpression(filterExp, expSize); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (cmd *baseCommand) writeKeyWithPolicy(policy *BasePolicy, key *Key, sendDeadline bool) Error {
@@ -4059,26 +3856,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	return errChain
 }
 
-func (cmd *baseCommand) prepareBuffer(ifc command, deadline time.Time) Error {
-	// Set command buffer.
-	if err := ifc.writeBuffer(ifc); err != nil {
-		return err
-	}
-
-	// Reset timeout in send buffer (destined for server) and socket.
-	binary.BigEndian.PutUint32(cmd.dataBuffer[22:], 0)
-	if !deadline.IsZero() {
-		serverTimeout := time.Until(deadline)
-		if serverTimeout < time.Millisecond {
-			serverTimeout = time.Millisecond
-		}
-		binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond))
-	}
-
-	// now that the deadline has been set in the buffer, compress the contents
-	return cmd.compress()
-}
-
 func (cmd *baseCommand) canPutConnBack() bool {
 	return true
 }
@@ -4180,26 +3957,6 @@ func applyMetrics(tt commandType, metrics *nodeStats, s time.Time) {
 	case ttBatchWrite:
 		metrics.BatchWriteMetrics.Add(d)
 	}
-}
-
-// TODO: This is not used anywhere. Remove?
-func (cmd *baseCommand) parseVersion(fieldCount int) *uint64 {
-	var version *uint64
-
-	for i := 0; i < fieldCount; i++ {
-		length := Buffer.BytesToInt32(cmd.dataBuffer, cmd.dataOffset)
-		cmd.dataOffset += 4
-
-		typ := cmd.dataBuffer[cmd.dataOffset]
-		cmd.dataOffset++
-		size := length - 1
-
-		if FieldType(typ) == RECORD_VERSION && size == 7 {
-			version = Buffer.VersionBytesToUint64(cmd.dataBuffer, cmd.dataOffset)
-		}
-		cmd.dataOffset += int(size)
-	}
-	return version
 }
 
 // applyDetailedMetricsParsing updates the detailed metrics for parsing time.

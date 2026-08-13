@@ -132,12 +132,6 @@ func newErrorAndWrap(e error, code types.ResultCode, messages ...string) Error {
 	return ne
 }
 
-func newTimeoutError(e error, messages ...string) Error {
-	ne := newError(types.TIMEOUT, messages...)
-	ne.wrap(e)
-	return ne
-}
-
 func newCommonError(e error, messages ...string) Error {
 	ne := newError(types.COMMON_ERROR, messages...)
 	ne.wrap(e)

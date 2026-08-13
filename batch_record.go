@@ -85,16 +85,6 @@ func newSimpleBatchRecord(key *Key, hasWrite bool) *BatchRecord {
 	}
 }
 
-func newBatchRecord(key *Key, record *Record, resultCode types.ResultCode, inDoubt, hasWrite bool) *BatchRecord {
-	return &BatchRecord{
-		Key:        key,
-		Record:     record,
-		ResultCode: resultCode,
-		InDoubt:    inDoubt,
-		hasWrite:   hasWrite,
-	}
-}
-
 // BatchRec returns the embedded batch record in the interface.
 func (br *BatchRecord) BatchRec() *BatchRecord {
 	return br

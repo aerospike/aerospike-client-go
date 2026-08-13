@@ -306,24 +306,6 @@ func BenchmarkCloneAndResetDetailedResultCodeCounts(b *testing.B) {
 	}
 }
 
-type fakeCmdSingle struct {
-	fakeCommand
-}
-
-func (fc *fakeCmdSingle) getNamespaces() iter.Seq2[string, uint64] {
-	return nil
-}
-
-func (fc *fakeCmdSingle) getNamespace() *string {
-	return &fc.namespace
-}
-
-func newFakeCmdSingle() *fakeCmdSingle {
-	return &fakeCmdSingle{
-		fakeCommand: *newStub(),
-	}
-}
-
 // BenchmarkUpdateOrInsertHighConcurrency benchmarks updateOrInsert with high concurrency across many namespaces
 func BenchmarkUpdateOrInsertHighConcurrency(b *testing.B) {
 	const (

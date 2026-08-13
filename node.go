@@ -653,24 +653,6 @@ func (nd *Node) GetAliases() []*Host {
 	return nd.aliases.Get()
 }
 
-// Sets node aliases
-func (nd *Node) setAliases(aliases []*Host) {
-	nd.aliases.Set(aliases)
-}
-
-// AddAlias adds an alias for the node
-func (nd *Node) addAlias(aliasToAdd *Host) {
-	// Aliases are only referenced in the cluster tend goroutine,
-	// so synchronization is not necessary.
-	aliases := nd.GetAliases()
-	if aliases == nil {
-		aliases = []*Host{}
-	}
-
-	aliases = append(aliases, aliasToAdd)
-	nd.setAliases(aliases)
-}
-
 // Close marks node as inactive and closes all of its pooled connections.
 func (nd *Node) Close() {
 	if nd.active.Get() {
@@ -877,17 +859,6 @@ func (nd *Node) RequestStats(policy *InfoPolicy) (map[string]string, Error) {
 func (nd *Node) resetSessionInfo() {
 	si := &sessionInfo{}
 	nd.sessionInfo.Set(si)
-}
-
-// sessionToken returns the session token for the node.
-// It will return nil if the session has expired.
-func (nd *Node) sessionToken() []byte {
-	si := nd.sessionInfo.Get()
-	if !si.isValid() {
-		return nil
-	}
-
-	return si.token
 }
 
 // Rack returns the rack number for the namespace.

@@ -535,11 +535,6 @@ func (clstr *Cluster) waitTillStabilized() Error {
 	}
 }
 
-// TODO: Not used anywhere. Consider removing
-func (clstr *Cluster) findAlias(alias *Host) *Node {
-	return clstr.aliases.Get(*alias)
-}
-
 func (clstr *Cluster) setPartitions(partMap partitionMap) {
 	if err := partMap.validate(); err != nil {
 		logger.Logger.Error("Partition map error: %s.", err.Error())
@@ -647,13 +642,6 @@ func (clstr *Cluster) findNodeName(list []*Node, name string) bool {
 		}
 	}
 	return false
-}
-
-// TODO: Not used anywhere. Consider removing
-func (clstr *Cluster) addAlias(host *Host, node *Node) {
-	if host != nil && node != nil {
-		clstr.aliases.Set(*host, node)
-	}
 }
 
 func (clstr *Cluster) findNodesToRemove(peers *peers) {

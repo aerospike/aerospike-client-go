@@ -202,14 +202,6 @@ func (txn *Txn) prepareBatchReads(records []*BatchRead) Error {
 	return txn.setNamespaceForBatchReads(records)
 }
 
-// Verify current Transaction state and namespaces for a future batch read command.
-func (txn *Txn) prepareReadForBatchRecordsIfc(records []BatchRecordIfc) Error {
-	if err := txn.VerifyCommand(); err != nil {
-		return err
-	}
-	return txn.setNamespaceForBatchRecordsIfc(records)
-}
-
 // Verify that the Transaction state allows future commands.
 func (txn *Txn) VerifyCommand() Error {
 	if txn.state != TxnStateOpen {
@@ -252,17 +244,6 @@ func (txn *Txn) setNamespaceForKeys(keys []*Key) Error {
 // Set Transaction namespaces for each key only if doesn't already exist.
 // If namespace already exists, verify new namespace is the same.
 func (txn *Txn) setNamespaceForBatchReads(records []*BatchRead) Error {
-	for _, br := range records {
-		if err := txn.SetNamespace(br.key().namespace); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Set Transaction namespaces for each key only if doesn't already exist.
-// If namespace already exists, verify new namespace is the same.
-func (txn *Txn) setNamespaceForBatchRecordsIfc(records []BatchRecordIfc) Error {
 	for _, br := range records {
 		if err := txn.SetNamespace(br.key().namespace); err != nil {
 			return err

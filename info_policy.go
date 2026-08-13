@@ -32,20 +32,3 @@ func NewInfoPolicy() *InfoPolicy {
 		Timeout: _DEFAULT_TIMEOUT,
 	}
 }
-
-func (p *InfoPolicy) deadline() time.Time {
-	var deadline time.Time
-	if p != nil && p.Timeout > 0 {
-		deadline = time.Now().Add(p.Timeout)
-	}
-
-	return deadline
-}
-
-func (p *InfoPolicy) timeout() time.Duration {
-	if p != nil && p.Timeout > 0 {
-		return p.Timeout
-	}
-
-	return _DEFAULT_TIMEOUT
-}

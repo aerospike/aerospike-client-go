@@ -104,14 +104,6 @@ func (cmd *batchSingleTxnRollCommand) parseResult(ifc command, conn *Connection)
 	return nil
 }
 
-func (cmd *batchSingleTxnRollCommand) setInDoubt() bool {
-	if cmd.record.ResultCode == types.NO_RESPONSE {
-		cmd.record.InDoubt = true
-		return true
-	}
-	return false
-}
-
 func (cmd *batchSingleTxnRollCommand) isRead() bool {
 	return false
 }

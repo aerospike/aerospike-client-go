@@ -24,10 +24,6 @@ type BatchDelete struct {
 	Policy *BatchDeletePolicy
 }
 
-func (bd *BatchDelete) hasWrite() bool {
-	return bd.BatchRecord.hasWrite
-}
-
 func (bd *BatchDelete) key() *Key {
 	return bd.Key
 }
@@ -38,15 +34,6 @@ func NewBatchDelete(policy *BatchDeletePolicy, key *Key) *BatchDelete {
 		BatchRecord: *newSimpleBatchRecord(key, true),
 		Policy:      policy,
 	}
-}
-
-// newBatchDelete creates a batch delete operation.
-func newBatchDelete(policy *BatchDeletePolicy, key *Key) (*BatchDelete, *BatchRecord) {
-	bd := &BatchDelete{
-		BatchRecord: *newSimpleBatchRecord(key, true),
-		Policy:      policy,
-	}
-	return bd, &bd.BatchRecord
 }
 
 // Return batch command type.

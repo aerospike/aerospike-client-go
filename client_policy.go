@@ -251,13 +251,6 @@ func (cp *ClientPolicy) RequiresAuthentication() bool {
 	return (cp.User != "") || (cp.Password != "") || (cp.AuthMode == AuthModePKI)
 }
 
-func (cp *ClientPolicy) servicesString() string {
-	if cp.UseServicesAlternate {
-		return "services-alternate"
-	}
-	return "services"
-}
-
 func (cp *ClientPolicy) serviceString() string {
 	if cp.TlsConfig == nil {
 		if cp.UseServicesAlternate {
