@@ -2365,9 +2365,9 @@ func (clnt *Client) Stats() (map[string]any, Error) {
 	resStats := clnt.cluster.statsCopy()
 
 	mp := clnt.cluster.MetricsPolicy()
-	clusterStats := *newNodeStats(mp)
+	clusterStats := newNodeStats(mp)
 	for _, stats := range resStats {
-		clusterStats.aggregate(&stats)
+		clusterStats.aggregate(stats)
 	}
 
 	clusterStats.StatLabels = clnt.cluster.getNodeLabels()

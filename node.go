@@ -54,7 +54,7 @@ type Node struct {
 	host        *Host
 	hostName    string
 	aliases     iatomic.TypedVal[[]*Host]
-	stats       nodeStats
+	stats       *nodeStats
 	sessionInfo iatomic.TypedVal[*sessionInfo]
 
 	racks iatomic.TypedVal[map[string]int]
@@ -97,7 +97,7 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 		features:      nv.features,
 		serverVersion: nv.serverVersion,
 
-		stats: *newNodeStats(cluster.MetricsPolicy()),
+		stats: newNodeStats(cluster.MetricsPolicy()),
 
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).

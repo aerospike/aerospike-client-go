@@ -44,67 +44,67 @@ type nodeStats struct {
 	// Labels sourced once at applications start and passed down to metrics when metrics are enabled
 	StatLabels *Labels `json:"labels,omitempty"`
 	// Attempts to open a connection (failed + successful)
-	ConnectionsAttempts iatomic.Int `json:"connections-attempts"`
+	ConnectionsAttempts *iatomic.Int `json:"connections-attempts"`
 	// Successful attempts to open a connection
-	ConnectionsSuccessful iatomic.Int `json:"connections-successful"`
+	ConnectionsSuccessful *iatomic.Int `json:"connections-successful"`
 	// Failed attempts to use a connection (includes all errors)
-	ConnectionsFailed iatomic.Int `json:"connections-failed"`
+	ConnectionsFailed *iatomic.Int `json:"connections-failed"`
 	// Connection Timeout errors
-	ConnectionsTimeoutErrors iatomic.Int `json:"connections-error-timeout"`
+	ConnectionsTimeoutErrors *iatomic.Int `json:"connections-error-timeout"`
 	// Connection errors other than timeouts
-	ConnectionsOtherErrors iatomic.Int `json:"connections-error-other"`
+	ConnectionsOtherErrors *iatomic.Int `json:"connections-error-other"`
 	// Number of times circuit breaker was hit
-	CircuitBreakerHits iatomic.Int `json:"circuit-breaker-hits"`
+	CircuitBreakerHits *iatomic.Int `json:"circuit-breaker-hits"`
 	// The command polled the connection pool, but no connections were in the pool
-	ConnectionsPoolEmpty iatomic.Int `json:"connections-pool-empty"`
+	ConnectionsPoolEmpty *iatomic.Int `json:"connections-pool-empty"`
 	// The command offered the connection to the pool, but the pool was full and the connection was closed
-	ConnectionsPoolOverflow iatomic.Int `json:"connections-pool-overflow"`
+	ConnectionsPoolOverflow *iatomic.Int `json:"connections-pool-overflow"`
 	// The connection was idle and was dropped
-	ConnectionsIdleDropped iatomic.Int `json:"connections-idle-dropped"`
+	ConnectionsIdleDropped *iatomic.Int `json:"connections-idle-dropped"`
 	// Number of open connections at a given time
-	ConnectionsOpen iatomic.Int `json:"open-connections"`
+	ConnectionsOpen *iatomic.Int `json:"open-connections"`
 	// Number of connections that were closed, for any reason (idled out, errored out, etc)
-	ConnectionsClosed iatomic.Int `json:"closed-connections"`
+	ConnectionsClosed *iatomic.Int `json:"closed-connections"`
 	// Total number of attempted tends (failed + success)
-	TendsTotal iatomic.Int `json:"tends-total"`
+	TendsTotal *iatomic.Int `json:"tends-total"`
 	// Total number of successful tends
-	TendsSuccessful iatomic.Int `json:"tends-successful"`
+	TendsSuccessful *iatomic.Int `json:"tends-successful"`
 	// Total number of failed tends
-	TendsFailed iatomic.Int `json:"tends-failed"`
+	TendsFailed *iatomic.Int `json:"tends-failed"`
 	// Total number of partition map updates
-	PartitionMapUpdates iatomic.Int `json:"partition-map-updates"`
+	PartitionMapUpdates *iatomic.Int `json:"partition-map-updates"`
 	// Total number of times nodes were added to the client (not the same as actual nodes added. Network disruptions between client and server may cause a node being dropped and re-added client-side)
-	NodeAdded iatomic.Int `json:"node-added-count"`
+	NodeAdded *iatomic.Int `json:"node-added-count"`
 	// Total number of times nodes were removed from the client (not the same as actual nodes removed. Network disruptions between client and server may cause a node being dropped client-side)
-	NodeRemoved iatomic.Int `json:"node-removed-count"`
+	NodeRemoved *iatomic.Int `json:"node-removed-count"`
 	// Total number of command retries
-	TransactionRetryCount iatomic.Int `json:"transaction-retry-count"`
+	TransactionRetryCount *iatomic.Int `json:"transaction-retry-count"`
 	// Total number of command errors
-	TransactionErrorCount iatomic.Int `json:"transaction-error-count"`
+	TransactionErrorCount *iatomic.Int `json:"transaction-error-count"`
 	// Total number of connections recovered from the pool
-	ConnectionsRecovered iatomic.Int `json:"connections-recovered"`
+	ConnectionsRecovered *iatomic.Int `json:"connections-recovered"`
 	// Metrics for Get commands
-	GetMetrics hist.SyncHistogram[uint64] `json:"get-metrics"`
+	GetMetrics *hist.SyncHistogram[uint64] `json:"get-metrics"`
 	// Metrics for GetHeader commands
-	GetHeaderMetrics hist.SyncHistogram[uint64] `json:"get-header-metrics"`
+	GetHeaderMetrics *hist.SyncHistogram[uint64] `json:"get-header-metrics"`
 	// Metrics for Exists commands
-	ExistsMetrics hist.SyncHistogram[uint64] `json:"exists-metrics"`
+	ExistsMetrics *hist.SyncHistogram[uint64] `json:"exists-metrics"`
 	// Metrics for Put commands
-	PutMetrics hist.SyncHistogram[uint64] `json:"put-metrics"`
+	PutMetrics *hist.SyncHistogram[uint64] `json:"put-metrics"`
 	// Metrics for Delete commands
-	DeleteMetrics hist.SyncHistogram[uint64] `json:"delete-metrics"`
+	DeleteMetrics *hist.SyncHistogram[uint64] `json:"delete-metrics"`
 	// Metrics for Operate commands
-	OperateMetrics hist.SyncHistogram[uint64] `json:"operate-metrics"`
+	OperateMetrics *hist.SyncHistogram[uint64] `json:"operate-metrics"`
 	// Metrics for Query commands
-	QueryMetrics hist.SyncHistogram[uint64] `json:"query-metrics"`
+	QueryMetrics *hist.SyncHistogram[uint64] `json:"query-metrics"`
 	// Metrics for Scan commands
-	ScanMetrics hist.SyncHistogram[uint64] `json:"scan-metrics"`
+	ScanMetrics *hist.SyncHistogram[uint64] `json:"scan-metrics"`
 	// Metrics for UDFMetrics commands
-	UDFMetrics hist.SyncHistogram[uint64] `json:"udf-metrics"`
+	UDFMetrics *hist.SyncHistogram[uint64] `json:"udf-metrics"`
 	// Metrics for Read only Batch commands
-	BatchReadMetrics hist.SyncHistogram[uint64] `json:"batch-read-metrics"`
+	BatchReadMetrics *hist.SyncHistogram[uint64] `json:"batch-read-metrics"`
 	// Metrics for Batch commands containing writes
-	BatchWriteMetrics hist.SyncHistogram[uint64] `json:"batch-write-metrics"`
+	BatchWriteMetrics *hist.SyncHistogram[uint64] `json:"batch-write-metrics"`
 	// Error counts for each command - using preallocated arrays for commandType (lock-free)
 	DetailedResultCodeCounts sync.Map // map[string]*detailedResultCodeArray
 	// Detailed metrics for per namespace and per command type - using preallocated arrays for commandType (lock-free)
@@ -113,26 +113,26 @@ type nodeStats struct {
 
 // commandResultCodeMetric keeps track of the ResultCode counts for a given command
 type commandResultCodeMetric struct {
-	ResultCodeCounts amap.Map[types.ResultCode, uint64] `json:"resultcode-counts"`
+	ResultCodeCounts *amap.Map[types.ResultCode, uint64] `json:"resultcode-counts"`
 }
 
 // commandMetric keeps track of detailed metrics for a given command
 type commandMetric struct {
-	ConnectionAq  hist.SyncHistogram[uint64] `json:"connection-aq"`
-	Latency       hist.SyncHistogram[uint64] `json:"latency"`
-	Parsing       hist.SyncHistogram[uint64] `json:"parsing"`
-	BytesSent     hist.SyncHistogram[uint64] `json:"bytes-sent"`
-	BytesReceived hist.SyncHistogram[uint64] `json:"bytes-received"`
+	ConnectionAq  *hist.SyncHistogram[uint64] `json:"connection-aq"`
+	Latency       *hist.SyncHistogram[uint64] `json:"latency"`
+	Parsing       *hist.SyncHistogram[uint64] `json:"parsing"`
+	BytesSent     *hist.SyncHistogram[uint64] `json:"bytes-sent"`
+	BytesReceived *hist.SyncHistogram[uint64] `json:"bytes-received"`
 }
 
 // newCommandMetric creates a new CommandMetric object
 func (n *nodeStats) newCommandMetric() *commandMetric {
 	return &commandMetric{
-		ConnectionAq:  *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		Latency:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		Parsing:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		BytesSent:     *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		BytesReceived: *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		ConnectionAq:  hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		Latency:       hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		Parsing:       hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		BytesSent:     hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		BytesReceived: hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
 	}
 }
 
@@ -143,33 +143,53 @@ func newNodeStats(policy *MetricsPolicy) *nodeStats {
 	}
 
 	return &nodeStats{
-		metricPolicy:      policy,
-		StatLabels:        NewLabels(),
-		GetMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		GetHeaderMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		ExistsMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		PutMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		DeleteMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		OperateMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		QueryMetrics:      *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		ScanMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		UDFMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		BatchReadMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		BatchWriteMetrics: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		metricPolicy:             policy,
+		StatLabels:               NewLabels(),
+		ConnectionsAttempts:      iatomic.NewInt(0),
+		ConnectionsSuccessful:    iatomic.NewInt(0),
+		ConnectionsFailed:        iatomic.NewInt(0),
+		ConnectionsTimeoutErrors: iatomic.NewInt(0),
+		ConnectionsOtherErrors:   iatomic.NewInt(0),
+		CircuitBreakerHits:       iatomic.NewInt(0),
+		ConnectionsPoolEmpty:     iatomic.NewInt(0),
+		ConnectionsPoolOverflow:  iatomic.NewInt(0),
+		ConnectionsIdleDropped:   iatomic.NewInt(0),
+		ConnectionsOpen:          iatomic.NewInt(0),
+		ConnectionsClosed:        iatomic.NewInt(0),
+		TendsTotal:               iatomic.NewInt(0),
+		TendsSuccessful:          iatomic.NewInt(0),
+		TendsFailed:              iatomic.NewInt(0),
+		PartitionMapUpdates:      iatomic.NewInt(0),
+		NodeAdded:                iatomic.NewInt(0),
+		NodeRemoved:              iatomic.NewInt(0),
+		TransactionRetryCount:    iatomic.NewInt(0),
+		TransactionErrorCount:    iatomic.NewInt(0),
+		ConnectionsRecovered:     iatomic.NewInt(0),
+		GetMetrics:               hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		GetHeaderMetrics:         hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ExistsMetrics:            hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		PutMetrics:               hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		DeleteMetrics:            hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		OperateMetrics:           hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		QueryMetrics:             hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ScanMetrics:              hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		UDFMetrics:               hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BatchReadMetrics:         hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BatchWriteMetrics:        hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
 	}
 }
 
 // newCommandResultCodeMetric creates a new CommandErrorMetric object
 func (n *nodeStats) newCommandResultCodeMetric() *commandResultCodeMetric {
 	return &commandResultCodeMetric{
-		ResultCodeCounts: *amap.NewWithValue[types.ResultCode, uint64](0, 0),
+		ResultCodeCounts: amap.NewWithValue[types.ResultCode, uint64](0, 0),
 	}
 }
 
 // newCommandResultCodeMetricWithValue creates a new CommandErrorMetric object with the given ResultCode
 func (n *nodeStats) newCommandResultCodeMetricWithValue(resultCode types.ResultCode) *commandResultCodeMetric {
 	return &commandResultCodeMetric{
-		ResultCodeCounts: *amap.NewWithValue[types.ResultCode, uint64](resultCode, 0),
+		ResultCodeCounts: amap.NewWithValue[types.ResultCode, uint64](resultCode, 0),
 	}
 }
 
@@ -222,39 +242,39 @@ func (ns *nodeStats) getAndReset() *nodeStats {
 	res := &nodeStats{
 		metricPolicy:             ns.metricPolicy,
 		StatLabels:               NewLabels(),
-		ConnectionsAttempts:      ns.ConnectionsAttempts.CloneAndSet(0),
-		ConnectionsSuccessful:    ns.ConnectionsSuccessful.CloneAndSet(0),
-		ConnectionsFailed:        ns.ConnectionsFailed.CloneAndSet(0),
-		ConnectionsTimeoutErrors: ns.ConnectionsTimeoutErrors.CloneAndSet(0),
-		ConnectionsOtherErrors:   ns.ConnectionsOtherErrors.CloneAndSet(0),
-		CircuitBreakerHits:       ns.CircuitBreakerHits.CloneAndSet(0),
-		ConnectionsPoolEmpty:     ns.ConnectionsPoolEmpty.CloneAndSet(0),
-		ConnectionsPoolOverflow:  ns.ConnectionsPoolOverflow.CloneAndSet(0),
-		ConnectionsIdleDropped:   ns.ConnectionsIdleDropped.CloneAndSet(0),
-		ConnectionsOpen:          ns.ConnectionsOpen.CloneAndSet(0),
-		ConnectionsClosed:        ns.ConnectionsClosed.CloneAndSet(0),
-		ConnectionsRecovered:     ns.ConnectionsRecovered.CloneAndSet(0),
-		TendsTotal:               ns.TendsTotal.CloneAndSet(0),
-		TendsSuccessful:          ns.TendsSuccessful.CloneAndSet(0),
-		TendsFailed:              ns.TendsFailed.CloneAndSet(0),
-		PartitionMapUpdates:      ns.PartitionMapUpdates.CloneAndSet(0),
-		NodeAdded:                ns.NodeAdded.CloneAndSet(0),
-		NodeRemoved:              ns.NodeRemoved.CloneAndSet(0),
+		ConnectionsAttempts:      iatomic.NewInt(ns.ConnectionsAttempts.GetAndSet(0)),
+		ConnectionsSuccessful:    iatomic.NewInt(ns.ConnectionsSuccessful.GetAndSet(0)),
+		ConnectionsFailed:        iatomic.NewInt(ns.ConnectionsFailed.GetAndSet(0)),
+		ConnectionsTimeoutErrors: iatomic.NewInt(ns.ConnectionsTimeoutErrors.GetAndSet(0)),
+		ConnectionsOtherErrors:   iatomic.NewInt(ns.ConnectionsOtherErrors.GetAndSet(0)),
+		CircuitBreakerHits:       iatomic.NewInt(ns.CircuitBreakerHits.GetAndSet(0)),
+		ConnectionsPoolEmpty:     iatomic.NewInt(ns.ConnectionsPoolEmpty.GetAndSet(0)),
+		ConnectionsPoolOverflow:  iatomic.NewInt(ns.ConnectionsPoolOverflow.GetAndSet(0)),
+		ConnectionsIdleDropped:   iatomic.NewInt(ns.ConnectionsIdleDropped.GetAndSet(0)),
+		ConnectionsOpen:          iatomic.NewInt(ns.ConnectionsOpen.GetAndSet(0)),
+		ConnectionsClosed:        iatomic.NewInt(ns.ConnectionsClosed.GetAndSet(0)),
+		ConnectionsRecovered:     iatomic.NewInt(ns.ConnectionsRecovered.GetAndSet(0)),
+		TendsTotal:               iatomic.NewInt(ns.TendsTotal.GetAndSet(0)),
+		TendsSuccessful:          iatomic.NewInt(ns.TendsSuccessful.GetAndSet(0)),
+		TendsFailed:              iatomic.NewInt(ns.TendsFailed.GetAndSet(0)),
+		PartitionMapUpdates:      iatomic.NewInt(ns.PartitionMapUpdates.GetAndSet(0)),
+		NodeAdded:                iatomic.NewInt(ns.NodeAdded.GetAndSet(0)),
+		NodeRemoved:              iatomic.NewInt(ns.NodeRemoved.GetAndSet(0)),
 
-		TransactionRetryCount: ns.TransactionRetryCount.CloneAndSet(0),
-		TransactionErrorCount: ns.TransactionErrorCount.CloneAndSet(0),
+		TransactionRetryCount: iatomic.NewInt(ns.TransactionRetryCount.GetAndSet(0)),
+		TransactionErrorCount: iatomic.NewInt(ns.TransactionErrorCount.GetAndSet(0)),
 
-		GetMetrics:        *ns.GetMetrics.CloneAndReset(),
-		GetHeaderMetrics:  *ns.GetHeaderMetrics.CloneAndReset(),
-		ExistsMetrics:     *ns.ExistsMetrics.CloneAndReset(),
-		PutMetrics:        *ns.PutMetrics.CloneAndReset(),
-		DeleteMetrics:     *ns.DeleteMetrics.CloneAndReset(),
-		OperateMetrics:    *ns.OperateMetrics.CloneAndReset(),
-		QueryMetrics:      *ns.QueryMetrics.CloneAndReset(),
-		ScanMetrics:       *ns.ScanMetrics.CloneAndReset(),
-		UDFMetrics:        *ns.UDFMetrics.CloneAndReset(),
-		BatchReadMetrics:  *ns.BatchReadMetrics.CloneAndReset(),
-		BatchWriteMetrics: *ns.BatchWriteMetrics.CloneAndReset(),
+		GetMetrics:        ns.GetMetrics.CloneAndReset(),
+		GetHeaderMetrics:  ns.GetHeaderMetrics.CloneAndReset(),
+		ExistsMetrics:     ns.ExistsMetrics.CloneAndReset(),
+		PutMetrics:        ns.PutMetrics.CloneAndReset(),
+		DeleteMetrics:     ns.DeleteMetrics.CloneAndReset(),
+		OperateMetrics:    ns.OperateMetrics.CloneAndReset(),
+		QueryMetrics:      ns.QueryMetrics.CloneAndReset(),
+		ScanMetrics:       ns.ScanMetrics.CloneAndReset(),
+		UDFMetrics:        ns.UDFMetrics.CloneAndReset(),
+		BatchReadMetrics:  ns.BatchReadMetrics.CloneAndReset(),
+		BatchWriteMetrics: ns.BatchWriteMetrics.CloneAndReset(),
 	}
 
 	ns.cloneAndResetDetailedResultCodeCountsInto(&res.DetailedResultCodeCounts)
@@ -263,43 +283,43 @@ func (ns *nodeStats) getAndReset() *nodeStats {
 	return res
 }
 
-func (ns *nodeStats) clone() nodeStats {
-	res := nodeStats{
+func (ns *nodeStats) clone() *nodeStats {
+	res := &nodeStats{
 		metricPolicy:             ns.metricPolicy,
 		StatLabels:               NewLabels(),
-		ConnectionsAttempts:      ns.ConnectionsAttempts.Clone(),
-		ConnectionsSuccessful:    ns.ConnectionsSuccessful.Clone(),
-		ConnectionsFailed:        ns.ConnectionsFailed.Clone(),
-		ConnectionsTimeoutErrors: ns.ConnectionsTimeoutErrors.Clone(),
-		ConnectionsOtherErrors:   ns.ConnectionsOtherErrors.Clone(),
-		CircuitBreakerHits:       ns.CircuitBreakerHits.Clone(),
-		ConnectionsPoolEmpty:     ns.ConnectionsPoolEmpty.Clone(),
-		ConnectionsPoolOverflow:  ns.ConnectionsPoolOverflow.Clone(),
-		ConnectionsIdleDropped:   ns.ConnectionsIdleDropped.Clone(),
-		ConnectionsOpen:          ns.ConnectionsOpen.Clone(),
-		ConnectionsClosed:        ns.ConnectionsClosed.Clone(),
-		ConnectionsRecovered:     ns.ConnectionsRecovered.Clone(),
-		TendsTotal:               ns.TendsTotal.Clone(),
-		TendsSuccessful:          ns.TendsSuccessful.Clone(),
-		TendsFailed:              ns.TendsFailed.Clone(),
-		PartitionMapUpdates:      ns.PartitionMapUpdates.Clone(),
-		NodeAdded:                ns.NodeAdded.Clone(),
-		NodeRemoved:              ns.NodeRemoved.Clone(),
+		ConnectionsAttempts:      iatomic.NewInt(ns.ConnectionsAttempts.Get()),
+		ConnectionsSuccessful:    iatomic.NewInt(ns.ConnectionsSuccessful.Get()),
+		ConnectionsFailed:        iatomic.NewInt(ns.ConnectionsFailed.Get()),
+		ConnectionsTimeoutErrors: iatomic.NewInt(ns.ConnectionsTimeoutErrors.Get()),
+		ConnectionsOtherErrors:   iatomic.NewInt(ns.ConnectionsOtherErrors.Get()),
+		CircuitBreakerHits:       iatomic.NewInt(ns.CircuitBreakerHits.Get()),
+		ConnectionsPoolEmpty:     iatomic.NewInt(ns.ConnectionsPoolEmpty.Get()),
+		ConnectionsPoolOverflow:  iatomic.NewInt(ns.ConnectionsPoolOverflow.Get()),
+		ConnectionsIdleDropped:   iatomic.NewInt(ns.ConnectionsIdleDropped.Get()),
+		ConnectionsOpen:          iatomic.NewInt(ns.ConnectionsOpen.Get()),
+		ConnectionsClosed:        iatomic.NewInt(ns.ConnectionsClosed.Get()),
+		ConnectionsRecovered:     iatomic.NewInt(ns.ConnectionsRecovered.Get()),
+		TendsTotal:               iatomic.NewInt(ns.TendsTotal.Get()),
+		TendsSuccessful:          iatomic.NewInt(ns.TendsSuccessful.Get()),
+		TendsFailed:              iatomic.NewInt(ns.TendsFailed.Get()),
+		PartitionMapUpdates:      iatomic.NewInt(ns.PartitionMapUpdates.Get()),
+		NodeAdded:                iatomic.NewInt(ns.NodeAdded.Get()),
+		NodeRemoved:              iatomic.NewInt(ns.NodeRemoved.Get()),
 
-		TransactionRetryCount: ns.TransactionRetryCount.Clone(),
-		TransactionErrorCount: ns.TransactionErrorCount.Clone(),
+		TransactionRetryCount: iatomic.NewInt(ns.TransactionRetryCount.Get()),
+		TransactionErrorCount: iatomic.NewInt(ns.TransactionErrorCount.Get()),
 
-		GetMetrics:        *ns.GetMetrics.Clone(),
-		GetHeaderMetrics:  *ns.GetHeaderMetrics.Clone(),
-		ExistsMetrics:     *ns.ExistsMetrics.Clone(),
-		PutMetrics:        *ns.PutMetrics.Clone(),
-		DeleteMetrics:     *ns.DeleteMetrics.Clone(),
-		OperateMetrics:    *ns.OperateMetrics.Clone(),
-		QueryMetrics:      *ns.QueryMetrics.Clone(),
-		ScanMetrics:       *ns.ScanMetrics.Clone(),
-		UDFMetrics:        *ns.UDFMetrics.Clone(),
-		BatchReadMetrics:  *ns.BatchReadMetrics.Clone(),
-		BatchWriteMetrics: *ns.BatchWriteMetrics.Clone(),
+		GetMetrics:        ns.GetMetrics.Clone(),
+		GetHeaderMetrics:  ns.GetHeaderMetrics.Clone(),
+		ExistsMetrics:     ns.ExistsMetrics.Clone(),
+		PutMetrics:        ns.PutMetrics.Clone(),
+		DeleteMetrics:     ns.DeleteMetrics.Clone(),
+		OperateMetrics:    ns.OperateMetrics.Clone(),
+		QueryMetrics:      ns.QueryMetrics.Clone(),
+		ScanMetrics:       ns.ScanMetrics.Clone(),
+		UDFMetrics:        ns.UDFMetrics.Clone(),
+		BatchReadMetrics:  ns.BatchReadMetrics.Clone(),
+		BatchWriteMetrics: ns.BatchWriteMetrics.Clone(),
 	}
 
 	ns.cloneDetailedResultCodeCountsInto(&res.DetailedResultCodeCounts)
@@ -321,11 +341,11 @@ func (ns *nodeStats) cloneDetailedMetricsInto(target *sync.Map) {
 				continue
 			}
 			tgtMetric := ns.newCommandMetric()
-			tgtMetric.ConnectionAq = *srcMetric.ConnectionAq.Clone()
-			tgtMetric.Latency = *srcMetric.Latency.Clone()
-			tgtMetric.Parsing = *srcMetric.Parsing.Clone()
-			tgtMetric.BytesSent = *srcMetric.BytesSent.Clone()
-			tgtMetric.BytesReceived = *srcMetric.BytesReceived.Clone()
+			tgtMetric.ConnectionAq = srcMetric.ConnectionAq.Clone()
+			tgtMetric.Latency = srcMetric.Latency.Clone()
+			tgtMetric.Parsing = srcMetric.Parsing.Clone()
+			tgtMetric.BytesSent = srcMetric.BytesSent.Clone()
+			tgtMetric.BytesReceived = srcMetric.BytesReceived.Clone()
 			tgtArr[ct].Store(tgtMetric)
 		}
 		target.Store(namespace, tgtArr)
@@ -346,7 +366,7 @@ func (ns *nodeStats) cloneDetailedResultCodeCountsInto(target *sync.Map) {
 				continue
 			}
 			tgtMetric := ns.newCommandResultCodeMetric()
-			tgtMetric.ResultCodeCounts = *srcMetric.ResultCodeCounts.CloneMap()
+			tgtMetric.ResultCodeCounts = srcMetric.ResultCodeCounts.CloneMap()
 			tgtArr[ct].Store(tgtMetric)
 		}
 		target.Store(namespace, tgtArr)
@@ -367,11 +387,11 @@ func (ns *nodeStats) cloneAndResetDetailedMetricsInto(target *sync.Map) {
 				continue
 			}
 			tgtMetric := ns.newCommandMetric()
-			tgtMetric.ConnectionAq = *srcMetric.ConnectionAq.CloneAndReset()
-			tgtMetric.Latency = *srcMetric.Latency.CloneAndReset()
-			tgtMetric.Parsing = *srcMetric.Parsing.CloneAndReset()
-			tgtMetric.BytesSent = *srcMetric.BytesSent.CloneAndReset()
-			tgtMetric.BytesReceived = *srcMetric.BytesReceived.CloneAndReset()
+			tgtMetric.ConnectionAq = srcMetric.ConnectionAq.CloneAndReset()
+			tgtMetric.Latency = srcMetric.Latency.CloneAndReset()
+			tgtMetric.Parsing = srcMetric.Parsing.CloneAndReset()
+			tgtMetric.BytesSent = srcMetric.BytesSent.CloneAndReset()
+			tgtMetric.BytesReceived = srcMetric.BytesReceived.CloneAndReset()
 			tgtArr[ct].Store(tgtMetric)
 		}
 		target.Store(namespace, tgtArr)
@@ -392,7 +412,7 @@ func (ns *nodeStats) cloneAndResetDetailedResultCodeCountsInto(target *sync.Map)
 				continue
 			}
 			tgtMetric := ns.newCommandResultCodeMetric()
-			tgtMetric.ResultCodeCounts = *srcMetric.ResultCodeCounts.CloneAndResetMap()
+			tgtMetric.ResultCodeCounts = srcMetric.ResultCodeCounts.CloneAndResetMap()
 			tgtArr[ct].Store(tgtMetric)
 		}
 		target.Store(namespace, tgtArr)
@@ -442,22 +462,22 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.TransactionRetryCount.AddAndGet(newStats.TransactionRetryCount.Get())
 	ns.TransactionErrorCount.AddAndGet(newStats.TransactionErrorCount.Get())
 
-	ns.GetMetrics.Merge(&newStats.GetMetrics)
-	ns.GetHeaderMetrics.Merge(&newStats.GetHeaderMetrics)
-	ns.ExistsMetrics.Merge(&newStats.ExistsMetrics)
-	ns.PutMetrics.Merge(&newStats.PutMetrics)
-	ns.DeleteMetrics.Merge(&newStats.DeleteMetrics)
-	ns.OperateMetrics.Merge(&newStats.OperateMetrics)
-	ns.QueryMetrics.Merge(&newStats.QueryMetrics)
-	ns.ScanMetrics.Merge(&newStats.ScanMetrics)
-	ns.UDFMetrics.Merge(&newStats.UDFMetrics)
-	ns.BatchReadMetrics.Merge(&newStats.BatchReadMetrics)
-	ns.BatchWriteMetrics.Merge(&newStats.BatchWriteMetrics)
+	ns.GetMetrics.Merge(newStats.GetMetrics)
+	ns.GetHeaderMetrics.Merge(newStats.GetHeaderMetrics)
+	ns.ExistsMetrics.Merge(newStats.ExistsMetrics)
+	ns.PutMetrics.Merge(newStats.PutMetrics)
+	ns.DeleteMetrics.Merge(newStats.DeleteMetrics)
+	ns.OperateMetrics.Merge(newStats.OperateMetrics)
+	ns.QueryMetrics.Merge(newStats.QueryMetrics)
+	ns.ScanMetrics.Merge(newStats.ScanMetrics)
+	ns.UDFMetrics.Merge(newStats.UDFMetrics)
+	ns.BatchReadMetrics.Merge(newStats.BatchReadMetrics)
+	ns.BatchWriteMetrics.Merge(newStats.BatchWriteMetrics)
 	ns.mergeCommandResultCodeMetric(newStats)
 	ns.mergeDetailedMetrics(newStats)
 }
 
-func (ns nodeStats) MarshalJSON() ([]byte, error) {
+func (ns *nodeStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		StatsLabels              []map[string]string                  `json:"labels,omitempty"`
 		ConnectionsAttempts      int                                  `json:"connections-attempts"`
@@ -480,17 +500,17 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		NodeRemoved              int                                  `json:"node-removed-count"`
 		RetryCount               int                                  `json:"transaction-retry-count"`
 		ErrorCount               int                                  `json:"transaction-error-count"`
-		GetMetrics               hist.SyncHistogram[uint64]           `json:"get-metrics"`
-		GetHeaderMetrics         hist.SyncHistogram[uint64]           `json:"get-header-metrics"`
-		ExistsMetrics            hist.SyncHistogram[uint64]           `json:"exists-metrics"`
-		PutMetrics               hist.SyncHistogram[uint64]           `json:"put-metrics"`
-		DeleteMetrics            hist.SyncHistogram[uint64]           `json:"delete-metrics"`
-		OperateMetrics           hist.SyncHistogram[uint64]           `json:"operate-metrics"`
-		QueryMetrics             hist.SyncHistogram[uint64]           `json:"query-metrics"`
-		ScanMetrics              hist.SyncHistogram[uint64]           `json:"scan-metrics"`
-		UDFMetrics               hist.SyncHistogram[uint64]           `json:"udf-metrics"`
-		BatchReadMetrics         hist.SyncHistogram[uint64]           `json:"batch-read-metrics"`
-		BatchWriteMetrics        hist.SyncHistogram[uint64]           `json:"batch-write-metrics"`
+		GetMetrics               *hist.SyncHistogram[uint64]          `json:"get-metrics"`
+		GetHeaderMetrics         *hist.SyncHistogram[uint64]          `json:"get-header-metrics"`
+		ExistsMetrics            *hist.SyncHistogram[uint64]          `json:"exists-metrics"`
+		PutMetrics               *hist.SyncHistogram[uint64]          `json:"put-metrics"`
+		DeleteMetrics            *hist.SyncHistogram[uint64]          `json:"delete-metrics"`
+		OperateMetrics           *hist.SyncHistogram[uint64]          `json:"operate-metrics"`
+		QueryMetrics             *hist.SyncHistogram[uint64]          `json:"query-metrics"`
+		ScanMetrics              *hist.SyncHistogram[uint64]          `json:"scan-metrics"`
+		UDFMetrics               *hist.SyncHistogram[uint64]          `json:"udf-metrics"`
+		BatchReadMetrics         *hist.SyncHistogram[uint64]          `json:"batch-read-metrics"`
+		BatchWriteMetrics        *hist.SyncHistogram[uint64]          `json:"batch-write-metrics"`
 		ErrorCounts              map[string]map[string]map[string]int `json:"detailed-resultcode-counts"`
 		DetailedMetrics          map[string]map[string]*commandMetric `json:"detailed-metrics"`
 	}{
@@ -603,17 +623,17 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 		RetryCount int `json:"transaction-retry-count"`
 		ErrorCount int `json:"transaction-error-count"`
 
-		GetMetrics               hist.SyncHistogram[uint64]                                     `json:"get-metrics"`
-		GetHeaderMetrics         hist.SyncHistogram[uint64]                                     `json:"get-header-metrics"`
-		ExistsMetrics            hist.SyncHistogram[uint64]                                     `json:"exists-metrics"`
-		PutMetrics               hist.SyncHistogram[uint64]                                     `json:"put-metrics"`
-		DeleteMetrics            hist.SyncHistogram[uint64]                                     `json:"delete-metrics"`
-		OperateMetrics           hist.SyncHistogram[uint64]                                     `json:"operate-metrics"`
-		QueryMetrics             hist.SyncHistogram[uint64]                                     `json:"query-metrics"`
-		ScanMetrics              hist.SyncHistogram[uint64]                                     `json:"scan-metrics"`
-		UDFMetrics               hist.SyncHistogram[uint64]                                     `json:"udf-metrics"`
-		BatchReadMetrics         hist.SyncHistogram[uint64]                                     `json:"batch-read-metrics"`
-		BatchWriteMetrics        hist.SyncHistogram[uint64]                                     `json:"batch-write-metrics"`
+		GetMetrics               *hist.SyncHistogram[uint64]                                    `json:"get-metrics"`
+		GetHeaderMetrics         *hist.SyncHistogram[uint64]                                    `json:"get-header-metrics"`
+		ExistsMetrics            *hist.SyncHistogram[uint64]                                    `json:"exists-metrics"`
+		PutMetrics               *hist.SyncHistogram[uint64]                                    `json:"put-metrics"`
+		DeleteMetrics            *hist.SyncHistogram[uint64]                                    `json:"delete-metrics"`
+		OperateMetrics           *hist.SyncHistogram[uint64]                                    `json:"operate-metrics"`
+		QueryMetrics             *hist.SyncHistogram[uint64]                                    `json:"query-metrics"`
+		ScanMetrics              *hist.SyncHistogram[uint64]                                    `json:"scan-metrics"`
+		UDFMetrics               *hist.SyncHistogram[uint64]                                    `json:"udf-metrics"`
+		BatchReadMetrics         *hist.SyncHistogram[uint64]                                    `json:"batch-read-metrics"`
+		BatchWriteMetrics        *hist.SyncHistogram[uint64]                                    `json:"batch-write-metrics"`
 		DetailedResultCodeCounts amap.Map[string, *[ttMaxCommandTypes]*commandResultCodeMetric] `json:"detailed-resultcode-counts"`
 		DetailedMetrics          amap.Map[string, *[ttMaxCommandTypes]*commandMetric]           `json:"detailed-metrics"`
 	}{}
@@ -622,27 +642,27 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	ns.ConnectionsAttempts.Set(aux.ConnectionsAttempts)
-	ns.ConnectionsSuccessful.Set(aux.ConnectionsSuccessful)
-	ns.ConnectionsFailed.Set(aux.ConnectionsFailed)
-	ns.ConnectionsTimeoutErrors.Set(aux.ConnectionsTimeoutErrors)
-	ns.ConnectionsOtherErrors.Set(aux.ConnectionsOtherErrors)
-	ns.CircuitBreakerHits.Set(aux.CircuitBreakerHits)
-	ns.ConnectionsPoolEmpty.Set(aux.ConnectionsPoolEmpty)
-	ns.ConnectionsPoolOverflow.Set(aux.ConnectionsPoolOverflow)
-	ns.ConnectionsIdleDropped.Set(aux.ConnectionsIdleDropped)
-	ns.ConnectionsOpen.Set(aux.ConnectionsOpen)
-	ns.ConnectionsClosed.Set(aux.ConnectionsClosed)
-	ns.ConnectionsRecovered.Set(aux.ConnectionsRecovered)
-	ns.TendsTotal.Set(aux.TendsTotal)
-	ns.TendsSuccessful.Set(aux.TendsSuccessful)
-	ns.TendsFailed.Set(aux.TendsFailed)
-	ns.PartitionMapUpdates.Set(aux.PartitionMapUpdates)
-	ns.NodeAdded.Set(aux.NodeAdded)
-	ns.NodeRemoved.Set(aux.NodeRemoved)
+	ns.ConnectionsAttempts = iatomic.NewInt(aux.ConnectionsAttempts)
+	ns.ConnectionsSuccessful = iatomic.NewInt(aux.ConnectionsSuccessful)
+	ns.ConnectionsFailed = iatomic.NewInt(aux.ConnectionsFailed)
+	ns.ConnectionsTimeoutErrors = iatomic.NewInt(aux.ConnectionsTimeoutErrors)
+	ns.ConnectionsOtherErrors = iatomic.NewInt(aux.ConnectionsOtherErrors)
+	ns.CircuitBreakerHits = iatomic.NewInt(aux.CircuitBreakerHits)
+	ns.ConnectionsPoolEmpty = iatomic.NewInt(aux.ConnectionsPoolEmpty)
+	ns.ConnectionsPoolOverflow = iatomic.NewInt(aux.ConnectionsPoolOverflow)
+	ns.ConnectionsIdleDropped = iatomic.NewInt(aux.ConnectionsIdleDropped)
+	ns.ConnectionsOpen = iatomic.NewInt(aux.ConnectionsOpen)
+	ns.ConnectionsClosed = iatomic.NewInt(aux.ConnectionsClosed)
+	ns.ConnectionsRecovered = iatomic.NewInt(aux.ConnectionsRecovered)
+	ns.TendsTotal = iatomic.NewInt(aux.TendsTotal)
+	ns.TendsSuccessful = iatomic.NewInt(aux.TendsSuccessful)
+	ns.TendsFailed = iatomic.NewInt(aux.TendsFailed)
+	ns.PartitionMapUpdates = iatomic.NewInt(aux.PartitionMapUpdates)
+	ns.NodeAdded = iatomic.NewInt(aux.NodeAdded)
+	ns.NodeRemoved = iatomic.NewInt(aux.NodeRemoved)
 
-	ns.TransactionRetryCount.Set(aux.RetryCount)
-	ns.TransactionErrorCount.Set(aux.ErrorCount)
+	ns.TransactionRetryCount = iatomic.NewInt(aux.RetryCount)
+	ns.TransactionErrorCount = iatomic.NewInt(aux.ErrorCount)
 
 	ns.GetMetrics = aux.GetMetrics
 	ns.GetHeaderMetrics = aux.GetHeaderMetrics
@@ -704,11 +724,11 @@ func (n *nodeStats) mergeDetailedMetrics(ns *nodeStats) {
 			}
 
 			tgtMetric := n.getOrCreateCommandMetric(tgtArr, ct)
-			tgtMetric.ConnectionAq.Merge(&srcMetric.ConnectionAq)
-			tgtMetric.Latency.Merge(&srcMetric.Latency)
-			tgtMetric.Parsing.Merge(&srcMetric.Parsing)
-			tgtMetric.BytesSent.Merge(&srcMetric.BytesSent)
-			tgtMetric.BytesReceived.Merge(&srcMetric.BytesReceived)
+			tgtMetric.ConnectionAq.Merge(srcMetric.ConnectionAq)
+			tgtMetric.Latency.Merge(srcMetric.Latency)
+			tgtMetric.Parsing.Merge(srcMetric.Parsing)
+			tgtMetric.BytesSent.Merge(srcMetric.BytesSent)
+			tgtMetric.BytesReceived.Merge(srcMetric.BytesReceived)
 		}
 		return true
 	})

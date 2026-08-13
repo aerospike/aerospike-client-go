@@ -54,7 +54,7 @@ func legacyApplyConnectionRecoveredMetrics(node *Node) {
 func newBenchNode(metricsEnabled bool) *Node {
 	n := &Node{
 		cluster: &Cluster{},
-		stats:   *newNodeStats(DefaultMetricsPolicy()),
+		stats:   newNodeStats(DefaultMetricsPolicy()),
 	}
 	n.cluster.metricsEnabled.Store(metricsEnabled)
 	return n

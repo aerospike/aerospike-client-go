@@ -444,7 +444,10 @@ func setStructValue(f reflect.Value, valMap map[any]any, typeOfT reflect.Type, i
 	numFields := typeOfT.NumField()
 	for i := 0; i < numFields; i++ {
 		fld := typeOfT.Field(i)
-		fldIndex := append(index, fld.Index...)
+		// Owned copy; see fillMapping in marshal.go for the aliasing hazard.
+		fldIndex := make([]int, 0, len(index)+len(fld.Index))
+		fldIndex = append(fldIndex, index...)
+		fldIndex = append(fldIndex, fld.Index...)
 		if fld.Anonymous && fld.Type.Kind() == reflect.Struct {
 			if err := setStructValue(f, valMap, fld.Type, fldIndex); err != nil {
 				return err

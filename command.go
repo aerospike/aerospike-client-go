@@ -4129,7 +4129,7 @@ func overloadedServerError(err Error) bool {
 
 func applyTransactionMetrics(node *Node, tt commandType, tb time.Time) {
 	if node != nil && node.cluster.MetricsEnabled() {
-		applyMetrics(tt, &node.stats, tb)
+		applyMetrics(tt, node.stats, tb)
 	}
 }
 

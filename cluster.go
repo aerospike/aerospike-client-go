@@ -412,14 +412,14 @@ func (clstr *Cluster) aggregateNodeStats(nodeList []*Node) {
 	}
 }
 
-func (clstr *Cluster) statsCopy() map[string]nodeStats {
+func (clstr *Cluster) statsCopy() map[string]*nodeStats {
 	// update the stats on the cluster object
 	clstr.aggregateNodeStats(clstr.GetNodes())
 
 	clstr.statsLock.Lock()
 	defer clstr.statsLock.Unlock()
 
-	res := make(map[string]nodeStats, len(clstr.stats))
+	res := make(map[string]*nodeStats, len(clstr.stats))
 	for _, node := range clstr.GetNodes() {
 		h := node.host.String()
 		if stats, exists := clstr.stats[h]; exists {
