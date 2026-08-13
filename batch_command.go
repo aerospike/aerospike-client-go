@@ -29,7 +29,11 @@ type batcher interface {
 	generateBatchNodes(*Cluster) ([]*batchNode, Error)
 	setSequence(int, int)
 
-	// executeSingle(*Client) Error
+	// executeSingle is deliberately not part of this interface: each concrete
+	// batch command implements it, and its Execute() dispatches to it when the
+	// batch node holds exactly one key (the Java client's BatchSingle
+	// downgrade). It needs the concrete command's typed result slots, which an
+	// interface method could not express.
 	setInDoubt(batcher)
 	inDoubt()
 	clearSplitRetry()

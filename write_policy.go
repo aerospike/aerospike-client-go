@@ -87,6 +87,13 @@ type WritePolicy struct {
 	//
 	// Default: false
 	OnLockingOnly bool
+
+	// Xdr makes the write operate in XDR mode. Some external connectors may
+	// need to emulate an XDR client; when enabled, the XDR bit is set on
+	// writes in the wire protocol.
+	//
+	// Default: false.
+	Xdr bool
 }
 
 // NewWritePolicy initializes a new WritePolicy instance with default parameters.

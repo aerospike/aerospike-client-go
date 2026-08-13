@@ -43,6 +43,9 @@ const (
 	// Batch read or exists.
 	_INFO1_BATCH int = (1 << 3)
 
+	// The operation is being performed by XDR (or a connector emulating one).
+	_INFO1_XDR int = (1 << 4)
+
 	// Do not read the bins
 	_INFO1_NOBINDATA int = (1 << 5)
 
@@ -3069,9 +3072,9 @@ func (cmd *baseCommand) writeHeaderWrite(policy *WritePolicy, writeAttr, fieldCo
 		txnAttr |= _INFO4_MRT_ON_LOCKING_ONLY
 	}
 
-	// if (policy.Xdr) {
-	// 	readAttr |= _INFO1_XDR;
-	// }
+	if policy.Xdr {
+		readAttr |= _INFO1_XDR
+	}
 
 	// Write all header data except total size which must be written last.
 	cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
@@ -3137,9 +3140,9 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, args *operateA
 		txnAttr |= _INFO4_MRT_ON_LOCKING_ONLY
 	}
 
-	// if (policy.xdr) {
-	// 	readAttr |= _INFO1_XDR;
-	// }
+	if policy.Xdr {
+		readAttr |= _INFO1_XDR
+	}
 
 	switch policy.ReadModeSC {
 	case ReadModeSCSession:
