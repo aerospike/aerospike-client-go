@@ -61,7 +61,12 @@ type ClientPolicy struct {
 	// Default: 0 seconds
 	IdleTimeout time.Duration //= 0 seconds
 
-	// LoginTimeout specifies the timeout for login operation for external authentication such as LDAP.
+	// LoginTimeout specifies the timeout for the node login exchange when user
+	// authentication is enabled (including external authentication such as
+	// LDAP). It bounds only the LOGIN command itself; session-token
+	// authentication on new command connections runs under the connection's
+	// creation timeout (ClientPolicy.Timeout, or BasePolicy.ConnectTimeout
+	// when set).
 	LoginTimeout time.Duration //= 10 seconds
 
 	// ConnectionQueueCache specifies the size of the Connection Queue cache PER NODE.

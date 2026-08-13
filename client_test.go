@@ -2143,3 +2143,50 @@ var _ = gg.Describe("Retry semantics", func() {
 			"a write that never reached the wire must not be in doubt: %v", err)
 	})
 })
+
+// BasePolicy.ConnectTimeout caps creating new connections on behalf of a
+// command: the dial, the TLS handshake and the token authentication. The Go
+// client fills pools in the background, so the observable effect of an
+// impossibly small ConnectTimeout is a pool that can never fill: every dial
+// dies instantly and the command times out against its TotalTimeout. A zero
+// ConnectTimeout keeps the cluster-level ClientPolicy.Timeout, which connects
+// fine.
+var _ = gg.Describe("ConnectTimeout", func() {
+
+	gg.It("must bound new-connection creation for the command's pool fills", func() {
+		c, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		defer c.Close()
+
+		key, err := as.NewKey(*namespace, randString(50), "connect_timeout")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		// An impossibly small connect timeout: no dial can ever succeed, so
+		// the (initially empty) pool never fills and the command must fail.
+		policy := as.NewPolicy()
+		policy.ConnectTimeout = time.Nanosecond
+		policy.TotalTimeout = 300 * time.Millisecond
+		policy.MaxRetries = 2
+
+		begin := time.Now()
+		_, err = c.Get(policy, key)
+		gm.Expect(err).To(gm.HaveOccurred(),
+			"no connection can be created under a 1ns connect timeout")
+		gm.Expect(err.Matches(types.TIMEOUT, types.MAX_RETRIES_EXCEEDED)).To(gm.BeTrue(),
+			"whichever budget runs out first, the command must fail on the client, got: %v", err)
+		gm.Expect(time.Since(begin)).To(gm.BeNumerically("<", 2*time.Second))
+
+		// The same command without the override connects normally.
+		policy = as.NewPolicy()
+		_, err = c.Get(policy, key)
+		gm.Expect(err.Matches(types.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue(),
+			"a zero ConnectTimeout must fall back to ClientPolicy.Timeout and reach the server, got: %v", err)
+
+		// And a generous override still connects.
+		policy = as.NewPolicy()
+		policy.ConnectTimeout = 2 * time.Second
+		_, err = c.Get(policy, key)
+		gm.Expect(err.Matches(types.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue(),
+			"a generous ConnectTimeout must still connect, got: %v", err)
+	})
+})

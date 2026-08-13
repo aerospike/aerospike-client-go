@@ -439,7 +439,7 @@ func (nd *Node) GetConnection(timeout time.Duration) (conn *Connection, err Erro
 // getConnection gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
 func (nd *Node) getConnection(deadline, timeout time.Duration) (conn *Connection, err Error) {
-	return nd.getConnectionWithHint(deadline, timeout, 0, 0)
+	return nd.getConnectionWithHint(deadline, timeout, 0, 0, 0)
 }
 
 // newConnectionAllowed will tentatively check if the client is allowed to make a new connection
@@ -470,7 +470,7 @@ func (nd *Node) newConnectionAllowed() Error {
 }
 
 // newConnection will make a new connection for the node.
-func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
+func (nd *Node) newConnection(overrideThreshold bool, connectTimeout time.Duration) (*Connection, Error) {
 	if !nd.active.Get() {
 		return nil, ErrServerNotAvailable.err()
 	}
@@ -499,7 +499,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	nd.stats.ConnectionsAttempts.IncrementAndGet()
-	conn, err := NewConnection(clusterClientPolicy, nd.host)
+	conn, err := newPolicyConnection(clusterClientPolicy, nd.host, connectTimeout)
 	if err != nil {
 		nd.incrErrorCount()
 		nd.connectionCount.DecrementAndGet()
@@ -507,6 +507,16 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 		return nil, err
 	}
 	conn.node = nd
+
+	// The connect timeout also bounds the authentication exchange on the new
+	// connection (Java parity: connectTimeout covers creation plus optional
+	// user authentication). A real login overrides it with LoginTimeout.
+	if connectTimeout > 0 {
+		if err := conn.setTimeout(connectTimeout, connectTimeout); err != nil {
+			conn.Close()
+			return nil, err
+		}
+	}
 
 	sessionInfo := nd.sessionInfo.Get()
 	// need to authenticate
@@ -529,7 +539,7 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 }
 
 func (nd *Node) newTendConnection() (*Connection, Error) {
-	conn, err := nd.newConnection(true)
+	conn, err := nd.newConnection(true, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -547,8 +557,8 @@ func (nd *Node) newTendConnection() (*Connection, Error) {
 
 // makeConnectionForPool will try to open a connection until deadline.
 // if no deadline is defined, it will only try for _DEFAULT_TIMEOUT.
-func (nd *Node) makeConnectionForPool(hint byte) {
-	conn, err := nd.newConnection(false)
+func (nd *Node) makeConnectionForPool(hint byte, connectTimeout time.Duration) {
+	conn, err := nd.newConnection(false, connectTimeout)
 	if err != nil {
 		logger.Logger.Debug("Error trying to make a connection to the node %s: %s", nd.String(), err.Error())
 		return
@@ -559,7 +569,7 @@ func (nd *Node) makeConnectionForPool(hint byte) {
 
 // getConnectionWithHint gets a connection to the node.
 // If no pooled connection is available, a new connection will be created.
-func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte, timeoutDelay time.Duration) (conn *Connection, err Error) {
+func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration, hint byte, timeoutDelay, connectTimeout time.Duration) (conn *Connection, err Error) {
 	if !nd.active.Get() {
 		return nil, ErrServerNotAvailable.err()
 	}
@@ -578,7 +588,7 @@ func (nd *Node) getConnectionWithHint(totalTimeout, socketTimeout time.Duration,
 		// tentatively check if a connection is allowed to avoid launching too many goroutines.
 		err = nd.newConnectionAllowed()
 		if err == nil {
-			go nd.makeConnectionForPool(hint)
+			go nd.makeConnectionForPool(hint, connectTimeout)
 		} else if errors.Is(err, ErrTooManyConnectionsForNode) {
 			return nil, ErrConnectionPoolExhausted.err()
 		}
@@ -920,7 +930,7 @@ func (nd *Node) WarmUp(count int) (int, Error) {
 
 	for i := 0; i < toAlloc; i++ {
 		g.Go(func() error {
-			conn, err := nd.newConnection(true)
+			conn, err := nd.newConnection(true, 0)
 			if err != nil {
 				if errors.Is(err, ErrTooManyConnectionsForNode) {
 					return nil

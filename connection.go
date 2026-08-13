@@ -119,7 +119,7 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 	if terr, ok := err.(net.Error); ok {
 		if terr.Timeout() {
 			if conn != nil {
-			 	if conn.node != nil {
+				if conn.node != nil {
 					conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
 				}
 				if errors.Is(terr, os.ErrDeadlineExceeded) {
@@ -182,14 +182,41 @@ func newConnection(address string, timeout time.Duration) (*Connection, Error) {
 // If the connection is not established in the specified timeout,
 // an error will be returned
 func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
+	return newPolicyConnection(policy, host, 0)
+}
+
+// newPolicyConnection creates a connection like [NewConnection], with an
+// optional connect-timeout override (BasePolicy.ConnectTimeout). When the
+// override is positive it caps the TCP dial and the TLS handshake; otherwise
+// the cluster-level ClientPolicy.Timeout applies.
+func newPolicyConnection(policy *ClientPolicy, host *Host, connectTimeout time.Duration) (*Connection, Error) {
+	dialTimeout := policy.Timeout
+	if connectTimeout > 0 {
+		dialTimeout = connectTimeout
+	}
+
 	address := net.JoinHostPort(host.Name, strconv.Itoa(host.Port))
-	conn, err := newConnection(address, policy.Timeout)
+	conn, err := newConnection(address, dialTimeout)
 	if err != nil {
 		return nil, err
 	}
 
 	if policy.TlsConfig == nil {
 		return conn, nil
+	}
+
+	// Bound the TLS handshake by the connect timeout, matching the Java
+	// client, where connectTimeout covers connection creation end to end.
+	if connectTimeout > 0 {
+		if derr := conn.conn.SetDeadline(time.Now().Add(connectTimeout)); derr != nil {
+			conn.Close()
+			return nil, newWrapNetworkError(derr)
+		}
+		defer func() {
+			if conn.conn != nil {
+				_ = conn.conn.SetDeadline(time.Time{})
+			}
+		}()
 	}
 
 	// Use version dependent clone function to clone the config

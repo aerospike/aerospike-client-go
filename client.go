@@ -1600,6 +1600,16 @@ func (clnt *Client) queryNodePartitions(policy *QueryPolicy, node *Node, stateme
 // sent to the server nodes for verification. If all nodes return success, the transaction is
 // committed. Otherwise, the transaction is aborted.
 //
+// The transaction state machine deliberately diverges from the Java client's.
+// When the commit's mark-roll-forward step fails, the transaction enters a
+// commit-failed state from which Commit may be retried but [Client.Abort] is
+// refused (the server may still roll the transaction forward, so an abort
+// could misreport the outcome); the Java client leaves the transaction
+// verified and allows the abort. Go also treats an MRT_COMMITTED response to
+// mark-roll-forward as success ([CommitStatusAlreadyCommitted]) rather than a
+// failure, tolerating a retried commit whose earlier in-doubt attempt had in
+// fact been applied.
+//
 // Requires server version 8.0+
 func (clnt *Client) Commit(txn *Txn) (CommitStatus, Error) {
 	return clnt.CommitWithPolicies(nil, nil, txn)
@@ -1649,8 +1659,11 @@ func (clnt *Client) CommitWithPolicies(
 
 // Abort and rollback the given multi-record transaction.
 //
-// Abort is not allowed after an in-doubt mark-roll-forward failure
-// the server may still roll the transaction forward.
+// Abort is not allowed after a failed commit attempt: the server may still
+// roll the transaction forward, so an abort could misreport the outcome.
+// Retry [Client.Commit] instead, or leave the transaction to the server's
+// resolution. This is a deliberate divergence from the Java client, which
+// allows the abort in that state (see [Client.Commit]).
 //
 // Requires server version 8.0+
 func (clnt *Client) Abort(txn *Txn) (AbortStatus, Error) {

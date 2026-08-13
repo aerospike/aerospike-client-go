@@ -159,12 +159,9 @@ func (tm *TxnMonitor) copyTimeoutPolicy(policy *BasePolicy) *WritePolicy {
 	// explicitly and encodes the monitor key raw; a policy-carried txn would
 	// wrongly stamp transaction fields onto the monitor record's own write.
 	//
-	// The Java client also copies policy.connectTimeout here, but Go has no
-	// per-command connect timeout: connections are dialed under the
-	// cluster-level ClientPolicy.Timeout, so there is nothing to inherit.
 	wp := NewWritePolicy(0, 0)
 	// wp.Txn = policy.Txn
-	// wp.ConnectTimeout = policy.ConnectTimeout
+	wp.ConnectTimeout = policy.ConnectTimeout
 	wp.SocketTimeout = policy.SocketTimeout
 	wp.TotalTimeout = policy.TotalTimeout
 	wp.TimeoutDelay = policy.TimeoutDelay

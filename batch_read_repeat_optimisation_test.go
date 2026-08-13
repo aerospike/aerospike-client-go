@@ -107,7 +107,13 @@ var _ = gg.Describe("Batch flags byte requests key-specific error codes", func()
 		for i := 0; i < fieldCount; i++ {
 			flen := int(Buffer.BytesToUint32(cmd.dataBuffer, off))
 			ftype := FieldType(cmd.dataBuffer[off+4])
-			if ftype == BATCH_INDEX || ftype == BATCH_INDEX_WITH_SET {
+			// The modern batch encoding must tag its field BATCH_INDEX (41),
+			// as every reference client does; BATCH_INDEX_WITH_SET (42) is
+			// reserved for the legacy pre-6.0 fallback, where the field type
+			// tells the old server that rows carry set names.
+			gm.Expect(ftype).ToNot(gm.Equal(FieldType(BATCH_INDEX_WITH_SET)),
+				"modern batch encoding must not use the legacy field type")
+			if ftype == BATCH_INDEX {
 				return cmd.dataBuffer[off+5+4]
 			}
 			off += 4 + flen
