@@ -906,7 +906,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 					rec, err = client.Get(rpolicy, key)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
-					gm.Expect(bool(rec.Bins[bin.Name].(bool))).To(gm.Equal(bin.Value.GetObject()))
+					gm.Expect(rec.Bins[bin.Name].(bool)).To(gm.Equal(bin.Value.GetObject()))
 				})
 
 				gg.It("must save a key with MULTIPLE bins", func() {
@@ -1591,10 +1591,8 @@ var _ = gg.Describe("Aerospike", func() {
 					}
 
 					// First Part: For CDTs
-					list := []any{}
 					for j, key := range keys {
 						for i := 1; i <= listSize; i++ {
-							list = append(list, i*100)
 
 							sz, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, j+i*100))
 							gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1646,10 +1644,8 @@ var _ = gg.Describe("Aerospike", func() {
 					}
 
 					// First Part: For CDTs
-					list := []any{}
 					for j, key := range keys {
 						for i := 1; i <= listSize; i++ {
-							list = append(list, i*100)
 
 							sz, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, j+i*100))
 							gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1947,10 +1943,8 @@ var _ = gg.Describe("Aerospike", func() {
 				const cdtBinName = "cdtBin"
 
 				// First Part: For CDTs
-				list := []any{}
 				opAppend := as.ListAppendOp(cdtBinName, 1)
 				for i := 1; i <= listSize; i++ {
-					list = append(list, i)
 
 					sz, err := client.Operate(wpolicy, key, opAppend)
 					gm.Expect(err).ToNot(gm.HaveOccurred())

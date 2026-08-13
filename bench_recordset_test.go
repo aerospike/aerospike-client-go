@@ -43,7 +43,6 @@ func doScan(b *testing.B) {
 			n++
 		}
 	}
-	b.N = n
 }
 
 func doQuery(b *testing.B) {
@@ -69,7 +68,6 @@ func doQuery(b *testing.B) {
 		n++
 	}
 
-	b.N = n
 }
 
 func Benchmark_Scan(b *testing.B) {

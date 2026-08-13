@@ -439,7 +439,7 @@ func (cmd *baseCommand) setBatchTxnVerifyForOffsets(
 			cmd.WriteByte(_BATCH_MSG_REPEAT)
 		} else {
 			// Write full message.
-			cmd.WriteByte(byte(_BATCH_MSG_INFO | _BATCH_MSG_INFO4))
+			cmd.WriteByte(_BATCH_MSG_INFO | _BATCH_MSG_INFO4)
 			cmd.WriteByte(byte(_INFO1_READ | _INFO1_NOBINDATA))
 			cmd.WriteByte(byte(0))
 			cmd.WriteByte(byte(_INFO3_SC_READ_TYPE))
@@ -2234,7 +2234,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	if nodePartitions != nil {
 		partsFullSize = len(nodePartitions.partsFull) * 2
 		partsPartialSize = len(nodePartitions.partsPartial) * 20
-		maxRecords = int64(nodePartitions.recordMax)
+		maxRecords = nodePartitions.recordMax
 	}
 
 	predSize := 0
@@ -2792,7 +2792,7 @@ func (cmd *baseCommand) estimateRawKeySize(key *Key) int {
 		fieldCount++
 	}
 
-	cmd.dataOffset += int(len(key.digest) + int(_FIELD_HEADER_SIZE))
+	cmd.dataOffset += len(key.digest) + int(_FIELD_HEADER_SIZE)
 	fieldCount++
 
 	return fieldCount

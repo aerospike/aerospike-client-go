@@ -260,6 +260,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 				// make sure the delete case actually ran
 				exists, err := client.Exists(nil, key2)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(exists).To(gm.BeTrue())
 			})
 
@@ -589,17 +590,19 @@ var _ = gg.Describe("Aerospike", func() {
 				readPolicy := as.NewPolicy()
 				readPolicy.ReadTouchTTLPercent = 80
 				record, err := client.Get(readPolicy, key, bin.Name)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(record.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
 
 				// Read the record again, but don't reset read ttl.
 				time.Sleep(1 * time.Second)
 				readPolicy.ReadTouchTTLPercent = -1
 				record, err = client.Get(readPolicy, key, bin.Name)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(record.Bins[bin.Name]).To(gm.Equal(bin.Value.GetObject()))
 
 				// Read the record after it expires, showing it's gone.
 				time.Sleep(2 * time.Second)
-				record, err = client.Get(nil, key, bin.Name)
+				_, err = client.Get(nil, key, bin.Name)
 				gm.Expect(err).To(gm.HaveOccurred())
 				gm.Expect(err.Matches(types.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue())
 			})
@@ -659,8 +662,9 @@ var _ = gg.Describe("Aerospike", func() {
 				// Read  record after it expires, showing it's gone.
 				time.Sleep(8 * time.Second)
 				err = client.BatchOperate(nil, list)
-				gm.Expect(types.KEY_NOT_FOUND_ERROR, br1.ResultCode)
-				gm.Expect(types.KEY_NOT_FOUND_ERROR, br2.ResultCode)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(br1.ResultCode).To(gm.Equal(types.KEY_NOT_FOUND_ERROR))
+				gm.Expect(br2.ResultCode).To(gm.Equal(types.KEY_NOT_FOUND_ERROR))
 			})
 		})
 
@@ -764,9 +768,9 @@ var _ = gg.Describe("Aerospike", func() {
 
 				bp := as.NewBatchPolicy()
 				bp.RespondAllKeys = false
-				err := client.BatchOperate(bp, batchRecords)
-				err = client.BatchOperate(bp, batchRecords)
-				// gm.Expect(err).ToNot(gm.HaveOccurred())
+				// The overall error is intentionally not asserted: the
+				// per-record outcomes below are the contract under test.
+				_ = client.BatchOperate(bp, batchRecords)
 
 				gm.Expect(batchRecords[0].BatchRec().Err.Matches(types.INVALID_NAMESPACE)).To(gm.BeTrue())
 				gm.Expect(batchRecords[0].BatchRec().ResultCode).To(gm.Equal(types.INVALID_NAMESPACE))

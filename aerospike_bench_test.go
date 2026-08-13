@@ -74,7 +74,6 @@ func Benchmark_Get(b *testing.B) {
 	// client.PutBins(nil, key, as.NewBin("b", 1))
 	// client.PutObject(nil, key, &obj)
 
-	b.N = 100
 	runtime.GC()
 	b.ResetTimer()
 	benchGet(b.N, client, key)
@@ -89,7 +88,6 @@ func Benchmark_Put(b *testing.B) {
 	key, _ := as.NewKey(*namespace, "test", "Aerospike")
 	writepolicy := as.NewWritePolicy(0, 0)
 
-	b.N = 100
 	runtime.GC()
 	b.ResetTimer()
 	benchPut(b.N, client, key, writepolicy)
@@ -109,7 +107,6 @@ func Benchmark_BatchGet(b *testing.B) {
 		}
 	}
 
-	b.N = 1e4
 	runtime.GC()
 	b.ResetTimer()
 	benchBatchGet(b.N, client, keys)

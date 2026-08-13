@@ -88,7 +88,7 @@ func (lcmd *loginCommand) login(policy *ClientPolicy, conn *Connection, hashedPa
 	case AuthModePKI:
 		lcmd.writeHeader(_LOGIN, 0)
 	default:
-		return newError(types.ResultCode(types.INVALID_COMMAND), "Invalid ClientPolicy.AuthMode.")
+		return newError(types.INVALID_COMMAND, "Invalid ClientPolicy.AuthMode.")
 	}
 
 	lcmd.writeSize()

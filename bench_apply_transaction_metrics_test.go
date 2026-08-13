@@ -36,18 +36,6 @@ func legacyApplyTransactionErrorMetrics(node *Node) {
 	}
 }
 
-func legacyApplyTransactionRetryMetrics(node *Node) {
-	if node != nil {
-		node.stats.TransactionRetryCount.GetAndIncrement()
-	}
-}
-
-func legacyApplyConnectionRecoveredMetrics(node *Node) {
-	if node != nil {
-		node.stats.ConnectionsRecovered.GetAndIncrement()
-	}
-}
-
 // newBenchNode builds a minimal *Node whose cluster gate is set to the given
 // state. Only the fields the helpers touch (cluster.metricsEnabled and
 // stats.*Count) are populated.

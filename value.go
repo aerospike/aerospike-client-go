@@ -1182,7 +1182,7 @@ func (vl *RawBlobValue) GetType() int {
 
 // GetObject returns original value as an any.
 func (vl *RawBlobValue) GetObject() any {
-	return []byte(vl.Data)
+	return vl.Data
 }
 
 // String implements Stringer interface.

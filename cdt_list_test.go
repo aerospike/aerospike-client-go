@@ -444,10 +444,10 @@ var _ = gg.Describe("CDT List Test", func() {
 		})
 
 		gg.It("should remove elements by rank", func() {
-			cdtListRes, err := client.Operate(wpolicy, key, as.ListSortOp(cdtBinName, as.ListSortFlagsDefault))
+			_, err := client.Operate(wpolicy, key, as.ListSortOp(cdtBinName, as.ListSortFlagsDefault))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cdtListRes, err = client.Operate(wpolicy, key, as.ListRemoveByRankOp(cdtBinName, 0, as.ListReturnTypeValue))
+			cdtListRes, err := client.Operate(wpolicy, key, as.ListRemoveByRankOp(cdtBinName, 0, as.ListReturnTypeValue))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(cdtListRes.Bins[cdtBinName]).To(gm.Equal(1))
 
@@ -525,7 +525,7 @@ var _ = gg.Describe("CDT List Test", func() {
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(cdtListRes.Bins[cdtBinName]).To(gm.Equal([]any{101, 2, 3, 4, 5, 6, 7, 8, 9, 10}))
 
-			cdtListRes, err = client.Operate(wpolicy, key, as.ListSortOp(cdtBinName, as.ListSortFlagsDefault))
+			_, err = client.Operate(wpolicy, key, as.ListSortOp(cdtBinName, as.ListSortFlagsDefault))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			cdtListRes, err = client.Operate(wpolicy, key, as.ListGetRangeFromOp(cdtBinName, 0))
@@ -779,14 +779,14 @@ var _ = gg.Describe("CDT List Test", func() {
 			inputList := []any{as.ValueArray(l1), as.ValueArray(l2), as.ValueArray(l3)}
 
 			// Create list.
-			record, err := client.Operate(nil, key,
+			_, err := client.Operate(nil, key,
 				as.ListAppendWithPolicyOp(as.NewListPolicy(as.ListOrderOrdered, 0), cdtBinName, inputList...),
 				as.GetBinOp(cdtBinName),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
 			// Append value to new list created after the original 3 lists.
-			record, err = client.Operate(nil, key,
+			record, err := client.Operate(nil, key,
 				as.ListAppendWithPolicyContextOp(as.NewListPolicy(as.ListOrderOrdered, 0), cdtBinName, []*as.CDTContext{as.CtxListIndexCreate(3, as.ListOrderOrdered, false)}, as.IntegerValue(2)),
 				as.GetBinOp(cdtBinName),
 			)
