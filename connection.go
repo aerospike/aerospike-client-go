@@ -546,7 +546,7 @@ func (ctn *Connection) refresh() {
 			buffPool.Put(ctn.dataBuffer)
 
 			// Get a new one from the pool
-			ctn.dataBuffer = buffPool.Get(int(newBuffSize))
+			ctn.dataBuffer = buffPool.Get(newBuffSize)
 			ctn.origDataBuffer = ctn.dataBuffer
 		}
 	}

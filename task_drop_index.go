@@ -57,7 +57,7 @@ func (tski *DropIndexTask) IsDone() (bool, Error) {
 			serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
 			"sindex-exists:namespace="+tski.namespace+";indexname="+tski.indexName,
 			"sindex-exists:ns="+tski.namespace+";indexname="+tski.indexName)
-		
+
 		responseMap, err := node.requestInfoWithRetry(&tski.cluster.infoPolicy, 5, statusCommand)
 		if err != nil {
 			return false, err
@@ -65,10 +65,10 @@ func (tski *DropIndexTask) IsDone() (bool, Error) {
 
 		// Get the response for our status command
 		response, exists := responseMap[statusCommand]
-		
+
 		// Handle missing or empty response
 		if !exists || response == "" {
-			return false, newError(types.INDEX_GENERIC, 
+			return false, newError(types.INDEX_GENERIC,
 				"sindex-exists failed: empty or missing response from node "+node.GetName())
 		}
 
@@ -83,7 +83,7 @@ func (tski *DropIndexTask) IsDone() (bool, Error) {
 		}
 
 		// Unexpected response
-		return false, newError(types.INDEX_GENERIC, 
+		return false, newError(types.INDEX_GENERIC,
 			"sindex-exists failed: unexpected response '"+response+"' from node "+node.GetName())
 	}
 

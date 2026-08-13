@@ -310,13 +310,11 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 func (ndv *nodeValidator) setFeatures(alias *Host) Error {
 	if ndv.serverVersion.IsGreaterOrEqual(version.ServerVersionPScan) {
 		ndv.features |= _SUPPORTS_PARTITION_SCAN
-	} else {
+	} else if (ndv.features & _SUPPORTS_PARTITION_SCAN) == 0 {
 		// This client requires partition scan support. Partition scans were first
 		// supported in server version 4.9. Do not allow any server node into the
 		// cluster that is running server version < 4.9.
-		if (ndv.features & _SUPPORTS_PARTITION_SCAN) == 0 {
-			return newError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is version < 4.9. This client supports server versions >= 4.9", ndv.name, alias.String()))
-		}
+		return newError(types.INVALID_NODE_ERROR, fmt.Sprintf("Node %s (%s) is version < 4.9. This client supports server versions >= 4.9", ndv.name, alias.String()))
 	}
 	if ndv.serverVersion.IsGreaterOrEqual(version.ServerVersionQueryShow) {
 		ndv.features |= _SUPPORTS_QUERY_SHOW

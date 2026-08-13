@@ -115,7 +115,7 @@ func (cmd *batchCommandGet) writeBuffer(ifc command) Error {
 // Parse all results in the batch.  Add records to shared list.
 // If the record was not found, the bins will be nil.
 func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
-	//Parse each message response and add it to the result array
+	// Parse each message response and add it to the result array
 	cmd.dataOffset = 0
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {

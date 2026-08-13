@@ -62,7 +62,7 @@ func (tski *IndexTask) IsDone() (bool, Error) {
 			serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
 			"sindex-stat:namespace="+tski.namespace+";indexname="+tski.indexName,
 			"sindex/"+tski.namespace+"/"+tski.indexName)
-		
+
 		responseMap, err := node.requestInfoWithRetry(&tski.cluster.infoPolicy, 5, statusCommand)
 		if err != nil {
 			return false, err
@@ -70,10 +70,10 @@ func (tski *IndexTask) IsDone() (bool, Error) {
 
 		// Get the response for our status command
 		response, exists := responseMap[statusCommand]
-		
+
 		// Handle missing or empty response
 		if !exists || response == "" {
-			return false, newError(types.INDEX_GENERIC, 
+			return false, newError(types.INDEX_GENERIC,
 				"sindex-stat failed: empty or missing response from node "+node.GetName())
 		}
 
@@ -84,7 +84,7 @@ func (tski *IndexTask) IsDone() (bool, Error) {
 		if index < 0 {
 			// Index not found - check if it's an error response
 			if strings.Contains(response, "FAIL") || strings.Contains(response, "ERROR") {
-				return false, newError(types.INDEX_GENERIC, 
+				return false, newError(types.INDEX_GENERIC,
 					"sindex-stat failed: "+response+" from node "+node.GetName())
 			}
 			// Index not readable yet, continue polling
@@ -93,13 +93,13 @@ func (tski *IndexTask) IsDone() (bool, Error) {
 
 		matchRes := r.FindStringSubmatch(response)
 		if len(matchRes) < 2 {
-			return false, newError(types.INDEX_GENERIC, 
+			return false, newError(types.INDEX_GENERIC,
 				"sindex-stat failed: could not parse load_pct from response '"+response+"'")
 		}
-		
+
 		pct, parseErr := strconv.Atoi(matchRes[1])
 		if parseErr != nil {
-			return false, newError(types.INDEX_GENERIC, 
+			return false, newError(types.INDEX_GENERIC,
 				"sindex-stat failed: invalid load_pct value '"+matchRes[1]+"'")
 		}
 
@@ -108,7 +108,7 @@ func (tski *IndexTask) IsDone() (bool, Error) {
 			return false, nil
 		}
 	}
-	
+
 	// All nodes report 100% complete
 	return true, nil
 }

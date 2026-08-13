@@ -76,7 +76,6 @@ func (cmd *txnCloseCommand) Execute() Error {
 }
 
 func (cmd *txnCloseCommand) onInDoubt() {
-	return
 }
 
 func (cmd *txnCloseCommand) getNamespaces() iter.Seq2[string, uint64] {

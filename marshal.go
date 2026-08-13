@@ -147,7 +147,7 @@ func stripOptions(tag string) string {
 	if i < 0 {
 		return tag
 	}
-	return string(tag[:i])
+	return tag[:i]
 }
 
 func fieldAlias(f reflect.StructField) string {

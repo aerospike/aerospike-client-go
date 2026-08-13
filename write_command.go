@@ -87,7 +87,7 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 			return ErrFilteredOut.err()
 		}
 
-		return newCustomNodeError(cmd.node, types.ResultCode(resultCode))
+		return newCustomNodeError(cmd.node, resultCode)
 	}
 
 	return nil

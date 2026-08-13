@@ -796,7 +796,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 
 	rattr := _INFO1_READ
 	if len(binNames) == 0 {
-		rattr = rattr | _INFO1_GET_ALL
+		rattr |= _INFO1_GET_ALL
 	}
 
 	cmd := newBatchCommandGet(clnt, nil, policy, keys, binNames, nil, records, rattr, false)

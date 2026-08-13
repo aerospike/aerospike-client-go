@@ -2474,7 +2474,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
 
 		for _, part := range nodePartitions.partsPartial {
-			if _, err := cmd.Write(part.Digest[:]); err != nil {
+			if _, err := cmd.Write(part.Digest); err != nil {
 				return newCommonError(err)
 			}
 		}
@@ -2840,7 +2840,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
 
 		for _, part := range nodePartitions.partsPartial {
-			if _, err := cmd.Write(part.Digest[:]); err != nil {
+			if _, err := cmd.Write(part.Digest); err != nil {
 				return newCommonError(err)
 			}
 		}
@@ -3584,15 +3584,13 @@ func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) Error {
 		cmd.conn.buffHist.Add(uint64(size))
 	}
 
-	if size <= len(cmd.dataBuffer) {
-		// don't touch the buffer
-		// this is a noop, here to silence the linters
-		cmd.dataBuffer = cmd.dataBuffer
-	} else if size <= cap(cmd.dataBuffer) {
-		cmd.dataBuffer = cmd.dataBuffer[:size]
-	} else {
+	// Grow the buffer only when needed; a buffer at least `size` long is left
+	// untouched.
+	if size > cap(cmd.dataBuffer) {
 		// not enough space
 		cmd.dataBuffer = buffPool.Get(size)
+	} else if size > len(cmd.dataBuffer) {
+		cmd.dataBuffer = cmd.dataBuffer[:size]
 	}
 
 	// The trick here to keep a ref to the buffer, and set the buffer itself
@@ -3804,9 +3802,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				}
 			}
 		}
-
-		// NOTE: This is important to be after the prepareRetry block above
-		isClientTimeout = false
 
 		notFirstIteration = true
 

@@ -706,11 +706,9 @@ func (clstr *Cluster) findNodesToRemove(peers *peers) {
 				if node.referenceCount.Get() == 0 && node.peersCount.Get() == 0 && node.isOrphan.Get() {
 					peers.addNodesToRemove(node)
 				}
-			} else {
+			} else if !peers.containsNodeToRemove(node) {
 				// Node not responding. Remove it.
-				if !peers.containsNodeToRemove(node) {
-					peers.addNodesToRemove(node)
-				}
+				peers.addNodesToRemove(node)
 			}
 		}
 	}

@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"iter"
-
-	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 // guarantee txnMarkRollForwardCommand implements command interface
@@ -64,7 +62,7 @@ func (cmd *txnMarkRollForwardCommand) parseResult(ifc command, conn *Connection)
 		return nil
 	}
 
-	return newCustomNodeError(cmd.node, types.ResultCode(resultCode))
+	return newCustomNodeError(cmd.node, resultCode)
 }
 
 func (cmd *txnMarkRollForwardCommand) Execute() Error {

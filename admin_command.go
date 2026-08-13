@@ -328,10 +328,8 @@ func (acmd *AdminCommand) writePrivileges(privileges []Privilege) Error {
 			offset++
 			copy(acmd.dataBuffer[offset:], privilege.SetName)
 			offset += len(privilege.SetName)
-		} else {
-			if len(privilege.Namespace) > 0 || len(privilege.SetName) > 0 {
-				return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global rivilege '%v' can't have a namespace or set.", privilege))
-			}
+		} else if len(privilege.Namespace) > 0 || len(privilege.SetName) > 0 {
+			return newError(types.INVALID_PRIVILEGE, fmt.Sprintf("Admin global privilege '%v' can't have a namespace or set.", privilege))
 		}
 	}
 

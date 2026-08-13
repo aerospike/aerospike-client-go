@@ -126,7 +126,7 @@ func (pp *partitionParser) parseReplicasAll(node *Node, command string) Error {
 			// Parse namespace.
 			namespace := string(pp.buffer[begin:pp.offset])
 
-			if len(namespace) <= 0 || len(namespace) >= 32 {
+			if len(namespace) == 0 || len(namespace) >= 32 {
 				response := pp.getTruncatedResponse()
 				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid partition namespace `%s` response: `%s`", namespace, response))
 			}

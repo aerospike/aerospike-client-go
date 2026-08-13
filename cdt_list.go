@@ -237,7 +237,7 @@ func packCDTParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params
 		}
 		size += n
 
-		if n, err = packAInt(packer, int(opType)); err != nil {
+		if n, err = packAInt(packer, opType); err != nil {
 			return size + n, err
 		}
 		size += n
@@ -254,7 +254,7 @@ func packCDTParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params
 			size += n
 		}
 
-		if n, err = packAInt(packer, int(opType)); err != nil {
+		if n, err = packAInt(packer, opType); err != nil {
 			return size + n, err
 		}
 		size += n
@@ -321,7 +321,7 @@ func packCDTIfcVarParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, 
 		}
 		size += n
 
-		if n, err = packAInt(packer, int(opType)); err != nil {
+		if n, err = packAInt(packer, opType); err != nil {
 			return size + n, err
 		}
 		size += n

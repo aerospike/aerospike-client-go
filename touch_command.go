@@ -64,7 +64,7 @@ func (cmd *touchCommand) parseResult(ifc command, conn *Connection) Error {
 	case types.FILTERED_OUT:
 		return ErrFilteredOut.err()
 	default:
-		return newError(types.ResultCode(resultCode))
+		return newError(resultCode)
 	}
 }
 

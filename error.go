@@ -410,14 +410,14 @@ func chainErrors(outer Error, inner error) Error {
 	}
 
 	var ae *AerospikeError
-	switch outer.(type) {
+	switch outer := outer.(type) {
 	case *constAerospikeError:
-		t := outer.(*constAerospikeError).AerospikeError
+		t := outer.AerospikeError
 		ae = &t
 	case *AerospikeError:
-		// copy the reference to avoid issues with checking the last error
+		// copy the value to avoid issues with checking the last error
 		// when it is chained.
-		t := *outer.(*AerospikeError)
+		t := *outer
 		ae = &t
 	}
 
