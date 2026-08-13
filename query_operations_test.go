@@ -48,7 +48,7 @@ var _ = gg.Describe("Query operations with ops projection", func() {
 			key, err := as.NewKey(ns, set, fmt.Sprintf("tqokey%d", i))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			mapVal := map[interface{}]interface{}{
+			mapVal := map[any]any{
 				"a": i,
 				"b": i * 10,
 			}

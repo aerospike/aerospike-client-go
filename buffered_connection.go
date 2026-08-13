@@ -55,19 +55,20 @@ func (bc *bufferedConn) buf() []byte {
 // If the buffer is empty, head and tail will be reset to the beginning of the buffer.
 func (bc *bufferedConn) shiftContentToHead(length int) {
 	// shift data to the head of the byte slice
-	if length > bc.emptyCap() {
+	switch {
+	case length > bc.emptyCap():
 		buf := buffPool.Get(bc.len() + length)
 		copy(buf, bc.buf()[bc.head:bc.tail])
 		bc.conn.dataBuffer = buf
 
 		bc.tail -= bc.head
 		bc.head = 0
-	} else if bc.len() > 0 {
+	case bc.len() > 0:
 		copy(bc.buf(), bc.buf()[bc.head:bc.tail])
 
 		bc.tail -= bc.head
 		bc.head = 0
-	} else {
+	default:
 		bc.tail = 0
 		bc.head = 0
 	}

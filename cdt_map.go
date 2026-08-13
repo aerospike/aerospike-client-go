@@ -368,7 +368,7 @@ func MapSetPolicyOp(policy *MapPolicy, binName string, ctx ...*CDTContext) *Oper
 //   - key: Map key
 //   - value: Map value
 //   - ctx: Optional CDT context for nested maps
-func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interface{}, ctx ...*CDTContext) *Operation {
+func MapPutOp(policy *MapPolicy, binName string, key any, value any, ctx ...*CDTContext) *Operation {
 	if policy.flags != 0 {
 		ops := cdtMapOpTypePut
 
@@ -416,7 +416,7 @@ func MapPutOp(policy *MapPolicy, binName string, key interface{}, value interfac
 //   - binName: Name of the bin containing the map
 //   - amap: Map of key-value pairs to put
 //   - ctx: Optional CDT context for nested maps
-func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]interface{}, ctx ...*CDTContext) *Operation {
+func MapPutItemsOp(policy *MapPolicy, binName string, amap map[any]any, ctx ...*CDTContext) *Operation {
 	if policy.flags != 0 {
 		ops := cdtMapOpTypePutItems
 
@@ -466,7 +466,7 @@ func MapPutItemsOp(policy *MapPolicy, binName string, amap map[interface{}]inter
 //   - key: Map key to increment
 //   - incr: Increment value (must be numeric)
 //   - ctx: Optional CDT context for nested maps
-func MapIncrementOp(policy *MapPolicy, binName string, key interface{}, incr interface{}, ctx ...*CDTContext) *Operation {
+func MapIncrementOp(policy *MapPolicy, binName string, key any, incr any, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValues2(cdtMapOpTypeIncrement, policy.attributes, binName, ctx, key, incr)
 }
 
@@ -498,7 +498,7 @@ func MapClearOp(binName string, ctx ...*CDTContext) *Operation {
 //   - key: Key to remove
 //   - returnType: What to return (see MapReturnType constants)
 //   - ctx: Optional CDT context for nested maps
-func MapRemoveByKeyOp(binName string, key interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapRemoveByKeyOp(binName string, key any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeRemoveByKey, _MAP_MODIFY, binName, ctx, key, returnType)
 }
 
@@ -526,7 +526,7 @@ func MapRemoveByKeyRangeOp(binName string, keyBegin any, keyEnd any, returnType 
 //   - value: Value to match for removal
 //   - returnType: What to return (see MapReturnType constants)
 //   - ctx: Optional CDT context for nested maps
-func MapRemoveByValueOp(binName string, value interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapRemoveByValueOp(binName string, value any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeRemoveByValue, _MAP_MODIFY, binName, ctx, value, returnType)
 }
 
@@ -664,7 +664,7 @@ func MapSizeOp(binName string, ctx ...*CDTContext) *Operation {
 // Returns an Operation that can be used with Client.Operate().
 // Note: Single operation returns value directly. OpResults (slice) is only returned
 // when multiple operations target the same bin.
-func MapGetByKeyOp(binName string, key interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapGetByKeyOp(binName string, key any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByKey, _MAP_READ, binName, ctx, key, returnType)
 }
 
@@ -682,7 +682,7 @@ func MapGetByKeyOp(binName string, key interface{}, returnType mapReturnType, ct
 //   - keyEnd: End of key range (exclusive), nil for open-ended
 //   - returnType: What to return (see MapReturnType constants)
 //   - ctx: Optional CDT context for nested maps
-func MapGetByKeyRangeOp(binName string, keyBegin interface{}, keyEnd interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapGetByKeyRangeOp(binName string, keyBegin any, keyEnd any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateRangeOperation(cdtMapOpTypeGetByKeyInterval, _MAP_READ, binName, ctx, keyBegin, keyEnd, returnType)
 }
 
@@ -726,7 +726,7 @@ func MapGetByKeyRelativeIndexRangeCountOp(binName string, key any, index, count 
 //   - keys: List of keys to look up
 //   - returnType: What to return (see MapReturnType constants)
 //   - ctx: Optional CDT context for nested maps
-func MapGetByKeyListOp(binName string, keys []interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapGetByKeyListOp(binName string, keys []any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByKeyList, _MAP_READ, binName, ctx, keys, returnType)
 }
 
@@ -738,7 +738,7 @@ func MapGetByKeyListOp(binName string, keys []interface{}, returnType mapReturnT
 //   - value: Value to search for
 //   - returnType: What to return (see MapReturnType constants)
 //   - ctx: Optional CDT context for nested maps
-func MapGetByValueOp(binName string, value interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapGetByValueOp(binName string, value any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateOperationValue1(cdtMapOpTypeGetByValue, _MAP_READ, binName, ctx, value, returnType)
 }
 
@@ -755,7 +755,7 @@ func MapGetByValueOp(binName string, value interface{}, returnType mapReturnType
 //   - valueEnd: End of value range (exclusive), nil for open-ended
 //   - returnType: What to return (see MapReturnType constants)
 //   - ctx: Optional CDT context for nested maps
-func MapGetByValueRangeOp(binName string, valueBegin interface{}, valueEnd interface{}, returnType mapReturnType, ctx ...*CDTContext) *Operation {
+func MapGetByValueRangeOp(binName string, valueBegin any, valueEnd any, returnType mapReturnType, ctx ...*CDTContext) *Operation {
 	return newCDTCreateRangeOperation(cdtMapOpTypeGetByValueInterval, _MAP_READ, binName, ctx, valueBegin, valueEnd, returnType)
 }
 

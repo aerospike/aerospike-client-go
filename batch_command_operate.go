@@ -87,7 +87,7 @@ func (cmd *batchCommandOperate) isRead() bool {
 // Parse all results in the batch.  Add records to shared list.
 // If the record was not found, the bins will be nil.
 func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
-	//Parse each message response and add it to the result array
+	// Parse each message response and add it to the result array
 	cmd.dataOffset = 0
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
@@ -245,13 +245,14 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 		switch br := br.(type) {
 		case *BatchRead:
 			ops := br.Ops
-			if br.headerOnly() {
+			switch {
+			case br.headerOnly():
 				ops = append(ops, GetHeaderOp())
-			} else if len(br.BinNames) > 0 {
+			case len(br.BinNames) > 0:
 				for i := range br.BinNames {
 					ops = append(ops, GetBinOp(br.BinNames[i]))
 				}
-			} else if len(ops) == 0 {
+			case len(ops) == 0:
 				ops = append(ops, GetOp())
 			}
 			res, err = client.Operate(cmd.client.getUsableBatchReadPolicy(br.Policy).toWritePolicy(cmd.policy, client.dynConfig), br.Key, ops...)
