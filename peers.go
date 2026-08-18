@@ -15,7 +15,6 @@
 package aerospike
 
 import (
-
 	"github.com/aerospike/aerospike-client-go/v8/internal/atomic"
 	sm "github.com/aerospike/aerospike-client-go/v8/internal/atomic/map"
 )

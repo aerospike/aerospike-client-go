@@ -110,7 +110,7 @@ var _ = gg.Describe("CDT Map Test", func() {
 	gg.Describe("Simple Usecases", func() {
 
 		gg.It("should create a valid CDT Map using MapPutOp", func() {
-			cdtMap, err := client.Operate(wpolicy, key,
+			_, err := client.Operate(wpolicy, key,
 				as.MapPutOp(putMode, cdtBinName, 1, 1),
 				as.MapPutOp(putMode, cdtBinName, 2, 2),
 				as.MapPutOp(addMode, cdtBinName, 3, 3),
@@ -121,19 +121,19 @@ var _ = gg.Describe("CDT Map Test", func() {
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cdtMap, err = client.Get(nil, key, cdtBinName)
+			cdtMap, err := client.Get(nil, key, cdtBinName)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(cdtMap.Bins[cdtBinName]).To(gm.Equal(map[any]any{1: 1, 2: 2, 3: 3, 4: 4, 6: 6, 7: 7, 8: 8}))
 		})
 
 		gg.It("should unpack an empty Non-Ordered CDT map correctly", func() {
-			cdtMap, err := client.Operate(wpolicy, key,
+			_, err := client.Operate(wpolicy, key,
 				as.MapPutOp(putMode, cdtBinName, 1, 1),
 				as.MapRemoveByKeyOp(cdtBinName, 1, as.MapReturnType.NONE),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cdtMap, err = client.Get(nil, key, cdtBinName)
+			cdtMap, err := client.Get(nil, key, cdtBinName)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(cdtMap.Bins[cdtBinName]).To(gm.Equal(map[any]any{}))
 		})
@@ -160,12 +160,12 @@ var _ = gg.Describe("CDT Map Test", func() {
 				"mk2": []any{"v2.0", "v2.1"},
 			}
 
-			rec, err := client.Operate(nil, key,
+			_, err := client.Operate(nil, key,
 				as.MapPutItemsOp(as.NewMapPolicy(as.MapOrder.KEY_VALUE_ORDERED, as.MapWriteMode.UPDATE), "bin", items),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			rec, err = client.Operate(nil, key,
+			rec, err := client.Operate(nil, key,
 				as.MapGetByKeyOp("bin", "mk1", as.MapReturnType.VALUE),
 				as.MapGetByKeyOp("bin", "mk2", as.MapReturnType.VALUE),
 			)
@@ -187,7 +187,7 @@ var _ = gg.Describe("CDT Map Test", func() {
 
 				as.GetBinOp(cdtBinName),
 			)
-			// gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(cdtMap).NotTo(gm.Equal(as.OpResults{1, 2, 3, 4, 4, 4, map[any]any{1: 1, 2: 2, 3: 3, 4: 4}}))
 
 			cdtMap, err = client.Get(nil, key, cdtBinName)
@@ -355,17 +355,17 @@ var _ = gg.Describe("CDT Map Test", func() {
 			}
 
 			// Write values to empty map.
-			cdtMap, err := client.Operate(wpolicy, key,
+			_, err := client.Operate(wpolicy, key,
 				as.MapPutItemsOp(as.DefaultMapPolicy(), cdtBinName, items),
 			)
 
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cdtMap, err = client.Get(nil, key)
+			cdtMap, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(len(cdtMap.Bins)).To(gm.Equal(1))
 
-			cdtMap, err = client.Operate(wpolicy, key,
+			_, err = client.Operate(wpolicy, key,
 				as.MapIncrementOp(as.DefaultMapPolicy(), cdtBinName, "John", 5),
 				as.MapDecrementOp(as.DefaultMapPolicy(), cdtBinName, "Jim", 4),
 			)
@@ -420,13 +420,13 @@ var _ = gg.Describe("CDT Map Test", func() {
 			}
 
 			// Write values to empty map.
-			cdtMap, err := client.Operate(wpolicy, key,
+			_, err := client.Operate(wpolicy, key,
 				as.MapPutItemsOp(as.DefaultMapPolicy(), cdtBinName, items),
 			)
 
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			cdtMap, err = client.Get(nil, key)
+			cdtMap, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(len(cdtMap.Bins)).To(gm.Equal(1))
 
@@ -533,13 +533,13 @@ var _ = gg.Describe("CDT Map Test", func() {
 		}
 
 		// Write values to empty map.
-		cdtMap, err := client.Operate(wpolicy, key,
+		_, err := client.Operate(wpolicy, key,
 			as.MapPutItemsOp(as.DefaultMapPolicy(), cdtBinName, items),
 		)
 
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cdtMap, err = client.Get(nil, key)
+		cdtMap, err := client.Get(nil, key)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(len(cdtMap.Bins)).To(gm.Equal(1))
 
@@ -564,13 +564,13 @@ var _ = gg.Describe("CDT Map Test", func() {
 		mapPolicy := as.NewMapPolicy(as.MapOrder.KEY_VALUE_ORDERED, as.MapWriteMode.UPDATE)
 
 		// Write values to empty map.
-		cdtMap, err := client.Operate(wpolicy, key,
+		_, err := client.Operate(wpolicy, key,
 			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
 		)
 
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cdtMap, err = client.Get(nil, key)
+		cdtMap, err := client.Get(nil, key)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(len(cdtMap.Bins)).To(gm.Equal(1))
 
@@ -616,14 +616,14 @@ var _ = gg.Describe("CDT Map Test", func() {
 		mapPolicy := as.DefaultMapPolicy()
 
 		// Write values to empty map.
-		cdtMap, err := client.Operate(wpolicy, key,
+		_, err := client.Operate(wpolicy, key,
 			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
 			as.MapPutItemsOp(mapPolicy, cdtBinName2, items),
 		)
 
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cdtMap, err = client.Get(nil, key)
+		cdtMap, err := client.Get(nil, key)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(len(cdtMap.Bins)).To(gm.Equal(2))
 
@@ -660,13 +660,13 @@ var _ = gg.Describe("CDT Map Test", func() {
 		mapPolicy := as.DefaultMapPolicy()
 
 		// Write values to empty map.
-		cdtMap, err := client.Operate(wpolicy, key,
+		_, err := client.Operate(wpolicy, key,
 			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
 		)
 
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cdtMap, err = client.Get(nil, key)
+		cdtMap, err := client.Get(nil, key)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(len(cdtMap.Bins)).To(gm.Equal(1))
 
@@ -690,13 +690,13 @@ var _ = gg.Describe("CDT Map Test", func() {
 		mapPolicy := as.DefaultMapPolicy()
 
 		// Write values to empty map.
-		cdtMap, err := client.Operate(wpolicy, key,
+		_, err := client.Operate(wpolicy, key,
 			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
 		)
 
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cdtMap, err = client.Get(nil, key)
+		cdtMap, err := client.Get(nil, key)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(len(cdtMap.Bins)).To(gm.Equal(1))
 
@@ -721,13 +721,13 @@ var _ = gg.Describe("CDT Map Test", func() {
 		mapPolicy := as.DefaultMapPolicy()
 
 		// Write values to empty map.
-		cdtMap, err := client.Operate(wpolicy, key,
+		_, err := client.Operate(wpolicy, key,
 			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
 		)
 
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cdtMap, err = client.Get(nil, key)
+		cdtMap, err := client.Get(nil, key)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(len(cdtMap.Bins)).To(gm.Equal(1))
 
@@ -765,13 +765,13 @@ var _ = gg.Describe("CDT Map Test", func() {
 		mapPolicy := as.DefaultMapPolicy()
 
 		// Write values to empty map.
-		cdtMap, err := client.Operate(wpolicy, key,
+		_, err := client.Operate(wpolicy, key,
 			as.MapPutItemsOp(mapPolicy, cdtBinName, items),
 		)
 
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		cdtMap, err = client.Get(nil, key)
+		cdtMap, err := client.Get(nil, key)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(len(cdtMap.Bins)).To(gm.Equal(1))
 

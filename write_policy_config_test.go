@@ -171,3 +171,37 @@ var _ = gg.Describe("WritePolicy Config", func() {
 		})
 	})
 })
+
+// WritePolicy.Xdr makes a write operate in XDR mode: the INFO1_XDR bit must be
+// set in the wire header so the server treats the write as coming from XDR (or
+// a connector emulating one). Mirrors the Java client's WritePolicy.xdr.
+var _ = gg.Describe("WritePolicy XDR bit encoding", func() {
+
+	// encodeWriteReadAttr encodes a single-bin write and returns the readAttr
+	// byte from the message header.
+	encodeWriteReadAttr := func(policy *WritePolicy) byte {
+		key, err := NewKey("test", "xdr_wire", 1)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		cmd := &baseCommand{}
+		cmd.dataBuffer = make([]byte, 2048)
+		gm.Expect(cmd.setWrite(policy, _WRITE, key, []*Bin{NewBin("a", 1)}, nil)).ToNot(gm.HaveOccurred())
+		return cmd.dataBuffer[9]
+	}
+
+	gg.It("must not set the bit by default", func() {
+		gm.Expect(encodeWriteReadAttr(NewWritePolicy(0, 0)) & byte(_INFO1_XDR)).To(gm.BeZero())
+	})
+
+	gg.It("must set the bit when Xdr is enabled, and only that bit", func() {
+		policy := NewWritePolicy(0, 0)
+		policy.Xdr = true
+
+		plain := encodeWriteReadAttr(NewWritePolicy(0, 0))
+		xdr := encodeWriteReadAttr(policy)
+
+		gm.Expect(xdr & byte(_INFO1_XDR)).ToNot(gm.BeZero())
+		gm.Expect(xdr^byte(_INFO1_XDR)).To(gm.Equal(plain),
+			"enabling Xdr must change nothing besides the XDR bit")
+	})
+})

@@ -906,7 +906,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 					rec, err = client.Get(rpolicy, key)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
-					gm.Expect(bool(rec.Bins[bin.Name].(bool))).To(gm.Equal(bin.Value.GetObject()))
+					gm.Expect(rec.Bins[bin.Name].(bool)).To(gm.Equal(bin.Value.GetObject()))
 				})
 
 				gg.It("must save a key with MULTIPLE bins", func() {
@@ -1591,10 +1591,8 @@ var _ = gg.Describe("Aerospike", func() {
 					}
 
 					// First Part: For CDTs
-					list := []any{}
 					for j, key := range keys {
 						for i := 1; i <= listSize; i++ {
-							list = append(list, i*100)
 
 							sz, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, j+i*100))
 							gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1646,10 +1644,8 @@ var _ = gg.Describe("Aerospike", func() {
 					}
 
 					// First Part: For CDTs
-					list := []any{}
 					for j, key := range keys {
 						for i := 1; i <= listSize; i++ {
-							list = append(list, i*100)
 
 							sz, err := client.Operate(wpolicy, key, as.ListAppendOp(cdtBinName, j+i*100))
 							gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -1947,10 +1943,8 @@ var _ = gg.Describe("Aerospike", func() {
 				const cdtBinName = "cdtBin"
 
 				// First Part: For CDTs
-				list := []any{}
 				opAppend := as.ListAppendOp(cdtBinName, 1)
 				for i := 1; i <= listSize; i++ {
-					list = append(list, i)
 
 					sz, err := client.Operate(wpolicy, key, opAppend)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -2052,4 +2046,141 @@ var _ = gg.Describe("Aerospike", func() {
 
 	}) // Describe
 
+})
+
+var _ = gg.Describe("Retry semantics", func() {
+
+	// MaxRetries counts retries, not attempts: the initial attempt is free, so
+	// MaxRetries=N must produce N+1 total attempts before MAX_RETRIES_EXCEEDED.
+	// This matches the MaxRetries doc and the Java client; the loop previously
+	// stopped one attempt short.
+	//
+	// A nanosecond socket timeout makes every attempt fail client-side. The
+	// error's Iteration field carries the attempt count; a dedicated client
+	// keeps the connection-pool state (which feeds that counter) deterministic.
+	gg.It("must make MaxRetries+1 total attempts before giving up", func() {
+		c, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		defer c.Close()
+
+		key, err := as.NewKey(*namespace, randString(50), "retry_count")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		for _, maxRetries := range []int{0, 1, 2, 5} {
+			policy := as.NewPolicy()
+			policy.SocketTimeout = time.Nanosecond
+			policy.TotalTimeout = 0
+			policy.MaxRetries = maxRetries
+			policy.SleepBetweenRetries = 0
+
+			_, err := c.Get(policy, key)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.MAX_RETRIES_EXCEEDED)).To(gm.BeTrue(),
+				"expected MAX_RETRIES_EXCEEDED, got: %v", err)
+
+			ae := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
+			gm.Expect(ae.Iteration).To(gm.Equal(maxRetries+1),
+				"MaxRetries=%d must produce %d attempts", maxRetries, maxRetries+1)
+		}
+	})
+
+	// After a client-side timeout the time budget was already consumed by the
+	// attempt itself, so the loop must not also sleep before retrying -- the
+	// Java client skips the sleep the same way. With a sleep this large, any
+	// sleeping between the attempts would dominate the elapsed time.
+	gg.It("must not sleep between retries after a client timeout", func() {
+		c, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		defer c.Close()
+
+		key, err := as.NewKey(*namespace, randString(50), "retry_sleep")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		policy := as.NewPolicy()
+		policy.SocketTimeout = time.Nanosecond
+		policy.TotalTimeout = 0
+		policy.MaxRetries = 2
+		policy.SleepBetweenRetries = 400 * time.Millisecond
+
+		begin := time.Now()
+		_, err = c.Get(policy, key)
+		elapsed := time.Since(begin)
+
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(elapsed).To(gm.BeNumerically("<", 300*time.Millisecond),
+			"client timeouts must retry without sleeping, took %v", elapsed)
+	})
+
+	// inDoubt reports whether the server may have applied a write. A write
+	// that never reached the wire -- here every attempt dies on an
+	// already-expired socket deadline before sending -- cannot be in doubt.
+	// The counter previously ticked per loop pass rather than per send, so
+	// such writes were misreported as in doubt.
+	gg.It("must not mark a never-sent write as in doubt", func() {
+		c, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		defer c.Close()
+
+		key, err := as.NewKey(*namespace, randString(50), "retry_indoubt")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		wpolicy := as.NewWritePolicy(0, 0)
+		wpolicy.SocketTimeout = time.Nanosecond
+		wpolicy.TotalTimeout = 0
+		wpolicy.MaxRetries = 1
+		wpolicy.SleepBetweenRetries = 0
+
+		err = c.Put(wpolicy, key, as.BinMap{"a": 1})
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.IsInDoubt()).To(gm.BeFalse(),
+			"a write that never reached the wire must not be in doubt: %v", err)
+	})
+})
+
+// BasePolicy.ConnectTimeout caps creating new connections on behalf of a
+// command: the dial, the TLS handshake and the token authentication. The Go
+// client fills pools in the background, so the observable effect of an
+// impossibly small ConnectTimeout is a pool that can never fill: every dial
+// dies instantly and the command times out against its TotalTimeout. A zero
+// ConnectTimeout keeps the cluster-level ClientPolicy.Timeout, which connects
+// fine.
+var _ = gg.Describe("ConnectTimeout", func() {
+
+	gg.It("must bound new-connection creation for the command's pool fills", func() {
+		c, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		defer c.Close()
+
+		key, err := as.NewKey(*namespace, randString(50), "connect_timeout")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		// An impossibly small connect timeout: no dial can ever succeed, so
+		// the (initially empty) pool never fills and the command must fail.
+		policy := as.NewPolicy()
+		policy.ConnectTimeout = time.Nanosecond
+		policy.TotalTimeout = 300 * time.Millisecond
+		policy.MaxRetries = 2
+
+		begin := time.Now()
+		_, err = c.Get(policy, key)
+		gm.Expect(err).To(gm.HaveOccurred(),
+			"no connection can be created under a 1ns connect timeout")
+		gm.Expect(err.Matches(types.TIMEOUT, types.MAX_RETRIES_EXCEEDED)).To(gm.BeTrue(),
+			"whichever budget runs out first, the command must fail on the client, got: %v", err)
+		gm.Expect(time.Since(begin)).To(gm.BeNumerically("<", 2*time.Second))
+
+		// The same command without the override connects normally.
+		policy = as.NewPolicy()
+		_, err = c.Get(policy, key)
+		gm.Expect(err.Matches(types.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue(),
+			"a zero ConnectTimeout must fall back to ClientPolicy.Timeout and reach the server, got: %v", err)
+
+		// And a generous override still connects.
+		policy = as.NewPolicy()
+		policy.ConnectTimeout = 2 * time.Second
+		_, err = c.Get(policy, key)
+		gm.Expect(err.Matches(types.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue(),
+			"a generous ConnectTimeout must still connect, got: %v", err)
+	})
 })

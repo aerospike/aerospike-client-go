@@ -138,9 +138,9 @@ func AppendOp(bin *Bin) *Operation {
 
 // PrependOp creates string prepend database operation.
 //
-// Deprecated: PrepndOp has been deprecated since 8.8.0. Use [StrPrependOp] instead. 
-// This legacy operation performs a raw byte concatenation that is 
-// not Unicode/DBCS-aware; the string-package equivalent provides consistent 
+// Deprecated: PrepndOp has been deprecated since 8.8.0. Use [StrPrependOp] instead.
+// This legacy operation performs a raw byte concatenation that is
+// not Unicode/DBCS-aware; the string-package equivalent provides consistent
 // Unicode handling and policy/CTX support. Deprecated since version 8.8.0.
 func PrependOp(bin *Bin) *Operation {
 	return &Operation{opType: _PREPEND, binName: bin.Name, binValue: bin.Value}

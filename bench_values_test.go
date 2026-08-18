@@ -21,15 +21,9 @@ import (
 	"testing"
 )
 
-var sv StringValue
-var iv IntegerValue
-var lv LongValue
-var bav BytesValue
-
 var __value Value
 
 func Benchmark_StringValue(b *testing.B) {
-	b.N = 1e6
 	str := strings.Repeat("a", 1000)
 	for i := 0; i < b.N; i++ {
 		__value = NewStringValue(str)
@@ -37,7 +31,6 @@ func Benchmark_StringValue(b *testing.B) {
 }
 
 func Benchmark_IntegerValue(b *testing.B) {
-	b.N = 1e6
 	in := 1091
 	for i := 0; i < b.N; i++ {
 		__value = NewIntegerValue(in)
@@ -45,7 +38,6 @@ func Benchmark_IntegerValue(b *testing.B) {
 }
 
 func Benchmark_LongValue(b *testing.B) {
-	b.N = 1e6
 	in := int64(10916927583729485)
 	for i := 0; i < b.N; i++ {
 		__value = NewLongValue(in)
@@ -53,7 +45,6 @@ func Benchmark_LongValue(b *testing.B) {
 }
 
 func Benchmark_BytesValue(b *testing.B) {
-	b.N = 1e6
 	barr := bytes.Repeat([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}, 1000)
 	for i := 0; i < b.N; i++ {
 		__value = NewBytesValue(barr)
@@ -61,7 +52,6 @@ func Benchmark_BytesValue(b *testing.B) {
 }
 
 func Benchmark_ListValue(b *testing.B) {
-	b.N = 1e6
 	value := []any{
 		rand.Int63(),
 		strings.Repeat("s", 100),
@@ -80,7 +70,6 @@ func Benchmark_ListValue(b *testing.B) {
 }
 
 func Benchmark_JsonMapValue(b *testing.B) {
-	b.N = 1e6
 	value := map[string]any{
 		strings.Repeat("a", 16): rand.Int63(),
 		strings.Repeat("b", 16): strings.Repeat("s", 100),
@@ -99,7 +88,6 @@ func Benchmark_JsonMapValue(b *testing.B) {
 }
 
 func Benchmark_IfcMapValue(b *testing.B) {
-	b.N = 1e6
 	value := map[any]any{
 		strings.Repeat("a", 16): rand.Int63(),
 		strings.Repeat("b", 16): strings.Repeat("s", 100),

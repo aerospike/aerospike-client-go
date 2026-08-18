@@ -32,7 +32,6 @@ var _ = gg.Describe("Geo Spacial Tests", gg.Ordered, func() {
 	var wpolicy = as.NewWritePolicy(0, 0)
 	wpolicy.SendKey = true
 	var size = 20
-	const keyCount = 1000
 
 	var binName = "GeoBin"
 

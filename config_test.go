@@ -64,7 +64,7 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 
 				// Making sure config has not been updated if LoadConfig() invoked from configProvider is nil.
 				// In those case we should load/update default policies into the cache.
-				gm.Expect(defaultDynamic.TotalTimeout).To(gm.Equal(time.Duration(1000 * time.Millisecond)))
+				gm.Expect(defaultDynamic.TotalTimeout).To(gm.Equal(1000 * time.Millisecond))
 			})
 		})
 
@@ -126,7 +126,7 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 				readCfg := dc.config.Dynamic.Read
 				gm.Expect(readCfg).ToNot(gm.BeNil())
 				// Ensuring the new value is set in the config as well.
-				gm.Expect(*readCfg.TotalTimeout).To(gm.Equal(int(newTimeout)))
+				gm.Expect(*readCfg.TotalTimeout).To(gm.Equal(newTimeout))
 
 				policy := dc.client.dynDefaultPolicy.Load()
 				// At this point the dynamic cache should be updated with the new value.
@@ -233,10 +233,10 @@ var _ = gg.Describe("DynConfig - initConfig and providerLoadConfig", func() {
 				gm.Expect(dc.config.Dynamic).ToNot(gm.BeNil())
 				readCfg := dc.config.Dynamic.Read
 				gm.Expect(readCfg).ToNot(gm.BeNil())
-				gm.Expect(*readCfg.TotalTimeout).To(gm.Equal(int(time.Duration(newTimeout))))
+				gm.Expect(*readCfg.TotalTimeout).To(gm.Equal(int(newTimeout)))
 
 				policy := dc.client.dynDefaultPolicy.Load()
-				gm.Expect(policy.TotalTimeout).To(gm.Equal(time.Duration(newTimeout) * time.Millisecond))
+				gm.Expect(policy.TotalTimeout).To(gm.Equal(newTimeout * time.Millisecond))
 			})
 		})
 	})

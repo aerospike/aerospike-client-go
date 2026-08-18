@@ -31,7 +31,6 @@ type batchCommandGet struct {
 	records      []*Record
 	indexRecords []*BatchRead
 	readAttr     int
-	key          Key
 
 	// pointer to the object that's going to be unmarshalled
 	objects      []*reflect.Value
@@ -115,7 +114,7 @@ func (cmd *batchCommandGet) writeBuffer(ifc command) Error {
 // Parse all results in the batch.  Add records to shared list.
 // If the record was not found, the bins will be nil.
 func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bool, Error) {
-	//Parse each message response and add it to the result array
+	// Parse each message response and add it to the result array
 	cmd.dataOffset = 0
 	for cmd.dataOffset < receiveSize {
 		if err := cmd.readBytes(int(_MSG_REMAINING_HEADER_SIZE)); err != nil {
@@ -243,7 +242,8 @@ func (cmd *batchCommandGet) commandType() commandType {
 func (cmd *batchCommandGet) executeSingle(client *Client) Error {
 	for _, offset := range cmd.batch.offsets {
 		var err Error
-		if len(cmd.ops) > 0 {
+		switch {
+		case len(cmd.ops) > 0:
 			// Validate that all operations are read
 			for i := range cmd.ops {
 				if cmd.ops[i].opType.isWrite {
@@ -251,9 +251,9 @@ func (cmd *batchCommandGet) executeSingle(client *Client) Error {
 				}
 			}
 			cmd.records[offset], err = client.Operate(cmd.policy.toWritePolicy(), cmd.keys[offset], cmd.ops...)
-		} else if (cmd.readAttr & _INFO1_NOBINDATA) == _INFO1_NOBINDATA {
+		case (cmd.readAttr & _INFO1_NOBINDATA) == _INFO1_NOBINDATA:
 			cmd.records[offset], err = client.GetHeader(&cmd.policy.BasePolicy, cmd.keys[offset])
-		} else {
+		default:
 			cmd.records[offset], err = client.Get(&cmd.policy.BasePolicy, cmd.keys[offset], cmd.binNames...)
 		}
 		if err != nil {

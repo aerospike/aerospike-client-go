@@ -121,10 +121,6 @@ func (cmd *writePayloadCommand) commandType() commandType {
 	return ttPut
 }
 
-func (cmd *writePayloadCommand) getnamespaces() *map[string]uint64 {
-	return nil
-}
-
 func (cmd *writePayloadCommand) getNamespace() *string {
 	return &cmd.key.namespace
 }

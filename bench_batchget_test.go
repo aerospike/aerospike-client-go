@@ -53,7 +53,6 @@ func Benchmark_BatchGet_________Int64(b *testing.B) {
 	set := "batch_get_bench_integer"
 	bins := []*as.Bin{as.NewBin("b", rand.Int63())}
 	makeDataForBatchGetBench(set, bins)
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 
@@ -65,7 +64,6 @@ func Benchmark_BatchGet_________Int32(b *testing.B) {
 	set := "batch_get_bench_integer"
 	bins := []*as.Bin{as.NewBin("b", rand.Int31())}
 	makeDataForBatchGetBench(set, bins)
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 
@@ -76,7 +74,6 @@ func Benchmark_BatchGet_________Int32(b *testing.B) {
 func Benchmark_BatchGet_String______1(b *testing.B) {
 	set := "batch_get_bench_str_1"
 	bins := []*as.Bin{as.NewBin("b", strings.Repeat("s", 1))}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForBatchGetBench(set, bins)
@@ -88,7 +85,6 @@ func Benchmark_BatchGet_String______1(b *testing.B) {
 func Benchmark_BatchGet_String_____10(b *testing.B) {
 	set := "batch_get_bench_str_10"
 	bins := []*as.Bin{as.NewBin("b", strings.Repeat("s", 10))}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForBatchGetBench(set, bins)
@@ -100,7 +96,6 @@ func Benchmark_BatchGet_String_____10(b *testing.B) {
 func Benchmark_BatchGet_String____100(b *testing.B) {
 	set := "batch_get_bench_str_100"
 	bins := []*as.Bin{as.NewBin("b", strings.Repeat("s", 100))}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForBatchGetBench(set, bins)
@@ -112,7 +107,6 @@ func Benchmark_BatchGet_String____100(b *testing.B) {
 func Benchmark_BatchGet_String___1000(b *testing.B) {
 	set := "batch_get_bench_str_1000"
 	bins := []*as.Bin{as.NewBin("b", strings.Repeat("s", 1000))}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForBatchGetBench(set, bins)
@@ -124,7 +118,6 @@ func Benchmark_BatchGet_String___1000(b *testing.B) {
 func Benchmark_BatchGet_String__10000(b *testing.B) {
 	set := "batch_get_bench_str_10000"
 	bins := []*as.Bin{as.NewBin("b", strings.Repeat("s", 10000))}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForBatchGetBench(set, bins)
@@ -136,7 +129,6 @@ func Benchmark_BatchGet_String__10000(b *testing.B) {
 func Benchmark_BatchGet_String_100000(b *testing.B) {
 	set := "batch_get_bench_str_10000"
 	bins := []*as.Bin{as.NewBin("b", strings.Repeat("s", 10000))}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForBatchGetBench(set, bins)
@@ -149,7 +141,6 @@ func Benchmark_BatchGet_Complex_Array(b *testing.B) {
 	set := "batch_get_bench_str_10000"
 	// bins := []*as.Bin{as.NewBin("b", []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
 	bins := []*as.Bin{as.NewBin("b", []any{rand.Int63()})}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForBatchGetBench(set, bins)
@@ -162,7 +153,6 @@ func Benchmark_BatchGet_Complex_Map(b *testing.B) {
 	set := "batch_get_bench_str_10000"
 	// bins := []*as.Bin{as.NewBin("b", []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}})}
 	bins := []*as.Bin{as.NewBin("b", map[any]any{rand.Int63(): rand.Int63()})}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	makeDataForBatchGetBench(set, bins)

@@ -62,7 +62,7 @@ func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) Error {
 		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 	}
 
-	switch types.ResultCode(resultCode) {
+	switch resultCode {
 	case 0:
 		cmd.existed = true
 	case types.KEY_NOT_FOUND_ERROR:
@@ -71,7 +71,7 @@ func (cmd *deleteCommand) parseResult(ifc command, conn *Connection) Error {
 		cmd.existed = true
 		return ErrFilteredOut.err()
 	default:
-		return newError(types.ResultCode(resultCode))
+		return newError(resultCode)
 	}
 
 	return nil

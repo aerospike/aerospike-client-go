@@ -55,18 +55,6 @@ func NewBatchRead(policy *BatchReadPolicy, key *Key, binNames []string) *BatchRe
 	}
 }
 
-// newBatchRead defines a key and bins to retrieve in a batch operation.
-func newBatchRead(policy *BatchReadPolicy, key *Key, binNames []string) (*BatchRead, *BatchRecord) {
-	res := &BatchRead{
-		BatchRecord: *newSimpleBatchRecord(key, false),
-		Policy:      policy,
-		BinNames:    binNames,
-		ReadAllBins: len(binNames) == 0,
-	}
-
-	return res, &res.BatchRecord
-}
-
 // NewBatchReadOps defines a key and bins to retrieve in a batch operation, including expressions.
 func NewBatchReadOps(policy *BatchReadPolicy, key *Key, ops ...*Operation) *BatchRead {
 	res := &BatchRead{
@@ -76,20 +64,6 @@ func NewBatchReadOps(policy *BatchReadPolicy, key *Key, ops ...*Operation) *Batc
 	}
 
 	return res
-}
-
-// NewBatchReadOps defines a key and bins to retrieve in a batch operation, including expressions.
-func newBatchReadOps(policy *BatchReadPolicy, key *Key, ops ...*Operation) (*BatchRead, *BatchRecord) {
-	// since binNames is mutually exclusive with ops parameter.
-	res := &BatchRead{
-		BatchRecord: *newSimpleBatchRecord(key, false),
-		Policy:      policy,
-		Ops:         ops,
-	}
-
-	res.ReadAllBins = true
-
-	return res, &res.BatchRecord
 }
 
 // NewBatchReadHeader defines a key to retrieve the record headers only in a batch operation.

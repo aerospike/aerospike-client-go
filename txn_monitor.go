@@ -152,9 +152,16 @@ func (tm *TxnMonitor) addWriteKeys(cluster *Cluster, policy *BasePolicy, ops []*
 
 func (tm *TxnMonitor) copyTimeoutPolicy(policy *BasePolicy) *WritePolicy {
 	// Inherit some fields from the original command's policy.
+	//
+	// Txn is deliberately NOT copied (the Java client omits it here too): the
+	// monitor record write is infrastructure for the transaction, not a
+	// transactional write itself. The TxnAddKeys command receives the txn
+	// explicitly and encodes the monitor key raw; a policy-carried txn would
+	// wrongly stamp transaction fields onto the monitor record's own write.
+	//
 	wp := NewWritePolicy(0, 0)
 	// wp.Txn = policy.Txn
-	// wp.ConnectTimeout = policy.ConnectTimeout
+	wp.ConnectTimeout = policy.ConnectTimeout
 	wp.SocketTimeout = policy.SocketTimeout
 	wp.TotalTimeout = policy.TotalTimeout
 	wp.TimeoutDelay = policy.TimeoutDelay

@@ -46,16 +46,16 @@ var _ = gg.Describe("ApplyConfigToMetricsPolicy", func() {
 
 			// Check defaults.
 			gm.Expect(policy).NotTo(gm.BeNil())
-			gm.Expect(int(policy.LatencyBase)).To(gm.Equal(int(2)))
-			gm.Expect(int(policy.LatencyColumns)).To(gm.Equal(int(24)))
+			gm.Expect(policy.LatencyBase).To(gm.Equal(2))
+			gm.Expect(policy.LatencyColumns).To(gm.Equal(24))
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
 			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
-			gm.Expect(int(updatedPolicy.LatencyBase)).To(gm.Equal(int(3)))
-			gm.Expect(int(updatedPolicy.LatencyColumns)).To(gm.Equal(int(3)))
+			gm.Expect(updatedPolicy.LatencyBase).To(gm.Equal(3))
+			gm.Expect(updatedPolicy.LatencyColumns).To(gm.Equal(3))
 		})
 	})
 
@@ -80,15 +80,15 @@ var _ = gg.Describe("ApplyConfigToMetricsPolicy", func() {
 
 			// Check defaults.
 			gm.Expect(policy).NotTo(gm.BeNil())
-			gm.Expect(int(policy.LatencyBase)).To(gm.Equal(int(2)))
-			gm.Expect(int(policy.LatencyColumns)).To(gm.Equal(int(24)))
+			gm.Expect(policy.LatencyBase).To(gm.Equal(2))
+			gm.Expect(policy.LatencyColumns).To(gm.Equal(24))
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
 
 			// Validate the applied configuration.
 			gm.Expect(updatedPolicy).NotTo(gm.BeNil())
-			gm.Expect(int(updatedPolicy.LatencyColumns)).To(gm.Equal(int(3)))
+			gm.Expect(updatedPolicy.LatencyColumns).To(gm.Equal(3))
 		})
 	})
 })

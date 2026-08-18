@@ -154,18 +154,15 @@ func (p *BatchPolicy) patchDynamic(dynConfig *DynConfig) *BatchPolicy {
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if p == nil {
+	switch {
+	case p == nil:
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultBatchPolicy.Load()
-	} else if config != nil && config.Dynamic != nil && config.Dynamic.BatchRead != nil {
+	case config != nil && config.Dynamic != nil && config.Dynamic.BatchRead != nil:
 		// Dynamic configuration exists for policy in question.
-		var responsePolicy *BatchPolicy
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		responsePolicy = p.copy()
-		responsePolicy = responsePolicy.mapDynamic(dynConfig)
-
-		return responsePolicy
-	} else {
+		return p.copy().mapDynamic(dynConfig)
+	default:
 		return p
 	}
 }

@@ -68,7 +68,7 @@ func (cmd *txnCloseCommand) parseResult(ifc command, conn *Connection) Error {
 		return nil
 	}
 
-	return newCustomNodeError(cmd.node, types.ResultCode(resultCode))
+	return newCustomNodeError(cmd.node, resultCode)
 }
 
 func (cmd *txnCloseCommand) Execute() Error {
@@ -76,7 +76,6 @@ func (cmd *txnCloseCommand) Execute() Error {
 }
 
 func (cmd *txnCloseCommand) onInDoubt() {
-	return
 }
 
 func (cmd *txnCloseCommand) getNamespaces() iter.Seq2[string, uint64] {

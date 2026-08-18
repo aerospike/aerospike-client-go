@@ -55,7 +55,7 @@ func (btsk *baseTask) onComplete(ifc Task) chan Error {
 
 		var interval = 100 * time.Millisecond
 		var deadline time.Time
-		
+
 		// Set deadline if timeout is specified (> 0)
 		if btsk.timeout > 0 {
 			deadline = time.Now().Add(btsk.timeout)

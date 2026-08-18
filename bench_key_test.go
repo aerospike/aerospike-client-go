@@ -24,7 +24,6 @@ import (
 )
 
 var str = strings.Repeat("abcd", 128)
-var strVal = as.NewValue(str)
 var buffer = []byte(str)
 var key *as.Key
 

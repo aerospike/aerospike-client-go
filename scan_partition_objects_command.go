@@ -28,7 +28,6 @@ type scanPartitionObjectsCommand struct {
 	namespace string
 	setName   string
 	binNames  []string
-	taskID    uint64
 }
 
 func newScanPartitionObjectsCommand(

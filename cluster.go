@@ -412,14 +412,14 @@ func (clstr *Cluster) aggregateNodeStats(nodeList []*Node) {
 	}
 }
 
-func (clstr *Cluster) statsCopy() map[string]nodeStats {
+func (clstr *Cluster) statsCopy() map[string]*nodeStats {
 	// update the stats on the cluster object
 	clstr.aggregateNodeStats(clstr.GetNodes())
 
 	clstr.statsLock.Lock()
 	defer clstr.statsLock.Unlock()
 
-	res := make(map[string]nodeStats, len(clstr.stats))
+	res := make(map[string]*nodeStats, len(clstr.stats))
 	for _, node := range clstr.GetNodes() {
 		h := node.host.String()
 		if stats, exists := clstr.stats[h]; exists {
@@ -535,11 +535,6 @@ func (clstr *Cluster) waitTillStabilized() Error {
 	}
 }
 
-// TODO: Not used anywhere. Consider removing
-func (clstr *Cluster) findAlias(alias *Host) *Node {
-	return clstr.aliases.Get(*alias)
-}
-
 func (clstr *Cluster) setPartitions(partMap partitionMap) {
 	if err := partMap.validate(); err != nil {
 		logger.Logger.Error("Partition map error: %s.", err.Error())
@@ -649,13 +644,6 @@ func (clstr *Cluster) findNodeName(list []*Node, name string) bool {
 	return false
 }
 
-// TODO: Not used anywhere. Consider removing
-func (clstr *Cluster) addAlias(host *Host, node *Node) {
-	if host != nil && node != nil {
-		clstr.aliases.Set(*host, node)
-	}
-}
-
 func (clstr *Cluster) findNodesToRemove(peers *peers) {
 	refreshCount := peers.refreshCount.Get()
 
@@ -706,11 +694,9 @@ func (clstr *Cluster) findNodesToRemove(peers *peers) {
 				if node.referenceCount.Get() == 0 && node.peersCount.Get() == 0 && node.isOrphan.Get() {
 					peers.addNodesToRemove(node)
 				}
-			} else {
+			} else if !peers.containsNodeToRemove(node) {
 				// Node not responding. Remove it.
-				if !peers.containsNodeToRemove(node) {
-					peers.addNodesToRemove(node)
-				}
+				peers.addNodesToRemove(node)
 			}
 		}
 	}

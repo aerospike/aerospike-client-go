@@ -16,6 +16,8 @@ package aerospike
 
 import (
 	"errors"
+	"net"
+	"os"
 
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
@@ -143,3 +145,150 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 	})
 
 }) // Describe
+
+// prepareRetryTimeout decides replica sequencing on retry: when it reports
+// true the failure is treated as a timeout, so writes retry on the same node
+// and linearized reads keep their replica sequence. Only an explicit
+// SERVER_NOT_AVAILABLE response (a node disowning the partition) justifies
+// advancing a write to the next replica, matching the Java client. The
+// polarity was previously inverted: writes moved replicas on connection
+// errors and stayed put on SERVER_NOT_AVAILABLE.
+var _ = gg.Describe("prepareRetryTimeout replica-sequencing polarity", func() {
+
+	gg.It("must treat a client timeout as a timeout regardless of the error", func() {
+		gm.Expect(prepareRetryTimeout(true, nil)).To(gm.BeTrue())
+		gm.Expect(prepareRetryTimeout(true, newError(ast.SERVER_NOT_AVAILABLE))).To(gm.BeTrue())
+	})
+
+	gg.It("must not treat SERVER_NOT_AVAILABLE as a timeout, so writes advance the replica", func() {
+		gm.Expect(prepareRetryTimeout(false, newError(ast.SERVER_NOT_AVAILABLE))).To(gm.BeFalse())
+	})
+
+	gg.It("must treat every other failure as a timeout, so writes retry in place", func() {
+		for _, rc := range []ast.ResultCode{
+			ast.NETWORK_ERROR,
+			ast.TIMEOUT,
+			ast.DEVICE_OVERLOAD,
+			ast.KEY_BUSY,
+			ast.PARSE_ERROR,
+		} {
+			gm.Expect(prepareRetryTimeout(false, newError(rc))).To(gm.BeTrue(),
+				"result code %v must be treated as a timeout", rc)
+		}
+	})
+
+	gg.It("must not treat an error-less failed pass (an inactive node) as a timeout", func() {
+		gm.Expect(prepareRetryTimeout(false, nil)).To(gm.BeFalse())
+	})
+})
+
+// overloadedServerError gates the retry of transient server responses:
+// DEVICE_OVERLOAD (node momentarily overloaded) and KEY_BUSY (record locked by
+// another transaction). Both previously fell through to the fatal return and
+// failed the command on the first response; they now retry and feed the
+// circuit breaker, matching the Java client.
+var _ = gg.Describe("overloadedServerError retry classification", func() {
+
+	gg.It("must classify DEVICE_OVERLOAD and KEY_BUSY as retryable", func() {
+		gm.Expect(overloadedServerError(newError(ast.DEVICE_OVERLOAD))).To(gm.BeTrue())
+		gm.Expect(overloadedServerError(newError(ast.KEY_BUSY))).To(gm.BeTrue())
+	})
+
+	gg.It("must not classify other failures as overloaded", func() {
+		for _, rc := range []ast.ResultCode{
+			ast.TIMEOUT,
+			ast.NETWORK_ERROR,
+			ast.PARAMETER_ERROR,
+			ast.KEY_NOT_FOUND_ERROR,
+			ast.SERVER_NOT_AVAILABLE,
+		} {
+			gm.Expect(overloadedServerError(newError(rc))).To(gm.BeFalse(),
+				"result code %v must not be classified as overloaded", rc)
+		}
+	})
+
+	// The response arrives fully parsed on a healthy connection, so the retry
+	// path pools it rather than closing it; KeepConnection must agree.
+	gg.It("must keep the connection for both, so retries reuse the pool", func() {
+		gm.Expect(KeepConnection(newError(ast.DEVICE_OVERLOAD))).To(gm.BeTrue())
+		gm.Expect(KeepConnection(newError(ast.KEY_BUSY))).To(gm.BeTrue())
+	})
+})
+
+// parsedServerTimeout separates the two errors that share result code TIMEOUT:
+// a timeout the server returned as a parsed response (connection healthy,
+// counts toward the circuit breaker, retried with the connection pooled) and a
+// client-side I/O deadline (connection possibly mid-message, must not be
+// pooled). The tell is the wrapped net.Error that only the client-side path
+// attaches.
+var _ = gg.Describe("parsedServerTimeout classification", func() {
+
+	gg.It("must classify a bare TIMEOUT as a server response", func() {
+		gm.Expect(parsedServerTimeout(newError(ast.TIMEOUT))).To(gm.BeTrue())
+	})
+
+	gg.It("must not classify a client-side I/O deadline, which wraps a net.Error", func() {
+		ioTimeout := &net.OpError{Op: "read", Err: os.ErrDeadlineExceeded}
+		gm.Expect(parsedServerTimeout(newErrorAndWrap(ioTimeout, ast.TIMEOUT))).To(gm.BeFalse())
+	})
+
+	gg.It("must not classify other result codes", func() {
+		for _, rc := range []ast.ResultCode{
+			ast.NETWORK_ERROR,
+			ast.DEVICE_OVERLOAD,
+			ast.SERVER_NOT_AVAILABLE,
+			ast.PARAMETER_ERROR,
+		} {
+			gm.Expect(parsedServerTimeout(newError(rc))).To(gm.BeFalse(),
+				"result code %v must not classify as a server timeout", rc)
+		}
+	})
+
+	// The retry path pools the connection for a parsed server timeout; the
+	// fatal path must still refuse to pool any TIMEOUT, because there it
+	// cannot distinguish a drained response from an abandoned stream.
+	gg.It("must keep KeepConnection conservative about TIMEOUT", func() {
+		gm.Expect(KeepConnection(newError(ast.TIMEOUT))).To(gm.BeFalse())
+	})
+})
+
+// verifyFailError composes the commit error for a failed transaction verify.
+// The verify failure must stay the primary cause even when the follow-up
+// rollback or monitor close also fails; previously the follow-up error
+// replaced it, losing the reason the commit failed verification.
+var _ = gg.Describe("transaction verify-failure error chaining", func() {
+
+	newRoll := func() *TxnRoll { return NewTxnRoll(nil, NewTxn()) }
+
+	verifyErr := func() Error { return newError(ast.MRT_VERSION_MISMATCH, "verify failed") }
+	rollErr := func() Error { return newError(ast.TIMEOUT, "rollback failed") }
+
+	gg.It("must report TXN_FAILED with the commit error attached", func() {
+		err := newRoll().verifyFailError(CommitErrorVerifyFail, verifyErr(), nil)
+		gm.Expect(err.Matches(ast.TXN_FAILED)).To(gm.BeTrue())
+		te := &TxnError{}
+		gm.Expect(errors.As(err, &te)).To(gm.BeTrue())
+		gm.Expect(te.CommitError).To(gm.Equal(CommitErrorVerifyFail))
+	})
+
+	gg.It("must keep the verify failure as the cause when nothing else failed", func() {
+		err := newRoll().verifyFailError(CommitErrorVerifyFail, verifyErr(), nil)
+		gm.Expect(err.Matches(ast.MRT_VERSION_MISMATCH)).To(gm.BeTrue())
+	})
+
+	gg.It("must preserve both causes when the rollback also fails, verify first", func() {
+		err := newRoll().verifyFailError(CommitErrorVerifyFailAbortAbandoned, verifyErr(), rollErr())
+
+		// Both failures must be discoverable in the chain.
+		gm.Expect(err.Matches(ast.MRT_VERSION_MISMATCH)).To(gm.BeTrue(),
+			"the verify failure must not be lost")
+		gm.Expect(err.Matches(ast.TIMEOUT)).To(gm.BeTrue(),
+			"the follow-up failure must be chained")
+
+		// And the verify failure must come first: unwrapping past the
+		// TXN_FAILED head reaches MRT_VERSION_MISMATCH before TIMEOUT.
+		inner := &AerospikeError{}
+		gm.Expect(errors.As(errors.Unwrap(err), &inner)).To(gm.BeTrue())
+		gm.Expect(inner.ResultCode).To(gm.Equal(ast.MRT_VERSION_MISMATCH))
+	})
+})

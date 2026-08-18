@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"net"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/logger"
@@ -41,6 +42,9 @@ const (
 	_INFO1_SHORT_QUERY int = (1 << 2)
 	// Batch read or exists.
 	_INFO1_BATCH int = (1 << 3)
+
+	// The operation is being performed by XDR (or a connector emulating one).
+	_INFO1_XDR int = (1 << 4)
 
 	// Do not read the bins
 	_INFO1_NOBINDATA int = (1 << 5)
@@ -108,11 +112,6 @@ const (
 	//	                -------
 	//   1      0     allow replica
 	//   1      1     allow unavailable
-
-	_STATE_READ_AUTH_HEADER uint8 = 1
-	_STATE_READ_HEADER      uint8 = 2
-	_STATE_READ_DETAIL      uint8 = 3
-	_STATE_COMPLETE         uint8 = 4
 
 	_BATCH_MSG_READ   uint8 = 0x0
 	_BATCH_MSG_REPEAT uint8 = 0x1
@@ -203,7 +202,7 @@ type command interface {
 	onInDoubt()
 
 	execute(ifc command) Error
-	executeIter(ifc command, iter int) Error
+	executeIter(ifc command, iter int, deadline time.Time) Error
 	executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) Error
 
 	canPutConnBack() bool
@@ -242,6 +241,10 @@ type baseCommand struct {
 	// before being sent to the server
 	compressed bool
 
+	// iteration counts loop passes (the retry budget); commandSentCounter
+	// counts writes that actually reached the wire (the inDoubt input). The
+	// Java client keeps the same two counters separately.
+	iteration          int
 	commandSentCounter int
 	commandWasSent     bool
 
@@ -436,7 +439,7 @@ func (cmd *baseCommand) setBatchTxnVerifyForOffsets(
 			cmd.WriteByte(_BATCH_MSG_REPEAT)
 		} else {
 			// Write full message.
-			cmd.WriteByte(byte(_BATCH_MSG_INFO | _BATCH_MSG_INFO4))
+			cmd.WriteByte(_BATCH_MSG_INFO | _BATCH_MSG_INFO4)
 			cmd.WriteByte(byte(_INFO1_READ | _INFO1_NOBINDATA))
 			cmd.WriteByte(byte(0))
 			cmd.WriteByte(byte(_INFO3_SC_READ_TYPE))
@@ -981,8 +984,18 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 
 // Writes the command for getting metadata operations
 func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) (err Error) {
+	// Send key on a get header is a server error
+	if policy.SendKey {
+		adjusted := *policy
+		adjusted.SendKey = false
+		policy = &adjusted
+	}
+
 	cmd.begin()
-	fieldCount := cmd.estimateRawKeySize(key)
+	fieldCount, err := cmd.estimateKeySize(policy, key, false)
+	if err != nil {
+		return err
+	}
 
 	predSize := 0
 	if policy.FilterExpression != nil {
@@ -1944,9 +1957,12 @@ func (cmd *baseCommand) writeBatchWrite(
 }
 
 func (cmd *baseCommand) getBatchFlags(policy *BatchPolicy) byte {
-	flags := byte(0)
+	// 0x8 instructs the server to return the key-specific error code on an
+	// error that stops a batch response, instead of a generic one. Always set,
+	// matching the Java client (CLIENT-1720).
+	flags := byte(0x8)
 	if policy.AllowInline {
-		flags = 1
+		flags |= 0x1
 	}
 
 	if policy.AllowInlineSSD {
@@ -2092,149 +2108,6 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 	return nil
 }
 
-func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchRead, batch *batchNode) Error {
-	offsets := batch.offsets
-	max := len(batch.offsets)
-
-	// Estimate buffer size
-	cmd.begin()
-	fieldCount := 1
-	predSize := 0
-	if policy.FilterExpression != nil {
-		var err Error
-		predSize, err = cmd.estimateExpressionSize(policy.FilterExpression)
-		if err != nil {
-			return err
-		}
-		if predSize > 0 {
-			fieldCount++
-		}
-	}
-
-	cmd.dataOffset += int(_FIELD_HEADER_SIZE) + 5
-
-	var prev *BatchRead
-	for i := 0; i < max; i++ {
-		record := records[offsets[i]]
-		key := record.Key
-		binNames := record.BinNames
-		ops := record.Ops
-
-		cmd.dataOffset += len(key.digest) + 4
-
-		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.Key.namespace == key.namespace &&
-			(prev.Key.setName == key.setName) &&
-			&prev.BinNames == &binNames && prev.ReadAllBins == record.ReadAllBins &&
-			&prev.Ops == &ops {
-			// Can set repeat previous namespace/bin names to save space.
-			cmd.dataOffset++
-		} else {
-			// Must write full header and namespace/set/bin names.
-			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE) + 6
-			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
-
-			if len(binNames) != 0 {
-				for _, binName := range binNames {
-					cmd.estimateOperationSizeForBinName(binName)
-				}
-			} else if len(ops) != 0 {
-				for _, op := range ops {
-					cmd.estimateOperationSizeForOperation(op, true)
-				}
-			}
-
-			prev = record
-		}
-	}
-
-	if err := cmd.sizeBuffer(policy.compress()); err != nil {
-		return err
-	}
-
-	readAttr := _INFO1_READ
-	if policy.ReadModeAP == ReadModeAPAll {
-		readAttr |= _INFO1_READ_MODE_AP_ALL
-	}
-
-	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, 0, fieldCount, 0)
-
-	if policy.FilterExpression != nil {
-		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
-			return err
-		}
-	}
-
-	// Write real field size.
-	fieldSizeOffset := cmd.dataOffset
-	cmd.writeFieldHeader(0, BATCH_INDEX_WITH_SET)
-
-	cmd.WriteUint32(uint32(max))
-
-	if policy.AllowInline {
-		cmd.WriteByte(1)
-	} else {
-		cmd.WriteByte(0)
-	}
-
-	prev = nil
-	for i := 0; i < max; i++ {
-		index := offsets[i]
-		cmd.WriteUint32(uint32(index))
-
-		record := records[index]
-		key := record.Key
-		binNames := record.BinNames
-		ops := record.Ops
-		if _, err := cmd.Write(key.digest[:]); err != nil {
-			return newCommonError(err)
-		}
-
-		// Try reference equality in hope that namespace/set for all keys is set from fixed variables.
-		if prev != nil && prev.Key.namespace == key.namespace &&
-			(prev.Key.setName == key.setName) &&
-			&prev.BinNames == &binNames && prev.ReadAllBins == record.ReadAllBins &&
-			&prev.Ops == &ops {
-			// Can set repeat previous namespace/bin names to save space.
-			cmd.WriteByte(1) // repeat
-		} else {
-			// Write full header, namespace and bin names.
-			cmd.WriteByte(0) // do not repeat
-			if len(binNames) > 0 {
-				cmd.WriteByte(byte(readAttr))
-				cmd.writeBatchFields(key, 0, len(binNames))
-				for _, binName := range binNames {
-					if err := cmd.writeOperationForBinName(binName, _READ); err != nil {
-						return err
-					}
-				}
-			} else if len(ops) > 0 {
-				offset := cmd.dataOffset
-				cmd.dataOffset++
-				cmd.writeBatchFields(key, 0, len(ops))
-				cmd.dataBuffer[offset], _ = cmd.writeBatchReadOperations(ops, readAttr)
-			} else {
-				attr := byte(readAttr)
-				if record.ReadAllBins {
-					attr |= byte(_INFO1_GET_ALL)
-				} else {
-					attr |= byte(_INFO1_NOBINDATA)
-				}
-				cmd.WriteByte(attr)
-				cmd.writeBatchFields(key, 0, 0)
-			}
-
-			prev = record
-		}
-	}
-
-	cmd.WriteUint32At(uint32(cmd.dataOffset)-uint32(_MSG_TOTAL_HEADER_SIZE)-4, fieldSizeOffset)
-	cmd.end()
-	cmd.markCompressed(policy)
-
-	return nil
-}
-
 func (cmd *baseCommand) writeBatchFieldsTxn(
 	key *Key,
 	txn *Txn,
@@ -2361,7 +2234,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	if nodePartitions != nil {
 		partsFullSize = len(nodePartitions.partsFull) * 2
 		partsPartialSize = len(nodePartitions.partsPartial) * 20
-		maxRecords = int64(nodePartitions.recordMax)
+		maxRecords = nodePartitions.recordMax
 	}
 
 	predSize := 0
@@ -2453,7 +2326,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
 
 		for _, part := range nodePartitions.partsPartial {
-			if _, err := cmd.Write(part.Digest[:]); err != nil {
+			if _, err := cmd.Write(part.Digest); err != nil {
 				return newCommonError(err)
 			}
 		}
@@ -2819,7 +2692,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		cmd.writeFieldHeader(partsPartialSize, DIGEST_ARRAY)
 
 		for _, part := range nodePartitions.partsPartial {
-			if _, err := cmd.Write(part.Digest[:]); err != nil {
+			if _, err := cmd.Write(part.Digest); err != nil {
 				return newCommonError(err)
 			}
 		}
@@ -2888,23 +2761,6 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	return nil
 }
 
-func (cmd *baseCommand) estimateKeyAttrSize(policy Policy, key *Key, attr *batchAttr, filterExp *Expression) (int, Error) {
-	fieldCount, err := cmd.estimateKeySize(policy.GetBasePolicy(), key, attr.hasWrite)
-	if err != nil {
-		return -1, err
-	}
-
-	if filterExp != nil {
-		predSize, err := cmd.estimateExpressionSize(filterExp)
-		if err != nil {
-			return -1, err
-		}
-		cmd.dataOffset += predSize
-		fieldCount++
-	}
-	return fieldCount, nil
-}
-
 func (cmd *baseCommand) estimateKeySize(policy *BasePolicy, key *Key, hasWrite bool) (int, Error) {
 	fieldCount := cmd.estimateRawKeySize(key)
 
@@ -2936,7 +2792,7 @@ func (cmd *baseCommand) estimateRawKeySize(key *Key) int {
 		fieldCount++
 	}
 
-	cmd.dataOffset += int(len(key.digest) + int(_FIELD_HEADER_SIZE))
+	cmd.dataOffset += len(key.digest) + int(_FIELD_HEADER_SIZE)
 	fieldCount++
 
 	return fieldCount
@@ -3051,9 +2907,9 @@ func (cmd *baseCommand) writeHeaderWrite(policy *WritePolicy, writeAttr, fieldCo
 		txnAttr |= _INFO4_MRT_ON_LOCKING_ONLY
 	}
 
-	// if (policy.Xdr) {
-	// 	readAttr |= _INFO1_XDR;
-	// }
+	if policy.Xdr {
+		readAttr |= _INFO1_XDR
+	}
 
 	// Write all header data except total size which must be written last.
 	cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
@@ -3119,9 +2975,9 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, args *operateA
 		txnAttr |= _INFO4_MRT_ON_LOCKING_ONLY
 	}
 
-	// if (policy.xdr) {
-	// 	readAttr |= _INFO1_XDR;
-	// }
+	if policy.Xdr {
+		readAttr |= _INFO1_XDR
+	}
 
 	switch policy.ReadModeSC {
 	case ReadModeSCSession:
@@ -3229,44 +3085,6 @@ func (cmd *baseCommand) writeHeaderReadHeader(policy *BasePolicy, readAttr, fiel
 	cmd.WriteInt16(int16(fieldCount))
 	cmd.WriteInt16(int16(operationCount))
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
-}
-
-// Header write for batch single commands.
-func (cmd *baseCommand) writeKeyAttr(
-	policy Policy,
-	key *Key,
-	attr *batchAttr,
-	filterExp *Expression,
-	fieldCount int,
-	operationCount int,
-) Error {
-	cmd.dataOffset = 8
-	// Write all header data except total size which must be written last.
-	cmd.WriteByte(_MSG_REMAINING_HEADER_SIZE) // Message header length.
-	cmd.WriteByte(byte(attr.readAttr))
-	cmd.WriteByte(byte(attr.writeAttr))
-	cmd.WriteByte(byte(attr.infoAttr))
-	cmd.WriteByte(byte(attr.txnAttr))
-	cmd.WriteByte(0) // clear the result code
-	cmd.WriteUint32(attr.generation)
-	cmd.WriteUint32(attr.expiration)
-	cmd.WriteInt32(0)
-	cmd.WriteInt16(int16(fieldCount))
-	cmd.WriteInt16(int16(operationCount))
-	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
-
-	cmd.writeKeyWithPolicy(policy.GetBasePolicy(), key, attr.hasWrite)
-
-	if filterExp != nil {
-		expSize, err := filterExp.size()
-		if err != nil {
-			return err
-		}
-		if err := cmd.writeFilterExpression(filterExp, expSize); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (cmd *baseCommand) writeKeyWithPolicy(policy *BasePolicy, key *Key, sendDeadline bool) Error {
@@ -3563,15 +3381,13 @@ func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) Error {
 		cmd.conn.buffHist.Add(uint64(size))
 	}
 
-	if size <= len(cmd.dataBuffer) {
-		// don't touch the buffer
-		// this is a noop, here to silence the linters
-		cmd.dataBuffer = cmd.dataBuffer
-	} else if size <= cap(cmd.dataBuffer) {
-		cmd.dataBuffer = cmd.dataBuffer[:size]
-	} else {
+	// Grow the buffer only when needed; a buffer at least `size` long is left
+	// untouched.
+	if size > cap(cmd.dataBuffer) {
 		// not enough space
 		cmd.dataBuffer = buffPool.Get(size)
+	} else if size > len(cmd.dataBuffer) {
+		cmd.dataBuffer = cmd.dataBuffer[:size]
 	}
 
 	// The trick here to keep a ref to the buffer, and set the buffer itself
@@ -3694,9 +3510,12 @@ func (cmd *baseCommand) execute(ifc command) Error {
 	return cmd.executeAt(ifc, policy, deadline, -1)
 }
 
-func (cmd *baseCommand) executeIter(ifc command, iter int) Error {
+// executeIter continues a command under an inherited budget: a split batch
+// retry passes the parent's remaining deadline and attempt count, so the
+// subcommands cannot outlive the caller's TotalTimeout or restart the retry
+// budget. A zero deadline means the parent had no total timeout.
+func (cmd *baseCommand) executeIter(ifc command, iter int, deadline time.Time) Error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
-	deadline := policy.deadline()
 
 	err := cmd.executeAt(ifc, policy, deadline, iter)
 	if err != nil && err.IsInDoubt() {
@@ -3714,23 +3533,33 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	isClientTimeout := false
 	loopCount := 0
 
+	// A split batch retry continues the parent's attempt count instead of
+	// starting a fresh budget. The cloned subcommand usually inherits the
+	// counter through the shallow copy already; setting it from the parameter
+	// makes the contract explicit rather than an accident of cloning.
+	if iterations > 0 {
+		cmd.iteration = iterations
+	}
+
 	var err Error
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
-		cmd.commandSentCounter++
+		cmd.iteration++
 		loopCount++
 
-		// too many retries
-		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 1) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
+		// Too many retries. The initial attempt is not counted as a retry, so
+		// MaxRetries=N allows N+1 total attempts, per the MaxRetries doc and
+		// matching the Java client's iteration accounting.
+		if (policy.MaxRetries <= 0 && cmd.iteration > 1) || (policy.MaxRetries > 0 && cmd.iteration > policy.MaxRetries+1) {
 			if cmd.node != nil && cmd.node.cluster != nil {
 				cmd.node.cluster.maxRetriesExceededCount.GetAndIncrement()
 			}
 			applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
-			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandSentCounter).setNode(cmd.node)
+			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.iteration).setInDoubt(ifc.isRead(), cmd.commandSentCounter).setNode(cmd.node)
 		}
 
 		// Sleep before trying again, after the first iteration
-		if policy.SleepBetweenRetries > 0 && notFirstIteration {
+		if policy.SleepBetweenRetries > 0 && notFirstIteration && !isClientTimeout {
 			// Do not sleep if you know you'll wake up after the deadline
 			if policy.TotalTimeout > 0 && time.Now().Add(interval).After(deadline) {
 				break
@@ -3747,32 +3576,29 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				applyTransactionRetryMetrics(cmd.node)
 			}
 
-			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
+			if !ifc.prepareRetry(ifc, prepareRetryTimeout(isClientTimeout, err)) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
 					if cmd.node != nil {
-						alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, cmd.commandSentCounter)
+						alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, deadline, cmd.iteration)
 						if alreadyRetried {
 							// Batch was retried in separate subcommands. Complete this command.
 							applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
 							if err != nil {
-								return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+								return chainErrors(err, errChain).iter(cmd.iteration).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 							}
 							return nil
 						}
 
 						// chain the errors and retry
 						if err != nil {
-							errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+							errChain = chainErrors(err, errChain).iter(cmd.iteration).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 							continue
 						}
 					}
 				}
 			}
 		}
-
-		// NOTE: This is important to be after the prepareRetry block above
-		isClientTimeout = false
 
 		notFirstIteration = true
 
@@ -3787,7 +3613,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 			// chain the errors
 			if err != nil {
-				errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+				errChain = chainErrors(err, errChain).iter(cmd.iteration).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 			}
 
 			// Node is currently inactive. Retry.
@@ -3803,7 +3629,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			applyTransactionErrorMetrics(cmd.node)
 
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			errChain = chainErrors(err, errChain).iter(cmd.iteration).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			// Max error rate achieved, try again per policy
 			continue
@@ -3822,7 +3648,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			isClientTimeout = false
 
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			errChain = chainErrors(err, errChain).iter(cmd.iteration).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			applyTransactionErrorMetrics(cmd.node)
 
@@ -3837,7 +3663,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				}
 				// if the connection pool is empty, we still haven't tried
 				// the command to increase the iteration count.
-				cmd.commandSentCounter--
+				cmd.iteration--
 			}
 			logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
 			continue
@@ -3853,7 +3679,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			applyTransactionErrorMetrics(cmd.node)
 
 			// chain the errors
-			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			err = chainErrors(err, errChain).iter(cmd.iteration).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
@@ -3877,7 +3703,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			// now that the deadline has been set in the buffer, compress the contents
 			if err = cmd.compress(); err != nil {
 				applyTransactionErrorMetrics(cmd.node)
-				return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+				return chainErrors(err, errChain).iter(cmd.iteration).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 			}
 		}
 
@@ -3897,12 +3723,11 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			applyTransactionErrorMetrics(cmd.node)
 
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			errChain = chainErrors(err, errChain).iter(cmd.iteration).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
-			isClientTimeout = false
-			if deviceOverloadError(err) {
-				cmd.node.incrErrorCount()
-			}
+			// A write that died on the socket deadline is a client-side
+			// timeout (Java's SocketTimeoutException catch sets the same).
+			isClientTimeout = errors.Is(err, ErrTimeout)
 			// try to salvage the connection
 			if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 				go ifc.salvageConn(policy.TimeoutDelay, cmd.conn, cmd.node)
@@ -3917,6 +3742,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
 			continue
 		}
+
+		// The command reached the wire: from here on a failed write may have
+		// been applied by the server, which is what inDoubt reports.
+		cmd.commandSentCounter++
 
 		// Parse results.
 		if metricsEnabled {
@@ -3934,16 +3763,33 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			applyTransactionErrorMetrics(cmd.node)
 
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+			errChain = chainErrors(err, errChain).iter(cmd.iteration).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+
+			// DEVICE_OVERLOAD, KEY_BUSY and a server-side TIMEOUT are
+			// transient server responses: retry them and feed the circuit
+			// breaker, matching the Java client. The response was fully
+			// parsed, so the connection is healthy and goes back into the
+			// pool rather than being closed. (Multi commands never pool on
+			// error -- canPutConnBack -- since their stream may be undrained;
+			// they close and retry through the batch machinery instead.)
+			if (overloadedServerError(err) || parsedServerTimeout(err)) && !cmd.oneShot {
+				isClientTimeout = false
+				cmd.node.incrErrorCount()
+
+				if ifc.canPutConnBack() && cmd.conn.IsConnected() {
+					cmd.node.PutConnection(cmd.conn)
+				} else {
+					cmd.conn.Close()
+				}
+				cmd.conn = nil
+
+				logger.Logger.Debug("Node %s: %s", cmd.node.String(), err.Error())
+				continue
+			}
 
 			if networkError(err) {
 				isTimeout := errors.Is(err, ErrTimeout)
 				isClientTimeout = isTimeout
-				if !isTimeout {
-					if deviceOverloadError(err) {
-						cmd.node.incrErrorCount()
-					}
-				}
 
 				if cmd.conn.salvageConnection && policy.TimeoutDelay > 0 {
 					// Do not close connection immediately, but give it a chance to recover
@@ -4006,28 +3852,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	if cmd.node != nil && cmd.node.cluster != nil {
 		cmd.node.cluster.totalTimeoutExceededCount.GetAndIncrement()
 	}
-	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.iteration).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 	return errChain
-}
-
-func (cmd *baseCommand) prepareBuffer(ifc command, deadline time.Time) Error {
-	// Set command buffer.
-	if err := ifc.writeBuffer(ifc); err != nil {
-		return err
-	}
-
-	// Reset timeout in send buffer (destined for server) and socket.
-	binary.BigEndian.PutUint32(cmd.dataBuffer[22:], 0)
-	if !deadline.IsZero() {
-		serverTimeout := time.Until(deadline)
-		if serverTimeout < time.Millisecond {
-			serverTimeout = time.Millisecond
-		}
-		binary.BigEndian.PutUint32(cmd.dataBuffer[22:], uint32(serverTimeout/time.Millisecond))
-	}
-
-	// now that the deadline has been set in the buffer, compress the contents
-	return cmd.compress()
 }
 
 func (cmd *baseCommand) canPutConnBack() bool {
@@ -4038,17 +3864,49 @@ func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, 
 	panic("Abstract method. Should not end up here")
 }
 
+// prepareRetryTimeout reports whether a failed attempt should be treated as a
+// timeout for replica sequencing: writes then retry on the same node, and
+// linearized reads do not advance the replica sequence. Everything except an
+// explicit SERVER_NOT_AVAILABLE response is treated as a timeout, matching the
+// Java client: only a node that says it does not own the partition justifies
+// moving a write to the next replica; connection failures and other server
+// errors retry in place. A pass that failed without an error (an inactive
+// node) is not a timeout, so the retry can move on to a healthy node.
+func prepareRetryTimeout(isClientTimeout bool, err Error) bool {
+	return isClientTimeout || (err != nil && !err.Matches(types.SERVER_NOT_AVAILABLE))
+}
+
 func networkError(err Error) bool {
 	return err.Matches(types.NETWORK_ERROR, types.TIMEOUT)
 }
 
-func deviceOverloadError(err Error) bool {
-	return err.Matches(types.DEVICE_OVERLOAD)
+// parsedServerTimeout reports a TIMEOUT that arrived as a parsed server
+// response rather than a client-side I/O deadline. Both carry result code
+// TIMEOUT, but a client-side deadline wraps the underlying net.Error
+// (errToAerospikeErr), while a parsed response does not. The distinction
+// matters because a parsed response leaves the connection healthy and
+// poolable, and because only the server-side timeout counts toward the
+// node's circuit breaker, matching the Java client.
+func parsedServerTimeout(err Error) bool {
+	if !err.Matches(types.TIMEOUT) {
+		return false
+	}
+	var netErr net.Error
+	return !errors.As(err, &netErr)
+}
+
+// overloadedServerError reports the transient server responses that are
+// retried and feed the circuit breaker, matching the Java client: the node is
+// momentarily overloaded (DEVICE_OVERLOAD) or the record is locked by another
+// transaction (KEY_BUSY). Both arrive as fully parsed responses on a healthy
+// connection.
+func overloadedServerError(err Error) bool {
+	return err.Matches(types.DEVICE_OVERLOAD, types.KEY_BUSY)
 }
 
 func applyTransactionMetrics(node *Node, tt commandType, tb time.Time) {
 	if node != nil && node.cluster.MetricsEnabled() {
-		applyMetrics(tt, &node.stats, tb)
+		applyMetrics(tt, node.stats, tb)
 	}
 }
 
@@ -4099,26 +3957,6 @@ func applyMetrics(tt commandType, metrics *nodeStats, s time.Time) {
 	case ttBatchWrite:
 		metrics.BatchWriteMetrics.Add(d)
 	}
-}
-
-// TODO: This is not used anywhere. Remove?
-func (cmd *baseCommand) parseVersion(fieldCount int) *uint64 {
-	var version *uint64
-
-	for i := 0; i < fieldCount; i++ {
-		length := Buffer.BytesToInt32(cmd.dataBuffer, cmd.dataOffset)
-		cmd.dataOffset += 4
-
-		typ := cmd.dataBuffer[cmd.dataOffset]
-		cmd.dataOffset++
-		size := length - 1
-
-		if FieldType(typ) == RECORD_VERSION && size == 7 {
-			version = Buffer.VersionBytesToUint64(cmd.dataBuffer, cmd.dataOffset)
-		}
-		cmd.dataOffset += int(size)
-	}
-	return version
 }
 
 // applyDetailedMetricsParsing updates the detailed metrics for parsing time.

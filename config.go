@@ -29,10 +29,6 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8/logger"
 )
 
-var supportedVersions = map[string]struct{}{
-	"1.0.0": {},
-}
-
 type DynConfig struct {
 	lock sync.RWMutex
 

@@ -796,7 +796,7 @@ func (clnt *Client) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...strin
 
 	rattr := _INFO1_READ
 	if len(binNames) == 0 {
-		rattr = rattr | _INFO1_GET_ALL
+		rattr |= _INFO1_GET_ALL
 	}
 
 	cmd := newBatchCommandGet(clnt, nil, policy, keys, binNames, nil, records, rattr, false)
@@ -1600,22 +1600,56 @@ func (clnt *Client) queryNodePartitions(policy *QueryPolicy, node *Node, stateme
 // sent to the server nodes for verification. If all nodes return success, the transaction is
 // committed. Otherwise, the transaction is aborted.
 //
+// The transaction state machine deliberately diverges from the Java client's.
+// When the commit's mark-roll-forward step fails, the transaction enters a
+// commit-failed state from which Commit may be retried but [Client.Abort] is
+// refused (the server may still roll the transaction forward, so an abort
+// could misreport the outcome); the Java client leaves the transaction
+// verified and allows the abort. Go also treats an MRT_COMMITTED response to
+// mark-roll-forward as success ([CommitStatusAlreadyCommitted]) rather than a
+// failure, tolerating a retried commit whose earlier in-doubt attempt had in
+// fact been applied.
+//
 // Requires server version 8.0+
 func (clnt *Client) Commit(txn *Txn) (CommitStatus, Error) {
-	tr := NewTxnRoll(clnt, txn)
+	return clnt.CommitWithPolicies(nil, nil, txn)
+}
 
+// CommitWithPolicies attempts to commit the given multi-record transaction,
+// using the supplied verify and roll policies for the two phases of the commit
+// rather than the client's defaults.
+//
+// A nil policy falls back to the client default for that phase, so
+// Commit(txn) is CommitWithPolicies(nil, nil, txn).
+//
+// Layers that resolve policies per call -- an SDK binding a policy set to a
+// session, for example -- need this form; applications that configure the
+// client once should keep using Commit.
+//
+// Requires server version 8.0+
+func (clnt *Client) CommitWithPolicies(
+	verifyPolicy *TxnVerifyPolicy,
+	rollPolicy *TxnRollPolicy,
+	txn *Txn,
+) (CommitStatus, Error) {
+	// The policies are resolved inside the branches that use them, never
+	// before the switch: the terminal states return without touching a
+	// policy, and a caller may hold a client whose defaults are unset.
+	tr := NewTxnRoll(clnt, txn)
 	switch txn.State() {
 	default:
 		fallthrough
 	case TxnStateOpen:
-		if err := tr.Verify(&clnt.getUsableTxnVerifyPolicy(nil).BatchPolicy, &clnt.getUsableTxnRollPolicy(nil).BatchPolicy); err != nil {
+		verify := &clnt.getUsableTxnVerifyPolicy(verifyPolicy).BatchPolicy
+		roll := &clnt.getUsableTxnRollPolicy(rollPolicy).BatchPolicy
+		if err := tr.Verify(verify, roll); err != nil {
 			return CommitStatusUnverified, err
 		}
-		return tr.Commit(&clnt.getUsableTxnRollPolicy(nil).BatchPolicy)
+		return tr.Commit(roll)
 	case TxnStateVerified:
 		fallthrough
 	case TxnStateCommitFailed:
-		return tr.Commit(&clnt.getUsableTxnRollPolicy(nil).BatchPolicy)
+		return tr.Commit(&clnt.getUsableTxnRollPolicy(rollPolicy).BatchPolicy)
 	case TxnStateCommitted:
 		return CommitStatusAlreadyCommitted, nil
 	case TxnStateAborted:
@@ -1625,11 +1659,29 @@ func (clnt *Client) Commit(txn *Txn) (CommitStatus, Error) {
 
 // Abort and rollback the given multi-record transaction.
 //
-// Abort is not allowed after an in-doubt mark-roll-forward failure
-// the server may still roll the transaction forward.
+// Abort is not allowed after a failed commit attempt: the server may still
+// roll the transaction forward, so an abort could misreport the outcome.
+// Retry [Client.Commit] instead, or leave the transaction to the server's
+// resolution. This is a deliberate divergence from the Java client, which
+// allows the abort in that state (see [Client.Commit]).
 //
 // Requires server version 8.0+
 func (clnt *Client) Abort(txn *Txn) (AbortStatus, Error) {
+	return clnt.AbortWithPolicy(nil, txn)
+}
+
+// AbortWithPolicy aborts and rolls back the given multi-record transaction,
+// using the supplied roll policy rather than the client's default.
+//
+// A nil policy falls back to the client default, so Abort(txn) is
+// AbortWithPolicy(nil, txn).
+//
+// Abort is not allowed after an in-doubt mark-roll-forward failure: the server
+// may still roll the transaction forward.
+//
+// Requires server version 8.0+
+func (clnt *Client) AbortWithPolicy(rollPolicy *TxnRollPolicy, txn *Txn) (AbortStatus, Error) {
+	// As in CommitWithPolicies, the policy is resolved only where it is used.
 	tr := NewTxnRoll(clnt, txn)
 	switch txn.State() {
 	default:
@@ -1637,7 +1689,7 @@ func (clnt *Client) Abort(txn *Txn) (AbortStatus, Error) {
 	case TxnStateOpen:
 		fallthrough
 	case TxnStateVerified:
-		return tr.Abort(&clnt.getUsableTxnRollPolicy(nil).BatchPolicy)
+		return tr.Abort(&clnt.getUsableTxnRollPolicy(rollPolicy).BatchPolicy)
 	case TxnStateCommitFailed:
 		return AbortStatusCommitFailed, newError(types.TXN_FAILED, "Transaction commit failed. Abort is not allowed.")
 	case TxnStateCommitted:
@@ -2313,9 +2365,9 @@ func (clnt *Client) Stats() (map[string]any, Error) {
 	resStats := clnt.cluster.statsCopy()
 
 	mp := clnt.cluster.MetricsPolicy()
-	clusterStats := *newNodeStats(mp)
+	clusterStats := newNodeStats(mp)
 	for _, stats := range resStats {
-		clusterStats.aggregate(&stats)
+		clusterStats.aggregate(stats)
 	}
 
 	clusterStats.StatLabels = clnt.cluster.getNodeLabels()

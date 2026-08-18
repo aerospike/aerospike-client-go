@@ -86,7 +86,7 @@ func (fn *fakeCommand) execute(ifc command) Error {
 	return nil
 }
 
-func (fn *fakeCommand) executeIter(ifc command, iter int) Error {
+func (fn *fakeCommand) executeIter(ifc command, iter int, deadline time.Time) Error {
 	return nil
 }
 
@@ -108,11 +108,10 @@ func newStub() *fakeCommand {
 	me.Store(true)
 	// setup a fake node and baseCommand with metrics enabled.
 	node := &Node{
-		cluster: &Cluster{
-			metricsEnabled: me,
-		},
-		stats: *nodeStats,
+		cluster: &Cluster{},
+		stats:   nodeStats,
 	}
+	node.cluster.metricsEnabled.Store(true)
 
 	// baseCommand to be used for the benchmark.
 	cmd := baseCommand{
@@ -134,11 +133,10 @@ func newStubWithNamespaces() *fakeCommand {
 	me.Store(true)
 	// setup a fake node and baseCommand with metrics enabled.
 	node := &Node{
-		cluster: &Cluster{
-			metricsEnabled: me,
-		},
-		stats: *nodeStats,
+		cluster: &Cluster{},
+		stats:   nodeStats,
 	}
+	node.cluster.metricsEnabled.Store(true)
 
 	// baseCommand to be used for the benchmark.
 	cmd := baseCommand{
@@ -308,24 +306,6 @@ func BenchmarkCloneAndResetDetailedResultCodeCounts(b *testing.B) {
 	}
 }
 
-type fakeCmdSingle struct {
-	fakeCommand
-}
-
-func (fc *fakeCmdSingle) getNamespaces() iter.Seq2[string, uint64] {
-	return nil
-}
-
-func (fc *fakeCmdSingle) getNamespace() *string {
-	return &fc.namespace
-}
-
-func newFakeCmdSingle() *fakeCmdSingle {
-	return &fakeCmdSingle{
-		fakeCommand: *newStub(),
-	}
-}
-
 // BenchmarkUpdateOrInsertHighConcurrency benchmarks updateOrInsert with high concurrency across many namespaces
 func BenchmarkUpdateOrInsertHighConcurrency(b *testing.B) {
 	const (
@@ -341,11 +321,10 @@ func BenchmarkUpdateOrInsertHighConcurrency(b *testing.B) {
 	me.Store(true)
 
 	node := &Node{
-		cluster: &Cluster{
-			metricsEnabled: me,
-		},
-		stats: *nodeStats,
+		cluster: &Cluster{},
+		stats:   nodeStats,
 	}
+	node.cluster.metricsEnabled.Store(true)
 
 	// Generate namespace names: ns_0, ns_1, ..., ns_199
 	namespaces := make([]string, numNamespaces)
@@ -424,11 +403,10 @@ func BenchmarkUpdateOrInsertHighConcurrencyContended(b *testing.B) {
 	me.Store(true)
 
 	node := &Node{
-		cluster: &Cluster{
-			metricsEnabled: me,
-		},
-		stats: *nodeStats,
+		cluster: &Cluster{},
+		stats:   nodeStats,
 	}
+	node.cluster.metricsEnabled.Store(true)
 
 	// Generate namespace names
 	namespaces := make([]string, numNamespaces)
@@ -488,11 +466,10 @@ func BenchmarkUpdateOrInsertScalability(b *testing.B) {
 			me.Store(true)
 
 			node := &Node{
-				cluster: &Cluster{
-					metricsEnabled: me,
-				},
-				stats: *nodeStats,
+				cluster: &Cluster{},
+				stats:   nodeStats,
 			}
+			node.cluster.metricsEnabled.Store(true)
 
 			namespaces := make([]string, numNamespaces)
 			for i := 0; i < numNamespaces; i++ {

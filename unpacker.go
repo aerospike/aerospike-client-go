@@ -322,7 +322,7 @@ func (upckr *unpacker) unpackObject(isMapKey bool) (any, Error) {
 		if val <= math.MaxInt {
 			return int(val), nil
 		}
-		return int64(val), nil
+		return val, nil
 
 	case 0xd0:
 		r := int8(upckr.buffer[upckr.offset])

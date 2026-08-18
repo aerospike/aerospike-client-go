@@ -87,10 +87,10 @@ var (
 	asciiMed    = strings.Repeat("a", 256)
 	asciiLong   = strings.Repeat("a", 4096)
 	asciiXLong  = strings.Repeat("a", 65536)
-	multiShort  = strings.Repeat("é", 8)         // 16 bytes, 2-byte runes
-	multiMed    = strings.Repeat("日", 86)        // 258 bytes, 3-byte runes
-	multiLong   = strings.Repeat("🎉", 1024)      // 4096 bytes, 4-byte runes
-	mixedMed    = strings.Repeat("aé日🎉", 64)    // 640 bytes, mixed widths
+	multiShort  = strings.Repeat("é", 8)     // 16 bytes, 2-byte runes
+	multiMed    = strings.Repeat("日", 86)    // 258 bytes, 3-byte runes
+	multiLong   = strings.Repeat("🎉", 1024)  // 4096 bytes, 4-byte runes
+	mixedMed    = strings.Repeat("aé日🎉", 64) // 640 bytes, mixed widths
 	invalidLate = strings.Repeat("a", 4095) + string([]byte{0xff})
 )
 

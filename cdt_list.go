@@ -237,7 +237,7 @@ func packCDTParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params
 		}
 		size += n
 
-		if n, err = packAInt(packer, int(opType)); err != nil {
+		if n, err = packAInt(packer, opType); err != nil {
 			return size + n, err
 		}
 		size += n
@@ -254,7 +254,7 @@ func packCDTParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, params
 			size += n
 		}
 
-		if n, err = packAInt(packer, int(opType)); err != nil {
+		if n, err = packAInt(packer, opType); err != nil {
 			return size + n, err
 		}
 		size += n
@@ -321,7 +321,7 @@ func packCDTIfcVarParamsAsArray(packer BufferEx, opType int, ctx []*CDTContext, 
 		}
 		size += n
 
-		if n, err = packAInt(packer, int(opType)); err != nil {
+		if n, err = packAInt(packer, opType); err != nil {
 			return size + n, err
 		}
 		size += n
@@ -499,7 +499,7 @@ func ListSetOrderWithIndexOp(binName string, listOrder ListOrderType, ctx ...*CD
 // Parameters:
 //   - binName: Name of the bin containing the list
 //   - values: One or more values to append
-func ListAppendOp(binName string, values ...interface{}) *Operation {
+func ListAppendOp(binName string, values ...any) *Operation {
 	if len(values) == 1 {
 		return &Operation{opType: _CDT_MODIFY, binName: binName, binValue: ListValue{_CDT_LIST_APPEND, NewValue(values[0])}, encoder: listGenericOpEncoder}
 	}
@@ -541,7 +541,7 @@ func ListAppendWithPolicyContextOp(policy *ListPolicy, binName string, ctx []*CD
 //   - binName: Name of the bin containing the list
 //   - index: Index position to insert at (0 = beginning, -1 = before last)
 //   - values: One or more values to insert
-func ListInsertOp(binName string, index int, values ...interface{}) *Operation {
+func ListInsertOp(binName string, index int, values ...any) *Operation {
 	if len(values) == 1 {
 		return &Operation{opType: _CDT_MODIFY, binName: binName, binValue: ListValue{_CDT_LIST_INSERT, IntegerValue(index), NewValue(values[0])}, encoder: listGenericOpEncoder}
 	}
@@ -617,7 +617,7 @@ func ListRemoveOp(binName string, index int, ctx ...*CDTContext) *Operation {
 //   - value: Value to remove
 //   - returnType: What to return (see ListReturnType constants)
 //   - ctx: Optional CDT context for nested lists
-func ListRemoveByValueOp(binName string, value interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
+func ListRemoveByValueOp(binName string, value any, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE, IntegerValue(returnType), NewValue(value)}, encoder: listGenericOpEncoder}
 }
 
@@ -699,7 +699,7 @@ func ListRemoveRangeFromOp(binName string, index int, ctx ...*CDTContext) *Opera
 //   - index: Index to update (0 = first, -1 = last)
 //   - value: New value to set
 //   - ctx: Optional CDT context for nested lists
-func ListSetOp(binName string, index int, value interface{}, ctx ...*CDTContext) *Operation {
+func ListSetOp(binName string, index int, value any, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET, IntegerValue(index), NewValue(value)}, encoder: listGenericOpEncoder}
 }
 
@@ -864,7 +864,7 @@ func ListRemoveByRankRangeCountOp(binName string, rank int, count int, returnTyp
 //   - value: Value to search for
 //   - returnType: What to return (see ListReturnType constants)
 //   - ctx: Optional CDT context for nested lists
-func ListGetByValueOp(binName string, value interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
+func ListGetByValueOp(binName string, value any, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE, IntegerValue(returnType), NewValue(value)}, encoder: listGenericOpEncoder}
 }
 
@@ -886,7 +886,7 @@ func ListGetByValueListOp(binName string, values []any, returnType ListReturnTyp
 //   - endValue: End of value range (exclusive), nil for open-ended
 //   - returnType: What to return (see ListReturnType constants)
 //   - ctx: Optional CDT context for nested lists
-func ListGetByValueRangeOp(binName string, beginValue, endValue interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
+func ListGetByValueRangeOp(binName string, beginValue, endValue any, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	if endValue == nil {
 		return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(beginValue)}, encoder: listGenericOpEncoder}
 	}

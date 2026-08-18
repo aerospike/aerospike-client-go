@@ -47,7 +47,6 @@ func doReadCommandWriteBuffer(set string, value any, b *testing.B) {
 func Benchmark_ReadCommand_________Int64(b *testing.B) {
 	set := "put_bench_integer"
 	value := rand.Int63()
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)
@@ -56,7 +55,6 @@ func Benchmark_ReadCommand_________Int64(b *testing.B) {
 func Benchmark_ReadCommand_________Int32(b *testing.B) {
 	set := "put_bench_integer"
 	value := rand.Int31()
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)
@@ -65,7 +63,6 @@ func Benchmark_ReadCommand_________Int32(b *testing.B) {
 func Benchmark_ReadCommand_String______1(b *testing.B) {
 	set := "put_bench_str_1"
 	value := strings.Repeat("s", 1)
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)
@@ -74,7 +71,6 @@ func Benchmark_ReadCommand_String______1(b *testing.B) {
 func Benchmark_ReadCommand_String_____10(b *testing.B) {
 	set := "put_bench_str_10"
 	value := strings.Repeat("s", 10)
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)
@@ -83,7 +79,6 @@ func Benchmark_ReadCommand_String_____10(b *testing.B) {
 func Benchmark_ReadCommand_String____100(b *testing.B) {
 	set := "put_bench_str_100"
 	value := strings.Repeat("s", 100)
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)
@@ -92,7 +87,6 @@ func Benchmark_ReadCommand_String____100(b *testing.B) {
 func Benchmark_ReadCommand_String___1000(b *testing.B) {
 	set := "put_bench_str_1000"
 	value := strings.Repeat("s", 1000)
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)
@@ -101,7 +95,6 @@ func Benchmark_ReadCommand_String___1000(b *testing.B) {
 func Benchmark_ReadCommand_String__10000(b *testing.B) {
 	set := "put_bench_str_10000"
 	value := strings.Repeat("s", 10000)
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)
@@ -110,7 +103,6 @@ func Benchmark_ReadCommand_String__10000(b *testing.B) {
 func Benchmark_ReadCommand_String_100000(b *testing.B) {
 	set := "put_bench_str_10000"
 	value := strings.Repeat("s", 100000)
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)
@@ -119,7 +111,6 @@ func Benchmark_ReadCommand_String_100000(b *testing.B) {
 func Benchmark_ReadCommand_Complex_Array(b *testing.B) {
 	set := "put_bench_str_10000"
 	value := []any{1, 1, 1, "a simple string", nil, rand.Int63(), []byte{12, 198, 211}}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)
@@ -134,7 +125,6 @@ func Benchmark_ReadCommand_Complex_Map(b *testing.B) {
 		15892987:     strings.Repeat("s", 100),
 		"s2":         []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 	}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)
@@ -154,7 +144,6 @@ func Benchmark_ReadCommand_JSON_Map(b *testing.B) {
 			"s2":         []any{"a simple string", nil, rand.Int63(), []byte{12, 198, 211}},
 		},
 	}
-	b.N = 1000
 	runtime.GC()
 	b.ResetTimer()
 	doReadCommandWriteBuffer(set, value, b)

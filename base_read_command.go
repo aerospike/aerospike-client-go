@@ -17,21 +17,16 @@ package aerospike
 import (
 	"iter"
 	"reflect"
-
-	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 type baseReadCommand struct {
 	singleCommand
 
-	policy   *BasePolicy
-	binNames []string
-	record   *Record
+	policy *BasePolicy
+	record *Record
 
 	// pointer to the object that's going to be unmarshalled
 	object *reflect.Value
-
-	replicaSequence int
 }
 
 // this method uses reflection.
@@ -79,13 +74,6 @@ func (cmd *baseReadCommand) prepareRetry(ifc command, isTimeout bool) bool {
 
 func (cmd *baseReadCommand) parseResult(ifc command, conn *Connection) Error {
 	panic(unreachable)
-}
-
-func (cmd *baseReadCommand) handleUdfError(resultCode types.ResultCode) Error {
-	if ret, exists := cmd.record.Bins["FAILURE"]; exists {
-		return newError(resultCode, ret.(string))
-	}
-	return newError(resultCode)
 }
 
 func (cmd *baseReadCommand) GetRecord() *Record {

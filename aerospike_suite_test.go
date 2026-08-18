@@ -22,7 +22,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"regexp"
 	"strconv"
@@ -183,7 +182,6 @@ func printConnectedNodes(client *as.Client) {
 }
 
 func TestMain(m *testing.M) {
-	rand.Seed(time.Now().UnixNano())
 	flag.Parse()
 
 	// setup the client object
@@ -306,8 +304,13 @@ func initTLS() *tls.Config {
 			log.Fatalf("Failed to decode PEM data for key or certificate")
 		}
 
-		// Check and Decrypt the the Key Block using passphrase
+		// Check and decrypt the key block using the passphrase. RFC 1423 PEM
+		// encryption is insecure by design and deprecated with no stdlib
+		// replacement; this path only exists so the test suite can load
+		// legacy passphrase-protected key files supplied via flags.
+		//nolint:staticcheck // SA1019: legacy-encrypted test keys, see above.
 		if x509.IsEncryptedPEMBlock(keyBlock) {
+			//nolint:staticcheck // SA1019: see above.
 			decryptedDERBytes, err := x509.DecryptPEMBlock(keyBlock, []byte(*keyFilePassphrase))
 			if err != nil {
 				log.Fatalf("Failed to decrypt PEM Block: `%s`", err)
@@ -340,7 +343,6 @@ func initTLS() *tls.Config {
 		InsecureSkipVerify:       false,
 		PreferServerCipherSuites: true,
 	}
-	tlsConfig.BuildNameToCertificate()
 
 	return tlsConfig
 }

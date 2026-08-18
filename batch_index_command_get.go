@@ -71,15 +71,16 @@ func (cmd *batchIndexCommandGet) executeSingle(client *Client) Error {
 	for _, offset := range cmd.batch.offsets {
 		br := cmd.records[offset]
 		var ops []*Operation
-		if br.headerOnly() {
+		switch {
+		case br.headerOnly():
 			ops = []*Operation{GetHeaderOp()}
-		} else if len(br.BinNames) > 0 {
+		case len(br.BinNames) > 0:
 			for i := range br.BinNames {
 				ops = append(ops, GetBinOp(br.BinNames[i]))
 			}
-		} else if len(br.Ops) > 0 {
+		case len(br.Ops) > 0:
 			ops = br.Ops
-		} else {
+		default:
 			ops = []*Operation{GetOp()}
 		}
 		res, err := client.Operate(cmd.policy.toWritePolicy(), br.Key, ops...)

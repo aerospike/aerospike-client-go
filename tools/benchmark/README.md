@@ -9,7 +9,7 @@ To build this tool:
 
 ```
 cd $GOPATH/src/github.com/aerospike/aerospike-client-go/tools/benchmark
-go build -tags as_proxy .
+go build .
 ```
 
 To see available switches:

@@ -94,15 +94,16 @@ func (brp *BatchReadPolicy) patchDynamic(dynConfig *DynConfig) *BatchReadPolicy 
 
 	config := dynConfig.getConfigIfNotLoadedOrInitialized()
 
-	if brp == nil {
+	switch {
+	case brp == nil:
 		// Passed in policy is nil, fetch mapped default policy from cache.
 		return dynConfig.client.dynDefaultBatchReadPolicy.Load()
-	} else if config != nil && config.Dynamic != nil && config.Dynamic.BatchRead != nil {
-		// Dynamic configuration is exists for policy in question.
+	case config != nil && config.Dynamic != nil && config.Dynamic.BatchRead != nil:
+		// Dynamic configuration exists for policy in question.
 		// User has provided a custom policy. We need to apply the dynamic configuration.
-		// Copy the existing write policy to preserve any custom settings.
+		// Copy the existing policy to preserve any custom settings.
 		return brp.copy().mapDynamic(dynConfig)
-	} else {
+	default:
 		return brp
 	}
 }

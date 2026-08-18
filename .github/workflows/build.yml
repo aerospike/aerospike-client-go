@@ -109,7 +109,7 @@ jobs:
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -cover -race -r -keep-going -succinct -randomize-suites pkg
       - name: Build Benchmark tool
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
-        run: cd tools/benchmark | go build -mod=vendor -tags as_proxy -o benchmark .
+        run: cd tools/benchmark | go build -mod=vendor -o benchmark .
       - name: Build asinfo tool
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: cd tools/asinfo | go build -mod=vendor -o asinfo .

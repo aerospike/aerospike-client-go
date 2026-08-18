@@ -44,56 +44,6 @@ func newBatchAttrOpsAttr(policy *BatchPolicy, rattr int, ops []*Operation) *batc
 	return res
 }
 
-// TODO: Check references
-func newBatchAttrOps(rp *BatchPolicy, wp *BatchWritePolicy, ops []*Operation) *batchAttr {
-	res := &batchAttr{}
-	readAllBins := false
-	readHeader := false
-	hasRead := false
-	hasWriteOp := false
-
-	for _, op := range ops {
-		switch op.opType {
-		case _READ_HEADER:
-			readHeader = true
-			hasRead = true
-		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ, _CDT_READ, _READ:
-			// _Read all bins if no bin is specified.
-			if op.binName == "" {
-				readAllBins = true
-			}
-			hasRead = true
-
-		default:
-			hasWriteOp = true
-		}
-	}
-
-	if hasWriteOp {
-		res.setBatchWrite(wp)
-
-		if hasRead {
-			res.readAttr |= _INFO1_READ
-
-			if readAllBins {
-				res.readAttr |= _INFO1_GET_ALL
-			} else if readHeader {
-				res.readAttr |= _INFO1_NOBINDATA
-			}
-		}
-	} else {
-		res.setRead(rp)
-
-		if readAllBins {
-			res.readAttr |= _INFO1_GET_ALL
-		} else if readHeader {
-			res.readAttr |= _INFO1_NOBINDATA
-		}
-	}
-
-	return res
-}
-
 func (ba *batchAttr) setRead(rp *BatchPolicy) {
 	ba.filterExp = nil
 	ba.readAttr = _INFO1_READ

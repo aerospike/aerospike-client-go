@@ -26,6 +26,9 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
+
+	gg "github.com/onsi/ginkgo/v2"
+	gm "github.com/onsi/gomega"
 )
 
 const largePayloadLen = _COMPRESS_THRESHOLD * 512 // 64 KiB
@@ -143,3 +146,44 @@ func (c *bytesConn) RemoteAddr() net.Addr               { return c.LocalAddr() }
 func (c *bytesConn) SetDeadline(t time.Time) error      { return nil }
 func (c *bytesConn) SetReadDeadline(t time.Time) error  { return nil }
 func (c *bytesConn) SetWriteDeadline(t time.Time) error { return nil }
+
+// A malformed particle in a read response must fail the parse, not silently
+// become a nil bin value -- the error from bytesToParticle was previously
+// discarded. The specs build the bin section of a response by hand: each op is
+// a 4-byte size, particle type at offset 5, name length at offset 7, the name,
+// then the particle bytes.
+var _ = gg.Describe("record parser particle errors", func() {
+
+	binOp := func(particleType byte, name string, particle []byte) []byte {
+		opSize := 4 + len(name) + len(particle)
+		buf := make([]byte, 0, 8+len(name)+len(particle))
+		buf = append(buf, byte(opSize>>24), byte(opSize>>16), byte(opSize>>8), byte(opSize))
+		buf = append(buf, 0, particleType, 0, byte(len(name)))
+		buf = append(buf, name...)
+		buf = append(buf, particle...)
+		return buf
+	}
+
+	parse := func(op []byte) (*Record, Error) {
+		cmd := &baseCommand{}
+		cmd.dataBuffer = op
+		rp := &recordParser{cmd: cmd, opCount: 1, generation: 1, expiration: 0}
+		key, err := NewKey("test", "rp", 1)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		return rp.parseRecord(key, false)
+	}
+
+	gg.It("must parse a well-formed particle", func() {
+		rec, err := parse(binOp(3 /* STRING */, "b", []byte("abc")))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(rec.Bins["b"]).To(gm.Equal("abc"))
+	})
+
+	gg.It("must fail the read on a malformed particle instead of returning a nil bin", func() {
+		// A valid one-pair map header (0x81) whose key is 0xc1 -- the one
+		// byte the msgpack spec never assigns -- so unpacking must error.
+		rec, err := parse(binOp(19 /* MAP */, "b", []byte{0x81, 0xc1, 0x00}))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(rec).To(gm.BeNil())
+	})
+})

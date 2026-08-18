@@ -38,7 +38,6 @@ var _ = gg.Describe("Scan operations", func() {
 	var scanPolicy = as.NewScanPolicy()
 
 	const keyCount = 1000
-	const ldtElemCount = 10
 	bin1 := as.NewBin("Aerospike1", rand.Intn(math.MaxInt16))
 	bin2 := as.NewBin("Aerospike2", randString(100))
 	bin3 := as.NewBin("map", map[string]int{"1": 1, "2": 2})

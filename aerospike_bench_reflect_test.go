@@ -51,7 +51,6 @@ func Benchmark_GetObject(b *testing.B) {
 	obj := &OBJECT{198, "Jack Shaftoe and Company", []int64{1, 2, 3, 4, 5, 6}}
 	client.PutObject(nil, key, obj)
 
-	b.N = 1
 	runtime.GC()
 	b.ResetTimer()
 	benchGetObj(b.N, client, key, obj)
@@ -68,7 +67,6 @@ func Benchmark_PutObject(b *testing.B) {
 	key, _ := as.NewKey(*namespace, "databases", "Aerospike")
 	writepolicy := as.NewWritePolicy(0, 0)
 
-	b.N = 100
 	runtime.GC()
 	b.ResetTimer()
 	benchPutObj(b.N, client, key, writepolicy, obj)

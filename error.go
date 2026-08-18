@@ -132,12 +132,6 @@ func newErrorAndWrap(e error, code types.ResultCode, messages ...string) Error {
 	return ne
 }
 
-func newTimeoutError(e error, messages ...string) Error {
-	ne := newError(types.TIMEOUT, messages...)
-	ne.wrap(e)
-	return ne
-}
-
 func newCommonError(e error, messages ...string) Error {
 	ne := newError(types.COMMON_ERROR, messages...)
 	ne.wrap(e)
@@ -410,14 +404,14 @@ func chainErrors(outer Error, inner error) Error {
 	}
 
 	var ae *AerospikeError
-	switch outer.(type) {
+	switch outer := outer.(type) {
 	case *constAerospikeError:
-		t := outer.(*constAerospikeError).AerospikeError
+		t := outer.AerospikeError
 		ae = &t
 	case *AerospikeError:
-		// copy the reference to avoid issues with checking the last error
+		// copy the value to avoid issues with checking the last error
 		// when it is chained.
-		t := *outer.(*AerospikeError)
+		t := *outer
 		ae = &t
 	}
 

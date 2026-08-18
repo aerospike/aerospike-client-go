@@ -147,7 +147,7 @@ func stripOptions(tag string) string {
 	if i < 0 {
 		return tag
 	}
-	return string(tag[:i])
+	return tag[:i]
 }
 
 func fieldAlias(f reflect.StructField) string {
@@ -168,7 +168,10 @@ func setBinMap(s reflect.Value, typeOfT reflect.Type, binMap BinMap, index []int
 	for i := 0; i < numFields; i++ {
 		fld = typeOfT.Field(i)
 
-		fldIndex := append(index, fld.Index...)
+		// Owned copy; see fillMapping for the aliasing hazard.
+		fldIndex := make([]int, 0, len(index)+len(fld.Index))
+		fldIndex = append(fldIndex, index...)
+		fldIndex = append(fldIndex, fld.Index...)
 
 		if fld.Anonymous && fld.Type.Kind() == reflect.Struct {
 			setBinMap(s, fld.Type, binMap, fldIndex)
@@ -315,7 +318,13 @@ func fillMapping(objType reflect.Type, mapping map[string][]int, fields []string
 	numFields := objType.NumField()
 	for i := 0; i < numFields; i++ {
 		f := objType.Field(i)
-		fIndex := append(index, f.Index...)
+		// fIndex must own its backing array: it is stored in the mapping
+		// cache, and appending to the shared `index` lets sibling fields
+		// overwrite each other's stored paths once the slice carries spare
+		// capacity (embedding depth >= 3).
+		fIndex := make([]int, 0, len(index)+len(f.Index))
+		fIndex = append(fIndex, index...)
+		fIndex = append(fIndex, f.Index...)
 		if f.Anonymous && f.Type.Kind() == reflect.Struct {
 			fields, ttl, gen = fillMapping(f.Type, mapping, fields, ttl, gen, fIndex)
 			continue

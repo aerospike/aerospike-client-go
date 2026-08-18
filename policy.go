@@ -76,6 +76,21 @@ type BasePolicy struct {
 	// Default: 30s
 	SocketTimeout time.Duration
 
+	// ConnectTimeout caps creating a new connection on behalf of this command:
+	// the TCP dial, the TLS handshake, and the session-token authentication.
+	// When zero, the cluster-level ClientPolicy.Timeout applies, as before.
+	//
+	// Note that the Go client creates command connections in the background:
+	// an empty pool schedules the dial and the command retries, so ConnectTimeout
+	// bounds that background creation rather than blocking the command itself.
+	//
+	// ConnectTimeout is useful when new connection creation is expensive (ie
+	// TLS connections) and it is acceptable to allow extra time to create a
+	// new connection compared to using an existing connection from the pool.
+	//
+	// Default: 0 (use ClientPolicy.Timeout)
+	ConnectTimeout time.Duration
+
 	// MaxRetries determines the maximum number of retries before aborting the current command.
 	// The initial attempt is not counted as a retry.
 	//

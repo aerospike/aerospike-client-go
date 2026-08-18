@@ -64,16 +64,16 @@ func (etsk *ExecuteTask) IsDone() (bool, Error) {
 		serverVersion := node.GetServerVersion()
 		cmd1 := types.Ternary(
 			serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
-			"query-show:id=" + taskId ,
-			"query-show:trid=" + taskId)	
+			"query-show:id="+taskId,
+			"query-show:trid="+taskId)
 		cmd2 := types.Ternary(
-			serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1), 
-			module + "-show:id=" + taskId , 
-			module + "-show:trid=" + taskId) 
+			serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
+			module+"-show:id="+taskId,
+			module+"-show:trid="+taskId)
 		cmd3 := types.Ternary(
-			serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1), 
-			"jobs:module=" + module + ";cmd=get-job;id=" + taskId , 
-			"jobs:module=" + module + ";cmd=get-job;trid=" + taskId)	
+			serverVersion.IsGreaterOrEqual(version.ServerVersion_8_1),
+			"jobs:module="+module+";cmd=get-job;id="+taskId,
+			"jobs:module="+module+";cmd=get-job;trid="+taskId)
 
 		var command string
 		if node.SupportsPartitionQuery() {

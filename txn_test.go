@@ -502,8 +502,6 @@ var _ = gg.Describe("Aerospike", func() {
 
 			txn := as.NewTxn()
 
-			bin = as.NewBin(binName, 2)
-
 			bp := as.NewBatchPolicy()
 			bp.Txn = txn
 
@@ -690,6 +688,7 @@ var _ = gg.Describe("Aerospike", func() {
 			gm.Expect(r.Bins["bin"]).To(gm.Equal(10))
 
 			r, err = client.Get(nil, k)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(r.Bins["bin"]).To(gm.Equal(10))
 
 			_, err = client.Commit(txn)

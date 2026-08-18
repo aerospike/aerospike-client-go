@@ -161,14 +161,6 @@ func (cmd *batchSingleTxnVerifyCommand) parseResult(ifc command, conn *Connectio
 	return nil
 }
 
-func (cmd *batchSingleTxnVerifyCommand) setInDoubt() bool {
-	if cmd.record.ResultCode == types.NO_RESPONSE {
-		cmd.record.InDoubt = true
-		return true
-	}
-	return false
-}
-
 func (cmd *batchSingleTxnVerifyCommand) isRead() bool {
 	return true
 }

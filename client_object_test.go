@@ -203,8 +203,8 @@ var _ = gg.Describe("Aerospike", func() {
 				TTL uint32 `asm:"ttl"`
 				Gen uint32 `asm:"gen"`
 
-				Nil  any `as:"nil"`
-				NilP *int        `as:"nilp"`
+				Nil  any  `as:"nil"`
+				NilP *int `as:"nilp"`
 
 				Bool  bool  `as:"bool"`
 				BoolP *bool `as:"boolp"`
@@ -248,29 +248,29 @@ var _ = gg.Describe("Aerospike", func() {
 				// InterfaceP any  `as:"// interface"`
 				InterfacePP *any `as:"interfacepp"`
 
-				ByteArray    []byte         `as:"bytearray"`
-				ArrByteArray [][]byte       `as:"arrbytearray"`
-				Array        [3]any `as:"array"`
-				SliceString  []string       `as:"slicestring"`
-				SliceFloat64 []float64      `as:"slicefloat64"`
-				SliceInt     []any  `as:"sliceint"`
-				Slice        []any  `as:"slice"`
+				ByteArray    []byte    `as:"bytearray"`
+				ArrByteArray [][]byte  `as:"arrbytearray"`
+				Array        [3]any    `as:"array"`
+				SliceString  []string  `as:"slicestring"`
+				SliceFloat64 []float64 `as:"slicefloat64"`
+				SliceInt     []any     `as:"sliceint"`
+				Slice        []any     `as:"slice"`
 
 				ArrayOfMaps    [1]map[int]string `as:"arrayOfMaps"`
 				SliceOfMaps    []map[int]string  `as:"sliceOfMaps"`
-				ArrayOfSlices  [1][]any  `as:"arrayOfSlices"`
-				SliceOfSlices  [][]any   `as:"sliceOfSlices"`
-				ArrayOfArrays  [1][1]any `as:"arrayOfArrays"`
-				SliceOfArrays  [][1]any  `as:"sliceOfArrays"`
+				ArrayOfSlices  [1][]any          `as:"arrayOfSlices"`
+				SliceOfSlices  [][]any           `as:"sliceOfSlices"`
+				ArrayOfArrays  [1][1]any         `as:"arrayOfArrays"`
+				SliceOfArrays  [][1]any          `as:"sliceOfArrays"`
 				ArrayOfStructs [1]SomeStruct     `as:"ArrayOfStructs"`
 				SliceOfStructs []SomeStruct      `as:"SliceOfStructs"`
 
-				Map           map[any]any `as:"map"`
-				MapOfMaps     map[string]map[int64]byte   `as:"mapOfMaps"`
-				MapOfSlices   map[string][]byte           `as:"mapOfSlices"`
-				MapOfArrays   map[string][3]byte          `as:"MapOfArrays"`
-				MapOfStructs  map[string]SomeStruct       `as:"mapOfStructs"`
-				MapOfPStructs map[string]*SomeStruct      `as:"mapOfPStructs"`
+				Map           map[any]any               `as:"map"`
+				MapOfMaps     map[string]map[int64]byte `as:"mapOfMaps"`
+				MapOfSlices   map[string][]byte         `as:"mapOfSlices"`
+				MapOfArrays   map[string][3]byte        `as:"MapOfArrays"`
+				MapOfStructs  map[string]SomeStruct     `as:"mapOfStructs"`
+				MapOfPStructs map[string]*SomeStruct    `as:"mapOfPStructs"`
 
 				CustomBool    SomeBool    `as:"custombool"`
 				CustomBoolP   *SomeBool   `as:"customboolp"`

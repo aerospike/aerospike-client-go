@@ -15,6 +15,8 @@
 package aerospike
 
 import (
+	"sync/atomic"
+
 	"time"
 
 	dynconfig "github.com/aerospike/aerospike-client-go/v8/config"
@@ -130,9 +132,16 @@ func (node *Node) GetErrorCount() int {
 }
 
 func NewDynConfigForTest(config *dynconfig.Config) *DynConfig {
-	return &DynConfig{
-		config: config,
+	// Mirror what newDynConfigWithCallBack guarantees in production: the
+	// atomic fields are never nil. mapDynamic dereferences logUpdate
+	// unconditionally, so a bare literal segfaults (TODO_LINT item 13).
+	dc := &DynConfig{
+		config:            config,
+		configInitialized: &atomic.Bool{},
+		logUpdate:         &atomic.Bool{},
 	}
+	dc.configInitialized.Store(true)
+	return dc
 }
 
 func (host *Host) Equals(other *Host) bool {

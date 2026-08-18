@@ -770,15 +770,6 @@ func packShort(cmd BufferEx, valType int, val int16) (int, Error) {
 	return 1 + 2, nil
 }
 
-// This method is not compatible with MsgPack specs and is only used by aerospike client<->server
-// for wire transfer only
-func packShortRaw(cmd BufferEx, val int16) (int, Error) {
-	if cmd != nil {
-		cmd.WriteInt16(val)
-	}
-	return 2, nil
-}
-
 func packInfinity(cmd BufferEx) (int, Error) {
 	if cmd != nil {
 		cmd.WriteByte(byte(0xd4))

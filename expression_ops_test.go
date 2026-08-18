@@ -198,14 +198,14 @@ var _ = gg.Describe("Expression Operations", func() {
 			as.ExpUnknown(),
 		)
 
-		r, err := client.Operate(nil, keyA,
+		_, err := client.Operate(nil, keyA,
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagDefault),
 			as.GetBinOp(binC),
 		)
 		gm.Expect(err).To(gm.HaveOccurred())
 		gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue())
 
-		r, err = client.Operate(nil, keyB,
+		r, err := client.Operate(nil, keyB,
 			as.ExpWriteOp(binC, exp, as.ExpWriteFlagEvalNoFail),
 			as.GetBinOp(binC),
 		)

@@ -137,51 +137,6 @@ func (cmd *batchTxnRollCommand) parseRecordResults(ifc command, receiveSize int)
 	return true, nil
 }
 
-// Parses the given byte buffer and populate the result object.
-// Returns the number of bytes that were parsed from the given buffer.
-func (cmd *batchTxnRollCommand) parseRecord(key *Key, opCount int, generation, expiration uint32) (*Record, Error) {
-	bins := make(BinMap, opCount)
-
-	for i := 0; i < opCount; i++ {
-		if err := cmd.readBytes(8); err != nil {
-			return nil, err
-		}
-		opSize := int(Buffer.BytesToUint32(cmd.dataBuffer, 0))
-		particleType := int(cmd.dataBuffer[5])
-		nameSize := int(cmd.dataBuffer[7])
-
-		if err := cmd.readBytes(nameSize); err != nil {
-			return nil, err
-		}
-		name := string(cmd.dataBuffer[:nameSize])
-
-		particleBytesSize := opSize - (4 + nameSize)
-		if err := cmd.readBytes(particleBytesSize); err != nil {
-			return nil, err
-		}
-		value, err := bytesToParticle(particleType, cmd.dataBuffer, 0, particleBytesSize)
-		if err != nil {
-			return nil, err
-		}
-
-		if cmd.isOperation {
-			if prev, ok := bins[name]; ok {
-				if prev2, ok := prev.(OpResults); ok {
-					bins[name] = append(prev2, value)
-				} else {
-					bins[name] = OpResults{prev, value}
-				}
-			} else {
-				bins[name] = value
-			}
-		} else {
-			bins[name] = value
-		}
-	}
-
-	return newRecord(cmd.node, key, bins, generation, expiration), nil
-}
-
 func (cmd *batchTxnRollCommand) inDoubt() {
 	if !cmd.attr.hasWrite {
 		return
@@ -198,10 +153,6 @@ func (cmd *batchTxnRollCommand) inDoubt() {
 
 func (cmd *batchTxnRollCommand) commandType() commandType {
 	return ttBatchWrite
-}
-
-func (cmd *batchTxnRollCommand) executeSingle(client *Client) Error {
-	panic(unreachable)
 }
 
 func (cmd *batchTxnRollCommand) Execute() Error {
