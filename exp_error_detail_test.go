@@ -50,8 +50,8 @@ import (
 // The Go client sends classic msgpack expressions (no AEL source), so traces
 // follow the msgpack contract: build traces always carry byte_offset, eval
 // traces never do, and lang / ael_offset / ael_span are never present.
-// Eval-trace keys outcome (7) and operands (13) are not yet decoded by the
-// Go client, so those Python assertions are not ported.
+// Eval-trace keys outcome (7) and operands (13) are decoded and asserted in
+// the explainer specs at the end of this file.
 var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 	const (
 		binInt     = "x"    // 10
@@ -334,7 +334,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 	gg.It("parity: build error across put/delete/operate", func() {
 		for _, verb := range parityVerbs {
 			ae := expectVerbError(verb, filterPolicy(3, buildErrorExp()), types.PARAMETER_ERROR)
-			assertMessageContains(ae, "invalid metadata expression in request")
+			assertMessageContains(ae, "invalid filter expression in request")
 			assertBuildTrace(ae)
 		}
 	})
@@ -348,8 +348,8 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 	})
 
 	gg.It("parity: filter FALSE across put/delete/operate", func() {
-		// Clean FALSE explain. The trace's outcome (7) and operand-pair keys
-		// are not yet decoded by the Go client; assert phase and deciding op.
+		// Clean FALSE explain. Outcome and operands get dedicated coverage
+		// below; here assert phase and deciding op across the three verbs.
 		exp := as.ExpEq(as.ExpIntBin(binInt), as.ExpIntVal(11))
 
 		for _, verb := range parityVerbs {
@@ -621,5 +621,116 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 
 		gm.Expect(err).NotTo(gm.HaveOccurred())
 		gm.Expect(rec).NotTo(gm.BeNil())
+	})
+
+	// ---------------------------------------------------------------------
+	// 5. Filter-decision explainer (SERVER-1139): outcome (key 7) and the
+	//    decisive operand pair (key 13), end to end.
+	//
+	//    The parity specs above assert phase and deciding op across verbs;
+	//    these assert the explainer keys themselves, which no other
+	//    integration spec exercises.
+	// ---------------------------------------------------------------------
+
+	gg.It("explainer reports a clean FALSE outcome with the deciding operands", func() {
+		// bin x is 10; compare against 11 so the expression is well-formed and
+		// simply does not match.
+		ae := expectFilteredGet(3, as.ExpEq(as.ExpIntBin(binInt), as.ExpIntVal(11)),
+			types.FILTERED_OUT)
+
+		t := ae.ExpTrace
+		gm.Expect(t).NotTo(gm.BeNil(), "Expected an explain trace at verbosity 3")
+		gm.Expect(t.Phase).To(gm.Equal(as.ExpTracePhaseEval))
+		gm.Expect(t.Outcome).To(gm.Equal(as.ExpTraceOutcomeFalse), "Expected a clean-FALSE outcome")
+
+		// Operands are the first tier the budget drops, so presence is not
+		// guaranteed; assert the shape only when the server sent them.
+		if t.Operands != nil {
+			gm.Expect(t.Operands).To(gm.HaveLen(2), "Operands are a [lhs, rhs] pair")
+			gm.Expect(t.Operands[0]).To(gm.Equal("10"), "lhs is the bin value")
+			gm.Expect(t.Operands[1]).To(gm.Equal("11"), "rhs is the literal")
+		}
+	})
+
+	gg.It("explainer reports an absent-bin outcome without operands", func() {
+		ae := expectFilteredGet(3, as.ExpEq(as.ExpIntBin(binMissing), as.ExpIntVal(2)),
+			types.FILTERED_OUT)
+
+		t := ae.ExpTrace
+		gm.Expect(t).NotTo(gm.BeNil(), "Expected an explain trace at verbosity 3")
+		gm.Expect(t.Phase).To(gm.Equal(as.ExpTracePhaseEval))
+		gm.Expect(t.Outcome).To(gm.Equal(as.ExpTraceOutcomeAbsent), "Expected an absent outcome")
+		// Operands ride only an outcome=FALSE comparison.
+		gm.Expect(t.Operands).To(gm.BeNil(), "Absent outcomes carry no operand pair")
+	})
+
+	// ---------------------------------------------------------------------
+	// 6. Multi-record paths: the query start-failure reply and a batch row.
+	//    Both stage the trace from their own server site with a distinct
+	//    message, and both reach the client through a different field walk
+	//    than the single-record path.
+	// ---------------------------------------------------------------------
+
+	gg.It("query filter build failure surfaces a build trace on the start-failure reply", func() {
+		qp := as.NewQueryPolicy()
+		qp.ErrorDetailVerbosity = 3
+		qp.FilterExpression = buildErrorExp()
+
+		stm := as.NewStatement(stdKey.Namespace(), stdKey.SetName())
+		rs, err := client.Query(qp, stm)
+
+		// The failure may surface from Query itself or from the record stream.
+		if err == nil {
+			gm.Expect(rs).NotTo(gm.BeNil())
+			for res := range rs.Results() {
+				if res.Err != nil {
+					err = res.Err
+					break
+				}
+			}
+		}
+
+		ae := toAerospikeError(err, types.PARAMETER_ERROR)
+		assertMessageContains(ae, "invalid filter expression in query")
+
+		t := assertBuildTrace(ae)
+		// A query filters many records per request, so the server hard-disables
+		// the explainer here - build traces only, never outcome/operands.
+		gm.Expect(t.Outcome).To(gm.Equal(-1), "A query trace must not carry an outcome")
+		gm.Expect(t.Operands).To(gm.BeNil(), "A query trace must not carry operands")
+	})
+
+	gg.It("batch row filter build failure surfaces a build trace on the row", func() {
+		bp := as.NewBatchPolicy()
+		bp.ErrorDetailVerbosity = 3
+
+		// The filter goes on the per-record policy, not the batch policy. A
+		// batch-wide filter that fails to build aborts the whole batch before
+		// any row is returned individually, and per §2.7 the server writes a
+		// row's field 45 only where that row's reply is sent on its own.
+		badPolicy := as.NewBatchReadPolicy()
+		badPolicy.FilterExpression = buildErrorExp()
+
+		recs := []*as.BatchRead{
+			as.NewBatchRead(badPolicy, stdKey, nil),
+			as.NewBatchRead(nil, scratchKey, nil),
+		}
+
+		// RespondAllKeys returns every row, so the call itself does not error;
+		// the failure is reported on the row.
+		_ = client.BatchGetComplex(bp, recs)
+
+		bad := recs[0].BatchRecord
+		gm.Expect(bad.ResultCode).To(gm.Equal(types.PARAMETER_ERROR), "Unexpected row result code")
+		gm.Expect(bad.ServerMessage).To(gm.ContainSubstring("invalid filter expression in batch request"))
+
+		t := bad.ExpTrace
+		gm.Expect(t).NotTo(gm.BeNil(), "Expected a build trace on the failing row")
+		gm.Expect(t.Phase).To(gm.Equal(as.ExpTracePhaseBuild))
+		gm.Expect(t.ByteOffset).To(gm.BeNumerically(">=", 0), "Build traces carry byte_offset")
+
+		// The sibling row is unaffected and carries no detail of its own.
+		gm.Expect(recs[1].BatchRecord.ExpTrace).To(gm.BeNil(),
+			"Detail must reset per row, not leak from the previous one")
 	})
 })

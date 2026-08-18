@@ -1912,12 +1912,26 @@ func (cmd *baseCommand) writeBatchOperations(
 	return nil
 }
 
+// errorVerbosityBits folds an error-detail verbosity into the info4 bits (5-6)
+// the server reads to decide whether to attach an error detail (field 45).
+//
+// Clamps before shifting: the mask alone lets a negative value through as
+// maximum verbosity ((-1 << 5) & 0x60 == 0x60 == 3).
+func errorVerbosityBits(verbosity int) int {
+	if verbosity < 0 {
+		verbosity = 0
+	} else if verbosity > 3 {
+		verbosity = 3
+	}
+	return (verbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK
+}
+
 // batchErrorVerbosityBits returns the error-detail verbosity folded into the
 // info4 bits (5-6) the server reads per batch row to decide whether to attach a
 // per-row error detail (field 45). It is batch-wide, taken from the parent
 // BatchPolicy per the error-details design.
 func batchErrorVerbosityBits(policy *BatchPolicy) int {
-	return (policy.ErrorDetailVerbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK
+	return errorVerbosityBits(policy.ErrorDetailVerbosity)
 }
 
 func (cmd *baseCommand) writeBatchRead(
@@ -3093,7 +3107,7 @@ func (cmd *baseCommand) writeHeaderWrite(policy *WritePolicy, writeAttr, fieldCo
 		txnAttr |= _INFO4_MRT_ON_LOCKING_ONLY
 	}
 
-	txnAttr |= (policy.ErrorDetailVerbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK
+	txnAttr |= errorVerbosityBits(policy.ErrorDetailVerbosity)
 
 	// if (policy.Xdr) {
 	// 	readAttr |= _INFO1_XDR;
@@ -3163,7 +3177,7 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, args *operateA
 		txnAttr |= _INFO4_MRT_ON_LOCKING_ONLY
 	}
 
-	txnAttr |= (policy.ErrorDetailVerbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK
+	txnAttr |= errorVerbosityBits(policy.ErrorDetailVerbosity)
 
 	// if (policy.xdr) {
 	// 	readAttr |= _INFO1_XDR;
@@ -3228,7 +3242,7 @@ func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, writeAttr,
 	cmd.dataBuffer[9] = byte(readAttr)
 	cmd.dataBuffer[10] = byte(writeAttr)
 	cmd.dataBuffer[11] = byte(infoAttr)
-	cmd.dataBuffer[12] = byte((policy.ErrorDetailVerbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK)
+	cmd.dataBuffer[12] = byte(errorVerbosityBits(policy.ErrorDetailVerbosity))
 
 	for i := 13; i < 18; i++ {
 		cmd.dataBuffer[i] = 0
@@ -3264,7 +3278,7 @@ func (cmd *baseCommand) writeHeaderReadHeader(policy *BasePolicy, readAttr, fiel
 	cmd.dataBuffer[9] = byte(readAttr)
 	cmd.dataBuffer[10] = byte(0)
 	cmd.dataBuffer[11] = byte(infoAttr)
-	cmd.dataBuffer[12] = byte((policy.ErrorDetailVerbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK)
+	cmd.dataBuffer[12] = byte(errorVerbosityBits(policy.ErrorDetailVerbosity))
 
 	for i := 13; i < 18; i++ {
 		cmd.dataBuffer[i] = 0

@@ -63,6 +63,18 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			gm.Expect((8 << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK).To(gm.Equal(0))
 			gm.Expect((16 << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK).To(gm.Equal(0))
 		})
+
+		gg.It("clamps out-of-range verbosity instead of relying on the mask", func() {
+			for v := 0; v <= 3; v++ {
+				gm.Expect(errorVerbosityBits(v)).To(gm.Equal(v << _INFO4_ERROR_VERBOSITY_SHIFT))
+			}
+			// >3 saturates rather than aliasing to 0 under the bare mask.
+			gm.Expect(errorVerbosityBits(4)).To(gm.Equal(3 << _INFO4_ERROR_VERBOSITY_SHIFT))
+			gm.Expect(errorVerbosityBits(99)).To(gm.Equal(3 << _INFO4_ERROR_VERBOSITY_SHIFT))
+			// negatives mean off, not maximum.
+			gm.Expect(errorVerbosityBits(-1)).To(gm.Equal(0))
+			gm.Expect(errorVerbosityBits(-99)).To(gm.Equal(0))
+		})
 	})
 
 	// ------------------------------------------------------------
@@ -407,7 +419,6 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 
 		gg.It("skips unknown / reserved trace keys without corrupting known fields", func() {
 			trace := fixmapN(
-				pair(intKey(expTraceKeyOutcome), fixint(5)), // 7 reserved
 				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseBuild)),
 				pair(intKey(expTraceKeyAelLine), fixint(9)), // 11 reserved
 				pair(intKey(expTraceKeyByteOffset), fixint(4)),
@@ -425,6 +436,114 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			// unknown keys did not corrupt absent fields.
 			gm.Expect(t.Op).To(gm.Equal(""))
 			gm.Expect(t.Depth).To(gm.Equal(-1))
+		})
+
+		gg.It("exposes the eval-phase outcome and the decisive operands", func() {
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseEval)),
+				pair(intKey(expTraceKeyOp), fixstr("cmp_gt")),
+				pair(intKey(expTraceKeyOutcome), fixint(ExpTraceOutcomeFalse)),
+				pair(intKey(expTraceKeyOperands), fixarray(fixstr("15"), fixstr("18"))),
+			)
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			gm.Expect(t.Phase).To(gm.Equal(ExpTracePhaseEval))
+			gm.Expect(t.Outcome).To(gm.Equal(ExpTraceOutcomeFalse))
+			gm.Expect(t.Operands).To(gm.Equal([]string{"15", "18"}))
+		})
+
+		gg.It("handles a maximum-length path of 16 frames plus the sentinel", func() {
+			// AS_EXP_TRACE_MAX_FRAMES caps frames, not array elements: the "..."
+			// sentinel is spliced in addition, so 17 is the true maximum.
+			elems := make([][]byte, 0, 17)
+			for i := 0; i < 15; i++ {
+				elems = append(elems, fixstr("and"))
+			}
+			elems = append(elems, fixstr(ExpTracePathTruncationSentinel), fixstr("eq"))
+
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseBuild)),
+				pair(intKey(expTraceKeyDepth), fixint(40)),
+				pair(intKey(expTraceKeyPath), array16(elems...)),
+			)
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			gm.Expect(t.Path).To(gm.HaveLen(17))
+			gm.Expect(t.Path[15]).To(gm.Equal(ExpTracePathTruncationSentinel))
+			gm.Expect(t.Path[16]).To(gm.Equal("eq"))
+			gm.Expect(t.Depth).To(gm.Equal(40)) // true depth, not the frame count
+		})
+
+		gg.It("round-trips operand values at the server's 48-byte cap", func() {
+			lhs := strings.Repeat("a", 48)
+			rhs := strings.Repeat("b", 48)
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseEval)),
+				pair(intKey(expTraceKeyOutcome), fixint(ExpTraceOutcomeFalse)),
+				pair(intKey(expTraceKeyOperands), fixarray(str8(lhs), str8(rhs))),
+			)
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			gm.Expect(t.Operands).To(gm.Equal([]string{lhs, rhs}))
+		})
+
+		gg.It("reports outcome fault and absent without operands", func() {
+			for _, outcome := range []int{ExpTraceOutcomeFault, ExpTraceOutcomeAbsent} {
+				trace := fixmapN(
+					pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseEval)),
+					pair(intKey(expTraceKeyOutcome), fixint(outcome)),
+				)
+				detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+				rp := parserForDetail(detail)
+				rp.parseFieldsError()
+
+				t := rp.expTrace
+				gm.Expect(t).NotTo(gm.BeNil())
+				gm.Expect(t.Outcome).To(gm.Equal(outcome))
+				gm.Expect(t.Operands).To(gm.BeNil())
+			}
+		})
+
+		gg.It("tolerates operands dropped by the budget on a FALSE outcome", func() {
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseEval)),
+				pair(intKey(expTraceKeyOutcome), fixint(ExpTraceOutcomeFalse)),
+			)
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			gm.Expect(t.Outcome).To(gm.Equal(ExpTraceOutcomeFalse))
+			gm.Expect(t.Operands).To(gm.BeNil())
+		})
+
+		gg.It("leaves outcome and operands absent on a build trace", func() {
+			trace := fixmapN(
+				pair(intKey(expTraceKeyPhase), fixint(ExpTracePhaseBuild)),
+				pair(intKey(expTraceKeyByteOffset), fixint(3)),
+			)
+			detail := fixmapN(pair(intKey(asErrorDetailKeyExpTrace), trace))
+			rp := parserForDetail(detail)
+			rp.parseFieldsError()
+
+			t := rp.expTrace
+			gm.Expect(t).NotTo(gm.BeNil())
+			gm.Expect(t.Outcome).To(gm.Equal(-1))
+			gm.Expect(t.Operands).To(gm.BeNil())
 		})
 
 		gg.It("treats an absent lang as msgpack", func() {

@@ -297,7 +297,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 	// Verbosity 3: expression build-failure trace (SERVER-1137).
 	//
 	// A type-mismatched comparison expression (int vs float) fails to *build* on
-	// the server. As a filter expression it yields "invalid metadata expression in
+	// the server. As a filter expression it yields "invalid filter expression in
 	// request"; as an exp_write op it yields "invalid expression in operation
 	// request". Both carry PARAMETER_ERROR + SubCodeNone and, at verbosity 3, a
 	// structured build trace. Assert trace PRESENCE and SHAPE, not exact
@@ -322,7 +322,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 		gm.Expect(ae.ResultCode).To(gm.Equal(types.PARAMETER_ERROR))
 		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
-		gm.Expect(strings.ToLower(ae.ServerMessage)).To(gm.ContainSubstring("invalid metadata expression in request"))
+		gm.Expect(strings.ToLower(ae.ServerMessage)).To(gm.ContainSubstring("invalid filter expression in request"))
 
 		gm.Expect(ae.ExpTrace).NotTo(gm.BeNil())
 		gm.Expect(ae.ExpTrace.Phase).To(gm.Equal(as.ExpTracePhaseBuild))

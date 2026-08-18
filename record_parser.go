@@ -255,8 +255,8 @@ func (rp *recordParser) parseErrorDetails(offset int, size int) string {
 }
 
 // parseExpTrace decodes the nested expression-trace map (top-level error-detail
-// key 3, only sent at verbosity 3 on expression build-failure paths) into an
-// *ExpressionTrace.
+// key 3, only sent at verbosity 3 on expression build- and eval-failure paths)
+// into an *ExpressionTrace.
 //
 // Reuses the shared msgpack decoder. Treats every trace key as optional (never
 // requires key 1 - build failures carry types.SubCodeNone), skips unknown trace keys,
@@ -296,6 +296,7 @@ func (rp *recordParser) parseExpTrace(offset int, end int) *ExpressionTrace {
 		Phase:      -1,
 		ByteOffset: -1,
 		Depth:      -1,
+		Outcome:    -1,
 		Lang:       ExpTraceLangMsgpack,
 		AelOffset:  -1,
 		AelSpan:    -1,
@@ -329,6 +330,10 @@ func (rp *recordParser) parseExpTrace(offset int, end int) *ExpressionTrace {
 			t.Path = rp.unpackStrArray(offset, end)
 		case expTraceKeySnippet:
 			t.Snippet = rp.unpackStrValue(offset, end)
+		case expTraceKeyOutcome:
+			t.Outcome = int(rp.unpackUint(offset, end))
+		case expTraceKeyOperands:
+			t.Operands = rp.unpackStrArray(offset, end)
 		case expTraceKeyLang:
 			if lang := int(rp.unpackUint(offset, end)); lang >= 0 {
 				t.Lang = lang
@@ -338,7 +343,7 @@ func (rp *recordParser) parseExpTrace(offset int, end int) *ExpressionTrace {
 		case expTraceKeyAelSpan:
 			t.AelSpan = int(rp.unpackUint(offset, end))
 		default:
-			// Unknown / reserved trace key (outcome, ael_line, ael_col, etc.) - skip.
+			// Unknown / reserved trace key (ael_line, ael_col, etc.) - skip.
 		}
 
 		// Advance past the value regardless of whether the key was recognized.

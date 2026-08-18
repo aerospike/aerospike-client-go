@@ -410,7 +410,16 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			if resultCode == types.KEY_NOT_FOUND_ERROR || resultCode == types.FILTERED_OUT {
 				return false, nil
 			}
-			err := newError(resultCode)
+
+			// A query/scan start-failure reply carries its error detail in this same
+			// record-shaped message; a malformed field section must not mask the
+			// server's result code.
+			fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
+			if ferr := cmd.skipKey(fieldCount); ferr != nil {
+				cmd.resetServerErrorDetail()
+			}
+
+			err := newServerError(resultCode, cmd.serverMessage, cmd.serverSubcode, cmd.serverExpTrace)
 			err = newNodeError(cmd.node, err)
 			return false, err
 		}
