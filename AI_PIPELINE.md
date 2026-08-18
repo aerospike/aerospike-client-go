@@ -103,8 +103,8 @@ convention.
 - `logger/` — logging abstraction (`asl.Logger`).
 - `config/`, `utils/` — configuration and helpers.
 - `tools/` — standalone binaries: `benchmark` (needs `as_proxy` tag), `asinfo`, `cli`.
-- `examples/` — standalone runnable `main` programs; shared flags in
-  `examples/shared`.
+- `examples/` — documentation-ready example programs and runner; shared setup
+  in `examples/fixtures`.
 - `docs/` — documentation.
 - `.github/workflows/` — authoritative CI: `build.yml` (PR), `build-multi-node.yml`,
   `build-nightly.yml`, `nightly.yml`, `merge-coverage.yml`.
