@@ -28,9 +28,9 @@ type TxnState byte
 const (
 	TxnStateOpen TxnState = iota
 	TxnStateVerified
-	TxnStateCommitFailed
 	TxnStateCommitted
 	TxnStateAborted
+	TxnStateCommitFailed
 )
 
 var txnRandomState atomic.Int64
