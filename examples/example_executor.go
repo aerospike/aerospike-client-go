@@ -141,6 +141,10 @@ func MinServerVersion(major, minor int) Requirement {
 	return Requirement{minVersion: &version.Version{Major: major, Minor: minor}}
 }
 
+func MinServerVersionPatch(major, minor, patch int) Requirement {
+	return Requirement{minVersion: &version.Version{Major: major, Minor: minor, Patch: patch}}
+}
+
 func (r Requirement) AndEnterpriseEdition() Requirement { r.enterprise = true; return r }
 
 func (r Requirement) AndStrongConsistency() Requirement { r.strongConsistency = true; return r }

@@ -52,6 +52,8 @@ var examples = []Example{
 	{Name: "query", Run: runQuery, Fixture: fixtures.Query()},
 	{Name: "operate_list", Run: runOperateList, Fixture: fixtures.OperateList()},
 	{Name: "operate_map", Run: runOperateMap, Fixture: fixtures.OperateMap()},
+	{Name: "operate_string", Run: runOperateString, Fixture: fixtures.OperateString(),
+		Requires: MinServerVersionPatch(8, 1, 3)},
 	{Name: "info", Run: runInfo, Fixture: fixtures.Info()},
 	{Name: "txn_basic", Run: runTxnBasic, Fixture: fixtures.TxnBasic(),
 		Requires: EnterpriseEdition().AndStrongConsistency().AndMinServerVersion(8, 0)},

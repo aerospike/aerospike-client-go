@@ -42,6 +42,14 @@ func OperateList() Fixture {
 	}
 }
 
+func OperateString() Fixture {
+	keys := []string{"opstr_read", "opstr_modify", "opstr_tostring"}
+	return Fixture{
+		Setup:   func() error { return DeleteKeys(keys...) },
+		Cleanup: func() error { return DeleteKeys(keys...) },
+	}
+}
+
 func OperateMap() Fixture {
 	keys := []string{"mapkey", "mapkey_scores", "mapkey_nested"}
 	return Fixture{
