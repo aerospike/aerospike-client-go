@@ -76,6 +76,30 @@ func (cmd *baseMultiCommand) captureErrorDetail(size int) {
 	cmd.serverExpTrace = rp.expTrace
 }
 
+// capturedServerError builds the error for a reply the caller is about to abort
+// on, carrying whatever field-45 detail the field walk already captured. Callers
+// that bail on a non-OK result code must route through here rather than
+// constructing a bare error, or the server's message and expression trace are
+// lost. Use only where the field section has already been walked.
+// Sets the node directly rather than going through newNodeError, which copies
+// and wraps: wrapping the error in itself would render the message twice.
+func (cmd *baseMultiCommand) capturedServerError(resultCode types.ResultCode) Error {
+	err := newServerError(resultCode, cmd.serverMessage, cmd.serverSubcode, cmd.serverExpTrace)
+	err.setNode(cmd.node)
+	return err
+}
+
+// serverErrorWithDetail is capturedServerError for callers that abort *before*
+// walking the field section: it walks first so the detail is not discarded. A
+// malformed field section must not mask the server's result code.
+func (cmd *baseMultiCommand) serverErrorWithDetail(resultCode types.ResultCode, fieldCount int) Error {
+	if ferr := cmd.skipKey(fieldCount); ferr != nil {
+		cmd.resetServerErrorDetail()
+	}
+
+	return cmd.capturedServerError(resultCode)
+}
+
 // applyErrorDetail copies the captured per-record error detail onto the batch
 // record so a subsequent setError/setErrorWithMsg surfaces the server subcode,
 // message, and expression trace. A record without a field-45 detail receives the
@@ -411,17 +435,18 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 				return false, nil
 			}
 
-			// A query/scan start-failure reply carries its error detail in this same
-			// record-shaped message; a malformed field section must not mask the
-			// server's result code.
+			// A query/scan start-failure reply carries its error detail in this
+			// same record-shaped message. A malformed field section must not
+			// mask the server's result code.
 			fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
 			if ferr := cmd.skipKey(fieldCount); ferr != nil {
 				cmd.resetServerErrorDetail()
 			}
 
+			// newNodeError, not setNode: this path wrapped before error detail
+			// was added here, and that shape is preserved.
 			err := newServerError(resultCode, cmd.serverMessage, cmd.serverSubcode, cmd.serverExpTrace)
-			err = newNodeError(cmd.node, err)
-			return false, err
+			return false, newNodeError(cmd.node, err)
 		}
 
 		info3 := int(cmd.dataBuffer[3])

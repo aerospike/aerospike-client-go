@@ -121,7 +121,7 @@ func (cmd *batchCommandUDF) parseRecordResults(ifc command, receiveSize int) (bo
 			}
 
 			if resultCode != types.KEY_NOT_FOUND_ERROR && resultCode != types.FILTERED_OUT {
-				return false, newCustomNodeError(cmd.node, resultCode)
+				return false, cmd.capturedServerError(resultCode)
 			}
 		}
 
