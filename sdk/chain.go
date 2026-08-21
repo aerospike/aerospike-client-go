@@ -17,6 +17,7 @@
 package sdk
 
 import (
+	"context"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -110,6 +111,10 @@ type operationSpec struct {
 // a view over this type.
 type chain struct {
 	session *Session
+
+	// ctx is optional; set only by the *Ctx benchmark prototypes. nil means
+	// "no context involved" and costs nothing extra in batchPolicy.
+	ctx context.Context
 
 	// specs holds the finalized segments; current is the segment being built.
 	specs      []operationSpec
