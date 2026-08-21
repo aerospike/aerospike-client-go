@@ -88,7 +88,9 @@ const (
 	// StringNumericInt matches only integers.
 	StringNumericInt StringNumericType = 1
 
-	// StringNumericFloat matches only floating-point numbers.
+	// StringNumericFloat matches only floating-point numbers. Stricter than
+	// "parses as a float": the string must contain a '.' followed by a digit,
+	// so "5" is false under StringNumericFloat but true under StringNumericAny.
 	StringNumericFloat StringNumericType = 2
 )
 
