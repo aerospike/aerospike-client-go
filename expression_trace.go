@@ -78,6 +78,12 @@ const (
 // operation - it attaches this trace as a nested map under the field-45 error-detail
 // key 3. It is surfaced on [AerospikeError.ExpTrace].
 //
+// Three flavours are emitted: a build trace ([ExpTracePhaseBuild]) when a filter or
+// an exp_read/exp_write operation fails to compile; an eval-fault trace
+// ([ExpTracePhaseEval]) when a compiled expression faults during evaluation; and the
+// filter-decision explainer, which additionally populates Outcome and Operands to say
+// why a record was rejected and which values decided it.
+//
 // Expression build failures carry [types.PARAMETER_ERROR] and [types.SubCodeNone] (no
 // subcode); the contextual message is on the error. Eval-phase traces ride the
 // result code the eval produced ([types.FILTERED_OUT], [types.OP_NOT_APPLICABLE]),
@@ -86,10 +92,11 @@ const (
 //
 // Every field is optional. The server caps the whole error-detail payload and drops
 // whole tiers in a fixed order when the budget is tight - Operands first, then
-// Snippet, then Path - so those may be absent even within a present trace. Absent
-// integer fields read as -1 (except Lang, which defaults to [ExpTraceLangMsgpack]);
-// absent string fields read as "" and an absent Path/Operands reads as nil. Never
-// require any field.
+// Snippet, then Path - so those may be absent even within a present trace. If the
+// structural core will not fit, no trace is sent at all, so a verbosity-3 expression
+// failure does not guarantee one. Absent integer fields read as -1 (except Lang,
+// which defaults to [ExpTraceLangMsgpack]); absent string fields read as "" and an
+// absent Path/Operands reads as nil. Never require any field.
 //
 // Two coordinate spaces - do not conflate them. ByteOffset is a byte offset into the
 // msgpack expression payload the client sent. The AelOffset/AelSpan pair are offsets

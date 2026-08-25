@@ -35,13 +35,12 @@ import (
 // cannot-create). This suite extends that to the remaining reachable subcodes.
 //
 // Subcodes that need cluster state (PARTITION_UNAVAILABLE), config
-// (FAIL_FORBIDDEN stop-writes / durability), concurrency (MRT_BLOCKED), ACL, or
-// the string-ops feature (CLIENT-4822 - no Go API on this branch) are out of
-// reach here and intentionally not covered.
+// (FAIL_FORBIDDEN stop-writes / durability), concurrency (MRT_BLOCKED) or ACL are
+// out of reach here and intentionally not covered.
 //
 // Trigger recipes are grounded in the server emit sites: particle_blob.c:1605
 // (bits resize), particle_list.c:3068 (bounded insert), particle_hll.c:1145-1373
-// (HLL prepare paths). Requires an 8.1.3+ server.
+// (HLL prepare paths), particle_string.c (b64 decode). Requires an 8.1.3+ server.
 var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 	const edsBin = "eds-bin"
 
@@ -107,6 +106,16 @@ var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 		_, err = client.Operate(verbosityWP(), key,
 			as.ListInsertWithPolicyOp(boundedPolicy, edsBin, 5, 99))
 		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotCDTBoundedListOverflow)
+	})
+
+	gg.It("b64Decode on a non-base64 string: STRING_B64_INVALID subcode", func() {
+		key, _ := as.NewKey(*namespace, set, "eds-str-b64-key")
+		err := client.PutBins(as.NewWritePolicy(0, 0), key, as.NewBin(edsBin, "not!valid!base64!"))
+		gm.Expect(err).NotTo(gm.HaveOccurred())
+
+		// Bad alphabet and a length that is not a multiple of 4.
+		_, err = client.Operate(verbosityWP(), key, as.StrB64DecodeOp(edsBin))
+		assertSubcode(err, types.OP_NOT_APPLICABLE, types.SubCodeOpNotStringB64Invalid)
 	})
 
 	gg.It("HLL add without index_bits on a new bin: HLL_INDEX_BITS_UNSET subcode", func() {

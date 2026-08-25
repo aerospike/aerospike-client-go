@@ -44,6 +44,13 @@ var (
 	_DELETE      = OperationType{14, true, 15}
 	_HLL_READ    = OperationType{15, false, 16}
 	_HLL_MODIFY  = OperationType{16, true, 17}
+
+	// String operation wire op types. The integer protocol codes match the
+	// Java client's StringOperation values exactly so server compatibility is
+	// preserved. Requires server version 8.1.3+.
+	_STRING_READ   = OperationType{17, false, 18}
+	_STRING_MODIFY = OperationType{18, true, 19}
+	_TO_STRING     = OperationType{19, false, 20}
 )
 
 // Operation contains operation definition.
@@ -120,11 +127,21 @@ func PutOp(bin *Bin) *Operation {
 }
 
 // AppendOp creates string append database operation.
+//
+// Deprecated: AppendOp has been deprecated since 8.8.0. Use [StrAppendOp] instead.
+// This legacy operation performs a raw byte concatenation that is not
+// Unicode/DBCS-aware; the string-package equivalent provides consistent
+// Unicode handling and policy/CTX support.
 func AppendOp(bin *Bin) *Operation {
 	return &Operation{opType: _APPEND, binName: bin.Name, binValue: bin.Value}
 }
 
 // PrependOp creates string prepend database operation.
+//
+// Deprecated: PrepndOp has been deprecated since 8.8.0. Use [StrPrependOp] instead. 
+// This legacy operation performs a raw byte concatenation that is 
+// not Unicode/DBCS-aware; the string-package equivalent provides consistent 
+// Unicode handling and policy/CTX support. Deprecated since version 8.8.0.
 func PrependOp(bin *Bin) *Operation {
 	return &Operation{opType: _PREPEND, binName: bin.Name, binValue: bin.Value}
 }

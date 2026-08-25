@@ -39,6 +39,16 @@ func newWriteCommand(
 	binMap BinMap,
 	operation OperationType,
 ) (writeCommand, Error) {
+	if cluster.utf8ValidationEnabled() {
+		if binMap != nil {
+			if err := validateUTF8BinMap(binMap); err != nil {
+				return writeCommand{}, err
+			}
+		} else if err := validateUTF8Bins(bins); err != nil {
+			return writeCommand{}, err
+		}
+	}
+
 	bwc, err := newBaseWriteCommand(cluster, policy, key)
 	if err != nil {
 		return writeCommand{}, err

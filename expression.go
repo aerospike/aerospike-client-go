@@ -118,6 +118,7 @@ var (
 	expOpKEY           expOp = 80
 	expOpBIN           expOp = 81
 	expOpBIN_TYPE      expOp = 82
+	expOpTO_STRING     expOp = 99
 	expOpIN_LIST       expOp = 9
 	expOpRESULT_REMOVE expOp = 100
 	expOpMAP_KEYS      expOp = 101
@@ -621,6 +622,25 @@ func (fe *Expression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 		}
 		size += sz
 		sz, err = fe.val.pack(buf)
+		if err != nil {
+			return size, err
+		}
+		size += sz
+	case &expOpTO_STRING:
+		// Dedicated TO_STRING opcode: [99, bin]. Replaces the obsolete
+		// CALL_REPR (module 4) shape that the server rejected with PARAMETER.
+		// Mirrors aerospike-client-c CLIENT-5164 (PR #228).
+		sz, err := packArrayBegin(buf, 2)
+		if err != nil {
+			return size, err
+		}
+		size += sz
+		sz, err = packAInt64(buf, int64(*cmd))
+		if err != nil {
+			return size, err
+		}
+		size += sz
+		sz, err = fe.bin.pack(buf)
 		if err != nil {
 			return size, err
 		}
@@ -1156,6 +1176,11 @@ func ExpDigestModulo(modulo int64) *Expression {
 }
 
 // ExpRegexCompare creates a function like regular expression string operation.
+//
+// Deprecated: ExpRegexCompare has been deprecated since 8.8.0. Use [ExpStringRegexCompare] or [ExpStringRegexCompareWithFlags]
+// instead. This legacy comparison uses POSIX regex and is not Unicode/DBCS-aware;
+// the string-package equivalent uses ICU regex and provides consistent Unicode
+// handling across the string ops.
 func ExpRegexCompare(regex string, flags ExpRegexFlags, bin *Expression) *Expression {
 	iflags := int64(flags)
 	return newFilterExpression(

@@ -182,6 +182,11 @@ const (
 	// LOST_CONFLICT defines write command loses conflict to XDR.
 	LOST_CONFLICT ResultCode = 28
 
+	// INVALID_ENCODING defines that a string bin or string argument contains
+	// invalid UTF-8. Returned by server 8.1.3+ string operations when the bin
+	// value or a string argument fails the UTF-8 well-formedness gate.
+	INVALID_ENCODING ResultCode = 29
+
 	// Write can't complete until XDR finishes shipping.
 	XDR_KEY_BUSY ResultCode = 32
 
@@ -502,6 +507,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case LOST_CONFLICT:
 		return "Write command loses conflict to XDR."
 
+	case INVALID_ENCODING:
+		return "Invalid UTF-8 encoding"
+
 	case XDR_KEY_BUSY:
 		return "Write can't complete until XDR finishes shipping."
 
@@ -772,6 +780,8 @@ func (rc ResultCode) String() string {
 		return "FILTERED_OUT"
 	case LOST_CONFLICT:
 		return "LOST_CONFLICT"
+	case INVALID_ENCODING:
+		return "INVALID_ENCODING"
 	case XDR_KEY_BUSY:
 		return "XDR_KEY_BUSY"
 	case QUERY_END:
@@ -899,7 +909,10 @@ func (rc ResultCode) String() string {
 // failing branch had no dispatchable subcode).
 //
 // This catalogue mirrors the server's per-status enums in as/include/base/proto.h
-// and is server-version-specific. It is append-only: published values are immutable
+// and is server-version-specific. It is pinned to server master as of 2026-08-21
+// (39 subcodes); no released server version carries the feature yet, so the pin
+// advances to a release number once one ships. Re-verify this catalogue against
+// proto.h at every client release. It is append-only: published values are immutable
 // and are never renumbered or reused. New failure modes get new values appended to
 // their group. Treat any subcode value not declared here as an opaque integer
 // rather than assuming it is absent.
@@ -1047,6 +1060,12 @@ const (
 
 	// SubCodeOpNotStringUTF8Invalid: source blob/string is not valid UTF-8 for an OP_NOT_APPLICABLE path.
 	SubCodeOpNotStringUTF8Invalid SubCode = 11
+
+	// 12 is reserved server-side for a regex-limit subcode still in review.
+
+	// SubCodeOpNotStringB64Invalid: string is not valid base64 - a length that is not
+	// a multiple of 4, a character outside the alphabet, or misplaced '=' padding.
+	SubCodeOpNotStringB64Invalid SubCode = 13
 
 	// -------------------------------------------------------
 	// ResultCode.FILTERED_OUT (27) [AS_ERR_FILTERED_OUT] carries NO subcode:
@@ -1197,6 +1216,8 @@ func SubCodeToString(rc ResultCode, sc SubCode) string {
 			return "SubCodeOpNotStringConversionFailed"
 		case SubCodeOpNotStringUTF8Invalid:
 			return "SubCodeOpNotStringUTF8Invalid"
+		case SubCodeOpNotStringB64Invalid:
+			return "SubCodeOpNotStringB64Invalid"
 		}
 
 	case MRT_BLOCKED:

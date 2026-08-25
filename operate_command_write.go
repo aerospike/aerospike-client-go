@@ -28,6 +28,12 @@ type operateCommandWrite struct {
 }
 
 func newOperateCommandWrite(cluster *Cluster, key *Key, args operateArgs) (operateCommandWrite, Error) {
+	if cluster.utf8ValidationEnabled() {
+		if err := validateUTF8Operations(args.operations); err != nil {
+			return operateCommandWrite{}, err
+		}
+	}
+
 	bwc, err := newBaseWriteCommand(cluster, args.writePolicy, key)
 	if err != nil {
 		return operateCommandWrite{}, err

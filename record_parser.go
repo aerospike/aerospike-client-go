@@ -62,7 +62,7 @@ func newRecordParser(cmd *baseCommand) (*recordParser, Error) {
 
 	rp.cmd.dataOffset = 5
 	if compressedSize := rp.cmd.compressedSize(); compressedSize > 0 {
-		// Read compressed size
+		// Read original uncompressed size.
 		if _, err := rp.cmd.conn.Read(rp.cmd.dataBuffer, 8); err != nil {
 			logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
 			return nil, err
@@ -71,7 +71,38 @@ func newRecordParser(cmd *baseCommand) (*recordParser, Error) {
 		if err := rp.cmd.conn.initInflater(true, compressedSize); err != nil {
 			return nil, newError(types.PARSE_ERROR, fmt.Sprintf("Error setting up zlib inflater for size `%d`: %s", compressedSize, err.Error()))
 		}
-		rp.cmd.dataOffset = 13
+
+		// Read inflated message header.
+		if _, err := rp.cmd.conn.Read(rp.cmd.dataBuffer, int(_MSG_TOTAL_HEADER_SIZE)); err != nil {
+			logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
+			return nil, err
+		}
+
+		sz := Buffer.BytesToInt64(rp.cmd.dataBuffer, 0)
+		if err := rp.cmd.validateHeader(sz); err != nil {
+			return nil, err
+		}
+
+		headerLength := int(rp.cmd.dataBuffer[8])
+		rp.resultCode = types.ResultCode(rp.cmd.dataBuffer[13] & 0xFF)
+		rp.generation = Buffer.BytesToUint32(rp.cmd.dataBuffer, 14)
+		rp.expiration = types.TTL(Buffer.BytesToUint32(rp.cmd.dataBuffer, 18))
+		rp.fieldCount = int(Buffer.BytesToUint16(rp.cmd.dataBuffer, 26))
+		rp.opCount = int(Buffer.BytesToUint16(rp.cmd.dataBuffer, 28))
+
+		receiveSize := int((sz & 0xFFFFFFFFFFFF) - int64(headerLength))
+		if receiveSize > 0 {
+			cmd.receiveSize = int64(receiveSize)
+			if err := rp.cmd.sizeBufferSz(receiveSize, false); err != nil {
+				return rp, err
+			}
+			if _, err := rp.cmd.conn.Read(rp.cmd.dataBuffer, receiveSize); err != nil {
+				logger.Logger.Debug("Connection error reading data for ReadCommand: %s", err.Error())
+				return rp, err
+			}
+		}
+		rp.cmd.dataOffset = 0
+		return rp, nil
 	}
 
 	sz := Buffer.BytesToInt64(rp.cmd.dataBuffer, 0)

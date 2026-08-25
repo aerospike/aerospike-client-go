@@ -199,6 +199,26 @@ type ClientPolicy struct {
 
 	// Determianes the interval for checking for configuration changes using configProvider.
 	ConfigInterval time.Duration // = 5 second
+
+	// ValidateUTF8 enables a pre-write check that every string value sent in a
+	// write operation contains only valid UTF-8 bytes. Default: false.
+	//
+	// Go's string type is a sequence of bytes and is not type-enforced to be
+	// valid UTF-8. The Aerospike wire protocol and server-side string
+	// operations (introduced in server 8.1.3) assume string particles are
+	// valid UTF-8: invalid bytes cause silently wrong results in some ops
+	// (e.g. StrLen, StrSubstr, StrInsert, StrPadStart) and PARAMETER_ERROR
+	// in others (e.g. StrUpper, StrFind, StrRegexReplace).
+	//
+	// When enabled, writes containing invalid UTF-8 fail fast with
+	// PARAMETER_ERROR before being sent to the server. The check is O(n)
+	// per string and short-circuits on ASCII via unicode/utf8.ValidString.
+	//
+	// Default is false for backward compatibility — applications may today
+	// rely on round-tripping arbitrary bytes through string bins. New
+	// applications and any caller that touches string operations should
+	// set this to true.
+	ValidateUTF8 bool //= false
 }
 
 // NewClientPolicy generates a new ClientPolicy with default values.

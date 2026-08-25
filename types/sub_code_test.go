@@ -53,6 +53,9 @@ func TestSubCodeToString(t *testing.T) {
 		{"param pair", types.PARAMETER_ERROR, types.SubCodeParamBitsResizeExceeded, "SubCodeParamBitsResizeExceeded"},
 		{"op pair", types.OP_NOT_APPLICABLE, types.SubCodeOpNotHLLIndexBitsUnset, "SubCodeOpNotHLLIndexBitsUnset"},
 		{"mrt pair", types.MRT_BLOCKED, types.SubCodeMRTBlockedIDMismatch, "SubCodeMRTBlockedIDMismatch"},
+		{"op pair past the reserved gap", types.OP_NOT_APPLICABLE, types.SubCodeOpNotStringB64Invalid, "SubCodeOpNotStringB64Invalid"},
+		// 12 is reserved server-side and undeclared, so it must fall back.
+		{"reserved op subcode", types.OP_NOT_APPLICABLE, 12, "SubCode(26/12)"},
 		// The crux: value 1 disambiguates on the parent result code.
 		{"value 1 under param", types.PARAMETER_ERROR, 1, "SubCodeParamTTLInvalid"},
 		{"value 1 under op", types.OP_NOT_APPLICABLE, 1, "SubCodeOpNotCDTIndexOutOfBounds"},

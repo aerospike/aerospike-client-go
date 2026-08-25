@@ -124,14 +124,22 @@ type AerospikeError struct {
 	// did not send a detail.
 	ServerMessage string
 
-	// ExpTrace is the server-supplied expression build trace, or nil when absent.
+	// ExpTrace is the server-supplied expression trace, or nil when absent.
 	//
 	// Populated only at error-detail verbosity 3 (see
-	// [BasePolicy.ErrorDetailVerbosity]) on an expression build failure - a
-	// metadata filter (filter_exp) or an exp_read/exp_write operation that the
-	// server could not build. Such failures carry [types.PARAMETER_ERROR] and
-	// [types.SubCodeNone]. nil on every other failure (including non-expression failures
-	// at verbosity 3). See [ExpressionTrace].
+	// [BasePolicy.ErrorDetailVerbosity]) when a metadata/predicate filter
+	// (filter_exp) or an exp_read/exp_write operation fails to build, faults during
+	// evaluation, or rejects a record.
+	//
+	// Do not key trace handling off ResultCode. Build failures carry
+	// [types.PARAMETER_ERROR] and [types.SubCodeNone], but eval-phase traces ride
+	// whatever result code the evaluation produced - typically [types.FILTERED_OUT]
+	// or [types.OP_NOT_APPLICABLE]. Code that inspects ExpTrace only on
+	// PARAMETER_ERROR silently drops every eval-phase trace.
+	//
+	// nil on non-expression failures, and also on an expression failure whose trace
+	// the server's error-detail byte budget squeezed out entirely. See
+	// [ExpressionTrace].
 	ExpTrace *ExpressionTrace
 
 	// Includes stack frames for the error

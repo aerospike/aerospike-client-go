@@ -141,6 +141,10 @@ func MinServerVersion(major, minor int) Requirement {
 	return Requirement{minVersion: &version.Version{Major: major, Minor: minor}}
 }
 
+func MinServerVersionPatch(major, minor, patch int) Requirement {
+	return Requirement{minVersion: &version.Version{Major: major, Minor: minor, Patch: patch}}
+}
+
 func (r Requirement) AndEnterpriseEdition() Requirement { r.enterprise = true; return r }
 
 func (r Requirement) AndStrongConsistency() Requirement { r.strongConsistency = true; return r }
@@ -175,6 +179,15 @@ func (req Requirement) failureReason(facts serverFacts) string {
 	case req.security && !facts.securityEnabled:
 		return "requires a security-enabled server"
 	case req.minVersion != nil && !facts.version.IsGreaterOrEqual(req.minVersion):
+		if req.minVersion.Patch > 0 {
+			return fmt.Sprintf(
+				"requires server %d.%d.%d+ (connected to %s)",
+				req.minVersion.Major,
+				req.minVersion.Minor,
+				req.minVersion.Patch,
+				facts.version.String(),
+			)
+		}
 		return fmt.Sprintf(
 			"requires server %d.%d+ (connected to %s)",
 			req.minVersion.Major,
