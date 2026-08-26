@@ -22,6 +22,8 @@ import (
 	gm "github.com/onsi/gomega"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
+	ast "github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 var _ = gg.Describe("CDT List Test", func() {
@@ -804,6 +806,76 @@ var _ = gg.Describe("CDT List Test", func() {
 			list = list[1].([]any)
 			gm.Expect(len(list)).To(gm.Equal(1))
 			gm.Expect(list[0]).To(gm.Equal(2))
+		})
+
+	})
+
+	// string_list_join is a CDT list read op (code 28), the inverse of the
+	// string `split` operation. It requires server 8.1.3+.
+	gg.Context("string_list_join", func() {
+
+		gg.BeforeEach(func() {
+			requiredVersion, err := version.Parse("8.1.3")
+			if err != nil {
+				gg.Fail("Failed to parse server required version")
+			}
+			nodeVersion := client.GetNodes()[0].GetServerVersion()
+			if nodeVersion.IsSmaller(requiredVersion) {
+				gg.Skip("string_list_join requires server version 8.1.3+.")
+			}
+		})
+
+		put := func(value any) {
+			client.Delete(wpolicy, key)
+			err := client.PutBins(wpolicy, key, as.NewBin(cdtBinName, value))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		}
+
+		gg.It("joins list items with a separator", func() {
+			put([]any{"one", "two", "three"})
+			rec, err := client.Operate(wpolicy, key, as.ListJoinBySeparatorOp(cdtBinName, ","))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Bins[cdtBinName]).To(gm.Equal("one,two,three"))
+		})
+
+		gg.It("concatenates list items without a separator", func() {
+			put([]any{"one", "two", "three"})
+			rec, err := client.Operate(wpolicy, key, as.ListJoinOp(cdtBinName))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Bins[cdtBinName]).To(gm.Equal("onetwothree"))
+		})
+
+		gg.It("joins an empty list to an empty string", func() {
+			put([]any{})
+			rec, err := client.Operate(wpolicy, key, as.ListJoinBySeparatorOp(cdtBinName, ","))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Bins[cdtBinName]).To(gm.Equal(""))
+		})
+
+		gg.It("joins a list nested in a map", func() {
+			put(map[any]any{"k": []any{"a", "b"}})
+			rec, err := client.Operate(wpolicy, key,
+				as.ListJoinBySeparatorOp(cdtBinName, "-", as.CtxMapKey(as.StringValue("k"))))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Bins[cdtBinName]).To(gm.Equal("a-b"))
+		})
+
+		gg.It("rejects a list of non-string items", func() {
+			put([]any{1, 2, 3})
+			_, err := client.Operate(wpolicy, key, as.ListJoinBySeparatorOp(cdtBinName, ","))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+		})
+
+		gg.It("round-trips with the string split operation", func() {
+			put([]any{"one", "two", "three"})
+			rec, err := client.Operate(wpolicy, key, as.ListJoinBySeparatorOp(cdtBinName, ","))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			put(rec.Bins[cdtBinName])
+			rec, err = client.Operate(wpolicy, key, as.StrSplitBySeparatorOp(cdtBinName, ","))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Bins[cdtBinName]).To(gm.Equal([]any{"one", "two", "three"}))
 		})
 
 	})

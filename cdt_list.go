@@ -69,6 +69,7 @@ const (
 	_CDT_LIST_GET_BY_VALUE_INTERVAL          = 25
 	_CDT_LIST_GET_BY_RANK_RANGE              = 26
 	_CDT_LIST_GET_BY_VALUE_REL_RANK_RANGE    = 27
+	_CDT_LIST_STRING_JOIN                    = 28
 	_CDT_LIST_REMOVE_BY_INDEX                = 32
 	_CDT_LIST_REMOVE_BY_RANK                 = 34
 	_CDT_LIST_REMOVE_BY_VALUE                = 35
@@ -809,6 +810,29 @@ func ListGetRangeOp(binName string, index int, count int, ctx ...*CDTContext) *O
 // Server returns items starting at specified index to the end of list.
 func ListGetRangeFromOp(binName string, index int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_RANGE, IntegerValue(index)}, encoder: listGenericOpEncoder}
+}
+
+// ListJoinOp creates a list join operation.
+// Server concatenates the string items of the list bin and returns the result.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list of strings
+//   - ctx: Optional CDT context for nested lists
+func ListJoinOp(binName string, ctx ...*CDTContext) *Operation {
+	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_STRING_JOIN}, encoder: listGenericOpEncoder}
+}
+
+// ListJoinBySeparatorOp creates a list join operation.
+// Server concatenates the string items of the list bin, inserting `separator`
+// between consecutive items, and returns the result. It is the inverse of the
+// string `split` operation.
+//
+// Parameters:
+//   - binName: Name of the bin containing the list of strings
+//   - separator: Substring placed between consecutive items
+//   - ctx: Optional CDT context for nested lists
+func ListJoinBySeparatorOp(binName string, separator string, ctx ...*CDTContext) *Operation {
+	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_STRING_JOIN, StringValue(separator)}, encoder: listGenericOpEncoder}
 }
 
 // ListSortOp creates list sort operation.
