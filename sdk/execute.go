@@ -663,5 +663,12 @@ func (c *chain) batchPolicy() (*as.BatchPolicy, error) {
 	if c.txn != nil && !c.txnOptOut {
 		p.Txn = c.txn
 	}
+	if c.ctx != nil {
+		base, err := applyCtxDeadline(&p.BasePolicy, c.ctx)
+		if err != nil {
+			return nil, err
+		}
+		p.BasePolicy = *base
+	}
 	return p, nil
 }
