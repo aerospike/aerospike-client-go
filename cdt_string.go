@@ -502,13 +502,13 @@ func newStringModifyOp(subop int, binName string, ctx []*CDTContext, args ...any
 }
 
 // newStringOp pre-encodes the msgpack payload for a string operation and wraps
-// it in a RawBlobValue tagged with ParticleType.STRING. The wire layout matches
-// the Java client's StringOperation.packStringOp — flat when CTX is empty, and
-// `[0xFF, [ctx_id, ctx_value, ...], SUBOP, args...]` when CTX is present. Note
-// the SUBOP and args sit at the outer level alongside the 0xFF sentinel — there
-// is no inner array around them. This is what particle_string.c's
-// string_state_init expects (no nested-list count is read for the inner op);
-// the CDT module's bitwise/list/map ops use a nested layout instead.
+// it in a RawBlobValue tagged with ParticleType.STRING. The wire layout is
+// `[SUBOP, args...]` when CTX is empty, and
+// `[0xFF, [ctx_id, ctx_value, ...], [SUBOP, args...]]` when CTX is present —
+// the same CONTEXT_EVAL envelope the CDT list/map/bitwise ops use, with a
+// fixed outer element count of 3. Nesting the inner op makes its arity
+// self-describing, so a trailing element an older server does not understand
+// is rejected instead of being consumed as the op's optional policy flags.
 func newStringOp(opType OperationType, subop int, binName string, ctx []*CDTContext, args []any) *Operation {
 	sz, err := packStringOpBytes(nil, subop, ctx, args)
 	if err != nil {
@@ -530,46 +530,41 @@ func newStringOp(opType OperationType, subop int, binName string, ctx []*CDTCont
 
 func packStringOpBytes(buf BufferEx, subop int, ctx []*CDTContext, args []any) (int, Error) {
 	size := 0
-	hasCtx := len(ctx) > 0
-	innerCount := 1 + len(args)
-	outerCount := innerCount
-	if hasCtx {
-		outerCount = 2 + innerCount
-	}
+	n := 0
+	var err Error
 
-	n, err := packArrayBegin(buf, outerCount)
-	if err != nil {
-		return size + n, err
-	}
-	size += n
-
-	if hasCtx {
-		n, err = packAInt64(buf, 0xff)
-		if err != nil {
+	if len(ctx) > 0 {
+		if n, err = packArrayBegin(buf, 3); err != nil {
 			return size + n, err
 		}
 		size += n
 
-		n, err = packArrayBegin(buf, len(ctx)*2)
-		if err != nil {
+		if n, err = packAInt64(buf, 0xff); err != nil {
 			return size + n, err
 		}
 		size += n
 
-		// CDTContext.pack writes both the id and the value as separate
-		// msgpack elements, which is exactly the flat layout the server's
-		// string-op CTX envelope expects.
+		if n, err = packArrayBegin(buf, len(ctx)*2); err != nil {
+			return size + n, err
+		}
+		size += n
+
+		// CDTContext.pack writes the id and the value as two separate msgpack
+		// elements, which is why the list count above is len(ctx)*2.
 		for _, c := range ctx {
-			n, err = c.pack(buf)
-			if err != nil {
+			if n, err = c.pack(buf); err != nil {
 				return size + n, err
 			}
 			size += n
 		}
 	}
 
-	n, err = packAInt(buf, subop)
-	if err != nil {
+	if n, err = packArrayBegin(buf, 1+len(args)); err != nil {
+		return size + n, err
+	}
+	size += n
+
+	if n, err = packAInt(buf, subop); err != nil {
 		return size + n, err
 	}
 	size += n
