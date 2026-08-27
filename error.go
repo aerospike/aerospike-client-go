@@ -246,12 +246,21 @@ func (ase *AerospikeError) Trace() string {
 
 // Error implements the error interface
 func (ase *AerospikeError) Error() string {
-	const cErr = "ResultCode: %s, Iteration: %d, InDoubt: %t, Node: %s: %s"
+	const cErr = "ResultCode: %s%s, Iteration: %d, InDoubt: %t, Node: %s: %s"
 	const cErrNL = cErr + "\n  %s"
-	if ase.wrapped != nil {
-		return fmt.Sprintf(cErrNL, ase.ResultCode.String(), ase.Iteration, ase.InDoubt, ase.Node, ase.msg, ase.wrapped.Error())
+
+	// Rendered next to the result code rather than folded into the server's
+	// message, which stays verbatim - the (ResultCode, SubCode) pair is the
+	// dispatch key and must not be recoverable only by parsing this string.
+	sub := ""
+	if ase.SubCode != types.SubCodeNone {
+		sub = ", SubCode: " + ase.SubCode.String()
 	}
-	return fmt.Sprintf(cErr, ase.ResultCode.String(), ase.Iteration, ase.InDoubt, ase.Node, ase.msg)
+
+	if ase.wrapped != nil {
+		return fmt.Sprintf(cErrNL, ase.ResultCode.String(), sub, ase.Iteration, ase.InDoubt, ase.Node, ase.msg, ase.wrapped.Error())
+	}
+	return fmt.Sprintf(cErr, ase.ResultCode.String(), sub, ase.Iteration, ase.InDoubt, ase.Node, ase.msg)
 }
 
 func (ase *AerospikeError) wrap(err error) Error {

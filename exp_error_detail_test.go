@@ -278,9 +278,7 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeOpNotCDTIndexOutOfBounds))
 		gm.Expect(ae.ExpTrace).To(gm.BeNil(), "Tier 1 must surface no trace")
 
-		gm.Expect(ae.ServerMessage).NotTo(gm.BeEmpty())
-		gm.Expect(ae.ServerMessage).To(gm.ContainSubstring("subcode=1"), "Expected bare subcode form")
-		gm.Expect(ae.ServerMessage).NotTo(gm.ContainSubstring("out of bounds"), "Tier 1 must surface no message text")
+		gm.Expect(ae.ServerMessage).To(gm.BeEmpty(), "Tier 1 must surface no message text")
 	})
 
 	gg.It("verbosity 2 eval fault ships message but no trace", func() {

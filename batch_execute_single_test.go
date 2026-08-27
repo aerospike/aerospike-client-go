@@ -240,7 +240,6 @@ var _ = gg.Describe("Batch executeSingle error-detail surfacing", func() {
 			"single-key batch read lost its subcode")
 		gm.Expect(br.ServerMessage).NotTo(gm.BeEmpty(),
 			"single-key batch read lost its server message")
-		gm.Expect(br.ServerMessage).To(gm.ContainSubstring("subcode="))
 	})
 
 	gg.It("single-key batch write surfaces the server message onto the BatchRecord", func() {

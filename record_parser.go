@@ -202,8 +202,9 @@ func (rp *recordParser) parseFieldsError() {
 // parseErrorDetails decodes the msgpack error-detail map the server attaches
 // when ErrorDetailVerbosity > 0.
 // Map keys: 1 = subcode (uint), 2 = message (string).
-// Returns the formatted error message string, and stores the numeric subcode
-// on rp.serverSubcode as a side effect.
+// Returns the server's message verbatim, and stores the numeric subcode on
+// rp.serverSubcode as a side effect. The subcode is never folded into the
+// message: it is rendered alongside the result code in AerospikeError.Error().
 func (rp *recordParser) parseErrorDetails(offset int, size int) string {
 	end := offset + size
 	if offset >= end {
@@ -275,14 +276,7 @@ func (rp *recordParser) parseErrorDetails(offset int, size int) string {
 		rp.serverSubcode = types.SubCode(subcode)
 	}
 
-	if message != "" && subcode >= 0 {
-		return fmt.Sprintf("%s (subcode=%d)", message, subcode)
-	} else if subcode >= 0 {
-		return fmt.Sprintf("error subcode=%d", subcode)
-	} else if message != "" {
-		return message
-	}
-	return ""
+	return message
 }
 
 // parseExpTrace decodes the nested expression-trace map (top-level error-detail

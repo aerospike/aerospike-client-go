@@ -126,14 +126,14 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 		})
 
 		gg.It("errors.Is matches ErrKeyNotFound when server detail is present", func() {
-			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "record missing (subcode=7)", 7, nil)
+			err := newServerError(ast.KEY_NOT_FOUND_ERROR, "record missing", 7, nil)
 
 			gm.Expect(errors.Is(err, ErrKeyNotFound)).To(gm.BeTrue())
 
 			ae := &AerospikeError{}
 			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 			gm.Expect(ae.ResultCode).To(gm.Equal(ast.KEY_NOT_FOUND_ERROR))
-			gm.Expect(ae.ServerMessage).To(gm.Equal("record missing (subcode=7)"))
+			gm.Expect(ae.ServerMessage).To(gm.Equal("record missing"))
 			gm.Expect(ae.SubCode).To(gm.Equal(ast.SubCode(7)))
 		})
 

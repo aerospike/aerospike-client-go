@@ -89,7 +89,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			)
 			rp := parserForDetail(detail)
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("cannot append (subcode=99)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("cannot append"))
 			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCode(99)))
 		})
 
@@ -97,7 +97,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			detail := fixmap1(pair(intKey(1), fixint(42)))
 			rp := parserForDetail(detail)
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("error subcode=42"))
+			gm.Expect(rp.serverMessage).To(gm.Equal(""))
 			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCode(42)))
 		})
 
@@ -116,7 +116,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			)
 			rp := parserForDetail(detail)
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("swap (subcode=7)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("swap"))
 			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCode(7)))
 		})
 
@@ -128,7 +128,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			)
 			rp := parserForDetail(detail)
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal(multibyte + " (subcode=1)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal(multibyte))
 		})
 	})
 
@@ -152,7 +152,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			}
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("boom (subcode=7)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("boom"))
 		})
 
 		gg.It("parses map32 header", func() {
@@ -163,7 +163,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			payload.Write(pair(intKey(2), fixstr("m32")))
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("m32 (subcode=9)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("m32"))
 		})
 
 		gg.It("parses str32 message", func() {
@@ -180,7 +180,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			payload.Write([]byte(big))
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal(big + " (subcode=5)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal(big))
 		})
 
 		gg.It("parses subcode as fixint", func() {
@@ -190,7 +190,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			)
 			rp := parserForDetail(detail)
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("fx (subcode=127)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("fx"))
 		})
 
 		gg.It("parses subcode as uint8", func() {
@@ -202,7 +202,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			payload.Write(pair(intKey(2), fixstr("u8")))
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("u8 (subcode=200)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("u8"))
 			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCode(200)))
 		})
 
@@ -216,7 +216,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			payload.Write(pair(intKey(2), fixstr("hi")))
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("hi (subcode=1100)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("hi"))
 		})
 
 		gg.It("parses subcode as uint32", func() {
@@ -231,7 +231,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			payload.Write(pair(intKey(2), fixstr("x")))
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("x (subcode=70000)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("x"))
 		})
 
 		gg.It("parses subcode as uint64", func() {
@@ -244,7 +244,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			payload.Write(pair(intKey(2), fixstr("u64")))
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.HavePrefix("u64 (subcode="))
+			gm.Expect(rp.serverMessage).To(gm.Equal("u64"))
 			gm.Expect(rp.serverSubcode).To(gm.Equal(ast.SubCode(value)))
 		})
 
@@ -259,7 +259,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			payload.Write([]byte(msg))
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal(msg + " (subcode=3)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal(msg))
 		})
 
 		gg.It("parses message as str16", func() {
@@ -273,7 +273,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			payload.Write([]byte(msg))
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal(msg + " (subcode=4)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal(msg))
 		})
 	})
 
@@ -311,7 +311,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			payload.Write(pair(intKey(2), fixstr("z")))
 			rp := parserForDetail(payload.Bytes())
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("z (subcode=7)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("z"))
 		})
 
 		gg.It("non-error-message field types are skipped", func() {
@@ -325,7 +325,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 				[][]byte{{0x01, 0x02, 0x03}, detail},
 			)
 			rp.parseFieldsError()
-			gm.Expect(rp.serverMessage).To(gm.Equal("ok (subcode=1)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("ok"))
 		})
 
 		gg.It("returns no message when ERROR_MESSAGE field is absent", func() {
@@ -588,7 +588,7 @@ var _ = gg.Describe("ErrorDetailParser (unit)", func() {
 			rp := parserForDetail(detail)
 			rp.parseFieldsError()
 
-			gm.Expect(rp.serverMessage).To(gm.Equal("plain (subcode=4)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("plain"))
 			gm.Expect(rp.expTrace).To(gm.BeNil()) // no key 3 => no expression trace
 		})
 

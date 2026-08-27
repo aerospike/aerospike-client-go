@@ -106,7 +106,7 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 		gm.Expect(ae.ResultCode).To(gm.Equal(types.BIN_NOT_FOUND))
 		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeBinNotFoundHLLCannotCreateWithOp))
-		gm.Expect(ae.ServerMessage).To(gm.ContainSubstring("subcode=1"))
+		gm.Expect(ae.ServerMessage).To(gm.BeEmpty(), "Verbosity 1 carries no message text")
 	})
 
 	gg.It("verbosity subcode+message surfaces both", func() {
@@ -123,7 +123,6 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 		gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 		gm.Expect(ae.ResultCode).To(gm.Equal(types.BIN_NOT_FOUND))
 		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeBinNotFoundHLLCannotCreateWithOp))
-		gm.Expect(ae.ServerMessage).To(gm.ContainSubstring("(subcode=1)"))
 		gm.Expect(strings.ToLower(ae.ServerMessage)).To(gm.ContainSubstring("count op"))
 	})
 
@@ -374,7 +373,6 @@ func assertSubcode(err error, expectedResultCode types.ResultCode, expectedSubco
 	gm.Expect(ae.ResultCode).To(gm.Equal(expectedResultCode))
 	gm.Expect(ae.SubCode).To(gm.Equal(expectedSubcode))
 	gm.Expect(ae.ServerMessage).NotTo(gm.BeEmpty())
-	gm.Expect(ae.ServerMessage).To(gm.ContainSubstring("subcode=" + intToString(int(expectedSubcode))))
 }
 
 func assertSubcodeAbsent(err error, expectedResultCode types.ResultCode, expectedSubstrings ...string) {
@@ -387,7 +385,6 @@ func assertSubcodeAbsent(err error, expectedResultCode types.ResultCode, expecte
 	for _, expected := range expectedSubstrings {
 		gm.Expect(strings.ToLower(ae.ServerMessage)).To(gm.ContainSubstring(strings.ToLower(expected)))
 	}
-	gm.Expect(ae.ServerMessage).NotTo(gm.ContainSubstring("subcode="))
 }
 
 func intToString(v int) string {

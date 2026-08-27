@@ -120,7 +120,7 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 			gm.Expect(err).To(gm.BeNil())
 
 			// Field 45 was decoded even though a Txn is tracking the response.
-			gm.Expect(rp.serverMessage).To(gm.Equal("cannot append (subcode=9)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("cannot append"))
 			gm.Expect(rp.serverSubcode).To(gm.Equal(types.SubCode(9)))
 			// The 7-byte version was parsed and recorded on the read set.
 			gm.Expect(txn.ReadExistsForKey(key)).To(gm.BeTrue())
@@ -139,7 +139,7 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 			err := rp.parseFields(txn, key, true /* hasWrite */)
 			gm.Expect(err).To(gm.BeNil())
 
-			gm.Expect(rp.serverMessage).To(gm.Equal("error subcode=3"))
+			gm.Expect(rp.serverMessage).To(gm.Equal(""))
 			gm.Expect(rp.serverSubcode).To(gm.Equal(types.SubCode(3)))
 			gm.Expect(txn.ReadExistsForKey(key)).To(gm.BeTrue())
 		})
@@ -167,7 +167,7 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 
 			err := rp.parseFields(nil, nil, false)
 			gm.Expect(err).To(gm.BeNil())
-			gm.Expect(rp.serverMessage).To(gm.Equal("nil txn (subcode=1)"))
+			gm.Expect(rp.serverMessage).To(gm.Equal("nil txn"))
 			gm.Expect(rp.serverSubcode).To(gm.Equal(types.SubCode(1)))
 		})
 	})
@@ -201,13 +201,13 @@ var _ = gg.Describe("ErrorDetail wired-path gaps (unit)", func() {
 		})
 
 		gg.It("leaves ExpTrace nil when the server sent no trace", func() {
-			err := newServerError(types.OP_NOT_APPLICABLE, "index out of bounds (subcode=1)", 1, nil)
+			err := newServerError(types.OP_NOT_APPLICABLE, "index out of bounds", 1, nil)
 
 			ae := &AerospikeError{}
 			gm.Expect(errors.As(err, &ae)).To(gm.BeTrue())
 			gm.Expect(ae.ExpTrace).To(gm.BeNil())
 			gm.Expect(ae.SubCode).To(gm.Equal(types.SubCode(1)))
-			gm.Expect(ae.ServerMessage).To(gm.Equal("index out of bounds (subcode=1)"))
+			gm.Expect(ae.ServerMessage).To(gm.Equal("index out of bounds"))
 		})
 	})
 
