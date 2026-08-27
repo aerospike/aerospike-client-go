@@ -279,6 +279,28 @@ var _ = gg.Describe("String Expressions Test", func() {
 		gm.Expect(r.Bins[variable]).To(gm.Equal("hello world"))
 	})
 
+	gg.It("snip from truncates to the end of the string", func() {
+		put("hello world")
+		r := eval(as.ExpStringSnipFrom(policy, as.ExpIntVal(5), as.ExpStringBin(bin)))
+		gm.Expect(r.Bins[variable]).To(gm.Equal("hello"))
+	})
+
+	gg.It("snip from leaves the underlying bin untouched", func() {
+		put("hello world")
+		r := eval(as.ExpStringSnipFrom(policy, as.ExpIntVal(5), as.ExpStringBin(bin)))
+		gm.Expect(r.Bins[variable]).To(gm.Equal("hello"))
+
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(rec.Bins[bin]).To(gm.Equal("hello world"))
+	})
+
+	gg.It("snip from negative index counts from the end", func() {
+		put("hello world")
+		r := eval(as.ExpStringSnipFrom(policy, as.ExpIntVal(-5), as.ExpStringBin(bin)))
+		gm.Expect(r.Bins[variable]).To(gm.Equal("hello "))
+	})
+
 	gg.It("replace touches only the first match", func() {
 		put("hello world world")
 		rec := eval(as.ExpStringReplace(

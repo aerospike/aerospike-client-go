@@ -340,6 +340,36 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(stringValue()).To(gm.Equal("hello"))
 	})
 
+	gg.It("snip from truncates to the end of the string", func() {
+		put("hello world")
+		operate(as.StrSnipFromOp(policy, bin, 5))
+		gm.Expect(stringValue()).To(gm.Equal("hello"))
+	})
+
+	gg.It("snip from zero empties the string", func() {
+		put("hello world")
+		operate(as.StrSnipFromOp(policy, bin, 0))
+		gm.Expect(stringValue()).To(gm.Equal(""))
+	})
+
+	gg.It("snip from negative index counts from the end", func() {
+		put("hello world")
+		operate(as.StrSnipFromOp(policy, bin, -5))
+		gm.Expect(stringValue()).To(gm.Equal("hello "))
+	})
+
+	gg.It("snip from out-of-range index leaves the bin unchanged", func() {
+		put("hello world")
+		operate(as.StrSnipFromOp(policy, bin, 99))
+		gm.Expect(stringValue()).To(gm.Equal("hello world"))
+	})
+
+	gg.It("snip from addresses codepoints, not bytes", func() {
+		put("héllo wörld")
+		operate(as.StrSnipFromOp(policy, bin, 5))
+		gm.Expect(stringValue()).To(gm.Equal("héllo"))
+	})
+
 	gg.It("replace touches only the first occurrence", func() {
 		put("hello world world")
 		operate(as.StrReplaceOp(policy, bin, "world", "earth"))

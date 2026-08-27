@@ -232,6 +232,18 @@ func ExpStringPrepend(policy *StringPolicy, value *Expression, src *Expression) 
 	return addStringModifyExp(src, IntegerValue(_STR_OP_PREPEND), value, IntegerValue(policy.flags))
 }
 
+// ExpStringSnipFrom creates an expression that removes codepoints from `src`
+// starting at codepoint `start` through the end, returning the truncated
+// string. Does not modify the underlying bin.
+//
+// The server's snip argument list is positional — start, end, flags — so the
+// one-argument form cannot carry `policy` flags without also supplying an
+// explicit `end`. `policy` is accepted for signature parity with the rest of
+// the modify expressions; use [ExpStringSnip] when the write flags matter.
+func ExpStringSnipFrom(policy *StringPolicy, start *Expression, src *Expression) *Expression {
+	return addStringModifyExp(src, IntegerValue(_STR_OP_SNIP), start)
+}
+
 // ExpStringSnip creates an expression that removes the half-open codepoint
 // range [start, end) from `src` and returns the resulting string. Does not
 // modify the underlying bin.
