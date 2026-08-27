@@ -103,6 +103,7 @@ func (cmd *batchCommandUDF) parseRecordResults(ifc command, receiveSize int) (bo
 		if err != nil {
 			return false, err
 		}
+		cmd.applyErrorDetail(cmd.records[batchIndex])
 
 		// Aggregate metrics
 		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
@@ -120,7 +121,7 @@ func (cmd *batchCommandUDF) parseRecordResults(ifc command, receiveSize int) (bo
 			}
 
 			if resultCode != types.KEY_NOT_FOUND_ERROR && resultCode != types.FILTERED_OUT {
-				return false, newCustomNodeError(cmd.node, resultCode)
+				return false, cmd.capturedServerError(resultCode)
 			}
 		}
 

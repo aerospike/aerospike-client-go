@@ -108,6 +108,40 @@ type AerospikeError struct {
 	// Iteration determies on which retry the error occurred
 	Iteration int
 
+	// SubCode is the server-supplied error subcode (see the SubCode* constants
+	// in the types package). Defaults to [types.SubCodeNone] (0).
+	//
+	// A subcode is only meaningful when interpreted together with ResultCode:
+	// subcode integer values are scoped to their parent result code and are
+	// NOT globally unique. Dispatch on the (ResultCode, SubCode) pair.
+	//
+	// Populated only when BasePolicy.ErrorDetailVerbosity > 0 and the
+	// failing branch dispatched a subcode. Requires server version 8.1.3+.
+	SubCode types.SubCode
+
+	// ServerMessage is the formatted server-supplied error detail
+	// (human-readable message and/or subcode tag). Empty when the server
+	// did not send a detail.
+	ServerMessage string
+
+	// ExpTrace is the server-supplied expression trace, or nil when absent.
+	//
+	// Populated only at error-detail verbosity 3 (see
+	// [BasePolicy.ErrorDetailVerbosity]) when a metadata/predicate filter
+	// (filter_exp) or an exp_read/exp_write operation fails to build, faults during
+	// evaluation, or rejects a record.
+	//
+	// Do not key trace handling off ResultCode. Build failures carry
+	// [types.PARAMETER_ERROR] and [types.SubCodeNone], but eval-phase traces ride
+	// whatever result code the evaluation produced - typically [types.FILTERED_OUT]
+	// or [types.OP_NOT_APPLICABLE]. Code that inspects ExpTrace only on
+	// PARAMETER_ERROR silently drops every eval-phase trace.
+	//
+	// nil on non-expression failures, and also on an expression failure whose trace
+	// the server's error-detail byte budget squeezed out entirely. See
+	// [ExpressionTrace].
+	ExpTrace *ExpressionTrace
+
 	// Includes stack frames for the error
 	stackFrames []stackFrame
 }
@@ -129,6 +163,26 @@ func newError(code types.ResultCode, messages ...string) Error {
 func newErrorAndWrap(e error, code types.ResultCode, messages ...string) Error {
 	ne := newError(code, messages...)
 	ne.wrap(e)
+	return ne
+}
+
+// newServerError builds a failure error that carries the server's extended-error
+// detail (formatted message, numeric subcode, and - on expression build-failure
+// paths at verbosity 3 - the structured expression trace) when present. Route
+// non-OK throws on the wire path through here so the detail is never silently
+// dropped on special-case result codes such as FILTERED_OUT or KEY_NOT_FOUND_ERROR.
+func newServerError(code types.ResultCode, serverMessage string, subcode types.SubCode, expTrace *ExpressionTrace) Error {
+	var ne Error
+	if serverMessage != "" {
+		ne = newError(code, serverMessage)
+	} else {
+		ne = newError(code)
+	}
+	if ae, ok := ne.(*AerospikeError); ok {
+		ae.SubCode = subcode
+		ae.ServerMessage = serverMessage
+		ae.ExpTrace = expTrace
+	}
 	return ne
 }
 
@@ -192,12 +246,21 @@ func (ase *AerospikeError) Trace() string {
 
 // Error implements the error interface
 func (ase *AerospikeError) Error() string {
-	const cErr = "ResultCode: %s, Iteration: %d, InDoubt: %t, Node: %s: %s"
+	const cErr = "ResultCode: %s%s, Iteration: %d, InDoubt: %t, Node: %s: %s"
 	const cErrNL = cErr + "\n  %s"
-	if ase.wrapped != nil {
-		return fmt.Sprintf(cErrNL, ase.ResultCode.String(), ase.Iteration, ase.InDoubt, ase.Node, ase.msg, ase.wrapped.Error())
+
+	// Rendered next to the result code rather than folded into the server's
+	// message, which stays verbatim - the (ResultCode, SubCode) pair is the
+	// dispatch key and must not be recoverable only by parsing this string.
+	sub := ""
+	if ase.SubCode != types.SubCodeNone {
+		sub = ", SubCode: " + ase.SubCode.String()
 	}
-	return fmt.Sprintf(cErr, ase.ResultCode.String(), ase.Iteration, ase.InDoubt, ase.Node, ase.msg)
+
+	if ase.wrapped != nil {
+		return fmt.Sprintf(cErrNL, ase.ResultCode.String(), sub, ase.Iteration, ase.InDoubt, ase.Node, ase.msg, ase.wrapped.Error())
+	}
+	return fmt.Sprintf(cErr, ase.ResultCode.String(), sub, ase.Iteration, ase.InDoubt, ase.Node, ase.msg)
 }
 
 func (ase *AerospikeError) wrap(err error) Error {

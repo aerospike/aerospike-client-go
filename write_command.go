@@ -81,13 +81,9 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 	}
 
 	if resultCode != types.OK {
-		if resultCode == types.KEY_NOT_FOUND_ERROR {
-			return ErrKeyNotFound.err()
-		} else if resultCode == types.FILTERED_OUT {
-			return ErrFilteredOut.err()
-		}
-
-		return newCustomNodeError(cmd.node, types.ResultCode(resultCode))
+		ae := newServerError(types.ResultCode(resultCode), cmd.serverMessage, cmd.serverSubcode, cmd.serverExpTrace)
+		ae.setNode(cmd.node)
+		return ae
 	}
 
 	return nil

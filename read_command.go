@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"iter"
-
-	"github.com/aerospike/aerospike-client-go/v8/types"
 )
 
 type readCommand struct {
@@ -65,13 +63,7 @@ func (cmd *readCommand) parseResult(ifc command, conn *Connection) Error {
 	}
 
 	if rp.resultCode != 0 {
-		if rp.resultCode == types.KEY_NOT_FOUND_ERROR {
-			return ErrKeyNotFound.err()
-		} else if rp.resultCode == types.FILTERED_OUT {
-			return ErrFilteredOut.err()
-		}
-
-		return newError(rp.resultCode)
+		return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode, rp.expTrace)
 	}
 
 	if cmd.object == nil {

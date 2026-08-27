@@ -892,3 +892,342 @@ func (rc ResultCode) String() string {
 		return fmt.Sprintf("invalid ResultCode %d. Please report on https://github.com/aerospike/aerospike-client.go", rc)
 	}
 }
+
+// SubCode is a server-supplied error detail subcode.
+//
+// When extended error detail is requested (see BasePolicy.ErrorDetailVerbosity),
+// the server may attach a numeric subcode to a failure response. The subcode is
+// surfaced on AerospikeError.SubCode.
+//
+// Match on the (ResultCode, SubCode) pair. Subcode integer values are scoped to
+// their parent ResultCode and are NOT globally unique - the value 1, for example,
+// recurs under every parent status. A subcode is only meaningful when interpreted
+// together with the result code. Always check the result code first.
+//
+// SubCodeNone (0) means "no subcode" - it is reserved universally and is the value
+// returned when the server did not send a subcode (verbosity disabled, or the
+// failing branch had no dispatchable subcode).
+//
+// This catalogue mirrors the server's per-status enums in as/include/base/proto.h
+// and is server-version-specific. It is pinned to server master as of 2026-08-21
+// (39 subcodes); no released server version carries the feature yet, so the pin
+// advances to a release number once one ships. Re-verify this catalogue against
+// proto.h at every client release. It is append-only: published values are immutable
+// and are never renumbered or reused. New failure modes get new values appended to
+// their group. Treat any subcode value not declared here as an opaque integer
+// rather than assuming it is absent.
+type SubCode int
+
+const (
+	// SubCodeNone is returned when the server did not supply a subcode.
+	SubCodeNone SubCode = 0
+
+	// -------------------------------------------------------
+	// Pairs with ResultCode.PARAMETER_ERROR (4)  [AS_ERR_PARAMETER]
+	// -------------------------------------------------------
+
+	// SubCodeParamTTLInvalid: per-record TTL exceeds the namespace's max-ttl.
+	SubCodeParamTTLInvalid SubCode = 1
+
+	// SubCodeParamBitsOffsetOutOfRange: bit op offset lands past the blob (or above the proto cap).
+	SubCodeParamBitsOffsetOutOfRange SubCode = 2
+
+	// SubCodeParamBitsSizeOutOfRange: bit op size is out of range (e.g. zero, or too large).
+	SubCodeParamBitsSizeOutOfRange SubCode = 3
+
+	// SubCodeParamBitsResizeExceeded: blob resize would exceed the maximum blob size.
+	SubCodeParamBitsResizeExceeded SubCode = 4
+
+	// SubCodeParamBinCountTooLarge: write would exceed the per-record bin-count limit (write path).
+	SubCodeParamBinCountTooLarge SubCode = 5
+
+	// SubCodeParamStringOpParamsInvalid: string op wire/expression args malformed or out of range.
+	SubCodeParamStringOpParamsInvalid SubCode = 6
+
+	// SubCodeParamStringOpInvalid: string op code or modifier/read class mismatch on the wire path.
+	SubCodeParamStringOpInvalid SubCode = 7
+
+	// SubCodeParamStringCtxNotApplicable: string context-eval path malformed.
+	SubCodeParamStringCtxNotApplicable SubCode = 8
+
+	// SubCodeParamStringIndexOutOfBounds: string modify/read index or code-point range out of bounds.
+	SubCodeParamStringIndexOutOfBounds SubCode = 9
+
+	// SubCodeParamStringRegexInvalid: string regex pattern invalid (compile / ICU failure).
+	SubCodeParamStringRegexInvalid SubCode = 10
+
+	// SubCodeParamStringUTF8Invalid: string or string op argument is not valid UTF-8.
+	SubCodeParamStringUTF8Invalid SubCode = 11
+
+	// -------------------------------------------------------
+	// Pairs with ResultCode.PARTITION_UNAVAILABLE (11)  [AS_ERR_UNAVAILABLE]
+	// -------------------------------------------------------
+
+	// SubCodeUnavailInitialBalanceUnresolved: cluster is still resolving initial partition balance at startup.
+	SubCodeUnavailInitialBalanceUnresolved SubCode = 1
+
+	// SubCodeUnavailReplicaUnavailable: a needed replica is unavailable (likely a partition split).
+	SubCodeUnavailReplicaUnavailable SubCode = 2
+
+	// -------------------------------------------------------
+	// Pairs with ResultCode.UNSUPPORTED_FEATURE (16)  [AS_ERR_UNSUPPORTED_FEATURE]
+	// -------------------------------------------------------
+
+	// SubCodeUnsuppFeatMRTRequiresStrongConsistency: MRT attempted against a non-SC (AP) namespace.
+	SubCodeUnsuppFeatMRTRequiresStrongConsistency SubCode = 1
+
+	// SubCodeUnsuppFeatGeneric: requested feature is unsupported in this context (generic).
+	SubCodeUnsuppFeatGeneric SubCode = 2
+
+	// -------------------------------------------------------
+	// Pairs with ResultCode.BIN_NOT_FOUND (17)  [AS_ERR_BIN_NOT_FOUND]
+	// -------------------------------------------------------
+
+	// SubCodeBinNotFoundHLLCannotCreateWithOp: HLL op needs an existing bin and can't auto-create one.
+	SubCodeBinNotFoundHLLCannotCreateWithOp SubCode = 1
+
+	// SubCodeBinNotFoundStringValueNotFound: string modify on a missing bin (non-NO_FAIL path).
+	SubCodeBinNotFoundStringValueNotFound SubCode = 2
+
+	// -------------------------------------------------------
+	// Pairs with ResultCode.BIN_NAME_TOO_LONG (21)  [AS_ERR_BIN_NAME]
+	// -------------------------------------------------------
+
+	// SubCodeBinNameCountTooLarge: write would exceed the per-record bin-count limit (UDF path).
+	SubCodeBinNameCountTooLarge SubCode = 1
+
+	// -------------------------------------------------------
+	// Pairs with ResultCode.FAIL_FORBIDDEN (22)  [AS_ERR_FORBIDDEN]
+	// -------------------------------------------------------
+
+	// SubCodeForbidXDRFilterBlocked: write bounced by an XDR ship filter at the destination.
+	SubCodeForbidXDRFilterBlocked SubCode = 1
+
+	// SubCodeForbidSetCountStopWrites: set-level record-count stop-writes limit reached.
+	SubCodeForbidSetCountStopWrites SubCode = 2
+
+	// SubCodeForbidSetSizeStopWrites: set-level size stop-writes limit reached.
+	SubCodeForbidSetSizeStopWrites SubCode = 3
+
+	// SubCodeForbidClockSkewStopWrites: writes stopped due to cluster clock skew.
+	SubCodeForbidClockSkewStopWrites SubCode = 4
+
+	// SubCodeForbidReplaceConflictResolving: REPLACE / CREATE_OR_REPLACE forbidden while resolving conflicts.
+	SubCodeForbidReplaceConflictResolving SubCode = 5
+
+	// SubCodeForbidTruncated: write forbidden because the set/namespace is mid-truncate.
+	SubCodeForbidTruncated SubCode = 6
+
+	// Note: server subcodes 7 and 9 in this family are retired (masking violations
+	// return ROLE_VIOLATION, not FORBIDDEN) and are intentionally not declared.
+
+	// SubCodeForbidDurabilityViolation: non-durable delete forbidden (would violate durability).
+	SubCodeForbidDurabilityViolation SubCode = 8
+
+	// -------------------------------------------------------
+	// Pairs with ResultCode.OP_NOT_APPLICABLE (26)  [AS_ERR_OP_NOT_APPLICABLE]
+	// -------------------------------------------------------
+
+	// SubCodeOpNotCDTIndexOutOfBounds: list index is outside the current element range.
+	SubCodeOpNotCDTIndexOutOfBounds SubCode = 1
+
+	// SubCodeOpNotCDTRankOutOfBounds: requested rank is past the current population.
+	SubCodeOpNotCDTRankOutOfBounds SubCode = 2
+
+	// SubCodeOpNotCDTBoundedListOverflow: insert would exceed an ordered+bounded list's cap.
+	SubCodeOpNotCDTBoundedListOverflow SubCode = 3
+
+	// SubCodeOpNotHLLIndexBitsUnset: HLL op needs index_bits but the sketch has none set.
+	SubCodeOpNotHLLIndexBitsUnset SubCode = 4
+
+	// SubCodeOpNotHLLCannotReduceIndexBits: union needs to reduce index_bits but folding isn't allowed.
+	SubCodeOpNotHLLCannotReduceIndexBits SubCode = 5
+
+	// SubCodeOpNotHLLCannotReduceMinhashBits: as above, for the minhash dimension.
+	SubCodeOpNotHLLCannotReduceMinhashBits SubCode = 6
+
+	// SubCodeOpNotHLLCannotFoldMinhash: fold blocked because the sketch carries minhash bits.
+	SubCodeOpNotHLLCannotFoldMinhash SubCode = 7
+
+	// SubCodeOpNotHLLFoldIndexBitsTooLarge: fold target index_bits >= current (fold can only reduce).
+	SubCodeOpNotHLLFoldIndexBitsTooLarge SubCode = 8
+
+	// SubCodeOpNotHLLIntersectMinhashMismatch: intersect inputs have mismatched minhash parameters.
+	SubCodeOpNotHLLIntersectMinhashMismatch SubCode = 9
+
+	// SubCodeOpNotStringConversionFailed: string to numeric conversion failed (strtoll/strtod).
+	SubCodeOpNotStringConversionFailed SubCode = 10
+
+	// SubCodeOpNotStringUTF8Invalid: source blob/string is not valid UTF-8 for an OP_NOT_APPLICABLE path.
+	SubCodeOpNotStringUTF8Invalid SubCode = 11
+
+	// 12 is reserved server-side for a regex-limit subcode still in review.
+
+	// SubCodeOpNotStringB64Invalid: string is not valid base64 - a length that is not
+	// a multiple of 4, a character outside the alphabet, or misplaced '=' padding.
+	SubCodeOpNotStringB64Invalid SubCode = 13
+
+	// -------------------------------------------------------
+	// ResultCode.FILTERED_OUT (27) [AS_ERR_FILTERED_OUT] carries NO subcode:
+	// the server emits AS_SUB_NONE plus a contextual "filtered out ..." message.
+	// (The as_sub_filtered_t enum was removed server-side and never shipped, so
+	// no SubCodeFiltered* constants are defined here. Match on the message, not a
+	// subcode.)
+	// -------------------------------------------------------
+
+	// -------------------------------------------------------
+	// Pairs with ResultCode.MRT_BLOCKED (120)  [AS_ERR_MRT_BLOCKED]
+	// -------------------------------------------------------
+
+	// SubCodeMRTBlockedRecordLocked: record is provisionally locked by another MRT.
+	SubCodeMRTBlockedRecordLocked SubCode = 1
+
+	// SubCodeMRTBlockedIDMismatch: op belongs to a different MRT than the one holding the lock.
+	SubCodeMRTBlockedIDMismatch SubCode = 2
+)
+
+// String renders the numeric subcode.
+//
+// Subcodes are not globally unique: their symbolic meaning depends on the
+// accompanying ResultCode (see the SubCode* catalogue), so a value alone cannot
+// be mapped to a single constant name. String therefore renders the number - the
+// same form the server uses in its "subcode=N" detail messages - rather than a
+// name. SubCodeNone renders as "none".
+func (sc SubCode) String() string {
+	if sc == SubCodeNone {
+		return "none"
+	}
+	return fmt.Sprintf("%d", int(sc))
+}
+
+// SubCodeToString resolves the symbolic constant name for a (ResultCode, SubCode)
+// pair - the SubCode analogue of [ResultCodeToString].
+//
+// A subcode value is not globally unique (see [SubCode]): value 1, for example,
+// names a different failure under every parent status. The name can therefore
+// only be resolved with the accompanying result code, which is why this is a
+// package function keyed on both rather than a plain Stringer on SubCode alone -
+// [SubCode.String] deliberately renders the number.
+//
+// SubCodeNone resolves to "SubCodeNone" for any result code. A pair with no
+// declared constant (unknown subcode, or a result code that carries none) falls
+// back to a "SubCode(<rc>/<sc>)" rendering rather than an empty string.
+func SubCodeToString(rc ResultCode, sc SubCode) string {
+	if sc == SubCodeNone {
+		return "SubCodeNone"
+	}
+
+	switch rc {
+	case PARAMETER_ERROR:
+		switch sc {
+		case SubCodeParamTTLInvalid:
+			return "SubCodeParamTTLInvalid"
+		case SubCodeParamBitsOffsetOutOfRange:
+			return "SubCodeParamBitsOffsetOutOfRange"
+		case SubCodeParamBitsSizeOutOfRange:
+			return "SubCodeParamBitsSizeOutOfRange"
+		case SubCodeParamBitsResizeExceeded:
+			return "SubCodeParamBitsResizeExceeded"
+		case SubCodeParamBinCountTooLarge:
+			return "SubCodeParamBinCountTooLarge"
+		case SubCodeParamStringOpParamsInvalid:
+			return "SubCodeParamStringOpParamsInvalid"
+		case SubCodeParamStringOpInvalid:
+			return "SubCodeParamStringOpInvalid"
+		case SubCodeParamStringCtxNotApplicable:
+			return "SubCodeParamStringCtxNotApplicable"
+		case SubCodeParamStringIndexOutOfBounds:
+			return "SubCodeParamStringIndexOutOfBounds"
+		case SubCodeParamStringRegexInvalid:
+			return "SubCodeParamStringRegexInvalid"
+		case SubCodeParamStringUTF8Invalid:
+			return "SubCodeParamStringUTF8Invalid"
+		}
+
+	case PARTITION_UNAVAILABLE:
+		switch sc {
+		case SubCodeUnavailInitialBalanceUnresolved:
+			return "SubCodeUnavailInitialBalanceUnresolved"
+		case SubCodeUnavailReplicaUnavailable:
+			return "SubCodeUnavailReplicaUnavailable"
+		}
+
+	case UNSUPPORTED_FEATURE:
+		switch sc {
+		case SubCodeUnsuppFeatMRTRequiresStrongConsistency:
+			return "SubCodeUnsuppFeatMRTRequiresStrongConsistency"
+		case SubCodeUnsuppFeatGeneric:
+			return "SubCodeUnsuppFeatGeneric"
+		}
+
+	case BIN_NOT_FOUND:
+		switch sc {
+		case SubCodeBinNotFoundHLLCannotCreateWithOp:
+			return "SubCodeBinNotFoundHLLCannotCreateWithOp"
+		case SubCodeBinNotFoundStringValueNotFound:
+			return "SubCodeBinNotFoundStringValueNotFound"
+		}
+
+	case BIN_NAME_TOO_LONG:
+		switch sc {
+		case SubCodeBinNameCountTooLarge:
+			return "SubCodeBinNameCountTooLarge"
+		}
+
+	case FAIL_FORBIDDEN:
+		switch sc {
+		case SubCodeForbidXDRFilterBlocked:
+			return "SubCodeForbidXDRFilterBlocked"
+		case SubCodeForbidSetCountStopWrites:
+			return "SubCodeForbidSetCountStopWrites"
+		case SubCodeForbidSetSizeStopWrites:
+			return "SubCodeForbidSetSizeStopWrites"
+		case SubCodeForbidClockSkewStopWrites:
+			return "SubCodeForbidClockSkewStopWrites"
+		case SubCodeForbidReplaceConflictResolving:
+			return "SubCodeForbidReplaceConflictResolving"
+		case SubCodeForbidTruncated:
+			return "SubCodeForbidTruncated"
+		case SubCodeForbidDurabilityViolation:
+			return "SubCodeForbidDurabilityViolation"
+		}
+
+	case OP_NOT_APPLICABLE:
+		switch sc {
+		case SubCodeOpNotCDTIndexOutOfBounds:
+			return "SubCodeOpNotCDTIndexOutOfBounds"
+		case SubCodeOpNotCDTRankOutOfBounds:
+			return "SubCodeOpNotCDTRankOutOfBounds"
+		case SubCodeOpNotCDTBoundedListOverflow:
+			return "SubCodeOpNotCDTBoundedListOverflow"
+		case SubCodeOpNotHLLIndexBitsUnset:
+			return "SubCodeOpNotHLLIndexBitsUnset"
+		case SubCodeOpNotHLLCannotReduceIndexBits:
+			return "SubCodeOpNotHLLCannotReduceIndexBits"
+		case SubCodeOpNotHLLCannotReduceMinhashBits:
+			return "SubCodeOpNotHLLCannotReduceMinhashBits"
+		case SubCodeOpNotHLLCannotFoldMinhash:
+			return "SubCodeOpNotHLLCannotFoldMinhash"
+		case SubCodeOpNotHLLFoldIndexBitsTooLarge:
+			return "SubCodeOpNotHLLFoldIndexBitsTooLarge"
+		case SubCodeOpNotHLLIntersectMinhashMismatch:
+			return "SubCodeOpNotHLLIntersectMinhashMismatch"
+		case SubCodeOpNotStringConversionFailed:
+			return "SubCodeOpNotStringConversionFailed"
+		case SubCodeOpNotStringUTF8Invalid:
+			return "SubCodeOpNotStringUTF8Invalid"
+		case SubCodeOpNotStringB64Invalid:
+			return "SubCodeOpNotStringB64Invalid"
+		}
+
+	case MRT_BLOCKED:
+		switch sc {
+		case SubCodeMRTBlockedRecordLocked:
+			return "SubCodeMRTBlockedRecordLocked"
+		case SubCodeMRTBlockedIDMismatch:
+			return "SubCodeMRTBlockedIDMismatch"
+		}
+	}
+
+	return fmt.Sprintf("SubCode(%d/%d)", int(rc), int(sc))
+}

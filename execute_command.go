@@ -73,18 +73,14 @@ func (cmd *executeCommand) parseResult(ifc command, conn *Connection) Error {
 	}
 
 	if rp.resultCode != 0 {
-		if rp.resultCode == types.KEY_NOT_FOUND_ERROR {
-			return ErrKeyNotFound.err()
-		} else if rp.resultCode == types.FILTERED_OUT {
-			return ErrFilteredOut.err()
-		} else if rp.resultCode == types.UDF_BAD_RESPONSE {
+		if rp.resultCode == types.UDF_BAD_RESPONSE {
 			cmd.record, _ = rp.parseRecord(cmd.key, false)
 			err := cmd.handleUdfError(rp.resultCode)
 			logger.Logger.Debug("UDF execution error: %s", err.Error())
 			return err
 		}
 
-		return newError(rp.resultCode)
+		return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode, rp.expTrace)
 	}
 
 	if rp.opCount == 0 {
