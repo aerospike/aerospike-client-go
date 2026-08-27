@@ -984,11 +984,11 @@ var _ = gg.Describe("String Operations Test", func() {
 	})
 
 	gg.It("CREATE_ONLY on a CTX path raises PARAMETER_ERROR", func() {
-		// NOTE: this assertion is currently non-discriminating. Every CTX-nested
+		// NOTE: non-discriminating until CLIENT-5308 lands. Every CTX-nested
 		// string op fails with PARAMETER_ERROR regardless of policy, because the
-		// client packs the CTX envelope flat while the server wants the sub-op in
-		// an inner list. Re-check that this still fails for the CREATE_ONLY reason
-		// once the envelope is fixed.
+		// client still packs the flat CTX envelope while the server now requires
+		// the sub-op nested in an inner list (SERVER-1483). Re-check that this
+		// fails for the CREATE_ONLY reason once that wire shape is fixed.
 		client.Delete(nil, key)
 		gm.Expect(client.PutBins(nil, key, as.NewBin("lbin", []any{"hello"}))).ToNot(gm.HaveOccurred())
 
