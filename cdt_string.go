@@ -128,9 +128,39 @@ const (
 	// StringWriteDefault allows create or update.
 	StringWriteDefault StringWriteFlags = 0
 
-	// StringWriteNoFail suppresses the error if the operation cannot be applied
-	// to the bin (e.g. the bin is missing). The bin is left unchanged and a nil
-	// result is returned for that operation.
+	// StringWriteCreateOnly applies the operation only if the bin does not
+	// already exist. A live bin fails with types.BIN_EXISTS_ERROR.
+	//
+	// Only the additive operations that can create a bin from empty accept this
+	// flag: [StrInsertOp], [StrOverwriteOp], [StrConcatOp], [StrConcatListOp],
+	// [StrAppendOp], [StrPrependOp], [StrPadStartOp], [StrPadEndOp] and
+	// [StrRepeatOp], plus their expression equivalents. Every other string
+	// modify operation rejects it with types.PARAMETER_ERROR.
+	//
+	// It is also invalid combined with [StringWriteUpdateOnly], and invalid on
+	// an operation carrying a CDT context: both are types.PARAMETER_ERROR.
+	// The server resolves all three of these while parsing arguments, so
+	// [StringWriteNoFail] does not suppress them.
+	StringWriteCreateOnly StringWriteFlags = 1
+
+	// StringWriteUpdateOnly applies the operation only to an existing bin,
+	// disabling bin creation. An absent bin is a no-op rather than a create.
+	// Valid on every string modify operation. Cannot be combined with
+	// [StringWriteCreateOnly].
+	StringWriteUpdateOnly StringWriteFlags = 2
+
+	// StringWriteNoFail suppresses the failure if the operation cannot be
+	// applied, leaving the bin unchanged. The bin — and the value a modify
+	// expression evaluates to — keeps the unmodified source string.
+	//
+	// It covers argument and size validation, the operation itself, and a
+	// [StringWriteCreateOnly] conflict on a live bin. It does not cover a
+	// malformed argument list, a non-string bin, invalid UTF-8 in either the
+	// source or the result, or the [StringWriteCreateOnly] validations above.
+	//
+	// An absent bin is not a failure and does not depend on this flag: the
+	// create-capable operations listed under [StringWriteCreateOnly] create it,
+	// every other operation is a no-op.
 	StringWriteNoFail StringWriteFlags = 4
 )
 

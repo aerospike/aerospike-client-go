@@ -877,6 +877,128 @@ var _ = gg.Describe("String Operations Test", func() {
 	})
 
 	// ============================================================
+	// Write flags (CLIENT-5361)
+	// ============================================================
+
+	gg.It("CREATE_ONLY creates a missing bin", func() {
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
+
+		createOnly := as.NewStringPolicy(as.StringWriteCreateOnly)
+		operate(as.StrAppendOp(createOnly, bin, "hi"))
+
+		gm.Expect(readBin()).To(gm.Equal("hi"))
+	})
+
+	gg.It("CREATE_ONLY on a live bin raises BIN_EXISTS_ERROR", func() {
+		put("hello")
+
+		createOnly := as.NewStringPolicy(as.StringWriteCreateOnly)
+		_, err := client.Operate(nil, key, as.StrAppendOp(createOnly, bin, " there"))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.BIN_EXISTS_ERROR)).To(gm.BeTrue())
+		gm.Expect(stringValue()).To(gm.Equal("hello"))
+	})
+
+	gg.It("CREATE_ONLY with NO_FAIL on a live bin is a silent no-op", func() {
+		put("hello")
+
+		coNoFail := as.NewStringPolicy(as.StringWriteCreateOnly | as.StringWriteNoFail)
+		operate(as.StrAppendOp(coNoFail, bin, " there"))
+
+		gm.Expect(stringValue()).To(gm.Equal("hello"))
+	})
+
+	gg.It("CREATE_ONLY on a non-create op raises PARAMETER_ERROR", func() {
+		// Only the eight additive create-capable ops accept CREATE_ONLY; the
+		// per-op bad_flags mask rejects it everywhere else.
+		put("hello")
+
+		createOnly := as.NewStringPolicy(as.StringWriteCreateOnly)
+		_, err := client.Operate(nil, key, as.StrUpperOp(createOnly, bin))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+		gm.Expect(stringValue()).To(gm.Equal("hello"))
+	})
+
+	gg.It("NO_FAIL does not mask the CREATE_ONLY rejection on a non-create op", func() {
+		put("hello")
+
+		coNoFail := as.NewStringPolicy(as.StringWriteCreateOnly | as.StringWriteNoFail)
+		_, err := client.Operate(nil, key, as.StrUpperOp(coNoFail, bin))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+		gm.Expect(stringValue()).To(gm.Equal("hello"))
+	})
+
+	gg.It("UPDATE_ONLY on a missing bin is a no-op, not a create", func() {
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("other", "untouched"))).ToNot(gm.HaveOccurred())
+
+		updateOnly := as.NewStringPolicy(as.StringWriteUpdateOnly)
+		operate(as.StrAppendOp(updateOnly, bin, "hi"))
+
+		gm.Expect(readBin()).To(gm.BeNil())
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(rec.Bins["other"]).To(gm.Equal("untouched"))
+	})
+
+	gg.It("UPDATE_ONLY on a live bin applies normally", func() {
+		put("hello")
+
+		updateOnly := as.NewStringPolicy(as.StringWriteUpdateOnly)
+		operate(as.StrAppendOp(updateOnly, bin, " there"))
+
+		gm.Expect(stringValue()).To(gm.Equal("hello there"))
+	})
+
+	gg.It("UPDATE_ONLY is accepted by a non-create op", func() {
+		put("hello")
+
+		updateOnly := as.NewStringPolicy(as.StringWriteUpdateOnly)
+		operate(as.StrUpperOp(updateOnly, bin))
+
+		gm.Expect(stringValue()).To(gm.Equal("HELLO"))
+	})
+
+	gg.It("CREATE_ONLY combined with UPDATE_ONLY raises PARAMETER_ERROR", func() {
+		put("hello")
+
+		both := as.NewStringPolicy(as.StringWriteCreateOnly | as.StringWriteUpdateOnly)
+		_, err := client.Operate(nil, key, as.StrAppendOp(both, bin, " there"))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+		gm.Expect(stringValue()).To(gm.Equal("hello"))
+	})
+
+	gg.It("CREATE_ONLY with NO_FAIL still raises the mutual-exclusion error", func() {
+		// The mutual-exclusion and CTX rejections happen while the server parses
+		// arguments, upstream of every NO_FAIL test, so NO_FAIL cannot mask them.
+		put("hello")
+
+		conflict := as.NewStringPolicy(as.StringWriteCreateOnly | as.StringWriteUpdateOnly | as.StringWriteNoFail)
+		_, err := client.Operate(nil, key, as.StrAppendOp(conflict, bin, " there"))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+	})
+
+	gg.It("CREATE_ONLY on a CTX path raises PARAMETER_ERROR", func() {
+		// NOTE: this assertion is currently non-discriminating. Every CTX-nested
+		// string op fails with PARAMETER_ERROR regardless of policy, because the
+		// client packs the CTX envelope flat while the server wants the sub-op in
+		// an inner list. Re-check that this still fails for the CREATE_ONLY reason
+		// once the envelope is fixed.
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin("lbin", []any{"hello"}))).ToNot(gm.HaveOccurred())
+
+		createOnly := as.NewStringPolicy(as.StringWriteCreateOnly)
+		_, err := client.Operate(nil, key, as.StrAppendOp(createOnly, "lbin", "hi", as.CtxListIndex(0)))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+	})
+
+	// ============================================================
 	// Codepoint-vs-byte anchors
 	//
 	// Server-side indices and strlen are in Unicode code points, not bytes
