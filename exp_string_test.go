@@ -423,6 +423,56 @@ var _ = gg.Describe("String Expressions Test", func() {
 	})
 
 	// ============================================================
+	// Write flags (CLIENT-5361)
+	// ============================================================
+
+	gg.It("CREATE_ONLY with NO_FAIL evaluates to the unmodified source string", func() {
+		// A suppressed modify restores the original particle, so the expression
+		// evaluates to the source string — not nil.
+		put("hello")
+
+		coNoFail := as.NewStringPolicy(as.StringWriteCreateOnly | as.StringWriteNoFail)
+		rec := eval(as.ExpStringAppend(coNoFail, as.ExpStringVal(" there"), as.ExpStringBin(bin)))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello"))
+	})
+
+	gg.It("NO_FAIL suppressing a prepare failure evaluates to the source string", func() {
+		put("hello")
+
+		noFail := as.NewStringPolicy(as.StringWriteNoFail)
+		rec := eval(as.ExpStringPadStart(noFail, as.ExpIntVal(10), as.ExpStringVal(""), as.ExpStringBin(bin)))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello"))
+	})
+
+	gg.It("UPDATE_ONLY applies to an existing source", func() {
+		put("hello")
+
+		updateOnly := as.NewStringPolicy(as.StringWriteUpdateOnly)
+		rec := eval(as.ExpStringAppend(updateOnly, as.ExpStringVal(" there"), as.ExpStringBin(bin)))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello there"))
+	})
+
+	gg.It("CREATE_ONLY on an existing source fails", func() {
+		put("hello")
+
+		createOnly := as.NewStringPolicy(as.StringWriteCreateOnly)
+		_, err := client.Operate(nil, key, as.ExpReadOp(variable,
+			as.ExpStringAppend(createOnly, as.ExpStringVal(" there"), as.ExpStringBin(bin)),
+			as.ExpReadFlagDefault))
+		gm.Expect(err).To(gm.HaveOccurred())
+	})
+
+	gg.It("CREATE_ONLY combined with UPDATE_ONLY fails", func() {
+		put("hello")
+
+		both := as.NewStringPolicy(as.StringWriteCreateOnly | as.StringWriteUpdateOnly)
+		_, err := client.Operate(nil, key, as.ExpReadOp(variable,
+			as.ExpStringAppend(both, as.ExpStringVal(" there"), as.ExpStringBin(bin)),
+			as.ExpReadFlagDefault))
+		gm.Expect(err).To(gm.HaveOccurred())
+	})
+
+	// ============================================================
 	// Codepoint-vs-byte anchors (mirror of cdt_string_test.go)
 	// ============================================================
 
