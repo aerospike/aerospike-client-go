@@ -16,6 +16,7 @@ package aerospike_test
 
 import (
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -565,5 +566,72 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 		)
 		count := countResults(rs)
 		gm.Expect(count).To(gm.Equal(100))
+	})
+
+	// string_list_join is a CDT list read op (code 28), the inverse of the
+	// string `split` expression. It requires server 8.1.3+.
+	gg.Context("ExpListJoin", func() {
+
+		const variable = "v"
+
+		var joinSet = randString(50)
+		var key *as.Key
+
+		gg.BeforeEach(func() {
+			requiredVersion, err := version.Parse("8.1.3")
+			if err != nil {
+				gg.Fail("Failed to parse server required version")
+			}
+			nodeVersion := client.GetNodes()[0].GetServerVersion()
+			if nodeVersion.IsSmaller(requiredVersion) {
+				gg.Skip("string_list_join requires server version 8.1.3+.")
+				return
+			}
+
+			key, err = as.NewKey(ns, joinSet, randString(50))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			client.Delete(wpolicy, key)
+			err = client.PutBins(wpolicy, key, as.NewBin("sbin", []any{"one", "two", "three"}))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		})
+
+		eval := func(e *as.Expression) any {
+			rec, err := client.Operate(wpolicy, key, as.ExpReadOp(variable, e, as.ExpReadFlagDefault))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			return rec.Bins[variable]
+		}
+
+		gg.It("joins with and without a separator", func() {
+			gm.Expect(eval(as.ExpListJoinBySeparator(as.ExpStringVal("|"), as.ExpListBin("sbin")))).
+				To(gm.Equal("one|two|three"))
+			gm.Expect(eval(as.ExpListJoin(as.ExpListBin("sbin")))).To(gm.Equal("onetwothree"))
+		})
+
+		gg.It("joins a list nested in a map", func() {
+			err := client.PutBins(wpolicy, key, as.NewBin("mbin", map[any]any{"k": []any{"a", "b"}}))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			gm.Expect(eval(as.ExpListJoinBySeparator(as.ExpStringVal("-"), as.ExpMapBin("mbin"), as.CtxMapKey(as.StringValue("k"))))).
+				To(gm.Equal("a-b"))
+		})
+
+		gg.It("is usable as a query filter", func() {
+			filterSet := randString(50)
+			for _, l := range [][]any{{"one", "two", "three"}, {"four", "five"}} {
+				k, err := as.NewKey(ns, filterSet, randString(50))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(client.PutBins(wpolicy, k, as.NewBin("sbin", l))).ToNot(gm.HaveOccurred())
+			}
+
+			rs := runQuery(
+				as.ExpEq(
+					as.ExpListJoinBySeparator(as.ExpStringVal(","), as.ExpListBin("sbin")),
+					as.ExpStringVal("one,two,three"),
+				),
+				filterSet,
+			)
+			gm.Expect(countResults(rs)).To(gm.Equal(1))
+		})
+
 	})
 })
