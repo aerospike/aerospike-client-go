@@ -720,6 +720,41 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(after["b"]).To(gm.Equal("foo"))
 	})
 
+	// A modify op under CTX carrying a non-default trailing flags argument.
+	// The nested CONTEXT_EVAL envelope exists to make this element
+	// unambiguous — in the old flat shape it was indistinguishable from an
+	// optional operand and was silently consumed as policy flags.
+	gg.It("modify op with non-default write flags on string nested in list", func() {
+		noFail := as.NewStringPolicy(as.StringWriteNoFail)
+
+		list := []any{"alpha", "beta", "gamma"}
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin(bin, list))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrAppendOp(noFail, bin, "!", as.CtxListIndex(1)))
+
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(rec.Bins[bin]).To(gm.Equal([]any{"alpha", "beta!", "gamma"}))
+	})
+
+	gg.It("modify op with non-default write flags on string nested in map", func() {
+		noFail := as.NewStringPolicy(as.StringWriteNoFail)
+
+		m := map[any]any{"a": "hello world", "b": "foo"}
+		client.Delete(nil, key)
+		gm.Expect(client.PutBins(nil, key, as.NewBin(bin, m))).ToNot(gm.HaveOccurred())
+
+		operate(as.StrPadEndOp(noFail, bin, 13, ".",
+			as.CtxMapKey(as.StringValue("a"))))
+
+		rec, err := client.Get(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		after := rec.Bins[bin].(map[any]any)
+		gm.Expect(after["a"]).To(gm.Equal("hello world.."))
+		gm.Expect(after["b"]).To(gm.Equal("foo"))
+	})
+
 	// ============================================================
 	// toString op — op-type 19, no payload, no sub-op id, no CTX
 	// ============================================================
