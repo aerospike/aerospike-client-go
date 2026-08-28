@@ -987,4 +987,77 @@ var _ = gg.Describe("Expression Filters", func() {
 			}
 		})
 	})
+
+	// CLIENT-5116: ExpFromAEL frames AEL source text for the server to compile,
+	// so these specs exercise the round trip rather than any client-side parsing.
+	_ = gg.Context("AEL Expressions", gg.Ordered, func() {
+		const keyCount = 10
+
+		aelSet := randString(50)
+		var key *as.Key
+
+		gg.BeforeAll(func() {
+			if serverIsOlderThan("8.1.3") {
+				gg.Skip("AEL expressions require a server with EXP_AEL_COMPILE (v8.1.3+)")
+			}
+
+			for ii := 0; ii < keyCount; ii++ {
+				k, err := as.NewKey(ns, aelSet, ii)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				err = client.Put(wpolicy, k, as.BinMap{"n": ii})
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				if ii == 1 {
+					key = k
+				}
+			}
+		})
+
+		gg.It("must pass a record through a matching AEL filter", func() {
+			exp, err := as.ExpFromAEL("$.n + 1 == 2")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			policy := as.NewPolicy()
+			policy.FilterExpression = exp
+
+			rec, err := client.Get(policy, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(rec.Bins["n"]).To(gm.Equal(1))
+		})
+
+		gg.It("must filter out a record on a non-matching AEL filter", func() {
+			exp, err := as.ExpFromAEL("$.n + 1 == 3")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			policy := as.NewPolicy()
+			policy.FilterExpression = exp
+
+			_, err = client.Get(policy, key)
+			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
+		})
+
+		gg.It("must filter a query result set", func() {
+			exp, err := as.ExpFromAEL("$.n % 2 == 0")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			policy := as.NewQueryPolicy()
+			policy.FilterExpression = exp
+
+			rs, err := client.Query(policy, as.NewStatement(ns, aelSet))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(countResults(rs)).To(gm.Equal(keyCount / 2))
+		})
+
+		gg.It("must surface a server error for invalid AEL", func() {
+			exp, err := as.ExpFromAEL("garbage @#$")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			policy := as.NewPolicy()
+			policy.FilterExpression = exp
+
+			_, err = client.Get(policy, key)
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+		})
+	})
 }) // Describe
