@@ -118,47 +118,34 @@ var _ = gg.Describe("Query StringExp filter expressions", func() {
 	}
 
 	gg.It("startsWith on strbin matches alpha records (3, 6, 9)", func() {
-		count := runQuery(as.ExpStringStartsWith(
-			as.ExpStringVal("alpha"),
-			as.ExpStringBin(strBin)))
+		count := runQuery(as.ExpStringStartsWith(as.ExpStringBin(strBin), as.ExpStringVal("alpha")))
 		gm.Expect(count).To(gm.Equal(3))
 	})
 
 	gg.It("contains on strbin matches gamma records (2, 5, 8)", func() {
-		count := runQuery(as.ExpStringContains(
-			as.ExpStringVal("amma"),
-			as.ExpStringBin(strBin)))
+		count := runQuery(as.ExpStringContains(as.ExpStringBin(strBin), as.ExpStringVal("amma")))
 		gm.Expect(count).To(gm.Equal(3))
 	})
 
 	gg.It("endsWith on strbin matches only -10", func() {
-		count := runQuery(as.ExpStringEndsWith(
-			as.ExpStringVal("-10"),
-			as.ExpStringBin(strBin)))
+		count := runQuery(as.ExpStringEndsWith(as.ExpStringBin(strBin), as.ExpStringVal("-10")))
 		gm.Expect(count).To(gm.Equal(1))
 	})
 
 	gg.It("regexCompare ^beta- on strbin matches 4 records (1, 4, 7, 10)", func() {
-		count := runQuery(as.ExpStringRegexCompare(
-			as.ExpStringVal("^beta-"),
-			as.ExpStringBin(strBin)))
+		count := runQuery(as.ExpStringRegexCompare(as.ExpStringBin(strBin), as.ExpStringVal("^beta-")))
 		gm.Expect(count).To(gm.Equal(4))
 	})
 
 	gg.It("contains on setName() matches all records in range", func() {
 		// Probe whether the new string-ops family supports source expressions
 		// other than bin/CDT projections (setName(), key()).
-		count := runQuery(as.ExpStringContains(
-			as.ExpStringVal("flt"),
-			as.ExpSetName()))
+		count := runQuery(as.ExpStringContains(as.ExpSetName(), as.ExpStringVal("flt")))
 		gm.Expect(count).To(gm.Equal(10))
 	})
 
 	gg.It("regexCompareWithFlags on key() finds flt3", func() {
-		count := runQuery(as.ExpStringRegexCompareWithFlags(
-			as.ExpStringVal("^flt3$"),
-			as.StringRegexDefault,
-			as.ExpKey(as.ExpTypeSTRING)))
+		count := runQuery(as.ExpStringRegexCompareWithFlags(as.ExpKey(as.ExpTypeSTRING), as.ExpStringVal("^flt3$"), as.StringRegexDefault))
 		gm.Expect(count).To(gm.Equal(1))
 	})
 })

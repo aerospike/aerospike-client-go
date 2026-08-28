@@ -53,13 +53,13 @@ var _ = gg.Describe("String snip payload shape (CLIENT-5353)", func() {
 	// packCommand packs one msgpack element per Expression argument, so the
 	// argument count is the packed payload count.
 	gg.It("ExpStringSnipFrom carries two arguments, not three", func() {
-		exp := ExpStringSnipFrom(DefaultStringPolicy, ExpIntVal(5), ExpStringBin("sbin"))
+		exp := ExpStringSnipFrom(DefaultStringPolicy, ExpStringBin("sbin"), ExpIntVal(5))
 		gm.Expect(exp.arguments).To(gm.HaveLen(2))
 		gm.Expect(exp.arguments[0]).To(gm.Equal(IntegerValue(_STR_OP_SNIP)))
 	})
 
 	gg.It("ExpStringSnip still carries four arguments", func() {
-		exp := ExpStringSnip(DefaultStringPolicy, ExpIntVal(5), ExpIntVal(11), ExpStringBin("sbin"))
+		exp := ExpStringSnip(DefaultStringPolicy, ExpStringBin("sbin"), ExpIntVal(5), ExpIntVal(11))
 		gm.Expect(exp.arguments).To(gm.HaveLen(4))
 	})
 })
