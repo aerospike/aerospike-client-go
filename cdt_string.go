@@ -383,6 +383,18 @@ func StrPrependOp(policy *StringPolicy, binName string, value string, ctx ...*CD
 	return newStringModifyOp(_STR_OP_PREPEND, binName, ctx, StringValue(value), IntegerValue(policy.flags))
 }
 
+// StrSnipFromOp creates a string `snip` operation that removes codepoints
+// starting at codepoint `start` through the end of the string, truncating the
+// bin. `snip("hello world", 5)` leaves `"hello"`.
+//
+// The server's snip argument list is positional — start, end, flags — so the
+// one-argument form cannot carry `policy` flags without also supplying an
+// explicit `end`. `policy` is accepted for signature parity with the rest of
+// the modify ops; use [StrSnipOp] when the write flags must be honored.
+func StrSnipFromOp(policy *StringPolicy, binName string, start int, ctx ...*CDTContext) *Operation {
+	return newStringModifyOp(_STR_OP_SNIP, binName, ctx, IntegerValue(start))
+}
+
 // StrSnipOp creates a string `snip` operation that removes the half-open
 // codepoint range [start, end) from the bin.
 func StrSnipOp(policy *StringPolicy, binName string, start int, end int, ctx ...*CDTContext) *Operation {

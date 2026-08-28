@@ -21,6 +21,9 @@ package aerospike
 // instead of being sent as standalone operate ops.
 //
 // Each builder takes a `src` expression that produces the string to operate on.
+// `src` comes first (after `policy` where present), ahead of the operands — matching
+// the StringOperation helpers rather than the bin-last order of the List/Map/Bit
+// expression builders, whose trailing CDTContext these do not take.
 // Common sources:
 //   - [ExpStringBin] — read a string bin
 //   - [ExpStringVal] — a string literal
@@ -59,51 +62,51 @@ func ExpStringLen(src *Expression) *Expression {
 // ExpStringSubstrFrom creates an expression that returns the substring of `src`
 // from codepoint `start` to the end. Negative `start` counts from the end of
 // the string.
-func ExpStringSubstrFrom(start *Expression, src *Expression) *Expression {
+func ExpStringSubstrFrom(src *Expression, start *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeSTRING, IntegerValue(_STR_OP_SUBSTR), start)
 }
 
 // ExpStringSubstr creates an expression that returns the substring of `src` in
 // the half-open codepoint range `[start, end)`. Negative indexes count from
 // the end.
-func ExpStringSubstr(start *Expression, end *Expression, src *Expression) *Expression {
+func ExpStringSubstr(src *Expression, start *Expression, end *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeSTRING, IntegerValue(_STR_OP_SUBSTR), start, end)
 }
 
 // ExpStringCharAt creates an expression that returns the codepoint at `index`
 // of `src` as a one-codepoint string. Negative indexes count from the end.
-func ExpStringCharAt(index *Expression, src *Expression) *Expression {
+func ExpStringCharAt(src *Expression, index *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeSTRING, IntegerValue(_STR_OP_CHAR_AT), index)
 }
 
 // ExpStringFind creates an expression that returns the codepoint index of the
 // first occurrence of `needle` in `src`, or -1 if not found.
-func ExpStringFind(needle *Expression, src *Expression) *Expression {
+func ExpStringFind(src *Expression, needle *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeINT, IntegerValue(_STR_OP_FIND), needle)
 }
 
 // ExpStringFindNth creates an expression that returns the codepoint index of
 // the `occurrence`-th match of `needle` (1 = first, -1 = last), or -1 if not
 // found.
-func ExpStringFindNth(needle *Expression, occurrence *Expression, src *Expression) *Expression {
+func ExpStringFindNth(src *Expression, needle *Expression, occurrence *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeINT, IntegerValue(_STR_OP_FIND), needle, occurrence)
 }
 
 // ExpStringContains creates an expression that tests whether `src` contains
 // `needle` as a substring. Returns a boolean.
-func ExpStringContains(needle *Expression, src *Expression) *Expression {
+func ExpStringContains(src *Expression, needle *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_CONTAINS), needle)
 }
 
 // ExpStringStartsWith creates an expression that tests whether `src` begins
 // with `prefix`. Returns a boolean.
-func ExpStringStartsWith(prefix *Expression, src *Expression) *Expression {
+func ExpStringStartsWith(src *Expression, prefix *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_STARTS_WITH), prefix)
 }
 
 // ExpStringEndsWith creates an expression that tests whether `src` ends with
 // `suffix`. Returns a boolean.
-func ExpStringEndsWith(suffix *Expression, src *Expression) *Expression {
+func ExpStringEndsWith(src *Expression, suffix *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_ENDS_WITH), suffix)
 }
 
@@ -134,7 +137,7 @@ func ExpStringIsNumeric(src *Expression) *Expression {
 
 // ExpStringIsNumericTyped creates an expression that tests whether `src` parses
 // as a number of the requested [StringNumericType]. Returns a boolean.
-func ExpStringIsNumericTyped(numericType StringNumericType, src *Expression) *Expression {
+func ExpStringIsNumericTyped(src *Expression, numericType StringNumericType) *Expression {
 	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_IS_NUMERIC), IntegerValue(int(numericType)))
 }
 
@@ -165,7 +168,7 @@ func ExpStringSplit(src *Expression) *Expression {
 // ExpStringSplitBySeparator creates an expression that splits `src` by the
 // `separator` substring. If the separator is absent, the result is a singleton
 // list containing the whole source.
-func ExpStringSplitBySeparator(separator *Expression, src *Expression) *Expression {
+func ExpStringSplitBySeparator(src *Expression, separator *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeLIST, IntegerValue(_STR_OP_SPLIT), separator)
 }
 
@@ -177,14 +180,14 @@ func ExpStringB64Decode(src *Expression) *Expression {
 
 // ExpStringRegexCompare creates an expression that tests whether `pattern`
 // (ICU regex syntax) matches `src`. Returns a boolean.
-func ExpStringRegexCompare(pattern *Expression, src *Expression) *Expression {
+func ExpStringRegexCompare(src *Expression, pattern *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_REGEX_COMPARE), pattern)
 }
 
 // ExpStringRegexCompareWithFlags creates an expression that tests whether
 // `pattern` matches `src` under the supplied [StringRegexFlags]. Flags can be
 // combined with bitwise OR. Returns a boolean.
-func ExpStringRegexCompareWithFlags(pattern *Expression, regexFlags StringRegexFlags, src *Expression) *Expression {
+func ExpStringRegexCompareWithFlags(src *Expression, pattern *Expression, regexFlags StringRegexFlags) *Expression {
 	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_REGEX_COMPARE), pattern, IntegerValue(int(regexFlags)))
 }
 
@@ -195,7 +198,7 @@ func ExpStringRegexCompareWithFlags(pattern *Expression, regexFlags StringRegexF
 // ExpStringInsert creates an expression that splices `value` into `src` at
 // codepoint `index` and returns the resulting string. Negative indexes count
 // from the end. Does not modify the underlying bin.
-func ExpStringInsert(policy *StringPolicy, index *Expression, value *Expression, src *Expression) *Expression {
+func ExpStringInsert(policy *StringPolicy, src *Expression, index *Expression, value *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_INSERT), index, value, IntegerValue(policy.flags))
 }
@@ -203,7 +206,7 @@ func ExpStringInsert(policy *StringPolicy, index *Expression, value *Expression,
 // ExpStringOverwrite creates an expression that overwrites codepoints in `src`
 // starting at codepoint `index` with `value`, returning the resulting string.
 // Does not modify the underlying bin.
-func ExpStringOverwrite(policy *StringPolicy, index *Expression, value *Expression, src *Expression) *Expression {
+func ExpStringOverwrite(policy *StringPolicy, src *Expression, index *Expression, value *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_OVERWRITE), index, value, IntegerValue(policy.flags))
 }
@@ -211,7 +214,7 @@ func ExpStringOverwrite(policy *StringPolicy, index *Expression, value *Expressi
 // ExpStringConcat creates an expression that concatenates `values` (a list of
 // strings) onto `src` in order, returning the resulting string. Does not modify
 // the underlying bin.
-func ExpStringConcat(policy *StringPolicy, values *Expression, src *Expression) *Expression {
+func ExpStringConcat(policy *StringPolicy, src *Expression, values *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_CONCAT), values, IntegerValue(policy.flags))
 }
@@ -219,7 +222,7 @@ func ExpStringConcat(policy *StringPolicy, values *Expression, src *Expression) 
 // ExpStringAppend creates an expression that appends `value` to the end of
 // `src` and returns the resulting string. Unicode/DBCS-aware counterpart to
 // the legacy byte-level append; does not modify the underlying bin.
-func ExpStringAppend(policy *StringPolicy, value *Expression, src *Expression) *Expression {
+func ExpStringAppend(policy *StringPolicy, src *Expression, value *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_APPEND), value, IntegerValue(policy.flags))
 }
@@ -227,15 +230,27 @@ func ExpStringAppend(policy *StringPolicy, value *Expression, src *Expression) *
 // ExpStringPrepend creates an expression that prepends `value` to the start of
 // `src` and returns the resulting string. Unicode/DBCS-aware counterpart to
 // the legacy byte-level prepend; does not modify the underlying bin.
-func ExpStringPrepend(policy *StringPolicy, value *Expression, src *Expression) *Expression {
+func ExpStringPrepend(policy *StringPolicy, src *Expression, value *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_PREPEND), value, IntegerValue(policy.flags))
+}
+
+// ExpStringSnipFrom creates an expression that removes codepoints from `src`
+// starting at codepoint `start` through the end, returning the truncated
+// string. Does not modify the underlying bin.
+//
+// The server's snip argument list is positional — start, end, flags — so the
+// one-argument form cannot carry `policy` flags without also supplying an
+// explicit `end`. `policy` is accepted for signature parity with the rest of
+// the modify expressions; use [ExpStringSnip] when the write flags matter.
+func ExpStringSnipFrom(policy *StringPolicy, src *Expression, start *Expression) *Expression {
+	return addStringModifyExp(src, IntegerValue(_STR_OP_SNIP), start)
 }
 
 // ExpStringSnip creates an expression that removes the half-open codepoint
 // range [start, end) from `src` and returns the resulting string. Does not
 // modify the underlying bin.
-func ExpStringSnip(policy *StringPolicy, start *Expression, end *Expression, src *Expression) *Expression {
+func ExpStringSnip(policy *StringPolicy, src *Expression, start *Expression, end *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_SNIP), start, end, IntegerValue(policy.flags))
 }
@@ -243,7 +258,7 @@ func ExpStringSnip(policy *StringPolicy, start *Expression, end *Expression, src
 // ExpStringReplace creates an expression that replaces the first occurrence of
 // `needle` in `src` with `replacement` and returns the resulting string. Does
 // not modify the underlying bin.
-func ExpStringReplace(policy *StringPolicy, needle *Expression, replacement *Expression, src *Expression) *Expression {
+func ExpStringReplace(policy *StringPolicy, src *Expression, needle *Expression, replacement *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_REPLACE),
 		stringExpQuotedPair(needle, replacement), IntegerValue(policy.flags))
@@ -262,7 +277,7 @@ func stringExpQuotedPair(first *Expression, second *Expression) *Expression {
 // ExpStringReplaceAll creates an expression that replaces every occurrence of
 // `needle` in `src` with `replacement` and returns the resulting string. Does
 // not modify the underlying bin.
-func ExpStringReplaceAll(policy *StringPolicy, needle *Expression, replacement *Expression, src *Expression) *Expression {
+func ExpStringReplaceAll(policy *StringPolicy, src *Expression, needle *Expression, replacement *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_REPLACE_ALL),
 		stringExpQuotedPair(needle, replacement), IntegerValue(policy.flags))
@@ -323,7 +338,7 @@ func ExpStringTrim(policy *StringPolicy, src *Expression) *Expression {
 // repeatedly until the result reaches `targetLength` codepoints. No-op when
 // the source is already at or above the target length. Does not modify the
 // underlying bin.
-func ExpStringPadStart(policy *StringPolicy, targetLength *Expression, padString *Expression, src *Expression) *Expression {
+func ExpStringPadStart(policy *StringPolicy, src *Expression, targetLength *Expression, padString *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_PAD_START), targetLength, padString, IntegerValue(policy.flags))
 }
@@ -332,14 +347,14 @@ func ExpStringPadStart(policy *StringPolicy, targetLength *Expression, padString
 // repeatedly until the result reaches `targetLength` codepoints. No-op when
 // the source is already at or above the target length. Does not modify the
 // underlying bin.
-func ExpStringPadEnd(policy *StringPolicy, targetLength *Expression, padString *Expression, src *Expression) *Expression {
+func ExpStringPadEnd(policy *StringPolicy, src *Expression, targetLength *Expression, padString *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_PAD_END), targetLength, padString, IntegerValue(policy.flags))
 }
 
 // ExpStringRepeat creates an expression that returns `src` repeated `count`
 // times. Does not modify the underlying bin.
-func ExpStringRepeat(policy *StringPolicy, count *Expression, src *Expression) *Expression {
+func ExpStringRepeat(policy *StringPolicy, src *Expression, count *Expression) *Expression {
 	policy = stringPolicyOrDefault(policy)
 	return addStringModifyExp(src, IntegerValue(_STR_OP_REPEAT), count, IntegerValue(policy.flags))
 }
@@ -352,7 +367,7 @@ func ExpStringRepeat(policy *StringPolicy, count *Expression, src *Expression) *
 // The server's regex_replace op table does not accept policy write flags, so
 // `policy` is kept for API symmetry with the other modify expressions and is
 // ignored.
-func ExpStringRegexReplace(policy *StringPolicy, pattern *Expression, replacement *Expression, regexFlags StringRegexFlags, src *Expression) *Expression {
+func ExpStringRegexReplace(policy *StringPolicy, src *Expression, pattern *Expression, replacement *Expression, regexFlags StringRegexFlags) *Expression {
 	_ = stringPolicyOrDefault(policy)
 	// The server's regex_replace op table takes [list, regexFlags] (no slot for
 	// policy flags), so pass the quoted [pattern, replacement] pair + regexFlags.
