@@ -15,12 +15,14 @@
 package aerospike_test
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
 )
 
@@ -957,6 +959,79 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 			gm.Expect([]byte{0x00}).To(gm.Equal(get3))
 			gm.Expect([]byte{0x00}).To(gm.Equal(get4))
 		})
+	})
+
+	// bit_b64_encode is a BITS read op (code 55). It requires server 8.1.3+.
+	gg.Context("bit_b64_encode", func() {
+
+		blob := []byte{0x01, 0x42, 0x03, 0x04, 0x05}
+
+		b64 := func(b []byte) string {
+			return base64.StdEncoding.EncodeToString(b)
+		}
+
+		gg.BeforeEach(func() {
+			requiredVersion, err := version.Parse("8.1.3")
+			if err != nil {
+				gg.Fail("Failed to parse server required version")
+			}
+			nodeVersion := client.GetNodes()[0].GetServerVersion()
+			if nodeVersion.IsSmaller(requiredVersion) {
+				gg.Skip("bit_b64_encode requires server version 8.1.3+.")
+				return
+			}
+
+			client.Delete(wpolicy, key)
+			err = client.PutBins(wpolicy, key, as.NewBin(cdtBinName, blob))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+		})
+
+		encode := func(ops ...*as.Operation) any {
+			rec, err := client.Operate(wpolicy, key, ops...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			return rec.Bins[cdtBinName]
+		}
+
+		gg.It("should encode the whole bin", func() {
+			gm.Expect(encode(as.BitB64EncodeOp(cdtBinName))).To(gm.Equal(b64(blob)))
+		})
+
+		gg.It("should encode a byte range", func() {
+			gm.Expect(encode(as.BitB64EncodeRangeOp(cdtBinName, 1, 2, false))).To(gm.Equal(b64(blob[1:3])))
+		})
+
+		gg.It("should encode from a negative offset", func() {
+			gm.Expect(encode(as.BitB64EncodeRangeOp(cdtBinName, -2, 2, false))).To(gm.Equal(b64(blob[3:])))
+		})
+
+		gg.It("should encode to the end for an inverted size of zero", func() {
+			gm.Expect(encode(as.BitB64EncodeRangeOp(cdtBinName, 2, 0, true))).To(gm.Equal(b64(blob[2:])))
+		})
+
+		gg.It("should stop short of the end for a non-zero inverted size", func() {
+			gm.Expect(encode(as.BitB64EncodeRangeOp(cdtBinName, 0, 1, true))).To(gm.Equal(b64(blob[:len(blob)-1])))
+		})
+
+		gg.It("should encode an empty range to an empty string", func() {
+			gm.Expect(encode(as.BitB64EncodeRangeOp(cdtBinName, 0, 0, false))).To(gm.Equal(""))
+		})
+
+		gg.It("should fail on a range past the end of the bin", func() {
+			_, err := client.Operate(wpolicy, key, as.BitB64EncodeRangeOp(cdtBinName, len(blob)+1, 1, false))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue())
+		})
+
+		gg.It("should fail on a non-blob bin", func() {
+			client.Delete(wpolicy, key)
+			err := client.PutBins(wpolicy, key, as.NewBin(cdtBinName, "hello"))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			_, err = client.Operate(wpolicy, key, as.BitB64EncodeOp(cdtBinName))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.BIN_TYPE_ERROR)).To(gm.BeTrue())
+		})
+
 	})
 
 }) // describe

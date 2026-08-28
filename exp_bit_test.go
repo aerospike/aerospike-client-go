@@ -16,6 +16,7 @@ package aerospike_test
 
 import (
 	as "github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -451,5 +452,66 @@ var _ = gg.Describe("Expression Filters - Bitwise", gg.Ordered, func() {
 		)
 		count := countResults(rs)
 		gm.Expect(count).To(gm.Equal(100))
+	})
+
+	// bit_b64_encode is a BITS read op (code 55). It requires server 8.1.3+.
+	gg.Context("ExpBitB64Encode", func() {
+
+		gg.BeforeEach(func() {
+			requiredVersion, err := version.Parse("8.1.3")
+			if err != nil {
+				gg.Fail("Failed to parse server required version")
+			}
+			nodeVersion := client.GetNodes()[0].GetServerVersion()
+			if nodeVersion.IsSmaller(requiredVersion) {
+				gg.Skip("bit_b64_encode requires server version 8.1.3+.")
+			}
+		})
+
+		// bin = [0b00000001, 0b01000010]
+		gg.It("should filter on the whole bin", func() {
+			rs := runQuery(
+				as.ExpEq(
+					as.ExpBitB64Encode(as.ExpBlobBin("bin")),
+					as.ExpStringVal("AUI="),
+				),
+				set,
+			)
+			gm.Expect(countResults(rs)).To(gm.Equal(100))
+		})
+
+		gg.It("should filter on a byte range", func() {
+			rs := runQuery(
+				as.ExpEq(
+					as.ExpBitB64EncodeRange(as.ExpIntVal(1), as.ExpIntVal(1), false, as.ExpBlobBin("bin")),
+					as.ExpStringVal("Qg=="),
+				),
+				set,
+			)
+			gm.Expect(countResults(rs)).To(gm.Equal(100))
+		})
+
+		gg.It("should filter on an inverted size", func() {
+			rs := runQuery(
+				as.ExpEq(
+					as.ExpBitB64EncodeRange(as.ExpIntVal(0), as.ExpIntVal(1), true, as.ExpBlobBin("bin")),
+					as.ExpStringVal("AQ=="),
+				),
+				set,
+			)
+			gm.Expect(countResults(rs)).To(gm.Equal(100))
+		})
+
+		gg.It("should not match a different encoding", func() {
+			rs := runQuery(
+				as.ExpEq(
+					as.ExpBitB64Encode(as.ExpBlobBin("bin")),
+					as.ExpStringVal("Qg=="),
+				),
+				set,
+			)
+			gm.Expect(countResults(rs)).To(gm.Equal(0))
+		})
+
 	})
 })
