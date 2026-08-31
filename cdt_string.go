@@ -236,12 +236,16 @@ func StrContainsOp(binName string, needle string, ctx ...*CDTContext) *Operation
 
 // StrStartsWithOp creates a string `startsWith` operation. The server returns
 // true if the bin begins with `prefix`, false otherwise.
+// Matching is Unicode canonical, not byte-exact: a prefix stored in a
+// different normalization form than the bin still matches.
 func StrStartsWithOp(binName string, prefix string, ctx ...*CDTContext) *Operation {
 	return newStringReadOp(_STR_OP_STARTS_WITH, binName, ctx, StringValue(prefix))
 }
 
 // StrEndsWithOp creates a string `endsWith` operation. The server returns true
 // if the bin ends with `suffix`, false otherwise.
+// Matching is Unicode canonical, not byte-exact: a suffix stored in a
+// different normalization form than the bin still matches.
 func StrEndsWithOp(binName string, suffix string, ctx ...*CDTContext) *Operation {
 	return newStringReadOp(_STR_OP_ENDS_WITH, binName, ctx, StringValue(suffix))
 }

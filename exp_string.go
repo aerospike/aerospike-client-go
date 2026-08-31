@@ -100,12 +100,16 @@ func ExpStringContains(src *Expression, needle *Expression) *Expression {
 
 // ExpStringStartsWith creates an expression that tests whether `src` begins
 // with `prefix`. Returns a boolean.
+// Matching is Unicode canonical, not byte-exact: a prefix in a different
+// normalization form than the source still matches.
 func ExpStringStartsWith(src *Expression, prefix *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_STARTS_WITH), prefix)
 }
 
 // ExpStringEndsWith creates an expression that tests whether `src` ends with
 // `suffix`. Returns a boolean.
+// Matching is Unicode canonical, not byte-exact: a suffix in a different
+// normalization form than the source still matches.
 func ExpStringEndsWith(src *Expression, suffix *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_ENDS_WITH), suffix)
 }

@@ -15,6 +15,8 @@
 package aerospike_test
 
 import (
+	"strings"
+
 	as "github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
@@ -32,6 +34,9 @@ import (
 // AI_PIPELINE.md.
 var _ = gg.Describe("String Operations Test", func() {
 	const bin = "sbin"
+
+	// Ceiling the server puts on a modify op's estimated result size.
+	const resultSizeCap = 8 * 1024 * 1024
 
 	var (
 		ns  = *namespace
@@ -1137,25 +1142,90 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(operate(as.StrFindOp(bin, "world")).Bins[bin]).To(gm.Equal(2))
 	})
 
-	gg.It("find and contains require matching normalization form", func() {
+	// ============================================================
+	// Unicode canonical equivalence
+	//
+	// Ported from TestOperateString: findAndContainsMatchAcrossNormalizationForms,
+	// replaceMatchesAcrossNormalizationForms and
+	// startsWithAndEndsWithMatchAcrossNormalizationForms.
+	//
+	// The literals are \u escapes on purpose. Any tool that normalizes source
+	// files would collapse a literal NFD sequence to NFC and leave every
+	// assertion below comparing a string with itself.
+	// ============================================================
+
+	const (
+		nfc = "caf\u00e9"  // "café" composed
+		nfd = "cafe\u0301" // "café" decomposed
+	)
+
+	gg.It("find and contains match across normalization forms", func() {
 		// "café" can be stored as NFC (U+00E9, 1 codepoint, 2 UTF-8 bytes) or
 		// NFD (U+0065 U+0301, 2 codepoints, 3 UTF-8 bytes). They render
-		// identically but are distinct byte sequences. The server's find /
-		// contains uses ICU binary string search — NFC and NFD are NOT
-		// considered equal. Callers who need normalization-insensitive search
-		// must normalizeNFC the bin (and the needle) first. This test anchors
-		// the contract so a future change to ICU comparison mode does not
-		// silently flip the behavior.
-		const NFC = "café"  // "café" composed
-		const NFD = "café" // "café" decomposed
+		// identically but are distinct byte sequences, and the server treats
+		// them as equal: find / contains take the binary memmem path only when
+		// both operands are ASCII or both are NFC, and otherwise route through
+		// an ICU UStringSearch whose collator has full normalization enabled
+		// (particle_string.c get_canon_search).
+		//
+		// This currently FAILS on server 8.1.3.0, as the Java reference does: a
+		// needle spanning the whole bin hits a length precheck ahead of the
+		// canonical search, so the 5-codepoint NFD needle never reaches it. Kept
+		// failing deliberately — the mid-string case below passes, so deleting
+		// this one would hide a PRD P1 guarantee that is not actually met.
+		put(nfc)
+		// Both NFC — binary fast path.
+		gm.Expect(operate(as.StrFindOp(bin, nfc)).Bins[bin]).To(gm.Equal(0))
+		gm.Expect(operate(as.StrContainsOp(bin, nfc)).Bins[bin]).To(gm.Equal(true))
+		// Forms differ, so the canonical path runs and still matches.
+		gm.Expect(operate(as.StrFindOp(bin, nfd)).Bins[bin]).To(gm.Equal(0))
+		gm.Expect(operate(as.StrContainsOp(bin, nfd)).Bins[bin]).To(gm.Equal(true))
+	})
 
-		put(NFC)
-		// NFC haystack vs NFC needle — match.
-		gm.Expect(operate(as.StrFindOp(bin, NFC)).Bins[bin]).To(gm.Equal(0))
-		gm.Expect(operate(as.StrContainsOp(bin, NFC)).Bins[bin]).To(gm.Equal(true))
-		// NFC haystack vs NFD needle — no match (byte sequences differ).
-		gm.Expect(operate(as.StrFindOp(bin, NFD)).Bins[bin]).To(gm.Equal(-1))
-		gm.Expect(operate(as.StrContainsOp(bin, NFD)).Bins[bin]).To(gm.Equal(false))
+	gg.It("find and contains match across normalization forms mid-string", func() {
+		// The same guarantee where the needle does not span the whole bin, which
+		// is the shape the server does honour today. Not in the Java reference;
+		// it isolates the length precheck as the cause of the failure above.
+		put("x" + nfc + "y")
+		gm.Expect(operate(as.StrFindOp(bin, nfd)).Bins[bin]).To(gm.Equal(1))
+		gm.Expect(operate(as.StrContainsOp(bin, nfd)).Bins[bin]).To(gm.Equal(true))
+
+		put("x" + nfd + "y")
+		gm.Expect(operate(as.StrFindOp(bin, nfc)).Bins[bin]).To(gm.Equal(1))
+		gm.Expect(operate(as.StrContainsOp(bin, nfc)).Bins[bin]).To(gm.Equal(true))
+	})
+
+	gg.It("replace matches across normalization forms", func() {
+		// replace carries the same canonical-equivalence guarantee as find /
+		// contains above: string_modify_op_replace_K_icu routes through
+		// get_canon_search (particle_string.c) whenever the forms differ.
+
+		// Composed haystack, decomposed needle.
+		put(nfc + " au lait")
+		operate(as.StrReplaceOp(policy, bin, nfd, "tea"))
+		gm.Expect(stringValue()).To(gm.Equal("tea au lait"))
+
+		// Decomposed haystack, composed needle.
+		put(nfd + " au lait")
+		operate(as.StrReplaceOp(policy, bin, nfc, "tea"))
+		gm.Expect(stringValue()).To(gm.Equal("tea au lait"))
+	})
+
+	gg.It("startsWith and endsWith match across normalization forms", func() {
+		// get_canon_search has four call sites, not two: prefix and suffix
+		// matching are canonical as well, so an affix in either form matches a
+		// bin stored in the other.
+		put(nfc + " au lait")
+		gm.Expect(operate(as.StrStartsWithOp(bin, nfd)).Bins[bin]).To(gm.Equal(true))
+
+		put(nfd + " au lait")
+		gm.Expect(operate(as.StrStartsWithOp(bin, nfc)).Bins[bin]).To(gm.Equal(true))
+
+		put("au lait " + nfc)
+		gm.Expect(operate(as.StrEndsWithOp(bin, nfd)).Bins[bin]).To(gm.Equal(true))
+
+		put("au lait " + nfd)
+		gm.Expect(operate(as.StrEndsWithOp(bin, nfc)).Bins[bin]).To(gm.Equal(true))
 	})
 
 	gg.It("normalizeNFC composes a decomposed sequence", func() {
@@ -1236,5 +1306,49 @@ var _ = gg.Describe("String Operations Test", func() {
 		put("hello")
 		expectParamError(as.StrRegexReplaceOp(
 			policy, bin, "[unclosed", "NUM", as.StringRegexDefault))
+	})
+
+	// ============================================================
+	// Result-size cap
+	//
+	// Modify ops bound their estimated result at prepare time
+	// (particle_string.c string_modify_set_estimated_size). Exceeding the
+	// bound is PARAMETER_ERROR and nothing is written, so it is reported
+	// independently of RECORD_TOO_BIG — which the same ops raise for a
+	// result that clears the cap but outgrows the namespace record limit.
+	// ============================================================
+
+	// The reference asserts the code equals PARAMETER_ERROR. Go's Matches walks
+	// the error chain, so the negative RECORD_TOO_BIG assertion is what makes
+	// this equivalently strict.
+	expectCapError := func(op *as.Operation) {
+		_, err := client.Operate(nil, key, op)
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue())
+		gm.Expect(err.Matches(ast.RECORD_TOO_BIG)).To(gm.BeFalse())
+	}
+
+	gg.It("repeat past the result cap raises PARAMETER_ERROR", func() {
+		put("hello")
+		// Estimated as old_size * count.
+		expectCapError(as.StrRepeatOp(policy, bin, resultSizeCap))
+	})
+
+	gg.It("padStart past the result cap raises PARAMETER_ERROR", func() {
+		put("hello")
+		// Estimated as targetLength * 4 — worst-case UTF-8 expansion.
+		expectCapError(as.StrPadStartOp(policy, bin, resultSizeCap/4+1, "*"))
+	})
+
+	gg.It("padEnd past the result cap raises PARAMETER_ERROR", func() {
+		put("hello")
+		expectCapError(as.StrPadEndOp(policy, bin, resultSizeCap/4+1, "*"))
+	})
+
+	gg.It("concat past the result cap raises PARAMETER_ERROR", func() {
+		put("hello")
+		// Estimated as old_size + argument size, so only the argument can carry
+		// the result past the cap.
+		expectCapError(as.StrConcatOp(policy, bin, strings.Repeat("x", resultSizeCap)))
 	})
 })
