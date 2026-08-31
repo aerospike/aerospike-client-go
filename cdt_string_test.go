@@ -203,6 +203,21 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(operate(as.StrIsNumericOp(bin)).Bins[bin]).To(gm.Equal(false))
 	})
 
+	gg.It("isNumeric FLOAT filter requires a fractional digit", func() {
+		// FLOAT is is_valid_double && has_decimal_fraction, so "5" is false
+		// under FLOAT but true under ANY via the integer branch.
+		put("3.14")
+		gm.Expect(operate(as.StrIsNumericTypedOp(bin, as.StringNumericFloat)).Bins[bin]).To(gm.Equal(true))
+		put("5")
+		gm.Expect(operate(as.StrIsNumericTypedOp(bin, as.StringNumericFloat)).Bins[bin]).To(gm.Equal(false))
+		gm.Expect(operate(as.StrIsNumericTypedOp(bin, as.StringNumericAny)).Bins[bin]).To(gm.Equal(true))
+		put("5.")
+		gm.Expect(operate(as.StrIsNumericTypedOp(bin, as.StringNumericFloat)).Bins[bin]).To(gm.Equal(false))
+		put("1e5")
+		gm.Expect(operate(as.StrIsNumericTypedOp(bin, as.StringNumericFloat)).Bins[bin]).To(gm.Equal(false))
+		gm.Expect(operate(as.StrIsNumericTypedOp(bin, as.StringNumericAny)).Bins[bin]).To(gm.Equal(false))
+	})
+
 	gg.It("toInteger parses digits as int64", func() {
 		put("12345")
 		rec := operate(as.StrToIntegerOp(bin))
