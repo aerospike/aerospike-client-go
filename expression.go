@@ -129,6 +129,9 @@ var (
 	expOpLet           expOp = 125
 	expOpQUOTED        expOp = 126
 	expOpCALL          expOp = 127
+	// expOpAELCompile carries AEL source text for the server to compile.
+	// Mirrors EXP_AEL_COMPILE in the server's exp_wire.h.
+	expOpAELCompile expOp = 128
 )
 
 const _MODIFY = 0x40
@@ -750,6 +753,41 @@ func ExpFromBase64(str string) (*Expression, Error) {
 	}
 
 	return &Expression{bytes: b[:n]}, nil
+}
+
+// ExpFromAEL creates a filter expression from AEL (Aerospike Expression Language)
+// source text for the server to compile and evaluate. The client does no parsing
+// or validation: the text is framed and sent as-is, and the server rejects invalid
+// AEL with PARAMETER_ERROR, detailing the parser message and the 1-based line and
+// column of the first error.
+//
+// The result is a complete, standalone filter expression. The server accepts the
+// AEL opcode only as the top level of the payload, so assign it directly to a
+// policy's FilterExpression and never nest it inside ExpAnd, ExpOr, ExpNot or any
+// other expression.
+//
+// Requires a server that supports EXP_AEL_COMPILE (v8.1.3+); older servers reject
+// the payload. The text must not be empty.
+func ExpFromAEL(text string) (*Expression, Error) {
+	n := len(text)
+	if n == 0 {
+		return nil, newError(types.PARAMETER_ERROR, "AEL source text must not be empty")
+	}
+
+	// [EXP_AEL_COMPILE, bin(text)]: fixarray(2), then uint8 opcode. The source
+	// goes out as a msgpack bin, not a str; the server reads it with
+	// msgpack_get_bin and rejects any other type.
+	b := []byte{0x92, 0xcc, byte(expOpAELCompile)}
+	switch {
+	case n < 1<<8:
+		b = append(b, 0xc4, byte(n))
+	case n < 1<<16:
+		b = append(b, 0xc5, byte(n>>8), byte(n))
+	default:
+		b = append(b, 0xc6, byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+	}
+
+	return &Expression{bytes: append(b, text...)}, nil
 }
 
 // ExpKey creates a record key expression of specified type.
