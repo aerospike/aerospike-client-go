@@ -171,15 +171,15 @@ var _ = gg.Describe("String Expressions Test", func() {
 
 	gg.It("isNumeric FLOAT filter requires a fractional digit", func() {
 		put("3.14")
-		gm.Expect(eval(as.ExpStringIsNumericTyped(as.StringNumericFloat, as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(true))
+		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(true))
 		put("5")
-		gm.Expect(eval(as.ExpStringIsNumericTyped(as.StringNumericFloat, as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(false))
-		gm.Expect(eval(as.ExpStringIsNumericTyped(as.StringNumericAny, as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(true))
+		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(false))
+		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin),as.StringNumericAny)).Bins[variable]).To(gm.Equal(true))
 		put("5.")
-		gm.Expect(eval(as.ExpStringIsNumericTyped(as.StringNumericFloat, as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(false))
+		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(false))
 		put("1e5")
-		gm.Expect(eval(as.ExpStringIsNumericTyped(as.StringNumericFloat, as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(false))
-		gm.Expect(eval(as.ExpStringIsNumericTyped(as.StringNumericAny, as.ExpStringBin(bin))).Bins[variable]).To(gm.Equal(false))
+		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat, )).Bins[variable]).To(gm.Equal(false))
+		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericAny)).Bins[variable]).To(gm.Equal(false))
 	})
 
 	gg.It("isUpper and isLower distinguish case", func() {
