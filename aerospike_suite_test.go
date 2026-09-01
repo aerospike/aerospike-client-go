@@ -64,6 +64,17 @@ var (
 	dbHosts      []*as.Host
 )
 
+// newSuiteBatchPolicy returns batch policy timeouts used by the integration test suite.
+func newSuiteBatchPolicy() *as.BatchPolicy {
+	batchPolicy := as.NewBatchPolicy()
+	batchPolicy.TotalTimeout = 15 * time.Second
+	batchPolicy.SocketTimeout = 5 * time.Second
+	if client != nil && as.ConfiguredAsStrongConsistency(client, *namespace) {
+		batchPolicy.ReadModeSC = as.ReadModeSCLinearize
+	}
+	return batchPolicy
+}
+
 func initTestVars() {
 	var buf bytes.Buffer
 	var err error
@@ -117,20 +128,11 @@ func initTestVars() {
 
 	printConnectedNodes(client)
 
-	isSCMode := as.ConfiguredAsStrongConsistency(client, *namespace)
-
-	defaultBatchPolicy := as.NewBatchPolicy()
-	defaultBatchPolicy.TotalTimeout = 15 * time.Second
-	defaultBatchPolicy.SocketTimeout = 5 * time.Second
-	if isSCMode {
-		defaultBatchPolicy.ReadModeSC = as.ReadModeSCLinearize
-	}
+	defaultBatchPolicy := newSuiteBatchPolicy()
 	defaultWritePolicy := as.NewWritePolicy(0, 0)
 	defaultWritePolicy.TotalTimeout = 15 * time.Second
 	defaultWritePolicy.SocketTimeout = 5 * time.Second
-	if isSCMode {
-		defaultBatchPolicy.ReadModeSC = as.ReadModeSCLinearize
-	}
+	isSCMode := as.ConfiguredAsStrongConsistency(client, *namespace)
 	defaultScanPolicy := as.NewScanPolicy()
 	defaultScanPolicy.TotalTimeout = 15 * time.Second
 	defaultScanPolicy.SocketTimeout = 5 * time.Second
