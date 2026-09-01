@@ -98,7 +98,7 @@ jobs:
           echo "Go version: ${{ matrix.go-version }}"
 
       - name: Set up Aerospike Database
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@5e2e7a2458e4f7c5aa0a05b0e9de8c77e0d60da6
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@0d843cff870d70ac527048ab0d006c7c301fbb2f # v4.1.0
         with:
           aerospike-version: ${{ matrix.version }}
           num-nodes: 1
