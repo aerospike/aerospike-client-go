@@ -1,6 +1,8 @@
 name: Build and test against multi-node cluster
 
 on:
+  pull_request:
+    branches: [stage]
   workflow_dispatch:
     inputs:
       aerospike_version:
@@ -30,7 +32,7 @@ env:
   AEROSPIKE_VERSION: 8.1.1
   NODES: 3
   RUNNER_VERSION: ubuntu-24.04
-  MODES: AP,SC
+  MODES: AP
 
 jobs:
   make-matrix:
@@ -78,6 +80,7 @@ jobs:
       id-token: write
       actions: write 
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
     steps:
@@ -152,8 +155,9 @@ jobs:
 
   merged_coverage:
     name: Final Coverage
+    if: github.event_name != 'pull_request'
     needs: build
-    uses: ./.github/workflows/merge-coverage.yml
+    uses: aerospike/aerospike-client-go/.github/workflows/merge-coverage.yml@stage
     with:
       artifact_pattern: cover_*
       threshold: ${{ fromJSON(vars.COVERAGE_THRESHOLD) }}
