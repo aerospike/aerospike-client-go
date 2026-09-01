@@ -479,9 +479,35 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			continue
 		}
 
-		// if there is a recordset, process the record traditionally
-		// otherwise, it is supposed to be a record channel
-		if cmd.selectCases == nil {
+		// Three-way dispatch on read destination:
+		//   1. Sink path  — recordset's sinkFactory yields a fresh
+		//      BinReceiver per record; bins go straight into it.
+		//   2. Record path — bins flow into a BinMap on a *Record.
+		//   3. Reflect path — bins flow into a freshly allocated struct
+		//      delivered via the typed objChan.
+		if cmd.recordset != nil && cmd.recordset.sinkFactory != nil {
+			sink := cmd.recordset.sinkFactory()
+			if err := parseMultiSink(cmd, sink, opCount, generation, expiration); err != nil {
+				return false, newNodeError(cmd.node, err)
+			}
+
+			if !cmd.tracker.allowRecord(cmd.nodePartitions) {
+				continue
+			}
+
+			select {
+			case cmd.recordset.sinkChan <- sink:
+			case <-cmd.recordset.cancelled:
+				switch cmd.terminationErrorType {
+				case types.SCAN_TERMINATED:
+					return false, ErrScanTerminated.err().setNode(cmd.node)
+				case types.QUERY_TERMINATED:
+					return false, ErrQueryTerminated.err().setNode(cmd.node)
+				default:
+					return false, newError(cmd.terminationErrorType).setNode(cmd.node)
+				}
+			}
+		} else if cmd.selectCases == nil {
 			// Parse bins.
 			var bins BinMap
 
