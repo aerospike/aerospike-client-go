@@ -8,7 +8,7 @@ on:
       aerospike_version:
         description: "Aerospike version to test against"
         required: false
-        default: "8.1.1"
+        default: "8.1.1.0"
       nodes:
         description: "Number of cluster nodes"
         required: false
@@ -29,10 +29,10 @@ permissions:
 
 env:
   # defaults to use against workflow triggered through cron
-  AEROSPIKE_VERSION: 8.1.1
+  AEROSPIKE_VERSION: 8.1.1.0
   NODES: 3
   RUNNER_VERSION: ubuntu-24.04
-  MODES: AP
+  MODES: AP,SC
 
 jobs:
   make-matrix:
@@ -80,7 +80,6 @@ jobs:
       id-token: write
       actions: write 
     strategy:
-      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
     steps:
@@ -94,7 +93,7 @@ jobs:
       - name: Set up Aerospike multi-node cluster
         uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@0d843cff870d70ac527048ab0d006c7c301fbb2f # v4.1.0
         with:
-          aerospike-version: ${{ matrix.version }}
+          server-tag: ${{ matrix.version }}
           num-nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
           base-port: 3100
           enable-strong-consistency: ${{ matrix.mode == 'SC' }}
@@ -159,7 +158,7 @@ jobs:
     name: Final Coverage
     if: github.event_name != 'pull_request'
     needs: build
-    uses: aerospike/aerospike-client-go/.github/workflows/merge-coverage.yml@stage
+    uses: ./.github/workflows/merge-coverage.yml
     with:
       artifact_pattern: cover_*
       threshold: ${{ fromJSON(vars.COVERAGE_THRESHOLD) }}

@@ -136,14 +136,12 @@ func initTestVars() {
 	defaultScanPolicy := as.NewScanPolicy()
 	defaultScanPolicy.TotalTimeout = 15 * time.Second
 	defaultScanPolicy.SocketTimeout = 5 * time.Second
-	if isSCMode {
-		defaultBatchPolicy.ReadModeSC = as.ReadModeSCLinearize
-	}
 	defaultQueryPolicy := as.NewQueryPolicy()
 	defaultQueryPolicy.TotalTimeout = 15 * time.Second
 	defaultQueryPolicy.SocketTimeout = 5 * time.Second
 	if isSCMode {
-		defaultBatchPolicy.ReadModeSC = as.ReadModeSCLinearize
+		defaultScanPolicy.ReadModeSC = as.ReadModeSCLinearize
+		defaultQueryPolicy.ReadModeSC = as.ReadModeSCLinearize
 	}
 	defaultAdminPolicy := as.NewAdminPolicy()
 	defaultAdminPolicy.Timeout = 15 * time.Second
@@ -151,12 +149,8 @@ func initTestVars() {
 	defaultInfoPolicy.Timeout = 15 * time.Second
 
 	client.SetDefaultBatchPolicy(defaultBatchPolicy)
-	client.SetDefaultBatchPolicy(defaultBatchPolicy)
-	client.SetDefaultWritePolicy(defaultWritePolicy)
 	client.SetDefaultWritePolicy(defaultWritePolicy)
 	client.SetDefaultScanPolicy(defaultScanPolicy)
-	client.SetDefaultScanPolicy(defaultScanPolicy)
-	client.SetDefaultQueryPolicy(defaultQueryPolicy)
 	client.SetDefaultQueryPolicy(defaultQueryPolicy)
 	client.SetDefaultAdminPolicy(defaultAdminPolicy)
 	client.SetDefaultInfoPolicy(defaultInfoPolicy)

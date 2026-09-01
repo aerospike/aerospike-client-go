@@ -92,7 +92,7 @@ jobs:
       - name: Set up Aerospike Database
         uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@0d843cff870d70ac527048ab0d006c7c301fbb2f # v4.1.0
         with:
-          aerospike-version: ${{ matrix.version }}
+          server-tag: ${{ matrix.version }}
           num-nodes: 1
           enable-strong-consistency: ${{ matrix.mode == 'SC' }}
           features-content: ${{ secrets.FEATURES_CONF }}

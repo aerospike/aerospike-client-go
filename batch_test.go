@@ -880,17 +880,9 @@ var _ = gg.Describe("Aerospike", func() {
 				}
 
 				if nsInfo(ns, "storage-engine") == "device" {
-					// Multi-node skip (temporary).
-					//
-					// Expected: per-key errors (RECORD_TOO_BIG, INVALID_NAMESPACE) are reported on
-					// each BatchRec; BatchOperate returns err == nil (same idea as Java operate():
-					// false status, inspect resultCode — no exception).
-					//
-					// Today on multi-node, executeSingle and some batch-wire responses can also
-					// surface row-level failures as a top-level BatchOperate error. That path is
-					// not finalized yet, so skip rather than fail CI until it aligns with Java.
+					// https://aerospike.atlassian.net/browse/CLIENT-5411
 					if len(client.GetNodes()) > 1 {
-						gg.Skip("multi-node device batch UDF error assertions skipped until BatchOperate row-error propagation is finalized")
+						gg.Skip("this test is skipped until CLIENT-5411 is fixed")
 					}
 
 					writeBlockSize := 1048576
