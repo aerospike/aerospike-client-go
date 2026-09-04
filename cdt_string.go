@@ -251,15 +251,15 @@ func StrEndsWithOp(binName string, suffix string, ctx ...*CDTContext) *Operation
 }
 
 // StrToIntegerOp creates a string `toInteger` operation. The server parses the
-// string as an int64. Returns AEROSPIKE_ERR_PARAMETER if the bin cannot be
-// parsed as an integer.
+// string as an int64. A bin that cannot be parsed as an integer fails with
+// types.OP_NOT_APPLICABLE, subcode types.SubCodeOpNotStringConversionFailed.
 func StrToIntegerOp(binName string, ctx ...*CDTContext) *Operation {
 	return newStringReadOp(_STR_OP_TO_INTEGER, binName, ctx)
 }
 
 // StrToDoubleOp creates a string `toDouble` operation. The server parses the
-// string as a 64-bit float. Returns AEROSPIKE_ERR_PARAMETER if the bin cannot
-// be parsed as a double.
+// string as a 64-bit float. A bin that cannot be parsed as a double fails with
+// types.OP_NOT_APPLICABLE, subcode types.SubCodeOpNotStringConversionFailed.
 func StrToDoubleOp(binName string, ctx ...*CDTContext) *Operation {
 	return newStringReadOp(_STR_OP_TO_DOUBLE, binName, ctx)
 }
@@ -316,7 +316,9 @@ func StrSplitBySeparatorOp(binName string, separator string, ctx ...*CDTContext)
 }
 
 // StrB64DecodeOp creates a string `b64Decode` operation. The server treats the
-// bin as base64-encoded text and returns the decoded bytes as a blob.
+// bin as base64-encoded text and returns the decoded bytes as a blob. A bin
+// that is not valid base64 fails with types.OP_NOT_APPLICABLE, subcode
+// types.SubCodeOpNotStringB64Invalid.
 func StrB64DecodeOp(binName string, ctx ...*CDTContext) *Operation {
 	return newStringReadOp(_STR_OP_B64_DECODE, binName, ctx)
 }
@@ -509,8 +511,10 @@ func StrRegexReplaceOp(policy *StringPolicy, binName string, pattern string, rep
 //-----------------------------------------------------------------
 
 // StrToStringOp creates a `toString` operation that converts an integer, float,
-// string, or blob bin to its string representation. Returns
-// AEROSPIKE_ERR_INCOMPATIBLE_TYPE for any other bin type.
+// bool, string, or blob bin to its string representation. Returns
+// AEROSPIKE_ERR_INCOMPATIBLE_TYPE for any other bin type. A blob bin that is
+// not valid UTF-8 fails with types.OP_NOT_APPLICABLE, subcode
+// types.SubCodeOpNotStringUTF8Invalid.
 //
 // Unlike the other builders in this file, StrToStringOp does not accept a
 // [CDTContext]. The other string operations are sent as STRING_READ /
