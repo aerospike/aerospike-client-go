@@ -39,11 +39,10 @@ jobs:
         with:
           default_json: |
             {
-
               "7.2": { "version": "7.2" },
-              "8.1.0.1": { "version": "8.1.0.1" },
               "8.1.1.0": { "version": "8.1.1.0" },
-              "8.1.2.0": { "version": "8.1.2.0" }
+              "8.1.2.0": { "version": "8.1.2.0" },
+              "8.1.2.3": { "version": "8.1.2.3" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
           modes: AP,SC
