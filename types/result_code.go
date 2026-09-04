@@ -1061,7 +1061,9 @@ const (
 	// SubCodeOpNotStringUTF8Invalid: source blob/string is not valid UTF-8 for an OP_NOT_APPLICABLE path.
 	SubCodeOpNotStringUTF8Invalid SubCode = 11
 
-	// 12 is reserved server-side for a regex-limit subcode still in review.
+	// SubCodeOpNotStringRegexLimitExceeded: regex evaluation hit its resource budget -
+	// the ICU matcher timed out or overflowed its backtracking stack.
+	SubCodeOpNotStringRegexLimitExceeded SubCode = 12
 
 	// SubCodeOpNotStringB64Invalid: string is not valid base64 - a length that is not
 	// a multiple of 4, a character outside the alphabet, or misplaced '=' padding.
@@ -1216,6 +1218,8 @@ func SubCodeToString(rc ResultCode, sc SubCode) string {
 			return "SubCodeOpNotStringConversionFailed"
 		case SubCodeOpNotStringUTF8Invalid:
 			return "SubCodeOpNotStringUTF8Invalid"
+		case SubCodeOpNotStringRegexLimitExceeded:
+			return "SubCodeOpNotStringRegexLimitExceeded"
 		case SubCodeOpNotStringB64Invalid:
 			return "SubCodeOpNotStringB64Invalid"
 		}
