@@ -114,14 +114,16 @@ func ExpStringEndsWith(src *Expression, suffix *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_ENDS_WITH), suffix)
 }
 
-// ExpStringToInteger creates an expression that parses `src` as an int64. The
-// expression returns an error if the source cannot be parsed as an integer.
+// ExpStringToInteger creates an expression that parses `src` as an int64. A
+// source that cannot be parsed as an integer fails with
+// types.OP_NOT_APPLICABLE, subcode types.SubCodeOpNotStringConversionFailed.
 func ExpStringToInteger(src *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeINT, IntegerValue(_STR_OP_TO_INTEGER))
 }
 
 // ExpStringToDouble creates an expression that parses `src` as a 64-bit float.
-// The expression returns an error if the source cannot be parsed as a double.
+// A source that cannot be parsed as a double fails with
+// types.OP_NOT_APPLICABLE, subcode types.SubCodeOpNotStringConversionFailed.
 func ExpStringToDouble(src *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeFLOAT, IntegerValue(_STR_OP_TO_DOUBLE))
 }
@@ -177,7 +179,8 @@ func ExpStringSplitBySeparator(src *Expression, separator *Expression) *Expressi
 }
 
 // ExpStringB64Decode creates an expression that base64-decodes `src` and
-// returns the decoded bytes as a blob.
+// returns the decoded bytes as a blob. A source that is not valid base64 fails
+// with types.OP_NOT_APPLICABLE, subcode types.SubCodeOpNotStringB64Invalid.
 func ExpStringB64Decode(src *Expression) *Expression {
 	return addStringReadExp(src, ExpTypeBLOB, IntegerValue(_STR_OP_B64_DECODE))
 }
@@ -384,8 +387,10 @@ func ExpStringRegexReplace(policy *StringPolicy, src *Expression, pattern *Expre
 //-----------------------------------------------------------------
 
 // ExpStringToString creates an expression that returns the string representation
-// of `src`, where `src` may be any expression yielding an integer, float, string,
-// or blob value. Returns an error for any other source type.
+// of `src`, where `src` may be any expression yielding an integer, float, bool,
+// string, or blob value. Returns AEROSPIKE_ERR_INCOMPATIBLE_TYPE for any other
+// source type. A blob source that is not valid UTF-8 fails with
+// types.OP_NOT_APPLICABLE, subcode types.SubCodeOpNotStringUTF8Invalid.
 func ExpStringToString(src *Expression) *Expression {
 	// Dedicated TO_STRING opcode (99), encoded as [99, bin]. The prior
 	// CALL_REPR (module 4) shape was rejected by the server with PARAMETER.
