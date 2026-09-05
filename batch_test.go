@@ -605,6 +605,12 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 
 			gg.It("BatchRead TTL", func() {
+				// Same as "Reset Read TTL": community/default clusters often run nsup-period=0,
+				// which forbids TTL writes (allow-ttl-without-nsup=false) and returns FAIL_FORBIDDEN.
+				if nsupPeriod(ns) == 0 {
+					gg.Skip("Not supported with nsup-period == 0")
+				}
+
 				// WARNING: This test takes a long time to run due to sleeps.
 				// Define keys
 				key1, _ := as.NewKey(ns, set, 88888)
@@ -874,6 +880,11 @@ var _ = gg.Describe("Aerospike", func() {
 				}
 
 				if nsInfo(ns, "storage-engine") == "device" {
+					// https://aerospike.atlassian.net/browse/CLIENT-5411
+					if len(client.GetNodes()) > 1 {
+						gg.Skip("this test is skipped until CLIENT-5411 is fixed")
+					}
+
 					writeBlockSize := 1048576
 					bigBin := make(map[string]string, 0)
 					bigBin["big_bin"] = strings.Repeat("a", writeBlockSize)
