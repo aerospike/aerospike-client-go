@@ -17,6 +17,7 @@ package aerospike
 import (
 	"errors"
 	"fmt"
+	"net"
 	"runtime"
 	"strconv"
 	"strings"
@@ -184,6 +185,57 @@ func newServerError(code types.ResultCode, serverMessage string, subcode types.S
 		ae.ExpTrace = expTrace
 	}
 	return ne
+}
+
+// isClientTimeout reports whether a TIMEOUT error originated on the client side
+// (policy deadline, socket deadline, or connection deadline), as opposed to a
+// server protocol result code.
+func isClientTimeout(err Error) bool {
+	errTimeoutMsg := ErrTimeout.msg
+	errNetTimeoutMsg := ErrNetTimeout.msg
+
+	for e := error(err); e != nil; {
+		var ae *AerospikeError
+		if !errors.As(e, &ae) {
+			return false
+		}
+
+		if errors.Is(ae, ErrMaxRetriesExceeded) {
+			return true
+		}
+
+		if ae.ResultCode == types.TIMEOUT {
+			if ae.msg == errTimeoutMsg || ae.msg == errNetTimeoutMsg {
+				return true
+			}
+		}
+
+		if ae.wrapped != nil {
+			var ne net.Error
+			if errors.As(ae.wrapped, &ne) && ne.Timeout() {
+				return true
+			}
+		}
+
+		e = ae.Unwrap()
+	}
+	return false
+}
+
+// shouldAbortBatchCommand reports whether err from executeSingle should fail
+// the whole batch subcommand instead of remaining a per-record row error.
+func shouldAbortBatchCommand(err Error) bool {
+	if err == nil {
+		return false
+	}
+	code := err.resultCode()
+	if code < 0 {
+		return true
+	}
+	if code == types.TIMEOUT {
+		return isClientTimeout(err)
+	}
+	return false
 }
 
 func newTimeoutError(e error, messages ...string) Error {

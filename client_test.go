@@ -378,39 +378,47 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 
 			gg.It("BatchReadComplex", func() {
-				err := client.BatchGetComplex(nil, []*as.BatchRead{as.NewBatchRead(nil, key, []string{longBinName})})
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
+				records := []*as.BatchRead{as.NewBatchRead(nil, key, []string{longBinName})}
+				err := client.BatchGetComplex(nil, records)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(records[0].BatchRec().Err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 
-				err = client.BatchGetComplex(nil, []*as.BatchRead{as.NewBatchReadOps(nil, key, as.GetBinOp(longBinName))})
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
+				records = []*as.BatchRead{as.NewBatchReadOps(nil, key, as.GetBinOp(longBinName))}
+				err = client.BatchGetComplex(nil, records)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(records[0].BatchRec().Err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 			})
 
 			gg.It("BatchOperate", func() {
-				err := client.BatchOperate(nil, []as.BatchRecordIfc{as.NewBatchRead(nil, key, []string{longBinName})})
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
+				records := []as.BatchRecordIfc{as.NewBatchRead(nil, key, []string{longBinName})}
+				err := client.BatchOperate(nil, records)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(records[0].BatchRec().Err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 
-				err = client.BatchOperate(nil, []as.BatchRecordIfc{as.NewBatchReadOps(nil, key, as.GetBinOp(longBinName))})
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
+				records = []as.BatchRecordIfc{as.NewBatchReadOps(nil, key, as.GetBinOp(longBinName))}
+				err = client.BatchOperate(nil, records)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(records[0].BatchRec().Err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 
-				err = client.BatchOperate(nil, []as.BatchRecordIfc{as.NewBatchWrite(nil, key, as.PutOp(as.NewBin(longBinName, 1)))})
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
+				records = []as.BatchRecordIfc{as.NewBatchWrite(nil, key, as.PutOp(as.NewBin(longBinName, 1)))}
+				err = client.BatchOperate(nil, records)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(records[0].BatchRec().Err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 
-				err = client.BatchOperate(nil, []as.BatchRecordIfc{as.NewBatchWrite(nil, key, as.AddOp(as.NewBin(longBinName, 1)))})
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
+				records = []as.BatchRecordIfc{as.NewBatchWrite(nil, key, as.AddOp(as.NewBin(longBinName, 1)))}
+				err = client.BatchOperate(nil, records)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(records[0].BatchRec().Err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 
-				err = client.BatchOperate(nil, []as.BatchRecordIfc{as.NewBatchWrite(nil, key, as.AppendOp(as.NewBin(longBinName, "1")))})
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
+				records = []as.BatchRecordIfc{as.NewBatchWrite(nil, key, as.AppendOp(as.NewBin(longBinName, "1")))}
+				err = client.BatchOperate(nil, records)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(records[0].BatchRec().Err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 
-				err = client.BatchOperate(nil, []as.BatchRecordIfc{as.NewBatchWrite(nil, key, as.PrependOp(as.NewBin(longBinName, "1")))})
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
+				records = []as.BatchRecordIfc{as.NewBatchWrite(nil, key, as.PrependOp(as.NewBin(longBinName, "1")))}
+				err = client.BatchOperate(nil, records)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(records[0].BatchRec().Err.Matches(types.BIN_NAME_TOO_LONG)).To(gm.BeTrue())
 			})
 
 			gg.It("Scan", func() {
