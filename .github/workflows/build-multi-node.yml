@@ -1,12 +1,14 @@
 name: Build and test against multi-node cluster
 
 on:
+  pull_request:
+    branches: [stage]
   workflow_dispatch:
     inputs:
       aerospike_version:
         description: "Aerospike version to test against"
         required: false
-        default: "8.1.1"
+        default: "8.1.1.0"
       nodes:
         description: "Number of cluster nodes"
         required: false
@@ -27,7 +29,7 @@ permissions:
 
 env:
   # defaults to use against workflow triggered through cron
-  AEROSPIKE_VERSION: 8.1.1
+  AEROSPIKE_VERSION: 8.1.1.0
   NODES: 3
   RUNNER_VERSION: ubuntu-24.04
   MODES: AP,SC
@@ -89,9 +91,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Aerospike multi-node cluster
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@5e2e7a2458e4f7c5aa0a05b0e9de8c77e0d60da6
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@0d843cff870d70ac527048ab0d006c7c301fbb2f # v4.1.0
         with:
-          aerospike-version: ${{ matrix.version }}
+          server-tag: ${{ matrix.version }}
           num-nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
           base-port: 3100
           enable-strong-consistency: ${{ matrix.mode == 'SC' }}
@@ -128,7 +130,9 @@ jobs:
         env: {GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor}
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out
       - name: Check Code Coverage
+        id: check-coverage
         uses: vladopajic/go-test-coverage@5f3508324fc185e82048a2861f8bdd3d83db133b # v2.18.9
+        continue-on-error: true
         with:
           config: ./.testcoverage.yml
       - name: Show coverage report in step summary

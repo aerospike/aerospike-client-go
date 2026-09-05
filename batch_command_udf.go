@@ -217,7 +217,10 @@ func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
 				continue
 			}
 
-			return err
+			if shouldAbortBatchCommand(err) {
+				return err
+			}
+			continue
 		}
 	}
 	return nil

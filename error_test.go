@@ -16,6 +16,7 @@ package aerospike
 
 import (
 	"errors"
+	"os"
 
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
@@ -163,6 +164,98 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 			gm.Expect(errors.Is(err, ErrFilteredOut)).To(gm.BeFalse())
 		})
 
+	}) // Context
+
+	gg.Context("batch timeout classification", func() {
+
+		gg.It("classifies client timeouts correctly", func() {
+			serverTimeout := newError(ast.TIMEOUT)
+			// A server-side TIMEOUT may match ErrTimeout, but it is not
+			// considered a client timeout.
+			gm.Expect(errors.Is(serverTimeout, ErrTimeout)).To(gm.BeTrue())
+			gm.Expect(isClientTimeout(serverTimeout)).To(gm.BeFalse())
+
+			testCases := []struct {
+				name string
+				err  Error
+				want bool
+			}{
+				{
+					name: "server TIMEOUT",
+					err:  newServerError(ast.TIMEOUT, "server timed out", 0, nil),
+					want: false,
+				},
+				{
+					name: "client ErrTimeout in error chain",
+					err:  chainErrors(ErrTimeout.err(), newError(ast.NETWORK_ERROR)),
+					want: true,
+				},
+				{
+					name: "ErrTimeout",
+					err:  ErrTimeout.err(),
+					want: true,
+				},
+				{
+					name: "ErrNetTimeout",
+					err:  ErrNetTimeout.err(),
+					want: true,
+				},
+				{
+					name: "ErrMaxRetriesExceeded",
+					err:  ErrMaxRetriesExceeded.err(),
+					want: true,
+				},
+				{
+					name: "os.ErrDeadlineExceeded",
+					err:  newErrorAndWrap(os.ErrDeadlineExceeded, ast.TIMEOUT),
+					want: true,
+				},
+			}
+
+			for _, tc := range testCases {
+				gm.Expect(isClientTimeout(tc.err)).
+					To(gm.Equal(tc.want), "case: %s", tc.name)
+			}
+		})
+
+		gg.It("determines when a batch command should abort", func() {
+			testCases := []struct {
+				name string
+				err  Error
+				want bool
+			}{
+				{
+					name: "connection pool empty",
+					err:  ErrConnectionPoolEmpty.err(),
+					want: true,
+				},
+				{
+					name: "client timeout",
+					err:  ErrTimeout.err(),
+					want: true,
+				},
+				{
+					name: "server TIMEOUT",
+					err:  newError(ast.TIMEOUT),
+					want: false,
+				},
+				{
+					name: "server RECORD_TOO_BIG",
+					err:  newError(ast.RECORD_TOO_BIG),
+					want: false,
+				},
+				{
+					name: "nil error",
+					err:  nil,
+					want: false,
+				},
+			}
+
+			for _, tc := range testCases {
+				gm.Expect(shouldAbortBatchCommand(tc.err)).
+					To(gm.Equal(tc.want), "case: %s", tc.name)
+			}
+		})
 	}) // Context
 
 	gg.Context("errors.As", func() {
