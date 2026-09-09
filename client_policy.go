@@ -205,7 +205,7 @@ type ClientPolicy struct {
 	//
 	// Go's string type is a sequence of bytes and is not type-enforced to be
 	// valid UTF-8. The Aerospike wire protocol and server-side string
-	// operations (introduced in server 8.1.3) assume string particles are
+	// operations (introduced in server 8.2.0) assume string particles are
 	// valid UTF-8: invalid bytes cause silently wrong results in some ops
 	// (e.g. StrLen, StrSubstr, StrInsert, StrPadStart) and PARAMETER_ERROR
 	// in others (e.g. StrUpper, StrFind, StrRegexReplace).

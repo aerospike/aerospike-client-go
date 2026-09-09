@@ -64,8 +64,9 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 	)
 
 	var (
-		stdKey     *as.Key
-		scratchKey *as.Key
+		stdKey        *as.Key
+		scratchKey    *as.Key
+		serverVersion version.Version
 	)
 
 	reseedScratch := func() {
@@ -79,9 +80,9 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		if len(nodes) == 0 {
 			gg.Skip("no nodes available")
 		}
-		serverVersion := nodes[0].GetServerVersion()
-		if serverVersion.IsSmaller(version.ServerVersion_8_1_3) {
-			gg.Skip("Extended error-detail requires server version 8.1.3 or later; got " + serverVersion.String())
+		serverVersion = nodes[0].GetServerVersion()
+		if serverVersion.IsSmaller(version.ServerVersion_8_2) {
+			gg.Skip("Extended error-detail requires server version 8.2.0 or later; got " + serverVersion.String())
 		}
 
 		set := randString(20)
@@ -93,8 +94,8 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 			as.NewBin(binFloat, 2.5),
 			as.NewBin(binStr, "ael"),
 			as.NewBin(binList, []interface{}{1, 2, 3}),
-			as.NewBin(binMap1, map[string]int{"a": 1}),
-			as.NewBin(binMap2, map[string]int{"b": 2}))
+			as.NewBin(binMap1, map[string]int{"a": 1, "b": 2}),
+			as.NewBin(binMap2, map[string]int{"c": 3, "d": 4}))
 		gm.Expect(err).NotTo(gm.HaveOccurred())
 
 		reseedScratch()
@@ -229,13 +230,19 @@ var _ = gg.Describe("ExpErrorDetail (integration)", func() {
 		assertEvalTrace(ae, "div", 2, []string{"gt", "div"})
 	})
 
-	gg.It("filter fault unordered map compare surfaces an eval trace", func() {
-		// Both bins are unordered maps; an ordered equality compare faults.
-		exp := as.ExpEq(as.ExpMapBin(binMap1), as.ExpMapBin(binMap2))
+	gg.It("filter fault preserve-order map compare surfaces an eval trace", func() {
+		if serverVersion.IsSmaller(version.ServerVersion_8_2) {
+			gg.Skip("Preserve-order map compare requires server version 8.2 or later; got " + serverVersion.String())
+		}
+		// A KEY_VALUE map read yields a map tagged PRESERVE_ORDER, and the
+		// server refuses to compare those.
+		exp := as.ExpEq(
+			as.ExpMapGetByKeyRange(as.MapReturnType.KEY_VALUE, nil, nil, as.ExpMapBin(binMap1)),
+			as.ExpMapGetByKeyRange(as.MapReturnType.KEY_VALUE, nil, nil, as.ExpMapBin(binMap2)))
 
 		ae := expectFilteredGet(3, exp, types.FILTERED_OUT)
 		gm.Expect(ae.SubCode).To(gm.Equal(types.SubCodeNone))
-		assertMessageContains(ae, "cannot compare an unordered map")
+		assertMessageContains(ae, "cannot compare a map with preserved element order")
 
 		assertEvalTrace(ae, "eq", 1, []string{"eq"})
 	})

@@ -205,8 +205,8 @@ var _ = gg.Describe("Batch executeSingle error-detail surfacing", func() {
 			gg.Skip("no nodes available")
 		}
 		serverVersion := nodes[0].GetServerVersion()
-		if serverVersion.IsSmaller(version.ServerVersion_8_1_3) {
-			gg.Skip("Extended error-detail requires server version 8.1.3 or later; got " + serverVersion.String())
+		if serverVersion.IsSmaller(version.ServerVersion_8_2) {
+			gg.Skip("Extended error-detail requires server version 8.2.0 or later; got " + serverVersion.String())
 		}
 
 		bpolicy = as.NewBatchPolicy()

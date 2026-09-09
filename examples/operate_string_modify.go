@@ -14,7 +14,7 @@
 
 // Modify operations: mutate the bin in place. Each call below performs the
 // modify op then re-reads the bin to display the new value.
-// Requires server version 8.1.3 or later.
+// Requires server version 8.2.0 or later.
 
 package main
 

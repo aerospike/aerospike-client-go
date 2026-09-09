@@ -569,7 +569,7 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 	})
 
 	// string_list_join is a CDT list read op (code 28), the inverse of the
-	// string `split` expression. It requires server 8.1.3+.
+	// string `split` expression. It requires server 8.2.0+.
 	gg.Context("ExpListJoin", func() {
 
 		const variable = "v"
@@ -578,13 +578,13 @@ var _ = gg.Describe("Expression Filters - Lists", gg.Ordered, func() {
 		var key *as.Key
 
 		gg.BeforeEach(func() {
-			requiredVersion, err := version.Parse("8.1.3")
+			requiredVersion, err := version.Parse("8.2.0")
 			if err != nil {
 				gg.Fail("Failed to parse server required version")
 			}
 			nodeVersion := client.GetNodes()[0].GetServerVersion()
 			if nodeVersion.IsSmaller(requiredVersion) {
-				gg.Skip("string_list_join requires server version 8.1.3+.")
+				gg.Skip("string_list_join requires server version 8.2.0+.")
 				return
 			}
 

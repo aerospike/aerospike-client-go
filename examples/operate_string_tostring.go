@@ -14,7 +14,7 @@
 
 // toString — convert any int / float / string / blob bin to its string
 // representation. Unlike the other ops, this does not accept a CTX.
-// Requires server version 8.1.3 or later.
+// Requires server version 8.2.0 or later.
 
 package main
 

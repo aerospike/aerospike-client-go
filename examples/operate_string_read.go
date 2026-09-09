@@ -13,7 +13,7 @@
  */
 
 // Read-only string operations: return information about the bin without
-// mutating it. Requires server version 8.1.3 or later.
+// mutating it. Requires server version 8.2.0 or later.
 
 package main
 

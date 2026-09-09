@@ -29,7 +29,7 @@ import (
 // behavior of the StringOperation API rather than one API method, so each
 // individual It runs in isolation.
 //
-// String operations require server version 8.1.3+; the suite is skipped on
+// String operations require server version 8.2.0+; the suite is skipped on
 // older clusters via the standard Ginkgo version-check pattern documented in
 // AI_PIPELINE.md.
 var _ = gg.Describe("String Operations Test", func() {
@@ -71,13 +71,13 @@ var _ = gg.Describe("String Operations Test", func() {
 	}
 
 	gg.BeforeEach(func() {
-		requiredVersion, err := version.Parse("8.1.3")
+		requiredVersion, err := version.Parse("8.2.0")
 		if err != nil {
 			gg.Fail("Failed to parse server required version")
 		}
 		nodeVersion := client.GetNodes()[0].GetServerVersion()
 		if nodeVersion.IsSmaller(requiredVersion) {
-			gg.Skip("String operations require server version 8.1.3+.")
+			gg.Skip("String operations require server version 8.2.0+.")
 			return
 		}
 
@@ -883,7 +883,7 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(rec.Bins["other"]).To(gm.Equal("untouched"))
 	})
 
-	// All eight additive ops create a missing bin from empty in server 8.1.3
+	// All eight additive ops create a missing bin from empty in server 8.2.0
 	// (string ops + SERVER-97 PR 1452, which adds overwrite/repeat/pad_start/
 	// pad_end to the create-op set). Transform/subtractive ops still no-op.
 
@@ -1168,7 +1168,7 @@ var _ = gg.Describe("String Operations Test", func() {
 		// an ICU UStringSearch whose collator has full normalization enabled
 		// (particle_string.c get_canon_search).
 		//
-		// This currently FAILS on server 8.1.3.0, as the Java reference does: a
+		// This currently FAILS on server 8.2.0, as the Java reference does: a
 		// needle spanning the whole bin hits a length precheck ahead of the
 		// canonical search, so the 5-codepoint NFD needle never reaches it. Kept
 		// failing deliberately — the mid-string case below passes, so deleting
@@ -1266,7 +1266,7 @@ var _ = gg.Describe("String Operations Test", func() {
 	// (particle_string.c: find occurrence != 0, empty/negative pad
 	// arguments, repeat count >= 0, regex_replace pattern compile).
 	// All should surface as PARAMETER_ERROR; an invalid regex surfaces
-	// as PARAMETER_ERROR per observed 8.1.3 behavior.
+	// as PARAMETER_ERROR per observed 8.2.0 behavior.
 	// ============================================================
 
 	expectParamError := func(op *as.Operation) {

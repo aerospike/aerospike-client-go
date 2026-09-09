@@ -69,13 +69,13 @@ var _ = gg.Describe("String Invalid UTF-8 Tests", func() {
 	}
 
 	gg.BeforeEach(func() {
-		requiredVersion, err := version.Parse("8.1.3")
+		requiredVersion, err := version.Parse("8.2.0")
 		if err != nil {
 			gg.Fail("Failed to parse server required version")
 		}
 		nodeVersion := client.GetNodes()[0].GetServerVersion()
 		if nodeVersion.IsSmaller(requiredVersion) {
-			gg.Skip("String operations require server version 8.1.3+.")
+			gg.Skip("String operations require server version 8.2.0+.")
 			return
 		}
 
@@ -125,7 +125,7 @@ var _ = gg.Describe("String Invalid UTF-8 Tests", func() {
 	})
 
 	// byte_length, to_blob, b64_decode, trim*, repeat, concat are listed in
-	// the 8.1.3 client report as "unaffected" by UTF-8, but per the doc's §3
+	// the 8.2.0 client report as "unaffected" by UTF-8, but per the doc's §3
 	// and §11 they hit the same bin gate as strlen and must also reject.
 	gg.It("byteLength rejects invalid bin", func() {
 		assertInvalidEncoding(as.StrByteLengthOp(bin))

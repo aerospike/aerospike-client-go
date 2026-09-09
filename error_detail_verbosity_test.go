@@ -27,7 +27,7 @@ import (
 )
 
 // Validates the extended error-detail feature (CLIENT-4221) against an
-// 8.1.3+ Aerospike server. Skips when running against an older server.
+// 8.2.0+ Aerospike server. Skips when running against an older server.
 var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 	const edvBinName = "edv-bin"
 
@@ -45,8 +45,8 @@ var _ = gg.Describe("ErrorDetailVerbosity (integration)", func() {
 			gg.Skip("no nodes available")
 		}
 		serverVersion := nodes[0].GetServerVersion()
-		if serverVersion.IsSmaller(version.ServerVersion_8_1_3) {
-			gg.Skip("Extended error-detail requires server version 8.1.3 or later; got " + serverVersion.String())
+		if serverVersion.IsSmaller(version.ServerVersion_8_2) {
+			gg.Skip("Extended error-detail requires server version 8.2.0 or later; got " + serverVersion.String())
 		}
 		supported = true
 

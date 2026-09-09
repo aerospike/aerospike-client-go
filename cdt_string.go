@@ -26,7 +26,7 @@ import (
 // count from the end of the string (-1 = last codepoint). Out-of-bounds indexes
 // are clamped to the valid range; no error is returned.
 //
-// String operations require server version 8.1.3 or later. A non-empty CDTContext
+// String operations require server version 8.2.0 or later. A non-empty CDTContext
 // argument navigates into a string nested inside a list or map bin; with no context
 // the operation targets the bin itself. The context-navigated leaf must already
 // be an Aerospike string — operations on non-string leaves return

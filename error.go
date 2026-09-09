@@ -116,7 +116,7 @@ type AerospikeError struct {
 	// NOT globally unique. Dispatch on the (ResultCode, SubCode) pair.
 	//
 	// Populated only when BasePolicy.ErrorDetailVerbosity > 0 and the
-	// failing branch dispatched a subcode. Requires server version 8.1.3+.
+	// failing branch dispatched a subcode. Requires server version 8.2.0+.
 	SubCode types.SubCode
 
 	// ServerMessage is the formatted server-supplied error detail

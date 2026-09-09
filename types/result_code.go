@@ -183,7 +183,7 @@ const (
 	LOST_CONFLICT ResultCode = 28
 
 	// INVALID_ENCODING defines that a string bin or string argument contains
-	// invalid UTF-8. Returned by server 8.1.3+ string operations when the bin
+	// invalid UTF-8. Returned by server 8.2.0+ string operations when the bin
 	// value or a string argument fails the UTF-8 well-formedness gate.
 	INVALID_ENCODING ResultCode = 29
 

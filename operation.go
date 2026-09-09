@@ -47,7 +47,7 @@ var (
 
 	// String operation wire op types. The integer protocol codes match the
 	// Java client's StringOperation values exactly so server compatibility is
-	// preserved. Requires server version 8.1.3+.
+	// preserved. Requires server version 8.2.0+.
 	_STRING_READ   = OperationType{17, false, 18}
 	_STRING_MODIFY = OperationType{18, true, 19}
 	_TO_STRING     = OperationType{19, false, 20}

@@ -17,6 +17,7 @@ package aerospike_test
 import (
 	as "github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
+	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -26,7 +27,7 @@ import (
 // that wraps a StringExp.* call, evaluates it via an ExpReadOp into a virtual
 // bin, and asserts the result.
 //
-// String expressions require server version 8.1.3+; the suite is skipped on
+// String expressions require server version 8.2.0+; the suite is skipped on
 // older clusters via the standard Ginkgo version-check pattern documented in
 // AI_PIPELINE.md.
 //
@@ -65,13 +66,13 @@ var _ = gg.Describe("String Expressions Test", func() {
 	}
 
 	gg.BeforeEach(func() {
-		requiredVersion, err := version.Parse("8.1.3")
+		requiredVersion, err := version.Parse("8.2.0")
 		if err != nil {
 			gg.Fail("Failed to parse server required version")
 		}
 		nodeVersion := client.GetNodes()[0].GetServerVersion()
 		if nodeVersion.IsSmaller(requiredVersion) {
-			gg.Skip("String expressions require server version 8.1.3+.")
+			gg.Skip("String expressions require server version 8.2.0+.")
 			return
 		}
 
@@ -174,11 +175,11 @@ var _ = gg.Describe("String Expressions Test", func() {
 		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(true))
 		put("5")
 		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(false))
-		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin),as.StringNumericAny)).Bins[variable]).To(gm.Equal(true))
+		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericAny)).Bins[variable]).To(gm.Equal(true))
 		put("5.")
 		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(false))
 		put("1e5")
-		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat, )).Bins[variable]).To(gm.Equal(false))
+		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(false))
 		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericAny)).Bins[variable]).To(gm.Equal(false))
 	})
 
@@ -448,7 +449,7 @@ var _ = gg.Describe("String Expressions Test", func() {
 		put("hello")
 
 		coNoFail := as.NewStringPolicy(as.StringWriteCreateOnly | as.StringWriteNoFail)
-		rec := eval(as.ExpStringAppend(coNoFail, as.ExpStringVal(" there"), as.ExpStringBin(bin)))
+		rec := eval(as.ExpStringAppend(coNoFail, as.ExpStringBin(bin), as.ExpStringVal(" there")))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello"))
 	})
 
@@ -456,7 +457,7 @@ var _ = gg.Describe("String Expressions Test", func() {
 		put("hello")
 
 		noFail := as.NewStringPolicy(as.StringWriteNoFail)
-		rec := eval(as.ExpStringPadStart(noFail, as.ExpIntVal(10), as.ExpStringVal(""), as.ExpStringBin(bin)))
+		rec := eval(as.ExpStringPadStart(noFail, as.ExpStringBin(bin), as.ExpIntVal(10), as.ExpStringVal("")))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello"))
 	})
 
@@ -464,7 +465,7 @@ var _ = gg.Describe("String Expressions Test", func() {
 		put("hello")
 
 		updateOnly := as.NewStringPolicy(as.StringWriteUpdateOnly)
-		rec := eval(as.ExpStringAppend(updateOnly, as.ExpStringVal(" there"), as.ExpStringBin(bin)))
+		rec := eval(as.ExpStringAppend(updateOnly, as.ExpStringBin(bin), as.ExpStringVal(" there")))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello there"))
 	})
 
@@ -473,9 +474,15 @@ var _ = gg.Describe("String Expressions Test", func() {
 
 		createOnly := as.NewStringPolicy(as.StringWriteCreateOnly)
 		_, err := client.Operate(nil, key, as.ExpReadOp(variable,
-			as.ExpStringAppend(createOnly, as.ExpStringVal(" there"), as.ExpStringBin(bin)),
+			as.ExpStringAppend(createOnly, as.ExpStringBin(bin), as.ExpStringVal(" there")),
 			as.ExpReadFlagDefault))
 		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue())
+
+		// The same operands without CREATE_ONLY succeed, so the rejection is the
+		// flag meeting a live source rather than a malformed argument.
+		rec := eval(as.ExpStringAppend(policy, as.ExpStringBin(bin), as.ExpStringVal(" there")))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello there"))
 	})
 
 	gg.It("CREATE_ONLY combined with UPDATE_ONLY fails", func() {
@@ -483,9 +490,16 @@ var _ = gg.Describe("String Expressions Test", func() {
 
 		both := as.NewStringPolicy(as.StringWriteCreateOnly | as.StringWriteUpdateOnly)
 		_, err := client.Operate(nil, key, as.ExpReadOp(variable,
-			as.ExpStringAppend(both, as.ExpStringVal(" there"), as.ExpStringBin(bin)),
+			as.ExpStringAppend(both, as.ExpStringBin(bin), as.ExpStringVal(" there")),
 			as.ExpReadFlagDefault))
 		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue())
+
+		// UPDATE_ONLY alone is accepted on the same operands, so it is the
+		// combination that is rejected.
+		updateOnly := as.NewStringPolicy(as.StringWriteUpdateOnly)
+		rec := eval(as.ExpStringAppend(updateOnly, as.ExpStringBin(bin), as.ExpStringVal(" there")))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello there"))
 	})
 
 	// ============================================================
