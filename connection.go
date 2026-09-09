@@ -317,7 +317,7 @@ func (ctn *Connection) updateDeadline() Error {
 		}
 	} else {
 		if !ctn.deadline.IsZero() && now.After(ctn.deadline) {
-			return ErrTimeout.err().setNode(ctn.node)
+			return newError(types.TIMEOUT)
 		}
 		if ctn.socketTimeout <= 0 {
 			ctn.socketDeadline = ctn.deadline

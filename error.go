@@ -17,7 +17,6 @@ package aerospike
 import (
 	"errors"
 	"fmt"
-	"net"
 	"runtime"
 	"strconv"
 	"strings"
@@ -145,6 +144,9 @@ type AerospikeError struct {
 
 	// Includes stack frames for the error
 	stackFrames []stackFrame
+
+	// true when the error originated from a server protocol response.
+	fromServer bool
 }
 
 var _ error = &AerospikeError{}
@@ -183,59 +185,26 @@ func newServerError(code types.ResultCode, serverMessage string, subcode types.S
 		ae.SubCode = subcode
 		ae.ServerMessage = serverMessage
 		ae.ExpTrace = expTrace
+		ae.fromServer = true
 	}
 	return ne
 }
 
-// isClientTimeout reports whether a TIMEOUT error originated on the client side
-// (policy deadline, socket deadline, or connection deadline), as opposed to a
-// server protocol result code.
-func isClientTimeout(err Error) bool {
-	errTimeoutMsg := ErrTimeout.msg
-	errNetTimeoutMsg := ErrNetTimeout.msg
-
-	for e := error(err); e != nil; {
-		var ae *AerospikeError
-		if !errors.As(e, &ae) {
-			return false
-		}
-
-		if errors.Is(ae, ErrMaxRetriesExceeded) {
-			return true
-		}
-
-		if ae.ResultCode == types.TIMEOUT {
-			if ae.msg == errTimeoutMsg || ae.msg == errNetTimeoutMsg {
-				return true
-			}
-		}
-
-		if ae.wrapped != nil {
-			var ne net.Error
-			if errors.As(ae.wrapped, &ne) && ne.Timeout() {
-				return true
-			}
-		}
-
-		e = ae.Unwrap()
+// isServerError reports whether the outermost Aerospike error link came from a
+// server protocol response rather than client-side validation
+func isServerError(err Error) bool {
+	switch e := err.(type) {
+	case *AerospikeError:
+		return e.fromServer
+	case *constAerospikeError:
+		return e.fromServer
 	}
 	return false
 }
 
-// shouldAbortBatchCommand reports whether err from executeSingle should fail
-// the whole batch subcommand instead of remaining a per-record row error.
+// Server errors stay per-record whereas client errors fail the batch subcommand.
 func shouldAbortBatchCommand(err Error) bool {
-	if err == nil {
-		return false
-	}
-	code := err.resultCode()
-	if code < 0 {
-		return true
-	}
-	if code == types.TIMEOUT {
-		return isClientTimeout(err)
-	}
-	return false
+	return err != nil && !isServerError(err)
 }
 
 func newTimeoutError(e error, messages ...string) Error {

@@ -963,6 +963,30 @@ var _ = gg.Describe("Aerospike", func() {
 				gm.Expect(br.Err.Matches(types.RECORD_TOO_BIG)).To(gm.BeTrue())
 			})
 
+			// The 1-key path reaches the UDF error through the single-record
+			// command API instead of the batch wire parser, and that error is
+			// built separately from the other server failures. Without it being
+			// marked as server-originated the subcommand aborts here while the
+			// multi-key case above keeps UDF_BAD_RESPONSE on the record.
+			gg.It("single-key batch must return nil with per-record UDF_BAD_RESPONSE", func() {
+				registerUDF(testOpsUDFBody, "test_ops.lua")
+
+				key, _ := as.NewKey(ns, set, randString(20))
+				gm.Expect(client.PutBins(nil, key, as.NewBin("i", 1))).ToNot(gm.HaveOccurred())
+
+				bin := map[string]int{"bin": 1}
+				batchRecords := []as.BatchRecordIfc{
+					as.NewBatchUDF(nil, key, "test_ops", "wait_and_update", as.NewValue(bin), as.NewValue(2)),
+				}
+
+				err := client.BatchOperate(nil, batchRecords)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				br := batchRecords[0].BatchRec()
+				gm.Expect(br.ResultCode).To(gm.Equal(types.UDF_BAD_RESPONSE))
+				gm.Expect(br.Err.Matches(types.UDF_BAD_RESPONSE)).To(gm.BeTrue())
+				gm.Expect(br.Err.IsInDoubt()).To(gm.BeFalse())
+			})
+
 			gg.It("must return the result with same ordering", func() {
 				registerUDF(udfBody, "udf1.lua")
 				for _, keyCount := range []int{50, 1} {

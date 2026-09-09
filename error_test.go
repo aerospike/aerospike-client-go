@@ -16,7 +16,6 @@ package aerospike
 
 import (
 	"errors"
-	"os"
 
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
@@ -166,87 +165,64 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 
 	}) // Context
 
-	gg.Context("batch timeout classification", func() {
+	gg.Context("batch command error classification", func() {
 
-		gg.It("classifies client timeouts correctly", func() {
-			serverTimeout := newError(ast.TIMEOUT)
-			// A server-side TIMEOUT may match ErrTimeout, but it is not
-			// considered a client timeout.
-			gm.Expect(errors.Is(serverTimeout, ErrTimeout)).To(gm.BeTrue())
-			gm.Expect(isClientTimeout(serverTimeout)).To(gm.BeFalse())
+		gg.It("marks server errors at creation", func() {
+			serverErr := newServerError(ast.RECORD_TOO_BIG, "", ast.SubCodeNone, nil)
+			gm.Expect(isServerError(serverErr)).To(gm.BeTrue())
 
-			testCases := []struct {
-				name string
-				err  Error
-				want bool
-			}{
-				{
-					name: "server TIMEOUT",
-					err:  newServerError(ast.TIMEOUT, "server timed out", 0, nil),
-					want: false,
-				},
-				{
-					name: "client ErrTimeout in error chain",
-					err:  chainErrors(ErrTimeout.err(), newError(ast.NETWORK_ERROR)),
-					want: true,
-				},
-				{
-					name: "ErrTimeout",
-					err:  ErrTimeout.err(),
-					want: true,
-				},
-				{
-					name: "ErrNetTimeout",
-					err:  ErrNetTimeout.err(),
-					want: true,
-				},
-				{
-					name: "ErrMaxRetriesExceeded",
-					err:  ErrMaxRetriesExceeded.err(),
-					want: true,
-				},
-				{
-					name: "os.ErrDeadlineExceeded",
-					err:  newErrorAndWrap(os.ErrDeadlineExceeded, ast.TIMEOUT),
-					want: true,
-				},
-			}
+			clientErr := newError(ast.RECORD_TOO_BIG)
+			gm.Expect(isServerError(clientErr)).To(gm.BeFalse())
+		})
 
-			for _, tc := range testCases {
-				gm.Expect(isClientTimeout(tc.err)).
-					To(gm.Equal(tc.want), "case: %s", tc.name)
-			}
+		gg.It("reads the origin off the outermost error in a chain", func() {
+			// chainErrors rebuilds the outer error as a struct copy, so the flag
+			// has to survive that copy to still be readable off the chain.
+			serverOuter := chainErrors(newServerError(ast.RECORD_TOO_BIG, "", ast.SubCodeNone, nil), newError(ast.NETWORK_ERROR))
+			gm.Expect(isServerError(serverOuter)).To(gm.BeTrue())
+
+			// A client timeout wrapped around a server error is a client failure:
+			// the retry loop gave up, so the subcommand cannot be trusted.
+			clientOuter := chainErrors(ErrTimeout.err(), newServerError(ast.RECORD_TOO_BIG, "", ast.SubCodeNone, nil))
+			gm.Expect(isServerError(clientOuter)).To(gm.BeFalse())
 		})
 
 		gg.It("determines when a batch command should abort", func() {
+			// Cases are paired by result code: the same code aborts when the
+			// client raised it and stays on the row when the server reported it.
+			// Origin decides, not the code, so neither side can be special-cased.
 			testCases := []struct {
 				name string
 				err  Error
 				want bool
 			}{
 				{
-					name: "connection pool empty",
-					err:  ErrConnectionPoolEmpty.err(),
-					want: true,
+					name: "nil error",
+					err:  nil,
+					want: false,
 				},
 				{
-					name: "client timeout",
+					// Retries are exhausted, so nothing about the subcommand is
+					// trustworthy - unlike a TIMEOUT the server reported per row.
+					name: "client TIMEOUT",
 					err:  ErrTimeout.err(),
 					want: true,
 				},
 				{
 					name: "server TIMEOUT",
-					err:  newError(ast.TIMEOUT),
+					err:  newServerError(ast.TIMEOUT, "server timed out", ast.SubCodeNone, nil),
 					want: false,
 				},
 				{
-					name: "server RECORD_TOO_BIG",
-					err:  newError(ast.RECORD_TOO_BIG),
-					want: false,
+					// Bin name validation runs before the command is sent, exactly
+					// as it does for a multi-key batch, so it fails the subcommand.
+					name: "client BIN_NAME_TOO_LONG",
+					err:  newError(ast.BIN_NAME_TOO_LONG, "bin too long"),
+					want: true,
 				},
 				{
-					name: "nil error",
-					err:  nil,
+					name: "server BIN_NAME_TOO_LONG",
+					err:  newServerError(ast.BIN_NAME_TOO_LONG, "", ast.SubCodeNone, nil),
 					want: false,
 				},
 			}
