@@ -107,9 +107,9 @@ func (cmd *executeCommand) commandType() commandType {
 
 func (cmd *executeCommand) handleUdfError(resultCode types.ResultCode) Error {
 	if ret, exists := cmd.record.Bins["FAILURE"]; exists {
-		return newError(resultCode, ret.(string))
+		return newServerError(resultCode, ret.(string), types.SubCodeNone, nil)
 	}
-	return newError(resultCode)
+	return newServerError(resultCode, "", types.SubCodeNone, nil)
 }
 
 func (cmd *executeCommand) GetRecord() *Record {

@@ -186,7 +186,7 @@ func (br *BatchRecord) setError(node *Node, resultCode types.ResultCode, inDoubt
 	if br.hasServerErrorDetail() {
 		br.Err = newServerError(resultCode, br.ServerMessage, br.SubCode, br.ExpTrace).setNode(node).markInDoubtIf(inDoubt)
 	} else {
-		br.Err = newError(br.ResultCode).setNode(node).markInDoubtIf(inDoubt)
+		br.Err = newServerError(resultCode, "", types.SubCodeNone, nil).setNode(node).markInDoubtIf(inDoubt)
 	}
 }
 

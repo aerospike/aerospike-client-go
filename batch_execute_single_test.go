@@ -180,6 +180,73 @@ var _ = gg.Describe("Batch executeSingle offset correctness", func() {
 	})
 })
 
+// A server row error must stay on the BatchRecord and leave the subcommand
+// successful, matching the multi-key wire path. Every executeSingle carries its
+// own copy of that check, so each needs its own guard. batch_test.go covers
+// BatchOperate through the public API, these cover the other three.
+var _ = gg.Describe("Batch executeSingle server row errors", func() {
+	const binName = "rowerr-bin"
+	var (
+		set     = randString(50)
+		key     *as.Key
+		bpolicy *as.BatchPolicy
+	)
+
+	gg.BeforeEach(func() {
+		bpolicy = as.NewBatchPolicy()
+
+		var err error
+		key, err = as.NewKey(*namespace, set, "rowerr-key")
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		err = client.PutBins(as.NewWritePolicy(0, 0), key, as.NewBin(binName, []interface{}{10, 20, 30}))
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+	})
+
+	gg.It("batchIndexCommandGet keeps OP_NOT_APPLICABLE on the record", func() {
+		// A list index far past the end is rejected by the server, not the client.
+		errRow := as.NewBatchReadOps(nil, key, as.ListGetOp(binName, 99))
+
+		err := as.ExecuteSingleBatchIndexGet(client, bpolicy, []*as.BatchRead{errRow}, []int{0})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		br := errRow.BatchRec()
+		gm.Expect(br.ResultCode).To(gm.Equal(types.OP_NOT_APPLICABLE))
+		gm.Expect(br.Err.Matches(types.OP_NOT_APPLICABLE)).To(gm.BeTrue())
+	})
+
+	gg.It("batchCommandDelete keeps GENERATION_ERROR on the record", func() {
+		dpolicy := as.NewBatchDeletePolicy()
+		dpolicy.GenerationPolicy = as.EXPECT_GEN_EQUAL
+		dpolicy.Generation = 9999 // never matches, so the server refuses the delete
+
+		keys := []*as.Key{key}
+		records := []*as.BatchRecord{{Key: key}}
+
+		err := as.ExecuteSingleBatchDelete(client, bpolicy, dpolicy, keys, records, []int{0})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		gm.Expect(records[0].ResultCode).To(gm.Equal(types.GENERATION_ERROR))
+		gm.Expect(records[0].Err.Matches(types.GENERATION_ERROR)).To(gm.BeTrue())
+	})
+
+	gg.It("batchCommandUDF keeps UDF_BAD_RESPONSE on the record", func() {
+		// This failure is built by executeCommand.handleUdfError, not the batch
+		// wire parser, so it also guards that path being tagged server-originated.
+		registerUDF(`function noop(rec) end`, "client5411udf.lua")
+
+		keys := []*as.Key{key}
+		records := []*as.BatchRecord{{Key: key}}
+
+		err := as.ExecuteSingleBatchUDF(client, bpolicy, as.NewBatchUDFPolicy(),
+			keys, "client5411udf", "notAFunction", nil, records, []int{0})
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		gm.Expect(records[0].ResultCode).To(gm.Equal(types.UDF_BAD_RESPONSE))
+		gm.Expect(records[0].Err.Matches(types.UDF_BAD_RESPONSE)).To(gm.BeTrue())
+	})
+})
+
 // Regression guard for the single-key batch error-detail gap, matching the
 // BatchSingle commit (b09363de9a) of Java PR #607.
 //

@@ -165,6 +165,75 @@ var _ = gg.Describe("Aerospike Error Tests", func() {
 
 	}) // Context
 
+	gg.Context("batch command error classification", func() {
+
+		gg.It("marks server errors at creation", func() {
+			serverErr := newServerError(ast.RECORD_TOO_BIG, "", ast.SubCodeNone, nil)
+			gm.Expect(isServerError(serverErr)).To(gm.BeTrue())
+
+			clientErr := newError(ast.RECORD_TOO_BIG)
+			gm.Expect(isServerError(clientErr)).To(gm.BeFalse())
+		})
+
+		gg.It("reads the origin off the outermost error in a chain", func() {
+			// chainErrors rebuilds the outer error as a struct copy, so the flag
+			// has to survive that copy to still be readable off the chain.
+			serverOuter := chainErrors(newServerError(ast.RECORD_TOO_BIG, "", ast.SubCodeNone, nil), newError(ast.NETWORK_ERROR))
+			gm.Expect(isServerError(serverOuter)).To(gm.BeTrue())
+
+			// A client timeout wrapped around a server error is a client failure:
+			// the retry loop gave up, so the subcommand cannot be trusted.
+			clientOuter := chainErrors(ErrTimeout.err(), newServerError(ast.RECORD_TOO_BIG, "", ast.SubCodeNone, nil))
+			gm.Expect(isServerError(clientOuter)).To(gm.BeFalse())
+		})
+
+		gg.It("determines when a batch command should abort", func() {
+			// Cases are paired by result code: the same code aborts when the
+			// client raised it and stays on the row when the server reported it.
+			// Origin decides, not the code, so neither side can be special-cased.
+			testCases := []struct {
+				name string
+				err  Error
+				want bool
+			}{
+				{
+					name: "nil error",
+					err:  nil,
+					want: false,
+				},
+				{
+					// Retries are exhausted, so nothing about the subcommand is
+					// trustworthy - unlike a TIMEOUT the server reported per row.
+					name: "client TIMEOUT",
+					err:  ErrTimeout.err(),
+					want: true,
+				},
+				{
+					name: "server TIMEOUT",
+					err:  newServerError(ast.TIMEOUT, "server timed out", ast.SubCodeNone, nil),
+					want: false,
+				},
+				{
+					// Bin name validation runs before the command is sent, exactly
+					// as it does for a multi-key batch, so it fails the subcommand.
+					name: "client BIN_NAME_TOO_LONG",
+					err:  newError(ast.BIN_NAME_TOO_LONG, "bin too long"),
+					want: true,
+				},
+				{
+					name: "server BIN_NAME_TOO_LONG",
+					err:  newServerError(ast.BIN_NAME_TOO_LONG, "", ast.SubCodeNone, nil),
+					want: false,
+				},
+			}
+
+			for _, tc := range testCases {
+				gm.Expect(shouldAbortBatchCommand(tc.err)).
+					To(gm.Equal(tc.want), "case: %s", tc.name)
+			}
+		})
+	}) // Context
+
 	gg.Context("errors.As", func() {
 
 		gg.It("should handle simple case", func() {

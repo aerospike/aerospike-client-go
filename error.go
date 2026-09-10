@@ -144,6 +144,9 @@ type AerospikeError struct {
 
 	// Includes stack frames for the error
 	stackFrames []stackFrame
+
+	// true when the error originated from a server protocol response.
+	fromServer bool
 }
 
 var _ error = &AerospikeError{}
@@ -182,8 +185,26 @@ func newServerError(code types.ResultCode, serverMessage string, subcode types.S
 		ae.SubCode = subcode
 		ae.ServerMessage = serverMessage
 		ae.ExpTrace = expTrace
+		ae.fromServer = true
 	}
 	return ne
+}
+
+// isServerError reports whether the outermost Aerospike error link came from a
+// server protocol response rather than client-side validation
+func isServerError(err Error) bool {
+	switch e := err.(type) {
+	case *AerospikeError:
+		return e.fromServer
+	case *constAerospikeError:
+		return e.fromServer
+	}
+	return false
+}
+
+// Server errors stay per-record whereas client errors fail the batch subcommand.
+func shouldAbortBatchCommand(err Error) bool {
+	return err != nil && !isServerError(err)
 }
 
 func newTimeoutError(e error, messages ...string) Error {

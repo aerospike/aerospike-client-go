@@ -31,6 +31,69 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
+// recCreateUDFBody creates a record from the bins map passed by BatchUDF.
+const recCreateUDFBody = `
+function rec_create(rec, bins)
+    if bins ~= nil then
+        for b, bv in map.pairs(bins) do
+            rec[b] = bv
+        end
+    end
+    status = aerospike:create(rec)
+    return status
+end
+`
+
+// waitAndUpdateUDFBody sleeps then updates a record, used with recCreateUDFBody in test_ops.
+const waitAndUpdateUDFBody = `
+function wait_and_update(rec, bins, n)
+    info("WAIT_AND_WRITE BEGIN")
+    sleep(n)
+    info("WAIT FINISHED")
+    if bins ~= nil then
+        for b, bv in map.pairs(bins) do
+            rec[b] = bv
+        end
+    end
+    status = aerospike:update(rec)
+    return status
+end
+`
+
+// testOpsUDFBody is the test_ops.lua module used by BatchUDF error-path tests.
+const testOpsUDFBody = waitAndUpdateUDFBody + recCreateUDFBody
+
+// The UDF writes a bin, so the record is created and its key becomes observable via scan.
+const sendKeyUDFBody = `
+function writeBin(rec, name, val)
+    rec[name] = val
+    if aerospike:exists(rec) then
+        aerospike:update(rec)
+    else
+        aerospike:create(rec)
+    end
+end
+`
+
+var sendKeyUDFOnce sync.Once
+
+func ensureSendKeyUDF() {
+	sendKeyUDFOnce.Do(func() {
+		t, err := client.RegisterUDF(as.NewWritePolicy(0, 0), []byte(sendKeyUDFBody), "client4898udf.lua", as.LUA)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(<-t.OnComplete()).ToNot(gm.HaveOccurred())
+	})
+}
+
+func runSendKeyBatchUDF(c *as.Client, keys []*as.Key, bp *as.BatchPolicy, up *as.BatchUDFPolicy) {
+	ensureSendKeyUDF()
+	recs, err := c.BatchExecute(bp, up, keys, "client4898udf", "writeBin", as.NewValue("v"), as.NewValue(1))
+	gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+	for _, r := range recs {
+		gm.ExpectWithOffset(1, r.ResultCode).To(gm.Equal(types.OK))
+	}
+}
+
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Aerospike", func() {
 
@@ -709,19 +772,8 @@ var _ = gg.Describe("Aerospike", func() {
 			})
 
 			gg.It("must return the results when one operation is against an invalid namespace", func() {
-				luaCode := `-- Create a record
-				function rec_create(rec, bins)
-				    if bins ~= nil then
-				        for b, bv in map.pairs(bins) do
-				            rec[b] = bv
-				        end
-				    end
-				    status = aerospike:create(rec)
-				    return status
-				end`
-
 				removeUDF("test_ops.lua")
-				registerUDF(luaCode, "test_ops.lua")
+				registerUDF(recCreateUDFBody, "test_ops.lua")
 
 				batchRecords := []as.BatchRecordIfc{}
 
@@ -827,30 +879,7 @@ var _ = gg.Describe("Aerospike", func() {
 
 				client.Truncate(nil, ns, set, nil)
 
-				udf := `function wait_and_update(rec, bins, n)
-						    info("WAIT_AND_WRITE BEGIN")
-						    sleep(n)
-						    info("WAIT FINISHED")
-						    if bins ~= nil then
-						        for b, bv in map.pairs(bins) do
-						            rec[b] = bv
-						        end
-						    end
-						    status = aerospike:update(rec)
-						    return status
-						end
-
-						function rec_create(rec, bins)
-						    if bins ~= nil then
-						        for b, bv in map.pairs(bins) do
-						            rec[b] = bv
-						        end
-						    end
-						    status = aerospike:create(rec)
-						    return status
-						end`
-
-				registerUDF(udf, "test_ops.lua")
+				registerUDF(testOpsUDFBody, "test_ops.lua")
 
 				var batchRecords []as.BatchRecordIfc
 				for i := 0; i < 100; i++ {
@@ -920,6 +949,53 @@ var _ = gg.Describe("Aerospike", func() {
 					gm.Expect(br.Err.Matches(types.INVALID_NAMESPACE)).To(gm.Equal(true))
 					gm.Expect(br.Err.IsInDoubt()).To(gm.Equal(false))
 				}
+			})
+
+			// 1-key batch uses executeSingle. Row errors must not become top-level err.
+			// Multi-key / UDF_BAD_RESPONSE coverage remains in "must return correct errors" above.
+			gg.It("single-key batch must return nil with per-record RECORD_TOO_BIG", func() {
+				if nsInfo(ns, "storage-engine") != "device" {
+					gg.Skip("RECORD_TOO_BIG regression requires device storage-engine")
+				}
+
+				registerUDF(recCreateUDFBody, "test_ops.lua")
+
+				writeBlockSize := 1048576
+				bigBin := map[string]string{"big_bin": strings.Repeat("a", writeBlockSize)}
+				key, _ := as.NewKey(ns, set, randString(20))
+				batchRecords := []as.BatchRecordIfc{
+					as.NewBatchUDF(nil, key, "test_ops", "rec_create", as.NewValue(bigBin)),
+				}
+
+				err := client.BatchOperate(nil, batchRecords)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				br := batchRecords[0].BatchRec()
+				gm.Expect(br.ResultCode).To(gm.Equal(types.RECORD_TOO_BIG))
+				gm.Expect(br.Err.Matches(types.RECORD_TOO_BIG)).To(gm.BeTrue())
+			})
+
+			// The 1-key path reaches the UDF error through the single-record
+			// command API instead of the batch wire parser, and that error is
+			// built separately from the other server failures. Without it being
+			// marked as server-originated the subcommand aborts here while the
+			// multi-key case above keeps UDF_BAD_RESPONSE on the record.
+			gg.It("single-key batch must return nil with per-record UDF_BAD_RESPONSE", func() {
+				registerUDF(testOpsUDFBody, "test_ops.lua")
+
+				key, _ := as.NewKey(ns, set, randString(20))
+				gm.Expect(client.PutBins(nil, key, as.NewBin("i", 1))).ToNot(gm.HaveOccurred())
+
+				bin := map[string]int{"bin": 1}
+				batchRecords := []as.BatchRecordIfc{
+					as.NewBatchUDF(nil, key, "test_ops", "wait_and_update", as.NewValue(bin), as.NewValue(2)),
+				}
+
+				err := client.BatchOperate(nil, batchRecords)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				br := batchRecords[0].BatchRec()
+				gm.Expect(br.ResultCode).To(gm.Equal(types.UDF_BAD_RESPONSE))
+				gm.Expect(br.Err.Matches(types.UDF_BAD_RESPONSE)).To(gm.BeTrue())
+				gm.Expect(br.Err.IsInDoubt()).To(gm.BeFalse())
 			})
 
 			gg.It("must return the result with same ordering", func() {
@@ -1257,35 +1333,4 @@ func runSendKeyBatchWrites(c *as.Client, keys []*as.Key, bp *as.BatchPolicy, wp 
 		recs[i] = as.NewBatchWrite(wp, k, as.PutOp(as.NewBin("v", i)))
 	}
 	gm.ExpectWithOffset(1, c.BatchOperate(bp, recs)).ToNot(gm.HaveOccurred())
-}
-
-// The UDF writes a bin, so the record is created and its key becomes observable via scan.
-const sendKeyUDFBody = `
-function writeBin(rec, name, val)
-    rec[name] = val
-    if aerospike:exists(rec) then
-        aerospike:update(rec)
-    else
-        aerospike:create(rec)
-    end
-end
-`
-
-var sendKeyUDFOnce sync.Once
-
-func ensureSendKeyUDF() {
-	sendKeyUDFOnce.Do(func() {
-		t, err := client.RegisterUDF(as.NewWritePolicy(0, 0), []byte(sendKeyUDFBody), "client4898udf.lua", as.LUA)
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-		gm.Expect(<-t.OnComplete()).ToNot(gm.HaveOccurred())
-	})
-}
-
-func runSendKeyBatchUDF(c *as.Client, keys []*as.Key, bp *as.BatchPolicy, up *as.BatchUDFPolicy) {
-	ensureSendKeyUDF()
-	recs, err := c.BatchExecute(bp, up, keys, "client4898udf", "writeBin", as.NewValue("v"), as.NewValue(1))
-	gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
-	for _, r := range recs {
-		gm.ExpectWithOffset(1, r.ResultCode).To(gm.Equal(types.OK))
-	}
 }
