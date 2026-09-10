@@ -17,6 +17,7 @@ package aerospike_test
 import (
 	as "github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/internal/version"
+	ast "github.com/aerospike/aerospike-client-go/v8/types"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -174,11 +175,11 @@ var _ = gg.Describe("String Expressions Test", func() {
 		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(true))
 		put("5")
 		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(false))
-		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin),as.StringNumericAny)).Bins[variable]).To(gm.Equal(true))
+		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericAny)).Bins[variable]).To(gm.Equal(true))
 		put("5.")
 		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(false))
 		put("1e5")
-		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat, )).Bins[variable]).To(gm.Equal(false))
+		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericFloat)).Bins[variable]).To(gm.Equal(false))
 		gm.Expect(eval(as.ExpStringIsNumericTyped(as.ExpStringBin(bin), as.StringNumericAny)).Bins[variable]).To(gm.Equal(false))
 	})
 
@@ -369,6 +370,49 @@ var _ = gg.Describe("String Expressions Test", func() {
 		gm.Expect(r2.Bins[variable]).To(gm.Equal("abcNUMdefNUM"))
 	})
 
+	gg.It("regexReplace keeps the regex flags and the write flags in separate slots", func() {
+		// The two flag slots alias bit for bit, so only distinct non-zero values
+		// in each can catch a swap.
+		put("aXbXc")
+		updateOnly := as.NewStringPolicy(as.StringWriteUpdateOnly)
+		rec := eval(as.ExpStringRegexReplace(updateOnly, as.ExpStringBin(bin),
+			as.ExpStringVal("x"), as.ExpStringVal("-"),
+			as.StringRegexCaseInsensitive|as.StringRegexGlobal))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("a-b-c"))
+	})
+
+	gg.It("regexReplace with an uncompilable pattern fails under the default policy", func() {
+		put("hello")
+		_, err := client.Operate(nil, key, as.ExpReadOp(variable,
+			as.ExpStringRegexReplace(policy, as.ExpStringBin(bin),
+				as.ExpStringVal("("), as.ExpStringVal("X"), as.StringRegexDefault),
+			as.ExpReadFlagDefault))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue())
+	})
+
+	gg.It("NO_FAIL suppresses the regexReplace compile failure", func() {
+		// The suppressed modify yields the unchanged source string.
+		put("hello")
+		noFail := as.NewStringPolicy(as.StringWriteNoFail)
+		rec := eval(as.ExpStringRegexReplace(noFail, as.ExpStringBin(bin),
+			as.ExpStringVal("("), as.ExpStringVal("X"), as.StringRegexDefault))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello"))
+	})
+
+	gg.It("regexReplace rejects CREATE_ONLY", func() {
+		// The op table entry is UPDATE_ONLY-capable, so CREATE_ONLY lands in
+		// bad_flags even though the pattern itself compiles.
+		put("hello")
+		_, err := client.Operate(nil, key, as.ExpReadOp(variable,
+			as.ExpStringRegexReplace(as.NewStringPolicy(as.StringWriteCreateOnly),
+				as.ExpStringBin(bin), as.ExpStringVal("l"), as.ExpStringVal("L"),
+				as.StringRegexDefault),
+			as.ExpReadFlagDefault))
+		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue())
+	})
+
 	// ============================================================
 	// Type conversion expression
 	// ============================================================
@@ -448,7 +492,7 @@ var _ = gg.Describe("String Expressions Test", func() {
 		put("hello")
 
 		coNoFail := as.NewStringPolicy(as.StringWriteCreateOnly | as.StringWriteNoFail)
-		rec := eval(as.ExpStringAppend(coNoFail, as.ExpStringVal(" there"), as.ExpStringBin(bin)))
+		rec := eval(as.ExpStringAppend(coNoFail, as.ExpStringBin(bin), as.ExpStringVal(" there")))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello"))
 	})
 
@@ -456,7 +500,7 @@ var _ = gg.Describe("String Expressions Test", func() {
 		put("hello")
 
 		noFail := as.NewStringPolicy(as.StringWriteNoFail)
-		rec := eval(as.ExpStringPadStart(noFail, as.ExpIntVal(10), as.ExpStringVal(""), as.ExpStringBin(bin)))
+		rec := eval(as.ExpStringPadStart(noFail, as.ExpStringBin(bin), as.ExpIntVal(10), as.ExpStringVal("")))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello"))
 	})
 
@@ -464,7 +508,7 @@ var _ = gg.Describe("String Expressions Test", func() {
 		put("hello")
 
 		updateOnly := as.NewStringPolicy(as.StringWriteUpdateOnly)
-		rec := eval(as.ExpStringAppend(updateOnly, as.ExpStringVal(" there"), as.ExpStringBin(bin)))
+		rec := eval(as.ExpStringAppend(updateOnly, as.ExpStringBin(bin), as.ExpStringVal(" there")))
 		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello there"))
 	})
 
@@ -473,7 +517,7 @@ var _ = gg.Describe("String Expressions Test", func() {
 
 		createOnly := as.NewStringPolicy(as.StringWriteCreateOnly)
 		_, err := client.Operate(nil, key, as.ExpReadOp(variable,
-			as.ExpStringAppend(createOnly, as.ExpStringVal(" there"), as.ExpStringBin(bin)),
+			as.ExpStringAppend(createOnly, as.ExpStringBin(bin), as.ExpStringVal(" there")),
 			as.ExpReadFlagDefault))
 		gm.Expect(err).To(gm.HaveOccurred())
 	})
@@ -483,7 +527,7 @@ var _ = gg.Describe("String Expressions Test", func() {
 
 		both := as.NewStringPolicy(as.StringWriteCreateOnly | as.StringWriteUpdateOnly)
 		_, err := client.Operate(nil, key, as.ExpReadOp(variable,
-			as.ExpStringAppend(both, as.ExpStringVal(" there"), as.ExpStringBin(bin)),
+			as.ExpStringAppend(both, as.ExpStringBin(bin), as.ExpStringVal(" there")),
 			as.ExpReadFlagDefault))
 		gm.Expect(err).To(gm.HaveOccurred())
 	})

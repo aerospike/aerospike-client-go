@@ -497,11 +497,12 @@ func StrRepeatOp(policy *StringPolicy, binName string, count int, ctx ...*CDTCon
 // first match of `pattern` with `replacement`. Pass [StringRegexGlobal] to replace
 // every match. Flag values from [StringRegexFlags] may be combined with bitwise OR.
 //
-// The server's regex_replace op table does not accept policy write flags, so
-// `policy` is kept for API symmetry with the other modify ops and is ignored.
+// The [StringWriteDefault], [StringWriteUpdateOnly] and [StringWriteNoFail] write
+// flags apply to this op; [StringWriteCreateOnly] is rejected by the server.
+// [StringWriteNoFail] also suppresses a regex-compile failure.
 func StrRegexReplaceOp(policy *StringPolicy, binName string, pattern string, replacement string, regexFlags StringRegexFlags, ctx ...*CDTContext) *Operation {
-	_ = stringPolicyOrDefault(policy)
-	return newStringModifyOp(_STR_OP_REGEX_REPLACE, binName, ctx, ListValue{StringValue(pattern), StringValue(replacement)}, IntegerValue(int(regexFlags)))
+	policy = stringPolicyOrDefault(policy)
+	return newStringModifyOp(_STR_OP_REGEX_REPLACE, binName, ctx, ListValue{StringValue(pattern), StringValue(replacement)}, IntegerValue(int(regexFlags)), IntegerValue(policy.flags))
 }
 
 //-----------------------------------------------------------------

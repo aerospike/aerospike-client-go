@@ -582,6 +582,16 @@ var _ = gg.Describe("String Operations Test", func() {
 		gm.Expect(stringValue()).To(gm.Equal("hello"))
 	})
 
+	gg.It("regexReplace keeps the regex flags and the write flags in separate slots", func() {
+		// The two flag slots alias bit for bit, so only distinct non-zero values
+		// in each can catch a swap.
+		put("aXbXc")
+		updateOnly := as.NewStringPolicy(as.StringWriteUpdateOnly)
+		operate(as.StrRegexReplaceOp(updateOnly, bin, "x", "-",
+			as.StringRegexCaseInsensitive|as.StringRegexGlobal))
+		gm.Expect(stringValue()).To(gm.Equal("a-b-c"))
+	})
+
 	// ============================================================
 	// Multi-op pipelines
 	// ============================================================
@@ -1306,6 +1316,30 @@ var _ = gg.Describe("String Operations Test", func() {
 		put("hello")
 		expectParamError(as.StrRegexReplaceOp(
 			policy, bin, "[unclosed", "NUM", as.StringRegexDefault))
+	})
+
+	gg.It("regexReplace with an uncompilable pattern raises PARAMETER_ERROR", func() {
+		put("hello")
+		expectParamError(as.StrRegexReplaceOp(
+			policy, bin, "(", "X", as.StringRegexDefault))
+		gm.Expect(stringValue()).To(gm.Equal("hello"))
+	})
+
+	gg.It("NO_FAIL suppresses the regexReplace compile failure", func() {
+		// The compile runs in the modify stage, which NO_FAIL covers.
+		put("hello")
+		noFail := as.NewStringPolicy(as.StringWriteNoFail)
+		operate(as.StrRegexReplaceOp(noFail, bin, "(", "X", as.StringRegexDefault))
+		gm.Expect(stringValue()).To(gm.Equal("hello"))
+	})
+
+	gg.It("regexReplace rejects CREATE_ONLY", func() {
+		// The op table entry is UPDATE_ONLY-capable, so CREATE_ONLY lands in
+		// bad_flags.
+		put("hello")
+		expectParamError(as.StrRegexReplaceOp(
+			as.NewStringPolicy(as.StringWriteCreateOnly), bin, "l", "L", as.StringRegexDefault))
+		gm.Expect(stringValue()).To(gm.Equal("hello"))
 	})
 
 	// ============================================================
