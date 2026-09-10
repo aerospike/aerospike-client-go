@@ -368,15 +368,16 @@ func ExpStringRepeat(policy *StringPolicy, src *Expression, count *Expression) *
 // string. Pass [StringRegexGlobal] to replace every match. Flag values may be
 // combined with bitwise OR. Does not modify the underlying bin.
 //
-// The server's regex_replace op table does not accept policy write flags, so
-// `policy` is kept for API symmetry with the other modify expressions and is
-// ignored.
+// The [StringWriteDefault], [StringWriteUpdateOnly] and [StringWriteNoFail] write
+// flags apply to this expression; [StringWriteCreateOnly] is rejected by the
+// server. [StringWriteNoFail] also suppresses a regex-compile failure.
 func ExpStringRegexReplace(policy *StringPolicy, src *Expression, pattern *Expression, replacement *Expression, regexFlags StringRegexFlags) *Expression {
-	_ = stringPolicyOrDefault(policy)
-	// The server's regex_replace op table takes [list, regexFlags] (no slot for
-	// policy flags), so pass the quoted [pattern, replacement] pair + regexFlags.
+	policy = stringPolicyOrDefault(policy)
+	// The regex flags occupy their own slot ahead of the policy flags, so both
+	// must be sent even when one of them is zero.
 	return addStringModifyExp(src, IntegerValue(_STR_OP_REGEX_REPLACE),
-		stringExpQuotedPair(pattern, replacement), IntegerValue(int(regexFlags)))
+		stringExpQuotedPair(pattern, replacement), IntegerValue(int(regexFlags)),
+		IntegerValue(policy.flags))
 }
 
 //-----------------------------------------------------------------
