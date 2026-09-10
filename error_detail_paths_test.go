@@ -32,7 +32,7 @@ import (
 //
 // The trigger op is incidental here; the assertion is purely the extended-error
 // surface (SubCode / ServerMessage / ExpTrace) flowing through each path.
-// Requires an 8.1.3+ server; the transaction cases additionally require a
+// Requires an 8.2.0+ server; the transaction cases additionally require a
 // Strong-Consistency namespace.
 // edpUDFBody is a trivial module for the Execute path; the filter is evaluated
 // before the body runs, so the body itself is never exercised. Kept local to
@@ -80,8 +80,8 @@ var _ = gg.Describe("ErrorDetail wired-path coverage (integration)", func() {
 			gg.Skip("no nodes available")
 		}
 		serverVersion := nodes[0].GetServerVersion()
-		if serverVersion.IsSmaller(version.ServerVersion_8_1_3) {
-			gg.Skip("Extended error-detail requires server version 8.1.3 or later; got " + serverVersion.String())
+		if serverVersion.IsSmaller(version.ServerVersion_8_2) {
+			gg.Skip("Extended error-detail requires server version 8.2.0 or later; got " + serverVersion.String())
 		}
 
 		set = randString(20)

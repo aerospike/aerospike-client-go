@@ -961,7 +961,7 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 		})
 	})
 
-	// bit_b64_encode is a BITS read op (code 55). It requires server 8.1.3+.
+	// bit_b64_encode is a BITS read op (code 55). It requires server 8.2.0+.
 	gg.Context("bit_b64_encode", func() {
 
 		blob := []byte{0x01, 0x42, 0x03, 0x04, 0x05}
@@ -971,13 +971,13 @@ var _ = gg.Describe("CDT Bitwise Test", func() {
 		}
 
 		gg.BeforeEach(func() {
-			requiredVersion, err := version.Parse("8.1.3")
+			requiredVersion, err := version.Parse("8.2.0")
 			if err != nil {
 				gg.Fail("Failed to parse server required version")
 			}
 			nodeVersion := client.GetNodes()[0].GetServerVersion()
 			if nodeVersion.IsSmaller(requiredVersion) {
-				gg.Skip("bit_b64_encode requires server version 8.1.3+.")
+				gg.Skip("bit_b64_encode requires server version 8.2.0+.")
 				return
 			}
 

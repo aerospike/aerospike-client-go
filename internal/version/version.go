@@ -30,7 +30,7 @@ type Version struct {
 
 var (
 	ServerVersion_8_1                  = &Version{Major: 8, Minor: 1, Patch: 0, Build: 0}
-	ServerVersion_8_1_3                = &Version{Major: 8, Minor: 1, Patch: 3, Build: 0}
+	ServerVersion_8_2                  = &Version{Major: 8, Minor: 2, Patch: 0, Build: 0}
 	ServerVersionQueryOpsProjectionExt = &Version{Major: 8, Minor: 1, Patch: 2, Build: 0}
 	ServerVersionPScan                 = &Version{Major: 4, Minor: 9, Patch: 0, Build: 3}
 	ServerVersionQueryShow             = &Version{Major: 5, Minor: 7, Patch: 0, Build: 0}

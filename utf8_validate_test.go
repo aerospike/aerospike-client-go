@@ -92,14 +92,14 @@ var _ = gg.Describe("UTF-8 Write Validation", gg.Ordered, func() {
 	// ============================================================
 
 	gg.It("default policy round-trips non-UTF-8 bytes (backward compatibility)", func() {
-		// Server 8.1.3+ enforces UTF-8 on STRING writes and rejects
+		// Server 8.2.0+ enforces UTF-8 on STRING writes and rejects
 		// invalid bytes, so this legacy round-trip is only meaningful
 		// on 8.1.2.x.
-		maxExclusive, err := version.Parse("8.1.3")
+		maxExclusive, err := version.Parse("8.2.0")
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		nodeVersion := client.GetNodes()[0].GetServerVersion()
 		if nodeVersion.IsGreaterOrEqual(maxExclusive) {
-			gg.Skip("backward-compat round-trip only applies to server <8.1.3")
+			gg.Skip("backward-compat round-trip only applies to server < 8.2.0")
 		}
 
 		nonUTF8 := string(badRawBytes)

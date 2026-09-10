@@ -766,7 +766,7 @@ func ExpFromBase64(str string) (*Expression, Error) {
 // policy's FilterExpression and never nest it inside ExpAnd, ExpOr, ExpNot or any
 // other expression.
 //
-// Requires a server that supports EXP_AEL_COMPILE (v8.1.3+); older servers reject
+// Requires a server that supports EXP_AEL_COMPILE (v8.2.0+); older servers reject
 // the payload. The text must not be empty.
 func ExpFromAEL(text string) (*Expression, Error) {
 	n := len(text)

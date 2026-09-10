@@ -35,7 +35,7 @@ import (
 // The suite bootstraps two extra users (one privileged reader, one
 // unprivileged) and opens an additional client per role. The whole suite
 // is skipped when security is not enabled or the cluster is older than the
-// 8.1.3 build that introduced string ops + masking.
+// 8.2.0 build that introduced string ops + masking.
 var _ = gg.Describe("String Masking Tests", gg.Ordered, func() {
 	const (
 		maskedBin     = "pii"
@@ -103,13 +103,13 @@ var _ = gg.Describe("String Masking Tests", gg.Ordered, func() {
 			skipped = true
 			return
 		}
-		requiredVersion, err := version.Parse("8.1.3")
+		requiredVersion, err := version.Parse("8.2.0")
 		if err != nil {
 			gg.Fail("Failed to parse required version")
 		}
 		nodeVersion := client.GetNodes()[0].GetServerVersion()
 		if nodeVersion.IsSmaller(requiredVersion) {
-			gg.Skip("String masking requires server version 8.1.3+.")
+			gg.Skip("String masking requires server version 8.2.0+.")
 			skipped = true
 			return
 		}

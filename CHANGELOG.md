@@ -13,7 +13,7 @@
   - [CLIENT-4632] Fixed where executeSingle iterates all records instead of node-assigned offsets.
 
 - Improvements
-  - [CLIENT-4390] Create index uses "integer" instead of "numeric" starting with Aerospike server >= 8.1.3.
+  - [CLIENT-4390] Create index uses "integer" instead of "numeric" starting with Aerospike server >= 8.2.0.
   - [CLIENT-4590] Updated Go client CI to leverage shared-workflows.
 
 ## April 14 2026: v8.7.0

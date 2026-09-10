@@ -997,8 +997,8 @@ var _ = gg.Describe("Expression Filters", func() {
 		var key *as.Key
 
 		gg.BeforeAll(func() {
-			if serverIsOlderThan("8.1.3") {
-				gg.Skip("AEL expressions require a server with EXP_AEL_COMPILE (v8.1.3+)")
+			if serverIsOlderThan("8.2.0") {
+				gg.Skip("AEL expressions require a server with EXP_AEL_COMPILE (v8.2.0+)")
 			}
 
 			for ii := 0; ii < keyCount; ii++ {

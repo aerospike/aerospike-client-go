@@ -27,7 +27,7 @@ import (
 // that wraps a StringExp.* call, evaluates it via an ExpReadOp into a virtual
 // bin, and asserts the result.
 //
-// String expressions require server version 8.1.3+; the suite is skipped on
+// String expressions require server version 8.2.0+; the suite is skipped on
 // older clusters via the standard Ginkgo version-check pattern documented in
 // AI_PIPELINE.md.
 //
@@ -66,13 +66,13 @@ var _ = gg.Describe("String Expressions Test", func() {
 	}
 
 	gg.BeforeEach(func() {
-		requiredVersion, err := version.Parse("8.1.3")
+		requiredVersion, err := version.Parse("8.2.0")
 		if err != nil {
 			gg.Fail("Failed to parse server required version")
 		}
 		nodeVersion := client.GetNodes()[0].GetServerVersion()
 		if nodeVersion.IsSmaller(requiredVersion) {
-			gg.Skip("String expressions require server version 8.1.3+.")
+			gg.Skip("String expressions require server version 8.2.0+.")
 			return
 		}
 
@@ -520,6 +520,12 @@ var _ = gg.Describe("String Expressions Test", func() {
 			as.ExpStringAppend(createOnly, as.ExpStringBin(bin), as.ExpStringVal(" there")),
 			as.ExpReadFlagDefault))
 		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue())
+
+		// The same operands without CREATE_ONLY succeed, so the rejection is the
+		// flag meeting a live source rather than a malformed argument.
+		rec := eval(as.ExpStringAppend(policy, as.ExpStringBin(bin), as.ExpStringVal(" there")))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello there"))
 	})
 
 	gg.It("CREATE_ONLY combined with UPDATE_ONLY fails", func() {
@@ -530,6 +536,13 @@ var _ = gg.Describe("String Expressions Test", func() {
 			as.ExpStringAppend(both, as.ExpStringBin(bin), as.ExpStringVal(" there")),
 			as.ExpReadFlagDefault))
 		gm.Expect(err).To(gm.HaveOccurred())
+		gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue())
+
+		// UPDATE_ONLY alone is accepted on the same operands, so it is the
+		// combination that is rejected.
+		updateOnly := as.NewStringPolicy(as.StringWriteUpdateOnly)
+		rec := eval(as.ExpStringAppend(updateOnly, as.ExpStringBin(bin), as.ExpStringVal(" there")))
+		gm.Expect(rec.Bins[variable]).To(gm.Equal("hello there"))
 	})
 
 	// ============================================================

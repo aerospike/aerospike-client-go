@@ -40,7 +40,7 @@ import (
 //
 // Trigger recipes are grounded in the server emit sites: particle_blob.c:1605
 // (bits resize), particle_list.c:3068 (bounded insert), particle_hll.c:1145-1373
-// (HLL prepare paths), particle_string.c (b64 decode). Requires an 8.1.3+ server.
+// (HLL prepare paths), particle_string.c (b64 decode). Requires an 8.2.0+ server.
 var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 	const edsBin = "eds-bin"
 
@@ -75,8 +75,8 @@ var _ = gg.Describe("ErrorDetail subcode catalogue (integration)", func() {
 			gg.Skip("no nodes available")
 		}
 		serverVersion := nodes[0].GetServerVersion()
-		if serverVersion.IsSmaller(version.ServerVersion_8_1_3) {
-			gg.Skip("Extended error-detail requires server version 8.1.3 or later; got " + serverVersion.String())
+		if serverVersion.IsSmaller(version.ServerVersion_8_2) {
+			gg.Skip("Extended error-detail requires server version 8.2.0 or later; got " + serverVersion.String())
 		}
 		set = randString(20)
 	})

@@ -43,7 +43,7 @@ package aerospike
 // map, compose with the List/Map expression getters (which do take CTX) to
 // extract the leaf, then pass the resulting expression as `src`.
 //
-// String expressions require server version 8.1.3 or later.
+// String expressions require server version 8.2.0 or later.
 
 const _stringExpMODULE = 3
 

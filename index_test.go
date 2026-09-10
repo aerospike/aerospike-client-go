@@ -115,8 +115,8 @@ var _ = gg.Describe("Index operations test", func() {
 		const keyCount = 100
 
 		gg.BeforeEach(func() {
-			if serverIsOlderThan("8.1.3") {
-				gg.Skip("INTEGER index type requires server version 8.1.3+")
+			if serverIsOlderThan("8.2.0") {
+				gg.Skip("INTEGER index type requires server version 8.2.0+")
 			}
 
 			for i := 0; i < keyCount; i++ {

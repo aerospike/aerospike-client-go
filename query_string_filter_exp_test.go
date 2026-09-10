@@ -29,7 +29,7 @@ import (
 // filterExp on a NUMERIC-indexed set narrowed via a range filter, plus
 // contains() against setName() and regexCompare() against key().
 //
-// String expressions require server version 8.1.3+; the suite is skipped on
+// String expressions require server version 8.2.0+; the suite is skipped on
 // older clusters.
 var _ = gg.Describe("Query StringExp filter expressions", func() {
 	const (
@@ -52,13 +52,13 @@ var _ = gg.Describe("Query StringExp filter expressions", func() {
 	wpolicy.SendKey = true
 
 	gg.BeforeEach(func() {
-		requiredVersion, err := version.Parse("8.1.3")
+		requiredVersion, err := version.Parse("8.2.0")
 		if err != nil {
 			gg.Fail("Failed to parse server required version")
 		}
 		nodeVersion := client.GetNodes()[0].GetServerVersion()
 		if nodeVersion.IsSmaller(requiredVersion) {
-			gg.Skip("String expressions require server version 8.1.3+.")
+			gg.Skip("String expressions require server version 8.2.0+.")
 			return
 		}
 
