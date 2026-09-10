@@ -136,8 +136,7 @@ jobs:
         with:
           config: ./.testcoverage.yml
       - name: Show coverage report in step summary
-        # PRs skip merged Final Coverage, omit per-matrix summary too.
-        if: github.event_name != 'pull_request' && steps.check-coverage.outputs.total-coverage != ''
+        if: always()
         run: |
           {
             echo "**coverage:**"
@@ -157,7 +156,6 @@ jobs:
 
   merged_coverage:
     name: Final Coverage
-    if: github.event_name != 'pull_request'
     needs: build
     uses: ./.github/workflows/merge-coverage.yml
     with:

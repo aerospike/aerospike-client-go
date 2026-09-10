@@ -909,11 +909,6 @@ var _ = gg.Describe("Aerospike", func() {
 				}
 
 				if nsInfo(ns, "storage-engine") == "device" {
-					// https://aerospike.atlassian.net/browse/CLIENT-5411
-					if len(client.GetNodes()) > 1 {
-						gg.Skip("this test is skipped until CLIENT-5411 is fixed")
-					}
-
 					writeBlockSize := 1048576
 					bigBin := make(map[string]string, 0)
 					bigBin["big_bin"] = strings.Repeat("a", writeBlockSize)
