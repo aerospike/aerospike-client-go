@@ -59,7 +59,7 @@ var _ = gg.Describe("UTF-8 Write Validation", gg.Ordered, func() {
 		// tests are unaffected.
 		p := *clientPolicy
 		p.ValidateUTF8 = true
-		c, err := as.NewClientWithPolicy(&p, *host, *port)
+		c, err := as.NewClientWithPolicyAndHost(&p, dbHosts...)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		strictClient = c
 	})

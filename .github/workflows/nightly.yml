@@ -39,11 +39,10 @@ jobs:
         with:
           default_json: |
             {
-
               "7.2": { "version": "7.2" },
-              "8.1.0.1": { "version": "8.1.0.1" },
               "8.1.1.0": { "version": "8.1.1.0" },
-              "8.1.2.0": { "version": "8.1.2.0" }
+              "8.1.2.0": { "version": "8.1.2.0" },
+              "8.1.2.3": { "version": "8.1.2.3" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
           modes: AP,SC
@@ -98,9 +97,9 @@ jobs:
           echo "Go version: ${{ matrix.go-version }}"
 
       - name: Set up Aerospike Database
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@5e2e7a2458e4f7c5aa0a05b0e9de8c77e0d60da6
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@0d843cff870d70ac527048ab0d006c7c301fbb2f # v4.1.0
         with:
-          aerospike-version: ${{ matrix.version }}
+          server-tag: ${{ matrix.version }}
           num-nodes: 1
           enable-strong-consistency: ${{ matrix.mode == 'SC' }}
           features-content: ${{ secrets.FEATURES_CONF }}

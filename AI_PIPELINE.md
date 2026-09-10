@@ -107,7 +107,7 @@ convention.
   in `examples/fixtures`.
 - `docs/` — documentation.
 - `.github/workflows/` — authoritative CI: `build.yml` (PR), `build-multi-node.yml`,
-  `build-nightly.yml`, `nightly.yml`, `merge-coverage.yml`.
+  `nightly.yml`, `merge-coverage.yml`.
 
 ## Conventions
 
