@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Aerospike multi-node cluster
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@0d843cff870d70ac527048ab0d006c7c301fbb2f # v4.1.0
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@b4b1e9dc89314a2d542f9d6fe0ee150ad06f9860 # v5.0.0
         with:
           server-tag: ${{ matrix.version }}
           num-nodes: ${{ github.event_name == 'workflow_dispatch' && inputs.nodes || env.NODES }}
