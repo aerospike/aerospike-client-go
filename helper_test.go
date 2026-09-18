@@ -174,3 +174,15 @@ func ExecuteSingleBatchUDF(client *Client, policy *BatchPolicy, udfPolicy *Batch
 	cmd := newBatchCommandUDF(client, batch, policy, udfPolicy, keys, packageName, functionName, args, records, nil)
 	return cmd.executeSingle(client)
 }
+
+// RollRecords returns the batch records of the last Roll, so tests can assert
+// the roll commands ran rather than inferring it from the commit status.
+func (txr *TxnRoll) RollRecords() []*BatchRecord {
+	return txr.rollRecords
+}
+
+// AlreadyCommitted reports whether the last mark-roll-forward was answered
+// with MRT_COMMITTED.
+func (txr *TxnRoll) AlreadyCommitted() bool {
+	return txr.alreadyCommitted
+}
