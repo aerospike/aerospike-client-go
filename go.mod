@@ -28,3 +28,4 @@ require (
 )
 
 retract [v8.3.0, v8.4.1] // Problem with User Agent code returning a closed connection without an error.
+retract v8.8.0 // TxnStateCommitFailed was inserted mid-iota, changing the values of TxnStateCommitted and TxnStateAborted. Fixed in v8.9.0 (CLIENT-5260).
