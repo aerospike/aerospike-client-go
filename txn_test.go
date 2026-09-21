@@ -18,6 +18,8 @@ package aerospike_test
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -912,6 +914,155 @@ var _ = gg.Describe("Aerospike", func() {
 			gm.Expect(txn.State()).To(gm.Equal(as.TxnStateAborted))
 		})
 
+		gg.Context("when the mark roll forward is answered with MRT_COMMITTED", func() {
+			// Marking the roll forward once up front puts the monitor record in
+			// the committed state, so the mark issued by the commit itself is
+			// answered with MRT_COMMITTED.
+			premark := func(txn *as.Txn) *as.Key {
+				mkey, err := as.NewKey(ns, "<ERO~MRT", txn.Id())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(as.NewTxnRoll(client, txn).MarkRollForward(as.NewWritePolicy(0, 0), mkey)).ToNot(gm.HaveOccurred())
+				return mkey
+			}
+
+			write := func() (*as.Key, *as.Txn) {
+				key, err := as.NewKey(ns, set, randString(50))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(client.PutBins(nil, key, as.NewBin(binName, "val1"))).ToNot(gm.HaveOccurred())
+
+				txn := as.NewTxn()
+				wp := as.NewWritePolicy(0, 0)
+				wp.Txn = txn
+				gm.Expect(client.PutBins(wp, key, as.NewBin(binName, "val2"))).ToNot(gm.HaveOccurred())
+				gm.Expect(txn.MonitorExists()).To(gm.BeTrue())
+				gm.Expect(txn.CloseMonitor()).To(gm.BeTrue())
+
+				// The write is not visible outside the transaction until the
+				// roll forward is applied.
+				rec, err := client.Get(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec.Bins[binName]).To(gm.Equal("val1"))
+
+				return key, txn
+			}
+
+			gg.It("must still make the committed values readable right after Commit returns", func() {
+				key, txn := write()
+				mkey := premark(txn)
+
+				commitStatus, err := client.Commit(txn)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(commitStatus).To(gm.Equal(as.CommitStatusAlreadyCommitted))
+				gm.Expect(txn.State()).To(gm.Equal(as.TxnStateCommitted))
+				gm.Expect(txn.GetInDoubt()).To(gm.BeFalse())
+
+				// The roll forward ran: no waiting on the server sweep.
+				rec, err := client.Get(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec.Bins[binName]).To(gm.Equal("val2"))
+
+				// The close ran: monitor record deleted and transaction cleared.
+				_, err = client.Get(nil, mkey)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(types.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue())
+				gm.Expect(txn.MonitorExists()).To(gm.BeFalse())
+			})
+
+			gg.It("must run the roll forward commands themselves and report already committed", func() {
+				key, txn := write()
+				mkey := premark(txn)
+
+				txr := as.NewTxnRoll(client, txn)
+				rollPolicy := as.NewTxnRollPolicy()
+				commitStatus, err := txr.Commit(&rollPolicy.BatchPolicy)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(commitStatus).To(gm.Equal(as.CommitStatusAlreadyCommitted))
+				gm.Expect(txr.AlreadyCommitted()).To(gm.BeTrue())
+
+				rollRecords := txr.RollRecords()
+				gm.Expect(rollRecords).To(gm.HaveLen(1))
+				gm.Expect(rollRecords[0].Key).To(gm.Equal(key))
+				gm.Expect(rollRecords[0].ResultCode).To(gm.Equal(types.OK))
+
+				_, err = client.Get(nil, mkey)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(types.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue())
+				gm.Expect(txn.MonitorExists()).To(gm.BeFalse())
+			})
+
+			gg.It("must report the roll forward failure instead of already committed", func() {
+				_, txn := write()
+				premark(txn)
+
+				// An unroutable key in the write set fails the roll forward
+				// batch after the mark has already reported MRT_COMMITTED.
+				bogus, err := as.NewKey("nonexistent-namespace", set, randString(50))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				txn.OnWrite(bogus, nil, types.OK)
+
+				txr := as.NewTxnRoll(client, txn)
+				rollPolicy := as.NewTxnRollPolicy()
+				commitStatus, cerr := txr.Commit(&rollPolicy.BatchPolicy)
+				gm.Expect(cerr).To(gm.HaveOccurred())
+				gm.Expect(commitStatus).To(gm.Equal(as.CommitStatusRollForwardAbandoned))
+				gm.Expect(txr.AlreadyCommitted()).To(gm.BeTrue())
+			})
+
+			gg.It("must report CommitStatusOK and the same roll and close for a clean mark", func() {
+				key, txn := write()
+				mkey, err := as.NewKey(ns, "<ERO~MRT", txn.Id())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+
+				txr := as.NewTxnRoll(client, txn)
+				rollPolicy := as.NewTxnRollPolicy()
+				commitStatus, err := txr.Commit(&rollPolicy.BatchPolicy)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(commitStatus).To(gm.Equal(as.CommitStatusOK))
+				gm.Expect(txr.AlreadyCommitted()).To(gm.BeFalse())
+
+				rollRecords := txr.RollRecords()
+				gm.Expect(rollRecords).To(gm.HaveLen(1))
+				gm.Expect(rollRecords[0].Key).To(gm.Equal(key))
+				gm.Expect(rollRecords[0].ResultCode).To(gm.Equal(types.OK))
+
+				rec, err := client.Get(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(rec.Bins[binName]).To(gm.Equal("val2"))
+
+				_, err = client.Get(nil, mkey)
+				gm.Expect(err).To(gm.HaveOccurred())
+				gm.Expect(err.Matches(types.KEY_NOT_FOUND_ERROR)).To(gm.BeTrue())
+				gm.Expect(txn.MonitorExists()).To(gm.BeFalse())
+			})
+		})
+
+		gg.It("must abandon the mark roll forward when the server already aborted the transaction", func() {
+			key, err := as.NewKey(ns, set, randString(50))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(client.PutBins(nil, key, as.NewBin(binName, "val1"))).ToNot(gm.HaveOccurred())
+
+			rollBacks := mrtRollBackSuccess(ns)
+
+			txn := as.NewTxn()
+			txn.SetTimeout(time.Second)
+			wp := as.NewWritePolicy(0, 0)
+			wp.Txn = txn
+			gm.Expect(client.PutBins(wp, key, as.NewBin(binName, "val2"))).ToNot(gm.HaveOccurred())
+
+			// The server expires and rolls back the transaction on its own
+			// schedule, leaving the monitor record in the aborted state.
+			gm.Eventually(func() int64 { return mrtRollBackSuccess(ns) }, 2*time.Minute, time.Second).
+				Should(gm.BeNumerically(">", rollBacks))
+
+			commitStatus, err := client.Commit(txn)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(types.MRT_ABORTED)).To(gm.BeTrue())
+			gm.Expect(err.IsInDoubt()).To(gm.BeFalse())
+			gm.Expect(commitStatus).To(gm.Equal(as.CommitStatusMarkRollForwardAbandoned))
+			gm.Expect(txn.State()).To(gm.Equal(as.TxnStateAborted))
+			gm.Expect(txn.GetInDoubt()).To(gm.BeFalse())
+		})
+
 		gg.It("must allow abort after verify failure because transaction was rolled back", func() {
 			key, _ := as.NewKey(ns, set, randString(50))
 
@@ -939,3 +1090,26 @@ var _ = gg.Describe("Aerospike", func() {
 
 	}) // describe
 })
+
+// mrtRollBackSuccess sums the namespace roll-back counter over every node, so
+// a transaction rolled back by the server is observed regardless of which node
+// owns the record.
+func mrtRollBackSuccess(ns string) int64 {
+	var total int64
+	for _, node := range client.GetNodes() {
+		infoMap, err := node.RequestInfo(as.NewInfoPolicy(), "namespace/"+ns)
+		if err != nil {
+			continue
+		}
+		for _, pair := range strings.Split(infoMap["namespace/"+ns], ";") {
+			name, value, found := strings.Cut(pair, "=")
+			if found && name == "mrt_roll_back_success" {
+				count, cerr := strconv.ParseInt(value, 10, 64)
+				if cerr == nil {
+					total += count
+				}
+			}
+		}
+	}
+	return total
+}
