@@ -65,7 +65,6 @@ func (cmd *txnMarkRollForwardCommand) parseResult(ifc command, conn *Connection)
 	}
 
 	if resultCode == 0 || resultCode == types.MRT_COMMITTED {
-		cmd.alreadyCommitted = resultCode == types.MRT_COMMITTED
 		return nil
 	}
 
