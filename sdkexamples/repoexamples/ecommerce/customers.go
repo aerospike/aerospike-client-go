@@ -23,11 +23,9 @@ type SpenderSummary struct {
 // ListTopSpenders batch-fetches five customers, then queries each
 // customer's orders, returning one summary row per customer rather than
 // printing directly — that keeps the fetch/aggregate logic separate from
-// how a caller chooses to present it. Java launches all five order queries
-// in parallel via CompletableFuture; the sdk package has no async query
-// variant (there is no Future-returning form of Query in the PRD), so this
-// runs sequentially. True parallelism here would be a goroutine-per-
-// customer + a sync.WaitGroup, not a client-provided async API.
+// how a caller chooses to present it. This runs sequentially; the sdk
+// package has no async query variant, so true parallelism here would be a
+// goroutine-per-customer plus a sync.WaitGroup, not a client-provided API.
 func (s *Service) ListTopSpenders(ctx context.Context) ([]SpenderSummary, error) {
 	topIDs := []string{"C-103", "C-107", "C-110", "C-112", "C-117"}
 	keys := make([]*as.Key, len(topIDs))

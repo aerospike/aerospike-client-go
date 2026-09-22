@@ -17,14 +17,9 @@ func orderOp(key *as.Key, o Order) (sdk.WriteOp, error) {
 
 // PlaceOrder looks up a customer and product, validates stock, then commits
 // the order + stock decrement + balance increment as one heterogeneous
-// batch (D-10), returning the order it created. Java composes the two
-// lookups with CompletableFuture and closes the write with a mid-chain
-// insert().update().update().execute(); Go replaces both with plain
-// sequential ctx-aware calls plus BatchWrite([]WriteOp) — no
-// Future/Promise plumbing needed, and no mid-chain verb pretending to be
-// the batch boundary. Unlike the Java original, the order ID is generated
-// here rather than hardcoded — a fixed literal would make a second call
-// silently overwrite the first order.
+// batch (D-10), returning the order it created. The order ID is generated
+// per call rather than hardcoded — a fixed literal would make a second
+// call silently overwrite the first order.
 func (s *Service) PlaceOrder(ctx context.Context, customerID, sku string, qty int) (Order, error) {
 	customerKey := sdk.Key(s.customerDS.DataSet(), customerID)
 	productKey := sdk.Key(s.productDS.DataSet(), sku)
@@ -87,21 +82,16 @@ func (s *Service) PlaceOrder(ctx context.Context, customerID, sku string, qty in
 // would actually honor.
 const missingCustomerID = "C-MISSING"
 
-// DemonstrateErrorHandling shows the Go-idiomatic equivalents of Java's
-// three approaches (CompletableFuture.exceptionally, an ErrorHandler
-// lambda, and ErrorStrategy.IN_STREAM):
+// DemonstrateErrorHandling shows two error-handling shapes: a single-key
+// lookup checked with errors.Is/errors.As, and a batch of present/missing
+// keys checked per row via the stream.
 //
-//  1. a switch on errors.Is(err, sdk.ErrNotFound) — this is what
-//     exceptionally() collapses to once there's no Future to chain;
-//  2. GAP: Java attaches includeMissingKeys()/a per-key error handler to
-//     a multi-key *query*. Session.BatchGet (10.3/10.7) is a flat method —
-//     ctx, keys, bins — with nowhere to hang IncludeMissingKeys() or
-//     ExecuteOnError/InStream/Handler. Those dispositions only exist on
-//     QueryBuilder and WriteSegmentBuilder terminals in the PRD, not on
-//     BatchGet. The closest available equivalent is the stream-level
-//     per-row check below (D-6), which also stands in for Java's third,
-//     IN_STREAM variant — there's no separate "in-stream" batch mode
-//     distinct from just reading Next/Iter results.
+// GAP: Session.BatchGet (10.3/10.7) is a flat method — ctx, keys, bins —
+// with nowhere to hang IncludeMissingKeys() or ExecuteOnError/InStream/
+// Handler; those dispositions only exist on QueryBuilder and
+// WriteSegmentBuilder terminals in the PRD, not on BatchGet. The
+// stream-level per-row check below (D-6) is the closest available
+// equivalent.
 func (s *Service) DemonstrateErrorHandling(ctx context.Context) error {
 	fmt.Printf("--- Attempting order for non-existent customer: %s ---\n", missingCustomerID)
 
@@ -146,11 +136,10 @@ func (s *Service) DemonstrateErrorHandling(ctx context.Context) error {
 }
 
 // StreamOrders ranges over the query results with Iter — a pull-based
-// range-over-func loop gives the same backpressure Java gets from
-// Flow.Subscription.request(n), without a separate subscribe/request
-// protocol to wire up. ExecuteOnError(InStream()) matches Java's
-// ErrorStrategy.IN_STREAM here exactly: per-row failures surface as the
-// row's own error during iteration instead of aborting the whole stream.
+// range-over-func loop, so consumption rate is naturally backpressured
+// with no separate subscribe/request protocol to wire up.
+// ExecuteOnError(InStream()) means per-row failures surface as the row's
+// own error during iteration instead of aborting the whole stream.
 func (s *Service) StreamOrders(ctx context.Context, customerID string) error {
 	fmt.Printf("--- Streaming orders for customer %s ---\n", customerID)
 

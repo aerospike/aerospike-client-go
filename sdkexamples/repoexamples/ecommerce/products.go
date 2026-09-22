@@ -88,18 +88,13 @@ func (s *Service) RecordProductRatings(ctx context.Context) error {
 // into matching records: stock > 250 and price <= $50, sale = 80% of price
 // when price >= $10, else 90%.
 //
-// GAP: Java expresses both the filter and the computed write as raw AEL
-// strings, including a bin-level "selectFrom" write ($.stock > 250 and
-// $.price <= 5000 as the filter, a when(...) => ..., default => ...
-// expression written straight into salePrice). The PRD has no bin-level
-// AEL write primitive (WhereAEL only covers filtering; ModifyBy(exp) is
-// for path-expression traversal, not "compute this scalar into that
-// bin"). What the PRD does define is WithWriteOperations(ops
-// ...*as.Operation) on QueryBuilder for attaching a write to a background
-// scan, plus the root package's own expression builders
-// (ExpCond/ExpWriteOp/...) — those compose into the same conditional write
-// without needing an AEL string at all, so that's what's used below
-// instead of a raw AEL string or a placeholder.
+// GAP: the PRD has no bin-level AEL write primitive for computing a value
+// into a bin (WhereAEL only covers filtering; ModifyBy(exp) is for
+// path-expression traversal, not "compute this scalar into that bin").
+// WithWriteOperations(ops ...*as.Operation) on QueryBuilder is the
+// documented mechanism for attaching a write to a background scan, so the
+// conditional sale price below is built with the root package's own
+// expression builders (ExpCond/ExpWriteOp/...) instead.
 func (s *Service) ApplySalePrices(ctx context.Context) error {
 	eightyPercent := as.ExpNumDiv(as.ExpNumMul(as.ExpIntBin(productPriceBin), as.ExpIntVal(8)), as.ExpIntVal(10))
 	ninetyPercent := as.ExpNumDiv(as.ExpNumMul(as.ExpIntBin(productPriceBin), as.ExpIntVal(9)), as.ExpIntVal(10))
@@ -129,7 +124,7 @@ func (s *Service) ApplySalePrices(ctx context.Context) error {
 
 // ScanAffordableProducts ranges over a filtered scan the same way
 // StreamOrders does, including the same ExecuteOnError(InStream())
-// disposition Java's scanAffordableProducts uses via ErrorStrategy.IN_STREAM.
+// disposition.
 func (s *Service) ScanAffordableProducts(ctx context.Context) ([]Product, error) {
 	stream, err := s.session.Scan(ctx, s.productDS.DataSet()).
 		WhereAEL(fmt.Sprintf("$.%s > 100 and $.%s < 10000", productStockBin, productPriceBin)).

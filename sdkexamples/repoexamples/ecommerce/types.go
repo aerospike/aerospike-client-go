@@ -1,15 +1,11 @@
-// Package ecommerce is the Go port of the Java SDK's ecommerce example
-// (aerospike-client-java-sdk/examples/.../ecommerce). Per D-27, this is not
-// a literal method-for-method translation — it targets the Go API shape
-// from sdk/PRD.md, not the Java fluent shape.
+// Package ecommerce is an order-fulfillment example: place an order,
+// handle errors, stream a customer's orders, report top spenders, and run
+// CDT map ops and a background sale-price scan.
 //
-// GAP: the Java version implements a custom RecordMapper<T> per type
-// (fromMap/toMap/id) to control bin<->field mapping. The Go PRD only
-// defines Marshal[T]/Decode[T] (10.10) with no documented mapping
-// convention (no struct-tag rule, no mapper interface). These structs use
-// plain exported fields with the same names as the Java getters would
-// imply; how Marshal/Decode would actually resolve bin names is left
-// unspecified by the PRD.
+// GAP: bin<->field mapping convention for Marshal[T]/Decode[T] (10.10) is
+// unspecified by the PRD — no struct-tag rule, no mapper interface. These
+// structs use plain exported fields and assume the bin-name constants
+// below match whatever convention Marshal ends up using.
 package ecommerce
 
 import "fmt"

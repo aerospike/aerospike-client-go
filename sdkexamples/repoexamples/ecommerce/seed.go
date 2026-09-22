@@ -10,11 +10,9 @@ import (
 )
 
 // Seed data is a small, purpose-picked set — just enough to exercise every
-// scenario in this example (a point lookup, a missing key, the five
+// scenario in this example: a point lookup, a missing key, the five
 // "top spender" batch-gets, a per-customer order query, and a stock/price
-// range wide enough to exercise both Scan filters) — not a line-for-line
-// port of the Java example's full 20/100/54-record catalog. The catalog
-// size isn't part of what this example demonstrates.
+// range wide enough to exercise both Scan filters.
 
 // Customer{ID, Name, Email, CreditLimitCents, BalanceCents}
 var seedCustomers = []Customer{
@@ -91,9 +89,7 @@ func marshalOp[T any](key *as.Key, v T, label string) (sdk.WriteOp, error) {
 // applyBins sets each entry of a marshaled BinMap onto a WriteOp — WriteOp
 // itself has no bulk "set these bins" method, only per-field Set, so this
 // is the bridge between Marshal[T]'s output (10.10) and a batch write
-// entry. customerOp/productOp/orderOp all go through here rather than
-// hand-rolling the field<->bin mapping Java's per-type RecordMapper would
-// do — Go doesn't need a formal mapper interface for a one-off write.
+// entry.
 func applyBins(op sdk.WriteOp, bins as.BinMap) sdk.WriteOp {
 	for name, v := range bins {
 		op = op.Set(name, v)
@@ -103,12 +99,11 @@ func applyBins(op sdk.WriteOp, bins as.BinMap) sdk.WriteOp {
 
 // Seed bulk-loads customers, products and orders in one BatchWrite.
 //
-// GAP: Java's version is one line — session.replace(ds).objects(list).using(mapper).execute()
-// — a row-oriented bulk typed write (PRD 10.9, RowWriteBuilder). That
-// builder isn't part of the sdk package yet, so this uses the
-// already-built BatchWrite([]WriteOp) path instead, mapping each record
-// through Marshal[T] by hand. That's a real ergonomics gap for the common
-// "load N typed objects" case.
+// GAP: there's no row-oriented bulk typed write in the sdk package yet
+// (PRD 10.9, RowWriteBuilder), so this goes through the already-built
+// BatchWrite([]WriteOp) path instead, mapping each record through
+// Marshal[T] by hand — a real ergonomics gap for the common "load N typed
+// objects" case.
 func (s *Service) Seed(ctx context.Context) error {
 	fmt.Printf("Seeding %d customers, %d products, %d orders ...\n",
 		len(seedCustomers), len(seedProducts), len(seedOrders))
