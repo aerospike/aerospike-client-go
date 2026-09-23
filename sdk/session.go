@@ -9,7 +9,15 @@ import (
 
 type Session struct{}
 
-type Record struct{}
+// Record is currently opaque beyond Generation/Expiration — no bin names,
+// no way to introspect what Decode will actually read. Generation is what
+// IfGeneration (10.5) conditions a write on, so a caller needs it exposed
+// somewhere to do a read-then-conditionally-write pattern at all; it was
+// missing entirely until this field was added.
+type Record struct {
+	Generation Generation
+	Expiration time.Time
+}
 
 // -- 10.3 Session accessors --
 
