@@ -19,6 +19,9 @@ func (d *TypedDataSet[T]) DataSet() *DataSet {
 	return nil
 }
 
+// Collect reads every remaining result from s and decodes each into T. It
+// does not close s (D-17: always Close, or a documented terminal that
+// does) — the caller still owns Close, the same as consuming via Iter.
 func Collect[T any](s *ReadStream) ([]T, error) {
 	return nil, nil
 }
