@@ -24,7 +24,7 @@ func (s *Service) PlaceOrder(ctx context.Context, customerID, sku string, qty in
 	customerKey := sdk.Key(s.customerDS.DataSet(), customerID)
 	productKey := sdk.Key(s.productDS.DataSet(), sku)
 
-	customerRecord, err := s.session.Get(ctx, customerKey, nil)
+	customerRecord, err := s.session.Get(ctx, customerKey, sdk.AllBins)
 	if err != nil {
 		return Order{}, fmt.Errorf("get customer %s: %w", customerID, err)
 	}
@@ -33,7 +33,7 @@ func (s *Service) PlaceOrder(ctx context.Context, customerID, sku string, qty in
 		return Order{}, fmt.Errorf("decode customer %s: %w", customerID, err)
 	}
 
-	productRecord, err := s.session.Get(ctx, productKey, nil)
+	productRecord, err := s.session.Get(ctx, productKey, sdk.AllBins)
 	if err != nil {
 		return Order{}, fmt.Errorf("get product %s: %w", sku, err)
 	}
@@ -106,7 +106,7 @@ func (s *Service) DemonstrateErrorHandling(ctx context.Context) error {
 	fmt.Printf("--- Attempting order for non-existent customer: %s ---\n", missingCustomerID)
 
 	customerKey := sdk.Key(s.customerDS.DataSet(), missingCustomerID)
-	_, err := s.session.Get(ctx, customerKey, nil)
+	_, err := s.session.Get(ctx, customerKey, sdk.AllBins)
 	switch {
 	case errors.Is(err, sdk.ErrNotFound):
 		fmt.Printf("Expected error: customer not found: %s\n", missingCustomerID)
@@ -124,7 +124,7 @@ func (s *Service) DemonstrateErrorHandling(ctx context.Context) error {
 		sdk.Key(s.customerDS.DataSet(), missingCustomerID),
 		sdk.Key(s.customerDS.DataSet(), "C-ALSO-MISSING"),
 	}
-	stream, err := s.session.BatchGet(ctx, keys, nil)
+	stream, err := s.session.BatchGet(ctx, keys, sdk.AllBins)
 	if err != nil {
 		return fmt.Errorf("batch get customers: %w", err)
 	}

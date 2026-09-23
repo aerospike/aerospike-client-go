@@ -42,7 +42,7 @@ func (s *Service) ListTopSpenders(ctx context.Context) ([]SpenderSummary, error)
 		keys[i] = sdk.Key(s.customerDS.DataSet(), id)
 	}
 
-	stream, err := s.session.BatchGet(ctx, keys, nil)
+	stream, err := s.session.BatchGet(ctx, keys, sdk.AllBins)
 	if err != nil {
 		return nil, fmt.Errorf("batch get top customers: %w", err)
 	}

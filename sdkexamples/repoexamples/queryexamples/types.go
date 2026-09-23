@@ -15,6 +15,10 @@ import "fmt"
 const (
 	customerNameBin = "Name"
 	customerAgeBin  = "Age"
+
+	cdtScoresBin    = "Scores"
+	cdtTagsBin      = "Tags"
+	cdtInventoryBin = "Inventory"
 )
 
 // Address is a customer's mailing address.

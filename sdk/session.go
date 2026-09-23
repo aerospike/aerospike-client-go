@@ -9,6 +9,14 @@ import (
 
 type Session struct{}
 
+// AllBins is a named nil []string for "no bin projection, read every bin"
+// — used in the PRD's own worked examples (session.Get(ctx, key,
+// sdk.AllBins), session.BatchGet(ctx, keys, sdk.AllBins)) as the
+// self-documenting alternative to a bare nil. A plain nil still means the
+// same thing (10.4's own Look uses nil directly with a "// all bins"
+// comment) — the two forms are equivalent, not two different behaviors.
+var AllBins []string
+
 // Record is currently opaque beyond Generation/Expiration — no bin names,
 // no way to introspect what Decode will actually read. Generation is what
 // IfGeneration (10.5) conditions a write on, so a caller needs it exposed
