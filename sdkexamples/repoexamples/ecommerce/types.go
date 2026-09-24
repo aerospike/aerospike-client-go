@@ -2,37 +2,38 @@
 // handle errors, stream a customer's orders, report top spenders, and run
 // CDT map ops and a background sale-price scan.
 //
-// GAP: bin<->field mapping convention for Marshal[T]/Decode[T] (10.10) is
-// unspecified by the PRD — no struct-tag rule, no mapper interface. These
-// structs use plain exported fields and assume the bin-name constants
-// below match whatever convention Marshal ends up using.
+// Bin<->field mapping for Marshal[T]/Decode[T] (10.10) uses the `as:"..."`
+// struct tag convention shown in the PRD's own Look example for that
+// section — `as:",key"` marks the field populated from/excluded to the
+// record key, `as:"binname"` gives every other field's bin name. Bin
+// names are lowercase per that same example (as:"name", as:"age"), not
+// the capitalized Go field name.
 package ecommerce
 
 import "fmt"
 
-// Bin names, assumed to equal each field's Go name. Marshal[T]'s actual
-// naming convention isn't defined by the PRD, but every raw bin-name
-// string used in a filter, CDT op, or expression has to agree with
-// whatever convention Marshal ends up using — these constants are that
-// single source of truth: change the assumed convention here, not at each
-// call site that references a bin by name.
+// Bin names, mirroring the `as:"..."` tags on Customer/Product/Order
+// below — kept as constants because raw bin-name strings used in a
+// filter, CDT op, or expression can't reference a struct tag directly, so
+// this is the single place both sides (the tag and every reference to
+// that bin by name) have to agree.
 const (
-	orderCustomerIDBin = "CustomerID"
+	orderCustomerIDBin = "customerId"
 
-	productPriceBin     = "PriceCents"
-	productStockBin     = "StockQty"
-	productSalePriceBin = "SalePriceCents"
+	productPriceBin     = "priceCents"
+	productStockBin     = "stockQty"
+	productSalePriceBin = "salePriceCents"
 
-	customerBalanceBin = "BalanceCents"
+	customerBalanceBin = "balanceCents"
 )
 
 // Customer is a buyer, keyed by ID in the "customers" dataset.
 type Customer struct {
-	ID               string
-	Name             string
-	Email            string
-	CreditLimitCents int64
-	BalanceCents     int64
+	ID               string `as:",key"`
+	Name             string `as:"name"`
+	Email            string `as:"email"`
+	CreditLimitCents int64  `as:"creditLimitCents"`
+	BalanceCents     int64  `as:"balanceCents"`
 }
 
 // String renders a Customer for display, e.g. in ListTopSpenders' report.
@@ -43,11 +44,11 @@ func (c Customer) String() string {
 
 // Product is a catalog item, keyed by SKU in the "products" dataset.
 type Product struct {
-	SKU            string
-	Name           string
-	PriceCents     int64
-	StockQty       int
-	SalePriceCents int64
+	SKU            string `as:",key"`
+	Name           string `as:"name"`
+	PriceCents     int64  `as:"priceCents"`
+	StockQty       int    `as:"stockQty"`
+	SalePriceCents int64  `as:"salePriceCents"`
 }
 
 // IsOnSale reports whether ApplySalePrices has set a sale price.
@@ -67,13 +68,13 @@ func (p Product) String() string {
 
 // Order is a placed order, keyed by OrderID in the "orders" dataset.
 type Order struct {
-	OrderID    string
-	CustomerID string
-	SKU        string
-	Qty        int
-	TotalCents int64
-	Status     string
-	Timestamp  int64
+	OrderID    string `as:",key"`
+	CustomerID string `as:"customerId"`
+	SKU        string `as:"sku"`
+	Qty        int    `as:"qty"`
+	TotalCents int64  `as:"totalCents"`
+	Status     string `as:"status"`
+	Timestamp  int64  `as:"timestamp"`
 }
 
 // String renders an Order for display, e.g. in StreamOrders.

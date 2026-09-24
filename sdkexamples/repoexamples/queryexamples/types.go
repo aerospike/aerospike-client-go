@@ -9,25 +9,25 @@ package queryexamples
 
 import "fmt"
 
-// Bin names, assumed to equal each field's Go name — see the ecommerce
-// package's types.go for why this convention exists (Marshal[T]'s actual
-// naming convention isn't defined by the PRD).
+// Bin names, mirroring the `as:"..."` tags on Customer/Address below — see
+// the ecommerce package's types.go for why these are kept as separate
+// constants rather than read off the tags directly.
 const (
-	customerNameBin = "Name"
-	customerAgeBin  = "Age"
+	customerNameBin = "name"
+	customerAgeBin  = "age"
 
-	cdtScoresBin    = "Scores"
-	cdtTagsBin      = "Tags"
-	cdtInventoryBin = "Inventory"
+	cdtScoresBin    = "scores"
+	cdtTagsBin      = "tags"
+	cdtInventoryBin = "inventory"
 )
 
 // Address is a customer's mailing address.
 type Address struct {
-	Line1   string
-	City    string
-	State   string
-	Country string
-	ZipCode string
+	Line1   string `as:"line1"`
+	City    string `as:"city"`
+	State   string `as:"state"`
+	Country string `as:"country"`
+	ZipCode string `as:"zipCode"`
 }
 
 // String renders an Address for display.
@@ -37,10 +37,10 @@ func (a Address) String() string {
 
 // Customer is a person record, keyed by ID in the "person" dataset.
 type Customer struct {
-	ID      int64
-	Name    string
-	Age     int
-	Address *Address
+	ID      int64    `as:",key"`
+	Name    string   `as:"name"`
+	Age     int      `as:"age"`
+	Address *Address `as:"address"`
 }
 
 // String renders a Customer for display.
