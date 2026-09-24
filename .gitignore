@@ -30,3 +30,4 @@ cover*.out
 .vscode/settings.json
 ginkgo.report
 .idea
+sdk/PRD.md

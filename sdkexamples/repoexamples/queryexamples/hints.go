@@ -17,6 +17,17 @@ import (
 // runs the one query all five variants share instead of five near-
 // identical calls that would only differ by an argument that doesn't
 // exist.
+//
+// GAP: the source Java example has a second expected-failure test in this
+// same area — session.query(ds.ids(6,7,8)).readingOnlyBins("name", "age")
+// .withNoBins().execute() is expected to throw, since asking for named
+// bins and no bins at once is a contradiction. The PRD defines Bins(...)
+// and WithNoBins() as two independent QueryBuilder methods (10.7) but
+// says nothing about what combining them does — no defined error, no
+// stated precedence, nothing. Calling both and checking for a specific
+// failure would mean guessing what that failure is; not demonstrated here
+// for the same reason nothing here guesses at HasMoreChunks/Iter
+// interaction in throttling.go.
 func (s *Service) DemonstrateQueryFiltering(ctx context.Context) error {
 	stream, err := s.session.Query(ctx, s.customerDS.DataSet()).
 		WhereAEL(fmt.Sprintf("$.%s > 30", customerAgeBin)).
