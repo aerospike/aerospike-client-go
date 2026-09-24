@@ -32,3 +32,5 @@ For more details on client operations, see [Client Class](client.md).
 - [Object Model](datamodel.md)
 - [Policy Objects](policies.md)
 - [Logger Object](log.md)
+- [CDT Operations](cdt_operations.md)
+- [Performance Tweaking](performance.md)

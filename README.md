@@ -105,8 +105,8 @@ Supported operating systems:
 <a name="Installation"></a>
 ## Installation
 
-1. Install Go 1.21+ and setup your environment as [Documented](http://golang.org/doc/code.html#GOPATH) here.
-2. Get the client in your ```GOPATH``` : ```go get github.com/aerospike/aerospike-client-go/v8```
+1. Install Go 1.23+ as [documented](https://go.dev/doc/install).
+2. From a Go module, get the client: ```go get github.com/aerospike/aerospike-client-go/v8```
   - To update the client library: ```go get -u github.com/aerospike/aerospike-client-go/v8```
 
 ### Some Tips
@@ -125,15 +125,16 @@ To read about performance variables, please refer to [`docs/performance.md`](doc
 <a name="Tests"></a>
 ## Tests
 
-This library is packaged with a number of tests. Tests require Ginkgo and Gomega library.
+This library is packaged with a number of tests. Tests require Ginkgo v2 and Gomega.
 
-Before running the tests, you need to update the dependencies:
+From a clone of this repository, update dependencies and install the test runner:
 
+    $ go install github.com/onsi/ginkgo/v2/ginkgo@latest
     $ go get .
 
-To run all the test cases with race detection:
+A running Aerospike Database is required. To run all test cases with race detection:
 
-    $ ginkgo -r -race
+    $ ginkgo -r -race -- -h 127.0.0.1 -p 3000
 
 
 <a name="examples"></a>
@@ -156,7 +157,7 @@ See the [`tools/benchmark/README.md`](tools/benchmark/README.md) for details.
 <a name="api-documentation"></a>
 ## API Documentation
 
-A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v8).
+A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go/v8?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v8).
 
 <a name="google-app-engine"></a>
 ## Google App Engine
