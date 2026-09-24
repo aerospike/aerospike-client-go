@@ -4044,14 +4044,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 		applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
 
-		// in case it has grown and re-allocated, it means
-		// it was borrowed from the pool, sp put it back.
-		if &cmd.dataBufferCompress != &cmd.conn.origDataBuffer {
-			buffPool.Put(cmd.dataBufferCompress)
-		} else if &cmd.dataBuffer != &cmd.conn.origDataBuffer {
-			buffPool.Put(cmd.dataBuffer)
-		}
-
+		// buffers are never returned to buffPool here: the connection outlives the command.
 		cmd.dataBuffer = nil
 		cmd.dataBufferCompress = nil
 		cmd.conn.dataBuffer = cmd.conn.origDataBuffer
