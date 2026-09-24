@@ -1,0 +1,52 @@
+validations:
+  build:
+    description: "Whole module compiles (library, subpackages, tools, examples)."
+    command: "go build ./..."
+    critical: true
+    timeout: 300
+
+  build_as_performance:
+    description: "Library still compiles with reflection/Object-API code removed."
+    command: "go build -tags=as_performance ."
+    critical: false
+    timeout: 180
+
+  build_app_engine:
+    description: "Library still compiles for Google App Engine (unsafe package removed)."
+    command: "go build -tags=app_engine ."
+    critical: false
+    timeout: 180
+
+  vet:
+    description: "go vet reports no problems across the module."
+    command: "go vet ./..."
+    critical: false
+    timeout: 300
+
+  gofmt:
+    description: "All Go source is gofmt-formatted (no files listed means clean)."
+    command: "test -z \"$(gofmt -l $(git ls-files '*.go'))\""
+    critical: false
+    timeout: 120
+
+  test_suite:
+    description: "Full Ginkgo integration suite passes with the race detector, matching CI. Requires a live Aerospike server at 127.0.0.1:3000 (override with `-- -h <host> -p <port>` or `-- -hosts=...`). HyperLogLog specs are skipped as in CI."
+    command: "go run github.com/onsi/ginkgo/v2/ginkgo -r -race -keep-going -succinct -randomize-suites -skip=HyperLogLog"
+    critical: true
+    timeout: 2400
+
+  api_stability:
+    description: "No breaking changes to exported identifiers/behavior in the root `aerospike` package or `types`/`pkg` without a corresponding CHANGELOG.md entry. This is a released, versioned (/v8) client library."
+    critical: true
+
+  test_coverage_for_new_code:
+    description: "New or changed public behavior is covered by Ginkgo specs in the appropriate suite (root integration suite, or internal/lua, types, pkg) following the existing Describe/It + Gomega style."
+    critical: false
+
+  build_tag_variants_preserved:
+    description: "Code guarded by //go:build tags (as_performance, app_engine, as_proxy, multinode, go1.24) still compiles under each variant; reflection-dependent code has its non-reflect fallback where the *_reflect.go pattern exists."
+    critical: false
+
+  no_unwarranted_dependencies:
+    description: "No new heavy third-party dependencies added to go.mod without justification; the dependency set stays minimal (Ginkgo/Gomega, gopher-lua, x/sync, yaml)."
+    critical: false

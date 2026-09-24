@@ -81,7 +81,11 @@ func (cmd *queryAggregateCommand) parseRecordResults(ifc command, receiveSize in
 				}
 				return false, nil
 			}
-			return false, newCustomNodeError(cmd.node, resultCode)
+
+			// Query start-failure reply: walk the fields so any field-45 detail
+			// is carried rather than discarded (§3.5).
+			fieldCount := int(Buffer.BytesToUint16(cmd.dataBuffer, 18))
+			return false, cmd.serverErrorWithDetail(resultCode, fieldCount)
 		}
 
 		info3 := int(cmd.dataBuffer[3])

@@ -91,6 +91,10 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			if err != nil {
 				return false, err
 			}
+		} else {
+			// No field walk ran, so any captured detail belongs to the previous
+			// row; clear it rather than let it leak onto this one.
+			cmd.resetServerErrorDetail()
 		}
 
 		// The only valid server return codes are "ok" and "not found".
@@ -99,7 +103,7 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 			if resultCode == types.FILTERED_OUT {
 				cmd.filteredOutCnt++
 			} else {
-				return false, newCustomNodeError(cmd.node, resultCode)
+				return false, cmd.capturedServerError(resultCode)
 			}
 		}
 

@@ -1,5 +1,37 @@
 # Change History
 
+## September 21 2026: v8.9.0
+
+- Notes
+  - v8.8.0 has been retracted. `TxnStateCommitFailed` was added in the middle of the `TxnState` enum, which changed the values of `TxnStateCommitted` and `TxnStateAborted`. [CLIENT-5260] restores the original values. Upgrade from v8.7.0 or earlier directly to v8.9.0.
+
+- New Features
+  - [CLIENT-5361] Exposed the CREATE_ONLY and UPDATE_ONLY string write flags.
+  - [CLIENT-5343] Exposed bit_b64_encode (BITS read op 55).
+  - [CLIENT-5334] Exposed string_list_join (CDT list read op 28).
+  - [CLIENT-5116] Added ExpFromAEL to build an expression from AEL text.
+  - [CLIENT-4975] Implemented extended error handling with error sub-codes.
+  - [CLIENT-4822] Implemented String Operations.
+
+- Fixes
+  - [CLIENT-5485] Fixed where Go and Java diverged on mark-roll-forward handling of MRT_COMMITTED.
+  - [CLIENT-5442] Fixed where regex_replace dropped the StringPolicy write flags on both the operate and expression paths.
+  - [CLIENT-5418] Added the missing OPNOT sub-code 12 (STRING_REGEX_LIMIT_EXCEEDED) to the sub-code table.
+  - [CLIENT-5411] Fixed where server row errors were not kept on BatchRecord in the executeSingle path.
+  - [CLIENT-5353] Restored the 1-argument snip(start) builders removed by CLIENT-5145.
+  - [CLIENT-5308] Fixed the string CTX wire shape to nest the inner operation.
+  - [CLIENT-5260] Aligned TxnState/COMMIT_FAILED enum ordering with the C client.
+  - [CLIENT-5198] Fixed a parsing error for large compressed records on single read operations.
+  - [CLIENT-5183] Reject negative selectByPath / modifyByPath flags instead of masking them into a valid operation.
+
+- Improvements
+  - [CLIENT-5446] Fixed integration-suite test defects: stale unordered-map fault assertion, stale string-exp argument order, and a TTL off-by-one flake.
+  - [CLIENT-5415] Corrected string operation docs to cite PARAMETER for conversion failures and to include bool in toString.
+  - [CLIENT-5269] Corrected isNumeric FLOAT filter docs and added FLOAT-filter test coverage.
+  - [CLIENT-5267] Hardened the dynamic config sendKey test for multi-node clusters and un-skipped it.
+  - [CLIENT-5261] Migrated the operate_string example into the example registry model.
+  - [CLIENT-4750] Implemented the new examples execution framework and migrated the existing examples.
+
 ## July 29 2026: v8.8.0
 
 - Fixes
@@ -13,7 +45,7 @@
   - [CLIENT-4632] Fixed where executeSingle iterates all records instead of node-assigned offsets.
 
 - Improvements
-  - [CLIENT-4390] Create index uses "integer" instead of "numeric" starting with Aerospike server >= 8.1.3.
+  - [CLIENT-4390] Create index uses "integer" instead of "numeric" starting with Aerospike server >= 8.2.0.
   - [CLIENT-4590] Updated Go client CI to leverage shared-workflows.
 
 ## April 14 2026: v8.7.0

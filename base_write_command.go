@@ -27,6 +27,14 @@ type baseWriteCommand struct {
 	singleCommand
 
 	policy *WritePolicy
+
+	// serverMessage / serverSubcode / serverExpTrace are populated from the
+	// response by parseHeader when the server attaches an extended error detail
+	// (ErrorDetailVerbosity > 0). Subcode defaults to [types.SubCodeNone] (0);
+	// serverExpTrace is nil unless a verbosity-3 expression build trace was sent.
+	serverMessage  string
+	serverSubcode  types.SubCode
+	serverExpTrace *ExpressionTrace
 }
 
 func newBaseWriteCommand(
@@ -101,6 +109,10 @@ func (cmd *baseWriteCommand) parseHeader() (types.ResultCode, Error) {
 	if err := rp.parseFields(cmd.policy.Txn, cmd.key, true); err != nil {
 		return err.resultCode(), err
 	}
+
+	cmd.serverMessage = rp.serverMessage
+	cmd.serverSubcode = rp.serverSubcode
+	cmd.serverExpTrace = rp.expTrace
 
 	return rp.resultCode, nil
 }

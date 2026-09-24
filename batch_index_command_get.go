@@ -97,7 +97,10 @@ func (cmd *batchIndexCommandGet) executeSingle(client *Client) Error {
 				continue
 			}
 
-			return err
+			if shouldAbortBatchCommand(err) {
+				return err
+			}
+			continue
 		}
 	}
 	return nil
@@ -253,6 +256,12 @@ func (cmd *batchIndexCommandGet) parseRecord(key *Key, opCount int, generation, 
 	}
 
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
+}
+
+// inDoubt does nothing: this command only reads, and reads are never in-doubt.
+// The override is required because the promoted batchCommandOperate.inDoubt
+// would index the embedded (nil) records slice with this command's offsets.
+func (cmd *batchIndexCommandGet) inDoubt() {
 }
 
 func (cmd *batchIndexCommandGet) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {

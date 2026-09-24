@@ -39,6 +39,16 @@ func newWriteCommand(
 	binMap BinMap,
 	operation OperationType,
 ) (writeCommand, Error) {
+	if cluster.utf8ValidationEnabled() {
+		if binMap != nil {
+			if err := validateUTF8BinMap(binMap); err != nil {
+				return writeCommand{}, err
+			}
+		} else if err := validateUTF8Bins(bins); err != nil {
+			return writeCommand{}, err
+		}
+	}
+
 	bwc, err := newBaseWriteCommand(cluster, policy, key)
 	if err != nil {
 		return writeCommand{}, err
@@ -71,13 +81,9 @@ func (cmd *writeCommand) parseResult(ifc command, conn *Connection) Error {
 	}
 
 	if resultCode != types.OK {
-		if resultCode == types.KEY_NOT_FOUND_ERROR {
-			return ErrKeyNotFound.err()
-		} else if resultCode == types.FILTERED_OUT {
-			return ErrFilteredOut.err()
-		}
-
-		return newCustomNodeError(cmd.node, types.ResultCode(resultCode))
+		ae := newServerError(types.ResultCode(resultCode), cmd.serverMessage, cmd.serverSubcode, cmd.serverExpTrace)
+		ae.setNode(cmd.node)
+		return ae
 	}
 
 	return nil

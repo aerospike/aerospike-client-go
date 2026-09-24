@@ -385,6 +385,27 @@ func ExpListSize(bin *Expression, ctx ...*CDTContext) *Expression {
 	return cdtListAddRead(bin, ExpTypeINT, args)
 }
 
+// ExpListJoin creates an expression that concatenates the string items of `bin`.
+func ExpListJoin(bin *Expression, ctx ...*CDTContext) *Expression {
+	args := []ExpressionArgument{
+		IntegerValue(_CDT_LIST_STRING_JOIN),
+		cdtContextList(ctx),
+	}
+	return cdtListAddRead(bin, ExpTypeSTRING, args)
+}
+
+// ExpListJoinBySeparator creates an expression that concatenates the string
+// items of `bin`, inserting `separator` between consecutive items. It is the
+// inverse of ExpStringSplitBySeparator.
+func ExpListJoinBySeparator(separator *Expression, bin *Expression, ctx ...*CDTContext) *Expression {
+	args := []ExpressionArgument{
+		IntegerValue(_CDT_LIST_STRING_JOIN),
+		separator,
+		cdtContextList(ctx),
+	}
+	return cdtListAddRead(bin, ExpTypeSTRING, args)
+}
+
 // ExpListGetByValue creates an expression that selects list items identified by value and returns selected
 // data specified by returnType.
 func ExpListGetByValue(

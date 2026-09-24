@@ -19,12 +19,12 @@ type IndexType string
 
 const (
 	// NUMERIC specifies an index on numeric values.
-	// Use for server versions prior to 8.1.3. For server versions 8.1.3 and later,
+	// Use for server versions prior to 8.2.0. For server versions 8.2.0 and later,
 	// use INTEGER instead.
 	NUMERIC IndexType = "NUMERIC"
 
-	// INTEGER specifies an index on integer values for server versions 8.1.3+.
-	// Use NUMERIC for server versions prior to 8.1.3.
+	// INTEGER specifies an index on integer values for server versions 8.2.0+.
+	// Use NUMERIC for server versions prior to 8.2.0.
 	INTEGER IndexType = "INTEGER"
 
 	// STRING specifies an index on string values.

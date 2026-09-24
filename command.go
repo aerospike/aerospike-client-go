@@ -95,6 +95,9 @@ const (
 	_INFO4_MRT_ROLL_BACK = (1 << 2)
 	// Must be able to lock record in transaction.
 	_INFO4_MRT_ON_LOCKING_ONLY = (1 << 4)
+	// info4 bits 5-6: error detail verbosity level.
+	_INFO4_ERROR_VERBOSITY_SHIFT = 5
+	_INFO4_ERROR_VERBOSITY_MASK  = 0x60
 
 	// Interpret SC_READ bits in info3.
 	//
@@ -683,6 +686,15 @@ func (cmd *baseCommand) sizeTxnBatch(txn *Txn, ver *uint64, hasWrite bool) {
 	}
 }
 
+// sizeBatchErrorVerbosity accounts for the per-row info4 byte that carries the
+// error-detail verbosity opt-in on non-transaction batches. On transactions the
+// info4 byte is already sized by sizeTxnBatch, so this adds nothing.
+func (cmd *baseCommand) sizeBatchErrorVerbosity(txn *Txn, errBits int) {
+	if txn == nil && errBits != 0 {
+		cmd.dataOffset++
+	}
+}
+
 func (cmd *baseCommand) writeTxn(txn *Txn, sendDeadline bool) {
 	if txn != nil {
 		cmd.writeFieldLE64(txn.Id(), MRT_ID)
@@ -1141,6 +1153,7 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 ) (*batchAttr, Error) {
 	max := offsets.size()
 	txn := policy.Txn
+	errBits := batchErrorVerbosityBits(policy)
 	var versions []*uint64
 
 	// Estimate buffer size
@@ -1197,6 +1210,7 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 			cmd.sizeTxnBatch(txn, ver, record.BatchRec().hasWrite)
+			cmd.sizeBatchErrorVerbosity(txn, errBits)
 			if sz, err := record.size(sendKey); err != nil {
 				return nil, err
 			} else {
@@ -1230,6 +1244,7 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 	cmd.WriteByte(cmd.getBatchFlags(policy))
 
 	attr := &batchAttr{}
+	attr.errorDetailBits = errBits
 	prev = nil
 	verPrev = nil
 	for i := 0; i < max; i++ {
@@ -1333,6 +1348,7 @@ func (cmd *baseCommand) setBatchOperateReadOffsets(
 ) (*batchAttr, Error) {
 	max := offsets.size()
 	txn := policy.Txn
+	errBits := batchErrorVerbosityBits(policy)
 	var versions []*uint64
 
 	// Estimate buffer size
@@ -1389,6 +1405,7 @@ func (cmd *baseCommand) setBatchOperateReadOffsets(
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 			cmd.sizeTxnBatch(txn, ver, record.BatchRec().hasWrite)
+			cmd.sizeBatchErrorVerbosity(txn, errBits)
 			if sz, err := record.size(false); err != nil {
 				return nil, err
 			} else {
@@ -1422,6 +1439,7 @@ func (cmd *baseCommand) setBatchOperateReadOffsets(
 	cmd.WriteByte(cmd.getBatchFlags(policy))
 
 	attr := &batchAttr{}
+	attr.errorDetailBits = errBits
 	prev = nil
 	verPrev = nil
 	for i := 0; i < max; i++ {
@@ -1498,6 +1516,8 @@ func (cmd *baseCommand) setBatchOperateOffsets(
 ) Error {
 	max := offsets.size()
 	txn := policy.Txn
+	errBits := batchErrorVerbosityBits(policy)
+	attr.errorDetailBits = errBits
 	var versions []*uint64
 
 	// Estimate buffer size
@@ -1555,6 +1575,7 @@ func (cmd *baseCommand) setBatchOperateOffsets(
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 			cmd.sizeTxnBatch(txn, ver, attr.hasWrite)
+			cmd.sizeBatchErrorVerbosity(txn, errBits)
 
 			if attr.sendKey && key.hasValueToSend() {
 				if sz, err := key.userKey.EstimateSize(); err != nil {
@@ -1688,6 +1709,8 @@ func (cmd *baseCommand) setBatchUDFOffsets(
 ) Error {
 	max := offsets.size()
 	txn := policy.Txn
+	errBits := batchErrorVerbosityBits(policy)
+	attr.errorDetailBits = errBits
 	var versions []*uint64
 
 	// Estimate buffer size
@@ -1741,6 +1764,7 @@ func (cmd *baseCommand) setBatchUDFOffsets(
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 			cmd.sizeTxnBatch(txn, ver, attr.hasWrite)
+			cmd.sizeBatchErrorVerbosity(txn, errBits)
 
 			if attr.sendKey && key.hasValueToSend() {
 				if sz, err := key.userKey.EstimateSize(); err != nil {
@@ -1888,6 +1912,28 @@ func (cmd *baseCommand) writeBatchOperations(
 	return nil
 }
 
+// errorVerbosityBits folds an error-detail verbosity into the info4 bits (5-6)
+// the server reads to decide whether to attach an error detail (field 45).
+//
+// Clamps before shifting: the mask alone lets a negative value through as
+// maximum verbosity ((-1 << 5) & 0x60 == 0x60 == 3).
+func errorVerbosityBits(verbosity int) int {
+	if verbosity < 0 {
+		verbosity = 0
+	} else if verbosity > 3 {
+		verbosity = 3
+	}
+	return (verbosity << _INFO4_ERROR_VERBOSITY_SHIFT) & _INFO4_ERROR_VERBOSITY_MASK
+}
+
+// batchErrorVerbosityBits returns the error-detail verbosity folded into the
+// info4 bits (5-6) the server reads per batch row to decide whether to attach a
+// per-row error detail (field 45). It is batch-wide, taken from the parent
+// BatchPolicy per the error-details design.
+func batchErrorVerbosityBits(policy *BatchPolicy) int {
+	return errorVerbosityBits(policy.ErrorDetailVerbosity)
+}
+
 func (cmd *baseCommand) writeBatchRead(
 	key *Key,
 	txn *Txn,
@@ -1896,20 +1942,27 @@ func (cmd *baseCommand) writeBatchRead(
 	filter *Expression,
 	opCount int,
 ) {
+	// info4 carries the transaction attributes and/or the error-detail verbosity
+	// bits. Emit the info4 byte whenever either is present so the server can read
+	// the per-row opt-in even for non-transaction batches.
+	info4 := byte(attr.txnAttr | attr.errorDetailBits)
+	hasInfo4 := txn != nil || info4 != 0
+
+	flags := byte(_BATCH_MSG_INFO | _BATCH_MSG_TTL)
+	if hasInfo4 {
+		flags |= _BATCH_MSG_INFO4
+	}
+	cmd.WriteByte(flags)
+	cmd.WriteByte(byte(attr.readAttr))
+	cmd.WriteByte(byte(attr.writeAttr))
+	cmd.WriteByte(byte(attr.infoAttr))
+	if hasInfo4 {
+		cmd.WriteByte(info4)
+	}
+	cmd.WriteUint32(attr.expiration)
 	if txn != nil {
-		cmd.WriteByte(_BATCH_MSG_INFO | _BATCH_MSG_INFO4 | _BATCH_MSG_TTL)
-		cmd.WriteByte(byte(attr.readAttr))
-		cmd.WriteByte(byte(attr.writeAttr))
-		cmd.WriteByte(byte(attr.infoAttr))
-		cmd.WriteByte(byte(attr.txnAttr))
-		cmd.WriteUint32(attr.expiration)
 		cmd.writeBatchFieldsTxn(key, txn, ver, attr, filter, 0, opCount)
 	} else {
-		cmd.WriteByte(_BATCH_MSG_INFO | _BATCH_MSG_TTL)
-		cmd.WriteByte(byte(attr.readAttr))
-		cmd.WriteByte(byte(attr.writeAttr))
-		cmd.WriteByte(byte(attr.infoAttr))
-		cmd.WriteUint32(attr.expiration)
 		cmd.writeBatchFieldsWithFilter(key, filter, 0, opCount)
 	}
 }
@@ -1923,22 +1976,25 @@ func (cmd *baseCommand) writeBatchWrite(
 	fieldCount,
 	opCount int,
 ) {
+	info4 := byte(attr.txnAttr | attr.errorDetailBits)
+	hasInfo4 := txn != nil || info4 != 0
+
+	flags := byte(_BATCH_MSG_INFO | _BATCH_MSG_GEN | _BATCH_MSG_TTL)
+	if hasInfo4 {
+		flags |= _BATCH_MSG_INFO4
+	}
+	cmd.WriteByte(flags)
+	cmd.WriteByte(byte(attr.readAttr))
+	cmd.WriteByte(byte(attr.writeAttr))
+	cmd.WriteByte(byte(attr.infoAttr))
+	if hasInfo4 {
+		cmd.WriteByte(info4)
+	}
+	cmd.WriteUint16(uint16(attr.generation)) // Note the reduced size of the gen field
+	cmd.WriteUint32(attr.expiration)
 	if txn != nil {
-		cmd.WriteByte(_BATCH_MSG_INFO | _BATCH_MSG_INFO4 | _BATCH_MSG_GEN | _BATCH_MSG_TTL)
-		cmd.WriteByte(byte(attr.readAttr))
-		cmd.WriteByte(byte(attr.writeAttr))
-		cmd.WriteByte(byte(attr.infoAttr))
-		cmd.WriteByte(byte(attr.txnAttr))
-		cmd.WriteUint16(uint16(attr.generation)) // Note the reduced size of the gen field
-		cmd.WriteUint32(attr.expiration)
 		cmd.writeBatchFieldsTxn(key, txn, ver, attr, filter, fieldCount, opCount)
 	} else {
-		cmd.WriteByte(_BATCH_MSG_INFO | _BATCH_MSG_GEN | _BATCH_MSG_TTL)
-		cmd.WriteByte(byte(attr.readAttr))
-		cmd.WriteByte(byte(attr.writeAttr))
-		cmd.WriteByte(byte(attr.infoAttr))
-		cmd.WriteUint16(uint16(attr.generation))
-		cmd.WriteUint32(attr.expiration)
 		cmd.writeBatchFieldsReg(key, attr, filter, fieldCount, opCount)
 	}
 }
@@ -3051,6 +3107,8 @@ func (cmd *baseCommand) writeHeaderWrite(policy *WritePolicy, writeAttr, fieldCo
 		txnAttr |= _INFO4_MRT_ON_LOCKING_ONLY
 	}
 
+	txnAttr |= errorVerbosityBits(policy.ErrorDetailVerbosity)
+
 	// if (policy.Xdr) {
 	// 	readAttr |= _INFO1_XDR;
 	// }
@@ -3119,6 +3177,8 @@ func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, args *operateA
 		txnAttr |= _INFO4_MRT_ON_LOCKING_ONLY
 	}
 
+	txnAttr |= errorVerbosityBits(policy.ErrorDetailVerbosity)
+
 	// if (policy.xdr) {
 	// 	readAttr |= _INFO1_XDR;
 	// }
@@ -3182,8 +3242,9 @@ func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, writeAttr,
 	cmd.dataBuffer[9] = byte(readAttr)
 	cmd.dataBuffer[10] = byte(writeAttr)
 	cmd.dataBuffer[11] = byte(infoAttr)
+	cmd.dataBuffer[12] = byte(errorVerbosityBits(policy.ErrorDetailVerbosity))
 
-	for i := 12; i < 18; i++ {
+	for i := 13; i < 18; i++ {
 		cmd.dataBuffer[i] = 0
 	}
 	cmd.dataOffset = 18
@@ -3217,8 +3278,9 @@ func (cmd *baseCommand) writeHeaderReadHeader(policy *BasePolicy, readAttr, fiel
 	cmd.dataBuffer[9] = byte(readAttr)
 	cmd.dataBuffer[10] = byte(0)
 	cmd.dataBuffer[11] = byte(infoAttr)
+	cmd.dataBuffer[12] = byte(errorVerbosityBits(policy.ErrorDetailVerbosity))
 
-	for i := 12; i < 18; i++ {
+	for i := 13; i < 18; i++ {
 		cmd.dataBuffer[i] = 0
 	}
 

@@ -94,6 +94,7 @@ func (cmd *batchCommandDelete) parseRecordResults(ifc command, receiveSize int) 
 		if err != nil {
 			return false, err
 		}
+		cmd.applyErrorDetail(cmd.records[batchIndex])
 
 		// The only valid server return codes are "ok" and "not found" and "filtered out".
 		// If other return codes are received, then abort the batch.
@@ -105,7 +106,7 @@ func (cmd *batchCommandDelete) parseRecordResults(ifc command, receiveSize int) 
 			}
 
 			if resultCode != types.KEY_NOT_FOUND_ERROR && resultCode != types.FILTERED_OUT {
-				return false, newCustomNodeError(cmd.node, resultCode)
+				return false, cmd.capturedServerError(resultCode)
 			}
 		}
 
@@ -207,7 +208,10 @@ func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
 				continue
 			}
 
-			return err
+			if shouldAbortBatchCommand(err) {
+				return err
+			}
+			continue
 		}
 	}
 	return nil

@@ -1075,7 +1075,7 @@ var _ = gg.Describe("Aerospike", func() {
 							resObj := resObjects[i].(*testObjectTagged)
 
 							if nsup > 0 {
-								gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+								gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 501)) // 1s leeway: client and server sample their second counters independently
 							}
 							gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
 
@@ -1239,7 +1239,7 @@ var _ = gg.Describe("Aerospike", func() {
 						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
 						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
 						if nsup > 0 {
-							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 501)) // 1s leeway: client and server sample their second counters independently
 						}
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
@@ -1305,7 +1305,7 @@ var _ = gg.Describe("Aerospike", func() {
 						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
 						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
 						if nsup > 0 {
-							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 501)) // 1s leeway: client and server sample their second counters independently
 						}
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
@@ -1343,7 +1343,7 @@ var _ = gg.Describe("Aerospike", func() {
 						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
 						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
 						if nsup > 0 {
-							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 501)) // 1s leeway: client and server sample their second counters independently
 						}
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1
@@ -1384,7 +1384,7 @@ var _ = gg.Describe("Aerospike", func() {
 						gm.Expect(resObj.PersistNot).To(gm.Equal(0))
 						gm.Expect(resObj.Gen).To(gm.BeNumerically(">", 0))
 						if nsup > 0 {
-							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 500))
+							gm.Expect(resObj.TTL).To(gm.BeNumerically("<=", 501)) // 1s leeway: client and server sample their second counters independently
 						}
 
 						testObj.PersistAsInner1 = resObj.PersistAsInner1

@@ -26,26 +26,29 @@ package aerospike
 //	BitOperation.resize("bin", 3, BitResizeFlags.DEFAULT, CTX.listIndex(0))
 //	bin result = [[0b00000001, 0b01000010, 0b00000000],[0b01011010]]
 const (
-	_CDT_BITWISE_RESIZE   = 0
-	_CDT_BITWISE_INSERT   = 1
-	_CDT_BITWISE_REMOVE   = 2
-	_CDT_BITWISE_SET      = 3
-	_CDT_BITWISE_OR       = 4
-	_CDT_BITWISE_XOR      = 5
-	_CDT_BITWISE_AND      = 6
-	_CDT_BITWISE_NOT      = 7
-	_CDT_BITWISE_LSHIFT   = 8
-	_CDT_BITWISE_RSHIFT   = 9
-	_CDT_BITWISE_ADD      = 10
-	_CDT_BITWISE_SUBTRACT = 11
-	_CDT_BITWISE_SET_INT  = 12
-	_CDT_BITWISE_GET      = 50
-	_CDT_BITWISE_COUNT    = 51
-	_CDT_BITWISE_LSCAN    = 52
-	_CDT_BITWISE_RSCAN    = 53
-	_CDT_BITWISE_GET_INT  = 54
+	_CDT_BITWISE_RESIZE     = 0
+	_CDT_BITWISE_INSERT     = 1
+	_CDT_BITWISE_REMOVE     = 2
+	_CDT_BITWISE_SET        = 3
+	_CDT_BITWISE_OR         = 4
+	_CDT_BITWISE_XOR        = 5
+	_CDT_BITWISE_AND        = 6
+	_CDT_BITWISE_NOT        = 7
+	_CDT_BITWISE_LSHIFT     = 8
+	_CDT_BITWISE_RSHIFT     = 9
+	_CDT_BITWISE_ADD        = 10
+	_CDT_BITWISE_SUBTRACT   = 11
+	_CDT_BITWISE_SET_INT    = 12
+	_CDT_BITWISE_GET        = 50
+	_CDT_BITWISE_COUNT      = 51
+	_CDT_BITWISE_LSCAN      = 52
+	_CDT_BITWISE_RSCAN      = 53
+	_CDT_BITWISE_GET_INT    = 54
+	_CDT_BITWISE_B64_ENCODE = 55
 
 	_CDT_BITWISE_INT_FLAGS_SIGNED = 1
+
+	_CDT_BITWISE_B64_FLAGS_INVERT_SIZE = 1
 )
 
 // BitResizeOp creates byte "resize" operation.
@@ -437,6 +440,48 @@ func BitGetIntOp(binName string, bitOffset int, bitSize int, signed bool, ctx ..
 	binValue := ListValue{_CDT_BITWISE_GET_INT, IntegerValue(bitOffset), IntegerValue(bitSize)}
 	if signed {
 		binValue = append(binValue, IntegerValue(_CDT_BITWISE_INT_FLAGS_SIGNED))
+	}
+	return &Operation{
+		opType:   _BIT_READ,
+		ctx:      ctx,
+		binName:  binName,
+		binValue: binValue,
+		encoder:  newCDTBitwiseEncoder,
+	}
+}
+
+// BitB64EncodeOp creates bit "base64 encode" operation.
+// Server returns the base64 text of the whole []byte bin.
+// Example:
+//
+//	bin = [0b00000001, 0b01000010]
+//	returns "AUI="
+func BitB64EncodeOp(binName string, ctx ...*CDTContext) *Operation {
+	return &Operation{
+		opType:   _BIT_READ,
+		ctx:      ctx,
+		binName:  binName,
+		binValue: ListValue{_CDT_BITWISE_B64_ENCODE},
+		encoder:  newCDTBitwiseEncoder,
+	}
+}
+
+// BitB64EncodeRangeOp creates bit "base64 encode" operation on a byte range.
+// Server returns the base64 text of []byte bin starting at byteOffset for byteSize.
+// A negative byteOffset starts backwards from the end of the bitmap.
+// When invertSize is true, byteSize counts back from the end of the bitmap, so an
+// inverted byteSize of 0 encodes through to the end.
+// Example:
+//
+//	bin = [0b00000001, 0b01000010, 0b00000011]
+//	byteOffset = 1
+//	byteSize = 2
+//	invertSize = false
+//	returns "QgM="
+func BitB64EncodeRangeOp(binName string, byteOffset int, byteSize int, invertSize bool, ctx ...*CDTContext) *Operation {
+	binValue := ListValue{_CDT_BITWISE_B64_ENCODE, IntegerValue(byteOffset), IntegerValue(byteSize)}
+	if invertSize {
+		binValue = append(binValue, IntegerValue(_CDT_BITWISE_B64_FLAGS_INVERT_SIZE))
 	}
 	return &Operation{
 		opType:   _BIT_READ,

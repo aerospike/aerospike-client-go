@@ -1,0 +1,433 @@
+// Copyright 2014-2026 Aerospike, Inc.
+//
+// Portions may be licensed to Aerospike, Inc. under one or more contributor
+// license agreements WHICH ARE COMPATIBLE WITH THE APACHE LICENSE, VERSION 2.0.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not
+// use this file except in compliance with the License. You may obtain a copy of
+// the License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations under
+// the License.
+
+package aerospike
+
+// String expression generator. Produces [Expression] nodes that read or transform
+// string values inside an Aerospike expression. Mirrors the operations exposed by
+// the StringOperation helpers (see cdt_string.go), but composes inside expressions
+// instead of being sent as standalone operate ops.
+//
+// Each builder takes a `src` expression that produces the string to operate on.
+// `src` comes first (after `policy` where present), ahead of the operands — matching
+// the StringOperation helpers rather than the bin-last order of the List/Map/Bit
+// expression builders, whose trailing CDTContext these do not take.
+// Common sources:
+//   - [ExpStringBin] — read a string bin
+//   - [ExpStringVal] — a string literal
+//   - Another StringExp expression — chains read/transform ops.
+//
+// Modify-style expressions (e.g. [ExpStringUpper], [ExpStringReplace]) return the
+// modified string value; they do not mutate the underlying bin. To persist a
+// change, write the returned value back via [ExpWriteOp] or use the
+// StringOperation helpers for direct ops.
+//
+// Index orientation is left-to-right with codepoint addressing. Negative indexes
+// count from the end of the string. Out-of-bounds indexes are clamped to the
+// valid range; no error is returned.
+//
+// Unlike the StringOperation helpers, these builders do NOT accept a
+// [CDTContext]. To apply a string expression to a value nested inside a list or
+// map, compose with the List/Map expression getters (which do take CTX) to
+// extract the leaf, then pass the resulting expression as `src`.
+//
+// String expressions require server version 8.2.0 or later.
+
+const _stringExpMODULE = 3
+
+//-----------------------------------------------------------------
+// Read expressions
+//-----------------------------------------------------------------
+
+// ExpStringLen creates an expression that returns the number of Unicode codepoints
+// in `src` as an int64. The returned value is the codepoint count, not the count
+// of user-perceived characters (grapheme clusters). For UTF-8 byte length, use
+// [ExpStringByteLength].
+func ExpStringLen(src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeINT, IntegerValue(_STR_OP_STRLEN))
+}
+
+// ExpStringSubstrFrom creates an expression that returns the substring of `src`
+// from codepoint `start` to the end. Negative `start` counts from the end of
+// the string.
+func ExpStringSubstrFrom(src *Expression, start *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeSTRING, IntegerValue(_STR_OP_SUBSTR), start)
+}
+
+// ExpStringSubstr creates an expression that returns the substring of `src` in
+// the half-open codepoint range `[start, end)`. Negative indexes count from
+// the end.
+func ExpStringSubstr(src *Expression, start *Expression, end *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeSTRING, IntegerValue(_STR_OP_SUBSTR), start, end)
+}
+
+// ExpStringCharAt creates an expression that returns the codepoint at `index`
+// of `src` as a one-codepoint string. Negative indexes count from the end.
+func ExpStringCharAt(src *Expression, index *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeSTRING, IntegerValue(_STR_OP_CHAR_AT), index)
+}
+
+// ExpStringFind creates an expression that returns the codepoint index of the
+// first occurrence of `needle` in `src`, or -1 if not found.
+func ExpStringFind(src *Expression, needle *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeINT, IntegerValue(_STR_OP_FIND), needle)
+}
+
+// ExpStringFindNth creates an expression that returns the codepoint index of
+// the `occurrence`-th match of `needle` (1 = first, -1 = last), or -1 if not
+// found.
+func ExpStringFindNth(src *Expression, needle *Expression, occurrence *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeINT, IntegerValue(_STR_OP_FIND), needle, occurrence)
+}
+
+// ExpStringContains creates an expression that tests whether `src` contains
+// `needle` as a substring. Returns a boolean.
+func ExpStringContains(src *Expression, needle *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_CONTAINS), needle)
+}
+
+// ExpStringStartsWith creates an expression that tests whether `src` begins
+// with `prefix`. Returns a boolean.
+// Matching is Unicode canonical, not byte-exact: a prefix in a different
+// normalization form than the source still matches.
+func ExpStringStartsWith(src *Expression, prefix *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_STARTS_WITH), prefix)
+}
+
+// ExpStringEndsWith creates an expression that tests whether `src` ends with
+// `suffix`. Returns a boolean.
+// Matching is Unicode canonical, not byte-exact: a suffix in a different
+// normalization form than the source still matches.
+func ExpStringEndsWith(src *Expression, suffix *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_ENDS_WITH), suffix)
+}
+
+// ExpStringToInteger creates an expression that parses `src` as an int64. A
+// source that cannot be parsed as an integer fails with
+// types.OP_NOT_APPLICABLE, subcode types.SubCodeOpNotStringConversionFailed.
+func ExpStringToInteger(src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeINT, IntegerValue(_STR_OP_TO_INTEGER))
+}
+
+// ExpStringToDouble creates an expression that parses `src` as a 64-bit float.
+// A source that cannot be parsed as a double fails with
+// types.OP_NOT_APPLICABLE, subcode types.SubCodeOpNotStringConversionFailed.
+func ExpStringToDouble(src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeFLOAT, IntegerValue(_STR_OP_TO_DOUBLE))
+}
+
+// ExpStringByteLength creates an expression that returns the UTF-8 byte length
+// of `src` as an int64. Differs from [ExpStringLen] for non-ASCII content where
+// one codepoint can encode to multiple bytes.
+func ExpStringByteLength(src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeINT, IntegerValue(_STR_OP_BYTE_LENGTH))
+}
+
+// ExpStringIsNumeric creates an expression that tests whether `src` contains a
+// valid integer or float literal. Returns a boolean.
+func ExpStringIsNumeric(src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_IS_NUMERIC))
+}
+
+// ExpStringIsNumericTyped creates an expression that tests whether `src` parses
+// as a number of the requested [StringNumericType]. Returns a boolean.
+func ExpStringIsNumericTyped(src *Expression, numericType StringNumericType) *Expression {
+	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_IS_NUMERIC), IntegerValue(int(numericType)))
+}
+
+// ExpStringIsUpper creates an expression that tests whether every cased
+// codepoint in `src` is uppercase. Returns a boolean.
+func ExpStringIsUpper(src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_IS_UPPER))
+}
+
+// ExpStringIsLower creates an expression that tests whether every cased
+// codepoint in `src` is lowercase. Returns a boolean.
+func ExpStringIsLower(src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_IS_LOWER))
+}
+
+// ExpStringToBlob creates an expression that returns the UTF-8 bytes of `src`
+// as a blob.
+func ExpStringToBlob(src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeBLOB, IntegerValue(_STR_OP_TO_BLOB))
+}
+
+// ExpStringSplit creates an expression that splits `src` by Unicode codepoint
+// — each codepoint becomes its own list element.
+func ExpStringSplit(src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeLIST, IntegerValue(_STR_OP_SPLIT))
+}
+
+// ExpStringSplitBySeparator creates an expression that splits `src` by the
+// `separator` substring. If the separator is absent, the result is a singleton
+// list containing the whole source.
+func ExpStringSplitBySeparator(src *Expression, separator *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeLIST, IntegerValue(_STR_OP_SPLIT), separator)
+}
+
+// ExpStringB64Decode creates an expression that base64-decodes `src` and
+// returns the decoded bytes as a blob. A source that is not valid base64 fails
+// with types.OP_NOT_APPLICABLE, subcode types.SubCodeOpNotStringB64Invalid.
+func ExpStringB64Decode(src *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeBLOB, IntegerValue(_STR_OP_B64_DECODE))
+}
+
+// ExpStringRegexCompare creates an expression that tests whether `pattern`
+// (ICU regex syntax) matches `src`. Returns a boolean.
+func ExpStringRegexCompare(src *Expression, pattern *Expression) *Expression {
+	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_REGEX_COMPARE), pattern)
+}
+
+// ExpStringRegexCompareWithFlags creates an expression that tests whether
+// `pattern` matches `src` under the supplied [StringRegexFlags]. Flags can be
+// combined with bitwise OR. Returns a boolean.
+func ExpStringRegexCompareWithFlags(src *Expression, pattern *Expression, regexFlags StringRegexFlags) *Expression {
+	return addStringReadExp(src, ExpTypeBOOL, IntegerValue(_STR_OP_REGEX_COMPARE), pattern, IntegerValue(int(regexFlags)))
+}
+
+//-----------------------------------------------------------------
+// Modify expressions (return the modified string; do not persist)
+//-----------------------------------------------------------------
+
+// ExpStringInsert creates an expression that splices `value` into `src` at
+// codepoint `index` and returns the resulting string. Negative indexes count
+// from the end. Does not modify the underlying bin.
+func ExpStringInsert(policy *StringPolicy, src *Expression, index *Expression, value *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_INSERT), index, value, IntegerValue(policy.flags))
+}
+
+// ExpStringOverwrite creates an expression that overwrites codepoints in `src`
+// starting at codepoint `index` with `value`, returning the resulting string.
+// Does not modify the underlying bin.
+func ExpStringOverwrite(policy *StringPolicy, src *Expression, index *Expression, value *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_OVERWRITE), index, value, IntegerValue(policy.flags))
+}
+
+// ExpStringConcat creates an expression that concatenates `values` (a list of
+// strings) onto `src` in order, returning the resulting string. Does not modify
+// the underlying bin.
+func ExpStringConcat(policy *StringPolicy, src *Expression, values *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_CONCAT), values, IntegerValue(policy.flags))
+}
+
+// ExpStringAppend creates an expression that appends `value` to the end of
+// `src` and returns the resulting string. Unicode/DBCS-aware counterpart to
+// the legacy byte-level append; does not modify the underlying bin.
+func ExpStringAppend(policy *StringPolicy, src *Expression, value *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_APPEND), value, IntegerValue(policy.flags))
+}
+
+// ExpStringPrepend creates an expression that prepends `value` to the start of
+// `src` and returns the resulting string. Unicode/DBCS-aware counterpart to
+// the legacy byte-level prepend; does not modify the underlying bin.
+func ExpStringPrepend(policy *StringPolicy, src *Expression, value *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_PREPEND), value, IntegerValue(policy.flags))
+}
+
+// ExpStringSnipFrom creates an expression that removes codepoints from `src`
+// starting at codepoint `start` through the end, returning the truncated
+// string. Does not modify the underlying bin.
+//
+// The server's snip argument list is positional — start, end, flags — so the
+// one-argument form cannot carry `policy` flags without also supplying an
+// explicit `end`. `policy` is accepted for signature parity with the rest of
+// the modify expressions; use [ExpStringSnip] when the write flags matter.
+func ExpStringSnipFrom(policy *StringPolicy, src *Expression, start *Expression) *Expression {
+	return addStringModifyExp(src, IntegerValue(_STR_OP_SNIP), start)
+}
+
+// ExpStringSnip creates an expression that removes the half-open codepoint
+// range [start, end) from `src` and returns the resulting string. Does not
+// modify the underlying bin.
+func ExpStringSnip(policy *StringPolicy, src *Expression, start *Expression, end *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_SNIP), start, end, IntegerValue(policy.flags))
+}
+
+// ExpStringReplace creates an expression that replaces the first occurrence of
+// `needle` in `src` with `replacement` and returns the resulting string. Does
+// not modify the underlying bin.
+func ExpStringReplace(policy *StringPolicy, src *Expression, needle *Expression, replacement *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_REPLACE),
+		stringExpQuotedPair(needle, replacement), IntegerValue(policy.flags))
+}
+
+// stringExpQuotedPair builds the nested [first, second] argument that the
+// replace-family string expressions require. The pair must be QUOTE-wrapped
+// (opcode 126) so the server treats it as a literal list rather than a nested
+// call — the same wrapping ExpListValueVal applies for concat. Emitting the
+// pair without the quote is what the server rejected with PARAMETER.
+func stringExpQuotedPair(first *Expression, second *Expression) *Expression {
+	return newFilterExpression(
+		&expOpQUOTED, ValueArray{first.val, second.val}, nil, nil, nil, nil)
+}
+
+// ExpStringReplaceAll creates an expression that replaces every occurrence of
+// `needle` in `src` with `replacement` and returns the resulting string. Does
+// not modify the underlying bin.
+func ExpStringReplaceAll(policy *StringPolicy, src *Expression, needle *Expression, replacement *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_REPLACE_ALL),
+		stringExpQuotedPair(needle, replacement), IntegerValue(policy.flags))
+}
+
+// ExpStringUpper creates an expression that returns `src` uppercased. Does not
+// modify the underlying bin.
+func ExpStringUpper(policy *StringPolicy, src *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_UPPER), IntegerValue(policy.flags))
+}
+
+// ExpStringLower creates an expression that returns `src` lowercased. Does not
+// modify the underlying bin.
+func ExpStringLower(policy *StringPolicy, src *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_LOWER), IntegerValue(policy.flags))
+}
+
+// ExpStringCaseFold creates an expression that returns `src` case-folded
+// (locale-independent lowercase). Useful for normalized comparison keys. Does
+// not modify the underlying bin.
+func ExpStringCaseFold(policy *StringPolicy, src *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_CASE_FOLD), IntegerValue(policy.flags))
+}
+
+// ExpStringNormalizeNFC creates an expression that returns `src` normalized to
+// Unicode NFC form. Already-normalized strings are unchanged. Does not modify
+// the underlying bin.
+func ExpStringNormalizeNFC(policy *StringPolicy, src *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_NORMALIZE_NFC), IntegerValue(policy.flags))
+}
+
+// ExpStringTrimStart creates an expression that returns `src` with whitespace
+// removed from the start. Does not modify the underlying bin.
+func ExpStringTrimStart(policy *StringPolicy, src *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_TRIM_START), IntegerValue(policy.flags))
+}
+
+// ExpStringTrimEnd creates an expression that returns `src` with whitespace
+// removed from the end. Does not modify the underlying bin.
+func ExpStringTrimEnd(policy *StringPolicy, src *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_TRIM_END), IntegerValue(policy.flags))
+}
+
+// ExpStringTrim creates an expression that returns `src` with whitespace
+// removed from both ends. Does not modify the underlying bin.
+func ExpStringTrim(policy *StringPolicy, src *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_TRIM), IntegerValue(policy.flags))
+}
+
+// ExpStringPadStart creates an expression that prepends `padString` to `src`
+// repeatedly until the result reaches `targetLength` codepoints. No-op when
+// the source is already at or above the target length. Does not modify the
+// underlying bin.
+func ExpStringPadStart(policy *StringPolicy, src *Expression, targetLength *Expression, padString *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_PAD_START), targetLength, padString, IntegerValue(policy.flags))
+}
+
+// ExpStringPadEnd creates an expression that appends `padString` to `src`
+// repeatedly until the result reaches `targetLength` codepoints. No-op when
+// the source is already at or above the target length. Does not modify the
+// underlying bin.
+func ExpStringPadEnd(policy *StringPolicy, src *Expression, targetLength *Expression, padString *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_PAD_END), targetLength, padString, IntegerValue(policy.flags))
+}
+
+// ExpStringRepeat creates an expression that returns `src` repeated `count`
+// times. Does not modify the underlying bin.
+func ExpStringRepeat(policy *StringPolicy, src *Expression, count *Expression) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	return addStringModifyExp(src, IntegerValue(_STR_OP_REPEAT), count, IntegerValue(policy.flags))
+}
+
+// ExpStringRegexReplace creates an expression that replaces matches of `pattern`
+// (ICU regex syntax) in `src` with `replacement` and returns the resulting
+// string. Pass [StringRegexGlobal] to replace every match. Flag values may be
+// combined with bitwise OR. Does not modify the underlying bin.
+//
+// The [StringWriteDefault], [StringWriteUpdateOnly] and [StringWriteNoFail] write
+// flags apply to this expression; [StringWriteCreateOnly] is rejected by the
+// server. [StringWriteNoFail] also suppresses a regex-compile failure.
+func ExpStringRegexReplace(policy *StringPolicy, src *Expression, pattern *Expression, replacement *Expression, regexFlags StringRegexFlags) *Expression {
+	policy = stringPolicyOrDefault(policy)
+	// The regex flags occupy their own slot ahead of the policy flags, so both
+	// must be sent even when one of them is zero.
+	return addStringModifyExp(src, IntegerValue(_STR_OP_REGEX_REPLACE),
+		stringExpQuotedPair(pattern, replacement), IntegerValue(int(regexFlags)),
+		IntegerValue(policy.flags))
+}
+
+//-----------------------------------------------------------------
+// Type conversion expression
+//-----------------------------------------------------------------
+
+// ExpStringToString creates an expression that returns the string representation
+// of `src`, where `src` may be any expression yielding an integer, float, bool,
+// string, or blob value. Returns AEROSPIKE_ERR_INCOMPATIBLE_TYPE for any other
+// source type. A blob source that is not valid UTF-8 fails with
+// types.OP_NOT_APPLICABLE, subcode types.SubCodeOpNotStringUTF8Invalid.
+func ExpStringToString(src *Expression) *Expression {
+	// Dedicated TO_STRING opcode (99), encoded as [99, bin]. The prior
+	// CALL_REPR (module 4) shape was rejected by the server with PARAMETER.
+	// Mirrors aerospike-client-c CLIENT-5164 (PR #228).
+	return &Expression{
+		cmd: &expOpTO_STRING,
+		bin: src,
+	}
+}
+
+//-----------------------------------------------------------------
+// Internals
+//-----------------------------------------------------------------
+
+func addStringReadExp(src *Expression, retType ExpType, args ...ExpressionArgument) *Expression {
+	flags := int64(_stringExpMODULE)
+	return &Expression{
+		cmd:       &expOpCALL,
+		val:       nil,
+		bin:       src,
+		flags:     &flags,
+		module:    &retType,
+		exps:      nil,
+		arguments: args,
+	}
+}
+
+func addStringModifyExp(src *Expression, args ...ExpressionArgument) *Expression {
+	flags := int64(_stringExpMODULE | _MODIFY)
+	return &Expression{
+		cmd:       &expOpCALL,
+		val:       nil,
+		bin:       src,
+		flags:     &flags,
+		module:    &ExpTypeSTRING,
+		exps:      nil,
+		arguments: args,
+	}
+}

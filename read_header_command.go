@@ -59,17 +59,15 @@ func (cmd *readHeaderCommand) parseResult(ifc command, conn *Connection) Error {
 
 	if rp.resultCode == 0 {
 		cmd.record = newRecord(cmd.node, cmd.key, nil, rp.generation, rp.expiration)
-	} else {
-		switch rp.resultCode {
-		case types.KEY_NOT_FOUND_ERROR:
-			cmd.record = nil
-		case types.FILTERED_OUT:
-			return ErrFilteredOut.err()
-		default:
-			return newError(rp.resultCode)
-		}
+		return nil
 	}
-	return nil
+
+	if rp.resultCode == types.KEY_NOT_FOUND_ERROR {
+		cmd.record = nil
+		return nil
+	}
+
+	return newServerError(rp.resultCode, rp.serverMessage, rp.serverSubcode, rp.expTrace)
 }
 
 func (cmd *readHeaderCommand) GetRecord() *Record {

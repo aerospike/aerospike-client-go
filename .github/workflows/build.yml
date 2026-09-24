@@ -20,7 +20,7 @@ jobs:
       go-version: ${{ steps.get-go-version.outputs.go-version }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -54,12 +54,13 @@ jobs:
     permissions:
       id-token: write
       actions: write
+      checks: write
     strategy:
       matrix:
         include: ${{ fromJson(needs.make-matrix.outputs.input-matrix) }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -80,15 +81,18 @@ jobs:
           go install github.com/onsi/ginkgo/v2/ginkgo@v2.22.2
           go mod download github.com/wadey/gocovmerge
 
+          # Install gotestsum to run the examples via `go test` and produce a JUnit report
+          go install gotest.tools/gotestsum@v1.12.3
+
           # Vendor the dependencies
           go mod vendor
       - name: Display Go version
         run: |
           echo "Go version: ${{ matrix.go-version }}"
       - name: Set up Aerospike Database
-        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@f13fdc6f6e89031e402e8fd68b9c218ed19ceb7e
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@b4b1e9dc89314a2d542f9d6fe0ee150ad06f9860 # v5.0.0
         with:
-          aerospike-version: ${{ matrix.version }}
+          server-tag: ${{ matrix.version }}
           num-nodes: 1
           enable-strong-consistency: ${{ matrix.mode == 'SC' }}
           features-content: ${{ secrets.FEATURES_CONF }}
@@ -114,7 +118,7 @@ jobs:
         run: cd tools/cli | go build -mod=vendor -o cli .
       - name: Build example files
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
-        run: find examples -name "*.go" -type f -print0 | xargs -0 -n1 go build
+        run: go build ./examples/...
       - name: Build with Reflection code removed
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo build -tags="as_performance" .
@@ -124,6 +128,16 @@ jobs:
       - name: Run the tests
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo -output-dir=./ -coverprofile=covprofile_native.out -covermode=atomic -coverpkg=./... -race -keep-going -succinct -randomize-suites -skip="HyperLogLog"
+      - name: Example Run
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
+        run: gotestsum --junitfile example-results.xml --format testname -- ./examples -run TestExamples
+      - name: Publish Example Run results
+        if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && hashFiles('example-results.xml') != '' }}
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
+        with:
+          check_name: "Example Run (${{ matrix.version }}-${{ matrix.mode }})"
+          comment_mode: off
+          files: example-results.xml
       - name: Combine Cover Profiles
         env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
         run: go run -mod=vendor github.com/wadey/gocovmerge covprofile_*.out > cover_all.out

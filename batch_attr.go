@@ -24,6 +24,12 @@ type batchAttr struct {
 	generation uint32
 	hasWrite   bool
 	sendKey    bool
+
+	// errorDetailBits is the error-detail verbosity folded into info4 bits 5-6
+	// (see _INFO4_ERROR_VERBOSITY_*). It is batch-wide, taken from the parent
+	// BatchPolicy, and OR'd into each row's info4 by writeBatchRead/writeBatchWrite.
+	// The set* methods never touch it, so it survives per-row reuse of the attr.
+	errorDetailBits int
 }
 
 func newBatchAttr(policy *BatchPolicy, rattr int) *batchAttr {

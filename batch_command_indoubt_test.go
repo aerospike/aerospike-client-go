@@ -236,6 +236,31 @@ var _ = gg.Describe("Batch multi-key write in-doubt propagation (CLIENT-5000)", 
 		})
 	})
 
+	// batchIndexCommandGet embeds batchCommandOperate but keeps its records in
+	// its own []*BatchRead field; newBatchIndexCommandGet leaves the embedded
+	// records slice nil, which is why the type overrides generateBatchNodes and
+	// nsIter. Without an inDoubt override too, a split retry's setInDoubt reaches
+	// the promoted batchCommandOperate.inDoubt and indexes that nil slice with
+	// this subcommand's offsets, panicking with "index out of range".
+	gg.Context("batchIndexCommandGet (batch read)", func() {
+		gg.It("never marks reads in-doubt and does not touch the embedded nil records slice", func() {
+			records := []*BatchRead{
+				NewBatchRead(nil, mkKey(0), []string{"a"}),
+				NewBatchRead(nil, mkKey(1), []string{"a"}),
+				NewBatchRead(nil, mkKey(2), []string{"a"}),
+			}
+
+			cmd := newBatchIndexCommandGet(nil, &batchNode{offsets: []int{1, 2}}, NewBatchPolicy(), records, true)
+
+			cmd.setInDoubt(&cmd)
+
+			for i, br := range records {
+				gm.Expect(br.InDoubt).To(gm.BeFalse(), "read %d must never be in-doubt", i)
+				gm.Expect(br.ResultCode).To(gm.Equal(types.NO_RESPONSE), "read %d must be left untouched", i)
+			}
+		})
+	})
+
 	// CLIENT-5000 bug #1: retryBatch sets the parent's splitRetry=true before
 	// cloning subcommands, and cloneBatchCommand is a shallow copy, so each clone
 	// inherits splitRetry=true and its own setInDoubt becomes a no-op. clearSplitRetry

@@ -135,7 +135,9 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 			if resultCode == types.FILTERED_OUT {
 				cmd.filteredOutCnt++
 			} else {
-				return false, newCustomNodeError(cmd.node, resultCode)
+				// This aborts before the field walk below, so walk here to
+				// carry any field-45 detail rather than discard it.
+				return false, cmd.serverErrorWithDetail(resultCode, fieldCount)
 			}
 		}
 

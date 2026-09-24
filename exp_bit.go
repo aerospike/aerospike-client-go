@@ -16,26 +16,28 @@ package aerospike
 
 const bitwiseMODULE = 1
 const bitwiseINT_FLAGS_SIGNED = 1
+const bitwiseB64_FLAGS_INVERT_SIZE = 1
 
 const (
-	_BitExpOpRESIZE   = 0
-	_BitExpOpINSERT   = 1
-	_BitExpOpREMOVE   = 2
-	_BitExpOpSET      = 3
-	_BitExpOpOR       = 4
-	_BitExpOpXOR      = 5
-	_BitExpOpAND      = 6
-	_BitExpOpNOT      = 7
-	_BitExpOpLSHIFT   = 8
-	_BitExpOpRSHIFT   = 9
-	_BitExpOpADD      = 10
-	_BitExpOpSUBTRACT = 11
-	_BitExpOpSETINT   = 12
-	_BitExpOpGET      = 50
-	_BitExpOpCOUNT    = 51
-	_BitExpOpLSCAN    = 52
-	_BitExpOpRSCAN    = 53
-	_BitExpOpGETINT   = 54
+	_BitExpOpRESIZE    = 0
+	_BitExpOpINSERT    = 1
+	_BitExpOpREMOVE    = 2
+	_BitExpOpSET       = 3
+	_BitExpOpOR        = 4
+	_BitExpOpXOR       = 5
+	_BitExpOpAND       = 6
+	_BitExpOpNOT       = 7
+	_BitExpOpLSHIFT    = 8
+	_BitExpOpRSHIFT    = 9
+	_BitExpOpADD       = 10
+	_BitExpOpSUBTRACT  = 11
+	_BitExpOpSETINT    = 12
+	_BitExpOpGET       = 50
+	_BitExpOpCOUNT     = 51
+	_BitExpOpLSCAN     = 52
+	_BitExpOpRSCAN     = 53
+	_BitExpOpGETINT    = 54
+	_BitExpOpB64ENCODE = 55
 )
 
 // ExpBitResize creates an expression that resizes []byte to byteSize according to resizeFlags
@@ -391,6 +393,37 @@ func ExpBitGetInt(
 	}
 
 	return expBitAddRead(bin, ExpTypeINT, args)
+}
+
+// ExpBitB64Encode creates an expression that returns the base64 text of the whole []byte bin.
+func ExpBitB64Encode(bin *Expression) *Expression {
+	args := []ExpressionArgument{
+		IntegerValue(_BitExpOpB64ENCODE),
+	}
+
+	return expBitAddRead(bin, ExpTypeSTRING, args)
+}
+
+// ExpBitB64EncodeRange creates an expression that returns the base64 text of []byte bin
+// starting at byteOffset for byteSize.
+// When invertSize is true, byteSize counts back from the end of the bitmap, so an
+// inverted byteSize of 0 encodes through to the end.
+func ExpBitB64EncodeRange(
+	byteOffset *Expression,
+	byteSize *Expression,
+	invertSize bool,
+	bin *Expression,
+) *Expression {
+	args := []ExpressionArgument{
+		IntegerValue(_BitExpOpB64ENCODE),
+		byteOffset,
+		byteSize,
+	}
+	if invertSize {
+		args = append(args, IntegerValue(bitwiseB64_FLAGS_INVERT_SIZE))
+	}
+
+	return expBitAddRead(bin, ExpTypeSTRING, args)
 }
 
 func expBitAddWrite(bin *Expression, arguments []ExpressionArgument) *Expression {
