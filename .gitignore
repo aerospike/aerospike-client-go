@@ -18,7 +18,6 @@ PLAN.todo
 .travis/badwan.ldif
 .travis/access.ldif
 tools/
-cmd/
 .revive.toml
 Makefile
 testdata/
