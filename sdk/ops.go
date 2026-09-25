@@ -17,6 +17,14 @@ func DeleteOp(keys ...*as.Key) WriteOp {
 	return WriteOp{}
 }
 
+// TouchOp is named explicitly in the PRD's own §10.5 table ("Touch builder
+// ... multi-key → TouchOp in BatchWrite") but was missing here — every
+// other op constructor it names (UpsertOp, DeleteOp, UpdateOp) was already
+// present. Added to match; not a new invention.
+func TouchOp(keys ...*as.Key) WriteOp {
+	return WriteOp{}
+}
+
 func UpdateOp(keys ...*as.Key) WriteOp {
 	return WriteOp{}
 }
