@@ -9,6 +9,7 @@ permissions:
 
 env:
   AEROSPIKE_HOSTS: "127.0.0.1:3000"
+  AEROSPIKE_VERSION: "8.1.2.0"
 
 jobs:
   make-matrix:
@@ -34,7 +35,7 @@ jobs:
         with:
           default_json: |
             {
-              "8.1.2.0": { "version": "8.1.2.0" }
+              "${{ env.AEROSPIKE_VERSION }}": { "version": "${{ env.AEROSPIKE_VERSION }}" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
           modes: ${{ github.actor == 'dependabot[bot]' && 'AP' || 'AP,SC' }}
@@ -170,8 +171,8 @@ jobs:
     timeout-minutes: 20
     runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
     permissions:
+      contents: read
       id-token: write
-      actions: write
     env:
       GODEBUG: fips140=only
       GOFIPS140: latest
@@ -200,7 +201,7 @@ jobs:
       - name: Set up Aerospike Database
         uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@b4b1e9dc89314a2d542f9d6fe0ee150ad06f9860 # v5.0.0
         with:
-          server-tag: "8.1.2.0"
+          server-tag: ${{ env.AEROSPIKE_VERSION }}
           num-nodes: 1
           enable-strong-consistency: false
           features-content: ${{ secrets.FEATURES_CONF }}
