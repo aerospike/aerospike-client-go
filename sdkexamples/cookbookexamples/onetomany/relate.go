@@ -19,18 +19,26 @@ import (
 // BeginTransaction/Commit/Rollback path (which doesn't correspond to
 // anything the real SDK provides).
 //
-// GAP (corrected — see sdk/FUNCTIONAL_GAPS.md #15): the cookbook's own
+// GAP (see sdk/FUNCTIONAL_GAPS.md #15, #25): the cookbook's own
 // listAppend(id, opts -> opts.addUnique().allowFailures()) call doesn't
 // exist in any current Java source (checked both the core SDK and the
 // mapper library directly) — that specific method is as stale as the
-// TypedDataSet rename this package's doc comment already flags. But the
-// underlying capability is real and current, just under different names:
-// Java's cdt.ListWriteFlags (ADD_UNIQUE/NO_FAIL) wrapped in a ListPolicy,
-// matched exactly by Go's own classic client (as.NewListPolicy,
-// as.ListWriteFlagsAddUnique, in cdt_list.go) — sdk/ already wraps that
-// package. The real, narrower gap is that ListAppendItems(items []any)
-// (sdk/writesegmentbuilder.go) has no parameter to pass an as.ListPolicy
-// through to it. This call will add the id unconditionally.
+// TypedDataSet rename this package's doc comment already flags. The
+// underlying capability (Java's cdt.ListWriteFlags/ListPolicy,
+// ADD_UNIQUE/NO_FAIL) is real and current, matched by Go's classic
+// client (as.NewListPolicy, as.ListWriteFlagsAddUnique) — but there's no
+// PRD-grounded sdk/ method to invoke it through anymore:
+// WriteBinBuilder.ListAppendItems (the method this call used to go
+// through) was removed entirely — it was never named anywhere in
+// sdk/PRD.md (finding #25), so there's no atomic CDT list-append at all
+// in sdk/ now, unconditional or otherwise.
+//
+// Worked around here with the only PRD-grounded alternative: read the
+// agent's current listing-id list, append client-side, then Set(name, v)
+// the whole bin back — not atomic in the CDT sense (a concurrent AddListing
+// on the same agent could race), but RunInTransaction's MRT wrapping
+// around the read+write below is what actually keeps this consistent, not
+// a CDT-level guarantee either way.
 func (s *Service) AddListing(ctx context.Context, agentID int64, listing Listing) error {
 	listing.AgentID = agentID
 	listingKey := sdk.Key(s.listingDS.DataSet(), listing.ID)
@@ -45,8 +53,18 @@ func (s *Service) AddListing(ctx context.Context, agentID int64, listing Listing
 			return fmt.Errorf("put listing %s: %w", listing.ID, err)
 		}
 
+		record, err := tx.Get(ctx, agentKey, []string{agentListingsBin})
+		if err != nil {
+			return fmt.Errorf("get agent %d: %w", agentID, err)
+		}
+		agent, err := sdk.Decode[Agent](record)
+		if err != nil {
+			return fmt.Errorf("decode agent %d: %w", agentID, err)
+		}
+		listingIDs := append(agent.ListingIDs, listing.ID)
+
 		if _, err := tx.Update(ctx, agentKey).
-			OnBin(agentListingsBin).ListAppendItems([]any{listing.ID}).
+			Set(agentListingsBin, listingIDs).
 			ExecuteOne(); err != nil {
 			return fmt.Errorf("append listing %s to agent %d: %w", listing.ID, agentID, err)
 		}

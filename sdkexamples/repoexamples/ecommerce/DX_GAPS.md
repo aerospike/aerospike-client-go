@@ -4,6 +4,18 @@ Individual gaps are documented inline (`grep -rn "DX GAP" *.go`) at the
 call site where they bite. This file is the one cross-cutting finding that
 ties most of them together.
 
+## Building a computed background-scan write requires the classic client's own API
+
+`products.go`'s `ApplySalePrices` builds its conditional sale-price
+expression and background write op with `as.ExpAnd`/`as.ExpCond`/
+`as.ExpGreater`/`as.ExpIntBin`/.../`as.ExpWriteOp` — none of these
+classic-client constructor functions is named anywhere in `sdk/PRD.md`.
+The PRD names `*as.Operation`/`*as.Expression` as parameter types
+(`WithWriteOperations(ops ...*as.Operation)`) but never documents how to
+build a non-trivial value of either. Same root issue as
+`sdktestexamples/listexp` (`sdk/FUNCTIONAL_GAPS.md` finding #26) — not
+unique to this package, just the first place it was noticed.
+
 ## Stream/task ceremony is glued into almost every method
 
 Numbers, not a vibe: every file in this package touches stream or task

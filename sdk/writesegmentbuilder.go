@@ -201,79 +201,20 @@ func (b *WriteBinBuilder) OnListIndexRange(begin, count int) *CDTNavBuilder {
 	return nil
 }
 
-// -- Map/list whole-collection ops --
-
-func (b *WriteBinBuilder) MapUpsertItems(items map[any]any) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) MapSize() *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) MapSetPolicy(policy any) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) MapClear() *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListAppendItems(items []any) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListTrim(begin, count int) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListSort() *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListSize() *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListSet(index int, v any) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListRemoveRange(begin, count int) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListRemove(index int) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListPop(index int) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListInsertItems(index int, items []any) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListInsert(index int, v any) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListIncrement(index int, delta any) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListGet(index int) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListGetRange(begin, count int) *WriteSegmentBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) ListClear() *WriteSegmentBuilder {
-	return nil
-}
+// GAP: WriteBinBuilder previously had 18 "whole-collection" list/map
+// methods here (MapUpsertItems, MapSize, MapSetPolicy, MapClear,
+// ListAppendItems, ListTrim, ListSort, ListSize, ListSet, ListRemoveRange,
+// ListRemove, ListPop, ListInsertItems, ListInsert, ListIncrement,
+// ListGet, ListGetRange, ListClear) — removed: none of them is named
+// anywhere in sdk/PRD.md, and §10.15 (the PRD's own CDT catalog)
+// positively enumerates what it keeps (navigation methods, terminals,
+// SetTo/Insert/Update/Add at a navigated position) without including any
+// of these flat, un-navigated list/map operations. Unlike HLL/bitwise/
+// string, which the same section explicitly blanket-keeps ("Keep the
+// complete alpha set"), list/map gets no equivalent clause. See
+// sdk/FUNCTIONAL_GAPS.md finding #25 for the full audit trail — this was
+// pre-existing stub surface, not something added this session, but it had
+// never been checked against the PRD until a user question prompted it.
 
 // -- Path expressions (server 8.1.1+) --
 

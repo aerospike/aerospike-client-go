@@ -4,13 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	as "github.com/aerospike/aerospike-client-go/v8"
 	sdk "github.com/aerospike/aerospike-client-go/v8/sdk"
 )
 
 // UpdatePlayerScore sets a player's score on both the player record and
 // the scoreboard's bucketed map, inside one transaction — pass oldScore
 // < 0 for a brand-new leaderboard entry (nothing to remove yet).
+//
+// GAP: every bucket write here used to call
+// OnBin(scoreboardBin).MapSetPolicy(as.MapOrder.KEY_ORDERED) first, to
+// request the map be stored key-ordered — required for
+// GetScoresAroundPlayer's relative-range read below to make sense at
+// all. WriteBinBuilder.MapSetPolicy has since been removed entirely (it
+// was never PRD-grounded, sdk/FUNCTIONAL_GAPS.md finding #25) — there is
+// now no PRD-grounded way to request map ordering at all (findings #15,
+// #22 also apply: no ListPolicy/MapPolicy plumbing, no
+// AerospikeMap-style typed wrapper either). The inserts below no longer
+// request KEY_ORDERED at all; whether the server still stores this map
+// key-ordered by some other default is not something sdk/ can express or
+// verify either way.
 func (s *Service) UpdatePlayerScore(ctx context.Context, playerID, oldScore, newScore int64) error {
 	newBucketKey := sdk.Key(s.scoreboardDS, bucketForScore(newScore))
 	newMapKey := mapKey(playerID, newScore)
@@ -18,7 +30,6 @@ func (s *Service) UpdatePlayerScore(ctx context.Context, playerID, oldScore, new
 	return s.session.RunInTransaction(ctx, func(tx *sdk.Session) error {
 		if oldScore < 0 {
 			if _, err := tx.Upsert(ctx, newBucketKey).
-				OnBin(scoreboardBin).MapSetPolicy(as.MapOrder.KEY_ORDERED).
 				OnBin(scoreboardBin).OnMapKey(newMapKey).Insert(playerID).
 				ExecuteOne(); err != nil {
 				return fmt.Errorf("insert new scoreboard entry for player %d: %w", playerID, err)
@@ -28,7 +39,6 @@ func (s *Service) UpdatePlayerScore(ctx context.Context, playerID, oldScore, new
 			if bucketForScore(newScore) == bucketForScore(oldScore) {
 				if _, err := tx.Upsert(ctx, newBucketKey).
 					OnBin(scoreboardBin).OnMapKey(oldMapKey).Remove().
-					OnBin(scoreboardBin).MapSetPolicy(as.MapOrder.KEY_ORDERED).
 					OnBin(scoreboardBin).OnMapKey(newMapKey).Insert(playerID).
 					ExecuteOne(); err != nil {
 					return fmt.Errorf("move scoreboard entry for player %d within bucket: %w", playerID, err)
@@ -41,7 +51,6 @@ func (s *Service) UpdatePlayerScore(ctx context.Context, playerID, oldScore, new
 					return fmt.Errorf("remove old scoreboard entry for player %d: %w", playerID, err)
 				}
 				if _, err := tx.Upsert(ctx, newBucketKey).
-					OnBin(scoreboardBin).MapSetPolicy(as.MapOrder.KEY_ORDERED).
 					OnBin(scoreboardBin).OnMapKey(newMapKey).Insert(playerID).
 					ExecuteOne(); err != nil {
 					return fmt.Errorf("insert new scoreboard entry for player %d in new bucket: %w", playerID, err)

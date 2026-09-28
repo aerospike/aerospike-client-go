@@ -108,6 +108,13 @@ func (s *Service) RecordProductRatings(ctx context.Context) error {
 // documented mechanism for attaching a write to a background scan, so the
 // conditional sale price below is built with the root package's own
 // expression builders (ExpCond/ExpWriteOp/...) instead.
+//
+// GAP: every as.Exp* name below (ExpAnd/ExpCond/ExpGreater/ExpGreaterEq/
+// ExpIntBin/ExpIntVal/ExpLessEq/ExpNumDiv/ExpNumMul/ExpWriteFlagDefault/
+// ExpWriteOp) is a classic-client constructor function, not sdk/-native —
+// the PRD names *as.Operation/*as.Expression as parameter types but never
+// documents any function that builds one. sdk/FUNCTIONAL_GAPS.md
+// finding #26.
 func (s *Service) ApplySalePrices(ctx context.Context) error {
 	eightyPercent := as.ExpNumDiv(as.ExpNumMul(as.ExpIntBin(productPriceBin), as.ExpIntVal(8)), as.ExpIntVal(10))
 	ninetyPercent := as.ExpNumDiv(as.ExpNumMul(as.ExpIntBin(productPriceBin), as.ExpIntVal(9)), as.ExpIntVal(10))

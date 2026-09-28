@@ -23,6 +23,13 @@ import (
 // where("$.state == 'nsw'") clause plus a computed upsertFrom
 // expression) — left out here since Customer has no "state" field to
 // filter on, not because of a gap.
+//
+// GAP: as.AddOp/as.NewBin are classic-client constructor functions, not
+// sdk/-native — WithWriteOperations(ops ...*as.Operation) (10.8) names
+// the *as.Operation type but never says how to build one, and the PRD
+// itself only ever shows this exact pattern once, in its own §10.8 Look
+// example (as.PutOp(as.NewBin(...))), never as a documented, generalized
+// convention. sdk/FUNCTIONAL_GAPS.md finding #26.
 func (s *Service) DemonstrateBackgroundTask(ctx context.Context, id int64) error {
 	task, err := s.session.Query(ctx, s.customerDS.DataSet()).
 		WithWriteOperations(as.AddOp(as.NewBin(customerAgeBin, 1))).

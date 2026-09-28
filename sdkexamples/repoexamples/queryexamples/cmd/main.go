@@ -1,10 +1,11 @@
 // Command queryexamples runs the query/CDT/concurrency-control examples
 // end to end. Currently: demonstrate the built-in Behavior presets, list
-// namespaces and their stats, seed one customer, exercise the top-level
-// list/map CDT mutation vocabulary, page through sorted results,
-// throttle/chunk a scan, project a bin under an alias, run background
-// task/delete/touch scans, demonstrate TTL expiration, run a filtered
-// query, then round-trip a typed object with a nested struct.
+// namespaces and their stats, seed one customer, page through sorted
+// results, throttle/chunk a scan, project a bin under an alias, run
+// background task/delete/touch scans, demonstrate TTL expiration, run a
+// filtered query, then round-trip a typed object with a nested struct.
+// (Top-level list/map CDT mutation is no longer demonstrated here — see
+// cdt.go.)
 package main
 
 import (
@@ -80,11 +81,6 @@ func run(ctx context.Context) error {
 
 	const customerID = int64(999)
 	if err := svc.SeedCustomer(ctx, queryexamples.Customer{ID: customerID, Name: "Sample", Age: 30}); err != nil {
-		return err
-	}
-
-	const cdtTestID = int64(500)
-	if err := svc.DemonstrateListMapOperations(ctx, cdtTestID); err != nil {
 		return err
 	}
 
