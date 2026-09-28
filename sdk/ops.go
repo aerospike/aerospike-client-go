@@ -29,9 +29,14 @@ func UpdateOp(keys ...*as.Key) WriteOp {
 	return WriteOp{}
 }
 
-func InsertOp(keys ...*as.Key) WriteOp {
-	return WriteOp{}
-}
+// GAP: InsertOp previously lived here as a batch-op counterpart to the
+// single-key Insert(ctx, key) write verb — removed: sdk/PRD.md's §10.5
+// table names UpsertOp/DeleteOp/UpdateOp explicitly (and TouchOp via a
+// second, separate mention), but never InsertOp, not even via the
+// table's trailing "…". Same invented-by-symmetry reasoning already
+// ruled out elsewhere (sdk/FUNCTIONAL_GAPS.md finding #27). A batch
+// insert-only op has no PRD-grounded spelling in sdk/ until the PRD
+// names one.
 
 func (op WriteOp) Set(name string, v any) WriteOp {
 	return op

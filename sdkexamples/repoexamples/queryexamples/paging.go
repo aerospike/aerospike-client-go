@@ -8,13 +8,13 @@ import (
 )
 
 // DemonstrateSortedPaging scans customers, sorts them client-side (age
-// descending, then name ascending), pages through the results, then
-// re-sorts by name alone and pages through again — the PRD's
-// NavigatableStream vocabulary (10.14) in full: IntoNavigatable, SortBy
+// descending, then name descending as a tiebreaker), pages through the
+// results, then re-sorts by name alone and pages through again — the
+// PRD's NavigatableStream vocabulary (10.14): IntoNavigatable, SortBy
 // (variadic, so multi-field sort is real), PageSize, HasMorePages,
 // HasNext, Next.
 //
-// GAP: three things the source Java example does have no PRD equivalent:
+// GAP: four things the source Java example does have no PRD equivalent:
 //  1. NavigatableStream isn't a Closer — no Close() method exists at all,
 //     unlike ReadStream/WriteStream (D-17). Java treats its navigable
 //     stream as a try-with-resources Closeable. Whether the underlying
@@ -25,9 +25,13 @@ import (
 //  2. Jumping to a specific page number (Java: navStream.setPageTo(2)) —
 //     no equivalent method exists; only forward iteration via
 //     HasMorePages/HasNext/Next is defined.
-//  3. Case-insensitive ascending sort (Java:
-//     SortProperties.ascendingIgnoreCase("name")) — only plain Asc/Desc
-//     exist, no case-insensitivity option.
+//  3. Ascending sort at all (Java: SortProperties.ascending("name") /
+//     ascendingIgnoreCase("name")) — sdk.Asc used to exist here as Desc's
+//     symmetric counterpart, but it was never actually named anywhere in
+//     sdk/PRD.md (only Desc is, in the §10.14 Look example) — removed
+//     (sdk/FUNCTIONAL_GAPS.md finding #27). Every sort below is
+//     descending-only until the PRD names an ascending spelling; the
+//     case-insensitivity variant was already unreachable regardless.
 func (s *Service) DemonstrateSortedPaging(ctx context.Context) error {
 	stream, err := s.session.Scan(ctx, s.customerDS.DataSet()).
 		Limit(13).
@@ -40,13 +44,13 @@ func (s *Service) DemonstrateSortedPaging(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("get navigatable stream: %w", err)
 	}
-	nav.SortBy(sdk.Desc(customerAgeBin), sdk.Asc(customerNameBin)).PageSize(5)
+	nav.SortBy(sdk.Desc(customerAgeBin), sdk.Desc(customerNameBin)).PageSize(5)
 
 	if err := printPages(nav, "page"); err != nil {
 		return err
 	}
 
-	nav.SortBy(sdk.Asc(customerNameBin))
+	nav.SortBy(sdk.Desc(customerNameBin))
 	return printPages(nav, "re-sorted page")
 }
 

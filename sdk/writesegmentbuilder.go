@@ -175,13 +175,16 @@ func (b *WriteBinBuilder) OnMapKeyRange(begin, end any) *CDTNavBuilder {
 	return nil
 }
 
-func (b *WriteBinBuilder) OnMapValueRange(begin, end any) *CDTNavBuilder {
-	return nil
-}
-
-func (b *WriteBinBuilder) OnMapKeyRelativeIndexRange(key any, offset, count int) *CDTNavBuilder {
-	return nil
-}
+// GAP: OnMapValueRange and OnMapKeyRelativeIndexRange previously lived
+// here — removed: sdk/PRD.md §10.15's own text only ever names
+// OnMapKeyRange and OnListIndexRange concretely as its "range/list/
+// relative forms" examples, trailing off with "…" — the same ellipsis
+// finding #17 already ruled insufficient to ground OnMapIndexRange. Both
+// methods were being treated as grounded by that same ellipsis, which was
+// inconsistent; corrected during the full-sdk/ audit prompted by a user
+// question (sdk/FUNCTIONAL_GAPS.md finding #27). Neither a key-range
+// filtered by value, nor a relative-rank-style range keyed by map key,
+// has a PRD-grounded spelling in sdk/ until the PRD names one.
 
 // -- CDT navigation: list --
 

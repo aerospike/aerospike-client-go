@@ -13,9 +13,10 @@ import (
 //
 // GAP: every bucket write here used to call
 // OnBin(scoreboardBin).MapSetPolicy(as.MapOrder.KEY_ORDERED) first, to
-// request the map be stored key-ordered — required for
-// GetScoresAroundPlayer's relative-range read below to make sense at
-// all. WriteBinBuilder.MapSetPolicy has since been removed entirely (it
+// request the map be stored key-ordered — required for the
+// now-removed GetScoresAroundPlayer's relative-range read to make sense
+// at all (see the doc comment below). WriteBinBuilder.MapSetPolicy has
+// since been removed entirely (it
 // was never PRD-grounded, sdk/FUNCTIONAL_GAPS.md finding #25) — there is
 // now no PRD-grounded way to request map ordering at all (findings #15,
 // #22 also apply: no ListPolicy/MapPolicy plumbing, no
@@ -67,43 +68,31 @@ func (s *Service) UpdatePlayerScore(ctx context.Context, playerID, oldScore, new
 	})
 }
 
-// GetScoresAroundPlayer reads the map keys immediately above and below a
-// player's own scoreboard entry, within that player's bucket only.
+// GetScoresAroundPlayer previously read the map keys immediately above and
+// below a player's own scoreboard entry, within that player's bucket
+// only. There is no function here any more: there is nothing real left
+// to call.
 //
-// GAP: this exercises OnMapKeyRelativeIndexRange (sdk/writesegmentbuilder.go)
-// for the first time anywhere in these examples — real, PRD-listed API
-// (10.15: "range/list/relative forms... OnMapKeyRange, OnListIndexRange,
-// …") that matches the source Java example's single AEL relative-range
-// selector ($.score.{-N:N~'key'}.getKeys()) exactly in intent. But there
-// is no read-side entry point for this: OnMapKeyRelativeIndexRange lives
-// on WriteBinBuilder, so the only way to reach it is through a write
-// segment, and its terminal (GetKeys()) returns to WriteSegmentBuilder,
-// whose only terminal is ExecuteOne() (WriteResult, error) —
-// WriteResult has no value field to carry the returned keys back. Same
-// WriteResult-has-no-value limitation already documented in
-// ecommerce/products.go's RecordProductRatings GAP and
-// cookbookexamples/onetomany's DeleteListing. So this can confirm the
-// operation was accepted, not actually return the neighboring players —
-// there's nothing here pretending otherwise.
+// GAP: this used OnMapKeyRelativeIndexRange (sdk/writesegmentbuilder.go)
+// — a real capability the source Java example needs
+// ($.score.{-N:N~'key'}.getKeys()) — but that method has since been
+// removed: it was only ever grounded by the same "range/list/relative
+// forms... OnMapKeyRange, OnListIndexRange, …" ellipsis already ruled
+// insufficient to ground OnMapIndexRange (finding #17), a fact this
+// package's own earlier comment inconsistently didn't apply to itself.
+// Corrected during the full-sdk/ audit prompted by a user question
+// (sdk/FUNCTIONAL_GAPS.md finding #27).
 //
-// GAP: the source Java example also spills over into neighboring buckets
-// when the requested range overflows the current one
-// (onMapIndexRange(index, count) — an index-based range, not the
-// key-relative range above). Checked sdk/writesegmentbuilder.go directly:
-// no OnMapIndexRange exists under any name. The PRD's own 10.15 text only
-// gestures at "range/list/relative forms... …" via an ellipsis, never
-// naming this one specifically — not enough to build against, so the
-// overflow case isn't attempted here.
-func (s *Service) GetScoresAroundPlayer(ctx context.Context, playerID, score int64, numEitherSide int) error {
-	bucketKey := sdk.Key(s.scoreboardDS, bucketForScore(score))
-	key := mapKey(playerID, score)
-
-	_, err := s.session.Update(ctx, bucketKey).
-		OnBin(scoreboardBin).OnMapKeyRelativeIndexRange(key, -numEitherSide, 2*numEitherSide+1).GetKeys().
-		ExecuteOne()
-	if err != nil {
-		return fmt.Errorf("get scores around player %d: %w", playerID, err)
-	}
-	fmt.Printf("requested scores around player %d (result not readable — see GAP comment)\n", playerID)
-	return nil
-}
+// No substitute exists: OnMapKeyRange(begin, end) (still present) takes
+// exact key bounds, not "N nearest either side" — and this map's keys
+// are score-derived strings (mapKey, above) with no way to compute
+// "the key N entries away" without already knowing the map's contents,
+// which sdk/ can't read back either way (Record has no bin-accessor
+// methods, finding #16). Even when OnMapKeyRelativeIndexRange existed,
+// this was already unreadable — WriteResult has no value field to carry
+// GetKeys() back (same limitation as ecommerce/products.go and
+// onetomany's DeleteListing) — so nothing demonstrable is lost by
+// removing the call entirely versus keeping an unreadable one. The
+// source Java example's overflow-into-neighboring-buckets behavior
+// (onMapIndexRange(index, count), a different, index-based range) was
+// never buildable either — no OnMapIndexRange exists under any name.

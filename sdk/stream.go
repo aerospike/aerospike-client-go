@@ -119,9 +119,14 @@ func Desc(bin string) SortSpec {
 	return SortSpec{}
 }
 
-func Asc(bin string) SortSpec {
-	return SortSpec{}
-}
+// GAP: Asc previously lived here as Desc's symmetric counterpart —
+// removed: sdk/PRD.md's §10.14 Navigatable Look example uses sdk.Desc
+// literally, but never names Asc anywhere, not even implicitly. Adding a
+// counterpart by symmetry is exactly the reasoning already ruled out for
+// InsertOp/CollectionType/ListAppendItems and its siblings
+// (sdk/FUNCTIONAL_GAPS.md finding #27). Sorting ascending has no
+// PRD-grounded spelling in sdk/ until the PRD says what it should look
+// like.
 
 // Task is the one wait-model handle for async admin/background operations
 // (D-20) — both index Create and query background execution return this

@@ -1,23 +1,30 @@
 # DX gaps found while building this example
 
 Individual gaps are documented inline (`grep -rn "GAP" *.go`) at the call
-site where they bite. This file is a short index of the two found here.
+site where they bite. This file is a short index of what's found here.
 
-## No read-side entry point for CDT navigation reaches WriteResult's value-less terminal
+## GetScoresAroundPlayer removed — OnMapKeyRelativeIndexRange was never actually PRD-grounded
 
-`GetScoresAroundPlayer` needs the map keys immediately around a player's
-own scoreboard entry. `OnMapKeyRelativeIndexRange` (`sdk/
-writesegmentbuilder.go`) is real and matches the source Java example's
-AEL relative-range selector exactly in intent — but it's a write-bin
-navigation method, so its `GetKeys()` terminal still ends at
-`ExecuteOne() (WriteResult, error)`, and `WriteResult` has no value
-field. So the call can be made and can confirm it was accepted, but the
-actual keys it read can never come back to the caller.
+Originally built around `OnMapKeyRelativeIndexRange`
+(`sdk/writesegmentbuilder.go`), described here as "real and matches the
+source Java example's AEL relative-range selector exactly in intent." At
+the time, its terminal (`GetKeys()`) still ending at `ExecuteOne()
+(WriteResult, error)` — no value field — was flagged as the limiting
+gap: the call could be made and confirmed accepted, but the actual keys
+it read could never come back.
 
-Same root limitation already documented in `ecommerce/products.go`'s
-`RecordProductRatings` GAP and `cookbookexamples/onetomany`'s
-`DeleteListing` — this is the third place it's been hit, not a new
-finding.
+That framing understated the real problem. `OnMapKeyRelativeIndexRange`
+itself was never PRD-grounded to begin with — it was only ever gestured
+at by the same "range/list/relative forms... OnMapKeyRange,
+OnListIndexRange, …" ellipsis this file's own second finding below
+already correctly ruled insufficient for `OnMapIndexRange`, just never
+applied consistently to this method too (`sdk/FUNCTIONAL_GAPS.md`
+finding #27, prompted by a user question that triggered a full-`sdk/`
+re-audit). The method has been removed entirely, and
+`GetScoresAroundPlayer` along with it — see its doc comment in
+`scoreboard.go` for the full reasoning, including why no substitute
+(`OnMapKeyRange` with computed bounds, say) actually works for this
+map's score-derived keys.
 
 ## OnMapIndexRange doesn't exist — CONFIRMED, promoted to sdk/FUNCTIONAL_GAPS.md
 
@@ -28,7 +35,7 @@ from the key-relative range above. Checked `sdk/writesegmentbuilder.go`
 directly: no `OnMapIndexRange` exists under any name. The PRD's own
 §10.15 text only gestures at "range/list/relative forms... …" via an
 ellipsis, never naming this one specifically — not enough to build
-against, so the overflow-across-buckets case isn't attempted here; only
-the single-bucket case is built.
+against. Moot now alongside the removal above — there's no
+single-bucket case left to spill over from either.
 
-See `sdk/FUNCTIONAL_GAPS.md` finding #17.
+See `sdk/FUNCTIONAL_GAPS.md` findings #17 and #27.

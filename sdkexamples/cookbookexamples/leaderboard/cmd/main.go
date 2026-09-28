@@ -1,7 +1,9 @@
 // Command leaderboard runs the bucketed-scoreboard example end to end:
-// seed players and populate the scoreboard, update one player's score
-// (moving their scoreboard entry, possibly into a different bucket, all
-// inside one transaction), then request the scores around that player.
+// seed players and populate the scoreboard, then update one player's
+// score (moving their scoreboard entry, possibly into a different
+// bucket, all inside one transaction). Requesting the scores around a
+// player is no longer demonstrated — see scoreboard.go's
+// GetScoresAroundPlayer doc comment.
 package main
 
 import (
@@ -54,6 +56,5 @@ func run(ctx context.Context) error {
 		return err
 	}
 	log.Printf("player %d moved from score %d to %d", playerID, oldScore, newScore)
-
-	return svc.GetScoresAroundPlayer(ctx, playerID, newScore, 3)
+	return nil
 }
