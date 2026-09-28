@@ -30,3 +30,5 @@ cover*.out
 ginkgo.report
 .idea
 sdk/PRD.md
+sdk/JAVA_SDK_SURFACE.md
+sdk/FUNCTIONAL_GAPS.md
