@@ -9,8 +9,6 @@ permissions:
 
 env:
   AEROSPIKE_HOSTS: "127.0.0.1:3000"
-  GODEBUG: fips140=only
-  GOFIPS140: latest
 
 jobs:
   make-matrix:
@@ -166,6 +164,51 @@ jobs:
           name: cover_${{matrix.version}}_${{matrix.mode}}
           path: reports
           if-no-files-found: warn
+
+  fips:
+    name: FIPS Compliance
+    timeout-minutes: 20
+    runs-on: ${{ vars.BUILD_CONTAINER_DISTRO_VERSION }}
+    permissions:
+      id-token: write
+      actions: write
+    env:
+      GODEBUG: fips140=only
+      GOFIPS140: latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Pinned above the go.mod floor on purpose: fips140 and the go1.24 build tag on fips_compliance_test.go only bite there.
+      - name: Setup Go 1.27.x
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: Fetch dependencies
+        env:
+          GODEBUG: fips140=on
+        run: |
+          go mod download
+          go mod vendor
+      - name: Display Go version
+        run: go version
+      - name: Set up Aerospike Database
+        uses: aerospike/shared-workflows/.github/actions/setup-aerospike-server@b4b1e9dc89314a2d542f9d6fe0ee150ad06f9860 # v5.0.0
+        with:
+          server-tag: "8.1.2.0"
+          num-nodes: 1
+          enable-strong-consistency: false
+          features-content: ${{ secrets.FEATURES_CONF }}
+          oidc-provider: ${{ vars.OIDC_PROVIDER }}
+          oidc-audience: ${{ vars.OIDC_AUDIENCE }}
+      - name: Run the FIPS compliance spec
+        env: { GOPROXY: off, GOSUMDB: off, GOFLAGS: -mod=vendor }
+        run: go run -mod=vendor github.com/onsi/ginkgo/v2/ginkgo --focus=FIPS --fail-on-empty --no-color .
 
   merged_coverage:
     name: Final Coverage
