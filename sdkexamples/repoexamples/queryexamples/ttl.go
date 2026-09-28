@@ -28,15 +28,20 @@ func (s *Service) DemonstrateTTL(ctx context.Context, id int64) error {
 		return fmt.Errorf("upsert customer %d with short TTL: %w", id, err)
 	}
 
-	record, err := s.session.Get(ctx, key, sdk.AllBins)
-	if err != nil {
+	// GAP: can't print the actual expiration time here — Record
+	// (sdk/session.go) is completely opaque, no expiration field or
+	// method anywhere in the PRD (previously worked around by adding an
+	// Expiration field directly to Record; reverted after being flagged
+	// as an unauthorized invention beyond what the PRD defines). Just
+	// confirm the record exists immediately after the upsert instead.
+	if _, err := s.session.Get(ctx, key, sdk.AllBins); err != nil {
 		return fmt.Errorf("get customer %d immediately after upsert: %w", id, err)
 	}
-	fmt.Printf("customer %d expires at %s (in %s)\n", id, record.Expiration, time.Until(record.Expiration))
+	fmt.Printf("customer %d upserted with a 5s TTL\n", id)
 
 	time.Sleep(6 * time.Second)
 
-	_, err = s.session.Get(ctx, key, sdk.AllBins)
+	_, err := s.session.Get(ctx, key, sdk.AllBins)
 	if errors.Is(err, sdk.ErrNotFound) {
 		fmt.Printf("customer %d expired as expected after TTL\n", id)
 		return nil

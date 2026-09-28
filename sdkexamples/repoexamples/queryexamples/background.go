@@ -79,12 +79,20 @@ func (s *Service) DemonstrateBackgroundDelete(ctx context.Context) error {
 
 // DemonstrateBackgroundTouch runs a background scan that touches every
 // customer (refreshing TTL/generation without changing bin values), waits
-// for completion, then confirms one customer's expiration moved forward.
+// for completion, then confirms the target record still exists afterward.
+//
+// GAP: this can't confirm the TTL was actually refreshed — Record
+// (sdk/session.go) is completely opaque, no expiration field or method
+// anywhere in the PRD (this was previously worked around by adding an
+// Expiration field directly to Record; reverted after being flagged as an
+// unauthorized invention beyond what the PRD defines). So the only
+// verifiable signal here is that the record is still reachable and the
+// background operation completed without error, not that anything about
+// it actually changed.
 func (s *Service) DemonstrateBackgroundTouch(ctx context.Context, id int64) error {
 	key := sdk.Key(s.customerDS.DataSet(), id)
 
-	before, err := s.session.Get(ctx, key, sdk.AllBins)
-	if err != nil {
+	if _, err := s.session.Get(ctx, key, sdk.AllBins); err != nil {
 		return fmt.Errorf("get customer %d before background touch: %w", id, err)
 	}
 
@@ -97,10 +105,9 @@ func (s *Service) DemonstrateBackgroundTouch(ctx context.Context, id int64) erro
 		return fmt.Errorf("wait for background touch: %w", err)
 	}
 
-	after, err := s.session.Get(ctx, key, sdk.AllBins)
-	if err != nil {
+	if _, err := s.session.Get(ctx, key, sdk.AllBins); err != nil {
 		return fmt.Errorf("get customer %d after background touch: %w", id, err)
 	}
-	fmt.Printf("customer %d expiration: %s -> %s\n", id, before.Expiration, after.Expiration)
+	fmt.Printf("customer %d still exists after background touch\n", id)
 	return nil
 }

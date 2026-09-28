@@ -1,11 +1,10 @@
 // Command queryexamples runs the query/CDT/concurrency-control examples
 // end to end. Currently: demonstrate the built-in Behavior presets, list
-// namespaces and their stats, seed one customer, demonstrate a
-// generation-checked conditional write, exercise the top-level list/map
-// CDT mutation vocabulary, page through sorted results, throttle/chunk a
-// scan, project a bin under an alias, run background task/delete/touch
-// scans, demonstrate TTL expiration, run a filtered query, then round-trip
-// a typed object with a nested struct.
+// namespaces and their stats, seed one customer, exercise the top-level
+// list/map CDT mutation vocabulary, page through sorted results,
+// throttle/chunk a scan, project a bin under an alias, run background
+// task/delete/touch scans, demonstrate TTL expiration, run a filtered
+// query, then round-trip a typed object with a nested struct.
 package main
 
 import (
@@ -81,10 +80,6 @@ func run(ctx context.Context) error {
 
 	const customerID = int64(999)
 	if err := svc.SeedCustomer(ctx, queryexamples.Customer{ID: customerID, Name: "Sample", Age: 30}); err != nil {
-		return err
-	}
-
-	if err := svc.DemonstrateGenerationCheck(ctx, customerID); err != nil {
 		return err
 	}
 

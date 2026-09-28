@@ -17,15 +17,20 @@ type Session struct{}
 // comment) — the two forms are equivalent, not two different behaviors.
 var AllBins []string
 
-// Record is currently opaque beyond Generation/Expiration — no bin names,
-// no way to introspect what Decode will actually read. Generation is what
-// IfGeneration (10.5) conditions a write on, so a caller needs it exposed
-// somewhere to do a read-then-conditionally-write pattern at all; it was
-// missing entirely until this field was added.
-type Record struct {
-	Generation Generation
-	Expiration time.Time
-}
+// GAP: Record is completely opaque — no bin names, no generation, no
+// expiration, no way to introspect what Decode will actually read.
+// IfGeneration(gen Generation) (10.5) conditions a write on a generation
+// value, and the PRD's own Look example for it calls rec.Gen() — implying
+// Record should expose one, as a method (not a field) — but nothing in
+// the catalog actually defines Record's fields/methods anywhere, and
+// nothing at all suggests it exposes expiration. A caller has no
+// PRD-defined way to do a read-then-conditionally-write pattern, or to
+// read a record's current TTL back, until the PRD says what Record
+// actually looks like. (This was previously "fixed" by adding
+// Generation/Expiration fields directly — reverted: that shape was
+// invented, not specified, and don't-invent-beyond-the-PRD applies to
+// sdk/ types as much as to methods.)
+type Record struct{}
 
 // -- 10.3 Session accessors --
 
