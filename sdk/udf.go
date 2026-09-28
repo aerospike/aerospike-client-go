@@ -6,6 +6,11 @@ import (
 
 type Language int
 
+// LUA is named explicitly in the PRD's own §10.11 Look example
+// (Language: sdk.LUA) but was missing here — added to match, not a new
+// invention. Lua is the only UDF language Aerospike currently supports.
+const LUA Language = 0
+
 // UDF describes a module to register — Source accepts an io.Reader (D-18),
 // so embedding via the standard directive works directly, instead of
 // requiring a file path.
