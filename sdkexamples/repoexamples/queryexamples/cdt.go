@@ -21,16 +21,37 @@ import (
 //     (Java: session.query(id).bin("scores").listSize().execute()). Our
 //     QueryBuilder.OnBin(name) *QueryBinBuilder (10.7) has no CDT terminal
 //     vocabulary at all — just a placeholder SelectAs method — so there's
-//     no query-side way to do this.
-//  2. Navigating into a nested map key that itself holds a list, then
-//     running a list op there (Java:
-//     bin("nested").onMapKey("team1").onMapKey("members").listSize()).
-//     CDTNavBuilder (returned by OnMapKey/OnListIndex/etc., 10.15) has no
-//     list methods — only WriteBinBuilder does, and OnBin's return value
-//     is never reachable again once you've navigated past it.
-//  3. Creating a new, explicitly-ordered list at a nested position (Java:
-//     listCreate(ListOrder.ORDERED)) — no equivalent method exists
-//     anywhere in the PRD's CDT vocabulary.
+//     no query-side way to do this. Confirmed against the real SDK's own
+//     test suite (client/src/test/.../CdtOperateComplexTest.java, active,
+//     76 currently-passing tests): this exact pattern
+//     (session.query(key).bin(binName).listSize()/.mapSize()/.listGet()/
+//     .listGetRange()) is the *standard* verification idiom that file
+//     uses for every single CDT write it tests — not a rare or
+//     theoretical shape (sdk/FUNCTIONAL_GAPS.md finding #2).
+//  2. Navigating more than one level deep at all — not just "some
+//     operations are missing at a nested position" but structurally
+//     impossible for any operation. Confirmed by exhaustively checking
+//     every method on CDTNavBuilder (sdk/writesegmentbuilder.go, 10.15):
+//     SetTo/Insert/Update/Add/GetValues/GetKeys/Count/Remove/RemoveAnd/
+//     GetAllOtherValues/GetAllOtherKeys/GetAsOrderedMap/GetExists — every
+//     one returns either *WriteSegmentBuilder (a terminal) or
+//     *CDTNavBuilder (only RemoveAnd, which stays at the same level).
+//     None returns another navigable type for a second OnMapKey/
+//     OnListIndex call. Real Java chains two levels directly
+//     (bin("data").onMapKey("key3").onMapKey("key31").upsert(99)), and
+//     the SDK's own test suite treats multi-level nesting as a whole
+//     named test category (CdtOperateComplexTest.java's
+//     queryListSizeTwoLevelsDeep/queryMapSizeThreeLevelsDeep/
+//     deepNestedListSizeRegression, etc. — sdk/FUNCTIONAL_GAPS.md finding
+//     #19) — not an edge case, ordinary usage.
+//  3. Two related, narrower gaps found alongside #2: no list-level
+//     policy/ordering method at all (Java: bin(name).listSetOrder(
+//     ListOrder.ORDERED) — the list-side equivalent of MapSetPolicy,
+//     which does exist for maps), and no way to create a new,
+//     explicitly-ordered nested collection at a navigated position
+//     (Java: onMapKey("key3").mapCreate(MapOrder.KEY_ORDERED) for maps,
+//     listCreate(ListOrder.ORDERED) for lists) — both confirmed absent
+//     from sdk/writesegmentbuilder.go under any name.
 //
 // All three would require inventing surface the PRD doesn't define, which
 // is exactly what was asked not to happen here.
