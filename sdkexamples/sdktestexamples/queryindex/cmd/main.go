@@ -39,5 +39,8 @@ func run(ctx context.Context) error {
 
 	svc := queryindex.NewService(session, ds)
 
-	return svc.DemonstrateStringIndex(ctx)
+	if err := svc.DemonstrateStringIndex(ctx); err != nil {
+		return err
+	}
+	return svc.DemonstrateBlobIndex(ctx)
 }

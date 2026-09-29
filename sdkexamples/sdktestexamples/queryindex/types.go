@@ -1,8 +1,10 @@
 // Package queryindex demonstrates secondary index creation and filtered
 // queries, one index type at a time, matching the real SDK's own
-// query/QueryStringTest.java, QueryGeoTest.java, QueryBlobTest.java, and
+// query/QueryStringTest.java, QueryBlobTest.java, and
 // QueryCollectionTest.java — each active, each creating a real index of
-// its type and querying against it.
+// its type and querying against it. query/QueryGeoTest.java was checked
+// too and found entirely disabled (see below) — not part of this
+// package's source set.
 //
 // Source: examples/ and the use-case-cookbook never touch secondary
 // indexes at all — confirmed by direct grep across both, same as every
@@ -18,6 +20,14 @@
 // every demo here is built against sdk/'s actual fluent chain, not a
 // literal translation of Java's flat call — same precedent as
 // RunInTransaction vs doInTransaction.
+//
+// GAP: QueryGeoTest.java is entirely disabled — both @BeforeAll setup
+// and its one @Test are wrapped in comment blocks, with the disabling
+// comment reading "TODO Port when geojson is supported in
+// BinValuesBuilder." Direct evidence from the Java side (not just PRD
+// silence) that GeoJSON isn't wired through the current fluent write
+// builder at all — reinforces sdk/FUNCTIONAL_GAPS.md finding #21. No
+// geo-index demo exists in this package for that reason, not oversight.
 //
 // Built one source file at a time. Currently covers QueryStringTest.java
 // only (DemonstrateStringIndex, in stringindex.go).
