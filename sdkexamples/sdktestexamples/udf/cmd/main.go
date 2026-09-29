@@ -1,8 +1,9 @@
 // Command udf runs the UDF examples end to end, mirroring the source
 // Java test's four isolated scenarios (each its own key and bin):
 // writeUsingUdf, writeIfGenerationNotChanged, writeIfNotExists,
-// writeWithValidation. Registers the embedded Lua module first, lists
-// registered modules, then removes it at the end.
+// writeWithValidation — plus a background UDF task
+// (BackgroundTaskTest.java's backgroundUdf). Registers the embedded Lua
+// module first, lists registered modules, then removes it at the end.
 package main
 
 import (
@@ -57,6 +58,9 @@ func run(ctx context.Context) error {
 		return err
 	}
 	if err := svc.DemonstrateWriteWithValidation(ctx); err != nil {
+		return err
+	}
+	if err := svc.DemonstrateBackgroundUdf(ctx); err != nil {
 		return err
 	}
 

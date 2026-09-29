@@ -90,6 +90,42 @@ func (s *Service) DemonstrateWriteIfNotExists(ctx context.Context) error {
 	return nil
 }
 
+// DemonstrateBackgroundUdf mirrors the source Java test backgroundUdf()
+// (BackgroundTaskTest.java, active, 18 tests): seed a few records, then
+// run the registered module's writeBin function as a background task
+// across the whole dataset, then wait for it to complete —
+// ExecuteUDFBackgroundTask, previously untouched anywhere in these
+// examples (sdk/COVERAGE.md).
+//
+// GAP: the source test then re-queries every seeded key individually to
+// confirm the bin was actually written by the background task
+// (rec.getString(BG_BIN2), checking "udf_written"). Same Record-opacity
+// limitation as every other demo in this package (finding #16) — this
+// can confirm the background task was accepted and completed, not that
+// it actually wrote anything.
+func (s *Service) DemonstrateBackgroundUdf(ctx context.Context) error {
+	const binName = "udfbin5"
+	for i, id := range []string{"bg_1", "bg_2", "bg_3"} {
+		key := sdk.Key(s.ds, id)
+		if _, err := s.session.Upsert(ctx, key).
+			Set(binName, "original").
+			ExecuteOne(); err != nil {
+			return fmt.Errorf("seed record %d for background UDF demo: %w", i, err)
+		}
+	}
+
+	task, err := s.session.Query(ctx, s.ds).
+		ExecuteUDFBackgroundTask(modulePackage, "writeBin", binName, "background_written")
+	if err != nil {
+		return fmt.Errorf("start background UDF task: %w", err)
+	}
+	if err := task.Wait(ctx); err != nil {
+		return fmt.Errorf("wait for background UDF task: %w", err)
+	}
+	fmt.Println("backgroundUdf: writeBin executed across the dataset as a background task (can't verify writes landed — see GAP comment)")
+	return nil
+}
+
 // DemonstrateWriteWithValidation mirrors the source Java test of the
 // same name: a valid value (4) succeeds, an invalid one (11) is rejected
 // with the exact propagated code 1000.

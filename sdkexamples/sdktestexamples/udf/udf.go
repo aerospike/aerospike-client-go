@@ -16,6 +16,16 @@ var recordExampleLua []byte
 
 const moduleName = "record_example.lua"
 
+// modulePackage is moduleName without its .lua extension — the package
+// name a UDF call actually addresses (matching the source Java test's
+// RegisterTask registration under "bg_test_example.lua", then called via
+// "bg_test_example" — the standard Lua-module-name-without-extension
+// convention). ExecuteUDFBackgroundTask (unlike ExecuteUDF's
+// handle-based Module(...).Function(...) path) takes this as a bare
+// string per its own signature (10.8's ExecuteUDFBackgroundTask(pkg, fn
+// string, args ...any)) — there's no handle-based alternative for it.
+const modulePackage = "record_example"
+
 // RegisterModule registers the embedded Lua module and waits for it to
 // be ready everywhere — RegisterUDF (10.11, D-13/D-18) is synchronous and
 // returns the *UDFModule handle directly, unlike the source Java example
