@@ -53,6 +53,32 @@ trip). Smaller, related ambiguity in the same chain: the PRD never says
 what `TouchRecord()` does once an explicit `ExpireAfter` is also given
 in the same call — left as-is rather than guessed at.
 
+## Single-key query scoping doesn't exist, again (DemonstrateReadBack)
+
+The source's closing read-back is `session.query(key).execute()` — a
+single-key-scoped query. `sdk/`'s `QueryBuilder` only filters a whole
+`DataSet` (same finding #23 addendum already hit in `listexp`, `mapexp`,
+`partition`, `pointreads`, and `streamdisposition`) — scoped to the
+whole `operate` dataset here instead of the one key the source reads.
+
+## getFirstRecord()/One() vs. Get()/ExecuteOne() — a real, checked distinction, not an assumption
+
+`One(ctx)` is genuinely not redundant with Go's own single-key
+shortcuts, but only for a specific reason: `Get(ctx, key, bins)` and
+`ExecuteOne()` take a plain bin-name list, nothing else. Every real
+`getFirstRecord()` call site found elsewhere in the source tree that
+uses a *bare* single-key read with no filter or projection also has a
+direct Go equivalent already in use (this package's own
+`DemonstrateDeleteRecord`/`DemonstrateTouchRecord` use `ExecuteOne()`
+for exactly that reason). `One()` earns its keep specifically when a
+`.where()` filter or a CDT/ael projection (`.bin(x).selectFrom(ael)`,
+`.bin(x).listSize()`, etc. — all through the query-builder path only)
+is combined with "and there's exactly one result, give it to me
+directly." `DemonstrateReadBack` here is the plain, unfiltered case
+(matching the source line's own simplicity) — real and correctly using
+`One()`, but not itself an example of the filter/projection distinction;
+noted here rather than overclaimed.
+
 ## Record is opaque — can't verify TTL was refreshed
 
 `DemonstrateTouchRecord` can't confirm the touched record's TTL actually

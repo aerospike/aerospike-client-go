@@ -1,6 +1,4 @@
-// Command operate runs the whole-record operate examples end to end:
-// read-then-delete-record, delete-and-recreate atomically, and
-// read-then-touch-record with a refreshed TTL.
+// Command rawnext runs the raw Next(ctx) stream-terminal example end to end.
 package main
 
 import (
@@ -9,7 +7,7 @@ import (
 	"time"
 
 	sdk "github.com/aerospike/aerospike-client-go/v8/sdk"
-	"github.com/aerospike/aerospike-client-go/v8/sdkexamples/sdktestexamples/operate"
+	"github.com/aerospike/aerospike-client-go/v8/sdkexamples/sdktestexamples/rawnext"
 )
 
 func main() {
@@ -34,18 +32,12 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	ds := sdk.MustNewDataSet("test", "operate")
+	ds := sdk.MustNewDataSet("test", "rawnext")
 	if err := session.Truncate(ctx, ds, time.Now()); err != nil {
 		return err
 	}
 
-	svc := operate.NewService(session, ds)
+	svc := rawnext.NewService(session, ds)
 
-	if err := svc.DemonstrateDeleteRecord(ctx, 1); err != nil {
-		return err
-	}
-	if err := svc.DemonstrateTouchRecord(ctx, 2); err != nil {
-		return err
-	}
-	return svc.DemonstrateReadBack(ctx, 1)
+	return svc.DemonstrateBatchWriteResults(ctx, "rn1", "rn2", "rn3")
 }

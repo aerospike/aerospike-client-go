@@ -156,3 +156,38 @@ func (s *Service) DemonstrateTouchRecord(ctx context.Context, id int64) error {
 	fmt.Printf("record %d touched (can't verify the read value or refreshed TTL — see GAP comment)\n", id)
 	return nil
 }
+
+// DemonstrateReadBack ports the final line of OperateTest.java's
+// operateDeleteRecord(): after a write, re-read the record with a plain
+// query and grab it with the source's own
+// `session.query(key).execute().getFirstRecord()` idiom — Go's real,
+// kept counterpart to that convenience is the One(ctx) terminal
+// (sdk/PRD.md §10.14: `One(ctx) (*Record, error)`, "Add / promote;
+// closes"), used here instead of draining the stream with Iter, because
+// the whole point of both the source line and this one is "there's
+// exactly one record, give it to me directly."
+//
+// GAP: sdk/'s QueryBuilder only filters a whole DataSet — no
+// single-key-scoped query exists (same finding #23 addendum already hit
+// in sdktestexamples/listexp, mapexp, partition, pointreads, and
+// streamdisposition). Scoped to the whole operate dataset here instead
+// of the one key the source reads back.
+//
+// GAP: can't verify the record's actual bin values or count the source
+// asserts (rec.getInt(binName2) == 2, rec.bins.size() == 1) — Record
+// (sdk/session.go) has no bin-accessor methods at all (finding #16).
+// This can only confirm One(ctx) returns a record without error.
+func (s *Service) DemonstrateReadBack(ctx context.Context, id int64) error {
+	stream, err := s.session.Query(ctx, s.ds).Execute()
+	if err != nil {
+		return fmt.Errorf("query for read-back of record %d: %w", id, err)
+	}
+	defer stream.Close()
+
+	rec, err := stream.One(ctx)
+	if err != nil {
+		return fmt.Errorf("one() for record %d: %w", id, err)
+	}
+	fmt.Printf("record %d read back via One() (can't verify bin values — see GAP comment): %v\n", id, rec)
+	return nil
+}
