@@ -1,4 +1,4 @@
-// Command queryindex runs the secondary-index examples end to end.
+// Command streamdisposition runs the StreamOnError examples end to end.
 package main
 
 import (
@@ -7,7 +7,7 @@ import (
 	"time"
 
 	sdk "github.com/aerospike/aerospike-client-go/v8/sdk"
-	"github.com/aerospike/aerospike-client-go/v8/sdkexamples/sdktestexamples/queryindex"
+	"github.com/aerospike/aerospike-client-go/v8/sdkexamples/sdktestexamples/streamdisposition"
 )
 
 func main() {
@@ -32,18 +32,12 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	ds := sdk.MustNewDataSet("test", "queryindex")
+	ds := sdk.MustNewDataSet("test", "streamdisposition")
 	if err := session.Truncate(ctx, ds, time.Now()); err != nil {
 		return err
 	}
 
-	svc := queryindex.NewService(session, ds)
+	svc := streamdisposition.NewService(session, ds)
 
-	if err := svc.DemonstrateStringIndex(ctx); err != nil {
-		return err
-	}
-	if err := svc.DemonstrateBlobIndex(ctx); err != nil {
-		return err
-	}
-	return svc.DemonstrateCollectionIndex(ctx)
+	return svc.DemonstrateAddAsync(ctx, "addAsync")
 }
