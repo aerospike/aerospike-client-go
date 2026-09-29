@@ -1,15 +1,23 @@
 // Package partition demonstrates partition-scoped queries — targeting a
-// single partition, and a partition range — matching the real SDK's own
-// QueryWithPartitionPaginationTest.java (active, 1 test) and the sibling
-// onPartitionRange method it doesn't separately test but is grounded in
-// the same real, active QueryBuilder.java source.
+// single partition — matching the real SDK's own
+// QueryWithPartitionPaginationTest.java (active, 1 test).
 //
 // Source: examples/ and the use-case-cookbook never touch partition-scoped
 // queries at all — confirmed by direct grep across both, same as every
 // other package under sdktestexamples/. The only real coverage found
-// anywhere is the one active test above, plus onPartitionRange's own
-// main-source implementation (onPartition(id) is literally defined as
-// onPartitionRange(id, id+1), start-inclusive/end-exclusive).
+// anywhere is the one active test above.
+//
+// GAP: sdk/PRD.md's §10.7 also names OnPartitionRange on the same row as
+// OnPartition — not demonstrated here. Real, declared in main source
+// (onPartition(id) is literally implemented as onPartitionRange(id,
+// id+1) in QueryBuilder.java), but no dedicated Java test exercises the
+// range form directly. Standing rule: code in this repo only ports a
+// real Java test, not a bare method signature, however simple or
+// well-grounded the signature looks — so this stays documented, not
+// built, until a real test surfaces. (An earlier version of this
+// package did build a range demo directly from the signature; removed
+// for exactly this reason — see sdk/FUNCTIONAL_GAPS.md finding #28's
+// update.)
 //
 // sdk/PRD.md's §10.7 also names a third method on the same row,
 // Partition(pf *as.PartitionFilter) — not demonstrated here. Checked

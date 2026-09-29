@@ -44,10 +44,5 @@ func run(ctx context.Context) error {
 	// must construct and hash candidate keys until enough land in one
 	// partition, ~4096 candidates per hit on average) finishes quickly;
 	// the demonstrated capability is identical either way.
-	if err := svc.DemonstratePartitionQuery(ctx, 10, 20, 15, 5); err != nil {
-		return err
-	}
-
-	// Matches the PRD's own §10.7 Look example verbatim: .OnPartitionRange(0, 2048).
-	return svc.DemonstratePartitionRangeQuery(ctx, 2048)
+	return svc.DemonstratePartitionQuery(ctx, 10, 20, 15, 5)
 }

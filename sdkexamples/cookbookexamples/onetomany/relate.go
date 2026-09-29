@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	as "github.com/aerospike/aerospike-client-go/v8"
 	sdk "github.com/aerospike/aerospike-client-go/v8/sdk"
 )
 
@@ -159,10 +158,7 @@ func (s *Service) GetListings(ctx context.Context, agentID int64) ([]Listing, er
 			return nil
 		}
 
-		keys := make([]*as.Key, len(agent.ListingIDs))
-		for i, id := range agent.ListingIDs {
-			keys[i] = sdk.Key(s.listingDS.DataSet(), id)
-		}
+		keys := sdk.Keys(s.listingDS.DataSet(), agent.ListingIDs)
 		stream, err := tx.BatchGet(ctx, keys, sdk.AllBins)
 		if err != nil {
 			return fmt.Errorf("batch get listings for agent %d: %w", agentID, err)

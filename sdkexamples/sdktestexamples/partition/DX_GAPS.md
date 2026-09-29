@@ -11,20 +11,22 @@ Same root cause as `Filter(f *as.Filter)` (`sdktestexamples/listexp`,
 finding #28): the real Java `PartitionFilter` is built internally by the
 query command from the fluent builder's own start/end partition fields,
 never constructed by a caller and handed to a query directly. `OnPartition`
-and `OnPartitionRange` — the two methods on the same PRD row that *are*
-demonstrated here — don't share this problem; they're the real,
-fluent, caller-facing entry points.
+— the method on the same PRD row that *is* demonstrated here — doesn't
+share this problem; it's the real, fluent, caller-facing entry point.
 
-## OnPartitionRange's stub parameter is named inconsistently with the PRD's own text
+## OnPartitionRange is not demonstrated either — no real Java test, standing rule applied
 
-`sdk/query.go`'s `OnPartitionRange(begin, count int)` names its second
-parameter `count`; `sdk/PRD.md`'s own §10.7 table spells the same row
-`OnPartitionRange(begin, end)`. Checked Java's real `onPartitionRange`
-directly — it's start-inclusive/end-exclusive, matching the PRD's row
-text, not a count. `DemonstratePartitionRangeQuery` passes `begin=0`
-specifically so the two possible readings of the stub's own parameter
-can't produce a different query — this doesn't resolve the ambiguity,
-it just avoids depending on which reading is correct.
+`OnPartitionRange` is real (`onPartition(id)` is literally implemented as
+`onPartitionRange(id, id+1)` in `QueryBuilder.java`), and its stub
+parameter naming has its own documented mismatch against the PRD's own
+text (`sdk/query.go` says `count`, `sdk/PRD.md`'s §10.7 table says `end`
+— finding #28 has the full writeup). But no dedicated Java test
+exercises the range form directly — only `onPartition`'s single-partition
+form is test-covered. An earlier version of this package built a range
+demo directly from the method signature and the PRD's own Look example
+anyway; removed after the standing rule was clarified: code here only
+ports a real Java *test*, never a bare signature, however well-grounded
+it looks otherwise. Stays documented, not built.
 
 ## The source test's nested hasMoreChunks/hasNext loop isn't reproduced — for two stacked reasons
 
