@@ -17,7 +17,9 @@ package aerospike
 import (
 	"bytes"
 	"fmt"
+	"iter"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -123,295 +125,454 @@ func tryConcreteValue(v any) Value {
 		return NewBlobValue(val)
 
 	/*
-		The following cases will try to avoid using reflection by matching against the
-		internal generic types.
-		If you have custom type aliases in your code, you can use the same aerospike types to cast your type into,
-		to avoid hitting the reflection.
+		The following cases avoid reflection by routing common typed maps and
+		slices to the generic TypedMapValue/TypedListValue values.
+		If you have custom type aliases in your code, cast them to the plain
+		map/slice type (or use TypedMapValue/TypedListValue directly) to avoid
+		hitting the reflection.
 	*/
 	case []string:
-		return NewListerValue(stringSlice(val))
+		return TypedListValue[string](val)
 	case []int:
-		return NewListerValue(intSlice(val))
+		return TypedListValue[int](val)
 	case []int8:
-		return NewListerValue(int8Slice(val))
+		return TypedListValue[int8](val)
 	case []int16:
-		return NewListerValue(int16Slice(val))
+		return TypedListValue[int16](val)
 	case []int32:
-		return NewListerValue(int32Slice(val))
+		return TypedListValue[int32](val)
 	case []int64:
-		return NewListerValue(int64Slice(val))
+		return TypedListValue[int64](val)
+	case []uint:
+		return TypedListValue[uint](val)
 	case []uint16:
-		return NewListerValue(uint16Slice(val))
+		return TypedListValue[uint16](val)
 	case []uint32:
-		return NewListerValue(uint32Slice(val))
+		return TypedListValue[uint32](val)
 	case []uint64:
-		return NewListerValue(uint64Slice(val))
+		return TypedListValue[uint64](val)
 	case []float32:
-		return NewListerValue(float32Slice(val))
+		return TypedListValue[float32](val)
 	case []float64:
-		return NewListerValue(float64Slice(val))
+		return TypedListValue[float64](val)
+	case []bool:
+		return TypedListValue[bool](val)
+	case [][]byte:
+		return TypedListValue[[]byte](val)
 	case map[string]string:
-		return NewMapperValue(stringStringMap(val))
+		return TypedMapValue[string, string](val)
 	case map[string]int:
-		return NewMapperValue(stringIntMap(val))
+		return TypedMapValue[string, int](val)
 	case map[string]int8:
-		return NewMapperValue(stringInt8Map(val))
+		return TypedMapValue[string, int8](val)
 	case map[string]int16:
-		return NewMapperValue(stringInt16Map(val))
+		return TypedMapValue[string, int16](val)
 	case map[string]int32:
-		return NewMapperValue(stringInt32Map(val))
+		return TypedMapValue[string, int32](val)
 	case map[string]int64:
-		return NewMapperValue(stringInt64Map(val))
+		return TypedMapValue[string, int64](val)
+	case map[string]uint:
+		return TypedMapValue[string, uint](val)
+	case map[string]uint8:
+		return TypedMapValue[string, uint8](val)
 	case map[string]uint16:
-		return NewMapperValue(stringUint16Map(val))
+		return TypedMapValue[string, uint16](val)
 	case map[string]uint32:
-		return NewMapperValue(stringUint32Map(val))
-	case map[string]float32:
-		return NewMapperValue(stringFloat32Map(val))
-	case map[string]float64:
-		return NewMapperValue(stringFloat64Map(val))
-	case map[int]string:
-		return NewMapperValue(intStringMap(val))
-	case map[int]int:
-		return NewMapperValue(intIntMap(val))
-	case map[int]int8:
-		return NewMapperValue(intInt8Map(val))
-	case map[int]int16:
-		return NewMapperValue(intInt16Map(val))
-	case map[int]int32:
-		return NewMapperValue(intInt32Map(val))
-	case map[int]int64:
-		return NewMapperValue(intInt64Map(val))
-	case map[int]uint16:
-		return NewMapperValue(intUint16Map(val))
-	case map[int]uint32:
-		return NewMapperValue(intUint32Map(val))
-	case map[int]float32:
-		return NewMapperValue(intFloat32Map(val))
-	case map[int]float64:
-		return NewMapperValue(intFloat64Map(val))
-	case map[int]any:
-		return NewMapperValue(intInterfaceMap(val))
-	case map[int8]string:
-		return NewMapperValue(int8StringMap(val))
-	case map[int8]int:
-		return NewMapperValue(int8IntMap(val))
-	case map[int8]int8:
-		return NewMapperValue(int8Int8Map(val))
-	case map[int8]int16:
-		return NewMapperValue(int8Int16Map(val))
-	case map[int8]int32:
-		return NewMapperValue(int8Int32Map(val))
-	case map[int8]int64:
-		return NewMapperValue(int8Int64Map(val))
-	case map[int8]uint16:
-		return NewMapperValue(int8Uint16Map(val))
-	case map[int8]uint32:
-		return NewMapperValue(int8Uint32Map(val))
-	case map[int8]float32:
-		return NewMapperValue(int8Float32Map(val))
-	case map[int8]float64:
-		return NewMapperValue(int8Float64Map(val))
-	case map[int8]any:
-		return NewMapperValue(int8InterfaceMap(val))
-	case map[int16]string:
-		return NewMapperValue(int16StringMap(val))
-	case map[int16]int:
-		return NewMapperValue(int16IntMap(val))
-	case map[int16]int8:
-		return NewMapperValue(int16Int8Map(val))
-	case map[int16]int16:
-		return NewMapperValue(int16Int16Map(val))
-	case map[int16]int32:
-		return NewMapperValue(int16Int32Map(val))
-	case map[int16]int64:
-		return NewMapperValue(int16Int64Map(val))
-	case map[int16]uint16:
-		return NewMapperValue(int16Uint16Map(val))
-	case map[int16]uint32:
-		return NewMapperValue(int16Uint32Map(val))
-	case map[int16]float32:
-		return NewMapperValue(int16Float32Map(val))
-	case map[int16]float64:
-		return NewMapperValue(int16Float64Map(val))
-	case map[int16]any:
-		return NewMapperValue(int16InterfaceMap(val))
-	case map[int32]string:
-		return NewMapperValue(int32StringMap(val))
-	case map[int32]int:
-		return NewMapperValue(int32IntMap(val))
-	case map[int32]int8:
-		return NewMapperValue(int32Int8Map(val))
-	case map[int32]int16:
-		return NewMapperValue(int32Int16Map(val))
-	case map[int32]int32:
-		return NewMapperValue(int32Int32Map(val))
-	case map[int32]int64:
-		return NewMapperValue(int32Int64Map(val))
-	case map[int32]uint16:
-		return NewMapperValue(int32Uint16Map(val))
-	case map[int32]uint32:
-		return NewMapperValue(int32Uint32Map(val))
-	case map[int32]float32:
-		return NewMapperValue(int32Float32Map(val))
-	case map[int32]float64:
-		return NewMapperValue(int32Float64Map(val))
-	case map[int32]any:
-		return NewMapperValue(int32InterfaceMap(val))
-	case map[int64]string:
-		return NewMapperValue(int64StringMap(val))
-	case map[int64]int:
-		return NewMapperValue(int64IntMap(val))
-	case map[int64]int8:
-		return NewMapperValue(int64Int8Map(val))
-	case map[int64]int16:
-		return NewMapperValue(int64Int16Map(val))
-	case map[int64]int32:
-		return NewMapperValue(int64Int32Map(val))
-	case map[int64]int64:
-		return NewMapperValue(int64Int64Map(val))
-	case map[int64]uint16:
-		return NewMapperValue(int64Uint16Map(val))
-	case map[int64]uint32:
-		return NewMapperValue(int64Uint32Map(val))
-	case map[int64]float32:
-		return NewMapperValue(int64Float32Map(val))
-	case map[int64]float64:
-		return NewMapperValue(int64Float64Map(val))
-	case map[int64]any:
-		return NewMapperValue(int64InterfaceMap(val))
-	case map[uint16]string:
-		return NewMapperValue(uint16StringMap(val))
-	case map[uint16]int:
-		return NewMapperValue(uint16IntMap(val))
-	case map[uint16]int8:
-		return NewMapperValue(uint16Int8Map(val))
-	case map[uint16]int16:
-		return NewMapperValue(uint16Int16Map(val))
-	case map[uint16]int32:
-		return NewMapperValue(uint16Int32Map(val))
-	case map[uint16]int64:
-		return NewMapperValue(uint16Int64Map(val))
-	case map[uint16]uint16:
-		return NewMapperValue(uint16Uint16Map(val))
-	case map[uint16]uint32:
-		return NewMapperValue(uint16Uint32Map(val))
-	case map[uint16]float32:
-		return NewMapperValue(uint16Float32Map(val))
-	case map[uint16]float64:
-		return NewMapperValue(uint16Float64Map(val))
-	case map[uint16]any:
-		return NewMapperValue(uint16InterfaceMap(val))
-	case map[uint32]string:
-		return NewMapperValue(uint32StringMap(val))
-	case map[uint32]int:
-		return NewMapperValue(uint32IntMap(val))
-	case map[uint32]int8:
-		return NewMapperValue(uint32Int8Map(val))
-	case map[uint32]int16:
-		return NewMapperValue(uint32Int16Map(val))
-	case map[uint32]int32:
-		return NewMapperValue(uint32Int32Map(val))
-	case map[uint32]int64:
-		return NewMapperValue(uint32Int64Map(val))
-	case map[uint32]uint16:
-		return NewMapperValue(uint32Uint16Map(val))
-	case map[uint32]uint32:
-		return NewMapperValue(uint32Uint32Map(val))
-	case map[uint32]float32:
-		return NewMapperValue(uint32Float32Map(val))
-	case map[uint32]float64:
-		return NewMapperValue(uint32Float64Map(val))
-	case map[uint32]any:
-		return NewMapperValue(uint32InterfaceMap(val))
-	case map[float32]string:
-		return NewMapperValue(float32StringMap(val))
-	case map[float32]int:
-		return NewMapperValue(float32IntMap(val))
-	case map[float32]int8:
-		return NewMapperValue(float32Int8Map(val))
-	case map[float32]int16:
-		return NewMapperValue(float32Int16Map(val))
-	case map[float32]int32:
-		return NewMapperValue(float32Int32Map(val))
-	case map[float32]int64:
-		return NewMapperValue(float32Int64Map(val))
-	case map[float32]uint16:
-		return NewMapperValue(float32Uint16Map(val))
-	case map[float32]uint32:
-		return NewMapperValue(float32Uint32Map(val))
-	case map[float32]float32:
-		return NewMapperValue(float32Float32Map(val))
-	case map[float32]float64:
-		return NewMapperValue(float32Float64Map(val))
-	case map[float32]any:
-		return NewMapperValue(float32InterfaceMap(val))
-	case map[float64]string:
-		return NewMapperValue(float64StringMap(val))
-	case map[float64]int:
-		return NewMapperValue(float64IntMap(val))
-	case map[float64]int8:
-		return NewMapperValue(float64Int8Map(val))
-	case map[float64]int16:
-		return NewMapperValue(float64Int16Map(val))
-	case map[float64]int32:
-		return NewMapperValue(float64Int32Map(val))
-	case map[float64]int64:
-		return NewMapperValue(float64Int64Map(val))
-	case map[float64]uint16:
-		return NewMapperValue(float64Uint16Map(val))
-	case map[float64]uint32:
-		return NewMapperValue(float64Uint32Map(val))
-	case map[float64]float32:
-		return NewMapperValue(float64Float32Map(val))
-	case map[float64]float64:
-		return NewMapperValue(float64Float64Map(val))
-	case map[float64]any:
-		return NewMapperValue(float64InterfaceMap(val))
+		return TypedMapValue[string, uint32](val)
 	case map[string]uint64:
-		return NewMapperValue(stringUint64Map(val))
+		return TypedMapValue[string, uint64](val)
+	case map[string]float32:
+		return TypedMapValue[string, float32](val)
+	case map[string]float64:
+		return TypedMapValue[string, float64](val)
+	case map[string]bool:
+		return TypedMapValue[string, bool](val)
+	case map[string][]byte:
+		return TypedMapValue[string, []byte](val)
+	case map[int]string:
+		return TypedMapValue[int, string](val)
+	case map[int]int:
+		return TypedMapValue[int, int](val)
+	case map[int]int8:
+		return TypedMapValue[int, int8](val)
+	case map[int]int16:
+		return TypedMapValue[int, int16](val)
+	case map[int]int32:
+		return TypedMapValue[int, int32](val)
+	case map[int]int64:
+		return TypedMapValue[int, int64](val)
+	case map[int]uint:
+		return TypedMapValue[int, uint](val)
+	case map[int]uint8:
+		return TypedMapValue[int, uint8](val)
+	case map[int]uint16:
+		return TypedMapValue[int, uint16](val)
+	case map[int]uint32:
+		return TypedMapValue[int, uint32](val)
 	case map[int]uint64:
-		return NewMapperValue(intUint64Map(val))
+		return TypedMapValue[int, uint64](val)
+	case map[int]float32:
+		return TypedMapValue[int, float32](val)
+	case map[int]float64:
+		return TypedMapValue[int, float64](val)
+	case map[int]bool:
+		return TypedMapValue[int, bool](val)
+	case map[int][]byte:
+		return TypedMapValue[int, []byte](val)
+	case map[int]any:
+		return TypedMapValue[int, any](val)
+	case map[int8]string:
+		return TypedMapValue[int8, string](val)
+	case map[int8]int:
+		return TypedMapValue[int8, int](val)
+	case map[int8]int8:
+		return TypedMapValue[int8, int8](val)
+	case map[int8]int16:
+		return TypedMapValue[int8, int16](val)
+	case map[int8]int32:
+		return TypedMapValue[int8, int32](val)
+	case map[int8]int64:
+		return TypedMapValue[int8, int64](val)
+	case map[int8]uint:
+		return TypedMapValue[int8, uint](val)
+	case map[int8]uint8:
+		return TypedMapValue[int8, uint8](val)
+	case map[int8]uint16:
+		return TypedMapValue[int8, uint16](val)
+	case map[int8]uint32:
+		return TypedMapValue[int8, uint32](val)
 	case map[int8]uint64:
-		return NewMapperValue(int8Uint64Map(val))
+		return TypedMapValue[int8, uint64](val)
+	case map[int8]float32:
+		return TypedMapValue[int8, float32](val)
+	case map[int8]float64:
+		return TypedMapValue[int8, float64](val)
+	case map[int8]bool:
+		return TypedMapValue[int8, bool](val)
+	case map[int8][]byte:
+		return TypedMapValue[int8, []byte](val)
+	case map[int8]any:
+		return TypedMapValue[int8, any](val)
+	case map[int16]string:
+		return TypedMapValue[int16, string](val)
+	case map[int16]int:
+		return TypedMapValue[int16, int](val)
+	case map[int16]int8:
+		return TypedMapValue[int16, int8](val)
+	case map[int16]int16:
+		return TypedMapValue[int16, int16](val)
+	case map[int16]int32:
+		return TypedMapValue[int16, int32](val)
+	case map[int16]int64:
+		return TypedMapValue[int16, int64](val)
+	case map[int16]uint:
+		return TypedMapValue[int16, uint](val)
+	case map[int16]uint8:
+		return TypedMapValue[int16, uint8](val)
+	case map[int16]uint16:
+		return TypedMapValue[int16, uint16](val)
+	case map[int16]uint32:
+		return TypedMapValue[int16, uint32](val)
 	case map[int16]uint64:
-		return NewMapperValue(int16Uint64Map(val))
+		return TypedMapValue[int16, uint64](val)
+	case map[int16]float32:
+		return TypedMapValue[int16, float32](val)
+	case map[int16]float64:
+		return TypedMapValue[int16, float64](val)
+	case map[int16]bool:
+		return TypedMapValue[int16, bool](val)
+	case map[int16][]byte:
+		return TypedMapValue[int16, []byte](val)
+	case map[int16]any:
+		return TypedMapValue[int16, any](val)
+	case map[int32]string:
+		return TypedMapValue[int32, string](val)
+	case map[int32]int:
+		return TypedMapValue[int32, int](val)
+	case map[int32]int8:
+		return TypedMapValue[int32, int8](val)
+	case map[int32]int16:
+		return TypedMapValue[int32, int16](val)
+	case map[int32]int32:
+		return TypedMapValue[int32, int32](val)
+	case map[int32]int64:
+		return TypedMapValue[int32, int64](val)
+	case map[int32]uint:
+		return TypedMapValue[int32, uint](val)
+	case map[int32]uint8:
+		return TypedMapValue[int32, uint8](val)
+	case map[int32]uint16:
+		return TypedMapValue[int32, uint16](val)
+	case map[int32]uint32:
+		return TypedMapValue[int32, uint32](val)
 	case map[int32]uint64:
-		return NewMapperValue(int32Uint64Map(val))
+		return TypedMapValue[int32, uint64](val)
+	case map[int32]float32:
+		return TypedMapValue[int32, float32](val)
+	case map[int32]float64:
+		return TypedMapValue[int32, float64](val)
+	case map[int32]bool:
+		return TypedMapValue[int32, bool](val)
+	case map[int32][]byte:
+		return TypedMapValue[int32, []byte](val)
+	case map[int32]any:
+		return TypedMapValue[int32, any](val)
+	case map[int64]string:
+		return TypedMapValue[int64, string](val)
+	case map[int64]int:
+		return TypedMapValue[int64, int](val)
+	case map[int64]int8:
+		return TypedMapValue[int64, int8](val)
+	case map[int64]int16:
+		return TypedMapValue[int64, int16](val)
+	case map[int64]int32:
+		return TypedMapValue[int64, int32](val)
+	case map[int64]int64:
+		return TypedMapValue[int64, int64](val)
+	case map[int64]uint:
+		return TypedMapValue[int64, uint](val)
+	case map[int64]uint8:
+		return TypedMapValue[int64, uint8](val)
+	case map[int64]uint16:
+		return TypedMapValue[int64, uint16](val)
+	case map[int64]uint32:
+		return TypedMapValue[int64, uint32](val)
 	case map[int64]uint64:
-		return NewMapperValue(int64Uint64Map(val))
+		return TypedMapValue[int64, uint64](val)
+	case map[int64]float32:
+		return TypedMapValue[int64, float32](val)
+	case map[int64]float64:
+		return TypedMapValue[int64, float64](val)
+	case map[int64]bool:
+		return TypedMapValue[int64, bool](val)
+	case map[int64][]byte:
+		return TypedMapValue[int64, []byte](val)
+	case map[int64]any:
+		return TypedMapValue[int64, any](val)
+	case map[uint]string:
+		return TypedMapValue[uint, string](val)
+	case map[uint]int:
+		return TypedMapValue[uint, int](val)
+	case map[uint]int8:
+		return TypedMapValue[uint, int8](val)
+	case map[uint]int16:
+		return TypedMapValue[uint, int16](val)
+	case map[uint]int32:
+		return TypedMapValue[uint, int32](val)
+	case map[uint]int64:
+		return TypedMapValue[uint, int64](val)
+	case map[uint]uint:
+		return TypedMapValue[uint, uint](val)
+	case map[uint]uint8:
+		return TypedMapValue[uint, uint8](val)
+	case map[uint]uint16:
+		return TypedMapValue[uint, uint16](val)
+	case map[uint]uint32:
+		return TypedMapValue[uint, uint32](val)
+	case map[uint]uint64:
+		return TypedMapValue[uint, uint64](val)
+	case map[uint]float32:
+		return TypedMapValue[uint, float32](val)
+	case map[uint]float64:
+		return TypedMapValue[uint, float64](val)
+	case map[uint]bool:
+		return TypedMapValue[uint, bool](val)
+	case map[uint][]byte:
+		return TypedMapValue[uint, []byte](val)
+	case map[uint]any:
+		return TypedMapValue[uint, any](val)
+	case map[uint8]string:
+		return TypedMapValue[uint8, string](val)
+	case map[uint8]int:
+		return TypedMapValue[uint8, int](val)
+	case map[uint8]int8:
+		return TypedMapValue[uint8, int8](val)
+	case map[uint8]int16:
+		return TypedMapValue[uint8, int16](val)
+	case map[uint8]int32:
+		return TypedMapValue[uint8, int32](val)
+	case map[uint8]int64:
+		return TypedMapValue[uint8, int64](val)
+	case map[uint8]uint:
+		return TypedMapValue[uint8, uint](val)
+	case map[uint8]uint8:
+		return TypedMapValue[uint8, uint8](val)
+	case map[uint8]uint16:
+		return TypedMapValue[uint8, uint16](val)
+	case map[uint8]uint32:
+		return TypedMapValue[uint8, uint32](val)
+	case map[uint8]uint64:
+		return TypedMapValue[uint8, uint64](val)
+	case map[uint8]float32:
+		return TypedMapValue[uint8, float32](val)
+	case map[uint8]float64:
+		return TypedMapValue[uint8, float64](val)
+	case map[uint8]bool:
+		return TypedMapValue[uint8, bool](val)
+	case map[uint8][]byte:
+		return TypedMapValue[uint8, []byte](val)
+	case map[uint8]any:
+		return TypedMapValue[uint8, any](val)
+	case map[uint16]string:
+		return TypedMapValue[uint16, string](val)
+	case map[uint16]int:
+		return TypedMapValue[uint16, int](val)
+	case map[uint16]int8:
+		return TypedMapValue[uint16, int8](val)
+	case map[uint16]int16:
+		return TypedMapValue[uint16, int16](val)
+	case map[uint16]int32:
+		return TypedMapValue[uint16, int32](val)
+	case map[uint16]int64:
+		return TypedMapValue[uint16, int64](val)
+	case map[uint16]uint:
+		return TypedMapValue[uint16, uint](val)
+	case map[uint16]uint8:
+		return TypedMapValue[uint16, uint8](val)
+	case map[uint16]uint16:
+		return TypedMapValue[uint16, uint16](val)
+	case map[uint16]uint32:
+		return TypedMapValue[uint16, uint32](val)
 	case map[uint16]uint64:
-		return NewMapperValue(uint16Uint64Map(val))
+		return TypedMapValue[uint16, uint64](val)
+	case map[uint16]float32:
+		return TypedMapValue[uint16, float32](val)
+	case map[uint16]float64:
+		return TypedMapValue[uint16, float64](val)
+	case map[uint16]bool:
+		return TypedMapValue[uint16, bool](val)
+	case map[uint16][]byte:
+		return TypedMapValue[uint16, []byte](val)
+	case map[uint16]any:
+		return TypedMapValue[uint16, any](val)
+	case map[uint32]string:
+		return TypedMapValue[uint32, string](val)
+	case map[uint32]int:
+		return TypedMapValue[uint32, int](val)
+	case map[uint32]int8:
+		return TypedMapValue[uint32, int8](val)
+	case map[uint32]int16:
+		return TypedMapValue[uint32, int16](val)
+	case map[uint32]int32:
+		return TypedMapValue[uint32, int32](val)
+	case map[uint32]int64:
+		return TypedMapValue[uint32, int64](val)
+	case map[uint32]uint:
+		return TypedMapValue[uint32, uint](val)
+	case map[uint32]uint8:
+		return TypedMapValue[uint32, uint8](val)
+	case map[uint32]uint16:
+		return TypedMapValue[uint32, uint16](val)
+	case map[uint32]uint32:
+		return TypedMapValue[uint32, uint32](val)
 	case map[uint32]uint64:
-		return NewMapperValue(uint32Uint64Map(val))
-	case map[float32]uint64:
-		return NewMapperValue(float32Uint64Map(val))
-	case map[float64]uint64:
-		return NewMapperValue(float64Uint64Map(val))
+		return TypedMapValue[uint32, uint64](val)
+	case map[uint32]float32:
+		return TypedMapValue[uint32, float32](val)
+	case map[uint32]float64:
+		return TypedMapValue[uint32, float64](val)
+	case map[uint32]bool:
+		return TypedMapValue[uint32, bool](val)
+	case map[uint32][]byte:
+		return TypedMapValue[uint32, []byte](val)
+	case map[uint32]any:
+		return TypedMapValue[uint32, any](val)
 	case map[uint64]string:
-		return NewMapperValue(uint64StringMap(val))
+		return TypedMapValue[uint64, string](val)
 	case map[uint64]int:
-		return NewMapperValue(uint64IntMap(val))
+		return TypedMapValue[uint64, int](val)
 	case map[uint64]int8:
-		return NewMapperValue(uint64Int8Map(val))
+		return TypedMapValue[uint64, int8](val)
 	case map[uint64]int16:
-		return NewMapperValue(uint64Int16Map(val))
+		return TypedMapValue[uint64, int16](val)
 	case map[uint64]int32:
-		return NewMapperValue(uint64Int32Map(val))
+		return TypedMapValue[uint64, int32](val)
 	case map[uint64]int64:
-		return NewMapperValue(uint64Int64Map(val))
+		return TypedMapValue[uint64, int64](val)
+	case map[uint64]uint:
+		return TypedMapValue[uint64, uint](val)
+	case map[uint64]uint8:
+		return TypedMapValue[uint64, uint8](val)
 	case map[uint64]uint16:
-		return NewMapperValue(uint64Uint16Map(val))
+		return TypedMapValue[uint64, uint16](val)
 	case map[uint64]uint32:
-		return NewMapperValue(uint64Uint32Map(val))
+		return TypedMapValue[uint64, uint32](val)
 	case map[uint64]uint64:
-		return NewMapperValue(uint64Uint64Map(val))
+		return TypedMapValue[uint64, uint64](val)
 	case map[uint64]float32:
-		return NewMapperValue(uint64Float32Map(val))
+		return TypedMapValue[uint64, float32](val)
 	case map[uint64]float64:
-		return NewMapperValue(uint64Float64Map(val))
+		return TypedMapValue[uint64, float64](val)
+	case map[uint64]bool:
+		return TypedMapValue[uint64, bool](val)
+	case map[uint64][]byte:
+		return TypedMapValue[uint64, []byte](val)
 	case map[uint64]any:
-		return NewMapperValue(uint64InterfaceMap(val))
+		return TypedMapValue[uint64, any](val)
+	case map[float32]string:
+		return TypedMapValue[float32, string](val)
+	case map[float32]int:
+		return TypedMapValue[float32, int](val)
+	case map[float32]int8:
+		return TypedMapValue[float32, int8](val)
+	case map[float32]int16:
+		return TypedMapValue[float32, int16](val)
+	case map[float32]int32:
+		return TypedMapValue[float32, int32](val)
+	case map[float32]int64:
+		return TypedMapValue[float32, int64](val)
+	case map[float32]uint:
+		return TypedMapValue[float32, uint](val)
+	case map[float32]uint8:
+		return TypedMapValue[float32, uint8](val)
+	case map[float32]uint16:
+		return TypedMapValue[float32, uint16](val)
+	case map[float32]uint32:
+		return TypedMapValue[float32, uint32](val)
+	case map[float32]uint64:
+		return TypedMapValue[float32, uint64](val)
+	case map[float32]float32:
+		return TypedMapValue[float32, float32](val)
+	case map[float32]float64:
+		return TypedMapValue[float32, float64](val)
+	case map[float32]bool:
+		return TypedMapValue[float32, bool](val)
+	case map[float32][]byte:
+		return TypedMapValue[float32, []byte](val)
+	case map[float32]any:
+		return TypedMapValue[float32, any](val)
+	case map[float64]string:
+		return TypedMapValue[float64, string](val)
+	case map[float64]int:
+		return TypedMapValue[float64, int](val)
+	case map[float64]int8:
+		return TypedMapValue[float64, int8](val)
+	case map[float64]int16:
+		return TypedMapValue[float64, int16](val)
+	case map[float64]int32:
+		return TypedMapValue[float64, int32](val)
+	case map[float64]int64:
+		return TypedMapValue[float64, int64](val)
+	case map[float64]uint:
+		return TypedMapValue[float64, uint](val)
+	case map[float64]uint8:
+		return TypedMapValue[float64, uint8](val)
+	case map[float64]uint16:
+		return TypedMapValue[float64, uint16](val)
+	case map[float64]uint32:
+		return TypedMapValue[float64, uint32](val)
+	case map[float64]uint64:
+		return TypedMapValue[float64, uint64](val)
+	case map[float64]float32:
+		return TypedMapValue[float64, float32](val)
+	case map[float64]float64:
+		return TypedMapValue[float64, float64](val)
+	case map[float64]bool:
+		return TypedMapValue[float64, bool](val)
+	case map[float64][]byte:
+		return TypedMapValue[float64, []byte](val)
+	case map[float64]any:
+		return TypedMapValue[float64, any](val)
 	}
 
 	return nil
@@ -977,6 +1138,361 @@ func (vl MapValue) GetObject() any {
 
 func (vl MapValue) String() string {
 	return fmt.Sprintf("%v", map[any]any(vl))
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+type ValidMapKey interface {
+	comparable
+	~int | ~uint |
+		~int64 | ~int32 | ~int16 | ~int8 |
+		~uint64 | ~uint32 | ~uint16 | ~uint8 |
+		~float64 | ~float32 |
+		~string
+}
+
+// TypedMapValue encapsulates an arbitrary map.
+// Supported by Aerospike 3+ servers only.
+type TypedMapValue[K ValidMapKey, V any] map[K]V
+
+// NewMapValue generates a TypedMapValue instance.
+func NewTypedMapValue[K ValidMapKey, V any](vmap map[K]V) TypedMapValue[K, V] {
+	return TypedMapValue[K, V](vmap)
+}
+
+// EstimateSize returns the size of the TypedMapValue in wire protocol.
+func (vl TypedMapValue[K, V]) EstimateSize() (int, Error) {
+	return packIfcMapT(nil, vl)
+}
+
+func (vl TypedMapValue[K, V]) write(cmd BufferEx) (int, Error) {
+	return packIfcMapT(cmd, vl)
+}
+
+func (vl TypedMapValue[K, V]) pack(cmd BufferEx) (int, Error) {
+	return packIfcMapT(cmd, vl)
+}
+
+// GetType returns wire protocol value type.
+func (vl TypedMapValue[K, V]) GetType() int {
+	return ParticleType.MAP
+}
+
+// GetObject returns original value as an any.
+func (vl TypedMapValue[K, V]) GetObject() any {
+	return map[K]V(vl)
+}
+
+func (vl TypedMapValue[K, V]) String() string {
+	return fmt.Sprintf("%v", map[K]V(vl))
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// TypedListValue is a typed list. Unlike [ListValue], the element type is known
+// at compile time, so packing avoids boxing the elements into interfaces:
+// the popular element types route to the same monomorphic packers the
+// [ListIter] implementations use, and the rest go through a per-entry typed
+// path that still does not allocate.
+// Supported by Aerospike 3+ servers only.
+type TypedListValue[T any] []T
+
+// NewTypedListValue generates a TypedListValue instance.
+func NewTypedListValue[T any](list []T) TypedListValue[T] {
+	return TypedListValue[T](list)
+}
+
+// EstimateSize returns the size of the TypedListValue in wire protocol.
+func (vl TypedListValue[T]) EstimateSize() (int, Error) {
+	return packIfcListT(nil, vl)
+}
+
+func (vl TypedListValue[T]) write(cmd BufferEx) (int, Error) {
+	return packIfcListT(cmd, vl)
+}
+
+func (vl TypedListValue[T]) pack(cmd BufferEx) (int, Error) {
+	return packIfcListT(cmd, vl)
+}
+
+// GetType returns wire protocol value type.
+func (vl TypedListValue[T]) GetType() int {
+	return ParticleType.LIST
+}
+
+// GetObject returns original value as an any.
+func (vl TypedListValue[T]) GetObject() any {
+	return []T(vl)
+}
+
+// String implements Stringer interface.
+func (vl TypedListValue[T]) String() string {
+	return fmt.Sprintf("%v", []T(vl))
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// SeqMapValue packs a typed key/value sequence (iter.Seq2) as a map without
+// materializing it. Because the wire protocol needs the entry count before
+// the entries, the constructor takes it explicitly; packing fails with a
+// PARAMETER_ERROR if the sequence yields a different number of pairs.
+//
+// The sequence is iterated once per serialization pass (size estimation and
+// the write itself), so it must be re-iterable and yield the same entries
+// each time. A SeqMapValue keeps iteration scratch state on itself so that
+// packing does not allocate; as a consequence a single instance must not be
+// used by concurrent commands.
+// Supported by Aerospike 3+ servers only.
+type SeqMapValue[K ValidMapKey, V any] struct {
+	seq     iter.Seq2[K, V]
+	entries int
+
+	// Scratch for the prebuilt yield closure. Building the closure once at
+	// construction is what keeps pack allocation-free: a closure built
+	// inside pack would escape into the opaque seq call on every pack.
+	cmd   BufferEx
+	size  int
+	count int
+	err   Error
+	yield func(K, V) bool
+}
+
+// NewSeqMapValue generates a SeqMapValue instance from a sequence that
+// yields exactly entries pairs.
+func NewSeqMapValue[K ValidMapKey, V any](seq iter.Seq2[K, V], entries int) *SeqMapValue[K, V] {
+	v := &SeqMapValue[K, V]{seq: seq, entries: entries}
+	v.yield = func(k K, val V) bool {
+		if v.count >= v.entries {
+			v.count++
+			return false
+		}
+		v.count++
+		n, err := packTypedObject(v.cmd, k, true)
+		v.size += n
+		if err != nil {
+			v.err = err
+			return false
+		}
+		n, err = packTypedObject(v.cmd, val, false)
+		v.size += n
+		if err != nil {
+			v.err = err
+			return false
+		}
+		return true
+	}
+	return v
+}
+
+func (v *SeqMapValue[K, V]) countError() Error {
+	return newError(types.PARAMETER_ERROR, fmt.Sprintf(
+		"SeqMapValue declared %d entries but the sequence yielded %s",
+		v.entries, yieldedCount(v.count, v.entries)))
+}
+
+// EstimateSize returns the size of the SeqMapValue in wire protocol.
+func (v *SeqMapValue[K, V]) EstimateSize() (int, Error) {
+	return v.pack(nil)
+}
+
+func (v *SeqMapValue[K, V]) write(cmd BufferEx) (int, Error) {
+	return v.pack(cmd)
+}
+
+func (v *SeqMapValue[K, V]) pack(cmd BufferEx) (int, Error) {
+	if v.entries < 0 {
+		return 0, newError(types.PARAMETER_ERROR, "SeqMapValue entry count must not be negative")
+	}
+	if isCanonicalPack(cmd) && v.entries > 1 {
+		return v.packCanonical(cmd)
+	}
+
+	size, err := packMapBegin(cmd, v.entries)
+	if err != nil {
+		return size, err
+	}
+
+	v.cmd, v.size, v.count, v.err = cmd, 0, 0, nil
+	v.seq(v.yield)
+	size += v.size
+	v.cmd = nil
+	if v.err != nil {
+		return 0, v.err
+	}
+	if v.count != v.entries {
+		return 0, v.countError()
+	}
+	return size, nil
+}
+
+// packCanonical materializes and sorts the entries in the server's canonical
+// msgpack key order (see packIfcMap). Filter-expression literals are built
+// once per expression, so the allocations here are off the hot path.
+func (v *SeqMapValue[K, V]) packCanonical(cmd BufferEx) (int, Error) {
+	keys := make([]K, 0, v.entries)
+	vals := make([]V, 0, v.entries)
+	for k, val := range v.seq {
+		if len(keys) > v.entries {
+			break
+		}
+		keys = append(keys, k)
+		vals = append(vals, val)
+	}
+	if len(keys) != v.entries {
+		v.count = len(keys)
+		return 0, v.countError()
+	}
+
+	idx := make([]int, len(keys))
+	for i := range idx {
+		idx[i] = i
+	}
+	slices.SortFunc(idx, func(a, b int) int { return compareCanonicalKeys(keys[a], keys[b]) })
+
+	size, err := packMapBegin(cmd, v.entries)
+	if err != nil {
+		return size, err
+	}
+	for _, i := range idx {
+		n, err := packTypedObject(cmd, keys[i], true)
+		size += n
+		if err != nil {
+			return 0, err
+		}
+		n, err = packTypedObject(cmd, vals[i], false)
+		size += n
+		if err != nil {
+			return 0, err
+		}
+	}
+	return size, nil
+}
+
+// GetType returns wire protocol value type.
+func (v *SeqMapValue[K, V]) GetType() int {
+	return ParticleType.MAP
+}
+
+// GetObject returns the original sequence as an any.
+func (v *SeqMapValue[K, V]) GetObject() any {
+	return v.seq
+}
+
+// String implements Stringer interface.
+func (v *SeqMapValue[K, V]) String() string {
+	m := make(map[K]V, v.entries)
+	for k, val := range v.seq {
+		m[k] = val
+	}
+	return fmt.Sprintf("%v", m)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// SeqListValue packs a typed element sequence (iter.Seq) as a list without
+// materializing it. Because the wire protocol needs the element count before
+// the elements, the constructor takes it explicitly; packing fails with a
+// PARAMETER_ERROR if the sequence yields a different number of elements.
+//
+// The sequence is iterated once per serialization pass (size estimation and
+// the write itself), so it must be re-iterable and yield the same elements
+// each time. A SeqListValue keeps iteration scratch state on itself so that
+// packing does not allocate; as a consequence a single instance must not be
+// used by concurrent commands.
+// Supported by Aerospike 3+ servers only.
+type SeqListValue[T any] struct {
+	seq      iter.Seq[T]
+	elements int
+
+	// Scratch for the prebuilt yield closure; see SeqMapValue.
+	cmd   BufferEx
+	size  int
+	count int
+	err   Error
+	yield func(T) bool
+}
+
+// NewSeqListValue generates a SeqListValue instance from a sequence that
+// yields exactly elements values.
+func NewSeqListValue[T any](seq iter.Seq[T], elements int) *SeqListValue[T] {
+	v := &SeqListValue[T]{seq: seq, elements: elements}
+	v.yield = func(elem T) bool {
+		if v.count >= v.elements {
+			v.count++
+			return false
+		}
+		v.count++
+		n, err := packTypedObject(v.cmd, elem, false)
+		v.size += n
+		if err != nil {
+			v.err = err
+			return false
+		}
+		return true
+	}
+	return v
+}
+
+// EstimateSize returns the size of the SeqListValue in wire protocol.
+func (v *SeqListValue[T]) EstimateSize() (int, Error) {
+	return v.pack(nil)
+}
+
+func (v *SeqListValue[T]) write(cmd BufferEx) (int, Error) {
+	return v.pack(cmd)
+}
+
+func (v *SeqListValue[T]) pack(cmd BufferEx) (int, Error) {
+	if v.elements < 0 {
+		return 0, newError(types.PARAMETER_ERROR, "SeqListValue element count must not be negative")
+	}
+
+	size, err := packArrayBegin(cmd, v.elements)
+	if err != nil {
+		return size, err
+	}
+
+	v.cmd, v.size, v.count, v.err = cmd, 0, 0, nil
+	v.seq(v.yield)
+	size += v.size
+	v.cmd = nil
+	if v.err != nil {
+		return 0, v.err
+	}
+	if v.count != v.elements {
+		return 0, newError(types.PARAMETER_ERROR, fmt.Sprintf(
+			"SeqListValue declared %d elements but the sequence yielded %s",
+			v.elements, yieldedCount(v.count, v.elements)))
+	}
+	return size, nil
+}
+
+// GetType returns wire protocol value type.
+func (v *SeqListValue[T]) GetType() int {
+	return ParticleType.LIST
+}
+
+// GetObject returns the original sequence as an any.
+func (v *SeqListValue[T]) GetObject() any {
+	return v.seq
+}
+
+// String implements Stringer interface.
+func (v *SeqListValue[T]) String() string {
+	l := make([]T, 0, v.elements)
+	for elem := range v.seq {
+		l = append(l, elem)
+	}
+	return fmt.Sprintf("%v", l)
+}
+
+// yieldedCount phrases a sequence-length mismatch: iteration stops at the
+// first excess element, so past the declared count only "more" is known.
+func yieldedCount(count, declared int) string {
+	if count > declared {
+		return "more"
+	}
+	return strconv.Itoa(count)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
