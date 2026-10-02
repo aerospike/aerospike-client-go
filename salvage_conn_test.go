@@ -45,12 +45,23 @@ type holdProxy struct {
 }
 
 func newHoldProxy(upstream string) *holdProxy {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	// listen on the local interface that routes to the upstream
+	probe, err := net.Dial("tcp", upstream)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+	local := probe.LocalAddr().(*net.TCPAddr).IP
+	probe.Close()
+
+	ln, err := net.Listen("tcp", net.JoinHostPort(local.String(), "0"))
 	gm.Expect(err).ToNot(gm.HaveOccurred())
 
 	p := &holdProxy{ln: ln, upstream: upstream}
 	go p.serve()
 	return p
+}
+
+func (p *holdProxy) host(tlsName string) *as.Host {
+	addr := p.ln.Addr().(*net.TCPAddr)
+	return &as.Host{Name: addr.IP.String(), Port: addr.Port, TLSName: tlsName}
 }
 
 func (p *holdProxy) port() int {
@@ -250,10 +261,13 @@ var _ = gg.Describe("Connection salvage after a timeout", func() {
 		cp.ConnectionQueueSize = 2
 		cp.MinConnectionsPerNode = 0
 		cp.FailIfNotConnected = true
+		// peers advertise addresses the test host can't reach, so seed the other nodes directly
+		seeds := append([]*as.Host{proxy.host(seed.TLSName)}, dbHosts[1:]...)
 		var err error
-		pclient, err = as.NewClientWithPolicyAndHost(&cp, &as.Host{Name: "127.0.0.1", Port: proxy.port(), TLSName: seed.TLSName})
+		pclient, err = as.NewClientWithPolicyAndHost(&cp, seeds...)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		pclient.EnableMetrics(nil)
+		gm.Expect(pclient.GetNodes()).To(gm.HaveLen(len(client.GetNodes())))
 
 		var proxied *as.Node
 		for _, n := range pclient.GetNodes() {
