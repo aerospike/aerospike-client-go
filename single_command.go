@@ -15,7 +15,7 @@
 package aerospike
 
 import (
-	"bufio"
+	"io"
 	"iter"
 	"time"
 
@@ -75,31 +75,32 @@ func (cmd *singleCommand) getNamespace() *string {
 
 func (cmd *singleCommand) salvageConn(timeoutDelay time.Duration, conn *Connection, node *Node) {
 	// If the connection is already closed, don't bother trying to salvage it.
-	if cmd.conn != nil && !cmd.conn.IsConnected() {
+	if conn == nil || !conn.IsConnected() {
 		return
 	}
 
-	conn.deadline = time.Now().Add(timeoutDelay)
+	// Only a connection drained to the end of a response of known length can be reused.
+	remaining := conn.expectedReceived - conn.totalReceived
+	if conn.expectedReceived <= 0 || remaining < 0 {
+		conn.Close()
+		return
+	}
 
-	reader := bufio.NewReader(conn.conn)
-	discardedCount := int(cmd.receiveSize - conn.totalReceived)
-
-	for discardedCount > 0 {
-		var discarded int
-		var err error
-		if discarded, err = reader.Discard(discardedCount); err != nil {
-			if discarded < discardedCount {
-				conn.Close()
-				cmd.conn = nil
-				return
-			}
+	if remaining > 0 {
+		if err := conn.conn.SetDeadline(time.Now().Add(timeoutDelay)); err != nil {
+			conn.Close()
+			return
 		}
-		discardedCount -= discarded
+
+		if n, err := io.CopyN(io.Discard, conn.conn, remaining); err != nil || n != remaining {
+			conn.Close()
+			return
+		}
 	}
 
 	conn.refresh()
 	node.PutConnection(conn)
 
 	// Record connection recovery metrics
-	applyConnectionRecoveredMetrics(cmd.node)
+	applyConnectionRecoveredMetrics(node)
 }
