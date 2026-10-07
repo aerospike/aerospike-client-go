@@ -24,6 +24,7 @@ const (
 	BLOB     = 4
 	DIGEST   = 6
 	PHP_BLOB = 11 // Had to reintroduce to support the old PHP7 client
+	VECTOR   = 16
 	BOOL     = 17
 	HLL      = 18
 	MAP      = 19

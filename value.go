@@ -92,6 +92,8 @@ func tryConcreteValue(v any) Value {
 		return NewValueArray(val)
 	case []byte:
 		return BytesValue(val)
+	case Vector:
+		return &val
 	case int8:
 		return IntegerValue(int(val))
 	case int16:
@@ -1171,7 +1173,13 @@ func (vl *RawBlobValue) write(cmd BufferEx) (int, Error) {
 	return cmd.Write(vl.Data)
 }
 
+// TODO: circle back post server updates
 func (vl *RawBlobValue) pack(cmd BufferEx) (int, Error) {
+	// A stored type-16 value that is not a valid vector is surfaced as a
+	// RawBlobValue; pack it back unchanged so it can be rewritten inside a CDT.
+	if vl.ParticleType == ParticleType.VECTOR {
+		return packVector(cmd, vl.Data)
+	}
 	panic(unreachable)
 }
 
@@ -1243,6 +1251,9 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (any, Error)
 		newObj := make([]byte, length)
 		copy(newObj, buf[offset:offset+length])
 		return HLLValue(newObj), nil
+
+	case ParticleType.VECTOR:
+		return bytesToVectorParticle(buf[offset : offset+length]), nil
 
 	case ParticleType.BLOB:
 		newObj := make([]byte, length)

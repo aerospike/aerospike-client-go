@@ -118,6 +118,11 @@ func NewKeyWithDigest(namespace string, setName string, key any, digest []byte) 
 		userKey:   NewValue(key),
 	}
 
+	// vector as a record key not allowed
+	if _, ok := newKey.userKey.(*Vector); ok {
+		return nil, newError(types.PARAMETER_ERROR, "Invalid key type: Vector")
+	}
+
 	if err := newKey.SetDigest(digest); err != nil {
 		return nil, err
 	}
