@@ -61,8 +61,8 @@ var _ = gg.Describe("Vector Object API Test", func() {
 		// Read back through the plain API: both are real vector particles.
 		record, err := client.Get(nil, key)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
-		gm.Expect(record.Bins["ptr"].(*as.Vector).Equal(stored.Ptr)).To(gm.BeTrue())
-		gm.Expect(record.Bins["val"].(*as.Vector).Equal(&stored.Value)).To(gm.BeTrue())
+		gm.Expect(expectVector(record.Bins["ptr"]).Equal(stored.Ptr)).To(gm.BeTrue())
+		gm.Expect(expectVector(record.Bins["val"]).Equal(&stored.Value)).To(gm.BeTrue())
 
 		var loaded embedding
 		gm.Expect(client.GetObject(nil, key, &loaded)).To(gm.Succeed())

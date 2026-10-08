@@ -1308,6 +1308,11 @@ func (cmd *baseCommand) setBatchOperateIfcOffsets(
 				cmd.writeBatchWrite(key, txn, ver, attr, attr.filterExp, 3, 0)
 				cmd.writeFieldString(bu.PackageName, UDF_PACKAGE_NAME)
 				cmd.writeFieldString(bu.FunctionName, UDF_FUNCTION)
+				if bu.argBytesHaveVector {
+					if err := cmd.markVector(); err != nil {
+						return nil, err
+					}
+				}
 				cmd.writeFieldBytes(bu.argBytes, UDF_ARGLIST)
 
 			case _BRT_BATCH_DELETE:
@@ -3426,6 +3431,12 @@ func (cmd *baseCommand) writeBatchReadOperations(ops []*Operation, readAttr int)
 }
 
 func (cmd *baseCommand) writeOperationForOperation(operation *Operation) Error {
+	if operation.hasVector {
+		if err := cmd.markVector(); err != nil {
+			return err
+		}
+	}
+
 	nameLength, valid := cmd.writeAndValidateBinName(operation.binName)
 	switch operation.opType {
 	case _READ, _READ_HEADER, _TOUCH, _DELETE:
@@ -3574,6 +3585,15 @@ func (cmd *baseCommand) writeFieldBytes(bytes []byte, ftype FieldType) {
 func (cmd *baseCommand) writeFieldHeader(size int, ftype FieldType) {
 	cmd.WriteInt32(int32(size + 1))
 	cmd.WriteByte((byte(ftype)))
+}
+
+// markVector refuses a vector unless every node in the cluster supports
+// vectors. A command without a node has nothing to check against.
+func (cmd *baseCommand) markVector() Error {
+	if cmd.node != nil && !cmd.node.cluster.supportsVector.Get() {
+		return newError(types.PARAMETER_ERROR, "Vector is not supported by all nodes in the cluster")
+	}
+	return nil
 }
 
 func (cmd *baseCommand) begin() {

@@ -62,55 +62,58 @@ const (
 
 // ExpWriteOp creates an operation with an expression that writes to record bin.
 func ExpWriteOp(binName string, exp *Expression, flags ExpWriteFlags) *Operation {
-	val, err := encodeExpOperation(exp, int(flags))
+	val, hasVector, err := encodeExpOperation(exp, int(flags))
 	if err != nil {
 		panic(err)
 	}
 	return &Operation{
-		opType:   _EXP_MODIFY,
-		binName:  binName,
-		binValue: NewValue(val),
-		encoder:  nil,
+		opType:    _EXP_MODIFY,
+		binName:   binName,
+		binValue:  NewValue(val),
+		encoder:   nil,
+		hasVector: hasVector,
 	}
 }
 
 // ExpReadOp creates an operation with an expression that reads from a record.
 func ExpReadOp(name string, exp *Expression, flags ExpReadFlags) *Operation {
-	val, err := encodeExpOperation(exp, int(flags))
+	val, hasVector, err := encodeExpOperation(exp, int(flags))
 	if err != nil {
 		panic(err)
 	}
 	return &Operation{
-		opType:   _EXP_READ,
-		binName:  name,
-		binValue: NewValue(val),
-		encoder:  nil,
+		opType:    _EXP_READ,
+		binName:   name,
+		binValue:  NewValue(val),
+		encoder:   nil,
+		hasVector: hasVector,
 	}
 }
 
-// newExpOperationEncoder is used to encode the operation expression wire protocol
-func encodeExpOperation(exp *Expression, flags int) ([]byte, Error) {
+// newExpOperationEncoder is used to encode the operation expression wire protocol.
+// It also reports whether the expression packed a vector.
+func encodeExpOperation(exp *Expression, flags int) ([]byte, bool, Error) {
 	// expression is double packed: first normally, and then as a BLOB in operation
 	// find the size of packed expression and pack it in temp buffer
 	tsz, err := exp.size()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// header + packed bytes + flags = 16 + len bytes max
 	buf := newBuffer(tsz + 16)
 
 	if _, err = packArrayBegin(buf, 2); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if _, err = exp.pack(buf); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if _, err = packAInt(buf, flags); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return buf.Bytes(), nil
+	return buf.Bytes(), buf.packedVector, nil
 }

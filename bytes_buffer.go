@@ -46,6 +46,11 @@ type bufferEx struct {
 	// (key-ordered) msgpack form. The flag lives on the buffer instead of a
 	// wrapper type so marking allocates nothing.
 	canonicalKeys bool
+
+	// packedVector records that a vector was packed into this buffer, so a
+	// value packed ahead of the command can be checked against the cluster
+	// when it is copied into the command.
+	packedVector bool
 }
 
 func newBuffer(sz int) *bufferEx {
@@ -59,6 +64,12 @@ func (buf *bufferEx) setCanonicalKeys(v bool) { buf.canonicalKeys = v }
 
 // canonicalKeysOrdered reports whether maps must be packed in canonical order.
 func (buf *bufferEx) canonicalKeysOrdered() bool { return buf.canonicalKeys }
+
+// markVector records that a vector was packed into this buffer.
+func (buf *bufferEx) markVector() Error {
+	buf.packedVector = true
+	return nil
+}
 
 // Bytes returns the content of the buffer
 func (buf *bufferEx) Bytes() []byte {
