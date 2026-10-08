@@ -34,6 +34,9 @@ type BatchUDF struct {
 
 	// Wire protocol bytes for function args. For internal use only.
 	argBytes []byte
+
+	// argBytesHaveVector is set when argBytes contain a vector.
+	argBytesHaveVector bool
 }
 
 // NewBatchUDF creates a batch UDF operation.
@@ -121,6 +124,7 @@ func (bu *BatchUDF) size(sendKey bool) (int, Error) {
 	}
 
 	bu.argBytes = packer.Bytes()
+	bu.argBytesHaveVector = packer.packedVector
 
 	size += sz + int(_FIELD_HEADER_SIZE)
 	return size, nil
