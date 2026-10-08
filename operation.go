@@ -71,6 +71,10 @@ type Operation struct {
 
 	// binValue (Optional) determines bin value used in operation.
 	binValue Value
+
+	// hasVector is set when an expression packed ahead of the command
+	// contains a vector.
+	hasVector bool
 }
 
 // size returns the size of the operation on the wire protocol.

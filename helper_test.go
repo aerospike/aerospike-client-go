@@ -73,6 +73,11 @@ func ConfiguredAsStrongConsistency(client *Client, namespace string) bool {
 	return p.SCMode
 }
 
+// SetVectorSupportForTest overrides whether the client treats every node as supporting vectors.
+func (clstr *Cluster) SetVectorSupportForTest(supported bool) {
+	clstr.supportsVector.Set(supported)
+}
+
 func NewWriteCommand(
 	cluster *Cluster,
 	policy *WritePolicy,
