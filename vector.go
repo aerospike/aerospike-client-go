@@ -280,10 +280,16 @@ func (vector *Vector) EstimateSize() (int, Error) {
 }
 
 func (vector *Vector) write(cmd BufferEx) (int, Error) {
+	if err := markVector(cmd); err != nil {
+		return 0, err
+	}
 	return cmd.Write(vector.wire)
 }
 
 func (vector *Vector) pack(cmd BufferEx) (int, Error) {
+	if err := markVector(cmd); err != nil {
+		return 0, err
+	}
 	return packVector(cmd, vector.wire)
 }
 
