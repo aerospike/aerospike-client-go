@@ -232,6 +232,11 @@ func packIfCDTModify(packer BufferEx, opType int, ctx []*CDTContext, params List
 	if err != nil {
 		return size, err
 	}
+	if expBuf.packedVector {
+		if err = markVector(packer); err != nil {
+			return size, err
+		}
+	}
 	expBytes := expBuf.Bytes()
 
 	if n, err = packByteArray(packer, expBytes); err != nil {

@@ -161,6 +161,22 @@ type canonicalPacker interface {
 	canonicalKeysOrdered() bool
 }
 
+// vectorMarker is implemented by buffers that track vector packing.
+// The command buffer refuses a vector when not every node supports it, and a
+// temporary buffer records it so the check runs once its bytes reach a command.
+type vectorMarker interface {
+	markVector() Error
+}
+
+// markVector reports a vector packed into buf. A nil buf is a size-estimation
+// pass and is never checked.
+func markVector(buf BufferEx) Error {
+	if marker, ok := buf.(vectorMarker); ok {
+		return marker.markVector()
+	}
+	return nil
+}
+
 // isCanonicalPack reports whether cmd is packing a filter-expression literal,
 // whose maps servers with AER-6930 require in canonical key order.
 func isCanonicalPack(cmd BufferEx) bool {
@@ -899,10 +915,18 @@ func packAByte(cmd BufferEx, val byte) (int, Error) {
 type packer struct {
 	bytes.Buffer
 	tempBuffer [8]byte
+	// packedVector records that a vector was packed into this buffer.
+	packedVector bool
 }
 
 func newPacker() *packer {
 	return &packer{}
+}
+
+// markVector records that a vector was packed into this buffer.
+func (vb *packer) markVector() Error {
+	vb.packedVector = true
+	return nil
 }
 
 // WriteInt64 writes an int64 to the buffer
