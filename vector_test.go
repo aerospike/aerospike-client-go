@@ -249,6 +249,75 @@ var _ = gg.Describe("Vector Test", func() {
 		})
 	})
 
+	// Values from the server's own vector expression tests: a = {1,2,3},
+	// b = {4,6,8}.
+	gg.Context("distance expressions", func() {
+		stored := as.NewVectorFloat32([]float32{1, 2, 3})
+		query := as.NewVectorFloat32([]float32{4, 6, 8})
+
+		distanceTo := func(metric as.VectorDistanceMetric, bin string) *as.Expression {
+			return as.ExpVectorDistance(metric, query, as.ExpVectorBin(bin))
+		}
+
+		gg.It("returns the squared Euclidean distance, dot product and cosine similarity", func() {
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+
+			record, err := client.Operate(nil, key,
+				as.ExpReadOp("euclidean", distanceTo(as.VectorEuclidean, binName), as.ExpReadFlagDefault),
+				as.ExpReadOp("dot", distanceTo(as.VectorDotProduct, binName), as.ExpReadFlagDefault),
+				as.ExpReadOp("cosine", distanceTo(as.VectorCosine, binName), as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record.Bins["euclidean"]).To(gm.Equal(50.0))
+			gm.Expect(record.Bins["dot"]).To(gm.Equal(40.0))
+			// The server computes in float32.
+			gm.Expect(record.Bins["cosine"]).To(gm.BeNumerically("~", 40/math.Sqrt(1624), 1e-6))
+		})
+
+		gg.It("filters records by distance", func() {
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+
+			getWithinDistance := func(limit float64) as.Error {
+				policy := as.NewPolicy()
+				policy.FilterExpression = as.ExpLess(distanceTo(as.VectorEuclidean, binName), as.ExpFloatVal(limit))
+				_, err := client.Get(policy, key)
+				return err
+			}
+			gm.Expect(getWithinDistance(51)).To(gm.Succeed())
+			gm.Expect(getWithinDistance(50).Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
+		})
+
+		gg.It("returns nil with EvalNoFail and fails by default when the bin cannot be compared", func() {
+			gm.Expect(put(
+				as.NewBin("fewer_dims", as.NewVectorFloat32([]float32{1, 2})),
+				as.NewBin("float64", as.NewVectorFloat64([]float64{1, 2, 3})),
+				as.NewBin("text", "not a vector"),
+			)).To(gm.Succeed())
+
+			for _, bin := range []string{"fewer_dims", "float64", "text", "missing"} {
+				record, err := client.Operate(nil, key, as.ExpReadOp("d", distanceTo(as.VectorEuclidean, bin), as.ExpReadFlagEvalNoFail))
+				gm.Expect(err).ToNot(gm.HaveOccurred(), bin)
+				gm.Expect(record.Bins["d"]).To(gm.BeNil(), bin)
+
+				_, err = client.Operate(nil, key, as.ExpReadOp("d", distanceTo(as.VectorEuclidean, bin), as.ExpReadFlagDefault))
+				gm.Expect(err).To(gm.HaveOccurred(), bin)
+				gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
+			}
+		})
+
+		gg.It("reads and copies a whole vector bin through expressions", func() {
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+
+			record, err := client.Operate(nil, key,
+				as.ExpWriteOp("copy", as.ExpVectorBin(binName), as.ExpWriteFlagDefault),
+				as.ExpReadOp("read", as.ExpVectorBin(binName), as.ExpReadFlagDefault),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(expectVector(record.Bins["read"]).Equal(stored)).To(gm.BeTrue())
+			gm.Expect(getVector("copy").Equal(stored)).To(gm.BeTrue())
+		})
+	})
+
 	gg.Context("vectors inside expressions, contexts and UDF arguments", func() {
 		embedding := as.NewVectorFloat32([]float32{0.5, -0.5})
 		other := as.NewVectorFloat32([]float32{1, 1})
