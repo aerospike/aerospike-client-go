@@ -119,4 +119,53 @@ var _ = gg.Describe("Vector encoding", func() {
 		gm.Expect(err).ToNot(gm.HaveOccurred())
 		gm.Expect(packed(NewValue(decoded))).To(gm.Equal(packedList))
 	})
+
+	gg.Context("distance expressions", func() {
+		query := NewVectorFloat32([]float32{4, 6, 8})
+
+		packedExpression := func(exp *Expression) ([]byte, Error) {
+			size, err := exp.size()
+			if err != nil {
+				return nil, err
+			}
+			buffer := newBuffer(size)
+			if _, err := exp.pack(buffer); err != nil {
+				return nil, err
+			}
+			return buffer.Bytes(), nil
+		}
+
+		metrics := []struct {
+			name   string
+			metric VectorDistanceMetric
+			opCode byte
+		}{
+			{"squared Euclidean", VectorEuclidean, 52},
+			{"dot product", VectorDotProduct, 53},
+			{"cosine", VectorCosine, 54},
+		}
+
+		for _, testCase := range metrics {
+			gg.It("packs "+testCase.name+" as [op, vector bin, query as blob]", func() {
+				wire := query.Bytes()
+				// fixarray(3), op, [BIN(81), VECTOR(10), "v"], fixstr(len+1), BLOB, wire.
+				want := append([]byte{0x93, testCase.opCode, 0x93, 0x51, 0x0a, 0xa1, 'v',
+					0xa0 | byte(len(wire)+1), ParticleType.BLOB}, wire...)
+
+				got, err := packedExpression(ExpVectorDistance(testCase.metric, query, ExpVectorBin("v")))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(got).To(gm.Equal(want))
+			})
+		}
+
+		gg.It("panics on an unknown metric", func() {
+			gm.Expect(func() { ExpVectorDistance(VectorDistanceMetric(3), query, ExpVectorBin("v")) }).
+				To(gm.PanicWith(gm.MatchError(gm.ContainSubstring("Invalid VectorDistanceMetric: 3"))))
+		})
+
+		gg.It("rejects a nil query when packed", func() {
+			_, err := packedExpression(ExpVectorDistance(VectorCosine, nil, ExpVectorBin("v")))
+			expectParameterError(err, "distance query must not be nil")
+		})
+	})
 })
