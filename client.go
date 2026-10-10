@@ -1375,6 +1375,9 @@ func (clnt *Client) QueryExecute(policy *QueryPolicy,
 	statement *Statement,
 	ops ...*Operation,
 ) (*ExecuteTask, Error) {
+	if err := statement.rejectTopK(); err != nil {
+		return nil, err
+	}
 	policy = clnt.getUsableQueryPolicy(policy)
 	writePolicy = clnt.getUsableWritePolicy(writePolicy)
 
@@ -1412,6 +1415,9 @@ func (clnt *Client) ExecuteUDF(policy *QueryPolicy,
 	functionName string,
 	functionArgs ...Value,
 ) (*ExecuteTask, Error) {
+	if err := statement.rejectTopK(); err != nil {
+		return nil, err
+	}
 	policy = clnt.getUsableQueryPolicy(policy)
 	taskId := statement.prepareTaskId()
 
@@ -1448,6 +1454,9 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 	functionName string,
 	functionArgs ...Value,
 ) (*ExecuteTask, Error) {
+	if err := statement.rejectTopK(); err != nil {
+		return nil, err
+	}
 	policy = clnt.getUsableQueryPolicy(policy)
 	taskId := statement.prepareTaskId()
 
@@ -1541,6 +1550,9 @@ func parseInfoErrorCode(response string) Error {
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, partitionFilter *PartitionFilter) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
+	if err := statement.validateTopK(policy); err != nil {
+		return nil, err
+	}
 	nodes := clnt.cluster.GetNodes()
 	if len(nodes) == 0 {
 		return nil, ErrClusterIsEmpty.err()
@@ -1583,6 +1595,9 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 
 func (clnt *Client) queryNodePartitions(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
+	if err := statement.validateTopK(policy); err != nil {
+		return nil, err
+	}
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
 
 	// result recordset

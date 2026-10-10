@@ -2552,7 +2552,7 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 	return nil
 }
 
-func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, background bool, nodePartitions *nodePartitions) Error {
+func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, statement *Statement, taskID uint64, operations []*Operation, background bool, nodePartitions *nodePartitions, sendTopK bool) Error {
 	fieldCount := 0
 	filterSize := 0
 	binNameSize := 0
@@ -2701,6 +2701,15 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	if maxRecords > 0 {
 		cmd.dataOffset += 8 + int(_FIELD_HEADER_SIZE)
 		fieldCount++
+	}
+
+	// Estimate Top-K order-by and limit fields.
+	orderBySize := 0
+	if sendTopK {
+		orderBySize = 4 + len(statement.orderBy.binName)
+		cmd.dataOffset += orderBySize + int(_FIELD_HEADER_SIZE)
+		cmd.dataOffset += 4 + int(_FIELD_HEADER_SIZE)
+		fieldCount += 2
 	}
 
 	if filterExpression != nil {
@@ -2896,6 +2905,19 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 
 	if maxRecords > 0 {
 		cmd.writeFieldInt64(maxRecords, MAX_RECORDS)
+	}
+
+	// Write Top-K: the order-by spec is type, direction, flags, name length,
+	// name; the limit is a uint32.
+	if sendTopK {
+		spec := statement.orderBy
+		cmd.writeFieldHeader(orderBySize, ORDER_BY)
+		cmd.WriteByte(byte(spec.orderType))
+		cmd.WriteByte(byte(spec.direction))
+		cmd.WriteByte(byte(spec.flags))
+		cmd.WriteByte(byte(len(spec.binName)))
+		cmd.WriteString(spec.binName)
+		cmd.writeFieldInt32(int32(statement.topK), TOP_K)
 	}
 
 	// Write scan timeout
