@@ -766,3 +766,135 @@ var _ = gg.Describe("Query operations", func() {
 		gm.Expect(updatedCount).To(gm.BeNumerically(">", 0))
 	})
 })
+
+var _ = gg.Describe("Query Top-K", func() {
+	var (
+		ns   = *namespace
+		set  string
+		keys []*as.Key
+	)
+
+	gg.BeforeEach(func() {
+		set = randString(50)
+		keys = nil
+	})
+
+	gg.AfterEach(func() {
+		for _, key := range keys {
+			client.Delete(nil, key)
+		}
+	})
+
+	expectParameterError := func(err as.Error, messagePart string) {
+		gm.ExpectWithOffset(1, err).To(gm.HaveOccurred())
+		gm.ExpectWithOffset(1, err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+		gm.ExpectWithOffset(1, err.Error()).To(gm.ContainSubstring(messagePart))
+	}
+
+	// putScores stores one record per score, with its position as the id.
+	putScores := func(scores ...int) {
+		for id, score := range scores {
+			key, err := as.NewKey(ns, set, id)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(client.PutBins(nil, key, as.NewBin("score", score), as.NewBin("id", id))).To(gm.Succeed())
+			keys = append(keys, key)
+		}
+	}
+
+	// rankByScore returns a statement ordered by the highest score, returning
+	// the score and id bins.
+	rankByScore := func() *as.Statement {
+		statement := as.NewStatement(ns, set, "score", "id")
+		gm.Expect(statement.SetOrderBy("score", as.OrderByInteger, as.OrderDesc)).To(gm.Succeed())
+		return statement
+	}
+
+	// topTen returns a statement for the 10 highest scores.
+	topTen := func() *as.Statement {
+		statement := rankByScore()
+		gm.Expect(statement.SetTopK(10)).To(gm.Succeed())
+		return statement
+	}
+
+	queryIDs := func(statement *as.Statement) []int {
+		recordset, err := client.Query(nil, statement)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+
+		var ids []int
+		for result := range recordset.Results() {
+			gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+			ids = append(ids, result.Record.Bins["id"].(int))
+		}
+		return ids
+	}
+
+	gg.Context("invalid requests", func() {
+		gg.It("refuses SetTopK before SetOrderBy", func() {
+			expectParameterError(as.NewStatement(ns, set).SetTopK(10), "SetTopK requires SetOrderBy")
+		})
+
+		invalid := []struct {
+			name        string
+			change      func(statement *as.Statement, policy *as.QueryPolicy)
+			messagePart string
+		}{
+			{"a limit of 0", func(s *as.Statement, _ *as.QueryPolicy) { s.SetTopK(0) }, "limit must be in [1, 1000]"},
+			{"a limit over 1000", func(s *as.Statement, _ *as.QueryPolicy) { s.SetTopK(1001) }, "limit must be in [1, 1000]"},
+			{"an order-by bin name over 15 bytes", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.SetOrderBy("a_bin_name_16_by", as.OrderByInteger, as.OrderAsc)
+				s.SetTopK(10)
+			}, "1-15 bytes without a null byte"},
+			{"case folding on a non-string bin", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.SetOrderByWithFlags("score", as.OrderByInteger, as.OrderAsc, as.OrderByFlagCaseInsensitive)
+				s.SetTopK(10)
+			}, "only valid for OrderByString"},
+			{"an order-by bin missing from BinNames", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.BinNames = []string{"id"}
+			}, "must be returned by the query"},
+			{"an order-by bin no operation returns", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.Operations = []*as.Operation{as.GetBinOp("id")}
+			}, "must be returned by the query"},
+			{"an aggregate function", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.SetAggregateFunction("pkg", "fn", nil, true)
+			}, "aggregate function"},
+			{"MaxRecords", func(_ *as.Statement, p *as.QueryPolicy) { p.MaxRecords = 100 }, "MaxRecords"},
+			{"IncludeBinData off", func(_ *as.Statement, p *as.QueryPolicy) { p.IncludeBinData = false }, "IncludeBinData=false"},
+		}
+
+		for _, testCase := range invalid {
+			gg.It("refuses "+testCase.name+" before contacting the cluster", func() {
+				statement, policy := topTen(), as.NewQueryPolicy()
+				testCase.change(statement, policy)
+
+				_, err := client.Query(policy, statement)
+				expectParameterError(err, testCase.messagePart)
+			})
+		}
+	})
+
+	gg.Context("commands without Top-K support", func() {
+		gg.It("are refused for a Top-K statement", func() {
+			_, err := client.QueryExecute(nil, nil, topTen(), as.PutOp(as.NewBin("seen", 1)))
+			expectParameterError(err, "only supported by Query, QueryPartitions and QueryNode")
+
+			_, err = client.ExecuteUDF(nil, topTen(), "pkg", "fn")
+			expectParameterError(err, "only supported by Query, QueryPartitions and QueryNode")
+		})
+	})
+
+	gg.Context("SetOrderBy without an active SetTopK", func() {
+		gg.BeforeEach(func() {
+			putScores(1, 5, 3)
+		})
+
+		gg.It("runs a normal query returning every record", func() {
+			gm.Expect(queryIDs(rankByScore())).To(gm.ConsistOf(0, 1, 2))
+		})
+
+		gg.It("runs a normal query when a later SetOrderBy clears the limit", func() {
+			statement := topTen()
+			gm.Expect(statement.SetOrderBy("score", as.OrderByInteger, as.OrderAsc)).To(gm.Succeed())
+			gm.Expect(queryIDs(statement)).To(gm.ConsistOf(0, 1, 2))
+		})
+	})
+})
