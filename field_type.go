@@ -47,4 +47,6 @@ const (
 	BATCH_INDEX_WITH_SET FieldType = 42
 	FILTER_EXP           FieldType = 43
 	ERROR_MESSAGE        FieldType = 45
+	ORDER_BY             FieldType = 46
+	TOP_K                FieldType = 47
 )

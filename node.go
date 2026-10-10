@@ -46,6 +46,7 @@ const (
 	_SUPPORTS_PARTITION_QUERY
 	_SUPPORTS_QUERY_OPS_PROJECTION_EXT
 	_SUPPORTS_VECTOR
+	_SUPPORTS_QUERY_ORDER_BY
 )
 
 // Node represents an Aerospike Database Server Node
@@ -150,6 +151,11 @@ func (nd *Node) SupportsQueryOpsProjectionExt() bool {
 // SupportsVector returns true if the node supports native vector bins and vector expressions.
 func (nd *Node) SupportsVector() bool {
 	return (nd.features & _SUPPORTS_VECTOR) != 0
+}
+
+// SupportsQueryOrderBy returns true if the node ranks Top-K queries itself.
+func (nd *Node) SupportsQueryOrderBy() bool {
+	return (nd.features & _SUPPORTS_QUERY_ORDER_BY) != 0
 }
 
 // Refresh requests current status from server node, and updates node with the result.
