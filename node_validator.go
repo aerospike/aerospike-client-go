@@ -330,6 +330,7 @@ func (ndv *nodeValidator) setFeatures(alias *Host) Error {
 	}
 	if ndv.serverVersion.IsGreaterOrEqual(version.ServerVersionVector) {
 		ndv.features |= _SUPPORTS_VECTOR
+		ndv.features |= _SUPPORTS_QUERY_ORDER_BY
 	}
 
 	return nil
