@@ -45,7 +45,7 @@ func (cmd *queryPartitionObjectsCommand) getPolicy(ifc command) Policy {
 }
 
 func (cmd *queryPartitionObjectsCommand) writeBuffer(ifc command) Error {
-	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.recordset.TaskId(), cmd.operations, cmd.writePolicy != nil, cmd.nodePartitions)
+	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.recordset.TaskId(), cmd.operations, cmd.writePolicy != nil, cmd.nodePartitions, false)
 }
 
 func (cmd *queryPartitionObjectsCommand) shouldRetry(e Error) bool {
