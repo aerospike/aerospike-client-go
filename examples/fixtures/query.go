@@ -18,6 +18,7 @@ package fixtures
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -422,4 +423,72 @@ func QueryTopK() Fixture {
 			return nil
 		},
 	}
+}
+
+func QueryVectorKNN() Fixture {
+	const size = 20
+	keys := make([]string, size)
+	for i := range keys {
+		keys[i] = "knnkey" + strconv.Itoa(i)
+	}
+	return Fixture{
+		Setup:   func() error { return DeleteKeys(keys...) },
+		Cleanup: func() error { return DeleteKeys(keys...) },
+		// Record i holds (i, i, i, i): nearest to (7.3, ...) by squared
+		// Euclidean distance are 7, 8, 6, 9, 5; largest dot product with
+		// (1, ...) are 19 down to 15.
+		Validate: func() error {
+			checks := []struct {
+				distance  as.VectorDistanceMetric
+				query     []float32
+				direction as.OrderDirection
+				want      []int
+			}{
+				{as.VectorEuclidean, []float32{7.3, 7.3, 7.3, 7.3}, as.OrderAsc, []int{7, 8, 6, 9, 5}},
+				{as.VectorDotProduct, []float32{1, 1, 1, 1}, as.OrderDesc, []int{19, 18, 17, 16, 15}},
+			}
+			for _, check := range checks {
+				got, err := queryNearestIDs(check.distance, check.query, check.direction, len(check.want))
+				if err != nil {
+					return err
+				}
+				if fmt.Sprint(got) != fmt.Sprint(check.want) {
+					return fmt.Errorf("nearest %d by %v = %v, want %v", len(check.want), check.distance, got, check.want)
+				}
+			}
+			return nil
+		},
+	}
+}
+
+// queryNearestIDs returns the ids of the k records whose "vec" bin is nearest
+// to query, best first, through a Top-K query on the projected distance.
+func queryNearestIDs(distance as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int) ([]int, error) {
+	statement := as.NewStatement(namespace, set)
+	statement.Operations = []*as.Operation{
+		as.ExpReadOp("dist",
+			as.ExpVectorDistance(distance, as.NewVectorFloat32(query), as.ExpVectorBin("vec")),
+			as.ExpReadFlagDefault),
+		as.GetBinOp("id"),
+	}
+	if err := statement.SetOrderBy("dist", as.OrderByDouble, direction); err != nil {
+		return nil, err
+	}
+	if err := statement.SetTopK(k); err != nil {
+		return nil, err
+	}
+	recordset, err := client.Query(nil, statement)
+	if err != nil {
+		return nil, err
+	}
+	defer recordset.Close()
+
+	var ids []int
+	for res := range recordset.Results() {
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		ids = append(ids, res.Record.Bins["id"].(int))
+	}
+	return ids, nil
 }
