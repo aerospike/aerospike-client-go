@@ -94,14 +94,15 @@ const (
 	OrderDesc OrderDirection = 1
 )
 
-// OrderByFlags modify how a Top-K order-by bin is compared.
+// OrderByFlags is a bitmask that controls how Top-K order-by values are compared.
 type OrderByFlags byte
 
 const (
-	// OrderByFlagNone uses the default comparison.
+	// OrderByFlagNone is flags byte 0 — default compare.
 	OrderByFlagNone OrderByFlags = 0
-	// OrderByFlagCaseInsensitive ignores ASCII letter case. Valid for OrderByString only.
-	OrderByFlagCaseInsensitive OrderByFlags = 1
+	// OrderByFlagCaseInsensitive is bit 0 (wire 0x01). ASCII A–Z only.
+	// Valid for OrderByString only.
+	OrderByFlagCaseInsensitive OrderByFlags = 1 << 0
 )
 
 type orderBySpec struct {
