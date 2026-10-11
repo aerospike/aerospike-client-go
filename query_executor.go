@@ -21,6 +21,12 @@ import (
 func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, recordset *Recordset) {
 	defer recordset.signalEnd()
 
+	var merger *topKMerger
+
+	if statement.hasTopK() {
+		merger = newTopKMerger(statement)
+	}
+
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
@@ -40,9 +46,15 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 		}
 
 		if recordset.IsActive() {
+			// Nodes rank a Top-K query only when every node of this round
+			// can. Otherwise they return every match and the client ranks them.
+			sendTopK := merger != nil && nodesRankTopK(list)
+
 			weg := newWeightedErrGroup(maxConcurrentNodes)
 			for _, nodePartition := range list {
 				cmd := newQueryPartitionCommand(policy, tracker, nodePartition, statement, recordset)
+				cmd.sendTopK = sendTopK
+				cmd.topKMerger = merger
 				weg.execute(cmd)
 			}
 			errs = chainErrors(weg.wait(), errs)
@@ -55,6 +67,8 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 			if errs != nil {
 				tracker.partitionError()
 				recordset.sendError(errs)
+			} else if merger != nil {
+				sendTopKResults(recordset, merger.results())
 			}
 			return
 		}
@@ -71,4 +85,26 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 		recordset.resetTaskID()
 	}
 
+}
+
+// sendTopKResults sends the ranked records, best first, until the recordset
+// is closed.
+func sendTopKResults(recordset *Recordset, results []*Result) {
+	for _, result := range results {
+		select {
+		case recordset.records <- result:
+		case <-recordset.cancelled:
+			return
+		}
+	}
+}
+
+// nodesRankTopK reports whether every node in the round ranks Top-K queries itself.
+func nodesRankTopK(list []*nodePartitions) bool {
+	for _, nodePartition := range list {
+		if !nodePartition.node.SupportsQueryOrderBy() {
+			return false
+		}
+	}
+	return true
 }
