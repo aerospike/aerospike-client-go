@@ -19,6 +19,7 @@ import (
 	"errors"
 	"math"
 	"math/rand"
+	"sort"
 	"strconv"
 
 	as "github.com/aerospike/aerospike-client-go/v8"
@@ -882,6 +883,252 @@ var _ = gg.Describe("Query Top-K", func() {
 		})
 	})
 
+	gg.Context("ranking", func() {
+		// Records by id: score (one missing, one a string), and a vector
+		// {id, 9-id} so distances order cleanly by id.
+		scores := []any{50, 90, 70, 90, 10, nil, 30, 70, "x", 60}
+		var keyByID []*as.Key
+
+		gg.BeforeEach(func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K ranking requires a server with Top-K support")
+			}
+
+			keyByID = make([]*as.Key, len(scores))
+			for id, score := range scores {
+				key, err := as.NewKey(ns, set, id)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				bins := []*as.Bin{
+					as.NewBin("id", id),
+					as.NewBin("emb", as.NewVectorFloat32([]float32{float32(id), float32(9 - id)})),
+				}
+				if score != nil {
+					bins = append(bins, as.NewBin("score", score))
+				}
+				gm.Expect(client.PutBins(nil, key, bins...)).To(gm.Succeed())
+				keyByID[id] = key
+				keys = append(keys, key)
+			}
+		})
+
+		topK := func(direction as.OrderDirection, k int) *as.Statement {
+			statement := as.NewStatement(ns, set, "score", "id")
+			gm.Expect(statement.SetOrderBy("score", as.OrderByInteger, direction)).To(gm.Succeed())
+			gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
+			return statement
+		}
+
+		// expectTie asserts two tied records come back in digest order.
+		expectTie := func(first, second int) {
+			gm.ExpectWithOffset(1, bytes.Compare(keyByID[first].Digest(), keyByID[second].Digest())).To(gm.Equal(-1))
+		}
+
+		gg.It("returns the k highest values, best first, with ties in digest order", func() {
+			ids := queryIDs(topK(as.OrderDesc, 3))
+			gm.Expect(ids).To(gm.HaveLen(3))
+			gm.Expect(ids[:2]).To(gm.ConsistOf(1, 3))
+			gm.Expect(ids[2]).To(gm.BeElementOf(2, 7))
+			expectTie(ids[0], ids[1])
+		})
+
+		gg.It("returns the k lowest values, best first", func() {
+			gm.Expect(queryIDs(topK(as.OrderAsc, 3))).To(gm.Equal([]int{4, 6, 0}))
+		})
+
+		gg.It("ranks missing and wrong-type values last and returns at most the matching records", func() {
+			ids := queryIDs(topK(as.OrderDesc, 1000))
+			gm.Expect(ids).To(gm.HaveLen(len(scores)))
+			gm.Expect(ids[:8]).To(gm.ConsistOf(1, 3, 2, 7, 9, 0, 6, 4))
+			gm.Expect(ids[8:]).To(gm.ConsistOf(5, 8))
+		})
+
+		gg.It("ranks the same with BinNames, Operations or the whole record", func() {
+			want := queryIDs(topK(as.OrderDesc, 3))
+
+			withOperations := topK(as.OrderDesc, 3)
+			withOperations.BinNames = nil
+			withOperations.Operations = []*as.Operation{as.GetBinOp("score"), as.GetBinOp("id")}
+			gm.Expect(queryIDs(withOperations)).To(gm.Equal(want))
+
+			wholeRecord := topK(as.OrderDesc, 3)
+			wholeRecord.BinNames = nil
+			gm.Expect(queryIDs(wholeRecord)).To(gm.Equal(want))
+		})
+
+		gg.It("ranks the same on a cluster where one node cannot rank", func() {
+			mixedCluster, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			defer mixedCluster.Close()
+			nodes := mixedCluster.GetNodes()
+			nodes[0].SetQueryOrderBySupportForTest(false)
+
+			collectIDs := func(recordset *as.Recordset, err as.Error) []int {
+				gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+				var ids []int
+				for result := range recordset.Results() {
+					gm.ExpectWithOffset(1, result.Err).ToNot(gm.HaveOccurred())
+					ids = append(ids, result.Record.Bins["id"].(int))
+				}
+				return ids
+			}
+
+			// The node that cannot rank takes part, so the client ranks every match.
+			for _, direction := range []as.OrderDirection{as.OrderDesc, as.OrderAsc} {
+				gm.Expect(collectIDs(mixedCluster.Query(nil, topK(direction, 5)))).To(gm.Equal(queryIDs(topK(direction, 5))))
+			}
+
+			// QueryNode on another node leaves it out, so that node ranks itself.
+			if len(nodes) > 1 {
+				upgraded := nodes[1]
+				sameNode, err := client.Cluster().GetNodeByName(upgraded.GetName())
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(collectIDs(mixedCluster.QueryNode(nil, upgraded, topK(as.OrderAsc, 3)))).
+					To(gm.Equal(collectIDs(client.QueryNode(nil, sameNode, topK(as.OrderAsc, 3)))))
+			}
+		})
+
+		gg.It("ranks only the records a filter expression keeps", func() {
+			policy := as.NewQueryPolicy()
+			policy.FilterExpression = as.ExpLess(as.ExpIntBin("id"), as.ExpIntVal(3))
+
+			recordset, err := client.Query(policy, topK(as.OrderDesc, 2))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			var ids []int
+			for result := range recordset.Results() {
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				ids = append(ids, result.Record.Bins["id"].(int))
+			}
+			gm.Expect(ids).To(gm.Equal([]int{1, 2}))
+		})
+
+		gg.It("ranks only the records a secondary index filter matches", func() {
+			indexName := set + "_id"
+			createIndex(nil, ns, set, indexName, "id", as.NUMERIC)
+			defer dropIndex(nil, ns, set, indexName)
+
+			statement := topK(as.OrderDesc, 2)
+			gm.Expect(statement.SetFilter(as.NewRangeFilter("id", 4, 9))).To(gm.Succeed())
+			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{7, 9}))
+		})
+
+		gg.It("ranks by a projected vector distance and puts records it cannot compare last", func() {
+			key, err := as.NewKey(ns, set, "other dims")
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(client.PutBins(nil, key, as.NewBin("id", 99), as.NewBin("emb", as.NewVectorFloat32([]float32{0, 9, 0})))).To(gm.Succeed())
+			keys = append(keys, key)
+
+			nearest := func(metric as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int) []int {
+				statement := as.NewStatement(ns, set)
+				statement.Operations = []*as.Operation{
+					as.GetBinOp("id"),
+					as.ExpReadOp("dist", as.ExpVectorDistance(metric, as.NewVectorFloat32(query), as.ExpVectorBin("emb")), as.ExpReadFlagEvalNoFail),
+				}
+				gm.Expect(statement.SetOrderBy("dist", as.OrderByDouble, direction)).To(gm.Succeed())
+				gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
+				return queryIDs(statement)
+			}
+
+			gm.Expect(nearest(as.VectorEuclidean, []float32{0, 9}, as.OrderAsc, 3)).To(gm.Equal([]int{0, 1, 2}))
+			gm.Expect(nearest(as.VectorDotProduct, []float32{1, 0}, as.OrderDesc, 3)).To(gm.Equal([]int{9, 8, 7}))
+			gm.Expect(nearest(as.VectorCosine, []float32{1, 0}, as.OrderDesc, 3)).To(gm.Equal([]int{9, 8, 7}))
+
+			all := nearest(as.VectorEuclidean, []float32{0, 9}, as.OrderAsc, 1000)
+			gm.Expect(all).To(gm.HaveLen(len(scores) + 1))
+			gm.Expect(all[len(all)-1]).To(gm.Equal(99))
+		})
+
+		gg.It("ranks a query sent with a short-query hint", func() {
+			policy := as.NewQueryPolicy()
+			policy.ExpectedDuration = as.SHORT
+
+			recordset, err := client.Query(policy, topK(as.OrderAsc, 3))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			var ids []int
+			for result := range recordset.Results() {
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				ids = append(ids, result.Record.Bins["id"].(int))
+			}
+			gm.Expect(ids).To(gm.Equal([]int{4, 6, 0}))
+		})
+
+		gg.It("ranks through QueryPartitions and per node through QueryNode", func() {
+			recordset, err := client.QueryPartitions(nil, topK(as.OrderAsc, 3), as.NewPartitionFilterAll())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			var ids []int
+			for result := range recordset.Results() {
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				ids = append(ids, result.Record.Bins["id"].(int))
+			}
+			gm.Expect(ids).To(gm.Equal([]int{4, 6, 0}))
+
+			var fromNodes []int
+			for _, node := range client.GetNodes() {
+				recordset, err := client.QueryNode(nil, node, topK(as.OrderAsc, 3))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				var nodeScores []int
+				for result := range recordset.Results() {
+					gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+					fromNodes = append(fromNodes, result.Record.Bins["id"].(int))
+					if score, ok := result.Record.Bins["score"].(int); ok {
+						nodeScores = append(nodeScores, score)
+					}
+				}
+				gm.Expect(len(nodeScores)).To(gm.BeNumerically("<=", 3))
+				gm.Expect(sort.IntsAreSorted(nodeScores)).To(gm.BeTrue())
+			}
+			gm.Expect(fromNodes).To(gm.ContainElements(4, 6, 0))
+		})
+	})
+
+	// Each order-by type compares values the way the server does: a value of
+	// another type ranks last, doubles put NaN above every number, blobs and
+	// strings compare byte by byte with the shorter first on a common prefix,
+	// and strings can ignore ASCII letter case.
+	gg.Context("how each order-by type compares values", func() {
+		gg.BeforeEach(func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K ranking requires a server with Top-K support")
+			}
+		})
+
+		// putValues stores one record per value in bin "v", with its position as the id.
+		putValues := func(values ...any) {
+			for id, value := range values {
+				key, err := as.NewKey(ns, set, id)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(client.PutBins(nil, key, as.NewBin("id", id), as.NewBin("v", value))).To(gm.Succeed())
+				keys = append(keys, key)
+			}
+		}
+
+		rank := func(orderType as.OrderByType, direction as.OrderDirection, flags as.OrderByFlags, k int) []int {
+			statement := as.NewStatement(ns, set, "v", "id")
+			gm.Expect(statement.SetOrderByWithFlags("v", orderType, direction, flags)).To(gm.Succeed())
+			gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
+			return queryIDs(statement)
+		}
+
+		gg.It("ranks doubles with NaN above every number and an integer value last", func() {
+			putValues(1.5, -2.0, math.NaN(), 3.25, 7)
+
+			gm.Expect(rank(as.OrderByDouble, as.OrderDesc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{2, 3, 0}))
+			gm.Expect(rank(as.OrderByDouble, as.OrderAsc, as.OrderByFlagNone, 5)).To(gm.Equal([]int{1, 0, 3, 2, 4}))
+		})
+
+		gg.It("ranks blobs byte by byte with the shorter first on a common prefix", func() {
+			putValues([]byte{0x01, 0x00}, []byte{0x02}, []byte{0x01}, []byte{0x00, 0xff})
+
+			gm.Expect(rank(as.OrderByBytes, as.OrderAsc, as.OrderByFlagNone, 4)).To(gm.Equal([]int{3, 2, 0, 1}))
+		})
+
+		gg.It("compares strings by bytes by default and ignores ASCII case when asked", func() {
+			putValues("Banana", "apple", "Cherry")
+
+			gm.Expect(rank(as.OrderByString, as.OrderAsc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{0, 2, 1}))
+			gm.Expect(rank(as.OrderByString, as.OrderAsc, as.OrderByFlagCaseInsensitive, 3)).To(gm.Equal([]int{1, 0, 2}))
+		})
+	})
+
 	gg.Context("SetOrderBy without an active SetTopK", func() {
 		gg.BeforeEach(func() {
 			putScores(1, 5, 3)
@@ -892,9 +1139,14 @@ var _ = gg.Describe("Query Top-K", func() {
 		})
 
 		gg.It("runs a normal query when a later SetOrderBy clears the limit", func() {
-			statement := topTen()
+			const k = 1
+			statement := rankByScore()
+			gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
 			gm.Expect(statement.SetOrderBy("score", as.OrderByInteger, as.OrderAsc)).To(gm.Succeed())
-			gm.Expect(queryIDs(statement)).To(gm.ConsistOf(0, 1, 2))
+
+			ids := queryIDs(statement)
+			gm.Expect(len(ids)).To(gm.BeNumerically(">", k))
+			gm.Expect(ids).To(gm.ConsistOf(0, 1, 2))
 		})
 	})
 })

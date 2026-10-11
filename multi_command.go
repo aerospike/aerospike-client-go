@@ -39,6 +39,9 @@ type baseMultiCommand struct {
 	tracker        *partitionTracker
 	nodePartitions *nodePartitions
 
+	// topKMerger collects the records of a Top-K query instead of the recordset.
+	topKMerger *topKMerger
+
 	terminationErrorType types.ResultCode
 
 	resObjType     reflect.Type
@@ -528,6 +531,14 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 			}
 
 			if !cmd.tracker.allowRecord(cmd.nodePartitions) {
+				continue
+			}
+
+			// Top-K records arrive best first, not in digest order, so they
+			// set no resume point: a retried partition is scanned again and
+			// the merger drops the duplicates.
+			if cmd.topKMerger != nil {
+				cmd.topKMerger.add(&Result{Record: newRecord(cmd.node, key, bins, generation, expiration), Err: nil, BVal: &bval})
 				continue
 			}
 

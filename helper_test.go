@@ -78,6 +78,17 @@ func (clstr *Cluster) SetVectorSupportForTest(supported bool) {
 	clstr.supportsVector.Set(supported)
 }
 
+// SetQueryOrderBySupportForTest overrides whether the node ranks Top-K
+// queries itself, so a test can force the client-side ranking path. Call it
+// before the node runs a query.
+func (nd *Node) SetQueryOrderBySupportForTest(supported bool) {
+	if supported {
+		nd.features |= _SUPPORTS_QUERY_ORDER_BY
+	} else {
+		nd.features &^= _SUPPORTS_QUERY_ORDER_BY
+	}
+}
+
 func NewWriteCommand(
 	cluster *Cluster,
 	policy *WritePolicy,
