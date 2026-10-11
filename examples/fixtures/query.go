@@ -241,6 +241,35 @@ func countQuery(filter *as.Filter) (int, error) {
 	return count, nil
 }
 
+// queryTopKBins returns the k highest values of an indexed integer bin,
+// highest first, through a Top-K query.
+func queryTopKBins(bin string, k int) ([]int, error) {
+	statement := as.NewStatement(namespace, set, bin)
+	if err := statement.SetFilter(as.NewRangeFilter(bin, 1, 1000)); err != nil {
+		return nil, err
+	}
+	if err := statement.SetOrderBy(bin, as.OrderByInteger, as.OrderDesc); err != nil {
+		return nil, err
+	}
+	if err := statement.SetTopK(k); err != nil {
+		return nil, err
+	}
+	recordset, err := client.Query(nil, statement)
+	if err != nil {
+		return nil, err
+	}
+	defer recordset.Close()
+
+	var values []int
+	for res := range recordset.Results() {
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		values = append(values, res.Record.Bins[bin].(int))
+	}
+	return values, nil
+}
+
 func GeoJSONQuery() Fixture {
 	const indexName = "testset_geo_index"
 	return Fixture{
@@ -359,6 +388,37 @@ func QueryAggregateSum() Fixture {
 			if task, err := client.RemoveUDF(nil, "sum_single_bin.lua"); err == nil {
 				<-task.OnComplete()
 			}
+			return nil
+		},
+	}
+}
+
+func QueryTopK() Fixture {
+	const size, k = 20, 5
+	keys := numberedKeys("topkkey", size)
+	return Fixture{
+		Setup: func() error {
+			_ = client.DropIndex(nil, namespace, set, "topkindex")
+			return DeleteKeys(keys...)
+		},
+		// Values 1..20 were written, so the top 5 descending are 20 down to 16,
+		// in that order.
+		Validate: func() error {
+			got, err := queryTopKBins("topkbin", k)
+			if err != nil {
+				return err
+			}
+			want := []int{20, 19, 18, 17, 16}
+			if fmt.Sprint(got) != fmt.Sprint(want) {
+				return fmt.Errorf("top %d = %v, want %v", k, got, want)
+			}
+			return nil
+		},
+		Cleanup: func() error {
+			if err := DeleteKeys(keys...); err != nil {
+				return err
+			}
+			_ = client.DropIndex(nil, namespace, set, "topkindex")
 			return nil
 		},
 	}
