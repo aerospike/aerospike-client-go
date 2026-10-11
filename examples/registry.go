@@ -50,6 +50,8 @@ var examples = []Example{
 	{Name: "query_aggregate_sum", Run: runQueryAggregateSum, Fixture: fixtures.QueryAggregateSum()},
 	{Name: "udf", Run: runUDF, Fixture: fixtures.UDF()},
 	{Name: "query", Run: runQuery, Fixture: fixtures.Query()},
+	{Name: "query_topk", Run: runQueryTopK, Fixture: fixtures.QueryTopK(),
+		Requires: MinServerVersionPatch(8, 2, 1)},
 	{Name: "operate_list", Run: runOperateList, Fixture: fixtures.OperateList()},
 	{Name: "operate_map", Run: runOperateMap, Fixture: fixtures.OperateMap()},
 	{Name: "operate_string_read", Run: runOperateStringRead, Fixture: fixtures.OperateStringRead(),
