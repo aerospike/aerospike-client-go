@@ -176,19 +176,17 @@ func (stmt *Statement) SetOrderByWithFlags(binName string, orderType OrderByType
 	return nil
 }
 
-// SetTopK makes the query return only the k best records, ranked by the
-// order-by bin, best first. k must be in [1, 1000]. SetOrderBy must be
-// called first.
+// SetTopK returns the k best records ranked by the order-by bin, best first.
+// SetOrderBy must be called first. k must be in [1, 1000].
 //
-// Top-K is supported by Query, QueryPartitions and QueryNode only, with
-// IncludeBinData set and MaxRecords 0. Each node ranks its records and sends
-// its k best when its scan ends, so no records arrive until then; the client
-// merges the nodes' results. If any node lacks Top-K support, the client ranks
-// all matching records itself.
+// Supported by Query, QueryPartitions and QueryNode only. Requires
+// IncludeBinData=true and MaxRecords=0. QueryNode ranks only its own records.
 //
-// Top-K is single-shot and always runs as a long query; a short-query hint is
-// ignored. Pass a fresh PartitionFilter: a filter reused from an earlier query
-// ranks only the records after its resume point.
+// Results are returned after nodes finish scanning. For large scans, set
+// SocketTimeout high enough to cover the scan duration, or to 0.
+//
+// Top-K is single-shot and always runs as a long query. Use a fresh
+// PartitionFilter to avoid ranking only records after a previous resume point.
 func (stmt *Statement) SetTopK(k int) Error {
 	if stmt.orderBy == nil {
 		return newError(types.PARAMETER_ERROR, "SetTopK requires SetOrderBy to be called first")
