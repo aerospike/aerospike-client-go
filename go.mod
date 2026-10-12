@@ -1,13 +1,13 @@
 module github.com/aerospike/aerospike-client-go/v8
 
-go 1.23.0
+go 1.26.0
 
 require (
 	github.com/onsi/ginkgo/v2 v2.27.5
 	github.com/onsi/gomega v1.39.0
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	github.com/yuin/gopher-lua v1.1.2
-	golang.org/x/sync v0.16.0
+	golang.org/x/sync v0.24.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -28,4 +28,5 @@ require (
 )
 
 retract [v8.3.0, v8.4.1] // Problem with User Agent code returning a closed connection without an error.
+
 retract v8.8.0 // TxnStateCommitFailed was inserted mid-iota, changing the values of TxnStateCommitted and TxnStateAborted. Fixed in v8.9.0 (CLIENT-5260).
