@@ -1051,6 +1051,68 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(ids).To(gm.Equal([]int{4, 6, 0}))
 		})
 
+		gg.It("ranks only records within the partition filter", func() {
+			// Keys land in partitions by digest, so the range is taken from the data:
+			// partitions 0 up to the fifth-lowest partition holding a score.
+			var scoredPartitions []int
+			for id, score := range scores {
+				if _, ok := score.(int); ok {
+					scoredPartitions = append(scoredPartitions, keyByID[id].PartitionId())
+				}
+			}
+			sort.Ints(scoredPartitions)
+			begin, count := 0, scoredPartitions[4]+1
+
+			inRange := func(id int) bool {
+				partition := keyByID[id].PartitionId()
+				return partition >= begin && partition < begin+count
+			}
+
+			// The highest score must be outside the queried partition range: pick
+			// a key whose partition is past the range.
+			var outsideKey *as.Key
+			for attempt := 0; outsideKey == nil || outsideKey.PartitionId() < count; attempt++ {
+				var err as.Error
+				outsideKey, err = as.NewKey(ns, set, "outside the range "+strconv.Itoa(attempt))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+			}
+			gm.Expect(client.PutBins(nil, outsideKey,
+				as.NewBin("score", 1000),
+				as.NewBin("id", 1000),
+			)).To(gm.Succeed())
+			keys = append(keys, outsideKey)
+
+			var want []int
+			for id, score := range scores {
+				if value, ok := score.(int); ok && inRange(id) {
+					want = append(want, value)
+				}
+			}
+
+			sort.Sort(sort.Reverse(sort.IntSlice(want)))
+			want = want[:min(3, len(want))]
+
+			recordset, err := client.QueryPartitions(
+				nil,
+				topK(as.OrderDesc, 3),
+				as.NewPartitionFilterByRange(begin, count),
+			)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+
+			var got []int
+			for result := range recordset.Results() {
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+
+				id := result.Record.Bins["id"].(int)
+				gm.Expect(id).ToNot(gm.Equal(1000))
+				gm.Expect(inRange(id)).To(gm.BeTrue())
+
+				got = append(got, result.Record.Bins["score"].(int))
+			}
+
+			gm.Expect(got).To(gm.Equal(want))
+		})
+
 		gg.It("ranks through QueryPartitions and per node through QueryNode", func() {
 			recordset, err := client.QueryPartitions(nil, topK(as.OrderAsc, 3), as.NewPartitionFilterAll())
 			gm.Expect(err).ToNot(gm.HaveOccurred())
