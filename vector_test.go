@@ -259,6 +259,70 @@ var _ = gg.Describe("Vector Test", func() {
 			return as.ExpVectorDistance(metric, query, as.ExpVectorBin(bin))
 		}
 
+		// An application that already holds candidate keys ranks them by reading
+		// each key's distance in one batch.
+		gg.It("returns the distance of each key read in a batch, and none for a key it cannot compare", func() {
+			candidates := []struct {
+				name       string
+				vector     *as.Vector
+				distance   float64
+				comparable bool
+			}{
+				{"far", stored, 50, true},
+				{"same", query, 0, true},
+				{"near", as.NewVectorFloat32([]float32{5, 6, 8}), 1, true},
+				{"fewer dims", as.NewVectorFloat32([]float32{1, 2}), 0, false},
+			}
+			batchKeys := make([]*as.Key, len(candidates))
+			for index, candidate := range candidates {
+				var err as.Error
+				batchKeys[index], err = as.NewKey(ns, set, candidate.name)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(client.PutBins(nil, batchKeys[index], as.NewBin(binName, candidate.vector))).To(gm.Succeed())
+			}
+			defer func() {
+				for _, batchKey := range batchKeys {
+					client.Delete(nil, batchKey)
+				}
+			}()
+			distance := func(flags as.ExpReadFlags) *as.Operation {
+				return as.ExpReadOp("dist", distanceTo(as.VectorEuclidean, binName), flags)
+			}
+
+			// With EvalNoFail a key that cannot be compared just has no distance.
+			records, err := client.BatchGetOperate(nil, batchKeys, distance(as.ExpReadFlagEvalNoFail))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			for index, candidate := range candidates {
+				gm.Expect(records[index]).ToNot(gm.BeNil(), candidate.name)
+				if candidate.comparable {
+					gm.Expect(records[index].Bins["dist"]).To(gm.Equal(candidate.distance), candidate.name)
+				} else {
+					gm.Expect(records[index].Bins["dist"]).To(gm.BeNil(), candidate.name)
+				}
+			}
+
+			// Without EvalNoFail, that one key fails the whole BatchGetOperate.
+			_, err = client.BatchGetOperate(nil, batchKeys, distance(as.ExpReadFlagDefault))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
+
+			// Read per record, the key that cannot be compared fails on its own.
+			reads := make([]as.BatchRecordIfc, len(batchKeys))
+			for index, batchKey := range batchKeys {
+				reads[index] = as.NewBatchReadOps(nil, batchKey, distance(as.ExpReadFlagDefault))
+			}
+			gm.Expect(client.BatchOperate(nil, reads)).To(gm.Succeed())
+			for index, candidate := range candidates {
+				result := reads[index].BatchRec()
+				if candidate.comparable {
+					gm.Expect(result.ResultCode).To(gm.Equal(ast.OK), candidate.name)
+					gm.Expect(result.Record.Bins["dist"]).To(gm.Equal(candidate.distance), candidate.name)
+				} else {
+					gm.Expect(result.ResultCode).To(gm.Equal(ast.OP_NOT_APPLICABLE), candidate.name)
+				}
+			}
+		})
+
 		gg.It("returns the squared Euclidean distance, dot product and cosine similarity", func() {
 			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
 
@@ -523,6 +587,89 @@ end
 		})
 	})
 
+	gg.Context("in multi-record transactions", func() {
+		first := as.NewVectorFloat32([]float32{1, 2, 3})
+		second := as.NewVectorFloat32([]float32{4, 5, 6})
+
+		gg.BeforeEach(func() {
+			if serverIsOlderThan("8") {
+				gg.Skip("transactions require server 8.0 or later")
+			}
+			if !as.ConfiguredAsStrongConsistency(client, ns) {
+				gg.Skip("transactions require a strong consistency namespace")
+			}
+		})
+
+		inTxn := func(txn *as.Txn) *as.WritePolicy {
+			policy := as.NewWritePolicy(0, 0)
+			policy.Txn = txn
+			return policy
+		}
+
+		gg.It("commits a vector written in a transaction and reads it back as a vector", func() {
+			txn := as.NewTxn()
+			gm.Expect(client.PutBins(inTxn(txn), key, as.NewBin(binName, first))).To(gm.Succeed())
+
+			readInTxn := as.NewPolicy()
+			readInTxn.Txn = txn
+			record, err := client.Get(readInTxn, key, binName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(expectVector(record.Bins[binName]).Equal(first)).To(gm.BeTrue())
+
+			status, err := client.Commit(txn)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(status).To(gm.Equal(as.CommitStatusOK))
+			gm.Expect(getVector(binName).Equal(first)).To(gm.BeTrue())
+		})
+
+		gg.It("keeps the earlier vector when a transaction that replaced it is aborted", func() {
+			gm.Expect(put(as.NewBin(binName, first))).To(gm.Succeed())
+
+			txn := as.NewTxn()
+			gm.Expect(client.PutBins(inTxn(txn), key, as.NewBin(binName, second))).To(gm.Succeed())
+
+			status, err := client.Abort(txn)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(status).To(gm.Equal(as.AbortStatusOK))
+			gm.Expect(getVector(binName).Equal(first)).To(gm.BeTrue())
+		})
+
+		gg.It("commits vectors written by a batch in a transaction", func() {
+			batchKeys := make([]*as.Key, 2)
+			for index := range batchKeys {
+				var err as.Error
+				batchKeys[index], err = as.NewKey(ns, set, randString(50))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+			}
+			defer func() {
+				for _, batchKey := range batchKeys {
+					client.Delete(nil, batchKey)
+				}
+			}()
+
+			txn := as.NewTxn()
+			batchPolicy := as.NewBatchPolicy()
+			batchPolicy.Txn = txn
+			writes := []as.BatchRecordIfc{
+				as.NewBatchWrite(nil, batchKeys[0], as.PutOp(as.NewBin(binName, first))),
+				as.NewBatchWrite(nil, batchKeys[1], as.PutOp(as.NewBin(binName, second))),
+			}
+			gm.Expect(client.BatchOperate(batchPolicy, writes)).To(gm.Succeed())
+			for _, write := range writes {
+				gm.Expect(write.BatchRec().ResultCode).To(gm.Equal(ast.OK))
+			}
+
+			status, err := client.Commit(txn)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(status).To(gm.Equal(as.CommitStatusOK))
+
+			records, err := client.BatchGet(nil, batchKeys, binName)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(expectVector(records[0].Bins[binName]).Equal(first)).To(gm.BeTrue())
+			gm.Expect(expectVector(records[1].Bins[binName]).Equal(second)).To(gm.BeTrue())
+		})
+	})
+
 	gg.Context("on a cluster without vector support", func() {
 		vector := as.NewVectorFloat32([]float32{1, 2})
 		containsVector := as.ExpEq(as.ExpListVal(vector), as.ExpListVal(vector))
@@ -664,6 +811,11 @@ end
 			gm.Expect(errors.As(err, &aerospikeErr)).To(gm.BeTrue())
 			gm.Expect(aerospikeErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
 			gm.Expect(aerospikeErr.ServerMessage).To(gm.ContainSubstring(serverDetail))
+
+			// The rejected write stores nothing.
+			exists, err := client.Exists(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(exists).To(gm.BeFalse())
 		}
 
 		gg.It("rejects a Vector that was never built", func() {
@@ -683,20 +835,32 @@ end
 			expectWriteRejected(as.NewVectorFloat64([]float64{math.Inf(1)}), "vector: elements must be finite")
 		})
 
-		gg.It("rejects append, prepend and increment and leaves the vector unchanged", func() {
+		gg.It("rejects append, prepend and increment and leaves the whole record unchanged", func() {
 			stored := as.NewVectorFloat32([]float32{1})
-			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+			gm.Expect(put(as.NewBin(binName, stored), as.NewBin("other", 1))).To(gm.Succeed())
+			before, err := client.Get(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
 
+			// Each mutation shares its command with a write to another bin, which
+			// must not be applied when the command fails.
 			for _, mutation := range []*as.Operation{
 				as.AppendOp(as.NewBin(binName, "x")),
 				as.PrependOp(as.NewBin(binName, "x")),
 				as.AddOp(as.NewBin(binName, 1)),
 			} {
-				_, err := client.Operate(nil, key, mutation)
+				_, err := client.Operate(nil, key,
+					as.PutOp(as.NewBin("other", 2)),
+					mutation,
+				)
 				gm.Expect(err).To(gm.HaveOccurred())
 				gm.Expect(err.Matches(ast.BIN_TYPE_ERROR)).To(gm.BeTrue(), err.Error())
+
+				after, err := client.Get(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(after.Generation).To(gm.Equal(before.Generation))
+				gm.Expect(after.Bins["other"]).To(gm.Equal(1))
+				gm.Expect(expectVector(after.Bins[binName]).Equal(stored)).To(gm.BeTrue())
 			}
-			gm.Expect(getVector(binName).Equal(stored)).To(gm.BeTrue())
 		})
 	})
 })
