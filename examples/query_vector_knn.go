@@ -46,7 +46,7 @@ func runQueryVectorKNN() error {
 
 	// Squared Euclidean distance: smaller is nearer, so ascending.
 	// Nearest to (7.3, 7.3, 7.3, 7.3) are ids 7, 8, 6, 9, 5.
-	if err := queryNearest(as.VectorEuclidean, []float32{7.3, 7.3, 7.3, 7.3}, as.OrderAsc); err != nil {
+	if err := queryNearest(as.VectorEuclideanSquared, []float32{7.3, 7.3, 7.3, 7.3}, as.OrderAsc); err != nil {
 		return err
 	}
 
@@ -65,7 +65,7 @@ func queryNearest(distance as.VectorDistanceMetric, query []float32, direction a
 			as.ExpReadFlagDefault),
 		as.GetBinOp("id"),
 	}
-	if err := statement.SetOrderBy("dist", as.OrderByDouble, direction); err != nil {
+	if err := statement.SetOrderBy("dist", as.BinDataTypeDouble, direction); err != nil {
 		return err
 	}
 	if err := statement.SetTopK(knnTopK); err != nil {

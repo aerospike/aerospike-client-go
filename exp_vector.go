@@ -24,26 +24,26 @@ import (
 type VectorDistanceMetric int
 
 const (
-	// VectorEuclidean is the squared Euclidean (L2) distance, without
+	// VectorEuclideanSquared is the squared Euclidean (L2) distance, without
 	// taking the square root. Smaller values indicate closer vectors.
-	VectorEuclidean VectorDistanceMetric = iota
+	VectorEuclideanSquared VectorDistanceMetric = iota
 	// VectorDotProduct is the dot product. Larger values indicate closer vectors.
 	VectorDotProduct
-	// VectorCosine is cosine similarity. It returns 1 for vectors
+	// VectorCosineSimilarity is cosine similarity. It returns 1 for vectors
 	// pointing in the same direction and 0 if either vector is all zeros.
 	// Larger values indicate greater similarity.
-	VectorCosine
+	VectorCosineSimilarity
 )
 
 // expOp returns the server expression op for the distance.
 func (distance VectorDistanceMetric) expOp() *expOp {
 	switch distance {
-	case VectorEuclidean:
-		return &expOpVectorEuclidean
+	case VectorEuclideanSquared:
+		return &expOpVectorEuclideanSquared
 	case VectorDotProduct:
 		return &expOpVectorDotProduct
-	case VectorCosine:
-		return &expOpVectorCosine
+	case VectorCosineSimilarity:
+		return &expOpVectorCosineSimilarity
 	}
 	panic(newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid VectorDistanceMetric: %d", distance)))
 }
@@ -52,7 +52,7 @@ func (distance VectorDistanceMetric) expOp() *expOp {
 // a float (the server computes in float32). Use it in a filter or an
 // [ExpReadOp]:
 //
-//	as.ExpVectorDistance(as.VectorCosine, query, as.ExpVectorBin("embedding"))
+//	as.ExpVectorDistance(as.VectorCosineSimilarity, query, as.ExpVectorBin("embedding"))
 //
 // Unknown (missing bin, not a vector, or type/dimensions mismatch): a filter
 // skips the record; [ExpReadOp] returns OP_NOT_APPLICABLE, or nil if

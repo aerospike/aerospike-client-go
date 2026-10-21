@@ -49,7 +49,7 @@ func runQueryTopK() error {
 	if err := statement.SetFilter(as.NewRangeFilter("topkbin", 1, 1000)); err != nil {
 		return err
 	}
-	if err := statement.SetOrderBy("topkbin", as.OrderByInteger, as.OrderDesc); err != nil {
+	if err := statement.SetOrderBy("topkbin", as.BinDataTypeInteger, as.OrderDesc); err != nil {
 		return err
 	}
 	if err := statement.SetTopK(topK); err != nil {
