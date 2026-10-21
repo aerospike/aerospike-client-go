@@ -61,8 +61,13 @@ type Statement struct {
 	// determines if the query should return data
 	ReturnData bool
 
-	// orderBy specifies the ordering criteria for the Top-K request.
-	orderBy *orderBySpec
+	// orderBy is the Top-K order-by bin set by SetOrderBy.
+	orderBy    orderBySpec
+	orderBySet bool
+	// thenOrderBy is the optional second order-by bin set by ThenOrderBy,
+	// used only for records that tie on orderBy.
+	thenOrderBy    orderBySpec
+	hasThenOrderBy bool
 	// topK specifies the maximum number of results to return.
 	topK int
 	// topKSet indicates whether the Top-K limit was explicitly set.
@@ -112,6 +117,11 @@ type orderBySpec struct {
 	flags     OrderByFlags
 }
 
+// wireSize returns the spec's size in bytes in the ORDER_BY field.
+func (spec *orderBySpec) wireSize() int {
+	return 4 + len(spec.binName)
+}
+
 // NewStatement initializes a new Statement instance.
 func NewStatement(ns string, set string, binNames ...string) *Statement {
 	return &Statement{
@@ -156,10 +166,12 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 	stmt.ReturnData = returnData
 }
 
-// SetOrderBy sets the bin a Top-K query ranks records by. SetOrderBy alone
-// does nothing; call SetTopK after it. Records tied on the bin are ranked by
-// digest. It replaces an earlier order-by bin and clears an earlier SetTopK,
-// so SetTopK must be called again.
+// SetOrderBy sets the bin a Top-K query ranks records by. SetTopK sets how
+// many records to return. Records that tie are ordered by the ThenOrderBy
+// bin, if set, then by digest.
+//
+// Calling SetOrderBy again replaces both order-by bins and keeps k. Without
+// SetTopK, the server rejects the query.
 //
 // The bin must be returned by the query: listed in BinNames, written by one
 // of the Operations (for example an ExpReadOp projecting a vector distance),
@@ -168,16 +180,43 @@ func (stmt *Statement) SetOrderBy(binName string, orderType BinDataType, directi
 	return stmt.SetOrderByWithFlags(binName, orderType, direction, OrderByFlagNone)
 }
 
-// SetOrderByWithFlags is SetOrderBy with comparison flags, such as
-// OrderByFlagCaseInsensitive for an BinDataTypeString bin.
+// SetOrderByWithFlags is SetOrderBy with comparison flags for this bin, such
+// as OrderByFlagCaseInsensitive for a BinDataTypeString bin.
 func (stmt *Statement) SetOrderByWithFlags(binName string, orderType BinDataType, direction OrderDirection, flags OrderByFlags) Error {
-	stmt.orderBy = &orderBySpec{binName, orderType, direction, flags}
-	stmt.topKSet = false
+	stmt.orderBy = orderBySpec{binName, orderType, direction, flags}
+	stmt.orderBySet = true
+	stmt.thenOrderBy = orderBySpec{}
+	stmt.hasThenOrderBy = false
 	return nil
 }
 
-// SetTopK returns the k best records ranked by the order-by bin, best first.
-// SetOrderBy must be called first. k must be in [1, 1000].
+// ThenOrderBy sets a second Top-K order-by bin, used only to order records
+// that tie on the SetOrderBy bin.
+//
+// Call it once, after SetOrderBy; otherwise it returns a PARAMETER_ERROR.
+// Calling SetOrderBy again removes it. The bin must be returned by the query,
+// as for SetOrderBy.
+func (stmt *Statement) ThenOrderBy(binName string, orderType BinDataType, direction OrderDirection) Error {
+	return stmt.ThenOrderByWithFlags(binName, orderType, direction, OrderByFlagNone)
+}
+
+// ThenOrderByWithFlags is ThenOrderBy with comparison flags for this bin,
+// such as OrderByFlagCaseInsensitive for a BinDataTypeString bin.
+func (stmt *Statement) ThenOrderByWithFlags(binName string, orderType BinDataType, direction OrderDirection, flags OrderByFlags) Error {
+	if !stmt.orderBySet {
+		return newError(types.PARAMETER_ERROR, "ThenOrderBy requires SetOrderBy to be called first")
+	}
+	if stmt.hasThenOrderBy {
+		return newError(types.PARAMETER_ERROR, "Top-K takes at most 2 order-by bins")
+	}
+	stmt.thenOrderBy = orderBySpec{binName, orderType, direction, flags}
+	stmt.hasThenOrderBy = true
+	return nil
+}
+
+// SetTopK limits the query to the k best records by the order-by bins,
+// returned best first. Call it after SetOrderBy. k must be in [1, 1000].
+// Calling SetTopK again replaces k.
 //
 // Supported by Query, QueryPartitions and QueryNode only. Requires
 // IncludeBinData=true and MaxRecords=0. QueryNode ranks only its own records.
@@ -188,7 +227,7 @@ func (stmt *Statement) SetOrderByWithFlags(binName string, orderType BinDataType
 // Top-K is single-shot and always runs as a long query. Use a fresh
 // PartitionFilter to avoid ranking only records after a previous resume point.
 func (stmt *Statement) SetTopK(k int) Error {
-	if stmt.orderBy == nil {
+	if !stmt.hasOrderBy() {
 		return newError(types.PARAMETER_ERROR, "SetTopK requires SetOrderBy to be called first")
 	}
 	stmt.topK = k
@@ -201,22 +240,56 @@ func (stmt *Statement) hasTopK() bool {
 	return stmt.topKSet
 }
 
-// rejectTopK refuses a Top-K statement on a command that does not support it.
+// hasOrderBy reports whether SetOrderBy was called.
+func (stmt *Statement) hasOrderBy() bool {
+	return stmt.orderBySet
+}
+
+// rejectTopK refuses a statement with Top-K settings on a command that does
+// not support them.
 func (stmt *Statement) rejectTopK() Error {
-	if stmt.hasTopK() {
+	if stmt.hasTopK() || stmt.hasOrderBy() {
 		return newError(types.PARAMETER_ERROR, "Top-K is only supported by Query, QueryPartitions and QueryNode")
 	}
 	return nil
 }
 
 // validateTopK checks a Top-K statement against the query policy before any
-// node is contacted.
+// node is contacted. An order-by without SetTopK is left to the server.
 func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
 	if !stmt.hasTopK() {
 		return nil
 	}
 
-	spec := stmt.orderBy
+	if err := stmt.validateOrderBy(stmt.orderBy); err != nil {
+		return err
+	}
+	if stmt.hasThenOrderBy {
+		if err := stmt.validateOrderBy(stmt.thenOrderBy); err != nil {
+			return err
+		}
+		if stmt.thenOrderBy.binName == stmt.orderBy.binName {
+			return newError(types.PARAMETER_ERROR, fmt.Sprintf("Top-K order-by bin %s is repeated", stmt.orderBy.binName))
+		}
+	}
+
+	if stmt.topK < 1 || stmt.topK > 1000 {
+		return newError(types.PARAMETER_ERROR, "Top-K limit must be in [1, 1000]")
+	}
+	if stmt.functionName != "" {
+		return newError(types.PARAMETER_ERROR, "Top-K is incompatible with an aggregate function")
+	}
+	if policy.MaxRecords != 0 {
+		return newError(types.PARAMETER_ERROR, "Top-K is incompatible with MaxRecords")
+	}
+	if !policy.IncludeBinData {
+		return newError(types.PARAMETER_ERROR, "Top-K is incompatible with IncludeBinData=false")
+	}
+	return nil
+}
+
+// validateOrderBy checks one order-by bin of a Top-K statement.
+func (stmt *Statement) validateOrderBy(spec orderBySpec) Error {
 	if len(spec.binName) == 0 || len(spec.binName) > 15 || strings.IndexByte(spec.binName, 0) >= 0 {
 		return newError(types.PARAMETER_ERROR, "Top-K order-by bin name must be 1-15 bytes without a null byte")
 	}
@@ -234,19 +307,6 @@ func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
 	}
 	if !stmt.hasProjectedBin(spec.binName) {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Top-K order-by bin %s must be returned by the query's BinNames or Operations", spec.binName))
-	}
-
-	if stmt.topK < 1 || stmt.topK > 1000 {
-		return newError(types.PARAMETER_ERROR, "Top-K limit must be in [1, 1000]")
-	}
-	if stmt.functionName != "" {
-		return newError(types.PARAMETER_ERROR, "Top-K is incompatible with an aggregate function")
-	}
-	if policy.MaxRecords != 0 {
-		return newError(types.PARAMETER_ERROR, "Top-K is incompatible with MaxRecords")
-	}
-	if !policy.IncludeBinData {
-		return newError(types.PARAMETER_ERROR, "Top-K is incompatible with IncludeBinData=false")
 	}
 	return nil
 }

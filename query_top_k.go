@@ -28,19 +28,22 @@ import (
 // its own k best (or every match when it cannot rank), so the client keeps the
 // global k. It is shared by the query's commands and safe for concurrent use.
 type topKMerger struct {
-	mu       sync.Mutex
-	orderBy  orderBySpec  // how we rank
-	limit    int          // k — max records to keep
-	heap     []*topKEntry // kept records, worst at the root, Pop evicts
-	byDigest map[[20]byte]*topKEntry
+	mu             sync.Mutex
+	orderBy        orderBySpec  // the bin we rank by
+	thenOrderBy    orderBySpec  // the bin that breaks ties on orderBy
+	hasThenOrderBy bool         // whether thenOrderBy is used
+	limit          int          // k — max records to keep
+	heap           []*topKEntry // kept records, worst at the root, Pop evicts
+	byDigest       map[[20]byte]*topKEntry
 }
 
-// topKEntry is one kept record with its order-by value.
+// topKEntry is one kept record with its order-by values.
 type topKEntry struct {
-	result *Result
-	value  orderByValue
-	digest [20]byte
-	index  int // position in the heap
+	result      *Result
+	firstValue  orderByValue // value of the orderBy bin
+	secondValue orderByValue // tie-break value: the thenOrderBy bin, when set
+	digest      [20]byte
+	index       int // position in the heap
 }
 
 // orderByValue is a record's sort key: the value of its order-by bin that
@@ -57,10 +60,12 @@ type orderByValue struct {
 
 func newTopKMerger(statement *Statement) *topKMerger {
 	return &topKMerger{
-		orderBy:  *statement.orderBy,
-		limit:    statement.topK,
-		heap:     make([]*topKEntry, 0, statement.topK+1),
-		byDigest: make(map[[20]byte]*topKEntry, statement.topK+1),
+		orderBy:        statement.orderBy,
+		thenOrderBy:    statement.thenOrderBy,
+		hasThenOrderBy: statement.hasThenOrderBy,
+		limit:          statement.topK,
+		heap:           make([]*topKEntry, 0, statement.topK+1),
+		byDigest:       make(map[[20]byte]*topKEntry, statement.topK+1),
 	}
 }
 
@@ -71,7 +76,10 @@ func newTopKMerger(statement *Statement) *topKMerger {
 // add offers a record. If the same record is offered twice (for example
 // during migrations), the better-ranked copy is kept.
 func (merger *topKMerger) add(result *Result) {
-	candidate := topKEntry{result: result, value: merger.orderByValueOf(result.Record)}
+	candidate := topKEntry{result: result, firstValue: orderByValueOf(result.Record, merger.orderBy)}
+	if merger.hasThenOrderBy {
+		candidate.secondValue = orderByValueOf(result.Record, merger.thenOrderBy)
+	}
 	copy(candidate.digest[:], result.Record.Key.Digest())
 
 	merger.mu.Lock()
@@ -125,12 +133,12 @@ func (merger *topKMerger) results() []*Result {
 // Order-by value
 //-------------------------------------------------------
 
-// orderByValueOf reads the record's order-by value. Only a value of the
-// declared order-by type counts; anything else is nil.
-func (merger *topKMerger) orderByValueOf(record *Record) orderByValue {
-	orderType := merger.orderBy.orderType
+// orderByValueOf reads the record's value of one order-by bin. A value of
+// any type other than the bin's order-by type is nil.
+func orderByValueOf(record *Record, spec orderBySpec) orderByValue {
+	orderType := spec.orderType
 
-	switch value := record.Bins[merger.orderBy.binName].(type) {
+	switch value := record.Bins[spec.binName].(type) {
 	case int:
 		if orderType == BinDataTypeInteger {
 			return orderByValue{integer: int64(value)}
@@ -159,37 +167,56 @@ func (merger *topKMerger) orderByValueOf(record *Record) orderByValue {
 // Ranking
 //-------------------------------------------------------
 
-// ranksAhead reports whether entry ranks before other: a nil value ranks last
-// in either direction, values compare in the requested direction, and ties go
-// to the smaller digest.
+// ranksAhead reports whether entry ranks before other.
+//
+// The records are compared on the first order-by bin. If they tie, the
+// second bin decides. If they still tie, the smaller digest goes first.
+//
+// For each bin, a record with no usable value ranks last, whether the bin is
+// ascending or descending.
 func (merger *topKMerger) ranksAhead(entry, other *topKEntry) bool {
-	if entry.value.isNil != other.value.isNil {
-		return !entry.value.isNil
+	if order := rankOrder(&merger.orderBy, &entry.firstValue, &other.firstValue); order != 0 {
+		return order < 0
 	}
-
-	if !entry.value.isNil {
-		comparison := merger.compareValues(entry.value, other.value)
-		if comparison != 0 {
-			if merger.orderBy.direction == OrderDesc {
-				return comparison > 0
-			}
-			return comparison < 0
+	if merger.hasThenOrderBy {
+		if order := rankOrder(&merger.thenOrderBy, &entry.secondValue, &other.secondValue); order != 0 {
+			return order < 0
 		}
 	}
-
 	return bytes.Compare(entry.digest[:], other.digest[:]) < 0
 }
 
-// compareValues compares two non-nil values in ascending order, like the
-// server, returning -1, 0 or 1.
-func (merger *topKMerger) compareValues(left, right orderByValue) int {
-	switch merger.orderBy.orderType {
+// rankOrder compares value and other on one order-by bin: -1 if value ranks
+// ahead, 1 if other does, 0 on a tie. A nil value ranks last in either
+// direction.
+func rankOrder(spec *orderBySpec, value, other *orderByValue) int {
+	if value.isNil != other.isNil {
+		if value.isNil {
+			return 1
+		}
+		return -1
+	}
+	if value.isNil {
+		return 0
+	}
+
+	comparison := compareValues(spec, value, other)
+	if spec.direction == OrderDesc {
+		return -comparison
+	}
+	return comparison
+}
+
+// compareValues compares two non-nil values of one order-by bin in ascending
+// order, like the server, returning -1, 0 or 1.
+func compareValues(spec *orderBySpec, left, right *orderByValue) int {
+	switch spec.orderType {
 	case BinDataTypeInteger:
 		return compareNumbers(left.integer, right.integer)
 	case BinDataTypeDouble:
 		return compareFloats(left.float, right.float)
 	case BinDataTypeString:
-		if merger.orderBy.flags&OrderByFlagCaseInsensitive != 0 {
+		if spec.flags&OrderByFlagCaseInsensitive != 0 {
 			return compareIgnoringASCIICase(left.str, right.str)
 		}
 		return strings.Compare(left.str, right.str)
