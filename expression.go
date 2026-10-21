@@ -267,6 +267,11 @@ func packCDTModifyList(buf BufferEx, modList expCdtModifyList) (int, Error) {
 		case Value:
 			if opTypeVal == nil {
 				opTypeVal = v // First Value is opType (ExpCdtSelect)
+			} else if flag, ok := v.(IntegerValue); ok && len(params) == 0 {
+				if err = validateModifyFlag(int64(flag)); err != nil {
+					return size, err
+				}
+				params = append(params, IntegerValue(int64(flag)|int64(modifyApplyFlag)))
 			} else {
 				params = append(params, v) // Other Values are params
 			}
@@ -360,6 +365,12 @@ func packCDTSelectList(buf BufferEx, selList expCdtSelectList) (int, Error) {
 			}
 		default:
 			panic(fmt.Sprintf("Value `%v` is not acceptable in expCdtSelectList", item))
+		}
+	}
+
+	if f, ok := flag.(IntegerValue); ok {
+		if err = validateSelectFlag(int64(f)); err != nil {
+			return size, err
 		}
 	}
 
@@ -732,13 +743,13 @@ func (fe *Expression) Base64() (string, Error) {
 
 	sz, err := fe.size()
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	buf := newBuffer(sz)
 	_, err = fe.pack(buf)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
