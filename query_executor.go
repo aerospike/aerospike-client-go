@@ -48,7 +48,7 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 		if recordset.IsActive() {
 			// Nodes rank a Top-K query only when every node of this round
 			// can. Otherwise they return every match and the client ranks them.
-			sendTopK := merger != nil && nodesRankTopK(list)
+			sendTopK := statement.hasOrderBy() && nodesRankTopK(list)
 
 			weg := newWeightedErrGroup(maxConcurrentNodes)
 			for _, nodePartition := range list {
