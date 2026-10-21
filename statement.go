@@ -69,19 +69,19 @@ type Statement struct {
 	topKSet bool
 }
 
-// OrderByType is the particle type a Top-K order-by bin is compared as.
+// BinDataType is the particle type a Top-K order-by bin is compared as.
 // A record whose bin is missing or has another type ranks last.
-type OrderByType byte
+type BinDataType byte
 
 const (
-	// OrderByInteger compares the bin as an integer.
-	OrderByInteger OrderByType = 1
-	// OrderByDouble compares the bin as a float. NaN ranks above every number.
-	OrderByDouble OrderByType = 2
-	// OrderByString compares the bin as a string, byte by byte.
-	OrderByString OrderByType = 3
-	// OrderByBytes compares the bin as a blob, byte by byte.
-	OrderByBytes OrderByType = 4
+	// BinDataTypeInteger compares the bin as an integer.
+	BinDataTypeInteger BinDataType = 1
+	// BinDataTypeDouble compares the bin as a float. NaN ranks above every number.
+	BinDataTypeDouble BinDataType = 2
+	// BinDataTypeString compares the bin as a string, byte by byte.
+	BinDataTypeString BinDataType = 3
+	// BinDataTypeBytes compares the bin as a blob, byte by byte.
+	BinDataTypeBytes BinDataType = 4
 )
 
 // OrderDirection is the sort direction of a Top-K order-by bin.
@@ -101,13 +101,13 @@ const (
 	// OrderByFlagNone is flags byte 0 — default compare.
 	OrderByFlagNone OrderByFlags = 0
 	// OrderByFlagCaseInsensitive is bit 0 (wire 0x01). ASCII A–Z only.
-	// Valid for OrderByString only.
+	// Valid for BinDataTypeString only.
 	OrderByFlagCaseInsensitive OrderByFlags = 1 << 0
 )
 
 type orderBySpec struct {
 	binName   string
-	orderType OrderByType
+	orderType BinDataType
 	direction OrderDirection
 	flags     OrderByFlags
 }
@@ -164,13 +164,13 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 // The bin must be returned by the query: listed in BinNames, written by one
 // of the Operations (for example an ExpReadOp projecting a vector distance),
 // or neither set. Requires a server with Top-K support.
-func (stmt *Statement) SetOrderBy(binName string, orderType OrderByType, direction OrderDirection) Error {
+func (stmt *Statement) SetOrderBy(binName string, orderType BinDataType, direction OrderDirection) Error {
 	return stmt.SetOrderByWithFlags(binName, orderType, direction, OrderByFlagNone)
 }
 
 // SetOrderByWithFlags is SetOrderBy with comparison flags, such as
-// OrderByFlagCaseInsensitive for an OrderByString bin.
-func (stmt *Statement) SetOrderByWithFlags(binName string, orderType OrderByType, direction OrderDirection, flags OrderByFlags) Error {
+// OrderByFlagCaseInsensitive for an BinDataTypeString bin.
+func (stmt *Statement) SetOrderByWithFlags(binName string, orderType BinDataType, direction OrderDirection, flags OrderByFlags) Error {
 	stmt.orderBy = &orderBySpec{binName, orderType, direction, flags}
 	stmt.topKSet = false
 	return nil
@@ -220,8 +220,8 @@ func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
 	if len(spec.binName) == 0 || len(spec.binName) > 15 || strings.IndexByte(spec.binName, 0) >= 0 {
 		return newError(types.PARAMETER_ERROR, "Top-K order-by bin name must be 1-15 bytes without a null byte")
 	}
-	if spec.orderType < OrderByInteger || spec.orderType > OrderByBytes {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid OrderByType: %d", spec.orderType))
+	if spec.orderType < BinDataTypeInteger || spec.orderType > BinDataTypeBytes {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid BinDataType: %d", spec.orderType))
 	}
 	if spec.direction != OrderAsc && spec.direction != OrderDesc {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid OrderDirection: %d", spec.direction))
@@ -229,8 +229,8 @@ func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
 	if spec.flags&^OrderByFlagCaseInsensitive != 0 {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid OrderByFlags: %d", spec.flags))
 	}
-	if spec.flags != OrderByFlagNone && spec.orderType != OrderByString {
-		return newError(types.PARAMETER_ERROR, "Top-K order-by flags are only valid for OrderByString")
+	if spec.flags != OrderByFlagNone && spec.orderType != BinDataTypeString {
+		return newError(types.PARAMETER_ERROR, "Top-K order-by flags are only valid for BinDataTypeString")
 	}
 	if !stmt.hasProjectedBin(spec.binName) {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Top-K order-by bin %s must be returned by the query's BinNames or Operations", spec.binName))

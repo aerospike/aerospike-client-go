@@ -249,7 +249,7 @@ func queryTopKBins(bin string, k int) ([]int, error) {
 	if err := statement.SetFilter(as.NewRangeFilter(bin, 1, 1000)); err != nil {
 		return nil, err
 	}
-	if err := statement.SetOrderBy(bin, as.OrderByInteger, as.OrderDesc); err != nil {
+	if err := statement.SetOrderBy(bin, as.BinDataTypeInteger, as.OrderDesc); err != nil {
 		return nil, err
 	}
 	if err := statement.SetTopK(k); err != nil {
@@ -444,7 +444,7 @@ func QueryVectorKNN() Fixture {
 				direction as.OrderDirection
 				want      []int
 			}{
-				{as.VectorEuclidean, []float32{7.3, 7.3, 7.3, 7.3}, as.OrderAsc, []int{7, 8, 6, 9, 5}},
+				{as.VectorEuclideanSquared, []float32{7.3, 7.3, 7.3, 7.3}, as.OrderAsc, []int{7, 8, 6, 9, 5}},
 				{as.VectorDotProduct, []float32{1, 1, 1, 1}, as.OrderDesc, []int{19, 18, 17, 16, 15}},
 			}
 			for _, check := range checks {
@@ -471,7 +471,7 @@ func queryNearestIDs(distance as.VectorDistanceMetric, query []float32, directio
 			as.ExpReadFlagDefault),
 		as.GetBinOp("id"),
 	}
-	if err := statement.SetOrderBy("dist", as.OrderByDouble, direction); err != nil {
+	if err := statement.SetOrderBy("dist", as.BinDataTypeDouble, direction); err != nil {
 		return nil, err
 	}
 	if err := statement.SetTopK(k); err != nil {

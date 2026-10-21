@@ -286,7 +286,7 @@ var _ = gg.Describe("Vector Test", func() {
 				}
 			}()
 			distance := func(flags as.ExpReadFlags) *as.Operation {
-				return as.ExpReadOp("dist", distanceTo(as.VectorEuclidean, binName), flags)
+				return as.ExpReadOp("dist", distanceTo(as.VectorEuclideanSquared, binName), flags)
 			}
 
 			// With EvalNoFail a key that cannot be compared just has no distance.
@@ -327,9 +327,9 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
 
 			record, err := client.Operate(nil, key,
-				as.ExpReadOp("euclidean", distanceTo(as.VectorEuclidean, binName), as.ExpReadFlagDefault),
+				as.ExpReadOp("euclidean", distanceTo(as.VectorEuclideanSquared, binName), as.ExpReadFlagDefault),
 				as.ExpReadOp("dot", distanceTo(as.VectorDotProduct, binName), as.ExpReadFlagDefault),
-				as.ExpReadOp("cosine", distanceTo(as.VectorCosine, binName), as.ExpReadFlagDefault),
+				as.ExpReadOp("cosine", distanceTo(as.VectorCosineSimilarity, binName), as.ExpReadFlagDefault),
 			)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(record.Bins["euclidean"]).To(gm.Equal(50.0))
@@ -343,7 +343,7 @@ var _ = gg.Describe("Vector Test", func() {
 
 			getWithinDistance := func(limit float64) as.Error {
 				policy := as.NewPolicy()
-				policy.FilterExpression = as.ExpLess(distanceTo(as.VectorEuclidean, binName), as.ExpFloatVal(limit))
+				policy.FilterExpression = as.ExpLess(distanceTo(as.VectorEuclideanSquared, binName), as.ExpFloatVal(limit))
 				_, err := client.Get(policy, key)
 				return err
 			}
@@ -359,11 +359,11 @@ var _ = gg.Describe("Vector Test", func() {
 			)).To(gm.Succeed())
 
 			for _, bin := range []string{"fewer_dims", "float64", "text", "missing"} {
-				record, err := client.Operate(nil, key, as.ExpReadOp("d", distanceTo(as.VectorEuclidean, bin), as.ExpReadFlagEvalNoFail))
+				record, err := client.Operate(nil, key, as.ExpReadOp("d", distanceTo(as.VectorEuclideanSquared, bin), as.ExpReadFlagEvalNoFail))
 				gm.Expect(err).ToNot(gm.HaveOccurred(), bin)
 				gm.Expect(record.Bins["d"]).To(gm.BeNil(), bin)
 
-				_, err = client.Operate(nil, key, as.ExpReadOp("d", distanceTo(as.VectorEuclidean, bin), as.ExpReadFlagDefault))
+				_, err = client.Operate(nil, key, as.ExpReadOp("d", distanceTo(as.VectorEuclideanSquared, bin), as.ExpReadFlagDefault))
 				gm.Expect(err).To(gm.HaveOccurred(), bin)
 				gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
 			}

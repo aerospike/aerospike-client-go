@@ -66,7 +66,7 @@ var _ = gg.Describe("Vector support check", func() {
 			return cmd.writeFilterExpression(containsVector, size)
 		}},
 		{"a vector distance filter expression", func(cmd *baseCommand) Error {
-			closeEnough := ExpLess(ExpVectorDistance(VectorEuclidean, vector, ExpVectorBin("v")), ExpFloatVal(1))
+			closeEnough := ExpLess(ExpVectorDistance(VectorEuclideanSquared, vector, ExpVectorBin("v")), ExpFloatVal(1))
 			size, err := closeEnough.size()
 			if err != nil {
 				return err

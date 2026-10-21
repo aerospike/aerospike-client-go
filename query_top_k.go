@@ -132,23 +132,23 @@ func (merger *topKMerger) orderByValueOf(record *Record) orderByValue {
 
 	switch value := record.Bins[merger.orderBy.binName].(type) {
 	case int:
-		if orderType == OrderByInteger {
+		if orderType == BinDataTypeInteger {
 			return orderByValue{integer: int64(value)}
 		}
 	case int64:
-		if orderType == OrderByInteger {
+		if orderType == BinDataTypeInteger {
 			return orderByValue{integer: value}
 		}
 	case float64:
-		if orderType == OrderByDouble {
+		if orderType == BinDataTypeDouble {
 			return orderByValue{float: value}
 		}
 	case string:
-		if orderType == OrderByString {
+		if orderType == BinDataTypeString {
 			return orderByValue{str: value}
 		}
 	case []byte:
-		if orderType == OrderByBytes {
+		if orderType == BinDataTypeBytes {
 			return orderByValue{blob: value}
 		}
 	}
@@ -184,11 +184,11 @@ func (merger *topKMerger) ranksAhead(entry, other *topKEntry) bool {
 // server, returning -1, 0 or 1.
 func (merger *topKMerger) compareValues(left, right orderByValue) int {
 	switch merger.orderBy.orderType {
-	case OrderByInteger:
+	case BinDataTypeInteger:
 		return compareNumbers(left.integer, right.integer)
-	case OrderByDouble:
+	case BinDataTypeDouble:
 		return compareFloats(left.float, right.float)
-	case OrderByString:
+	case BinDataTypeString:
 		if merger.orderBy.flags&OrderByFlagCaseInsensitive != 0 {
 			return compareIgnoringASCIICase(left.str, right.str)
 		}
