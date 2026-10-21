@@ -806,7 +806,7 @@ var _ = gg.Describe("Query Top-K", func() {
 	// the score and id bins.
 	rankByScore := func() *as.Statement {
 		statement := as.NewStatement(ns, set, "score", "id")
-		gm.Expect(statement.SetOrderBy("score", as.OrderByInteger, as.OrderDesc)).To(gm.Succeed())
+		gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
 		return statement
 	}
 
@@ -842,13 +842,13 @@ var _ = gg.Describe("Query Top-K", func() {
 			{"a limit of 0", func(s *as.Statement, _ *as.QueryPolicy) { s.SetTopK(0) }, "limit must be in [1, 1000]"},
 			{"a limit over 1000", func(s *as.Statement, _ *as.QueryPolicy) { s.SetTopK(1001) }, "limit must be in [1, 1000]"},
 			{"an order-by bin name over 15 bytes", func(s *as.Statement, _ *as.QueryPolicy) {
-				s.SetOrderBy("a_bin_name_16_by", as.OrderByInteger, as.OrderAsc)
+				s.SetOrderBy("a_bin_name_16_by", as.BinDataTypeInteger, as.OrderAsc)
 				s.SetTopK(10)
 			}, "1-15 bytes without a null byte"},
 			{"case folding on a non-string bin", func(s *as.Statement, _ *as.QueryPolicy) {
-				s.SetOrderByWithFlags("score", as.OrderByInteger, as.OrderAsc, as.OrderByFlagCaseInsensitive)
+				s.SetOrderByWithFlags("score", as.BinDataTypeInteger, as.OrderAsc, as.OrderByFlagCaseInsensitive)
 				s.SetTopK(10)
-			}, "only valid for OrderByString"},
+			}, "only valid for BinDataTypeString"},
 			{"an order-by bin missing from BinNames", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.BinNames = []string{"id"}
 			}, "must be returned by the query"},
@@ -913,7 +913,7 @@ var _ = gg.Describe("Query Top-K", func() {
 
 		topK := func(direction as.OrderDirection, k int) *as.Statement {
 			statement := as.NewStatement(ns, set, "score", "id")
-			gm.Expect(statement.SetOrderBy("score", as.OrderByInteger, direction)).To(gm.Succeed())
+			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, direction)).To(gm.Succeed())
 			gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
 			return statement
 		}
@@ -1023,16 +1023,16 @@ var _ = gg.Describe("Query Top-K", func() {
 					as.GetBinOp("id"),
 					as.ExpReadOp("dist", as.ExpVectorDistance(metric, as.NewVectorFloat32(query), as.ExpVectorBin("emb")), as.ExpReadFlagEvalNoFail),
 				}
-				gm.Expect(statement.SetOrderBy("dist", as.OrderByDouble, direction)).To(gm.Succeed())
+				gm.Expect(statement.SetOrderBy("dist", as.BinDataTypeDouble, direction)).To(gm.Succeed())
 				gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
 				return queryIDs(statement)
 			}
 
-			gm.Expect(nearest(as.VectorEuclidean, []float32{0, 9}, as.OrderAsc, 3)).To(gm.Equal([]int{0, 1, 2}))
+			gm.Expect(nearest(as.VectorEuclideanSquared, []float32{0, 9}, as.OrderAsc, 3)).To(gm.Equal([]int{0, 1, 2}))
 			gm.Expect(nearest(as.VectorDotProduct, []float32{1, 0}, as.OrderDesc, 3)).To(gm.Equal([]int{9, 8, 7}))
-			gm.Expect(nearest(as.VectorCosine, []float32{1, 0}, as.OrderDesc, 3)).To(gm.Equal([]int{9, 8, 7}))
+			gm.Expect(nearest(as.VectorCosineSimilarity, []float32{1, 0}, as.OrderDesc, 3)).To(gm.Equal([]int{9, 8, 7}))
 
-			all := nearest(as.VectorEuclidean, []float32{0, 9}, as.OrderAsc, 1000)
+			all := nearest(as.VectorEuclideanSquared, []float32{0, 9}, as.OrderAsc, 1000)
 			gm.Expect(all).To(gm.HaveLen(len(scores) + 1))
 			gm.Expect(all[len(all)-1]).To(gm.Equal(99))
 		})
@@ -1163,7 +1163,7 @@ var _ = gg.Describe("Query Top-K", func() {
 			}
 		}
 
-		rank := func(orderType as.OrderByType, direction as.OrderDirection, flags as.OrderByFlags, k int) []int {
+		rank := func(orderType as.BinDataType, direction as.OrderDirection, flags as.OrderByFlags, k int) []int {
 			statement := as.NewStatement(ns, set, "v", "id")
 			gm.Expect(statement.SetOrderByWithFlags("v", orderType, direction, flags)).To(gm.Succeed())
 			gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
@@ -1173,21 +1173,21 @@ var _ = gg.Describe("Query Top-K", func() {
 		gg.It("ranks doubles with NaN above every number and an integer value last", func() {
 			putValues(1.5, -2.0, math.NaN(), 3.25, 7)
 
-			gm.Expect(rank(as.OrderByDouble, as.OrderDesc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{2, 3, 0}))
-			gm.Expect(rank(as.OrderByDouble, as.OrderAsc, as.OrderByFlagNone, 5)).To(gm.Equal([]int{1, 0, 3, 2, 4}))
+			gm.Expect(rank(as.BinDataTypeDouble, as.OrderDesc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{2, 3, 0}))
+			gm.Expect(rank(as.BinDataTypeDouble, as.OrderAsc, as.OrderByFlagNone, 5)).To(gm.Equal([]int{1, 0, 3, 2, 4}))
 		})
 
 		gg.It("ranks blobs byte by byte with the shorter first on a common prefix", func() {
 			putValues([]byte{0x01, 0x00}, []byte{0x02}, []byte{0x01}, []byte{0x00, 0xff})
 
-			gm.Expect(rank(as.OrderByBytes, as.OrderAsc, as.OrderByFlagNone, 4)).To(gm.Equal([]int{3, 2, 0, 1}))
+			gm.Expect(rank(as.BinDataTypeBytes, as.OrderAsc, as.OrderByFlagNone, 4)).To(gm.Equal([]int{3, 2, 0, 1}))
 		})
 
 		gg.It("compares strings by bytes by default and ignores ASCII case when asked", func() {
 			putValues("Banana", "apple", "Cherry")
 
-			gm.Expect(rank(as.OrderByString, as.OrderAsc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{0, 2, 1}))
-			gm.Expect(rank(as.OrderByString, as.OrderAsc, as.OrderByFlagCaseInsensitive, 3)).To(gm.Equal([]int{1, 0, 2}))
+			gm.Expect(rank(as.BinDataTypeString, as.OrderAsc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{0, 2, 1}))
+			gm.Expect(rank(as.BinDataTypeString, as.OrderAsc, as.OrderByFlagCaseInsensitive, 3)).To(gm.Equal([]int{1, 0, 2}))
 		})
 	})
 
@@ -1204,7 +1204,7 @@ var _ = gg.Describe("Query Top-K", func() {
 			const k = 1
 			statement := rankByScore()
 			gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
-			gm.Expect(statement.SetOrderBy("score", as.OrderByInteger, as.OrderAsc)).To(gm.Succeed())
+			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
 
 			ids := queryIDs(statement)
 			gm.Expect(len(ids)).To(gm.BeNumerically(">", k))

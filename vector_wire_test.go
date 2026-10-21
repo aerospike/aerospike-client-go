@@ -140,9 +140,9 @@ var _ = gg.Describe("Vector encoding", func() {
 			metric VectorDistanceMetric
 			opCode byte
 		}{
-			{"squared Euclidean", VectorEuclidean, 52},
+			{"squared Euclidean", VectorEuclideanSquared, 52},
 			{"dot product", VectorDotProduct, 53},
-			{"cosine", VectorCosine, 54},
+			{"cosine", VectorCosineSimilarity, 54},
 		}
 
 		for _, testCase := range metrics {
@@ -164,7 +164,7 @@ var _ = gg.Describe("Vector encoding", func() {
 		})
 
 		gg.It("rejects a nil query when packed", func() {
-			_, err := packedExpression(ExpVectorDistance(VectorCosine, nil, ExpVectorBin("v")))
+			_, err := packedExpression(ExpVectorDistance(VectorCosineSimilarity, nil, ExpVectorBin("v")))
 			expectParameterError(err, "distance query must not be nil")
 		})
 	})
