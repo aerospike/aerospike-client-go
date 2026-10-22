@@ -46,14 +46,10 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 		}
 
 		if recordset.IsActive() {
-			// Nodes rank a Top-K query only when every node of this round
-			// can. Otherwise they return every match and the client ranks them.
-			sendTopK := statement.hasOrderBy() && nodesRankTopK(list)
-
 			weg := newWeightedErrGroup(maxConcurrentNodes)
 			for _, nodePartition := range list {
 				cmd := newQueryPartitionCommand(policy, tracker, nodePartition, statement, recordset)
-				cmd.sendTopK = sendTopK
+				cmd.sendTopK = statement.hasOrderBy()
 				cmd.topKMerger = merger
 				weg.execute(cmd)
 			}
@@ -97,14 +93,4 @@ func sendTopKResults(recordset *Recordset, results []*Result) {
 			return
 		}
 	}
-}
-
-// nodesRankTopK reports whether every node in the round ranks Top-K queries itself.
-func nodesRankTopK(list []*nodePartitions) bool {
-	for _, nodePartition := range list {
-		if !nodePartition.node.SupportsQueryOrderBy() {
-			return false
-		}
-	}
-	return true
 }

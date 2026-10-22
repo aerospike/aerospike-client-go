@@ -902,6 +902,53 @@ var _ = gg.Describe("Query Top-K", func() {
 		})
 	})
 
+	gg.Context("on a cluster where a node lacks Top-K support", func() {
+		// A client of its own, so the shared client's view of the cluster is
+		// never changed.
+		var mixedCluster *as.Client
+
+		gg.BeforeEach(func() {
+			var err as.Error
+			mixedCluster, err = as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			mixedCluster.Cluster().SetQueryOrderBySupportForTest(false)
+		})
+
+		gg.AfterEach(func() {
+			mixedCluster.Close()
+		})
+
+		// expectRefused asserts the query fails before it starts: no recordset
+		// is returned, so nothing is sent.
+		expectRefused := func(recordset *as.Recordset, err as.Error) {
+			gm.ExpectWithOffset(1, recordset).To(gm.BeNil())
+			expectParameterError(err, "Top-K is not supported by all nodes in the cluster")
+		}
+
+		gg.It("refuses Top-K through Query, QueryPartitions and QueryNode before anything is sent", func() {
+			expectRefused(mixedCluster.Query(nil, topTen()))
+			expectRefused(mixedCluster.QueryPartitions(nil, topTen(), as.NewPartitionFilterAll()))
+			expectRefused(mixedCluster.QueryNode(nil, mixedCluster.GetNodes()[0], topTen()))
+		})
+
+		gg.It("refuses an order-by without SetTopK", func() {
+			expectRefused(mixedCluster.Query(nil, rankByScore()))
+		})
+
+		gg.It("still runs a query without Top-K settings", func() {
+			putScores(1, 5, 3)
+
+			recordset, err := mixedCluster.Query(nil, as.NewStatement(ns, set, "score", "id"))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			var ids []int
+			for result := range recordset.Results() {
+				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				ids = append(ids, result.Record.Bins["id"].(int))
+			}
+			gm.Expect(ids).To(gm.ConsistOf(0, 1, 2))
+		})
+	})
+
 	gg.Context("ranking", func() {
 		// Records by id: score (one missing, one a string), and a vector
 		// {id, 9-id} so distances order cleanly by id.
@@ -972,38 +1019,6 @@ var _ = gg.Describe("Query Top-K", func() {
 			wholeRecord := topK(as.OrderDesc, 3)
 			wholeRecord.BinNames = nil
 			gm.Expect(queryIDs(wholeRecord)).To(gm.Equal(want))
-		})
-
-		gg.It("ranks the same on a cluster where one node cannot rank", func() {
-			mixedCluster, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			defer mixedCluster.Close()
-			nodes := mixedCluster.GetNodes()
-			nodes[0].SetQueryOrderBySupportForTest(false)
-
-			collectIDs := func(recordset *as.Recordset, err as.Error) []int {
-				gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
-				var ids []int
-				for result := range recordset.Results() {
-					gm.ExpectWithOffset(1, result.Err).ToNot(gm.HaveOccurred())
-					ids = append(ids, result.Record.Bins["id"].(int))
-				}
-				return ids
-			}
-
-			// The node that cannot rank takes part, so the client ranks every match.
-			for _, direction := range []as.OrderDirection{as.OrderDesc, as.OrderAsc} {
-				gm.Expect(collectIDs(mixedCluster.Query(nil, topK(direction, 5)))).To(gm.Equal(queryIDs(topK(direction, 5))))
-			}
-
-			// QueryNode on another node leaves it out, so that node ranks itself.
-			if len(nodes) > 1 {
-				upgraded := nodes[1]
-				sameNode, err := client.Cluster().GetNodeByName(upgraded.GetName())
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-				gm.Expect(collectIDs(mixedCluster.QueryNode(nil, upgraded, topK(as.OrderAsc, 3)))).
-					To(gm.Equal(collectIDs(client.QueryNode(nil, sameNode, topK(as.OrderAsc, 3)))))
-			}
 		})
 
 		gg.It("ranks only the records a filter expression keeps", func() {
@@ -1429,26 +1444,6 @@ var _ = gg.Describe("Query Top-K", func() {
 			// ts no longer breaks the ties on score 90, so they come in digest order.
 			gm.Expect(bytes.Compare(keyByID[ids[0]].Digest(), keyByID[ids[1]].Digest())).To(gm.Equal(-1))
 			gm.Expect(bytes.Compare(keyByID[ids[1]].Digest(), keyByID[ids[2]].Digest())).To(gm.Equal(-1))
-		})
-
-		gg.It("ranks the same when the client ranks the records", func() {
-			clientRanks, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			defer clientRanks.Close()
-			for _, node := range clientRanks.GetNodes() {
-				node.SetQueryOrderBySupportForTest(false)
-			}
-
-			for _, k := range []int{2, len(records)} {
-				recordset, err := clientRanks.Query(nil, scoreThenTime(k))
-				gm.Expect(err).ToNot(gm.HaveOccurred())
-				var ids []int
-				for result := range recordset.Results() {
-					gm.Expect(result.Err).ToNot(gm.HaveOccurred())
-					ids = append(ids, result.Record.Bins["id"].(int))
-				}
-				gm.Expect(ids).To(gm.Equal(queryIDs(scoreThenTime(k))))
-			}
 		})
 	})
 })

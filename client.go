@@ -1557,6 +1557,9 @@ func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, p
 	if len(nodes) == 0 {
 		return nil, ErrClusterIsEmpty.err()
 	}
+	if err := statement.validateTopKCluster(clnt.cluster); err != nil {
+		return nil, err
+	}
 
 	var tracker *partitionTracker
 	if partitionFilter == nil {
@@ -1596,6 +1599,9 @@ func (clnt *Client) QueryNode(policy *QueryPolicy, node *Node, statement *Statem
 func (clnt *Client) queryNodePartitions(policy *QueryPolicy, node *Node, statement *Statement) (*Recordset, Error) {
 	policy = clnt.getUsableQueryPolicy(policy)
 	if err := statement.validateTopK(policy); err != nil {
+		return nil, err
+	}
+	if err := statement.validateTopKCluster(clnt.cluster); err != nil {
 		return nil, err
 	}
 	tracker := newPartitionTrackerForNode(&policy.MultiPolicy, node)
