@@ -1173,14 +1173,10 @@ func (vl *RawBlobValue) write(cmd BufferEx) (int, Error) {
 	return cmd.Write(vl.Data)
 }
 
-// TODO: circle back post server updates
+// pack refuses a RawBlobValue inside a list, map or argument list: its bytes
+// are a whole bin value, with no packed form.
 func (vl *RawBlobValue) pack(cmd BufferEx) (int, Error) {
-	// A stored type-16 value that is not a valid vector is surfaced as a
-	// RawBlobValue; pack it back unchanged so it can be rewritten inside a CDT.
-	if vl.ParticleType == ParticleType.VECTOR {
-		return packVector(cmd, vl.Data)
-	}
-	panic(unreachable)
+	return 0, newError(types.PARAMETER_ERROR, fmt.Sprintf("a raw value of particle type %d can only be written as a whole bin", vl.ParticleType))
 }
 
 // GetType returns wire protocol value type.
@@ -1253,7 +1249,11 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (any, Error)
 		return HLLValue(newObj), nil
 
 	case ParticleType.VECTOR:
-		return bytesToVectorParticle(buf[offset : offset+length]), nil
+		vector, err := NewVectorFromBytes(buf[offset : offset+length])
+		if err != nil {
+			return nil, err
+		}
+		return vector, nil
 
 	case ParticleType.BLOB:
 		newObj := make([]byte, length)

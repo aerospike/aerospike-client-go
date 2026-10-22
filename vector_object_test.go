@@ -19,7 +19,6 @@ package aerospike_test
 import (
 	as "github.com/aerospike/aerospike-client-go/v8"
 	ast "github.com/aerospike/aerospike-client-go/v8/types"
-	ParticleType "github.com/aerospike/aerospike-client-go/v8/types/particle_type"
 
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
@@ -71,49 +70,37 @@ var _ = gg.Describe("Vector Object API Test", func() {
 		gm.Expect(loaded.Name).To(gm.Equal("doc"))
 	})
 
-	gg.It("stores vectors inside slices, maps and nested structs", func() {
+	// A vector can't be an element of a list or a map, so the server rejects
+	// a struct that puts one in a slice, a map or a nested struct.
+	gg.It("rejects vectors inside slices, maps and nested structs", func() {
 		type chunk struct {
 			Text      string     `as:"text"`
 			Embedding *as.Vector `as:"emb"`
 		}
-		type document struct {
-			Chunks []chunk               `as:"chunks"`
-			ByName map[string]*as.Vector `as:"by_name"`
-		}
 		first := mustVector(as.NewVectorFloat32([]float32{1, 2}))
-		second := mustVector(as.NewVectorInt32([]int32{3}))
-		stored := document{
-			Chunks: []chunk{{Text: "intro", Embedding: first}, {Text: "body", Embedding: second}},
-			ByName: map[string]*as.Vector{"title": first},
-		}
-		gm.Expect(client.PutObject(nil, key, &stored)).To(gm.Succeed())
 
-		var loaded document
-		gm.Expect(client.GetObject(nil, key, &loaded)).To(gm.Succeed())
-		gm.Expect(loaded.Chunks).To(gm.HaveLen(2))
-		gm.Expect(loaded.Chunks[0].Text).To(gm.Equal("intro"))
-		gm.Expect(loaded.Chunks[0].Embedding.Equal(first)).To(gm.BeTrue())
-		gm.Expect(loaded.Chunks[1].Embedding.Equal(second)).To(gm.BeTrue())
-		gm.Expect(loaded.ByName["title"].Equal(first)).To(gm.BeTrue())
-	})
-
-	gg.It("rejects stored type-16 bytes that are not a vector for a Vector field", func() {
-		// The server does not validate vectors nested in a map, so invalid
-		// type-16 bytes can reach a Vector field of a nested struct.
-		type inner struct {
-			Value as.Vector `as:"val"`
+		policy := as.NewWritePolicy(0, 0)
+		policy.ErrorDetailVerbosity = 2
+		for _, stored := range []any{
+			&struct {
+				Chunks []chunk `as:"chunks"`
+			}{Chunks: []chunk{{Text: "intro", Embedding: first}}},
+			&struct {
+				ByName map[string]*as.Vector `as:"by_name"`
+			}{ByName: map[string]*as.Vector{"title": first}},
+			&struct {
+				Inner chunk `as:"inner"`
+			}{Inner: chunk{Text: "intro", Embedding: first}},
+		} {
+			err := client.PutObject(policy, key, stored)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("list/map cannot hold a vector"))
 		}
-		type outer struct {
-			Inner inner `as:"inner"`
-		}
-		invalid := as.NewRawBlobValue(ParticleType.VECTOR, []byte{0xde, 0xad, 0xbe})
-		gm.Expect(client.PutBins(nil, key, as.NewBin("inner", map[any]any{"val": invalid}))).To(gm.Succeed())
 
-		var loaded outer
-		err := client.GetObject(nil, key, &loaded)
-		gm.Expect(err).To(gm.HaveOccurred())
-		gm.Expect(err.Matches(ast.PARSE_ERROR)).To(gm.BeTrue(), err.Error())
-		gm.Expect(err.Error()).To(gm.ContainSubstring("for Vector field"))
+		exists, err := client.Exists(nil, key)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(exists).To(gm.BeFalse())
 	})
 
 	gg.It("omits unset Vector and *Vector fields tagged omitempty", func() {
