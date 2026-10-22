@@ -25,8 +25,8 @@ import (
 
 // topKMerger keeps the k best records of a Top-K query across nodes and
 // retry rounds, ranked the way the server ranks them. Each node sends at most
-// its own k best (or every match when it cannot rank), so the client keeps the
-// global k. It is shared by the query's commands and safe for concurrent use.
+// its own k best, so the client keeps the global k. It is shared by the
+// query's commands and safe for concurrent use.
 type topKMerger struct {
 	mu             sync.Mutex
 	orderBy        orderBySpec  // the bin we rank by

@@ -78,15 +78,9 @@ func (clstr *Cluster) SetVectorSupportForTest(supported bool) {
 	clstr.supportsVector.Set(supported)
 }
 
-// SetQueryOrderBySupportForTest overrides whether the node ranks Top-K
-// queries itself, so a test can force the client-side ranking path. Call it
-// before the node runs a query.
-func (nd *Node) SetQueryOrderBySupportForTest(supported bool) {
-	if supported {
-		nd.features |= _SUPPORTS_QUERY_ORDER_BY
-	} else {
-		nd.features &^= _SUPPORTS_QUERY_ORDER_BY
-	}
+// SetQueryOrderBySupportForTest overrides whether the client treats every node as supporting Top-K queries.
+func (clstr *Cluster) SetQueryOrderBySupportForTest(supported bool) {
+	clstr.supportsQueryOrderBy.Set(supported)
 }
 
 // QueryWithoutTopKChecksForTest runs Query without the client's Top-K checks,
