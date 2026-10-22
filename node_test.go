@@ -481,6 +481,8 @@ var _ = gg.Describe("Aerospike Node Tests", func() {
 				disabledPolicy.TlsConfig = tlsConfig
 				disabledPolicy.MaxErrorRate = 0 // Disable circuit breaker
 				disabledPolicy.UseServicesAlternate = *UseServicesAlternate
+				disabledPolicy.User = *user
+				disabledPolicy.Password = *password
 
 				disabledClient, err := as.NewClientWithPolicyAndHost(disabledPolicy, dbHosts...)
 				gm.Expect(err).ToNot(gm.HaveOccurred())

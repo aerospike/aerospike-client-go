@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -124,7 +124,8 @@ var prepareReflectionData func(cmd *baseMultiCommand)
 func newMultiCommand(node *Node, recordset *Recordset, isOperation bool) *baseMultiCommand {
 	cmd := &baseMultiCommand{
 		baseCommand: baseCommand{
-			node: node,
+			node:    node,
+			cluster: nodeCluster(node),
 		},
 		recordset:   recordset,
 		isOperation: isOperation,
@@ -140,6 +141,7 @@ func newStreamingMultiCommand(node *Node, recordset *Recordset, namespace string
 	cmd := &baseMultiCommand{
 		baseCommand: baseCommand{
 			node:    node,
+			cluster: nodeCluster(node),
 			oneShot: true,
 		},
 		namespace:   namespace,
@@ -151,6 +153,13 @@ func newStreamingMultiCommand(node *Node, recordset *Recordset, namespace string
 		prepareReflectionData(cmd)
 	}
 	return cmd
+}
+
+func nodeCluster(node *Node) *Cluster {
+	if node == nil {
+		return nil
+	}
+	return node.cluster
 }
 
 func newCorrectStreamingMultiCommand(recordset *Recordset, namespace string) *baseMultiCommand {
@@ -425,7 +434,7 @@ func (cmd *baseMultiCommand) parseRecordResults(ifc command, receiveSize int) (b
 		resultCode := types.ResultCode(cmd.dataBuffer[5] & 0xFF)
 
 		// Aggregate metrics
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.commandPathMetrics()
 		if metricsEnabled {
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), ifc.commandType(), resultCode)
 		}

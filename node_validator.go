@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -150,6 +150,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 
 	conn, err := NewConnection(&clientPolicy, alias)
 	if err != nil {
+		cluster.recordValidationNewConnectionFailure(err)
 		return err
 	}
 	defer conn.Close()
@@ -159,6 +160,12 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 		acmd := newLoginCommand(conn.dataBuffer)
 		err = acmd.login(&clientPolicy, conn, cluster.Password())
 		if err != nil {
+			// CM-8: auth.failure is auth result codes only; network/TLS during login → open/tls.
+			if isConnectionAuthFailure(err) {
+				cluster.recordValidationAuthFailure()
+			} else {
+				cluster.recordValidationNewConnectionFailure(err)
+			}
 			return err
 		}
 
@@ -268,6 +275,7 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 				for _, h := range hostAddress {
 					hconn, err := NewConnection(&clientPolicy, h)
 					if err != nil {
+						cluster.recordValidationNewConnectionFailure(err)
 						continue
 					}
 					defer hconn.Close()
@@ -277,6 +285,11 @@ func (ndv *nodeValidator) validateAlias(cluster *Cluster, alias *Host) Error {
 						acmd := newLoginCommand(hconn.dataBuffer)
 						err = acmd.login(&clientPolicy, hconn, cluster.Password())
 						if err != nil {
+							if isConnectionAuthFailure(err) {
+								cluster.recordValidationAuthFailure()
+							} else {
+								cluster.recordValidationNewConnectionFailure(err)
+							}
 							continue
 						}
 

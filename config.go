@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,6 +31,9 @@ import (
 
 var supportedVersions = map[string]struct{}{
 	"1.0.0": {},
+	"1.1.0": {},
+	// 1.2.0: metrics v3 keys (export_interval, exporter, report_dir, extended.*).
+	"1.2.0": {},
 }
 
 type DynConfig struct {
@@ -237,11 +240,22 @@ func (dc *DynConfig) hydrateDynamicPolicyFromConfig() {
 }
 
 func (dc *DynConfig) generateStaticClientPolicy() *ClientPolicy {
-	policy := NewClientPolicy()
+	// Start from the live client policy (credentials, TLS, etc. set at
+	// NewClient*) rather than NewClientPolicy(). hydrateStaticPolicyFromConfig
+	// stores into the same atomic pointer the Cluster reads for login; wiping
+	// User/Password here left WarmUp connections unauthenticated and surfaced
+	// as NOT_AUTHENTICATED on the first data command.
+	var policy *ClientPolicy
+	if dc.client != nil && dc.client.dynDefaultClientPolicy != nil {
+		if current := (*dc.client.dynDefaultClientPolicy).Load(); current != nil {
+			policy = current.copy()
+		}
+	}
+	if policy == nil {
+		policy = NewClientPolicy()
+	}
 
-	policy = policy.mapStatic(dc)
-
-	return policy
+	return policy.mapStatic(dc)
 }
 
 func (dc *DynConfig) generateDynamicClientPolicy() *ClientPolicy {
@@ -463,6 +477,8 @@ func (dc *DynConfig) generateDynamicBatchPolicy() *BatchPolicy {
 
 func (dc *DynConfig) generateDynamicMetricsPolicy() *MetricsPolicy {
 	policy := DefaultMetricsPolicy()
+	policy.OperationalEnabled = false
+	policy.Exporter = MetricsExporterNone
 
 	policy = policy.mapDynamic(dc)
 

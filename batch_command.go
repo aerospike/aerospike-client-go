@@ -28,6 +28,8 @@ type batcher interface {
 	generateBatchNodes(*Cluster) ([]*batchNode, Error)
 	setSequence(int, int)
 
+	// setBatchChildMetrics marks a node sub-batch as a child of batchExecute.
+	setBatchChildMetrics(sampled bool)
 	// executeSingle(*Client) Error
 	setInDoubt(batcher)
 	inDoubt()
@@ -70,6 +72,12 @@ func (cmd *batchCommand) inDoubt() {
 // than copying the parent.
 func (cmd *batchCommand) clearSplitRetry() {
 	cmd.splitRetry = false
+}
+
+// setBatchChildMetrics marks this node sub-batch as a child of a user-batch
+// coordinator that already owns command.count / cluster.latency / feature.*.
+func (cmd *batchCommand) setBatchChildMetrics(sampled bool) {
+	cmd.setMetricsChild(sampled)
 }
 
 // failFastInDoubt handles a failed split subcommand when partial results are not

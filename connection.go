@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import (
 	"compress/zlib"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -119,7 +120,7 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 	if terr, ok := err.(net.Error); ok {
 		if terr.Timeout() {
 			if conn != nil {
-			 	if conn.node != nil {
+				if conn.node != nil {
 					conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
 				}
 				if errors.Is(terr, os.ErrDeadlineExceeded) {
@@ -177,6 +178,20 @@ func newConnection(address string, timeout time.Duration) (*Connection, Error) {
 	return newConn, nil
 }
 
+// errTLSHandshakePhase marks network errors that occurred during TLS handshake
+// or hostname verification so CM-8 can distinguish them from dial/open failures.
+var errTLSHandshakePhase = errors.New("aerospike: tls handshake failure")
+
+func isTLSHandshakeFailure(err Error) bool {
+	return err != nil && errors.Is(err, errTLSHandshakePhase)
+}
+
+func newTLSHandshakeNetworkError(err error) Error {
+	ne := newError(types.NETWORK_ERROR)
+	ne.wrap(fmt.Errorf("%w: %w", errTLSHandshakePhase, err))
+	return ne
+}
+
 // NewConnection creates a TLS connection on the network and returns the pointer.
 // A minimum timeout of 2 seconds will always be applied.
 // If the connection is not established in the specified timeout,
@@ -198,7 +213,7 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
 
 	sconn := tls.Client(conn.conn, tlsConfig)
 	if err := sconn.Handshake(); err != nil {
-		nerr := newWrapNetworkError(err)
+		nerr := newTLSHandshakeNetworkError(err)
 		if cerr := sconn.Close(); cerr != nil {
 			logger.Logger.Debug("Closing connection after handshake error failed: %s", cerr.Error())
 			nerr = chainErrors(newWrapNetworkError(cerr), nerr)
@@ -208,7 +223,7 @@ func NewConnection(policy *ClientPolicy, host *Host) (*Connection, Error) {
 
 	if host.TLSName != "" && !tlsConfig.InsecureSkipVerify {
 		if err := sconn.VerifyHostname(host.TLSName); err != nil {
-			nerr := newWrapNetworkError(err)
+			nerr := newTLSHandshakeNetworkError(err)
 			if cerr := sconn.Close(); cerr != nil {
 				logger.Logger.Debug("Closing connection after VerifyHostName error failed: %s", cerr.Error())
 				nerr = chainErrors(newWrapNetworkError(cerr), nerr)
@@ -330,9 +345,14 @@ func (ctn *Connection) updateDeadline() Error {
 			}
 		}
 
-		// floor to a millisecond to avoid too short timeouts
+		// Floor to a millisecond to avoid too-short OS timers, but never extend
+		// past the total deadline (that previously let sub-ms TotalTimeout budgets
+		// race through on localhost).
 		if ctn.socketDeadline.Sub(now) < time.Millisecond {
-			ctn.socketDeadline = now.Add(time.Millisecond)
+			floored := now.Add(time.Millisecond)
+			if !floored.After(ctn.deadline) {
+				ctn.socketDeadline = floored
+			}
 		}
 	}
 

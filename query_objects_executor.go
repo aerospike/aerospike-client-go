@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,12 @@ import (
 func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitionTracker, statement *Statement, rs *Recordset) Error {
 	defer rs.signalEnd()
 
+	var filter *Expression
+	if policy != nil {
+		filter = policy.FilterExpression
+	}
+	metricsOn, sampled, callStart := clnt.beginPartitionCallMetrics(ttQuery, filter)
+
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
@@ -34,6 +40,7 @@ func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitio
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), statement.Namespace)
 		if err != nil {
 			tracker.partitionError()
+			clnt.endPartitionCallMetrics(sampled, callStart, LatencyQuery, err)
 			return err
 		}
 
@@ -60,7 +67,7 @@ func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitio
 				go func(nodePartition *nodePartitions) {
 					defer sem.Release(1)
 					defer wg.Done()
-					if err := clnt.queryNodePartitionObjects(policy, rs, tracker, nodePartition, statement); err != nil {
+					if err := clnt.queryNodePartitionObjects(policy, rs, tracker, nodePartition, statement, metricsOn, sampled); err != nil {
 						tracker.partitionError()
 						logger.Logger.Debug("Error while Executing query for node %s: %s", nodePartition.node.String(), err.Error())
 					}
@@ -76,6 +83,7 @@ func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitio
 				tracker.partitionError()
 			}
 			// Query is complete.
+			clnt.endPartitionCallMetrics(sampled, callStart, LatencyQuery, err)
 			return err
 		}
 
@@ -92,7 +100,10 @@ func (clnt *Client) queryPartitionObjects(policy *QueryPolicy, tracker *partitio
 
 // QueryNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) queryNodePartitionObjects(policy *QueryPolicy, recordset *Recordset, tracker *partitionTracker, nodePartition *nodePartitions, statement *Statement) Error {
+func (clnt *Client) queryNodePartitionObjects(policy *QueryPolicy, recordset *Recordset, tracker *partitionTracker, nodePartition *nodePartitions, statement *Statement, metricsOn, sampled bool) Error {
 	command := newQueryPartitionObjectsCommand(policy, tracker, nodePartition, statement, recordset)
+	if metricsOn {
+		command.setMetricsChild(sampled)
+	}
 	return command.Execute()
 }
