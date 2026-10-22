@@ -1030,21 +1030,24 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{7, 9}))
 		})
 
-		gg.It("ranks by a projected vector distance and puts records it cannot compare last", func() {
+		gg.It("ranks by a projected vector distance and puts records it cannot compare last, or leaves them out without EvalNoFail", func() {
 			key, err := as.NewKey(ns, set, "other dims")
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(client.PutBins(nil, key, as.NewBin("id", 99), as.NewBin("emb", as.NewVectorFloat32([]float32{0, 9, 0})))).To(gm.Succeed())
 			keys = append(keys, key)
 
-			nearest := func(metric as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int) []int {
+			nearestWithFlags := func(metric as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int, flags as.ExpReadFlags) []int {
 				statement := as.NewStatement(ns, set)
 				statement.Operations = []*as.Operation{
 					as.GetBinOp("id"),
-					as.ExpReadOp("dist", as.ExpVectorDistance(metric, as.NewVectorFloat32(query), as.ExpVectorBin("emb")), as.ExpReadFlagEvalNoFail),
+					as.ExpReadOp("dist", as.ExpVectorDistance(metric, as.NewVectorFloat32(query), as.ExpVectorBin("emb")), flags),
 				}
 				gm.Expect(statement.SetOrderBy("dist", as.BinDataTypeDouble, direction)).To(gm.Succeed())
 				gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
 				return queryIDs(statement)
+			}
+			nearest := func(metric as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int) []int {
+				return nearestWithFlags(metric, query, direction, k, as.ExpReadFlagEvalNoFail)
 			}
 
 			gm.Expect(nearest(as.VectorEuclideanSquared, []float32{0, 9}, as.OrderAsc, 3)).To(gm.Equal([]int{0, 1, 2}))
@@ -1054,6 +1057,10 @@ var _ = gg.Describe("Query Top-K", func() {
 			all := nearest(as.VectorEuclideanSquared, []float32{0, 9}, as.OrderAsc, 1000)
 			gm.Expect(all).To(gm.HaveLen(len(scores) + 1))
 			gm.Expect(all[len(all)-1]).To(gm.Equal(99))
+
+			withoutEvalNoFail := nearestWithFlags(as.VectorEuclideanSquared, []float32{0, 9}, as.OrderAsc, 1000, as.ExpReadFlagDefault)
+			gm.Expect(withoutEvalNoFail).To(gm.HaveLen(len(scores)))
+			gm.Expect(withoutEvalNoFail).ToNot(gm.ContainElement(99))
 		})
 
 		gg.It("ranks a query sent with a short-query hint", func() {
@@ -1241,27 +1248,129 @@ var _ = gg.Describe("Query Top-K", func() {
 		})
 	})
 
-	gg.Context("SetOrderBy without SetTopK", func() {
+	// The server rejects a Top-K request it cannot run with a parameter error,
+	// subcode 12 and a message naming the rule. The client's own checks stop
+	// most of these first, so all but the order-by without a limit are sent
+	// with those checks skipped.
+	gg.Context("requests the server rejects", func() {
 		gg.BeforeEach(func() {
 			if !client.GetNodes()[0].SupportsQueryOrderBy() {
-				gg.Skip("the order-by is sent only to a server with Top-K support")
+				gg.Skip("Top-K fields are sent only to a server with Top-K support")
 			}
 			putScores(1, 5, 3)
 		})
 
-		gg.It("is refused by the server", func() {
-			recordset, err := client.Query(nil, rankByScore())
-			gm.Expect(err).ToNot(gm.HaveOccurred())
+		// withErrorDetails returns a query policy that asks for subcodes and messages.
+		withErrorDetails := func() *as.QueryPolicy {
+			policy := as.NewQueryPolicy()
+			policy.ErrorDetailVerbosity = 2
+			return policy
+		}
 
+		expectTopKRejected := func(recordset *as.Recordset, serverMessage string) {
 			var queryErr as.Error
+			records := 0
 			for result := range recordset.Results() {
 				if result.Err != nil {
-					queryErr = result.Err
+					if queryErr == nil {
+						queryErr = result.Err
+					}
+				} else {
+					records++
 				}
 			}
-			gm.Expect(queryErr).To(gm.HaveOccurred())
-			gm.Expect(queryErr.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), queryErr.Error())
+			gm.ExpectWithOffset(1, records).To(gm.BeZero())
+			gm.ExpectWithOffset(1, queryErr).To(gm.HaveOccurred())
+
+			aerospikeErr := &as.AerospikeError{}
+			gm.ExpectWithOffset(1, errors.As(queryErr, &aerospikeErr)).To(gm.BeTrue())
+			gm.ExpectWithOffset(1, aerospikeErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
+			gm.ExpectWithOffset(1, aerospikeErr.SubCode).To(gm.Equal(ast.SubCodeParamTopKInvalid))
+			gm.ExpectWithOffset(1, aerospikeErr.ServerMessage).To(gm.ContainSubstring(serverMessage))
+		}
+
+		gg.It("refuses an order-by without SetTopK", func() {
+			recordset, err := client.Query(withErrorDetails(), rankByScore())
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			expectTopKRejected(recordset, "top-k needs both order-by and top-k fields")
 		})
+
+		// Each case starts from topTen (score DESC, k = 10, bins score and id)
+		// and breaks one rule the server checks. An invalidation is the edit
+		// that breaks it, applied to the case's statement or policy.
+		type invalidation func(statement *as.Statement, policy *as.QueryPolicy)
+
+		limit := func(k int) invalidation {
+			return func(statement *as.Statement, _ *as.QueryPolicy) { statement.SetTopK(k) }
+		}
+		orderBy := func(binName string, orderType as.BinDataType, direction as.OrderDirection, flags as.OrderByFlags) invalidation {
+			return func(statement *as.Statement, _ *as.QueryPolicy) {
+				statement.SetOrderByWithFlags(binName, orderType, direction, flags)
+			}
+		}
+		thenOrderBy := func(binName string) invalidation {
+			return func(statement *as.Statement, _ *as.QueryPolicy) {
+				statement.ThenOrderBy(binName, as.BinDataTypeInteger, as.OrderAsc)
+			}
+		}
+		binNames := func(names ...string) invalidation {
+			return func(statement *as.Statement, _ *as.QueryPolicy) { statement.BinNames = names }
+		}
+		operations := func(ops ...*as.Operation) invalidation {
+			return func(statement *as.Statement, _ *as.QueryPolicy) { statement.Operations = ops }
+		}
+		maxRecords := func(records int64) invalidation {
+			return func(_ *as.Statement, policy *as.QueryPolicy) { policy.MaxRecords = records }
+		}
+		noBinData := func() invalidation {
+			return func(_ *as.Statement, policy *as.QueryPolicy) { policy.IncludeBinData = false }
+		}
+
+		const (
+			integer = as.BinDataTypeInteger
+			desc    = as.OrderDesc
+			none    = as.OrderByFlagNone
+		)
+
+		rejected := []struct {
+			name          string
+			invalidate    invalidation
+			serverMessage string
+		}{
+			// The limit.
+			{"a limit of 0", limit(0), "top-k limit 0 out of range"},
+			{"a limit over 1000", limit(1001), "top-k limit 1001 out of range"},
+
+			// Policy settings Top-K cannot run with.
+			{"MaxRecords", maxRecords(100), "top-k incompatible with max-records/sample-max"},
+			{"IncludeBinData off", noBinData(), "top-k incompatible with no-bin-data"},
+
+			// The order-by spec.
+			{"a repeated order-by bin", thenOrderBy("score"), "order-by names bin 'score' more than once"},
+			{"an unknown order-by type", orderBy("score", as.BinDataType(9), desc, none), "order-by type 9 invalid"},
+			{"an unknown direction", orderBy("score", integer, as.OrderDirection(5), none), "order-by direction 5 invalid"},
+			{"unknown flags", orderBy("score", as.BinDataTypeString, desc, as.OrderByFlags(2)), "order-by flags 0x2 invalid"},
+			{"case folding on a non-string bin", orderBy("score", integer, desc, as.OrderByFlagCaseInsensitive), "case-insensitive flag applies only to string ordering"},
+
+			// The order-by bin name.
+			{"an empty order-by bin name", orderBy("", integer, desc, none), "order-by bin name length 0 invalid"},
+			{"an order-by bin name over 15 bytes", orderBy("a_bin_name_16_by", integer, desc, none), "order-by bin name length 16 invalid"},
+			{"a null byte in the order-by bin name", orderBy("sc\x00re", integer, desc, none), "order-by bin name is not a valid bin name"},
+
+			// An order-by bin the query does not return. The client sends
+			// BinNames as read operations, so the server names those for both.
+			{"an order-by bin missing from BinNames", binNames("id"), "order-by bin 'score' is not produced by any of the query's read ops"},
+			{"an order-by bin no operation returns", operations(as.GetBinOp("id")), "order-by bin 'score' is not produced by any of the query's read ops"},
+		}
+
+		for _, testCase := range rejected {
+			gg.It("refuses "+testCase.name, func() {
+				statement, policy := topTen(), withErrorDetails()
+				testCase.invalidate(statement, policy)
+
+				expectTopKRejected(client.QueryWithoutTopKChecksForTest(policy, statement), testCase.serverMessage)
+			})
+		}
 	})
 
 	// Records tie on score and are ranked by ts, the second order-by bin;

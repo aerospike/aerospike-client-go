@@ -89,6 +89,16 @@ func (nd *Node) SetQueryOrderBySupportForTest(supported bool) {
 	}
 }
 
+// QueryWithoutTopKChecksForTest runs Query without the client's Top-K checks,
+// so a test can send a Top-K request the server rejects.
+func (clnt *Client) QueryWithoutTopKChecksForTest(policy *QueryPolicy, statement *Statement) *Recordset {
+	policy = clnt.getUsableQueryPolicy(policy)
+	tracker := newPartitionTrackerForNodes(&policy.MultiPolicy, clnt.cluster.GetNodes())
+	recordset := newRecordset(policy.RecordQueueSize, 1)
+	go clnt.queryPartitions(policy, tracker, statement, recordset)
+	return recordset
+}
+
 func NewWriteCommand(
 	cluster *Cluster,
 	policy *WritePolicy,
