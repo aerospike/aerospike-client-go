@@ -966,7 +966,7 @@ var _ = gg.Describe("Query Top-K", func() {
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				bins := []*as.Bin{
 					as.NewBin("id", id),
-					as.NewBin("emb", as.NewVectorFloat32([]float32{float32(id), float32(9 - id)})),
+					as.NewBin("emb", mustVector(as.NewVectorFloat32([]float32{float32(id), float32(9 - id)}))),
 				}
 				if score != nil {
 					bins = append(bins, as.NewBin("score", score))
@@ -1048,14 +1048,14 @@ var _ = gg.Describe("Query Top-K", func() {
 		gg.It("ranks by a projected vector distance and puts records it cannot compare last, or leaves them out without EvalNoFail", func() {
 			key, err := as.NewKey(ns, set, "other dims")
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(client.PutBins(nil, key, as.NewBin("id", 99), as.NewBin("emb", as.NewVectorFloat32([]float32{0, 9, 0})))).To(gm.Succeed())
+			gm.Expect(client.PutBins(nil, key, as.NewBin("id", 99), as.NewBin("emb", mustVector(as.NewVectorFloat32([]float32{0, 9, 0}))))).To(gm.Succeed())
 			keys = append(keys, key)
 
 			nearestWithFlags := func(metric as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int, flags as.ExpReadFlags) []int {
 				statement := as.NewStatement(ns, set)
 				statement.Operations = []*as.Operation{
 					as.GetBinOp("id"),
-					as.ExpReadOp("dist", as.ExpVectorDistance(metric, as.NewVectorFloat32(query), as.ExpVectorBin("emb")), flags),
+					as.ExpReadOp("dist", as.ExpVectorDistance(metric, mustVector(as.NewVectorFloat32(query)), as.ExpVectorBin("emb")), flags),
 				}
 				gm.Expect(statement.SetOrderBy("dist", as.BinDataTypeDouble, direction)).To(gm.Succeed())
 				gm.Expect(statement.SetTopK(k)).To(gm.Succeed())

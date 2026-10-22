@@ -15,6 +15,7 @@
 package aerospike
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
@@ -23,6 +24,14 @@ import (
 	gg "github.com/onsi/ginkgo/v2"
 	gm "github.com/onsi/gomega"
 )
+
+// mustVector returns vector. It panics if the constructor returned an error.
+func mustVector(vector *Vector, err Error) *Vector {
+	if err != nil {
+		panic(err)
+	}
+	return vector
+}
 
 // packed returns the msgpack encoding of value.
 func packed(value Value) []byte {
@@ -52,17 +61,14 @@ var _ = gg.Describe("Vector encoding", func() {
 			want   []byte
 		}{
 			// Byte-for-byte the server's GoldenSixByteHeaderImage.
-			{"float32", NewVectorFloat32([]float32{1, -2}),
+			{"float32", mustVector(NewVectorFloat32([]float32{1, -2})),
 				[]byte{0x01, 0x03, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3f, 0x00, 0x00, 0x00, 0xc0}},
-			{"float64", NewVectorFloat64([]float64{1.5}),
+			{"float64", mustVector(NewVectorFloat64([]float64{1.5})),
 				[]byte{0x01, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x3f}},
-			{"int32 extremes", NewVectorInt32([]int32{math.MinInt32, math.MaxInt32, -1}),
+			{"int32 extremes", mustVector(NewVectorInt32([]int32{math.MinInt32, math.MaxInt32, -1})),
 				[]byte{0x01, 0x02, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xff, 0xff, 0xff, 0x7f, 0xff, 0xff, 0xff, 0xff}},
-			{"float16 bit patterns", NewVectorFloat16Bits([]uint16{0x3c00, 0x8000, 0x7c00}),
+			{"float16 bit patterns", mustVector(NewVectorFloat16Bits([]uint16{0x3c00, 0x8000, 0x7c00})),
 				[]byte{0x01, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x80, 0x00, 0x7c}},
-			// Construction stays permissive; the server rejects zero dimensions.
-			{"empty vector", NewVectorFloat32(nil),
-				[]byte{0x01, 0x03, 0x00, 0x00, 0x00, 0x00}},
 		}
 
 		for _, testCase := range testCases {
@@ -74,8 +80,40 @@ var _ = gg.Describe("Vector encoding", func() {
 		}
 	})
 
+	// Each element type holds 1 to as many elements as fit in 256 KiB.
+	gg.Context("construction", func() {
+		constructors := []struct {
+			name          string
+			build         func(elements int) (*Vector, Error)
+			maxDimensions int
+		}{
+			{"float16", func(elements int) (*Vector, Error) { return NewVectorFloat16Bits(make([]uint16, elements)) }, 131072},
+			{"int32", func(elements int) (*Vector, Error) { return NewVectorInt32(make([]int32, elements)) }, 65536},
+			{"float32", func(elements int) (*Vector, Error) { return NewVectorFloat32(make([]float32, elements)) }, 65536},
+			{"float64", func(elements int) (*Vector, Error) { return NewVectorFloat64(make([]float64, elements)) }, 32768},
+		}
+
+		for _, constructor := range constructors {
+			gg.It(fmt.Sprintf("builds a %s vector of 1 to %d elements and refuses none or more", constructor.name, constructor.maxDimensions), func() {
+				for _, elements := range []int{1, constructor.maxDimensions} {
+					vector, err := constructor.build(elements)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					gm.Expect(vector.Dimensions()).To(gm.Equal(elements))
+				}
+
+				vector, err := constructor.build(0)
+				gm.Expect(vector).To(gm.BeNil())
+				expectParameterError(err, "vector: must have at least 1 dimension")
+
+				vector, err = constructor.build(constructor.maxDimensions + 1)
+				gm.Expect(vector).To(gm.BeNil())
+				expectParameterError(err, fmt.Sprintf("vector: %d dimensions exceed max %d", constructor.maxDimensions+1, constructor.maxDimensions))
+			})
+		}
+	})
+
 	gg.Context("decoding", func() {
-		valid := NewVectorFloat32([]float32{1, 2}).Bytes()
+		valid := mustVector(NewVectorFloat32([]float32{1, 2})).Bytes()
 		malformedInputs := []struct {
 			name        string
 			input       []byte
@@ -84,6 +122,8 @@ var _ = gg.Describe("Vector encoding", func() {
 			{"shorter than the header", valid[:5], "shorter than the 6 byte header"},
 			{"of an unknown version", append([]byte{0x02}, valid[1:]...), "unsupported format version 2"},
 			{"of an unknown element type", append([]byte{0x01, 0x09}, valid[2:]...), "unknown element type 9"},
+			{"with no dimensions", []byte{0x01, 0x03, 0x00, 0x00, 0x00, 0x00}, "vector: must have at least 1 dimension"},
+			{"with more dimensions than the element type allows", []byte{0x01, 0x04, 0x01, 0x80, 0x00, 0x00}, "vector: 32769 dimensions exceed max 32768"},
 			{"with truncated elements", valid[:len(valid)-1], "does not match 2 float32 elements"},
 			{"with trailing bytes", append(append([]byte{}, valid...), 0x00), "does not match 2 float32 elements"},
 		}
@@ -97,8 +137,16 @@ var _ = gg.Describe("Vector encoding", func() {
 		}
 	})
 
+	gg.It("refuses to write or pack a Vector that was never built", func() {
+		_, err := (&Vector{}).write(newBuffer(16))
+		expectParameterError(err, "vector: must have at least 1 dimension")
+
+		_, err = (&Vector{}).pack(newBuffer(16))
+		expectParameterError(err, "vector: must have at least 1 dimension")
+	})
+
 	gg.It("packs a list element as msgpack str tagged with the vector particle type", func() {
-		vector := NewVectorFloat32([]float32{1, -2})
+		vector := mustVector(NewVectorFloat32([]float32{1, -2}))
 		wire := vector.Bytes()
 		// fixarray(1), fixstr(len(wire)+1), particle type, wire.
 		want := append([]byte{0x91, 0xa0 | byte(len(wire)+1), ParticleType.VECTOR}, wire...)
@@ -121,7 +169,7 @@ var _ = gg.Describe("Vector encoding", func() {
 	})
 
 	gg.Context("distance expressions", func() {
-		query := NewVectorFloat32([]float32{4, 6, 8})
+		query := mustVector(NewVectorFloat32([]float32{4, 6, 8}))
 
 		packedExpression := func(exp *Expression) ([]byte, Error) {
 			size, err := exp.size()

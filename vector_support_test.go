@@ -35,7 +35,7 @@ var _ = gg.Describe("Vector support check", func() {
 		}
 	}
 
-	vector := NewVectorFloat32([]float32{1, 2})
+	vector := mustVector(NewVectorFloat32([]float32{1, 2}))
 	containsVector := ExpEq(ExpListVal(vector), ExpListVal(vector))
 
 	// The ways a vector reaches the wire.

@@ -38,6 +38,14 @@ func serverSupportsVectors() bool {
 	return !serverVersion.IsSmaller(version.ServerVersionVector)
 }
 
+// mustVector returns vector. It panics if the constructor returned an error.
+func mustVector(vector *as.Vector, err as.Error) *as.Vector {
+	if err != nil {
+		panic(err)
+	}
+	return vector
+}
+
 // expectVector fails the spec with the actual value when value is not a
 // *as.Vector, instead of panicking on a type assertion.
 func expectVector(value any) *as.Vector {
@@ -57,6 +65,17 @@ var _ = gg.Describe("Vector Test", func() {
 
 	put := func(bins ...*as.Bin) as.Error {
 		return client.PutBins(nil, key, bins...)
+	}
+
+	// expectNoDimensionsRefused asserts the client refused a vector with no
+	// dimensions itself: a parameter error with no message from the server.
+	expectNoDimensionsRefused := func(err as.Error) {
+		gm.ExpectWithOffset(1, err).To(gm.HaveOccurred())
+		aerospikeErr := &as.AerospikeError{}
+		gm.ExpectWithOffset(1, errors.As(err, &aerospikeErr)).To(gm.BeTrue())
+		gm.ExpectWithOffset(1, aerospikeErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR), err.Error())
+		gm.ExpectWithOffset(1, err.Error()).To(gm.ContainSubstring("vector: must have at least 1 dimension"))
+		gm.ExpectWithOffset(1, aerospikeErr.ServerMessage).To(gm.BeEmpty())
 	}
 
 	getVector := func(name string) *as.Vector {
@@ -85,11 +104,11 @@ var _ = gg.Describe("Vector Test", func() {
 			name   string
 			vector *as.Vector
 		}{
-			{"float16", as.NewVectorFloat16Bits([]uint16{0x3c00, 0x8000, 0x0001, 0x7bff})},
-			{"int32", as.NewVectorInt32([]int32{math.MinInt32, 0, math.MaxInt32})},
-			{"float32", as.NewVectorFloat32([]float32{1.5, float32(math.Copysign(0, -1)), math.MaxFloat32})},
-			{"float64", as.NewVectorFloat64([]float64{-2.25, math.SmallestNonzeroFloat64, math.MaxFloat64})},
-			{"single dimension", as.NewVectorFloat32([]float32{42})},
+			{"float16", mustVector(as.NewVectorFloat16Bits([]uint16{0x3c00, 0x8000, 0x0001, 0x7bff}))},
+			{"int32", mustVector(as.NewVectorInt32([]int32{math.MinInt32, 0, math.MaxInt32}))},
+			{"float32", mustVector(as.NewVectorFloat32([]float32{1.5, float32(math.Copysign(0, -1)), math.MaxFloat32}))},
+			{"float64", mustVector(as.NewVectorFloat64([]float64{-2.25, math.SmallestNonzeroFloat64, math.MaxFloat64}))},
+			{"single dimension", mustVector(as.NewVectorFloat32([]float32{42}))},
 		}
 
 		for _, testCase := range testCases {
@@ -102,10 +121,10 @@ var _ = gg.Describe("Vector Test", func() {
 		gg.It("accepts the largest vector of each element type", func() {
 			// The server caps the element array at 2^18 bytes.
 			largestVectors := map[string]*as.Vector{
-				"float16": as.NewVectorFloat16Bits(make([]uint16, 131072)),
-				"int32":   as.NewVectorInt32(make([]int32, 65536)),
-				"float32": as.NewVectorFloat32(make([]float32, 65536)),
-				"float64": as.NewVectorFloat64(make([]float64, 32768)),
+				"float16": mustVector(as.NewVectorFloat16Bits(make([]uint16, 131072))),
+				"int32":   mustVector(as.NewVectorInt32(make([]int32, 65536))),
+				"float32": mustVector(as.NewVectorFloat32(make([]float32, 65536))),
+				"float64": mustVector(as.NewVectorFloat64(make([]float64, 32768))),
 			}
 			for elementType, vector := range largestVectors {
 				gm.Expect(put(as.NewBin(binName, vector))).To(gm.Succeed(), elementType)
@@ -114,9 +133,9 @@ var _ = gg.Describe("Vector Test", func() {
 		})
 
 		gg.It("replaces a vector with a different vector or a plain value", func() {
-			gm.Expect(put(as.NewBin(binName, as.NewVectorFloat32([]float32{1, 2, 3})))).To(gm.Succeed())
+			gm.Expect(put(as.NewBin(binName, mustVector(as.NewVectorFloat32([]float32{1, 2, 3}))))).To(gm.Succeed())
 
-			replacement := as.NewVectorFloat64([]float64{9})
+			replacement := mustVector(as.NewVectorFloat64([]float64{9}))
 			gm.Expect(put(as.NewBin(binName, replacement))).To(gm.Succeed())
 			gm.Expect(getVector(binName).Equal(replacement)).To(gm.BeTrue())
 
@@ -127,7 +146,7 @@ var _ = gg.Describe("Vector Test", func() {
 		})
 
 		gg.It("deletes a vector bin and keeps the other bins", func() {
-			gm.Expect(put(as.NewBin(binName, as.NewVectorInt32([]int32{1})), as.NewBin("other", 1))).To(gm.Succeed())
+			gm.Expect(put(as.NewBin(binName, mustVector(as.NewVectorInt32([]int32{1}))), as.NewBin("other", 1))).To(gm.Succeed())
 			gm.Expect(put(as.NewBin(binName, nil))).To(gm.Succeed())
 
 			record, err := client.Get(nil, key)
@@ -137,7 +156,7 @@ var _ = gg.Describe("Vector Test", func() {
 	})
 
 	gg.Context("lists and maps", func() {
-		embedding := as.NewVectorFloat32([]float32{0.5, -0.5})
+		embedding := mustVector(as.NewVectorFloat32([]float32{0.5, -0.5}))
 
 		gg.It("keeps vectors nested in list and map bins", func() {
 			gm.Expect(put(
@@ -186,15 +205,15 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(expectVector(stored).Equal(embedding)).To(gm.BeTrue())
 		})
 
-		gg.It("keeps an empty vector nested in a list or map", func() {
-			// Empty vectors are only rejected as a whole bin; nested ones are stored.
-			empty := as.NewVectorFloat32(nil)
-			gm.Expect(put(as.NewBin("list", []any{empty}), as.NewBin("map", map[any]any{"emb": empty}))).To(gm.Succeed())
+		gg.It("refuses a vector with no dimensions in a list or map before sending it", func() {
+			empty := &as.Vector{}
+			for _, bin := range []*as.Bin{as.NewBin("list", []any{empty}), as.NewBin("map", map[any]any{"emb": empty})} {
+				expectNoDimensionsRefused(put(bin))
+			}
 
-			record, err := client.Get(nil, key)
+			exists, err := client.Exists(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(expectVector(record.Bins["list"].([]any)[0]).Equal(empty)).To(gm.BeTrue())
-			gm.Expect(expectVector(record.Bins["map"].(map[any]any)["emb"]).Equal(empty)).To(gm.BeTrue())
+			gm.Expect(exists).To(gm.BeFalse())
 		})
 
 		gg.It("returns an invalid nested vector as raw bytes without failing the read", func() {
@@ -212,7 +231,7 @@ var _ = gg.Describe("Vector Test", func() {
 
 	gg.Context("expressions", func() {
 		gg.It("reports particle type 16 through ExpBinType", func() {
-			gm.Expect(put(as.NewBin(binName, as.NewVectorFloat32([]float32{1})), as.NewBin("blob", []byte{1}))).To(gm.Succeed())
+			gm.Expect(put(as.NewBin(binName, mustVector(as.NewVectorFloat32([]float32{1}))), as.NewBin("blob", []byte{1}))).To(gm.Succeed())
 
 			isVectorBin := func(name string) bool {
 				policy := as.NewPolicy()
@@ -229,7 +248,7 @@ var _ = gg.Describe("Vector Test", func() {
 		})
 
 		gg.It("filters a record that holds a vector bin", func() {
-			stored := as.NewVectorFloat32([]float32{1, 2})
+			stored := mustVector(as.NewVectorFloat32([]float32{1, 2}))
 			gm.Expect(put(as.NewBin(binName, stored), as.NewBin("score", 7))).To(gm.Succeed())
 
 			getWhereScoreIs := func(score int64) as.Error {
@@ -252,8 +271,8 @@ var _ = gg.Describe("Vector Test", func() {
 	// Values from the server's own vector expression tests: a = {1,2,3},
 	// b = {4,6,8}.
 	gg.Context("distance expressions", func() {
-		stored := as.NewVectorFloat32([]float32{1, 2, 3})
-		query := as.NewVectorFloat32([]float32{4, 6, 8})
+		stored := mustVector(as.NewVectorFloat32([]float32{1, 2, 3}))
+		query := mustVector(as.NewVectorFloat32([]float32{4, 6, 8}))
 
 		allMetrics := []as.VectorDistanceMetric{as.VectorEuclideanSquared, as.VectorDotProduct, as.VectorCosineSimilarity}
 
@@ -272,8 +291,8 @@ var _ = gg.Describe("Vector Test", func() {
 			}{
 				{"far", stored, 50, true},
 				{"same", query, 0, true},
-				{"near", as.NewVectorFloat32([]float32{5, 6, 8}), 1, true},
-				{"fewer dims", as.NewVectorFloat32([]float32{1, 2}), 0, false},
+				{"near", mustVector(as.NewVectorFloat32([]float32{5, 6, 8})), 1, true},
+				{"fewer dims", mustVector(as.NewVectorFloat32([]float32{1, 2})), 0, false},
 			}
 			batchKeys := make([]*as.Key, len(candidates))
 			for index, candidate := range candidates {
@@ -355,9 +374,9 @@ var _ = gg.Describe("Vector Test", func() {
 
 		gg.It("returns nil with EvalNoFail and fails by default when the bin cannot be compared", func() {
 			gm.Expect(put(
-				as.NewBin("fewer_dims", as.NewVectorFloat32([]float32{1, 2})),
-				as.NewBin("float64", as.NewVectorFloat64([]float64{1, 2, 3})),
-				as.NewBin("int32", as.NewVectorInt32([]int32{1, 2, 3})),
+				as.NewBin("fewer_dims", mustVector(as.NewVectorFloat32([]float32{1, 2}))),
+				as.NewBin("float64", mustVector(as.NewVectorFloat64([]float64{1, 2, 3}))),
+				as.NewBin("int32", mustVector(as.NewVectorInt32([]int32{1, 2, 3}))),
 				as.NewBin("text", "not a vector"),
 			)).To(gm.Succeed())
 
@@ -375,7 +394,7 @@ var _ = gg.Describe("Vector Test", func() {
 		})
 
 		gg.It("filters out a record whose distance cannot be computed", func() {
-			gm.Expect(put(as.NewBin(binName, as.NewVectorFloat32([]float32{1, 2})))).To(gm.Succeed())
+			gm.Expect(put(as.NewBin(binName, mustVector(as.NewVectorFloat32([]float32{1, 2}))))).To(gm.Succeed())
 
 			policy := as.NewPolicy()
 			policy.FilterExpression = as.ExpLess(distanceTo(as.VectorEuclideanSquared, binName), as.ExpFloatVal(math.MaxFloat64))
@@ -385,8 +404,8 @@ var _ = gg.Describe("Vector Test", func() {
 		})
 
 		gg.It("treats a distance that is not finite as one it cannot compute", func() {
-			huge := as.NewVectorFloat64([]float64{1e300, -1e300, 1e300})
-			opposite := as.NewVectorFloat64([]float64{-1e300, 1e300, -1e300})
+			huge := mustVector(as.NewVectorFloat64([]float64{1e300, -1e300, 1e300}))
+			opposite := mustVector(as.NewVectorFloat64([]float64{-1e300, 1e300, -1e300}))
 			gm.Expect(put(as.NewBin(binName, huge))).To(gm.Succeed())
 
 			// The vectors can be compared: their cosine similarity is finite.
@@ -408,7 +427,7 @@ var _ = gg.Describe("Vector Test", func() {
 		})
 
 		gg.It("returns a finite cosine similarity for very large values", func() {
-			large := as.NewVectorFloat64([]float64{1e200, 1e200})
+			large := mustVector(as.NewVectorFloat64([]float64{1e200, 1e200}))
 			gm.Expect(put(as.NewBin(binName, large))).To(gm.Succeed())
 
 			record, err := client.Operate(nil, key, as.ExpReadOp("cosine",
@@ -432,6 +451,22 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(aerospikeErr.SubCode).To(gm.Equal(ast.SubCodeNone))
 			gm.Expect(aerospikeErr.ServerMessage).To(gm.ContainSubstring("invalid expression in operation request"))
 			gm.Expect(aerospikeErr.ExpTrace).ToNot(gm.BeNil())
+		})
+
+		gg.It("refuses a distance to a query vector with no dimensions before sending it", func() {
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+			distance := as.ExpVectorDistance(as.VectorEuclideanSquared, &as.Vector{}, as.ExpVectorBin(binName))
+
+			// A filter expression is encoded with the command, which returns the error.
+			policy := as.NewPolicy()
+			policy.FilterExpression = as.ExpLess(distance, as.ExpFloatVal(1))
+			_, err := client.Get(policy, key)
+			expectNoDimensionsRefused(err)
+
+			// ExpReadOp encodes its expression when it is built and panics on an
+			// expression it cannot encode.
+			gm.Expect(func() { as.ExpReadOp("d", distance, as.ExpReadFlagDefault) }).
+				To(gm.PanicWith(gm.MatchError(gm.ContainSubstring("vector: must have at least 1 dimension"))))
 		})
 
 		gg.It("fails a blob read of a vector bin and keeps serving the record", func() {
@@ -458,8 +493,8 @@ var _ = gg.Describe("Vector Test", func() {
 	})
 
 	gg.Context("vectors inside expressions, contexts and UDF arguments", func() {
-		embedding := as.NewVectorFloat32([]float32{0.5, -0.5})
-		other := as.NewVectorFloat32([]float32{1, 1})
+		embedding := mustVector(as.NewVectorFloat32([]float32{0.5, -0.5}))
+		other := mustVector(as.NewVectorFloat32([]float32{1, 1}))
 
 		// holdsEmbedding is true for a map whose values include embedding.
 		holdsEmbedding := as.ExpGreater(
@@ -487,7 +522,7 @@ var _ = gg.Describe("Vector Test", func() {
 				return err
 			}
 			gm.Expect(getWhereListHolds(embedding)).To(gm.Succeed())
-			gm.Expect(getWhereListHolds(as.NewVectorFloat32([]float32{9, 9})).Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
+			gm.Expect(getWhereListHolds(mustVector(as.NewVectorFloat32([]float32{9, 9}))).Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
 		})
 
 		gg.It("counts a vector in a list through an expression read operation", func() {
@@ -608,7 +643,7 @@ end
 
 	gg.Context("other commands", func() {
 		gg.It("writes and reads a vector in one operate command", func() {
-			vector := as.NewVectorInt32([]int32{3, 1, 4})
+			vector := mustVector(as.NewVectorInt32([]int32{3, 1, 4}))
 			record, err := client.Operate(nil, key, as.PutOp(as.NewBin(binName, vector)), as.GetBinOp(binName))
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			gm.Expect(expectVector(record.Bins[binName]).Equal(vector)).To(gm.BeTrue())
@@ -621,7 +656,7 @@ end
 				var err as.Error
 				batchKeys[index], err = as.NewKey(ns, set, randString(50))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-				vector := as.NewVectorFloat32([]float32{float32(index)})
+				vector := mustVector(as.NewVectorFloat32([]float32{float32(index)}))
 				batchWrites[index] = as.NewBatchWrite(nil, batchKeys[index], as.PutOp(as.NewBin(binName, vector)))
 			}
 			defer func() {
@@ -638,7 +673,7 @@ end
 			records, err := client.BatchGet(nil, batchKeys, binName)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
 			for index, record := range records {
-				want := as.NewVectorFloat32([]float32{float32(index)})
+				want := mustVector(as.NewVectorFloat32([]float32{float32(index)}))
 				gm.Expect(expectVector(record.Bins[binName]).Equal(want)).To(gm.BeTrue())
 			}
 		})
@@ -650,7 +685,7 @@ end
 				var err as.Error
 				queryKeys[id], err = as.NewKey(ns, set, randString(50))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
-				vector := as.NewVectorFloat32([]float32{float32(id), float32(id)})
+				vector := mustVector(as.NewVectorFloat32([]float32{float32(id), float32(id)}))
 				gm.Expect(client.PutBins(nil, queryKeys[id], as.NewBin("id", id), as.NewBin(binName, vector))).To(gm.Succeed())
 			}
 			defer func() {
@@ -666,7 +701,7 @@ end
 			for result := range recordset.Results() {
 				gm.Expect(result.Err).ToNot(gm.HaveOccurred())
 				id := result.Record.Bins["id"].(int)
-				want := as.NewVectorFloat32([]float32{float32(id), float32(id)})
+				want := mustVector(as.NewVectorFloat32([]float32{float32(id), float32(id)}))
 				gm.Expect(expectVector(result.Record.Bins[binName]).Equal(want)).To(gm.BeTrue(), "record %d", id)
 				seen[id] = true
 			}
@@ -675,8 +710,8 @@ end
 	})
 
 	gg.Context("in multi-record transactions", func() {
-		first := as.NewVectorFloat32([]float32{1, 2, 3})
-		second := as.NewVectorFloat32([]float32{4, 5, 6})
+		first := mustVector(as.NewVectorFloat32([]float32{1, 2, 3}))
+		second := mustVector(as.NewVectorFloat32([]float32{4, 5, 6}))
 
 		gg.BeforeEach(func() {
 			if serverIsOlderThan("8") {
@@ -758,7 +793,7 @@ end
 	})
 
 	gg.Context("on a cluster without vector support", func() {
-		vector := as.NewVectorFloat32([]float32{1, 2})
+		vector := mustVector(as.NewVectorFloat32([]float32{1, 2}))
 		containsVector := as.ExpEq(as.ExpListVal(vector), as.ExpListVal(vector))
 
 		expectRefused := func(err as.Error) {
@@ -916,25 +951,41 @@ end
 			gm.Expect(exists).To(gm.BeFalse())
 		}
 
-		gg.It("rejects a Vector that was never built", func() {
-			expectWriteRejected(&as.Vector{}, "vector: value size 0 smaller than 6-byte header")
+		gg.It("refuses a Vector that was never built before sending it", func() {
+			expectNoDimensionsRefused(client.PutBins(withErrorDetails(), key, as.NewBin(binName, &as.Vector{})))
+
+			exists, err := client.Exists(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(exists).To(gm.BeFalse())
+		})
+
+		// The constructors refuse the vectors below, so these specs write the
+		// bytes as they are to reach the server's own checks.
+		rawVector := func(wire []byte) *as.RawBlobValue {
+			return as.NewRawBlobValue(ParticleType.VECTOR, wire)
+		}
+
+		gg.It("rejects vector bytes shorter than the header", func() {
+			expectWriteRejected(rawVector([]byte{}), "vector: value size 0 smaller than 6-byte header")
 		})
 
 		gg.It("rejects a vector with no dimensions", func() {
-			expectWriteRejected(as.NewVectorFloat32(nil), "vector: must have at least 1 dimension")
+			expectWriteRejected(rawVector([]byte{0x01, 0x03, 0x00, 0x00, 0x00, 0x00}), "vector: must have at least 1 dimension")
 		})
 
 		gg.It("rejects a vector one dimension over the limit", func() {
-			expectWriteRejected(as.NewVectorFloat64(make([]float64, 32769)), "vector: 32769 dimensions exceed max 32768")
+			// float64, 32,769 dimensions
+			overLimit := append([]byte{0x01, 0x04, 0x01, 0x80, 0x00, 0x00}, make([]byte, 32769*8)...)
+			expectWriteRejected(rawVector(overLimit), "vector: 32769 dimensions exceed max 32768")
 		})
 
 		gg.It("rejects NaN and infinite elements", func() {
-			expectWriteRejected(as.NewVectorFloat32([]float32{1, float32(math.NaN())}), "vector: elements must be finite")
-			expectWriteRejected(as.NewVectorFloat64([]float64{math.Inf(1)}), "vector: elements must be finite")
+			expectWriteRejected(mustVector(as.NewVectorFloat32([]float32{1, float32(math.NaN())})), "vector: elements must be finite")
+			expectWriteRejected(mustVector(as.NewVectorFloat64([]float64{math.Inf(1)})), "vector: elements must be finite")
 		})
 
 		gg.It("rejects append, prepend and increment and leaves the whole record unchanged", func() {
-			stored := as.NewVectorFloat32([]float32{1})
+			stored := mustVector(as.NewVectorFloat32([]float32{1}))
 			gm.Expect(put(as.NewBin(binName, stored), as.NewBin("other", 1))).To(gm.Succeed())
 			before, err := client.Get(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
