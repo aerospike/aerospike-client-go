@@ -67,11 +67,22 @@ func (elementType VectorElementType) String() string {
 	return fmt.Sprintf("VectorElementType(%d)", byte(elementType))
 }
 
+// maxDimensions returns the most elements a vector of this type can hold,
+// or 0 for an unknown type.
+func (elementType VectorElementType) maxDimensions() int {
+	if size := elementType.size(); size > 0 {
+		return vectorMaxElementBytes / size
+	}
+	return 0
+}
+
 const (
 	// vectorFormatVersion is the only vector layout the server accepts.
 	vectorFormatVersion = 1
 	// vectorHeaderSize is version(1) + element type(1) + dimensions(4, little-endian).
 	vectorHeaderSize = 6
+	// vectorMaxElementBytes is the server cap on a vector's element payload (256 KiB).
+	vectorMaxElementBytes = 256 * 1024
 )
 
 // Vector is a dense, fixed-dimension numeric vector stored in a native
@@ -91,66 +102,99 @@ type Vector struct {
 
 var _ Value = &Vector{}
 
-func newVector(elementType VectorElementType, dimensions int) *Vector {
+func newVector(elementType VectorElementType, dimensions int) (*Vector, Error) {
+	if err := checkVectorDimensions(elementType, dimensions); err != nil {
+		return nil, err
+	}
 	wire := make([]byte, vectorHeaderSize+(dimensions*elementType.size()))
 	wire[0] = vectorFormatVersion
 	wire[1] = byte(elementType)
 	binary.LittleEndian.PutUint32(wire[2:], uint32(dimensions))
-	return &Vector{wire: wire}
+	return &Vector{wire: wire}, nil
+}
+
+// checkVectorDimensions refuses a dimension count the server would reject:
+// none, or more than the element type allows.
+func checkVectorDimensions(elementType VectorElementType, dimensions int) Error {
+	if dimensions < 1 {
+		return newError(types.PARAMETER_ERROR, "vector: must have at least 1 dimension")
+	}
+	if maxDimensions := elementType.maxDimensions(); dimensions > maxDimensions {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: %d dimensions exceed max %d for element type %d", dimensions, maxDimensions, byte(elementType)))
+	}
+	return nil
 }
 
 // NewVectorFloat32 creates a vector of 32 bit float elements.
 // The input slice is copied.
-func NewVectorFloat32(elements []float32) *Vector {
-	vector := newVector(VectorElementFloat32, len(elements))
+//
+// It returns a PARAMETER_ERROR if elements is empty or holds more than 65,536 elements.
+func NewVectorFloat32(elements []float32) (*Vector, Error) {
+	vector, err := newVector(VectorElementFloat32, len(elements))
+	if err != nil {
+		return nil, err
+	}
 	payload := vector.wire[vectorHeaderSize:]
 	for index, element := range elements {
 		binary.LittleEndian.PutUint32(payload[index*4:], math.Float32bits(element))
 	}
-	return vector
+	return vector, nil
 }
 
 // NewVectorFloat64 creates a vector of 64 bit float elements.
 // The input slice is copied.
-func NewVectorFloat64(elements []float64) *Vector {
-	vector := newVector(VectorElementFloat64, len(elements))
+//
+// It returns a PARAMETER_ERROR if elements is empty or holds more than 32,768 elements.
+func NewVectorFloat64(elements []float64) (*Vector, Error) {
+	vector, err := newVector(VectorElementFloat64, len(elements))
+	if err != nil {
+		return nil, err
+	}
 	payload := vector.wire[vectorHeaderSize:]
 	for index, element := range elements {
 		binary.LittleEndian.PutUint64(payload[index*8:], math.Float64bits(element))
 	}
-	return vector
+	return vector, nil
 }
 
 // NewVectorInt32 creates a vector of signed 32 bit integer elements.
 // The input slice is copied.
-func NewVectorInt32(elements []int32) *Vector {
-	vector := newVector(VectorElementInt32, len(elements))
+//
+// It returns a PARAMETER_ERROR if elements is empty or holds more than 65,536 elements.
+func NewVectorInt32(elements []int32) (*Vector, Error) {
+	vector, err := newVector(VectorElementInt32, len(elements))
+	if err != nil {
+		return nil, err
+	}
 	payload := vector.wire[vectorHeaderSize:]
 	for index, element := range elements {
 		binary.LittleEndian.PutUint32(payload[index*4:], uint32(element))
 	}
-	return vector
+	return vector, nil
 }
 
 // NewVectorFloat16Bits creates a vector of IEEE 754 half precision elements
 // from their raw 16 bit patterns. No conversion is performed.
 // The input slice is copied.
-func NewVectorFloat16Bits(bits []uint16) *Vector {
-	vector := newVector(VectorElementFloat16, len(bits))
+//
+// It returns a PARAMETER_ERROR if bits is empty or holds more than 131,072 elements.
+func NewVectorFloat16Bits(bits []uint16) (*Vector, Error) {
+	vector, err := newVector(VectorElementFloat16, len(bits))
+	if err != nil {
+		return nil, err
+	}
 	payload := vector.wire[vectorHeaderSize:]
 	for index, element := range bits {
 		binary.LittleEndian.PutUint16(payload[index*2:], element)
-		binary.LittleEndian.PutUint16(payload[index*2:], element)
 	}
-	return vector
+	return vector, nil
 }
 
 // NewVectorFromBytes decodes a complete serialized vector (header included),
 // as returned by Vector.Bytes. The input is copied.
 //
-// It returns a PARAMETER_ERROR if the buffer is shorter than the header, the
-// format version is not 1, the element type is unknown, or the buffer length
-// does not exactly match the header's dimension count.
+// It returns a PARAMETER_ERROR if the bytes are not a complete version-1 vector
+// of a known type and allowed size.
 func NewVectorFromBytes(serialized []byte) (*Vector, Error) {
 	if err := validateVectorWire(serialized); err != nil {
 		return nil, err
@@ -173,6 +217,9 @@ func validateVectorWire(serialized []byte) Error {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: unknown element type %d", serialized[1]))
 	}
 	dimensions := int64(binary.LittleEndian.Uint32(serialized[2:]))
+	if err := checkVectorDimensions(elementType, int(dimensions)); err != nil {
+		return err
+	}
 	if expectedSize := int64(vectorHeaderSize) + dimensions*int64(elementSize); int64(len(serialized)) != expectedSize {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: %d bytes does not match %d %s elements (expected %d bytes)", len(serialized), dimensions, elementType, expectedSize))
 	}
@@ -274,12 +321,21 @@ func (vector *Vector) Float16Bits() ([]uint16, Error) {
 	return elements, nil
 }
 
+// checkDimensions refuses to send a vector the constructors would not build,
+// such as a zero Vector{}.
+func (vector *Vector) checkDimensions() Error {
+	return checkVectorDimensions(vector.ElementType(), vector.Dimensions())
+}
+
 // EstimateSize returns the size of the Vector in wire protocol.
 func (vector *Vector) EstimateSize() (int, Error) {
 	return len(vector.wire), nil
 }
 
 func (vector *Vector) write(cmd BufferEx) (int, Error) {
+	if err := vector.checkDimensions(); err != nil {
+		return 0, err
+	}
 	if err := markVector(cmd); err != nil {
 		return 0, err
 	}
@@ -287,6 +343,9 @@ func (vector *Vector) write(cmd BufferEx) (int, Error) {
 }
 
 func (vector *Vector) pack(cmd BufferEx) (int, Error) {
+	if err := vector.checkDimensions(); err != nil {
+		return 0, err
+	}
 	if err := markVector(cmd); err != nil {
 		return 0, err
 	}

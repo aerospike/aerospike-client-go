@@ -55,11 +55,12 @@ func (distance VectorDistanceMetric) expOp() *expOp {
 //	as.ExpVectorDistance(as.VectorCosineSimilarity, query, as.ExpVectorBin("embedding"))
 //
 // Unknown (missing bin, not a vector, or type/dimensions mismatch): a filter
-// skips the record; [ExpReadOp] returns OP_NOT_APPLICABLE, or nil if
+// skips the record. [ExpReadOp] returns OP_NOT_APPLICABLE, or nil if
 // [ExpReadFlagEvalNoFail] is set.
 //
-// Packing is PARAMETER_ERROR if query is nil or the cluster has no vector
-// support. Panics on an unknown metric.
+// Packing returns PARAMETER_ERROR for a nil or empty query, or if the cluster
+// lacks vector support. ExpReadOp and ExpWriteOp panic on pack errors.
+// Panics on an unknown metric.
 func ExpVectorDistance(distance VectorDistanceMetric, query *Vector, bin *Expression) *Expression {
 	return newFilterExpression(
 		distance.expOp(),
@@ -78,6 +79,9 @@ func (filterExp *Expression) packVectorDistance(buf BufferEx) (int, Error) {
 	query, _ := filterExp.val.(*Vector)
 	if query == nil {
 		return 0, newError(types.PARAMETER_ERROR, "vector: distance query must not be nil")
+	}
+	if err := query.checkDimensions(); err != nil {
+		return 0, err
 	}
 	if err := markVector(buf); err != nil {
 		return 0, err

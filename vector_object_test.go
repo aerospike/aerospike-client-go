@@ -52,8 +52,8 @@ var _ = gg.Describe("Vector Object API Test", func() {
 
 	gg.It("stores Vector and *Vector struct fields as native vector bins", func() {
 		stored := embedding{
-			Ptr:   as.NewVectorFloat32([]float32{1, 2}),
-			Value: *as.NewVectorInt32([]int32{7}),
+			Ptr:   mustVector(as.NewVectorFloat32([]float32{1, 2})),
+			Value: *mustVector(as.NewVectorInt32([]int32{7})),
 			Name:  "doc",
 		}
 		gm.Expect(client.PutObject(nil, key, &stored)).To(gm.Succeed())
@@ -80,8 +80,8 @@ var _ = gg.Describe("Vector Object API Test", func() {
 			Chunks []chunk               `as:"chunks"`
 			ByName map[string]*as.Vector `as:"by_name"`
 		}
-		first := as.NewVectorFloat32([]float32{1, 2})
-		second := as.NewVectorInt32([]int32{3})
+		first := mustVector(as.NewVectorFloat32([]float32{1, 2}))
+		second := mustVector(as.NewVectorInt32([]int32{3}))
 		stored := document{
 			Chunks: []chunk{{Text: "intro", Embedding: first}, {Text: "body", Embedding: second}},
 			ByName: map[string]*as.Vector{"title": first},
