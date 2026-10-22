@@ -351,6 +351,7 @@ func TestBatchRecordFilterExpression(t *testing.T) {
 
 func TestMaybeBatchPartialFailure(t *testing.T) {
 	clstr := &Cluster{}
+	clstr.operationalEnabled.Store(true)
 	maybeBatchPartialFailure(clstr, types.OK)
 	maybeBatchPartialFailure(clstr, types.KEY_NOT_FOUND_ERROR)
 	maybeBatchPartialFailure(clstr, types.FILTERED_OUT)

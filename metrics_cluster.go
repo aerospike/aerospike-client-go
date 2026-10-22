@@ -393,8 +393,8 @@ func (clstr *Cluster) metricsExportLoop(interval time.Duration, stop <-chan stru
 				continue
 			}
 			// Build outside metricsMu so EnableMetrics reshape (statsLock) cannot
-			// deadlock with export; hold metricsMu for Export + departed drain
-			// metricsLock around metricsExport.
+			// deadlock with export. fanOutExport releases metricsMu across Export
+			// so DisableMetrics from inside an exporter cannot deadlock.
 			snap := clstr.buildMetricsSnapshotForExport()
 			clstr.exportInCallback.Store(true)
 			ok := clstr.fanOutExport(snap)
@@ -410,18 +410,21 @@ func (clstr *Cluster) metricsExportLoop(interval time.Duration, stop <-chan stru
 
 // fanOutExport returns true only when every active exporter succeeded
 // (CLIENT-5654: nodes_departed cleared only after a fully successful export).
-// Holds metricsMu for the fan-out so Enable/Disable serialize with Export and
-// fail-counter mutations are not racy.
+// Export runs without metricsMu so DisableMetrics from inside an exporter
+// cannot deadlock; skip/fail counters are updated under the lock around calls.
 func (clstr *Cluster) fanOutExport(snap *MetricsSnapshot) bool {
-	clstr.metricsMu.Lock()
-	defer clstr.metricsMu.Unlock()
+	type pending struct {
+		reg *registeredExporter
+		exp MetricsExporter
+	}
 
+	clstr.metricsMu.Lock()
 	if len(clstr.exporters) == 0 {
+		clstr.metricsMu.Unlock()
 		return false
 	}
 
-	allOK := true
-	anyAttempted := false
+	toCall := make([]pending, 0, len(clstr.exporters))
 	for _, e := range clstr.exporters {
 		if e == nil || e.exporter == nil {
 			continue
@@ -436,7 +439,20 @@ func (clstr *Cluster) fanOutExport(snap *MetricsSnapshot) bool {
 			// overall success gate (they already failed previously).
 			continue
 		}
-		anyAttempted = true
+		toCall = append(toCall, pending{reg: e, exp: e.exporter})
+	}
+	clstr.metricsMu.Unlock()
+
+	if len(toCall) == 0 {
+		return false
+	}
+
+	type outcome struct {
+		reg *registeredExporter
+		ok  bool
+	}
+	results := make([]outcome, 0, len(toCall))
+	for _, p := range toCall {
 		ok := true
 		func() {
 			defer func() {
@@ -445,25 +461,32 @@ func (clstr *Cluster) fanOutExport(snap *MetricsSnapshot) bool {
 					logger.Logger.Warn("metrics exporter panic: %v", r)
 				}
 			}()
-			e.exporter.Export(snap)
-			if fe, okFE := e.exporter.(*FileMetricsExporter); okFE {
+			p.exp.Export(snap)
+			if fe, okFE := p.exp.(*FileMetricsExporter); okFE {
 				if err := fe.LastExportError(); err != nil {
 					ok = false
 					logger.Logger.Warn("metrics file exporter: %s", err.Error())
 				}
 			}
 		}()
-		if ok {
-			e.consecutiveFails = 0
+		results = append(results, outcome{reg: p.reg, ok: ok})
+	}
+
+	clstr.metricsMu.Lock()
+	defer clstr.metricsMu.Unlock()
+	allOK := true
+	for _, r := range results {
+		if r.ok {
+			r.reg.consecutiveFails = 0
 			continue
 		}
 		allOK = false
-		e.consecutiveFails++
-		if e.consecutiveFails >= metricsExporterFailureThreshold {
-			e.skipRemaining = metricsExporterFailureThreshold
+		r.reg.consecutiveFails++
+		if r.reg.consecutiveFails >= metricsExporterFailureThreshold {
+			r.reg.skipRemaining = metricsExporterFailureThreshold
 		}
 	}
-	return anyAttempted && allOK
+	return allOK
 }
 
 const maxNodesDeparted = 256
