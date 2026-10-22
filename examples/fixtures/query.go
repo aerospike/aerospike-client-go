@@ -464,10 +464,15 @@ func QueryVectorKNN() Fixture {
 // queryNearestIDs returns the ids of the k records whose "vec" bin is nearest
 // to query, best first, through a Top-K query on the projected distance.
 func queryNearestIDs(distance as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int) ([]int, error) {
+	queryVector, err := as.NewVectorFloat32(query)
+	if err != nil {
+		return nil, err
+	}
+
 	statement := as.NewStatement(namespace, set)
 	statement.Operations = []*as.Operation{
 		as.ExpReadOp("dist",
-			as.ExpVectorDistance(distance, as.NewVectorFloat32(query), as.ExpVectorBin("vec")),
+			as.ExpVectorDistance(distance, queryVector, as.ExpVectorBin("vec")),
 			as.ExpReadFlagDefault),
 		as.GetBinOp("id"),
 	}

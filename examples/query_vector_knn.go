@@ -38,7 +38,10 @@ func runQueryVectorKNN() error {
 		if err != nil {
 			return err
 		}
-		vector := as.NewVectorFloat32([]float32{float32(i), float32(i), float32(i), float32(i)})
+		vector, err := as.NewVectorFloat32([]float32{float32(i), float32(i), float32(i), float32(i)})
+		if err != nil {
+			return err
+		}
 		if err := client.PutBins(nil, key, as.NewBin("id", i), as.NewBin("vec", vector)); err != nil {
 			return err
 		}
@@ -58,10 +61,15 @@ func runQueryVectorKNN() error {
 // queryNearest projects the distance to query into "dist" and returns the
 // knnTopK best records, best first.
 func queryNearest(distance as.VectorDistanceMetric, query []float32, direction as.OrderDirection) error {
+	queryVector, err := as.NewVectorFloat32(query)
+	if err != nil {
+		return err
+	}
+
 	statement := as.NewStatement(ns, set)
 	statement.Operations = []*as.Operation{
 		as.ExpReadOp("dist",
-			as.ExpVectorDistance(distance, as.NewVectorFloat32(query), as.ExpVectorBin("vec")),
+			as.ExpVectorDistance(distance, queryVector, as.ExpVectorBin("vec")),
 			as.ExpReadFlagDefault),
 		as.GetBinOp("id"),
 	}
