@@ -175,7 +175,8 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 //
 // The bin must be returned by the query: listed in BinNames, written by one
 // of the Operations (for example an ExpReadOp projecting a vector distance),
-// or neither set. Requires a server with Top-K support.
+// or neither set. Every node in the cluster must support Top-K; otherwise
+// the query returns a PARAMETER_ERROR before anything is sent.
 func (stmt *Statement) SetOrderBy(binName string, orderType BinDataType, direction OrderDirection) Error {
 	return stmt.SetOrderByWithFlags(binName, orderType, direction, OrderByFlagNone)
 }
@@ -218,8 +219,9 @@ func (stmt *Statement) ThenOrderByWithFlags(binName string, orderType BinDataTyp
 // returned best first. Call it after SetOrderBy. k must be in [1, 1000].
 // Calling SetTopK again replaces k.
 //
-// Supported by Query, QueryPartitions and QueryNode only. Requires
-// IncludeBinData=true and MaxRecords=0. QueryNode ranks only its own records.
+// Supported by Query, QueryPartitions and QueryNode only. Requires every node
+// in the cluster to support Top-K, IncludeBinData=true and MaxRecords=0.
+// QueryNode ranks only its own records.
 //
 // Results are returned after nodes finish scanning. For large scans, set
 // SocketTimeout high enough to cover the scan duration, or to 0.
@@ -284,6 +286,15 @@ func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
 	}
 	if !policy.IncludeBinData {
 		return newError(types.PARAMETER_ERROR, "Top-K is incompatible with IncludeBinData=false")
+	}
+	return nil
+}
+
+// validateTopKCluster refuses a statement with Top-K settings before anything
+// is sent when any node in the cluster lacks Top-K support.
+func (stmt *Statement) validateTopKCluster(cluster *Cluster) Error {
+	if stmt.hasOrderBy() && !cluster.supportsQueryOrderBy.Get() {
+		return newError(types.PARAMETER_ERROR, "Top-K is not supported by all nodes in the cluster")
 	}
 	return nil
 }
