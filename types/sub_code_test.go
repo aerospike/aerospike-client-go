@@ -51,6 +51,7 @@ func TestSubCodeToString(t *testing.T) {
 		{"none is universal", types.OK, types.SubCodeNone, "SubCodeNone"},
 		{"none ignores result code", types.PARAMETER_ERROR, types.SubCodeNone, "SubCodeNone"},
 		{"param pair", types.PARAMETER_ERROR, types.SubCodeParamBitsResizeExceeded, "SubCodeParamBitsResizeExceeded"},
+		{"top-k param pair", types.PARAMETER_ERROR, types.SubCodeParamTopKInvalid, "SubCodeParamTopKInvalid"},
 		{"op pair", types.OP_NOT_APPLICABLE, types.SubCodeOpNotHLLIndexBitsUnset, "SubCodeOpNotHLLIndexBitsUnset"},
 		{"mrt pair", types.MRT_BLOCKED, types.SubCodeMRTBlockedIDMismatch, "SubCodeMRTBlockedIDMismatch"},
 		{"op regex limit pair", types.OP_NOT_APPLICABLE, types.SubCodeOpNotStringRegexLimitExceeded, "SubCodeOpNotStringRegexLimitExceeded"},

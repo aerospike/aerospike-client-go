@@ -959,6 +959,9 @@ const (
 	// SubCodeParamStringUTF8Invalid: string or string op argument is not valid UTF-8.
 	SubCodeParamStringUTF8Invalid SubCode = 11
 
+	// SubCodeParamTopKInvalid: the server rejected a Top-K (order-by / top-k) query request.
+	SubCodeParamTopKInvalid SubCode = 12
+
 	// -------------------------------------------------------
 	// Pairs with ResultCode.PARTITION_UNAVAILABLE (11)  [AS_ERR_UNAVAILABLE]
 	// -------------------------------------------------------
@@ -1144,6 +1147,8 @@ func SubCodeToString(rc ResultCode, sc SubCode) string {
 			return "SubCodeParamStringRegexInvalid"
 		case SubCodeParamStringUTF8Invalid:
 			return "SubCodeParamStringUTF8Invalid"
+		case SubCodeParamTopKInvalid:
+			return "SubCodeParamTopKInvalid"
 		}
 
 	case PARTITION_UNAVAILABLE:

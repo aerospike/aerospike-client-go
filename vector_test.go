@@ -255,6 +255,8 @@ var _ = gg.Describe("Vector Test", func() {
 		stored := as.NewVectorFloat32([]float32{1, 2, 3})
 		query := as.NewVectorFloat32([]float32{4, 6, 8})
 
+		allMetrics := []as.VectorDistanceMetric{as.VectorEuclideanSquared, as.VectorDotProduct, as.VectorCosineSimilarity}
+
 		distanceTo := func(metric as.VectorDistanceMetric, bin string) *as.Expression {
 			return as.ExpVectorDistance(metric, query, as.ExpVectorBin(bin))
 		}
@@ -355,18 +357,91 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(put(
 				as.NewBin("fewer_dims", as.NewVectorFloat32([]float32{1, 2})),
 				as.NewBin("float64", as.NewVectorFloat64([]float64{1, 2, 3})),
+				as.NewBin("int32", as.NewVectorInt32([]int32{1, 2, 3})),
 				as.NewBin("text", "not a vector"),
 			)).To(gm.Succeed())
 
-			for _, bin := range []string{"fewer_dims", "float64", "text", "missing"} {
-				record, err := client.Operate(nil, key, as.ExpReadOp("d", distanceTo(as.VectorEuclideanSquared, bin), as.ExpReadFlagEvalNoFail))
-				gm.Expect(err).ToNot(gm.HaveOccurred(), bin)
-				gm.Expect(record.Bins["d"]).To(gm.BeNil(), bin)
+			for _, metric := range allMetrics {
+				for _, bin := range []string{"fewer_dims", "float64", "int32", "text", "missing"} {
+					record, err := client.Operate(nil, key, as.ExpReadOp("d", distanceTo(metric, bin), as.ExpReadFlagEvalNoFail))
+					gm.Expect(err).ToNot(gm.HaveOccurred(), bin)
+					gm.Expect(record.Bins["d"]).To(gm.BeNil(), bin)
 
-				_, err = client.Operate(nil, key, as.ExpReadOp("d", distanceTo(as.VectorEuclideanSquared, bin), as.ExpReadFlagDefault))
-				gm.Expect(err).To(gm.HaveOccurred(), bin)
+					_, err = client.Operate(nil, key, as.ExpReadOp("d", distanceTo(metric, bin), as.ExpReadFlagDefault))
+					gm.Expect(err).To(gm.HaveOccurred(), bin)
+					gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
+				}
+			}
+		})
+
+		gg.It("filters out a record whose distance cannot be computed", func() {
+			gm.Expect(put(as.NewBin(binName, as.NewVectorFloat32([]float32{1, 2})))).To(gm.Succeed())
+
+			policy := as.NewPolicy()
+			policy.FilterExpression = as.ExpLess(distanceTo(as.VectorEuclideanSquared, binName), as.ExpFloatVal(math.MaxFloat64))
+			_, err := client.Get(policy, key)
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.FILTERED_OUT)).To(gm.BeTrue(), err.Error())
+		})
+
+		gg.It("treats a distance that is not finite as one it cannot compute", func() {
+			huge := as.NewVectorFloat64([]float64{1e300, -1e300, 1e300})
+			opposite := as.NewVectorFloat64([]float64{-1e300, 1e300, -1e300})
+			gm.Expect(put(as.NewBin(binName, huge))).To(gm.Succeed())
+
+			// The vectors can be compared: their cosine similarity is finite.
+			record, err := client.Operate(nil, key, as.ExpReadOp("cosine",
+				as.ExpVectorDistance(as.VectorCosineSimilarity, opposite, as.ExpVectorBin(binName)), as.ExpReadFlagDefault))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record.Bins["cosine"]).To(gm.BeNumerically("~", -1.0, 1e-6))
+
+			for _, metric := range []as.VectorDistanceMetric{as.VectorEuclideanSquared, as.VectorDotProduct} {
+				distance := as.ExpVectorDistance(metric, opposite, as.ExpVectorBin(binName))
+				record, err := client.Operate(nil, key, as.ExpReadOp("d", distance, as.ExpReadFlagEvalNoFail))
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(record.Bins["d"]).To(gm.BeNil())
+
+				_, err = client.Operate(nil, key, as.ExpReadOp("d", distance, as.ExpReadFlagDefault))
+				gm.Expect(err).To(gm.HaveOccurred())
 				gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
 			}
+		})
+
+		gg.It("returns a finite cosine similarity for very large values", func() {
+			large := as.NewVectorFloat64([]float64{1e200, 1e200})
+			gm.Expect(put(as.NewBin(binName, large))).To(gm.Succeed())
+
+			record, err := client.Operate(nil, key, as.ExpReadOp("cosine",
+				as.ExpVectorDistance(as.VectorCosineSimilarity, large, as.ExpVectorBin(binName)), as.ExpReadFlagDefault))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record.Bins["cosine"]).To(gm.BeNumerically("~", 1.0, 1e-6))
+		})
+
+		gg.It("rejects a distance whose operand is not a vector when the expression is built", func() {
+			gm.Expect(put(as.NewBin("count", 1))).To(gm.Succeed())
+
+			policy := as.NewWritePolicy(0, 0)
+			policy.ErrorDetailVerbosity = 3
+			_, err := client.Operate(policy, key, as.ExpReadOp("d",
+				as.ExpVectorDistance(as.VectorEuclideanSquared, query, as.ExpIntBin("count")), as.ExpReadFlagDefault))
+			gm.Expect(err).To(gm.HaveOccurred())
+
+			aerospikeErr := &as.AerospikeError{}
+			gm.Expect(errors.As(err, &aerospikeErr)).To(gm.BeTrue())
+			gm.Expect(aerospikeErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR), err.Error())
+			gm.Expect(aerospikeErr.SubCode).To(gm.Equal(ast.SubCodeNone))
+			gm.Expect(aerospikeErr.ServerMessage).To(gm.ContainSubstring("invalid expression in operation request"))
+			gm.Expect(aerospikeErr.ExpTrace).ToNot(gm.BeNil())
+		})
+
+		gg.It("fails a blob read of a vector bin and keeps serving the record", func() {
+			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
+
+			_, err := client.Operate(nil, key, as.ExpReadOp("b", as.ExpBlobBin(binName), as.ExpReadFlagDefault))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
+
+			gm.Expect(getVector(binName).Equal(stored)).To(gm.BeTrue())
 		})
 
 		gg.It("reads and copies a whole vector bin through expressions", func() {
@@ -495,10 +570,22 @@ end
 			})
 
 			gg.It("rejects invalid vector bytes a UDF writes", func() {
+				policy := as.NewWritePolicy(0, 0)
+				policy.ErrorDetailVerbosity = 2
+
 				invalid := as.NewRawBlobValue(ParticleType.VECTOR, []byte{0xde, 0xad, 0xbe})
-				_, err := client.Execute(nil, key, moduleName, "store", invalid)
+				_, err := client.Execute(policy, key, moduleName, "store", invalid)
 				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+
+				aerospikeErr := &as.AerospikeError{}
+				gm.Expect(errors.As(err, &aerospikeErr)).To(gm.BeTrue())
+				gm.Expect(aerospikeErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR), err.Error())
+				gm.Expect(aerospikeErr.SubCode).To(gm.Equal(ast.SubCodeNone))
+				gm.Expect(aerospikeErr.ServerMessage).To(gm.ContainSubstring("vector: value size 3 smaller than 6-byte header"))
+
+				exists, err := client.Exists(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(exists).To(gm.BeFalse())
 			})
 
 			// The server labels every Lua bytes return value BLOB: the bytes come
@@ -799,18 +886,29 @@ end
 		})
 	})
 
+	// The server rejects an invalid vector with a result code and a message;
+	// vector errors carry no subcode.
 	gg.Context("rejected writes", func() {
-		// Detail text is returned only at error-detail verbosity 2.
-		expectWriteRejected := func(value as.Value, serverDetail string) {
+		// withErrorDetails returns a write policy that asks for subcodes and messages.
+		withErrorDetails := func() *as.WritePolicy {
 			policy := as.NewWritePolicy(0, 0)
 			policy.ErrorDetailVerbosity = 2
-			err := client.PutBins(policy, key, as.NewBin(binName, value))
-			gm.Expect(err).To(gm.HaveOccurred())
+			return policy
+		}
+
+		expectServerError := func(err as.Error, resultCode ast.ResultCode, serverMessage string) {
+			gm.ExpectWithOffset(1, err).To(gm.HaveOccurred())
 
 			aerospikeErr := &as.AerospikeError{}
-			gm.Expect(errors.As(err, &aerospikeErr)).To(gm.BeTrue())
-			gm.Expect(aerospikeErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR))
-			gm.Expect(aerospikeErr.ServerMessage).To(gm.ContainSubstring(serverDetail))
+			gm.ExpectWithOffset(1, errors.As(err, &aerospikeErr)).To(gm.BeTrue())
+			gm.ExpectWithOffset(1, aerospikeErr.ResultCode).To(gm.Equal(resultCode), err.Error())
+			gm.ExpectWithOffset(1, aerospikeErr.SubCode).To(gm.Equal(ast.SubCodeNone))
+			gm.ExpectWithOffset(1, aerospikeErr.ServerMessage).To(gm.ContainSubstring(serverMessage))
+		}
+
+		expectWriteRejected := func(value as.Value, serverMessage string) {
+			err := client.PutBins(withErrorDetails(), key, as.NewBin(binName, value))
+			expectServerError(err, ast.PARAMETER_ERROR, serverMessage)
 
 			// The rejected write stores nothing.
 			exists, err := client.Exists(nil, key)
@@ -843,17 +941,19 @@ end
 
 			// Each mutation shares its command with a write to another bin, which
 			// must not be applied when the command fails.
-			for _, mutation := range []*as.Operation{
-				as.AppendOp(as.NewBin(binName, "x")),
-				as.PrependOp(as.NewBin(binName, "x")),
-				as.AddOp(as.NewBin(binName, 1)),
+			for _, mutation := range []struct {
+				operation     *as.Operation
+				serverMessage string
+			}{
+				{as.AppendOp(as.NewBin(binName, "x")), "cannot append/prepend to a vector bin"},
+				{as.PrependOp(as.NewBin(binName, "x")), "cannot append/prepend to a vector bin"},
+				{as.AddOp(as.NewBin(binName, 1)), "cannot increment a vector bin"},
 			} {
-				_, err := client.Operate(nil, key,
+				_, err := client.Operate(withErrorDetails(), key,
 					as.PutOp(as.NewBin("other", 2)),
-					mutation,
+					mutation.operation,
 				)
-				gm.Expect(err).To(gm.HaveOccurred())
-				gm.Expect(err.Matches(ast.BIN_TYPE_ERROR)).To(gm.BeTrue(), err.Error())
+				expectServerError(err, ast.BIN_TYPE_ERROR, mutation.serverMessage)
 
 				after, err := client.Get(nil, key)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
