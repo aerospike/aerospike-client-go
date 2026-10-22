@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ func (cmd *batchCommandUDF) parseRecordResults(ifc command, receiveSize int) (bo
 		cmd.applyErrorDetail(cmd.records[batchIndex])
 
 		// Aggregate metrics
-		metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+		metricsEnabled := cmd.commandPathMetrics()
 		if metricsEnabled {
 			cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 		}
@@ -138,7 +138,7 @@ func (cmd *batchCommandUDF) parseRecordResults(ifc command, receiveSize int) (bo
 			}
 		} else {
 			cmd.records[batchIndex].Err = chainErrors(newCustomNodeError(cmd.node, resultCode), cmd.records[batchIndex].Err)
-			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter), cmd.metricsSampled)
 		}
 	}
 	return true, nil
@@ -194,6 +194,10 @@ func (cmd *batchCommandUDF) isRead() bool {
 	return !cmd.attr.hasWrite
 }
 
+func (cmd *batchCommandUDF) commandType() commandType {
+	return ttBatchWrite
+}
+
 func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
 	for _, offset := range cmd.batch.offsets {
 		key := cmd.keys[offset]
@@ -227,7 +231,8 @@ func (cmd *batchCommandUDF) executeSingle(client *Client) Error {
 }
 
 func (cmd *batchCommandUDF) Execute() Error {
-	if len(cmd.batch.offsets) == 1 {
+	// Skip point Execute when metrics child — see batchCommandGet.Execute.
+	if len(cmd.batch.offsets) == 1 && !cmd.metricsParentCall {
 		return cmd.executeSingle(cmd.client)
 	}
 	err := cmd.execute(cmd)
@@ -267,8 +272,8 @@ func (cmd *batchCommandUDF) getNamespace() *string {
 }
 
 func (cmd *batchCommandUDF) nsIter(yield func(string, uint64) bool) {
-	for _, key := range cmd.keys {
-		if !yield(key.namespace, 1) {
+	for _, offset := range cmd.batch.offsets {
+		if !yield(cmd.keys[offset].namespace, 1) {
 			return
 		}
 	}

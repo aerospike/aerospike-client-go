@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ func newTxnCloseCommand(
 		baseWriteCommand: bwc,
 		txn:              txn,
 	}
+	newTxnCloseCmd.usageSkip = true
 
 	return newTxnCloseCmd, nil
 }
@@ -59,7 +60,7 @@ func (cmd *txnCloseCommand) parseResult(ifc command, conn *Connection) Error {
 	}
 
 	// Aggregate metrics
-	metricsEnabled := cmd.node.cluster.metricsEnabled.Load()
+	metricsEnabled := cmd.commandPathMetrics()
 	if metricsEnabled {
 		cmd.node.stats.updateOrInsert(cmd.getNamespace(), cmd.getNamespaces(), cmd.commandType(), resultCode)
 	}

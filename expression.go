@@ -755,6 +755,19 @@ func ExpFromBase64(str string) (*Expression, Error) {
 	return &Expression{bytes: b[:n]}, nil
 }
 
+// isAELFilter reports whether this expression is an AEL (ExpFromAEL) filter
+// payload. Used for feature.filter.ael vs feature.filter.exp usage counters.
+func (fe *Expression) isAELFilter() bool {
+	if fe == nil {
+		return false
+	}
+	if fe.cmd != nil && *fe.cmd == expOpAELCompile {
+		return true
+	}
+	// ExpFromAEL packs bytes eagerly: fixarray(2), uint8 opcode, bin(text).
+	return len(fe.bytes) >= 3 && fe.bytes[0] == 0x92 && fe.bytes[1] == 0xcc && fe.bytes[2] == byte(expOpAELCompile)
+}
+
 // ExpFromAEL creates a filter expression from AEL (Aerospike Expression Language)
 // source text for the server to compile and evaluate. The client does no parsing
 // or validation: the text is framed and sent as-is, and the server rejects invalid

@@ -36,7 +36,7 @@ jobs:
         with:
           default_json: |
             {
-              "8.1.2.0": { "version": "8.1.2.0" }
+              "8.2.0.0": { "version": "8.2.0.0" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
           modes: ${{ github.actor == 'dependabot[bot]' && 'AP' || 'AP,SC' }}

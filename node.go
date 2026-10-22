@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -499,11 +499,13 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	nd.stats.ConnectionsAttempts.IncrementAndGet()
+	connStart := time.Now()
 	conn, err := NewConnection(clusterClientPolicy, nd.host)
 	if err != nil {
 		nd.incrErrorCount()
 		nd.connectionCount.DecrementAndGet()
 		nd.stats.ConnectionsFailed.IncrementAndGet()
+		nd.recordNewConnectionFailure(err)
 		return nil, err
 	}
 	conn.node = nd
@@ -516,6 +518,12 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 			nd.incrErrorCount()
 		}
 		nd.stats.ConnectionsFailed.IncrementAndGet()
+		// CM-8: auth.failure is auth result codes only; network/TLS during login → open/tls.
+		if isConnectionAuthFailure(err) {
+			nd.recordConnectionAuthFailure()
+		} else {
+			nd.recordNewConnectionFailure(err)
+		}
 
 		// Socket not authenticated. Do not put back into pool.
 		conn.Close()
@@ -523,9 +531,38 @@ func (nd *Node) newConnection(overrideThreshold bool) (*Connection, Error) {
 	}
 
 	nd.stats.ConnectionsSuccessful.IncrementAndGet()
+	if nd.cluster.operationalEnabled.Load() {
+		if policy := nd.stats.getMetricPolicy(); policy != nil {
+			elapsed := policy.elapsedUnits(time.Since(connStart))
+			nd.stats.addConnLatency(elapsed)
+		}
+	}
 	conn.setIdleTimeout(clusterClientPolicy.IdleTimeout)
 
 	return conn, nil
+}
+
+// recordNewConnectionFailure records a pool open/TLS failure on this Node.
+// open.failure rolls up TLS. Not sampler-gated; still behind operational.
+func (nd *Node) recordNewConnectionFailure(err Error) {
+	if nd == nil || nd.cluster == nil || !nd.cluster.operationalEnabled.Load() {
+		return
+	}
+	if isTLSHandshakeFailure(err) {
+		nd.stats.ConnectionTlsHandshakeFailure.IncrementAndGet()
+		nd.stats.ConnectionOpenFailure.IncrementAndGet() // rollup
+		return
+	}
+	nd.stats.ConnectionOpenFailure.IncrementAndGet()
+}
+
+// recordConnectionAuthFailure records auth failure on this Node; open.failure rolls up.
+func (nd *Node) recordConnectionAuthFailure() {
+	if nd == nil || nd.cluster == nil || !nd.cluster.operationalEnabled.Load() {
+		return
+	}
+	nd.stats.ConnectionAuthFailure.IncrementAndGet()
+	nd.stats.ConnectionOpenFailure.IncrementAndGet() // rollup
 }
 
 func (nd *Node) newTendConnection() (*Connection, Error) {

@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ var _ = gg.Describe("ApplyConfigToMetricsPolicy", func() {
 			// Check defaults.
 			gm.Expect(policy).NotTo(gm.BeNil())
 			gm.Expect(int(policy.LatencyBase)).To(gm.Equal(int(2)))
-			gm.Expect(int(policy.LatencyColumns)).To(gm.Equal(int(24)))
+			gm.Expect(int(policy.LatencyColumns)).To(gm.Equal(int(7)))
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)
@@ -81,7 +81,7 @@ var _ = gg.Describe("ApplyConfigToMetricsPolicy", func() {
 			// Check defaults.
 			gm.Expect(policy).NotTo(gm.BeNil())
 			gm.Expect(int(policy.LatencyBase)).To(gm.Equal(int(2)))
-			gm.Expect(int(policy.LatencyColumns)).To(gm.Equal(int(24)))
+			gm.Expect(int(policy.LatencyColumns)).To(gm.Equal(int(7)))
 
 			// Apply the configuration.
 			updatedPolicy := policy.patchDynamic(config)

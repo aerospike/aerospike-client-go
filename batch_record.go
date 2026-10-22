@@ -42,8 +42,8 @@ type BatchRecordIfc interface {
 
 	prepare()
 	setRecord(record *Record)
-	setError(node *Node, resultCode types.ResultCode, inDoubt bool)
-	setErrorWithMsg(node *Node, resultCode types.ResultCode, msg string, inDoubt bool)
+	setError(node *Node, resultCode types.ResultCode, inDoubt bool, metricsOn bool)
+	setErrorWithMsg(node *Node, resultCode types.ResultCode, msg string, inDoubt bool, metricsOn bool)
 	chainError(err Error)
 	String() string
 	getType() batchRecordType
@@ -180,7 +180,9 @@ func (br *BatchRecord) setRawError(err Error) {
 }
 
 // Set error result. For internal use only.
-func (br *BatchRecord) setError(node *Node, resultCode types.ResultCode, inDoubt bool) {
+// metricsOn is the command's metrics_on (sampler) decision — required for
+// batch.partial_failure (metrics.md §4.7 / Decision 1).
+func (br *BatchRecord) setError(node *Node, resultCode types.ResultCode, inDoubt bool, metricsOn bool) {
 	br.ResultCode = resultCode
 	br.InDoubt = inDoubt
 	if br.hasServerErrorDetail() {
@@ -188,15 +190,138 @@ func (br *BatchRecord) setError(node *Node, resultCode types.ResultCode, inDoubt
 	} else {
 		br.Err = newServerError(resultCode, "", types.SubCodeNone, nil).setNode(node).markInDoubtIf(inDoubt)
 	}
+	recordBatchPartialFailure(node, resultCode, metricsOn)
 }
 
 // Set error result. For internal use only.
-func (br *BatchRecord) setErrorWithMsg(node *Node, resultCode types.ResultCode, msg string, inDoubt bool) {
+func (br *BatchRecord) setErrorWithMsg(node *Node, resultCode types.ResultCode, msg string, inDoubt bool, metricsOn bool) {
 	br.ResultCode = resultCode
 	br.InDoubt = inDoubt
 	// msg is a caller-supplied message (e.g. a UDF FAILURE bin). Fold in any
 	// captured server subcode / expression trace for this row alongside it.
 	br.Err = newServerError(resultCode, msg, br.SubCode, br.ExpTrace).setNode(node).markInDoubtIf(inDoubt)
+	recordBatchPartialFailure(node, resultCode, metricsOn)
+}
+
+// recordBatchPartialFailure was historically called from setError on each parse
+// attempt. Counting moved to batchExecute completion (once per key per call) so
+// pre-send errors and retries do not under/over-count. Kept as a no-op wrapper
+// for call sites that still pass metricsOn during parse.
+func recordBatchPartialFailure(node *Node, resultCode types.ResultCode, metricsOn bool) {
+	_ = node
+	_ = resultCode
+	_ = metricsOn
+}
+
+// maybeBatchPartialFailure increments batch.partial_failure for one key's final
+// result when it is not OK / not-found / filtered-out / unanswered.
+func maybeBatchPartialFailure(clstr *Cluster, resultCode types.ResultCode) {
+	if clstr == nil {
+		return
+	}
+	switch resultCode {
+	case types.OK, types.KEY_NOT_FOUND_ERROR, types.FILTERED_OUT, types.NO_RESPONSE:
+		return
+	}
+	clstr.recordBatchPartialFailure()
+}
+
+// countBatchPartialFailuresOnce increments batch.partial_failure once per key
+// with a non-benign final ResultCode after the user batch completes (sampled).
+func countBatchPartialFailuresOnce(clstr *Cluster, cmd batcher) {
+	if clstr == nil || cmd == nil {
+		return
+	}
+	switch c := cmd.(type) {
+	case *batchIndexCommandGet:
+		for _, r := range c.records {
+			if r != nil {
+				maybeBatchPartialFailure(clstr, r.ResultCode)
+			}
+		}
+	case *batchCommandOperate:
+		for _, r := range c.records {
+			if r != nil {
+				maybeBatchPartialFailure(clstr, r.resultCode())
+			}
+		}
+	case *batchCommandDelete:
+		for _, r := range c.records {
+			if r != nil {
+				maybeBatchPartialFailure(clstr, r.ResultCode)
+			}
+		}
+	case *batchCommandUDF:
+		for _, r := range c.records {
+			if r != nil {
+				maybeBatchPartialFailure(clstr, r.ResultCode)
+			}
+		}
+	case *batchCommandGet:
+		for _, r := range c.indexRecords {
+			if r != nil {
+				maybeBatchPartialFailure(clstr, r.ResultCode)
+			}
+		}
+	}
+}
+
+// batchCommandAnyFilter returns a per-record batch filter when the parent
+// BatchPolicy has none (CM-27: one feature.filter.* per public call).
+func batchCommandAnyFilter(cmd batcher) *Expression {
+	if cmd == nil {
+		return nil
+	}
+	switch c := cmd.(type) {
+	case *batchIndexCommandGet:
+		for _, r := range c.records {
+			if r != nil && r.Policy != nil && r.Policy.FilterExpression != nil {
+				return r.Policy.FilterExpression
+			}
+		}
+	case *batchCommandOperate:
+		return firstBatchRecordFilter(c.records)
+	case *batchCommandDelete:
+		if c.batchDeletePolicy != nil {
+			return c.batchDeletePolicy.FilterExpression
+		}
+	case *batchCommandUDF:
+		if c.batchUDFPolicy != nil {
+			return c.batchUDFPolicy.FilterExpression
+		}
+	}
+	return nil
+}
+
+func firstBatchRecordFilter(records []BatchRecordIfc) *Expression {
+	for _, r := range records {
+		if f := batchRecordFilterExpression(r); f != nil {
+			return f
+		}
+	}
+	return nil
+}
+
+func batchRecordFilterExpression(r BatchRecordIfc) *Expression {
+	switch v := r.(type) {
+	case *BatchRead:
+		if v.Policy != nil {
+			return v.Policy.FilterExpression
+		}
+	case *BatchWrite:
+		if v.Policy != nil {
+			return v.Policy.FilterExpression
+		}
+	case *BatchDelete:
+		if v.Policy != nil {
+			return v.Policy.FilterExpression
+		}
+	case *BatchUDF:
+		if v.Policy != nil {
+			return v.Policy.FilterExpression
+		}
+	}
+	return nil
 }
 
 // String implements the Stringer interface.

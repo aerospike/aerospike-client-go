@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ type singleCommand struct {
 
 func newSingleCommand(cluster *Cluster, key *Key, partition *Partition) singleCommand {
 	return singleCommand{
-		baseCommand: baseCommand{},
+		baseCommand: baseCommand{cluster: cluster},
 		cluster:     cluster,
 		key:         key,
 		partition:   partition,
