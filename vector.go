@@ -382,18 +382,3 @@ func (vector *Vector) String() string {
 	}
 	return builder.String()
 }
-
-// TODO: need to come back, waiting for server fix
-// bytesToVectorParticle decodes a vector read from the server. Type-16 data
-// that is not a valid vector (stored by servers before native vector support,
-// or nested in a list/map, which the server does not validate) is returned as
-// a *RawBlobValue tagged VECTOR instead of failing the whole record stream.
-// The value round-trips unchanged.
-func bytesToVectorParticle(serialized []byte) any {
-	wire := make([]byte, len(serialized))
-	copy(wire, serialized)
-	if validateVectorWire(wire) != nil {
-		return &RawBlobValue{ParticleType: ParticleType.VECTOR, Data: wire}
-	}
-	return &Vector{wire: wire}
-}

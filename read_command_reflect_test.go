@@ -36,6 +36,7 @@ var _ = gg.Describe("Read Command Reflect setValue", func() {
 		MapStringFloat64      map[string]float64
 		MapStringString       map[string]string
 		MapInterfaceInterface map[any]any
+		Vector                Vector
 	}
 
 	ts := &testStruct{}
@@ -58,6 +59,7 @@ var _ = gg.Describe("Read Command Reflect setValue", func() {
 		{name: "map[string]string->map[string]string", field: reflectField("MapStringString"), obj: map[any]any{"1": "2"}},
 		{name: "map[string]float64->map[string]float64", field: reflectField("MapStringFloat64"), obj: map[any]any{"1": 2}},
 		{name: "map[any]any->map[any]any", field: reflectField("MapInterfaceInterface"), obj: map[any]any{"1": 2}},
+		{name: "*Vector->Vector", field: reflectField("Vector"), obj: mustVector(NewVectorFloat32([]float32{1}))},
 
 		{name: "string->int", field: reflectField("Int"), obj: "5", error: true},
 		{name: "string->bool", field: reflectField("Bool"), obj: "true", error: true},
@@ -76,6 +78,7 @@ var _ = gg.Describe("Read Command Reflect setValue", func() {
 		{name: "map[string]string->[]int", field: reflectField("SliceInt"), obj: map[any]any{"1": "2"}, error: true},
 		{name: "[]int->map[string]string", field: reflectField("MapStringString"), obj: []int{1, 2}, error: true},
 		{name: "map[string]string->map[string]float64", field: reflectField("MapStringFloat64"), obj: map[any]any{"1": "2"}, error: true},
+		{name: "[]byte->Vector", field: reflectField("Vector"), obj: []byte{0xde, 0xad, 0xbe}, error: true},
 	}
 
 	for _, tt := range tests {

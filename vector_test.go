@@ -78,6 +78,34 @@ var _ = gg.Describe("Vector Test", func() {
 		gm.ExpectWithOffset(1, aerospikeErr.ServerMessage).To(gm.BeEmpty())
 	}
 
+	// withErrorDetails returns a write policy that asks for subcodes and messages.
+	withErrorDetails := func() *as.WritePolicy {
+		policy := as.NewWritePolicy(0, 0)
+		policy.ErrorDetailVerbosity = 2
+		return policy
+	}
+
+	// expectServerError asserts the server rejected the command with
+	// resultCode and a message containing serverMessage. Vector errors carry
+	// no subcode.
+	expectServerError := func(err as.Error, resultCode ast.ResultCode, serverMessage string) {
+		gm.ExpectWithOffset(1, err).To(gm.HaveOccurred())
+
+		aerospikeErr := &as.AerospikeError{}
+		gm.ExpectWithOffset(1, errors.As(err, &aerospikeErr)).To(gm.BeTrue())
+		gm.ExpectWithOffset(1, aerospikeErr.ResultCode).To(gm.Equal(resultCode), err.Error())
+		gm.ExpectWithOffset(1, aerospikeErr.SubCode).To(gm.Equal(ast.SubCodeNone))
+		gm.ExpectWithOffset(1, aerospikeErr.ServerMessage).To(gm.ContainSubstring(serverMessage))
+	}
+
+	// operation returns a function that runs op on key, asking for error details.
+	operation := func(op *as.Operation) func() as.Error {
+		return func() as.Error {
+			_, err := client.Operate(withErrorDetails(), key, op)
+			return err
+		}
+	}
+
 	getVector := func(name string) *as.Vector {
 		record, err := client.Get(nil, key, name)
 		gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -155,55 +183,46 @@ var _ = gg.Describe("Vector Test", func() {
 		})
 	})
 
+	// A vector can't be an element of a list or a map, at any depth, as a value
+	// or as a key: the server rejects the write and the record is unchanged.
 	gg.Context("lists and maps", func() {
 		embedding := mustVector(as.NewVectorFloat32([]float32{0.5, -0.5}))
+		chunks := []*as.CDTContext{as.CtxMapKey(as.NewValue("chunks"))}
 
-		gg.It("keeps vectors nested in list and map bins", func() {
-			gm.Expect(put(
-				as.NewBin("list", []any{embedding, 1}),
-				as.NewBin("map", map[any]any{"emb": embedding}),
-			)).To(gm.Succeed())
+		putBin := func(bin *as.Bin) func() as.Error {
+			return func() as.Error { return client.PutBins(withErrorDetails(), key, bin) }
+		}
 
-			record, err := client.Get(nil, key)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(expectVector(record.Bins["list"].([]any)[0]).Equal(embedding)).To(gm.BeTrue())
-			gm.Expect(expectVector(record.Bins["map"].(map[any]any)["emb"]).Equal(embedding)).To(gm.BeTrue())
-		})
+		writes := []struct {
+			name          string
+			write         func() as.Error
+			serverMessage string
+		}{
+			{"in a list bin", putBin(as.NewBin("list", []any{embedding, 1})), "list/map cannot hold a vector"},
+			{"as a map bin value", putBin(as.NewBin("map", map[any]any{"emb": embedding})), "list/map cannot hold a vector"},
+			{"as a map bin key", putBin(as.NewBin("map", map[any]any{embedding: 1})), "list/map cannot hold a vector"},
+			{"appended to a list", operation(as.ListAppendOp("list", embedding)), "list_append: list/map cannot hold a vector"},
+			{"inserted into a list", operation(as.ListInsertOp("list", 0, embedding)), "list_insert: list/map cannot hold a vector"},
+			{"set in a list", operation(as.ListSetOp("list", 0, embedding)), "list_set: list/map cannot hold a vector"},
+			{"put as a map value", operation(as.MapPutOp(as.DefaultMapPolicy(), "map", "emb", embedding)), "map_add: invalid value - list/map cannot hold a vector"},
+			{"put as a map key", operation(as.MapPutOp(as.DefaultMapPolicy(), "map", embedding, 1)), "map_add: invalid key - list/map cannot hold a vector"},
+			{"appended to a list inside a map", operation(as.ListAppendWithPolicyContextOp(as.DefaultListPolicy(), "doc", chunks, embedding)), "list_append: list/map cannot hold a vector"},
+		}
 
-		gg.It("appends a vector to a list and reads it back by index", func() {
-			gm.Expect(put(as.NewBin("list", []any{1}))).To(gm.Succeed())
+		for _, write := range writes {
+			gg.It("rejects a vector "+write.name, func() {
+				gm.Expect(put(as.NewBin("list", []any{1}), as.NewBin("doc", map[any]any{"chunks": []any{}}))).To(gm.Succeed())
+				before, err := client.Get(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
 
-			record, err := client.Operate(nil, key,
-				as.ListAppendOp("list", embedding),
-				as.ListGetByIndexOp("list", 1, as.ListReturnTypeValue),
-			)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			results := record.Bins["list"].(as.OpResults)
-			gm.Expect(expectVector(results[1]).Equal(embedding)).To(gm.BeTrue())
-		})
+				expectServerError(write.write(), ast.PARAMETER_ERROR, write.serverMessage)
 
-		gg.It("puts a vector under a map key and reads it back by key", func() {
-			record, err := client.Operate(nil, key,
-				as.MapPutOp(as.DefaultMapPolicy(), "map", "emb", embedding),
-				as.MapGetByKeyOp("map", "emb", as.MapReturnType.VALUE),
-			)
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			results := record.Bins["map"].(as.OpResults)
-			gm.Expect(expectVector(results[1]).Equal(embedding)).To(gm.BeTrue())
-		})
-
-		gg.It("writes a vector into a list nested inside a map", func() {
-			gm.Expect(put(as.NewBin("doc", map[any]any{"chunks": []any{}}))).To(gm.Succeed())
-
-			chunks := []*as.CDTContext{as.CtxMapKey(as.NewValue("chunks"))}
-			_, err := client.Operate(nil, key, as.ListAppendWithPolicyContextOp(as.DefaultListPolicy(), "doc", chunks, embedding))
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			record, err := client.Get(nil, key, "doc")
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			stored := record.Bins["doc"].(map[any]any)["chunks"].([]any)[0]
-			gm.Expect(expectVector(stored).Equal(embedding)).To(gm.BeTrue())
-		})
+				after, err := client.Get(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(after.Generation).To(gm.Equal(before.Generation))
+				gm.Expect(after.Bins).To(gm.Equal(before.Bins))
+			})
+		}
 
 		gg.It("refuses a vector with no dimensions in a list or map before sending it", func() {
 			empty := &as.Vector{}
@@ -216,16 +235,15 @@ var _ = gg.Describe("Vector Test", func() {
 			gm.Expect(exists).To(gm.BeFalse())
 		})
 
-		gg.It("returns an invalid nested vector as raw bytes without failing the read", func() {
-			// The server does not validate vectors inside a list or map.
-			invalid := []byte{0xde, 0xad, 0xbe}
-			gm.Expect(put(as.NewBin("list", []any{as.NewRawBlobValue(ParticleType.VECTOR, invalid), "next"}))).To(gm.Succeed())
+		gg.It("refuses raw type-16 bytes in a list before sending them", func() {
+			err := put(as.NewBin("list", []any{as.NewRawBlobValue(ParticleType.VECTOR, []byte{0xde, 0xad, 0xbe}), "next"}))
+			gm.Expect(err).To(gm.HaveOccurred())
+			gm.Expect(err.Matches(ast.PARAMETER_ERROR)).To(gm.BeTrue(), err.Error())
+			gm.Expect(err.Error()).To(gm.ContainSubstring("a raw value of particle type 16 can only be written as a whole bin"))
 
-			record, err := client.Get(nil, key, "list")
+			exists, err := client.Exists(nil, key)
 			gm.Expect(err).ToNot(gm.HaveOccurred())
-			listBin := record.Bins["list"].([]any)
-			gm.Expect(listBin[0]).To(gm.Equal(&as.RawBlobValue{ParticleType: ParticleType.VECTOR, Data: invalid}))
-			gm.Expect(listBin[1]).To(gm.Equal("next"))
+			gm.Expect(exists).To(gm.BeFalse())
 		})
 	})
 
@@ -494,68 +512,49 @@ var _ = gg.Describe("Vector Test", func() {
 
 	gg.Context("vectors inside expressions, contexts and UDF arguments", func() {
 		embedding := mustVector(as.NewVectorFloat32([]float32{0.5, -0.5}))
-		other := mustVector(as.NewVectorFloat32([]float32{1, 1}))
 
-		// holdsEmbedding is true for a map whose values include embedding.
-		holdsEmbedding := as.ExpGreater(
-			as.ExpMapGetByValueList(as.MapReturnType.COUNT, as.ExpListVal(embedding), as.ExpMapLoopVar(as.VALUE)),
-			as.ExpIntVal(0),
-		)
+		// An expression can't hold a vector inside a list literal: the server
+		// rejects the expression when it builds it.
+		gg.Context("in a list literal", func() {
+			holdsEmbedding := as.ExpGreater(
+				as.ExpListGetByValueList(as.ListReturnTypeCount, as.ExpListVal(embedding), as.ExpListBin("embs")),
+				as.ExpIntVal(0),
+			)
+			increment := as.ExpNumAdd(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(1))
 
-		putChunks := func() {
-			gm.Expect(put(as.NewBin("chunks", []any{
-				map[any]any{"text": "first", "emb": embedding, "hits": 0},
-				map[any]any{"text": "second chunk", "emb": other, "hits": 0},
-			}))).To(gm.Succeed())
-		}
-
-		gg.It("finds a record whose list holds a given vector with a filter expression", func() {
-			gm.Expect(put(as.NewBin("embs", []any{embedding, other}))).To(gm.Succeed())
-
-			getWhereListHolds := func(vector *as.Vector) as.Error {
+			filter := func() as.Error {
 				policy := as.NewPolicy()
-				policy.FilterExpression = as.ExpGreater(
-					as.ExpListGetByValueList(as.ListReturnTypeCount, as.ExpListVal(vector), as.ExpListBin("embs")),
-					as.ExpIntVal(0),
-				)
+				policy.ErrorDetailVerbosity = 2
+				policy.FilterExpression = holdsEmbedding
 				_, err := client.Get(policy, key)
 				return err
 			}
-			gm.Expect(getWhereListHolds(embedding)).To(gm.Succeed())
-			gm.Expect(getWhereListHolds(mustVector(as.NewVectorFloat32([]float32{9, 9}))).Matches(ast.FILTERED_OUT)).To(gm.BeTrue())
-		})
 
-		gg.It("counts a vector in a list through an expression read operation", func() {
-			gm.Expect(put(as.NewBin("embs", []any{embedding, other, embedding}))).To(gm.Succeed())
+			uses := []struct {
+				name string
+				run  func() as.Error
+			}{
+				{"a filter expression", filter},
+				{"an expression read operation", operation(as.ExpReadOp("hits", holdsEmbedding, as.ExpReadFlagDefault))},
+				{"an expression write operation", operation(as.ExpWriteOp("copy", as.ExpListVal(embedding), as.ExpWriteFlagDefault))},
+				{"a context filter", operation(as.SelectByPath("chunks", as.EXP_PATH_SELECT_VALUE, as.CtxAllChildrenWithFilter(holdsEmbedding)))},
+				{"modify by path", operation(as.ModifyByPath("chunks", as.EXP_PATH_MODIFY_DEFAULT, increment,
+					as.CtxAllChildrenWithFilter(holdsEmbedding), as.CtxMapKey(as.NewValue("hits"))))},
+			}
 
-			count := as.ExpListGetByValueList(as.ListReturnTypeCount, as.ExpListVal(embedding), as.ExpListBin("embs"))
-			record, err := client.Operate(nil, key, as.ExpReadOp("hits", count, as.ExpReadFlagDefault))
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(record.Bins["hits"]).To(gm.Equal(2))
-		})
+			for _, use := range uses {
+				gg.It("rejects "+use.name, func() {
+					gm.Expect(put(as.NewBin("embs", []any{1, 2}), as.NewBin("chunks", []any{map[any]any{"hits": 0}}))).To(gm.Succeed())
+					before, err := client.Get(nil, key)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
 
-		gg.It("selects the chunks that hold a vector through a context filter", func() {
-			putChunks()
+					expectServerError(use.run(), ast.PARAMETER_ERROR, "expression literal: list/map cannot hold a vector")
 
-			record, err := client.Operate(nil, key, as.SelectByPath("chunks", as.EXP_PATH_SELECT_VALUE,
-				as.CtxAllChildrenWithFilter(holdsEmbedding), as.CtxMapKey(as.NewValue("text"))))
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(record.Bins["chunks"]).To(gm.Equal([]any{"first"}))
-		})
-
-		gg.It("updates the chunks that hold a vector through modify by path", func() {
-			putChunks()
-
-			increment := as.ExpNumAdd(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(1))
-			_, err := client.Operate(nil, key, as.ModifyByPath("chunks", as.EXP_PATH_MODIFY_DEFAULT, increment,
-				as.CtxAllChildrenWithFilter(holdsEmbedding), as.CtxMapKey(as.NewValue("hits"))))
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-
-			record, err := client.Get(nil, key, "chunks")
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			chunks := record.Bins["chunks"].([]any)
-			gm.Expect(chunks[0].(map[any]any)["hits"]).To(gm.Equal(1))
-			gm.Expect(chunks[1].(map[any]any)["hits"]).To(gm.Equal(0))
+					after, err := client.Get(nil, key)
+					gm.Expect(err).ToNot(gm.HaveOccurred())
+					gm.Expect(after.Generation).To(gm.Equal(before.Generation))
+				})
+			}
 		})
 
 		gg.Context("in UDFs", func() {
@@ -570,6 +569,20 @@ end
 function copy(rec)
   rec['copied'] = rec['vec']
   aerospike:update(rec)
+  return 0
+end
+
+function store_invalid_vector(rec)
+  local invalid = bytes(0)
+  bytes.set_type(invalid, 16)
+  rec['stored'] = invalid
+  if aerospike:exists(rec) then aerospike:update(rec) else aerospike:create(rec) end
+  return 0
+end
+
+function store_in_list(rec, value)
+  rec['stored'] = list{value}
+  if aerospike:exists(rec) then aerospike:update(rec) else aerospike:create(rec) end
   return 0
 end
 
@@ -605,18 +618,17 @@ end
 			})
 
 			gg.It("rejects invalid vector bytes a UDF writes", func() {
-				policy := as.NewWritePolicy(0, 0)
-				policy.ErrorDetailVerbosity = 2
+				_, err := client.Execute(withErrorDetails(), key, moduleName, "store_invalid_vector")
+				expectServerError(err, ast.PARAMETER_ERROR, "vector: value size 0 smaller than 6-byte header")
 
-				invalid := as.NewRawBlobValue(ParticleType.VECTOR, []byte{0xde, 0xad, 0xbe})
-				_, err := client.Execute(policy, key, moduleName, "store", invalid)
-				gm.Expect(err).To(gm.HaveOccurred())
+				exists, err := client.Exists(nil, key)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(exists).To(gm.BeFalse())
+			})
 
-				aerospikeErr := &as.AerospikeError{}
-				gm.Expect(errors.As(err, &aerospikeErr)).To(gm.BeTrue())
-				gm.Expect(aerospikeErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR), err.Error())
-				gm.Expect(aerospikeErr.SubCode).To(gm.Equal(ast.SubCodeNone))
-				gm.Expect(aerospikeErr.ServerMessage).To(gm.ContainSubstring("vector: value size 3 smaller than 6-byte header"))
+			gg.It("rejects a list holding a vector that a UDF writes", func() {
+				_, err := client.Execute(withErrorDetails(), key, moduleName, "store_in_list", embedding)
+				expectServerError(err, ast.PARAMETER_ERROR, "list/map cannot hold a vector")
 
 				exists, err := client.Exists(nil, key)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
@@ -924,23 +936,6 @@ end
 	// The server rejects an invalid vector with a result code and a message;
 	// vector errors carry no subcode.
 	gg.Context("rejected writes", func() {
-		// withErrorDetails returns a write policy that asks for subcodes and messages.
-		withErrorDetails := func() *as.WritePolicy {
-			policy := as.NewWritePolicy(0, 0)
-			policy.ErrorDetailVerbosity = 2
-			return policy
-		}
-
-		expectServerError := func(err as.Error, resultCode ast.ResultCode, serverMessage string) {
-			gm.ExpectWithOffset(1, err).To(gm.HaveOccurred())
-
-			aerospikeErr := &as.AerospikeError{}
-			gm.ExpectWithOffset(1, errors.As(err, &aerospikeErr)).To(gm.BeTrue())
-			gm.ExpectWithOffset(1, aerospikeErr.ResultCode).To(gm.Equal(resultCode), err.Error())
-			gm.ExpectWithOffset(1, aerospikeErr.SubCode).To(gm.Equal(ast.SubCodeNone))
-			gm.ExpectWithOffset(1, aerospikeErr.ServerMessage).To(gm.ContainSubstring(serverMessage))
-		}
-
 		expectWriteRejected := func(value as.Value, serverMessage string) {
 			err := client.PutBins(withErrorDetails(), key, as.NewBin(binName, value))
 			expectServerError(err, ast.PARAMETER_ERROR, serverMessage)
