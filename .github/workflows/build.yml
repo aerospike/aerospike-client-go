@@ -133,7 +133,7 @@ jobs:
         run: gotestsum --junitfile example-results.xml --format testname -- ./examples -run TestExamples
       - name: Publish Example Run results
         if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && hashFiles('example-results.xml') != '' }}
-        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
+        uses: step-security/publish-unit-test-result-action@8cf946dca1a299ebf36dff640273fda13717050a # v2.24.0
         with:
           check_name: "Example Run (${{ matrix.version }}-${{ matrix.mode }})"
           comment_mode: off
