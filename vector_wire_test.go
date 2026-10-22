@@ -153,19 +153,22 @@ var _ = gg.Describe("Vector encoding", func() {
 		gm.Expect(packed(NewValue([]any{vector}))).To(gm.Equal(want))
 	})
 
-	// Lists and maps are stored without checking their vectors, so a Vector{}
-	// nested in a list comes back as a type-16 value with no bytes. It is
-	// returned raw instead of failing the stream.
-	gg.It("returns invalid stored bytes raw and writes them back unchanged", func() {
-		invalid := []byte{}
+	// Only data stored before servers validated vectors can hold such bytes.
+	gg.It("refuses stored type-16 bytes that are not a vector, as a bin and inside a list", func() {
+		invalid := []byte{0xde, 0xad, 0xbe}
 		decoded, err := bytesToParticle(ParticleType.VECTOR, invalid, 0, len(invalid))
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-		gm.Expect(decoded).To(gm.Equal(&RawBlobValue{ParticleType: ParticleType.VECTOR, Data: invalid}))
+		gm.Expect(decoded).To(gm.BeNil())
+		expectParameterError(err, "vector: 3 bytes is shorter than the 6 byte header")
 
 		packedList := append([]byte{0x91, 0xa0 | byte(len(invalid)+1), ParticleType.VECTOR}, invalid...)
 		decoded, err = newUnpacker(packedList, 0, len(packedList)).unpackObjects()
-		gm.Expect(err).ToNot(gm.HaveOccurred())
-		gm.Expect(packed(NewValue(decoded))).To(gm.Equal(packedList))
+		gm.Expect(decoded).To(gm.BeNil())
+		expectParameterError(err, "vector: 3 bytes is shorter than the 6 byte header")
+	})
+
+	gg.It("refuses to pack a raw value inside a list", func() {
+		_, err := NewValue([]any{NewRawBlobValue(ParticleType.VECTOR, []byte{0xde, 0xad})}).pack(nil)
+		expectParameterError(err, "a raw value of particle type 16 can only be written as a whole bin")
 	})
 
 	gg.Context("distance expressions", func() {
