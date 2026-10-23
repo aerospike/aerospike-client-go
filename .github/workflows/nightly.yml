@@ -12,8 +12,6 @@ permissions:
 
 env:
   AEROSPIKE_HOSTS: "127.0.0.1:3000"
-  GODEBUG: fips140=only
-  GOFIPS140: latest
 
 jobs:
   make-matrix:
