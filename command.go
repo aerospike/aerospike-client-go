@@ -152,6 +152,12 @@ const (
 	ttMaxCommandTypes // Automatically gets the count of command types via iota
 )
 
+// bufferPool is the subset of the shared buffer pool used by commands.
+type bufferPool interface {
+	Get(sz int) []byte
+	Put(buf []byte)
+}
+
 var (
 	buffPool = pool.NewTieredBufferPool(MinBufferSize, PoolCutOffBufferSize)
 )
@@ -223,6 +229,11 @@ type command interface {
 // Holds data buffer for the command
 type baseCommand struct {
 	bufferEx
+
+	// pool is for testing purposes only: when non-nil it replaces the shared
+	// buffer pool so tests can observe the buffers a command borrows and
+	// returns. Production code leaves it nil.
+	pool bufferPool
 
 	txn     *Txn
 	version *uint64
@@ -3608,6 +3619,37 @@ const (
 	zlibHeaderPad = 2
 )
 
+// borrowedBuffer returns the buffer the command borrowed from the pool when
+// its request or response outgrew the connection buffer, or nil if the command
+// used the connection buffer throughout.
+//
+// There is exactly one candidate. If dataBufferCompress is set (compression
+// requested, request under the threshold), it holds the whole buffer and
+// dataBuffer is an offset subslice of the same array; otherwise dataBuffer
+// holds the whole buffer. Ownership is decided by array identity: a candidate
+// sharing the connection buffer's array belongs to the connection.
+func (cmd *baseCommand) borrowedBuffer() []byte {
+	candidate := cmd.dataBuffer
+	if cmd.dataBufferCompress != nil {
+		candidate = cmd.dataBufferCompress
+	}
+	if len(candidate) == 0 || cmd.conn == nil {
+		return nil
+	}
+	if orig := cmd.conn.origDataBuffer; len(orig) > 0 && &candidate[0] == &orig[0] {
+		return nil
+	}
+	return candidate
+}
+
+// bufferPool returns the pool the command borrows from and returns to.
+func (cmd *baseCommand) bufferPool() bufferPool {
+	if cmd.pool != nil {
+		return cmd.pool
+	}
+	return buffPool
+}
+
 func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) Error {
 
 	if willCompress {
@@ -3633,7 +3675,7 @@ func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) Error {
 		cmd.dataBuffer = cmd.dataBuffer[:size]
 	} else {
 		// not enough space
-		cmd.dataBuffer = buffPool.Get(size)
+		cmd.dataBuffer = cmd.bufferPool().Get(size)
 	}
 
 	// The trick here to keep a ref to the buffer, and set the buffer itself
@@ -3696,7 +3738,7 @@ func (cmd *baseCommand) compress() Error {
 		// If not possible to reuse it, reallocate a buffer.
 		if compressedSz+msgHeaderPad > len(cmd.dataBufferCompress) {
 			// compression added to the size of the message
-			buf := buffPool.Get(compressedSz + msgHeaderPad)
+			buf := cmd.bufferPool().Get(compressedSz + msgHeaderPad)
 			if n := copy(buf[msgHeaderPad:], b.Bytes()); n < compressedSz {
 				return newError(types.SERIALIZE_ERROR)
 			}
@@ -4044,10 +4086,19 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 		applyTransactionMetrics(cmd.node, ifc.commandType(), transStart)
 
-		// buffers are never returned to buffPool here: the connection outlives the command.
+		// Return a borrowed buffer to the pool. The candidate is decided before
+		// the connection buffer is restored and returned only after, so the pool
+		// never holds a buffer that is still referenced. The connection's own
+		// buffer never qualifies (CLIENT-5514).
+		borrowed := cmd.borrowedBuffer()
+
 		cmd.dataBuffer = nil
 		cmd.dataBufferCompress = nil
 		cmd.conn.dataBuffer = cmd.conn.origDataBuffer
+
+		if borrowed != nil {
+			cmd.bufferPool().Put(borrowed)
+		}
 
 		// Put connection back in pool.
 		ifc.putConnection(cmd.conn)

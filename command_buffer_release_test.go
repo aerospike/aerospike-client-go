@@ -22,8 +22,13 @@ package aerospike
 import (
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+	"unsafe"
+
+	gg "github.com/onsi/ginkgo/v2"
+	gm "github.com/onsi/gomega"
 )
 
 // bufferProbeCommand drives a real writeCommand through executeAt against an
@@ -66,7 +71,14 @@ func (cmd *bufferProbeCommand) parseResult(ifc command, conn *Connection) Error 
 	return err
 }
 
-func newBufferProbeCommand(t *testing.T, payload string, useCompression bool) *bufferProbeCommand {
+// probeReporter is the subset of testing.TB the probe builder needs, satisfied
+// by both *testing.T and GinkgoT().
+type probeReporter interface {
+	Helper()
+	Fatalf(format string, args ...any)
+}
+
+func newBufferProbeCommand(t probeReporter, payload string, useCompression bool) *bufferProbeCommand {
 	t.Helper()
 
 	key, err := NewKey("test", "buffer-release", 1)
@@ -211,3 +223,131 @@ func assertConnectionBufferIntact(t *testing.T, cmd *bufferProbeCommand) {
 		t.Error("connection was not put back")
 	}
 }
+
+// recordingBufferPool delegates to the shared pool and records the buffers
+// passed through Get and Put, so specs can assert exactly which buffers a
+// command borrows and returns.
+type recordingBufferPool struct {
+	inner bufferPool
+
+	mu   sync.Mutex
+	gets [][]byte
+	puts [][]byte
+}
+
+func (r *recordingBufferPool) Get(sz int) []byte {
+	buf := r.inner.Get(sz)
+	r.mu.Lock()
+	r.gets = append(r.gets, buf)
+	r.mu.Unlock()
+	return buf
+}
+
+func (r *recordingBufferPool) Put(buf []byte) {
+	r.mu.Lock()
+	r.puts = append(r.puts, buf)
+	r.mu.Unlock()
+	r.inner.Put(buf)
+}
+
+// putsOverlapping counts recorded Puts whose backing array overlaps target's.
+// Overlap rather than base-pointer identity: under compression dataBuffer is an
+// offset subslice of the connection buffer, and donating it is still a
+// donation of the connection's array.
+func (r *recordingBufferPool) putsOverlapping(target []byte) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	count := 0
+	for _, buf := range r.puts {
+		if arraysOverlap(buf, target) {
+			count++
+		}
+	}
+	return count
+}
+
+// borrowedReturned reports whether every buffer handed out by Get was returned
+// by Put, matched by backing array.
+func (r *recordingBufferPool) borrowedReturned() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, got := range r.gets {
+		returned := false
+		for _, put := range r.puts {
+			if arraysOverlap(got, put) {
+				returned = true
+				break
+			}
+		}
+		if !returned {
+			return false
+		}
+	}
+	return true
+}
+
+// arraysOverlap reports whether the backing arrays of a and b share memory,
+// regardless of slice offsets.
+func arraysOverlap(a, b []byte) bool {
+	if cap(a) == 0 || cap(b) == 0 {
+		return false
+	}
+	aStart := uintptr(unsafe.Pointer(&a[:1][0]))
+	bStart := uintptr(unsafe.Pointer(&b[:1][0]))
+	aEnd := aStart + uintptr(cap(a))
+	bEnd := bStart + uintptr(cap(b))
+	return aStart < bEnd && bStart < aEnd
+}
+
+// These specs observe the command's pool traffic directly through the pool
+// field, covering both the CLIENT-5514 case and requests that outgrow the
+// connection buffer.
+var _ = gg.Describe("command buffer release", func() {
+
+	// runProbe executes one write through the fake connection with a recording
+	// pool attached.
+	runProbe := func(payload string, useCompression bool) (*bufferProbeCommand, *recordingBufferPool) {
+		cmd := newBufferProbeCommand(gg.GinkgoT(), payload, useCompression)
+		rec := &recordingBufferPool{inner: buffPool}
+		cmd.baseCommand.pool = rec
+		err := cmd.executeAt(cmd, cmd.policy.GetBasePolicy(), time.Now().Add(time.Minute), 1)
+		gm.Expect(err).To(gm.BeNil())
+		return cmd, rec
+	}
+
+	assertNoLiveDonation := func(cmd *bufferProbeCommand, rec *recordingBufferPool) {
+		gm.ExpectWithOffset(1, rec.putsOverlapping(cmd.fakeConn.origDataBuffer)).To(gm.BeZero(),
+			"the connection's live buffer must never be handed to the shared pool")
+		gm.ExpectWithOffset(1, cmd.connPutBack).To(gm.BeTrue())
+		gm.ExpectWithOffset(1, sharesArray(cmd.fakeConn.dataBuffer, cmd.fakeConn.origDataBuffer)).To(gm.BeTrue())
+	}
+
+	gg.It("must not donate the connection buffer for a small compressed request", func() {
+		// CLIENT-5514: under the threshold compress() is a no-op, so
+		// dataBufferCompress still aliases the connection buffer at release.
+		cmd, rec := runProbe("small", true)
+		gm.Expect(cmd.requestSize).To(gm.BeNumerically("<=", _COMPRESS_THRESHOLD))
+		gm.Expect(rec.gets).To(gm.BeEmpty(), "a small request must not borrow from the pool")
+		gm.Expect(rec.puts).To(gm.BeEmpty(), "with nothing borrowed there is nothing to return")
+		assertNoLiveDonation(cmd, rec)
+	})
+
+	gg.It("must not donate the connection buffer for a compressed request over the threshold", func() {
+		cmd, rec := runProbe(strings.Repeat("x", 4*_COMPRESS_THRESHOLD), true)
+		gm.Expect(cmd.requestSize).To(gm.BeNumerically(">", _COMPRESS_THRESHOLD))
+		assertNoLiveDonation(cmd, rec)
+	})
+
+	gg.It("must return the borrowed buffer but never the connection's when the request outgrows it", func() {
+		// Over DefaultBufferSize the command borrows from the pool; the borrowed
+		// buffer must be returned, the connection buffer must not.
+		for _, useCompression := range []bool{false, true} {
+			cmd, rec := runProbe(strings.Repeat("x", DefaultBufferSize+1024), useCompression)
+			gm.Expect(rec.gets).ToNot(gm.BeEmpty(),
+				"an oversized request must borrow from the pool (compression=%v)", useCompression)
+			gm.Expect(rec.borrowedReturned()).To(gm.BeTrue(),
+				"every borrowed buffer must go back to the pool (compression=%v)", useCompression)
+			assertNoLiveDonation(cmd, rec)
+		}
+	})
+})
