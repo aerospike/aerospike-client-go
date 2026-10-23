@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -447,6 +447,17 @@ func (ctn *Connection) SetTimeout(deadline time.Time, socketTimeout time.Duratio
 
 // Close closes the connection
 func (ctn *Connection) Close() {
+	ctn.close(false)
+}
+
+// closeAsync releases the connection immediately, but closes the underlying
+// socket in a separate goroutine so that the caller cannot be blocked by a
+// socket close that never returns.
+func (ctn *Connection) closeAsync() {
+	ctn.close(true)
+}
+
+func (ctn *Connection) close(async bool) {
 	ctn.closer.Do(func() {
 		if ctn != nil && ctn.conn != nil {
 			// deregister
@@ -455,10 +466,13 @@ func (ctn *Connection) Close() {
 				ctn.node.stats.ConnectionsClosed.IncrementAndGet()
 			}
 
-			if err := ctn.conn.Close(); err != nil {
-				logger.Logger.Warn(err.Error())
-			}
+			socket := ctn.conn
 			ctn.conn = nil
+			if async {
+				go closeSocket(socket)
+			} else {
+				closeSocket(socket)
+			}
 
 			// put the data buffer back in the pool in case it gets used again
 			buffPool.Put(ctn.dataBuffer)
@@ -468,6 +482,12 @@ func (ctn *Connection) Close() {
 			ctn.node = nil
 		}
 	})
+}
+
+func closeSocket(socket net.Conn) {
+	if err := socket.Close(); err != nil {
+		logger.Logger.Warn("%s", err.Error())
+	}
 }
 
 // Login will send authentication information to the server.
