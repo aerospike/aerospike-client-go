@@ -152,6 +152,438 @@ func packIfcMap(cmd BufferEx, theMap map[any]any) (int, Error) {
 	return size, err
 }
 
+// packTypedObject packs a value whose static type is known without boxing it
+// into an interface: a `switch any(v).(type)` on a type parameter dispatches
+// on the type descriptor, and because the interface value never escapes in
+// the concrete cases, no per-entry allocation happens. Passing the value to
+// packObject instead would box it on every call -- its `any` parameter
+// escapes -- which made TypedMapValue packing allocate once per entry per pack.
+// The default case falls back to packObject (and pays the box), preserving
+// exact behavior for uncommon types; the concrete cases below mirror
+// packObject's dispatch one to one.
+func packTypedObject[T any](cmd BufferEx, obj T, mapKey bool) (int, Error) {
+	switch v := any(obj).(type) {
+	case string:
+		return packString(cmd, v)
+	case []byte:
+		return packBytes(cmd, v)
+	case int8:
+		return packAInt(cmd, int(v))
+	case uint8:
+		return packAInt(cmd, int(v))
+	case int16:
+		return packAInt(cmd, int(v))
+	case uint16:
+		return packAInt(cmd, int(v))
+	case int32:
+		return packAInt(cmd, int(v))
+	case uint32:
+		return packAInt(cmd, int(v))
+	case int:
+		if Buffer.Arch32Bits {
+			return packAInt(cmd, v)
+		}
+		return packAInt64(cmd, int64(v))
+	case uint:
+		if Buffer.Arch32Bits {
+			return packAInt(cmd, int(v))
+		}
+		return packAUInt64(cmd, uint64(v))
+	case int64:
+		return packAInt64(cmd, v)
+	case uint64:
+		return packAUInt64(cmd, v)
+	case time.Time:
+		return packAInt64(cmd, v.UnixNano())
+	case nil:
+		return packNil(cmd)
+	case bool:
+		return packBool(cmd, v)
+	case float32:
+		return packFloat32(cmd, v)
+	case float64:
+		return packFloat64(cmd, v)
+	default:
+		// Re-box deliberately: passing the switch temporary to packObject
+		// (whose parameter escapes) would force the any(obj) conversion above
+		// onto the heap for every branch, defeating the whole point. A fresh
+		// conversion here keeps the cost confined to uncommon types.
+		return packObject(cmd, any(obj), mapKey)
+	}
+}
+
+// packIfcListT packs a typed slice. The popular element types dispatch once
+// per pack call to fully monomorphic loops; everything else runs the typed
+// per-entry loop, which avoids boxing via packTypedObject. Lists have no
+// canonical-ordering concern.
+//
+// The dispatch tests the element type through a nil *T sentinel: pointers
+// are pointer-shaped, so that conversion never allocates -- unlike
+// converting the slice itself, whose three-word header would be forced onto
+// the heap by any escaping switch arm. The per-arm `any(list).([]X)`
+// assertion extracts the slice immediately and does not escape, so it stays
+// off the heap too.
+func packIfcListT[T any](cmd BufferEx, list []T) (int, Error) {
+	switch any((*T)(nil)).(type) {
+	case *string:
+		l := any(list).([]string)
+		size, err := packArrayBegin(cmd, len(l))
+		if err != nil {
+			return size, err
+		}
+		for i := range l {
+			n, err := packString(cmd, l[i])
+			size += n
+			if err != nil {
+				return 0, err
+			}
+		}
+		return size, nil
+	case *int:
+		l := any(list).([]int)
+		size, err := packArrayBegin(cmd, len(l))
+		if err != nil {
+			return size, err
+		}
+		for i := range l {
+			n, err := packAInt64(cmd, int64(l[i]))
+			size += n
+			if err != nil {
+				return 0, err
+			}
+		}
+		return size, nil
+	case *int64:
+		l := any(list).([]int64)
+		size, err := packArrayBegin(cmd, len(l))
+		if err != nil {
+			return size, err
+		}
+		for i := range l {
+			n, err := packAInt64(cmd, l[i])
+			size += n
+			if err != nil {
+				return 0, err
+			}
+		}
+		return size, nil
+	case *float64:
+		l := any(list).([]float64)
+		size, err := packArrayBegin(cmd, len(l))
+		if err != nil {
+			return size, err
+		}
+		for i := range l {
+			n, err := packFloat64(cmd, l[i])
+			size += n
+			if err != nil {
+				return 0, err
+			}
+		}
+		return size, nil
+	}
+
+	size := 0
+	n, err := packArrayBegin(cmd, len(list))
+	if err != nil {
+		return n, err
+	}
+	size += n
+
+	for i := range list {
+		n, err = packTypedObject(cmd, list[i], false)
+		if err != nil {
+			return 0, err
+		}
+		size += n
+	}
+	return size, nil
+}
+
+func packIfcMapT[K ValidMapKey, V any](cmd BufferEx, theMap map[K]V) (int, Error) {
+	// Whole-map fast dispatch: one type switch per pack call routes the
+	// popular shapes to fully monomorphic loops -- the exact code a
+	// hand-written MapIter runs, with no per-entry dispatch at all. The
+	// map-to-interface conversion is pointer-shaped, so it never allocates,
+	// and a miss costs a dozen pointer compares before the typed per-entry
+	// loop below takes over (named key/value types miss by design).
+	// Canonical (key-ordered) packs must not take the shortcut: these loops
+	// iterate in map order, and expression literals need sorted keys.
+	if !isCanonicalPack(cmd) {
+		switch m := any(theMap).(type) {
+		case map[string]string:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packString(cmd, k)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packString(cmd, v)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[string]int:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packString(cmd, k)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packAInt64(cmd, int64(v))
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[string]int64:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packString(cmd, k)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packAInt64(cmd, v)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[string]float64:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packString(cmd, k)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packFloat64(cmd, v)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[int]string:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packAInt64(cmd, int64(k))
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packString(cmd, v)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[int]int:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packAInt64(cmd, int64(k))
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packAInt64(cmd, int64(v))
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[int]int64:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packAInt64(cmd, int64(k))
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packAInt64(cmd, v)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[int]float64:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packAInt64(cmd, int64(k))
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packFloat64(cmd, v)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[int64]string:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packAInt64(cmd, k)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packString(cmd, v)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[int64]int:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packAInt64(cmd, k)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packAInt64(cmd, int64(v))
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[int64]int64:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packAInt64(cmd, k)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packAInt64(cmd, v)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		case map[int64]float64:
+			size, err := packMapBegin(cmd, len(m))
+			if err != nil {
+				return size, err
+			}
+			for k, v := range m {
+				n, err := packAInt64(cmd, k)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+				n, err = packFloat64(cmd, v)
+				size += n
+				if err != nil {
+					return 0, err
+				}
+			}
+			return size, nil
+		}
+	}
+
+	size := 0
+	n, err := packMapBegin(cmd, len(theMap))
+	if err != nil {
+		return n, err
+	}
+	size += n
+
+	// See packIfcMap for why canonical (filter-expression) packs sort keys.
+	if !isCanonicalPack(cmd) || len(theMap) < 2 {
+		for k, v := range theMap {
+			n, err = packTypedObject(cmd, k, true)
+			if err != nil {
+				return 0, err
+			}
+			size += n
+			n, err = packTypedObject(cmd, v, false)
+			if err != nil {
+				return 0, err
+			}
+			size += n
+		}
+
+		return size, err
+	}
+
+	for _, k := range canonicalKeyOrderT(theMap) {
+		n, err = packTypedObject(cmd, k, true)
+		if err != nil {
+			return 0, err
+		}
+		size += n
+		n, err = packTypedObject(cmd, theMap[k], false)
+		if err != nil {
+			return 0, err
+		}
+		size += n
+	}
+
+	return size, err
+}
+
+// canonicalKeyOrderT returns theMap's keys sorted in the server's canonical
+// msgpack key order (see compareCanonicalKeys). Sorting boxes each key once;
+// canonical packs happen only for filter-expression literals, where the map
+// is part of a one-time expression build rather than a hot write path.
+func canonicalKeyOrderT[K ValidMapKey, V any](theMap map[K]V) []K {
+	keys := make([]K, 0, len(theMap))
+	for k := range theMap {
+		keys = append(keys, k)
+	}
+	slices.SortFunc(keys, func(a, b K) int { return compareCanonicalKeys(a, b) })
+	return keys
+}
+
 // canonicalPacker is implemented by buffers that can pack filter-expression
 // map value literals in the server's canonical (key-ordered) msgpack form.
 // The flag rides on the concrete buffer (see bufferEx.canonicalKeys), so
