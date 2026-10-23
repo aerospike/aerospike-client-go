@@ -76,6 +76,8 @@ type Connection struct {
 	// connection object
 	conn          net.Conn
 	totalReceived int64
+	// value of totalReceived once the current response is fully read; 0 if unknown
+	expectedReceived int64
 
 	// histogram to adjust the buff size to optimal value over time
 	buffHist             *histogram.Log2
@@ -119,7 +121,7 @@ func errToAerospikeErr(conn *Connection, err error) (aerr Error) {
 	if terr, ok := err.(net.Error); ok {
 		if terr.Timeout() {
 			if conn != nil {
-			 	if conn.node != nil {
+				if conn.node != nil {
 					conn.node.stats.ConnectionsTimeoutErrors.IncrementAndGet()
 				}
 				if errors.Is(terr, os.ErrDeadlineExceeded) {
@@ -498,6 +500,7 @@ func (ctn *Connection) willBeIdleIn(tendInterval time.Duration) bool {
 func (ctn *Connection) refresh() {
 	ctn.salvageConnection = false
 	ctn.totalReceived = 0
+	ctn.expectedReceived = 0
 	now := time.Now()
 	ctn.idleDeadline = now.Add(ctn.idleTimeout)
 	if ctn.inflater != nil {
