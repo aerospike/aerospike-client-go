@@ -73,7 +73,7 @@ var _ = gg.Describe("Compression", func() {
 				defer gg.GinkgoRecover()
 				defer wg.Done()
 				for i := 0; i < 5; i++ {
-					churn, err := as.NewClientWithPolicy(clientPolicy, *host, *port)
+					churn, err := as.NewClientWithPolicyAndHost(clientPolicy, dbHosts...)
 					gm.Expect(err).ToNot(gm.HaveOccurred())
 					key, err := as.NewKey(*namespace, setName, randString(20))
 					gm.Expect(err).ToNot(gm.HaveOccurred())
