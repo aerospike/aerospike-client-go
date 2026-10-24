@@ -1,0 +1,313 @@
+package sdk
+
+import (
+	"time"
+
+	as "github.com/aerospike/aerospike-client-go/v8"
+)
+
+// WriteSegmentBuilder is the DSL entry point returned by Session.Upsert,
+// Insert, Update, Replace and ReplaceIfExists — reserved for CDT/operate/
+// filter writes that a flat struct can't express (D-25).
+type WriteSegmentBuilder struct{}
+
+// -- Segment modifiers (10.5) --
+
+func (b *WriteSegmentBuilder) WhereAEL(src string) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) Where(exp *as.Expression) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) ExpireAfter(d time.Duration) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) ExpireAt(t time.Time) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) NeverExpire() *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) KeepTTL() *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) ExpiryFromServerDefault() *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) IfGeneration(gen Generation) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) DurableDelete() *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) OmitDurableDelete() *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) InTransaction(tx *TransactionalSession) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) IncludeMissingKeys() *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) FailOnFilteredOut() *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) Set(name string, v any) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) SetBinsTo(names []string, values []any) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) Put(bins ...*as.Bin) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) Add(name string, delta any) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) Append(name string, v any) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) Prepend(name string, v any) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) Get(name string) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) RemoveBin(name string) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) DeleteRecord() *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) TouchRecord() *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) AddOperation(op *as.Operation) *WriteSegmentBuilder {
+	return b
+}
+
+func (b *WriteSegmentBuilder) OnBin(name string) *WriteBinBuilder {
+	return nil
+}
+
+// -- Terminals (10.5) --
+
+func (b *WriteSegmentBuilder) Execute() (*WriteStream, error) {
+	return nil, nil
+}
+
+func (b *WriteSegmentBuilder) ExecuteOnError(onErr *OnError) (*WriteStream, error) {
+	return nil, nil
+}
+
+func (b *WriteSegmentBuilder) ExecuteOne() (WriteResult, error) {
+	return WriteResult{}, nil
+}
+
+func (b *WriteSegmentBuilder) Stream() (*WriteStream, error) {
+	return nil, nil
+}
+
+func (b *WriteSegmentBuilder) StreamOnError(onErr *OnError) (*WriteStream, error) {
+	return nil, nil
+}
+
+// WriteBinBuilder is entered via WriteSegmentBuilder.OnBin (10.15): scalar,
+// CDT navigation, path-expression and HLL/bitwise/string ops all live here.
+type WriteBinBuilder struct{}
+
+// -- Scalar --
+
+func (b *WriteBinBuilder) SetTo(value any) *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) Add(value any) *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) Get() *WriteSegmentBuilder {
+	return nil
+}
+
+// -- CDT navigation: map --
+
+func (b *WriteBinBuilder) OnMapKey(key any) *CDTNavBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) OnMapIndex(index int) *CDTNavBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) OnMapRank(rank int) *CDTNavBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) OnMapValue(value any) *CDTNavBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) OnMapKeyRange(begin, end any) *CDTNavBuilder {
+	return nil
+}
+
+// GAP: OnMapValueRange and OnMapKeyRelativeIndexRange previously lived
+// here — removed: sdk/PRD.md §10.15's own text only ever names
+// OnMapKeyRange and OnListIndexRange concretely as its "range/list/
+// relative forms" examples, trailing off with "…" — the same ellipsis
+// finding #17 already ruled insufficient to ground OnMapIndexRange. Both
+// methods were being treated as grounded by that same ellipsis, which was
+// inconsistent; corrected during the full-sdk/ audit prompted by a user
+// question (sdk/FUNCTIONAL_GAPS.md finding #27). Neither a key-range
+// filtered by value, nor a relative-rank-style range keyed by map key,
+// has a PRD-grounded spelling in sdk/ until the PRD names one.
+
+// -- CDT navigation: list --
+
+func (b *WriteBinBuilder) OnListIndex(index int) *CDTNavBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) OnListRank(rank int) *CDTNavBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) OnListValue(value any) *CDTNavBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) OnListIndexRange(begin, count int) *CDTNavBuilder {
+	return nil
+}
+
+// GAP: WriteBinBuilder previously had 18 "whole-collection" list/map
+// methods here (MapUpsertItems, MapSize, MapSetPolicy, MapClear,
+// ListAppendItems, ListTrim, ListSort, ListSize, ListSet, ListRemoveRange,
+// ListRemove, ListPop, ListInsertItems, ListInsert, ListIncrement,
+// ListGet, ListGetRange, ListClear) — removed: none of them is named
+// anywhere in sdk/PRD.md, and §10.15 (the PRD's own CDT catalog)
+// positively enumerates what it keeps (navigation methods, terminals,
+// SetTo/Insert/Update/Add at a navigated position) without including any
+// of these flat, un-navigated list/map operations. Unlike HLL/bitwise/
+// string, which the same section explicitly blanket-keeps ("Keep the
+// complete alpha set"), list/map gets no equivalent clause. See
+// sdk/FUNCTIONAL_GAPS.md finding #25 for the full audit trail — this was
+// pre-existing stub surface, not something added this session, but it had
+// never been checked against the PRD until a user question prompted it.
+
+// -- Path expressions (server 8.1.1+) --
+
+func (b *WriteBinBuilder) OnEachChild() *WriteBinBuilder {
+	return b
+}
+
+func (b *WriteBinBuilder) OnEachChildWhere(pred *as.Expression) *WriteBinBuilder {
+	return b
+}
+
+func (b *WriteBinBuilder) NoFail() *WriteBinBuilder {
+	return b
+}
+
+func (b *WriteBinBuilder) CollectValues() *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) CollectTree() *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) CollectKeys() *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) ModifyBy(exp *as.Expression) *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *WriteBinBuilder) RemoveMatches() *WriteSegmentBuilder {
+	return nil
+}
+
+// CDTNavBuilder is entered via a map/list navigation call (OnMapKey,
+// OnListIndexRange, etc.) — the terminal vocabulary is shared across map and
+// list navigation (10.15).
+type CDTNavBuilder struct{}
+
+func (b *CDTNavBuilder) SetTo(value any) *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *CDTNavBuilder) Insert(value any) *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *CDTNavBuilder) Update(value any) *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *CDTNavBuilder) Add(value any) *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *CDTNavBuilder) GetValues() *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *CDTNavBuilder) GetKeys() *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *CDTNavBuilder) Count() *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *CDTNavBuilder) Remove() *WriteSegmentBuilder {
+	return nil
+}
+
+// RemoveAnd removes the matched entries and returns a builder so a further
+// terminal (Count, GetValues, ...) reports what was removed.
+func (b *CDTNavBuilder) RemoveAnd() *CDTNavBuilder {
+	return b
+}
+
+func (b *CDTNavBuilder) GetAllOtherValues() *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *CDTNavBuilder) GetAllOtherKeys() *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *CDTNavBuilder) GetAsOrderedMap() *WriteSegmentBuilder {
+	return nil
+}
+
+func (b *CDTNavBuilder) GetExists() *WriteSegmentBuilder {
+	return nil
+}
