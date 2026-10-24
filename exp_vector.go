@@ -64,7 +64,7 @@ func (distance VectorDistanceMetric) expOp() *expOp {
 func ExpVectorDistance(distance VectorDistanceMetric, query *Vector, bin *Expression) *Expression {
 	return newFilterExpression(
 		distance.expOp(),
-		query,
+		VectorValue{vector: query},
 		bin,
 		nil,
 		nil,
@@ -76,7 +76,8 @@ func ExpVectorDistance(distance VectorDistanceMetric, query *Vector, bin *Expres
 // as a BLOB holding the serialized vector, the vector particle type is
 // rejected there.
 func (filterExp *Expression) packVectorDistance(buf BufferEx) (int, Error) {
-	query, _ := filterExp.val.(*Vector)
+	queryValue, _ := filterExp.val.(VectorValue)
+	query := queryValue.vector
 	if query == nil {
 		return 0, newError(types.PARAMETER_ERROR, "vector: distance query must not be nil")
 	}

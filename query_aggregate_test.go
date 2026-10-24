@@ -201,6 +201,6 @@ var _ = gg.Describe("Query Aggregate with vectors", func() {
 	})
 
 	gg.It("passes a vector argument to client-side Lua as a list of its bytes", func() {
-		gm.Expect(aggregate("argument", vector)).To(gm.Equal(asLuaList(wire)))
+		gm.Expect(aggregate("argument", as.NewVectorValue(vector))).To(gm.Equal(asLuaList(wire)))
 	})
 })

@@ -78,6 +78,17 @@ var _ = gg.Describe("Vector Test", func() {
 		gm.ExpectWithOffset(1, aerospikeErr.ServerMessage).To(gm.BeEmpty())
 	}
 
+	// expectVectorMapKeyRefused asserts the client refused a vector map key
+	// itself: a parameter error with no message from the server.
+	expectVectorMapKeyRefused := func(err as.Error) {
+		gm.ExpectWithOffset(1, err).To(gm.HaveOccurred())
+		aerospikeErr := &as.AerospikeError{}
+		gm.ExpectWithOffset(1, errors.As(err, &aerospikeErr)).To(gm.BeTrue())
+		gm.ExpectWithOffset(1, aerospikeErr.ResultCode).To(gm.Equal(ast.PARAMETER_ERROR), err.Error())
+		gm.ExpectWithOffset(1, err.Error()).To(gm.ContainSubstring("list/map cannot hold a vector"))
+		gm.ExpectWithOffset(1, aerospikeErr.ServerMessage).To(gm.BeEmpty())
+	}
+
 	// withErrorDetails returns a write policy that asks for subcodes and messages.
 	withErrorDetails := func() *as.WritePolicy {
 		policy := as.NewWritePolicy(0, 0)
@@ -200,7 +211,6 @@ var _ = gg.Describe("Vector Test", func() {
 		}{
 			{"in a list bin", putBin(as.NewBin("list", []any{embedding, 1})), "list/map cannot hold a vector"},
 			{"as a map bin value", putBin(as.NewBin("map", map[any]any{"emb": embedding})), "list/map cannot hold a vector"},
-			{"as a map bin key", putBin(as.NewBin("map", map[any]any{embedding: 1})), "list/map cannot hold a vector"},
 			{"appended to a list", operation(as.ListAppendOp("list", embedding)), "list_append: list/map cannot hold a vector"},
 			{"inserted into a list", operation(as.ListInsertOp("list", 0, embedding)), "list_insert: list/map cannot hold a vector"},
 			{"set in a list", operation(as.ListSetOp("list", 0, embedding)), "list_set: list/map cannot hold a vector"},
@@ -223,6 +233,16 @@ var _ = gg.Describe("Vector Test", func() {
 				gm.Expect(after.Bins).To(gm.Equal(before.Bins))
 			})
 		}
+
+		gg.It("refuses a vector map key in a map bin before sending it", func() {
+			for _, mapKey := range []any{embedding, as.NewVectorValue(embedding)} {
+				expectVectorMapKeyRefused(put(as.NewBin("map", map[any]any{mapKey: 1})))
+			}
+
+			exists, err := client.Exists(nil, key)
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(exists).To(gm.BeFalse())
+		})
 
 		gg.It("refuses a vector with no dimensions in a list or map before sending it", func() {
 			empty := &as.Vector{}
@@ -517,7 +537,7 @@ var _ = gg.Describe("Vector Test", func() {
 		// rejects the expression when it builds it.
 		gg.Context("in a list literal", func() {
 			holdsEmbedding := as.ExpGreater(
-				as.ExpListGetByValueList(as.ListReturnTypeCount, as.ExpListVal(embedding), as.ExpListBin("embs")),
+				as.ExpListGetByValueList(as.ListReturnTypeCount, as.ExpListVal(as.NewVectorValue(embedding)), as.ExpListBin("embs")),
 				as.ExpIntVal(0),
 			)
 			increment := as.ExpNumAdd(as.ExpIntLoopVar(as.VALUE), as.ExpIntVal(1))
@@ -536,7 +556,7 @@ var _ = gg.Describe("Vector Test", func() {
 			}{
 				{"a filter expression", filter},
 				{"an expression read operation", operation(as.ExpReadOp("hits", holdsEmbedding, as.ExpReadFlagDefault))},
-				{"an expression write operation", operation(as.ExpWriteOp("copy", as.ExpListVal(embedding), as.ExpWriteFlagDefault))},
+				{"an expression write operation", operation(as.ExpWriteOp("copy", as.ExpListVal(as.NewVectorValue(embedding)), as.ExpWriteFlagDefault))},
 				{"a context filter", operation(as.SelectByPath("chunks", as.EXP_PATH_SELECT_VALUE, as.CtxAllChildrenWithFilter(holdsEmbedding)))},
 				{"modify by path", operation(as.ModifyByPath("chunks", as.EXP_PATH_MODIFY_DEFAULT, increment,
 					as.CtxAllChildrenWithFilter(holdsEmbedding), as.CtxMapKey(as.NewValue("hits"))))},
@@ -555,6 +575,19 @@ var _ = gg.Describe("Vector Test", func() {
 					gm.Expect(after.Generation).To(gm.Equal(before.Generation))
 				})
 			}
+		})
+
+		gg.It("refuses a map literal with a vector key among other keys before sending it", func() {
+			gm.Expect(put(as.NewBin("id", 1))).To(gm.Succeed())
+
+			policy := as.NewPolicy()
+			policy.ErrorDetailVerbosity = 2
+			policy.FilterExpression = as.ExpEq(
+				as.ExpMapVal(as.NewMapValue(map[any]any{embedding: 1, "other": 2})),
+				as.ExpMapBin("m"),
+			)
+			_, err := client.Get(policy, key)
+			expectVectorMapKeyRefused(err)
 		})
 
 		gg.Context("in UDFs", func() {
@@ -604,7 +637,7 @@ end
 			})
 
 			gg.It("stores a vector argument a UDF writes as a vector bin", func() {
-				_, err := client.Execute(nil, key, moduleName, "store", embedding)
+				_, err := client.Execute(nil, key, moduleName, "store", as.NewVectorValue(embedding))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(getVector("stored").Equal(embedding)).To(gm.BeTrue())
 			})
@@ -627,7 +660,7 @@ end
 			})
 
 			gg.It("rejects a list holding a vector that a UDF writes", func() {
-				_, err := client.Execute(withErrorDetails(), key, moduleName, "store_in_list", embedding)
+				_, err := client.Execute(withErrorDetails(), key, moduleName, "store_in_list", as.NewVectorValue(embedding))
 				expectServerError(err, ast.PARAMETER_ERROR, "list/map cannot hold a vector")
 
 				exists, err := client.Exists(nil, key)
@@ -642,7 +675,7 @@ end
 
 				gm.Expect(put(as.NewBin("vec", embedding))).To(gm.Succeed())
 
-				fromArgument, err := client.Execute(nil, key, moduleName, "echo", embedding)
+				fromArgument, err := client.Execute(nil, key, moduleName, "echo", as.NewVectorValue(embedding))
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(fromArgument).To(gm.Equal(embedding.Bytes()))
 
@@ -806,7 +839,7 @@ end
 
 	gg.Context("on a cluster without vector support", func() {
 		vector := mustVector(as.NewVectorFloat32([]float32{1, 2}))
-		containsVector := as.ExpEq(as.ExpListVal(vector), as.ExpListVal(vector))
+		containsVector := as.ExpEq(as.ExpListVal(as.NewVectorValue(vector)), as.ExpListVal(as.NewVectorValue(vector)))
 
 		expectRefused := func(err as.Error) {
 			gm.ExpectWithOffset(1, err).To(gm.HaveOccurred())
@@ -898,14 +931,14 @@ end
 			keys := twoKeysOnOneNode()
 			calls := make([]as.BatchRecordIfc, len(keys))
 			for index, batchKey := range keys {
-				calls[index] = as.NewBatchUDF(nil, batchKey, "vector_module", "store", vector)
+				calls[index] = as.NewBatchUDF(nil, batchKey, "vector_module", "store", as.NewVectorValue(vector))
 			}
 			expectBatchRefused(clientWithoutVectorSupport.BatchOperate(nil, calls), keys)
 		})
 
 		gg.It("refuses a UDF call whose arguments carry a vector", func() {
 			// Refused before sending, so the UDF module does not need to exist.
-			_, err := clientWithoutVectorSupport.Execute(nil, key, "vector_module", "store", vector)
+			_, err := clientWithoutVectorSupport.Execute(nil, key, "vector_module", "store", as.NewVectorValue(vector))
 			expectRefused(err)
 
 			exists, err := client.Exists(nil, key)
@@ -975,8 +1008,8 @@ end
 		})
 
 		gg.It("rejects NaN and infinite elements", func() {
-			expectWriteRejected(mustVector(as.NewVectorFloat32([]float32{1, float32(math.NaN())})), "vector: elements must be finite")
-			expectWriteRejected(mustVector(as.NewVectorFloat64([]float64{math.Inf(1)})), "vector: elements must be finite")
+			expectWriteRejected(as.NewVectorValue(mustVector(as.NewVectorFloat32([]float32{1, float32(math.NaN())}))), "vector: elements must be finite")
+			expectWriteRejected(as.NewVectorValue(mustVector(as.NewVectorFloat64([]float64{math.Inf(1)}))), "vector: elements must be finite")
 		})
 
 		gg.It("rejects append, prepend and increment and leaves the whole record unchanged", func() {

@@ -17,6 +17,7 @@ package aerospike
 import (
 	"fmt"
 	"math"
+	"testing"
 
 	"github.com/aerospike/aerospike-client-go/v8/types"
 	ParticleType "github.com/aerospike/aerospike-client-go/v8/types/particle_type"
@@ -74,8 +75,8 @@ var _ = gg.Describe("Vector encoding", func() {
 		for _, testCase := range testCases {
 			gg.It("encodes a "+testCase.name+" vector exactly as the server stores it", func() {
 				gm.Expect(testCase.vector.Bytes()).To(gm.Equal(testCase.want))
-				gm.Expect(testCase.vector.EstimateSize()).To(gm.Equal(len(testCase.want)))
-				gm.Expect(testCase.vector.GetType()).To(gm.Equal(ParticleType.VECTOR))
+				gm.Expect(NewVectorValue(testCase.vector).EstimateSize()).To(gm.Equal(len(testCase.want)))
+				gm.Expect(NewVectorValue(testCase.vector).GetType()).To(gm.Equal(ParticleType.VECTOR))
 			})
 		}
 	})
@@ -138,11 +139,21 @@ var _ = gg.Describe("Vector encoding", func() {
 	})
 
 	gg.It("refuses to write or pack a Vector that was never built", func() {
-		_, err := (&Vector{}).write(newBuffer(16))
+		_, err := NewVectorValue(&Vector{}).write(newBuffer(16))
 		expectParameterError(err, "vector: must have at least 1 dimension")
 
-		_, err = (&Vector{}).pack(newBuffer(16))
+		_, err = NewVectorValue(&Vector{}).pack(newBuffer(16))
 		expectParameterError(err, "vector: must have at least 1 dimension")
+	})
+
+	gg.It("wraps a vector in a Value without allocating", func() {
+		vector := mustVector(NewVectorFloat32([]float32{1, 2}))
+
+		var value Value
+		allocations := testing.AllocsPerRun(100, func() { value = NewValue(vector) })
+
+		gm.Expect(allocations).To(gm.BeZero())
+		gm.Expect(value).To(gm.Equal(VectorValue{vector: vector}))
 	})
 
 	gg.It("packs a list element as msgpack str tagged with the vector particle type", func() {

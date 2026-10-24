@@ -36,7 +36,7 @@ var _ = gg.Describe("Vector support check", func() {
 	}
 
 	vector := mustVector(NewVectorFloat32([]float32{1, 2}))
-	containsVector := ExpEq(ExpListVal(vector), ExpListVal(vector))
+	containsVector := ExpEq(ExpListVal(NewVectorValue(vector)), ExpListVal(NewVectorValue(vector)))
 
 	// The ways a vector reaches the wire.
 	vectorWrites := []struct {
@@ -80,10 +80,10 @@ var _ = gg.Describe("Vector support check", func() {
 			return cmd.writeOperationForOperation(ListGetByIndexOp("l", 0, ListReturnTypeValue, CtxAllChildrenWithFilter(containsVector)))
 		}},
 		{"a modify-by-path expression", func(cmd *baseCommand) Error {
-			return cmd.writeOperationForOperation(ModifyByPath("l", EXP_PATH_MODIFY_DEFAULT, ExpListVal(vector), CtxListIndex(0)))
+			return cmd.writeOperationForOperation(ModifyByPath("l", EXP_PATH_MODIFY_DEFAULT, ExpListVal(NewVectorValue(vector)), CtxListIndex(0)))
 		}},
 		{"UDF arguments", func(cmd *baseCommand) Error {
-			return cmd.writeUdfArgs(NewValueArray([]Value{vector}))
+			return cmd.writeUdfArgs(NewValueArray([]Value{NewVectorValue(vector)}))
 		}},
 	}
 

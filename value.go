@@ -92,8 +92,13 @@ func tryConcreteValue(v any) Value {
 		return NewValueArray(val)
 	case []byte:
 		return BytesValue(val)
+	case *Vector:
+		if val == nil {
+			return nullValue
+		}
+		return VectorValue{vector: val}
 	case Vector:
-		return &val
+		return VectorValue{vector: &val}
 	case int8:
 		return IntegerValue(int(val))
 	case int16:
