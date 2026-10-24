@@ -1320,6 +1320,10 @@ func unwrapValue(v any) any {
 		return nil
 	}
 
+	if vector, ok := v.(*Vector); ok {
+		return luaVectorValue(vector)
+	}
+
 	if uv, ok := v.(Value); ok {
 		return unwrapValue(uv.GetObject())
 	} else if uv, ok := v.([]Value); ok {
