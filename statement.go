@@ -208,7 +208,7 @@ func (stmt *Statement) ThenOrderByWithFlags(binName string, orderType BinDataTyp
 		return newError(types.PARAMETER_ERROR, "ThenOrderBy requires SetOrderBy to be called first")
 	}
 	if stmt.hasThenOrderBy {
-		return newError(types.PARAMETER_ERROR, "Top-K takes at most 2 order-by bins")
+		return newError(types.PARAMETER_ERROR, "order-by names more than 2 bins")
 	}
 	stmt.thenOrderBy = orderBySpec{binName, orderType, direction, flags}
 	stmt.hasThenOrderBy = true
@@ -271,21 +271,21 @@ func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
 			return err
 		}
 		if stmt.thenOrderBy.binName == stmt.orderBy.binName {
-			return newError(types.PARAMETER_ERROR, fmt.Sprintf("Top-K order-by bin %s is repeated", stmt.orderBy.binName))
+			return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by names bin '%s' more than once", stmt.orderBy.binName))
 		}
 	}
 
 	if stmt.topK < 1 || stmt.topK > 1000 {
-		return newError(types.PARAMETER_ERROR, "Top-K limit must be in [1, 1000]")
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("top-k limit %d out of range - must be 1 to 1000", stmt.topK))
 	}
 	if stmt.functionName != "" {
-		return newError(types.PARAMETER_ERROR, "Top-K is incompatible with an aggregate function")
+		return newError(types.PARAMETER_ERROR, "top-k/order-by only valid on foreground (basic) queries")
 	}
 	if policy.MaxRecords != 0 {
-		return newError(types.PARAMETER_ERROR, "Top-K is incompatible with MaxRecords")
+		return newError(types.PARAMETER_ERROR, "top-k incompatible with max-records/sample-max")
 	}
 	if !policy.IncludeBinData {
-		return newError(types.PARAMETER_ERROR, "Top-K is incompatible with IncludeBinData=false")
+		return newError(types.PARAMETER_ERROR, "top-k incompatible with no-bin-data (metadata-only) queries")
 	}
 	return nil
 }
@@ -301,23 +301,29 @@ func (stmt *Statement) validateTopKCluster(cluster *Cluster) Error {
 
 // validateOrderBy checks one order-by bin of a Top-K statement.
 func (stmt *Statement) validateOrderBy(spec orderBySpec) Error {
-	if len(spec.binName) == 0 || len(spec.binName) > 15 || strings.IndexByte(spec.binName, 0) >= 0 {
-		return newError(types.PARAMETER_ERROR, "Top-K order-by bin name must be 1-15 bytes without a null byte")
+	if len(spec.binName) == 0 || len(spec.binName) > 15 {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin name length %d invalid - must be 1 to 15", len(spec.binName)))
+	}
+	if strings.IndexByte(spec.binName, 0) >= 0 {
+		return newError(types.PARAMETER_ERROR, "order-by bin name is not a valid bin name")
 	}
 	if spec.orderType < BinDataTypeInteger || spec.orderType > BinDataTypeBytes {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid BinDataType: %d", spec.orderType))
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by type %d invalid - must be 1 (integer), 2 (double), 3 (string) or 4 (bytes)", spec.orderType))
 	}
 	if spec.direction != OrderAsc && spec.direction != OrderDesc {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid OrderDirection: %d", spec.direction))
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by direction %d invalid - must be 0 (ascending) or 1 (descending)", spec.direction))
 	}
 	if spec.flags&^OrderByFlagCaseInsensitive != 0 {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Invalid OrderByFlags: %d", spec.flags))
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by flags 0x%x invalid - only 0x1 (case-insensitive) is defined", spec.flags))
 	}
 	if spec.flags != OrderByFlagNone && spec.orderType != BinDataTypeString {
-		return newError(types.PARAMETER_ERROR, "Top-K order-by flags are only valid for BinDataTypeString")
+		return newError(types.PARAMETER_ERROR, "order-by case-insensitive flag applies only to string ordering")
 	}
 	if !stmt.hasProjectedBin(spec.binName) {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("Top-K order-by bin %s must be returned by the query's BinNames or Operations", spec.binName))
+		if len(stmt.Operations) > 0 {
+			return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin '%s' is not produced by any of the query's read ops", spec.binName))
+		}
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin '%s' is not in the query's bin list - add it to the bins selected", spec.binName))
 	}
 	return nil
 }

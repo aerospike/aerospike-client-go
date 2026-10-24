@@ -841,7 +841,7 @@ var _ = gg.Describe("Query Top-K", func() {
 		gg.It("refuses a third order-by bin", func() {
 			statement := topTen()
 			gm.Expect(statement.ThenOrderBy("id", as.BinDataTypeInteger, as.OrderAsc)).To(gm.Succeed())
-			expectParameterError(statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc), "at most 2 order-by bins")
+			expectParameterError(statement.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc), "order-by names more than 2 bins")
 		})
 
 		invalid := []struct {
@@ -849,36 +849,48 @@ var _ = gg.Describe("Query Top-K", func() {
 			change      func(statement *as.Statement, policy *as.QueryPolicy)
 			messagePart string
 		}{
-			{"a limit of 0", func(s *as.Statement, _ *as.QueryPolicy) { s.SetTopK(0) }, "limit must be in [1, 1000]"},
-			{"a limit over 1000", func(s *as.Statement, _ *as.QueryPolicy) { s.SetTopK(1001) }, "limit must be in [1, 1000]"},
+			{"a limit of 0", func(s *as.Statement, _ *as.QueryPolicy) { s.SetTopK(0) }, "top-k limit 0 out of range - must be 1 to 1000"},
+			{"a limit over 1000", func(s *as.Statement, _ *as.QueryPolicy) { s.SetTopK(1001) }, "top-k limit 1001 out of range - must be 1 to 1000"},
 			{"an order-by bin name over 15 bytes", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.SetOrderBy("a_bin_name_16_by", as.BinDataTypeInteger, as.OrderAsc)
 				s.SetTopK(10)
-			}, "1-15 bytes without a null byte"},
+			}, "order-by bin name length 16 invalid - must be 1 to 15"},
+			{"an order-by bin name with a null byte", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.SetOrderBy("sc\x00re", as.BinDataTypeInteger, as.OrderAsc)
+			}, "order-by bin name is not a valid bin name"},
+			{"an unknown order-by type", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.SetOrderBy("score", as.BinDataType(9), as.OrderAsc)
+			}, "order-by type 9 invalid - must be 1 (integer), 2 (double), 3 (string) or 4 (bytes)"},
+			{"an unknown order-by direction", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDirection(5))
+			}, "order-by direction 5 invalid - must be 0 (ascending) or 1 (descending)"},
+			{"unknown order-by flags", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.SetOrderByWithFlags("score", as.BinDataTypeString, as.OrderAsc, as.OrderByFlags(4))
+			}, "order-by flags 0x4 invalid - only 0x1 (case-insensitive) is defined"},
 			{"case folding on a non-string bin", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.SetOrderByWithFlags("score", as.BinDataTypeInteger, as.OrderAsc, as.OrderByFlagCaseInsensitive)
 				s.SetTopK(10)
-			}, "only valid for BinDataTypeString"},
+			}, "order-by case-insensitive flag applies only to string ordering"},
 			{"an order-by bin missing from BinNames", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.BinNames = []string{"id"}
-			}, "must be returned by the query"},
+			}, "order-by bin 'score' is not in the query's bin list - add it to the bins selected"},
 			{"an order-by bin no operation returns", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.Operations = []*as.Operation{as.GetBinOp("id")}
-			}, "must be returned by the query"},
+			}, "order-by bin 'score' is not produced by any of the query's read ops"},
 			{"a repeated order-by bin", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.ThenOrderBy("score", as.BinDataTypeInteger, as.OrderAsc)
-			}, "order-by bin score is repeated"},
+			}, "order-by names bin 'score' more than once"},
 			{"case folding on a second non-string bin", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.ThenOrderByWithFlags("id", as.BinDataTypeInteger, as.OrderAsc, as.OrderByFlagCaseInsensitive)
-			}, "only valid for BinDataTypeString"},
+			}, "order-by case-insensitive flag applies only to string ordering"},
 			{"a second order-by bin missing from BinNames", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
-			}, "order-by bin ts must be returned by the query"},
+			}, "order-by bin 'ts' is not in the query's bin list - add it to the bins selected"},
 			{"an aggregate function", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.SetAggregateFunction("pkg", "fn", nil, true)
-			}, "aggregate function"},
-			{"MaxRecords", func(_ *as.Statement, p *as.QueryPolicy) { p.MaxRecords = 100 }, "MaxRecords"},
-			{"IncludeBinData off", func(_ *as.Statement, p *as.QueryPolicy) { p.IncludeBinData = false }, "IncludeBinData=false"},
+			}, "top-k/order-by only valid on foreground (basic) queries"},
+			{"MaxRecords", func(_ *as.Statement, p *as.QueryPolicy) { p.MaxRecords = 100 }, "top-k incompatible with max-records/sample-max"},
+			{"IncludeBinData off", func(_ *as.Statement, p *as.QueryPolicy) { p.IncludeBinData = false }, "top-k incompatible with no-bin-data (metadata-only) queries"},
 		}
 
 		for _, testCase := range invalid {
