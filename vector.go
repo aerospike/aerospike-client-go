@@ -357,6 +357,13 @@ func (vector *Vector) GetType() int {
 	return ParticleType.VECTOR
 }
 
+// luaVectorValue is the value client-side Lua sees for a vector in a stream
+// aggregation. Go's client-side Lua has no bytes type, so a vector reaches it
+// as a list of its serialized bytes.
+func luaVectorValue(vector *Vector) []byte {
+	return vector.Bytes()
+}
+
 // GetObject returns the vector itself.
 func (vector *Vector) GetObject() any {
 	return vector
