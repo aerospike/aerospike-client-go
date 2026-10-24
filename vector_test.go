@@ -603,13 +603,13 @@ end
 				removeUDF(moduleName + ".lua")
 			})
 
-			gg.It("stores a vector a UDF writes as a vector", func() {
+			gg.It("stores a vector argument a UDF writes as a vector bin", func() {
 				_, err := client.Execute(nil, key, moduleName, "store", embedding)
 				gm.Expect(err).ToNot(gm.HaveOccurred())
 				gm.Expect(getVector("stored").Equal(embedding)).To(gm.BeTrue())
 			})
 
-			gg.It("keeps a vector a vector when a UDF copies it to another bin", func() {
+			gg.It("keeps the vector type when a UDF copies a vector bin to another bin", func() {
 				gm.Expect(put(as.NewBin("vec", embedding))).To(gm.Succeed())
 
 				_, err := client.Execute(nil, key, moduleName, "copy")
