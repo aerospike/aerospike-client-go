@@ -205,22 +205,22 @@ func NewVectorFromBytes(serialized []byte) (*Vector, Error) {
 
 func validateVectorWire(serialized []byte) Error {
 	if len(serialized) < vectorHeaderSize {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: %d bytes is shorter than the %d byte header", len(serialized), vectorHeaderSize))
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: value size %d smaller than %d-byte header", len(serialized), vectorHeaderSize))
 	}
 	if serialized[0] != vectorFormatVersion {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: unsupported format version %d, expected %d", serialized[0], vectorFormatVersion))
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: unsupported format version %d (expected %d)", serialized[0], vectorFormatVersion))
 	}
 	elementType := VectorElementType(serialized[1])
 	elementSize := elementType.size()
 	if elementSize == 0 {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: unknown element type %d", serialized[1]))
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: invalid element type %d", serialized[1]))
 	}
 	dimensions := int64(binary.LittleEndian.Uint32(serialized[2:]))
 	if err := checkVectorDimensions(elementType, int(dimensions)); err != nil {
 		return err
 	}
 	if expectedSize := int64(vectorHeaderSize) + dimensions*int64(elementSize); int64(len(serialized)) != expectedSize {
-		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: %d bytes does not match %d %s elements (expected %d bytes)", len(serialized), dimensions, elementType, expectedSize))
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("vector: value size %d does not match %d (%d dimensions of %d bytes, little-endian)", len(serialized), expectedSize, dimensions, elementSize))
 	}
 	return nil
 }
