@@ -94,13 +94,12 @@ const (
 //	| version (1) | element type (1) | dimensions (4, little-endian) | elements (little-endian) |
 //
 // Vector values require a server that supports native vectors, see
-// ExpVectorDistance for similarity scoring.
+// ExpVectorDistance for similarity scoring. NewValue and NewBin wrap a
+// *Vector in a VectorValue to send it.
 type Vector struct {
 	// wire holds the complete serialized vector, header included.
 	wire []byte
 }
-
-var _ Value = &Vector{}
 
 func newVector(elementType VectorElementType, dimensions int) (*Vector, Error) {
 	if err := checkVectorDimensions(elementType, dimensions); err != nil {
@@ -327,46 +326,11 @@ func (vector *Vector) checkDimensions() Error {
 	return checkVectorDimensions(vector.ElementType(), vector.Dimensions())
 }
 
-// EstimateSize returns the size of the Vector in wire protocol.
-func (vector *Vector) EstimateSize() (int, Error) {
-	return len(vector.wire), nil
-}
-
-func (vector *Vector) write(cmd BufferEx) (int, Error) {
-	if err := vector.checkDimensions(); err != nil {
-		return 0, err
-	}
-	if err := markVector(cmd); err != nil {
-		return 0, err
-	}
-	return cmd.Write(vector.wire)
-}
-
-func (vector *Vector) pack(cmd BufferEx) (int, Error) {
-	if err := vector.checkDimensions(); err != nil {
-		return 0, err
-	}
-	if err := markVector(cmd); err != nil {
-		return 0, err
-	}
-	return packVector(cmd, vector.wire)
-}
-
-// GetType returns wire protocol value type.
-func (vector *Vector) GetType() int {
-	return ParticleType.VECTOR
-}
-
 // luaVectorValue is the value client-side Lua sees for a vector in a stream
 // aggregation. Go's client-side Lua has no bytes type, so a vector reaches it
 // as a list of its serialized bytes.
 func luaVectorValue(vector *Vector) []byte {
 	return vector.Bytes()
-}
-
-// GetObject returns the vector itself.
-func (vector *Vector) GetObject() any {
-	return vector
 }
 
 // String implements the Stringer interface, e.g. "float32[1 2 3]".
@@ -388,4 +352,73 @@ func (vector *Vector) String() string {
 		fmt.Fprintf(&builder, "%#04x", elements)
 	}
 	return builder.String()
+}
+
+// VectorValue is the Value that sends a vector: a bin value, a UDF argument or
+// an operation value. Reads return the *Vector itself.
+type VectorValue struct {
+	vector *Vector
+}
+
+var _ Value = VectorValue{}
+
+// NewVectorValue wraps a vector to send it. NewValue does the same for a
+// *Vector.
+func NewVectorValue(vector *Vector) VectorValue {
+	return VectorValue{vector: vector}
+}
+
+// EstimateSize returns the size of the vector in wire protocol.
+func (vectorValue VectorValue) EstimateSize() (int, Error) {
+	if vectorValue.vector == nil {
+		return 0, nil
+	}
+	return len(vectorValue.vector.wire), nil
+}
+
+func (vectorValue VectorValue) write(cmd BufferEx) (int, Error) {
+	if err := vectorValue.checkVector(); err != nil {
+		return 0, err
+	}
+	if err := markVector(cmd); err != nil {
+		return 0, err
+	}
+	return cmd.Write(vectorValue.vector.wire)
+}
+
+func (vectorValue VectorValue) pack(cmd BufferEx) (int, Error) {
+	if err := vectorValue.checkVector(); err != nil {
+		return 0, err
+	}
+	if err := markVector(cmd); err != nil {
+		return 0, err
+	}
+	return packVector(cmd, vectorValue.vector.wire)
+}
+
+// checkVector refuses to send a nil vector, or one the constructors would not
+// build, such as a zero Vector{}.
+func (vectorValue VectorValue) checkVector() Error {
+	if vectorValue.vector == nil {
+		return newError(types.PARAMETER_ERROR, "vector: value must not be nil")
+	}
+	return vectorValue.vector.checkDimensions()
+}
+
+// GetType returns wire protocol value type.
+func (vectorValue VectorValue) GetType() int {
+	return ParticleType.VECTOR
+}
+
+// GetObject returns the *Vector.
+func (vectorValue VectorValue) GetObject() any {
+	return vectorValue.vector
+}
+
+// String implements the Stringer interface, e.g. "float32[1 2 3]".
+func (vectorValue VectorValue) String() string {
+	if vectorValue.vector == nil {
+		return "<nil>"
+	}
+	return vectorValue.vector.String()
 }
