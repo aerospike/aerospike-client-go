@@ -120,13 +120,13 @@ var _ = gg.Describe("Vector encoding", func() {
 			input       []byte
 			messagePart string
 		}{
-			{"shorter than the header", valid[:5], "shorter than the 6 byte header"},
-			{"of an unknown version", append([]byte{0x02}, valid[1:]...), "unsupported format version 2"},
-			{"of an unknown element type", append([]byte{0x01, 0x09}, valid[2:]...), "unknown element type 9"},
+			{"shorter than the header", valid[:5], "vector: value size 5 smaller than 6-byte header"},
+			{"of an unknown version", append([]byte{0x02}, valid[1:]...), "vector: unsupported format version 2 (expected 1)"},
+			{"of an unknown element type", append([]byte{0x01, 0x09}, valid[2:]...), "vector: invalid element type 9"},
 			{"with no dimensions", []byte{0x01, 0x03, 0x00, 0x00, 0x00, 0x00}, "vector: must have at least 1 dimension"},
 			{"with more dimensions than the element type allows", []byte{0x01, 0x04, 0x01, 0x80, 0x00, 0x00}, "vector: 32769 dimensions exceed max 32768"},
-			{"with truncated elements", valid[:len(valid)-1], "does not match 2 float32 elements"},
-			{"with trailing bytes", append(append([]byte{}, valid...), 0x00), "does not match 2 float32 elements"},
+			{"with truncated elements", valid[:len(valid)-1], "vector: value size 13 does not match 14 (2 dimensions of 4 bytes, little-endian)"},
+			{"with trailing bytes", append(append([]byte{}, valid...), 0x00), "vector: value size 15 does not match 14 (2 dimensions of 4 bytes, little-endian)"},
 		}
 
 		for _, malformed := range malformedInputs {
@@ -169,12 +169,12 @@ var _ = gg.Describe("Vector encoding", func() {
 		invalid := []byte{0xde, 0xad, 0xbe}
 		decoded, err := bytesToParticle(ParticleType.VECTOR, invalid, 0, len(invalid))
 		gm.Expect(decoded).To(gm.BeNil())
-		expectParameterError(err, "vector: 3 bytes is shorter than the 6 byte header")
+		expectParameterError(err, "vector: value size 3 smaller than 6-byte header")
 
 		packedList := append([]byte{0x91, 0xa0 | byte(len(invalid)+1), ParticleType.VECTOR}, invalid...)
 		decoded, err = newUnpacker(packedList, 0, len(packedList)).unpackObjects()
 		gm.Expect(decoded).To(gm.BeNil())
-		expectParameterError(err, "vector: 3 bytes is shorter than the 6 byte header")
+		expectParameterError(err, "vector: value size 3 smaller than 6-byte header")
 	})
 
 	gg.It("refuses to pack a raw value inside a list", func() {
