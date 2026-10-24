@@ -535,8 +535,18 @@ func packByteArrayBegin(cmd BufferEx, length int) (int, Error) {
 	return packStringBegin(cmd, length)
 }
 
+// errVectorMapKey refuses a vector as a map key, with the server's message.
+func errVectorMapKey() Error {
+	return newError(types.PARAMETER_ERROR, "list/map cannot hold a vector")
+}
+
 func packObject(cmd BufferEx, obj any, mapKey bool) (int, Error) {
 	switch v := obj.(type) {
+	case VectorValue:
+		if mapKey {
+			return 0, errVectorMapKey()
+		}
+		return v.pack(cmd)
 	case Value:
 		return v.pack(cmd)
 	case []Value:
@@ -583,6 +593,14 @@ func packObject(cmd BufferEx, obj any, mapKey bool) (int, Error) {
 		return packFloat32(cmd, v)
 	case float64:
 		return packFloat64(cmd, v)
+	case *Vector:
+		if v == nil {
+			return packNil(cmd)
+		}
+		if mapKey {
+			return 0, errVectorMapKey()
+		}
+		return VectorValue{vector: v}.pack(cmd)
 	case struct{}:
 		if mapKey {
 			return 0, newError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
