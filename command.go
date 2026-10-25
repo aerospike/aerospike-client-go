@@ -2554,6 +2554,17 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 
 // writeOrderBySpec writes one Top-K order-by spec: type, direction, flags,
 // name length and name.
+// readsAllBins reports whether an operation reads every bin. The server
+// rejects RESPOND_ALL_OPS with such an operation.
+func readsAllBins(operations []*Operation) bool {
+	for _, operation := range operations {
+		if operation.opType == _READ && operation.binName == "" {
+			return true
+		}
+	}
+	return false
+}
+
 func (cmd *baseCommand) writeOrderBySpec(spec orderBySpec) {
 	cmd.WriteByte(byte(spec.orderType))
 	cmd.WriteByte(byte(spec.direction))
@@ -2819,6 +2830,12 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			readAttr |= _INFO1_SHORT_QUERY
 		} else if policy.ExpectedDuration == LONG_RELAX_AP {
 			writeAttr |= _INFO2_RELAX_AP_LONG_QUERY
+		}
+		// The server sends a record only when a projected read has a value. A
+		// Top-K record whose order-by value is empty must still arrive, to rank
+		// last.
+		if statement.hasTopK() && operationCount > 0 && !readsAllBins(operations) {
+			writeAttr |= _INFO2_RESPOND_ALL_OPS
 		}
 		infoAttr := 0
 		if isNew || statement.Filter == nil {
