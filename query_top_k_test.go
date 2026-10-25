@@ -236,6 +236,54 @@ func TestTopKMergerRanking(t *testing.T) {
 			}{{2, BinMap{"score": 5, "name": "a"}}, {1, BinMap{"score": 5, "name": "z"}}},
 			want: []byte{1, 2},
 		},
+		{
+			name: "the second key puts the larger value first when descending",
+			orderBy: func(statement *Statement) {
+				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+				statement.ThenOrderBy("name", BinDataTypeString, OrderDesc)
+			},
+			records: []struct {
+				digestByte byte
+				bins       BinMap
+			}{{1, BinMap{"score": 5, "name": "a"}}, {2, BinMap{"score": 5, "name": "b"}}},
+			want: []byte{2, 1},
+		},
+		{
+			name: "a missing second value ranks last on a tie when ascending",
+			orderBy: func(statement *Statement) {
+				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+				statement.ThenOrderBy("name", BinDataTypeString, OrderAsc)
+			},
+			records: []struct {
+				digestByte byte
+				bins       BinMap
+			}{{1, BinMap{"score": 5}}, {2, BinMap{"score": 5, "name": "z"}}},
+			want: []byte{2, 1},
+		},
+		{
+			name: "a missing second value ranks last on a tie when descending",
+			orderBy: func(statement *Statement) {
+				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+				statement.ThenOrderBy("name", BinDataTypeString, OrderDesc)
+			},
+			records: []struct {
+				digestByte byte
+				bins       BinMap
+			}{{1, BinMap{"score": 5}}, {2, BinMap{"score": 5, "name": "a"}}},
+			want: []byte{2, 1},
+		},
+		{
+			name: "the second key ignores case when asked",
+			orderBy: func(statement *Statement) {
+				statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+				statement.ThenOrderByWithFlags("name", BinDataTypeString, OrderAsc, OrderByFlagCaseInsensitive)
+			},
+			records: []struct {
+				digestByte byte
+				bins       BinMap
+			}{{1, BinMap{"score": 5, "name": "Banana"}}, {2, BinMap{"score": 5, "name": "apple"}}},
+			want: []byte{2, 1},
+		},
 	}
 
 	for _, testCase := range testCases {
