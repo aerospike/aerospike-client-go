@@ -1253,6 +1253,35 @@ var _ = gg.Describe("Query Top-K", func() {
 			}
 			gm.Expect(fromNodes).To(gm.ContainElements(4, 6, 0))
 		})
+
+		// Top-K records arrive best first, not in digest order, so a digest
+		// cursor would make a retried partition skip candidates.
+		gg.It("leaves no resume cursor after a Top-K query, unlike a plain query", func() {
+			runToEnd := func(statement *as.Statement) *as.PartitionFilter {
+				filter := as.NewPartitionFilterAll()
+				recordset, err := client.QueryPartitions(nil, statement, filter)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				for result := range recordset.Results() {
+					gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				}
+				return filter
+			}
+			withCursor := func(filter *as.PartitionFilter) int {
+				count := 0
+				for _, partition := range filter.Partitions {
+					if partition.Digest != nil {
+						count++
+					}
+				}
+				return count
+			}
+
+			topKFilter := runToEnd(topK(as.OrderDesc, 3))
+			gm.Expect(topKFilter.Partitions).ToNot(gm.BeEmpty())
+			gm.Expect(withCursor(topKFilter)).To(gm.BeZero())
+
+			gm.Expect(withCursor(runToEnd(as.NewStatement(ns, set, "score", "id")))).To(gm.BeNumerically(">", 0))
+		})
 	})
 
 	// Each order-by type compares values the way the server does: a value of
@@ -1294,6 +1323,7 @@ var _ = gg.Describe("Query Top-K", func() {
 			putValues([]byte{0x01, 0x00}, []byte{0x02}, []byte{0x01}, []byte{0x00, 0xff})
 
 			gm.Expect(rank(as.BinDataTypeBytes, as.OrderAsc, as.OrderByFlagNone, 4)).To(gm.Equal([]int{3, 2, 0, 1}))
+			gm.Expect(rank(as.BinDataTypeBytes, as.OrderDesc, as.OrderByFlagNone, 4)).To(gm.Equal([]int{1, 0, 2, 3}))
 		})
 
 		gg.It("compares strings by bytes by default and ignores ASCII case when asked", func() {
@@ -1301,6 +1331,49 @@ var _ = gg.Describe("Query Top-K", func() {
 
 			gm.Expect(rank(as.BinDataTypeString, as.OrderAsc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{0, 2, 1}))
 			gm.Expect(rank(as.BinDataTypeString, as.OrderAsc, as.OrderByFlagCaseInsensitive, 3)).To(gm.Equal([]int{1, 0, 2}))
+			gm.Expect(rank(as.BinDataTypeString, as.OrderDesc, as.OrderByFlagNone, 3)).To(gm.Equal([]int{1, 2, 0}))
+			gm.Expect(rank(as.BinDataTypeString, as.OrderDesc, as.OrderByFlagCaseInsensitive, 3)).To(gm.Equal([]int{2, 0, 1}))
+		})
+
+		gg.It("ranks the largest and smallest integers at the ends and a string value last", func() {
+			putValues(math.MaxInt64, -1, math.MinInt64, 0, "7")
+
+			gm.Expect(rank(as.BinDataTypeInteger, as.OrderAsc, as.OrderByFlagNone, 5)).To(gm.Equal([]int{2, 1, 3, 0, 4}))
+			gm.Expect(rank(as.BinDataTypeInteger, as.OrderDesc, as.OrderByFlagNone, 5)).To(gm.Equal([]int{0, 3, 1, 2, 4}))
+		})
+
+		gg.It("treats -0.0 as equal to 0.0, so the digest decides their order in either direction", func() {
+			putValues(0.0, math.Copysign(0, -1))
+
+			byDigest := []int{0, 1}
+			if bytes.Compare(keys[1].Digest(), keys[0].Digest()) < 0 {
+				byDigest = []int{1, 0}
+			}
+			gm.Expect(rank(as.BinDataTypeDouble, as.OrderAsc, as.OrderByFlagNone, 2)).To(gm.Equal(byDigest))
+			gm.Expect(rank(as.BinDataTypeDouble, as.OrderDesc, as.OrderByFlagNone, 2)).To(gm.Equal(byDigest))
+		})
+
+		gg.It("ranks by an integer key, then by a string key that ignores case", func() {
+			for id, bins := range []as.BinMap{
+				{"score": 5, "name": "Banana"},
+				{"score": 5, "name": "apple"},
+				{"score": 9, "name": "cherry"},
+				{"score": 1, "name": "aardvark"},
+			} {
+				key, err := as.NewKey(ns, set, id)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				bins["id"] = id
+				gm.Expect(client.Put(nil, key, bins)).To(gm.Succeed())
+				keys = append(keys, key)
+			}
+
+			statement := as.NewStatement(ns, set, "score", "name", "id")
+			gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
+			gm.Expect(statement.ThenOrderByWithFlags("name", as.BinDataTypeString, as.OrderAsc, as.OrderByFlagCaseInsensitive)).To(gm.Succeed())
+			gm.Expect(statement.SetTopK(4)).To(gm.Succeed())
+
+			// By bytes "Banana" sorts before "apple"; ignoring case, "apple" comes first.
+			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{2, 1, 0, 3}))
 		})
 	})
 
