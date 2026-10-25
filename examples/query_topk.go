@@ -26,30 +26,36 @@ const (
 	topK     = 5
 )
 
-// Query the k records with the highest bin values. Server nodes that support
-// Top-K return only their own best records; the client merges them into the
-// global top k, and ranks every match itself on a mixed cluster.
+// Query the k records with the highest bin values, breaking ties with a second
+// bin. Each node returns its own best records and the client merges them into
+// the global top k. Every node in the cluster must support Top-K.
 func runQueryTopK() error {
 	if err := createIndex("topkindex", "topkbin", as.NUMERIC); err != nil {
 		return err
 	}
 
-	// Values 1..20. The top 5 descending are 20, 19, 18, 17, 16.
+	// Twenty records whose scores tie in pairs: records 1 and 2 score 1,
+	// records 3 and 4 score 2, and so on up to records 19 and 20, which score
+	// 10. Ranked by score, highest first, with ties broken by the lower id,
+	// the top 5 (score, id) are (10, 19), (10, 20), (9, 17), (9, 18), (8, 15).
 	for i := 1; i <= topKSize; i++ {
 		key, err := as.NewKey(ns, set, "topkkey"+strconv.Itoa(i))
 		if err != nil {
 			return err
 		}
-		if err := client.Put(nil, key, as.BinMap{"topkbin": i}); err != nil {
+		if err := client.Put(nil, key, as.BinMap{"topkbin": (i + 1) / 2, "topkid": i}); err != nil {
 			return err
 		}
 	}
 
-	statement := as.NewStatement(ns, set, "topkbin")
+	statement := as.NewStatement(ns, set, "topkbin", "topkid")
 	if err := statement.SetFilter(as.NewRangeFilter("topkbin", 1, 1000)); err != nil {
 		return err
 	}
 	if err := statement.SetOrderBy("topkbin", as.BinDataTypeInteger, as.OrderDesc); err != nil {
+		return err
+	}
+	if err := statement.ThenOrderBy("topkid", as.BinDataTypeInteger, as.OrderAsc); err != nil {
 		return err
 	}
 	if err := statement.SetTopK(topK); err != nil {
@@ -67,7 +73,7 @@ func runQueryTopK() error {
 		if res.Err != nil {
 			return res.Err
 		}
-		log.Printf("Top-K record: topkbin=%v", res.Record.Bins["topkbin"])
+		log.Printf("Top-K record: topkbin=%v topkid=%v", res.Record.Bins["topkbin"], res.Record.Bins["topkid"])
 	}
 	return nil
 }
