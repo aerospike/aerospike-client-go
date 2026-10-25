@@ -96,6 +96,9 @@ const (
 // Vector values require a server that supports native vectors, see
 // ExpVectorDistance for similarity scoring. NewValue and NewBin wrap a
 // *Vector in a VectorValue to send it.
+//
+// A vector can't be an element of a list or a map. The server rejects such a
+// write, and the client refuses a vector used as a map key.
 type Vector struct {
 	// wire holds the complete serialized vector, header included.
 	wire []byte
