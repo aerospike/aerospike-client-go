@@ -49,8 +49,8 @@ func (distance VectorDistanceMetric) expOp() *expOp {
 }
 
 // ExpVectorDistance compares query with a vector bin expression and returns
-// a float (the server computes in float32). Use it in a filter or an
-// [ExpReadOp]:
+// a float, computed at the server's vector-distance-precision (32-bit float
+// by default). Use it in a filter or an [ExpReadOp]:
 //
 //	as.ExpVectorDistance(as.VectorCosineSimilarity, query, as.ExpVectorBin("embedding"))
 //

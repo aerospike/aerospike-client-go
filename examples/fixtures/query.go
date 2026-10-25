@@ -242,14 +242,18 @@ func countQuery(filter *as.Filter) (int, error) {
 	return count, nil
 }
 
-// queryTopKBins returns the k highest values of an indexed integer bin,
-// highest first, through a Top-K query.
-func queryTopKBins(bin string, k int) ([]int, error) {
-	statement := as.NewStatement(namespace, set, bin)
+// queryTopKPairs returns the k best records through a Top-K query that ranks
+// an indexed integer bin highest first and breaks ties by a second integer
+// bin, lowest first. Each record is returned as its two values.
+func queryTopKPairs(bin, tieBin string, k int) ([][2]int, error) {
+	statement := as.NewStatement(namespace, set, bin, tieBin)
 	if err := statement.SetFilter(as.NewRangeFilter(bin, 1, 1000)); err != nil {
 		return nil, err
 	}
 	if err := statement.SetOrderBy(bin, as.BinDataTypeInteger, as.OrderDesc); err != nil {
+		return nil, err
+	}
+	if err := statement.ThenOrderBy(tieBin, as.BinDataTypeInteger, as.OrderAsc); err != nil {
 		return nil, err
 	}
 	if err := statement.SetTopK(k); err != nil {
@@ -261,14 +265,14 @@ func queryTopKBins(bin string, k int) ([]int, error) {
 	}
 	defer recordset.Close()
 
-	var values []int
+	var pairs [][2]int
 	for res := range recordset.Results() {
 		if res.Err != nil {
 			return nil, res.Err
 		}
-		values = append(values, res.Record.Bins[bin].(int))
+		pairs = append(pairs, [2]int{res.Record.Bins[bin].(int), res.Record.Bins[tieBin].(int)})
 	}
-	return values, nil
+	return pairs, nil
 }
 
 func GeoJSONQuery() Fixture {
@@ -402,14 +406,14 @@ func QueryTopK() Fixture {
 			_ = client.DropIndex(nil, namespace, set, "topkindex")
 			return DeleteKeys(keys...)
 		},
-		// Values 1..20 were written, so the top 5 descending are 20 down to 16,
-		// in that order.
+		// Scores tie in pairs (records 19 and 20 score 10, records 17 and 18
+		// score 9, and so on), so the lower id comes first within each pair.
 		Validate: func() error {
-			got, err := queryTopKBins("topkbin", k)
+			got, err := queryTopKPairs("topkbin", "topkid", k)
 			if err != nil {
 				return err
 			}
-			want := []int{20, 19, 18, 17, 16}
+			want := [][2]int{{10, 19}, {10, 20}, {9, 17}, {9, 18}, {8, 15}}
 			if fmt.Sprint(got) != fmt.Sprint(want) {
 				return fmt.Errorf("top %d = %v, want %v", k, got, want)
 			}
