@@ -337,18 +337,6 @@ func TestTopKMerger(t *testing.T) {
 			records: [][2]int{{2, 1}, {6, 2}, {4, 3}},
 			want:    [][2]int{{6, 2}, {4, 3}, {2, 1}},
 		},
-		{
-			name: "keeps the better copy of a record offered twice",
-			k:    3,
-			records: [][2]int{
-				{9, 1}, {8, 2}, {7, 3}, // full, best offered first so the heap reorders: 9, 8, 7
-				{12, 1}, // a better copy of a record deep in the heap: replaces it
-				{10, 1}, // a worse copy that would still make the top k: ignored
-				{1, 2},  // a worse copy that can't make the top k: ignored
-				{11, 4}, // a new record: evicts the worst
-			},
-			want: [][2]int{{12, 1}, {11, 4}, {8, 2}},
-		},
 	}
 
 	for _, testCase := range testCases {
@@ -424,6 +412,78 @@ func TestTopKMerger(t *testing.T) {
 			t.Errorf("concurrent offers kept %d records, not the same %d as sequential offers", len(got), len(want))
 		}
 	})
+}
+
+func TestTopKMergerDuplicates(t *testing.T) {
+	// A record can reach the client twice, for example while its partition
+	// migrates. The merger keeps one copy: the most recent version, judged by
+	// generation. Each record is {score, digest first byte, generation}; the
+	// merger keeps the k highest scores.
+	testCases := []struct {
+		name    string
+		k       int
+		records [][3]int
+		want    [][3]int
+	}{
+		{
+			name:    "keeps a newer copy even when it ranks worse",
+			k:       3,
+			records: [][3]int{{9, 1, 1}, {8, 2, 1}, {7, 3, 1}, {5, 1, 2}},
+			want:    [][3]int{{8, 2, 1}, {7, 3, 1}, {5, 1, 2}},
+		},
+		{
+			name:    "ignores an older copy even when it ranks better",
+			k:       3,
+			records: [][3]int{{4, 1, 3}, {10, 1, 2}},
+			want:    [][3]int{{4, 1, 3}},
+		},
+		{
+			name:    "keeps the first copy when the generations are equal",
+			k:       3,
+			records: [][3]int{{6, 1, 1}, {8, 1, 1}},
+			want:    [][3]int{{6, 1, 1}},
+		},
+		{
+			name: "replaces a record deep in the heap and drops a newer copy that can't make the top k",
+			k:    2,
+			records: [][3]int{
+				{9, 1, 1}, {8, 2, 1}, // full, best offered first so the heap reorders: 9, 8
+				{12, 1, 2}, // a newer, better copy of the best record: replaces it
+				{1, 2, 2},  // a newer copy that ranks last: replaces the stale copy
+				{7, 3, 1},  // a new record: evicts the worst
+			},
+			want: [][3]int{{12, 1, 2}, {7, 3, 1}},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			statement := NewStatement("test", "topk")
+			statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+			if err := statement.SetTopK(testCase.k); err != nil {
+				t.Fatal(err)
+			}
+			merger := newTopKMerger(statement)
+
+			for _, record := range testCase.records {
+				digest := make([]byte, 20)
+				digest[0] = byte(record[1])
+				key, err := NewKeyWithDigest("test", "topk", nil, digest)
+				if err != nil {
+					t.Fatal(err)
+				}
+				merger.add(&Result{Record: &Record{Key: key, Bins: BinMap{"score": record[0]}, Generation: uint32(record[2])}})
+			}
+
+			var got [][3]int
+			for _, result := range merger.results() {
+				got = append(got, [3]int{result.Record.Bins["score"].(int), int(result.Record.Key.Digest()[0]), int(result.Record.Generation)})
+			}
+			if !reflect.DeepEqual(got, testCase.want) {
+				t.Errorf("results %v, want %v", got, testCase.want)
+			}
+		})
+	}
 }
 
 // queryFields builds the query command for statement and returns its fields

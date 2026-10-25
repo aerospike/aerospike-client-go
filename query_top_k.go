@@ -74,7 +74,10 @@ func newTopKMerger(statement *Statement) *topKMerger {
 //-------------------------------------------------------
 
 // add offers a record. If the same record is offered twice (for example
-// during migrations), the better-ranked copy is kept.
+// during migrations), the most recent version is kept: the copy with the
+// higher generation, or the first copy when the generations are equal.
+// Generation stands in for the record's last-update time, which query records
+// don't carry yet.
 func (merger *topKMerger) add(result *Result) {
 	candidate := topKEntry{result: result, firstValue: orderByValueOf(result.Record, merger.orderBy)}
 	if merger.hasThenOrderBy {
@@ -85,19 +88,17 @@ func (merger *topKMerger) add(result *Result) {
 	merger.mu.Lock()
 	defer merger.mu.Unlock()
 
-	// Already k records and this one is not ahead of the worst (heap[0]): it
-	// cannot make the top k. A kept copy of the same record ranks at least as
-	// well as the worst, so the better copy stays.
-	if len(merger.heap) == merger.limit && !merger.ranksAhead(&candidate, merger.heap[0]) {
-		return
-	}
-
 	if kept, found := merger.byDigest[candidate.digest]; found {
-		if !merger.ranksAhead(&candidate, kept) {
+		// A newer copy replaces the kept one even when it ranks worse.
+		if result.Record.Generation <= kept.result.Record.Generation {
 			return
 		}
 		heap.Remove(merger, kept.index)
 		delete(merger.byDigest, kept.digest)
+	} else if len(merger.heap) == merger.limit && !merger.ranksAhead(&candidate, merger.heap[0]) {
+		// Already k records and this one is not ahead of the worst (heap[0]):
+		// it cannot make the top k.
+		return
 	}
 
 	entry := new(topKEntry)
