@@ -507,12 +507,17 @@ var _ = gg.Describe("Vector Test", func() {
 				To(gm.PanicWith(gm.MatchError(gm.ContainSubstring("vector: must have at least 1 dimension"))))
 		})
 
-		gg.It("fails a blob read of a vector bin and keeps serving the record", func() {
+		// A vector bin is not a blob: reading it as one gives no value.
+		gg.It("gives no blob value for a vector bin", func() {
 			gm.Expect(put(as.NewBin(binName, stored))).To(gm.Succeed())
 
 			_, err := client.Operate(nil, key, as.ExpReadOp("b", as.ExpBlobBin(binName), as.ExpReadFlagDefault))
 			gm.Expect(err).To(gm.HaveOccurred())
 			gm.Expect(err.Matches(ast.OP_NOT_APPLICABLE)).To(gm.BeTrue(), err.Error())
+
+			record, err := client.Operate(nil, key, as.ExpReadOp("b", as.ExpBlobBin(binName), as.ExpReadFlagEvalNoFail))
+			gm.Expect(err).ToNot(gm.HaveOccurred())
+			gm.Expect(record.Bins["b"]).To(gm.BeNil())
 
 			gm.Expect(getVector(binName).Equal(stored)).To(gm.BeTrue())
 		})
