@@ -81,11 +81,14 @@ type BinDataType byte
 const (
 	// BinDataTypeInteger compares the bin as an integer.
 	BinDataTypeInteger BinDataType = 1
-	// BinDataTypeDouble compares the bin as a float. NaN ranks above every number.
+	// BinDataTypeDouble compares the bin as a float. NaN ranks above every
+	// number, and -0.0 equals 0.0.
 	BinDataTypeDouble BinDataType = 2
-	// BinDataTypeString compares the bin as a string, byte by byte.
+	// BinDataTypeString compares the bin as a string, byte by byte. On a
+	// common prefix, the shorter string comes first.
 	BinDataTypeString BinDataType = 3
-	// BinDataTypeBytes compares the bin as a blob, byte by byte.
+	// BinDataTypeBytes compares the bin as a blob, byte by byte. On a common
+	// prefix, the shorter blob comes first.
 	BinDataTypeBytes BinDataType = 4
 )
 
@@ -103,10 +106,10 @@ const (
 type OrderByFlags byte
 
 const (
-	// OrderByFlagNone is flags byte 0 — default compare.
+	// OrderByFlagNone compares values as they are.
 	OrderByFlagNone OrderByFlags = 0
-	// OrderByFlagCaseInsensitive is bit 0 (wire 0x01). ASCII A–Z only.
-	// Valid for BinDataTypeString only.
+	// OrderByFlagCaseInsensitive ignores the case of the ASCII letters A–Z;
+	// other characters compare as they are. Valid only with BinDataTypeString.
 	OrderByFlagCaseInsensitive OrderByFlags = 1 << 0
 )
 
@@ -173,10 +176,13 @@ func (stmt *Statement) SetAggregateFunction(packageName string, functionName str
 // Calling SetOrderBy again replaces both order-by bins and keeps k. Without
 // SetTopK, the server rejects the query.
 //
-// The bin must be returned by the query: listed in BinNames, written by one
-// of the Operations (for example an ExpReadOp projecting a vector distance),
-// or neither set. Every node in the cluster must support Top-K; otherwise
-// the query returns a PARAMETER_ERROR before anything is sent.
+// The bin must be returned by the query: listed in BinNames, written by
+// exactly one of the Operations (for example an ExpReadOp projecting a vector
+// distance), or neither set. If an ExpReadOp can't compute the bin for a
+// record, the record is left out; with ExpReadFlagEvalNoFail it ranks last.
+//
+// Every node in the cluster must support Top-K; otherwise the query returns a
+// PARAMETER_ERROR before anything is sent.
 func (stmt *Statement) SetOrderBy(binName string, orderType BinDataType, direction OrderDirection) Error {
 	return stmt.SetOrderByWithFlags(binName, orderType, direction, OrderByFlagNone)
 }
@@ -226,8 +232,9 @@ func (stmt *Statement) ThenOrderByWithFlags(binName string, orderType BinDataTyp
 // Results are returned after nodes finish scanning. For large scans, set
 // SocketTimeout high enough to cover the scan duration, or to 0.
 //
-// Top-K is single-shot and always runs as a long query. Use a fresh
-// PartitionFilter to avoid ranking only records after a previous resume point.
+// Top-K is single-shot and always runs as a long query. QueryPartitions
+// returns a PARAMETER_ERROR for a PartitionFilter that carries resume points
+// from an earlier query; use a fresh one.
 func (stmt *Statement) SetTopK(k int) Error {
 	if !stmt.hasOrderBy() {
 		return newError(types.PARAMETER_ERROR, "SetTopK requires SetOrderBy to be called first")
