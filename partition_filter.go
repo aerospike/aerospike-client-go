@@ -129,6 +129,20 @@ func (pf *PartitionFilter) IsDone() bool {
 	return pf.Done
 }
 
+// hasResumePoints reports whether the filter resumes an earlier query: a key
+// digest, or a partition with the last digest or index value it read.
+func (pf *PartitionFilter) hasResumePoints() bool {
+	if pf.Digest != nil {
+		return true
+	}
+	for _, partition := range pf.Partitions {
+		if partition != nil && (partition.Digest != nil || partition.BVal != 0) {
+			return true
+		}
+	}
+	return false
+}
+
 // EncodeCursor encodes and returns the cursor for the partition filter.
 // This cursor can be persisted and reused later for pagination via PartitionFilter.DecodeCursor.
 func (pf *PartitionFilter) EncodeCursor() ([]byte, Error) {

@@ -1560,6 +1560,9 @@ func (clnt *Client) QueryPartitions(policy *QueryPolicy, statement *Statement, p
 	if err := statement.validateTopKCluster(clnt.cluster); err != nil {
 		return nil, err
 	}
+	if statement.hasTopK() && partitionFilter != nil && partitionFilter.hasResumePoints() {
+		return nil, newError(types.PARAMETER_ERROR, "Top-K cannot use a partition filter that carries resume points from an earlier query")
+	}
 
 	var tracker *partitionTracker
 	if partitionFilter == nil {
