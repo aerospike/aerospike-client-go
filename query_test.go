@@ -891,6 +891,20 @@ var _ = gg.Describe("Query Top-K", func() {
 			}, "top-k/order-by only valid on foreground (basic) queries"},
 			{"MaxRecords", func(_ *as.Statement, p *as.QueryPolicy) { p.MaxRecords = 100 }, "top-k incompatible with max-records/sample-max"},
 			{"IncludeBinData off", func(_ *as.Statement, p *as.QueryPolicy) { p.IncludeBinData = false }, "top-k incompatible with no-bin-data (metadata-only) queries"},
+			{"an order-by bin two operations return", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.Operations = []*as.Operation{
+					as.ExpReadOp("score", as.ExpIntBin("price"), as.ExpReadFlagDefault),
+					as.ExpReadOp("score", as.ExpIntBin("rating"), as.ExpReadFlagDefault),
+				}
+			}, "Top-K order-by bin must be produced by exactly one projection operation"},
+			{"a second order-by bin two operations return", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
+				s.Operations = []*as.Operation{
+					as.GetBinOp("score"),
+					as.ExpReadOp("ts", as.ExpIntBin("created"), as.ExpReadFlagDefault),
+					as.ExpReadOp("ts", as.ExpIntBin("updated"), as.ExpReadFlagDefault),
+				}
+			}, "Top-K then-order-by bin must be produced by exactly one projection operation"},
 		}
 
 		for _, testCase := range invalid {
@@ -900,6 +914,52 @@ var _ = gg.Describe("Query Top-K", func() {
 
 				_, err := client.Query(policy, statement)
 				expectParameterError(err, testCase.messagePart)
+			})
+		}
+
+		// A filter that resumes an earlier query would make Top-K rank only the
+		// records after each resume point.
+		resumedFilters := []struct {
+			name   string
+			filter func() *as.PartitionFilter
+		}{
+			{"a key's digest", func() *as.PartitionFilter {
+				resumeKey, err := as.NewKey(ns, set, 1)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				return as.NewPartitionFilterByKey(resumeKey)
+			}},
+			{"the last digest of a paged query", func() *as.PartitionFilter {
+				putScores(10, 20, 30)
+				filter := as.NewPartitionFilterAll()
+				policy := as.NewQueryPolicy()
+				policy.MaxRecords = 1
+				recordset, err := client.QueryPartitions(policy, as.NewStatement(ns, set), filter)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				for result := range recordset.Results() {
+					gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+				}
+
+				resumed := 0
+				for _, partition := range filter.Partitions {
+					if partition.Digest != nil {
+						resumed++
+					}
+				}
+				gm.Expect(resumed).To(gm.Equal(1))
+				return filter
+			}},
+			{"a partition's last index value", func() *as.PartitionFilter {
+				filter := as.NewPartitionFilterById(0)
+				filter.Partitions = []*as.PartitionStatus{{Id: 0, BVal: 7}}
+				return filter
+			}},
+		}
+
+		for _, resumed := range resumedFilters {
+			gg.It("refuses a partition filter that resumes from "+resumed.name+" before contacting the cluster", func() {
+				recordset, err := client.QueryPartitions(nil, topTen(), resumed.filter())
+				gm.Expect(recordset).To(gm.BeNil())
+				expectParameterError(err, "Top-K cannot use a partition filter that carries resume points from an earlier query")
 			})
 		}
 	})

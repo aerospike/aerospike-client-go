@@ -263,11 +263,11 @@ func (stmt *Statement) validateTopK(policy *QueryPolicy) Error {
 		return nil
 	}
 
-	if err := stmt.validateOrderBy(stmt.orderBy); err != nil {
+	if err := stmt.validateOrderBy(stmt.orderBy, "Top-K order-by"); err != nil {
 		return err
 	}
 	if stmt.hasThenOrderBy {
-		if err := stmt.validateOrderBy(stmt.thenOrderBy); err != nil {
+		if err := stmt.validateOrderBy(stmt.thenOrderBy, "Top-K then-order-by"); err != nil {
 			return err
 		}
 		if stmt.thenOrderBy.binName == stmt.orderBy.binName {
@@ -299,8 +299,9 @@ func (stmt *Statement) validateTopKCluster(cluster *Cluster) Error {
 	return nil
 }
 
-// validateOrderBy checks one order-by bin of a Top-K statement.
-func (stmt *Statement) validateOrderBy(spec orderBySpec) Error {
+// validateOrderBy checks one order-by bin of a Top-K statement. label names
+// the bin in an error that only the client reports.
+func (stmt *Statement) validateOrderBy(spec orderBySpec, label string) Error {
 	if len(spec.binName) == 0 || len(spec.binName) > 15 {
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin name length %d invalid - must be 1 to 15", len(spec.binName)))
 	}
@@ -325,7 +326,21 @@ func (stmt *Statement) validateOrderBy(spec orderBySpec) Error {
 		}
 		return newError(types.PARAMETER_ERROR, fmt.Sprintf("order-by bin '%s' is not in the query's bin list - add it to the bins selected", spec.binName))
 	}
+	if stmt.operationsReturning(spec.binName) > 1 {
+		return newError(types.PARAMETER_ERROR, label+" bin must be produced by exactly one projection operation")
+	}
 	return nil
+}
+
+// operationsReturning counts the operations that return binName.
+func (stmt *Statement) operationsReturning(binName string) int {
+	count := 0
+	for _, op := range stmt.Operations {
+		if op.binName == binName {
+			count++
+		}
+	}
+	return count
 }
 
 // hasProjectedBin reports whether the query returns binName. With no BinNames
