@@ -507,6 +507,71 @@ func TestTopKWireFields(t *testing.T) {
 	})
 }
 
+func TestTopKRespondAllOps(t *testing.T) {
+	// The server sends a query record only when a projected read has a value,
+	// unless the request asks for every operation's result. A Top-K query asks,
+	// so a record whose order-by value is empty still arrives and ranks last.
+	// Other queries are sent as before.
+	testCases := []struct {
+		name      string
+		statement func() *Statement
+		want      bool
+	}{
+		{"a Top-K query projecting bin names", func() *Statement {
+			statement := NewStatement("test", "topk", "score")
+			statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+			statement.SetTopK(10)
+			return statement
+		}, true},
+		{"a Top-K query projecting operations", func() *Statement {
+			statement := NewStatement("test", "topk")
+			statement.Operations = []*Operation{GetBinOp("score")}
+			statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+			statement.SetTopK(10)
+			return statement
+		}, true},
+		{"a Top-K query returning whole records", func() *Statement {
+			statement := NewStatement("test", "topk")
+			statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+			statement.SetTopK(10)
+			return statement
+		}, false},
+		{"a Top-K query with an operation that reads every bin", func() *Statement {
+			statement := NewStatement("test", "topk")
+			statement.Operations = []*Operation{GetOp()}
+			statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+			statement.SetTopK(10)
+			return statement
+		}, false},
+		{"an order-by without k", func() *Statement {
+			statement := NewStatement("test", "topk", "score")
+			statement.SetOrderBy("score", BinDataTypeInteger, OrderDesc)
+			return statement
+		}, false},
+		{"a plain query projecting bin names", func() *Statement {
+			return NewStatement("test", "topk", "score")
+		}, false},
+		{"a plain query projecting operations", func() *Statement {
+			statement := NewStatement("test", "topk")
+			statement.Operations = []*Operation{GetBinOp("score")}
+			return statement
+		}, false},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			statement := testCase.statement()
+			cmd := &baseCommand{bufferEx: bufferEx{dataBuffer: make([]byte, 1024)}}
+			if err := cmd.setQuery(NewQueryPolicy(), nil, statement, 1, statement.Operations, false, nil, statement.hasOrderBy()); err != nil {
+				t.Fatal(err)
+			}
+			if got := cmd.dataBuffer[10]&byte(_INFO2_RESPOND_ALL_OPS) != 0; got != testCase.want {
+				t.Errorf("asks for every operation's result = %t, want %t", got, testCase.want)
+			}
+		})
+	}
+}
+
 func TestSendTopKResults(t *testing.T) {
 	results := []*Result{{BVal: new(int64)}, {BVal: new(int64)}, {BVal: new(int64)}}
 

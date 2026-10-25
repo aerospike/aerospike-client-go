@@ -1117,37 +1117,89 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(queryIDs(statement)).To(gm.Equal([]int{7, 9}))
 		})
 
-		gg.It("ranks by a projected vector distance and puts records it cannot compare last, or leaves them out without EvalNoFail", func() {
-			key, err := as.NewKey(ns, set, "other dims")
-			gm.Expect(err).ToNot(gm.HaveOccurred())
-			gm.Expect(client.PutBins(nil, key, as.NewBin("id", 99), as.NewBin("emb", mustVector(as.NewVectorFloat32([]float32{0, 9, 0}))))).To(gm.Succeed())
-			keys = append(keys, key)
-
-			nearestWithFlags := func(metric as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int, flags as.ExpReadFlags) []int {
+		gg.It("ranks by a projected vector distance with each metric", func() {
+			nearest := func(metric as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int) []int {
 				statement := as.NewStatement(ns, set)
 				statement.Operations = []*as.Operation{
 					as.GetBinOp("id"),
-					as.ExpReadOp("dist", as.ExpVectorDistance(metric, mustVector(as.NewVectorFloat32(query)), as.ExpVectorBin("emb")), flags),
+					as.ExpReadOp("dist", as.ExpVectorDistance(metric, mustVector(as.NewVectorFloat32(query)), as.ExpVectorBin("emb")), as.ExpReadFlagEvalNoFail),
 				}
 				gm.Expect(statement.SetOrderBy("dist", as.BinDataTypeDouble, direction)).To(gm.Succeed())
 				gm.Expect(statement.SetTopK(k)).To(gm.Succeed())
 				return queryIDs(statement)
 			}
-			nearest := func(metric as.VectorDistanceMetric, query []float32, direction as.OrderDirection, k int) []int {
-				return nearestWithFlags(metric, query, direction, k, as.ExpReadFlagEvalNoFail)
-			}
 
 			gm.Expect(nearest(as.VectorEuclideanSquared, []float32{0, 9}, as.OrderAsc, 3)).To(gm.Equal([]int{0, 1, 2}))
 			gm.Expect(nearest(as.VectorDotProduct, []float32{1, 0}, as.OrderDesc, 3)).To(gm.Equal([]int{9, 8, 7}))
 			gm.Expect(nearest(as.VectorCosineSimilarity, []float32{1, 0}, as.OrderDesc, 3)).To(gm.Equal([]int{9, 8, 7}))
+		})
 
-			all := nearest(as.VectorEuclideanSquared, []float32{0, 9}, as.OrderAsc, 1000)
-			gm.Expect(all).To(gm.HaveLen(len(scores) + 1))
-			gm.Expect(all[len(all)-1]).To(gm.Equal(99))
+		gg.It("returns a record missing the order-by bin last when the query returns only that bin", func() {
+			byBinName := func() *as.Statement { return as.NewStatement(ns, set, "score") }
+			byOperation := func() *as.Statement {
+				statement := as.NewStatement(ns, set)
+				statement.Operations = []*as.Operation{as.GetBinOp("score")}
+				return statement
+			}
 
-			withoutEvalNoFail := nearestWithFlags(as.VectorEuclideanSquared, []float32{0, 9}, as.OrderAsc, 1000, as.ExpReadFlagDefault)
-			gm.Expect(withoutEvalNoFail).To(gm.HaveLen(len(scores)))
-			gm.Expect(withoutEvalNoFail).ToNot(gm.ContainElement(99))
+			for _, newStatement := range []func() *as.Statement{byBinName, byOperation} {
+				statement := newStatement()
+				gm.Expect(statement.SetOrderBy("score", as.BinDataTypeInteger, as.OrderDesc)).To(gm.Succeed())
+				gm.Expect(statement.SetTopK(len(scores))).To(gm.Succeed())
+
+				recordset, err := client.Query(nil, statement)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				var ranked []any
+				for result := range recordset.Results() {
+					gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+					ranked = append(ranked, result.Record.Bins["score"])
+				}
+
+				// The record with no score and the one with a string score rank last.
+				gm.Expect(ranked).To(gm.HaveLen(len(scores)))
+				gm.Expect(ranked[:8]).To(gm.Equal([]any{90, 90, 70, 70, 60, 50, 30, 10}))
+				gm.Expect(ranked[8:]).To(gm.ConsistOf(nil, "x"))
+			}
+		})
+
+		gg.It("returns a record whose distance can't be computed last when the query returns only the distance", func() {
+			for id, bins := range map[int]as.BinMap{
+				99:  {"emb": mustVector(as.NewVectorFloat32([]float32{0, 9, 0}))},
+				100: {"other": 1},
+			} {
+				key, err := as.NewKey(ns, set, id)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				gm.Expect(client.Put(nil, key, bins)).To(gm.Succeed())
+				keys = append(keys, key)
+			}
+
+			distances := func(flags as.ExpReadFlags) []any {
+				statement := as.NewStatement(ns, set)
+				statement.Operations = []*as.Operation{
+					as.ExpReadOp("dist", as.ExpVectorDistance(as.VectorEuclideanSquared, mustVector(as.NewVectorFloat32([]float32{0, 9})), as.ExpVectorBin("emb")), flags),
+				}
+				gm.Expect(statement.SetOrderBy("dist", as.BinDataTypeDouble, as.OrderAsc)).To(gm.Succeed())
+				gm.Expect(statement.SetTopK(1000)).To(gm.Succeed())
+
+				recordset, err := client.Query(nil, statement)
+				gm.Expect(err).ToNot(gm.HaveOccurred())
+				var ranked []any
+				for result := range recordset.Results() {
+					gm.Expect(result.Err).ToNot(gm.HaveOccurred())
+					ranked = append(ranked, result.Record.Bins["dist"])
+				}
+				return ranked
+			}
+
+			// Record i holds {i, 9-i}, so its distance to {0, 9} is 2*i*i.
+			nearestFirst := []any{0.0, 2.0, 8.0, 18.0, 32.0, 50.0, 72.0, 98.0, 128.0, 162.0}
+
+			withEvalNoFail := distances(as.ExpReadFlagEvalNoFail)
+			gm.Expect(withEvalNoFail).To(gm.HaveLen(len(nearestFirst) + 2))
+			gm.Expect(withEvalNoFail[:len(nearestFirst)]).To(gm.Equal(nearestFirst))
+			gm.Expect(withEvalNoFail[len(nearestFirst):]).To(gm.Equal([]any{nil, nil}))
+
+			gm.Expect(distances(as.ExpReadFlagDefault)).To(gm.Equal(nearestFirst))
 		})
 
 		gg.It("ranks a query sent with a short-query hint", func() {
