@@ -194,6 +194,30 @@ func TestAerospike(t *testing.T) {
 	gg.RunSpecs(t, "Aerospike Client Library Suite")
 }
 
+func registerUDFFromFile(path, filename string) {
+	regTask, err := client.RegisterUDFFromFile(nil, path+filename+".lua", filename+".lua", as.LUA)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+
+	// wait until UDF is created
+	gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
+}
+
+func registerUDF(udf, moduleName string) {
+	regTask, err := client.RegisterUDF(nil, []byte(udf), moduleName, as.LUA)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+
+	// wait until UDF is created
+	gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
+}
+
+func removeUDF(moduleName string) {
+	remTask, err := client.RemoveUDF(nil, moduleName)
+	gm.Expect(err).ToNot(gm.HaveOccurred())
+
+	// wait until UDF is created
+	gm.Expect(<-remTask.OnComplete()).ToNot(gm.HaveOccurred())
+}
+
 func isEnterpriseEdition() bool {
 	node := client.GetNodes()[0]
 	serverVersion := node.GetServerVersion()
