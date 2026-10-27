@@ -965,6 +965,11 @@ var _ = gg.Describe("Query Top-K", func() {
 
 		for _, resumed := range resumedFilters {
 			gg.It("refuses a partition filter that resumes from "+resumed.name+" before contacting the cluster", func() {
+				// A cluster without Top-K refuses any Top-K query first.
+				if !client.GetNodes()[0].SupportsQueryOrderBy() {
+					gg.Skip("Top-K ranking requires a server with Top-K support")
+				}
+
 				recordset, err := client.QueryPartitions(nil, topTen(), resumed.filter())
 				gm.Expect(recordset).To(gm.BeNil())
 				expectParameterError(err, "Top-K cannot use a partition filter that carries resume points from an earlier query")
@@ -1439,6 +1444,9 @@ var _ = gg.Describe("Query Top-K", func() {
 
 	gg.Context("repeated setters", func() {
 		gg.BeforeEach(func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K ranking requires a server with Top-K support")
+			}
 			putScores(1, 5, 3)
 		})
 
@@ -1601,6 +1609,10 @@ var _ = gg.Describe("Query Top-K", func() {
 		var keyByID []*as.Key
 
 		gg.BeforeEach(func() {
+			if !client.GetNodes()[0].SupportsQueryOrderBy() {
+				gg.Skip("Top-K ranking requires a server with Top-K support")
+			}
+
 			keyByID = make([]*as.Key, len(records))
 			for id, record := range records {
 				key, err := as.NewKey(ns, set, id)
