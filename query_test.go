@@ -1416,6 +1416,16 @@ var _ = gg.Describe("Query Top-K", func() {
 			gm.Expect(rank(as.BinDataTypeString, as.OrderDesc, as.OrderByFlagCaseInsensitive, 3)).To(gm.Equal([]int{2, 0, 1}))
 		})
 
+		gg.It("folds only ASCII letters when ignoring case, so accented letters keep byte order", func() {
+			// In byte order É < Ê < é. Folding É to é would rank them together, before Ê.
+			putValues("é", "Ê", "É")
+
+			for _, flags := range []as.OrderByFlags{as.OrderByFlagNone, as.OrderByFlagCaseInsensitive} {
+				gm.Expect(rank(as.BinDataTypeString, as.OrderAsc, flags, 3)).To(gm.Equal([]int{2, 1, 0}))
+				gm.Expect(rank(as.BinDataTypeString, as.OrderDesc, flags, 3)).To(gm.Equal([]int{0, 1, 2}))
+			}
+		})
+
 		gg.It("ranks the largest and smallest integers at the ends and a string value last", func() {
 			putValues(math.MaxInt64, -1, math.MinInt64, 0, "7")
 
