@@ -852,10 +852,11 @@ var _ = gg.Describe("Query Top-K", func() {
 			{"a limit of 0", func(s *as.Statement, _ *as.QueryPolicy) { s.SetTopK(0) }, "top-k limit 0 out of range - must be 1 to 1000"},
 			{"a limit over 1000", func(s *as.Statement, _ *as.QueryPolicy) { s.SetTopK(1001) }, "top-k limit 1001 out of range - must be 1 to 1000"},
 			{"an order-by bin name over 15 bytes", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.BinNames = append(s.BinNames, "a_bin_name_16_by")
 				s.SetOrderBy("a_bin_name_16_by", as.BinDataTypeInteger, as.OrderAsc)
-				s.SetTopK(10)
 			}, "order-by bin name length 16 invalid - must be 1 to 15"},
 			{"an order-by bin name with a null byte", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.BinNames = append(s.BinNames, "sc\x00re")
 				s.SetOrderBy("sc\x00re", as.BinDataTypeInteger, as.OrderAsc)
 			}, "order-by bin name is not a valid bin name"},
 			{"an unknown order-by type", func(s *as.Statement, _ *as.QueryPolicy) {
@@ -886,6 +887,13 @@ var _ = gg.Describe("Query Top-K", func() {
 			{"a second order-by bin missing from BinNames", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.ThenOrderBy("ts", as.BinDataTypeInteger, as.OrderAsc)
 			}, "order-by bin 'ts' is not in the query's bin list - add it to the bins selected"},
+			{"a second order-by bin name over 15 bytes", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.BinNames = append(s.BinNames, "a_bin_name_16_by")
+				s.ThenOrderBy("a_bin_name_16_by", as.BinDataTypeInteger, as.OrderAsc)
+			}, "order-by bin name length 16 invalid - must be 1 to 15"},
+			{"an unknown second order-by direction", func(s *as.Statement, _ *as.QueryPolicy) {
+				s.ThenOrderBy("id", as.BinDataTypeInteger, as.OrderDirection(5))
+			}, "order-by direction 5 invalid - must be 0 (ascending) or 1 (descending)"},
 			{"an aggregate function", func(s *as.Statement, _ *as.QueryPolicy) {
 				s.SetAggregateFunction("pkg", "fn", nil, true)
 			}, "top-k/order-by only valid on foreground (basic) queries"},
