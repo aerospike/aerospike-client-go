@@ -328,6 +328,15 @@ func setValue(f reflect.Value, value any) Error {
 			case reflect.Interface:
 				f.Set(reflect.ValueOf(&value))
 			case reflect.Struct:
+				// support *Vector
+				if f.Type().Elem() == vectorType {
+					vector, ok := value.(*Vector)
+					if !ok {
+						return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for *Vector field", value))
+					}
+					f.Set(reflect.ValueOf(vector))
+					break
+				}
 				// support time.Time
 				if f.Type().Elem().PkgPath() == "time" && f.Type().Elem().Name() == "Time" {
 					v, ok := value.(int)
@@ -403,6 +412,16 @@ func setValue(f reflect.Value, value any) Error {
 			}
 
 		case reflect.Struct:
+			// support Vector
+			if f.Type() == vectorType {
+				vector, ok := value.(*Vector)
+				if !ok {
+					return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for Vector field", value))
+				}
+				f.Set(reflect.ValueOf(*vector))
+				break
+			}
+
 			// support MapPair
 			if f.Type().Name() == "MapPair" {
 				v, ok := value.(MapPair)

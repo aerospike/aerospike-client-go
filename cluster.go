@@ -76,6 +76,8 @@ type Cluster struct {
 	tendCount   int
 
 	supportsPartitionQuery iatomic.Bool // whether all nodes in the cluster support query by partition.
+	supportsVector         iatomic.Bool // whether all nodes in the cluster support native vectors.
+	supportsQueryOrderBy   iatomic.Bool // whether all nodes in the cluster support Top-K queries.
 
 	// User name in UTF-8 encoded bytes.
 	user string
@@ -138,6 +140,8 @@ func NewCluster(policy *atomic.Pointer[ClientPolicy], hosts []*Host) (*Cluster, 
 		password: *iatomic.NewSyncVal[[]byte](nil),
 
 		supportsPartitionQuery: *iatomic.NewBool(false),
+		supportsVector:         *iatomic.NewBool(false),
+		supportsQueryOrderBy:   *iatomic.NewBool(false),
 		clientModuleVersion:    getLibraryVersion(aesModule),
 	}
 	newCluster.maxErrorCount.Set(loadedPolicy.MaxErrorRate)
@@ -734,13 +738,16 @@ func (clstr *Cluster) findNodeInPartitionMap(filter *Node) bool {
 
 func (clstr *Cluster) updateClusterFeatures() {
 	pQuery := true
+	vector := true
+	orderBy := true
 	for _, n := range clstr.GetNodes() {
-		if !n.SupportsPartitionQuery() {
-			pQuery = false
-			break
-		}
+		pQuery = pQuery && n.SupportsPartitionQuery()
+		vector = vector && n.SupportsVector()
+		orderBy = orderBy && n.SupportsQueryOrderBy()
 	}
 	clstr.supportsPartitionQuery.Set(pQuery)
+	clstr.supportsVector.Set(vector)
+	clstr.supportsQueryOrderBy.Set(orderBy)
 }
 
 func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {

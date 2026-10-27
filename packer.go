@@ -161,6 +161,22 @@ type canonicalPacker interface {
 	canonicalKeysOrdered() bool
 }
 
+// vectorMarker is implemented by buffers that track vector packing.
+// The command buffer refuses a vector when not every node supports it, and a
+// temporary buffer records it so the check runs once its bytes reach a command.
+type vectorMarker interface {
+	markVector() Error
+}
+
+// markVector reports a vector packed into buf. A nil buf is a size-estimation
+// pass and is never checked.
+func markVector(buf BufferEx) Error {
+	if marker, ok := buf.(vectorMarker); ok {
+		return marker.markVector()
+	}
+	return nil
+}
+
 // isCanonicalPack reports whether cmd is packing a filter-expression literal,
 // whose maps servers with AER-6930 require in canonical key order.
 func isCanonicalPack(cmd BufferEx) bool {
@@ -491,13 +507,46 @@ func packHLL(cmd BufferEx, b []byte) (int, Error) {
 	return size, nil
 }
 
+func packVector(cmd BufferEx, wire []byte) (int, Error) {
+	size := 0
+	n, err := packByteArrayBegin(cmd, len(wire)+1)
+	if err != nil {
+		return n, err
+	}
+	size += n
+
+	n, err = packAByte(cmd, ParticleType.VECTOR)
+	if err != nil {
+		return size + n, err
+	}
+	size += n
+
+	n, err = packByteArray(cmd, wire)
+	if err != nil {
+		return size + n, err
+	}
+	size += n
+
+	return size, nil
+}
+
 func packByteArrayBegin(cmd BufferEx, length int) (int, Error) {
 	// Use string header codes for byte arrays.
 	return packStringBegin(cmd, length)
 }
 
+// errVectorMapKey refuses a vector as a map key, with the server's message.
+func errVectorMapKey() Error {
+	return newError(types.PARAMETER_ERROR, "list/map cannot hold a vector")
+}
+
 func packObject(cmd BufferEx, obj any, mapKey bool) (int, Error) {
 	switch v := obj.(type) {
+	case VectorValue:
+		if mapKey {
+			return 0, errVectorMapKey()
+		}
+		return v.pack(cmd)
 	case Value:
 		return v.pack(cmd)
 	case []Value:
@@ -544,6 +593,14 @@ func packObject(cmd BufferEx, obj any, mapKey bool) (int, Error) {
 		return packFloat32(cmd, v)
 	case float64:
 		return packFloat64(cmd, v)
+	case *Vector:
+		if v == nil {
+			return packNil(cmd)
+		}
+		if mapKey {
+			return 0, errVectorMapKey()
+		}
+		return VectorValue{vector: v}.pack(cmd)
 	case struct{}:
 		if mapKey {
 			return 0, newError(types.SERIALIZE_ERROR, fmt.Sprintf("Maps, Slices, and bounded arrays other than Bounded Byte Arrays are not supported as Map keys. Value: %#v", v))
@@ -876,10 +933,18 @@ func packAByte(cmd BufferEx, val byte) (int, Error) {
 type packer struct {
 	bytes.Buffer
 	tempBuffer [8]byte
+	// packedVector records that a vector was packed into this buffer.
+	packedVector bool
 }
 
 func newPacker() *packer {
 	return &packer{}
+}
+
+// markVector records that a vector was packed into this buffer.
+func (vb *packer) markVector() Error {
+	vb.packedVector = true
+	return nil
 }
 
 // WriteInt64 writes an int64 to the buffer

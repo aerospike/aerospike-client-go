@@ -62,73 +62,78 @@ var (
 	ExpTypeGEO ExpType = 8
 	// ExpTypeHLL is HLL Expression Type
 	ExpTypeHLL ExpType = 9
+	// ExpTypeVECTOR is VECTOR Expression Type
+	ExpTypeVECTOR ExpType = 10
 )
 
 type expOp uint
 
 var (
-	expOpUnknown       expOp = 0
-	expOpEQ            expOp = 1
-	expOpNE            expOp = 2
-	expOpGT            expOp = 3
-	expOpGE            expOp = 4
-	expOpLT            expOp = 5
-	expOpLE            expOp = 6
-	expOpREGEX         expOp = 7
-	expOpGEO           expOp = 8
-	expOpAND           expOp = 16
-	expOpOR            expOp = 17
-	expOpNOT           expOp = 18
-	expOpExclusive     expOp = 19
-	expOpAdd           expOp = 20
-	expOpSub           expOp = 21
-	expOpMul           expOp = 22
-	expOpDiv           expOp = 23
-	expOpPow           expOp = 24
-	expOpLog           expOp = 25
-	expOpMod           expOp = 26
-	expOpAbs           expOp = 27
-	expOpFloor         expOp = 28
-	expOpCeil          expOp = 29
-	expOpToInt         expOp = 30
-	expOpToFloat       expOp = 31
-	expOpIntAnd        expOp = 32
-	expOpIntOr         expOp = 33
-	expOpIntXor        expOp = 34
-	expOpIntNot        expOp = 35
-	expOpIntLShift     expOp = 36
-	expOpIntRShift     expOp = 37
-	expOpIntARShift    expOp = 38
-	expOpIntCount      expOp = 39
-	expOpIntLscan      expOp = 40
-	expOpIntRscan      expOp = 41
-	expOpMin           expOp = 50
-	expOpMax           expOp = 51
-	expOpDIGEST_MODULO expOp = 64
-	expOpDEVICE_SIZE   expOp = 65
-	expOpLAST_UPDATE   expOp = 66
-	expOpSINCE_UPDATE  expOp = 67
-	expOpVOID_TIME     expOp = 68
-	expOpTTL           expOp = 69
-	expOpSET_NAME      expOp = 70
-	expOpKEY_EXISTS    expOp = 71
-	expOpIS_TOMBSTONE  expOp = 72
-	expOpMEMORY_SIZE   expOp = 73
-	expOpRECORD_SIZE   expOp = 74
-	expOpKEY           expOp = 80
-	expOpBIN           expOp = 81
-	expOpBIN_TYPE      expOp = 82
-	expOpTO_STRING     expOp = 99
-	expOpIN_LIST       expOp = 9
-	expOpRESULT_REMOVE expOp = 100
-	expOpMAP_KEYS      expOp = 101
-	expOpMAP_VALUES    expOp = 102
-	expVarBuiltIn      expOp = 122
-	expOpCond          expOp = 123
-	expOpVar           expOp = 124
-	expOpLet           expOp = 125
-	expOpQUOTED        expOp = 126
-	expOpCALL          expOp = 127
+	expOpUnknown                expOp = 0
+	expOpEQ                     expOp = 1
+	expOpNE                     expOp = 2
+	expOpGT                     expOp = 3
+	expOpGE                     expOp = 4
+	expOpLT                     expOp = 5
+	expOpLE                     expOp = 6
+	expOpREGEX                  expOp = 7
+	expOpGEO                    expOp = 8
+	expOpAND                    expOp = 16
+	expOpOR                     expOp = 17
+	expOpNOT                    expOp = 18
+	expOpExclusive              expOp = 19
+	expOpAdd                    expOp = 20
+	expOpSub                    expOp = 21
+	expOpMul                    expOp = 22
+	expOpDiv                    expOp = 23
+	expOpPow                    expOp = 24
+	expOpLog                    expOp = 25
+	expOpMod                    expOp = 26
+	expOpAbs                    expOp = 27
+	expOpFloor                  expOp = 28
+	expOpCeil                   expOp = 29
+	expOpToInt                  expOp = 30
+	expOpToFloat                expOp = 31
+	expOpIntAnd                 expOp = 32
+	expOpIntOr                  expOp = 33
+	expOpIntXor                 expOp = 34
+	expOpIntNot                 expOp = 35
+	expOpIntLShift              expOp = 36
+	expOpIntRShift              expOp = 37
+	expOpIntARShift             expOp = 38
+	expOpIntCount               expOp = 39
+	expOpIntLscan               expOp = 40
+	expOpIntRscan               expOp = 41
+	expOpMin                    expOp = 50
+	expOpMax                    expOp = 51
+	expOpVectorEuclideanSquared expOp = 52
+	expOpVectorDotProduct       expOp = 53
+	expOpVectorCosineSimilarity expOp = 54
+	expOpDIGEST_MODULO          expOp = 64
+	expOpDEVICE_SIZE            expOp = 65
+	expOpLAST_UPDATE            expOp = 66
+	expOpSINCE_UPDATE           expOp = 67
+	expOpVOID_TIME              expOp = 68
+	expOpTTL                    expOp = 69
+	expOpSET_NAME               expOp = 70
+	expOpKEY_EXISTS             expOp = 71
+	expOpIS_TOMBSTONE           expOp = 72
+	expOpMEMORY_SIZE            expOp = 73
+	expOpRECORD_SIZE            expOp = 74
+	expOpKEY                    expOp = 80
+	expOpBIN                    expOp = 81
+	expOpBIN_TYPE               expOp = 82
+	expOpTO_STRING              expOp = 99
+	expOpIN_LIST                expOp = 9
+	expOpRESULT_REMOVE          expOp = 100
+	expOpMAP_KEYS               expOp = 101
+	expOpMAP_VALUES             expOp = 102
+	expVarBuiltIn               expOp = 122
+	expOpCond                   expOp = 123
+	expOpVar                    expOp = 124
+	expOpLet                    expOp = 125
+	expOpQUOTED                 expOp = 126
+	expOpCALL                   expOp = 127
 	// expOpAELCompile carries AEL source text for the server to compile.
 	// Mirrors EXP_AEL_COMPILE in the server's exp_wire.h.
 	expOpAELCompile expOp = 128
@@ -648,6 +653,12 @@ func (fe *Expression) packCommand(cmd *expOp, buf BufferEx) (int, Error) {
 			return size, err
 		}
 		size += sz
+	case &expOpVectorEuclideanSquared, &expOpVectorDotProduct, &expOpVectorCosineSimilarity:
+		sz, err := fe.packVectorDistance(buf)
+		size += sz
+		if err != nil {
+			return size, err
+		}
 	default:
 		// Packing logic for all other Ops
 		if value := fe.val; value != nil {
@@ -1105,6 +1116,19 @@ func ExpHLLBin(name string) *Expression {
 	)
 }
 
+// ExpVectorBin creates a vector bin expression, for use with
+// [ExpVectorDistance], [ExpReadOp] and [ExpWriteOp].
+func ExpVectorBin(name string) *Expression {
+	return newFilterExpression(
+		&expOpBIN,
+		StringValue(name),
+		nil,
+		nil,
+		&ExpTypeVECTOR,
+		nil,
+	)
+}
+
 // ExpBinExists creates a function that returns if bin of specified name exists.
 func ExpBinExists(name string) *Expression {
 	return ExpNotEq(ExpBinType(name), ExpIntVal(ParticleType.NULL))
@@ -1118,6 +1142,7 @@ func ExpBinExists(name string) *Expression {
 //	STRING  = 3
 //	BLOB    = 4
 //	DIGEST  = 6
+//	VECTOR  = 16
 //	BOOL    = 17
 //	HLL     = 18
 //	MAP     = 19

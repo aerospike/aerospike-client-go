@@ -92,6 +92,13 @@ func tryConcreteValue(v any) Value {
 		return NewValueArray(val)
 	case []byte:
 		return BytesValue(val)
+	case *Vector:
+		if val == nil {
+			return nullValue
+		}
+		return VectorValue{vector: val}
+	case Vector:
+		return VectorValue{vector: &val}
 	case int8:
 		return IntegerValue(int(val))
 	case int16:
@@ -1171,8 +1178,10 @@ func (vl *RawBlobValue) write(cmd BufferEx) (int, Error) {
 	return cmd.Write(vl.Data)
 }
 
+// pack refuses a RawBlobValue inside a list, map or argument list: its bytes
+// are a whole bin value, with no packed form.
 func (vl *RawBlobValue) pack(cmd BufferEx) (int, Error) {
-	panic(unreachable)
+	return 0, newError(types.PARAMETER_ERROR, fmt.Sprintf("a raw value of particle type %d can only be written as a whole bin", vl.ParticleType))
 }
 
 // GetType returns wire protocol value type.
@@ -1244,6 +1253,13 @@ func bytesToParticle(ptype int, buf []byte, offset int, length int) (any, Error)
 		copy(newObj, buf[offset:offset+length])
 		return HLLValue(newObj), nil
 
+	case ParticleType.VECTOR:
+		vector, err := NewVectorFromBytes(buf[offset : offset+length])
+		if err != nil {
+			return nil, err
+		}
+		return vector, nil
+
 	case ParticleType.BLOB:
 		newObj := make([]byte, length)
 		copy(newObj, buf[offset:offset+length])
@@ -1307,6 +1323,10 @@ func bytesToKeyValue(pType int, buf []byte, offset int, length int) (Value, Erro
 func unwrapValue(v any) any {
 	if v == nil {
 		return nil
+	}
+
+	if vector, ok := v.(*Vector); ok {
+		return luaVectorValue(vector)
 	}
 
 	if uv, ok := v.(Value); ok {

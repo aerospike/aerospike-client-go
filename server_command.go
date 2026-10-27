@@ -38,7 +38,7 @@ func newServerCommand(node *Node, policy *QueryPolicy, writePolicy *WritePolicy,
 }
 
 func (cmd *serverCommand) writeBuffer(ifc command) (err Error) {
-	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.taskId, cmd.operations, cmd.writePolicy != nil, nil)
+	return cmd.setQuery(cmd.policy, cmd.writePolicy, cmd.statement, cmd.taskId, cmd.operations, cmd.writePolicy != nil, nil, false)
 }
 
 func (cmd *serverCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {

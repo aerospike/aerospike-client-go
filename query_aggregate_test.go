@@ -26,30 +26,6 @@ import (
 	gm "github.com/onsi/gomega"
 )
 
-func registerUDFFromFile(path, filename string) {
-	regTask, err := client.RegisterUDFFromFile(nil, path+filename+".lua", filename+".lua", as.LUA)
-	gm.Expect(err).ToNot(gm.HaveOccurred())
-
-	// wait until UDF is created
-	gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
-}
-
-func registerUDF(udf, moduleName string) {
-	regTask, err := client.RegisterUDF(nil, []byte(udf), moduleName, as.LUA)
-	gm.Expect(err).ToNot(gm.HaveOccurred())
-
-	// wait until UDF is created
-	gm.Expect(<-regTask.OnComplete()).ToNot(gm.HaveOccurred())
-}
-
-func removeUDF(moduleName string) {
-	remTask, err := client.RemoveUDF(nil, moduleName)
-	gm.Expect(err).ToNot(gm.HaveOccurred())
-
-	// wait until UDF is created
-	gm.Expect(<-remTask.OnComplete()).ToNot(gm.HaveOccurred())
-}
-
 // ALL tests are isolated by SetName and Key, which are 50 random characters
 var _ = gg.Describe("Query Aggregate operations", func() {
 
@@ -135,5 +111,72 @@ var _ = gg.Describe("Query Aggregate operations", func() {
 			gm.Expect(rec.Err).ToNot(gm.HaveOccurred())
 			gm.Expect(rec.Record.Bins["SUCCESS"]).To(gm.Equal(map[any]any{"sum": sumAll(keyCount), "count": float64(keyCount)}))
 		}
+	})
+})
+
+// Go's client-side Lua has no bytes type, so in a stream aggregation a vector
+// reaches it as a list of its serialized bytes.
+var _ = gg.Describe("Query Aggregate with vectors", func() {
+	const module = "vector_aggregate"
+	vector := mustVector(as.NewVectorFloat32([]float32{1, 2}))
+
+	var (
+		set string
+		key *as.Key
+	)
+
+	gg.BeforeEach(func() {
+		if !serverSupportsVectors() {
+			gg.Skip("native vector bins require a server with vector support")
+		}
+
+		luaPath, _ := os.Getwd()
+		luaPath += "/test/resources/"
+		as.SetLuaPath(luaPath)
+		registerUDFFromFile(luaPath, module)
+
+		set = randString(50)
+		var err as.Error
+		key, err = as.NewKey(*namespace, set, 1)
+		gm.Expect(err).ToNot(gm.HaveOccurred())
+		gm.Expect(client.PutBins(nil, key, as.NewBin("id", 1), as.NewBin("v", vector))).To(gm.Succeed())
+	})
+
+	gg.AfterEach(func() {
+		client.Delete(nil, key)
+		removeUDF(module + ".lua")
+	})
+
+	aggregate := func(function string, args ...as.Value) any {
+		recordset, err := client.QueryAggregate(nil, as.NewStatement(*namespace, set), module, function, args...)
+		gm.ExpectWithOffset(1, err).ToNot(gm.HaveOccurred())
+
+		var results []any
+		for result := range recordset.Results() {
+			gm.ExpectWithOffset(1, result.Err).ToNot(gm.HaveOccurred())
+			results = append(results, result.Record.Bins["SUCCESS"])
+		}
+		gm.ExpectWithOffset(1, results).To(gm.HaveLen(1))
+		return results[0]
+	}
+
+	// asLuaList is how client-side Lua returns a byte value: a list of its bytes.
+	asLuaList := func(bytes []byte) []any {
+		list := make([]any, len(bytes))
+		for index, element := range bytes {
+			list[index] = element
+		}
+		return list
+	}
+
+	// The vector's serialized bytes: version 1, float32, 2 dimensions, then 1.0 and 2.0.
+	wire := []byte{1, 3, 2, 0, 0, 0, 0, 0, 0x80, 0x3f, 0, 0, 0, 0x40}
+
+	gg.It("passes a stored vector to client-side Lua as a list of its bytes", func() {
+		gm.Expect(aggregate("stored", as.NewValue("v"))).To(gm.Equal(asLuaList(wire)))
+	})
+
+	gg.It("passes a vector argument to client-side Lua as a list of its bytes", func() {
+		gm.Expect(aggregate("argument", as.NewVectorValue(vector))).To(gm.Equal(asLuaList(wire)))
 	})
 })

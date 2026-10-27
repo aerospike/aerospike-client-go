@@ -238,6 +238,13 @@ func (upckr *unpacker) unpackBlob(count int, isMapKey bool) (any, Error) {
 	case ParticleType.GEOJSON:
 		val = NewGeoJSONValue(string(upckr.buffer[upckr.offset : upckr.offset+count]))
 
+	case ParticleType.VECTOR:
+		vector, err := NewVectorFromBytes(upckr.buffer[upckr.offset : upckr.offset+count])
+		if err != nil {
+			return nil, err
+		}
+		val = vector
+
 	case ParticleType.PHP_BLOB:
 	PHP_BLOB_PARSER:
 		switch count {

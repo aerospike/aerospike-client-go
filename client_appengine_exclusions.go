@@ -44,7 +44,14 @@ func SetLuaPath(lpath string) {
 //
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
+//
+// Go's client-side Lua has no bytes type. A vector, whether a bin value or an
+// argument, reaches the client-side stages as a list of its serialized bytes,
+// and comes back as []interface{} holding those bytes, not as a *Vector.
 func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, Error) {
+	if err := statement.rejectTopK(); err != nil {
+		return nil, err
+	}
 	statement.SetAggregateFunction(packageName, functionName, functionArgs, true)
 
 	policy = clnt.getUsableQueryPolicy(policy)

@@ -35,6 +35,7 @@ var (
 	ServerVersionPScan                 = &Version{Major: 4, Minor: 9, Patch: 0, Build: 3}
 	ServerVersionQueryShow             = &Version{Major: 5, Minor: 7, Patch: 0, Build: 0}
 	ServerVersionPQueryBatchAny        = &Version{Major: 6, Minor: 0, Patch: 0, Build: 0}
+	ServerVersionVector                = &Version{Major: 8, Minor: 2, Patch: 1, Build: 0} // TODO: updated with released version
 )
 
 // Pattern to match semantic version: major.minor.patch.build

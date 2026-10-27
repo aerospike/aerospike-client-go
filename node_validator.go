@@ -328,6 +328,10 @@ func (ndv *nodeValidator) setFeatures(alias *Host) Error {
 	if ndv.serverVersion.IsGreaterOrEqual(version.ServerVersionQueryOpsProjectionExt) {
 		ndv.features |= _SUPPORTS_QUERY_OPS_PROJECTION_EXT
 	}
+	if ndv.serverVersion.IsGreaterOrEqual(version.ServerVersionVector) {
+		ndv.features |= _SUPPORTS_VECTOR
+		ndv.features |= _SUPPORTS_QUERY_ORDER_BY
+	}
 
 	return nil
 }
