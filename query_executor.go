@@ -33,6 +33,11 @@ func (clnt *Client) queryPartitions(policy *QueryPolicy, tracker *partitionTrack
 	var errs Error
 	for {
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), statement.Namespace)
+		if err == nil {
+			// A node can lose Top-K support while the query runs, so each
+			// round checks again instead of sending Top-K to that node.
+			err = statement.validateTopKCluster(clnt.cluster)
+		}
 		if err != nil {
 			errs = chainErrors(err, errs)
 			recordset.sendError(errs)

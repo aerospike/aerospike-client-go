@@ -1020,6 +1020,22 @@ var _ = gg.Describe("Query Top-K", func() {
 			expectRefused(mixedCluster.Query(nil, rankByScore()))
 		})
 
+		gg.It("refuses Top-K when a query round starts, even with the start check skipped", func() {
+			putScores(1, 5, 3)
+
+			var queryErr as.Error
+			records := 0
+			for result := range mixedCluster.QueryWithoutTopKChecksForTest(nil, topTen()).Results() {
+				if result.Err != nil {
+					queryErr = result.Err
+				} else {
+					records++
+				}
+			}
+			gm.Expect(records).To(gm.BeZero())
+			expectParameterError(queryErr, "Top-K is not supported by all nodes in the cluster")
+		})
+
 		gg.It("still runs a query without Top-K settings", func() {
 			putScores(1, 5, 3)
 
