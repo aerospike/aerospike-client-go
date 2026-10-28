@@ -71,6 +71,20 @@ const (
 
 var modifyApplyFlag ModifyFlag = 0x04
 
+func validateSelectFlag(v int64) Error {
+	if v < 0 || v&0x04 != 0 {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("invalid select flag %d", v))
+	}
+	return nil
+}
+
+func validateModifyFlag(v int64) Error {
+	if v < 0 || v&0x04 != 0 {
+		return newError(types.PARAMETER_ERROR, fmt.Sprintf("invalid modify flag %d", v))
+	}
+	return nil
+}
+
 // SelectByPath creates CDT select operation with context.
 // Equivalent to as_operations_cdt_select in C client.
 //
@@ -212,8 +226,8 @@ func packIfCDTModify(packer BufferEx, opType int, ctx []*CDTContext, params List
 	// internal APPLY bit) set, is never valid. Without this check a negative
 	// flag would still carry the released NO_FAIL bit after the OR below and
 	// silently tolerate type errors on a write (CLIENT-5183).
-	if v := int64(flag); v < 0 || v&0x04 != 0 {
-		return size, newError(types.PARAMETER_ERROR, fmt.Sprintf("invalid modify flag %d", v))
+	if err = validateModifyFlag(int64(flag)); err != nil {
+		return size, err
 	}
 
 	// Element 3: Pack flags | EXP_PATH_MODIFY_APPLY (ensure apply flag is set)
@@ -296,8 +310,8 @@ func packIfCDTSelect(packer BufferEx, opType int, ctx []*CDTContext, flag Intege
 	// set, is never valid. Previously the value was masked with &^4, but for a
 	// negative input that rewrite lands its low nibble on a server return type,
 	// so the request executes silently instead of erroring (CLIENT-5183).
-	if v := int64(flag); v < 0 || v&0x04 != 0 {
-		return size, newError(types.PARAMETER_ERROR, fmt.Sprintf("invalid select flag %d", v))
+	if err = validateSelectFlag(int64(flag)); err != nil {
+		return size, err
 	}
 
 	// Pack the (validated) select flag as the third and final element. The

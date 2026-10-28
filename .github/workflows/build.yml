@@ -35,7 +35,8 @@ jobs:
         with:
           default_json: |
             {
-              "${{ env.AEROSPIKE_VERSION }}": { "version": "${{ env.AEROSPIKE_VERSION }}" }
+              "${{ env.AEROSPIKE_VERSION }}": { "version": "${{ env.AEROSPIKE_VERSION }}" },
+              "8.2.0.0": { "version": "8.2.0.0" }
             }
           go_version: ${{ steps.get-go-version.outputs.go-version }}
           modes: ${{ github.actor == 'dependabot[bot]' && 'AP' || 'AP,SC' }}
