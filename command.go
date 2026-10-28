@@ -2419,13 +2419,9 @@ const (
 // its request or response outgrew the connection buffer, or nil if the command
 // used the connection buffer throughout.
 //
-// There is exactly one candidate. If dataBufferCompress is set (compression
-// requested, request under the threshold), it holds the whole buffer and
-// dataBuffer is an offset subslice of the same array; otherwise dataBuffer
-// holds the whole buffer. Ownership is decided by array identity: a candidate
-// sharing the connection buffer's array belongs to the connection. The arrays
-// are compared by their last element because executeAt writes the request
-// twice, so the candidate can start inside the connection buffer.
+// The candidate is dataBufferCompress when set (compression requested, request
+// under the threshold), otherwise dataBuffer. A candidate sharing the
+// connection buffer's array belongs to the connection.
 func (cmd *baseCommand) borrowedBuffer() []byte {
 	candidate := cmd.dataBuffer
 	if cmd.dataBufferCompress != nil {
@@ -2434,11 +2430,21 @@ func (cmd *baseCommand) borrowedBuffer() []byte {
 	if len(candidate) == 0 || cmd.conn == nil {
 		return nil
 	}
-	if orig := cmd.conn.origDataBuffer; cap(orig) > 0 &&
-		&candidate[:cap(candidate)][cap(candidate)-1] == &orig[:cap(orig)][cap(orig)-1] {
+	if sameArray(candidate, cmd.conn.origDataBuffer) {
 		return nil
 	}
 	return candidate
+}
+
+// sameArray reports whether a and b are slices of the same backing array,
+// at any offset. executeAt writes the request twice, so the candidate can
+// start inside the connection buffer, and multi commands leave dataBuffer as
+// conn.dataBuffer[head:head+n] from bufferedConn.read.
+func sameArray(a, b []byte) bool {
+	if cap(a) == 0 || cap(b) == 0 {
+		return false
+	}
+	return &a[:cap(a)][cap(a)-1] == &b[:cap(b)][cap(b)-1]
 }
 
 // bufferPool returns the pool the command borrows from and returns to.

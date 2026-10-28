@@ -234,6 +234,19 @@ func TestExecuteAtDoesNotDonateConnectionBufferToPool(t *testing.T) {
 	}
 }
 
+// Multi commands leave dataBuffer as an offset subslice of the connection
+// buffer. Pick an offset that also passes TieredBufferPool.Put's size checks,
+// so only borrowedBuffer stands between the connection buffer and the pool.
+func TestBorrowedBufferRejectsOffsetSubsliceOfConnectionBuffer(t *testing.T) {
+	buf := make([]byte, 4*MinBufferSize)
+	cmd := &baseCommand{conn: &Connection{dataBuffer: buf, origDataBuffer: buf}}
+	cmd.dataBuffer = buf[2*MinBufferSize:]
+
+	if got := cmd.borrowedBuffer(); got != nil {
+		t.Errorf("borrowedBuffer returned an offset subslice of the connection buffer (len %d, cap %d)", len(got), cap(got))
+	}
+}
+
 func allocsPerExecuteAt(t *testing.T, useCompression bool) float64 {
 	t.Helper()
 
