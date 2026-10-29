@@ -9,7 +9,7 @@ permissions:
 
 env:
   AEROSPIKE_HOSTS: "127.0.0.1:3000"
-  AEROSPIKE_VERSION: "8.1.2.0"
+  AEROSPIKE_VERSION: "8.2.0.0"
 
 jobs:
   make-matrix:

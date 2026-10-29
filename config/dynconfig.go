@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -204,10 +204,46 @@ type TxnVerify struct {
 }
 
 type Metrics struct {
-	Enable         *bool              `yaml:"enable"`
-	LatencyColumns *int               `yaml:"latency_columns"`
-	LatencyBase    *int               `yaml:"latency_base"`
-	Labels         *map[string]string `yaml:"labels"`
+	// Enable is the legacy flat YAML key (metrics.enable). Prefer Enabled
+	// (metrics.enabled) for v3; both are accepted during migration.
+	Enable *bool `yaml:"enable"`
+	// Enabled is the v3 master flag (metrics.enabled). When both Enable and
+	// Enabled are set, Enabled wins.
+	Enabled        *bool   `yaml:"enabled"`
+	LatencyColumns *int    `yaml:"latency_columns"`
+	LatencyBase    *int    `yaml:"latency_base"`
+	LatencyShift   *int    `yaml:"latency_shift"`
+	LatencyUnit    *string `yaml:"latency_unit"`
+	// ExportInterval is a duration with unit (e.g. "30s", "500ms") or a bare
+	// integer number of seconds. Stored as interface{} so YAML can accept either.
+	ExportInterval  interface{}        `yaml:"export_interval"`
+	Exporter        *string            `yaml:"exporter"`
+	ReportDir       *string            `yaml:"report_dir"`
+	ReportSizeLimit *int               `yaml:"report_size_limit"`
+	Labels          *map[string]string `yaml:"labels"`
+	Extended        *MetricsExtended   `yaml:"extended"`
+}
+
+type MetricsExtended struct {
+	Operational *MetricsOperational `yaml:"operational"`
+	Usage       *MetricsUsage       `yaml:"usage"`
+}
+
+type MetricsOperational struct {
+	Enabled        *bool           `yaml:"enabled"`
+	LatencyUnit    *string         `yaml:"latency_unit"`
+	LatencyColumns *int            `yaml:"latency_columns"`
+	LatencyShift   *int            `yaml:"latency_shift"`
+	Sampler        *MetricsSampler `yaml:"sampler"`
+}
+
+type MetricsUsage struct {
+	Enabled *bool `yaml:"enabled"`
+}
+
+type MetricsSampler struct {
+	Range     *int `yaml:"range"`
+	Threshold *int `yaml:"threshold"`
 }
 
 // ----------------------------------------------------------------

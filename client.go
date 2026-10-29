@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -2306,6 +2306,12 @@ func (clnt *Client) DisableMetrics() {
 	} else {
 		clnt.cluster.DisableMetrics()
 	}
+}
+
+// MetricsSnapshot returns a point-in-time metrics snapshot. Always available;
+// counters are frozen when collection is off. Independent of the export timer.
+func (clnt *Client) MetricsSnapshot() *MetricsSnapshot {
+	return clnt.cluster.MetricsSnapshot()
 }
 
 // Stats returns internal statistics regarding the inner state of the client and the cluster.

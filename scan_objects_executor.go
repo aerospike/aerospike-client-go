@@ -26,6 +26,12 @@ import (
 func (clnt *Client) scanPartitionObjects(policy *ScanPolicy, tracker *partitionTracker, namespace string, setName string, rs *Recordset, binNames ...string) Error {
 	defer rs.signalEnd()
 
+	var filter *Expression
+	if policy != nil {
+		filter = policy.FilterExpression
+	}
+	metricsOn, sampled, callStart := clnt.beginPartitionCallMetrics(ttScan, filter)
+
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
@@ -34,6 +40,7 @@ func (clnt *Client) scanPartitionObjects(policy *ScanPolicy, tracker *partitionT
 		list, err := tracker.assignPartitionsToNodes(clnt.Cluster(), namespace)
 		if err != nil {
 			tracker.partitionError()
+			clnt.endPartitionCallMetrics(sampled, callStart, LatencyQuery, err)
 			return err
 		}
 
@@ -58,7 +65,7 @@ func (clnt *Client) scanPartitionObjects(policy *ScanPolicy, tracker *partitionT
 			go func(nodePartition *nodePartitions) {
 				defer sem.Release(1)
 				defer wg.Done()
-				if err := clnt.scanNodePartitionObjects(policy, rs, tracker, nodePartition, namespace, setName, binNames...); err != nil {
+				if err := clnt.scanNodePartitionObjects(policy, rs, tracker, nodePartition, namespace, setName, metricsOn, sampled, binNames...); err != nil {
 					tracker.partitionError()
 					logger.Logger.Debug("Error while Executing scan for node %s: %s", nodePartition.node.String(), err.Error())
 				}
@@ -73,6 +80,7 @@ func (clnt *Client) scanPartitionObjects(policy *ScanPolicy, tracker *partitionT
 				tracker.partitionError()
 			}
 			// Scan is complete.
+			clnt.endPartitionCallMetrics(sampled, callStart, LatencyQuery, err)
 			return err
 		}
 
@@ -90,7 +98,10 @@ func (clnt *Client) scanPartitionObjects(policy *ScanPolicy, tracker *partitionT
 
 // ScanNode reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodePartitionObjects(policy *ScanPolicy, recordset *Recordset, tracker *partitionTracker, nodePartition *nodePartitions, namespace string, setName string, binNames ...string) Error {
+func (clnt *Client) scanNodePartitionObjects(policy *ScanPolicy, recordset *Recordset, tracker *partitionTracker, nodePartition *nodePartitions, namespace string, setName string, metricsOn, sampled bool, binNames ...string) Error {
 	command := newScanPartitionObjectsCommand(policy, tracker, nodePartition, namespace, setName, binNames, recordset)
+	if metricsOn {
+		command.setMetricsChild(sampled)
+	}
 	return command.Execute()
 }

@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,8 +38,9 @@ type detailedResultCodeArray = [ttMaxCommandTypes]atomic.Pointer[commandResultCo
 // These statistics are aggregated once per tend in the cluster object
 // and then are served to the end-user.
 type nodeStats struct {
-	// MetricsPolicy contains policy, default values for histograms, which are used on node_stats init time
-	metricPolicy *MetricsPolicy
+	// MetricsPolicy contains policy, default values for histograms, which are used on node_stats init time.
+	// Stored atomically so reshape can swap without racing hot-path readers.
+	metricPolicy atomic.Pointer[MetricsPolicy]
 
 	// Labels sourced once at applications start and passed down to metrics when metrics are enabled
 	StatLabels *Labels `json:"labels,omitempty"`
@@ -109,6 +110,30 @@ type nodeStats struct {
 	DetailedResultCodeCounts sync.Map // map[string]*detailedResultCodeArray
 	// Detailed metrics for per namespace and per command type - using preallocated arrays for commandType (lock-free)
 	DetailedMetrics sync.Map // map[string]*detailedMetricsArray
+
+	// Shared MUST operational series (namespace.errors, bytes, latency classes).
+	OperationalNamespaces sync.Map // map[string]*nsOperationalMetrics
+
+	// node.latency.conn — successful new socket open (Decision 15). Not sampler-gated.
+	ConnLatency hist.SyncLatencyBuckets
+
+	// CM-8 on existing Node (open.failure rolls up tls/auth).
+	ConnectionOpenFailure         iatomic.Int `json:"connection-open-failure"`
+	ConnectionTlsHandshakeFailure iatomic.Int `json:"connection-tls-handshake-failure"`
+	ConnectionAuthFailure         iatomic.Int `json:"connection-auth-failure"`
+}
+
+// nsOperationalMetrics is the shared per-namespace operational block.
+type nsOperationalMetrics struct {
+	Errors         iatomic.Int
+	ClientTimeouts iatomic.Int
+	ServerTimeouts iatomic.Int
+	KeyBusy        iatomic.Int
+	RecordTooBig   iatomic.Int
+	DeviceOverload iatomic.Int
+	BytesIn        iatomic.Int
+	BytesOut       iatomic.Int
+	Latencies      [latencyTypeMax]hist.SyncLatencyBuckets
 }
 
 // commandResultCodeMetric keeps track of the ResultCode counts for a given command
@@ -125,14 +150,23 @@ type commandMetric struct {
 	BytesReceived hist.SyncHistogram[uint64] `json:"bytes-received"`
 }
 
+// getMetricPolicy returns the current metrics policy (may be nil before reshape).
+func (n *nodeStats) getMetricPolicy() *MetricsPolicy {
+	return n.metricPolicy.Load()
+}
+
 // newCommandMetric creates a new CommandMetric object
 func (n *nodeStats) newCommandMetric() *commandMetric {
+	policy := n.getMetricPolicy()
+	if policy == nil {
+		policy = DefaultMetricsPolicy()
+	}
 	return &commandMetric{
-		ConnectionAq:  *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		Latency:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		Parsing:       *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		BytesSent:     *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
-		BytesReceived: *hist.NewSync[uint64](n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns),
+		ConnectionAq:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		Latency:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		Parsing:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BytesSent:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BytesReceived: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
 	}
 }
 
@@ -142,21 +176,30 @@ func newNodeStats(policy *MetricsPolicy) *nodeStats {
 		policy = DefaultMetricsPolicy()
 	}
 
-	return &nodeStats{
-		metricPolicy:     policy,
-		StatLabels:       NewLabels(),
-		GetMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		GetHeaderMetrics: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		ExistsMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		PutMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		DeleteMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		OperateMetrics:   *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		QueryMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		ScanMetrics:      *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
-		UDFMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+	cols, shift := policy.LatencyColumns, policy.LatencyShift
+	if cols < 1 {
+		cols = defaultLatencyColumns
+	}
+	if shift < 1 {
+		shift = defaultLatencyShift
+	}
+	ns := &nodeStats{
+		StatLabels:        NewLabels(),
+		GetMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		GetHeaderMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ExistsMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		PutMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		DeleteMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		OperateMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		QueryMetrics:      *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ScanMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		UDFMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
 		BatchReadMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
 		BatchWriteMetrics: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ConnLatency:       *hist.NewSyncLatencyBuckets(cols, shift),
 	}
+	ns.metricPolicy.Store(policy)
+	return ns
 }
 
 // newCommandResultCodeMetric creates a new CommandErrorMetric object
@@ -220,7 +263,6 @@ func (n *nodeStats) getOrCreateResultCodeMetric(arr *detailedResultCodeArray, ct
 // latest returns the latest values to be used in aggregation and then resets the values
 func (ns *nodeStats) getAndReset() *nodeStats {
 	res := &nodeStats{
-		metricPolicy:             ns.metricPolicy,
 		StatLabels:               NewLabels(),
 		ConnectionsAttempts:      ns.ConnectionsAttempts.CloneAndSet(0),
 		ConnectionsSuccessful:    ns.ConnectionsSuccessful.CloneAndSet(0),
@@ -244,28 +286,34 @@ func (ns *nodeStats) getAndReset() *nodeStats {
 		TransactionRetryCount: ns.TransactionRetryCount.CloneAndSet(0),
 		TransactionErrorCount: ns.TransactionErrorCount.CloneAndSet(0),
 
-		GetMetrics:       *ns.GetMetrics.CloneAndReset(),
-		GetHeaderMetrics: *ns.GetHeaderMetrics.CloneAndReset(),
-		ExistsMetrics:    *ns.ExistsMetrics.CloneAndReset(),
-		PutMetrics:       *ns.PutMetrics.CloneAndReset(),
-		DeleteMetrics:    *ns.DeleteMetrics.CloneAndReset(),
-		OperateMetrics:   *ns.OperateMetrics.CloneAndReset(),
-		QueryMetrics:     *ns.QueryMetrics.CloneAndReset(),
-		ScanMetrics:      *ns.ScanMetrics.CloneAndReset(),
-		UDFMetrics:       *ns.UDFMetrics.CloneAndReset(),
+		ConnectionOpenFailure:         ns.ConnectionOpenFailure.CloneAndSet(0),
+		ConnectionTlsHandshakeFailure: ns.ConnectionTlsHandshakeFailure.CloneAndSet(0),
+		ConnectionAuthFailure:         ns.ConnectionAuthFailure.CloneAndSet(0),
+
+		GetMetrics:        *ns.GetMetrics.CloneAndReset(),
+		GetHeaderMetrics:  *ns.GetHeaderMetrics.CloneAndReset(),
+		ExistsMetrics:     *ns.ExistsMetrics.CloneAndReset(),
+		PutMetrics:        *ns.PutMetrics.CloneAndReset(),
+		DeleteMetrics:     *ns.DeleteMetrics.CloneAndReset(),
+		OperateMetrics:    *ns.OperateMetrics.CloneAndReset(),
+		QueryMetrics:      *ns.QueryMetrics.CloneAndReset(),
+		ScanMetrics:       *ns.ScanMetrics.CloneAndReset(),
+		UDFMetrics:        *ns.UDFMetrics.CloneAndReset(),
 		BatchReadMetrics:  *ns.BatchReadMetrics.CloneAndReset(),
 		BatchWriteMetrics: *ns.BatchWriteMetrics.CloneAndReset(),
+		ConnLatency:       hist.SyncLatencyBuckets{LatencyBuckets: *ns.ConnLatency.CloneAndReset()},
 	}
+	res.metricPolicy.Store(ns.getMetricPolicy())
 
 	ns.cloneAndResetDetailedResultCodeCountsInto(&res.DetailedResultCodeCounts)
 	ns.cloneAndResetDetailedMetricsInto(&res.DetailedMetrics)
+	ns.cloneAndResetOperationalInto(res)
 
 	return res
 }
 
 func (ns *nodeStats) clone() nodeStats {
 	res := nodeStats{
-		metricPolicy:             ns.metricPolicy,
 		StatLabels:               NewLabels(),
 		ConnectionsAttempts:      ns.ConnectionsAttempts.Clone(),
 		ConnectionsSuccessful:    ns.ConnectionsSuccessful.Clone(),
@@ -289,21 +337,28 @@ func (ns *nodeStats) clone() nodeStats {
 		TransactionRetryCount: ns.TransactionRetryCount.Clone(),
 		TransactionErrorCount: ns.TransactionErrorCount.Clone(),
 
-		GetMetrics:       *ns.GetMetrics.Clone(),
-		GetHeaderMetrics: *ns.GetHeaderMetrics.Clone(),
-		ExistsMetrics:    *ns.ExistsMetrics.Clone(),
-		PutMetrics:       *ns.PutMetrics.Clone(),
-		DeleteMetrics:    *ns.DeleteMetrics.Clone(),
-		OperateMetrics:   *ns.OperateMetrics.Clone(),
-		QueryMetrics:     *ns.QueryMetrics.Clone(),
-		ScanMetrics:      *ns.ScanMetrics.Clone(),
-		UDFMetrics:       *ns.UDFMetrics.Clone(),
+		ConnectionOpenFailure:         ns.ConnectionOpenFailure.Clone(),
+		ConnectionTlsHandshakeFailure: ns.ConnectionTlsHandshakeFailure.Clone(),
+		ConnectionAuthFailure:         ns.ConnectionAuthFailure.Clone(),
+
+		GetMetrics:        *ns.GetMetrics.Clone(),
+		GetHeaderMetrics:  *ns.GetHeaderMetrics.Clone(),
+		ExistsMetrics:     *ns.ExistsMetrics.Clone(),
+		PutMetrics:        *ns.PutMetrics.Clone(),
+		DeleteMetrics:     *ns.DeleteMetrics.Clone(),
+		OperateMetrics:    *ns.OperateMetrics.Clone(),
+		QueryMetrics:      *ns.QueryMetrics.Clone(),
+		ScanMetrics:       *ns.ScanMetrics.Clone(),
+		UDFMetrics:        *ns.UDFMetrics.Clone(),
 		BatchReadMetrics:  *ns.BatchReadMetrics.Clone(),
 		BatchWriteMetrics: *ns.BatchWriteMetrics.Clone(),
+		ConnLatency:       hist.SyncLatencyBuckets{LatencyBuckets: *ns.ConnLatency.Clone()},
 	}
+	res.metricPolicy.Store(ns.getMetricPolicy())
 
 	ns.cloneDetailedResultCodeCountsInto(&res.DetailedResultCodeCounts)
 	ns.cloneDetailedMetricsInto(&res.DetailedMetrics)
+	ns.cloneOperationalInto(&res)
 
 	return res
 }
@@ -401,7 +456,9 @@ func (ns *nodeStats) cloneAndResetDetailedResultCodeCountsInto(target *sync.Map)
 }
 
 func (ns *nodeStats) reshape(policy *MetricsPolicy) {
-	ns.metricPolicy = policy
+	prev := ns.metricPolicy.Load()
+	unitChanged := prev != nil && prev.LatencyUnit != policy.LatencyUnit
+	ns.metricPolicy.Store(policy)
 	ns.StatLabels = NewLabels()
 	ns.GetMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 	ns.GetHeaderMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
@@ -416,6 +473,17 @@ func (ns *nodeStats) reshape(policy *MetricsPolicy) {
 	ns.BatchWriteMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 	ns.reshapeDetailedResultCodeCounts()
 	ns.reshapeDetailedMetrics()
+	if unitChanged {
+		ns.ConnLatency.Reset()
+		ns.OperationalNamespaces.Range(func(_, value any) bool {
+			op := value.(*nsOperationalMetrics)
+			for i := range op.Latencies {
+				op.Latencies[i].Reset()
+			}
+			return true
+		})
+	}
+	ns.reshapeOperational()
 }
 
 func (ns *nodeStats) aggregate(newStats *nodeStats) {
@@ -441,6 +509,9 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 
 	ns.TransactionRetryCount.AddAndGet(newStats.TransactionRetryCount.Get())
 	ns.TransactionErrorCount.AddAndGet(newStats.TransactionErrorCount.Get())
+	ns.ConnectionOpenFailure.AddAndGet(newStats.ConnectionOpenFailure.Get())
+	ns.ConnectionTlsHandshakeFailure.AddAndGet(newStats.ConnectionTlsHandshakeFailure.Get())
+	ns.ConnectionAuthFailure.AddAndGet(newStats.ConnectionAuthFailure.Get())
 
 	ns.GetMetrics.Merge(&newStats.GetMetrics)
 	ns.GetHeaderMetrics.Merge(&newStats.GetHeaderMetrics)
@@ -453,8 +524,10 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.UDFMetrics.Merge(&newStats.UDFMetrics)
 	ns.BatchReadMetrics.Merge(&newStats.BatchReadMetrics)
 	ns.BatchWriteMetrics.Merge(&newStats.BatchWriteMetrics)
+	ns.ConnLatency.Merge(newStats.ConnLatency.Clone())
 	ns.mergeCommandResultCodeMetric(newStats)
 	ns.mergeDetailedMetrics(newStats)
+	ns.mergeOperational(newStats)
 }
 
 func (ns nodeStats) MarshalJSON() ([]byte, error) {
@@ -753,6 +826,10 @@ func (n *nodeStats) mergeCommandResultCodeMetric(ns *nodeStats) {
 
 // reshapeDetailedMetrics reshapes the detailed metrics as defined by `hist.SyncHistogram`
 func (n *nodeStats) reshapeDetailedMetrics() {
+	policy := n.getMetricPolicy()
+	if policy == nil {
+		policy = DefaultMetricsPolicy()
+	}
 	n.DetailedMetrics.Range(func(key, value any) bool {
 		arr := value.(*detailedMetricsArray)
 		for ct := commandType(0); ct < ttMaxCommandTypes; ct++ {
@@ -760,11 +837,11 @@ func (n *nodeStats) reshapeDetailedMetrics() {
 			if metric == nil {
 				continue
 			}
-			metric.ConnectionAq.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			metric.Latency.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			metric.Parsing.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			metric.BytesSent.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
-			metric.BytesReceived.Reshape(n.metricPolicy.HistogramType, uint64(n.metricPolicy.LatencyBase), n.metricPolicy.LatencyColumns)
+			metric.ConnectionAq.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+			metric.Latency.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+			metric.Parsing.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+			metric.BytesSent.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+			metric.BytesReceived.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
 		}
 		return true
 	})
@@ -787,7 +864,9 @@ func (n *nodeStats) reshapeDetailedResultCodeCounts() {
 	})
 }
 
-// updateOrInsert updates result code counts (lock-free)
+// updateOrInsert updates detailed (Go-local) result code counts (lock-free).
+// Shared namespace.* error/timeout split counters are updated separately via
+// recordAttemptFailure (Decision 14 / collection v36 — per failed attempt).
 func (n *nodeStats) updateOrInsert(namespace *string, namespaces iter.Seq2[string, uint64], ct commandType, resultCode types.ResultCode) {
 	if namespace != nil {
 		arr := n.getOrCreateResultCodeArray(*namespace)

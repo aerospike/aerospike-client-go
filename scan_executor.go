@@ -1,4 +1,4 @@
-// Copyright 2014-2022 Aerospike, Inc.
+// Copyright 2014-2026 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,16 @@ import (
 	"time"
 )
 
+// scanPartitions fans out per-node scan RPCs. Metrics: one decision for the
+// whole Scan (see beginPartitionCallMetrics).
 func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker, namespace string, setName string, recordset *Recordset, binNames ...string) {
 	defer recordset.signalEnd()
+
+	var filter *Expression
+	if policy != nil {
+		filter = policy.FilterExpression
+	}
+	metricsOn, sampled, callStart := clnt.beginPartitionCallMetrics(ttScan, filter)
 
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
@@ -31,6 +39,7 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 			errs = chainErrors(err, errs)
 			recordset.sendError(errs)
 			tracker.partitionError()
+			clnt.endPartitionCallMetrics(sampled, callStart, LatencyQuery, errs)
 			return
 		}
 
@@ -43,6 +52,9 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 			weg := newWeightedErrGroup(maxConcurrentNodes)
 			for _, nodePartition := range list {
 				cmd := newScanPartitionCommand(policy, tracker, nodePartition, namespace, setName, binNames, recordset)
+				if metricsOn {
+					cmd.setMetricsChild(sampled)
+				}
 				weg.execute(cmd)
 			}
 			errs = chainErrors(weg.wait(), errs)
@@ -55,6 +67,7 @@ func (clnt *Client) scanPartitions(policy *ScanPolicy, tracker *partitionTracker
 				tracker.partitionError()
 				recordset.sendError(errs)
 			}
+			clnt.endPartitionCallMetrics(sampled, callStart, LatencyQuery, errs)
 			return
 		}
 
